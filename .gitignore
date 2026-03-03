@@ -2,6 +2,10 @@
 node_modules/
 .venv/
 __pycache__/
+*.pyc
+*.egg-info/
+dist/
+build/
 
 # Environment
 .env
@@ -13,3 +17,15 @@ __pycache__/
 # IDE
 .vscode/
 .idea/
+
+# Python
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Docker
+.docker/
+
+# Coverage
+htmlcov/
+.coverage

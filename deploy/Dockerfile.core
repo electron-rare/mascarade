@@ -1,0 +1,12 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+COPY core/pyproject.toml .
+RUN pip install --no-cache-dir .
+
+COPY core/mascarade/ mascarade/
+
+EXPOSE 8100
+
+CMD ["python", "-m", "uvicorn", "mascarade.server:app", "--host", "0.0.0.0", "--port", "8100"]
