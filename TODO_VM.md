@@ -19,10 +19,11 @@
 ## A faire
 
 ### 1. Fixer Langfuse
-- [ ] Le container ne crash plus mais le health endpoint ne répond pas
+- [ ] Le container ne crash plus mais le health endpoint ne répond pas (toujours KO)
 - [ ] Erreur : `TypeError: Cannot set property message of ZodError which has only a getter`
 - [ ] Env vars ajoutées : `ENCRYPTION_KEY`, `REDIS_HOST/PORT`, `LANGFUSE_S3_EVENT_UPLOAD_ENABLED=false`
-- [ ] Piste : vérifier si c'est un bug de la version `latest`, tester une version spécifique (ex: `3.50.0`)
+- [x] Piste testée : version spécifique `3.50.0` (KO aussi)
+- [x] Décision machine légère : service désactivé par défaut (profile `heavy`)
 - [ ] Fichier : `~/tools/docker-compose.yml`
 
 ### 2. Configurer les clés API
@@ -31,43 +32,43 @@
   - `OPENAI_API_KEY`
   - `MISTRAL_API_KEY`
   - `NOTION_TOKEN`
-- [ ] Copier/linker le `.env` pour `~/tools/` (LiteLLM, Dify en ont besoin)
-- [ ] Restart mascarade + tools après
+- [x] Copier/linker le `.env` pour `~/tools/` (LiteLLM, Dify en ont besoin) — synchronisation effectuée
+- [x] Restart mascarade + tools après
 
 ### 3. Déployer Firecrawl
 - [ ] L'image `ghcr.io/mendableai/firecrawl:latest` est privée (denied)
 - [ ] Alternative : `mendableai/firecrawl` sur Docker Hub ou build depuis le repo GitHub
-- [ ] Port prévu : 3400
+- [x] Port prévu : 3400
 - [ ] Utilise Redis existant (`zacus-redis:6379/2`)
 
 ### 4. Déployer Mem0
 - [ ] L'image `mem0ai/mem0` n'existe pas sur Docker Hub
 - [ ] Alternative 1 : installer via pip (`pip install mem0ai`) dans un venv Python sur la VM
 - [ ] Alternative 2 : utiliser `openmemory-mcp` (le repo officiel Mem0)
-- [ ] Port prévu : 3300
+- [x] Port prévu : 3300
 - [ ] Utilise Qdrant existant (`zacus-qdrant:6333`)
 
 ### 5. Installer les outils Python
-- [ ] Créer un venv dans `~/tools/python-tools/`
-- [ ] **GraphRAG** (`pip install graphrag`) — indexation de graphes de connaissances
-- [ ] **Docling** (`pip install docling`) — extraction de documents (PDF, DOCX → markdown)
-- [ ] **Whisper** (`pip install openai-whisper`) — transcription audio → texte
+- [x] Créer un venv dans `~/tools/python-tools/`
+- [x] **GraphRAG** (`pip install graphrag`) — installé dans `~/tools/python-tools/.venv`
+- [ ] **Docling** (`pip install docling`) — résolution de dépendances très longue / interrompue
+- [ ] **Whisper** (`pip install openai-whisper`) — inclus dans la tentative globale interrompue
 
 ### 6. Ajouter deps Mascarade
-- [ ] **CrewAI** — ajouter dans `core/pyproject.toml`, créer un skill d'orchestration multi-agents
-- [ ] **OpenAI Agents SDK** — ajouter comme provider alternatif ou outil d'orchestration
-- [ ] Rebuild image Docker mascarade après
+- [x] **CrewAI** — ajouté dans `core/pyproject.toml`, skill d'orchestration ajouté
+- [x] **OpenAI Agents SDK** — ajouté comme dépendance
+- [x] Rebuild image Docker mascarade après
 
 ### 7. Configurer MCP Servers (local Mac)
-- [ ] Installer `@anthropic-ai/mcp` et serveurs MCP utiles
-- [ ] Playwright MCP pour le scraping navigateur
-- [ ] Connecter Claude Code aux MCP servers via `~/.claude/settings.json`
+- [ ] Installer `@anthropic-ai/mcp` et serveurs MCP utiles (à faire sur Mac)
+- [ ] Playwright MCP pour le scraping navigateur (à faire sur Mac)
+- [x] Connecter Claude Code aux MCP servers via `~/.claude/settings.json` (config locale VM prête)
 
 ### 8. Sécuriser les accès
-- [ ] Tous les ports sont en `127.0.0.1` (local uniquement)
+- [x] Tous les ports Mascarade/Tools ajoutés sont en `127.0.0.1` (local uniquement)
 - [ ] Mettre en place un reverse proxy (Caddy/nginx) pour exposer avec HTTPS
-- [ ] Activer l'auth Bearer sur Mascarade (`MASCARADE_API_KEY` dans `.env`)
-- [ ] Changer le mot de passe Postgres (actuellement `Postgres2026secure`)
+- [x] Activer l'auth Bearer sur Mascarade (`MASCARADE_API_KEY` dans `.env`)
+- [x] Changer le mot de passe Postgres (rotation effectuée)
 
 ### 9. Monitoring
 - [ ] Connecter Langfuse (une fois fixé) à Mascarade pour tracer les appels LLM

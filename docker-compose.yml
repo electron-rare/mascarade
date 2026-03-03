@@ -1,22 +1,38 @@
+x-default-logging: &default_logging
+  driver: "json-file"
+  options:
+    max-size: "10m"
+    max-file: "5"
+
 services:
   core:
     build:
       context: .
       dockerfile: deploy/Dockerfile.core
     ports:
-      - "8100:8100"
+      - "127.0.0.1:8100:8100"
     env_file:
       - .env
     volumes:
       - core-data:/app/data
     restart: unless-stopped
+    logging: *default_logging
+    healthcheck:
+      test:
+        - "CMD"
+        - "python"
+        - "-c"
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8100/health').read()"
+      interval: 20s
+      timeout: 10s
+      retries: 6
 
   api:
     build:
       context: .
       dockerfile: deploy/Dockerfile.api
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3100:3000"
     env_file:
       - .env
     environment:
@@ -25,6 +41,16 @@ services:
     depends_on:
       - core
     restart: unless-stopped
+    logging: *default_logging
+    healthcheck:
+      test:
+        - "CMD"
+        - "node"
+        - "-e"
+        - "fetch('http://127.0.0.1:3000/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"
+      interval: 20s
+      timeout: 10s
+      retries: 6
 
 volumes:
   core-data:

@@ -19,3 +19,15 @@ try:
     __all__.append("MistralProvider")
 except ImportError:
     pass
+
+try:
+    from mascarade.router.providers.bedrock import BedrockProvider
+    __all__.append("BedrockProvider")
+except ImportError:
+    pass
+
+try:
+    from mascarade.router.providers.google import GoogleProvider
+    __all__.append("GoogleProvider")
+except ImportError:
+    pass

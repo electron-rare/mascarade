@@ -1,6 +1,6 @@
 # Mascarade
 
-Systeme d'orchestration agentique personnel. Route intelligemment les requetes LLM entre Claude, GPT et Mistral, avec agents specialises, orchestration multi-agents, cache, fallback automatique et integration Notion.
+Systeme d'orchestration agentique personnel. Route intelligemment les requetes LLM entre Claude, GPT, Mistral, AWS Bedrock et Google Gemini, avec agents specialises, orchestration multi-agents, cache, fallback automatique et integration Notion.
 
 ## Architecture
 
@@ -54,7 +54,7 @@ Systeme d'orchestration agentique personnel. Route intelligemment les requetes L
 - **Docker** et **Docker Compose** (deploiement)
 - **Python 3.11+** (dev local core)
 - **Node.js 22+** (dev local API)
-- Au moins une cle API LLM (Anthropic, OpenAI ou Mistral)
+- Au moins une cle API LLM (Anthropic, OpenAI, Mistral, AWS Bedrock ou Google)
 
 ---
 
@@ -80,6 +80,19 @@ Editer `.env` et remplir les cles :
 ANTHROPIC_API_KEY=sk-ant-xxxxx          # Claude (best quality)
 OPENAI_API_KEY=sk-xxxxx                 # GPT (fastest)
 MISTRAL_API_KEY=xxxxx                   # Mistral (cheapest)
+GOOGLE_API_KEY=xxxxx                    # Gemini API (optionnel)
+
+# AWS Bedrock (optionnel)
+AWS_ACCESS_KEY_ID=AKIA...
+AWS_SECRET_ACCESS_KEY=...
+AWS_REGION=eu-west-1
+AWS_BEDROCK_MODEL_ID=anthropic.claude-3-5-sonnet-20241022-v2:0
+
+# Google Cloud / Vertex (optionnel)
+GOOGLE_CLOUD_PROJECT=mon-projet
+GOOGLE_CLOUD_LOCATION=europe-west1
+GOOGLE_APPLICATION_CREDENTIALS=/chemin/key.json
+GOOGLE_MODEL=gemini-2.5-flash
 
 # Notion — optionnel, pour la KB et les dashboards
 NOTION_API_KEY=ntn_xxxxx
@@ -101,6 +114,13 @@ DEFAULT_MODEL=claude-sonnet-4-6
 ```
 
 Le routeur active automatiquement les providers dont la cle est presente. Pas de cle = provider ignore.
+
+Validation cloud rapide:
+
+```bash
+./scripts/check_aws_bedrock.sh
+./scripts/check_google_cloud.sh
+```
 
 ### 3. Lancer avec Docker (recommande)
 

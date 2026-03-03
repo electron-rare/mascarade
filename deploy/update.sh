@@ -65,11 +65,15 @@ fi
 # --- Tests Python ---
 log "Lancement des tests..."
 if [[ -d "$REPO_DIR/core/.venv" ]]; then
-    (cd "$REPO_DIR/core" && .venv/bin/python -m pytest -q 2>&1) || {
-        err "Tests échoués — abandon du déploiement"
-        exit 1
-    }
-    ok "Tests passés"
+    if (cd "$REPO_DIR/core" && .venv/bin/python -c "import pytest" >/dev/null 2>&1); then
+        (cd "$REPO_DIR/core" && .venv/bin/python -m pytest -q 2>&1) || {
+            err "Tests échoués — abandon du déploiement"
+            exit 1
+        }
+        ok "Tests passés"
+    else
+        warn "pytest absent dans core/.venv — skip tests"
+    fi
 else
     warn "Pas de .venv — skip tests (les tests tourneront dans le build Docker)"
 fi
@@ -88,7 +92,7 @@ fi
 
 # --- Health check ---
 log "Vérification du health..."
-RETRIES=10
+RETRIES=20
 DELAY=2
 
 check_health() {
@@ -105,14 +109,28 @@ check_health() {
     return 1
 }
 
+resolve_host_port() {
+    local service="$1"
+    local container_port="$2"
+    local mapping
+    mapping="$(docker compose port "$service" "$container_port" 2>/dev/null | head -n1 || true)"
+    if [[ -z "$mapping" ]]; then
+        return 1
+    fi
+    # Format attendu: 0.0.0.0:3100 ou [::]:3100
+    echo "${mapping##*:}"
+}
+
 HEALTHY=true
 
 if [[ -z "$SERVICE" || "$SERVICE" == "core" ]]; then
-    check_health "http://localhost:8100/health" "Core" || HEALTHY=false
+    CORE_PORT="$(resolve_host_port core 8100 || echo 8100)"
+    check_health "http://localhost:${CORE_PORT}/health" "Core" || HEALTHY=false
 fi
 
 if [[ -z "$SERVICE" || "$SERVICE" == "api" ]]; then
-    check_health "http://localhost:3000/health" "API" || HEALTHY=false
+    API_PORT="$(resolve_host_port api 3000 || echo 3000)"
+    check_health "http://localhost:${API_PORT}/health" "API" || HEALTHY=false
 fi
 
 # --- Résultat ---

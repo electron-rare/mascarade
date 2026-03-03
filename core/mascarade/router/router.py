@@ -36,6 +36,8 @@ class Router:
             ("mascarade.router.providers.claude", "ClaudeProvider"),
             ("mascarade.router.providers.openai", "OpenAIProvider"),
             ("mascarade.router.providers.mistral", "MistralProvider"),
+            ("mascarade.router.providers.bedrock", "BedrockProvider"),
+            ("mascarade.router.providers.google", "GoogleProvider"),
         ]
 
         for module_name, class_name in provider_specs:

@@ -32,6 +32,20 @@ class Settings(BaseSettings):
     anthropic_api_key: str = ""
     openai_api_key: str = ""
     mistral_api_key: str = ""
+    google_api_key: str = ""
+
+    # AWS Bedrock
+    aws_access_key_id: str = ""
+    aws_secret_access_key: str = ""
+    aws_session_token: str = ""
+    aws_region: str = "eu-west-1"
+    aws_bedrock_model_id: str = "anthropic.claude-3-5-sonnet-20241022-v2:0"
+
+    # Google / Gemini
+    google_cloud_project: str = ""
+    google_cloud_location: str = "europe-west1"
+    google_application_credentials: str = ""
+    google_model: str = "gemini-2.5-flash"
 
     # Notion
     notion_api_key: str = ""
