@@ -88,4 +88,104 @@ agents.get("/providers", async (c) => {
   }
 });
 
+/** Récupérer le résumé global de métriques */
+agents.get("/metrics", async (c) => {
+  try {
+    const result = await coreClient.getMetrics();
+    return c.json(result);
+  } catch (error) {
+    const { status, body } = handleCoreError(error);
+    return c.json(body, status);
+  }
+});
+
+/** Reset de toutes les métriques runtime */
+agents.post("/metrics/reset", async (c) => {
+  try {
+    const result = await coreClient.resetMetrics();
+    return c.json(result);
+  } catch (error) {
+    const { status, body } = handleCoreError(error);
+    return c.json(body, status);
+  }
+});
+
+/** Récupérer les métriques d'un provider */
+agents.get("/metrics/:provider", async (c) => {
+  try {
+    const provider = c.req.param("provider");
+    const result = await coreClient.getProviderMetrics(provider);
+    return c.json(result);
+  } catch (error) {
+    const { status, body } = handleCoreError(error);
+    return c.json(body, status);
+  }
+});
+
+/** Statistiques du cache de réponses */
+agents.get("/cache/stats", async (c) => {
+  try {
+    const result = await coreClient.getCacheStats();
+    return c.json(result);
+  } catch (error) {
+    const { status, body } = handleCoreError(error);
+    return c.json(body, status);
+  }
+});
+
+/** Reset cache */
+agents.post("/cache/reset", async (c) => {
+  try {
+    const result = await coreClient.resetCache();
+    return c.json(result);
+  } catch (error) {
+    const { status, body } = handleCoreError(error);
+    return c.json(body, status);
+  }
+});
+
+/** Statistiques du load balancer */
+agents.get("/load-balancer/stats", async (c) => {
+  try {
+    const result = await coreClient.getLoadBalancerStats();
+    return c.json(result);
+  } catch (error) {
+    const { status, body } = handleCoreError(error);
+    return c.json(body, status);
+  }
+});
+
+/** Reset load balancer */
+agents.post("/load-balancer/reset", async (c) => {
+  try {
+    const result = await coreClient.resetLoadBalancer();
+    return c.json(result);
+  } catch (error) {
+    const { status, body } = handleCoreError(error);
+    return c.json(body, status);
+  }
+});
+
+/** Statistiques fallback */
+agents.get("/fallback/stats", async (c) => {
+  try {
+    const result = await coreClient.getFallbackStats();
+    return c.json(result);
+  } catch (error) {
+    const { status, body } = handleCoreError(error);
+    return c.json(body, status);
+  }
+});
+
+/** Reset fallback */
+agents.post("/fallback/reset", async (c) => {
+  try {
+    const result = await coreClient.resetFallback();
+    return c.json(result);
+  } catch (error) {
+    const { status, body } = handleCoreError(error);
+    return c.json(body, status);
+  }
+});
+
 export { agents };

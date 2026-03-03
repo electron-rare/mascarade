@@ -2,8 +2,6 @@
 
 import asyncio
 
-import pytest
-
 from mascarade.router.router import Router, Strategy
 from mascarade.router.providers.base import LLMProvider, LLMResponse, make_retry
 
@@ -89,8 +87,7 @@ def test_send():
     assert resp.content == "response from cheap"
 
 
-@pytest.mark.asyncio
-async def test_retry_on_transient_failure():
+def test_retry_on_transient_failure():
     """Le provider retente sur erreur transitoire."""
     call_count = 0
 
@@ -116,13 +113,12 @@ async def test_retry_on_transient_failure():
             return ["flaky-model"]
 
     provider = FlakyProvider()
-    result = await provider.send([{"role": "user", "content": "test"}])
+    result = asyncio.run(provider.send([{"role": "user", "content": "test"}]))
     assert result.content == "ok"
     assert call_count == 2
 
 
-@pytest.mark.asyncio
-async def test_retry_exhausted_raises():
+def test_retry_exhausted_raises():
     """Le provider lève l'erreur après épuisement des retries."""
 
     class AlwaysFailProvider(LLMProvider):
@@ -143,5 +139,132 @@ async def test_retry_exhausted_raises():
             return ["fail-model"]
 
     provider = AlwaysFailProvider()
-    with pytest.raises(ConnectionError):
-        await provider.send([{"role": "user", "content": "test"}])
+    try:
+        asyncio.run(provider.send([{"role": "user", "content": "test"}]))
+        assert False, "Should have raised ConnectionError"
+    except ConnectionError:
+        pass
+
+
+def test_send_fallback_on_error():
+    class FailProvider(LLMProvider):
+        name = "fail"
+        default_model = "fail-model"
+        cost_per_million = (0.0, 0.0)
+        speed_rank = 1
+        quality_rank = 3
+
+        async def send(self, messages, **kwargs):
+            raise ConnectionError("forced failure")
+
+        async def stream(self, messages, **kwargs):
+            raise ConnectionError("forced failure")
+            yield  # pragma: no cover
+
+        def available_models(self):
+            return [self.default_model]
+
+    class OkProvider(LLMProvider):
+        name = "ok"
+        default_model = "ok-model"
+        cost_per_million = (1.0, 1.0)
+        speed_rank = 2
+        quality_rank = 2
+
+        async def send(self, messages, **kwargs):
+            return LLMResponse(
+                content="fallback-ok",
+                model=self.default_model,
+                provider=self.name,
+                usage={"input_tokens": 10, "output_tokens": 3},
+            )
+
+        async def stream(self, messages, **kwargs):
+            yield "ok"
+
+        def available_models(self):
+            return [self.default_model]
+
+    r = Router()
+    r._providers.clear()
+    r.register(FailProvider())
+    r.register(OkProvider())
+
+    resp = asyncio.run(r.send([{"role": "user", "content": "hello"}], strategy="best"))
+    assert resp.provider == "ok"
+    assert r.fallback.stats()["total_failures"] >= 1
+
+
+def test_send_cache_hit():
+    call_count = 0
+
+    class CountProvider(LLMProvider):
+        name = "count"
+        default_model = "count-model"
+        cost_per_million = (1.0, 1.0)
+        speed_rank = 1
+        quality_rank = 1
+
+        async def send(self, messages, **kwargs):
+            nonlocal call_count
+            call_count += 1
+            return LLMResponse(
+                content="cached-response",
+                model=self.default_model,
+                provider=self.name,
+                usage={"input_tokens": 5, "output_tokens": 2},
+            )
+
+        async def stream(self, messages, **kwargs):
+            yield "cached"
+
+        def available_models(self):
+            return [self.default_model]
+
+    r = Router()
+    r._providers.clear()
+    r.register(CountProvider())
+
+    payload = [{"role": "user", "content": "cache-me"}]
+    first = asyncio.run(r.send(payload, strategy="best"))
+    second = asyncio.run(r.send(payload, strategy="best"))
+    assert first.content == second.content == "cached-response"
+    assert call_count == 1
+    assert r.cache.stats()["hit_count"] == 1
+
+
+def test_metrics_and_load_balancer_updated():
+    class MetricsProvider(LLMProvider):
+        name = "metrics"
+        default_model = "metrics-model"
+        cost_per_million = (2.0, 4.0)
+        speed_rank = 1
+        quality_rank = 1
+
+        async def send(self, messages, **kwargs):
+            return LLMResponse(
+                content="metrics-ok",
+                model=self.default_model,
+                provider=self.name,
+                usage={"input_tokens": 100, "output_tokens": 20},
+            )
+
+        async def stream(self, messages, **kwargs):
+            yield "m"
+
+        def available_models(self):
+            return [self.default_model]
+
+    r = Router()
+    r._providers.clear()
+    r.register(MetricsProvider())
+
+    asyncio.run(r.send([{"role": "user", "content": "metrics"}]))
+
+    provider_stats = r.provider_metrics("metrics")
+    assert provider_stats["total_requests"] == 1
+    assert provider_stats["total_tokens"] == 120
+    assert provider_stats["total_cost"] > 0
+
+    lb_stats = r.load_balancer.stats()
+    assert "metrics" in lb_stats["providers"]

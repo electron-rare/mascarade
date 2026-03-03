@@ -40,6 +40,9 @@ class Settings(BaseSettings):
     core_host: str = "0.0.0.0"
     core_port: int = 8100
 
+    # Authentication
+    mascarade_api_key: str = ""
+
     # Defaults
     default_provider: str = "claude"
     default_model: str = "claude-sonnet-4-6"

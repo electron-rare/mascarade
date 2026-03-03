@@ -2,9 +2,14 @@
 
 from __future__ import annotations
 
+import time
 from enum import Enum
 from typing import AsyncIterator
 
+from mascarade.cache.cache import ResponseCache
+from mascarade.load_balancer.balancer import LoadBalancer
+from mascarade.metrics.tracker import MetricsTracker
+from mascarade.router.fallback import FallbackState
 from mascarade.router.providers.base import LLMProvider, LLMResponse
 
 
@@ -20,6 +25,10 @@ class Router:
 
     def __init__(self) -> None:
         self._providers: dict[str, LLMProvider] = {}
+        self.cache = ResponseCache()
+        self.metrics = MetricsTracker()
+        self.load_balancer = LoadBalancer()
+        self.fallback = FallbackState(max_attempts=3)
         self._register_defaults()
 
     def _register_defaults(self) -> None:
@@ -38,20 +47,21 @@ class Router:
 
             provider = provider_cls()
             if provider.is_configured:
-                self._providers[provider.name] = provider
+                self.register(provider)
 
     def register(self, provider: LLMProvider) -> None:
         self._providers[provider.name] = provider
+        self.load_balancer.register_provider(provider.name)
 
     @property
     def available_providers(self) -> list[str]:
         return list(self._providers.keys())
 
-    def _select_provider(
+    def _select_candidates(
         self,
         strategy: Strategy = Strategy.BEST,
         provider_name: str | None = None,
-    ) -> LLMProvider:
+    ) -> list[LLMProvider]:
         if not self._providers:
             raise RuntimeError("Aucun provider LLM configuré. Vérifiez vos clés API.")
 
@@ -61,18 +71,60 @@ class Router:
                     f"Provider '{provider_name}' non disponible. "
                     f"Disponibles: {self.available_providers}"
                 )
-            return self._providers[provider_name]
+            return [self._providers[provider_name]]
 
         providers = list(self._providers.values())
 
         if strategy == Strategy.CHEAPEST:
-            return min(providers, key=lambda p: sum(p.cost_per_million))
+            best_value = min(sum(p.cost_per_million) for p in providers)
+            return [p for p in providers if sum(p.cost_per_million) == best_value]
 
         if strategy == Strategy.FASTEST:
-            return min(providers, key=lambda p: p.speed_rank)
+            best_value = min(p.speed_rank for p in providers)
+            return [p for p in providers if p.speed_rank == best_value]
 
-        # BEST — highest quality
-        return max(providers, key=lambda p: p.quality_rank)
+        best_value = max(p.quality_rank for p in providers)
+        return [p for p in providers if p.quality_rank == best_value]
+
+    def _select_provider(
+        self,
+        strategy: Strategy = Strategy.BEST,
+        provider_name: str | None = None,
+    ) -> LLMProvider:
+        candidates = self._select_candidates(strategy=strategy, provider_name=provider_name)
+        if len(candidates) == 1:
+            return candidates[0]
+
+        chosen_name = self.load_balancer.select_provider([p.name for p in candidates], 'round_robin')
+        return self._providers[chosen_name]
+
+    @staticmethod
+    def _usage_tokens(usage: dict[str, int]) -> int:
+        return int(sum(usage.values())) if usage else 0
+
+    @staticmethod
+    def _calculate_cost(provider: LLMProvider, usage: dict[str, int]) -> float:
+        input_tokens = usage.get("input_tokens", 0)
+        output_tokens = usage.get("output_tokens", 0)
+        in_cost, out_cost = provider.cost_per_million
+        return ((input_tokens * in_cost) + (output_tokens * out_cost)) / 1_000_000
+
+    def metrics_summary(self) -> dict:
+        return {
+            "providers": self.metrics.get_summary(),
+            "cache": self.cache.get_stats(),
+            "load_balancer": self.load_balancer.get_load_stats(),
+            "fallback": self.fallback.get_failure_stats(),
+        }
+
+    def provider_metrics(self, provider_name: str) -> dict:
+        return self.metrics.get_provider_stats(provider_name)
+
+    def reset_metrics(self) -> None:
+        self.metrics = MetricsTracker()  # Reset by creating new instance
+        self.cache.clear()
+        self.load_balancer.reset_stats()
+        self.fallback.reset()
 
     async def send(
         self,
@@ -86,13 +138,90 @@ class Router:
         max_tokens: int = 4096,
     ) -> LLMResponse:
         strategy = Strategy(strategy)
-        selected = self._select_provider(strategy, provider)
-        return await selected.send(
+
+        cached = self.cache.retrieve(
             messages,
+            strategy=strategy.value,
+            provider=provider,
             model=model,
             system=system,
             temperature=temperature,
             max_tokens=max_tokens,
+        )
+        if cached:
+            return LLMResponse(
+                content=cached.response,
+                model=cached.provider,
+                provider=cached.provider,
+                usage={"total_tokens": cached.tokens}
+            )
+
+        last_error: Exception | None = None
+        sequence = self.fallback.build_sequence(
+            strategy=strategy.value,
+            provider=provider,
+            available_providers=self.available_providers,
+        )
+
+        for attempt_strategy, attempt_provider in sequence:
+            attempt_enum = Strategy(attempt_strategy)
+            selected = self._select_provider(attempt_enum, attempt_provider)
+            started_at = time.perf_counter()
+            self.load_balancer.request_started(selected.name)
+
+            try:
+                response = await selected.send(
+                    messages,
+                    model=model,
+                    system=system,
+                    temperature=temperature,
+                    max_tokens=max_tokens,
+                )
+            except Exception as exc:
+                elapsed = time.perf_counter() - started_at
+                self.load_balancer.request_completed(selected.name, response_time=elapsed, success=False)
+                self.metrics.track_request(
+                    provider_name=selected.name,
+                    tokens=0,
+                    cost=0.0,
+                    response_time=elapsed,
+                    success=False,
+                )
+                self.fallback.record_failure(selected.name)
+                last_error = exc
+                continue
+
+            elapsed = time.perf_counter() - started_at
+            self.load_balancer.request_completed(selected.name, response_time=elapsed, success=True)
+
+            usage = response.usage or {}
+            self.metrics.track_request(
+                provider_name=selected.name,
+                tokens=self._usage_tokens(usage),
+                cost=self._calculate_cost(selected, usage),
+                response_time=elapsed,
+                success=True,
+            )
+
+            self.cache.store(
+                messages,
+                response.content,
+                tokens=self._usage_tokens(response.usage),
+                cost=self._calculate_cost(selected, response.usage),
+                ttl=3600,
+                strategy=strategy.value,
+                provider=selected.name,
+                model=model,
+                system=system,
+                temperature=temperature,
+                max_tokens=max_tokens,
+            )
+            return response
+
+        raise RuntimeError(
+            "All fallback attempts failed."
+            if last_error is None
+            else f"All fallback attempts failed: {last_error}"
         )
 
     async def stream(
@@ -107,12 +236,56 @@ class Router:
         max_tokens: int = 4096,
     ) -> AsyncIterator[str]:
         strategy = Strategy(strategy)
-        selected = self._select_provider(strategy, provider)
-        async for token in selected.stream(
-            messages,
-            model=model,
-            system=system,
-            temperature=temperature,
-            max_tokens=max_tokens,
-        ):
-            yield token
+
+        sequence = self.fallback.build_sequence(
+            strategy=strategy.value,
+            provider=provider,
+            available_providers=self.available_providers,
+        )
+
+        last_error: Exception | None = None
+        for attempt_strategy, attempt_provider in sequence:
+            attempt_enum = Strategy(attempt_strategy)
+            selected = self._select_provider(attempt_enum, attempt_provider)
+            started_at = time.perf_counter()
+            self.load_balancer.request_started(selected.name)
+
+            try:
+                async for token in selected.stream(
+                    messages,
+                    model=model,
+                    system=system,
+                    temperature=temperature,
+                    max_tokens=max_tokens,
+                ):
+                    yield token
+            except Exception as exc:
+                elapsed = time.perf_counter() - started_at
+                self.load_balancer.request_completed(selected.name, response_time=elapsed, success=False)
+                self.metrics.track_request(
+                    provider_name=selected.name,
+                    tokens=0,
+                    cost=0.0,
+                    response_time=elapsed,
+                    success=False,
+                )
+                self.fallback.record_failure(selected.name)
+                last_error = exc
+                continue
+
+            elapsed = time.perf_counter() - started_at
+            self.load_balancer.request_completed(selected.name, response_time=elapsed, success=True)
+            self.metrics.track_request(
+                provider_name=selected.name,
+                tokens=0,
+                cost=0.0,
+                response_time=elapsed,
+                success=True,
+            )
+            return
+
+        raise RuntimeError(
+            "All fallback attempts failed for streaming."
+            if last_error is None
+            else f"All fallback attempts failed for streaming: {last_error}"
+        )

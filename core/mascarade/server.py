@@ -5,8 +5,10 @@ from __future__ import annotations
 from contextlib import asynccontextmanager
 from typing import Literal
 
-from fastapi import FastAPI, HTTPException
+from fastapi import APIRouter, Depends, FastAPI, HTTPException
 from pydantic import BaseModel, Field
+
+from mascarade.auth import require_auth
 
 from mascarade.config import settings
 from mascarade.router import Router
@@ -25,6 +27,7 @@ orchestrator = Orchestrator(router=router, registry=registry)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    registry.load()
     app.state.router = router
     app.state.registry = registry
     app.state.orchestrator = orchestrator
@@ -68,7 +71,7 @@ class TaskRequest(BaseModel):
     mode: ExecutionMode = ExecutionMode.SEQUENTIAL
 
 
-# --- Routes ---
+# --- Routes publiques ---
 
 @app.get("/health")
 async def health():
@@ -79,7 +82,70 @@ async def health():
     }
 
 
-@app.post("/send")
+@app.get("/metrics")
+async def get_metrics():
+    """Obtenir les métriques complètes du système."""
+    return router.metrics_summary()
+
+
+@app.get("/metrics/providers/{provider_name}")
+async def get_provider_metrics(provider_name: str):
+    """Obtenir les métriques pour un provider spécifique."""
+    return router.provider_metrics(provider_name)
+
+
+@app.post("/metrics/reset")
+async def reset_metrics():
+    """Réinitialiser toutes les métriques."""
+    router.reset_metrics()
+    return {"status": "ok", "message": "Metrics reset successfully"}
+
+
+@app.get("/cache/stats")
+async def get_cache_stats():
+    """Obtenir les statistiques du cache."""
+    return router.cache.get_stats()
+
+
+@app.post("/cache/clear")
+async def clear_cache():
+    """Effacer le cache."""
+    router.cache.clear()
+    return {"status": "ok", "message": "Cache cleared successfully"}
+
+
+@app.get("/load-balancer/stats")
+async def get_load_balancer_stats():
+    """Obtenir les statistiques du load balancer."""
+    return router.load_balancer.get_load_stats()
+
+
+@app.post("/load-balancer/reset")
+async def reset_load_balancer():
+    """Réinitialiser les statistiques du load balancer."""
+    router.load_balancer.reset_stats()
+    return {"status": "ok", "message": "Load balancer stats reset successfully"}
+
+
+@app.get("/fallback/stats")
+async def get_fallback_stats():
+    """Obtenir les statistiques du mécanisme de fallback."""
+    return router.fallback.get_failure_stats()
+
+
+@app.post("/fallback/reset")
+async def reset_fallback():
+    """Réinitialiser les statistiques du fallback."""
+    router.fallback.reset()
+    return {"status": "ok", "message": "Fallback stats reset successfully"}
+
+
+# --- Routes protégées ---
+
+protected = APIRouter(dependencies=[Depends(require_auth)])
+
+
+@protected.post("/send")
 async def send(req: SendRequest):
     messages = [m.model_dump() for m in req.messages]
     try:
@@ -102,12 +168,64 @@ async def send(req: SendRequest):
     }
 
 
-@app.get("/providers")
+@protected.get("/providers")
 async def list_providers():
     return {"providers": router.available_providers}
 
 
-@app.post("/agents")
+@protected.get("/metrics")
+async def metrics_summary():
+    return router.metrics_summary()
+
+
+@protected.get("/metrics/{provider}")
+async def metrics_provider(provider: str):
+    stats = router.provider_metrics(provider)
+    if not stats:
+        raise HTTPException(status_code=404, detail=f"Provider '{provider}' has no metrics yet")
+    return stats
+
+
+@protected.post("/metrics/reset")
+async def metrics_reset():
+    router.reset_metrics()
+    return {"status": "ok"}
+
+
+@protected.get("/cache/stats")
+async def cache_stats():
+    return router.cache.stats()
+
+
+@protected.post("/cache/reset")
+async def cache_reset():
+    router.cache.clear()
+    return {"status": "ok"}
+
+
+@protected.get("/load-balancer/stats")
+async def lb_stats():
+    return router.load_balancer.stats()
+
+
+@protected.post("/load-balancer/reset")
+async def lb_reset():
+    router.load_balancer.reset()
+    return {"status": "ok"}
+
+
+@protected.get("/fallback/stats")
+async def fallback_stats():
+    return router.fallback.stats()
+
+
+@protected.post("/fallback/reset")
+async def fallback_reset():
+    router.fallback.reset()
+    return {"status": "ok"}
+
+
+@protected.post("/agents")
 async def create_agent(req: AgentCreate):
     agent = Agent(
         name=req.name,
@@ -120,10 +238,11 @@ async def create_agent(req: AgentCreate):
         max_tokens=req.max_tokens,
     )
     registry.register(agent)
+    registry.save()
     return {"name": agent.name, "description": agent.description}
 
 
-@app.get("/agents")
+@protected.get("/agents")
 async def list_agents():
     return {
         "agents": [
@@ -133,7 +252,7 @@ async def list_agents():
     }
 
 
-@app.post("/agents/{name}/run")
+@protected.post("/agents/{name}/run")
 async def run_agent(name: str, req: SendRequest):
     if not req.messages:
         raise HTTPException(status_code=400, detail="At least one message is required")
@@ -155,7 +274,7 @@ async def run_agent(name: str, req: SendRequest):
     }
 
 
-@app.post("/orchestrate")
+@protected.post("/orchestrate")
 async def orchestrate(req: TaskRequest):
     try:
         results = await orchestrator.run(
@@ -177,6 +296,9 @@ async def orchestrate(req: TaskRequest):
             for r in results
         ]
     }
+
+
+app.include_router(protected)
 
 
 def start():

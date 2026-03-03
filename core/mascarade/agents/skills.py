@@ -10,7 +10,7 @@ from mascarade.router.router import Strategy
 def register_default_skills(registry: AgentRegistry) -> None:
     """Enregistrer tous les skills dans le registre."""
     for skill in ALL_SKILLS:
-        registry.register(skill)
+        registry.register(skill, builtin=True)
 
 
 # --- Summarizer ---

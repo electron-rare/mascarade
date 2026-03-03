@@ -7,6 +7,8 @@ services:
       - "8100:8100"
     env_file:
       - .env
+    volumes:
+      - core-data:/app/data
     restart: unless-stopped
 
   api:
@@ -15,9 +17,14 @@ services:
       dockerfile: deploy/Dockerfile.api
     ports:
       - "3000:3000"
+    env_file:
+      - .env
     environment:
       - CORE_URL=http://core:8100
       - API_PORT=3000
     depends_on:
       - core
     restart: unless-stopped
+
+volumes:
+  core-data:

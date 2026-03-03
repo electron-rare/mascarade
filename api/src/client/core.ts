@@ -3,6 +3,7 @@
  */
 
 const CORE_URL = process.env.CORE_URL || "http://localhost:8100";
+const CORE_API_KEY = process.env.MASCARADE_API_KEY || "";
 
 export class CoreApiError extends Error {
   constructor(
@@ -27,8 +28,12 @@ export interface AgentInfo {
 }
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (CORE_API_KEY) {
+    headers["Authorization"] = `Bearer ${CORE_API_KEY}`;
+  }
   const res = await fetch(`${CORE_URL}${path}`, {
-    headers: { "Content-Type": "application/json" },
+    headers,
     ...options,
   });
   if (!res.ok) {
@@ -60,6 +65,42 @@ export const coreClient = {
 
   listProviders() {
     return request<{ providers: string[] }>("/providers");
+  },
+
+  getMetrics() {
+    return request<Record<string, unknown>>("/metrics");
+  },
+
+  getProviderMetrics(provider: string) {
+    return request<Record<string, unknown>>(`/metrics/${provider}`);
+  },
+
+  resetMetrics() {
+    return request<{ status: string }>("/metrics/reset", { method: "POST" });
+  },
+
+  getCacheStats() {
+    return request<Record<string, unknown>>("/cache/stats");
+  },
+
+  resetCache() {
+    return request<{ status: string }>("/cache/reset", { method: "POST" });
+  },
+
+  getLoadBalancerStats() {
+    return request<Record<string, unknown>>("/load-balancer/stats");
+  },
+
+  resetLoadBalancer() {
+    return request<{ status: string }>("/load-balancer/reset", { method: "POST" });
+  },
+
+  getFallbackStats() {
+    return request<Record<string, unknown>>("/fallback/stats");
+  },
+
+  resetFallback() {
+    return request<{ status: string }>("/fallback/reset", { method: "POST" });
   },
 
   createAgent(body: {
