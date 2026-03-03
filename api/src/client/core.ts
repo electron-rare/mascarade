@@ -145,4 +145,32 @@ export const coreClient = {
       body: JSON.stringify(body),
     });
   },
+
+  // --- Notion ---
+
+  notionSearch(query: string) {
+    return request<{ results: { id: string; title: string; url: string }[] }>(
+      `/notion/search?q=${encodeURIComponent(query)}`,
+    );
+  },
+
+  notionReadPage(pageId: string) {
+    return request<{ page_id: string; content: string }>(
+      `/notion/pages/${pageId}`,
+    );
+  },
+
+  notionAppend(pageId: string, content: string) {
+    return request<{ status: string; page_id: string }>(
+      `/notion/pages/${pageId}/append`,
+      { method: "POST", body: JSON.stringify({ content }) },
+    );
+  },
+
+  notionCreatePage(body: { parent_id: string; title: string; content?: string }) {
+    return request<{ page_id: string }>("/notion/pages", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
 };

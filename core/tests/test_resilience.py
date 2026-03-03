@@ -48,10 +48,10 @@ def test_fallback_cache_metrics_and_lb_stats():
     assert first.content.startswith("ok-")
     assert second.content == first.content  # served from cache
 
-    fallback_stats = router.fallback.stats()
+    fallback_stats = router.fallback.get_failure_stats()
     assert fallback_stats["total_failures"] >= 1
 
-    cache_stats = router.cache.stats()
+    cache_stats = router.cache.get_stats()
     assert cache_stats["hit_count"] >= 1
 
     metrics = router.metrics_summary()
@@ -62,5 +62,5 @@ def test_fallback_cache_metrics_and_lb_stats():
 
     # Reset endpoints logic support
     router.reset_metrics()
-    assert router.cache.stats()["entries"] == 0
-    assert router.fallback.stats()["total_failures"] == 0
+    assert router.cache.get_stats()["entries"] == 0
+    assert router.fallback.get_failure_stats()["total_failures"] == 0

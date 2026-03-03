@@ -11,6 +11,7 @@ from pydantic import BaseModel, Field
 from mascarade.auth import require_auth
 
 from mascarade.config import settings
+from mascarade.integrations.notion import NotionClient
 from mascarade.router import Router
 from mascarade.agents import Agent, AgentRegistry
 from mascarade.agents.skills import register_default_skills
@@ -23,14 +24,19 @@ router = Router()
 registry = AgentRegistry()
 register_default_skills(registry)
 orchestrator = Orchestrator(router=router, registry=registry)
+notion: NotionClient | None = None
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    global notion
+    if settings.notion_api_key:
+        notion = NotionClient()
     registry.load()
     app.state.router = router
     app.state.registry = registry
     app.state.orchestrator = orchestrator
+    app.state.notion = notion
     yield
 
 
@@ -69,6 +75,21 @@ class TaskRequest(BaseModel):
     agent_names: list[str]
     prompt: str
     mode: ExecutionMode = ExecutionMode.SEQUENTIAL
+
+
+class NotionAppendRequest(BaseModel):
+    content: str = Field(min_length=1)
+
+
+class NotionCreateRequest(BaseModel):
+    parent_id: str
+    title: str
+    content: str = ""
+
+
+class NotionScribeRequest(BaseModel):
+    messages: list[Message]
+    push_to: str | None = None
 
 
 # --- Routes publiques ---
@@ -296,6 +317,75 @@ async def orchestrate(req: TaskRequest):
             for r in results
         ]
     }
+
+
+# --- Routes Notion (protégées) ---
+
+
+def _require_notion() -> NotionClient:
+    if notion is None:
+        raise HTTPException(
+            status_code=503, detail="Notion non configuré (NOTION_API_KEY manquant)"
+        )
+    return notion
+
+
+@protected.get("/notion/search")
+async def notion_search(q: str):
+    client = _require_notion()
+    results = await client.search(q)
+    return {"results": results}
+
+
+@protected.get("/notion/pages/{page_id}")
+async def notion_read_page(page_id: str):
+    client = _require_notion()
+    content = await client.read_page(page_id)
+    return {"page_id": page_id, "content": content}
+
+
+@protected.post("/notion/pages/{page_id}/append")
+async def notion_append(page_id: str, req: NotionAppendRequest):
+    client = _require_notion()
+    await client.append_to_page(page_id, req.content)
+    return {"status": "ok", "page_id": page_id}
+
+
+@protected.post("/notion/pages")
+async def notion_create_page(req: NotionCreateRequest):
+    client = _require_notion()
+    page_id = await client.create_page(req.parent_id, req.title, req.content)
+    return {"page_id": page_id}
+
+
+@protected.post("/agents/notion-scribe/run-and-push")
+async def run_notion_scribe_and_push(req: NotionScribeRequest):
+    """Exécuter notion-scribe puis pousser le résultat dans Notion."""
+    try:
+        agent = registry.get("notion-scribe")
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    messages = [m.model_dump() for m in req.messages]
+    prompt = messages[-1]["content"]
+    context = messages[:-1] if len(messages) > 1 else None
+    response = await agent.run(prompt, router=router, context=context)
+
+    result = {
+        "content": response.content,
+        "model": response.model,
+        "provider": response.provider,
+        "usage": response.usage,
+        "pushed_to_notion": False,
+    }
+
+    if req.push_to:
+        client = _require_notion()
+        await client.append_to_page(req.push_to, response.content)
+        result["pushed_to_notion"] = True
+        result["notion_page_id"] = req.push_to
+
+    return result
 
 
 app.include_router(protected)

@@ -210,7 +210,7 @@ class Router:
                 cost=self._calculate_cost(selected, response.usage),
                 ttl=3600,
                 strategy=strategy.value,
-                provider=selected.name,
+                provider=provider,
                 model=model,
                 system=system,
                 temperature=temperature,

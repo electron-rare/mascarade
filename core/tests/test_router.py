@@ -150,8 +150,8 @@ def test_send_fallback_on_error():
     class FailProvider(LLMProvider):
         name = "fail"
         default_model = "fail-model"
-        cost_per_million = (0.0, 0.0)
-        speed_rank = 1
+        cost_per_million = (10.0, 10.0)
+        speed_rank = 3
         quality_rank = 3
 
         async def send(self, messages, **kwargs):
@@ -192,7 +192,7 @@ def test_send_fallback_on_error():
 
     resp = asyncio.run(r.send([{"role": "user", "content": "hello"}], strategy="best"))
     assert resp.provider == "ok"
-    assert r.fallback.stats()["total_failures"] >= 1
+    assert r.fallback.get_failure_stats()["total_failures"] >= 1
 
 
 def test_send_cache_hit():
@@ -230,7 +230,7 @@ def test_send_cache_hit():
     second = asyncio.run(r.send(payload, strategy="best"))
     assert first.content == second.content == "cached-response"
     assert call_count == 1
-    assert r.cache.stats()["hit_count"] == 1
+    assert r.cache.get_stats()["hit_count"] == 1
 
 
 def test_metrics_and_load_balancer_updated():
@@ -266,5 +266,5 @@ def test_metrics_and_load_balancer_updated():
     assert provider_stats["total_tokens"] == 120
     assert provider_stats["total_cost"] > 0
 
-    lb_stats = r.load_balancer.stats()
+    lb_stats = r.load_balancer.get_load_stats()
     assert "metrics" in lb_stats["providers"]
