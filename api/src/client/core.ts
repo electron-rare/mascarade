@@ -4,6 +4,16 @@
 
 const CORE_URL = process.env.CORE_URL || "http://localhost:8100";
 
+export class CoreApiError extends Error {
+  constructor(
+    message: string,
+    public readonly status: number,
+  ) {
+    super(message);
+    this.name = "CoreApiError";
+  }
+}
+
 export interface LLMResponse {
   content: string;
   model: string;
@@ -23,7 +33,7 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
   });
   if (!res.ok) {
     const text = await res.text();
-    throw new Error(`Core API error ${res.status}: ${text}`);
+    throw new CoreApiError(`Core API error ${res.status}: ${text}`, res.status);
   }
   return res.json() as Promise<T>;
 }

@@ -1,8 +1,10 @@
 """Tests pour l'orchestrateur."""
 
+import asyncio
+
 from mascarade.agents.base import Agent
 from mascarade.agents.registry import AgentRegistry
-from mascarade.orchestrator.engine import Orchestrator, ExecutionMode
+from mascarade.orchestrator.engine import Orchestrator
 from mascarade.router.router import Router
 from mascarade.router.providers.base import LLMProvider, LLMResponse
 
@@ -45,25 +47,25 @@ def _make_orchestrator() -> Orchestrator:
     return Orchestrator(router=router, registry=registry)
 
 
-async def test_sequential():
+def test_sequential():
     orch = _make_orchestrator()
-    results = await orch.run(["analyst", "writer"], "test", mode="sequential")
+    results = asyncio.run(orch.run(["analyst", "writer"], "test", mode="sequential"))
     assert len(results) == 2
     assert results[0].agent_name == "analyst"
     assert results[1].agent_name == "writer"
 
 
-async def test_parallel():
+def test_parallel():
     orch = _make_orchestrator()
-    results = await orch.run(["analyst", "writer"], "test", mode="parallel")
+    results = asyncio.run(orch.run(["analyst", "writer"], "test", mode="parallel"))
     assert len(results) == 2
     agent_names = {r.agent_name for r in results}
     assert agent_names == {"analyst", "writer"}
 
 
-async def test_pipeline():
+def test_pipeline():
     orch = _make_orchestrator()
-    results = await orch.run(["analyst", "writer"], "start", mode="pipeline")
+    results = asyncio.run(orch.run(["analyst", "writer"], "start", mode="pipeline"))
     assert len(results) == 2
     # Pipeline: output of first becomes input of second
     assert "[mock]" in results[1].response.content

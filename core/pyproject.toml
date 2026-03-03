@@ -17,6 +17,7 @@ dependencies = [
     "uvicorn>=0.30.0",
     "fastapi>=0.115.0",
     "notion-client>=2.0.0",
+    "tenacity>=9.0.0",
 ]
 
 [project.optional-dependencies]
@@ -27,7 +28,6 @@ dev = [
 ]
 
 [tool.pytest.ini_options]
-asyncio_mode = "auto"
 testpaths = ["tests"]
 
 [tool.ruff]

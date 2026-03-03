@@ -2,10 +2,8 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-COPY core/pyproject.toml .
+COPY core/ /app/
 RUN pip install --no-cache-dir .
-
-COPY core/mascarade/ mascarade/
 
 EXPOSE 8100
 

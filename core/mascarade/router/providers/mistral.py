@@ -6,8 +6,10 @@ from typing import AsyncIterator
 
 from mistralai import Mistral
 
-from mascarade.config import settings
-from mascarade.router.providers.base import LLMProvider, LLMResponse
+from mascarade.config import is_secret_configured, settings
+from mascarade.router.providers.base import LLMProvider, LLMResponse, make_retry
+
+_retry = make_retry()
 
 
 class MistralProvider(LLMProvider):
@@ -18,12 +20,16 @@ class MistralProvider(LLMProvider):
     quality_rank = 1
 
     def __init__(self) -> None:
-        self._client = Mistral(api_key=settings.mistral_api_key)
+        self._client = Mistral(
+            api_key=settings.mistral_api_key,
+            timeout_ms=30_000,
+        )
 
     @property
     def is_configured(self) -> bool:
-        return bool(settings.mistral_api_key)
+        return is_secret_configured(settings.mistral_api_key)
 
+    @_retry
     async def send(
         self,
         messages: list[dict],

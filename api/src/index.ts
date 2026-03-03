@@ -7,6 +7,8 @@ import { agents } from "./routes/agents.js";
 const app = new Hono();
 
 app.use("*", logger());
+app.onError((err, c) => c.json({ error: err.message || "Internal error" }, 500));
+app.notFound((c) => c.json({ error: "Not found" }, 404));
 
 app.route("/health", health);
 app.route("/api/agents", agents);

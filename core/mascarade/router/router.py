@@ -6,9 +6,6 @@ from enum import Enum
 from typing import AsyncIterator
 
 from mascarade.router.providers.base import LLMProvider, LLMResponse
-from mascarade.router.providers.claude import ClaudeProvider
-from mascarade.router.providers.openai import OpenAIProvider
-from mascarade.router.providers.mistral import MistralProvider
 
 
 class Strategy(str, Enum):
@@ -26,7 +23,19 @@ class Router:
         self._register_defaults()
 
     def _register_defaults(self) -> None:
-        for provider_cls in [ClaudeProvider, OpenAIProvider, MistralProvider]:
+        provider_specs = [
+            ("mascarade.router.providers.claude", "ClaudeProvider"),
+            ("mascarade.router.providers.openai", "OpenAIProvider"),
+            ("mascarade.router.providers.mistral", "MistralProvider"),
+        ]
+
+        for module_name, class_name in provider_specs:
+            try:
+                module = __import__(module_name, fromlist=[class_name])
+                provider_cls = getattr(module, class_name)
+            except (ImportError, AttributeError):
+                continue
+
             provider = provider_cls()
             if provider.is_configured:
                 self._providers[provider.name] = provider

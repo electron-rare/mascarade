@@ -6,8 +6,14 @@ from typing import AsyncIterator
 
 import openai
 
-from mascarade.config import settings
-from mascarade.router.providers.base import LLMProvider, LLMResponse
+from mascarade.config import is_secret_configured, settings
+from mascarade.router.providers.base import LLMProvider, LLMResponse, make_retry
+
+_retry = make_retry(
+    openai.RateLimitError,
+    openai.APIConnectionError,
+    openai.APITimeoutError,
+)
 
 
 class OpenAIProvider(LLMProvider):
@@ -18,12 +24,16 @@ class OpenAIProvider(LLMProvider):
     quality_rank = 2
 
     def __init__(self) -> None:
-        self._client = openai.AsyncOpenAI(api_key=settings.openai_api_key)
+        self._client = openai.AsyncOpenAI(
+            api_key=settings.openai_api_key,
+            timeout=30.0,
+        )
 
     @property
     def is_configured(self) -> bool:
-        return bool(settings.openai_api_key)
+        return is_secret_configured(settings.openai_api_key)
 
+    @_retry
     async def send(
         self,
         messages: list[dict],

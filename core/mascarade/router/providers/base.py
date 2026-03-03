@@ -2,9 +2,34 @@
 
 from __future__ import annotations
 
+import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import AsyncIterator
+
+from tenacity import (
+    retry,
+    stop_after_attempt,
+    wait_exponential,
+    retry_if_exception_type,
+    before_sleep_log,
+)
+
+logger = logging.getLogger("mascarade.providers")
+
+# Exceptions transitoires communes (réseau, timeout OS)
+RETRYABLE_EXCEPTIONS = (ConnectionError, TimeoutError, OSError)
+
+
+def make_retry(*extra_exceptions: type[BaseException]):
+    """Créer un décorateur retry avec exceptions spécifiques au provider."""
+    return retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=1, max=10),
+        retry=retry_if_exception_type(RETRYABLE_EXCEPTIONS + tuple(extra_exceptions)),
+        before_sleep=before_sleep_log(logger, logging.WARNING),
+        reraise=True,
+    )
 
 
 @dataclass

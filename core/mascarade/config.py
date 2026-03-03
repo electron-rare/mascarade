@@ -5,6 +5,26 @@ from __future__ import annotations
 from pydantic_settings import BaseSettings
 
 
+_PLACEHOLDER_SECRETS = {
+    "",
+    "sk-...",
+    "sk-ant-...",
+    "ntn_...",
+}
+
+
+def is_secret_configured(value: str) -> bool:
+    """Return True only for non-placeholder secret values."""
+    normalized = value.strip()
+    if not normalized:
+        return False
+    if normalized in _PLACEHOLDER_SECRETS:
+        return False
+    if normalized.endswith("..."):
+        return False
+    return True
+
+
 class Settings(BaseSettings):
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8", "extra": "ignore"}
 
