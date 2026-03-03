@@ -1,0 +1,3 @@
+# Mascarade
+
+Orchestration agentique personnelle.
