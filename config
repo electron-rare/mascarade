@@ -1,0 +1,213 @@
+#!/usr/bin/env bash
+# config — Reconfiguration interactive Mascarade
+# Usage : ./config [--help]
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Charger les modules
+source "$SCRIPT_DIR/scripts/lib.sh"
+source "$SCRIPT_DIR/scripts/services.sh"
+source "$SCRIPT_DIR/scripts/compose.sh"
+
+# ── Aide ──
+case "${1:-}" in
+    -h|--help)
+        echo "Usage: ./config"
+        echo ""
+        echo "Reconfiguration interactive du .env Mascarade."
+        echo "Permet de modifier cles API, ports, integrations sans tout reinstaller."
+        exit 0
+        ;;
+esac
+
+# ═══════════════════════════════════════
+# Flow principal
+# ═══════════════════════════════════════
+
+banner
+
+echo -e "  ${BOLD}Reconfiguration Mascarade${NC}"
+echo -e "  ${DIM}Modifier la configuration sans tout reinstaller${NC}"
+
+# ── Charger l'etat actuel ──
+env_file="$REPO_DIR/.env"
+
+if [[ ! -f "$env_file" ]]; then
+    err "Pas de fichier .env trouve. Lance d'abord ./setup"
+    exit 1
+fi
+
+load_env "$env_file"
+ok "Configuration actuelle chargee"
+
+# Detecter les services actifs
+if load_running_services 2>/dev/null; then
+    ok "Services detectes depuis docker-compose.yml"
+else
+    # Fallback : considerer tout comme actif
+    for id in "${SVC_IDS[@]}"; do SVC_ON[$id]="1"; done
+fi
+
+# ── Menu principal ──
+echo ""
+menu_select "Que voulez-vous reconfigurer ?" \
+    "Cles API LLM (Anthropic, OpenAI, Mistral...)" \
+    "Integrations (Notion, ComfyUI)" \
+    "Ports des services" \
+    "Tout reconfigurer"
+
+config_choice=$MENU_RESULT
+
+case $config_choice in
+    0) # Cles API
+        section "Cles API LLM"
+        info "Laisser vide pour desactiver un provider"
+        echo ""
+        ANTHROPIC_API_KEY=$(input_secret "Anthropic API Key :" "${ANTHROPIC_API_KEY:-}")
+        OPENAI_API_KEY=$(input_secret "OpenAI API Key :" "${OPENAI_API_KEY:-}")
+        GOOGLE_API_KEY=$(input_secret "Google API Key :" "${GOOGLE_API_KEY:-}")
+        MISTRAL_API_KEY=$(input_secret "Mistral API Key :" "${MISTRAL_API_KEY:-}")
+        GROQ_API_KEY=$(input_secret "Groq API Key :" "${GROQ_API_KEY:-}")
+
+        echo ""
+        echo -e "  ${BOLD}Provider par defaut${NC}"
+        DEFAULT_LLM_PROVIDER=$(input_value "Provider (anthropic/openai/mistral) :" "${DEFAULT_LLM_PROVIDER:-anthropic}")
+        DEFAULT_LLM_MODEL=$(input_value "Modele :" "${DEFAULT_LLM_MODEL:-claude-sonnet-4-20250514}")
+
+        echo ""
+        echo -e "  ${BOLD}Authentification API${NC}"
+        if [[ -z "${MASCARADE_API_KEY:-}" ]]; then
+            if confirm "Generer un token Bearer API ?"; then
+                MASCARADE_API_KEY=$(openssl rand -hex 32 2>/dev/null || head -c 64 /dev/urandom | od -An -tx1 | tr -d ' \n')
+                ok "Token genere : ${MASCARADE_API_KEY:0:12}..."
+            fi
+        else
+            ok "Token existant : ${MASCARADE_API_KEY:0:12}..."
+            if confirm "Regenerer le token ?"; then
+                MASCARADE_API_KEY=$(openssl rand -hex 32 2>/dev/null || head -c 64 /dev/urandom | od -An -tx1 | tr -d ' \n')
+                ok "Nouveau token : ${MASCARADE_API_KEY:0:12}..."
+            fi
+        fi
+        ;;
+
+    1) # Integrations
+        section "Integrations"
+
+        echo -e "  ${BOLD}Notion${NC}"
+        NOTION_API_KEY=$(input_secret "Notion API Key (optionnel) :" "${NOTION_API_KEY:-}")
+
+        echo ""
+        echo -e "  ${BOLD}ComfyUI (generation d'images)${NC}"
+        menu_select "Configuration ComfyUI :" \
+            "Serveur distant (URL existante)" \
+            "Installation locale (Docker)" \
+            "Desactiver"
+        case "$MENU_RESULT" in
+            0)
+                COMFYUI_URL=$(input_value "URL du serveur ComfyUI :" "${COMFYUI_URL:-https://stable2.kxkm.net}")
+                COMFYUI_LOCAL=false
+                ;;
+            1)
+                COMFYUI_URL="http://comfyui:8188"
+                COMFYUI_LOCAL=true
+                info "ComfyUI sera installe en local via Docker"
+                ;;
+            2)
+                COMFYUI_URL=""
+                COMFYUI_LOCAL=false
+                ;;
+        esac
+        ;;
+
+    2) # Ports
+        section "Ports des services"
+
+        info "Entree pour garder la valeur actuelle"
+        echo ""
+        svc_selected "core"       && CORE_PORT=$(input_value "Port Core (FastAPI) :" "${CORE_PORT:-8100}")
+        svc_selected "api"        && API_PORT=$(input_value "Port API (Hono) :" "${API_PORT:-3000}")
+        svc_selected "postgres"   && POSTGRES_PORT=$(input_value "Port PostgreSQL :" "${POSTGRES_PORT:-5432}")
+        svc_selected "redis"      && REDIS_PORT=$(input_value "Port Redis :" "${REDIS_PORT:-6379}")
+        svc_selected "ollama"     && OLLAMA_PORT=$(input_value "Port Ollama :" "${OLLAMA_PORT:-11434}")
+        svc_selected "litellm"    && LITELLM_PORT=$(input_value "Port LiteLLM :" "${LITELLM_PORT:-4000}")
+        svc_selected "n8n"        && N8N_PORT=$(input_value "Port n8n :" "${N8N_PORT:-5678}")
+        svc_selected "langfuse"   && LANGFUSE_PORT=$(input_value "Port Langfuse :" "${LANGFUSE_PORT:-3200}")
+        svc_selected "dify"       && DIFY_PORT=$(input_value "Port Dify Web :" "${DIFY_PORT:-3500}")
+        svc_selected "qdrant"     && QDRANT_PORT=$(input_value "Port Qdrant :" "${QDRANT_PORT:-6333}")
+        svc_selected "grafana"    && GRAFANA_PORT=$(input_value "Port Grafana :" "${GRAFANA_PORT:-3001}")
+        svc_selected "prometheus" && PROMETHEUS_PORT=$(input_value "Port Prometheus :" "${PROMETHEUS_PORT:-9090}")
+        ;;
+
+    3) # Tout
+        section "Configuration complete"
+
+        # Charger les modules pour collect_module_configs
+        for mod_file in "$REPO_DIR/scripts/modules/"*.sh; do
+            # shellcheck disable=SC1090
+            source "$mod_file"
+        done
+
+        collect_module_configs
+        ;;
+esac
+
+# ── Preview du diff ──
+echo ""
+section "Apercu des modifications"
+
+# Ecrire dans un fichier temporaire pour comparer
+tmp_env=$(mktemp)
+write_env_file "$tmp_env" 2>/dev/null
+
+if [[ -f "$env_file" ]]; then
+    diff_output=$(diff --color=auto "$env_file" "$tmp_env" 2>/dev/null || true)
+    if [[ -n "$diff_output" ]]; then
+        echo "$diff_output"
+    else
+        ok "Aucune modification detectee"
+        rm -f "$tmp_env"
+        exit 0
+    fi
+else
+    info "Nouveau fichier .env"
+fi
+
+echo ""
+if ! confirm "Appliquer ces modifications ?"; then
+    rm -f "$tmp_env"
+    ok "Modifications annulees"
+    exit 0
+fi
+
+# ── Ecriture ──
+backup_file "$env_file"
+mv "$tmp_env" "$env_file"
+chmod 600 "$env_file"
+ok ".env mis a jour ($(wc -l < "$env_file") lignes, permissions 600)"
+
+# ── Regenerer docker-compose.yml si ports modifies ──
+if [[ $config_choice -eq 2 || $config_choice -eq 3 ]]; then
+    echo ""
+    if confirm "Regenerer docker-compose.yml avec les nouveaux ports ?"; then
+        backup_file "$REPO_DIR/docker-compose.yml"
+        generate_compose "$REPO_DIR/docker-compose.yml"
+        ok "docker-compose.yml regenere"
+    fi
+fi
+
+# ── Restart optionnel ──
+echo ""
+if confirm "Redemarrer les services impactes ?"; then
+    spin_start "Restart des services..."
+    docker compose -f "$REPO_DIR/docker-compose.yml" up -d 2>&1
+    spin_stop
+    ok "Services redemarres"
+
+    sleep 3
+    show_status_table
+fi
+
+echo ""
+line
+echo -e "  ${DIM}mascarade v0.1.0${NC}"
+echo ""

@@ -1,0 +1,266 @@
+#!/usr/bin/env bash
+# update — Mise a jour des services Mascarade
+# Usage : ./update [--help]
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Charger les modules
+source "$SCRIPT_DIR/scripts/lib.sh"
+source "$SCRIPT_DIR/scripts/services.sh"
+
+# ── Aide ──
+case "${1:-}" in
+    -h|--help)
+        echo "Usage: ./update"
+        echo ""
+        echo "Mise a jour interactive des services Mascarade."
+        echo "Detecte les services actifs, permet de choisir lesquels mettre a jour."
+        exit 0
+        ;;
+esac
+
+# ═══════════════════════════════════════
+# Flow principal
+# ═══════════════════════════════════════
+
+banner
+
+echo -e "  ${BOLD}Mise a jour de Mascarade${NC}"
+echo -e "  ${DIM}Selectionne les services a mettre a jour${NC}"
+
+# ── Verifier docker-compose.yml ──
+if [[ ! -f "$REPO_DIR/docker-compose.yml" ]]; then
+    err "Pas de docker-compose.yml trouve. Lance d'abord ./setup"
+    exit 1
+fi
+
+# ── Detecter les services du compose ──
+local_compose_services=()
+while IFS= read -r svc; do
+    [[ -n "$svc" ]] && local_compose_services+=("$svc")
+done < <(docker compose -f "$REPO_DIR/docker-compose.yml" config --services 2>/dev/null)
+
+if [[ ${#local_compose_services[@]} -eq 0 ]]; then
+    err "Aucun service trouve dans docker-compose.yml"
+    exit 1
+fi
+
+# ── Etape 1 : Statut actuel ──
+step_progress 1 4 "Statut actuel"
+
+printf "\n  ${BOLD}%-20s %-12s %-30s${NC}\n" "Service" "Statut" "Image"
+line
+for svc in "${local_compose_services[@]}"; do
+    local_status="${DIM}○ Absent${NC}"
+    local_image="—"
+    local_container=$(docker compose -f "$REPO_DIR/docker-compose.yml" ps --format '{{.Name}}' 2>/dev/null | grep -i "${svc}" | head -1 || true)
+
+    if [[ -n "$local_container" ]]; then
+        local_state=$(docker inspect --format='{{.State.Status}}' "$local_container" 2>/dev/null || echo "absent")
+        local_image=$(docker inspect --format='{{.Config.Image}}' "$local_container" 2>/dev/null | sed 's|.*/||' || echo "—")
+        case "$local_state" in
+            running) local_status="${GREEN}● Running${NC}" ;;
+            exited)  local_status="${YELLOW}○ Stopped${NC}" ;;
+            *)       local_status="${RED}◌ $local_state${NC}" ;;
+        esac
+    fi
+    printf "  %-20s ${local_status}  ${DIM}%-30s${NC}\n" "$svc" "$local_image"
+done
+echo ""
+
+# ── Etape 2 : Selection ──
+step_progress 2 4 "Selection des services"
+
+# Reutiliser le SVC_IDS pour le checkbox, mais seulement les services detectes
+# On re-initialise SVC_ON pour les services du compose
+for id in "${SVC_IDS[@]}"; do SVC_ON[$id]="0"; done
+for svc in "${local_compose_services[@]}"; do
+    for id in "${SVC_IDS[@]}"; do
+        if [[ "$svc" == "$id" || "$svc" == "${id}-"* ]]; then
+            SVC_ON[$id]="1"
+        fi
+    done
+done
+
+checkbox_select
+
+# Collecter les services a updater
+update_services=()
+for svc in "${local_compose_services[@]}"; do
+    for id in "${SVC_IDS[@]}"; do
+        if [[ ("$svc" == "$id" || "$svc" == "${id}-"*) && "${SVC_ON[$id]}" == "1" ]]; then
+            update_services+=("$svc")
+            break
+        fi
+    done
+done
+
+if [[ ${#update_services[@]} -eq 0 ]]; then
+    err "Aucun service selectionne pour la mise a jour."
+    exit 1
+fi
+
+echo ""
+echo -e "  ${BOLD}Services a mettre a jour :${NC}"
+for svc in "${update_services[@]}"; do
+    echo -e "    ${CYAN}▸${NC} $svc"
+done
+echo ""
+if ! confirm "Lancer la mise a jour ?"; then
+    exit 0
+fi
+
+# ── Etape 3 : Strategie et execution ──
+step_progress 3 4 "Mise a jour"
+
+menu_select "Comment mettre a jour ?" \
+    "Pull + rebuild + restart (complet)" \
+    "Rebuild seulement (core/api)" \
+    "Restart seulement" \
+    "Pull images seulement (sans restart)"
+local_strategy=$MENU_RESULT
+
+# Detecter si on a des services buildables
+has_build=false
+for svc in "${update_services[@]}"; do
+    [[ "$svc" == "core" || "$svc" == "api" ]] && has_build=true && break
+done
+
+# Git pull optionnel
+if [[ "$has_build" == true && $local_strategy -le 1 ]]; then
+    echo ""
+    if confirm "Faire un git pull avant le build ?"; then
+        spin_start "Git pull..."
+        cd "$REPO_DIR"
+        if git pull --ff-only 2>&1 | tail -1; then
+            spin_stop
+            ok "Code a jour"
+        else
+            spin_stop
+            warn "git pull echoue"
+            if ! confirm "Continuer quand meme ?"; then
+                exit 1
+            fi
+        fi
+    fi
+fi
+
+# Tests optionnels
+if [[ "$has_build" == true && $local_strategy -le 1 && -d "$REPO_DIR/core/.venv" ]]; then
+    if confirm "Lancer les tests avant le deploiement ?"; then
+        spin_start "Tests en cours..."
+        cd "$REPO_DIR/core"
+        test_ok=true
+        .venv/bin/python -m pytest -q 2>&1 || test_ok=false
+        cd "$REPO_DIR"
+        spin_stop
+        if [[ "$test_ok" == true ]]; then
+            ok "Tests passes"
+        else
+            warn "Certains tests ont echoue"
+            if ! confirm "Continuer malgre les echecs ?"; then
+                exit 1
+            fi
+        fi
+    fi
+fi
+
+# Execution
+case $local_strategy in
+    0) # Pull + rebuild + restart
+        spin_start "Pull des images..."
+        for svc in "${update_services[@]}"; do
+            if [[ "$svc" != "core" && "$svc" != "api" ]]; then
+                docker compose -f "$REPO_DIR/docker-compose.yml" pull "$svc" 2>&1 | tail -1
+            fi
+        done
+        spin_stop
+        ok "Images a jour"
+
+        for svc in "${update_services[@]}"; do
+            if [[ "$svc" == "core" || "$svc" == "api" ]]; then
+                spin_start "Build $svc..."
+                docker compose -f "$REPO_DIR/docker-compose.yml" build --no-cache "$svc" 2>&1 | tail -2
+                spin_stop
+                ok "Build $svc"
+            fi
+        done
+
+        spin_start "Restart des services..."
+        docker compose -f "$REPO_DIR/docker-compose.yml" up -d --force-recreate "${update_services[@]}" 2>&1
+        spin_stop
+        ok "Services redemarres"
+        ;;
+
+    1) # Rebuild seulement
+        for svc in "${update_services[@]}"; do
+            if [[ "$svc" == "core" || "$svc" == "api" ]]; then
+                spin_start "Build $svc..."
+                docker compose -f "$REPO_DIR/docker-compose.yml" build --no-cache "$svc" 2>&1 | tail -2
+                spin_stop
+                ok "Build $svc"
+            else
+                info "$svc — pas de Dockerfile, skip"
+            fi
+        done
+
+        spin_start "Restart des services..."
+        docker compose -f "$REPO_DIR/docker-compose.yml" up -d --force-recreate "${update_services[@]}" 2>&1
+        spin_stop
+        ok "Services redemarres"
+        ;;
+
+    2) # Restart seulement
+        spin_start "Restart des services..."
+        docker compose -f "$REPO_DIR/docker-compose.yml" restart "${update_services[@]}" 2>&1
+        spin_stop
+        ok "Services redemarres"
+        ;;
+
+    3) # Pull seulement
+        spin_start "Pull des images..."
+        for svc in "${update_services[@]}"; do
+            if [[ "$svc" != "core" && "$svc" != "api" ]]; then
+                docker compose -f "$REPO_DIR/docker-compose.yml" pull "$svc" 2>&1 | tail -1
+                ok "Pull $svc"
+            else
+                info "$svc — image locale, rien a pull"
+            fi
+        done
+        spin_stop
+        echo ""
+        log "Images mises a jour. Lance 'docker compose up -d' pour appliquer."
+        ;;
+esac
+
+# ── Etape 4 : Health checks + resume ──
+step_progress 4 4 "Verification"
+
+if [[ $local_strategy -le 2 ]]; then
+    sleep 3
+    load_env "$REPO_DIR/.env" 2>/dev/null || true
+
+    for svc in "${update_services[@]}"; do
+        local_port=""
+        for id in "${SVC_IDS[@]}"; do
+            if [[ "$svc" == "$id" || "$svc" == "${id}-"* ]]; then
+                local_port="${SVC_PORT[$id]}"
+                break
+            fi
+        done
+        [[ "$local_port" == "—" || -z "$local_port" ]] && continue
+
+        health_check "http://localhost:${local_port}/" "$svc" 5 2 || true
+    done
+fi
+
+echo ""
+line
+echo ""
+echo -e "  ${GREEN}${BOLD}Mise a jour terminee !${NC}"
+echo ""
+docker compose -f "$REPO_DIR/docker-compose.yml" ps --format "table {{.Name}}\t{{.Status}}\t{{.Ports}}" 2>/dev/null || true
+echo ""
+line
+echo -e "  ${DIM}mascarade v0.1.0${NC}"
+echo ""

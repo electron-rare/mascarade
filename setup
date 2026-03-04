@@ -1,0 +1,204 @@
+#!/usr/bin/env bash
+# setup — Installateur principal Mascarade
+# Usage : ./setup [--help]
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Charger les modules
+source "$SCRIPT_DIR/scripts/lib.sh"
+source "$SCRIPT_DIR/scripts/services.sh"
+source "$SCRIPT_DIR/scripts/prereqs.sh"
+source "$SCRIPT_DIR/scripts/compose.sh"
+
+# ── Aide ──
+case "${1:-}" in
+    -h|--help)
+        echo "Usage: ./setup"
+        echo ""
+        echo "Installateur interactif Mascarade."
+        echo "Selectionne les services, configure .env, genere docker-compose.yml."
+        echo ""
+        echo "Voir aussi :"
+        echo "  ./update    Mise a jour des services"
+        echo "  ./config    Reconfiguration .env"
+        exit 0
+        ;;
+esac
+
+# ═══════════════════════════════════════
+# Flow principal
+# ═══════════════════════════════════════
+
+banner
+
+echo -e "  ${BOLD}Bienvenue dans l'installateur de Mascarade${NC}"
+echo -e "  ${DIM}Orchestration LLM multi-providers${NC}"
+
+# ── Etape 1/7 : Selection des services ──
+step_progress 1 7 "Selection des services"
+checkbox_select
+
+# Verifier qu'au moins un service est choisi
+sel_count=0
+for id in "${SVC_IDS[@]}"; do
+    [[ "${SVC_ON[$id]}" == "1" ]] && ((sel_count++)) || true
+done
+if [[ $sel_count -eq 0 ]]; then
+    err "Aucun service selectionne."
+    exit 1
+fi
+
+# ── Etape 2/7 : Resolution des dependances ──
+step_progress 2 7 "Resolution des dependances"
+resolve_dependencies
+
+echo ""
+echo -e "  ${BOLD}Services selectionnes :${NC}"
+for id in "${SVC_IDS[@]}"; do
+    if svc_selected "$id"; then
+        echo -e "    ${GREEN}✓${NC} ${SVC_LABEL[$id]} ${DIM}(:${SVC_PORT[$id]})${NC}"
+    fi
+done
+echo ""
+if ! confirm "Continuer avec cette selection ?"; then
+    exit 0
+fi
+
+# ── Etape 3/7 : Prerequis ──
+step_progress 3 7 "Verification des prerequis"
+check_prerequisites
+
+# ── Etape 4/7 : Configuration .env ──
+step_progress 4 7 "Configuration .env"
+
+# Charger .env existant
+load_env "$REPO_DIR/.env" 2>/dev/null || true
+
+if [[ -f "$REPO_DIR/.env" ]]; then
+    if confirm "Un fichier .env existe. Le reconfigurer ?"; then
+        collect_module_configs
+    else
+        ok ".env conserve"
+    fi
+else
+    collect_module_configs
+fi
+
+# ── Etape 5/7 : Generation docker-compose.yml ──
+step_progress 5 7 "Generation docker-compose.yml"
+
+if [[ -f "$REPO_DIR/docker-compose.yml" ]]; then
+    backup_file "$REPO_DIR/docker-compose.yml"
+fi
+generate_compose "$REPO_DIR/docker-compose.yml"
+ok "docker-compose.yml genere"
+
+# Ecrire le .env
+write_env_file "$REPO_DIR/.env"
+chmod 600 "$REPO_DIR/.env"
+
+# ── Etape 6/7 : Dependances locales ──
+step_progress 6 7 "Installation des dependances"
+
+if svc_selected "core" && command -v python3 &>/dev/null; then
+    spin_start "Installation du Core Python..."
+    cd "$REPO_DIR/core"
+    if [[ ! -d ".venv" ]]; then
+        python3 -m venv .venv
+    fi
+    .venv/bin/pip install --upgrade pip -q 2>&1 | tail -1
+    .venv/bin/pip install -e ".[dev]" -q 2>&1 | tail -1
+    cd "$REPO_DIR"
+    spin_stop
+    ok "Dependances Python installees"
+fi
+
+if svc_selected "api" && command -v npm &>/dev/null; then
+    spin_start "Installation de l'API Node.js..."
+    cd "$REPO_DIR/api"
+    npm install --silent 2>&1 | tail -1
+    npm run build --silent 2>&1 || true
+    cd "$REPO_DIR"
+    spin_stop
+    ok "Dependances Node.js installees"
+fi
+
+# Tests optionnels
+if svc_selected "core" && [[ -d "$REPO_DIR/core/.venv" ]]; then
+    if confirm "Lancer les tests ?"; then
+        spin_start "Tests en cours..."
+        cd "$REPO_DIR/core"
+        local_test_result=0
+        .venv/bin/python -m pytest -q 2>&1 || local_test_result=$?
+        cd "$REPO_DIR"
+        spin_stop
+        if [[ $local_test_result -eq 0 ]]; then
+            ok "Tests passes"
+        else
+            warn "Certains tests ont echoue"
+        fi
+    fi
+fi
+
+# ── Etape 7/7 : Demarrage ──
+step_progress 7 7 "Demarrage des services"
+
+menu_select "Comment proceder ?" \
+    "Demarrer maintenant (docker compose up)" \
+    "Ne pas demarrer (je le ferai plus tard)"
+
+case $MENU_RESULT in
+    0)
+        spin_start "Build des images..."
+        docker compose -f "$REPO_DIR/docker-compose.yml" build 2>&1 | tail -5
+        spin_stop
+        ok "Images pretes"
+
+        spin_start "Demarrage des containers..."
+        docker compose -f "$REPO_DIR/docker-compose.yml" up -d 2>&1
+        spin_stop
+        ok "Containers lances"
+
+        echo ""
+        log "Health checks..."
+        sleep 4
+
+        if svc_selected "core"; then
+            health_check "http://localhost:${CORE_PORT:-8100}/health" "Core" 5 2
+        fi
+        if svc_selected "api"; then
+            health_check "http://localhost:${API_PORT:-3000}/health" "API" 5 2
+        fi
+        ;;
+    1)
+        ok "docker-compose.yml pret. Lance : docker compose up -d"
+        ;;
+esac
+
+# ── Resume final ──
+echo ""
+line
+echo ""
+echo -e "  ${GREEN}${BOLD}Installation terminee !${NC}"
+echo ""
+
+show_status_table
+
+echo -e "  ${BOLD}Commandes utiles :${NC}"
+echo -e "  ${DIM}├${NC} docker compose ps              ${DIM}# Statut${NC}"
+echo -e "  ${DIM}├${NC} docker compose logs -f          ${DIM}# Logs${NC}"
+echo -e "  ${DIM}├${NC} docker compose down             ${DIM}# Arreter${NC}"
+echo -e "  ${DIM}├${NC} ./update                        ${DIM}# Mise a jour${NC}"
+echo -e "  ${DIM}└${NC} ./config                        ${DIM}# Reconfigurer${NC}"
+
+if svc_selected "api" && [[ -n "${MASCARADE_API_KEY:-}" ]]; then
+    echo ""
+    echo -e "  ${BOLD}Test rapide :${NC}"
+    echo -e "  curl -sH 'Authorization: Bearer \$MASCARADE_API_KEY' \\"
+    echo -e "    http://localhost:${API_PORT:-3000}/api/agents/metrics | python3 -m json.tool"
+fi
+
+echo ""
+line
+echo -e "  ${DIM}mascarade v0.1.0${NC}"
+echo ""
