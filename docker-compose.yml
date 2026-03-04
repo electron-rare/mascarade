@@ -1,56 +1,289 @@
-x-default-logging: &default_logging
-  driver: "json-file"
-  options:
-    max-size: "10m"
-    max-file: "5"
+# docker-compose.yml — Genere par Mascarade setup
+# Ne pas editer manuellement, utiliser ./config pour reconfigurer
 
 services:
   core:
     build:
       context: .
       dockerfile: deploy/Dockerfile.core
+    container_name: mascarade-core
+    restart: unless-stopped
     ports:
-      - "127.0.0.1:8100:8100"
+      - "127.0.0.1:${CORE_PORT}:8100"
     env_file:
       - .env
+    environment:
+      CORE_HOST: ${CORE_HOST}
+      CORE_PORT: ${CORE_PORT}
+      DEFAULT_PROVIDER: ${DEFAULT_PROVIDER}
+      DEFAULT_MODEL: ${DEFAULT_MODEL}
     volumes:
       - core-data:/app/data
-    restart: unless-stopped
-    logging: *default_logging
-    healthcheck:
-      test:
-        - "CMD"
-        - "python"
-        - "-c"
-        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8100/health').read()"
-      interval: 20s
-      timeout: 10s
-      retries: 6
+    networks:
+      - mascarade-network
 
   api:
     build:
       context: .
       dockerfile: deploy/Dockerfile.api
+    container_name: mascarade-api
+    restart: unless-stopped
     ports:
-      - "127.0.0.1:3100:3000"
+      - "127.0.0.1:${API_PORT}:3100"
     env_file:
       - .env
     environment:
-      - CORE_URL=http://core:8100
-      - API_PORT=3000
+      CORE_URL: ${CORE_URL}
+      API_PORT: ${API_PORT}
     depends_on:
       - core
+    networks:
+      - mascarade-network
+
+  litellm:
+    image: ghcr.io/berriai/litellm:main-latest
+    container_name: mascarade-litellm
     restart: unless-stopped
-    logging: *default_logging
-    healthcheck:
-      test:
-        - "CMD"
-        - "node"
-        - "-e"
-        - "fetch('http://127.0.0.1:3000/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"
-      interval: 20s
-      timeout: 10s
-      retries: 6
+    ports:
+      - "127.0.0.1:${LITELLM_PORT}:4000"
+    env_file:
+      - .env
+    environment:
+      LITELLM_PORT: ${LITELLM_PORT}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+    volumes:
+      - ./tools/litellm-config.yaml:/app/config.yaml:ro
+    command: ["--config", "/app/config.yaml"]
+    depends_on:
+      - redis
+    networks:
+      - mascarade-network
+
+  n8n:
+    image: n8nio/n8n:latest
+    container_name: mascarade-n8n
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${N8N_PORT}:5678"
+    environment:
+      DB_TYPE: postgresdb
+      DB_POSTGRESDB_HOST: postgres
+      DB_POSTGRESDB_PORT: 5432
+      DB_POSTGRESDB_DATABASE: mascarade
+      DB_POSTGRESDB_USER: mascarade
+      DB_POSTGRESDB_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
+    depends_on:
+      - postgres
+    volumes:
+      - n8n-data:/home/node/.n8n
+    networks:
+      - mascarade-network
+
+  langfuse:
+    image: langfuse/langfuse:latest
+    container_name: mascarade-langfuse
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${LANGFUSE_PORT}:3000"
+    environment:
+      DATABASE_URL: postgresql://mascarade:${POSTGRES_PASSWORD}@postgres:5432/mascarade
+      NEXTAUTH_URL: ${NEXTAUTH_URL}
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET}
+      SALT: ${SALT}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+      LANGFUSE_SECRET_KEY: ${LANGFUSE_SECRET_KEY}
+      LANGFUSE_NEXT_PUBLIC_KEY: ${LANGFUSE_NEXT_PUBLIC_KEY}
+      LANGFUSE_S3_EVENT_UPLOAD_ENABLED: "false"
+      CLICKHOUSE_URL: http://clickhouse:8123
+    depends_on:
+      - postgres
+      - clickhouse
+    networks:
+      - mascarade-network
+
+  dify-api:
+    image: langgenius/dify-api:latest
+    container_name: mascarade-dify-api
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${DIFY_API_PORT}:5001"
+    environment:
+      DB_USERNAME: mascarade
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_DATABASE: mascarade
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - mascarade-network
+  dify-web:
+    image: langgenius/dify-web:latest
+    container_name: mascarade-dify-web
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${DIFY_WEB_PORT}:3000"
+    environment:
+      DB_USERNAME: mascarade
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_DATABASE: mascarade
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - mascarade-network
+  dify-worker:
+    image: langgenius/dify-api:latest
+    container_name: mascarade-dify-worker
+    restart: unless-stopped
+    command: celery -A app.celery worker
+    environment:
+      DB_USERNAME: mascarade
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_DATABASE: mascarade
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - mascarade-network
+
+  clickhouse:
+    image: clickhouse/clickhouse-server:latest
+    container_name: mascarade-clickhouse
+    restart: unless-stopped
+    volumes:
+      - clickhouse-data:/var/lib/clickhouse
+    networks:
+      - mascarade-network
+
+
+  ollama:
+    image: ollama/ollama:latest
+    container_name: mascarade-ollama
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${OLLAMA_PORT}:11434"
+    volumes:
+      - ollama-data:/root/.ollama
+    networks:
+      - mascarade-network
+
+  open-webui:
+    image: ghcr.io/open-webui/open-webui:main
+    container_name: mascarade-open-webui
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${OPEN_WEBUI_PORT}:8080"
+    depends_on:
+      - ollama
+    environment:
+      OLLAMA_BASE_URL: http://ollama:11434
+    volumes:
+      - open-webui-data:/app/backend/data
+    networks:
+      - mascarade-network
+
+  ops-console:
+    image: nginx:alpine
+    container_name: mascarade-ops-console
+    restart: unless-stopped
+    ports:
+      - "${OPS_CONSOLE_BIND_IP:-127.0.0.1}:${OPS_CONSOLE_PORT}:80"
+    volumes:
+      - ./deploy/ops-console/index.html:/usr/share/nginx/html/index.html:ro
+    depends_on:
+      - core
+      - api
+      - open-webui
+      - grafana
+      - prometheus
+      - ollama
+    networks:
+      - mascarade-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: mascarade-redis
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${REDIS_PORT}:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - mascarade-network
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: mascarade-postgres
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT}:5432"
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      - mascarade-network
+
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: mascarade-qdrant
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${QDRANT_PORT}:6333"
+    volumes:
+      - qdrant-data:/qdrant/storage
+    networks:
+      - mascarade-network
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: mascarade-grafana
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${GRAFANA_PORT}:3000"
+    volumes:
+      - grafana-data:/var/lib/grafana
+    networks:
+      - mascarade-network
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: mascarade-prometheus
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${PROMETHEUS_PORT}:9090"
+    volumes:
+      - prometheus-data:/prometheus
+    networks:
+      - mascarade-network
+
+networks:
+  mascarade-network:
+    driver: bridge
 
 volumes:
   core-data:
+  n8n-data:
+  clickhouse-data:
+  ollama-data:
+  open-webui-data:
+  redis-data:
+  postgres-data:
+  qdrant-data:
+  grafana-data:
+  prometheus-data:
