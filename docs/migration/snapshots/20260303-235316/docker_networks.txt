@@ -1,0 +1,11 @@
+# command: docker network ls
+# date: 2026-03-03T23:53:29+00:00
+
+NETWORK ID     NAME                       DRIVER    SCOPE
+d2e828dedd9c   bridge                     bridge    local
+c97a0d88b77a   docker-studio-ai_default   bridge    local
+fbd4d72aefd4   host                       host      local
+1b510608166e   mascarade_default          bridge    local
+fe8eb7b482a0   none                       null      local
+826a25cfc4b3   tools_tools                bridge    local
+b3043cb336f4   zacus-stack_default        bridge    local

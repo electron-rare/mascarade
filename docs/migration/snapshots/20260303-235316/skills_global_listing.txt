@@ -1,0 +1,146 @@
+# command: bash -lc 
+  ls -la /opt/skills-global/all;
+  echo;
+  echo "count:";
+  find /opt/skills-global/all -mindepth 1 -maxdepth 1 -type d | wc -l;
+  echo;
+  echo "size:";
+  du -sh /opt/skills-global/all;
+
+# date: 2026-03-03T23:53:31+00:00
+
+ 23:00:10 up 13:28,  2 users,  load average: 2.74, 1.29, 0.75
+total 508
+drwxrwsr-x 127 root users 4096 Mar  3 21:13 .
+drwxrwsr-x   3 root users 4096 Mar  3 14:28 ..
+drwxrwsr-x   2 root users 4096 Mar  3 14:17 accessibility
+drwxrwsr-x   2 root users 4096 Mar  3 20:17 ai-gateway
+drwxrws---   3 root users 4096 Mar  3 19:54 analog-electronics
+drwxrwsr-x   2 root users 4096 Mar  3 14:03 api-rest
+drwxrws---   3 root users 4096 Mar  3 19:58 asm
+drwxrwsr-x   2 root users 4096 Mar  3 19:57 backup
+drwxr-s---   2 root users 4096 Mar  3 18:25 battery-bms
+drwxrwsr-x   2 root users 4096 Mar  3 14:22 branding
+drwxrwsr-x   5 root users 4096 Mar  3 11:41 chatgpt-apps
+drwxrwsr-x   5 root users 4096 Mar  3 11:41 cloudflare-deploy
+drwxr-s---   2 root users 4096 Mar  3 18:29 connectors-cables
+drwxrwsr-x   2 root users 4096 Mar  3 14:24 copywriting
+drwxrwsr-x   2 root users 4096 Mar  3 13:56 cpp-oo
+drwxr-s---   3 root users 4096 Mar  3 20:20 crewai-orchestration
+drwxrwsr-x   2 root users 4096 Mar  3 14:16 css-animations
+drwxrwsr-x   2 root users 4096 Mar  3 14:28 data-analytics
+drwxrwsr-x   2 root users 4096 Mar  3 20:12 database
+drwxrwsr-x   6 root users 4096 Mar  3 11:41 develop-web-game
+drwxrws---   3 root users 4096 Mar  3 19:56 digital-electronics
+drwxrwsr-x   2 root users 4096 Mar  3 19:58 discord-bot
+drwxrwsr-x   5 root users 4096 Mar  3 20:12 doc
+drwxrwsr-x   2 root users 4096 Mar  3 20:12 docker-compose-mgr
+drwxrwsr-x   2 root users 4096 Mar  3 19:55 docker-logs
+drwxrwsr-x   2 root users 4096 Mar  3 19:55 docker-restart
+drwxrwsr-x   2 root users 4096 Mar  3 19:54 docker-status
+drwxr-s---   2 root users 4096 Mar  3 19:55 domotique
+drwxrws---   3 root users 4096 Mar  3 19:56 dsp-signal-processing
+drwxr-s---   2 root users 4096 Mar  3 18:21 emc-emi
+drwxr-s---   2 root users 4096 Mar  3 18:28 esd-protection
+drwxrws---   3 root users 4096 Mar  3 19:57 esp-idf
+drwxrws---   3 root users 4096 Mar  3 19:56 ethical-hacking
+drwxrwsr-x   5 root users 4096 Mar  3 11:41 figma
+drwxrwsr-x   4 root users 4096 Mar  3 11:41 figma-implement-design
+drwxrwsr-x   2 root users 4096 Mar  3 14:16 figma-to-code
+drwxrws---   3 root users 4096 Mar  3 19:55 fpga-design
+drwxrwsr-x   5 root users 4096 Mar  3 11:41 gh-address-comments
+drwxrwsr-x   5 root users 4096 Mar  3 11:41 gh-fix-ci
+drwxrwsr-x   2 root users 4096 Mar  3 20:18 git-workflow
+drwxrwsr-x   2 root users 4096 Mar  3 14:21 graphic-design
+drwxrwsr-x   2 root users 4096 Mar  3 14:25 growth-hacking
+drwxrwsr-x   2 root users 4096 Mar  3 19:56 homeassistant
+drwxr-s---   2 root users 4096 Mar  3 18:41 huggingface
+drwxrwsr-x   6 root users 4096 Mar  3 11:41 imagegen
+drwxrwsr-x   2 root users 4096 Mar  3 14:27 industrial-design
+drwxrwsr-x   2 root users 4096 Mar  3 14:23 interface-design
+drwxr-s---   2 root users 4096 Mar  3 18:21 ipc-standards
+drwxrws---   3 root users 4096 Mar  3 18:18 jlcpcb
+drwxrwsr-x   6 root users 4096 Mar  3 20:18 jupyter-notebook
+drwxrws---   3 root users 4096 Mar  3 18:18 kicad
+drwxr-s---   2 root users 4096 Mar  3 18:40 kicad-ia
+drwxrws---   3 root users 4096 Mar  3 18:18 kicad-jlcpcb
+drwxr-s---   2 root users 4096 Mar  3 18:40 kicad-spice
+drwxr-s---   3 root users 4096 Mar  3 21:15 langchain-orchestration
+drwxrwsr-x   2 root users 4096 Mar  3 14:26 legal-business
+drwxrwsr-x   2 root users 4096 Mar  3 14:25 legal-rgpd
+drwxrwsr-x   4 root users 4096 Mar  3 20:16 linear
+drwxrwsr-x   2 root users 4096 Mar  3 13:59 linux-admin
+drwxrwsr-x   2 root users 4096 Mar  3 19:56 machine-health
+drwxrwsr-x   2 root users 4096 Mar  3 14:05 makefile-cmake
+drwxrwsr-x   2 root users 4096 Mar  3 14:06 mcp-dev
+drwxrws---   3 root users 4096 Mar  3 19:59 microcontroller-firmware
+drwxr-s---   2 root users 4096 Mar  3 18:26 motor-control
+drwxrwsr-x   2 root users 4096 Mar  3 14:03 mqtt-iot
+drwxrwsr-x   5 root users 4096 Mar  3 11:41 netlify-deploy
+drwxrwsr-x   2 root users 4096 Mar  3 19:56 network-diag
+drwxrwsr-x   2 root users 4096 Mar  3 14:04 nodejs-ts
+drwxrwsr-x   7 root users 4096 Mar  3 11:41 notion-knowledge-capture
+drwxrwsr-x   7 root users 4096 Mar  3 11:41 notion-meeting-intelligence
+drwxrwsr-x   7 root users 4096 Mar  3 11:41 notion-research-documentation
+drwxrwsr-x   7 root users 4096 Mar  3 11:41 notion-spec-to-implementation
+drwxrwsr-x   2 root users 4096 Mar  3 19:57 ollama-models
+drwxrwsr-x   4 root users 4096 Mar  3 11:41 openai-docs
+drwxrwsr-x   2 root users 4096 Mar  3 13:59 openclaw
+drwxr-s---   2 root users 4096 Mar  3 18:22 pcb-design
+drwxrwsr-x   4 root users 4096 Mar  3 11:41 pdf
+drwxrwsr-x   2 root users 4096 Mar  3 19:55 pihole
+drwxrwsr-x   2 root users 4096 Mar  3 13:56 platformio
+drwxrwsr-x   6 root users 4096 Mar  3 11:41 playwright
+drwxrws---   3 root users 4096 Mar  3 19:58 power-electronics
+drwxrwsr-x   2 root users 4096 Mar  3 14:27 print-production
+drwxrwsr-x   2 root users 4096 Mar  3 14:23 product-management
+drwxrwsr-x   2 root users 4096 Mar  3 19:57 prometheus-grafana
+drwxrwsr-x   2 root users 4096 Mar  3 13:59 python-dev
+drwxrws---   3 root users 4096 Mar  3 19:57 radio-rf
+drwxrwsr-x   2 root users 4096 Mar  3 14:05 rag-embeddings
+drwxrwsr-x   2 root users 4096 Mar  3 14:14 react
+drwxrwsr-x   2 root users 4096 Mar  3 14:04 regex
+drwxrwsr-x   5 root users 4096 Mar  3 11:41 render-deploy
+drwxrwsr-x   2 root users 4096 Mar  3 14:17 responsive-ui
+drwxrws---   3 root users 4096 Mar  3 19:55 reverse-engineering
+drwxrwsr-x   2 root users 4096 Mar  3 13:57 rtos
+drwxrwsr-x   5 root users 4096 Mar  3 11:41 screenshot
+drwxrwsr-x   2 root users 4096 Mar  3 19:57 security-audit
+drwxrwsr-x   4 root users 4096 Mar  3 20:15 security-best-practices
+drwxrwsr-x   5 root users 4096 Mar  3 11:41 security-ownership-map
+drwxrwsr-x   4 root users 4096 Mar  3 20:13 security-threat-model
+drwxrwsr-x   5 root users 4096 Mar  3 11:41 sentry
+drwxrwsr-x   2 root users 4096 Mar  3 14:24 seo-marketing
+drwxr-s---   2 root users 4096 Mar  3 18:24 serial-protocols
+drwxrwsr-x   2 root users 4096 Mar  3 14:04 shell-scripting
+drwxr-s---   2 root users 4096 Mar  3 18:29 soldering-assembly
+drwxrwsr-x   6 root users 4096 Mar  3 11:41 sora
+drwxrwsr-x   6 root users 4096 Mar  3 11:41 speech
+drwxrws---   3 root users 4096 Mar  3 18:18 spice
+drwxr-s---   3 root users 4096 Mar  3 19:37 spice-advanced-models
+drwxr-s---   3 root users 4096 Mar  3 19:37 spice-convergence-debug
+drwxr-s---   3 root users 4096 Mar  3 19:37 spice-python-automation
+drwxrwsr-x   5 root users 4096 Mar  3 11:41 spreadsheet
+drwxrws---   3 root users 4096 Mar  3 19:55 stm32
+drwxrws---   3 root users 4096 Mar  3 19:56 stm32-asm
+drwxrwsr-x   2 root users 4096 Mar  3 14:14 svelte
+drwxrwsr-x   4 root users 4096 Mar  2 13:21 .system
+drwxrwsr-x   2 root users 4096 Mar  3 14:15 tailwind
+drwxrwsr-x   2 root users 4096 Mar  3 14:05 testing
+drwxr-s---   2 root users 4096 Mar  3 18:23 test-measurement
+drwxr-s---   2 root users 4096 Mar  3 18:27 thermal-management
+drwxrwsr-x   6 root users 4096 Mar  3 20:16 transcribe
+drwxrwsr-x   2 root users 4096 Mar  3 14:19 ui-components
+drwxr-s---   2 root users 4096 Mar  3 18:24 usb-protocol
+drwxrwsr-x   2 root users 4096 Mar  3 14:19 ux-design
+drwxrwsr-x   5 root users 4096 Mar  3 20:18 vercel-deploy
+drwxr-s---   2 root users 4096 Mar  3 20:15 victron-vrm
+drwxrwsr-x   2 root users 4096 Mar  3 14:15 vue
+drwxrwsr-x   2 root users 4096 Mar  3 20:13 web-design
+drwxrwsr-x   4 root users 4096 Mar  3 11:40 yeet
+
+count:
+125
+
+size:
+6.6M	/opt/skills-global/all

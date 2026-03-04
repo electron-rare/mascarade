@@ -1,0 +1,35 @@
+# command: bash -lc 
+  echo "== failed units ==";
+  systemctl --failed --no-pager;
+  echo;
+  echo "== critical services ==";
+  for s in docker sshd systemd-resolved; do
+    printf "%s: " "$s";
+    systemctl is-active "$s" || true;
+  done;
+  echo;
+  echo "== timers (top) ==";
+  systemctl list-timers --all --no-pager | sed -n "1,60p";
+
+# date: 2026-03-03T23:53:16+00:00
+
+ 23:00:10 up 13:28,  2 users,  load average: 2.74, 1.29, 0.75
+== failed units ==
+  UNIT LOAD ACTIVE SUB DESCRIPTION
+0 loaded units listed.
+
+== critical services ==
+docker: active
+sshd: active
+systemd-resolved: active
+
+== timers (top) ==
+NEXT                        LEFT      LAST                        PASSED  UNIT                            ACTIVATES
+Tue 2026-03-03 23:53:31 UTC 15s left  Tue 2026-03-03 23:52:31 UTC 44s ago container-observability.timer   container-observability.service
+Wed 2026-03-04 00:00:00 UTC 6min left Tue 2026-03-03 07:32:12 UTC 16h ago postgres-backup-retention.timer postgres-backup-retention.service
+Wed 2026-03-04 00:01:19 UTC 8min left Tue 2026-03-03 09:18:53 UTC 14h ago postgres-backup.timer           postgres-backup.service
+Wed 2026-03-04 09:47:01 UTC 9h left   Tue 2026-03-03 09:47:01 UTC 14h ago systemd-tmpfiles-clean.timer    systemd-tmpfiles-clean.service
+-                           -         -                           -       systemd-sysupdate-reboot.timer  
+-                           -         -                           -       systemd-sysupdate.timer         
+
+6 timers listed.

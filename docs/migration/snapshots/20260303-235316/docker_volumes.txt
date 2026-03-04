@@ -1,0 +1,31 @@
+# command: docker volume ls
+# date: 2026-03-03T23:53:29+00:00
+
+DRIVER    VOLUME NAME
+local     02b1931b416ba1b1ed7731ccdaf5123f1a89f21cf5ff93642d53b5831bdc0baa
+local     9ad8f1f4229332dc0be78b546faa8853d18ba256379a74e09ed4b7a4024d0b1d
+local     4750a182eaa855876d9005683ab2cbcc83ad066cb6ccbf519cbbce6fc73349a7
+local     cdf018620201889740820c2dc73d3aa771b17339a6d5eba2322439fd5c4f48c6
+local     docker-studio-ai_homeassistant_config
+local     docker-studio-ai_open_webui_data
+local     docker-studio-ai_openclaw_config
+local     docker-studio-ai_openclaw_workspace
+local     docker-studio-ai_pgdata
+local     docker-studio-ai_pihole_data
+local     docker-studio-ai_pihole_dnsmasq
+local     docker-studio-ai_pio_cache
+local     docker-studio-ai_qdrant_data
+local     docker-studio-ai_redis_data
+local     docker-studio-ai_web_npm_cache
+local     docker-studio-ai_web_pnpm_store
+local     docker-studio-ai_zacus_ollama_data
+local     docker-studio-ai_zeroclaw_data
+local     docker_ops_console_v2_postgres_data
+local     mascarade_core-data
+local     root_grafana-storage
+local     tools_anythingllm-storage
+local     tools_clickhouse-data
+local     tools_dify-storage
+local     tools_n8n-data
+local     zacus-stack_ollama_data
+local     zacus-stack_open_webui_data

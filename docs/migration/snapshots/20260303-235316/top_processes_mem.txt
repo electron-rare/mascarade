@@ -1,0 +1,34 @@
+# command: bash -lc ps aux --sort=-%mem | sed -n "1,30p"
+# date: 2026-03-03T23:53:30+00:00
+
+ 23:00:10 up 13:28,  2 users,  load average: 2.74, 1.29, 0.75
+USER         PID %CPU %MEM    VSZ   RSS TTY      STAT START   TIME COMMAND
+root      931960  7.2  5.6 43585116 405576 pts/10 Sl+ 21:44   9:25 claude
+root      162805  7.6  5.3 43691724 379276 pts/5 Ssl+ 13:03  49:43 claude
+cils     1107108  0.7  3.8 1148816 277044 ?      Ssl  23:33   0:09 /app/api/.venv/bin/python /app/api/.venv/bin/celery -A celery_entrypoint.celery worker -P gevent -c 1 --max-tasks-per-child 50 --loglevel INFO -Q api_token,dataset,priority_dataset,priority_pipeline,pipeline,mail,ops_trace,app_deletion,plugin,workflow_storage,conversation,workflow,schedule_poller,schedule_executor,triggered_workflow_dispatcher,trigger_refresh_executor,retention,workflow_based_app_execution --prefetch-multiplier=1
+root         717  3.6  3.5 3800388 256268 ?      Ssl  09:31  31:22 /usr/bin/dockerd -H fd:// --containerd=/run/containerd/containerd.sock
+root     1077182  5.4  3.4 43455492 243944 pts/8 Sl+  23:19   1:52 claude
+472       860853  0.5  2.2 1743748 160484 ?      Ssl  20:49   0:55 grafana server --homepath=/usr/share/grafana --config=/etc/grafana/grafana.ini --packaging=docker cfg:default.log.mode=console cfg:default.paths.data=/var/lib/grafana cfg:default.paths.logs=/var/log/grafana cfg:default.paths.plugins=/var/lib/grafana/plugins cfg:default.paths.provisioning=/etc/grafana/provisioning
+zacus     534443  0.1  1.9 18589080 140796 ?     Sl   17:44   0:27 node /usr/local/bin/n8n
+root      160575  3.0  1.3 93943680 98284 ?      Sl   13:01  19:40 /usr/local/bin/zellij --server /run/user/0/zellij/0.43.1/circular-jellyfish
+root      932388  0.0  1.1 484556 81152 pts/10   Sl+  21:44   0:06 /root/.cache/uv/archive-v0/HymcAH0LpMUqkN92UIN4Y/bin/python /root/.cache/uv/archive-v0/HymcAH0LpMUqkN92UIN4Y/bin/serena start-mcp-server
+root      450069  0.0  0.8 722600 59676 ?        Ssl  16:33   0:10 python3 -m homeassistant --config /config
+root     1069625  0.5  0.8 273208 59348 pts/9    Sl+  23:16   0:12 codex resume 019cb4a2-9e92-7181-9a82-df6e2ddd9419
+cils     1015106  0.6  0.7 12928808 52504 ?      Sl   22:44   0:26 /usr/local/bin/zellij --server /run/user/1001/zellij/0.43.1/polite-drum
+root      534233  0.1  0.7 809604 50600 ?        Ssl  17:44   0:38 /usr/bin/python3.13 /usr/bin/litellm --config /app/config.yaml --port 4000
+root      440325  0.3  0.6 273344 45780 pts/4    Sl+  16:23   1:47 codex
+root     1046044  0.9  0.5 12911920 39932 ?      Sl   22:59   0:30 /usr/local/bin/zellij --server /run/user/0/zellij/0.43.1/polite-donkey
+root      553524  0.0  0.4 11798424 35348 ?      Ssl  17:58   0:03 node dist/index.js
+root         634  0.4  0.4 1696088 34144 ?       Ssl  09:31   3:38 /usr/bin/containerd
+nobody    940290  0.0  0.4 1737356 28564 ?       Ssl  21:47   0:03 /bin/prometheus --config.file=/etc/prometheus/prometheus.yml --storage.tsdb.path=/prometheus
+cils     1014785  0.2  0.3 8647496 28364 ?       Sl   22:43   0:10 /usr/local/bin/zellij --server /run/user/1001/zellij/0.43.1/chatty-stegosaurus
+root      505032  0.1  0.3 34323704 26136 ?      Sl   17:22   0:30 /usr/bin/google-chrome --disable-default-apps --js-flags=--random-seed=1157259157 --hide-scrollbars --user-data-dir=/root/.pinchtab/chrome-profile --no-first-run --no-default-browser-check --disable-dev-shm-usage --disable-client-side-phishing-detection --enable-features=NetworkService,NetworkServiceInProcess --disable-device-discovery-notifications --exclude-switches=enable-automation --disable-infobars --disable-renderer-backgrounding --disable-background-timer-throttling --disable-prompt-on-repost --hide-crash-restore-bubble --window-size=1600,900 --mute-audio --disable-hang-monitor --disable-sync --disable-popup-blocking --disable-session-crashed-bubble --headless --disable-backgrounding-occluded-windows --no-sandbox --remote-debugging-port=0 about:blank
+root      260556  0.0  0.3 719152 24216 ?        Ssl  14:47   0:19 /usr/bin/python3 -s /usr/bin/fail2ban-server -xf start
+cils      535056  0.0  0.3 1089008 23700 ?       Sl   17:44   0:17 /app/api/.venv/bin/python /app/api/.venv/bin/gunicorn --bind 0.0.0.0:5001 --workers 1 --worker-class gevent --worker-connections 10 --timeout 200 app:app
+root     1017901  0.8  0.2 12912712 21164 ?      Sl   22:45   0:34 /usr/local/bin/zellij --server /run/user/0/zellij/0.43.1/zellig
+root     1128063  0.0  0.2 11174796 21068 ?      Ssl  23:43   0:00 node build
+cils      401356  0.1  0.2 1155772 20176 ?       Sl   16:07   0:32 next-server (v16.1.5)
+root         458  0.0  0.2 114888 19664 ?        Ss   09:31   0:14 /usr/lib/systemd/systemd-journald
+cils      401365  0.1  0.2 1155816 18460 ?       Sl   16:07   0:32 next-server (v16.1.5)
+zacus     546751  0.0  0.2 9521184 14924 ?       Sl   17:53   0:13 node --disallow-code-generation-from-strings --disable-proto=delete /usr/local/lib/node_modules/n8n/node_modules/.pnpm/@n8n+task-runner@file+packages+@n8n+task-runner_@opentelemetry+api@1.9.0_@opentelemetry_abc4e288c7f66f0b9b114d073d3c169d/node_modules/@n8n/task-runner/dist/start.js
+999      1106173  0.0  0.1 222516 14108 ?        Ss   23:32   0:00 postgres: rag n8n 172.18.0.18(49682) idle

@@ -1,0 +1,86 @@
+# command: bash -lc 
+  echo "== host ==";
+  hostname;
+  echo;
+  echo "== os-release ==";
+  cat /etc/os-release;
+  echo;
+  echo "== kernel ==";
+  uname -a;
+  echo;
+  echo "== uptime/load ==";
+  uptime;
+  cat /proc/loadavg;
+  echo;
+  echo "== cpu ==";
+  nproc;
+  echo;
+  echo "== memory ==";
+  free -h;
+  echo;
+  echo "== disk ==";
+  df -h;
+
+# date: 2026-03-03T23:53:16+00:00
+
+ 23:00:10 up 13:28,  2 users,  load average: 2.74, 1.29, 0.75
+== host ==
+photon-machine
+
+== os-release ==
+NAME="VMware Photon OS"
+VERSION="5.0"
+ID=photon
+VERSION_ID=5.0
+PRETTY_NAME="VMware Photon OS/Linux"
+ANSI_COLOR="1;34"
+HOME_URL="https://vmware.github.io/photon/"
+BUG_REPORT_URL="https://github.com/vmware/photon/issues"
+
+== kernel ==
+Linux photon-machine 6.1.159-1.ph5-esx #1-photon SMP Tue Dec  9 19:23:40 UTC 2025 x86_64 GNU/Linux
+
+== uptime/load ==
+ 23:53:16 up 14:21,  1 user,  load average: 0.36, 1.99, 4.05
+0.36 1.99 4.05 1/1457 1146662
+
+== cpu ==
+4
+
+== memory ==
+               total        used        free      shared  buff/cache   available
+Mem:           6.8Gi       3.6Gi       1.5Gi        30Mi       2.0Gi       3.2Gi
+Swap:          4.0Gi       3.6Gi       439Mi
+
+== disk ==
+Filesystem      Size  Used Avail Use% Mounted on
+devtmpfs        4.0M     0  4.0M   0% /dev
+tmpfs           3.4G     0  3.4G   0% /dev/shm
+tmpfs           1.4G  3.9M  1.4G   1% /run
+/dev/sda2       246G  164G   73G  70% /
+tmpfs           3.4G  1.3G  2.2G  38% /tmp
+/dev/sda3        10M  2.4M  7.7M  24% /boot/efi
+overlay         246G  164G   73G  70% /var/lib/docker/overlay2/4b90d7359e919bb58647989ba1569c313f48f68668db3dcc0a40048ac6cd513b/merged
+tmpfs           696M     0  696M   0% /run/user/0
+overlay         246G  164G   73G  70% /var/lib/docker/overlay2/b73d43d41c32fc7817d715bd25746a24438c139b285337ed52e1d26c0049dbe0/merged
+overlay         246G  164G   73G  70% /var/lib/docker/overlay2/fa7da172d4d91048bb0a23e1ec7d846ae10536250d9a508e85e5e3100eb33ddb/merged
+overlay         246G  164G   73G  70% /var/lib/docker/overlay2/3676d28a738bcc766a41e7b1107f186ef2b5b2962e695d755cd71b78d7c35631/merged
+overlay         246G  164G   73G  70% /var/lib/docker/overlay2/434a096d89c1f2a976186f0f84b5c8b40e12194d865d9d284c4543dabb935434/merged
+overlay         246G  164G   73G  70% /var/lib/docker/overlay2/bef42dfa1fcf540571db845a1cdb48e3a9122dcf145a091381c84a2894aff3bf/merged
+overlay         246G  164G   73G  70% /var/lib/docker/overlay2/08adf2ac82983e830694a090ca63f06101fbf5eb45df41a66948540a12707fda/merged
+overlay         246G  164G   73G  70% /var/lib/docker/overlay2/9c2fb23f7ad51ce7a059b4c96ff89bee16457934509b2e8faeab3fe041a705f0/merged
+overlay         246G  164G   73G  70% /var/lib/docker/overlay2/80e1f2bb530ef9e92723bc536a25bb50df7364f7cc6b4393514b0234ad7b7e89/merged
+overlay         246G  164G   73G  70% /var/lib/docker/overlay2/3fcf3dbc8392afb2db76388676428ec9ab6d9e38288b54a662808b46e8bec5f3/merged
+overlay         246G  164G   73G  70% /var/lib/docker/overlay2/f7bb434bacfad707d31c23189867ec80aefec9252061dcd6b8855ea6a84ef2d7/merged
+overlay         246G  164G   73G  70% /var/lib/docker/overlay2/9d72ee0c1e9bd07425ac6aae8744fc4203f1fff9c9751d9759434dfb2c0e018f/merged
+overlay         246G  164G   73G  70% /var/lib/docker/overlay2/65e9fe9ac3622b95e3b2fa550dfa7fde9a8b6057e7de4034b704a61363a22970/merged
+overlay         246G  164G   73G  70% /var/lib/docker/overlay2/128d83eb325e23e40ec01d21ce3bf34476dd30ec4b36141c3bd399e3f9e0a671/merged
+overlay         246G  164G   73G  70% /var/lib/docker/overlay2/256abd5caf2f53d6615643fcfc5d6b4ee3cc60d1091e842ae36ecad1e28b9ae5/merged
+overlay         246G  164G   73G  70% /var/lib/docker/overlay2/ccd4479874eb9e179fdf2086a7b3807a07ce41f2c32ce83ec4da44bbfdd34be3/merged
+overlay         246G  164G   73G  70% /var/lib/docker/overlay2/be73f8d0eb8b88406602e6887ae0ad335d7400e14f924932dc3ef54aa757565a/merged
+overlay         246G  164G   73G  70% /var/lib/docker/overlay2/7a7353071c7e7f0241b60b427dd6586f7ae2fc52304540cb6878b9513c194c64/merged
+overlay         246G  164G   73G  70% /var/lib/docker/overlay2/83358e6dfa5943ad88c226eee8517752213dcea942f70fad2443d57f680706a6/merged
+overlay         246G  164G   73G  70% /var/lib/docker/overlay2/76fdc329e47e67d2a2ecb72c0a73c676ee87e22f92fa560f3f0252dd1de204c3/merged
+tmpfs           696M     0  696M   0% /run/user/1001
+overlay         246G  164G   73G  70% /var/lib/docker/overlay2/d8a6b6ef7079a7085184fc395e93c1bad36fad0ac5f45e5b677334885329b180/merged
+overlay         246G  164G   73G  70% /var/lib/docker/overlay2/ba0f63c45c6c93655a3844e4d4fbf3c5f6e1cefc4c57e1bd122ed1fef09e4e5a/merged

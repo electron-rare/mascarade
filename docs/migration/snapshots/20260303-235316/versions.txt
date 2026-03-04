@@ -1,0 +1,13 @@
+# command: bash -lc 
+  echo "docker: $(docker --version 2>/dev/null || echo N/A)";
+  echo "compose: $(docker compose version 2>/dev/null | head -n1 || echo N/A)";
+  echo "python3: $(python3 --version 2>/dev/null || echo N/A)";
+  echo "node: $(node --version 2>/dev/null || echo N/A)";
+
+# date: 2026-03-03T23:53:31+00:00
+
+ 23:00:10 up 13:28,  2 users,  load average: 2.74, 1.29, 0.75
+docker: Docker version 28.2.2, build e6534b4
+compose: Docker Compose version 2.33.1
+python3: Python 3.11.13
+node: v22.22.0

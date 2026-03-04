@@ -1,0 +1,3 @@
+# command: docker ps --filter health=unhealthy --format {{.Names}}: {{.Status}}
+# date: 2026-03-03T23:53:30+00:00
+

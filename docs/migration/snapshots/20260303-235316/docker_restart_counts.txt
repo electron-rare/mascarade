@@ -1,0 +1,38 @@
+# command: bash -lc 
+  for c in $(docker ps -a --format "{{.Names}}"); do
+    rc=$(docker inspect --format="{{.RestartCount}}" "$c" 2>/dev/null || echo 0)
+    status=$(docker inspect --format="{{.State.Status}}" "$c" 2>/dev/null || echo unknown)
+    printf "%-35s restart=%-6s status=%s\n" "$c" "$rc" "$status"
+  done | sort
+
+# date: 2026-03-03T23:53:29+00:00
+
+ 23:00:10 up 13:28,  2 users,  load average: 2.74, 1.29, 0.75
+mascarade-api-1                     restart=0      status=running
+mascarade-core-1                    restart=0      status=running
+ops-console-v3                      restart=0      status=running
+tools-anythingllm                   restart=0      status=exited
+tools-dify-api                      restart=0      status=running
+tools-dify-web                      restart=0      status=running
+tools-dify-worker                   restart=6      status=running
+tools-firecrawl                     restart=0      status=running
+tools-koboldcpp                     restart=0      status=exited
+tools-litellm                       restart=0      status=running
+tools-localai                       restart=0      status=exited
+tools-n8n                           restart=0      status=running
+tools-sglang                        restart=0      status=exited
+zacus-continue-ai                   restart=0      status=running
+zacus-discord-mcp-lite              restart=0      status=running
+zacus-github-mcp                    restart=820    status=exited
+zacus-grafana                       restart=0      status=running
+zacus-homeassistant                 restart=0      status=running
+zacus-ollama                        restart=0      status=running
+zacus-open-webui                    restart=0      status=exited
+zacus-pihole                        restart=0      status=running
+zacus-pinchtab                      restart=2      status=running
+zacus-postgres                      restart=0      status=running
+zacus-prometheus                    restart=0      status=running
+zacus-qdrant                        restart=0      status=running
+zacus-redis                         restart=0      status=running
+zacus-studio-ai-gateway             restart=0      status=running
+zacus-zeroclaw                      restart=0      status=running

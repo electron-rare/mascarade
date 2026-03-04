@@ -1,0 +1,26 @@
+# command: docker stats --no-stream --format table {{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}\t{{.NetIO}}
+# date: 2026-03-03T23:53:18+00:00
+
+NAME                      CPU %     MEM USAGE / LIMIT     NET I/O
+ops-console-v3            0.00%     20.48MiB / 6.797GiB   2.01kB / 126B
+zacus-grafana             0.34%     108.8MiB / 6.797GiB   640kB / 27.6MB
+zacus-zeroclaw            0.00%     11.88MiB / 6.797GiB   21.2kB / 359kB
+mascarade-api-1           0.01%     65.02MiB / 6.797GiB   428kB / 653kB
+mascarade-core-1          0.11%     23.52MiB / 6.797GiB   654kB / 421kB
+tools-dify-worker         0.00%     270.4MiB / 6.797GiB   4.49kB / 252B
+tools-dify-api            0.02%     35.06MiB / 6.797GiB   30.1kB / 252B
+tools-litellm             0.12%     68.86MiB / 6.797GiB   634kB / 412kB
+tools-n8n                 0.07%     149.1MiB / 6.797GiB   2.5MB / 3.59MB
+tools-firecrawl           0.00%     10.8MiB / 6.797GiB    32.8kB / 1.6kB
+zacus-pinchtab            0.01%     48.49MiB / 6.797GiB   0B / 0B
+zacus-qdrant              0.04%     16.1MiB / 6.797GiB    2.21MB / 3.46MB
+zacus-redis               0.12%     8.641MiB / 6.797GiB   70.4kB / 54.8kB
+zacus-postgres            0.02%     43.81MiB / 6.797GiB   4.52MB / 7.24MB
+zacus-continue-ai         0.25%     21.87MiB / 6.797GiB   141MB / 931kB
+zacus-pihole              0.14%     5.07MiB / 6.797GiB    687kB / 32kB
+tools-dify-web            0.20%     33.97MiB / 6.797GiB   27.6kB / 3.13kB
+zacus-discord-mcp-lite    0.00%     10.29MiB / 6.797GiB   71.1kB / 1.65kB
+zacus-studio-ai-gateway   8.13%     19.21MiB / 6.797GiB   316kB / 186kB
+zacus-ollama              0.00%     42.3MiB / 6.797GiB    51.7GB / 301MB
+zacus-prometheus          0.00%     29.72MiB / 6.797GiB   862kB / 638kB
+zacus-homeassistant       0.09%     63.73MiB / 1GiB       0B / 0B

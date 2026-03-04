@@ -1,0 +1,65 @@
+# command: bash -lc 
+  echo "== ip -4 ==";
+  ip -4 -o addr show scope global;
+  echo;
+  echo "== listening ports ==";
+  ss -tulpn;
+
+# date: 2026-03-03T23:53:16+00:00
+
+ 23:00:10 up 13:28,  2 users,  load average: 2.74, 1.29, 0.75
+== ip -4 ==
+2: eth0    inet 192.168.0.119/24 brd 192.168.0.255 scope global eth0\       valid_lft forever preferred_lft forever
+3: br-c97a0d88b77a    inet 172.18.0.1/16 brd 172.18.255.255 scope global br-c97a0d88b77a\       valid_lft forever preferred_lft forever
+4: docker0    inet 172.17.0.1/16 brd 172.17.255.255 scope global docker0\       valid_lft forever preferred_lft forever
+1090: br-826a25cfc4b3    inet 172.20.0.1/16 brd 172.20.255.255 scope global br-826a25cfc4b3\       valid_lft forever preferred_lft forever
+116: br-1b510608166e    inet 172.19.0.1/16 brd 172.19.255.255 scope global br-1b510608166e\       valid_lft forever preferred_lft forever
+3217: br-b3043cb336f4    inet 172.21.0.1/16 brd 172.21.255.255 scope global br-b3043cb336f4\       valid_lft forever preferred_lft forever
+
+== listening ports ==
+Netid State  Recv-Q Send-Q                  Local Address:Port  Peer Address:PortProcess                                     
+udp   UNCONN 0      0                             0.0.0.0:53         0.0.0.0:*    users:(("docker-proxy",pid=502539,fd=7))   
+udp   UNCONN 0      0                       192.168.0.119:5353       0.0.0.0:*    users:(("python3",pid=450069,fd=17))       
+udp   UNCONN 0      0                             0.0.0.0:5353       0.0.0.0:*    users:(("systemd-resolve",pid=513,fd=10))  
+udp   UNCONN 0      0                             0.0.0.0:1900       0.0.0.0:*    users:(("python3",pid=450069,fd=23))       
+udp   UNCONN 0      0                             0.0.0.0:52562      0.0.0.0:*    users:(("python3",pid=450069,fd=24))       
+udp   UNCONN 0      0                                [::]:53            [::]:*    users:(("docker-proxy",pid=502546,fd=7))   
+udp   UNCONN 0      0                                   *:33088            *:*    users:(("python3",pid=450069,fd=26))       
+udp   UNCONN 0      0                                [::]:5353          [::]:*    users:(("systemd-resolve",pid=513,fd=11))  
+udp   UNCONN 0      0                                   *:5353             *:*    users:(("python3",pid=450069,fd=16))       
+udp   UNCONN 0      0      [fe80::20c:29ff:fe16:da8]%eth0:5353          [::]:*    users:(("python3",pid=450069,fd=18))       
+udp   UNCONN 0      0                                   *:1900             *:*    users:(("python3",pid=450069,fd=25))       
+tcp   LISTEN 0      4096                        127.0.0.1:3400       0.0.0.0:*    users:(("docker-proxy",pid=520242,fd=7))   
+tcp   LISTEN 0      4096                        127.0.0.1:3500       0.0.0.0:*    users:(("docker-proxy",pid=400734,fd=7))   
+tcp   LISTEN 0      4096                        127.0.0.1:3100       0.0.0.0:*    users:(("docker-proxy",pid=553553,fd=7))   
+tcp   LISTEN 0      4096                        127.0.0.1:11434      0.0.0.0:*    users:(("docker-proxy",pid=263746,fd=7))   
+tcp   LISTEN 0      128                           0.0.0.0:8123       0.0.0.0:*    users:(("python3",pid=450069,fd=11))       
+tcp   LISTEN 0      4096                        127.0.0.1:3921       0.0.0.0:*    users:(("docker-proxy",pid=267192,fd=7))   
+tcp   LISTEN 0      4096                          0.0.0.0:8081       0.0.0.0:*    users:(("docker-proxy",pid=502554,fd=7))   
+tcp   LISTEN 0      511                         127.0.0.1:44937      0.0.0.0:*    users:(("claude",pid=14568,fd=24))         
+tcp   LISTEN 0      4096                        127.0.0.1:65432      0.0.0.0:*    users:(("docker-proxy",pid=502347,fd=7))   
+tcp   LISTEN 0      4096                        127.0.0.1:4000       0.0.0.0:*    users:(("docker-proxy",pid=534339,fd=7))   
+tcp   LISTEN 0      4096                        127.0.0.1:8100       0.0.0.0:*    users:(("docker-proxy",pid=553479,fd=7))   
+tcp   LISTEN 0      10                          127.0.0.1:36371      0.0.0.0:*    users:(("chrome",pid=505032,fd=78))        
+tcp   LISTEN 0      4096                        127.0.0.1:44603      0.0.0.0:*    users:(("containerd",pid=634,fd=10))       
+tcp   LISTEN 0      128                         127.0.0.1:24282      0.0.0.0:*    users:(("python",pid=932388,fd=5))         
+tcp   LISTEN 0      4096                        127.0.0.1:18554      0.0.0.0:*    users:(("go2rtc",pid=824259,fd=7))         
+tcp   LISTEN 0      4096                        127.0.0.1:6333       0.0.0.0:*    users:(("docker-proxy",pid=502454,fd=7))   
+tcp   LISTEN 0      4096                        127.0.0.1:6379       0.0.0.0:*    users:(("docker-proxy",pid=502477,fd=7))   
+tcp   LISTEN 0      4096                        127.0.0.1:3001       0.0.0.0:*    users:(("docker-proxy",pid=860890,fd=7))   
+tcp   LISTEN 0      4096                        127.0.0.1:5432       0.0.0.0:*    users:(("docker-proxy",pid=502618,fd=7))   
+tcp   LISTEN 0      4096                        127.0.0.1:5678       0.0.0.0:*    users:(("docker-proxy",pid=534404,fd=7))   
+tcp   LISTEN 0      4096                        127.0.0.1:9867       0.0.0.0:*    users:(("pinchtab-linux-",pid=505023,fd=7))
+tcp   LISTEN 0      4096                          0.0.0.0:42617      0.0.0.0:*    users:(("docker-proxy",pid=617731,fd=7))   
+tcp   LISTEN 0      4096                          0.0.0.0:80         0.0.0.0:*    users:(("docker-proxy",pid=1128098,fd=7))  
+tcp   LISTEN 0      4096                          0.0.0.0:53         0.0.0.0:*    users:(("docker-proxy",pid=502524,fd=7))   
+tcp   LISTEN 0      128                           0.0.0.0:22         0.0.0.0:*    users:(("sshd",pid=698,fd=3))              
+tcp   LISTEN 0      4096                        127.0.0.1:5001       0.0.0.0:*    users:(("docker-proxy",pid=534291,fd=7))   
+tcp   LISTEN 0      4096                        127.0.0.1:9091       0.0.0.0:*    users:(("docker-proxy",pid=940328,fd=7))   
+tcp   LISTEN 0      4096                        127.0.0.1:8787       0.0.0.0:*    users:(("docker-proxy",pid=264110,fd=7))   
+tcp   LISTEN 0      128                              [::]:8123          [::]:*    users:(("python3",pid=450069,fd=13))       
+tcp   LISTEN 0      4096                             [::]:8081          [::]:*    users:(("docker-proxy",pid=502564,fd=7))   
+tcp   LISTEN 0      4096                                *:18555            *:*    users:(("go2rtc",pid=824259,fd=8))         
+tcp   LISTEN 0      4096                             [::]:80            [::]:*    users:(("docker-proxy",pid=1128104,fd=7))  
+tcp   LISTEN 0      4096                             [::]:53            [::]:*    users:(("docker-proxy",pid=502531,fd=7))   
+tcp   LISTEN 0      128                              [::]:22            [::]:*    users:(("sshd",pid=698,fd=4))              

@@ -1,0 +1,32 @@
+# command: docker ps -a --format table {{.Names}}\t{{.Image}}\t{{.Status}}\t{{.Ports}}
+# date: 2026-03-03T23:53:18+00:00
+
+NAMES                     IMAGE                                          STATUS                        PORTS
+ops-console-v3            ops-console-v3-ops-console-v3                  Up 10 minutes                 0.0.0.0:80->3333/tcp, [::]:80->3333/tcp
+tools-koboldcpp           koboldai/koboldcpp:latest                      Exited (137) 13 minutes ago   
+tools-anythingllm         mintplexlabs/anythingllm:latest                Exited (137) 16 minutes ago   
+tools-sglang              lmsysorg/sglang:latest                         Exited (137) 16 minutes ago   
+tools-localai             localai/localai:latest                         Exited (0) 16 minutes ago     
+zacus-open-webui          ghcr.io/open-webui/open-webui:main             Exited (137) 13 minutes ago   
+zacus-grafana             grafana/grafana:latest                         Up 3 hours                    127.0.0.1:3001->3000/tcp
+zacus-zeroclaw            zacus-zeroclaw:v0.1.7                          Up 5 hours (healthy)          0.0.0.0:42617->42617/tcp
+mascarade-api-1           mascarade-api                                  Up 6 hours (healthy)          127.0.0.1:3100->3000/tcp
+mascarade-core-1          mascarade-core                                 Up 6 hours (healthy)          127.0.0.1:8100->8100/tcp
+tools-dify-worker         langgenius/dify-api:latest                     Up 20 minutes                 5001/tcp
+tools-dify-api            langgenius/dify-api:latest                     Up 6 hours                    127.0.0.1:5001->5001/tcp
+tools-litellm             ghcr.io/berriai/litellm:main-latest            Up 6 hours                    127.0.0.1:4000->4000/tcp
+tools-n8n                 docker.n8n.io/n8nio/n8n:latest                 Up 6 hours                    127.0.0.1:5678->5678/tcp
+tools-firecrawl           mcp/firecrawl:latest                           Up 6 hours                    127.0.0.1:3400->3400/tcp
+zacus-pinchtab            docker-studio-ai-pinchtab                      Up 7 hours (healthy)          
+zacus-qdrant              qdrant/qdrant:latest                           Up 7 hours (healthy)          127.0.0.1:6333->6333/tcp, 6334/tcp
+zacus-redis               redis:7.2-alpine                               Up 7 hours (healthy)          127.0.0.1:6379->6379/tcp
+zacus-postgres            ankane/pgvector:latest                         Up 7 hours (healthy)          127.0.0.1:5432->5432/tcp
+zacus-continue-ai         coldfront/continue-server:latest               Up 7 hours (healthy)          127.0.0.1:65432->65432/tcp
+zacus-pihole              pihole/pihole:latest                           Up 7 hours (healthy)          67/udp, 0.0.0.0:53->53/tcp, 0.0.0.0:53->53/udp, [::]:53->53/tcp, [::]:53->53/udp, 123/udp, 443/tcp, 0.0.0.0:8081->80/tcp, [::]:8081->80/tcp
+tools-dify-web            langgenius/dify-web:latest                     Up 8 hours                    127.0.0.1:3500->3000/tcp
+zacus-github-mcp          ghcr.io/github/github-mcp-server:latest        Exited (0) 37 minutes ago     
+zacus-discord-mcp-lite    barryy625/mcp-discord:latest                   Up 9 hours                    8080/tcp, 127.0.0.1:3921->3000/tcp
+zacus-studio-ai-gateway   docker-studio-ai-studio-ai-gateway             Up 9 hours (healthy)          127.0.0.1:8787->8787/tcp
+zacus-ollama              ollama/ollama:latest                           Up 9 hours (healthy)          127.0.0.1:11434->11434/tcp
+zacus-prometheus          prom/prometheus:latest                         Up 2 hours                    127.0.0.1:9091->9090/tcp
+zacus-homeassistant       ghcr.io/home-assistant/home-assistant:stable   Up 7 hours                    

@@ -1,0 +1,8 @@
+# command: docker system df
+# date: 2026-03-03T23:53:21+00:00
+
+TYPE            TOTAL     ACTIVE    SIZE      RECLAIMABLE
+Images          56        27        85.61GB   17.55GB (20%)
+Containers      28        22        608.9MB   176.2MB (28%)
+Local Volumes   27        18        63.5GB    1.238GB (1%)
+Build Cache     118       0         487.5MB   487.5MB

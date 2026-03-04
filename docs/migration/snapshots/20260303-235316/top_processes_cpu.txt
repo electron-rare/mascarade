@@ -1,0 +1,34 @@
+# command: bash -lc ps aux --sort=-%cpu | sed -n "1,30p"
+# date: 2026-03-03T23:53:30+00:00
+
+ 23:00:10 up 13:28,  2 users,  load average: 2.74, 1.29, 0.75
+USER         PID %CPU %MEM    VSZ   RSS TTY      STAT START   TIME COMMAND
+root     1147531 33.3  0.0   9080  5412 ?        S    23:53   0:00 bash -lc ps aux --sort=-%cpu | sed -n "1,30p"
+root      162805  7.6  5.3 43691724 379276 pts/5 Rsl+ 13:03  49:43 claude
+root      931960  7.2  5.6 43585116 405576 pts/10 Sl+ 21:44   9:25 claude
+root     1077182  5.4  3.4 43455492 243944 pts/8 Sl+  23:19   1:52 claude
+root         717  3.6  3.5 3800388 256268 ?      Ssl  09:31  31:22 /usr/bin/dockerd -H fd:// --containerd=/run/containerd/containerd.sock
+root      160575  3.0  1.3 93943680 98284 ?      Sl   13:01  19:40 /usr/local/bin/zellij --server /run/user/0/zellij/0.43.1/circular-jellyfish
+root      263688  1.2  0.1 3641180 9884 ?        Ssl  14:50   6:41 /bin/ollama serve
+root     1046044  0.9  0.5 12911920 39936 ?      Sl   22:59   0:30 /usr/local/bin/zellij --server /run/user/0/zellij/0.43.1/polite-donkey
+root     1017901  0.8  0.2 12912712 21164 ?      Sl   22:45   0:34 /usr/local/bin/zellij --server /run/user/0/zellij/0.43.1/zellig
+cils     1107108  0.7  3.8 1148816 277044 ?      Ssl  23:33   0:09 /app/api/.venv/bin/python /app/api/.venv/bin/celery -A celery_entrypoint.celery worker -P gevent -c 1 --max-tasks-per-child 50 --loglevel INFO -Q api_token,dataset,priority_dataset,priority_pipeline,pipeline,mail,ops_trace,app_deletion,plugin,workflow_storage,conversation,workflow,schedule_poller,schedule_executor,triggered_workflow_dispatcher,trigger_refresh_executor,retention,workflow_based_app_execution --prefetch-multiplier=1
+root      160150  0.6  0.1 12912664 11656 ?      Sl   13:00   4:11 /usr/local/bin/zellij --server /run/user/0/zellij/0.43.1/inventive-lake
+root      159828  0.6  0.1 12912860 9988 ?       Sl   13:00   4:08 /usr/local/bin/zellij --server /run/user/0/zellij/0.43.1/auspicious-weasel
+cils     1015106  0.6  0.7 12928808 52504 ?      Sl   22:44   0:26 /usr/local/bin/zellij --server /run/user/1001/zellij/0.43.1/polite-drum
+root     1069625  0.5  0.8 273208 59348 pts/9    Sl+  23:16   0:12 codex resume 019cb4a2-9e92-7181-9a82-df6e2ddd9419
+472       860853  0.5  2.2 1743748 160484 ?      Ssl  20:49   0:55 grafana server --homepath=/usr/share/grafana --config=/etc/grafana/grafana.ini --packaging=docker cfg:default.log.mode=console cfg:default.paths.data=/var/lib/grafana cfg:default.paths.logs=/var/log/grafana cfg:default.paths.plugins=/var/lib/grafana/plugins cfg:default.paths.provisioning=/etc/grafana/provisioning
+root         634  0.4  0.4 1696088 34144 ?       Ssl  09:31   3:38 /usr/bin/containerd
+root      440325  0.3  0.6 273344 45780 pts/4    Sl+  16:23   1:47 codex
+root          47  0.3  0.0      0     0 ?        S    09:31   2:37 [kswapd0]
+cils     1014785  0.2  0.3 8647496 28364 ?       Sl   22:43   0:10 /usr/local/bin/zellij --server /run/user/1001/zellij/0.43.1/chatty-stegosaurus
+root      534233  0.1  0.7 809604 50600 ?        Ssl  17:44   0:38 /usr/bin/python3.13 /usr/bin/litellm --config /app/config.yaml --port 4000
+root     1044962  0.1  0.0  13432  5648 ?        Ss   22:59   0:05 sshd: root@pts/11
+zacus     502733  0.1  0.1 543020  7232 ?        Sl   17:20   0:36 python -m continuedev --port 65432 --host 0.0.0.0
+root     1046024  0.1  0.1  88140  7932 pts/11   Sl+  22:59   0:04 zellij
+zacus     503072  0.1  0.0  14796  2420 ?        Sl   17:20   0:32 /usr/bin/pihole-FTL no-daemon
+root          37  0.1  0.0      0     0 ?        S    09:31   1:11 [kcompactd0]
+root     1146624  0.1  0.0   7540  3708 ?        Ss   23:53   0:00 bash /mascarade/scripts/export_machine_migration_bundle.sh
+root      553446  0.1  0.1 295880 10508 ?        Ssl  17:58   0:27 python -m uvicorn mascarade.server:app --host 0.0.0.0 --port 8100
+root      505032  0.1  0.3 34323704 26136 ?      Sl   17:22   0:30 /usr/bin/google-chrome --disable-default-apps --js-flags=--random-seed=1157259157 --hide-scrollbars --user-data-dir=/root/.pinchtab/chrome-profile --no-first-run --no-default-browser-check --disable-dev-shm-usage --disable-client-side-phishing-detection --enable-features=NetworkService,NetworkServiceInProcess --disable-device-discovery-notifications --exclude-switches=enable-automation --disable-infobars --disable-renderer-backgrounding --disable-background-timer-throttling --disable-prompt-on-repost --hide-crash-restore-bubble --window-size=1600,900 --mute-audio --disable-hang-monitor --disable-sync --disable-popup-blocking --disable-session-crashed-bubble --headless --disable-backgrounding-occluded-windows --no-sandbox --remote-debugging-port=0 about:blank
+zacus     534443  0.1  1.9 18589080 140796 ?     Sl   17:44   0:27 node /usr/local/bin/n8n
