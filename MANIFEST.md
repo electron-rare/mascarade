@@ -31,7 +31,7 @@ Multiplexeur terminal : **Zellij 0.43.1**
 | 3 | **codex** | OpenAI Codex | Mascarade repo |
 | 4 | **skills & llm** | Claude Code | Skills, LLM config |
 | 5 | **cockpit web** | — | Ops-Console dev |
-| 6 | **update repo mascarade** | Claude Code | Migration, skills, install.sh |
+| 6 | **update repo mascarade** | Claude Code | Migration, skills, setup |
 
 ### Config
 
@@ -243,8 +243,8 @@ mascarade/
 │   └── skills-global/       # 124 skills categories + symlinks
 ├── .claude/
 │   └── skills/              # Skills projet (categories + _projects)
-├── install.sh               # Installateur TUI
-├── docker-compose.yml       # Genere par install.sh
+├── setup                    # Installateur TUI
+├── docker-compose.yml       # Genere par setup
 ├── CLAUDE.md                # Conventions projet
 └── MANIFEST.md              # Ce fichier
 ```

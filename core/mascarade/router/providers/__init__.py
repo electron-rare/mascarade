@@ -31,3 +31,9 @@ try:
     __all__.append("GoogleProvider")
 except ImportError:
     pass
+
+try:
+    from mascarade.router.providers.huggingface import HuggingFaceProvider
+    __all__.append("HuggingFaceProvider")
+except ImportError:
+    pass

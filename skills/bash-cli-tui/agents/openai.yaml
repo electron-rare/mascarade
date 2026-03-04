@@ -1,0 +1,4 @@
+interface:
+  display_name: "Bash CLI TUI"
+  short_description: "Build and maintain robust Bash CLI/TUI tools"
+  default_prompt: "Implement or refactor Bash CLI/TUI scripts with safe flags, argument parsing, and terminal UX fallbacks."

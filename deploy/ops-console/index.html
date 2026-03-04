@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Mascarade Ops Console</title>
+  <style>
+    :root {
+      --bg: #0b1220;
+      --card: #141d31;
+      --text: #e9edf7;
+      --muted: #98a2b3;
+      --accent: #4cd4a3;
+      --link: #74b7ff;
+      --border: #23314d;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: ui-sans-serif, -apple-system, Segoe UI, Helvetica, Arial, sans-serif;
+      color: var(--text);
+      background: radial-gradient(circle at 20% 0%, #152441 0%, var(--bg) 45%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+    main {
+      width: min(880px, 100%);
+      background: color-mix(in srgb, var(--card) 88%, #000 12%);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 28px;
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.35);
+    }
+    h1 {
+      margin: 0 0 6px;
+      font-size: clamp(24px, 4vw, 34px);
+      line-height: 1.15;
+    }
+    p { margin: 0 0 14px; color: var(--muted); }
+    .badge {
+      display: inline-block;
+      margin-bottom: 16px;
+      padding: 6px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      color: #0d2a22;
+      background: var(--accent);
+      font-weight: 700;
+    }
+    ul {
+      list-style: none;
+      margin: 20px 0 0;
+      padding: 0;
+      display: grid;
+      gap: 10px;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    }
+    a {
+      display: block;
+      text-decoration: none;
+      color: var(--link);
+      border: 1px solid var(--border);
+      background: #0f1729;
+      border-radius: 12px;
+      padding: 12px;
+    }
+    a:hover { border-color: #3b5d97; }
+    small { color: var(--muted); display: block; margin-top: 14px; }
+  </style>
+</head>
+<body>
+  <main>
+    <span class="badge">Ops Console</span>
+    <h1>Mascarade Cockpit</h1>
+    <p>Point d'entree local pour les services de la stack.</p>
+    <ul>
+      <li><a href="http://localhost:8100/health">Core health (8100)</a></li>
+      <li><a href="http://localhost:3100/health">API health (3100)</a></li>
+      <li><a href="http://localhost:8080/">Open WebUI (8080)</a></li>
+      <li><a href="http://localhost:3001/">Grafana (3001)</a></li>
+      <li><a href="http://localhost:9090/">Prometheus (9090)</a></li>
+      <li><a href="http://localhost:11434/">Ollama (11434)</a></li>
+    </ul>
+    <small>Genere via setup Mascarade.</small>
+  </main>
+</body>
+</html>

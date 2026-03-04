@@ -132,7 +132,7 @@ cd ..
 docker compose build
 docker compose up -d
 curl -f http://localhost:8100/health
-curl -f http://localhost:3000/health
+curl -f http://localhost:3100/health
 ```
 
 ## 6. Critères de sortie (go-live VM)

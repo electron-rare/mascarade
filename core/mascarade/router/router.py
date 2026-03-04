@@ -38,6 +38,7 @@ class Router:
             ("mascarade.router.providers.mistral", "MistralProvider"),
             ("mascarade.router.providers.bedrock", "BedrockProvider"),
             ("mascarade.router.providers.google", "GoogleProvider"),
+            ("mascarade.router.providers.huggingface", "HuggingFaceProvider"),
         ]
 
         for module_name, class_name in provider_specs:

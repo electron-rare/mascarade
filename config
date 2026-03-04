@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # config — Reconfiguration interactive Mascarade
-# Usage : ./config [--help]
+# Usage : ./config [--help] [--verbose|-v]
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
@@ -9,16 +9,38 @@ source "$SCRIPT_DIR/scripts/lib.sh"
 source "$SCRIPT_DIR/scripts/services.sh"
 source "$SCRIPT_DIR/scripts/compose.sh"
 
-# ── Aide ──
-case "${1:-}" in
-    -h|--help)
-        echo "Usage: ./config"
-        echo ""
-        echo "Reconfiguration interactive du .env Mascarade."
-        echo "Permet de modifier cles API, ports, integrations sans tout reinstaller."
-        exit 0
-        ;;
-esac
+for arg in "$@"; do
+    case "$arg" in
+        -v|--verbose)
+            VERBOSE=true
+            ;;
+        -h|--help)
+            echo "Usage: ./config [--help] [--verbose|-v]"
+            echo ""
+            echo "Reconfiguration interactive du .env Mascarade. Permet de modifier cles API, ports, integrations sans tout reinstaller."
+            echo ""
+            echo "Options :"
+            echo "  -h, --help      Afficher cette aide et quitter"
+            echo "  -v, --verbose   Afficher les traces de debug"
+            exit 0
+            ;;
+        *)
+            err "Option inconnue: $arg"
+            echo "Utilise: ./config --help"
+            exit 2
+            ;;
+    esac
+done
+
+dbg "=== config demarre ==="
+dbg "  REPO_DIR=$REPO_DIR"
+dbg "  SCRIPT_DIR=$SCRIPT_DIR"
+_ensure_docker_access
+
+if [[ ! -t 0 || ! -t 1 ]]; then
+    err "Le mode interactif est requis (TTY introuvable). Utilise ./config --help pour les options."
+    exit 1
+fi
 
 # ═══════════════════════════════════════
 # Flow principal
@@ -34,17 +56,23 @@ env_file="$REPO_DIR/.env"
 
 if [[ ! -f "$env_file" ]]; then
     err "Pas de fichier .env trouve. Lance d'abord ./setup"
+    dbg "  fichier absent: $env_file"
     exit 1
 fi
 
+dbg "Chargement $env_file ($(wc -l < "$env_file") lignes)..."
 load_env "$env_file"
 ok "Configuration actuelle chargee"
 
 # Detecter les services actifs
+dbg "Detection des services actifs depuis docker-compose.yml..."
 if load_running_services 2>/dev/null; then
     ok "Services detectes depuis docker-compose.yml"
+    for id in "${SVC_IDS[@]}"; do
+        [[ "${SVC_ON[$id]}" == "1" ]] && dbg "  ON: $id (${SVC_LABEL[$id]})"
+    done
 else
-    # Fallback : considerer tout comme actif
+    dbg "Pas de docker-compose.yml ou docker absent — fallback: tout actif"
     for id in "${SVC_IDS[@]}"; do SVC_ON[$id]="1"; done
 fi
 
@@ -57,9 +85,11 @@ menu_select "Que voulez-vous reconfigurer ?" \
     "Tout reconfigurer"
 
 config_choice=$MENU_RESULT
+dbg "Choix config: $config_choice"
 
 case $config_choice in
     0) # Cles API
+        dbg "=== Section: Cles API LLM ==="
         section "Cles API LLM"
         info "Laisser vide pour desactiver un provider"
         echo ""
@@ -73,28 +103,35 @@ case $config_choice in
         echo -e "  ${BOLD}Provider par defaut${NC}"
         DEFAULT_LLM_PROVIDER=$(input_value "Provider (anthropic/openai/mistral) :" "${DEFAULT_LLM_PROVIDER:-anthropic}")
         DEFAULT_LLM_MODEL=$(input_value "Modele :" "${DEFAULT_LLM_MODEL:-claude-sonnet-4-20250514}")
+        dbg "Provider=$DEFAULT_LLM_PROVIDER Model=$DEFAULT_LLM_MODEL"
 
         echo ""
         echo -e "  ${BOLD}Authentification API${NC}"
         if [[ -z "${MASCARADE_API_KEY:-}" ]]; then
+            dbg "Pas de token existant"
             if confirm "Generer un token Bearer API ?"; then
                 MASCARADE_API_KEY=$(openssl rand -hex 32 2>/dev/null || head -c 64 /dev/urandom | od -An -tx1 | tr -d ' \n')
                 ok "Token genere : ${MASCARADE_API_KEY:0:12}..."
+                dbg "Token genere (${#MASCARADE_API_KEY} chars)"
             fi
         else
+            dbg "Token existant (${#MASCARADE_API_KEY} chars)"
             ok "Token existant : ${MASCARADE_API_KEY:0:12}..."
             if confirm "Regenerer le token ?"; then
                 MASCARADE_API_KEY=$(openssl rand -hex 32 2>/dev/null || head -c 64 /dev/urandom | od -An -tx1 | tr -d ' \n')
                 ok "Nouveau token : ${MASCARADE_API_KEY:0:12}..."
+                dbg "Token regenere (${#MASCARADE_API_KEY} chars)"
             fi
         fi
         ;;
 
     1) # Integrations
+        dbg "=== Section: Integrations ==="
         section "Integrations"
 
         echo -e "  ${BOLD}Notion${NC}"
         NOTION_API_KEY=$(input_secret "Notion API Key (optionnel) :" "${NOTION_API_KEY:-}")
+        dbg "Notion API Key: ${NOTION_API_KEY:+presente (${#NOTION_API_KEY} chars)}${NOTION_API_KEY:-vide}"
 
         echo ""
         echo -e "  ${BOLD}ComfyUI (generation d'images)${NC}"
@@ -102,47 +139,57 @@ case $config_choice in
             "Serveur distant (URL existante)" \
             "Installation locale (Docker)" \
             "Desactiver"
+        dbg "ComfyUI choix: $MENU_RESULT"
         case "$MENU_RESULT" in
             0)
                 COMFYUI_URL=$(input_value "URL du serveur ComfyUI :" "${COMFYUI_URL:-}")
                 COMFYUI_LOCAL=false
+                dbg "ComfyUI distant: $COMFYUI_URL"
                 ;;
             1)
                 COMFYUI_URL="http://comfyui:8188"
                 COMFYUI_LOCAL=true
                 info "ComfyUI sera installe en local via Docker"
+                dbg "ComfyUI local: $COMFYUI_URL"
                 ;;
             2)
                 COMFYUI_URL=""
                 COMFYUI_LOCAL=false
+                dbg "ComfyUI desactive"
                 ;;
         esac
         ;;
 
     2) # Ports
+        dbg "=== Section: Ports ==="
         section "Ports des services"
 
         info "Entree pour garder la valeur actuelle"
         echo ""
         svc_selected "core"       && CORE_PORT=$(input_value "Port Core (FastAPI) :" "${CORE_PORT:-8100}")
-        svc_selected "api"        && API_PORT=$(input_value "Port API (Hono) :" "${API_PORT:-3000}")
+        svc_selected "api"        && API_PORT=$(input_value "Port API (Hono) :" "${API_PORT:-3100}")
         svc_selected "postgres"   && POSTGRES_PORT=$(input_value "Port PostgreSQL :" "${POSTGRES_PORT:-5432}")
         svc_selected "redis"      && REDIS_PORT=$(input_value "Port Redis :" "${REDIS_PORT:-6379}")
         svc_selected "ollama"     && OLLAMA_PORT=$(input_value "Port Ollama :" "${OLLAMA_PORT:-11434}")
+        svc_selected "open-webui" && OPEN_WEBUI_PORT=$(input_value "Port Open WebUI :" "${OPEN_WEBUI_PORT:-8080}")
+        svc_selected "ops-console" && OPS_CONSOLE_PORT=$(input_value "Port Ops Console :" "${OPS_CONSOLE_PORT:-80}")
         svc_selected "litellm"    && LITELLM_PORT=$(input_value "Port LiteLLM :" "${LITELLM_PORT:-4000}")
         svc_selected "n8n"        && N8N_PORT=$(input_value "Port n8n :" "${N8N_PORT:-5678}")
         svc_selected "langfuse"   && LANGFUSE_PORT=$(input_value "Port Langfuse :" "${LANGFUSE_PORT:-3200}")
-        svc_selected "dify"       && DIFY_PORT=$(input_value "Port Dify Web :" "${DIFY_PORT:-3500}")
+        svc_selected "dify"       && DIFY_API_PORT=$(input_value "Port Dify API :" "${DIFY_API_PORT:-5001}")
+        svc_selected "dify"       && DIFY_WEB_PORT=$(input_value "Port Dify Web :" "${DIFY_WEB_PORT:-3500}")
         svc_selected "qdrant"     && QDRANT_PORT=$(input_value "Port Qdrant :" "${QDRANT_PORT:-6333}")
         svc_selected "grafana"    && GRAFANA_PORT=$(input_value "Port Grafana :" "${GRAFANA_PORT:-3001}")
         svc_selected "prometheus" && PROMETHEUS_PORT=$(input_value "Port Prometheus :" "${PROMETHEUS_PORT:-9090}")
+        dbg "Ports configures"
         ;;
 
     3) # Tout
+        dbg "=== Section: Configuration complete ==="
         section "Configuration complete"
 
-        # Charger les modules pour collect_module_configs
         for mod_file in "$REPO_DIR/scripts/modules/"*.sh; do
+            dbg "  source $(basename "$mod_file")"
             # shellcheck disable=SC1090
             source "$mod_file"
         done
@@ -155,59 +202,83 @@ esac
 echo ""
 section "Apercu des modifications"
 
-# Ecrire dans un fichier temporaire pour comparer
+dbg "Ecriture .env temporaire pour diff..."
 tmp_env=$(mktemp)
+dbg "  tmp=$tmp_env"
 write_env_file "$tmp_env" 2>/dev/null
 
 if [[ -f "$env_file" ]]; then
+    dbg "Comparaison $env_file vs $tmp_env..."
     diff_output=$(diff --color=auto "$env_file" "$tmp_env" 2>/dev/null || true)
     if [[ -n "$diff_output" ]]; then
+        dbg "  $(echo "$diff_output" | wc -l) lignes de diff"
         echo "$diff_output"
     else
         ok "Aucune modification detectee"
+        dbg "  fichiers identiques"
         rm -f "$tmp_env"
         exit 0
     fi
 else
     info "Nouveau fichier .env"
+    dbg "  pas de .env existant, tout est nouveau"
 fi
 
 echo ""
 if ! confirm "Appliquer ces modifications ?"; then
     rm -f "$tmp_env"
     ok "Modifications annulees"
+    dbg "Modifications annulees par l'utilisateur"
     exit 0
 fi
 
 # ── Ecriture ──
+dbg "Application des modifications..."
 backup_file "$env_file"
 mv "$tmp_env" "$env_file"
 chmod 600 "$env_file"
+dbg ".env mis a jour: $(wc -l < "$env_file") lignes, permissions $(stat -c '%a' "$env_file" 2>/dev/null || echo '?')"
 ok ".env mis a jour ($(wc -l < "$env_file") lignes, permissions 600)"
 
 # ── Regenerer docker-compose.yml si ports modifies ──
 if [[ $config_choice -eq 2 || $config_choice -eq 3 ]]; then
     echo ""
     if confirm "Regenerer docker-compose.yml avec les nouveaux ports ?"; then
+        dbg "Regeneration docker-compose.yml..."
         backup_file "$REPO_DIR/docker-compose.yml"
         generate_compose "$REPO_DIR/docker-compose.yml"
+        dbg "  genere: $(wc -l < "$REPO_DIR/docker-compose.yml") lignes"
         ok "docker-compose.yml regenere"
+    else
+        dbg "Regeneration docker-compose.yml refusee"
     fi
 fi
 
 # ── Restart optionnel ──
 echo ""
 if confirm "Redemarrer les services impactes ?"; then
+    dbg "Restart des services..."
     spin_start "Restart des services..."
-    docker compose -f "$REPO_DIR/docker-compose.yml" up -d 2>&1
+    restart_rc=0
+    docker_compose_cmd -f "$REPO_DIR/docker-compose.yml" up -d 2>&1 || restart_rc=$?
     spin_stop
-    ok "Services redemarres"
+    if [[ $restart_rc -eq 0 ]]; then
+        ok "Services redemarres"
+    else
+        warn "Restart partiel (code $restart_rc)"
+    fi
+    dbg "  restart rc=$restart_rc"
 
+    dbg "Attente 3s avant status..."
     sleep 3
+    invalidate_docker_cache
     show_status_table
+else
+    dbg "Restart refuse par l'utilisateur"
 fi
 
 echo ""
 line
 echo -e "  ${DIM}mascarade v0.1.0${NC}"
+dbg "=== config termine === duree=$(ps -o etime= -p $$ 2>/dev/null || echo '?')"
 echo ""

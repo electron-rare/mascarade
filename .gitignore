@@ -35,3 +35,6 @@ htmlcov/
 
 # Opt — binaires et builds lourds
 opt/llama.cpp/built-binaries.txt
+
+# Training artifacts
+training/output/

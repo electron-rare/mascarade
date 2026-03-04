@@ -2,7 +2,7 @@
 # scripts/modules/open-webui.sh — Module Open WebUI
 
 module_open_webui_config() {
-  input_value "OPEN_WEBUI_PORT" "Open WebUI port" "8080"
+  OPEN_WEBUI_PORT=$(input_value "Port Open WebUI" "${OPEN_WEBUI_PORT:-8080}")
 }
 
 module_open_webui_compose() {

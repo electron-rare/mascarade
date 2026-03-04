@@ -53,7 +53,7 @@ Exclus:
   - orchestration multi-agents,
   - router LLM (strategies: `best`, `cheapest`, `fastest`, `specific`),
   - fallback + cache + metrics + load-balancer.
-- `api` (port 3000):
+- `api` (port 3100):
   - gateway HTTP,
   - auth middleware,
   - proxy des endpoints `core`.
@@ -111,7 +111,7 @@ Préfixe `/api/agents/*`, proxy du contrat ci-dessus.
 - Docker + Compose plugin installés.
 - Fichier `.env` présent à la racine projet.
 - Ports ouverts:
-  - `3000/tcp` (gateway)
+  - `3100/tcp` (gateway)
   - `8100/tcp` (optionnel si accès direct core requis)
 
 ### 9.2 Release standard

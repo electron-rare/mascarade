@@ -33,6 +33,9 @@ class Settings(BaseSettings):
     openai_api_key: str = ""
     mistral_api_key: str = ""
     google_api_key: str = ""
+    huggingface_api_key: str = ""
+    huggingface_base_url: str = "https://router.huggingface.co/v1"
+    huggingface_model: str = "meta-llama/Meta-Llama-3.1-8B-Instruct"
 
     # AWS Bedrock
     aws_access_key_id: str = ""

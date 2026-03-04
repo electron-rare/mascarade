@@ -1,6 +1,6 @@
 # Mascarade
 
-Systeme d'orchestration agentique personnel. Route intelligemment les requetes LLM entre Claude, GPT, Mistral, AWS Bedrock et Google Gemini, avec agents specialises, orchestration multi-agents, cache, fallback automatique et integration Notion.
+Systeme d'orchestration agentique personnel. Route intelligemment les requetes LLM entre Claude, GPT, Mistral, AWS Bedrock, Google Gemini et Hugging Face, avec agents specialises, orchestration multi-agents, cache, fallback automatique et integration Notion.
 
 ## Architecture
 
@@ -10,7 +10,7 @@ Systeme d'orchestration agentique personnel. Route intelligemment les requetes L
                          | curl/app  |
                          +-----+-----+
                                |
-                      :3000    v
+                      :3100    v
                   +--------------------+
                   |   API TypeScript   |
                   |   (Hono + auth)    |
@@ -44,7 +44,7 @@ Systeme d'orchestration agentique personnel. Route intelligemment les requetes L
 ```
 
 **Core Python** (`core/`, port `8100`) -- Moteur d'orchestration, routeur LLM, agents, metriques
-**API TypeScript** (`api/`, port `3000`) -- Facade HTTP Hono, auth middleware, proxy vers le core
+**API TypeScript** (`api/`, port `3100`) -- Facade HTTP Hono, auth middleware, proxy vers le core
 **VM** -- Deploiement Docker sur `192.168.0.119`
 
 ---
@@ -81,6 +81,9 @@ ANTHROPIC_API_KEY=sk-ant-xxxxx          # Claude (best quality)
 OPENAI_API_KEY=sk-xxxxx                 # GPT (fastest)
 MISTRAL_API_KEY=xxxxx                   # Mistral (cheapest)
 GOOGLE_API_KEY=xxxxx                    # Gemini API (optionnel)
+HUGGINGFACE_API_KEY=hf_xxxxx            # Hugging Face Inference
+HUGGINGFACE_BASE_URL=https://router.huggingface.co/v1
+HUGGINGFACE_MODEL=meta-llama/Meta-Llama-3.1-8B-Instruct
 
 # AWS Bedrock (optionnel)
 AWS_ACCESS_KEY_ID=AKIA...
@@ -105,7 +108,7 @@ CORE_HOST=0.0.0.0
 CORE_PORT=8100
 
 # API
-API_PORT=3000
+API_PORT=3100
 CORE_URL=http://localhost:8100          # http://core:8100 en Docker
 
 # Defauts LLM
@@ -125,12 +128,19 @@ Validation cloud rapide:
 ### 3. Lancer avec Docker (recommande)
 
 ```bash
-docker compose up -d
+./setup
+```
+
+Ou en mode non-interactif:
+
+```bash
+./setup --with core,api,ops-console --yes
 ```
 
 Deux containers demarrent :
 - `core` sur `:8100`
-- `api` sur `:3000`
+- `api` sur `:3100`
+- `ops-console` sur `:80` (si selectionne)
 
 Les agents dynamiques sont persistes dans un volume Docker (`core-data:/app/data`).
 
@@ -141,7 +151,7 @@ Verifier que tout tourne :
 curl http://localhost:8100/health
 
 # Health de l'API
-curl http://localhost:3000/health
+curl http://localhost:3100/health
 ```
 
 ### 4. Dev local (sans Docker)
@@ -188,7 +198,7 @@ Editer `.env.vm` :
 
 ```bash
 VM_HOST=192.168.0.119
-VM_API_URL=http://192.168.0.119:3000
+VM_API_URL=http://192.168.0.119:3100
 VM_CORE_URL=http://192.168.0.119:8100
 MASCARADE_API_KEY=ton-token-secret
 DOCKER_VM_CONTEXT=mascarade-vm
@@ -263,7 +273,7 @@ export KEY="ton-token-secret"
 ### Envoyer une requete LLM
 
 ```bash
-curl -X POST http://localhost:3000/api/agents/send \
+curl -X POST http://localhost:3100/api/agents/send \
   -H "Authorization: Bearer $KEY" \
   -H "Content-Type: application/json" \
   -d '{
@@ -284,7 +294,7 @@ Strategies disponibles :
 ### Lister les providers actifs
 
 ```bash
-curl -H "Authorization: Bearer $KEY" http://localhost:3000/api/agents/providers
+curl -H "Authorization: Bearer $KEY" http://localhost:3100/api/agents/providers
 ```
 
 ### Agents
@@ -305,10 +315,10 @@ curl -H "Authorization: Bearer $KEY" http://localhost:3000/api/agents/providers
 
 ```bash
 # Lister les agents
-curl -H "Authorization: Bearer $KEY" http://localhost:3000/api/agents
+curl -H "Authorization: Bearer $KEY" http://localhost:3100/api/agents
 
 # Executer un agent
-curl -X POST http://localhost:3000/api/agents/summarizer/run \
+curl -X POST http://localhost:3100/api/agents/summarizer/run \
   -H "Authorization: Bearer $KEY" \
   -H "Content-Type: application/json" \
   -d '{
@@ -316,7 +326,7 @@ curl -X POST http://localhost:3000/api/agents/summarizer/run \
   }'
 
 # Creer un agent custom (persiste au restart)
-curl -X POST http://localhost:3000/api/agents \
+curl -X POST http://localhost:3100/api/agents \
   -H "Authorization: Bearer $KEY" \
   -H "Content-Type: application/json" \
   -d '{
@@ -333,7 +343,7 @@ curl -X POST http://localhost:3000/api/agents \
 Executer plusieurs agents sur le meme prompt :
 
 ```bash
-curl -X POST http://localhost:3000/api/agents/orchestrate \
+curl -X POST http://localhost:3100/api/agents/orchestrate \
   -H "Authorization: Bearer $KEY" \
   -H "Content-Type: application/json" \
   -d '{
@@ -358,20 +368,20 @@ Si `NOTION_API_KEY` est configure :
 ```bash
 # Rechercher dans la KB Notion
 curl -H "Authorization: Bearer $KEY" \
-  "http://localhost:3000/api/notion/search?q=architecture"
+  "http://localhost:3100/api/notion/search?q=architecture"
 
 # Lire une page
 curl -H "Authorization: Bearer $KEY" \
-  http://localhost:3000/api/notion/pages/<page-id>
+  http://localhost:3100/api/notion/pages/<page-id>
 
 # Ajouter du contenu a une page
-curl -X POST http://localhost:3000/api/notion/pages/<page-id>/append \
+curl -X POST http://localhost:3100/api/notion/pages/<page-id>/append \
   -H "Authorization: Bearer $KEY" \
   -H "Content-Type: application/json" \
   -d '{"content": "Nouveau contenu a ajouter"}'
 
 # Creer une page
-curl -X POST http://localhost:3000/api/notion/pages \
+curl -X POST http://localhost:3100/api/notion/pages \
   -H "Authorization: Bearer $KEY" \
   -H "Content-Type: application/json" \
   -d '{
@@ -381,7 +391,7 @@ curl -X POST http://localhost:3000/api/notion/pages \
   }'
 
 # Executer notion-scribe et pousser le resultat dans Notion
-curl -X POST http://localhost:3000/api/agents/notion-scribe/run-and-push \
+curl -X POST http://localhost:3100/api/agents/notion-scribe/run-and-push \
   -H "Authorization: Bearer $KEY" \
   -H "Content-Type: application/json" \
   -d '{
@@ -394,25 +404,25 @@ curl -X POST http://localhost:3000/api/agents/notion-scribe/run-and-push \
 
 ```bash
 # Metriques globales (providers + cache + LB + fallback)
-curl -H "Authorization: Bearer $KEY" http://localhost:3000/api/agents/metrics
+curl -H "Authorization: Bearer $KEY" http://localhost:3100/api/agents/metrics
 
 # Metriques d'un provider
-curl -H "Authorization: Bearer $KEY" http://localhost:3000/api/agents/metrics/claude
+curl -H "Authorization: Bearer $KEY" http://localhost:3100/api/agents/metrics/claude
 
 # Stats cache
-curl -H "Authorization: Bearer $KEY" http://localhost:3000/api/agents/cache/stats
+curl -H "Authorization: Bearer $KEY" http://localhost:3100/api/agents/cache/stats
 
 # Stats load balancer
-curl -H "Authorization: Bearer $KEY" http://localhost:3000/api/agents/load-balancer/stats
+curl -H "Authorization: Bearer $KEY" http://localhost:3100/api/agents/load-balancer/stats
 
 # Stats fallback
-curl -H "Authorization: Bearer $KEY" http://localhost:3000/api/agents/fallback/stats
+curl -H "Authorization: Bearer $KEY" http://localhost:3100/api/agents/fallback/stats
 
 # Reset (POST)
-curl -X POST -H "Authorization: Bearer $KEY" http://localhost:3000/api/agents/metrics/reset
-curl -X POST -H "Authorization: Bearer $KEY" http://localhost:3000/api/agents/cache/reset
-curl -X POST -H "Authorization: Bearer $KEY" http://localhost:3000/api/agents/load-balancer/reset
-curl -X POST -H "Authorization: Bearer $KEY" http://localhost:3000/api/agents/fallback/reset
+curl -X POST -H "Authorization: Bearer $KEY" http://localhost:3100/api/agents/metrics/reset
+curl -X POST -H "Authorization: Bearer $KEY" http://localhost:3100/api/agents/cache/reset
+curl -X POST -H "Authorization: Bearer $KEY" http://localhost:3100/api/agents/load-balancer/reset
+curl -X POST -H "Authorization: Bearer $KEY" http://localhost:3100/api/agents/fallback/reset
 ```
 
 ---

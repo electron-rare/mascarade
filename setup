@@ -1,87 +1,491 @@
 #!/usr/bin/env bash
 # setup — Installateur principal Mascarade
-# Usage : ./setup [--help]
+# Usage : ./setup [options]
+
+# Si lance via sh/dash, relancer proprement avec bash.
+if [ -z "${BASH_VERSION:-}" ]; then
+    exec bash "$0" "$@"
+fi
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-
-# Charger les modules
 source "$SCRIPT_DIR/scripts/lib.sh"
 source "$SCRIPT_DIR/scripts/services.sh"
 source "$SCRIPT_DIR/scripts/prereqs.sh"
 source "$SCRIPT_DIR/scripts/compose.sh"
 
-# ── Aide ──
-case "${1:-}" in
-    -h|--help)
-        echo "Usage: ./setup"
-        echo ""
-        echo "Installateur interactif Mascarade."
-        echo "Selectionne les services, configure .env, genere docker-compose.yml."
-        echo ""
-        echo "Voir aussi :"
-        echo "  ./update    Mise a jour des services"
-        echo "  ./config    Reconfiguration .env"
-        exit 0
-        ;;
-esac
+AUTO_CONFIRM=false
+NO_START=false
+SKIP_DEPS=false
+SKIP_TESTS=false
+WITH_SERVICES_RAW=""
+PRESELECT_MODE=false
+INSTALL_REPO_SKILLS=false
+INSTALL_REPO_LLMS=false
+INSTALL_REPO_ASSETS_ONLY=false
+SKILLS_DEST=""
+OLLAMA_MODELS_RAW=""
+OLLAMA_PACK="balanced"
+PROFILE_MODE=""
+PROFILE_EFFECTIVE=""
+OPS_CONSOLE_ONLY=false
 
-# ── Liens skills pour assistants CLI ──
-ensure_skills_symlinks() {
-    local src=""
-    local ts
-    ts="$(date +%Y%m%d-%H%M%S)"
+declare -a OLLAMA_PACK_LITE=(
+    "tinyllama"
+    "qwen2.5:0.5b"
+    "qwen2.5-coder:0.5b"
+    "phi3:mini"
+    "llama3.2:1b"
+)
 
-    # Source prioritaire: skills globaux de la machine, sinon copie repo.
-    if [[ -d "/opt/skills-global/all" ]]; then
-        src="/opt/skills-global/all"
-    elif [[ -d "$REPO_DIR/skills/skills" ]]; then
-        src="$REPO_DIR/skills/skills"
+declare -a OLLAMA_PACK_BALANCED=(
+    # Pack adapte a ~7 GiB RAM sans GPU
+    "llama3.2:1b"
+    "llama3.2:3b"
+    "qwen2.5:0.5b"
+    "qwen2.5:1.5b"
+    "qwen2.5-coder:0.5b"
+    "qwen2.5-coder:1.5b"
+    "gemma2:2b"
+    "phi3:mini"
+    "tinyllama"
+)
+
+declare -a OLLAMA_PACK_HEAVY=(
+    # Pack necessitant plus de RAM et idealement un GPU
+    "llama3.2:3b"
+    "qwen2.5:3b"
+    "qwen2.5-coder:3b"
+    "qwen2.5:7b"
+    "qwen2.5-coder:7b"
+    "mistral:7b"
+    "gemma2:9b"
+)
+
+show_setup_help() {
+    cat <<'HELP'
+Usage: ./setup [options]
+
+Installateur TUI Mascarade. Selectionne les services, configure .env,
+genere docker-compose.yml et peut demarrer la stack.
+
+Options:
+  -h, --help                 Afficher cette aide et quitter
+  -v, --verbose              Afficher les traces de debug
+  -y, --yes                  Repondre "oui" aux confirmations
+      --with <ids>           Preselection services (csv), ex: core,api,redis
+      --profile <name>       Profil services: minimal|standard|full|auto
+      --all                  Alias de --profile full (active tous les services)
+      --no-start             Ne pas lancer docker compose up a la fin
+      --skip-deps            Ne pas installer les dependances Python/Node locales
+      --skip-tests           Ne pas lancer les tests Python pendant le setup
+      --install-repo-skills  Installer tous les skills proposes dans ./skills
+      --install-repo-llms    Telecharger les modeles Ollama proposes par le repo
+      --install-repo-assets  Equivaut a --install-repo-skills + --install-repo-llms
+      --install-repo-assets-only  Installer uniquement skills + LLM, sans setup complet
+      --skills-dest <path>   Dossier cible skills (defaut: ~/.codex/skills/mascarade)
+      --ollama-pack <name>   Pack LLM: lite|balanced|heavy (defaut: balanced)
+      --ollama-models <csv>  Liste de modeles Ollama a pull (prioritaire sur --ollama-pack)
+      --ops-console-only     Lance uniquement l'init/sync du cockpit DevOps puis quitte
+
+Packs Ollama (indicatif):
+  lite      CPU: 2-4 vCPU | RAM: 4-6 GiB     | GPU: non requis (0-4 GiB VRAM)
+  balanced  CPU: 4-8 vCPU | RAM: 6-10 GiB    | GPU: optionnel (4-8 GiB VRAM)
+  heavy     CPU: 8+ vCPU  | RAM: 12-24+ GiB  | GPU: recommande (8-16+ GiB VRAM)
+
+Services disponibles:
+  core, api, litellm, n8n, langfuse, dify, clickhouse, comfyui,
+  ollama, open-webui, ops-console, redis, postgres, qdrant, grafana, prometheus
+HELP
+}
+
+parse_setup_args() {
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            -h|--help)
+                show_setup_help
+                exit 0
+                ;;
+            -v|--verbose)
+                VERBOSE=true
+                ;;
+            -y|--yes)
+                AUTO_CONFIRM=true
+                ;;
+            --with)
+                if [[ $# -lt 2 || -z "${2:-}" ]]; then
+                    err "Option --with attend une liste de services (csv)."
+                    exit 2
+                fi
+                WITH_SERVICES_RAW="$2"
+                PRESELECT_MODE=true
+                shift
+                ;;
+            --profile)
+                if [[ $# -lt 2 || -z "${2:-}" ]]; then
+                    err "Option --profile attend: minimal|standard|full|auto"
+                    exit 2
+                fi
+                PROFILE_MODE="$2"
+                shift
+                ;;
+            --all)
+                PROFILE_MODE="full"
+                ;;
+            --no-start)
+                NO_START=true
+                ;;
+            --skip-deps)
+                SKIP_DEPS=true
+                ;;
+            --skip-tests)
+                SKIP_TESTS=true
+                ;;
+            --install-repo-skills)
+                INSTALL_REPO_SKILLS=true
+                ;;
+            --install-repo-llms)
+                INSTALL_REPO_LLMS=true
+                ;;
+            --install-repo-assets)
+                INSTALL_REPO_SKILLS=true
+                INSTALL_REPO_LLMS=true
+                ;;
+            --install-repo-assets-only)
+                INSTALL_REPO_ASSETS_ONLY=true
+                INSTALL_REPO_SKILLS=true
+                INSTALL_REPO_LLMS=true
+                ;;
+            --skills-dest)
+                if [[ $# -lt 2 || -z "${2:-}" ]]; then
+                    err "Option --skills-dest attend un chemin."
+                    exit 2
+                fi
+                SKILLS_DEST="$2"
+                shift
+                ;;
+            --ollama-pack)
+                if [[ $# -lt 2 || -z "${2:-}" ]]; then
+                    err "Option --ollama-pack attend: lite|balanced|heavy"
+                    exit 2
+                fi
+                OLLAMA_PACK="$2"
+                INSTALL_REPO_LLMS=true
+                shift
+                ;;
+            --ollama-models)
+                if [[ $# -lt 2 || -z "${2:-}" ]]; then
+                    err "Option --ollama-models attend une liste CSV."
+                    exit 2
+                fi
+                OLLAMA_MODELS_RAW="$2"
+                INSTALL_REPO_LLMS=true
+                shift
+                ;;
+            --ops-console-only)
+                OPS_CONSOLE_ONLY=true
+                ;;
+            *)
+                err "Option inconnue: $1"
+                echo "Utilise: ./setup --help"
+                exit 2
+                ;;
+        esac
+        shift
+    done
+
+    case "$OLLAMA_PACK" in
+        lite|balanced|heavy) ;;
+        *)
+            err "Pack Ollama invalide: '$OLLAMA_PACK'"
+            echo "Valeurs attendues: lite|balanced|heavy"
+            exit 2
+            ;;
+    esac
+
+    if [[ -n "$WITH_SERVICES_RAW" && -n "$PROFILE_MODE" ]]; then
+        err "Options incompatibles: --with et --profile/--all"
+        echo "Utilise soit --with <csv>, soit --profile <name>"
+        exit 2
+    fi
+
+    case "${PROFILE_MODE:-}" in
+        ""|minimal|standard|full|auto) ;;
+        *)
+            err "Profil invalide: '$PROFILE_MODE'"
+            echo "Valeurs attendues: minimal|standard|full|auto"
+            exit 2
+            ;;
+    esac
+}
+
+apply_preselected_services() {
+    local csv="$1"
+    local token
+    local valid
+
+    for id in "${SVC_IDS[@]}"; do
+        SVC_ON[$id]="0"
+    done
+
+    IFS=',' read -ra _req_svcs <<< "$csv"
+    for token in "${_req_svcs[@]}"; do
+        token="${token// /}"
+        [[ -z "$token" ]] && continue
+        valid=false
+        for id in "${SVC_IDS[@]}"; do
+            if [[ "$token" == "$id" ]]; then
+                SVC_ON[$id]="1"
+                valid=true
+                break
+            fi
+        done
+        if [[ "$valid" != true ]]; then
+            err "Service inconnu dans --with: '$token'"
+            echo "Services valides: ${SVC_IDS[*]}"
+            exit 2
+        fi
+    done
+}
+
+profile_services_csv() {
+    local profile="$1"
+    local csv=""
+    case "$profile" in
+        minimal)
+            csv="core,api"
+            ;;
+        standard)
+            csv="core,api,redis,postgres,qdrant,ollama,open-webui,ops-console,grafana,prometheus,litellm"
+            ;;
+        full)
+            local IFS=","
+            csv="${SVC_IDS[*]}"
+            ;;
+        *)
+            err "Profil inconnu: '$profile'"
+            exit 2
+            ;;
+    esac
+    echo "$csv"
+}
+
+detect_auto_profile() {
+    local cpu_count mem_kib mem_gib
+    cpu_count=$(getconf _NPROCESSORS_ONLN 2>/dev/null || nproc 2>/dev/null || echo 0)
+    mem_kib=$(awk '/MemTotal/ {print $2; exit}' /proc/meminfo 2>/dev/null || echo 0)
+    mem_gib=$(( mem_kib / 1024 / 1024 ))
+
+    if [[ "$cpu_count" -ge 8 && "$mem_gib" -ge 24 ]]; then
+        echo "full"
+    elif [[ "$cpu_count" -ge 4 && "$mem_gib" -ge 8 ]]; then
+        echo "standard"
     else
-        warn "Aucune source de skills trouvee (/opt/skills-global/all ou $REPO_DIR/skills/skills)"
+        echo "minimal"
+    fi
+}
+
+apply_profile_selection() {
+    local requested="$1"
+    local resolved="$requested"
+    if [[ "$requested" == "auto" ]]; then
+        resolved=$(detect_auto_profile)
+        info "Profil auto detecte: $resolved"
+    fi
+    local csv
+    csv=$(profile_services_csv "$resolved")
+    apply_preselected_services "$csv"
+    PROFILE_EFFECTIVE="$resolved"
+}
+
+confirm_or_auto() {
+    local prompt="$1"
+    if [[ "$AUTO_CONFIRM" == true ]]; then
+        info "$prompt [auto-oui]"
+        return 0
+    fi
+    confirm "$prompt"
+}
+
+hash_files_sha256() {
+    if [[ $# -eq 0 ]]; then
+        return 1
+    fi
+    if command -v sha256sum >/dev/null 2>&1; then
+        cat "$@" 2>/dev/null | sha256sum | awk '{print $1}'
+        return 0
+    fi
+    if command -v shasum >/dev/null 2>&1; then
+        cat "$@" 2>/dev/null | shasum -a 256 | awk '{print $1}'
+        return 0
+    fi
+    return 1
+}
+
+install_repo_skills() {
+    local skills_src="$REPO_DIR/skills"
+    local copied_files=0
+    local skill_markers=0
+    local pending_changes=0
+
+    if [[ -z "$SKILLS_DEST" ]]; then
+        SKILLS_DEST="$HOME/.codex/skills/mascarade"
+    fi
+
+    if [[ ! -d "$skills_src" ]]; then
+        warn "Dossier skills/ introuvable — skip installation des skills"
         return 0
     fi
 
-    # Toujours viser le home de l'utilisateur reel (pas /root via sudo).
-    local user_home="$HOME"
-    if [[ $EUID -eq 0 && -n "${SUDO_USER:-}" && "${SUDO_USER}" != "root" ]]; then
-        local sudo_home
-        sudo_home="$(getent passwd "$SUDO_USER" 2>/dev/null | cut -d: -f6 || true)"
-        [[ -n "$sudo_home" ]] && user_home="$sudo_home"
+    copied_files=$(find "$skills_src" -type f 2>/dev/null | wc -l | tr -d ' ')
+    if [[ "$copied_files" == "0" ]]; then
+        warn "Aucun fichier skill trouve dans $skills_src"
+        return 0
     fi
 
-    local targets=(
-        "$user_home/.codex/skills"
-        "$user_home/.claude/skills"
-        "$REPO_DIR/.claude/skills"
-    )
+    mkdir -p "$SKILLS_DEST"
 
-    info "Configuration des symlinks skills -> $src"
+    if command -v rsync >/dev/null 2>&1; then
+        pending_changes=$(rsync -ain --out-format='%n' "$skills_src"/ "$SKILLS_DEST"/ 2>/dev/null | grep -c . || true)
+        if [[ "$pending_changes" == "0" ]]; then
+            info "Skills deja a jour dans $SKILLS_DEST (aucun fichier a copier)"
+        else
+            info "Mise a jour skills: $pending_changes fichier(s) a synchroniser"
+            rsync -a "$skills_src"/ "$SKILLS_DEST"/
+        fi
+    else
+        warn "rsync absent: verification fine impossible, copie complete des skills"
+        cp -a "$skills_src"/. "$SKILLS_DEST"/
+    fi
 
-    local target parent current backup
-    for target in "${targets[@]}"; do
-        parent="$(dirname "$target")"
-        mkdir -p "$parent"
+    skill_markers=$(find "$skills_src" -type f \( -name 'SKILL.md' -o -name '*.md' \) 2>/dev/null | wc -l | tr -d ' ')
 
-        if [[ -L "$target" ]]; then
-            current="$(readlink "$target" || true)"
-            if [[ "$current" == "$src" ]]; then
-                ok "Skills link deja OK: $target"
-            else
-                ln -sfn "$src" "$target"
-                ok "Skills link mis a jour: $target -> $src"
-            fi
+    # Fichier d'index pratique pour retrouver les skills installees.
+    {
+        echo "# Mascarade skills installes"
+        echo "source=$skills_src"
+        echo "destination=$SKILLS_DEST"
+        echo "installed_at=$(date '+%Y-%m-%d %H:%M:%S')"
+        echo "files_total=$copied_files"
+        echo "skill_markers=$skill_markers"
+        echo ""
+        (cd "$skills_src" && find . -type f | sort | sed 's|^\./||')
+    } > "$SKILLS_DEST/INDEX.txt"
+
+    ok "Skills installees: $copied_files fichier(s), $skill_markers skill markers -> $SKILLS_DEST"
+}
+
+install_repo_ollama_models() {
+    local model token pull_rc up_rc
+    local pull_output up_output list_output
+    local success_count=0
+    local fail_count=0
+    local skip_count=0
+    local list_rc=0
+    local model_installed=false
+    local -a models=()
+    local -a installed_models=()
+    local has_ollama_service=false
+
+    # Active automatiquement le fallback sudo docker si requis.
+    _ensure_docker_access
+
+    if [[ -n "$OLLAMA_MODELS_RAW" ]]; then
+        IFS=',' read -ra _csv_models <<< "$OLLAMA_MODELS_RAW"
+        for token in "${_csv_models[@]}"; do
+            token="${token// /}"
+            [[ -n "$token" ]] && models+=("$token")
+        done
+    else
+        case "$OLLAMA_PACK" in
+            lite) models=("${OLLAMA_PACK_LITE[@]}") ;;
+            heavy) models=("${OLLAMA_PACK_HEAVY[@]}") ;;
+            *) models=("${OLLAMA_PACK_BALANCED[@]}") ;;
+        esac
+        info "Pack Ollama selectionne: $OLLAMA_PACK (${#models[@]} modeles)"
+    fi
+
+    if [[ ${#models[@]} -eq 0 ]]; then
+        warn "Aucun modele Ollama a telecharger"
+        return 0
+    fi
+
+    if ! svc_selected "ollama"; then
+        info "Activation automatique du service Ollama pour telecharger les modeles"
+        SVC_ON[ollama]="1"
+    fi
+
+    if [[ ! -f "$REPO_DIR/docker-compose.yml" ]]; then
+        err "docker-compose.yml introuvable. Lance d'abord ./setup ou retire --install-repo-llms."
+        return 1
+    fi
+
+    while IFS= read -r svc; do
+        if [[ "$svc" == "ollama" ]]; then
+            has_ollama_service=true
+            break
+        fi
+    done < <(docker_compose_cmd -f "$REPO_DIR/docker-compose.yml" config --services 2>/dev/null || true)
+
+    if [[ "$has_ollama_service" != true ]]; then
+        err "Le service 'ollama' est absent du docker-compose.yml."
+        info "Relance un setup avec ollama selectionne, puis retente --install-repo-llms."
+        return 1
+    fi
+
+    spin_start "Preparation du service Ollama..."
+    up_rc=0
+    up_output=$(docker_compose_cmd -f "$REPO_DIR/docker-compose.yml" up -d ollama 2>&1) || up_rc=$?
+    spin_stop
+    if [[ $up_rc -ne 0 ]]; then
+        err "Impossible de demarrer le service ollama (code $up_rc)"
+        warn "$(echo "$up_output" | tail -1)"
+        return 1
+    fi
+
+    list_output=$(docker_compose_cmd -f "$REPO_DIR/docker-compose.yml" exec -T ollama ollama list 2>/dev/null) || list_rc=$?
+    if [[ $list_rc -eq 0 ]]; then
+        mapfile -t installed_models < <(echo "$list_output" | awk 'NR>1 && $1 != "" {print $1}')
+        dbg "Modeles deja presents dans Ollama: ${#installed_models[@]}"
+    else
+        warn "Impossible de lister les modeles deja presents (verification skip desactivee)"
+    fi
+
+    for model in "${models[@]}"; do
+        model_installed=false
+        if [[ ${#installed_models[@]} -gt 0 ]]; then
+            for installed in "${installed_models[@]}"; do
+                if [[ "$installed" == "$model" || "$installed" == "$model:latest" ]]; then
+                    model_installed=true
+                    break
+                fi
+            done
+        fi
+
+        if [[ "$model_installed" == true ]]; then
+            info "Modele deja present, skip pull: $model"
+            ((skip_count++)) || true
             continue
         fi
 
-        if [[ -e "$target" ]]; then
-            backup="${target}.bak.${ts}"
-            mv "$target" "$backup"
-            warn "Ancien dossier/fichier skills deplace: $backup"
+        log "Ollama pull $model"
+        pull_rc=0
+        pull_output=$(docker_compose_cmd -f "$REPO_DIR/docker-compose.yml" exec -T ollama ollama pull "$model" 2>&1) || pull_rc=$?
+        if [[ $pull_rc -eq 0 ]]; then
+            ok "Modele telecharge: $model"
+            ((success_count++)) || true
+        else
+            warn "Echec telechargement modele: $model (code $pull_rc)"
+            warn "$(echo "$pull_output" | tail -1)"
+            ((fail_count++)) || true
         fi
-
-        ln -s "$src" "$target"
-        ok "Skills link cree: $target -> $src"
     done
+
+    if [[ $fail_count -gt 0 ]]; then
+        err "Telechargement Ollama incomplet: $success_count ok / $skip_count deja presents / $fail_count echec(s)"
+        return 1
+    fi
+    ok "Modeles Ollama traites: $success_count telecharge(s), $skip_count deja presents"
+    return 0
 }
 
 # ── Frontend DevOps: prefer ops-console-v3 when available ──
@@ -93,6 +497,7 @@ ensure_ops_console_v3() {
     local v3_dir=""
     local compose_file=""
 
+    local d=""
     for d in "${candidates[@]}"; do
         if [[ -f "$d/docker-compose.yml" ]]; then
             v3_dir="$d"
@@ -191,171 +596,434 @@ sync_ops_managed_containers() {
     ok "OPS_MANAGED_CONTAINERS synchronise (${#managed[@]} services)"
 }
 
-# ═══════════════════════════════════════
-# Flow principal
-# ═══════════════════════════════════════
+parse_setup_args "$@"
+
+dbg "=== setup demarre ==="
+dbg "  REPO_DIR=$REPO_DIR"
+dbg "  SCRIPT_DIR=$SCRIPT_DIR"
+dbg "  services definis: ${#SVC_IDS[@]} (${SVC_IDS[*]})"
+dbg "  AUTO_CONFIRM=$AUTO_CONFIRM PRESELECT_MODE=$PRESELECT_MODE NO_START=$NO_START SKIP_DEPS=$SKIP_DEPS SKIP_TESTS=$SKIP_TESTS INSTALL_REPO_SKILLS=$INSTALL_REPO_SKILLS INSTALL_REPO_LLMS=$INSTALL_REPO_LLMS INSTALL_REPO_ASSETS_ONLY=$INSTALL_REPO_ASSETS_ONLY OLLAMA_PACK=$OLLAMA_PACK"
+
+if [[ "$OPS_CONSOLE_ONLY" == true ]]; then
+    log "Mode --ops-console-only: init cockpit DevOps uniquement"
+    ensure_ops_console_v3 || true
+    sync_ops_managed_containers || true
+    ok "Termine (--ops-console-only)"
+    exit 0
+fi
 
 banner
-
 echo -e "  ${BOLD}Bienvenue dans l'installateur de Mascarade${NC}"
 echo -e "  ${DIM}Orchestration LLM multi-providers${NC}"
 
-# ── Etape 1/7 : Selection des services ──
-step_progress 1 7 "Selection des services"
-checkbox_select
+if [[ "$INSTALL_REPO_ASSETS_ONLY" == true ]]; then
+    assets_rc=0
+    step_progress 1 1 "Installation assets uniquement"
+    if [[ "$INSTALL_REPO_SKILLS" == true ]]; then
+        install_repo_skills || assets_rc=1
+    fi
+    if [[ "$INSTALL_REPO_LLMS" == true ]]; then
+        install_repo_ollama_models || assets_rc=1
+    fi
+    echo ""
+    line
+    if [[ $assets_rc -eq 0 ]]; then
+        echo -e "  ${GREEN}${BOLD}Assets repo installes.${NC}"
+    else
+        echo -e "  ${YELLOW}${BOLD}Assets repo installes partiellement (voir erreurs ci-dessus).${NC}"
+    fi
+    echo ""
+    exit $assets_rc
+fi
 
-# Verifier qu'au moins un service est choisi
+# ── 1/8 : Selection des services ──
+step_progress 1 8 "Selection des services"
+if [[ "$PRESELECT_MODE" == true ]]; then
+    apply_preselected_services "$WITH_SERVICES_RAW"
+    ok "Services preselectionnes via --with"
+elif [[ -n "$PROFILE_MODE" ]]; then
+    apply_profile_selection "$PROFILE_MODE"
+    ok "Profil applique: ${PROFILE_EFFECTIVE:-$PROFILE_MODE}"
+elif [[ ! -t 0 || ! -t 1 ]]; then
+    if [[ "$AUTO_CONFIRM" != true ]]; then
+        err "Mode non interactif detecte sans selection explicite."
+        echo "Utilise --with <csv> ou --profile <name> (ex: --profile auto --yes)."
+        exit 2
+    fi
+    apply_profile_selection "auto"
+    ok "Mode non interactif: profil auto applique (${PROFILE_EFFECTIVE})"
+else
+    checkbox_select
+fi
+
+if [[ "$INSTALL_REPO_LLMS" == true && "${SVC_ON[ollama]:-0}" != "1" ]]; then
+    SVC_ON[ollama]="1"
+    info "Service Ollama active automatiquement (--install-repo-llms)"
+fi
+
 sel_count=0
 for id in "${SVC_IDS[@]}"; do
     [[ "${SVC_ON[$id]}" == "1" ]] && ((sel_count++)) || true
 done
+dbg "Services selectionnes: $sel_count/${#SVC_IDS[@]}"
 if [[ $sel_count -eq 0 ]]; then
     err "Aucun service selectionne."
     exit 1
 fi
 
-# ── Etape 2/7 : Resolution des dependances ──
-step_progress 2 7 "Resolution des dependances"
+# ── 2/8 : Dependances ──
+step_progress 2 8 "Resolution des dependances"
 resolve_dependencies
 
 echo ""
 echo -e "  ${BOLD}Services selectionnes :${NC}"
 for id in "${SVC_IDS[@]}"; do
-    if svc_selected "$id"; then
-        echo -e "    ${GREEN}✓${NC} ${SVC_LABEL[$id]} ${DIM}(:${SVC_PORT[$id]})${NC}"
-    fi
+    svc_selected "$id" && echo -e "    ${GREEN}✓${NC} ${SVC_LABEL[$id]} ${DIM}(:${SVC_PORT[$id]})${NC}"
 done
 echo ""
-if ! confirm "Continuer avec cette selection ?"; then
-    exit 0
-fi
+confirm_or_auto "Continuer avec cette selection ?" || exit 0
 
-# ── Etape 3/7 : Prerequis ──
-step_progress 3 7 "Verification des prerequis"
+# ── 3/8 : Prerequis ──
+step_progress 3 8 "Verification des prerequis"
 check_prerequisites
 
-# ── Etape 4/7 : Configuration .env ──
-step_progress 4 7 "Configuration .env"
+# Detection sudo pour docker si necessaire
+_ensure_docker_access
 
-# Charger .env existant
+# ── 4/8 : Configuration .env ──
+step_progress 4 8 "Configuration .env"
+dbg "Chargement .env existant: $REPO_DIR/.env"
 load_env "$REPO_DIR/.env" 2>/dev/null || true
 
 if [[ -f "$REPO_DIR/.env" ]]; then
-    if confirm "Un fichier .env existe. Le reconfigurer ?"; then
+    dbg ".env existe deja ($(wc -l < "$REPO_DIR/.env") lignes)"
+    if confirm_or_auto "Un fichier .env existe. Le reconfigurer ?"; then
+        dbg "Reconfiguration .env..."
         collect_module_configs
     else
         ok ".env conserve"
     fi
 else
+    dbg "Pas de .env existant, lancement config modules"
     collect_module_configs
 fi
 
-# ── Etape 5/7 : Generation docker-compose.yml ──
-step_progress 5 7 "Generation docker-compose.yml"
+# ── 5/8 : Generation docker-compose.yml ──
+step_progress 5 8 "Generation docker-compose.yml"
+dbg "Generation conditionnelle docker-compose.yml et .env..."
+tmp_compose=$(mktemp)
+tmp_env=$(mktemp)
+generate_compose "$tmp_compose"
+write_env_file "$tmp_env"
 
-if [[ -f "$REPO_DIR/docker-compose.yml" ]]; then
+if [[ -f "$REPO_DIR/docker-compose.yml" ]] && cmp -s "$tmp_compose" "$REPO_DIR/docker-compose.yml"; then
+    info "docker-compose.yml deja a jour (aucun changement)"
+else
     backup_file "$REPO_DIR/docker-compose.yml"
-fi
-generate_compose "$REPO_DIR/docker-compose.yml"
-ok "docker-compose.yml genere"
-
-# Ecrire le .env
-write_env_file "$REPO_DIR/.env"
-chmod 600 "$REPO_DIR/.env"
-
-# ── Etape 6/7 : Dependances locales ──
-step_progress 6 7 "Installation des dependances"
-
-if svc_selected "core" && command -v python3 &>/dev/null; then
-    spin_start "Installation du Core Python..."
-    cd "$REPO_DIR/core"
-    if [[ ! -d ".venv" ]]; then
-        python3 -m venv .venv
-    fi
-    .venv/bin/pip install --upgrade pip -q 2>&1 | tail -1
-    .venv/bin/pip install -e ".[dev]" -q 2>&1 | tail -1
-    cd "$REPO_DIR"
-    spin_stop
-    ok "Dependances Python installees"
+    mv "$tmp_compose" "$REPO_DIR/docker-compose.yml"
+    ok "docker-compose.yml mis a jour"
+    tmp_compose=""
 fi
 
-if svc_selected "api" && command -v npm &>/dev/null; then
-    spin_start "Installation de l'API Node.js..."
-    cd "$REPO_DIR/api"
-    npm install --silent 2>&1 | tail -1
-    npm run build --silent 2>&1 || true
-    cd "$REPO_DIR"
-    spin_stop
-    ok "Dependances Node.js installees"
+# Ignore la premiere ligne horodatee dans .env pour eviter les faux changements.
+if [[ -f "$REPO_DIR/.env" ]] && diff -q <(tail -n +2 "$REPO_DIR/.env") <(tail -n +2 "$tmp_env") >/dev/null 2>&1; then
+    info ".env deja a jour (hors horodatage)"
+else
+    backup_file "$REPO_DIR/.env"
+    mv "$tmp_env" "$REPO_DIR/.env"
+    chmod 600 "$REPO_DIR/.env"
+    ok ".env mis a jour"
+    tmp_env=""
 fi
 
-# Liens skills (Codex/Claude) pour que la machine retrouve les skills au premier run.
-ensure_skills_symlinks
+[[ -n "${tmp_compose:-}" && -f "$tmp_compose" ]] && rm -f "$tmp_compose"
+[[ -n "${tmp_env:-}" && -f "$tmp_env" ]] && rm -f "$tmp_env"
 
-# Tests optionnels
-if svc_selected "core" && [[ -d "$REPO_DIR/core/.venv" ]]; then
-    if confirm "Lancer les tests ?"; then
-        spin_start "Tests en cours..."
-        cd "$REPO_DIR/core"
-        local_test_result=0
-        .venv/bin/python -m pytest -q 2>&1 || local_test_result=$?
-        cd "$REPO_DIR"
-        spin_stop
-        if [[ $local_test_result -eq 0 ]]; then
-            ok "Tests passes"
+dbg "docker-compose.yml: $(wc -l < "$REPO_DIR/docker-compose.yml") lignes"
+dbg ".env: $(wc -l < "$REPO_DIR/.env") lignes, permissions $(stat -c '%a' "$REPO_DIR/.env" 2>/dev/null || echo '?')"
+
+# ── 6/8 : Dependances locales ──
+step_progress 6 8 "Installation des dependances"
+if [[ "$SKIP_DEPS" == true ]]; then
+    info "Installation des dependances locales ignoree (--skip-deps)"
+else
+    # ── Python (core) ──
+    if svc_selected "core"; then
+        dbg "Core selectionne — verification Python..."
+        if ! command -v python3 &>/dev/null; then
+            warn "Python3 non trouve — skip installation deps Python"
+            dbg "  command -v python3 → NOT FOUND"
+        elif [[ ! -d "$REPO_DIR/core" ]]; then
+            warn "Dossier core/ introuvable — skip Python"
+            dbg "  $REPO_DIR/core/ n'existe pas"
         else
-            warn "Certains tests ont echoue"
+            cd "$REPO_DIR/core"
+            dbg "Installation Core Python dans $(pwd)"
+            dbg "  python3=$(command -v python3) version=$(python3 --version 2>&1)"
+            dbg "  ensurepip=$(python3 -c 'import ensurepip; print(ensurepip.__file__)' 2>/dev/null || echo 'ABSENT')"
+            dbg "  contenu core/: $(ls -la 2>/dev/null | head -5)"
+
+            # Creer ou recreer le venv si pip manque
+            if [[ ! -d ".venv" ]] || [[ ! -f ".venv/bin/pip" ]]; then
+                if [[ -d ".venv" ]]; then
+                    dbg "venv existe mais pip absent"
+                    dbg "  contenu .venv/bin/: $(ls .venv/bin/ 2>/dev/null | tr '\n' ' ')"
+                    dbg "  suppression et recreation..."
+                    rm -rf ".venv"
+                else
+                    dbg "pas de .venv, creation..."
+                fi
+                spin_start "Creation du virtualenv Python..."
+                dbg "  exec: python3 -m venv .venv"
+                venv_rc=0
+                venv_output=$(python3 -m venv .venv 2>&1) || venv_rc=$?
+                spin_stop
+                if [[ $venv_rc -ne 0 ]]; then
+                    warn "Echec creation venv (code $venv_rc) — python3-venv installe ?"
+                    dbg "  venv creation FAILED rc=$venv_rc"
+                    dbg "  output: $venv_output"
+                    cd "$REPO_DIR"
+                else
+                    dbg "  venv cree OK"
+                    dbg "  .venv/bin/ contient: $(ls .venv/bin/ 2>/dev/null | tr '\n' ' ')"
+                    dbg "  pip present: $(test -f .venv/bin/pip && echo OUI || echo NON)"
+                    dbg "  python venv: $(.venv/bin/python --version 2>&1 || echo 'ERREUR')"
+                fi
+            else
+                dbg "venv existant OK"
+                dbg "  pip=$(.venv/bin/pip --version 2>/dev/null || echo 'ERREUR')"
+                dbg "  python=$(.venv/bin/python --version 2>/dev/null || echo 'ERREUR')"
+            fi
+
+            if [[ -f ".venv/bin/pip" ]]; then
+                py_stamp_file=".venv/.mascarade_py_deps.sha256"
+                py_sig=""
+                py_prev_sig=""
+                py_sig=$(hash_files_sha256 "pyproject.toml" || true)
+                [[ -f "$py_stamp_file" ]] && py_prev_sig=$(cat "$py_stamp_file" 2>/dev/null || true)
+
+                if [[ -n "$py_sig" && "$py_sig" == "$py_prev_sig" ]]; then
+                    info "Dependances Python deja a jour (pyproject.toml inchange)"
+                else
+                    spin_start "Installation des dependances Python..."
+                    dbg "  exec: .venv/bin/pip install --upgrade pip -q"
+                    pip_rc=0
+                    pip_out=$(.venv/bin/pip install --upgrade pip -q 2>&1) || pip_rc=$?
+                    if [[ $pip_rc -ne 0 ]]; then
+                        dbg "  pip upgrade FAILED rc=$pip_rc output: $pip_out"
+                    else
+                        dbg "  pip upgrade OK: $(.venv/bin/pip --version 2>&1)"
+                    fi
+
+                    dbg "  exec: .venv/bin/pip install -e '.[dev]' -q"
+                    pip_rc=0
+                    pip_out=$(.venv/bin/pip install -e ".[dev]" -q 2>&1) || pip_rc=$?
+                    spin_stop
+                    if [[ $pip_rc -ne 0 ]]; then
+                        warn "pip install -e '.[dev]' echoue (code $pip_rc)"
+                        dbg "  pip install FAILED rc=$pip_rc"
+                        if [[ "$VERBOSE" == true ]]; then
+                            dbg "  sortie pip:"
+                            while IFS= read -r pip_line; do
+                                dbg "    | $pip_line"
+                            done <<< "$pip_out"
+                        fi
+                    else
+                        ok "Dependances Python installees"
+                        dbg "  packages installes: $(.venv/bin/pip list --format=columns 2>/dev/null | wc -l) packages"
+                        [[ -n "$py_sig" ]] && echo "$py_sig" > "$py_stamp_file"
+                    fi
+                fi
+            else
+                warn "venv/pip non disponible — skip deps Python"
+                dbg "  .venv existe: $(test -d .venv && echo OUI || echo NON)"
+                dbg "  contenu .venv/bin/: $(ls .venv/bin/ 2>/dev/null | head -10 | tr '\n' ' ')"
+            fi
+            cd "$REPO_DIR"
+        fi
+    else
+        dbg "Core non selectionne — skip Python"
+    fi
+
+    # ── Node.js (api) ──
+    if svc_selected "api"; then
+        dbg "API selectionne — verification Node.js..."
+        if ! command -v npm &>/dev/null; then
+            warn "npm non trouve — skip installation deps Node.js"
+            dbg "  command -v npm → NOT FOUND"
+        elif [[ ! -d "$REPO_DIR/api" ]]; then
+            warn "Dossier api/ introuvable — skip Node.js"
+            dbg "  $REPO_DIR/api/ n'existe pas"
+        else
+            dbg "Installation deps Node.js dans $REPO_DIR/api/"
+            dbg "  node=$(node -v 2>/dev/null || echo '?') npm=$(npm -v 2>/dev/null || echo '?')"
+            cd "$REPO_DIR/api"
+            node_stamp_file=".mascarade_node_deps.sha256"
+            node_sig=""
+            node_prev_sig=""
+            node_sig=$(hash_files_sha256 "package.json" "package-lock.json" || true)
+            [[ -f "$node_stamp_file" ]] && node_prev_sig=$(cat "$node_stamp_file" 2>/dev/null || true)
+
+            if [[ -d "node_modules" && -n "$node_sig" && "$node_sig" == "$node_prev_sig" ]]; then
+                info "Dependances Node.js deja a jour (package*.json inchanges)"
+                cd "$REPO_DIR"
+            else
+                spin_start "Installation de l'API Node.js..."
+
+                if [[ "$VERBOSE" == true ]]; then
+                    dbg "  exec: npm install"
+                    npm_cmd=(npm install)
+                else
+                    dbg "  exec: npm install --silent"
+                    npm_cmd=(npm install --silent)
+                fi
+                npm_rc=0
+                npm_out=$("${npm_cmd[@]}" 2>&1) || npm_rc=$?
+                if [[ $npm_rc -ne 0 ]]; then
+                    dbg "  npm install FAILED rc=$npm_rc"
+                    if [[ "$VERBOSE" == true ]]; then
+                        dbg "  sortie npm:"
+                        echo "$npm_out" | tail -10 | while IFS= read -r nl; do dbg "    | $nl"; done
+                    fi
+                else
+                    dbg "  npm install OK"
+                fi
+
+                if [[ "$VERBOSE" == true ]]; then
+                    dbg "  exec: npm run build"
+                    npm_build_cmd=(npm run build)
+                else
+                    dbg "  exec: npm run build --silent"
+                    npm_build_cmd=(npm run build --silent)
+                fi
+                npm_rc=0
+                npm_out=$("${npm_build_cmd[@]}" 2>&1) || npm_rc=$?
+                cd "$REPO_DIR"
+                spin_stop
+                if [[ $npm_rc -ne 0 ]]; then
+                    warn "npm build echoue (code $npm_rc)"
+                    dbg "  npm build FAILED rc=$npm_rc"
+                    if [[ "$VERBOSE" == true ]]; then
+                        dbg "  sortie npm build:"
+                        echo "$npm_out" | tail -10 | while IFS= read -r nl; do dbg "    | $nl"; done
+                    fi
+                else
+                    ok "Dependances Node.js installees"
+                    dbg "  node_modules: $(ls "$REPO_DIR/api/node_modules/" 2>/dev/null | wc -l) packages"
+                    [[ -n "$node_sig" ]] && echo "$node_sig" > "$REPO_DIR/api/$node_stamp_file"
+                fi
+            fi
+        fi
+    else
+        dbg "API non selectionne — skip Node.js"
+    fi
+
+    # Tests optionnels
+    if svc_selected "core"; then
+        if [[ "$SKIP_TESTS" == true ]]; then
+            info "Tests Python ignores (--skip-tests)"
+        else
+            run_pytest false || true
         fi
     fi
 fi
 
-# ── Etape 7/7 : Demarrage ──
-step_progress 7 7 "Demarrage des services"
+# ── 7/8 : Demarrage ──
+step_progress 7 8 "Demarrage des services"
 
-menu_select "Comment proceder ?" \
-    "Demarrer maintenant (docker compose up)" \
-    "Ne pas demarrer (je le ferai plus tard)"
+if [[ "$NO_START" == true ]]; then
+    ok "Demarrage ignore (--no-start)"
+else
+    if [[ "$AUTO_CONFIRM" == true ]]; then
+        MENU_RESULT=0
+    else
+        menu_select "Comment proceder ?" \
+            "Demarrer maintenant (docker compose up)" \
+            "Ne pas demarrer (je le ferai plus tard)"
+    fi
 
-case $MENU_RESULT in
-    0)
-        spin_start "Build des images..."
-        docker compose -f "$REPO_DIR/docker-compose.yml" build 2>&1 | tail -5
-        spin_stop
-        ok "Images pretes"
+    case $MENU_RESULT in
+        0)
+            dbg "Demarrage: build des images..."
+            spin_start "Build des images..."
+            build_rc=0
+            docker_compose_cmd -f "$REPO_DIR/docker-compose.yml" build 2>&1 || build_rc=$?
+            spin_stop
+            if [[ $build_rc -eq 0 ]]; then
+                ok "Images pretes"
+                dbg "  docker build OK"
+            else
+                warn "Build echoue (code $build_rc)"
+                dbg "  docker build FAILED rc=$build_rc"
+            fi
 
-        spin_start "Demarrage des containers..."
-        docker compose -f "$REPO_DIR/docker-compose.yml" up -d 2>&1
-        spin_stop
-        ok "Containers lances"
+            dbg "Demarrage: docker compose up -d..."
+            spin_start "Demarrage des containers..."
+            up_rc=0
+            docker_compose_cmd -f "$REPO_DIR/docker-compose.yml" up -d 2>&1 || up_rc=$?
+            spin_stop
+            if [[ $up_rc -eq 0 ]]; then
+                ok "Containers lances"
+            else
+                warn "Demarrage partiel (code $up_rc)"
+            fi
+            dbg "  docker up rc=$up_rc"
 
-        echo ""
-        log "Health checks..."
-        sleep 4
+            echo ""
+            log "Health checks..."
+            dbg "Attente 4s avant health checks..."
+            sleep 4
+            if svc_selected "core"; then
+                health_check "http://localhost:${CORE_PORT:-8100}/health" "Core" 5 2 || true
+            fi
+            if svc_selected "api"; then
+                health_check "http://localhost:${API_PORT:-3100}/health" "API" 5 2 || true
+            fi
+            if svc_selected "ops-console"; then
+                health_check "http://localhost:${OPS_CONSOLE_PORT:-80}/" "Ops Console" 5 2 || true
+            fi
 
-        if svc_selected "core"; then
-            health_check "http://localhost:${CORE_PORT:-8100}/health" "Core" 5 2
-        fi
-        if svc_selected "api"; then
-            health_check "http://localhost:${API_PORT:-3000}/health" "API" 5 2
-        fi
+            # Garantit la webUI DevOps moderne sur les machines qui ont docker-studio-ai.
+            ensure_ops_console_v3 || true
+            # Aligne les services monitorés sur les services effectivement installés.
+            sync_ops_managed_containers || true
+            ;;
+        1)
+            ok "docker-compose.yml pret. Lance : docker compose up -d"
+            dbg "Demarrage differe par l'utilisateur"
+            ;;
+    esac
+fi
 
-        # Garantit la webUI DevOps moderne sur les machines qui ont docker-studio-ai.
-        ensure_ops_console_v3 || true
-        # Aligne les services monitorés sur les services effectivement installés.
-        sync_ops_managed_containers || true
-        ;;
-    1)
-        ok "docker-compose.yml pret. Lance : docker compose up -d"
-        ;;
-esac
+# ── 8/8 : Assets repo (skills + LLM locaux) ──
+step_progress 8 8 "Installation des assets du repo"
+if [[ "$AUTO_CONFIRM" != true ]]; then
+    if [[ "$INSTALL_REPO_SKILLS" != true ]]; then
+        confirm "Installer tous les skills proposes par le repo ?" && INSTALL_REPO_SKILLS=true || true
+    fi
+    if [[ "$INSTALL_REPO_LLMS" != true ]]; then
+        confirm "Telecharger les modeles Ollama proposes par le repo ?" && INSTALL_REPO_LLMS=true || true
+    fi
+fi
 
-# ── Resume final ──
+if [[ "$INSTALL_REPO_SKILLS" == true ]]; then
+    install_repo_skills
+else
+    info "Installation skills repo ignoree"
+fi
+
+if [[ "$INSTALL_REPO_LLMS" == true ]]; then
+    install_repo_ollama_models
+else
+    info "Telechargement modeles Ollama ignore"
+fi
+
+# ── Resume ──
 echo ""
 line
-echo ""
 echo -e "  ${GREEN}${BOLD}Installation terminee !${NC}"
 echo ""
-
+invalidate_docker_cache
 show_status_table
 
 echo -e "  ${BOLD}Commandes utiles :${NC}"
@@ -369,10 +1037,11 @@ if svc_selected "api" && [[ -n "${MASCARADE_API_KEY:-}" ]]; then
     echo ""
     echo -e "  ${BOLD}Test rapide :${NC}"
     echo -e "  curl -sH 'Authorization: Bearer \$MASCARADE_API_KEY' \\"
-    echo -e "    http://localhost:${API_PORT:-3000}/api/agents/metrics | python3 -m json.tool"
+    echo -e "    http://localhost:${API_PORT:-3100}/api/agents/metrics | python3 -m json.tool"
 fi
 
 echo ""
 line
 echo -e "  ${DIM}mascarade v0.1.0${NC}"
+dbg "=== setup termine === duree=$(ps -o etime= -p $$ 2>/dev/null || echo '?')"
 echo ""

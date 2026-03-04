@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # update — Mise a jour des services Mascarade
-# Usage : ./update [--help]
+# Usage : ./update [options]
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
@@ -8,20 +8,159 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/scripts/lib.sh"
 source "$SCRIPT_DIR/scripts/services.sh"
 
-# ── Aide ──
-case "${1:-}" in
-    -h|--help)
-        echo "Usage: ./update"
-        echo ""
-        echo "Mise a jour interactive des services Mascarade."
-        echo "Detecte les services actifs, permet de choisir lesquels mettre a jour."
-        exit 0
-        ;;
-esac
+AUTO_CONFIRM=false
+PRESELECT_MODE=false
+WITH_SERVICES_RAW=""
+STRATEGY_OVERRIDE=""
+SKIP_GIT_PULL=false
+SKIP_TESTS=false
 
-# ═══════════════════════════════════════
-# Flow principal
-# ═══════════════════════════════════════
+show_update_help() {
+    cat <<'HELP'
+Usage: ./update [options]
+
+Mise a jour TUI des services Mascarade.
+Detecte les services actifs et applique une strategie de mise a jour.
+
+Options:
+  -h, --help                      Afficher cette aide et quitter
+  -v, --verbose                   Afficher les traces de debug
+  -y, --yes                       Repondre "oui" aux confirmations
+      --with <ids>                Preselection services (csv), ex: core,api,redis
+      --strategy <name>           Strategie: full|rebuild|restart|pull
+      --no-git-pull               Ignorer git pull avant build local
+      --skip-tests                Ignorer les tests Python optionnels
+
+Services valides (--with):
+  core, api, litellm, n8n, langfuse, dify, clickhouse, comfyui,
+  ollama, open-webui, ops-console, redis, postgres, qdrant, grafana, prometheus
+HELP
+}
+
+parse_update_args() {
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            -h|--help)
+                show_update_help
+                exit 0
+                ;;
+            -v|--verbose)
+                VERBOSE=true
+                ;;
+            -y|--yes)
+                AUTO_CONFIRM=true
+                ;;
+            --with)
+                if [[ $# -lt 2 || -z "${2:-}" ]]; then
+                    err "Option --with attend une liste de services (csv)."
+                    exit 2
+                fi
+                WITH_SERVICES_RAW="$2"
+                PRESELECT_MODE=true
+                shift
+                ;;
+            --strategy)
+                if [[ $# -lt 2 || -z "${2:-}" ]]; then
+                    err "Option --strategy attend une valeur: full|rebuild|restart|pull"
+                    exit 2
+                fi
+                STRATEGY_OVERRIDE="$2"
+                shift
+                ;;
+            --no-git-pull)
+                SKIP_GIT_PULL=true
+                ;;
+            --skip-tests)
+                SKIP_TESTS=true
+                ;;
+            *)
+                err "Option inconnue: $1"
+                echo "Utilise: ./update --help"
+                exit 2
+                ;;
+        esac
+        shift
+    done
+}
+
+confirm_or_auto() {
+    local prompt="$1"
+    if [[ "$AUTO_CONFIRM" == true ]]; then
+        info "$prompt [auto-oui]"
+        return 0
+    fi
+    confirm "$prompt"
+}
+
+strategy_name_to_index() {
+    case "$1" in
+        full) echo 0 ;;
+        rebuild) echo 1 ;;
+        restart) echo 2 ;;
+        pull) echo 3 ;;
+        *) return 1 ;;
+    esac
+}
+
+apply_update_preselected_services() {
+    local csv="$1"
+    local token
+    local valid
+    local present
+
+    for id in "${SVC_IDS[@]}"; do
+        SVC_ON[$id]="0"
+    done
+
+    IFS=',' read -ra _req_svcs <<< "$csv"
+    for token in "${_req_svcs[@]}"; do
+        token="${token// /}"
+        [[ -z "$token" ]] && continue
+
+        valid=false
+        for id in "${SVC_IDS[@]}"; do
+            if [[ "$token" == "$id" ]]; then
+                valid=true
+                break
+            fi
+        done
+        if [[ "$valid" != true ]]; then
+            err "Service inconnu dans --with: '$token'"
+            echo "Services valides: ${SVC_IDS[*]}"
+            exit 2
+        fi
+
+        present=false
+        for svc in "${compose_services[@]}"; do
+            if [[ "$svc" == "$token" || "$svc" == "${token}-"* ]]; then
+                present=true
+                break
+            fi
+        done
+        if [[ "$present" != true ]]; then
+            err "Service '$token' absent du docker-compose actif"
+            exit 2
+        fi
+
+        SVC_ON[$token]="1"
+    done
+}
+
+parse_update_args "$@"
+
+if [[ -n "$STRATEGY_OVERRIDE" ]]; then
+    if ! strategy_name_to_index "$STRATEGY_OVERRIDE" >/dev/null; then
+        err "Strategie invalide: '$STRATEGY_OVERRIDE'"
+        echo "Valeurs attendues: full|rebuild|restart|pull"
+        exit 2
+    fi
+fi
+
+dbg "=== update demarre ==="
+dbg "  REPO_DIR=$REPO_DIR"
+dbg "  SCRIPT_DIR=$SCRIPT_DIR"
+dbg "  AUTO_CONFIRM=$AUTO_CONFIRM PRESELECT_MODE=$PRESELECT_MODE STRATEGY_OVERRIDE=${STRATEGY_OVERRIDE:-none} SKIP_GIT_PULL=$SKIP_GIT_PULL SKIP_TESTS=$SKIP_TESTS"
+_ensure_docker_access
 
 banner
 
@@ -31,40 +170,53 @@ echo -e "  ${DIM}Selectionne les services a mettre a jour${NC}"
 # ── Verifier docker-compose.yml ──
 if [[ ! -f "$REPO_DIR/docker-compose.yml" ]]; then
     err "Pas de docker-compose.yml trouve. Lance d'abord ./setup"
+    dbg "  fichier absent: $REPO_DIR/docker-compose.yml"
     exit 1
 fi
+dbg "docker-compose.yml: $(wc -l < "$REPO_DIR/docker-compose.yml") lignes, $(wc -c < "$REPO_DIR/docker-compose.yml") octets"
 
 # ── Detecter les services du compose ──
-local_compose_services=()
+dbg "Detection des services dans docker-compose.yml..."
+compose_services=()
 while IFS= read -r svc; do
-    [[ -n "$svc" ]] && local_compose_services+=("$svc")
-done < <(docker compose -f "$REPO_DIR/docker-compose.yml" config --services 2>/dev/null)
+    [[ -n "$svc" ]] && compose_services+=("$svc")
+done < <(docker_compose_cmd -f "$REPO_DIR/docker-compose.yml" config --services 2>/dev/null)
 
-if [[ ${#local_compose_services[@]} -eq 0 ]]; then
+dbg "Services dans compose: ${compose_services[*]:-aucun} (${#compose_services[@]} total)"
+if [[ ${#compose_services[@]} -eq 0 ]]; then
     err "Aucun service trouve dans docker-compose.yml"
     exit 1
 fi
 
 # ── Etape 1 : Statut actuel ──
 step_progress 1 4 "Statut actuel"
+dbg "Interrogation Docker pour le statut..."
+
+# Un seul appel docker compose ps pour tout le statut
+_cache_docker_ps
 
 printf "\n  ${BOLD}%-20s %-12s %-30s${NC}\n" "Service" "Statut" "Image"
 line
-for svc in "${local_compose_services[@]}"; do
-    local_status="${DIM}○ Absent${NC}"
-    local_image="—"
-    local_container=$(docker compose -f "$REPO_DIR/docker-compose.yml" ps --format '{{.Name}}' 2>/dev/null | grep -i "${svc}" | head -1 || true)
+for svc in "${compose_services[@]}"; do
+    svc_status="${DIM}○ Absent${NC}"
+    svc_image="—"
 
-    if [[ -n "$local_container" ]]; then
-        local_state=$(docker inspect --format='{{.State.Status}}' "$local_container" 2>/dev/null || echo "absent")
-        local_image=$(docker inspect --format='{{.Config.Image}}' "$local_container" 2>/dev/null | sed 's|.*/||' || echo "—")
-        case "$local_state" in
-            running) local_status="${GREEN}● Running${NC}" ;;
-            exited)  local_status="${YELLOW}○ Stopped${NC}" ;;
-            *)       local_status="${RED}◌ $local_state${NC}" ;;
+    # Chercher dans le cache
+    cached_line=$(echo "$_docker_ps_cache" | grep -i "$svc" | head -1 || true)
+    if [[ -n "$cached_line" ]]; then
+        c_status=$(echo "$cached_line" | cut -f2)
+        c_image=$(echo "$cached_line" | cut -f3 | sed 's|.*/||')
+        svc_image="${c_image:-$svc_image}"
+        dbg "  $svc: status='$c_status' image='$c_image'"
+        case "$c_status" in
+            *Up*|*running*) svc_status="${GREEN}● Running${NC}" ;;
+            *Exited*|*exited*) svc_status="${YELLOW}○ Stopped${NC}" ;;
+            *) svc_status="${RED}◌ ${c_status:0:10}${NC}" ;;
         esac
+    else
+        dbg "  $svc: pas de container trouve"
     fi
-    printf "  %-20s ${local_status}  ${DIM}%-30s${NC}\n" "$svc" "$local_image"
+    printf "  %-20s ${svc_status}  ${DIM}%-30s${NC}\n" "$svc" "$svc_image"
 done
 echo ""
 
@@ -72,29 +224,37 @@ echo ""
 step_progress 2 4 "Selection des services"
 
 # Reutiliser le SVC_IDS pour le checkbox, mais seulement les services detectes
-# On re-initialise SVC_ON pour les services du compose
+dbg "Initialisation SVC_ON depuis les services du compose..."
 for id in "${SVC_IDS[@]}"; do SVC_ON[$id]="0"; done
-for svc in "${local_compose_services[@]}"; do
+for svc in "${compose_services[@]}"; do
     for id in "${SVC_IDS[@]}"; do
         if [[ "$svc" == "$id" || "$svc" == "${id}-"* ]]; then
             SVC_ON[$id]="1"
+            dbg "  $id → ON (match '$svc')"
         fi
     done
 done
 
-checkbox_select
+if [[ "$PRESELECT_MODE" == true ]]; then
+    apply_update_preselected_services "$WITH_SERVICES_RAW"
+    ok "Services preselectionnes via --with"
+else
+    checkbox_select
+fi
 
 # Collecter les services a updater
 update_services=()
-for svc in "${local_compose_services[@]}"; do
+for svc in "${compose_services[@]}"; do
     for id in "${SVC_IDS[@]}"; do
         if [[ ("$svc" == "$id" || "$svc" == "${id}-"*) && "${SVC_ON[$id]}" == "1" ]]; then
             update_services+=("$svc")
+            dbg "  update: $svc (via $id)"
             break
         fi
     done
 done
 
+dbg "Services a mettre a jour: ${update_services[*]:-aucun} (${#update_services[@]} total)"
 if [[ ${#update_services[@]} -eq 0 ]]; then
     err "Aucun service selectionne pour la mise a jour."
     exit 1
@@ -106,128 +266,177 @@ for svc in "${update_services[@]}"; do
     echo -e "    ${CYAN}▸${NC} $svc"
 done
 echo ""
-if ! confirm "Lancer la mise a jour ?"; then
+if ! confirm_or_auto "Lancer la mise a jour ?"; then
+    dbg "Abandon par l'utilisateur"
     exit 0
 fi
 
 # ── Etape 3 : Strategie et execution ──
 step_progress 3 4 "Mise a jour"
 
-menu_select "Comment mettre a jour ?" \
-    "Pull + rebuild + restart (complet)" \
-    "Rebuild seulement (core/api)" \
-    "Restart seulement" \
-    "Pull images seulement (sans restart)"
-local_strategy=$MENU_RESULT
+if [[ -n "$STRATEGY_OVERRIDE" ]]; then
+    strategy=$(strategy_name_to_index "$STRATEGY_OVERRIDE")
+    ok "Strategie forcee: $STRATEGY_OVERRIDE"
+elif [[ "$AUTO_CONFIRM" == true ]]; then
+    strategy=0
+    info "Strategie par defaut [auto-oui]: full"
+else
+    menu_select "Comment mettre a jour ?" \
+        "Pull + rebuild + restart (complet)" \
+        "Rebuild seulement (core/api)" \
+        "Restart seulement" \
+        "Pull images seulement (sans restart)"
+    strategy=$MENU_RESULT
+fi
+dbg "Strategie choisie: $strategy (${strategy}: $(case $strategy in 0) echo 'complet';; 1) echo 'rebuild';; 2) echo 'restart';; 3) echo 'pull';; esac))"
 
 # Detecter si on a des services buildables
 has_build=false
 for svc in "${update_services[@]}"; do
     [[ "$svc" == "core" || "$svc" == "api" ]] && has_build=true && break
 done
+dbg "Services buildables presents: $has_build"
 
 # Git pull optionnel
-if [[ "$has_build" == true && $local_strategy -le 1 ]]; then
-    echo ""
-    if confirm "Faire un git pull avant le build ?"; then
+if [[ "$has_build" == true && $strategy -le 1 ]]; then
+    do_git_pull=false
+    if [[ "$SKIP_GIT_PULL" == true ]]; then
+        dbg "git pull ignore (--no-git-pull)"
+    elif [[ "$AUTO_CONFIRM" == true ]]; then
+        do_git_pull=true
+    elif confirm "Faire un git pull avant le build ?"; then
+        do_git_pull=true
+    fi
+
+    if [[ "$do_git_pull" == true ]]; then
+        dbg "git pull --ff-only dans $REPO_DIR..."
+        dbg "  HEAD actuel: $(git -C "$REPO_DIR" rev-parse --short HEAD 2>/dev/null || echo '?')"
+        dbg "  branch: $(git -C "$REPO_DIR" branch --show-current 2>/dev/null || echo '?')"
         spin_start "Git pull..."
-        cd "$REPO_DIR"
-        if git pull --ff-only 2>&1 | tail -1; then
-            spin_stop
+        pull_rc=0
+        pull_output=$(git -C "$REPO_DIR" pull --ff-only 2>&1) || pull_rc=$?
+        spin_stop
+        if [[ $pull_rc -eq 0 ]]; then
             ok "Code a jour"
+            dbg "  git pull OK"
+            dbg "  HEAD apres: $(git -C "$REPO_DIR" rev-parse --short HEAD 2>/dev/null || echo '?')"
+            dbg "  output: $pull_output"
         else
-            spin_stop
-            warn "git pull echoue"
-            if ! confirm "Continuer quand meme ?"; then
+            warn "git pull echoue (code $pull_rc)"
+            dbg "  git pull FAILED rc=$pull_rc"
+            dbg "  output: $pull_output"
+            if ! confirm_or_auto "Continuer quand meme ?"; then
                 exit 1
             fi
         fi
+    else
+        dbg "git pull saute"
     fi
 fi
 
 # Tests optionnels
-if [[ "$has_build" == true && $local_strategy -le 1 && -d "$REPO_DIR/core/.venv" ]]; then
-    if confirm "Lancer les tests avant le deploiement ?"; then
-        spin_start "Tests en cours..."
-        cd "$REPO_DIR/core"
-        test_ok=true
-        .venv/bin/python -m pytest -q 2>&1 || test_ok=false
-        cd "$REPO_DIR"
-        spin_stop
-        if [[ "$test_ok" == true ]]; then
-            ok "Tests passes"
-        else
-            warn "Certains tests ont echoue"
-            if ! confirm "Continuer malgre les echecs ?"; then
-                exit 1
-            fi
-        fi
+if [[ "$has_build" == true && $strategy -le 1 ]]; then
+    if [[ "$SKIP_TESTS" == true ]]; then
+        dbg "Tests ignores (--skip-tests)"
+    else
+        run_pytest true || true
     fi
 fi
 
-# Execution
-case $local_strategy in
-    0) # Pull + rebuild + restart
-        spin_start "Pull des images..."
-        for svc in "${update_services[@]}"; do
-            if [[ "$svc" != "core" && "$svc" != "api" ]]; then
-                docker compose -f "$REPO_DIR/docker-compose.yml" pull "$svc" 2>&1 | tail -1
+# ── Helper: pull images non-buildables ──
+_pull_images() {
+    dbg "_pull_images: debut"
+    spin_start "Pull des images..."
+    for svc in "${update_services[@]}"; do
+        if [[ "$svc" != "core" && "$svc" != "api" ]]; then
+            dbg "  pull $svc..."
+            pull_rc=0
+            docker_compose_cmd -f "$REPO_DIR/docker-compose.yml" pull "$svc" 2>&1 || pull_rc=$?
+            if [[ $pull_rc -ne 0 ]]; then
+                warn "Pull $svc echoue (code $pull_rc)"
+            else
+                dbg "  pull $svc OK"
             fi
-        done
-        spin_stop
-        ok "Images a jour"
+        else
+            dbg "  skip pull $svc (image locale)"
+        fi
+    done
+    spin_stop
+    ok "Images a jour"
+}
 
-        for svc in "${update_services[@]}"; do
-            if [[ "$svc" == "core" || "$svc" == "api" ]]; then
-                spin_start "Build $svc..."
-                docker compose -f "$REPO_DIR/docker-compose.yml" build --no-cache "$svc" 2>&1 | tail -2
-                spin_stop
+# ── Helper: build services locaux ──
+_build_local() {
+    dbg "_build_local: debut"
+    for svc in "${update_services[@]}"; do
+        if [[ "$svc" == "core" || "$svc" == "api" ]]; then
+            dbg "  build --no-cache $svc..."
+            spin_start "Build $svc..."
+            build_rc=0
+            build_output=$(docker_compose_cmd -f "$REPO_DIR/docker-compose.yml" build --no-cache "$svc" 2>&1) || build_rc=$?
+            spin_stop
+            if [[ $build_rc -eq 0 ]]; then
                 ok "Build $svc"
+                dbg "  build $svc OK"
+            else
+                warn "Build $svc echoue (code $build_rc)"
+                dbg "  build $svc FAILED rc=$build_rc"
+                if [[ "$VERBOSE" == true ]]; then
+                    echo "$build_output" | tail -5 | while IFS= read -r bl; do dbg "    | $bl"; done
+                fi
             fi
-        done
+        fi
+    done
+}
 
-        spin_start "Restart des services..."
-        docker compose -f "$REPO_DIR/docker-compose.yml" up -d --force-recreate "${update_services[@]}" 2>&1
-        spin_stop
+# ── Helper: restart services ──
+_restart_services() {
+    dbg "_restart_services: ${update_services[*]}"
+    spin_start "Restart des services..."
+    restart_rc=0
+    docker_compose_cmd -f "$REPO_DIR/docker-compose.yml" up -d --force-recreate "${update_services[@]}" 2>&1 || restart_rc=$?
+    spin_stop
+    if [[ $restart_rc -eq 0 ]]; then
         ok "Services redemarres"
+    else
+        warn "Restart partiel (code $restart_rc)"
+    fi
+    dbg "  restart rc=$restart_rc"
+}
+
+# Execution
+dbg "Execution strategie $strategy sur ${#update_services[@]} service(s)..."
+case $strategy in
+    0) # Pull + rebuild + restart
+        dbg "=== Strategie: Pull + rebuild + restart ==="
+        _pull_images
+        _build_local
+        _restart_services
         ;;
 
     1) # Rebuild seulement
-        for svc in "${update_services[@]}"; do
-            if [[ "$svc" == "core" || "$svc" == "api" ]]; then
-                spin_start "Build $svc..."
-                docker compose -f "$REPO_DIR/docker-compose.yml" build --no-cache "$svc" 2>&1 | tail -2
-                spin_stop
-                ok "Build $svc"
-            else
-                info "$svc — pas de Dockerfile, skip"
-            fi
-        done
-
-        spin_start "Restart des services..."
-        docker compose -f "$REPO_DIR/docker-compose.yml" up -d --force-recreate "${update_services[@]}" 2>&1
-        spin_stop
-        ok "Services redemarres"
+        dbg "=== Strategie: Rebuild seulement ==="
+        _build_local
+        _restart_services
         ;;
 
     2) # Restart seulement
+        dbg "=== Strategie: Restart seulement ==="
         spin_start "Restart des services..."
-        docker compose -f "$REPO_DIR/docker-compose.yml" restart "${update_services[@]}" 2>&1
+        restart_rc=0
+        docker_compose_cmd -f "$REPO_DIR/docker-compose.yml" restart "${update_services[@]}" 2>&1 || restart_rc=$?
         spin_stop
-        ok "Services redemarres"
+        if [[ $restart_rc -eq 0 ]]; then
+            ok "Services redemarres"
+        else
+            warn "Restart partiel (code $restart_rc)"
+        fi
+        dbg "  restart rc=$restart_rc"
         ;;
 
     3) # Pull seulement
-        spin_start "Pull des images..."
-        for svc in "${update_services[@]}"; do
-            if [[ "$svc" != "core" && "$svc" != "api" ]]; then
-                docker compose -f "$REPO_DIR/docker-compose.yml" pull "$svc" 2>&1 | tail -1
-                ok "Pull $svc"
-            else
-                info "$svc — image locale, rien a pull"
-            fi
-        done
-        spin_stop
+        dbg "=== Strategie: Pull seulement ==="
+        _pull_images
         echo ""
         log "Images mises a jour. Lance 'docker compose up -d' pour appliquer."
         ;;
@@ -236,22 +445,29 @@ esac
 # ── Etape 4 : Health checks + resume ──
 step_progress 4 4 "Verification"
 
-if [[ $local_strategy -le 2 ]]; then
+if [[ $strategy -le 2 ]]; then
+    dbg "Attente 3s avant health checks..."
     sleep 3
     load_env "$REPO_DIR/.env" 2>/dev/null || true
+    invalidate_docker_cache
 
     for svc in "${update_services[@]}"; do
-        local_port=""
+        svc_port=""
         for id in "${SVC_IDS[@]}"; do
             if [[ "$svc" == "$id" || "$svc" == "${id}-"* ]]; then
-                local_port="${SVC_PORT[$id]}"
+                svc_port="${SVC_PORT[$id]}"
                 break
             fi
         done
-        [[ "$local_port" == "—" || -z "$local_port" ]] && continue
+        if [[ "$svc_port" == "—" || -z "$svc_port" ]]; then
+            dbg "  skip health check $svc (pas de port)"
+            continue
+        fi
 
-        health_check "http://localhost:${local_port}/" "$svc" 5 2 || true
+        health_check "http://localhost:${svc_port}/" "$svc" 5 2 || true
     done
+else
+    dbg "Skip health checks (strategie=$strategy, pull seulement)"
 fi
 
 echo ""
@@ -259,8 +475,9 @@ line
 echo ""
 echo -e "  ${GREEN}${BOLD}Mise a jour terminee !${NC}"
 echo ""
-docker compose -f "$REPO_DIR/docker-compose.yml" ps --format "table {{.Name}}\t{{.Status}}\t{{.Ports}}" 2>/dev/null || true
-echo ""
+invalidate_docker_cache
+show_status_table
 line
 echo -e "  ${DIM}mascarade v0.1.0${NC}"
+dbg "=== update termine === duree=$(ps -o etime= -p $$ 2>/dev/null || echo '?')"
 echo ""
