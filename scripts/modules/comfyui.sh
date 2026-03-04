@@ -9,7 +9,7 @@ module_comfyui_config() {
 
   case "$MENU_RESULT" in
     0)
-      COMFYUI_URL=$(input_value "URL ComfyUI distant" "https://stable2.kxkm.net")
+      COMFYUI_URL=$(input_value "URL ComfyUI distant" "${COMFYUI_URL:-}")
       COMFYUI_LOCAL=""
       ;;
     1)

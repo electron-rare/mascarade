@@ -104,7 +104,7 @@ case $config_choice in
             "Desactiver"
         case "$MENU_RESULT" in
             0)
-                COMFYUI_URL=$(input_value "URL du serveur ComfyUI :" "${COMFYUI_URL:-https://stable2.kxkm.net}")
+                COMFYUI_URL=$(input_value "URL du serveur ComfyUI :" "${COMFYUI_URL:-}")
                 COMFYUI_LOCAL=false
                 ;;
             1)
