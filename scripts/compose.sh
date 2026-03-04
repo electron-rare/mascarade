@@ -83,6 +83,10 @@ write_env_file() {
         # Core
         if svc_selected "core"; then
             echo "# ── Mascarade Core ──"
+            echo "CORE_PORT=\"${CORE_PORT:-8100}\""
+            echo "CORE_HOST=\"${CORE_HOST:-0.0.0.0}\""
+            echo "DEFAULT_PROVIDER=\"${DEFAULT_PROVIDER:-claude}\""
+            echo "DEFAULT_MODEL=\"${DEFAULT_MODEL:-claude-sonnet-4-6}\""
             echo "MASCARADE_API_KEY=\"${MASCARADE_API_KEY:-}\""
             echo "DEFAULT_LLM_PROVIDER=\"${DEFAULT_LLM_PROVIDER:-anthropic}\""
             echo "DEFAULT_LLM_MODEL=\"${DEFAULT_LLM_MODEL:-claude-sonnet-4-20250514}\""
@@ -93,6 +97,14 @@ write_env_file() {
             [[ -n "${GOOGLE_API_KEY:-}" ]] && echo "GOOGLE_API_KEY=\"$GOOGLE_API_KEY\""
             [[ -n "${MISTRAL_API_KEY:-}" ]] && echo "MISTRAL_API_KEY=\"$MISTRAL_API_KEY\""
             [[ -n "${GROQ_API_KEY:-}" ]] && echo "GROQ_API_KEY=\"$GROQ_API_KEY\""
+            echo ""
+        fi
+
+        # API
+        if svc_selected "api"; then
+            echo "# ── Mascarade API ──"
+            echo "API_PORT=\"${API_PORT:-3100}\""
+            echo "CORE_URL=\"${CORE_URL:-http://core:${CORE_PORT:-8100}}\""
             echo ""
         fi
 
@@ -132,8 +144,13 @@ write_env_file() {
         if svc_selected "langfuse"; then
             echo "# ── Langfuse ──"
             echo "LANGFUSE_PORT=\"${LANGFUSE_PORT:-3200}\""
-            echo "LANGFUSE_SECRET_KEY=\"${LANGFUSE_SECRET_KEY:-}\""
-            echo "LANGFUSE_NEXT_AUTH_SECRET=\"${LANGFUSE_NEXT_AUTH_SECRET:-}\""
+            echo "LANGFUSE_INIT_PROJECT_PUBLIC_KEY=\"${LANGFUSE_INIT_PROJECT_PUBLIC_KEY:-}\""
+            echo "LANGFUSE_INIT_PROJECT_SECRET_KEY=\"${LANGFUSE_INIT_PROJECT_SECRET_KEY:-}\""
+            echo "CLICKHOUSE_MIGRATION_URL=\"${CLICKHOUSE_MIGRATION_URL:-clickhouse://clickhouse:9000}\""
+            echo "NEXTAUTH_URL=\"${NEXTAUTH_URL:-http://localhost:${LANGFUSE_PORT:-3200}}\""
+            echo "NEXTAUTH_SECRET=\"${NEXTAUTH_SECRET:-}\""
+            echo "SALT=\"${SALT:-}\""
+            echo "ENCRYPTION_KEY=\"${ENCRYPTION_KEY:-}\""
             echo ""
         fi
 
@@ -147,8 +164,11 @@ write_env_file() {
         # Dify
         if svc_selected "dify"; then
             echo "# ── Dify ──"
-            echo "DIFY_PORT=\"${DIFY_PORT:-3500}\""
+            echo "DIFY_API_PORT=\"${DIFY_API_PORT:-5001}\""
+            echo "DIFY_WEB_PORT=\"${DIFY_WEB_PORT:-3500}\""
             echo "DIFY_SECRET_KEY=\"${DIFY_SECRET_KEY:-}\""
+            echo "OPENDAL_SCHEME=\"${OPENDAL_SCHEME:-fs}\""
+            echo "OPENDAL_ROOT=\"${OPENDAL_ROOT:-/app/api/storage}\""
             echo ""
         fi
 
@@ -191,6 +211,13 @@ write_env_file() {
         if svc_selected "qdrant"; then
             echo "# ── Qdrant ──"
             echo "QDRANT_PORT=\"${QDRANT_PORT:-6333}\""
+            echo ""
+        fi
+
+        # Open WebUI
+        if svc_selected "open-webui"; then
+            echo "# ── Open WebUI ──"
+            echo "OPEN_WEBUI_PORT=\"${OPEN_WEBUI_PORT:-8080}\""
             echo ""
         fi
 

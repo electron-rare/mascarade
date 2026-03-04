@@ -80,25 +80,81 @@ services:
     networks:
       - mascarade-network
 
-  langfuse:
-    image: langfuse/langfuse:latest
+  langfuse-worker:
+    image: langfuse/langfuse-worker:3
+    container_name: mascarade-langfuse-worker
+    restart: unless-stopped
+    environment: &langfuse-worker-env
+      NEXTAUTH_URL: ${NEXTAUTH_URL}
+      DATABASE_URL: postgresql://mascarade:${POSTGRES_PASSWORD}@postgres:5432/langfuse
+      SALT: ${SALT}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET}
+      TELEMETRY_ENABLED: "true"
+      LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES: "false"
+      CLICKHOUSE_URL: http://clickhouse:8123
+      CLICKHOUSE_MIGRATION_URL: clickhouse://clickhouse:9000
+      CLICKHOUSE_USER: langfuse
+      CLICKHOUSE_PASSWORD: langfuse
+      CLICKHOUSE_CLUSTER_ENABLED: "false"
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_TLS_ENABLED: "false"
+      LANGFUSE_S3_EVENT_UPLOAD_BUCKET: langfuse
+      LANGFUSE_S3_EVENT_UPLOAD_REGION: auto
+      LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID: minio
+      LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY: miniosecret
+      LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT: http://minio:9000
+      LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE: "true"
+      LANGFUSE_S3_EVENT_UPLOAD_PREFIX: events/
+      LANGFUSE_S3_MEDIA_UPLOAD_BUCKET: langfuse
+      LANGFUSE_S3_MEDIA_UPLOAD_REGION: auto
+      LANGFUSE_S3_MEDIA_UPLOAD_ACCESS_KEY_ID: minio
+      LANGFUSE_S3_MEDIA_UPLOAD_SECRET_ACCESS_KEY: miniosecret
+      LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT: http://minio:9000
+      LANGFUSE_S3_MEDIA_UPLOAD_FORCE_PATH_STYLE: "true"
+      LANGFUSE_S3_MEDIA_UPLOAD_PREFIX: media/
+    depends_on:
+      - postgres
+      - clickhouse
+      - redis
+      - minio
+    networks:
+      - mascarade-network
+
+  langfuse-web:
+    image: langfuse/langfuse:3
     container_name: mascarade-langfuse
     restart: unless-stopped
     ports:
       - "127.0.0.1:${LANGFUSE_PORT}:3000"
     environment:
-      DATABASE_URL: postgresql://mascarade:${POSTGRES_PASSWORD}@postgres:5432/mascarade
-      NEXTAUTH_URL: ${NEXTAUTH_URL}
-      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET}
-      SALT: ${SALT}
-      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
-      LANGFUSE_SECRET_KEY: ${LANGFUSE_SECRET_KEY}
-      LANGFUSE_NEXT_PUBLIC_KEY: ${LANGFUSE_NEXT_PUBLIC_KEY}
-      LANGFUSE_S3_EVENT_UPLOAD_ENABLED: "false"
-      CLICKHOUSE_URL: http://clickhouse:8123
+      <<: *langfuse-worker-env
+      LANGFUSE_INIT_PROJECT_PUBLIC_KEY: ${LANGFUSE_INIT_PROJECT_PUBLIC_KEY:-}
+      LANGFUSE_INIT_PROJECT_SECRET_KEY: ${LANGFUSE_INIT_PROJECT_SECRET_KEY:-}
     depends_on:
+      - langfuse-worker
       - postgres
       - clickhouse
+      - redis
+      - minio
+    networks:
+      - mascarade-network
+
+  minio:
+    image: minio/minio:latest
+    container_name: mascarade-langfuse-minio
+    restart: unless-stopped
+    entrypoint: sh
+    command: -c 'mkdir -p /data/langfuse && minio server --address ":9000" --console-address ":9001" /data'
+    environment:
+      MINIO_ROOT_USER: minio
+      MINIO_ROOT_PASSWORD: miniosecret
+    ports:
+      - "127.0.0.1:9190:9000"
+      - "127.0.0.1:9191:9001"
+    volumes:
+      - langfuse-minio-data:/data
     networks:
       - mascarade-network
 
@@ -116,6 +172,9 @@ services:
       DB_DATABASE: mascarade
       REDIS_HOST: redis
       REDIS_PORT: 6379
+      OPENDAL_SCHEME: fs
+      OPENDAL_ROOT: /app/api/storage
+      OPENDAL_FS_ROOT: /app/api/storage
     depends_on:
       - postgres
       - redis
@@ -135,6 +194,9 @@ services:
       DB_DATABASE: mascarade
       REDIS_HOST: redis
       REDIS_PORT: 6379
+      OPENDAL_SCHEME: fs
+      OPENDAL_ROOT: /app/api/storage
+      OPENDAL_FS_ROOT: /app/api/storage
     depends_on:
       - postgres
       - redis
@@ -153,6 +215,9 @@ services:
       DB_DATABASE: mascarade
       REDIS_HOST: redis
       REDIS_PORT: 6379
+      OPENDAL_SCHEME: fs
+      OPENDAL_ROOT: /app/api/storage
+      OPENDAL_FS_ROOT: /app/api/storage
     depends_on:
       - postgres
       - redis
@@ -165,6 +230,7 @@ services:
     restart: unless-stopped
     volumes:
       - clickhouse-data:/var/lib/clickhouse
+      - ./deploy/clickhouse/users.d/langfuse-user.xml:/etc/clickhouse-server/users.d/langfuse-user.xml:ro
     networks:
       - mascarade-network
 
@@ -269,3 +335,4 @@ volumes:
   qdrant-data:
   grafana-data:
   prometheus-data:
+  langfuse-minio-data:
