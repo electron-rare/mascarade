@@ -164,6 +164,8 @@ write_env_file() {
         if svc_selected "tts"; then
             echo "# ── TTS ──"
             echo "TTS_PORT=\"${TTS_PORT:-10200}\""
+            echo "TTS_ENGINE=\"${TTS_ENGINE:-piper}\""
+            echo "TTS_VOICE=\"${TTS_VOICE:-}\""
             echo ""
         fi
 
@@ -171,6 +173,7 @@ write_env_file() {
         if svc_selected "stt"; then
             echo "# ── STT ──"
             echo "STT_PORT=\"${STT_PORT:-9001}\""
+            echo "STT_ENGINE=\"${STT_ENGINE:-faster_whisper}\""
             echo "STT_MODEL=\"${STT_MODEL:-small}\""
             echo ""
         fi
@@ -179,6 +182,7 @@ write_env_file() {
         if svc_selected "generate-audio"; then
             echo "# ── Generate Audio ──"
             echo "GENERATE_AUDIO_PORT=\"${GENERATE_AUDIO_PORT:-9000}\""
+            echo "GENERATE_AUDIO_ENGINE=\"${GENERATE_AUDIO_ENGINE:-faster_whisper}\""
             echo "GENERATE_AUDIO_MODEL=\"${GENERATE_AUDIO_MODEL:-small}\""
             echo ""
         fi
