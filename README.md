@@ -210,6 +210,24 @@ cd /chemin/vers/mascarade
 ./deploy/update.sh --service api      # rebuild uniquement l'API
 ```
 
+### Migration stack IA additionnelle
+
+Pour migrer aussi les services IA lourds (LocalAI, KoboldCPP, AnythingLLM, SGLang, Mem0, Langfuse):
+
+```bash
+cd /mascarade
+bash scripts/apply_ai_tools_migration.sh /home/cils/tools
+```
+
+Puis, au besoin:
+
+```bash
+cd /home/cils/tools
+docker compose -f docker-compose.yml -f docker-compose.ai.yml --profile heavy up -d localai koboldcpp anythingllm sglang
+```
+
+Sur VM legere, garder ces services arretes par defaut (profil `heavy`).
+
 ### Interagir avec la VM depuis le Mac
 
 ```bash

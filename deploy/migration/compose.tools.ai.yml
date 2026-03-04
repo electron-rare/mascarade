@@ -1,0 +1,151 @@
+services:
+  # Disabled by default on light machines. Start with --profile heavy.
+  mem0:
+    image: mem0/openmemory-mcp:latest
+    container_name: tools-mem0
+    profiles:
+      - heavy
+    ports:
+      - "127.0.0.1:3300:3300"
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - QDRANT_HOST=${QDRANT_HOST:-zacus-qdrant}
+      - QDRANT_PORT=${QDRANT_PORT:-6333}
+    networks:
+      - tools
+      - infra
+    restart: unless-stopped
+
+  # Disabled by default on light machines. Start with --profile heavy.
+  langfuse-clickhouse:
+    image: clickhouse/clickhouse-server:24-alpine
+    container_name: tools-clickhouse
+    profiles:
+      - heavy
+    environment:
+      - CLICKHOUSE_DB=default
+      - CLICKHOUSE_USER=default
+      - CLICKHOUSE_PASSWORD=${CLICKHOUSE_PASSWORD:-clickhouse}
+    volumes:
+      - clickhouse-data:/var/lib/clickhouse
+    networks:
+      - tools
+      - infra
+    restart: unless-stopped
+
+  # Disabled by default on light machines. Start with --profile heavy.
+  langfuse:
+    image: ${LANGFUSE_IMAGE:-langfuse/langfuse:3.50.0}
+    container_name: tools-langfuse
+    profiles:
+      - heavy
+    ports:
+      - "127.0.0.1:3200:3000"
+    environment:
+      - NEXTAUTH_URL=http://127.0.0.1:3200
+      - NEXTAUTH_SECRET=${LANGFUSE_NEXTAUTH_SECRET:-change-me}
+      - SALT=${LANGFUSE_SALT:-change-me}
+      - ENCRYPTION_KEY=${LANGFUSE_ENCRYPTION_KEY:-change-me}
+      - DATABASE_URL=${LANGFUSE_DATABASE_URL}
+      - CLICKHOUSE_URL=http://tools-clickhouse:8123
+      - REDIS_HOST=${REDIS_HOST:-zacus-redis}
+      - REDIS_PORT=${REDIS_PORT:-6379}
+      - LANGFUSE_S3_EVENT_UPLOAD_ENABLED=false
+    depends_on:
+      - langfuse-clickhouse
+    networks:
+      - tools
+      - infra
+    restart: unless-stopped
+
+  # Heavy services requested for migration.
+  localai:
+    image: localai/localai:latest
+    container_name: tools-localai
+    profiles:
+      - heavy
+    ports:
+      - "127.0.0.1:8082:8080"
+    environment:
+      - DEBUG=true
+    volumes:
+      - ./models:/build/models
+    networks:
+      - tools
+      - infra
+    restart: unless-stopped
+
+  koboldcpp:
+    image: koboldai/koboldcpp:latest
+    container_name: tools-koboldcpp
+    profiles:
+      - heavy
+    ports:
+      - "127.0.0.1:5002:5001"
+    environment:
+      - KCPP_DONT_TUNNEL=true
+      - KCPP_ARGS=--host 0.0.0.0 --port 5001
+    volumes:
+      - ./models:/models
+    networks:
+      - tools
+    restart: unless-stopped
+
+  anythingllm:
+    image: mintplexlabs/anythingllm:latest
+    container_name: tools-anythingllm
+    profiles:
+      - heavy
+    ports:
+      - "127.0.0.1:3005:3001"
+    environment:
+      - STORAGE_DIR=/app/server/storage
+      - JWT_SECRET=${ANYTHINGLLM_JWT_SECRET:-change-me-anythingllm}
+      - LLM_PROVIDER=localai
+      - LOCAL_AI_BASE_PATH=http://tools-localai:8080/v1
+      - EMBEDDING_ENGINE=localai
+      - EMBEDDING_BASE_PATH=http://tools-localai:8080/v1
+    volumes:
+      - anythingllm-storage:/app/server/storage
+    depends_on:
+      - localai
+    networks:
+      - tools
+      - infra
+    restart: unless-stopped
+
+  sglang:
+    image: lmsysorg/sglang:latest
+    container_name: tools-sglang
+    profiles:
+      - heavy
+    ports:
+      - "127.0.0.1:30000:30000"
+    command:
+      - python3
+      - -m
+      - sglang.launch_server
+      - --host
+      - 0.0.0.0
+      - --port
+      - "30000"
+      - --model-path
+      - ${SGLANG_MODEL_PATH:-/models}
+    volumes:
+      - ./models:/models
+    networks:
+      - tools
+      - infra
+    restart: unless-stopped
+
+volumes:
+  clickhouse-data:
+  anythingllm-storage:
+
+networks:
+  tools:
+    external: true
+    name: ${TOOLS_NETWORK:-tools_tools}
+  infra:
+    external: true
+    name: ${INFRA_NETWORK:-docker-studio-ai_default}

@@ -29,3 +29,9 @@ build/
 # Coverage
 htmlcov/
 .coverage
+
+# Skills projets externes
+.claude/skills/_projects/
+
+# Opt — binaires et builds lourds
+opt/llama.cpp/built-binaries.txt

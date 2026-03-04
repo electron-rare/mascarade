@@ -41,3 +41,27 @@ Les fichiers `.env` exportes sont redacts automatiquement pour les cles sensible
 - Le script ne stoppe aucun service.
 - Il peut necessiter des droits suffisants pour lire les infos systeme/docker.
 - Les snapshots servent de baseline de migration et d'audit post-migration.
+
+## Migration stack IA (LocalAI, KoboldCPP, AnythingLLM, SGLang, Mem0, Langfuse)
+
+Le repo embarque un overlay compose et un requirements Python pour rejouer le setup IA:
+
+- `deploy/migration/compose.tools.ai.yml`
+- `deploy/migration/python-tools.requirements.txt`
+- `scripts/apply_ai_tools_migration.sh`
+
+Application sur une VM cible:
+
+```bash
+cd /mascarade
+bash scripts/apply_ai_tools_migration.sh /home/cils/tools
+```
+
+Demarrage explicite des services lourds:
+
+```bash
+cd /home/cils/tools
+docker compose -f docker-compose.yml -f docker-compose.ai.yml --profile heavy up -d localai koboldcpp anythingllm sglang
+```
+
+Sur machine legere, laisser ces services arretes par defaut (profil `heavy`).

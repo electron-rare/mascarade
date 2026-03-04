@@ -1,0 +1,10 @@
+# Python tools requested for migration (light-machine friendly subset).
+# SGLang is provided via Docker image in this repo (compose.tools.ai.yml),
+# because the pip package pulls very heavy CUDA/Torch dependencies.
+autogen-agentchat==0.7.5
+autogen-core==0.7.5
+dspy-ai==3.1.3
+instructor==1.14.5
+llama-index==0.14.15
+litellm==1.82.0
+
