@@ -28,6 +28,7 @@ define_service "dify"       "Dify"              "App builder IA (API + Web + Wor
 define_service "clickhouse" "ClickHouse"        "Base analytique colonnaire (Langfuse)"            "—"     "tools" 0 ""
 define_service "comfyui"    "ComfyUI"           "Generation d'images (SD, Flux)"                   "8188"  "tools" 0 ""
 define_service "tts"        "TTS"               "Synthese vocale locale (Piper/Wyoming)"           "10200" "tools" 0 ""
+define_service "stt"        "STT"               "Speech-to-text local (Whisper API)"               "9001"  "tools" 0 ""
 define_service "generate-audio" "Generate Audio" "API audio (transcription/traitement)"            "9000"  "tools" 0 ""
 
 # ── Infrastructure ──

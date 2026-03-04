@@ -167,6 +167,14 @@ write_env_file() {
             echo ""
         fi
 
+        # STT
+        if svc_selected "stt"; then
+            echo "# ── STT ──"
+            echo "STT_PORT=\"${STT_PORT:-9001}\""
+            echo "STT_MODEL=\"${STT_MODEL:-small}\""
+            echo ""
+        fi
+
         # Generate Audio
         if svc_selected "generate-audio"; then
             echo "# ── Generate Audio ──"
