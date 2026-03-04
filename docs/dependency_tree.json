@@ -1,0 +1,89 @@
+{
+  "schema_version": "1.0",
+  "project": "mascarade",
+  "generated_at": "2026-03-04",
+  "graphs": {
+    "service_dependencies": {
+      "nodes": [
+        "core",
+        "api",
+        "litellm",
+        "n8n",
+        "langfuse",
+        "dify",
+        "clickhouse",
+        "comfyui",
+        "ollama",
+        "open-webui",
+        "ops-console",
+        "redis",
+        "postgres",
+        "qdrant",
+        "grafana",
+        "prometheus"
+      ],
+      "edges": [
+        { "from": "api", "to": "core", "type": "depends_on" },
+        { "from": "litellm", "to": "redis", "type": "depends_on" },
+        { "from": "n8n", "to": "postgres", "type": "depends_on" },
+        { "from": "langfuse", "to": "postgres", "type": "depends_on" },
+        { "from": "langfuse", "to": "clickhouse", "type": "depends_on" },
+        { "from": "dify", "to": "postgres", "type": "depends_on" },
+        { "from": "dify", "to": "redis", "type": "depends_on" },
+        { "from": "open-webui", "to": "ollama", "type": "depends_on" }
+      ]
+    },
+    "setup_pipeline": {
+      "nodes": [
+        "setup",
+        "parse_args",
+        "service_selection",
+        "resolve_dependencies",
+        "check_prerequisites",
+        "collect_module_configs",
+        "generate_compose",
+        "write_env",
+        "install_local_deps",
+        "start_stack",
+        "health_checks",
+        "bootstrap_docker_studio_ai",
+        "ensure_ops_console_v3",
+        "sync_ops_managed_containers",
+        "install_repo_skills",
+        "install_repo_ollama_models"
+      ],
+      "edges": [
+        { "from": "setup", "to": "parse_args", "type": "calls" },
+        { "from": "setup", "to": "service_selection", "type": "calls" },
+        { "from": "service_selection", "to": "resolve_dependencies", "type": "calls" },
+        { "from": "setup", "to": "check_prerequisites", "type": "calls" },
+        { "from": "setup", "to": "collect_module_configs", "type": "calls" },
+        { "from": "collect_module_configs", "to": "write_env", "type": "feeds" },
+        { "from": "collect_module_configs", "to": "generate_compose", "type": "feeds" },
+        { "from": "setup", "to": "install_local_deps", "type": "calls" },
+        { "from": "setup", "to": "start_stack", "type": "calls_if_selected" },
+        { "from": "start_stack", "to": "health_checks", "type": "calls" },
+        { "from": "start_stack", "to": "bootstrap_docker_studio_ai", "type": "calls_if_ops_console_selected" },
+        { "from": "bootstrap_docker_studio_ai", "to": "ensure_ops_console_v3", "type": "enables" },
+        { "from": "ensure_ops_console_v3", "to": "sync_ops_managed_containers", "type": "feeds" },
+        { "from": "setup", "to": "install_repo_skills", "type": "calls_if_enabled" },
+        { "from": "setup", "to": "install_repo_ollama_models", "type": "calls_if_enabled" }
+      ]
+    },
+    "ops_console_bootstrap_resolution": {
+      "nodes": [
+        "/opt/docker-studio-ai",
+        "$HOME/docker-studio-ai",
+        "$REPO_DIR/opt/docker-studio-ai",
+        "DOCKER_STUDIO_AI_GIT_URL",
+        "ops-console-v3"
+      ],
+      "edges": [
+        { "from": "bootstrap_docker_studio_ai", "to": "/opt/docker-studio-ai", "type": "target_if_exists_or_writable" },
+        { "from": "bootstrap_docker_studio_ai", "to": "$HOME/docker-studio-ai", "type": "fallback_target" },
+        { "from": "$REPO_DIR/opt/docker-studio-ai", "to": "ops-console-v3", "type": "local_copy_source_if_present" },
+        { "from": "DOCKER_STUDIO_AI_GIT_URL", "to": "ops-console-v3", "type": "clone_source_if_needed" }
+      ]
+    }
+  }
+}
