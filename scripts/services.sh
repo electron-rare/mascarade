@@ -27,6 +27,8 @@ define_service "langfuse"   "Langfuse"          "Observabilite LLM (tracing, eva
 define_service "dify"       "Dify"              "App builder IA (API + Web + Worker)"              "3500"  "tools" 0 "postgres,redis"
 define_service "clickhouse" "ClickHouse"        "Base analytique colonnaire (Langfuse)"            "—"     "tools" 0 ""
 define_service "comfyui"    "ComfyUI"           "Generation d'images (SD, Flux)"                   "8188"  "tools" 0 ""
+define_service "tts"        "TTS"               "Synthese vocale locale (Piper/Wyoming)"           "10200" "tools" 0 ""
+define_service "generate-audio" "Generate Audio" "API audio (transcription/traitement)"            "9000"  "tools" 0 ""
 
 # ── Infrastructure ──
 define_service "ollama"     "Ollama"            "Serveur LLM local (llama, mistral, etc.)"        "11434" "infra" 0 ""

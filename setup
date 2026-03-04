@@ -93,7 +93,7 @@ Packs Ollama (indicatif):
   heavy     CPU: 8+ vCPU  | RAM: 12-24+ GiB  | GPU: recommande (8-16+ GiB VRAM)
 
 Services disponibles:
-  core, api, litellm, n8n, langfuse, dify, clickhouse, comfyui,
+  core, api, litellm, n8n, langfuse, dify, clickhouse, comfyui, tts, generate-audio,
   ollama, open-webui, ops-console, redis, postgres, qdrant, grafana, prometheus
 HELP
 }

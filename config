@@ -178,6 +178,8 @@ case $config_choice in
         svc_selected "langfuse"   && LANGFUSE_PORT=$(input_value "Port Langfuse :" "${LANGFUSE_PORT:-3200}")
         svc_selected "dify"       && DIFY_API_PORT=$(input_value "Port Dify API :" "${DIFY_API_PORT:-5001}")
         svc_selected "dify"       && DIFY_WEB_PORT=$(input_value "Port Dify Web :" "${DIFY_WEB_PORT:-3500}")
+        svc_selected "tts"        && TTS_PORT=$(input_value "Port TTS :" "${TTS_PORT:-10200}")
+        svc_selected "generate-audio" && GENERATE_AUDIO_PORT=$(input_value "Port Generate Audio :" "${GENERATE_AUDIO_PORT:-9000}")
         svc_selected "qdrant"     && QDRANT_PORT=$(input_value "Port Qdrant :" "${QDRANT_PORT:-6333}")
         svc_selected "grafana"    && GRAFANA_PORT=$(input_value "Port Grafana :" "${GRAFANA_PORT:-3001}")
         svc_selected "prometheus" && PROMETHEUS_PORT=$(input_value "Port Prometheus :" "${PROMETHEUS_PORT:-9090}")

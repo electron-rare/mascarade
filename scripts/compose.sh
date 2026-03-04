@@ -160,6 +160,21 @@ write_env_file() {
             echo ""
         fi
 
+        # TTS
+        if svc_selected "tts"; then
+            echo "# ── TTS ──"
+            echo "TTS_PORT=\"${TTS_PORT:-10200}\""
+            echo ""
+        fi
+
+        # Generate Audio
+        if svc_selected "generate-audio"; then
+            echo "# ── Generate Audio ──"
+            echo "GENERATE_AUDIO_PORT=\"${GENERATE_AUDIO_PORT:-9000}\""
+            echo "GENERATE_AUDIO_MODEL=\"${GENERATE_AUDIO_MODEL:-small}\""
+            echo ""
+        fi
+
         # Qdrant
         if svc_selected "qdrant"; then
             echo "# ── Qdrant ──"
