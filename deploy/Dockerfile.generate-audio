@@ -1,0 +1,27 @@
+FROM python:3.11-slim
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ffmpeg \
+    libsndfile1 \
+  && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+COPY deploy/audio_gen_api/requirements.txt /app/requirements.txt
+RUN pip install --upgrade pip && pip install -r /app/requirements.txt
+
+COPY deploy/audio_gen_api/app.py /app/app.py
+
+ENV GENERATE_AUDIO_HOST=0.0.0.0 \
+    GENERATE_AUDIO_PORT=9000 \
+    GENERATE_AUDIO_ENGINE=audiogen \
+    GENERATE_AUDIO_MODEL=facebook/audiogen-medium \
+    GENERATE_AUDIO_RUNTIME=auto
+
+EXPOSE 9000
+
+CMD ["sh", "-lc", "python -m uvicorn app:app --host ${GENERATE_AUDIO_HOST:-0.0.0.0} --port ${GENERATE_AUDIO_PORT:-9000}"]

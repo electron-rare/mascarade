@@ -202,8 +202,9 @@ write_env_file() {
         if svc_selected "generate-audio"; then
             echo "# ── Generate Audio ──"
             echo "GENERATE_AUDIO_PORT=\"${GENERATE_AUDIO_PORT:-9000}\""
-            echo "GENERATE_AUDIO_ENGINE=\"${GENERATE_AUDIO_ENGINE:-faster_whisper}\""
-            echo "GENERATE_AUDIO_MODEL=\"${GENERATE_AUDIO_MODEL:-small}\""
+            echo "GENERATE_AUDIO_ENGINE=\"${GENERATE_AUDIO_ENGINE:-audiogen}\""
+            echo "GENERATE_AUDIO_MODEL=\"${GENERATE_AUDIO_MODEL:-facebook/audiogen-medium}\""
+            echo "GENERATE_AUDIO_RUNTIME=\"${GENERATE_AUDIO_RUNTIME:-auto}\""
             echo ""
         fi
 

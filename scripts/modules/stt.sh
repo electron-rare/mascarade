@@ -3,7 +3,7 @@
 
 module_stt_config() {
   STT_PORT=$(input_value "Port STT" "${STT_PORT:-9001}")
-  STT_ENGINE=$(input_value "Moteur STT (openai_whisper|faster_whisper)" "${STT_ENGINE:-faster_whisper}")
+  STT_ENGINE=$(input_value "Moteur STT (openai_whisper|faster_whisper|whisperx)" "${STT_ENGINE:-faster_whisper}")
   STT_MODEL=$(input_value "Modele STT (tiny/base/small/medium/large)" "${STT_MODEL:-small}")
 }
 
@@ -21,6 +21,9 @@ module_stt_compose() {
   case "$engine" in
     openai_whisper)
       echo "      ASR_ENGINE: openai_whisper"
+      ;;
+    whisperx)
+      echo "      ASR_ENGINE: whisperx"
       ;;
     faster_whisper|*)
       echo "      ASR_ENGINE: faster_whisper"

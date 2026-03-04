@@ -29,7 +29,7 @@ define_service "clickhouse" "ClickHouse"        "Base analytique colonnaire (Lan
 define_service "comfyui"    "ComfyUI"           "Generation d'images (SD, Flux)"                   "8188"  "tools" 0 ""
 define_service "tts"        "TTS"               "Synthese vocale locale (Piper/Wyoming)"           "10200" "tools" 0 ""
 define_service "stt"        "STT"               "Speech-to-text local (Whisper multi-engine)"      "9001"  "tools" 0 ""
-define_service "generate-audio" "Generate Audio" "API audio (Whisper multi-engine)"                "9000"  "tools" 0 ""
+define_service "generate-audio" "Generate Audio" "Generation audio locale (AudioGen/MusicGen)"     "9000"  "tools" 0 ""
 
 # ── Infrastructure ──
 define_service "ollama"     "Ollama"            "Serveur LLM local (llama, mistral, etc.)"        "11434" "infra" 0 ""
