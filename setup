@@ -527,24 +527,50 @@ bootstrap_docker_studio_ai() {
 
     # Fallback: clone git si la copie locale ne suffit pas.
     if [[ ! -f "$target_stack/docker-compose.yml" || ! -f "$target_v3/docker-compose.yml" ]]; then
+        local tmp_dir clone_ok=false
+        tmp_dir="$(mktemp -d)"
+
         if command -v git >/dev/null 2>&1; then
             info "Bootstrap docker-studio-ai via git clone..."
-            local tmp_dir
-            tmp_dir="$(mktemp -d)"
-            if git clone --depth 1 "$repo_url" "$tmp_dir/repo" >/dev/null 2>&1; then
-                if [[ -d "$tmp_dir/repo/tools/dev/docker-studio-ai" && -d "$tmp_dir/repo/tools/dev/ops-console-v3" ]]; then
-                    cp -a "$tmp_dir/repo/tools/dev/docker-studio-ai" "$target_dev_root/" 2>/dev/null || true
-                    cp -a "$tmp_dir/repo/tools/dev/ops-console-v3" "$target_dev_root/" 2>/dev/null || true
-                else
-                    warn "Clone reussi mais structure tools/dev introuvable dans le repo docker-studio-ai."
-                fi
+            local git_err=""
+            git_err="$(mktemp)"
+            if git clone --depth 1 "$repo_url" "$tmp_dir/repo" 2>"$git_err"; then
+                clone_ok=true
             else
-                warn "Echec clone docker-studio-ai ($repo_url)."
+                warn "Echec git clone docker-studio-ai ($repo_url)."
+                warn "Detail: $(tail -n 1 "$git_err" 2>/dev/null || echo 'erreur inconnue')"
             fi
-            rm -rf "$tmp_dir"
+            rm -f "$git_err"
         else
             warn "git non disponible, impossible de cloner docker-studio-ai."
         fi
+
+        # Fallback pour repos prives: utiliser gh si authentifie.
+        if [[ "$clone_ok" != true ]] && command -v gh >/dev/null 2>&1; then
+            if gh auth status >/dev/null 2>&1; then
+                info "Fallback bootstrap via gh repo clone..."
+                local owner_repo
+                owner_repo="$(echo "$repo_url" | sed -E 's#https?://github.com/##; s#\.git$##')"
+                if gh repo clone "$owner_repo" "$tmp_dir/repo" -- --depth 1 >/dev/null 2>&1; then
+                    clone_ok=true
+                else
+                    warn "Echec fallback gh repo clone ($owner_repo)."
+                fi
+            else
+                warn "gh present mais non authentifie (gh auth login)."
+            fi
+        fi
+
+        if [[ "$clone_ok" == true ]]; then
+            if [[ -d "$tmp_dir/repo/tools/dev/docker-studio-ai" && -d "$tmp_dir/repo/tools/dev/ops-console-v3" ]]; then
+                cp -a "$tmp_dir/repo/tools/dev/docker-studio-ai" "$target_dev_root/" 2>/dev/null || true
+                cp -a "$tmp_dir/repo/tools/dev/ops-console-v3" "$target_dev_root/" 2>/dev/null || true
+            else
+                warn "Clone reussi mais structure tools/dev introuvable dans le repo docker-studio-ai."
+            fi
+        fi
+
+        rm -rf "$tmp_dir"
     fi
 
     if [[ -f "$target_stack/docker-compose.yml" && -f "$target_v3/docker-compose.yml" ]]; then
@@ -556,6 +582,7 @@ bootstrap_docker_studio_ai() {
     info "Attendu:"
     info "  - $target_stack/docker-compose.yml"
     info "  - $target_v3/docker-compose.yml"
+    info "Override possible: DOCKER_STUDIO_AI_GIT_URL=https://github.com/<owner>/<repo>.git ./setup --ops-console-only"
     return 1
 }
 
