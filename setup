@@ -25,6 +25,97 @@ case "${1:-}" in
         ;;
 esac
 
+# ── Liens skills pour assistants CLI ──
+ensure_skills_symlinks() {
+    local src=""
+    local ts
+    ts="$(date +%Y%m%d-%H%M%S)"
+
+    # Source prioritaire: skills globaux de la machine, sinon copie repo.
+    if [[ -d "/opt/skills-global/all" ]]; then
+        src="/opt/skills-global/all"
+    elif [[ -d "$REPO_DIR/skills/skills" ]]; then
+        src="$REPO_DIR/skills/skills"
+    else
+        warn "Aucune source de skills trouvee (/opt/skills-global/all ou $REPO_DIR/skills/skills)"
+        return 0
+    fi
+
+    # Toujours viser le home de l'utilisateur reel (pas /root via sudo).
+    local user_home="$HOME"
+    if [[ $EUID -eq 0 && -n "${SUDO_USER:-}" && "${SUDO_USER}" != "root" ]]; then
+        local sudo_home
+        sudo_home="$(getent passwd "$SUDO_USER" 2>/dev/null | cut -d: -f6 || true)"
+        [[ -n "$sudo_home" ]] && user_home="$sudo_home"
+    fi
+
+    local targets=(
+        "$user_home/.codex/skills"
+        "$user_home/.claude/skills"
+        "$REPO_DIR/.claude/skills"
+    )
+
+    info "Configuration des symlinks skills -> $src"
+
+    local target parent current backup
+    for target in "${targets[@]}"; do
+        parent="$(dirname "$target")"
+        mkdir -p "$parent"
+
+        if [[ -L "$target" ]]; then
+            current="$(readlink "$target" || true)"
+            if [[ "$current" == "$src" ]]; then
+                ok "Skills link deja OK: $target"
+            else
+                ln -sfn "$src" "$target"
+                ok "Skills link mis a jour: $target -> $src"
+            fi
+            continue
+        fi
+
+        if [[ -e "$target" ]]; then
+            backup="${target}.bak.${ts}"
+            mv "$target" "$backup"
+            warn "Ancien dossier/fichier skills deplace: $backup"
+        fi
+
+        ln -s "$src" "$target"
+        ok "Skills link cree: $target -> $src"
+    done
+}
+
+# ── Frontend DevOps: prefer ops-console-v3 when available ──
+ensure_ops_console_v3() {
+    local candidates=(
+        "/opt/docker-studio-ai/tools/dev/ops-console-v3"
+        "$REPO_DIR/opt/docker-studio-ai/tools/dev/ops-console-v3"
+    )
+    local v3_dir=""
+    local compose_file=""
+
+    for d in "${candidates[@]}"; do
+        if [[ -f "$d/docker-compose.yml" ]]; then
+            v3_dir="$d"
+            compose_file="$d/docker-compose.yml"
+            break
+        fi
+    done
+
+    if [[ -z "$compose_file" ]]; then
+        info "ops-console-v3 non detecte (skip)."
+        return 0
+    fi
+
+    info "Activation de la webUI DevOps ops-console-v3..."
+    docker rm -f zacus-ops-console >/dev/null 2>&1 || true
+    if docker compose -f "$compose_file" up -d --build; then
+        ok "ops-console-v3 actif (${v3_dir})"
+    else
+        warn "Echec demarrage ops-console-v3 (compose: $compose_file)"
+        return 1
+    fi
+}
+
 # ═══════════════════════════════════════
 # Flow principal
 # ═══════════════════════════════════════
@@ -123,6 +214,9 @@ if svc_selected "api" && command -v npm &>/dev/null; then
     ok "Dependances Node.js installees"
 fi
 
+# Liens skills (Codex/Claude) pour que la machine retrouve les skills au premier run.
+ensure_skills_symlinks
+
 # Tests optionnels
 if svc_selected "core" && [[ -d "$REPO_DIR/core/.venv" ]]; then
     if confirm "Lancer les tests ?"; then
@@ -169,6 +263,9 @@ case $MENU_RESULT in
         if svc_selected "api"; then
             health_check "http://localhost:${API_PORT:-3000}/health" "API" 5 2
         fi
+
+        # Garantit la webUI DevOps moderne sur les machines qui ont docker-studio-ai.
+        ensure_ops_console_v3 || true
         ;;
     1)
         ok "docker-compose.yml pret. Lance : docker compose up -d"
