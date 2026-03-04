@@ -488,9 +488,81 @@ install_repo_ollama_models() {
     return 0
 }
 
+# ── Bootstrap docker-studio-ai / ops-console-v3 sur VM neuve ──
+bootstrap_docker_studio_ai() {
+    local local_repo_root="$REPO_DIR/opt/docker-studio-ai"
+    local preferred_root="/opt/docker-studio-ai"
+    local fallback_root="$HOME/docker-studio-ai"
+    local target_root=""
+
+    if [[ -d "$preferred_root" ]]; then
+        target_root="$preferred_root"
+    elif [[ -w "/opt" ]]; then
+        target_root="$preferred_root"
+    else
+        target_root="$fallback_root"
+    fi
+
+    local target_dev_root="$target_root/tools/dev"
+    local target_stack="$target_dev_root/docker-studio-ai"
+    local target_v3="$target_dev_root/ops-console-v3"
+    local repo_url="${DOCKER_STUDIO_AI_GIT_URL:-https://github.com/electron-rare/docker-studio-ai.git}"
+
+    # Exposer le chemin pour les autres fonctions (sync env + detection compose).
+    export DOCKER_STUDIO_AI_DEV_ROOT="$target_dev_root"
+
+    if [[ -f "$target_stack/docker-compose.yml" && -f "$target_v3/docker-compose.yml" ]]; then
+        dbg "docker-studio-ai deja present: $target_dev_root"
+        return 0
+    fi
+
+    mkdir -p "$target_dev_root"
+
+    # Priorite: copie locale depuis le repo mascarade si disponible.
+    if [[ -d "$local_repo_root/tools/dev/docker-studio-ai" && -d "$local_repo_root/tools/dev/ops-console-v3" ]]; then
+        info "Bootstrap docker-studio-ai depuis copie locale du repo..."
+        cp -a "$local_repo_root/tools/dev/docker-studio-ai" "$target_dev_root/" 2>/dev/null || true
+        cp -a "$local_repo_root/tools/dev/ops-console-v3" "$target_dev_root/" 2>/dev/null || true
+    fi
+
+    # Fallback: clone git si la copie locale ne suffit pas.
+    if [[ ! -f "$target_stack/docker-compose.yml" || ! -f "$target_v3/docker-compose.yml" ]]; then
+        if command -v git >/dev/null 2>&1; then
+            info "Bootstrap docker-studio-ai via git clone..."
+            local tmp_dir
+            tmp_dir="$(mktemp -d)"
+            if git clone --depth 1 "$repo_url" "$tmp_dir/repo" >/dev/null 2>&1; then
+                if [[ -d "$tmp_dir/repo/tools/dev/docker-studio-ai" && -d "$tmp_dir/repo/tools/dev/ops-console-v3" ]]; then
+                    cp -a "$tmp_dir/repo/tools/dev/docker-studio-ai" "$target_dev_root/" 2>/dev/null || true
+                    cp -a "$tmp_dir/repo/tools/dev/ops-console-v3" "$target_dev_root/" 2>/dev/null || true
+                else
+                    warn "Clone reussi mais structure tools/dev introuvable dans le repo docker-studio-ai."
+                fi
+            else
+                warn "Echec clone docker-studio-ai ($repo_url)."
+            fi
+            rm -rf "$tmp_dir"
+        else
+            warn "git non disponible, impossible de cloner docker-studio-ai."
+        fi
+    fi
+
+    if [[ -f "$target_stack/docker-compose.yml" && -f "$target_v3/docker-compose.yml" ]]; then
+        ok "Bootstrap docker-studio-ai OK: $target_dev_root"
+        return 0
+    fi
+
+    err "docker-studio-ai incomplet apres bootstrap."
+    info "Attendu:"
+    info "  - $target_stack/docker-compose.yml"
+    info "  - $target_v3/docker-compose.yml"
+    return 1
+}
+
 # ── Frontend DevOps: prefer ops-console-v3 when available ──
 ensure_ops_console_v3() {
     local candidates=(
+        "${DOCKER_STUDIO_AI_DEV_ROOT:-}/ops-console-v3"
         "/opt/docker-studio-ai/tools/dev/ops-console-v3"
         "$REPO_DIR/opt/docker-studio-ai/tools/dev/ops-console-v3"
     )
@@ -506,10 +578,55 @@ ensure_ops_console_v3() {
         fi
     done
 
+    local allow_legacy="${ALLOW_LEGACY_OPS_CONSOLE:-false}"
+
     if [[ -z "$compose_file" ]]; then
-        info "ops-console-v3 non detecte (skip)."
-        return 0
+        if [[ "$allow_legacy" == "true" ]]; then
+            warn "ops-console-v3 non detecte, fallback legacy autorise (ALLOW_LEGACY_OPS_CONSOLE=true)."
+            return 0
+        fi
+        err "ops-console-v3 introuvable: installation frontend incomplete."
+        info "Chemins testes:"
+        info "  - /opt/docker-studio-ai/tools/dev/ops-console-v3/docker-compose.yml"
+        info "  - $REPO_DIR/opt/docker-studio-ai/tools/dev/ops-console-v3/docker-compose.yml"
+        info "Definis ALLOW_LEGACY_OPS_CONSOLE=true pour bypass temporaire."
+        return 1
     fi
+
+    randomize_ops_console_matrix_theme() {
+        local dir="$1"
+        local src_dir="$dir/src"
+        [[ -d "$src_dir" ]] || return 0
+
+        # palette: bright|dim|dark|ink|muted
+        local palettes=(
+            "green|00ff41|00cc33|009922|005511|007722"
+            "cyan|00e5ff|00b8cc|008899|004f59|006d7a"
+            "amber|ffd166|d9a441|a67622|5e3d12|7a521a"
+            "blue|4cc9ff|3399cc|246e99|143f59|1a5373"
+            "magenta|ff4fd8|cc3fae|992f83|591a4c|732264"
+        )
+
+        local idx=0
+        if command -v shuf >/dev/null 2>&1; then
+            idx=$(shuf -i 0-4 -n 1)
+        else
+            idx=$((RANDOM % 5))
+        fi
+
+        IFS='|' read -r theme c1 c2 c3 c4 c5 <<< "${palettes[$idx]}"
+        info "Theme matrix aleatoire: $theme (#$c1)"
+
+        # Remplacement global des teintes matrix principales dans le frontend.
+        # On limite aux fichiers du src pour ne pas toucher docker/config.
+        while IFS= read -r f; do
+            perl -0pi -e "s/#00ff41/#$c1/gi; s/#00cc33/#$c2/gi; s/#009922/#$c3/gi; s/#005511/#$c4/gi; s/#007722/#$c5/gi" "$f"
+        done < <(find "$src_dir" -type f \( -name '*.svelte' -o -name '*.ts' -o -name '*.js' -o -name '*.css' \))
+
+        printf '%s\n' "theme=$theme bright=#$c1 dim=#$c2 dark=#$c3 ink=#$c4 muted=#$c5" > "$dir/.matrix-theme.current"
+    }
+
+    randomize_ops_console_matrix_theme "$v3_dir"
 
     info "Activation de la webUI DevOps ops-console-v3..."
     docker rm -f zacus-ops-console >/dev/null 2>&1 || true
@@ -524,6 +641,7 @@ ensure_ops_console_v3() {
 # ── Synchronise la liste des services monitorés avec les services réellement installés ──
 sync_ops_managed_containers() {
     local env_local_candidates=(
+        "${DOCKER_STUDIO_AI_DEV_ROOT:-}/docker-studio-ai/.env.local"
         "/opt/docker-studio-ai/tools/dev/docker-studio-ai/.env.local"
         "$REPO_DIR/opt/docker-studio-ai/tools/dev/docker-studio-ai/.env.local"
     )
@@ -606,7 +724,8 @@ dbg "  AUTO_CONFIRM=$AUTO_CONFIRM PRESELECT_MODE=$PRESELECT_MODE NO_START=$NO_ST
 
 if [[ "$OPS_CONSOLE_ONLY" == true ]]; then
     log "Mode --ops-console-only: init cockpit DevOps uniquement"
-    ensure_ops_console_v3 || true
+    bootstrap_docker_studio_ai
+    ensure_ops_console_v3
     sync_ops_managed_containers || true
     ok "Termine (--ops-console-only)"
     exit 0
@@ -983,10 +1102,12 @@ else
                 health_check "http://localhost:${OPS_CONSOLE_PORT:-80}/" "Ops Console" 5 2 || true
             fi
 
-            # Garantit la webUI DevOps moderne sur les machines qui ont docker-studio-ai.
-            ensure_ops_console_v3 || true
-            # Aligne les services monitorés sur les services effectivement installés.
-            sync_ops_managed_containers || true
+            # Garantit la webUI DevOps moderne si ops-console est selectionne.
+            if svc_selected "ops-console"; then
+                bootstrap_docker_studio_ai
+                ensure_ops_console_v3
+                sync_ops_managed_containers || true
+            fi
             ;;
         1)
             ok "docker-compose.yml pret. Lance : docker compose up -d"
