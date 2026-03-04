@@ -173,6 +173,26 @@ classifier = Agent(
     max_tokens=512,
 )
 
+# --- Image Generator ---
+
+image_generator = Agent(
+    name="image-generator",
+    description="Genere des prompts optimises pour la generation d'images (Stable Diffusion / ComfyUI)",
+    system_prompt=(
+        "Tu es un expert en generation d'images par IA (Stable Diffusion, SDXL, Flux). "
+        "Quand on te decrit une image, tu generes un prompt optimise en anglais. "
+        "Inclus : sujet principal, style artistique, eclairage, composition, details techniques. "
+        "Propose aussi un negative prompt pour eviter les artefacts courants. "
+        "Format de reponse :\n"
+        "PROMPT: <le prompt positif>\n"
+        "NEGATIVE: <le prompt negatif>\n"
+        "PARAMS: steps=<N>, cfg=<N>, width=<N>, height=<N>"
+    ),
+    strategy=Strategy.FASTEST,
+    temperature=0.7,
+    max_tokens=1024,
+)
+
 # --- Registre complet ---
 
 ALL_SKILLS: list[Agent] = [
@@ -185,4 +205,5 @@ ALL_SKILLS: list[Agent] = [
     notion_scribe,
     planner,
     classifier,
+    image_generator,
 ]

@@ -173,4 +173,57 @@ export const coreClient = {
       body: JSON.stringify(body),
     });
   },
+
+  // --- ComfyUI ---
+
+  comfyuiStatus() {
+    return request<Record<string, unknown>>("/comfyui/status");
+  },
+
+  comfyuiQueue() {
+    return request<Record<string, unknown>>("/comfyui/queue");
+  },
+
+  comfyuiModels(modelType: string = "checkpoints") {
+    return request<{ models: string[]; type: string }>(
+      `/comfyui/models/${modelType}`,
+    );
+  },
+
+  comfyuiGenerate(body: {
+    prompt: string;
+    negative_prompt?: string;
+    checkpoint?: string;
+    width?: number;
+    height?: number;
+    steps?: number;
+    cfg?: number;
+    seed?: number;
+  }) {
+    return request<{
+      prompt_id: string;
+      images: { filename: string; subfolder: string; type: string }[];
+      status: string;
+    }>("/comfyui/generate", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+
+  comfyuiQueueWorkflow(workflow: Record<string, unknown>) {
+    return request<{ prompt_id: string }>("/comfyui/workflow", {
+      method: "POST",
+      body: JSON.stringify({ workflow }),
+    });
+  },
+
+  comfyuiHistory(promptId: string) {
+    return request<Record<string, unknown>>(`/comfyui/history/${promptId}`);
+  },
+
+  comfyuiInterrupt() {
+    return request<{ status: string }>("/comfyui/interrupt", {
+      method: "POST",
+    });
+  },
 };

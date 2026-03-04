@@ -44,5 +44,6 @@ def test_expected_skills_present():
         "notion-scribe",
         "planner",
         "classifier",
+        "image-generator",
     }
     assert expected == names

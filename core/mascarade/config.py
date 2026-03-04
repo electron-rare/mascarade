@@ -50,6 +50,9 @@ class Settings(BaseSettings):
     # Notion
     notion_api_key: str = ""
 
+    # ComfyUI
+    comfyui_url: str = ""
+
     # Core API server
     core_host: str = "0.0.0.0"
     core_port: int = 8100

@@ -12,6 +12,7 @@ from mascarade.auth import require_auth
 
 from mascarade.config import settings
 from mascarade.integrations.notion import NotionClient
+from mascarade.integrations.comfyui import ComfyUIClient
 from mascarade.router import Router
 from mascarade.agents import Agent, AgentRegistry
 from mascarade.agents.skills import register_default_skills
@@ -25,18 +26,22 @@ registry = AgentRegistry()
 register_default_skills(registry)
 orchestrator = Orchestrator(router=router, registry=registry)
 notion: NotionClient | None = None
+comfyui: ComfyUIClient | None = None
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global notion
+    global notion, comfyui
     if settings.notion_api_key:
         notion = NotionClient()
+    if settings.comfyui_url:
+        comfyui = ComfyUIClient()
     registry.load()
     app.state.router = router
     app.state.registry = registry
     app.state.orchestrator = orchestrator
     app.state.notion = notion
+    app.state.comfyui = comfyui
     yield
 
 
@@ -90,6 +95,21 @@ class NotionCreateRequest(BaseModel):
 class NotionScribeRequest(BaseModel):
     messages: list[Message]
     push_to: str | None = None
+
+
+class ComfyUIGenerateRequest(BaseModel):
+    prompt: str = Field(min_length=1)
+    negative_prompt: str = ""
+    checkpoint: str | None = None
+    width: int = Field(default=512, ge=64, le=2048)
+    height: int = Field(default=512, ge=64, le=2048)
+    steps: int = Field(default=20, ge=1, le=150)
+    cfg: float = Field(default=7.0, ge=1.0, le=30.0)
+    seed: int = -1
+
+
+class ComfyUIWorkflowRequest(BaseModel):
+    workflow: dict
 
 
 # --- Routes publiques ---
@@ -386,6 +406,76 @@ async def run_notion_scribe_and_push(req: NotionScribeRequest):
         result["notion_page_id"] = req.push_to
 
     return result
+
+
+# --- Routes ComfyUI (protegees) ---
+
+
+def _require_comfyui() -> ComfyUIClient:
+    if comfyui is None:
+        raise HTTPException(
+            status_code=503, detail="ComfyUI non configure (COMFYUI_URL manquant)"
+        )
+    return comfyui
+
+
+@protected.get("/comfyui/status")
+async def comfyui_status():
+    client = _require_comfyui()
+    return await client.get_system_stats()
+
+
+@protected.get("/comfyui/queue")
+async def comfyui_queue():
+    client = _require_comfyui()
+    return await client.get_queue_status()
+
+
+@protected.get("/comfyui/models/{model_type}")
+async def comfyui_models(model_type: str = "checkpoints"):
+    client = _require_comfyui()
+    models = await client.list_models(model_type)
+    return {"models": models, "type": model_type}
+
+
+@protected.post("/comfyui/generate")
+async def comfyui_generate(req: ComfyUIGenerateRequest):
+    client = _require_comfyui()
+    result = await client.generate_image(
+        req.prompt, req.negative_prompt,
+        checkpoint=req.checkpoint, width=req.width, height=req.height,
+        steps=req.steps, cfg=req.cfg, seed=req.seed,
+    )
+    return result
+
+
+@protected.post("/comfyui/workflow")
+async def comfyui_workflow(req: ComfyUIWorkflowRequest):
+    client = _require_comfyui()
+    prompt_id = await client.queue_prompt(req.workflow)
+    return {"prompt_id": prompt_id}
+
+
+@protected.get("/comfyui/history/{prompt_id}")
+async def comfyui_history(prompt_id: str):
+    client = _require_comfyui()
+    return await client.get_history(prompt_id)
+
+
+@protected.get("/comfyui/image")
+async def comfyui_image(filename: str, subfolder: str = "", type: str = "output"):
+    from fastapi.responses import Response
+
+    client = _require_comfyui()
+    image_data = await client.get_image(filename, subfolder, type)
+    return Response(content=image_data, media_type="image/png")
+
+
+@protected.post("/comfyui/interrupt")
+async def comfyui_interrupt():
+    client = _require_comfyui()
+    await client.interrupt()
+    return {"status": "ok"}
 
 
 app.include_router(protected)

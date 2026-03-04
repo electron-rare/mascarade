@@ -5,6 +5,7 @@ import { authMiddleware } from "./middleware/auth.js";
 import { health } from "./routes/health.js";
 import { agents } from "./routes/agents.js";
 import { notion } from "./routes/notion.js";
+import { comfyui } from "./routes/comfyui.js";
 
 const app = new Hono();
 
@@ -16,6 +17,7 @@ app.route("/health", health);
 app.use("/api/*", authMiddleware);
 app.route("/api/agents", agents);
 app.route("/api/notion", notion);
+app.route("/api/comfyui", comfyui);
 
 app.get("/", (c) => c.json({ name: "mascarade-api", version: "0.1.0" }));
 
