@@ -8,7 +8,7 @@ export default {
         surface: "#070707",
         border: "#1b4d2c",
         accent: "#ffd166",
-        muted: "#7a521a",
+        muted: "#c4a86b",
         error: "#ff3b5c",
         warning: "#ccff00",
       },
