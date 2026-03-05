@@ -18,7 +18,6 @@ const groups = [
     label: "Ops",
     items: [
       { to: "/infra", icon: "⬡", label: "Infrastructure" },
-      { to: "/orchestrate", icon: "⎇", label: "Orchestrate" },
     ],
   },
   {
@@ -32,7 +31,7 @@ const groups = [
 
 export default function Sidebar() {
   return (
-    <aside className="w-48 h-screen bg-surface border-r border-border flex flex-col shrink-0">
+    <aside className="w-52 h-screen bg-surface/95 border-r border-border flex flex-col shrink-0 shadow-[0_0_20px_rgba(0,0,0,0.45)]">
       <div className="px-4 py-5 border-b border-border bg-black/35">
         <span className="text-accent font-bold text-sm tracking-[0.22em] uppercase">
           ops_console
@@ -53,7 +52,7 @@ export default function Sidebar() {
                   `flex items-center gap-2 px-2 py-1.5 rounded text-xs uppercase tracking-wide transition-colors border ${
                     isActive
                       ? "bg-accent/10 text-accent border-accent/40"
-                      : "text-slate-200 border-transparent hover:bg-white/5 hover:border-border"
+                      : "text-amber-100/85 border-transparent hover:bg-white/5 hover:border-border"
                   }`
                 }
               >

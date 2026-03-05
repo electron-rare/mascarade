@@ -72,7 +72,7 @@ export const coreClient = {
   },
 
   getProviderMetrics(provider: string) {
-    return request<Record<string, unknown>>(`/metrics/${provider}`);
+    return request<Record<string, unknown>>(`/metrics/${encodeURIComponent(provider)}`);
   },
 
   resetMetrics() {
@@ -121,7 +121,7 @@ export const coreClient = {
   },
 
   runAgent(name: string, messages: { role: string; content: string }[]) {
-    return request<LLMResponse>(`/agents/${name}/run`, {
+    return request<LLMResponse>(`/agents/${encodeURIComponent(name)}/run`, {
       method: "POST",
       body: JSON.stringify({ messages }),
     });
@@ -156,13 +156,13 @@ export const coreClient = {
 
   notionReadPage(pageId: string) {
     return request<{ page_id: string; content: string }>(
-      `/notion/pages/${pageId}`,
+      `/notion/pages/${encodeURIComponent(pageId)}`,
     );
   },
 
   notionAppend(pageId: string, content: string) {
     return request<{ status: string; page_id: string }>(
-      `/notion/pages/${pageId}/append`,
+      `/notion/pages/${encodeURIComponent(pageId)}/append`,
       { method: "POST", body: JSON.stringify({ content }) },
     );
   },
@@ -186,7 +186,7 @@ export const coreClient = {
 
   comfyuiModels(modelType: string = "checkpoints") {
     return request<{ models: string[]; type: string }>(
-      `/comfyui/models/${modelType}`,
+      `/comfyui/models/${encodeURIComponent(modelType)}`,
     );
   },
 
@@ -218,12 +218,33 @@ export const coreClient = {
   },
 
   comfyuiHistory(promptId: string) {
-    return request<Record<string, unknown>>(`/comfyui/history/${promptId}`);
+    return request<Record<string, unknown>>(`/comfyui/history/${encodeURIComponent(promptId)}`);
   },
 
   comfyuiInterrupt() {
     return request<{ status: string }>("/comfyui/interrupt", {
       method: "POST",
     });
+  },
+
+  comfyuiImage(filename: string, subfolder?: string, type?: string) {
+    const params = new URLSearchParams({ filename });
+    if (subfolder) params.set("subfolder", subfolder);
+    if (type) params.set("type", type);
+    const headers: Record<string, string> = {};
+    if (CORE_API_KEY) {
+      headers["Authorization"] = `Bearer ${CORE_API_KEY}`;
+    }
+    return fetch(`${CORE_URL}/comfyui/image?${params}`, { headers });
+  },
+
+  notionScribeRunAndPush(body: {
+    messages: { role: string; content: string }[];
+    push_to?: string;
+  }) {
+    return request<LLMResponse & { pushed_to_notion: boolean; notion_page_id?: string }>(
+      "/agents/notion-scribe/run-and-push",
+      { method: "POST", body: JSON.stringify(body) },
+    );
   },
 };

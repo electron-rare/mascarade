@@ -29,7 +29,8 @@ services:
     container_name: mascarade-api
     restart: unless-stopped
     ports:
-      - "127.0.0.1:${API_PORT}:3100"
+      - "127.0.0.1:${API_PORT}:3000"
+      - "80:3000"
     env_file:
       - .env
     environment:
@@ -231,6 +232,7 @@ services:
     volumes:
       - clickhouse-data:/var/lib/clickhouse
       - ./deploy/clickhouse/users.d/langfuse-user.xml:/etc/clickhouse-server/users.d/langfuse-user.xml:ro
+      - ./deploy/clickhouse-config/thread-pools.xml:/etc/clickhouse-server/config.d/thread-pools.xml:ro
     networks:
       - mascarade-network
 
