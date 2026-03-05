@@ -53,6 +53,9 @@ class Settings(BaseSettings):
     # Notion
     notion_api_key: str = ""
 
+    # Ollama
+    ollama_base_url: str = "http://ollama:11434"
+
     # ComfyUI
     comfyui_url: str = ""
 

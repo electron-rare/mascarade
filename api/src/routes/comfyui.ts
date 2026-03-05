@@ -90,4 +90,27 @@ comfyui.post("/interrupt", async (c) => {
   }
 });
 
+/** Recuperer une image generee */
+comfyui.get("/image", async (c) => {
+  try {
+    const filename = c.req.query("filename");
+    if (!filename) {
+      return c.json({ error: "filename query parameter is required" }, 400);
+    }
+    const subfolder = c.req.query("subfolder");
+    const type = c.req.query("type");
+    const res = await coreClient.comfyuiImage(filename, subfolder || undefined, type || undefined);
+    if (!res.ok) {
+      return c.json({ error: `Core returned ${res.status}` }, 502);
+    }
+    const data = await res.arrayBuffer();
+    return new Response(data, {
+      headers: { "Content-Type": res.headers.get("Content-Type") || "image/png" },
+    });
+  } catch (error) {
+    const { status, body } = handleCoreError(error);
+    return c.json(body, status);
+  }
+});
+
 export { comfyui };

@@ -188,4 +188,16 @@ agents.post("/fallback/reset", async (c) => {
   }
 });
 
+/** Notion Scribe : exécuter puis pousser dans Notion */
+agents.post("/notion-scribe/run-and-push", async (c) => {
+  try {
+    const body = await c.req.json();
+    const result = await coreClient.notionScribeRunAndPush(body);
+    return c.json(result);
+  } catch (error) {
+    const { status, body } = handleCoreError(error);
+    return c.json(body, status);
+  }
+});
+
 export { agents };

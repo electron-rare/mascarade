@@ -37,3 +37,15 @@ try:
     __all__.append("HuggingFaceProvider")
 except ImportError:
     pass
+
+try:
+    from mascarade.router.providers.ollama import OllamaProvider
+    __all__.append("OllamaProvider")
+except ImportError:
+    pass
+
+try:
+    from mascarade.router.providers.kicad_router import KiCadRouterProvider
+    __all__.append("KiCadRouterProvider")
+except ImportError:
+    pass

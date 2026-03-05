@@ -14,7 +14,10 @@ module_dify_compose() {
   dify_env+="      DB_PORT: 5432\n"
   dify_env+="      DB_DATABASE: mascarade\n"
   dify_env+="      REDIS_HOST: redis\n"
-  dify_env+="      REDIS_PORT: 6379"
+  dify_env+="      REDIS_PORT: 6379\n"
+  dify_env+="      OPENDAL_SCHEME: fs\n"
+  dify_env+="      OPENDAL_ROOT: /app/api/storage\n"
+  dify_env+="      OPENDAL_FS_ROOT: /app/api/storage"
 
   local dify_deps=""
   if svc_selected "postgres"; then

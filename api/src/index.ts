@@ -8,6 +8,7 @@ import { health } from "./routes/health.js";
 import { agents } from "./routes/agents.js";
 import { notion } from "./routes/notion.js";
 import { comfyui } from "./routes/comfyui.js";
+import { ops } from "./routes/ops.js";
 
 const app = new Hono();
 const hasFrontend = existsSync("./public/index.html");
@@ -20,6 +21,7 @@ app.use("/api/*", authMiddleware);
 app.route("/api/agents", agents);
 app.route("/api/notion", notion);
 app.route("/api/comfyui", comfyui);
+app.route("/api/ops", ops);
 
 if (hasFrontend) {
   app.use("/assets/*", serveStatic({ root: "./public" }));

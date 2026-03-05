@@ -12,6 +12,7 @@ module_clickhouse_compose() {
   echo "    restart: unless-stopped"
   echo "    volumes:"
   echo "      - clickhouse-data:/var/lib/clickhouse"
+  echo "      - ./deploy/clickhouse/users.d/langfuse-user.xml:/etc/clickhouse-server/users.d/langfuse-user.xml:ro"
   echo "    networks:"
   echo "      - mascarade-network"
 }

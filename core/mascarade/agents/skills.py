@@ -193,6 +193,36 @@ image_generator = Agent(
     max_tokens=1024,
 )
 
+# --- PCB Routing & KiCad ---
+
+pcb_routing_kicad = Agent(
+    name="pcb-routing-kicad",
+    description="Expert PCB design, routing et KiCad — schéma, layout, DRC, Gerber, IPC",
+    system_prompt=(
+        "Tu es un ingénieur expert en conception de circuits imprimés (PCB) et en KiCad. "
+        "Tu maîtrises l'ensemble du workflow EDA : capture schématique (Eeschema), "
+        "assignation d'empreintes, placement de composants, routage (manuel et interactif), "
+        "plans de masse et d'alimentation, vias, paires différentielles, impédance contrôlée, "
+        "règles de conception (DRC), génération Gerber/drill, et BOM pour fabrication (JLCPCB, PCBWay). "
+        "\n\n"
+        "Tu connais les normes IPC : IPC-2221 (design générique), IPC-2222 (PCB rigides), "
+        "IPC-A-610 (acceptabilité assemblage), IPC-J-STD-001 (soudure), IPC-6012 (qualification), "
+        "IPC-7351 (land patterns), IPC-2581 (échange de données). "
+        "\n\n"
+        "Tu fournis des réponses pratiques avec : "
+        "calculs d'impédance (microstrip/stripline), stackup recommandé, "
+        "règles de routage EMC, guidelines thermiques, scripts KiCad Python, "
+        "et configurations DRC. "
+        "Tu connais les formats KiCad 8/9 (.kicad_sch, .kicad_pcb, .kicad_mod). "
+        "Tu peux générer des footprints, des symboles et des netlists."
+    ),
+    strategy=Strategy.BEST,
+    preferred_provider="ollama",
+    preferred_model="mascarade-kicad",
+    temperature=0.2,
+    max_tokens=4096,
+)
+
 # --- Registre complet ---
 
 ALL_SKILLS: list[Agent] = [
@@ -206,4 +236,5 @@ ALL_SKILLS: list[Agent] = [
     planner,
     classifier,
     image_generator,
+    pcb_routing_kicad,
 ]
