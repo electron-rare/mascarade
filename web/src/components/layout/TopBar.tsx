@@ -36,7 +36,7 @@ export default function TopBar({ title }: { title: string }) {
   const coreStatus = health?.core?.status === "ok" ? "OK" : "DOWN";
 
   return (
-    <header className="h-12 border-b border-border flex items-center justify-between px-5 bg-surface/95 backdrop-blur shrink-0">
+    <header className="h-12 border-b border-border flex items-center justify-between px-5 bg-surface/95 backdrop-blur shrink-0 shadow-[0_0_14px_rgba(27,77,44,0.25)]">
       <div className="flex items-center gap-3 min-w-0">
         <span className="text-xs text-muted hidden md:inline uppercase tracking-[0.14em]">sys_monitor</span>
         <span className="text-xs text-accent hidden md:inline uppercase tracking-[0.14em]">--live</span>
@@ -58,24 +58,24 @@ export default function TopBar({ title }: { title: string }) {
       <div className="relative" ref={ref}>
         <button
           onClick={() => setOpen(!open)}
-          className="text-muted hover:text-accent transition-colors text-sm"
+          className="text-muted hover:text-accent transition-colors text-sm border border-border rounded px-1.5 py-0.5 bg-black/30"
           title="API Key"
         >
           🔑
         </button>
         {open && (
-          <div className="absolute right-0 top-10 bg-surface border border-border rounded-lg p-3 shadow-xl z-50 w-72">
-            <label className="text-xs text-muted block mb-1">API Key</label>
+          <div className="absolute right-0 top-10 bg-surface border border-border rounded-md p-3 shadow-xl z-50 w-72">
+            <label className="text-xs text-muted block mb-1 uppercase tracking-wide">API Key</label>
             <input
               type="password"
               value={key}
               onChange={(e) => setKey(e.target.value)}
-              className="w-full bg-bg border border-border rounded px-2 py-1.5 text-sm text-slate-200 outline-none focus:border-accent"
+              className="w-full bg-bg border border-border rounded px-2 py-1.5 text-sm text-amber-100 outline-none focus:border-accent"
               placeholder="Enter your API key"
             />
             <button
               onClick={save}
-              className="mt-2 w-full bg-accent text-bg text-sm font-medium py-1.5 rounded hover:bg-accent/90 transition-colors"
+              className="mt-2 w-full bg-accent text-black text-sm font-semibold py-1.5 rounded hover:bg-[#ffdc86] transition-colors uppercase tracking-wide"
             >
               Save
             </button>

@@ -8,7 +8,7 @@ export default defineConfig({
     emptyOutDir: true,
   },
   server: {
-    port: 5173,
+    port: 80,
     proxy: {
       "/api": "http://localhost:3000",
       "/health": "http://localhost:3000",

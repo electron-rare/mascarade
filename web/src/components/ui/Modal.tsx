@@ -27,12 +27,12 @@ export default function Modal({
         className="absolute inset-0 bg-black/60 backdrop-blur-sm"
         onClick={onClose}
       />
-      <div className="relative bg-surface border border-border rounded-lg shadow-2xl w-full max-w-lg mx-4">
-        <div className="flex items-center justify-between px-4 py-3 border-b border-border">
-          <h2 className="text-sm font-semibold">{title}</h2>
+      <div className="relative bg-surface border border-border rounded-md shadow-2xl w-full max-w-lg mx-4">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-black/30">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-accent">{title}</h2>
           <button
             onClick={onClose}
-            className="text-muted hover:text-slate-200 text-lg leading-none"
+            className="text-muted hover:text-accent text-lg leading-none"
           >
             ×
           </button>

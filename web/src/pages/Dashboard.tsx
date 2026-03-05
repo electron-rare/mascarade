@@ -59,19 +59,19 @@ export default function Dashboard() {
         <div className="flex flex-wrap gap-2">
           <Link
             to="/playground"
-            className="bg-accent/10 text-accent border border-accent/30 px-3 py-1.5 rounded text-sm hover:bg-accent/20 transition-colors"
+            className="bg-accent/10 text-accent border border-accent/40 px-3 py-1.5 rounded text-sm uppercase tracking-wide hover:bg-accent/20 transition-colors"
           >
             Open Playground
           </Link>
           <Link
             to="/agents"
-            className="bg-white/5 text-slate-300 border border-border px-3 py-1.5 rounded text-sm hover:bg-white/10 transition-colors"
+            className="bg-white/5 text-amber-100/85 border border-border px-3 py-1.5 rounded text-sm uppercase tracking-wide hover:bg-white/10 transition-colors"
           >
             View Agents
           </Link>
           <Link
             to="/metrics"
-            className="bg-white/5 text-slate-300 border border-border px-3 py-1.5 rounded text-sm hover:bg-white/10 transition-colors"
+            className="bg-white/5 text-amber-100/85 border border-border px-3 py-1.5 rounded text-sm uppercase tracking-wide hover:bg-white/10 transition-colors"
           >
             View Metrics
           </Link>
