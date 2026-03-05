@@ -1,7 +1,7 @@
 {
-  "schema_version": "1.0",
+  "schema_version": "1.1",
   "project": "mascarade",
-  "generated_at": "2026-03-04",
+  "generated_at": "2026-03-05",
   "graphs": {
     "service_dependencies": {
       "nodes": [
@@ -13,6 +13,9 @@
         "dify",
         "clickhouse",
         "comfyui",
+        "tts",
+        "stt",
+        "generate-audio",
         "ollama",
         "open-webui",
         "ops-console",
