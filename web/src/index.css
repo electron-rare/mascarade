@@ -1,0 +1,25 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: radial-gradient(circle at 10% 0%, #102614 0%, #000 48%);
+  color: #ffd166;
+  font-family: "Fira Code", "Source Code Pro", "Courier New", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+::selection {
+  background: rgba(255, 209, 102, 0.28);
+  color: #fff7e6;
+}
