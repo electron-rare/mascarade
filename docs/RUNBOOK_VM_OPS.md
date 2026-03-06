@@ -2,67 +2,103 @@
 
 ## Scope
 
-This runbook covers install/update/rollback/backup for:
-- `mascarade` stack (`/mascarade`)
-- docker studio stack (`/opt/docker-studio-ai/tools/dev/docker-studio-ai`)
+This runbook covers the current Mascarade stack only:
+- repo path: `/mascarade`
+- services started by `./setup` and `docker compose`
+- local `ops-console` served from this repo
+
+Legacy `docker-studio-ai` material is migration-only and is not part of the standard install path anymore. Historical notes remain under `docs/migration/`.
 
 ## Install / Bootstrap
 
 Important:
-- Ne pas lancer `npm`/`docker compose` en `sudo` dans ce repo.
-- Utiliser un utilisateur membre du groupe `docker` pour éviter la génération de fichiers root-owned.
+- Do not run `npm` or `docker compose` with `sudo` inside this repo.
+- Use a user that belongs to the `docker` group.
+- Keep `.env` owned by that same user.
 
-1. Create env files:
-   - `cp /mascarade/.env.example /mascarade/.env`
-   - `cp /opt/docker-studio-ai/tools/dev/docker-studio-ai/.env.example.project /opt/docker-studio-ai/tools/dev/docker-studio-ai/.env.local`
-   - `cp /opt/docker-studio-ai/tools/dev/docker-studio-ai/.env.keys.example /opt/docker-studio-ai/tools/dev/docker-studio-ai/.env.keys.local`
-2. Render runtime env for studio stack:
-   - `cd /opt/docker-studio-ai/tools/dev/docker-studio-ai && scripts/render_runtime_env.sh`
-3. Start containers:
-   - `cd /mascarade && docker compose up -d`
-   - `cd /opt/docker-studio-ai/tools/dev/docker-studio-ai && scripts/compose_env.sh up -d`
-4. Enable local backup automation:
-   - `cd /mascarade && scripts/install_backup_automation.sh`
-5. Optional (docker studio stack only, if present):
-   - `cd /opt/docker-studio-ai/tools/dev/docker-studio-ai && scripts/install_container_observability.sh`
+1. Create the env file:
+   - `cd /mascarade`
+   - `cp .env.example .env`
+2. Fill at least:
+   - `MASCARADE_API_KEY`
+   - provider keys you actually use
+   - optional `COMFYUI_URL`, `NOTION_API_KEY`
+3. Start the standard stack:
+   - `cd /mascarade && ./setup --with core,api,ops-console --yes`
+4. Start with AudioCraft too, if needed:
+   - `cd /mascarade && ./setup --with core,api,ops-console,generate-audio --yes`
+5. Optional real audio smoke test:
+   - `cd /mascarade && ./setup --with core,api,ops-console,generate-audio --smoke-generate-audio --yes`
+
+## Health Validation
+
+Core:
+- `curl -fsS http://127.0.0.1:8100/health`
+
+API:
+- `curl -fsS http://127.0.0.1:3100/health`
+
+Ops Console:
+- `curl -fsS http://127.0.0.1/`
+
+Generate Audio:
+- `curl -fsS http://127.0.0.1:9000/health | python3 -m json.tool`
+- `cd /mascarade && bash scripts/smoke_generate_audio.sh --url http://127.0.0.1:9000`
+
+Notes for `generate-audio`:
+- `runtime_ready=true` means the runtime deps are importable.
+- `model_loaded=false` at boot is normal.
+- the real `POST /generate` smoke test is opt-in because first model load may take time.
 
 ## Update
 
-1. `cd /mascarade && ./deploy/update.sh`
-2. `cd /opt/docker-studio-ai/tools/dev/docker-studio-ai && scripts/render_runtime_env.sh`
-3. `cd /opt/docker-studio-ai/tools/dev/docker-studio-ai && scripts/compose_env.sh pull`
-4. `cd /opt/docker-studio-ai/tools/dev/docker-studio-ai && scripts/compose_env.sh up -d --remove-orphans`
-5. Validate:
-   - `docker ps -a`
-   - `journalctl -u container-observability.service -n 50 --no-pager`
+1. `cd /mascarade`
+2. `git pull --ff-only`
+3. `./deploy/update.sh`
+4. Validate:
+   - `docker compose ps`
+   - `curl -fsS http://127.0.0.1:8100/health`
+   - `curl -fsS http://127.0.0.1:3100/health`
+
+If `generate-audio` is deployed:
+- `bash scripts/smoke_generate_audio.sh --url http://127.0.0.1:9000`
 
 ## Rollback
 
-1. Identify previous image:
+1. List candidate images:
    - `docker image ls --format 'table {{.Repository}}\t{{.Tag}}\t{{.ID}}\t{{.CreatedSince}}'`
-2. Pin image tag in compose/env.
-3. Recreate targeted service:
-   - `docker compose up -d --force-recreate <service>`
+2. Pin the target image tag or digest in `.env` / compose inputs.
+3. Recreate the impacted service:
+   - `cd /mascarade && docker compose up -d --force-recreate <service>`
 4. Validate health:
-   - `docker ps -a --format 'table {{.Names}}\t{{.Status}}'`
+   - `cd /mascarade && docker compose ps`
    - `curl -fsS http://127.0.0.1:8100/health`
 
 ## Backup
 
-PostgreSQL (`/mascarade`):
-- Manual backup: `cd /mascarade && scripts/pg_backup.sh`
-- Verify backup: `cd /mascarade && scripts/pg_restore_verify.sh --backup-file /path/to/backup.dump`
-- Retention: `cd /mascarade && scripts/pg_backup_retention.sh --days 14`
+PostgreSQL:
+- manual backup: `cd /mascarade && scripts/pg_backup.sh`
+- verify backup: `cd /mascarade && scripts/pg_restore_verify.sh --backup-file /path/to/backup.dump`
+- retention: `cd /mascarade && scripts/pg_backup_retention.sh --days 14`
 
 Automation:
-- Install cron jobs: `cd /mascarade && scripts/install_backup_automation.sh`
-- Check cron: `crontab -l | grep mascarade-pg-backup`
+- install cron jobs: `cd /mascarade && scripts/install_backup_automation.sh`
+- check cron: `crontab -l | grep mascarade-pg-backup`
 
-## Alerting / Logs
+## Logs / Operations
 
-- Container alerts:
-  - `journalctl -u container-observability.service -f`
-  - `tail -f /var/log/container-observability-alerts.log`
-- Stack logs:
-  - `cd /mascarade && docker compose logs -f --tail 100`
-  - `cd /opt/docker-studio-ai/tools/dev/docker-studio-ai && scripts/compose_env.sh logs -f --tail 100`
+Stack logs:
+- `cd /mascarade && docker compose logs -f --tail 100`
+
+Single service logs:
+- `cd /mascarade && docker compose logs -f --tail 100 core`
+- `cd /mascarade && docker compose logs -f --tail 100 api`
+- `cd /mascarade && docker compose logs -f --tail 100 generate-audio`
+
+Status:
+- `cd /mascarade && docker compose ps`
+- `cd /mascarade && docker stats --no-stream`
+
+## Legacy Note
+
+If a machine still has `/opt/docker-studio-ai`, treat it as a separate migrated stack. Do not use it as a prerequisite for installing or updating Mascarade. Any compatibility procedures tied to that old stack live under `docs/migration/`.

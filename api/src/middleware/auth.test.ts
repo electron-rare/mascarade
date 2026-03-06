@@ -30,17 +30,17 @@ describe("authMiddleware", () => {
   });
 
   it("accepts any configured key from a CSV list", async () => {
-    process.env.MASCARADE_API_KEY = "alpha-key-123,beta-key-456";
+    process.env.MASCARADE_API_KEY = "alpha-key-123456,beta-key-7654321";
 
     const res = await makeApp().request("/", {
-      headers: { Authorization: "Bearer beta-key-456" },
+      headers: { Authorization: "Bearer beta-key-7654321" },
     });
 
     expect(res.status).toBe(200);
   });
 
   it("rejects missing tokens when auth is enabled", async () => {
-    process.env.MASCARADE_API_KEY = "alpha-key-123";
+    process.env.MASCARADE_API_KEY = "alpha-key-123456";
 
     const res = await makeApp().request("/");
 
@@ -49,7 +49,7 @@ describe("authMiddleware", () => {
   });
 
   it("rejects invalid tokens", async () => {
-    process.env.MASCARADE_API_KEY = "alpha-key-123,beta-key-456";
+    process.env.MASCARADE_API_KEY = "alpha-key-123456,beta-key-7654321";
 
     const res = await makeApp().request("/", {
       headers: { Authorization: "Bearer wrong-key-999" },

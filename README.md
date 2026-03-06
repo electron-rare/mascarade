@@ -137,6 +137,16 @@ Ou en mode non-interactif:
 ./setup --with core,api,ops-console --yes
 ```
 
+Avec `generate-audio` et un vrai smoke test HTTP de `POST /generate`:
+
+```bash
+./setup --with core,api,ops-console,generate-audio --smoke-generate-audio --yes
+```
+
+`generate-audio` utilise AudioCraft avec une pile PyTorch/XFormers epinglee. En mode `cpu`, le build prend les wheels CPU; en mode `cuda`, le setup bascule vers les wheels CUDA 11.8. Le service emet `gpus: all` et suppose `nvidia-container-toolkit` installe sur l'hote. Les builds CPU et CUDA ont ete verifies localement.
+
+Par defaut, `setup` verifie seulement `GET /health`. Le vrai smoke test `POST /generate` est opt-in avec `--smoke-generate-audio`, car il peut declencher un premier chargement modele plus long.
+
 Deux containers demarrent :
 - `core` sur `:8100`
 - `api` sur `:3100`
@@ -152,6 +162,12 @@ curl http://localhost:8100/health
 
 # Health de l'API
 curl http://localhost:3100/health
+
+# Health Generate Audio (si selectionne)
+curl http://localhost:9000/health
+
+# Smoke test reel Generate Audio (si selectionne)
+bash scripts/smoke_generate_audio.sh --url http://localhost:9000
 ```
 
 ### 4. Dev local (sans Docker)

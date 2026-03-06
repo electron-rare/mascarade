@@ -104,7 +104,7 @@ write_env_file() {
         echo "PROMETHEUS_IMAGE=\"${PROMETHEUS_IMAGE:-prom/prometheus@sha256:4a61322ac1103a0e3aea2a61ef1718422a48fa046441f299d71e660a3bc71ae9}\""
         echo "COMFYUI_IMAGE=\"${COMFYUI_IMAGE:-comfyanonymous/comfyui:latest}\""
         echo "STT_IMAGE=\"${STT_IMAGE:-onerahmet/openai-whisper-asr-webservice:latest}\""
-        echo "GENERATE_AUDIO_IMAGE=\"${GENERATE_AUDIO_IMAGE:-onerahmet/openai-whisper-asr-webservice:latest}\""
+        echo "GENERATE_AUDIO_IMAGE=\"${GENERATE_AUDIO_IMAGE:-}\""
         echo "TTS_PIPER_IMAGE=\"${TTS_PIPER_IMAGE:-rhasspy/wyoming-piper:latest}\""
         echo "TTS_KOKORO_IMAGE=\"${TTS_KOKORO_IMAGE:-ghcr.io/marjocchi/wyoming-kokoro:latest}\""
         echo ""
@@ -239,6 +239,14 @@ write_env_file() {
             echo "GENERATE_AUDIO_ENGINE=\"${GENERATE_AUDIO_ENGINE:-audiogen}\""
             echo "GENERATE_AUDIO_MODEL=\"${GENERATE_AUDIO_MODEL:-facebook/audiogen-medium}\""
             echo "GENERATE_AUDIO_RUNTIME=\"${GENERATE_AUDIO_RUNTIME:-auto}\""
+            echo "GENERATE_AUDIO_TORCH_VARIANT=\"${GENERATE_AUDIO_TORCH_VARIANT:-auto}\""
+            echo "GENERATE_AUDIO_TORCH_VERSION=\"${GENERATE_AUDIO_TORCH_VERSION:-2.1.0}\""
+            echo "GENERATE_AUDIO_TORCHAUDIO_VERSION=\"${GENERATE_AUDIO_TORCHAUDIO_VERSION:-2.1.0}\""
+            echo "GENERATE_AUDIO_TORCHVISION_VERSION=\"${GENERATE_AUDIO_TORCHVISION_VERSION:-0.16.0}\""
+            echo "GENERATE_AUDIO_TORCHTEXT_VERSION=\"${GENERATE_AUDIO_TORCHTEXT_VERSION:-0.16.0}\""
+            echo "GENERATE_AUDIO_XFORMERS_VERSION=\"${GENERATE_AUDIO_XFORMERS_VERSION:-0.0.22.post7}\""
+            echo "GENERATE_AUDIOCRAFT_VERSION=\"${GENERATE_AUDIOCRAFT_VERSION:-1.3.0}\""
+            echo "GENERATE_AUDIO_TORCH_INDEX_URL=\"${GENERATE_AUDIO_TORCH_INDEX_URL:-}\""
             echo ""
         fi
 
@@ -253,6 +261,13 @@ write_env_file() {
         if svc_selected "open-webui"; then
             echo "# ── Open WebUI ──"
             echo "OPEN_WEBUI_PORT=\"${OPEN_WEBUI_PORT:-8080}\""
+            echo ""
+        fi
+
+        # Ops Console
+        if svc_selected "ops-console"; then
+            echo "# ── Ops Console ──"
+            echo "OPS_CONSOLE_PORT=\"${OPS_CONSOLE_PORT:-80}\""
             echo ""
         fi
 

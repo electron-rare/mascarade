@@ -3,14 +3,13 @@
 
 from __future__ import annotations
 
+import importlib.metadata
 import os
 from io import BytesIO
 from threading import Lock
 
-import torch
-import torchaudio
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import StreamingResponse
+from fastapi.responses import Response
 from pydantic import BaseModel, Field
 
 app = FastAPI(title="Mascarade Generate Audio", version="0.1.0")
@@ -27,6 +26,25 @@ _model_lock = Lock()
 _loaded = {"engine": None, "model": None, "device": None, "obj": None}
 
 
+def _package_version(name: str) -> str | None:
+    try:
+        return importlib.metadata.version(name)
+    except importlib.metadata.PackageNotFoundError:
+        return None
+
+
+def _import_torch_stack():
+    try:
+        import torch
+        import torchaudio
+    except Exception as exc:  # pragma: no cover
+        raise HTTPException(
+            status_code=503,
+            detail=f"Audio runtime dependencies are not available: {exc}",
+        ) from exc
+    return torch, torchaudio
+
+
 def _sanitize_choice(raw: str | None, allowed: set[str], default: str) -> str:
     value = (raw or default).strip().lower()
     if value not in allowed:
@@ -35,6 +53,7 @@ def _sanitize_choice(raw: str | None, allowed: set[str], default: str) -> str:
 
 
 def _resolve_runtime() -> str:
+    torch, _ = _import_torch_stack()
     runtime = _sanitize_choice(
         os.getenv("GENERATE_AUDIO_RUNTIME", "auto"),
         {"auto", "cpu", "cuda"},
@@ -45,6 +64,15 @@ def _resolve_runtime() -> str:
     if runtime == "cuda":
         return "cuda" if torch.cuda.is_available() else "cpu"
     return "cuda" if torch.cuda.is_available() else "cpu"
+
+
+def _runtime_status() -> tuple[bool, str | None, bool]:
+    try:
+        torch, _ = _import_torch_stack()
+    except HTTPException as exc:
+        detail = exc.detail if isinstance(exc.detail, str) else str(exc.detail)
+        return False, detail, False
+    return True, None, bool(torch.cuda.is_available())
 
 
 def _resolve_model(engine: str, requested: str | None) -> str:
@@ -75,6 +103,7 @@ def _load_model(engine: str, model_name: str, device: str):
             return _loaded["obj"]
 
         try:
+            torch, _ = _import_torch_stack()
             if engine == "musicgen":
                 from audiocraft.models import MusicGen
 
@@ -88,6 +117,11 @@ def _load_model(engine: str, model_name: str, device: str):
                 status_code=500, detail=f"Model load failed: {exc}"
             ) from exc
 
+        if hasattr(model, "to"):
+            model = model.to(device)
+        if hasattr(model, "eval"):
+            model.eval()
+
         _loaded.update(
             {"engine": engine, "model": model_name, "device": device, "obj": model}
         )
@@ -95,18 +129,30 @@ def _load_model(engine: str, model_name: str, device: str):
 
 
 @app.get("/health")
-def health() -> dict:
+async def health() -> dict:
+    torch_version = _package_version("torch")
+    torchaudio_version = _package_version("torchaudio")
+    audiocraft_version = _package_version("audiocraft")
+    runtime_ready, runtime_error, cuda_available = _runtime_status()
+
     return {
         "ok": True,
-        "cuda_available": torch.cuda.is_available(),
+        "runtime_ready": runtime_ready,
+        "runtime_error": runtime_error,
+        "cuda_available": cuda_available,
+        "torch_version": torch_version,
+        "torchaudio_version": torchaudio_version,
+        "audiocraft_version": audiocraft_version,
+        "torch_variant": os.getenv("GENERATE_AUDIO_TORCH_VARIANT", "cpu"),
+        "model_loaded": _loaded["obj"] is not None,
         "loaded_engine": _loaded["engine"],
         "loaded_model": _loaded["model"],
         "loaded_device": _loaded["device"],
     }
 
 
-@app.post("/generate")
-def generate(req: GenerateRequest):
+def _generate_response(req: GenerateRequest):
+    torch, torchaudio = _import_torch_stack()
     engine = _sanitize_choice(
         os.getenv("GENERATE_AUDIO_ENGINE", "audiogen"),
         {"audiogen", "musicgen"},
@@ -147,4 +193,9 @@ def generate(req: GenerateRequest):
         "X-Audio-Model": model_name,
         "X-Audio-Device": device,
     }
-    return StreamingResponse(buf, media_type="audio/wav", headers=headers)
+    return Response(content=buf.getvalue(), media_type="audio/wav", headers=headers)
+
+
+@app.post("/generate")
+async def generate(req: GenerateRequest):
+    return _generate_response(req)

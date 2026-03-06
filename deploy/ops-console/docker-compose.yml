@@ -1,0 +1,15 @@
+services:
+  ops-console:
+    image: nginx:alpine
+    container_name: ops-console-v3
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${OPS_CONSOLE_PORT:-80}:80"
+    volumes:
+      - ./index.html:/usr/share/nginx/html/index.html:ro
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:80/ >/dev/null"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
