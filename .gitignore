@@ -47,6 +47,7 @@ finetune/datasets/bedrock/
 finetune/datasets/bedrock-claude/
 finetune/logs/
 finetune/models/
+finetune/models_cache/
 finetune/models_cpu/
 finetune/models_local/
 finetune/runs/
