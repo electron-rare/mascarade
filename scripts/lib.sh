@@ -134,11 +134,22 @@ _random_tagline() {
 # ── Gum detection & installation ──
 # Cached flag — evite de forker command -v a chaque appel TUI
 _GUM_AVAILABLE=false
+_TUI_BOOTSTRAPPED=false
+_CURSOR_RESTORE_NEEDED=false
 
-_has_tty() { [[ -t 0 && -t 1 ]]; }
-_has_gum() { [[ "$_GUM_AVAILABLE" == true ]] && _has_tty; }
+_has_input_tty() { [[ -t 0 ]]; }
+_has_output_tty() { [[ -t 1 ]]; }
+_has_tty() { _has_input_tty && _has_output_tty; }
+_force_plain_tui() { [[ "${MASCARADE_TUI_MODE:-auto}" == "plain" ]]; }
+_has_gum() { [[ "$_GUM_AVAILABLE" == true ]] && ! _force_plain_tui && _has_tty; }
 
 _detect_gum() {
+    if _force_plain_tui; then
+        _GUM_AVAILABLE=false
+        dbg "gum desactive via MASCARADE_TUI_MODE=plain"
+        return 0
+    fi
+
     if command -v gum &>/dev/null; then
         _GUM_AVAILABLE=true
         dbg "gum detecte: $(command -v gum) version=$(gum --version 2>/dev/null || echo '?')"
@@ -146,6 +157,23 @@ _detect_gum() {
         _GUM_AVAILABLE=false
         dbg "gum non trouve dans PATH"
     fi
+}
+
+activate_tui() {
+    if [[ "$_TUI_BOOTSTRAPPED" == true ]]; then
+        return 0
+    fi
+
+    _detect_gum
+    if _has_tty && [[ "$_GUM_AVAILABLE" != true ]] && [[ "${MASCARADE_AUTO_INSTALL_GUM:-true}" == "true" ]] && ! _force_plain_tui; then
+        ensure_gum 2>/dev/null || true
+    fi
+    _detect_gum
+    _TUI_BOOTSTRAPPED=true
+
+    local tty_state="no"
+    _has_tty && tty_state="yes"
+    dbg "activate_tui: tty=$tty_state gum=$_GUM_AVAILABLE"
 }
 
 ensure_gum() {
@@ -226,8 +254,7 @@ gpgkey=https://repo.charm.sh/yum/gpg.key' | $sudo_cmd tee /etc/yum.repos.d/charm
     fi
 }
 
-# Auto-install gum au chargement de lib.sh
-ensure_gum 2>/dev/null || true
+_detect_gum
 
 dbg "lib.sh charge — REPO_DIR=$REPO_DIR gum=$_GUM_AVAILABLE shell=$BASH_VERSION pid=$$ ppid=$PPID"
 dbg "  uname=$(uname -srm) user=$USER home=$HOME"
@@ -284,7 +311,9 @@ _cleanup() {
     local rc=$?
     dbg "_cleanup: rc=$rc spin_pid=${_SPIN_PID:-none}"
     spin_stop 2>/dev/null || true
-    tput cnorm 2>/dev/null || true
+    if [[ "$_CURSOR_RESTORE_NEEDED" == true ]] && _has_tty && command -v tput &>/dev/null; then
+        tput cnorm 2>/dev/null || true
+    fi
     return $rc
 }
 _cleanup_exit() {
@@ -301,6 +330,7 @@ banner() {
     local tagline
     tagline=$(_random_tagline)
     dbg "banner: tagline='$tagline'"
+    activate_tui
 
     if _has_gum; then
         echo ""
@@ -331,6 +361,7 @@ ART
 confirm() {
     local prompt="${1:-Continuer ?}"
     dbg "confirm: '$prompt'"
+    activate_tui
     if _has_gum; then
         local rc=0
         gum confirm --default=yes \
@@ -341,7 +372,7 @@ confirm() {
         [[ $rc -eq 130 ]] && _cleanup_exit
         return $rc
     else
-        if ! _has_tty; then
+        if ! _has_input_tty; then
             dbg "  confirm: non-tty -> oui par defaut"
             return 0
         fi
@@ -359,6 +390,7 @@ confirm() {
 input_value() {
     local prompt="$1" default="${2:-}"
     dbg "input_value: '$prompt' default='$default'"
+    activate_tui
     if _has_gum; then
         local result rc=0
         result=$(gum input \
@@ -371,7 +403,7 @@ input_value() {
         # Esc (rc=1 + vide) → garder le default
         echo "${result:-$default}"
     else
-        if ! _has_tty; then
+        if ! _has_input_tty; then
             dbg "  input_value: non-tty -> default"
             echo "$default"
             return 0
@@ -387,6 +419,7 @@ input_value() {
 input_secret() {
     local prompt="$1" default="${2:-}"
     dbg "input_secret: '$prompt' (valeur ${default:+presente, ${#default} chars}${default:-vide})"
+    activate_tui
     # Masquage commun aux deux branches
     local masked=""
     if [[ -n "$default" ]]; then
@@ -407,7 +440,7 @@ input_secret() {
         [[ $rc -eq 130 ]] && _cleanup_exit
         echo "${result:-$default}"
     else
-        if ! _has_tty; then
+        if ! _has_input_tty; then
             dbg "  input_secret: non-tty -> default"
             echo "$default"
             return 0
@@ -420,6 +453,28 @@ input_secret() {
     fi
 }
 
+input_optional_value() {
+    local prompt="$1" default="${2:-}" clear_token="${3:--}"
+    local result
+    result=$(input_value "$prompt" "$default")
+    if [[ "$result" == "$clear_token" ]]; then
+        echo ""
+    else
+        echo "$result"
+    fi
+}
+
+input_optional_secret() {
+    local prompt="$1" default="${2:-}" clear_token="${3:--}"
+    local result
+    result=$(input_secret "$prompt" "$default")
+    if [[ "$result" == "$clear_token" ]]; then
+        echo ""
+    else
+        echo "$result"
+    fi
+}
+
 # ── Menu selection unique ──
 # Usage : menu_select "Titre ?" "Option 1" "Option 2" "Option 3"
 # Resultat dans $MENU_RESULT (index 0-based)
@@ -428,6 +483,7 @@ menu_select() {
     local title="$1"; shift
     local options=("$@")
     dbg "menu_select: '$title' (${#options[@]} options: ${options[*]})"
+    activate_tui
 
     if _has_gum; then
         local result rc=0
@@ -451,7 +507,7 @@ menu_select() {
         done
         dbg "menu_select: resultat=$MENU_RESULT '${options[$MENU_RESULT]}'"
     else
-        if ! _has_tty; then
+        if ! _has_input_tty; then
             dbg "menu_select: non-tty -> index 0"
             MENU_RESULT=0
             return 0
@@ -471,109 +527,318 @@ menu_select() {
     fi
 }
 
+_svc_category_label() {
+    case "$1" in
+        mascarade) echo "Stack Mascarade" ;;
+        tools) echo "Outils IA" ;;
+        infra) echo "Infrastructure" ;;
+        *) echo "$1" ;;
+    esac
+}
+
+_profile_label() {
+    case "$1" in
+        minimal) echo "Minimal" ;;
+        standard) echo "Standard" ;;
+        full) echo "Full" ;;
+        auto) echo "Auto" ;;
+        *) echo "$1" ;;
+    esac
+}
+
+_profile_desc() {
+    case "$1" in
+        minimal) echo "core + api seulement" ;;
+        standard) echo "stack locale recommandee" ;;
+        full) echo "tous les services du catalogue" ;;
+        auto) echo "selection selon la machine" ;;
+        *) echo "" ;;
+    esac
+}
+
+_service_choice_label() {
+    local id="$1"
+    local meta=()
+
+    if [[ "${SVC_PORT[$id]}" != "—" ]]; then
+        meta+=("port:${SVC_PORT[$id]}")
+    fi
+    if [[ -n "${SVC_DEPS[$id]:-}" ]]; then
+        meta+=("deps:${SVC_DEPS[$id]}")
+    fi
+    if [[ "$id" == "core" || "$id" == "api" ]]; then
+        meta+=("base")
+    fi
+
+    local meta_str=""
+    if [[ ${#meta[@]} -gt 0 ]]; then
+        local IFS=' | '
+        meta_str=" [${meta[*]}]"
+    fi
+
+    printf '[%s] %s%s — %s' "$id" "${SVC_LABEL[$id]}" "$meta_str" "${SVC_DESC[$id]}"
+}
+
+_category_ids_from_list() {
+    local category="$1"; shift
+    local id
+    for id in "$@"; do
+        [[ "${SVC_CAT[$id]:-}" == "$category" ]] && printf '%s\n' "$id"
+    done
+}
+
+show_service_selection_summary() {
+    local target_ids=("$@")
+    [[ ${#target_ids[@]} -eq 0 ]] && target_ids=("${SVC_IDS[@]}")
+
+    local total_selected=0
+    local category
+
+    echo ""
+    echo -e "  ${BOLD}Selection courante :${NC}"
+    for category in mascarade tools infra; do
+        mapfile -t category_ids < <(_category_ids_from_list "$category" "${target_ids[@]}")
+        [[ ${#category_ids[@]} -eq 0 ]] && continue
+
+        local category_selected=0
+        local id
+        for id in "${category_ids[@]}"; do
+            [[ "${SVC_ON[$id]:-0}" == "1" ]] && ((category_selected++)) || true
+        done
+        total_selected=$((total_selected + category_selected))
+
+        echo -e "  ${MAGENTA}${BOLD}$(_svc_category_label "$category")${NC} ${DIM}(${category_selected}/${#category_ids[@]})${NC}"
+        if [[ $category_selected -eq 0 ]]; then
+            echo -e "    ${DIM}Aucun service selectionne${NC}"
+            continue
+        fi
+
+        for id in "${category_ids[@]}"; do
+            [[ "${SVC_ON[$id]:-0}" != "1" ]] && continue
+
+            local port_note=""
+            local deps_note=""
+            [[ "${SVC_PORT[$id]}" != "—" ]] && port_note="port:${SVC_PORT[$id]}"
+            [[ -n "${SVC_DEPS[$id]:-}" ]] && deps_note="deps:${SVC_DEPS[$id]}"
+
+            local meta=()
+            [[ -n "$port_note" ]] && meta+=("$port_note")
+            [[ -n "$deps_note" ]] && meta+=("$deps_note")
+
+            local meta_str=""
+            if [[ ${#meta[@]} -gt 0 ]]; then
+                local IFS=' • '
+                meta_str=" ${DIM}[${meta[*]}]${NC}"
+            fi
+
+            echo -e "    ${GREEN}✓${NC} ${SVC_LABEL[$id]}${meta_str}"
+        done
+    done
+
+    echo -e "  ${BOLD}Total :${NC} ${total_selected} service(s)"
+}
+
+_checkbox_select_group_gum() {
+    local category="$1"; shift
+    local ids=("$@")
+    local items=() selected_items=() id_map=()
+    local id
+
+    for id in "${ids[@]}"; do
+        local item
+        item="$(_service_choice_label "$id")"
+        items+=("$item")
+        id_map+=("$id")
+        if [[ "${SVC_ON[$id]:-0}" == "1" ]]; then
+            selected_items+=("$item")
+        fi
+    done
+
+    local selected_flag=""
+    if [[ ${#selected_items[@]} -gt 0 ]]; then
+        local IFS=","
+        selected_flag="${selected_items[*]}"
+    fi
+
+    local header
+    header="$(_svc_category_label "$category") — Tab toggle, Entree valider"
+    local height=$(( ${#ids[@]} + 5 ))
+    (( height > 18 )) && height=18
+
+    local result="" rc=0
+    if [[ -n "$selected_flag" ]]; then
+        result=$(printf '%s\n' "${items[@]}" | gum choose --no-limit --header "$header" --selected "$selected_flag" --height "$height") || rc=$?
+    else
+        result=$(printf '%s\n' "${items[@]}" | gum choose --no-limit --header "$header" --height "$height") || rc=$?
+    fi
+
+    dbg "  choose gum category=$category rc=$rc lines=$(echo "$result" | wc -l)"
+    [[ $rc -eq 130 ]] && _cleanup_exit
+    if [[ $rc -ne 0 && -z "$result" ]]; then
+        info "Abandon"
+        exit 0
+    fi
+
+    for id in "${ids[@]}"; do
+        SVC_ON[$id]="0"
+    done
+
+    while IFS= read -r line; do
+        [[ -z "$line" ]] && continue
+        local i
+        for i in "${!items[@]}"; do
+            if [[ "$line" == "${items[$i]}" ]]; then
+                SVC_ON["${id_map[$i]}"]="1"
+                break
+            fi
+        done
+    done <<< "$result"
+}
+
+_checkbox_select_group_plain() {
+    local category="$1"; shift
+    local ids=("$@")
+    local id
+
+    echo ""
+    echo -e "  ${BOLD}$(_svc_category_label "$category")${NC}"
+    for i in "${!ids[@]}"; do
+        id="${ids[$i]}"
+        local check=" "
+        [[ "${SVC_ON[$id]:-0}" == "1" ]] && check="x"
+        printf "  %s) [%s] %s\n" "$((i + 1))" "$check" "$(_service_choice_label "$id")"
+    done
+    echo -e "  ${DIM}Entree = garder, a = tout, n = aucun, numeros = choisir${NC}"
+    echo -ne "  ${YELLOW}?${NC} Selection : " >&2
+
+    local selection=""
+    read -r selection || true
+    dbg "  selection plain category=$category -> '$selection'"
+
+    case "$selection" in
+        "")
+            return 0
+            ;;
+        a)
+            for id in "${ids[@]}"; do
+                SVC_ON[$id]="1"
+            done
+            return 0
+            ;;
+        n)
+            for id in "${ids[@]}"; do
+                SVC_ON[$id]="0"
+            done
+            return 0
+            ;;
+        *)
+            for id in "${ids[@]}"; do
+                SVC_ON[$id]="0"
+            done
+            local num
+            for num in $selection; do
+                local idx=$(( num - 1 ))
+                if [[ $idx -ge 0 && $idx -lt ${#ids[@]} ]]; then
+                    SVC_ON["${ids[$idx]}"]="1"
+                fi
+            done
+            ;;
+    esac
+}
+
+checkbox_select_ids() {
+    local target_ids=("$@")
+    [[ ${#target_ids[@]} -eq 0 ]] && target_ids=("${SVC_IDS[@]}")
+    dbg "checkbox_select_ids: ${#target_ids[@]} services"
+    activate_tui
+
+    if ! _has_input_tty; then
+        dbg "checkbox_select_ids: non-tty -> conserver preselection"
+        return 0
+    fi
+
+    local category
+    for category in mascarade tools infra; do
+        mapfile -t category_ids < <(_category_ids_from_list "$category" "${target_ids[@]}")
+        [[ ${#category_ids[@]} -eq 0 ]] && continue
+
+        if _has_gum; then
+            _checkbox_select_group_gum "$category" "${category_ids[@]}"
+        else
+            _checkbox_select_group_plain "$category" "${category_ids[@]}"
+        fi
+    done
+
+    show_service_selection_summary "${target_ids[@]}"
+
+    dbg "checkbox_select_ids resultat:"
+    local id
+    for id in "${target_ids[@]}"; do
+        dbg "  $id = ${SVC_ON[$id]}"
+    done
+}
+
 # ── Checkbox multi-select ──
 # Usage : checkbox_select
 # Requiert SVC_IDS, SVC_LABEL, SVC_DESC, SVC_PORT, SVC_CAT, SVC_ON
 checkbox_select() {
-    dbg "checkbox_select: ${#SVC_IDS[@]} services disponibles"
-    if _has_gum; then
-        local items=() selected_items=() id_map=()
+    checkbox_select_ids "${SVC_IDS[@]}"
+}
 
-        for id in "${SVC_IDS[@]}"; do
-            local port_info=""
-            [[ "${SVC_PORT[$id]}" != "—" ]] && port_info=":${SVC_PORT[$id]} "
-            local item="${SVC_LABEL[$id]} ${port_info}— ${SVC_DESC[$id]}"
-            items+=("$item")
-            id_map+=("$id")
-            if [[ "${SVC_ON[$id]}" == "1" ]]; then
-                selected_items+=("$item")
-                dbg "  pre-selected: $id"
-            fi
-        done
-        dbg "  ${#selected_items[@]}/${#items[@]} pre-selectionnes"
+service_selection_wizard() {
+    activate_tui
 
-        # Construire le flag --selected (gum accepte les virgules)
-        local selected_flag=""
-        if [[ ${#selected_items[@]} -gt 0 ]]; then
-            local IFS=","
-            selected_flag="${selected_items[*]}"
-        fi
-
-        local result="" rc=0
-        if [[ -n "$selected_flag" ]]; then
-            result=$(printf '%s\n' "${items[@]}" | \
-                gum choose --no-limit \
-                    --header "Services a installer (Tab = toggle, Entree = valider)" \
-                    --selected "$selected_flag" \
-                    --height 20) || rc=$?
-        else
-            result=$(printf '%s\n' "${items[@]}" | \
-                gum choose --no-limit \
-                    --header "Services a installer (Tab = toggle, Entree = valider)" \
-                    --height 20) || rc=$?
-        fi
-        dbg "  gum choose --no-limit rc=$rc result_lines=$(echo "$result" | wc -l)"
-        [[ $rc -eq 130 ]] && _cleanup_exit
-        # Esc → sortie propre
-        if [[ $rc -ne 0 && -z "$result" ]]; then
-            dbg "checkbox_select: abandon (Esc)"
-            info "Abandon"
-            exit 0
-        fi
-
-        # Reset puis parser
-        for id in "${SVC_IDS[@]}"; do SVC_ON[$id]="0"; done
-        while IFS= read -r line; do
-            [[ -z "$line" ]] && continue
-            for i in "${!items[@]}"; do
-                if [[ "$line" == "${items[$i]}" ]]; then
-                    SVC_ON[${id_map[$i]}]="1"
-                    dbg "  selected: ${id_map[$i]}"
-                    break
-                fi
-            done
-        done <<< "$result"
-    else
-        if ! _has_tty; then
-            dbg "checkbox_select: non-tty -> conserver preselection"
-            return 0
-        fi
-        echo ""
-        echo -e "  ${BOLD}Services disponibles :${NC}"
-        local idx=1 id_list=()
-        for id in "${SVC_IDS[@]}"; do
-            local check=" "
-            [[ "${SVC_ON[$id]}" == "1" ]] && check="x"
-            echo -e "  ${DIM}${idx})${NC} [${check}] ${SVC_LABEL[$id]} — ${SVC_DESC[$id]}"
-            id_list+=("$id")
-            ((idx++)) || true
-        done
-        echo ""
-        echo -e "  ${DIM}Entrer les numeros (ex: 1 2 5), 'a' tout, 'v' valider${NC}"
-        echo -ne "  ${YELLOW}?${NC} Selection : " >&2
-        read -r sel || true
-        dbg "  selection manuelle: '$sel'"
-        case "$sel" in
-            a) for id in "${SVC_IDS[@]}"; do SVC_ON[$id]="1"; done; dbg "  → tout selectionne" ;;
-            v|"") dbg "  → garder selection courante" ;;
-            *)
-                for id in "${SVC_IDS[@]}"; do SVC_ON[$id]="0"; done
-                for num in $sel; do
-                    local i=$(( num - 1 ))
-                    if [[ $i -ge 0 && $i -lt ${#id_list[@]} ]]; then
-                        SVC_ON[${id_list[$i]}]="1"
-                        dbg "  → ${id_list[$i]} ON"
-                    fi
-                done
-                ;;
-        esac
+    local suggested_profile=""
+    if declare -f detect_auto_profile >/dev/null; then
+        suggested_profile=$(detect_auto_profile 2>/dev/null || true)
     fi
 
-    # Resume de la selection
-    dbg "checkbox_select resultat:"
-    for id in "${SVC_IDS[@]}"; do
-        dbg "  $id = ${SVC_ON[$id]}"
-    done
+    echo ""
+    echo -e "  ${BOLD}Mode de selection :${NC}"
+    info "Choisis un profil rapide ou personnalise par categorie."
+    if [[ -n "$suggested_profile" ]]; then
+        info "Profil suggere sur cette machine : $(_profile_label "$suggested_profile") — $(_profile_desc "$suggested_profile")"
+    fi
+
+    local options=()
+    local modes=()
+    if [[ -n "$suggested_profile" ]]; then
+        options+=("Profil suggere — $(_profile_label "$suggested_profile")")
+        modes+=("suggested")
+    fi
+    options+=(
+        "Profil minimal — $(_profile_desc minimal)"
+        "Profil standard — $(_profile_desc standard)"
+        "Profil full — $(_profile_desc full)"
+        "Personnaliser — choisir service par service"
+    )
+    modes+=("minimal" "standard" "full" "custom")
+
+    menu_select "Comment veux-tu choisir les services ?" "${options[@]}"
+    local mode="${modes[$MENU_RESULT]}"
+    dbg "service_selection_wizard: mode=$mode suggested=${suggested_profile:-none}"
+
+    case "$mode" in
+        suggested)
+            apply_profile_selection "$suggested_profile" || exit 1
+            ok "Profil suggere applique: $(_profile_label "$suggested_profile")"
+            show_service_selection_summary "${SVC_IDS[@]}"
+            if confirm "Personnaliser ce profil par categorie ?"; then
+                checkbox_select_ids "${SVC_IDS[@]}"
+            fi
+            ;;
+        minimal|standard|full)
+            apply_profile_selection "$mode" || exit 1
+            ok "Profil applique: $(_profile_label "$mode")"
+            show_service_selection_summary "${SVC_IDS[@]}"
+            if confirm "Personnaliser ce profil par categorie ?"; then
+                checkbox_select_ids "${SVC_IDS[@]}"
+            fi
+            ;;
+        custom)
+            checkbox_select_ids "${SVC_IDS[@]}"
+            ;;
+    esac
 }
 
 # ── Progress bar ──
@@ -581,6 +846,7 @@ step_progress() {
     local current="$1" total="$2" label="$3"
     dbg "step_progress: $current/$total '$label'"
     local width=36
+    local percent=$(( current * 100 / total ))
     local filled=$(( current * width / total ))
     local empty=$(( width - filled ))
     local bar=""
@@ -588,7 +854,7 @@ step_progress() {
     for ((i=0; i<empty; i++)); do bar+="╌"; done
 
     echo ""
-    echo -e "  ${CYAN}${bar}${NC} ${BOLD}${current}/${total}${NC}"
+    echo -e "  ${CYAN}${bar}${NC} ${BOLD}${current}/${total}${NC} ${DIM}(${percent}%)${NC}"
     echo -e "  ${CYAN}▸${NC} ${label}"
     echo ""
 }

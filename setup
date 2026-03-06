@@ -640,7 +640,7 @@ elif [[ ! -t 0 || ! -t 1 ]]; then
     apply_profile_selection "auto"
     ok "Mode non interactif: profil auto applique (${PROFILE_EFFECTIVE})"
 else
-    checkbox_select
+    service_selection_wizard
 fi
 
 if [[ "$INSTALL_REPO_LLMS" == true && "${SVC_ON[ollama]:-0}" != "1" ]]; then
@@ -668,10 +668,7 @@ step_progress 2 8 "Resolution des dependances"
 resolve_dependencies
 
 echo ""
-echo -e "  ${BOLD}Services selectionnes :${NC}"
-for id in "${SVC_IDS[@]}"; do
-    svc_selected "$id" && echo -e "    ${GREEN}✓${NC} ${SVC_LABEL[$id]} ${DIM}(:${SVC_PORT[$id]})${NC}"
-done
+show_service_selection_summary "${SVC_IDS[@]}"
 echo ""
 confirm_or_auto "Continuer avec cette selection ?" || exit 0
 

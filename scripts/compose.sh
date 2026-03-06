@@ -207,7 +207,7 @@ write_env_file() {
         fi
 
         # ComfyUI
-        if svc_selected "comfyui"; then
+        if svc_selected "comfyui" || [[ -n "${COMFYUI_URL:-}" || "${COMFYUI_LOCAL:-}" == "true" ]]; then
             echo "# ── ComfyUI ──"
             echo "COMFYUI_URL=\"${COMFYUI_URL:-}\""
             [[ "${COMFYUI_LOCAL:-}" == "true" ]] && echo "COMFYUI_LOCAL=\"true\""

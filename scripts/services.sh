@@ -46,6 +46,41 @@ dbg "services.sh: ${#SVC_IDS[@]} services definis"
 # ── Helpers ──
 svc_selected() { [[ "${SVC_ON[${1}]:-0}" == "1" ]]; }
 
+sync_service_ports_from_env() {
+    local id env_var value
+    for id in "${SVC_IDS[@]}"; do
+        case "$id" in
+            core) env_var="CORE_PORT" ;;
+            api) env_var="API_PORT" ;;
+            litellm) env_var="LITELLM_PORT" ;;
+            n8n) env_var="N8N_PORT" ;;
+            langfuse) env_var="LANGFUSE_PORT" ;;
+            dify) env_var="DIFY_WEB_PORT" ;;
+            comfyui) env_var="COMFYUI_PORT" ;;
+            tts) env_var="TTS_PORT" ;;
+            stt) env_var="STT_PORT" ;;
+            generate-audio) env_var="GENERATE_AUDIO_PORT" ;;
+            ollama) env_var="OLLAMA_PORT" ;;
+            open-webui) env_var="OPEN_WEBUI_PORT" ;;
+            ops-console) env_var="OPS_CONSOLE_PORT" ;;
+            redis) env_var="REDIS_PORT" ;;
+            postgres) env_var="POSTGRES_PORT" ;;
+            qdrant) env_var="QDRANT_PORT" ;;
+            grafana) env_var="GRAFANA_PORT" ;;
+            prometheus) env_var="PROMETHEUS_PORT" ;;
+            *)
+                env_var=""
+                ;;
+        esac
+
+        [[ -z "$env_var" ]] && continue
+        value="${!env_var:-}"
+        [[ -n "$value" ]] && SVC_PORT[$id]="$value"
+    done
+
+    return 0
+}
+
 selected_in_cat() {
     local cat="$1"
     for id in "${SVC_IDS[@]}"; do

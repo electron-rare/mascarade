@@ -235,11 +235,17 @@ for svc in "${compose_services[@]}"; do
     done
 done
 
+selectable_ids=()
+for id in "${SVC_IDS[@]}"; do
+    [[ "${SVC_ON[$id]}" == "1" ]] && selectable_ids+=("$id")
+done
+dbg "IDs selectionnables pour update: ${selectable_ids[*]:-aucun}"
+
 if [[ "$PRESELECT_MODE" == true ]]; then
     apply_update_preselected_services "$WITH_SERVICES_RAW"
     ok "Services preselectionnes via --with"
 else
-    checkbox_select
+    checkbox_select_ids "${selectable_ids[@]}"
 fi
 
 # Collecter les services a updater
