@@ -8,18 +8,44 @@ source venv_tuning/bin/activate
 python test_environment.py
 ```
 
-### 2. Run Demo (No Downloads)
+### 2. Launch Local Fine-Tuning
+```bash
+# Auto-select GPU if ready, otherwise CPU fallback
+python finetune/run_local.py stm32 --max-samples 128 --epochs 1
+
+# Force CPU mode
+python finetune/run_local.py kicad --device cpu --model gpt2 --max-samples 64
+
+# Train from a derived dataset instead of the canonical one
+python finetune/run_local.py stm32 \
+  --dataset-path finetune/datasets/distilled/stm32_teacher_mix.jsonl \
+  --device gpu
+```
+
+### 3. Distill With A Bigger Teacher Then Train The Student
+```bash
+# Requires the Mascarade core/API to be reachable and at least one provider configured
+./scripts/distill_and_train.sh stm32 \
+  --api-url http://127.0.0.1:8100 \
+  --teacher-provider mistral \
+  --max-source-samples 32 \
+  --samples-per-source 2 \
+  --device gpu \
+  --epochs 1
+```
+
+### 4. Run Demo (No Downloads)
 ```bash
 python fine_tuning_demo.py
 ```
 
-### 3. Download Models (Recommended)
+### 5. Download Models (Recommended)
 ```bash
 python download_models.py
 # Follow interactive prompts
 ```
 
-### 4. Fine-Tune
+### 6. Legacy Fine-Tune Commands
 ```bash
 # For KiCad/EDA (1.1B model, 3-4GB VRAM)
 python fine_tuning_base.py --domain kicad --train --small --short-seq

@@ -56,6 +56,9 @@ Systeme d'orchestration agentique personnel. Route intelligemment les requetes L
 - **Node.js 22+** (dev local API)
 - Au moins une cle API LLM (Anthropic, OpenAI, Mistral, AWS Bedrock ou Google)
 
+Le setup installe aussi un `htop` repo-local epingle en `3.4.0` sous `tools/.local/` et l'expose via `./tools/htop`.
+Pourquoi: Ubuntu 24.04 livre `htop 3.3.0`, qui n'inclut pas le meter `GPU usage`. La `3.4.0` ajoute ce meter, utile pour suivre les services GPU du repo sans ecraser le `htop` systeme.
+
 ---
 
 ## Installation
@@ -146,6 +149,14 @@ Validation cloud rapide:
 ./setup
 ```
 
+Une fois le setup passe, tu peux lancer le `htop` fourni par le repo avec:
+
+```bash
+./tools/htop
+```
+
+Si tu veux desactiver ce telechargement repo-local pendant `./setup`, exporte `MASCARADE_SKIP_REPO_HTOP=true`.
+
 Ou en mode non-interactif:
 
 ```bash
@@ -212,7 +223,35 @@ Par defaut, `setup` verifie seulement `GET /health`. Le vrai smoke test `POST /g
 Deux containers demarrent :
 - `core` sur `:8100`
 - `api` sur `:3100`
-- `ops-console` sur `:80` (si selectionne)
+- tous les ports publies utilisent `PUBLISH_BIND_HOST=0.0.0.0` par defaut
+- `ops-console` sur `:80` (si selectionne), avec override possible via `OPS_CONSOLE_BIND_HOST`
+- `edge-proxy` peut exposer seulement `:80/:443` pour l'entree publique
+
+Si tu veux tout rebloquer en local, remets `PUBLISH_BIND_HOST=127.0.0.1` dans `.env`.
+Si tu veux seulement `ops-console` en local, garde `PUBLISH_BIND_HOST=0.0.0.0` et mets `OPS_CONSOLE_BIND_HOST=127.0.0.1`.
+
+Mode reverse proxy:
+
+```bash
+PUBLISH_BIND_HOST=127.0.0.1 ./setup --with core,api,ops-console,edge-proxy --yes
+```
+
+Dans ce mode, seuls `edge-proxy` sur `:80/:443` sont publics; les autres ports restent sur loopback.
+
+Certificat Let's Encrypt par DNS-01 Cloudflare:
+
+```bash
+# Variables minimales dans .env
+EDGE_PROXY_SERVER_NAME=saillant.cc
+EDGE_PROXY_ACME_EMAIL=toi@example.com
+EDGE_PROXY_ACME_DOMAINS=saillant.cc,www.saillant.cc
+CLOUDFLARE_API_TOKEN=...
+
+# Emission du certificat
+bash scripts/edge_proxy_cert.sh issue
+```
+
+Le proxy continue a generer un certificat auto-signe tant qu'aucun certificat reel n'est installe. Une fois le certificat emis, `edge-proxy` recharge Nginx automatiquement.
 
 Les agents dynamiques sont persistes dans un volume Docker (`core-data:/app/data`).
 

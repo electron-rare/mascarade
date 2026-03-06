@@ -76,6 +76,7 @@ class Settings(BaseSettings):
     # Mistral Studio
     mistral_api_base: str = "https://api.mistral.ai/v1"
     mistral_default_model: str = "mistral-large-latest"
+    mistral_timeout_ms: int = 120000
 
     # Defaults
     default_provider: str = "claude"

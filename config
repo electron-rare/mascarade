@@ -46,17 +46,21 @@ declare -Ag CONFIG_ORIG=()
 declare -Ag CONFIG_SCOPE_TOUCHED=()
 declare -ag ACTIVE_SERVICE_IDS=()
 declare -ag CONFIG_PORT_FIELDS=(
-    CORE_PORT API_PORT POSTGRES_PORT REDIS_PORT OLLAMA_PORT OPEN_WEBUI_PORT OPS_CONSOLE_PORT
+    PUBLISH_BIND_HOST CORE_PORT API_PORT POSTGRES_PORT REDIS_PORT CLICKHOUSE_HTTP_PORT CLICKHOUSE_NATIVE_PORT OLLAMA_PORT OPEN_WEBUI_PORT OPS_CONSOLE_BIND_HOST OPS_CONSOLE_PORT
     LITELLM_PORT N8N_PORT LANGFUSE_PORT DIFY_API_PORT DIFY_WEB_PORT TTS_PORT STT_PORT
-    GENERATE_AUDIO_PORT QDRANT_PORT GRAFANA_PORT PROMETHEUS_PORT
+    GENERATE_AUDIO_PORT QDRANT_PORT QDRANT_GRPC_PORT GRAFANA_PORT PROMETHEUS_PORT
 )
 declare -Ag CONFIG_PORT_LABEL=(
+    [PUBLISH_BIND_HOST]="Bind host global"
     [CORE_PORT]="Port Core (FastAPI)"
     [API_PORT]="Port API (Hono)"
     [POSTGRES_PORT]="Port PostgreSQL"
     [REDIS_PORT]="Port Redis"
+    [CLICKHOUSE_HTTP_PORT]="Port ClickHouse HTTP"
+    [CLICKHOUSE_NATIVE_PORT]="Port ClickHouse native"
     [OLLAMA_PORT]="Port Ollama"
     [OPEN_WEBUI_PORT]="Port Open WebUI"
+    [OPS_CONSOLE_BIND_HOST]="Bind Ops Console"
     [OPS_CONSOLE_PORT]="Port Ops Console"
     [LITELLM_PORT]="Port LiteLLM"
     [N8N_PORT]="Port n8n"
@@ -67,16 +71,21 @@ declare -Ag CONFIG_PORT_LABEL=(
     [STT_PORT]="Port STT"
     [GENERATE_AUDIO_PORT]="Port Generate Audio"
     [QDRANT_PORT]="Port Qdrant"
+    [QDRANT_GRPC_PORT]="Port Qdrant gRPC"
     [GRAFANA_PORT]="Port Grafana"
     [PROMETHEUS_PORT]="Port Prometheus"
 )
 declare -Ag CONFIG_PORT_SERVICE=(
+    [PUBLISH_BIND_HOST]="core"
     [CORE_PORT]="core"
     [API_PORT]="api"
     [POSTGRES_PORT]="postgres"
     [REDIS_PORT]="redis"
+    [CLICKHOUSE_HTTP_PORT]="clickhouse"
+    [CLICKHOUSE_NATIVE_PORT]="clickhouse"
     [OLLAMA_PORT]="ollama"
     [OPEN_WEBUI_PORT]="open-webui"
+    [OPS_CONSOLE_BIND_HOST]="ops-console"
     [OPS_CONSOLE_PORT]="ops-console"
     [LITELLM_PORT]="litellm"
     [N8N_PORT]="n8n"
@@ -87,12 +96,38 @@ declare -Ag CONFIG_PORT_SERVICE=(
     [STT_PORT]="stt"
     [GENERATE_AUDIO_PORT]="generate-audio"
     [QDRANT_PORT]="qdrant"
+    [QDRANT_GRPC_PORT]="qdrant"
     [GRAFANA_PORT]="grafana"
     [PROMETHEUS_PORT]="prometheus"
 )
 
 config_mark_scope() {
     CONFIG_SCOPE_TOUCHED["$1"]="1"
+}
+
+config_field_default() {
+    local var="$1"
+    local service="$2"
+    case "$var" in
+        PUBLISH_BIND_HOST)
+            echo "${PUBLISH_BIND_HOST:-0.0.0.0}"
+            ;;
+        CLICKHOUSE_HTTP_PORT)
+            echo "${CLICKHOUSE_HTTP_PORT:-8123}"
+            ;;
+        CLICKHOUSE_NATIVE_PORT)
+            echo "${CLICKHOUSE_NATIVE_PORT:-9000}"
+            ;;
+        OPS_CONSOLE_BIND_HOST)
+            echo "${OPS_CONSOLE_BIND_HOST:-${PUBLISH_BIND_HOST:-0.0.0.0}}"
+            ;;
+        QDRANT_GRPC_PORT)
+            echo "${QDRANT_GRPC_PORT:-6334}"
+            ;;
+        *)
+            echo "${SVC_PORT[$service]}"
+            ;;
+    esac
 }
 
 collect_active_service_ids() {
@@ -110,9 +145,9 @@ capture_config_snapshot() {
         ANTHROPIC_API_KEY OPENAI_API_KEY GOOGLE_API_KEY MISTRAL_API_KEY GROQ_API_KEY
         DEFAULT_LLM_PROVIDER DEFAULT_LLM_MODEL MASCARADE_API_KEY
         NOTION_API_KEY COMFYUI_URL COMFYUI_LOCAL
-        CORE_PORT API_PORT POSTGRES_PORT REDIS_PORT OLLAMA_PORT OPEN_WEBUI_PORT OPS_CONSOLE_PORT
+        PUBLISH_BIND_HOST CORE_PORT API_PORT POSTGRES_PORT REDIS_PORT CLICKHOUSE_HTTP_PORT CLICKHOUSE_NATIVE_PORT OLLAMA_PORT OPEN_WEBUI_PORT OPS_CONSOLE_BIND_HOST OPS_CONSOLE_PORT
         LITELLM_PORT N8N_PORT LANGFUSE_PORT DIFY_API_PORT DIFY_WEB_PORT TTS_PORT STT_PORT
-        GENERATE_AUDIO_PORT QDRANT_PORT GRAFANA_PORT PROMETHEUS_PORT
+        GENERATE_AUDIO_PORT QDRANT_PORT QDRANT_GRPC_PORT GRAFANA_PORT PROMETHEUS_PORT
     )
     local var service
     for var in "${vars[@]}"; do
@@ -121,7 +156,7 @@ capture_config_snapshot() {
 
     for var in "${CONFIG_PORT_FIELDS[@]}"; do
         service="${CONFIG_PORT_SERVICE[$var]}"
-        CONFIG_ORIG["$var"]="${!var:-${SVC_PORT[$service]}}"
+        CONFIG_ORIG["$var"]="${!var:-$(config_field_default "$var" "$service")}"
         printf -v "$var" '%s' "${CONFIG_ORIG[$var]}"
     done
 }
@@ -255,9 +290,11 @@ configure_ports_section() {
         service="${CONFIG_PORT_SERVICE[$var]}"
         svc_selected "$service" || continue
         prompt="${CONFIG_PORT_LABEL[$var]} :"
-        current="${!var:-${SVC_PORT[$service]}}"
+        current="${!var:-$(config_field_default "$var" "$service")}"
         printf -v "$var" '%s' "$(input_value "$prompt" "$current")"
-        SVC_PORT[$service]="${!var}"
+        if [[ "$var" != "PUBLISH_BIND_HOST" && "$var" != "OPS_CONSOLE_BIND_HOST" ]]; then
+            SVC_PORT[$service]="${!var}"
+        fi
     done
 
     return 0
@@ -341,7 +378,7 @@ show_ports_summary() {
     for var in "${CONFIG_PORT_FIELDS[@]}"; do
         service="${CONFIG_PORT_SERVICE[$var]}"
         svc_selected "$service" || continue
-        before="${CONFIG_ORIG[$var]:-${SVC_PORT[$service]}}"
+        before="${CONFIG_ORIG[$var]:-$(config_field_default "$var" "$service")}"
         after="${!var:-}"
         if [[ "$before" != "$after" ]]; then
             echo -e "    ${CONFIG_PORT_LABEL[$var]} : ${before:-non defini} -> ${after:-non defini}"

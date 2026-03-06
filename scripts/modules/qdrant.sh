@@ -3,6 +3,7 @@
 
 module_qdrant_config() {
   QDRANT_PORT=$(input_value "Qdrant port" "${QDRANT_PORT:-6333}")
+  QDRANT_GRPC_PORT=$(input_value "Qdrant gRPC port" "${QDRANT_GRPC_PORT:-6334}")
 }
 
 module_qdrant_compose() {
@@ -11,11 +12,12 @@ module_qdrant_compose() {
   echo "    container_name: mascarade-qdrant"
   echo "    restart: unless-stopped"
   echo "    ports:"
-  echo "      - \"127.0.0.1:\${QDRANT_PORT}:6333\""
+  echo "      - \"\${PUBLISH_BIND_HOST:-0.0.0.0}:\${QDRANT_PORT}:6333\""
+  echo "      - \"\${PUBLISH_BIND_HOST:-0.0.0.0}:\${QDRANT_GRPC_PORT}:6334\""
   echo "    volumes:"
   echo "      - qdrant-data:/qdrant/storage"
   echo "    healthcheck:"
-  echo "      test: [\"CMD-SHELL\", \"curl -fsS http://localhost:6333/healthz >/dev/null\"]"
+  echo "      test: [\"CMD-SHELL\", \"bash -lc 'exec 3<>/dev/tcp/127.0.0.1/6333'\"]"
   echo "      interval: 15s"
   echo "      timeout: 5s"
   echo "      retries: 5"

@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# ruff: noqa: E402
 """
 Simplified Fine-Tuning Script for Limited VRAM (Quadro P2000 - 4.9GB)
 Uses only safetensors-compatible models to avoid PyTorch 2.2 vulnerabilities
@@ -6,6 +7,10 @@ Uses only safetensors-compatible models to avoid PyTorch 2.2 vulnerabilities
 
 import os
 import torch
+from finetune.runtime_compat import disable_broken_torchvision
+
+_RUNTIME_COMPAT_NOTE = disable_broken_torchvision()
+
 from transformers import AutoTokenizer, AutoModelForCausalLM, TrainingArguments
 from peft import LoraConfig, get_peft_model
 from datasets import load_dataset

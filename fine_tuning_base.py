@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# ruff: noqa: E402
 """
 Base Fine-Tuning Script for Multiple Domains
 Optimized for limited VRAM (Quadro P2000 - 4.9GB)
@@ -20,6 +21,10 @@ import os
 import json
 import torch
 from datetime import datetime
+from finetune.runtime_compat import disable_broken_torchvision
+
+_RUNTIME_COMPAT_NOTE = disable_broken_torchvision()
+
 from transformers import (
     AutoTokenizer,
     AutoModelForCausalLM,

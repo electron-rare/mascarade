@@ -15,7 +15,7 @@ module_api_compose() {
   echo "    container_name: mascarade-api"
   echo "    restart: unless-stopped"
   echo "    ports:"
-  echo "      - \"127.0.0.1:\${API_PORT}:3000\""
+  echo "      - \"\${PUBLISH_BIND_HOST:-0.0.0.0}:\${API_PORT}:3000\""
   echo "    env_file:"
   echo "      - .env"
   echo "    environment:"

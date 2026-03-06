@@ -11,7 +11,7 @@ module_n8n_compose() {
   echo "    container_name: mascarade-n8n"
   echo "    restart: unless-stopped"
   echo "    ports:"
-  echo "      - \"127.0.0.1:\${N8N_PORT}:5678\""
+  echo "      - \"\${PUBLISH_BIND_HOST:-0.0.0.0}:\${N8N_PORT}:5678\""
   echo "    environment:"
   echo "      DB_TYPE: postgresdb"
   echo "      DB_POSTGRESDB_HOST: postgres"
@@ -26,6 +26,12 @@ module_n8n_compose() {
   fi
   echo "    volumes:"
   echo "      - n8n-data:/home/node/.n8n"
+  echo "    healthcheck:"
+  echo "      test: [\"CMD-SHELL\", \"wget -qO- http://127.0.0.1:5678/healthz >/dev/null\"]"
+  echo "      interval: 15s"
+  echo "      timeout: 5s"
+  echo "      retries: 10"
+  echo "      start_period: 30s"
   echo "    networks:"
   echo "      - mascarade-network"
 }

@@ -11,7 +11,7 @@ module_grafana_compose() {
   echo "    container_name: mascarade-grafana"
   echo "    restart: unless-stopped"
   echo "    ports:"
-  echo "      - \"127.0.0.1:\${GRAFANA_PORT}:3000\""
+  echo "      - \"\${PUBLISH_BIND_HOST:-0.0.0.0}:\${GRAFANA_PORT}:3000\""
   echo "    volumes:"
   echo "      - grafana-data:/var/lib/grafana"
   echo "    healthcheck:"

@@ -1,69 +1,146 @@
 import { NavLink } from "react-router-dom";
 
+type SidebarProps = {
+  open: boolean;
+  onClose: () => void;
+};
+
 const groups = [
   {
-    label: "System",
-    items: [{ to: "/metrics", icon: "▣", label: "System Monitor" }],
-  },
-  {
-    label: "LLM",
+    label: "Core",
     items: [
-      { to: "/", icon: "⌘", label: "Dashboard" },
-      { to: "/playground", icon: "▶", label: "Playground" },
-      { to: "/agents", icon: "◎", label: "Agents" },
-      { to: "/orchestrate", icon: "⚙", label: "Orchestrate" },
+      { to: "/", icon: "⌘", label: "Dashboard", hint: "overview + launch lanes" },
+      { to: "/playground", icon: "▶", label: "Playground", hint: "prompt sandbox" },
+      { to: "/agents", icon: "◎", label: "Agents", hint: "registry + detail" },
+      { to: "/orchestrate", icon: "⚙", label: "Orchestrate", hint: "multi-step control" },
     ],
   },
   {
-    label: "Ops",
+    label: "Operations",
     items: [
-      { to: "/infra", icon: "⬡", label: "Infrastructure" },
+      { to: "/metrics", icon: "▣", label: "Metrics", hint: "health + latency" },
+      { to: "/infra", icon: "⬡", label: "Infrastructure", hint: "raw stack map" },
     ],
   },
   {
-    label: "Tools",
+    label: "Integrations",
     items: [
-      { to: "/notion", icon: "▤", label: "Notion" },
-      { to: "/comfyui", icon: "◲", label: "ComfyUI" },
+      { to: "/notion", icon: "▤", label: "Notion", hint: "knowledge bus" },
+      { to: "/comfyui", icon: "◲", label: "ComfyUI", hint: "image workflows" },
     ],
   },
 ];
 
-export default function Sidebar() {
+export default function Sidebar({ open, onClose }: SidebarProps) {
   return (
-    <aside className="w-52 h-screen bg-surface/95 border-r border-border flex flex-col shrink-0 shadow-[0_0_20px_rgba(0,0,0,0.45)]">
-      <div className="px-4 py-5 border-b border-border bg-black/35">
-        <span className="text-accent font-bold text-sm tracking-[0.22em] uppercase glow-text glitch">
-          ops_console
-        </span>
-        <p className="text-[9px] text-green-500/60 mt-1 tracking-widest glow-green cursor-blink">sys.init</p>
-      </div>
-      <nav className="flex-1 overflow-y-auto py-3 px-2 space-y-4">
-        {groups.map((g) => (
-          <div key={g.label}>
-            <p className="px-2 mb-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-muted">
-              {g.label}
+    <aside
+      className={[
+        "fixed inset-y-0 left-0 z-40 flex w-[18rem] flex-col border-r border-border/80",
+        "bg-[linear-gradient(180deg,rgba(5,9,7,0.96),rgba(4,4,4,0.94))] shadow-[0_0_40px_rgba(0,0,0,0.55)] backdrop-blur-xl",
+        "transition-transform duration-300 ease-out lg:static lg:translate-x-0",
+        open ? "translate-x-0" : "-translate-x-full",
+      ].join(" ")}
+    >
+      <div className="border-b border-border/80 px-5 pb-4 pt-5">
+        <div className="mb-4 flex items-start justify-between gap-3">
+          <div>
+            <p className="screen-label text-[10px] uppercase">mascarade / ops</p>
+            <h2 className="mt-2 text-lg font-semibold uppercase tracking-[0.28em] text-accent glow-text">
+              cockpit
+            </h2>
+            <p className="mt-2 max-w-[16rem] text-[11px] leading-5 text-amber-100/58">
+              Interface de supervision locale pour la gateway, les agents et les outils relies au core.
             </p>
-            {g.items.map((item) => (
-              <NavLink
-                key={item.to}
-                to={item.to}
-                end={item.to === "/"}
-                className={({ isActive }) =>
-                  `flex items-center gap-2 px-2 py-1.5 rounded text-xs uppercase tracking-wide transition-all duration-200 border ${
-                    isActive
-                      ? "bg-accent/10 text-accent border-accent/40 glow-text shadow-[0_0_10px_rgba(255,209,102,0.15)]"
-                      : "text-amber-100/85 border-transparent hover:bg-white/5 hover:border-border hover:shadow-[0_0_8px_rgba(27,77,44,0.3)]"
-                  }`
-                }
-              >
-                <span className="w-5 text-center text-[11px]">{item.icon}</span>
-                {item.label}
-              </NavLink>
-            ))}
           </div>
-        ))}
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-full border border-border/80 bg-black/30 px-2 py-1 text-[10px] uppercase tracking-[0.18em] text-muted transition hover:border-accent/40 hover:text-accent lg:hidden"
+          >
+            close
+          </button>
+        </div>
+
+        <div className="grid grid-cols-2 gap-2 text-[11px] uppercase tracking-[0.16em]">
+          <div className="rounded-2xl border border-border/70 bg-black/25 px-3 py-2">
+            <span className="text-muted">mode</span>
+            <p className="mt-1 text-accent">local stack</p>
+          </div>
+          <div className="rounded-2xl border border-border/70 bg-black/25 px-3 py-2">
+            <span className="text-muted">theme</span>
+            <p className="mt-1 glow-green">crt active</p>
+          </div>
+        </div>
+      </div>
+
+      <nav className="flex-1 overflow-y-auto px-3 py-4">
+        <div className="space-y-5">
+          {groups.map((group) => (
+            <section key={group.label}>
+              <div className="mb-2 flex items-center justify-between px-2">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-muted">
+                  {group.label}
+                </p>
+                <span className="text-[10px] uppercase tracking-[0.16em] text-amber-100/35">
+                  {group.items.length.toString().padStart(2, "0")}
+                </span>
+              </div>
+              <div className="space-y-1.5">
+                {group.items.map((item) => (
+                  <NavLink
+                    key={item.to}
+                    to={item.to}
+                    end={item.to === "/"}
+                    className={({ isActive }) =>
+                      [
+                        "group block rounded-2xl border px-3 py-3 transition-all duration-200",
+                        isActive
+                          ? "border-accent/40 bg-accent/10 shadow-[0_0_18px_rgba(255,209,102,0.12)]"
+                          : "border-transparent bg-white/[0.015] hover:border-border/80 hover:bg-white/[0.04]",
+                      ].join(" ")
+                    }
+                  >
+                    {({ isActive }) => (
+                      <div className="flex items-start gap-3">
+                        <span
+                          className={[
+                            "mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border text-sm transition-colors",
+                            isActive
+                              ? "border-accent/50 bg-accent/10 text-accent"
+                              : "border-border/70 bg-black/30 text-amber-100/75 group-hover:text-accent",
+                          ].join(" ")}
+                        >
+                          {item.icon}
+                        </span>
+                        <div className="min-w-0">
+                          <p
+                            className={[
+                              "text-[12px] font-semibold uppercase tracking-[0.18em] transition-colors",
+                              isActive ? "text-accent glow-text" : "text-amber-100/88 group-hover:text-accent",
+                            ].join(" ")}
+                          >
+                            {item.label}
+                          </p>
+                          <p className="mt-1 text-[11px] leading-5 text-amber-100/45">{item.hint}</p>
+                        </div>
+                      </div>
+                    )}
+                  </NavLink>
+                ))}
+              </div>
+            </section>
+          ))}
+        </div>
       </nav>
+
+      <div className="border-t border-border/80 px-4 py-4 text-[11px] text-amber-100/48">
+        <div className="rounded-2xl border border-border/70 bg-black/25 px-3 py-3">
+          <p className="screen-label">gateway posture</p>
+          <p className="mt-2 text-[12px] leading-5 text-amber-100/68">
+            API locale en facade. Core, agents et integrations relies via la gateway interne.
+          </p>
+        </div>
+      </div>
     </aside>
   );
 }

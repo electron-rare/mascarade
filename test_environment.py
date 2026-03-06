@@ -1,184 +1,145 @@
 #!/usr/bin/env python3
-"""
-Test script for fine-tuning environment
-"""
+"""Environment check for local fine-tuning."""
 
-import torch
-import transformers
-import peft
-import accelerate
-import bitsandbytes
-import numpy as np
+from __future__ import annotations
+
+import importlib
+import sys
+from pathlib import Path
+
 import psutil
-import GPUtil
+import torch
+from finetune.runtime_compat import disable_broken_torchvision
+
+ROOT_DIR = Path(__file__).resolve().parent
+DATASETS_DIR = ROOT_DIR / "finetune" / "datasets"
+RUNTIME_COMPAT_NOTE = disable_broken_torchvision()
+
+REQUIRED_LIBS = [
+    "torch",
+    "transformers",
+    "peft",
+    "accelerate",
+    "bitsandbytes",
+    "datasets",
+]
+
+OPTIONAL_MODELS = {
+    "cpu_default": "gpt2",
+    "gpu_default": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+}
 
 
-def test_gpu():
-    """Test GPU availability and capabilities"""
+def has_hf_cache(model_id: str) -> bool:
+    cache_root = Path.home() / ".cache" / "huggingface" / "hub"
+    model_dir = cache_root / f"models--{model_id.replace('/', '--')}"
+    return model_dir.exists()
+
+
+def print_header(title: str) -> None:
     print("=" * 60)
-    print("GPU TEST")
+    print(title)
     print("=" * 60)
 
-    # GPU info
-    print(f"PyTorch version: {torch.__version__}")
-    print(f"CUDA available: {torch.cuda.is_available()}")
-    print(f"CUDA version: {torch.version.cuda}")
-    print(f"GPU device count: {torch.cuda.device_count()}")
 
-    if torch.cuda.is_available():
-        gpu = torch.cuda.get_device_name(0)
-        props = torch.cuda.get_device_properties(0)
-        print(f"GPU: {gpu}")
-        print(f"Compute capability: {props.major}.{props.minor}")
-        print(f"Total memory: {props.total_memory / 1024**3:.2f} GB")
-        print(f"Multiprocessor count: {props.multi_processor_count}")
-
-        # Test memory allocation
+def check_libraries() -> list[str]:
+    print_header("LIBRARIES")
+    missing: list[str] = []
+    for name in REQUIRED_LIBS:
         try:
-            test_tensor = torch.randn(1000, 1000, device="cuda")
-            print("✓ Successfully allocated tensor on GPU")
-            del test_tensor
-            torch.cuda.empty_cache()
-        except Exception as e:
-            print(f"✗ Failed to allocate tensor on GPU: {e}")
-    else:
-        print("✗ No GPU available")
-
+            module = importlib.import_module(name)
+            version = getattr(module, "__version__", "unknown")
+            print(f"[ok] {name:<14} {version}")
+        except Exception as exc:
+            missing.append(name)
+            print(f"[ko] {name:<14} {exc}")
     print()
+    return missing
 
 
-def test_libraries():
-    """Test all required libraries"""
-    print("=" * 60)
-    print("LIBRARY TEST")
-    print("=" * 60)
-
-    libraries = {
-        "torch": torch.__version__,
-        "transformers": transformers.__version__,
-        "peft": peft.__version__,
-        "accelerate": accelerate.__version__,
-        "bitsandbytes": getattr(bitsandbytes, "__version__", "unknown"),
-        "numpy": np.__version__,
-    }
-
-    for lib, version in libraries.items():
-        print(f"✓ {lib}: {version}")
-
-    print()
-
-
-def test_memory():
-    """Test system memory"""
-    print("=" * 60)
-    print("MEMORY TEST")
-    print("=" * 60)
-
-    # System memory
+def check_system() -> None:
+    print_header("SYSTEM")
     mem = psutil.virtual_memory()
-    print(f"System RAM: {mem.total / 1024**3:.2f} GB")
-    print(f"Available RAM: {mem.available / 1024**3:.2f} GB")
-    print(f"Used RAM: {mem.used / 1024**3:.2f} GB")
-    print(f"RAM usage: {mem.percent}%")
-
-    # GPU memory
+    print(f"Python:        {sys.version.split()[0]}")
+    print(f"RAM total:     {mem.total / 1024**3:.2f} GB")
+    print(f"RAM available: {mem.available / 1024**3:.2f} GB")
+    print(f"CUDA in torch: {torch.cuda.is_available()}")
+    if RUNTIME_COMPAT_NOTE:
+        print(f"Compat mode:   {RUNTIME_COMPAT_NOTE}")
     if torch.cuda.is_available():
-        gpus = GPUtil.getGPUs()
-        if gpus:
-            gpu = gpus[0]
-            print(f"GPU memory total: {gpu.memoryTotal} MB")
-            print(f"GPU memory used: {gpu.memoryUsed} MB")
-            print(f"GPU memory free: {gpu.memoryFree} MB")
-            print(f"GPU usage: {gpu.load * 100}%")
-
+        try:
+            name = torch.cuda.get_device_name(0)
+            total_gb = torch.cuda.get_device_properties(0).total_memory / 1024**3
+            _ = torch.zeros(1, device="cuda")
+            torch.cuda.empty_cache()
+            print(f"GPU:           {name}")
+            print(f"VRAM total:    {total_gb:.2f} GB")
+            print("GPU probe:     ok")
+        except Exception as exc:
+            print(f"GPU probe:     failed ({exc})")
+    else:
+        print("GPU probe:     unavailable")
     print()
 
 
-def test_transformers():
-    """Test transformers functionality"""
-    print("=" * 60)
-    print("TRANSFORMERS TEST")
-    print("=" * 60)
+def check_local_assets() -> None:
+    print_header("LOCAL ASSETS")
+    datasets = sorted(DATASETS_DIR.glob("*_chat.jsonl"))
+    for dataset in datasets:
+        with dataset.open("r", encoding="utf-8") as handle:
+            rows = sum(1 for _ in handle)
+        print(f"[ok] {dataset.name:<24} {rows:>6} rows")
 
-    try:
-        # Test tokenizer
-        from transformers import AutoTokenizer
-
-        tokenizer = AutoTokenizer.from_pretrained("gpt2")
-        test_text = "Hello, this is a test for fine-tuning environment."
-        encoded = tokenizer(test_text)
-        print(f"✓ Tokenizer working: {len(encoded['input_ids'])} tokens")
-
-        # Test model loading (small model)
-        from transformers import AutoModelForCausalLM
-
-        model = AutoModelForCausalLM.from_pretrained("gpt2", device_map="auto")
-        print("✓ Model loading working")
-
-        # Test inference
-        inputs = tokenizer("Hello, my name is", return_tensors="pt").to(
-            "cuda" if torch.cuda.is_available() else "cpu"
-        )
-        outputs = model.generate(**inputs, max_new_tokens=10)
-        result = tokenizer.decode(outputs[0], skip_special_tokens=True)
-        print(f"✓ Inference working: {result}")
-
-    except Exception as e:
-        print(f"✗ Transformers test failed: {e}")
-
+    for label, model_id in OPTIONAL_MODELS.items():
+        status = "ok" if has_hf_cache(model_id) else "missing"
+        print(f"[{status}] cache {label:<11} {model_id}")
     print()
 
 
-def test_peft():
-    """Test PEFT functionality"""
-    print("=" * 60)
-    print("PEFT TEST")
-    print("=" * 60)
+def summary(missing: list[str]) -> int:
+    print_header("SUMMARY")
+    gpu_ready = False
+    if torch.cuda.is_available():
+        try:
+            _ = torch.zeros(1, device="cuda")
+            torch.cuda.empty_cache()
+            gpu_ready = True
+        except Exception:
+            gpu_ready = False
 
-    try:
-        from peft import LoraConfig, get_peft_model
-        from transformers import AutoModelForCausalLM
+    cpu_ready = not missing and has_hf_cache(OPTIONAL_MODELS["cpu_default"])
 
-        # Load small model
-        model = AutoModelForCausalLM.from_pretrained("gpt2")
+    if missing:
+        print(f"Missing libraries: {', '.join(missing)}")
+        print("Status: blocked")
+        return 1
 
-        # Create LoRA config
-        lora_config = LoraConfig(
-            r=8,
-            lora_alpha=16,
-            target_modules=["c_attn"],
-            lora_dropout=0.1,
-            bias="none",
-            task_type="CAUSAL_LM",
-        )
+    if gpu_ready:
+        print("Status: GPU + CPU fine-tuning available")
+        print("Suggested command: python finetune/run_local.py stm32")
+        return 0
 
-        # Apply LoRA
-        model = get_peft_model(model, lora_config)
-        print(f"✓ PEFT LoRA working: {model.print_trainable_parameters()}")
+    if cpu_ready:
+        print("Status: CPU fallback available, GPU unavailable")
+        print("Suggested command: python finetune/run_local.py stm32 --device cpu")
+        return 0
 
-    except Exception as e:
-        print(f"✗ PEFT test failed: {e}")
+    print("Status: partially configured")
+    print("Reason: default CPU model cache is missing and GPU is unavailable")
+    print(
+        "Suggested command after model download: python finetune/run_local.py stm32 --device cpu"
+    )
+    return 1
 
+
+def main() -> int:
     print()
-
-
-def main():
-    """Run all tests"""
-    print("\n" + "=" * 60)
-    print("FINE-TUNING ENVIRONMENT TEST")
-    print("=" * 60 + "\n")
-
-    test_gpu()
-    test_libraries()
-    test_memory()
-    test_transformers()
-    test_peft()
-
-    print("=" * 60)
-    print("TEST COMPLETE")
-    print("=" * 60)
-    print("✓ Environment is ready for fine-tuning!")
+    print_header("LOCAL FINE-TUNING ENVIRONMENT")
+    missing = check_libraries()
+    check_system()
+    check_local_assets()
+    return summary(missing)
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

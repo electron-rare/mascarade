@@ -10,6 +10,7 @@ build/
 # Environment
 .env
 .env.local
+.env.bak.*
 
 # OS
 .DS_Store
@@ -35,6 +36,7 @@ htmlcov/
 
 # Opt — binaires et builds lourds
 opt/llama.cpp/built-binaries.txt
+/tools/.local/
 
 # Training artifacts
 training/output/
@@ -43,12 +45,18 @@ venv_tuning/
 finetune/datasets/*.jsonl
 finetune/datasets/bedrock/
 finetune/datasets/bedrock-claude/
+finetune/logs/
 finetune/models/
+finetune/models_cpu/
 finetune/models_local/
+finetune/runs/
+finetune/llama.cpp/
+finetune/llama-quantize
 finetune/external/
 
 # Backups (data dumps)
 backups/
+docker-compose.yml.bak.*
 
 # Temp files
 .tmp/

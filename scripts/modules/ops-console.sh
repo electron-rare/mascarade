@@ -3,6 +3,7 @@
 
 module_ops_console_config() {
   OPS_CONSOLE_PORT=$(input_value "Port Ops Console" "${OPS_CONSOLE_PORT:-80}")
+  OPS_CONSOLE_BIND_HOST=$(input_value "Host bind Ops Console" "${OPS_CONSOLE_BIND_HOST:-${PUBLISH_BIND_HOST:-0.0.0.0}}")
 }
 
 module_ops_console_compose() {
@@ -10,8 +11,13 @@ module_ops_console_compose() {
   echo "    image: nginx:alpine"
   echo "    container_name: mascarade-ops-console"
   echo "    restart: unless-stopped"
-  echo "    ports:"
-  echo "      - \"127.0.0.1:\${OPS_CONSOLE_PORT}:80\""
+  if svc_selected "edge-proxy"; then
+    echo "    expose:"
+    echo "      - \"80\""
+  else
+    echo "    ports:"
+    echo "      - \"\${OPS_CONSOLE_BIND_HOST:-\${PUBLISH_BIND_HOST:-0.0.0.0}}:\${OPS_CONSOLE_PORT}:80\""
+  fi
   echo "    volumes:"
   echo "      - ./deploy/ops-console/index.html:/usr/share/nginx/html/index.html:ro"
   echo "    healthcheck:"

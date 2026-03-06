@@ -16,7 +16,7 @@ module_stt_compose() {
   echo "    container_name: mascarade-stt"
   echo "    restart: unless-stopped"
   echo "    ports:"
-  echo "      - \"127.0.0.1:\${STT_PORT}:9000\""
+  echo "      - \"\${PUBLISH_BIND_HOST:-0.0.0.0}:\${STT_PORT}:9000\""
   echo "    environment:"
   case "$engine" in
     openai_whisper)

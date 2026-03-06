@@ -11,7 +11,7 @@ module_ollama_compose() {
   echo "    container_name: mascarade-ollama"
   echo "    restart: unless-stopped"
   echo "    ports:"
-  echo "      - \"127.0.0.1:\${OLLAMA_PORT}:11434\""
+  echo "      - \"\${PUBLISH_BIND_HOST:-0.0.0.0}:\${OLLAMA_PORT}:11434\""
   echo "    volumes:"
   echo "      - ollama-data:/root/.ollama"
   echo "    healthcheck:"

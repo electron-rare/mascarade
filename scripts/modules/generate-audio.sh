@@ -96,7 +96,7 @@ module_generate_audio_compose() {
   echo "    container_name: mascarade-generate-audio"
   echo "    restart: unless-stopped"
   echo "    ports:"
-      echo "      - \"127.0.0.1:\${GENERATE_AUDIO_PORT}:9000\""
+      echo "      - \"\${PUBLISH_BIND_HOST:-0.0.0.0}:\${GENERATE_AUDIO_PORT}:9000\""
   if [[ "$build_variant" == "cuda" ]]; then
     echo "    gpus: all"
     echo "    deploy:"

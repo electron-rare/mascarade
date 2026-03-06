@@ -493,10 +493,12 @@ install_repo_ollama_models() {
     local success_count=0
     local fail_count=0
     local skip_count=0
+    local dns_fail_count=0
     local list_rc=0
     local model_installed=false
     local -a models=()
     local -a installed_models=()
+    local -a failed_models=()
     local has_ollama_service=false
 
     # Active automatiquement le fallback sudo docker si requis.
@@ -589,12 +591,24 @@ install_repo_ollama_models() {
         else
             warn "Echec telechargement modele: $model (code $pull_rc)"
             warn "$(echo "$pull_output" | tail -1)"
+            if echo "$pull_output" | grep -Eq 'lookup registry\.ollama\.ai|no such host|Temporary failure in name resolution|connection refused'; then
+                ((dns_fail_count++)) || true
+            fi
+            failed_models+=("$model")
             ((fail_count++)) || true
         fi
     done
 
     if [[ $fail_count -gt 0 ]]; then
         err "Telechargement Ollama incomplet: $success_count ok / $skip_count deja presents / $fail_count echec(s)"
+        if [[ $dns_fail_count -gt 0 ]]; then
+            warn "Probleme DNS/reseau detecte pendant les pulls Ollama."
+            info "Depuis le conteneur, registry.ollama.ai n'est pas resolu. Verifie le DNS Docker/host puis relance les pulls."
+        fi
+        if [[ ${#failed_models[@]} -gt 0 ]]; then
+            info "Modeles en echec: ${failed_models[*]}"
+        fi
+        info "Retry manuel: docker compose up -d ollama && docker compose exec -T ollama ollama pull <modele>"
         return 1
     fi
     ok "Modeles Ollama traites: $success_count telecharge(s), $skip_count deja presents"
@@ -1009,7 +1023,14 @@ else
                 health_check "http://localhost:${API_PORT:-3100}/health" "API" 5 2 || true
             fi
             if svc_selected "ops-console"; then
-                health_check "http://localhost:${OPS_CONSOLE_PORT:-80}/" "Ops Console" 5 2 || true
+                if svc_selected "edge-proxy"; then
+                    health_check "http://localhost:${EDGE_PROXY_HTTP_PORT:-80}/ops/" "Ops Console" 5 2 || true
+                else
+                    health_check "http://localhost:${OPS_CONSOLE_PORT:-80}/" "Ops Console" 5 2 || true
+                fi
+            fi
+            if svc_selected "edge-proxy"; then
+                health_check "http://localhost:${EDGE_PROXY_HTTP_PORT:-80}/healthz" "Edge Proxy" 5 2 || true
             fi
             if svc_selected "generate-audio"; then
                 health_check "http://localhost:${GENERATE_AUDIO_PORT:-9000}/health" "Generate Audio" 5 2 || true
@@ -1017,6 +1038,9 @@ else
 
             if svc_selected "ops-console"; then
                 info "Ops Console local fourni par le compose principal"
+            fi
+            if svc_selected "edge-proxy" && [[ "${PUBLISH_BIND_HOST:-0.0.0.0}" != "127.0.0.1" ]]; then
+                warn "Edge Proxy actif mais les services publient encore hors loopback. Regle PUBLISH_BIND_HOST=127.0.0.1 pour n'exposer publiquement que 80/443."
             fi
 
             if [[ "$SMOKE_GENERATE_AUDIO" == true ]] && svc_selected "generate-audio"; then
@@ -1055,7 +1079,10 @@ else
 fi
 
 if [[ "$INSTALL_REPO_LLMS" == true ]]; then
-    install_repo_ollama_models
+    if ! install_repo_ollama_models; then
+        warn "Setup principal termine, mais les modeles Ollama n'ont pas tous ete telecharges."
+        info "Tu peux retenter plus tard avec ./setup --install-repo-llms --ollama-pack ${OLLAMA_PACK}"
+    fi
 else
     info "Telechargement modeles Ollama ignore"
 fi
@@ -1087,6 +1114,13 @@ if svc_selected "generate-audio"; then
     echo -e "  ${BOLD}Generate Audio :${NC}"
     echo -e "  curl -s http://localhost:${GENERATE_AUDIO_PORT:-9000}/health | python3 -m json.tool"
     echo -e "  bash scripts/smoke_generate_audio.sh --url http://localhost:${GENERATE_AUDIO_PORT:-9000}"
+fi
+
+if svc_selected "edge-proxy"; then
+    echo ""
+    echo -e "  ${BOLD}Edge Proxy TLS :${NC}"
+    echo -e "  bash scripts/edge_proxy_cert.sh issue    ${DIM}# Let's Encrypt DNS-01 Cloudflare${NC}"
+    echo -e "  bash scripts/edge_proxy_cert.sh info     ${DIM}# Infos certificat actif${NC}"
 fi
 
 echo ""

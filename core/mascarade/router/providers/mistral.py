@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import AsyncIterator
 
+import httpx
 from mistralai import Mistral
 
 from mascarade.config import is_secret_configured, settings
@@ -14,7 +15,7 @@ from mascarade.router.providers.base import (
     make_retry,
 )
 
-_retry = make_retry()
+_retry = make_retry(httpx.TimeoutException, httpx.TransportError)
 
 
 class MistralProvider(LLMProvider):
@@ -27,7 +28,7 @@ class MistralProvider(LLMProvider):
     def __init__(self) -> None:
         self._client = Mistral(
             api_key=settings.mistral_api_key,
-            timeout_ms=30_000,
+            timeout_ms=settings.mistral_timeout_ms,
         )
 
     @property
@@ -41,6 +42,7 @@ class MistralProvider(LLMProvider):
         *,
         model: str | None = None,
         system: str | None = None,
+        response_format: dict | None = None,
         temperature: float = 0.7,
         max_tokens: int = 4096,
     ) -> LLMResponse:
@@ -50,6 +52,7 @@ class MistralProvider(LLMProvider):
         response = await self._client.chat.complete_async(
             model=model,
             messages=chat_messages,
+            response_format=response_format,
             max_tokens=max_tokens,
             temperature=temperature,
         )

@@ -172,7 +172,8 @@ docker_cleanup() {
 
 # ── Error Handling ──
 setup_trap() {
-    trap 'err "Setup failed at line $LINENO"; exit 1' ERR
+    set -E
+    trap 'rc=$?; line="${BASH_LINENO[0]:-$LINENO}"; cmd="${BASH_COMMAND:-?}"; err "Setup failed at line ${line}"; dbg "Commande en echec: ${cmd} (rc=${rc})"; exit "$rc"' ERR
     trap 'warn "Setup interrupted"; exit 1' INT
 }
 

@@ -1,0 +1,19 @@
+FROM ./model.gguf
+
+TEMPLATE """{{ if .System }}<|im_start|>system
+{{ .System }}<|im_end|>
+{{ end }}{{ if .Prompt }}<|im_start|>user
+{{ .Prompt }}<|im_end|>
+{{ end }}<|im_start|>assistant
+{{ .Response }}<|im_end|>
+"""
+
+SYSTEM """You are an expert embedded developer specializing in PlatformIO, Arduino framework, and ESP32/ESP8266 development. You write clean, production-ready C++ code with proper error handling, efficient memory usage, and best practices for IoT devices. You know platformio.ini configuration, library management, OTA updates, unit testing, multi-environment builds, and debugging with PlatformIO."""
+
+PARAMETER temperature 0.3
+PARAMETER top_p 0.9
+PARAMETER top_k 40
+PARAMETER num_ctx 4096
+PARAMETER num_predict 2048
+PARAMETER stop "<|im_end|>"
+PARAMETER stop "<|im_start|>"

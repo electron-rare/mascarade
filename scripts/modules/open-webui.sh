@@ -11,7 +11,7 @@ module_open_webui_compose() {
   echo "    container_name: mascarade-open-webui"
   echo "    restart: unless-stopped"
   echo "    ports:"
-  echo "      - \"127.0.0.1:\${OPEN_WEBUI_PORT}:8080\""
+  echo "      - \"\${PUBLISH_BIND_HOST:-0.0.0.0}:\${OPEN_WEBUI_PORT}:8080\""
   if svc_selected "ollama"; then
     echo "    depends_on:"
     echo "      ollama:"

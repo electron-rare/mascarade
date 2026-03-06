@@ -2,6 +2,72 @@
 
 Fine-tune des modèles LLM spécialisés pour les skills électronique/hardware/IoT et les déployer via Ollama.
 
+Lecture recommandee:
+
+- cheatsheet rapide: `docs/FINETUNING_CHEATSHEET_2026-03-06.md`
+- recap methodes / etat de l art 2026: `docs/FINETUNING_ETAT_DE_L_ART_2026-03-06.md`
+
+## Quick Start Local
+
+Depuis la racine du repo:
+
+```bash
+source venv_tuning/bin/activate
+python test_environment.py
+
+# Auto: GPU si dispo, sinon fallback CPU
+python finetune/run_local.py stm32 --max-samples 128 --epochs 1
+
+# Forcer le fallback CPU
+python finetune/run_local.py kicad --device cpu --model gpt2 --max-samples 64
+
+# Wrapper shell equivalent
+./scripts/finetune_local.sh embedded --device auto --max-samples 256
+```
+
+Comportement:
+
+- `run_local.py` choisit automatiquement `train_local.py` si CUDA est utilisable
+- sinon il bascule sur `train_cpu.py`
+- `--dataset-path` permet d'entraîner sur un dataset dérivé sans écraser `datasets/<domain>_chat.jsonl`
+- `--offline` force l'usage du cache Hugging Face local
+- `--eval` est disponible uniquement sur le chemin GPU
+- `--verbose` affiche plus de détails sur le launcher et le trainer
+- `--quiet` réduit les logs et masque les progress bars quand c est supporté
+- `--tokenize-workers 0` laisse le trainer choisir automatiquement des workers CPU pour la tokenization
+
+## Distillation Teacher -> Student
+
+Pour utiliser un gros modèle comme professeur et fine-tuner un petit modèle local:
+
+```bash
+# Core/API Mascarade doit être démarré avec au moins un provider configuré
+./scripts/distill_and_train.sh stm32 \
+  --api-url http://127.0.0.1:8100 \
+  --teacher-provider mistral \
+  --max-source-samples 32 \
+  --samples-per-source 2 \
+  --device gpu \
+  --epochs 1
+```
+
+Ce workflow:
+
+- lit `finetune/datasets/<domain>_chat.jsonl`
+- demande au teacher de produire des variantes/distillations au format ShareGPT
+- écrit un dataset distillé dans `finetune/datasets/distilled/`
+- fusionne source + distillation avec déduplication
+- lance ensuite `run_local.py` sur le dataset fusionné
+- `--verbose` propage les logs détaillés sur la distillation, le merge et le training
+- `--quiet` garde seulement les messages importants
+- `--concurrency 0` sur `distill_dataset.py` choisit automatiquement une petite parallélisation des appels teacher
+
+Scripts concernés:
+
+- `finetune/distill_dataset.py`: génère le dataset distillé
+- `finetune/distill_and_train.py`: enchaîne distillation, merge et training
+- `scripts/distill_and_train.sh`: wrapper shell
+
 ## Architecture
 
 ```
@@ -36,7 +102,7 @@ Machine locale                    Google Colab (T4 gratuit)
 | **emc** | emc-emi, esd-protection, radio-rf | `emc_chat.jsonl` | `finetune_emc.ipynb` |
 | **kicad** | pcb-routing-kicad, kicad, kicad-ia, pcb-design, IPC | `kicad_chat.jsonl` | `finetune_kicad.ipynb` |
 
-## Quick Start
+## Quick Start Colab / Hub
 
 ### 1. Préparer le dataset
 

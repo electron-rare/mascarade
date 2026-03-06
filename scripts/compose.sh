@@ -108,6 +108,9 @@ write_env_file() {
         echo "TTS_PIPER_IMAGE=\"${TTS_PIPER_IMAGE:-rhasspy/wyoming-piper:latest}\""
         echo "TTS_KOKORO_IMAGE=\"${TTS_KOKORO_IMAGE:-ghcr.io/marjocchi/wyoming-kokoro:latest}\""
         echo ""
+        echo "# ── Publication reseau ──"
+        echo "PUBLISH_BIND_HOST=\"${PUBLISH_BIND_HOST:-0.0.0.0}\""
+        echo ""
 
         # Core
         if svc_selected "core"; then
@@ -151,6 +154,14 @@ write_env_file() {
         if svc_selected "redis"; then
             echo "# ── Redis ──"
             echo "REDIS_PORT=\"${REDIS_PORT:-6379}\""
+            echo ""
+        fi
+
+        # ClickHouse
+        if svc_selected "clickhouse"; then
+            echo "# ── ClickHouse ──"
+            echo "CLICKHOUSE_HTTP_PORT=\"${CLICKHOUSE_HTTP_PORT:-8123}\""
+            echo "CLICKHOUSE_NATIVE_PORT=\"${CLICKHOUSE_NATIVE_PORT:-9000}\""
             echo ""
         fi
 
@@ -280,6 +291,7 @@ write_env_file() {
         if svc_selected "qdrant"; then
             echo "# ── Qdrant ──"
             echo "QDRANT_PORT=\"${QDRANT_PORT:-6333}\""
+            echo "QDRANT_GRPC_PORT=\"${QDRANT_GRPC_PORT:-6334}\""
             echo ""
         fi
 
@@ -293,7 +305,26 @@ write_env_file() {
         # Ops Console
         if svc_selected "ops-console"; then
             echo "# ── Ops Console ──"
+            echo "OPS_CONSOLE_BIND_HOST=\"${OPS_CONSOLE_BIND_HOST:-${PUBLISH_BIND_HOST:-0.0.0.0}}\""
             echo "OPS_CONSOLE_PORT=\"${OPS_CONSOLE_PORT:-80}\""
+            echo ""
+        fi
+
+        # Edge Proxy
+        if svc_selected "edge-proxy"; then
+            echo "# ── Edge Proxy ──"
+            echo "EDGE_PROXY_BIND_HOST=\"${EDGE_PROXY_BIND_HOST:-0.0.0.0}\""
+            echo "EDGE_PROXY_HTTP_PORT=\"${EDGE_PROXY_HTTP_PORT:-80}\""
+            echo "EDGE_PROXY_HTTPS_PORT=\"${EDGE_PROXY_HTTPS_PORT:-443}\""
+            echo "EDGE_PROXY_SERVER_NAME=\"${EDGE_PROXY_SERVER_NAME:-localhost}\""
+            echo "EDGE_PROXY_TLS_SANS=\"${EDGE_PROXY_TLS_SANS:-DNS:localhost,IP:127.0.0.1}\""
+            echo "EDGE_PROXY_ACME_EMAIL=\"${EDGE_PROXY_ACME_EMAIL:-}\""
+            echo "EDGE_PROXY_ACME_DOMAINS=\"${EDGE_PROXY_ACME_DOMAINS:-${EDGE_PROXY_SERVER_NAME:-localhost}}\""
+            echo "EDGE_PROXY_ACME_DNS_PROVIDER=\"${EDGE_PROXY_ACME_DNS_PROVIDER:-cloudflare}\""
+            echo "EDGE_PROXY_ACME_CA=\"${EDGE_PROXY_ACME_CA:-letsencrypt}\""
+            echo "EDGE_PROXY_ACME_KEY_LENGTH=\"${EDGE_PROXY_ACME_KEY_LENGTH:-ec-256}\""
+            echo "EDGE_PROXY_ACME_DNS_SLEEP=\"${EDGE_PROXY_ACME_DNS_SLEEP:-30}\""
+            echo "CLOUDFLARE_API_TOKEN=\"${CLOUDFLARE_API_TOKEN:-}\""
             echo ""
         fi
 
