@@ -9,6 +9,12 @@ interface HealthData {
 
 const actionCards = [
   {
+    to: "/agents/agent-zero",
+    label: "Lead agent",
+    title: "Open Agent Zero",
+    body: "Point d'entree generaliste pour cadrer une demande, la decomposer et prioriser la prochaine action.",
+  },
+  {
     to: "/playground",
     label: "Prompt lane",
     title: "Open Playground",
@@ -214,7 +220,7 @@ export default function Dashboard() {
         </Card>
       </section>
 
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
         {actionCards.map((card) => (
           <Link
             key={card.to}
