@@ -10,7 +10,7 @@ export function useApi<TResult, TArgs = void>(
   const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
 
   const execute = useCallback(
-    async (args: TArgs) => {
+    async (args: TArgs): Promise<TResult | undefined> => {
       setLoading(true);
       setError(null);
       setData(null);
@@ -24,7 +24,7 @@ export function useApi<TResult, TArgs = void>(
         const msg = e instanceof ApiError ? e.message : "Unknown error";
         setError(msg);
         setStatus("error");
-        throw e;
+        return undefined;
       } finally {
         setLoading(false);
       }

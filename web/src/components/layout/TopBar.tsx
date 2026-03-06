@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { getApiKey, setApiKey, api } from "../../api/client";
 import Button from "../ui/Button";
 
@@ -32,6 +32,8 @@ export default function TopBar({
   navOpen,
   onMenuToggle,
 }: TopBarProps) {
+  const sessionTitleId = useId();
+  const sessionPanelId = useId();
   const [open, setOpen] = useState(false);
   const [storedKey, setStoredKey] = useState(getApiKey);
   const [draftKey, setDraftKey] = useState(getApiKey);
@@ -46,6 +48,7 @@ export default function TopBar({
     }).format(new Date()),
   );
   const ref = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
   const mountedRef = useRef(true);
 
   useEffect(() => {
@@ -68,6 +71,17 @@ export default function TopBar({
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
+
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+
+    window.requestAnimationFrame(() => {
+      inputRef.current?.focus();
+      inputRef.current?.select();
+    });
+  }, [open]);
 
   useEffect(() => {
     const tick = () => {
@@ -113,6 +127,7 @@ export default function TopBar({
         minute: "2-digit",
       }).format(new Date()),
     );
+    setOpen(false);
   };
 
   const clear = () => {
@@ -145,6 +160,8 @@ export default function TopBar({
             <button
               type="button"
               onClick={onMenuToggle}
+              aria-controls="primary-sidebar"
+              aria-expanded={navOpen}
               className="flex h-10 w-10 items-center justify-center rounded-2xl border border-border/80 bg-black/30 text-sm text-accent transition hover:border-accent/45 hover:bg-accent/10 lg:hidden"
               aria-label={navOpen ? "Close navigation" : "Open navigation"}
             >
@@ -219,6 +236,7 @@ export default function TopBar({
               onClick={() => setOpen((current) => !current)}
               aria-expanded={open}
               aria-haspopup="dialog"
+              aria-controls={open ? sessionPanelId : undefined}
               className="flex h-10 items-center gap-2 rounded-2xl border border-border/80 bg-black/30 px-3 text-xs uppercase tracking-[0.18em] text-amber-100/74 transition hover:border-accent/45 hover:text-accent"
               title="API Key"
             >
@@ -226,11 +244,21 @@ export default function TopBar({
               session
             </button>
             {open && (
-              <div className="absolute right-0 top-14 z-50 w-[min(26rem,calc(100vw-1rem))] rounded-3xl border border-border/80 bg-[linear-gradient(180deg,rgba(7,7,7,0.98),rgba(10,11,10,0.96))] p-4 shadow-[0_24px_80px_rgba(0,0,0,0.45)]">
+              <div
+                id={sessionPanelId}
+                role="dialog"
+                aria-modal="false"
+                aria-labelledby={sessionTitleId}
+                data-shortcuts-lock="true"
+                className="absolute right-0 top-14 z-50 w-[min(26rem,calc(100vw-1rem))] rounded-3xl border border-border/80 bg-[linear-gradient(180deg,rgba(7,7,7,0.98),rgba(10,11,10,0.96))] p-4 shadow-[0_24px_80px_rgba(0,0,0,0.45)]"
+              >
                 <div className="space-y-4">
                   <div className="space-y-1">
                     <p className="screen-label">session control</p>
-                    <h3 className="text-sm font-semibold uppercase tracking-[0.18em] text-accent">
+                    <h3
+                      id={sessionTitleId}
+                      className="text-sm font-semibold uppercase tracking-[0.18em] text-accent"
+                    >
                       Auth and runtime endpoints
                     </h3>
                     <p className="text-[12px] leading-5 text-amber-100/50">
@@ -263,6 +291,7 @@ export default function TopBar({
                     </label>
                     <div className="flex gap-2">
                       <input
+                        ref={inputRef}
                         type={showKey ? "text" : "password"}
                         value={draftKey}
                         onChange={(e) => setDraftKey(e.target.value)}

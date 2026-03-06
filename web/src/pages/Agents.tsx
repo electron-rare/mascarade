@@ -34,16 +34,15 @@ export default function Agents() {
 
   const handleCreate = async () => {
     if (!form.name || !form.system_prompt) return;
-    try {
-      const currentName = form.name;
-      await create(undefined);
-      setCreatedName(currentName);
-      setShowCreate(false);
-      setForm({ name: "", description: "", system_prompt: "" });
-      void refetch();
-    } catch {
-      // Error feedback is rendered inline in the modal.
+    const currentName = form.name;
+    const created = await create(undefined);
+    if (!created) {
+      return;
     }
+    setCreatedName(currentName);
+    setShowCreate(false);
+    setForm({ name: "", description: "", system_prompt: "" });
+    void refetch();
   };
 
   if (loading && !data) {

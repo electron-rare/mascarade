@@ -13,6 +13,7 @@ export default function Sidebar({ pathname, open, onClose }: SidebarProps) {
 
   return (
     <aside
+      id="primary-sidebar"
       className={[
         "fixed inset-y-0 left-0 z-40 flex w-[18rem] flex-col border-r border-border/80",
         "bg-[linear-gradient(180deg,rgba(5,9,7,0.96),rgba(4,4,4,0.94))] shadow-[0_0_40px_rgba(0,0,0,0.55)] backdrop-blur-xl",
