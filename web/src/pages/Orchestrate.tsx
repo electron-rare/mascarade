@@ -16,6 +16,11 @@ import {
 
 const orchestrationPresets = [
   {
+    label: "Zero intake",
+    prompt:
+      "Cadre cette demande de bout en bout: objectif reel, hypotheses, plan court, risques et prochaine action immediate.",
+  },
+  {
     label: "Incident review",
     prompt:
       "Analyse un incident de stack locale, priorise les causes probables et propose un plan d'action operateur.",
@@ -33,7 +38,7 @@ const orchestrationPresets = [
 ];
 
 function inferCluster(agentName: string): string {
-  if (["planner", "critic", "reviewer"].includes(agentName)) return "control";
+  if (["agent-zero", "planner", "critic", "reviewer"].includes(agentName)) return "control";
   if (agentName.includes("kicad") || agentName.includes("freecad")) return "design";
   if (agentName.includes("spice") || agentName.includes("power") || agentName.includes("emc")) {
     return "electronics";
@@ -49,6 +54,7 @@ export default function Orchestrate() {
 
   const canRun = prompt.trim().length > 0 && selected.length > 0;
   const agents = data?.agents ?? [];
+  const hasAgentZero = agents.some((agent) => agent.name === "agent-zero");
 
   const filteredAgents = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -223,6 +229,19 @@ export default function Orchestrate() {
               <Button variant="secondary" onClick={() => void refetch()}>
                 refresh registry
               </Button>
+              {hasAgentZero ? (
+                <Button
+                  variant="ghost"
+                  className="border border-accent/35 text-accent"
+                  onClick={() =>
+                    setSelected((current) =>
+                      current.includes("agent-zero") ? current : ["agent-zero", ...current],
+                    )
+                  }
+                >
+                  arm agent-zero
+                </Button>
+              ) : null}
               <Button
                 variant="ghost"
                 className="border border-border/80"
@@ -257,7 +276,14 @@ export default function Orchestrate() {
                 <button
                   key={preset.label}
                   type="button"
-                  onClick={() => setPrompt(preset.prompt)}
+                  onClick={() => {
+                    setPrompt(preset.prompt);
+                    if (preset.label === "Zero intake" && hasAgentZero) {
+                      setSelected((current) =>
+                        current.includes("agent-zero") ? current : ["agent-zero", ...current],
+                      );
+                    }
+                  }}
                   className="rounded-2xl border border-border/80 bg-black/25 px-3 py-2 text-[11px] uppercase tracking-[0.16em] text-amber-100/72 transition hover:border-accent/35 hover:text-accent"
                 >
                   {preset.label}

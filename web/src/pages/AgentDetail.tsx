@@ -7,6 +7,7 @@ import { Badge, Button, Card, InlineNotice, LoadingPanel, Textarea } from "../co
 export default function AgentDetail() {
   const { name } = useParams<{ name: string }>();
   const [input, setInput] = useState("");
+  const isAgentZero = name === "agent-zero";
 
   const runFn = useCallback(
     () => agentsApi.run(name!, [{ role: "user", content: input }]),
@@ -37,6 +38,7 @@ export default function AgentDetail() {
             </div>
             <div className="flex flex-wrap gap-2">
               <Badge color="accent">{name}</Badge>
+              {isAgentZero ? <Badge color="accent">lead intake</Badge> : null}
               <Badge color="muted">{result ? "responded" : "idle"}</Badge>
             </div>
           </div>
@@ -54,6 +56,14 @@ export default function AgentDetail() {
           </div>
         </Card>
       </section>
+
+      {isAgentZero ? (
+        <InlineNotice
+          title="agent-zero posture"
+          message="Utilise cet agent pour cadrer une demande floue, identifier l'objectif reel, proposer un plan court et prioriser la prochaine action avant de basculer vers des agents plus specialises."
+          tone="success"
+        />
+      ) : null}
 
       <Card title="Message Lane">
         <div className="space-y-4">

@@ -35,6 +35,7 @@ def test_skills_have_required_fields():
 def test_expected_skills_present():
     names = {s.name for s in ALL_SKILLS}
     expected = {
+        "agent-zero",
         "summarizer",
         "writer",
         "coder",

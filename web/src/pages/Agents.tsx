@@ -65,6 +65,12 @@ export default function Agents() {
   }
 
   const agents = data?.agents || [];
+  const agentZero = agents.find((agent) => agent.name === "agent-zero");
+  const sortedAgents = [...agents].sort((left, right) => {
+    if (left.name === "agent-zero") return -1;
+    if (right.name === "agent-zero") return 1;
+    return left.name.localeCompare(right.name);
+  });
 
   return (
     <div className="space-y-6">
@@ -130,14 +136,43 @@ export default function Agents() {
         </Card>
       </section>
 
-      {agents.length === 0 ? (
+      {agentZero ? (
+        <Card className="border-accent/30 bg-[linear-gradient(135deg,rgba(255,209,102,0.10),rgba(8,12,10,0.94)_30%,rgba(6,6,6,0.98))]">
+          <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+            <div className="max-w-3xl">
+              <p className="screen-label">lead agent</p>
+              <h3 className="mt-3 text-2xl font-semibold uppercase tracking-[0.14em] text-accent glow-text">
+                agent-zero
+              </h3>
+              <p className="mt-3 text-sm leading-7 text-amber-100/62">
+                {agentZero.description}
+              </p>
+              <p className="mt-3 text-[12px] leading-6 text-amber-100/46">
+                Utilise-le comme point d&apos;entree quand la demande est encore floue ou quand il faut cadrer, decomposer et prioriser avant d&apos;ouvrir une lane specialisee.
+              </p>
+            </div>
+
+            <div className="flex flex-wrap gap-3">
+              <Badge color="accent">recommended first pass</Badge>
+              <Link
+                to="/agents/agent-zero"
+                className="rounded-2xl border border-accent/40 bg-accent/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-accent transition hover:bg-accent/15"
+              >
+                open agent-zero
+              </Link>
+            </div>
+          </div>
+        </Card>
+      ) : null}
+
+      {sortedAgents.length === 0 ? (
         <EmptyState
           message="No agents registered yet."
           action={<Button onClick={() => setShowCreate(true)}>create one</Button>}
         />
       ) : (
         <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          {agents.map((a) => (
+          {sortedAgents.map((a) => (
             <Link key={a.name} to={`/agents/${a.name}`}>
               <Card className="h-full cursor-pointer transition-colors hover:border-accent/35">
                 <div className="space-y-4">
@@ -148,11 +183,18 @@ export default function Agents() {
                         {a.name}
                       </h3>
                     </div>
-                    <Badge color="accent">ready</Badge>
+                    <Badge color={a.name === "agent-zero" ? "accent" : "accent"}>
+                      {a.name === "agent-zero" ? "lead" : "ready"}
+                    </Badge>
                   </div>
                   <p className="text-sm leading-7 text-amber-100/56">
                     {a.description || "No description provided for this registry entry."}
                   </p>
+                  {a.name === "agent-zero" ? (
+                    <p className="text-[11px] uppercase tracking-[0.18em] text-accent">
+                      primary intake lane
+                    </p>
+                  ) : null}
                   <p className="text-[11px] uppercase tracking-[0.18em] text-amber-100/34">
                     open detail
                   </p>
