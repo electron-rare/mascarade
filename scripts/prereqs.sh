@@ -351,10 +351,31 @@ check_prerequisites() {
             dbg "  docker compose version FAILED"
             missing_docker=true
         fi
-        # Verifier les permissions Docker
+        # Verifier l'acces au daemon Docker et distinguer droits vs daemon arrete.
         if docker info &>/dev/null; then
-            dbg "  docker info OK (permissions OK)"
+            dbg "  docker info OK (daemon joignable)"
         else
+            local dinfo_err=""
+            dinfo_err=$(docker info 2>&1 || true)
+            if echo "$dinfo_err" | grep -qi "Cannot connect to the Docker daemon"; then
+                dbg "  docker info FAILED (daemon indisponible)"
+                warn "Docker est installe, mais le daemon n'est pas demarre"
+                info "Demarre Docker puis relance setup (ex: sudo systemctl start docker)"
+            else
+                dbg "  docker info FAILED (permission denied)"
+                warn "Pas de permission Docker pour l'utilisateur $USER"
+                if confirm "Ajouter $USER au groupe docker ? (necessite sudo)"; then
+                    local sudo_cmd=""
+                    sudo_cmd=$(ensure_sudo) || true
+                    if [[ -n "$sudo_cmd" || $EUID -eq 0 ]]; then
+                        dbg "  usermod -aG docker $USER..."
+                        $sudo_cmd usermod -aG docker "$USER" 2>/dev/null || true
+                        ok "$USER ajoute au groupe docker"
+                        warn "Il faudra te re-loguer (ou 'newgrp docker') pour que ca prenne effet"
+                        info "En attendant, les commandes docker utiliseront sudo"
+                        _DOCKER_NEEDS_SUDO=true
+                        dbg "  _DOCKER_NEEDS_SUDO=true"
+                    fi
             dbg "  docker info FAILED (permission denied)"
             if is_macos; then
                 warn "Docker ne repond pas. Verifie que Docker Desktop ou OrbStack est lance."

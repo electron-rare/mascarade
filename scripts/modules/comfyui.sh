@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 # scripts/modules/comfyui.sh — Module ComfyUI
 
+_module_comfyui_gpu_enabled() {
+  docker_can_use_nvidia_gpu
+}
+
 module_comfyui_config() {
   menu_select "Mode ComfyUI" \
     "Serveur distant" \
@@ -16,9 +20,12 @@ module_comfyui_config() {
       COMFYUI_URL="http://comfyui:8188"
       COMFYUI_LOCAL=true
       # Detection GPU
-      if command -v nvidia-smi &>/dev/null && nvidia-smi &>/dev/null; then
-        ok "GPU NVIDIA detecte"
+      if _module_comfyui_gpu_enabled; then
+        ok "GPU NVIDIA detecte et runtime Docker disponible"
         COMFYUI_GPU=true
+      elif host_has_nvidia_gpu; then
+        warn "GPU NVIDIA detecte mais runtime Docker NVIDIA absent — ComfyUI tournera en CPU"
+        COMFYUI_GPU=false
       else
         warn "Pas de GPU NVIDIA detecte — ComfyUI tournera en CPU"
         COMFYUI_GPU=false
@@ -32,14 +39,18 @@ module_comfyui_config() {
 }
 
 module_comfyui_compose() {
+  local comfyui_gpu=false
   [[ "${COMFYUI_LOCAL:-}" != "true" ]] && return
+  if _module_comfyui_gpu_enabled; then
+    comfyui_gpu=true
+  fi
   echo "  comfyui:"
   echo "    image: \${COMFYUI_IMAGE:-comfyanonymous/comfyui:latest}"
   echo "    container_name: mascarade-comfyui"
   echo "    restart: unless-stopped"
   echo "    ports:"
   echo "      - \"\${PUBLISH_BIND_HOST:-0.0.0.0}:8188:8188\""
-  if [[ "${COMFYUI_GPU:-false}" == "true" ]]; then
+  if [[ "$comfyui_gpu" == "true" ]]; then
     echo "    deploy:"
     echo "      resources:"
     echo "        reservations:"
