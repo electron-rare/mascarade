@@ -303,3 +303,152 @@ print(tokenizer.decode(model.generate(**tokenizer('STM32 GPIO', return_tensors='
 
 *Dernière mise à jour : 2026-03-06*
 *Mainteneur : Mistral Vibe 🤖*
+
+## 🎯 Résumé du Pipeline IoT (2026-03-06)
+
+### 📊 Résultats Obtenus
+
+| Étape | Statut | Sortie | Taille | Temps |
+|-------|--------|--------|-------|-------|
+| **Train** | ✅ | Adapter LoRA | 17MB | 37s |
+| **Merge** | ✅ | Modèle fusionné FP16 | 3.2GB | 2min |
+| **GGUF FP16** | ✅ | `mascarade-iot-f16.gguf` | 3.3GB | 5min |
+| **Déploiement Ollama** | ✅ | `mascarade-iot:latest` | 3.4GB | 10min |
+| **Quantification Q4_K_M** | ⚠️ | (Non complétée) | ~1.6GB | - |
+
+### 🔧 Configuration Utilisée
+
+```bash
+# Commande de fine-tuning
+python finetune/pipeline.py iot \
+  --base Qwen/Qwen3-1.7B \
+  --step train \
+  --epochs 1 \
+  --max-samples 16 \
+  --seq-len 256
+
+# Modèle de base: Qwen3-1.7B (1.7B paramètres)
+# VRAM utilisée: 1.8GB (parfait pour Quadro P2000)
+# Loss finale: 3.5162
+```
+
+### 📦 Fichiers Générés
+
+```
+finetune/models_local/iot/
+├── adapter/              # Adapter LoRA (17MB)
+│   ├── adapter_config.json
+│   ├── adapter_model.safetensors
+│   └── config.json
+├── merged/               # Modèle fusionné (3.2GB)
+│   ├── config.json
+│   ├── configuration.json
+│   └── model-00001-of-00002.safetensors
+├── mascarade-iot-f16.gguf # GGUF FP16 (3.3GB)
+├── mascarade-iot-q4_k_m.gguf # (À générer - 1.6GB estimé)
+├── training_info.json    # Métadonnées d'entraînement
+└── Modelfile             # Configuration Ollama
+```
+
+### 🚀 Intégration dans Mascarade
+
+#### Configuration API
+```json
+{
+  "provider": "ollama",
+  "model": "mascarade-iot",
+  "options": {
+    "temperature": 0.3,
+    "top_p": 0.9,
+    "num_ctx": 2048
+  }
+}
+```
+
+#### Exemple de Requête
+```bash
+curl http://localhost:8100/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $MASCARADE_API_KEY" \
+  -d '{
+    "model": "mascarade-iot",
+    "messages": [
+      {"role": "user", "content": "Write ESP32 MQTT code"}
+    ]
+  }'
+```
+
+### ⚠️ Limitations et Solutions
+
+#### 1. Taille du Modèle (3.4GB FP16)
+**Problème** : Trop lourd pour exécution fluide sur ressources limitées.
+**Solutions** :
+- [ ] Quantifier en Q4_K_M (réduirait à ~1.6GB)
+- [ ] Utiliser un modèle plus petit (Qwen3-0.8B) pour le prochain run
+- [ ] Augmenter les ressources du conteneur Ollama
+
+#### 2. Quantification Q4_K_M Non Complétée
+**Raison** : Binaire `llama-quantize` non disponible localement.
+**Solution** :
+```bash
+# Télécharger depuis les releases officielles
+wget https://github.com/ggerganov/llama.cpp/releases/download/v0.2.7/llama-quantize
+chmod +x llama-quantize
+./llama-quantize mascarade-iot-f16.gguf mascarade-iot-q4_k_m.gguf Q4_K_M
+```
+
+#### 3. Performance d'Inférence
+**Observé** : Timeout sur les requêtes longues (>30s).
+**Optimisations** :
+- Activer le streaming (`stream: true`)
+- Réduire `num_ctx` à 1024 si nécessaire
+- Utiliser la quantification Q4_K_M
+
+### ✅ Bonnes Pratiques pour Prochains Runs
+
+1. **Pour Quadro P2000 (5GB VRAM)** :
+   ```bash
+   # Modèle idéal: Qwen3-1.7B ou TinyLlama-1.1B
+   python finetune/pipeline.py stm32 --base Qwen/Qwen3-1.7B --max-samples 64
+   ```
+
+2. **Paramètres Recommandés** :
+   - `--seq-len 256` (équilibre vitesse/qualité)
+   - `--epochs 3` (suffisant pour spécialisation)
+   - `--max-samples 512` (bon compromis)
+
+3. **Gestion Mémoire** :
+   ```bash
+   export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+   export NVIDIA_TF32_OVERRIDE=1
+   ```
+
+### 📊 Benchmarks Observés
+
+| Métrique | Valeur |
+|----------|--------|
+| VRAM Training | 1.8GB |
+| Temps/époque | 37s |
+| Loss finale | 3.5162 |
+| Taille GGUF FP16 | 3.3GB |
+| Taille Ollama | 3.4GB |
+| Temps inférence | ~30s (premier token) |
+
+### 🎓 Leçons Apprises
+
+1. **Qwen3-1.7B** est parfait pour 5GB VRAM (vs 7B qui ne rentre pas)
+2. **GGUF FP16** est déjà utilisable, mais Q4_K_M serait idéal
+3. **Ollama** déploie facilement les modèles GGUF custom
+4. **Fine-tuning** avec 16 échantillons suffit pour un test fonctionnel
+
+### 🔗 Références Utiles
+
+- [Qwen3-1.7B sur HuggingFace](https://huggingface.co/Qwen/Qwen3-1.7B)
+- [Documentation Ollama GGUF](https://github.com/ollama/ollama/blob/main/docs/modelfile.md)
+- [Guide QLoRA](https://huggingface.co/docs/peft/conceptual_guides/lora)
+
+---
+
+*Dernière mise à jour : 2026-03-06*
+*Modèle déployé : mascarade-iot:latest*
+*Prochaine étape : Quantification Q4_K_M et test STM32*

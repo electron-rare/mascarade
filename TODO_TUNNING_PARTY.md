@@ -1,129 +1,49 @@
-# TODO List - Fine-Tuning Party 🎉
+# TODO - Fine-Tuning Local
 
-## 🎯 Objectifs Principaux
-- Fine-tuner des modèles pour domaines spécialisés (KiCad/EDA, STM32/FPGA)
-- Optimiser pour fonctionnement sur GPU avec 5 Go VRAM
-- Créer des modèles utilisables localement
+Etat de reference au 6 mars 2026.
 
-## 📋 Tâches Préparatoires
+## 1. Ce qui est deja en place
 
-### Environnement
-- [ ] Installer PyTorch avec support CUDA 13.0
-- [ ] Installer transformers, datasets, peft, accelerate
-- [ ] Configurer environnement virtuel Python
-- [ ] Vérifier accès GPU et mémoire disponible
-- [ ] Installer outils de monitoring (nvidia-smi, htop)
+- [x] Pipeline local `distill -> merge -> train`
+- [x] Distillation teacher via Mascarade local (`127.0.0.1:3100` / `127.0.0.1:8100`)
+- [x] Support CPU et GPU local
+- [x] Smoke tests reels distillation valides sur `esp32`, `spice`, `pio`
+- [x] Queue GPU et garde-fous VRAM dans `finetune/batch_local.py`
+- [x] Scripts shell de lancement et de debug
 
-### Données
-- [ ] Collecter datasets KiCad/PCB (schémas, PCB, documentation)
-- [ ] Collecter datasets STM32 (code HAL/LL, exemples)
-- [ ] Collecter datasets FPGA (VHDL/Verilog, testbenches)
-- [ ] Nettoyer et formater les données (instructions/réponses)
-- [ ] Créer splits train/validation/test (80/10/10)
+## 2. Ce qui est obsolete dans l'ancien TODO
 
-### Modèles de Base
-- [ ] Télécharger Qwen3.5-7B (pour KiCad/EDA)
-- [ ] Télécharger DeepSeek-R1-7B (pour STM32/FPGA)
-- [ ] Préparer versions quantifiées (GGUF) pour inférence
-- [ ] Tester modèles de base sur tâches cibles
+- [x] "Installer l'environnement Python" n'est plus un sujet principal
+- [x] "Collecter les datasets initiaux" n'est plus le prochain blocage
+- [x] "Creer scripts de fine-tuning avec LoRA" est deja fait
+- [x] "Verifier acces GPU" est deja fait
 
-## 🔧 Tâches de Fine-Tuning
+## 3. Backlog reel
 
-### Configuration
-- [ ] Créer scripts de fine-tuning avec LoRA
-- [ ] Configurer hyperparamètres (learning rate, batch size)
-- [ ] Implémenter gradient accumulation pour VRAM limitée
-- [ ] Configurer mixed precision (FP16/BF16)
-- [ ] Implémenter gradient checkpointing
+### Priorite immediate
+- [ ] Valider un run batch complet jusqu'a `train=completed`
+- [x] Ajouter un resume simple des manifests batch (`finetune/batch_status.py`)
+- [ ] Ecrire la commande standard de reprise `--resume` dans la doc operateur
 
-### Entraînement
-- [ ] Lancer fine-tuning KiCad/EDA modèle
-- [ ] Monitorer métriques (loss, perplexity)
-- [ ] Sauvegarder checkpoints régulièrement
-- [ ] Lancer fine-tuning STM32/FPGA modèle
-- [ ] Optimiser pour éviter OOM errors
+### Priorite suivante
+- [ ] Comparer `max_parallel_gpu_trains=1` vs `2` sur Quadro P2000
+- [ ] Mesurer temps total, VRAM libre et stabilite
+- [ ] Decider si `2` slots GPU restent supportes ou seulement experimentaux
 
-### Évaluation
-- [ ] Créer benchmarks spécifiques domaine
-- [ ] Évaluer modèles sur tâches KiCad
-- [ ] Évaluer modèles sur tâches STM32/FPGA
-- [ ] Comparer avec modèles de base
-- [ ] Documenter améliorations
+### Stabilisation dataset
+- [ ] Ajouter un garde-fou de prevalidation source avant lancement batch
+- [ ] Rendre explicite dans les logs quand la normalisation corrige les IDs manquants
+- [ ] Ajouter un rapport court sur `source_rows`, `distilled_rows`, `merged_rows`
 
-## 📦 Post-Traitement
+### Apres stabilisation
+- [ ] Export GGUF des meilleurs runs
+- [ ] Integrer les modeles valides dans Mascarade
+- [ ] Evaluer `Agent Zero` hors du pipeline critique
 
-### Optimisation
-- [ ] Convertir modèles en GGUF
-- [ ] Tester différentes quantifications
-- [ ] Optimiser pour inférence locale
-- [ ] Créer scripts d'inférence
+## 4. Ordre recommande
 
-### Documentation
-- [ ] Documenter processus de fine-tuning
-- [ ] Créer exemples d'utilisation
-- [ ] Rédiger README pour chaque modèle
-- [ ] Documenter limitations et cas d'usage
-
-### Déploiement
-- [ ] Intégrer modèles dans Mascarade
-- [ ] Créer endpoints API spécifiques
-- [ ] Tester intégration avec outils existants
-- [ ] Documenter API et utilisation
-
-## 🎓 Ressources Nécessaires
-
-### Données
-- Datasets KiCad officiels
-- Exemples STM32Cube
-- Projets FPGA open-source
-- Documentation technique
-
-### Outils
-- HuggingFace Transformers
-- PEFT pour LoRA
-- Accelerate pour entraînement distribué
-- GGUF tools pour conversion
-
-### Matériel
-- GPU Quadro P2000 (5 Go VRAM)
-- 32 Go RAM système
-- 265 Go espace disque disponible
-
-## 📅 Planning Estimé
-
-| Phase | Durée | Dépendances |
-|-------|-------|-------------|
-| Préparation | 2-3 jours | Accès données |
-| Fine-tuning | 3-5 jours/modèle | Données prêtes |
-| Évaluation | 1-2 jours/modèle | Modèles entraînés |
-| Optimisation | 2-3 jours | Modèles évalués |
-| Intégration | 2-3 jours | Modèles optimisés |
-
-## 🚀 Prochaines Étapes Immédiates
-
-1. **Priorité Haute** :
-   - Préparer environnement Python
-   - Collecter datasets initiaux
-   - Télécharger modèles de base
-
-2. **Priorité Moyenne** :
-   - Créer scripts de prétraitement données
-   - Configurer infrastructure monitoring
-   - Préparer benchmarks d'évaluation
-
-3. **Priorité Basse** :
-   - Documenter processus
-   - Préparer intégration API
-   - Rechercher datasets supplémentaires
-
-## 📝 Notes
-
-- Adapter batch size en fonction VRAM disponible
-- Utiliser gradient accumulation si nécessaire
-- Monitorer température GPU pendant entraînement
-- Sauvegarder régulièrement pour éviter perte de progression
-- Tester différents ranks LoRA pour trouver bon compromis qualité/mémoire
-
----
-*Dernière mise à jour : 04/03/2026*
-*Responsable : Mistral Vibe* 🤖
+1. Finir un batch `esp32 spice pio` avec training reel.
+2. Ajouter un resume d'etat batch.
+3. Mesurer `gpu_slots=1` puis `gpu_slots=2`.
+4. Geler un runbook operateur.
+5. Revenir sur les sujets exploratoires.
