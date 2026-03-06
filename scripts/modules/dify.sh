@@ -25,7 +25,7 @@ module_dify_compose() {
   echo "    container_name: mascarade-dify-api"
   echo "    restart: unless-stopped"
   echo "    ports:"
-  echo "      - \"127.0.0.1:\${DIFY_API_PORT}:5001\""
+  echo "      - \"\${PUBLISH_BIND_HOST:-0.0.0.0}:\${DIFY_API_PORT}:5001\""
   echo "    environment:"
   echo -e "$dify_env"
   if svc_selected "postgres" || svc_selected "redis"; then
@@ -48,7 +48,7 @@ module_dify_compose() {
   echo "    container_name: mascarade-dify-web"
   echo "    restart: unless-stopped"
   echo "    ports:"
-  echo "      - \"127.0.0.1:\${DIFY_WEB_PORT}:3000\""
+  echo "      - \"\${PUBLISH_BIND_HOST:-0.0.0.0}:\${DIFY_WEB_PORT}:3000\""
   echo "    environment:"
   echo -e "$dify_env"
   if svc_selected "postgres" || svc_selected "redis"; then

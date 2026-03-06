@@ -14,7 +14,7 @@ module_postgres_compose() {
   echo "    container_name: mascarade-postgres"
   echo "    restart: unless-stopped"
   echo "    ports:"
-  echo "      - \"127.0.0.1:\${POSTGRES_PORT}:5432\""
+  echo "      - \"\${PUBLISH_BIND_HOST:-0.0.0.0}:\${POSTGRES_PORT}:5432\""
   echo "    environment:"
   echo "      POSTGRES_USER: \${POSTGRES_USER}"
   echo "      POSTGRES_PASSWORD: \${POSTGRES_PASSWORD}"

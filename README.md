@@ -56,6 +56,9 @@ Systeme d'orchestration agentique personnel. Route intelligemment les requetes L
 - **Node.js 22+** (dev local API)
 - Au moins une cle API LLM (Anthropic, OpenAI, Mistral, AWS Bedrock ou Google)
 
+Le setup installe aussi un `htop` repo-local epingle en `3.4.0` sous `tools/.local/` et l'expose via `./tools/htop`.
+Pourquoi: Ubuntu 24.04 livre `htop 3.3.0`, qui n'inclut pas le meter `GPU usage`. La `3.4.0` ajoute ce meter, utile pour suivre les services GPU du repo sans ecraser le `htop` systeme.
+
 ---
 
 ## Installation
@@ -131,6 +134,14 @@ Validation cloud rapide:
 ./setup
 ```
 
+Une fois le setup passe, tu peux lancer le `htop` fourni par le repo avec:
+
+```bash
+./tools/htop
+```
+
+Si tu veux desactiver ce telechargement repo-local pendant `./setup`, exporte `MASCARADE_SKIP_REPO_HTOP=true`.
+
 Ou en mode non-interactif:
 
 ```bash
@@ -150,7 +161,11 @@ Par defaut, `setup` verifie seulement `GET /health`. Le vrai smoke test `POST /g
 Deux containers demarrent :
 - `core` sur `:8100`
 - `api` sur `:3100`
-- `ops-console` sur `:80` (si selectionne)
+- tous les ports publies utilisent `PUBLISH_BIND_HOST=0.0.0.0` par defaut
+- `ops-console` sur `:80` (si selectionne), avec override possible via `OPS_CONSOLE_BIND_HOST`
+
+Si tu veux tout rebloquer en local, remets `PUBLISH_BIND_HOST=127.0.0.1` dans `.env`.
+Si tu veux seulement `ops-console` en local, garde `PUBLISH_BIND_HOST=0.0.0.0` et mets `OPS_CONSOLE_BIND_HOST=127.0.0.1`.
 
 Les agents dynamiques sont persistes dans un volume Docker (`core-data:/app/data`).
 

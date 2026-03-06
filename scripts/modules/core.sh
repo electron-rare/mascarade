@@ -16,7 +16,7 @@ module_core_compose() {
   echo "    container_name: mascarade-core"
   echo "    restart: unless-stopped"
   echo "    ports:"
-  echo "      - \"127.0.0.1:\${CORE_PORT}:8100\""
+  echo "      - \"\${PUBLISH_BIND_HOST:-0.0.0.0}:\${CORE_PORT}:8100\""
   echo "    env_file:"
   echo "      - .env"
   echo "    environment:"

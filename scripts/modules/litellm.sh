@@ -11,7 +11,7 @@ module_litellm_compose() {
   echo "    container_name: mascarade-litellm"
   echo "    restart: unless-stopped"
   echo "    ports:"
-  echo "      - \"127.0.0.1:\${LITELLM_PORT}:4000\""
+  echo "      - \"\${PUBLISH_BIND_HOST:-0.0.0.0}:\${LITELLM_PORT}:4000\""
   echo "    env_file:"
   echo "      - .env"
   echo "    environment:"
@@ -28,6 +28,12 @@ module_litellm_compose() {
     echo "      redis:"
     echo "        condition: service_healthy"
   fi
+  echo "    healthcheck:"
+  echo "      test: [\"CMD-SHELL\", \"python -c 'import urllib.request; urllib.request.urlopen(\\\"http://127.0.0.1:4000/health/liveliness\\\", timeout=3)' >/dev/null\"]"
+  echo "      interval: 15s"
+  echo "      timeout: 5s"
+  echo "      retries: 10"
+  echo "      start_period: 20s"
   echo "    networks:"
   echo "      - mascarade-network"
 }

@@ -4,7 +4,7 @@ services:
     container_name: ops-console-v3
     restart: unless-stopped
     ports:
-      - "127.0.0.1:${OPS_CONSOLE_PORT:-80}:80"
+      - "${OPS_CONSOLE_BIND_HOST:-${PUBLISH_BIND_HOST:-0.0.0.0}}:${OPS_CONSOLE_PORT:-80}:80"
     volumes:
       - ./index.html:/usr/share/nginx/html/index.html:ro
     healthcheck:

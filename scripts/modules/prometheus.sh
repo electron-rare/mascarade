@@ -11,7 +11,7 @@ module_prometheus_compose() {
   echo "    container_name: mascarade-prometheus"
   echo "    restart: unless-stopped"
   echo "    ports:"
-  echo "      - \"127.0.0.1:\${PROMETHEUS_PORT}:9090\""
+  echo "      - \"\${PUBLISH_BIND_HOST:-0.0.0.0}:\${PROMETHEUS_PORT}:9090\""
   echo "    volumes:"
   echo "      - prometheus-data:/prometheus"
   echo "    healthcheck:"

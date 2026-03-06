@@ -38,7 +38,7 @@ module_comfyui_compose() {
   echo "    container_name: mascarade-comfyui"
   echo "    restart: unless-stopped"
   echo "    ports:"
-  echo "      - \"127.0.0.1:8188:8188\""
+  echo "      - \"\${PUBLISH_BIND_HOST:-0.0.0.0}:8188:8188\""
   if [[ "${COMFYUI_GPU:-false}" == "true" ]]; then
     echo "    deploy:"
     echo "      resources:"

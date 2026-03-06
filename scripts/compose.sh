@@ -108,6 +108,9 @@ write_env_file() {
         echo "TTS_PIPER_IMAGE=\"${TTS_PIPER_IMAGE:-rhasspy/wyoming-piper:latest}\""
         echo "TTS_KOKORO_IMAGE=\"${TTS_KOKORO_IMAGE:-ghcr.io/marjocchi/wyoming-kokoro:latest}\""
         echo ""
+        echo "# ── Publication reseau ──"
+        echo "PUBLISH_BIND_HOST=\"${PUBLISH_BIND_HOST:-0.0.0.0}\""
+        echo ""
 
         # Core
         if svc_selected "core"; then
@@ -151,6 +154,14 @@ write_env_file() {
         if svc_selected "redis"; then
             echo "# ── Redis ──"
             echo "REDIS_PORT=\"${REDIS_PORT:-6379}\""
+            echo ""
+        fi
+
+        # ClickHouse
+        if svc_selected "clickhouse"; then
+            echo "# ── ClickHouse ──"
+            echo "CLICKHOUSE_HTTP_PORT=\"${CLICKHOUSE_HTTP_PORT:-8123}\""
+            echo "CLICKHOUSE_NATIVE_PORT=\"${CLICKHOUSE_NATIVE_PORT:-9000}\""
             echo ""
         fi
 
@@ -254,6 +265,7 @@ write_env_file() {
         if svc_selected "qdrant"; then
             echo "# ── Qdrant ──"
             echo "QDRANT_PORT=\"${QDRANT_PORT:-6333}\""
+            echo "QDRANT_GRPC_PORT=\"${QDRANT_GRPC_PORT:-6334}\""
             echo ""
         fi
 
@@ -267,6 +279,7 @@ write_env_file() {
         # Ops Console
         if svc_selected "ops-console"; then
             echo "# ── Ops Console ──"
+            echo "OPS_CONSOLE_BIND_HOST=\"${OPS_CONSOLE_BIND_HOST:-${PUBLISH_BIND_HOST:-0.0.0.0}}\""
             echo "OPS_CONSOLE_PORT=\"${OPS_CONSOLE_PORT:-80}\""
             echo ""
         fi

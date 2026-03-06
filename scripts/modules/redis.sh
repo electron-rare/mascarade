@@ -11,7 +11,7 @@ module_redis_compose() {
   echo "    container_name: mascarade-redis"
   echo "    restart: unless-stopped"
   echo "    ports:"
-  echo "      - \"127.0.0.1:\${REDIS_PORT}:6379\""
+  echo "      - \"\${PUBLISH_BIND_HOST:-0.0.0.0}:\${REDIS_PORT}:6379\""
   echo "    volumes:"
   echo "      - redis-data:/data"
   echo "    healthcheck:"

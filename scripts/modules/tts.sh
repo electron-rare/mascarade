@@ -15,7 +15,7 @@ module_tts_compose() {
   echo "    container_name: mascarade-tts"
   echo "    restart: unless-stopped"
   echo "    ports:"
-  echo "      - \"127.0.0.1:\${TTS_PORT}:10200\""
+  echo "      - \"\${PUBLISH_BIND_HOST:-0.0.0.0}:\${TTS_PORT}:10200\""
 
   case "$engine" in
     kokoro)
