@@ -1,0 +1,19 @@
+FROM ./model.gguf
+
+TEMPLATE """{{ if .System }}<|im_start|>system
+{{ .System }}<|im_end|>
+{{ end }}{{ if .Prompt }}<|im_start|>user
+{{ .Prompt }}<|im_end|>
+{{ end }}<|im_start|>assistant
+{{ .Response }}<|im_end|>
+"""
+
+SYSTEM """You are an expert power electronics engineer specializing in DC-DC converters (buck, boost, buck-boost, flyback), motor control (FOC, DTC, BLDC/PMSM), inverter design, gate driver circuits, battery management, and power factor correction. You provide complete calculations, component selection, SPICE simulations, and firmware for digital power control on STM32/DSP."""
+
+PARAMETER temperature 0.3
+PARAMETER top_p 0.9
+PARAMETER top_k 40
+PARAMETER num_ctx 4096
+PARAMETER num_predict 2048
+PARAMETER stop "<|im_end|>"
+PARAMETER stop "<|im_start|>"

@@ -1,48 +1,49 @@
-"""Serveur FastAPI — point d'entrée HTTP du core Python."""
+"""Serveur FastAPI — point d'entree HTTP du core Python."""
 
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
 from typing import Literal
 
+import logging
+
 from fastapi import APIRouter, Depends, FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
-from mascarade.auth import require_auth
+logger = logging.getLogger("mascarade.server")
 
-from mascarade.config import settings
-from mascarade.integrations.notion import NotionClient
-from mascarade.integrations.comfyui import ComfyUIClient
-from mascarade.router import Router
 from mascarade.agents import Agent, AgentRegistry
 from mascarade.agents.skills import register_default_skills
+from mascarade.auth import add_api_key, get_active_api_keys, remove_api_key, require_auth
+from mascarade.config import settings
+from mascarade.integrations.comfyui import ComfyUIClient
+from mascarade.integrations.notion import NotionClient
 from mascarade.orchestrator import Orchestrator
 from mascarade.orchestrator.engine import ExecutionMode
+from mascarade.router import Router
 from mascarade.router.router import Strategy
-
-
-router = Router()
-registry = AgentRegistry()
-register_default_skills(registry)
-orchestrator = Orchestrator(router=router, registry=registry)
-notion: NotionClient | None = None
-comfyui: ComfyUIClient | None = None
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global notion, comfyui
-    if settings.notion_api_key:
-        notion = NotionClient()
-    if settings.comfyui_url:
-        comfyui = ComfyUIClient()
-    registry.load()
+    router = Router()
+    registry = AgentRegistry()
+    register_default_skills(registry)
+    orchestrator = Orchestrator(router=router, registry=registry)
+
     app.state.router = router
     app.state.registry = registry
     app.state.orchestrator = orchestrator
-    app.state.notion = notion
-    app.state.comfyui = comfyui
+    app.state.notion = NotionClient() if settings.notion_api_key else None
+    app.state.comfyui = ComfyUIClient() if settings.comfyui_url else None
+
+    registry.load()
     yield
+
+    if app.state.notion is not None:
+        await app.state.notion.close()
+    if app.state.comfyui is not None:
+        await app.state.comfyui.close()
 
 
 app = FastAPI(title="Mascarade Core", version="0.1.0", lifespan=lifespan)
@@ -52,55 +53,55 @@ app = FastAPI(title="Mascarade Core", version="0.1.0", lifespan=lifespan)
 
 class Message(BaseModel):
     role: Literal["system", "user", "assistant", "tool"]
-    content: str = Field(min_length=1)
+    content: str = Field(min_length=1, max_length=100_000)
 
 
 class SendRequest(BaseModel):
-    messages: list[Message]
+    messages: list[Message] = Field(max_length=200)
     strategy: Strategy = Strategy.BEST
-    provider: str | None = None
-    model: str | None = None
-    system: str | None = None
+    provider: str | None = Field(default=None, max_length=50)
+    model: str | None = Field(default=None, max_length=100)
+    system: str | None = Field(default=None, max_length=10_000)
     temperature: float = Field(default=0.7, ge=0.0, le=2.0)
     max_tokens: int = Field(default=4096, gt=0, le=128000)
 
 
 class AgentCreate(BaseModel):
-    name: str
-    description: str
-    system_prompt: str
-    preferred_provider: str | None = None
-    preferred_model: str | None = None
+    name: str = Field(min_length=1, max_length=100)
+    description: str = Field(max_length=1000)
+    system_prompt: str = Field(max_length=50_000)
+    preferred_provider: str | None = Field(default=None, max_length=50)
+    preferred_model: str | None = Field(default=None, max_length=100)
     strategy: Strategy = Strategy.BEST
     temperature: float = Field(default=0.7, ge=0.0, le=2.0)
     max_tokens: int = Field(default=4096, gt=0, le=128000)
 
 
 class TaskRequest(BaseModel):
-    agent_names: list[str]
-    prompt: str
+    agent_names: list[str] = Field(max_length=20)
+    prompt: str = Field(min_length=1, max_length=100_000)
     mode: ExecutionMode = ExecutionMode.SEQUENTIAL
 
 
 class NotionAppendRequest(BaseModel):
-    content: str = Field(min_length=1)
+    content: str = Field(min_length=1, max_length=50_000)
 
 
 class NotionCreateRequest(BaseModel):
-    parent_id: str
-    title: str
-    content: str = ""
+    parent_id: str = Field(max_length=200)
+    title: str = Field(max_length=500)
+    content: str = Field(default="", max_length=50_000)
 
 
 class NotionScribeRequest(BaseModel):
-    messages: list[Message]
-    push_to: str | None = None
+    messages: list[Message] = Field(max_length=200)
+    push_to: str | None = Field(default=None, max_length=200)
 
 
 class ComfyUIGenerateRequest(BaseModel):
-    prompt: str = Field(min_length=1)
-    negative_prompt: str = ""
-    checkpoint: str | None = None
+    prompt: str = Field(min_length=1, max_length=10_000)
+    negative_prompt: str = Field(default="", max_length=10_000)
+    checkpoint: str | None = Field(default=None, max_length=200)
     width: int = Field(default=512, ge=64, le=2048)
     height: int = Field(default=512, ge=64, le=2048)
     steps: int = Field(default=20, ge=1, le=150)
@@ -112,85 +113,62 @@ class ComfyUIWorkflowRequest(BaseModel):
     workflow: dict
 
 
-# --- Routes publiques ---
+# --- Route publique ---
 
 @app.get("/health")
 async def health():
-    return {
-        "status": "ok",
-        "providers": router.available_providers,
-        "agents": len(registry),
-    }
+    """Health check endpoint - returns basic system status."""
+    health_data = {"status": "ok"}
+
+    # Add optional metrics if state is initialized
+    if hasattr(app.state, 'router'):
+        health_data["providers"] = app.state.router.available_providers
+    if hasattr(app.state, 'registry'):
+        health_data["agents"] = len(app.state.registry)
+
+    return health_data
 
 
-@app.get("/metrics")
-async def get_metrics():
-    """Obtenir les métriques complètes du système."""
-    return router.metrics_summary()
-
-
-@app.get("/metrics/providers/{provider_name}")
-async def get_provider_metrics(provider_name: str):
-    """Obtenir les métriques pour un provider spécifique."""
-    return router.provider_metrics(provider_name)
-
-
-@app.post("/metrics/reset")
-async def reset_metrics():
-    """Réinitialiser toutes les métriques."""
-    router.reset_metrics()
-    return {"status": "ok", "message": "Metrics reset successfully"}
-
-
-@app.get("/cache/stats")
-async def get_cache_stats():
-    """Obtenir les statistiques du cache."""
-    return router.cache.get_stats()
-
-
-@app.post("/cache/clear")
-async def clear_cache():
-    """Effacer le cache."""
-    router.cache.clear()
-    return {"status": "ok", "message": "Cache cleared successfully"}
-
-
-@app.get("/load-balancer/stats")
-async def get_load_balancer_stats():
-    """Obtenir les statistiques du load balancer."""
-    return router.load_balancer.get_load_stats()
-
-
-@app.post("/load-balancer/reset")
-async def reset_load_balancer():
-    """Réinitialiser les statistiques du load balancer."""
-    router.load_balancer.reset_stats()
-    return {"status": "ok", "message": "Load balancer stats reset successfully"}
-
-
-@app.get("/fallback/stats")
-async def get_fallback_stats():
-    """Obtenir les statistiques du mécanisme de fallback."""
-    return router.fallback.get_failure_stats()
-
-
-@app.post("/fallback/reset")
-async def reset_fallback():
-    """Réinitialiser les statistiques du fallback."""
-    router.fallback.reset()
-    return {"status": "ok", "message": "Fallback stats reset successfully"}
-
-
-# --- Routes protégées ---
+# --- Routes protegees ---
 
 protected = APIRouter(dependencies=[Depends(require_auth)])
 
+
+# --- Gestion des cles API ---
+
+class APIKeyCreate(BaseModel):
+    key: str = Field(min_length=8, max_length=256, description="Nouvelle cle API")
+
+
+class APIKeyRemove(BaseModel):
+    key: str = Field(min_length=1, max_length=256, description="Cle API a retirer")
+
+
+@protected.post("/api-keys")
+async def create_api_key(req: APIKeyCreate):
+    add_api_key(req.key)
+    return {"status": "ok", "message": "API key added successfully"}
+
+
+@protected.post("/api-keys/remove")
+async def delete_api_key(req: APIKeyRemove):
+    remove_api_key(req.key)
+    return {"status": "ok", "message": "API key removed successfully"}
+
+
+@protected.get("/api-keys")
+async def list_api_keys():
+    keys = get_active_api_keys()
+    return {"api_keys": [{"key": k[:4] + "***" + k[-4:], "active": True} for k in keys]}
+
+
+# --- LLM ---
 
 @protected.post("/send")
 async def send(req: SendRequest):
     messages = [m.model_dump() for m in req.messages]
     try:
-        response = await router.send(
+        response = await app.state.router.send(
             messages,
             strategy=req.strategy,
             provider=req.provider,
@@ -200,7 +178,8 @@ async def send(req: SendRequest):
             max_tokens=req.max_tokens,
         )
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        logger.warning("Send request rejected: %s", exc)
+        raise HTTPException(status_code=400, detail="Invalid request parameters") from exc
     return {
         "content": response.content,
         "model": response.model,
@@ -211,60 +190,93 @@ async def send(req: SendRequest):
 
 @protected.get("/providers")
 async def list_providers():
-    return {"providers": router.available_providers}
+    return {"providers": app.state.router.available_providers}
 
+
+@protected.get("/providers/bedrock/models")
+async def bedrock_models():
+    """List Bedrock models including fine-tuned custom models."""
+    provider = app.state.router._providers.get("bedrock")
+    if not provider:
+        raise HTTPException(status_code=503, detail="Bedrock provider not configured")
+    return {
+        "default": provider.default_model,
+        "available": provider.available_models(),
+        "custom": provider.custom_models(),
+    }
+
+
+@protected.get("/providers/bedrock/finetune-jobs")
+async def bedrock_finetune_jobs():
+    """Check status of Bedrock fine-tuning jobs."""
+    provider = app.state.router._providers.get("bedrock")
+    if not provider:
+        raise HTTPException(status_code=503, detail="Bedrock provider not configured")
+    jobs = await provider.finetune_jobs()
+    return {"jobs": jobs}
+
+
+# --- Metrics ---
 
 @protected.get("/metrics")
 async def metrics_summary():
-    return router.metrics_summary()
+    return app.state.router.metrics_summary()
 
 
 @protected.get("/metrics/{provider}")
 async def metrics_provider(provider: str):
-    stats = router.provider_metrics(provider)
+    stats = app.state.router.provider_metrics(provider)
     if not stats:
-        raise HTTPException(status_code=404, detail=f"Provider '{provider}' has no metrics yet")
+        raise HTTPException(status_code=404, detail="Provider has no metrics yet")
     return stats
 
 
 @protected.post("/metrics/reset")
 async def metrics_reset():
-    router.reset_metrics()
+    app.state.router.reset_metrics()
     return {"status": "ok"}
 
 
+# --- Cache ---
+
 @protected.get("/cache/stats")
 async def cache_stats():
-    return router.cache.stats()
+    return app.state.router.cache.get_stats()
 
 
 @protected.post("/cache/reset")
 async def cache_reset():
-    router.cache.clear()
+    app.state.router.cache.clear()
     return {"status": "ok"}
 
 
+# --- Load Balancer ---
+
 @protected.get("/load-balancer/stats")
 async def lb_stats():
-    return router.load_balancer.stats()
+    return app.state.router.load_balancer.get_load_stats()
 
 
 @protected.post("/load-balancer/reset")
 async def lb_reset():
-    router.load_balancer.reset()
+    app.state.router.load_balancer.reset_stats()
     return {"status": "ok"}
 
 
+# --- Fallback ---
+
 @protected.get("/fallback/stats")
 async def fallback_stats():
-    return router.fallback.stats()
+    return app.state.router.fallback.get_failure_stats()
 
 
 @protected.post("/fallback/reset")
 async def fallback_reset():
-    router.fallback.reset()
+    app.state.router.fallback.reset()
     return {"status": "ok"}
 
+
+# --- Agents ---
 
 @protected.post("/agents")
 async def create_agent(req: AgentCreate):
@@ -278,8 +290,8 @@ async def create_agent(req: AgentCreate):
         temperature=req.temperature,
         max_tokens=req.max_tokens,
     )
-    registry.register(agent)
-    registry.save()
+    app.state.registry.register(agent)
+    app.state.registry.save()
     return {"name": agent.name, "description": agent.description}
 
 
@@ -288,7 +300,7 @@ async def list_agents():
     return {
         "agents": [
             {"name": a.name, "description": a.description}
-            for a in registry.list()
+            for a in app.state.registry.list()
         ]
     }
 
@@ -299,14 +311,14 @@ async def run_agent(name: str, req: SendRequest):
         raise HTTPException(status_code=400, detail="At least one message is required")
 
     try:
-        agent = registry.get(name)
-    except KeyError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
+        agent = app.state.registry.get(name)
+    except KeyError:
+        raise HTTPException(status_code=404, detail=f"Agent '{name}' not found")
 
     messages = [m.model_dump() for m in req.messages]
     prompt = messages[-1]["content"]
     context = messages[:-1] if len(messages) > 1 else None
-    response = await agent.run(prompt, router=router, context=context)
+    response = await agent.run(prompt, router=app.state.router, context=context)
     return {
         "content": response.content,
         "model": response.model,
@@ -315,16 +327,18 @@ async def run_agent(name: str, req: SendRequest):
     }
 
 
+# --- Orchestration ---
+
 @protected.post("/orchestrate")
 async def orchestrate(req: TaskRequest):
     try:
-        results = await orchestrator.run(
+        results = await app.state.orchestrator.run(
             req.agent_names,
             req.prompt,
             mode=req.mode,
         )
     except KeyError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
+        raise HTTPException(status_code=404, detail=f"Agent not found: {exc}") from exc
     return {
         "results": [
             {
@@ -333,25 +347,27 @@ async def orchestrate(req: TaskRequest):
                 "content": r.response.content,
                 "model": r.response.model,
                 "provider": r.response.provider,
+                **({"error": r.error} if r.error else {}),
             }
             for r in results
         ]
     }
 
 
-# --- Routes Notion (protégées) ---
-
+# --- Notion ---
 
 def _require_notion() -> NotionClient:
-    if notion is None:
+    if app.state.notion is None:
         raise HTTPException(
-            status_code=503, detail="Notion non configuré (NOTION_API_KEY manquant)"
+            status_code=503, detail="Notion non configure (NOTION_API_KEY manquant)"
         )
-    return notion
+    return app.state.notion
 
 
 @protected.get("/notion/search")
 async def notion_search(q: str):
+    if len(q) > 1000:
+        raise HTTPException(status_code=400, detail="Search query too long (max 1000 chars)")
     client = _require_notion()
     results = await client.search(q)
     return {"results": results}
@@ -380,16 +396,15 @@ async def notion_create_page(req: NotionCreateRequest):
 
 @protected.post("/agents/notion-scribe/run-and-push")
 async def run_notion_scribe_and_push(req: NotionScribeRequest):
-    """Exécuter notion-scribe puis pousser le résultat dans Notion."""
     try:
-        agent = registry.get("notion-scribe")
-    except KeyError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
+        agent = app.state.registry.get("notion-scribe")
+    except KeyError:
+        raise HTTPException(status_code=404, detail="Agent 'notion-scribe' not found")
 
     messages = [m.model_dump() for m in req.messages]
     prompt = messages[-1]["content"]
     context = messages[:-1] if len(messages) > 1 else None
-    response = await agent.run(prompt, router=router, context=context)
+    response = await agent.run(prompt, router=app.state.router, context=context)
 
     result = {
         "content": response.content,
@@ -408,15 +423,14 @@ async def run_notion_scribe_and_push(req: NotionScribeRequest):
     return result
 
 
-# --- Routes ComfyUI (protegees) ---
-
+# --- ComfyUI ---
 
 def _require_comfyui() -> ComfyUIClient:
-    if comfyui is None:
+    if app.state.comfyui is None:
         raise HTTPException(
             status_code=503, detail="ComfyUI non configure (COMFYUI_URL manquant)"
         )
-    return comfyui
+    return app.state.comfyui
 
 
 @protected.get("/comfyui/status")
@@ -451,6 +465,10 @@ async def comfyui_generate(req: ComfyUIGenerateRequest):
 
 @protected.post("/comfyui/workflow")
 async def comfyui_workflow(req: ComfyUIWorkflowRequest):
+    if not req.workflow or not isinstance(req.workflow, dict):
+        raise HTTPException(status_code=400, detail="Workflow must be a non-empty object")
+    if len(str(req.workflow)) > 500_000:
+        raise HTTPException(status_code=400, detail="Workflow payload too large")
     client = _require_comfyui()
     prompt_id = await client.queue_prompt(req.workflow)
     return {"prompt_id": prompt_id}
@@ -467,7 +485,10 @@ async def comfyui_image(filename: str, subfolder: str = "", type: str = "output"
     from fastapi.responses import Response
 
     client = _require_comfyui()
-    image_data = await client.get_image(filename, subfolder, type)
+    try:
+        image_data = await client.get_image(filename, subfolder, type)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid image path parameters")
     return Response(content=image_data, media_type="image/png")
 
 

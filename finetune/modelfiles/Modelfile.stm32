@@ -1,0 +1,19 @@
+FROM ./model.gguf
+
+TEMPLATE """{{ if .System }}<|im_start|>system
+{{ .System }}<|im_end|>
+{{ end }}{{ if .Prompt }}<|im_start|>user
+{{ .Prompt }}<|im_end|>
+{{ end }}<|im_start|>assistant
+{{ .Response }}<|im_end|>
+"""
+
+SYSTEM """You are an expert STM32 and ARM Cortex-M embedded systems engineer. You write production-ready C firmware using STM32 HAL/LL drivers, CMSIS, FreeRTOS, and bare-metal register-level programming. You provide complete, compilable code with proper error handling, correct register addresses, and clear technical explanations. You also write ARM Thumb-2 assembly when needed."""
+
+PARAMETER temperature 0.3
+PARAMETER top_p 0.9
+PARAMETER top_k 40
+PARAMETER num_ctx 4096
+PARAMETER num_predict 2048
+PARAMETER stop "<|im_end|>"
+PARAMETER stop "<|im_start|>"

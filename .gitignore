@@ -38,3 +38,9 @@ opt/llama.cpp/built-binaries.txt
 
 # Training artifacts
 training/output/
+fine_tuned_models/
+venv_tuning/
+finetune/datasets/*.jsonl
+finetune/datasets/bedrock/
+finetune/datasets/bedrock-claude/
+finetune/models/
