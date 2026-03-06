@@ -68,6 +68,9 @@ async function timedProbe(
 }
 
 const ops = new Hono();
+const OLLAMA_BASE_URL = (process.env.OLLAMA_BASE_URL || "http://ollama:11434").replace(/\/+$/, "");
+const APPLE_LLM_ENABLED = (process.env.APPLE_LLM_ENABLED || "").toLowerCase() === "true";
+const APPLE_LLM_BASE_URL = (process.env.APPLE_LLM_BASE_URL || "").replace(/\/+$/, "");
 
 ops.get("/monitor", async (c) => {
   const probes = await Promise.all([
@@ -77,14 +80,17 @@ ops.get("/monitor", async (c) => {
     timedProbe("n8n", "http://n8n:5678/"),
     timedProbe("langfuse", "http://langfuse-web:3000/"),
     timedProbe("dify-web", "http://dify-web:3000/"),
-    timedProbe("dify-api", "http://dify-api:5001/"),
+    timedProbe("dify-api", "http://dify-api:5001/health"),
   ]);
 
   const [ollama, qdrant, coreMetrics] = await Promise.all([
-    timedJson("http://ollama:11434/api/tags", 2200),
+    timedJson(`${OLLAMA_BASE_URL}/api/tags`, 2200),
     timedJson("http://qdrant:6333/collections", 2200),
     timedJson("http://core:8100/metrics", 2200, getCoreAuthHeaders()),
   ]);
+  const appleLLM = APPLE_LLM_ENABLED && APPLE_LLM_BASE_URL
+    ? await timedJson(`${APPLE_LLM_BASE_URL}/health`, 2200)
+    : null;
 
   const ollamaModels = Array.isArray(ollama.json?.models) ? ollama.json.models.length : 0;
   const qdrantCollections = Array.isArray(qdrant.json?.result?.collections)
@@ -105,6 +111,15 @@ ops.get("/monitor", async (c) => {
         models: ollamaModels,
         error: ollama.error,
       },
+      apple_llm: appleLLM ? {
+        ok: appleLLM.ok,
+        status: appleLLM.status,
+        latency_ms: appleLLM.latencyMs,
+        backend: appleLLM.json?.backend ?? null,
+        model_id: appleLLM.json?.model_id ?? null,
+        runtime_ready: appleLLM.json?.runtime_ready ?? null,
+        error: appleLLM.error ?? appleLLM.json?.runtime_error,
+      } : null,
       qdrant: {
         ok: qdrant.ok,
         status: qdrant.status,

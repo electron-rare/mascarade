@@ -52,6 +52,13 @@ except ImportError:
     pass
 
 try:
+    from mascarade.router.providers.apple_coreml import AppleCoreMLProvider
+
+    __all__.append("AppleCoreMLProvider")
+except ImportError:
+    pass
+
+try:
     from mascarade.router.providers.kicad_router import KiCadRouterProvider
 
     __all__.append("KiCadRouterProvider")

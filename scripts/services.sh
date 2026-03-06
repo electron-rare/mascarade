@@ -47,6 +47,14 @@ dbg "services.sh: ${#SVC_IDS[@]} services definis"
 # ── Helpers ──
 svc_selected() { [[ "${SVC_ON[${1}]:-0}" == "1" ]]; }
 
+svc_dep_satisfied_by_host() {
+    local id="$1" dep="$2"
+    if [[ "$id" == "open-webui" && "$dep" == "ollama" && "${OLLAMA_HOST_MODE:-docker}" == "native" ]]; then
+        return 0
+    fi
+    return 1
+}
+
 sync_service_ports_from_env() {
     local id env_var value
     for id in "${SVC_IDS[@]}"; do
@@ -110,6 +118,10 @@ resolve_dependencies() {
             [[ -z "$deps" ]] && continue
             IFS=',' read -ra dep_list <<< "$deps"
             for dep in "${dep_list[@]}"; do
+                if svc_dep_satisfied_by_host "$id" "$dep"; then
+                    info "${SVC_LABEL[$id]} utilisera ${SVC_LABEL[$dep]} sur l'hote — pas de conteneur ${SVC_LABEL[$dep]} ajoute"
+                    continue
+                fi
                 if [[ "${SVC_ON[$dep]:-0}" != "1" ]]; then
                     SVC_ON[$dep]="1"
                     changed=true

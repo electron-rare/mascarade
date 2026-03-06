@@ -1,39 +1,19 @@
 import { NavLink } from "react-router-dom";
+import { navigationGroups, navigationItems, resolvePage } from "./navigation";
 
 type SidebarProps = {
+  pathname: string;
   open: boolean;
   onClose: () => void;
 };
 
-const groups = [
-  {
-    label: "Core",
-    items: [
-      { to: "/", icon: "⌘", label: "Dashboard", hint: "overview + launch lanes" },
-      { to: "/playground", icon: "▶", label: "Playground", hint: "prompt sandbox" },
-      { to: "/agents", icon: "◎", label: "Agents", hint: "registry + detail" },
-      { to: "/orchestrate", icon: "⚙", label: "Orchestrate", hint: "multi-step control" },
-    ],
-  },
-  {
-    label: "Operations",
-    items: [
-      { to: "/metrics", icon: "▣", label: "Metrics", hint: "health + latency" },
-      { to: "/infra", icon: "⬡", label: "Infrastructure", hint: "raw stack map" },
-    ],
-  },
-  {
-    label: "Integrations",
-    items: [
-      { to: "/notion", icon: "▤", label: "Notion", hint: "knowledge bus" },
-      { to: "/comfyui", icon: "◲", label: "ComfyUI", hint: "image workflows" },
-    ],
-  },
-];
+export default function Sidebar({ pathname, open, onClose }: SidebarProps) {
+  const page = resolvePage(pathname);
+  const host = window.location.host;
 
-export default function Sidebar({ open, onClose }: SidebarProps) {
   return (
     <aside
+      id="primary-sidebar"
       className={[
         "fixed inset-y-0 left-0 z-40 flex w-[18rem] flex-col border-r border-border/80",
         "bg-[linear-gradient(180deg,rgba(5,9,7,0.96),rgba(4,4,4,0.94))] shadow-[0_0_40px_rgba(0,0,0,0.55)] backdrop-blur-xl",
@@ -49,7 +29,7 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
               cockpit
             </h2>
             <p className="mt-2 max-w-[16rem] text-[11px] leading-5 text-amber-100/58">
-              Interface de supervision locale pour la gateway, les agents et les outils relies au core.
+              Interface de supervision locale pour la gateway, les agents et les integrations relies au core.
             </p>
           </div>
           <button
@@ -71,11 +51,26 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
             <p className="mt-1 glow-green">crt active</p>
           </div>
         </div>
+
+        <div className="mt-3 rounded-[1.6rem] border border-accent/18 bg-accent/5 p-4">
+          <p className="screen-label">current lane</p>
+          <div className="mt-3 flex items-center justify-between gap-3">
+            <div>
+              <p className="text-[12px] font-semibold uppercase tracking-[0.18em] text-accent">
+                {page.title}
+              </p>
+              <p className="mt-2 text-[11px] leading-5 text-amber-100/52">{page.description}</p>
+            </div>
+            <span className="status-chip border-accent/28 bg-accent/8 px-3 py-2 text-accent">
+              {page.index}
+            </span>
+          </div>
+        </div>
       </div>
 
       <nav className="flex-1 overflow-y-auto px-3 py-4">
         <div className="space-y-5">
-          {groups.map((group) => (
+          {navigationGroups.map((group) => (
             <section key={group.label}>
               <div className="mb-2 flex items-center justify-between px-2">
                 <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-muted">
@@ -134,11 +129,37 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
       </nav>
 
       <div className="border-t border-border/80 px-4 py-4 text-[11px] text-amber-100/48">
-        <div className="rounded-2xl border border-border/70 bg-black/25 px-3 py-3">
-          <p className="screen-label">gateway posture</p>
-          <p className="mt-2 text-[12px] leading-5 text-amber-100/68">
-            API locale en facade. Core, agents et integrations relies via la gateway interne.
-          </p>
+        <div className="space-y-3">
+          <div className="rounded-2xl border border-border/70 bg-black/25 px-3 py-3">
+            <p className="screen-label">gateway posture</p>
+            <p className="mt-2 text-[12px] leading-5 text-amber-100/68">
+              API locale en facade. Core, agents et integrations relies via la gateway interne.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2 text-[11px] uppercase tracking-[0.16em]">
+            <a
+              href="/ops/"
+              className="rounded-2xl border border-border/70 bg-black/25 px-3 py-3 text-center text-amber-100/70 transition hover:border-accent/35 hover:text-accent"
+            >
+              ops
+            </a>
+            <a
+              href="/health"
+              target="_blank"
+              rel="noreferrer"
+              className="rounded-2xl border border-border/70 bg-black/25 px-3 py-3 text-center text-amber-100/70 transition hover:border-accent/35 hover:text-accent"
+            >
+              api
+            </a>
+          </div>
+
+          <div className="rounded-2xl border border-border/70 bg-black/25 px-3 py-3">
+            <p className="text-[10px] uppercase tracking-[0.22em] text-muted">nav registry</p>
+            <p className="mt-2 text-[12px] leading-5 text-amber-100/68">
+              {navigationItems.length} lanes actives sur {host}.
+            </p>
+          </div>
         </div>
       </div>
     </aside>

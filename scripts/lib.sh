@@ -37,11 +37,82 @@ info()    { echo -e "  ${DIM}$*${NC}"; }
 section() { echo ""; echo -e "  ${MAGENTA}${BOLD}$*${NC}"; line; }
 dbg()     { [[ "$VERBOSE" == true ]] && echo -e "  ${DIM}[dbg]${NC} $*" >&2 || true; }
 
+# ── Platform detection ──
+_OS_NAME="$(uname -s 2>/dev/null || echo unknown)"
+_ARCH_NAME="$(uname -m 2>/dev/null || echo unknown)"
+
+detect_os() { echo "$_OS_NAME"; }
+detect_arch() { echo "$_ARCH_NAME"; }
+is_macos() { [[ "$_OS_NAME" == "Darwin" ]]; }
+is_linux() { [[ "$_OS_NAME" == "Linux" ]]; }
+is_apple_silicon() { is_macos && [[ "$_ARCH_NAME" == "arm64" || "$_ARCH_NAME" == "aarch64" ]]; }
+has_native_ollama() { command -v ollama &>/dev/null; }
+
+system_cpu_count() {
+    local cpu_count=""
+
+    if cpu_count=$(getconf _NPROCESSORS_ONLN 2>/dev/null) && [[ "$cpu_count" =~ ^[0-9]+$ ]] && [[ "$cpu_count" -gt 0 ]]; then
+        echo "$cpu_count"
+        return 0
+    fi
+
+    if is_macos && cpu_count=$(sysctl -n hw.logicalcpu 2>/dev/null) && [[ "$cpu_count" =~ ^[0-9]+$ ]] && [[ "$cpu_count" -gt 0 ]]; then
+        echo "$cpu_count"
+        return 0
+    fi
+
+    if cpu_count=$(nproc 2>/dev/null) && [[ "$cpu_count" =~ ^[0-9]+$ ]] && [[ "$cpu_count" -gt 0 ]]; then
+        echo "$cpu_count"
+        return 0
+    fi
+
+    return 1
+}
+
+system_total_ram_gib() {
+    local bytes=""
+    local kib=""
+
+    if is_macos && bytes=$(sysctl -n hw.memsize 2>/dev/null) && [[ "$bytes" =~ ^[0-9]+$ ]] && [[ "$bytes" -gt 0 ]]; then
+        awk -v b="$bytes" 'BEGIN { printf "%.0f\n", b / 1024 / 1024 / 1024 }'
+        return 0
+    fi
+
+    if is_linux; then
+        if kib=$(awk '/MemTotal/ {print $2; exit}' /proc/meminfo 2>/dev/null) && [[ "$kib" =~ ^[0-9]+$ ]] && [[ "$kib" -gt 0 ]]; then
+            awk -v k="$kib" 'BEGIN { printf "%.0f\n", k / 1024 / 1024 }'
+            return 0
+        fi
+
+        if bytes=$(free -b 2>/dev/null | awk '/Mem:/ {print $2; exit}') && [[ "$bytes" =~ ^[0-9]+$ ]] && [[ "$bytes" -gt 0 ]]; then
+            awk -v b="$bytes" 'BEGIN { printf "%.0f\n", b / 1024 / 1024 / 1024 }'
+            return 0
+        fi
+    fi
+
+    return 1
+}
+
+native_ollama_base_url() {
+    local port="${1:-${OLLAMA_PORT:-11434}}"
+    if is_macos; then
+        echo "http://host.docker.internal:${port}"
+    else
+        echo "http://127.0.0.1:${port}"
+    fi
+}
+
 # ── GPU Detection ──
 detect_gpu() {
     if command -v nvidia-smi &> /dev/null; then
         local gpu_info=$(nvidia-smi --query-gpu=name,memory.total --format=csv,noheader,nounits)
         echo "$gpu_info"
+        return 0
+    elif is_apple_silicon; then
+        echo "Apple Silicon detected (Metal GPU, Core ML / Neural Engine via native runtimes)"
+        return 0
+    elif is_macos; then
+        echo "macOS GPU detected"
         return 0
     elif [[ -d /sys/class/drm ]]; then
         echo "Intel/AMD GPU detected"
@@ -69,12 +140,30 @@ docker_can_use_nvidia_gpu() {
 }
 
 # ── Port Validation ──
+port_in_use() {
+    local port="$1"
+
+    if command -v ss &>/dev/null && ss -tuln 2>/dev/null | grep -Eq "[\.\:]${port}[[:space:]]"; then
+        return 0
+    fi
+
+    if command -v lsof &>/dev/null && lsof -nP -iTCP:"$port" -sTCP:LISTEN &>/dev/null; then
+        return 0
+    fi
+
+    if command -v netstat &>/dev/null && netstat -an 2>/dev/null | grep -E "[\.\:]${port}[[:space:]].*LISTEN" &>/dev/null; then
+        return 0
+    fi
+
+    return 1
+}
+
 check_ports() {
     local ports=("$@")
     local conflicts=()
 
     for port in "${ports[@]}"; do
-        if command -v ss &> /dev/null && ss -tuln | grep -q ":$port "; then
+        if port_in_use "$port"; then
             conflicts+=("$port")
         fi
     done
@@ -206,7 +295,15 @@ ensure_gum() {
     dbg "ensure_gum: sudo_cmd='$sudo_cmd' EUID=$EUID"
 
     local pkg_mgr="unknown"
-    if command -v apt-get &>/dev/null; then
+    if is_macos; then
+        pkg_mgr="brew"
+        if command -v brew &>/dev/null; then
+            dbg "Installation gum via brew..."
+            brew install gum >/dev/null 2>&1 || true
+        else
+            warn "Homebrew absent — gum non installe, fallback TUI basique"
+        fi
+    elif command -v apt-get &>/dev/null; then
         pkg_mgr="apt"
         dbg "Installation gum via apt..."
         $sudo_cmd mkdir -p /etc/apt/keyrings 2>/dev/null || true
@@ -555,6 +652,7 @@ _svc_category_label() {
 
 _profile_label() {
     case "$1" in
+        apple-silicon) echo "Apple Silicon" ;;
         minimal) echo "Minimal" ;;
         standard) echo "Standard" ;;
         full) echo "Full" ;;
@@ -565,6 +663,7 @@ _profile_label() {
 
 _profile_desc() {
     case "$1" in
+        apple-silicon) echo "stack legere macOS + Ollama natif/Core ML" ;;
         minimal) echo "core + api seulement" ;;
         standard) echo "stack locale recommandee" ;;
         full) echo "tous les services du catalogue" ;;
@@ -908,6 +1007,10 @@ _ensure_docker_access() {
         dbg "  docker accessible sans sudo"
         return
     fi
+    if is_macos; then
+        dbg "  docker info FAILED sur macOS — skip sudo fallback"
+        return
+    fi
     dbg "  docker info FAILED sans sudo, test avec sudo..."
     if command -v sudo &>/dev/null && sudo docker info &>/dev/null 2>&1; then
         _DOCKER_NEEDS_SUDO=true
@@ -998,7 +1101,7 @@ invalidate_docker_cache() {
 # ── Port availability check ──
 port_available() {
     local port="$1"
-    if ss -tlnp 2>/dev/null | grep -q ":${port} "; then
+    if port_in_use "$port"; then
         dbg "port_available: $port → OCCUPE"
         return 1
     fi

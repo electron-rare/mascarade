@@ -1,81 +1,219 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { useFetch } from "../hooks/useFetch";
-import { useApi } from "../hooks/useApi";
 import { agentsApi, Agent } from "../api/agents";
+import { useApi } from "../hooks/useApi";
+import { useFetch } from "../hooks/useFetch";
 import {
-  Card,
+  Badge,
   Button,
-  Input,
-  Textarea,
-  Modal,
-  Spinner,
+  Card,
   EmptyState,
+  InlineNotice,
+  Input,
+  LoadingPanel,
+  Modal,
+  Textarea,
 } from "../components/ui";
 
 export default function Agents() {
-  const { data, loading, error, refetch } = useFetch<{ agents: Agent[] }>(
-    "/api/agents",
-  );
+  const { data, loading, error, refetch } = useFetch<{ agents: Agent[] }>("/api/agents");
   const [showCreate, setShowCreate] = useState(false);
+  const [createdName, setCreatedName] = useState("");
   const [form, setForm] = useState({
     name: "",
     description: "",
     system_prompt: "",
   });
 
-  const { execute: create, loading: creating } = useApi(() =>
-    agentsApi.create(form),
-  );
+  const {
+    execute: create,
+    loading: creating,
+    error: createError,
+    status: createStatus,
+  } = useApi(() => agentsApi.create(form));
 
   const handleCreate = async () => {
     if (!form.name || !form.system_prompt) return;
-    await create(undefined);
+    const currentName = form.name;
+    const created = await create(undefined);
+    if (!created) {
+      return;
+    }
+    setCreatedName(currentName);
     setShowCreate(false);
     setForm({ name: "", description: "", system_prompt: "" });
-    refetch();
+    void refetch();
   };
 
-  if (loading) return <Spinner className="mx-auto mt-20" />;
-  if (error) return <p className="text-error text-sm text-center mt-20">{error}</p>;
+  if (loading && !data) {
+    return (
+      <LoadingPanel
+        title="Loading registry"
+        message="Collecting the agent inventory from the gateway."
+      />
+    );
+  }
+  if (error && !data) {
+    return (
+      <InlineNotice
+        title="registry error"
+        message={error}
+        tone="error"
+        className="mx-auto mt-20 max-w-3xl"
+      />
+    );
+  }
 
   const agents = data?.agents || [];
+  const agentZero = agents.find((agent) => agent.name === "agent-zero");
+  const sortedAgents = [...agents].sort((left, right) => {
+    if (left.name === "agent-zero") return -1;
+    if (right.name === "agent-zero") return 1;
+    return left.name.localeCompare(right.name);
+  });
 
   return (
-    <div className="space-y-4">
-      <div className="flex justify-between items-center">
-        <p className="text-sm text-muted">{agents.length} agent(s)</p>
-        <Button onClick={() => setShowCreate(true)}>New Agent</Button>
-      </div>
+    <div className="space-y-6">
+      {createStatus === "success" && createdName ? (
+        <InlineNotice
+          title="agent created"
+          message={`Registry updated with ${createdName}. The lane can now be opened from the grid below.`}
+          tone="success"
+        />
+      ) : null}
+      {error ? (
+        <InlineNotice
+          title="registry note"
+          message={`Last refresh failed: ${error}`}
+          tone="error"
+        />
+      ) : null}
 
-      {agents.length === 0 ? (
+      <section className="grid gap-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.8fr)]">
+        <Card className="overflow-hidden border-accent/20 bg-[linear-gradient(135deg,rgba(255,209,102,0.08),rgba(8,12,10,0.94)_26%,rgba(6,6,6,0.98))]">
+          <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+            <div className="max-w-3xl">
+              <p className="screen-label">agent registry</p>
+              <h2 className="mt-3 text-3xl font-semibold uppercase tracking-[0.12em] text-accent glow-text md:text-5xl">
+                Registry and dispatch surfaces
+              </h2>
+              <p className="mt-4 max-w-2xl text-sm leading-7 text-amber-100/60 md:text-[15px]">
+                Chaque agent expose une surface specialisee. Cette vue sert a lire rapidement
+                l&apos;inventaire, verifier la densite du registre et ouvrir un agent en detail.
+              </p>
+              <div className="mt-5 flex flex-wrap gap-2">
+                <span className="status-chip border-accent/35 bg-accent/10 text-accent">
+                  agents {agents.length}
+                </span>
+                <span className="status-chip border-border/80 bg-black/25 text-muted">
+                  create {showCreate ? "open" : "ready"}
+                </span>
+              </div>
+            </div>
+
+            <div className="grid min-w-0 gap-3 sm:grid-cols-2 lg:min-w-[320px]">
+              <div className="rounded-3xl border border-border/80 bg-black/30 p-4">
+                <p className="text-[10px] uppercase tracking-[0.2em] text-muted">registry size</p>
+                <p className="mt-3 text-2xl font-semibold uppercase tracking-[0.12em] text-accent">
+                  {agents.length.toString().padStart(2, "0")}
+                </p>
+              </div>
+              <div className="rounded-3xl border border-border/80 bg-black/30 p-4">
+                <p className="text-[10px] uppercase tracking-[0.2em] text-muted">creation lane</p>
+                <p className="mt-3 text-2xl font-semibold uppercase tracking-[0.12em] text-accent">
+                  live
+                </p>
+              </div>
+            </div>
+          </div>
+        </Card>
+
+        <Card title="Registry Controls">
+          <div className="space-y-4">
+            <p className="text-sm leading-7 text-amber-100/58">
+              Ouvrir un agent pour le test detaille ou creer une nouvelle surface specialisee.
+            </p>
+            <div className="flex flex-wrap gap-3">
+              <Button onClick={() => setShowCreate(true)}>new agent</Button>
+              <Button variant="secondary" onClick={() => void refetch()}>
+                refresh registry
+              </Button>
+            </div>
+          </div>
+        </Card>
+      </section>
+
+      {agentZero ? (
+        <Card className="border-accent/30 bg-[linear-gradient(135deg,rgba(255,209,102,0.10),rgba(8,12,10,0.94)_30%,rgba(6,6,6,0.98))]">
+          <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+            <div className="max-w-3xl">
+              <p className="screen-label">lead agent</p>
+              <h3 className="mt-3 text-2xl font-semibold uppercase tracking-[0.14em] text-accent glow-text">
+                agent-zero
+              </h3>
+              <p className="mt-3 text-sm leading-7 text-amber-100/62">
+                {agentZero.description}
+              </p>
+              <p className="mt-3 text-[12px] leading-6 text-amber-100/46">
+                Utilise-le comme point d&apos;entree quand la demande est encore floue ou quand il faut cadrer, decomposer et prioriser avant d&apos;ouvrir une lane specialisee.
+              </p>
+            </div>
+
+            <div className="flex flex-wrap gap-3">
+              <Badge color="accent">recommended first pass</Badge>
+              <Link
+                to="/agents/agent-zero"
+                className="rounded-2xl border border-accent/40 bg-accent/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-accent transition hover:bg-accent/15"
+              >
+                open agent-zero
+              </Link>
+            </div>
+          </div>
+        </Card>
+      ) : null}
+
+      {sortedAgents.length === 0 ? (
         <EmptyState
           message="No agents registered yet."
-          action={<Button onClick={() => setShowCreate(true)}>Create one</Button>}
+          action={<Button onClick={() => setShowCreate(true)}>create one</Button>}
         />
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {agents.map((a) => (
+        <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          {sortedAgents.map((a) => (
             <Link key={a.name} to={`/agents/${a.name}`}>
-              <Card className="hover:border-accent/40 transition-colors cursor-pointer">
-                <h3 className="font-semibold text-sm text-slate-100">
-                  {a.name}
-                </h3>
-                <p className="text-xs text-muted mt-1 line-clamp-2">
-                  {a.description || "No description"}
-                </p>
+              <Card className="h-full cursor-pointer transition-colors hover:border-accent/35">
+                <div className="space-y-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="screen-label">agent</p>
+                      <h3 className="mt-3 text-lg font-semibold uppercase tracking-[0.12em] text-accent">
+                        {a.name}
+                      </h3>
+                    </div>
+                    <Badge color={a.name === "agent-zero" ? "accent" : "accent"}>
+                      {a.name === "agent-zero" ? "lead" : "ready"}
+                    </Badge>
+                  </div>
+                  <p className="text-sm leading-7 text-amber-100/56">
+                    {a.description || "No description provided for this registry entry."}
+                  </p>
+                  {a.name === "agent-zero" ? (
+                    <p className="text-[11px] uppercase tracking-[0.18em] text-accent">
+                      primary intake lane
+                    </p>
+                  ) : null}
+                  <p className="text-[11px] uppercase tracking-[0.18em] text-amber-100/34">
+                    open detail
+                  </p>
+                </div>
               </Card>
             </Link>
           ))}
-        </div>
+        </section>
       )}
 
-      <Modal
-        open={showCreate}
-        onClose={() => setShowCreate(false)}
-        title="Create Agent"
-      >
-        <div className="space-y-3">
+      <Modal open={showCreate} onClose={() => setShowCreate(false)} title="Create Agent">
+        <div className="space-y-4">
           <Input
             label="Name"
             value={form.name}
@@ -91,22 +229,19 @@ export default function Agents() {
           <Textarea
             label="System Prompt"
             value={form.system_prompt}
-            onChange={(e) =>
-              setForm({ ...form, system_prompt: e.target.value })
-            }
+            onChange={(e) => setForm({ ...form, system_prompt: e.target.value })}
             placeholder="You are..."
-            rows={4}
+            rows={6}
           />
-          <div className="flex justify-end gap-2 pt-2">
+          {createError ? (
+            <InlineNotice title="create failed" message={createError} tone="error" />
+          ) : null}
+          <div className="flex justify-end gap-3 pt-2">
             <Button variant="secondary" onClick={() => setShowCreate(false)}>
-              Cancel
+              cancel
             </Button>
-            <Button
-              onClick={handleCreate}
-              loading={creating}
-              disabled={!form.name || !form.system_prompt}
-            >
-              Create
+            <Button onClick={handleCreate} loading={creating} disabled={!form.name || !form.system_prompt}>
+              create
             </Button>
           </div>
         </div>
