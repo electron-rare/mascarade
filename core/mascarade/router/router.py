@@ -43,6 +43,7 @@ class Router:
             ("mascarade.router.providers.google", "GoogleProvider"),
             ("mascarade.router.providers.huggingface", "HuggingFaceProvider"),
             ("mascarade.router.providers.ollama", "OllamaProvider"),
+            ("mascarade.router.providers.apple_coreml", "AppleCoreMLProvider"),
         ]
 
         for module_name, class_name in provider_specs:
@@ -160,24 +161,23 @@ class Router:
         strategy = Strategy(strategy)
         strict_provider = strategy == Strategy.SPECIFIC and provider is not None
 
-        if not strict_provider:
-            cached = self.cache.retrieve(
-                messages,
-                strategy=strategy.value,
-                provider=provider,
-                model=model,
-                system=system,
-                response_format=response_format,
-                temperature=temperature,
-                max_tokens=max_tokens,
+        cached = self.cache.retrieve(
+            messages,
+            strategy=strategy.value,
+            provider=provider,
+            model=model,
+            system=system,
+            response_format=response_format,
+            temperature=temperature,
+            max_tokens=max_tokens,
+        )
+        if cached and (not strict_provider or cached.provider == provider):
+            return LLMResponse(
+                content=cached.response,
+                model=cached.model,
+                provider=cached.provider,
+                usage={"total_tokens": cached.tokens},
             )
-            if cached:
-                return LLMResponse(
-                    content=cached.response,
-                    model=cached.model,
-                    provider=cached.provider,
-                    usage={"total_tokens": cached.tokens},
-                )
 
         last_error: Exception | None = None
         if strict_provider:

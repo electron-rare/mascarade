@@ -2,10 +2,10 @@
 # scripts/modules/core.sh — Module Mascarade Core
 
 module_core_config() {
-  CORE_PORT=$(input_value "Port Core" "8100")
-  CORE_HOST=$(input_value "Host Core" "0.0.0.0")
-  DEFAULT_PROVIDER=$(input_value "Provider LLM par defaut" "claude")
-  DEFAULT_MODEL=$(input_value "Modele LLM par defaut" "claude-sonnet-4-6")
+  CORE_PORT=$(input_value "Port Core" "${CORE_PORT:-8100}")
+  CORE_HOST=$(input_value "Host Core" "${CORE_HOST:-0.0.0.0}")
+  DEFAULT_PROVIDER=$(input_value "Provider LLM par defaut" "${DEFAULT_PROVIDER:-claude}")
+  DEFAULT_MODEL=$(input_value "Modele LLM par defaut" "${DEFAULT_MODEL:-claude-sonnet-4-6}")
 }
 
 module_core_compose() {

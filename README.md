@@ -114,6 +114,21 @@ CORE_PORT=8100
 API_PORT=3100
 CORE_URL=http://localhost:8100          # http://core:8100 en Docker
 
+# Ollama (Docker ou hote natif)
+OLLAMA_ENABLED=true
+OLLAMA_HOST_MODE=docker
+OLLAMA_BASE_URL=http://ollama:11434    # macOS natif: http://host.docker.internal:11434
+
+# Apple LLM natif (service hote macOS pour Core ML / ANE)
+APPLE_LLM_ENABLED=false
+APPLE_LLM_BASE_URL=http://host.docker.internal:8201  # dev local hors Docker: http://127.0.0.1:8201
+APPLE_LLM_MODEL_ID=apple-local
+APPLE_LLM_BACKEND=coreml                              # ou onnx-coreml
+APPLE_LLM_MODEL_PATH=/chemin/model.mlpackage          # onnx-coreml: /chemin/model.onnx
+APPLE_LLM_TOKENIZER_PATH=/chemin/tokenizer
+APPLE_LLM_COMPUTE_UNITS=cpu_and_ne
+APPLE_LLM_ENABLE_THINKING=false                      # Qwen3.5: false pour une reponse directe
+
 # Defauts LLM
 DEFAULT_PROVIDER=claude
 DEFAULT_MODEL=claude-sonnet-4-6
@@ -147,6 +162,53 @@ Ou en mode non-interactif:
 ```bash
 ./setup --with core,api,ops-console --yes
 ```
+
+Sur macOS Apple Silicon (M1 a M5), le profil dedie privilegie une stack legere. Si Ollama natif est installe, `setup` configure automatiquement `OLLAMA_BASE_URL` pour que les conteneurs parlent a l'hote:
+
+```bash
+MASCARADE_TUI_MODE=plain ./setup --profile apple-silicon --yes
+```
+
+Ce profil est pense pour les outils locaux Apple Silicon actuels:
+
+- Ollama natif pour le serving local simple
+- MLX / `mlx-lm` pour l'experimentation Apple Silicon
+- Core ML / ONNX Runtime CoreML EP pour un vrai chemin Neural Engine
+
+Pour brancher un vrai service local Apple Silicon / Neural Engine, Mascarade expose maintenant un provider `apple-coreml` qui parle a un service hote macOS:
+
+```bash
+./scripts/install_apple_llm_model.sh
+
+export APPLE_LLM_ENABLED=true
+export APPLE_LLM_BASE_URL=http://host.docker.internal:8201
+export APPLE_LLM_MODEL_ID=qwen3.5-4b-onnx-q4f16
+export APPLE_LLM_BACKEND=onnx-coreml
+export APPLE_LLM_MODEL_PATH="$HOME/Models/mascarade/apple-llm/Qwen3.5-4B-ONNX-q4f16/onnx/decoder_model_merged_q4f16.onnx"
+export APPLE_LLM_TOKENIZER_PATH="$HOME/Models/mascarade/apple-llm/Qwen3.5-4B-ONNX-q4f16"
+export APPLE_LLM_ENABLE_THINKING=false
+
+./scripts/run_apple_llm_service.sh
+./scripts/smoke_apple_llm.sh --url http://127.0.0.1:8201 --model qwen3.5-4b-onnx-q4f16
+```
+
+Ensuite, pour que le routeur utilise ce chemin:
+
+```bash
+DEFAULT_PROVIDER=apple-coreml
+DEFAULT_MODEL=qwen3.5-4b-onnx-q4f16
+```
+
+Notes:
+
+- `scripts/install_apple_llm_model.sh` installe par defaut `onnx-community/Qwen3.5-4B-ONNX` avec `onnx/decoder_model_merged_q4f16.onnx` et `onnx/embed_tokens_q4f16.onnx`
+- `APPLE_LLM_BACKEND=coreml` attend un modele Core ML exporte, typiquement `.mlpackage`
+- `APPLE_LLM_BACKEND=onnx-coreml` attend un modele `.onnx` execute via ONNX Runtime CoreML EP
+- ce service est volontairement hote natif macOS; Docker Desktop n'expose pas le Neural Engine au conteneur
+- le moteur implemente un chemin autoregressif simple, utile pour prototyper et valider le routage Mascarade vers un runtime ANE
+- le chemin Qwen3.5 utilise un export ONNX moderne avec `inputs_embeds`, `embed_tokens` et cache mixte `past_key_values` / `past_conv` / `past_recurrent`
+- `APPLE_LLM_ENABLE_THINKING=false` desactive le mode thinking de `Qwen3.5` via son chat template officiel
+- `Qwen2.5-0.5B-Instruct` reste un fallback valide sur cette machine si un graphe plus simple est prefere
 
 Avec `generate-audio` et un vrai smoke test HTTP de `POST /generate`:
 
