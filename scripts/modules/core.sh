@@ -24,6 +24,8 @@ module_core_compose() {
   echo "      CORE_PORT: \${CORE_PORT}"
   echo "      DEFAULT_PROVIDER: \${DEFAULT_PROVIDER}"
   echo "      DEFAULT_MODEL: \${DEFAULT_MODEL}"
+  echo "    extra_hosts:"
+  echo "      - \"host.docker.internal:host-gateway\""
   echo "    volumes:"
   echo "      - core-data:/app/data"
   echo "    networks:"

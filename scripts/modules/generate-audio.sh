@@ -5,11 +5,18 @@ _module_generate_audio_build_variant() {
   local runtime
   runtime="$(echo "${GENERATE_AUDIO_RUNTIME:-auto}" | tr '[:upper:]' '[:lower:]')"
   case "$runtime" in
-    cuda|cpu)
-      echo "$runtime"
+    cpu)
+      echo "cpu"
+      ;;
+    cuda)
+      if docker_can_use_nvidia_gpu; then
+        echo "cuda"
+      else
+        echo "cpu"
+      fi
       ;;
     auto|*)
-      if command -v nvidia-smi &>/dev/null && nvidia-smi &>/dev/null; then
+      if docker_can_use_nvidia_gpu; then
         echo "cuda"
       else
         echo "cpu"
@@ -20,27 +27,29 @@ _module_generate_audio_build_variant() {
 
 module_generate_audio_preflight() {
   local build_variant
+  local requested_runtime
   local docker_root
   local check_path
   local free_gb
 
   build_variant="$(_module_generate_audio_build_variant)"
+  requested_runtime="$(echo "${GENERATE_AUDIO_RUNTIME:-auto}" | tr '[:upper:]' '[:lower:]')"
 
   if [[ "$build_variant" == "cuda" ]]; then
     info "Generate Audio: profil GPU active (PyTorch CUDA 11.8 + AudioCraft)"
-    if ! command -v nvidia-smi &>/dev/null || ! nvidia-smi &>/dev/null; then
-      warn "Generate Audio: runtime cuda selectionne mais aucun GPU NVIDIA n'est detecte sur l'hote."
-      warn "Le build passera, mais le conteneur ne pourra pas exploiter le GPU sans pilote/NVIDIA visibles."
-    fi
-    if command -v docker &>/dev/null; then
-      if ! docker info --format '{{json .Runtimes}}' 2>/dev/null | grep -qi 'nvidia'; then
-        warn "Generate Audio: runtime NVIDIA non detecte dans Docker."
-        warn "Installe nvidia-container-toolkit et verifie 'docker run --rm --gpus all nvidia/cuda:12.3.2-base-ubuntu22.04 nvidia-smi'."
-      fi
-      docker_root="$(docker info --format '{{.DockerRootDir}}' 2>/dev/null || true)"
-    fi
   else
+    if [[ "$requested_runtime" == "cuda" ]]; then
+      warn "Generate Audio: runtime cuda demande mais Docker ne peut pas exposer un GPU NVIDIA."
+      warn "Fallback automatique en CPU pour eviter l'echec 'could not select device driver nvidia'."
+    elif host_has_nvidia_gpu && ! docker_has_nvidia_runtime; then
+      warn "Generate Audio: GPU NVIDIA detecte sur l'hote, mais runtime NVIDIA absent dans Docker."
+      warn "Fallback automatique en CPU. Installe nvidia-container-toolkit pour activer le GPU."
+    fi
     info "Generate Audio: profil CPU active (AudioCraft sans GPU)"
+  fi
+
+  if command -v docker &>/dev/null; then
+    docker_root="$(docker info --format '{{.DockerRootDir}}' 2>/dev/null || true)"
   fi
 
   check_path="${docker_root:-$REPO_DIR}"
@@ -59,7 +68,7 @@ module_generate_audio_preflight() {
 
 module_generate_audio_config() {
   local default_runtime="auto"
-  if command -v nvidia-smi &>/dev/null && nvidia-smi &>/dev/null; then
+  if docker_can_use_nvidia_gpu; then
     default_runtime="cuda"
   fi
   GENERATE_AUDIO_PORT=$(input_value "Port Generate Audio" "${GENERATE_AUDIO_PORT:-9000}")
@@ -117,8 +126,8 @@ module_generate_audio_compose() {
       ;;
   esac
   echo "      GENERATE_AUDIO_MODEL: \${GENERATE_AUDIO_MODEL:-facebook/audiogen-medium}"
-  echo "      GENERATE_AUDIO_RUNTIME: \${GENERATE_AUDIO_RUNTIME:-auto}"
-  echo "      GENERATE_AUDIO_TORCH_VARIANT: \${GENERATE_AUDIO_TORCH_VARIANT:-$build_variant}"
+  echo "      GENERATE_AUDIO_RUNTIME: $build_variant"
+  echo "      GENERATE_AUDIO_TORCH_VARIANT: $build_variant"
   if [[ "$build_variant" == "cuda" ]]; then
     echo "      NVIDIA_VISIBLE_DEVICES: all"
     echo "      NVIDIA_DRIVER_CAPABILITIES: compute,utility"

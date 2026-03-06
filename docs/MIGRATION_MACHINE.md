@@ -41,6 +41,8 @@ Les fichiers `.env` exportes sont redacts automatiquement pour les cles sensible
 - Le script ne stoppe aucun service.
 - Il peut necessiter des droits suffisants pour lire les infos systeme/docker.
 - Les snapshots servent de baseline de migration et d'audit post-migration.
+- Les decisions de portabilite du repo (fallback CPU/GPU, diagnostics Docker,
+  ecarts machine/VM) sont documentees dans `docs/PORTAGE_MASCARADE.md`.
 
 ## Migration stack IA (LocalAI, KoboldCPP, AnythingLLM, SGLang, Mem0, Langfuse)
 
