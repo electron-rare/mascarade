@@ -951,70 +951,77 @@ else
 
     case $MENU_RESULT in
         0)
-            dbg "Demarrage: build des images..."
-            spin_start "Build des images..."
-            build_rc=0
-            docker_compose_cmd -f "$REPO_DIR/docker-compose.yml" build 2>&1 || build_rc=$?
-            spin_stop
-            if [[ $build_rc -eq 0 ]]; then
-                ok "Images pretes"
-                dbg "  docker build OK"
+            if ! docker_cmd info &>/dev/null; then
+                err "Docker daemon inaccessible (unix:///var/run/docker.sock)."
+                info "Demarre Docker puis relance ./setup --skip-deps (ou docker compose up -d)."
+                info "Exemples: sudo systemctl start docker  |  sudo service docker start"
+                dbg "Demarrage annule: docker info indisponible"
             else
-                warn "Build echoue (code $build_rc)"
-                dbg "  docker build FAILED rc=$build_rc"
-            fi
-
-            dbg "Demarrage: docker compose up -d..."
-            spin_start "Demarrage des containers..."
-            up_rc=0
-            docker_compose_cmd -f "$REPO_DIR/docker-compose.yml" up -d 2>&1 || up_rc=$?
-            spin_stop
-            if [[ $up_rc -eq 0 ]]; then
-                ok "Containers lances"
-            else
-                warn "Demarrage partiel (code $up_rc)"
-            fi
-            dbg "  docker up rc=$up_rc"
-
-            echo ""
-            log "Health checks..."
-            dbg "Attente 4s avant health checks..."
-            sleep 4
-            if svc_selected "core"; then
-                health_check "http://localhost:${CORE_PORT:-8100}/health" "Core" 5 2 || true
-            fi
-            if svc_selected "api"; then
-                health_check "http://localhost:${API_PORT:-3100}/health" "API" 5 2 || true
-            fi
-            if svc_selected "ops-console"; then
-                if svc_selected "edge-proxy"; then
-                    health_check "http://localhost:${EDGE_PROXY_HTTP_PORT:-80}/ops/" "Ops Console" 5 2 || true
+                dbg "Demarrage: build des images..."
+                spin_start "Build des images..."
+                build_rc=0
+                docker_compose_cmd -f "$REPO_DIR/docker-compose.yml" build 2>&1 || build_rc=$?
+                spin_stop
+                if [[ $build_rc -eq 0 ]]; then
+                    ok "Images pretes"
+                    dbg "  docker build OK"
                 else
-                    health_check "http://localhost:${OPS_CONSOLE_PORT:-80}/" "Ops Console" 5 2 || true
+                    warn "Build echoue (code $build_rc)"
+                    dbg "  docker build FAILED rc=$build_rc"
                 fi
-            fi
-            if svc_selected "edge-proxy"; then
-                health_check "http://localhost:${EDGE_PROXY_HTTP_PORT:-80}/healthz" "Edge Proxy" 5 2 || true
-            fi
-            if svc_selected "generate-audio"; then
-                health_check "http://localhost:${GENERATE_AUDIO_PORT:-9000}/health" "Generate Audio" 5 2 || true
-            fi
 
-            if svc_selected "ops-console"; then
-                info "Ops Console local fourni par le compose principal"
-            fi
-            if svc_selected "edge-proxy" && [[ "${PUBLISH_BIND_HOST:-0.0.0.0}" != "127.0.0.1" ]]; then
-                warn "Edge Proxy actif mais les services publient encore hors loopback. Regle PUBLISH_BIND_HOST=127.0.0.1 pour n'exposer publiquement que 80/443."
-            fi
-
-            if [[ "$SMOKE_GENERATE_AUDIO" == true ]] && svc_selected "generate-audio"; then
-                echo ""
-                log "Smoke test Generate Audio..."
-                if "$REPO_DIR/scripts/smoke_generate_audio.sh" --url "http://localhost:${GENERATE_AUDIO_PORT:-9000}"; then
-                    ok "Smoke test Generate Audio OK"
+                dbg "Demarrage: docker compose up -d..."
+                spin_start "Demarrage des containers..."
+                up_rc=0
+                docker_compose_cmd -f "$REPO_DIR/docker-compose.yml" up -d 2>&1 || up_rc=$?
+                spin_stop
+                if [[ $up_rc -eq 0 ]]; then
+                    ok "Containers lances"
                 else
-                    err "Smoke test Generate Audio echoue"
-                    exit 1
+                    warn "Demarrage partiel (code $up_rc)"
+                fi
+                dbg "  docker up rc=$up_rc"
+
+                echo ""
+                log "Health checks..."
+                dbg "Attente 4s avant health checks..."
+                sleep 4
+                if svc_selected "core"; then
+                    health_check "http://localhost:${CORE_PORT:-8100}/health" "Core" 5 2 || true
+                fi
+                if svc_selected "api"; then
+                    health_check "http://localhost:${API_PORT:-3100}/health" "API" 5 2 || true
+                fi
+                if svc_selected "ops-console"; then
+                    if svc_selected "edge-proxy"; then
+                        health_check "http://localhost:${EDGE_PROXY_HTTP_PORT:-80}/ops/" "Ops Console" 5 2 || true
+                    else
+                        health_check "http://localhost:${OPS_CONSOLE_PORT:-80}/" "Ops Console" 5 2 || true
+                    fi
+                fi
+                if svc_selected "edge-proxy"; then
+                    health_check "http://localhost:${EDGE_PROXY_HTTP_PORT:-80}/healthz" "Edge Proxy" 5 2 || true
+                fi
+                if svc_selected "generate-audio"; then
+                    health_check "http://localhost:${GENERATE_AUDIO_PORT:-9000}/health" "Generate Audio" 5 2 || true
+                fi
+
+                if svc_selected "ops-console"; then
+                    info "Ops Console local fourni par le compose principal"
+                fi
+                if svc_selected "edge-proxy" && [[ "${PUBLISH_BIND_HOST:-0.0.0.0}" != "127.0.0.1" ]]; then
+                    warn "Edge Proxy actif mais les services publient encore hors loopback. Regle PUBLISH_BIND_HOST=127.0.0.1 pour n'exposer publiquement que 80/443."
+                fi
+
+                if [[ "$SMOKE_GENERATE_AUDIO" == true ]] && svc_selected "generate-audio"; then
+                    echo ""
+                    log "Smoke test Generate Audio..."
+                    if "$REPO_DIR/scripts/smoke_generate_audio.sh" --url "http://localhost:${GENERATE_AUDIO_PORT:-9000}"; then
+                        ok "Smoke test Generate Audio OK"
+                    else
+                        err "Smoke test Generate Audio echoue"
+                        exit 1
+                    fi
                 fi
             fi
             ;;

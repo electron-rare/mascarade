@@ -145,18 +145,32 @@ Si tu veux desactiver ce telechargement repo-local pendant `./setup`, exporte `M
 Ou en mode non-interactif:
 
 ```bash
-./setup --with core,api,ops-console --yes
+./setup --with core,api,ops-console,ollama --yes
 ```
 
 Avec `generate-audio` et un vrai smoke test HTTP de `POST /generate`:
 
 ```bash
-./setup --with core,api,ops-console,generate-audio --smoke-generate-audio --yes
+./setup --with core,api,ops-console,generate-audio,ollama --smoke-generate-audio --yes
 ```
 
 `generate-audio` utilise AudioCraft avec une pile PyTorch/XFormers epinglee. En mode `cpu`, le build prend les wheels CPU; en mode `cuda`, le setup bascule vers les wheels CUDA 11.8. Le service emet `gpus: all` et suppose `nvidia-container-toolkit` installe sur l'hote. Les builds CPU et CUDA ont ete verifies localement.
 
 Par defaut, `setup` verifie seulement `GET /health`. Le vrai smoke test `POST /generate` est opt-in avec `--smoke-generate-audio`, car il peut declencher un premier chargement modele plus long.
+
+Si la machine a deja un service Ollama systeme avec ses modeles sous `/usr/share/ollama/.ollama`, la stack peut reutiliser ce stockage via:
+
+```bash
+OLLAMA_PUBLISH_PORT=false
+OLLAMA_HOST_MODELS_DIR=/usr/share/ollama/.ollama
+```
+
+Dans ce mode, `ollama` reste interne au reseau Docker de Mascarade et n'entre pas en conflit avec un `127.0.0.1:11434` deja occupe sur l'hote.
+
+Le `setup` prend maintenant cette variante comme default quand il detecte deja un `11434` occupe et un store Ollama local present.
+
+Pour les ecarts de portabilite machine/VM, les garde-fous Docker/GPU et les
+limites observees pendant le portage, voir `docs/PORTAGE_MASCARADE.md`.
 
 Deux containers demarrent :
 - `core` sur `:8100`

@@ -52,6 +52,22 @@ detect_gpu() {
     fi
 }
 
+host_has_nvidia_gpu() {
+    command -v nvidia-smi &>/dev/null && nvidia-smi &>/dev/null
+}
+
+docker_has_nvidia_runtime() {
+    local runtimes=""
+    command -v docker &>/dev/null || return 1
+    runtimes="$(docker info --format '{{json .Runtimes}}' 2>/dev/null || true)"
+    [[ -n "$runtimes" ]] || return 1
+    echo "$runtimes" | grep -qi 'nvidia'
+}
+
+docker_can_use_nvidia_gpu() {
+    host_has_nvidia_gpu && docker_has_nvidia_runtime
+}
+
 # ── Port Validation ──
 check_ports() {
     local ports=("$@")
@@ -994,7 +1010,17 @@ port_available() {
 backup_file() {
     local file="$1"
     if [[ -f "$file" ]]; then
-        local backup="${file}.bak.$(date +%s)"
+        local backup_root="${REPO_DIR:-$(pwd)}/.tmp/setup-backups"
+        local rel_path="${file}"
+        local backup_name=""
+        mkdir -p "$backup_root"
+        if [[ "$rel_path" == "$REPO_DIR/"* ]]; then
+            rel_path="${rel_path#"$REPO_DIR"/}"
+        else
+            rel_path="$(basename "$file")"
+        fi
+        backup_name="${rel_path//\//__}.bak.$(date +%s)"
+        local backup="$backup_root/$backup_name"
         cp "$file" "$backup"
         dbg "backup_file: $file → $backup ($(wc -c < "$file") octets)"
         info "Backup : $backup"

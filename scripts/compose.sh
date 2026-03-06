@@ -119,6 +119,7 @@ write_env_file() {
             echo "CORE_HOST=\"${CORE_HOST:-0.0.0.0}\""
             echo "DEFAULT_PROVIDER=\"${DEFAULT_PROVIDER:-claude}\""
             echo "DEFAULT_MODEL=\"${DEFAULT_MODEL:-claude-sonnet-4-6}\""
+            echo "OLLAMA_BASE_URL=\"${OLLAMA_BASE_URL:-http://ollama:11434}\""
             echo "MASCARADE_API_KEY=\"${MASCARADE_API_KEY:-}\""
             echo "DEFAULT_LLM_PROVIDER=\"${DEFAULT_LLM_PROVIDER:-anthropic}\""
             echo "DEFAULT_LLM_MODEL=\"${DEFAULT_LLM_MODEL:-claude-sonnet-4-20250514}\""
@@ -170,6 +171,8 @@ write_env_file() {
             echo "# ── Ollama ──"
             echo "OLLAMA_PORT=\"${OLLAMA_PORT:-11434}\""
             echo "OLLAMA_ENABLED=\"true\""
+            echo "OLLAMA_PUBLISH_PORT=\"${OLLAMA_PUBLISH_PORT:-true}\""
+            [[ -n "${OLLAMA_HOST_MODELS_DIR:-}" ]] && echo "OLLAMA_HOST_MODELS_DIR=\"${OLLAMA_HOST_MODELS_DIR}\""
             echo ""
         fi
 

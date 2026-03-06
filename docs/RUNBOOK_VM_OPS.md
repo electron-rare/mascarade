@@ -9,12 +9,17 @@ This runbook covers the current Mascarade stack only:
 
 Legacy `docker-studio-ai` material is migration-only and is not part of the standard install path anymore. Historical notes remain under `docs/migration/`.
 
+Machine portability notes, Docker/GPU fallbacks, and host-specific findings are
+tracked in `docs/PORTAGE_MASCARADE.md`.
+
 ## Install / Bootstrap
 
 Important:
 - Do not run `npm` or `docker compose` with `sudo` inside this repo.
 - Use a user that belongs to the `docker` group.
 - Keep `.env` owned by that same user.
+- If the host has an NVIDIA GPU, validate Docker GPU access before expecting
+  local `generate-audio` or `comfyui` to run in GPU mode.
 
 1. Create the env file:
    - `cd /mascarade`
@@ -24,11 +29,16 @@ Important:
    - provider keys you actually use
    - optional `COMFYUI_URL`, `NOTION_API_KEY`
 3. Start the standard stack:
-   - `cd /mascarade && ./setup --with core,api,ops-console --yes`
+   - `cd /mascarade && ./setup --with core,api,ops-console,ollama --yes`
 4. Start with AudioCraft too, if needed:
-   - `cd /mascarade && ./setup --with core,api,ops-console,generate-audio --yes`
+   - `cd /mascarade && ./setup --with core,api,ops-console,generate-audio,ollama --yes`
 5. Optional real audio smoke test:
-   - `cd /mascarade && ./setup --with core,api,ops-console,generate-audio --smoke-generate-audio --yes`
+   - `cd /mascarade && ./setup --with core,api,ops-console,generate-audio,ollama --smoke-generate-audio --yes`
+6. If the host already has system Ollama models under `/usr/share/ollama/.ollama`:
+   - keep `OLLAMA_PUBLISH_PORT=false`
+   - set `OLLAMA_HOST_MODELS_DIR=/usr/share/ollama/.ollama`
+   - this reuses the host model store without exposing `11434` on the host
+   - `./setup` now defaults to this mode when it detects `11434` already in use
 
 ## Health Validation
 
@@ -94,10 +104,14 @@ Single service logs:
 - `cd /mascarade && docker compose logs -f --tail 100 core`
 - `cd /mascarade && docker compose logs -f --tail 100 api`
 - `cd /mascarade && docker compose logs -f --tail 100 generate-audio`
+- `cd /mascarade && docker compose logs -f --tail 100 ollama`
 
 Status:
 - `cd /mascarade && docker compose ps`
 - `cd /mascarade && docker stats --no-stream`
+
+Setup backups:
+- generated setup backups now live under `./.tmp/setup-backups/`
 
 ## Legacy Note
 
