@@ -77,7 +77,7 @@ ops.get("/monitor", async (c) => {
     timedProbe("n8n", "http://n8n:5678/"),
     timedProbe("langfuse", "http://langfuse-web:3000/"),
     timedProbe("dify-web", "http://dify-web:3000/"),
-    timedProbe("dify-api", "http://dify-api:5001/"),
+    timedProbe("dify-api", "http://dify-api:5001/health"),
   ]);
 
   const [ollama, qdrant, coreMetrics] = await Promise.all([
