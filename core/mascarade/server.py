@@ -67,6 +67,7 @@ class SendRequest(BaseModel):
     provider: str | None = Field(default=None, max_length=50)
     model: str | None = Field(default=None, max_length=100)
     system: str | None = Field(default=None, max_length=10_000)
+    response_format: dict | None = Field(default=None)
     temperature: float = Field(default=0.7, ge=0.0, le=2.0)
     max_tokens: int = Field(default=4096, gt=0, le=128000)
 
@@ -182,6 +183,7 @@ async def send(req: SendRequest):
             provider=req.provider,
             model=req.model,
             system=req.system,
+            response_format=req.response_format,
             temperature=req.temperature,
             max_tokens=req.max_tokens,
         )

@@ -987,7 +987,14 @@ else
                 health_check "http://localhost:${API_PORT:-3100}/health" "API" 5 2 || true
             fi
             if svc_selected "ops-console"; then
-                health_check "http://localhost:${OPS_CONSOLE_PORT:-80}/" "Ops Console" 5 2 || true
+                if svc_selected "edge-proxy"; then
+                    health_check "http://localhost:${EDGE_PROXY_HTTP_PORT:-80}/ops/" "Ops Console" 5 2 || true
+                else
+                    health_check "http://localhost:${OPS_CONSOLE_PORT:-80}/" "Ops Console" 5 2 || true
+                fi
+            fi
+            if svc_selected "edge-proxy"; then
+                health_check "http://localhost:${EDGE_PROXY_HTTP_PORT:-80}/healthz" "Edge Proxy" 5 2 || true
             fi
             if svc_selected "generate-audio"; then
                 health_check "http://localhost:${GENERATE_AUDIO_PORT:-9000}/health" "Generate Audio" 5 2 || true
@@ -995,6 +1002,9 @@ else
 
             if svc_selected "ops-console"; then
                 info "Ops Console local fourni par le compose principal"
+            fi
+            if svc_selected "edge-proxy" && [[ "${PUBLISH_BIND_HOST:-0.0.0.0}" != "127.0.0.1" ]]; then
+                warn "Edge Proxy actif mais les services publient encore hors loopback. Regle PUBLISH_BIND_HOST=127.0.0.1 pour n'exposer publiquement que 80/443."
             fi
 
             if [[ "$SMOKE_GENERATE_AUDIO" == true ]] && svc_selected "generate-audio"; then
@@ -1068,6 +1078,13 @@ if svc_selected "generate-audio"; then
     echo -e "  ${BOLD}Generate Audio :${NC}"
     echo -e "  curl -s http://localhost:${GENERATE_AUDIO_PORT:-9000}/health | python3 -m json.tool"
     echo -e "  bash scripts/smoke_generate_audio.sh --url http://localhost:${GENERATE_AUDIO_PORT:-9000}"
+fi
+
+if svc_selected "edge-proxy"; then
+    echo ""
+    echo -e "  ${BOLD}Edge Proxy TLS :${NC}"
+    echo -e "  bash scripts/edge_proxy_cert.sh issue    ${DIM}# Let's Encrypt DNS-01 Cloudflare${NC}"
+    echo -e "  bash scripts/edge_proxy_cert.sh info     ${DIM}# Infos certificat actif${NC}"
 fi
 
 echo ""

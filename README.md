@@ -163,9 +163,33 @@ Deux containers demarrent :
 - `api` sur `:3100`
 - tous les ports publies utilisent `PUBLISH_BIND_HOST=0.0.0.0` par defaut
 - `ops-console` sur `:80` (si selectionne), avec override possible via `OPS_CONSOLE_BIND_HOST`
+- `edge-proxy` peut exposer seulement `:80/:443` pour l'entree publique
 
 Si tu veux tout rebloquer en local, remets `PUBLISH_BIND_HOST=127.0.0.1` dans `.env`.
 Si tu veux seulement `ops-console` en local, garde `PUBLISH_BIND_HOST=0.0.0.0` et mets `OPS_CONSOLE_BIND_HOST=127.0.0.1`.
+
+Mode reverse proxy:
+
+```bash
+PUBLISH_BIND_HOST=127.0.0.1 ./setup --with core,api,ops-console,edge-proxy --yes
+```
+
+Dans ce mode, seuls `edge-proxy` sur `:80/:443` sont publics; les autres ports restent sur loopback.
+
+Certificat Let's Encrypt par DNS-01 Cloudflare:
+
+```bash
+# Variables minimales dans .env
+EDGE_PROXY_SERVER_NAME=saillant.cc
+EDGE_PROXY_ACME_EMAIL=toi@example.com
+EDGE_PROXY_ACME_DOMAINS=saillant.cc,www.saillant.cc
+CLOUDFLARE_API_TOKEN=...
+
+# Emission du certificat
+bash scripts/edge_proxy_cert.sh issue
+```
+
+Le proxy continue a generer un certificat auto-signe tant qu'aucun certificat reel n'est installe. Une fois le certificat emis, `edge-proxy` recharge Nginx automatiquement.
 
 Les agents dynamiques sont persistes dans un volume Docker (`core-data:/app/data`).
 

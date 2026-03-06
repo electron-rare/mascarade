@@ -17,6 +17,9 @@ class FallbackState:
     ) -> list[tuple[str, str | None]]:
         """Construire la séquence de fallback."""
 
+        if strategy == "specific" and provider:
+            return [(strategy, provider)]
+
         sequence: list[tuple[str, str | None]] = []
 
         # Premier essai : la requête originale

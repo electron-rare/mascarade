@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# ruff: noqa: E402
 """
 Working Fine-Tuning Demo with Local Tiny Model
 Demonstrates the complete fine-tuning pipeline without requiring large downloads
@@ -6,6 +7,10 @@ Demonstrates the complete fine-tuning pipeline without requiring large downloads
 
 import torch
 import torch.nn as nn
+from finetune.runtime_compat import disable_broken_torchvision
+
+_RUNTIME_COMPAT_NOTE = disable_broken_torchvision()
+
 from transformers import AutoTokenizer, TrainingArguments
 from peft import LoraConfig
 from datasets import Dataset

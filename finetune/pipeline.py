@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# ruff: noqa: E402
 """
 Mascarade Local Fine-Tuning Pipeline
 =====================================
@@ -36,6 +37,10 @@ import subprocess
 import sys
 from pathlib import Path
 
+from runtime_compat import disable_broken_torchvision
+
+_RUNTIME_COMPAT_NOTE = disable_broken_torchvision()
+
 import torch
 from datasets import Dataset
 from transformers import (
@@ -53,18 +58,30 @@ DATASETS_DIR = SCRIPT_DIR / "datasets"
 MODELS_DIR = SCRIPT_DIR / "models_local"
 MODELFILES_DIR = SCRIPT_DIR / "modelfiles"
 
-DOMAINS = ["stm32", "spice", "iot", "power", "dsp", "emc", "kicad", "embedded"]
+DOMAINS = [
+    "stm32",
+    "spice",
+    "iot",
+    "power",
+    "dsp",
+    "emc",
+    "kicad",
+    "embedded",
+    "platformio",
+    "freecad",
+]
 
 # Base models ranked by quality (pick first that fits in VRAM)
+# Local cache paths take priority
 BASE_MODELS = {
+    "qwen2.5-coder-7b": "finetune/models_cache/qwen2.5-7b",  # Local cache
     "qwen3-8b": "Qwen/Qwen3-8B",
-    "qwen2.5-coder-7b": "Qwen/Qwen2.5-Coder-7B-Instruct",
     "qwen3-1.7b": "Qwen/Qwen3-1.7B",
     "deepseek-coder": "deepseek-ai/DeepSeek-Coder-V2-Lite-Instruct",
     "tinyllama": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
 }
 
-DEFAULT_BASE = "Qwen/Qwen2.5-Coder-7B-Instruct"
+DEFAULT_BASE = "finetune/models_cache/qwen2.5-7b"  # Use local cache by default
 
 # Chat templates per model family
 CHAT_TEMPLATES = {

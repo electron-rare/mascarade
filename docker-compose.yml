@@ -19,11 +19,6 @@ services:
       DEFAULT_MODEL: ${DEFAULT_MODEL}
     volumes:
       - core-data:/app/data
-    deploy:
-      resources:
-        limits:
-          cpus: "2"
-          memory: 2G
     networks:
       - mascarade-network
 
@@ -42,11 +37,6 @@ services:
       API_PORT: 3000
     depends_on:
       - core
-    deploy:
-      resources:
-        limits:
-          cpus: "1"
-          memory: 512M
     networks:
       - mascarade-network
 
@@ -74,11 +64,6 @@ services:
       timeout: 5s
       retries: 10
       start_period: 20s
-    deploy:
-      resources:
-        limits:
-          cpus: "1"
-          memory: 1G
     networks:
       - mascarade-network
 
@@ -94,7 +79,7 @@ services:
       DB_POSTGRESDB_PORT: 5432
       DB_POSTGRESDB_DATABASE: mascarade
       DB_POSTGRESDB_USER: mascarade
-      DB_POSTGRESDB_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}
+      DB_POSTGRESDB_PASSWORD: ${POSTGRES_PASSWORD:-}
     depends_on:
       postgres:
         condition: service_healthy
@@ -106,11 +91,6 @@ services:
       timeout: 5s
       retries: 10
       start_period: 30s
-    deploy:
-      resources:
-        limits:
-          cpus: "1"
-          memory: 1G
     networks:
       - mascarade-network
 
@@ -129,7 +109,7 @@ services:
       CLICKHOUSE_URL: http://clickhouse:8123
       CLICKHOUSE_MIGRATION_URL: clickhouse://clickhouse:9000
       CLICKHOUSE_USER: ${CLICKHOUSE_USER:-langfuse}
-      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:?CLICKHOUSE_PASSWORD must be set}
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:-}
       CLICKHOUSE_CLUSTER_ENABLED: "false"
       REDIS_CONNECTION_STRING: redis://redis:6379
       REDIS_TLS_ENABLED: "false"
@@ -191,7 +171,7 @@ services:
     command: -c 'mkdir -p /data/langfuse && minio server --address ":9000" --console-address ":9001" /data'
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minio}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?MINIO_ROOT_PASSWORD must be set}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-}
     ports:
       - "${PUBLISH_BIND_HOST:-0.0.0.0}:9190:9000"
       - "${PUBLISH_BIND_HOST:-0.0.0.0}:9191:9001"
@@ -290,18 +270,13 @@ services:
       - ./deploy/clickhouse-config/langfuse-user.xml:/etc/clickhouse-server/users.d/langfuse-user.xml:ro
       - ./deploy/clickhouse-config/thread-pools.xml:/etc/clickhouse-server/config.d/thread-pools.xml:ro
     environment:
-      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:?CLICKHOUSE_PASSWORD must be set}
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:-}
     healthcheck:
       test: ["CMD-SHELL", "clickhouse-client --query 'SELECT 1' >/dev/null 2>&1"]
       interval: 15s
       timeout: 5s
       retries: 15
       start_period: 30s
-    deploy:
-      resources:
-        limits:
-          cpus: "2"
-          memory: 2G
     networks:
       - mascarade-network
 
@@ -338,6 +313,50 @@ services:
     networks:
       - mascarade-network
 
+  ops-console:
+    image: nginx:alpine
+    container_name: mascarade-ops-console
+    restart: unless-stopped
+    expose:
+      - "80"
+    volumes:
+      - ./deploy/ops-console/index.html:/usr/share/nginx/html/index.html:ro
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:80/ >/dev/null"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+    networks:
+      - mascarade-network
+
+  edge-proxy:
+    build:
+      context: .
+      dockerfile: deploy/Dockerfile.edge-proxy
+    container_name: mascarade-edge-proxy
+    restart: unless-stopped
+    ports:
+      - "${EDGE_PROXY_BIND_HOST:-0.0.0.0}:${EDGE_PROXY_HTTP_PORT}:80"
+      - "${EDGE_PROXY_BIND_HOST:-0.0.0.0}:${EDGE_PROXY_HTTPS_PORT}:443"
+    env_file:
+      - .env
+    volumes:
+      - edge-proxy-certs:/etc/nginx/certs
+    depends_on:
+      api:
+        condition: service_started
+      ops-console:
+        condition: service_started
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/healthz >/dev/null"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    networks:
+      - mascarade-network
+
   redis:
     image: ${REDIS_IMAGE:-redis@sha256:8b81dd37ff027bec4e516d41acfbe9fe2460070dc6d4a4570a2ac5b9d59df065}
     container_name: mascarade-redis
@@ -351,11 +370,6 @@ services:
       interval: 10s
       timeout: 3s
       retries: 10
-    deploy:
-      resources:
-        limits:
-          cpus: "0.5"
-          memory: 512M
     networks:
       - mascarade-network
 
@@ -377,11 +391,6 @@ services:
       timeout: 5s
       retries: 10
       start_period: 20s
-    deploy:
-      resources:
-        limits:
-          cpus: "2"
-          memory: 2G
     networks:
       - mascarade-network
 
@@ -398,13 +407,7 @@ services:
       test: ["CMD-SHELL", "bash -lc 'exec 3<>/dev/tcp/127.0.0.1/6333'"]
       interval: 15s
       timeout: 5s
-      retries: 10
-      start_period: 15s
-    deploy:
-      resources:
-        limits:
-          cpus: "1"
-          memory: 2G
+      retries: 5
     networks:
       - mascarade-network
 
@@ -417,16 +420,10 @@ services:
     volumes:
       - grafana-data:/var/lib/grafana
     healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:3000/api/health >/dev/null"]
+      test: ["CMD-SHELL", "curl -fsS http://localhost:3000/api/health >/dev/null"]
       interval: 15s
       timeout: 5s
-      retries: 10
-      start_period: 15s
-    deploy:
-      resources:
-        limits:
-          cpus: "0.5"
-          memory: 512M
+      retries: 5
     networks:
       - mascarade-network
 
@@ -439,16 +436,10 @@ services:
     volumes:
       - prometheus-data:/prometheus
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:9090/-/healthy >/dev/null"]
+      test: ["CMD-SHELL", "wget -qO- http://localhost:9090/-/healthy >/dev/null"]
       interval: 15s
       timeout: 5s
-      retries: 10
-      start_period: 15s
-    deploy:
-      resources:
-        limits:
-          cpus: "0.5"
-          memory: 512M
+      retries: 5
     networks:
       - mascarade-network
 
@@ -463,6 +454,10 @@ volumes:
   clickhouse-data:
   ollama-data:
   open-webui-data:
+  edge-proxy-certs:
+    name: mascarade-edge-proxy-certs
+  edge-proxy-acme:
+    name: mascarade-edge-proxy-acme
   redis-data:
   postgres-data:
   qdrant-data:

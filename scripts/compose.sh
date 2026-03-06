@@ -284,6 +284,24 @@ write_env_file() {
             echo ""
         fi
 
+        # Edge Proxy
+        if svc_selected "edge-proxy"; then
+            echo "# ── Edge Proxy ──"
+            echo "EDGE_PROXY_BIND_HOST=\"${EDGE_PROXY_BIND_HOST:-0.0.0.0}\""
+            echo "EDGE_PROXY_HTTP_PORT=\"${EDGE_PROXY_HTTP_PORT:-80}\""
+            echo "EDGE_PROXY_HTTPS_PORT=\"${EDGE_PROXY_HTTPS_PORT:-443}\""
+            echo "EDGE_PROXY_SERVER_NAME=\"${EDGE_PROXY_SERVER_NAME:-localhost}\""
+            echo "EDGE_PROXY_TLS_SANS=\"${EDGE_PROXY_TLS_SANS:-DNS:localhost,IP:127.0.0.1}\""
+            echo "EDGE_PROXY_ACME_EMAIL=\"${EDGE_PROXY_ACME_EMAIL:-}\""
+            echo "EDGE_PROXY_ACME_DOMAINS=\"${EDGE_PROXY_ACME_DOMAINS:-${EDGE_PROXY_SERVER_NAME:-localhost}}\""
+            echo "EDGE_PROXY_ACME_DNS_PROVIDER=\"${EDGE_PROXY_ACME_DNS_PROVIDER:-cloudflare}\""
+            echo "EDGE_PROXY_ACME_CA=\"${EDGE_PROXY_ACME_CA:-letsencrypt}\""
+            echo "EDGE_PROXY_ACME_KEY_LENGTH=\"${EDGE_PROXY_ACME_KEY_LENGTH:-ec-256}\""
+            echo "EDGE_PROXY_ACME_DNS_SLEEP=\"${EDGE_PROXY_ACME_DNS_SLEEP:-30}\""
+            echo "CLOUDFLARE_API_TOKEN=\"${CLOUDFLARE_API_TOKEN:-}\""
+            echo ""
+        fi
+
         # Grafana
         if svc_selected "grafana"; then
             echo "# ── Grafana ──"

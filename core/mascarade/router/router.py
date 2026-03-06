@@ -153,34 +153,41 @@ class Router:
         provider: str | None = None,
         model: str | None = None,
         system: str | None = None,
+        response_format: dict | None = None,
         temperature: float = 0.7,
         max_tokens: int = 4096,
     ) -> LLMResponse:
         strategy = Strategy(strategy)
+        strict_provider = strategy == Strategy.SPECIFIC and provider is not None
 
-        cached = self.cache.retrieve(
-            messages,
-            strategy=strategy.value,
-            provider=provider,
-            model=model,
-            system=system,
-            temperature=temperature,
-            max_tokens=max_tokens,
-        )
-        if cached:
-            return LLMResponse(
-                content=cached.response,
-                model=cached.model,
-                provider=cached.provider,
-                usage={"total_tokens": cached.tokens},
+        if not strict_provider:
+            cached = self.cache.retrieve(
+                messages,
+                strategy=strategy.value,
+                provider=provider,
+                model=model,
+                system=system,
+                response_format=response_format,
+                temperature=temperature,
+                max_tokens=max_tokens,
             )
+            if cached:
+                return LLMResponse(
+                    content=cached.response,
+                    model=cached.model,
+                    provider=cached.provider,
+                    usage={"total_tokens": cached.tokens},
+                )
 
         last_error: Exception | None = None
-        sequence = self.fallback.build_sequence(
-            strategy=strategy.value,
-            provider=provider,
-            available_providers=self.available_providers,
-        )
+        if strict_provider:
+            sequence = [(strategy.value, provider)]
+        else:
+            sequence = self.fallback.build_sequence(
+                strategy=strategy.value,
+                provider=provider,
+                available_providers=self.available_providers,
+            )
 
         for attempt_strategy, attempt_provider in sequence:
             attempt_enum = Strategy(attempt_strategy)
@@ -189,13 +196,15 @@ class Router:
             self.load_balancer.request_started(selected.name)
 
             try:
-                response = await selected.send(
-                    messages,
-                    model=model,
-                    system=system,
-                    temperature=temperature,
-                    max_tokens=max_tokens,
-                )
+                send_kwargs = {
+                    "model": model,
+                    "system": system,
+                    "temperature": temperature,
+                    "max_tokens": max_tokens,
+                }
+                if response_format is not None and selected.name == "mistral":
+                    send_kwargs["response_format"] = response_format
+                response = await selected.send(messages, **send_kwargs)
             except Exception as exc:
                 elapsed = time.perf_counter() - started_at
                 logger.warning(
@@ -213,6 +222,28 @@ class Router:
                 )
                 self.fallback.record_failure(selected.name)
                 last_error = exc
+                continue
+
+            if strict_provider and response.provider != provider:
+                elapsed = time.perf_counter() - started_at
+                logger.warning(
+                    "Strict provider mismatch: requested %s but got %s",
+                    provider,
+                    response.provider,
+                )
+                self.load_balancer.request_completed(
+                    selected.name, response_time=elapsed, success=False
+                )
+                self.metrics.track_request(
+                    provider_name=selected.name,
+                    tokens=0,
+                    cost=0.0,
+                    response_time=elapsed,
+                    success=False,
+                )
+                last_error = RuntimeError(
+                    f"Strict provider mismatch: requested {provider}, got {response.provider}"
+                )
                 continue
 
             elapsed = time.perf_counter() - started_at
@@ -234,19 +265,21 @@ class Router:
             # But store the actual provider that was used for accurate response metadata
             cache_strategy = strategy.value
 
-            self.cache.store(
-                messages,
-                response.content,
-                tokens=self._usage_tokens(response.usage),
-                cost=self._calculate_cost(selected, response.usage),
-                ttl=3600,
-                strategy=cache_strategy,
-                provider=selected.name,  # Store actual provider used
-                model=response.model,
-                system=system,
-                temperature=temperature,
-                max_tokens=max_tokens,
-            )
+            if not strict_provider:
+                self.cache.store(
+                    messages,
+                    response.content,
+                    tokens=self._usage_tokens(response.usage),
+                    cost=self._calculate_cost(selected, response.usage),
+                    ttl=3600,
+                    strategy=cache_strategy,
+                    provider=selected.name,  # Store actual provider used
+                    model=response.model,
+                    system=system,
+                    response_format=response_format,
+                    temperature=temperature,
+                    max_tokens=max_tokens,
+                )
             return response
 
         raise RuntimeError(
@@ -267,12 +300,16 @@ class Router:
         max_tokens: int = 4096,
     ) -> AsyncIterator[str]:
         strategy = Strategy(strategy)
+        strict_provider = strategy == Strategy.SPECIFIC and provider is not None
 
-        sequence = self.fallback.build_sequence(
-            strategy=strategy.value,
-            provider=provider,
-            available_providers=self.available_providers,
-        )
+        if strict_provider:
+            sequence = [(strategy.value, provider)]
+        else:
+            sequence = self.fallback.build_sequence(
+                strategy=strategy.value,
+                provider=provider,
+                available_providers=self.available_providers,
+            )
 
         last_error: Exception | None = None
         for attempt_strategy, attempt_provider in sequence:

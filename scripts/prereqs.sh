@@ -193,6 +193,45 @@ install_node22() {
     fi
 }
 
+install_repo_htop() {
+    local install_script="$REPO_DIR/scripts/install_repo_htop.sh"
+
+    if [[ "${MASCARADE_SKIP_REPO_HTOP:-false}" == "true" ]]; then
+        dbg "install_repo_htop: skip via MASCARADE_SKIP_REPO_HTOP=true"
+        return 0
+    fi
+
+    if [[ "$(uname -s)" != "Linux" || "$(uname -m)" != "x86_64" ]]; then
+        dbg "install_repo_htop: unsupported platform $(uname -s)/$(uname -m)"
+        return 0
+    fi
+
+    if ! command -v curl &>/dev/null; then
+        dbg "install_repo_htop: curl missing"
+        return 0
+    fi
+
+    if ! command -v dpkg-deb &>/dev/null; then
+        dbg "install_repo_htop: dpkg-deb missing"
+        return 0
+    fi
+
+    if [[ ! -x "$install_script" ]]; then
+        warn "Installateur htop repo introuvable: $install_script"
+        return 0
+    fi
+
+    spin_start "Installation de htop 3.4.0 dans le repo (GPU meter)..."
+    if "$install_script" --quiet >/dev/null 2>&1; then
+        spin_stop
+        ok "htop repo 3.4.0 pret via ./tools/htop"
+    else
+        spin_stop false
+        warn "Installation du htop repo ignoree (setup continue)"
+        dbg "install_repo_htop: installer returned non-zero"
+    fi
+}
+
 # ── Verification complete des prerequis ──
 check_prerequisites() {
     section "Verification des prerequis"
@@ -411,6 +450,8 @@ check_prerequisites() {
         command -v node &>/dev/null   && ok "Node.js $(node -v)"
         command -v npm &>/dev/null    && ok "npm $(npm -v)"
     fi
+
+    install_repo_htop
 
     dbg "check_prerequisites: termine"
 }
