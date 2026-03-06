@@ -29,7 +29,12 @@ export default function Playground() {
   const [model, setModel] = useState("");
   const [temperature, setTemperature] = useState("0.7");
 
-  const { data: providerData } = useFetch<{ providers: string[] }>("/api/agents/providers");
+  const {
+    data: providerData,
+    loading: providersLoading,
+    error: providersError,
+    refetch: refetchProviders,
+  } = useFetch<{ providers: string[] }>("/api/agents/providers");
   const providers = providerData?.providers || [];
 
   const sendFn = useCallback(
@@ -53,7 +58,7 @@ export default function Playground() {
 
   const handleSend = () => {
     if (!prompt.trim()) return;
-    execute(undefined);
+    void execute(undefined);
   };
 
   return (
@@ -111,6 +116,45 @@ export default function Playground() {
             <p className="text-sm leading-7 text-amber-100/58">
               Fixer ici le mode de routage avant d&apos;envoyer le prompt dans la lane de test.
             </p>
+            {providersLoading && !providerData ? (
+              <LoadingPanel
+                compact
+                title="Syncing providers"
+                message="Collecting the provider bus exposed by the gateway."
+              />
+            ) : providersError && !providerData ? (
+              <InlineNotice
+                title="provider bus unavailable"
+                message={providersError}
+                tone="error"
+                action={
+                  <Button variant="ghost" onClick={() => void refetchProviders()}>
+                    retry provider sync
+                  </Button>
+                }
+              />
+            ) : (
+              <div className="rounded-[1.5rem] border border-border/80 bg-black/25 p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="screen-label">provider bus</p>
+                  <span className="status-chip border-border/80 bg-black/30 text-muted">
+                    {providers.length} live
+                  </span>
+                </div>
+                <p className="mt-3 text-sm leading-6 text-amber-100/58">
+                  {providers.length > 0
+                    ? `${providers.length} provider(s) disponibles pour le routage manuel ou auto.`
+                    : "No providers detected on the gateway. Auto routing stays constrained until the bus comes back."}
+                </p>
+                {providers.length === 0 ? (
+                  <div className="mt-4">
+                    <Button variant="secondary" onClick={() => void refetchProviders()}>
+                      refresh providers
+                    </Button>
+                  </div>
+                ) : null}
+              </div>
+            )}
             <Select
               label="Strategy"
               options={strategies}
@@ -125,6 +169,7 @@ export default function Playground() {
               ]}
               value={provider}
               onChange={(e) => setProvider(e.target.value)}
+              disabled={providersLoading && providers.length === 0}
             />
             <Input
               label="Model Override"
