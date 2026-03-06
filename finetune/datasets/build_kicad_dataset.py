@@ -32,8 +32,13 @@ SEED_EXAMPLES = [
     {
         "conversations": [
             {"from": "system", "value": SYSTEM_PROMPT},
-            {"from": "human", "value": "How do I calculate microstrip impedance for a 50Ω trace on a 4-layer PCB with FR4?"},
-            {"from": "gpt", "value": """Microstrip impedance calculation for 50Ω on FR4:
+            {
+                "from": "human",
+                "value": "How do I calculate microstrip impedance for a 50Ω trace on a 4-layer PCB with FR4?",
+            },
+            {
+                "from": "gpt",
+                "value": """Microstrip impedance calculation for 50Ω on FR4:
 
 **Formula (IPC-2141 / Wadell):**
 ```
@@ -76,14 +81,20 @@ Solving: **w ≈ 0.34mm (13.4 mil)**
 | 90Ω diff | 0.15mm / 0.2mm gap | Differential |
 | 100Ω diff | 0.13mm / 0.2mm gap | Differential |
 
-**Important:** Always get the actual stackup from your PCB manufacturer and use their impedance calculator for production designs. The formulas above are approximations."""}
+**Important:** Always get the actual stackup from your PCB manufacturer and use their impedance calculator for production designs. The formulas above are approximations.""",
+            },
         ]
     },
     {
         "conversations": [
             {"from": "system", "value": SYSTEM_PROMPT},
-            {"from": "human", "value": "Write a KiCad Python script to create a QFN-48 footprint with exposed pad."},
-            {"from": "gpt", "value": """KiCad Python script for QFN-48 (7×7mm, 0.5mm pitch) with exposed thermal pad:
+            {
+                "from": "human",
+                "value": "Write a KiCad Python script to create a QFN-48 footprint with exposed pad.",
+            },
+            {
+                "from": "gpt",
+                "value": """KiCad Python script for QFN-48 (7×7mm, 0.5mm pitch) with exposed thermal pad:
 
 ```python
 import pcbnew
@@ -194,14 +205,20 @@ Key IPC-7351 guidelines for QFN:
 - Pad extension beyond body: 0.4-0.8mm (nominal 0.65mm)
 - Exposed pad: typically 60-80% of body size
 - Thermal vias in exposed pad: 0.3mm drill, 0.6mm annular ring, 1mm pitch grid
-- Solder paste: 50-80% coverage on exposed pad (avoid voids)"""}
+- Solder paste: 50-80% coverage on exposed pad (avoid voids)""",
+            },
         ]
     },
     {
         "conversations": [
             {"from": "system", "value": SYSTEM_PROMPT},
-            {"from": "human", "value": "What is the recommended 4-layer PCB stackup for a mixed-signal design with USB 2.0?"},
-            {"from": "gpt", "value": """Recommended 4-layer stackup for mixed-signal + USB 2.0:
+            {
+                "from": "human",
+                "value": "What is the recommended 4-layer PCB stackup for a mixed-signal design with USB 2.0?",
+            },
+            {
+                "from": "gpt",
+                "value": """Recommended 4-layer stackup for mixed-signal + USB 2.0:
 
 ```
 Layer 1: Signal + USB (35µm Cu, 1oz)
@@ -250,14 +267,20 @@ Total: ~1.6mm (standard)
 - Via: 0.4mm drill, 0.8mm annular ring
 
 **KiCad Board Setup:**
-Board Setup → Physical Stackup → set layer thicknesses to match your fab's actual stackup."""}
+Board Setup → Physical Stackup → set layer thicknesses to match your fab's actual stackup.""",
+            },
         ]
     },
     {
         "conversations": [
             {"from": "system", "value": SYSTEM_PROMPT},
-            {"from": "human", "value": "How to set up DRC rules in KiCad 8 for JLCPCB manufacturing capabilities?"},
-            {"from": "gpt", "value": """KiCad 8 DRC setup for JLCPCB manufacturing:
+            {
+                "from": "human",
+                "value": "How to set up DRC rules in KiCad 8 for JLCPCB manufacturing capabilities?",
+            },
+            {
+                "from": "gpt",
+                "value": """KiCad 8 DRC setup for JLCPCB manufacturing:
 
 **Board Setup → Design Rules → Constraints:**
 
@@ -326,14 +349,20 @@ project-Edge_Cuts.gm1   # Board outline
 project.drl              # Drill file
 ```
 
-Zip all files → upload to jlcpcb.com/quote"""}
+Zip all files → upload to jlcpcb.com/quote""",
+            },
         ]
     },
     {
         "conversations": [
             {"from": "system", "value": SYSTEM_PROMPT},
-            {"from": "human", "value": "How to route differential pairs in KiCad for USB 3.0 or Ethernet?"},
-            {"from": "gpt", "value": """Differential pair routing in KiCad 8/9:
+            {
+                "from": "human",
+                "value": "How to route differential pairs in KiCad for USB 3.0 or Ethernet?",
+            },
+            {
+                "from": "gpt",
+                "value": """Differential pair routing in KiCad 8/9:
 
 **Step 1: Define differential pairs in schematic**
 
@@ -406,14 +435,20 @@ Board Setup → Design Rules → Net Classes:
 ```
 
 **Impedance verification:**
-Use KiCad's built-in calculator (Inspect → Calculator → TransLine) or Saturn PCB Toolkit to verify Z_diff matches target for your actual stackup."""}
+Use KiCad's built-in calculator (Inspect → Calculator → TransLine) or Saturn PCB Toolkit to verify Z_diff matches target for your actual stackup.""",
+            },
         ]
     },
     {
         "conversations": [
             {"from": "system", "value": SYSTEM_PROMPT},
-            {"from": "human", "value": "Write a KiCad Python script to export BOM in JLCPCB format from a schematic."},
-            {"from": "gpt", "value": """KiCad Python BOM export for JLCPCB SMT assembly:
+            {
+                "from": "human",
+                "value": "Write a KiCad Python script to export BOM in JLCPCB format from a schematic.",
+            },
+            {
+                "from": "gpt",
+                "value": """KiCad Python BOM export for JLCPCB SMT assembly:
 
 ```python
 #!/usr/bin/env python3
@@ -524,14 +559,20 @@ if __name__ == '__main__':
 **CPL (Component Placement List) for JLCPCB:**
 Generate from KiCad: File → Fabrication Outputs → Component Placement
 - Format: CSV
-- Rename columns: `Ref` → `Designator`, `PosX` → `Mid X`, `PosY` → `Mid Y`, `Rot` → `Rotation`, `Side` → `Layer`"""}
+- Rename columns: `Ref` → `Designator`, `PosX` → `Mid X`, `PosY` → `Mid Y`, `Rot` → `Rotation`, `Side` → `Layer`""",
+            },
         ]
     },
     {
         "conversations": [
             {"from": "system", "value": SYSTEM_PROMPT},
-            {"from": "human", "value": "What are the IPC-2221 conductor spacing requirements for different voltages?"},
-            {"from": "gpt", "value": """IPC-2221 conductor spacing (clearance) table:
+            {
+                "from": "human",
+                "value": "What are the IPC-2221 conductor spacing requirements for different voltages?",
+            },
+            {
+                "from": "gpt",
+                "value": """IPC-2221 conductor spacing (clearance) table:
 
 **Table 6-1: Minimum conductor spacing (internal layers, uncoated):**
 
@@ -579,14 +620,20 @@ Generate from KiCad: File → Fabrication Outputs → Component Placement
 )
 ```
 
-**Remember:** IPC-2221 gives MINIMUM spacing. Always add margin. For safety-critical designs, use IEC 60950-1 or IEC 62368-1 creepage/clearance tables instead."""}
+**Remember:** IPC-2221 gives MINIMUM spacing. Always add margin. For safety-critical designs, use IEC 60950-1 or IEC 62368-1 creepage/clearance tables instead.""",
+            },
         ]
     },
     {
         "conversations": [
             {"from": "system", "value": SYSTEM_PROMPT},
-            {"from": "human", "value": "How to design a proper ground pour in KiCad with via stitching?"},
-            {"from": "gpt", "value": """Ground pour and via stitching in KiCad 8:
+            {
+                "from": "human",
+                "value": "How to design a proper ground pour in KiCad with via stitching?",
+            },
+            {
+                "from": "gpt",
+                "value": """Ground pour and via stitching in KiCad 8:
 
 **Step 1: Create ground pour (copper zone)**
 
@@ -696,14 +743,20 @@ add_via_stitching(pcbnew.GetBoard(), spacing_mm=5.0)
 - [ ] Thermal relief on GND pads (for soldering)
 - [ ] Direct connect (no relief) on high-current GND pads
 - [ ] Via stitching connects all ground planes
-- [ ] No ground plane splits under high-speed signals"""}
+- [ ] No ground plane splits under high-speed signals""",
+            },
         ]
     },
     {
         "conversations": [
             {"from": "system", "value": SYSTEM_PROMPT},
-            {"from": "human", "value": "How do I calculate trace width for a given current in KiCad?"},
-            {"from": "gpt", "value": """Trace width for current carrying capacity (IPC-2221):
+            {
+                "from": "human",
+                "value": "How do I calculate trace width for a given current in KiCad?",
+            },
+            {
+                "from": "gpt",
+                "value": """Trace width for current carrying capacity (IPC-2221):
 
 **Formula (IPC-2152, simplified):**
 ```
@@ -759,14 +812,20 @@ For high-current paths on internal layers, add thermal vias along the trace:
 - For >5A: consider polygon pour instead of traces
 - Voltage drop: V = I × R, where R = ρ × L / (w × t)
   - ρ(Cu) = 1.72×10⁻⁸ Ω·m
-  - For 10A over 50mm in 0.5mm/1oz: V_drop = 49mV"""}
+  - For 10A over 50mm in 0.5mm/1oz: V_drop = 49mV""",
+            },
         ]
     },
     {
         "conversations": [
             {"from": "system", "value": SYSTEM_PROMPT},
-            {"from": "human", "value": "Explain the KiCad file formats and how to parse .kicad_pcb programmatically."},
-            {"from": "gpt", "value": """KiCad file formats (v8/v9) and parsing:
+            {
+                "from": "human",
+                "value": "Explain the KiCad file formats and how to parse .kicad_pcb programmatically.",
+            },
+            {
+                "from": "gpt",
+                "value": """KiCad file formats (v8/v9) and parsing:
 
 **File types:**
 | Extension | Content | Format |
@@ -896,22 +955,53 @@ for track in board.GetTracks():
         print(f"Track: {track.GetNetname()} width={track.GetWidth()/1e6}mm")
     elif isinstance(track, pcbnew.PCB_VIA):
         print(f"Via: {track.GetNetname()} drill={track.GetDrill()/1e6}mm")
-```"""}
+```""",
+            },
         ]
     },
 ]
 
 
 KICAD_KEYWORDS = [
-    "kicad", "pcb", "footprint", "schematic", "eeschema", "pcbnew",
-    "gerber", "drill", "excellon", "bom", "netlist", "drc",
-    "routing", "trace", "via", "copper", "solder", "pad",
-    "silkscreen", "soldermask", "courtyard", "stackup",
-    "impedance", "microstrip", "stripline", "differential pair",
-    "ground plane", "power plane", "copper pour",
-    "ipc-2221", "ipc-7351", "ipc-a-610",
-    "eda", "cad", "layout", "placement",
-    "jlcpcb", "pcbway", "oshpark",
+    "kicad",
+    "pcb",
+    "footprint",
+    "schematic",
+    "eeschema",
+    "pcbnew",
+    "gerber",
+    "drill",
+    "excellon",
+    "bom",
+    "netlist",
+    "drc",
+    "routing",
+    "trace",
+    "via",
+    "copper",
+    "solder",
+    "pad",
+    "silkscreen",
+    "soldermask",
+    "courtyard",
+    "stackup",
+    "impedance",
+    "microstrip",
+    "stripline",
+    "differential pair",
+    "ground plane",
+    "power plane",
+    "copper pour",
+    "ipc-2221",
+    "ipc-7351",
+    "ipc-a-610",
+    "eda",
+    "cad",
+    "layout",
+    "placement",
+    "jlcpcb",
+    "pcbway",
+    "oshpark",
 ]
 
 
@@ -928,22 +1018,34 @@ def build_from_huggingface(max_samples: int) -> list[dict]:
     # 1. STEM-AI Electrical Engineering (25% KiCad + 10% KiCad Python)
     print("  Downloading STEM-AI-mtl/Electrical-engineering...")
     try:
-        ds = load_dataset("STEM-AI-mtl/Electrical-engineering", split="train", streaming=True)
+        ds = load_dataset(
+            "STEM-AI-mtl/Electrical-engineering", split="train", streaming=True
+        )
         count = 0
         for row in ds:
-            question = row.get("question", "") or row.get("instruction", "") or row.get("title", "")
-            answer = row.get("answer", "") or row.get("output", "") or row.get("response", "")
+            question = (
+                row.get("question", "")
+                or row.get("instruction", "")
+                or row.get("title", "")
+            )
+            answer = (
+                row.get("answer", "")
+                or row.get("output", "")
+                or row.get("response", "")
+            )
             if not question or not answer or len(answer) < 50:
                 continue
             combined = (question + " " + answer).lower()
             if any(kw in combined for kw in KICAD_KEYWORDS):
-                samples.append({
-                    "conversations": [
-                        {"from": "system", "value": SYSTEM_PROMPT},
-                        {"from": "human", "value": question.strip()},
-                        {"from": "gpt", "value": answer.strip()},
-                    ]
-                })
+                samples.append(
+                    {
+                        "conversations": [
+                            {"from": "system", "value": SYSTEM_PROMPT},
+                            {"from": "human", "value": question.strip()},
+                            {"from": "gpt", "value": answer.strip()},
+                        ]
+                    }
+                )
                 count += 1
                 if count >= max_samples:
                     break
@@ -955,7 +1057,9 @@ def build_from_huggingface(max_samples: int) -> list[dict]:
     # Columns: Id, Tags, Answer, Body, Title, CreationDate
     print("  Downloading bshada/electronics.stackexchange.com (PCB/KiCad filter)...")
     try:
-        ds = load_dataset("bshada/electronics.stackexchange.com", split="train", streaming=True)
+        ds = load_dataset(
+            "bshada/electronics.stackexchange.com", split="train", streaming=True
+        )
         count = 0
         for row in ds:
             title = row.get("Title", "")
@@ -967,17 +1071,19 @@ def build_from_huggingface(max_samples: int) -> list[dict]:
             combined = (title + " " + body + " " + answer + " " + tags).lower()
             if not any(kw in combined for kw in KICAD_KEYWORDS):
                 continue
-            question = re.sub(r'<[^>]+>', '', title + "\n" + body).strip()
-            answer_clean = re.sub(r'<[^>]+>', '', answer).strip()
+            question = re.sub(r"<[^>]+>", "", title + "\n" + body).strip()
+            answer_clean = re.sub(r"<[^>]+>", "", answer).strip()
             if len(answer_clean) < 80:
                 continue
-            samples.append({
-                "conversations": [
-                    {"from": "system", "value": SYSTEM_PROMPT},
-                    {"from": "human", "value": question[:1000]},
-                    {"from": "gpt", "value": answer_clean[:4000]},
-                ]
-            })
+            samples.append(
+                {
+                    "conversations": [
+                        {"from": "system", "value": SYSTEM_PROMPT},
+                        {"from": "human", "value": question[:1000]},
+                        {"from": "gpt", "value": answer_clean[:4000]},
+                    ]
+                }
+            )
             count += 1
             if count >= max_samples:
                 break
@@ -990,8 +1096,12 @@ def build_from_huggingface(max_samples: int) -> list[dict]:
 
 def main():
     parser = argparse.ArgumentParser(description="Build KiCad/PCB fine-tuning dataset")
-    parser.add_argument("--with-hf", action="store_true", help="Include HuggingFace datasets")
-    parser.add_argument("--max-samples", type=int, default=2000, help="Max HF samples per source")
+    parser.add_argument(
+        "--with-hf", action="store_true", help="Include HuggingFace datasets"
+    )
+    parser.add_argument(
+        "--max-samples", type=int, default=2000, help="Max HF samples per source"
+    )
     parser.add_argument("--output", type=str, default=None, help="Output file path")
     args = parser.parse_args()
 
@@ -1012,7 +1122,9 @@ def main():
     print(f"\n  Wrote {len(all_samples)} examples to {output_path}")
     print(f"  Size: {os.path.getsize(output_path) / 1024:.1f} KB")
     if not args.with_hf:
-        print(f"\n  To enrich: python build_kicad_dataset.py --with-hf --max-samples 2000")
+        print(
+            "\n  To enrich: python build_kicad_dataset.py --with-hf --max-samples 2000"
+        )
 
 
 if __name__ == "__main__":

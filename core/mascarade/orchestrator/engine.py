@@ -3,16 +3,18 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from dataclasses import dataclass, field
-from enum import Enum
+from enum import StrEnum
 
-from mascarade.agents.base import Agent
 from mascarade.agents.registry import AgentRegistry
 from mascarade.router import Router
 from mascarade.router.providers.base import LLMResponse
 
+logger = logging.getLogger("mascarade.orchestrator")
 
-class ExecutionMode(str, Enum):
+
+class ExecutionMode(StrEnum):
     SEQUENTIAL = "sequential"
     PARALLEL = "parallel"
     PIPELINE = "pipeline"
@@ -23,6 +25,7 @@ class TaskResult:
     agent_name: str
     response: LLMResponse
     step: int = 0
+    error: str | None = None
 
 
 @dataclass
@@ -58,7 +61,25 @@ class Orchestrator:
             return TaskResult(agent_name=name, response=response, step=step)
 
         tasks = [_run_one(name, i) for i, name in enumerate(agent_names)]
-        return await asyncio.gather(*tasks)
+        raw_results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        results: list[TaskResult] = []
+        for i, r in enumerate(raw_results):
+            if isinstance(r, BaseException):
+                logger.error("Agent %s failed: %s", agent_names[i], r)
+                results.append(
+                    TaskResult(
+                        agent_name=agent_names[i],
+                        response=LLMResponse(
+                            content="", model="", provider="", usage={}
+                        ),
+                        step=i,
+                        error=str(r),
+                    )
+                )
+            else:
+                results.append(r)
+        return results
 
     async def run_pipeline(
         self,

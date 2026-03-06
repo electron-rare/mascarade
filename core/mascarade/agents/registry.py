@@ -3,11 +3,16 @@
 from __future__ import annotations
 
 import json
+import logging
+import os
+import tempfile
 from dataclasses import asdict
 from pathlib import Path
 
 from mascarade.agents.base import Agent
 from mascarade.router.router import Strategy
+
+logger = logging.getLogger("mascarade.agents")
 
 DEFAULT_STORAGE_PATH = Path("data/agents.json")
 
@@ -57,18 +62,37 @@ class AgentRegistry:
             if agent.name in self._builtin_names:
                 continue
             data = asdict(agent)
-            data["strategy"] = agent.strategy.value if isinstance(agent.strategy, Strategy) else str(agent.strategy)
+            data["strategy"] = (
+                agent.strategy.value
+                if isinstance(agent.strategy, Strategy)
+                else str(agent.strategy)
+            )
             agents_data.append(data)
-        self._storage_path.write_text(
-            json.dumps(agents_data, indent=2, ensure_ascii=False), encoding="utf-8"
+        # Atomic write: write to temp file, then rename
+        fd, tmp_path = tempfile.mkstemp(
+            dir=str(self._storage_path.parent), suffix=".tmp"
         )
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
+                json.dump(agents_data, f, indent=2, ensure_ascii=False)
+            os.replace(tmp_path, str(self._storage_path))
+        except BaseException:
+            os.unlink(tmp_path)
+            raise
 
     def load(self) -> None:
         """Charger les agents dynamiques depuis le fichier JSON."""
         if self._storage_path is None or not self._storage_path.exists():
             return
-        raw = json.loads(self._storage_path.read_text(encoding="utf-8"))
+        try:
+            raw = json.loads(self._storage_path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError) as exc:
+            logger.error("Failed to load agents from %s: %s", self._storage_path, exc)
+            return
         for data in raw:
-            data["strategy"] = Strategy(data["strategy"])
-            agent = Agent(**data)
-            self.register(agent)
+            try:
+                data["strategy"] = Strategy(data["strategy"])
+                agent = Agent(**data)
+                self.register(agent)
+            except (KeyError, TypeError, ValueError) as exc:
+                logger.warning("Skipping invalid agent entry: %s", exc)

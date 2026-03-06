@@ -13,6 +13,11 @@ class NotionClient:
     def __init__(self, api_key: str | None = None) -> None:
         self._client = AsyncClient(auth=api_key or settings.notion_api_key)
 
+    async def close(self) -> None:
+        """Close the underlying HTTP client."""
+        if hasattr(self._client, "client") and hasattr(self._client.client, "aclose"):
+            await self._client.client.aclose()
+
     async def read_page(self, page_id: str) -> str:
         """Lire le contenu d'une page Notion comme texte brut."""
         blocks = await self._client.blocks.children.list(block_id=page_id)

@@ -44,11 +44,12 @@ export default function NotionBrowser() {
             {searchApi.data.results.map((row) => (
               <button
                 key={row.id}
+                disabled={pageApi.loading}
                 onClick={async () => {
                   setSelected(row);
                   await pageApi.execute(row.id);
                 }}
-                className="w-full text-left rounded border border-border bg-white/5 hover:bg-white/10 p-3"
+                className="w-full text-left rounded border border-border bg-white/5 hover:bg-white/10 p-3 disabled:opacity-50"
               >
                 <p className="text-sm text-slate-200">{row.title}</p>
                 <p className="text-xs text-muted mt-1">{row.url}</p>
@@ -91,4 +92,3 @@ export default function NotionBrowser() {
     </div>
   );
 }
-

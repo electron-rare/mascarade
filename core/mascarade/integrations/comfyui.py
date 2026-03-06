@@ -95,10 +95,22 @@ class ComfyUIClient:
 
     # --- Images ---
 
+    @staticmethod
+    def _validate_path_component(value: str, name: str) -> str:
+        """Validate a path component against traversal attacks."""
+        if not value:
+            return value
+        if ".." in value or "/" in value or "\\" in value or "\0" in value:
+            raise ValueError(f"Invalid {name}: path traversal not allowed")
+        return value
+
     async def get_image(
         self, filename: str, subfolder: str = "", image_type: str = "output"
     ) -> bytes:
         """Telecharger une image generee."""
+        self._validate_path_component(filename, "filename")
+        self._validate_path_component(subfolder, "subfolder")
+        self._validate_path_component(image_type, "type")
         params = {"filename": filename, "subfolder": subfolder, "type": image_type}
         resp = await self._client.get("/view", params=params)
         resp.raise_for_status()
@@ -134,9 +146,14 @@ class ComfyUIClient:
             checkpoint = models[0] if models else "v1-5-pruned-emaonly.safetensors"
 
         workflow = self.txt2img_workflow(
-            prompt, negative_prompt,
-            checkpoint=checkpoint, width=width, height=height,
-            steps=steps, cfg=cfg, seed=seed,
+            prompt,
+            negative_prompt,
+            checkpoint=checkpoint,
+            width=width,
+            height=height,
+            steps=steps,
+            cfg=cfg,
+            seed=seed,
         )
         prompt_id = await self.queue_prompt(workflow)
         result = await self.wait_for_result(prompt_id)
@@ -170,10 +187,16 @@ class ComfyUIClient:
             "3": {
                 "class_type": "KSampler",
                 "inputs": {
-                    "seed": seed, "steps": steps, "cfg": cfg,
-                    "sampler_name": "euler", "scheduler": "normal", "denoise": 1.0,
-                    "model": ["4", 0], "positive": ["6", 0],
-                    "negative": ["7", 0], "latent_image": ["5", 0],
+                    "seed": seed,
+                    "steps": steps,
+                    "cfg": cfg,
+                    "sampler_name": "euler",
+                    "scheduler": "normal",
+                    "denoise": 1.0,
+                    "model": ["4", 0],
+                    "positive": ["6", 0],
+                    "negative": ["7", 0],
+                    "latent_image": ["5", 0],
                 },
             },
             "4": {
@@ -222,10 +245,16 @@ class ComfyUIClient:
             "3": {
                 "class_type": "KSampler",
                 "inputs": {
-                    "seed": seed, "steps": steps, "cfg": cfg,
-                    "sampler_name": "euler", "scheduler": "normal", "denoise": denoise,
-                    "model": ["4", 0], "positive": ["6", 0],
-                    "negative": ["7", 0], "latent_image": ["10", 0],
+                    "seed": seed,
+                    "steps": steps,
+                    "cfg": cfg,
+                    "sampler_name": "euler",
+                    "scheduler": "normal",
+                    "denoise": denoise,
+                    "model": ["4", 0],
+                    "positive": ["6", 0],
+                    "negative": ["7", 0],
+                    "latent_image": ["10", 0],
                 },
             },
             "4": {

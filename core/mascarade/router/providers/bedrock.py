@@ -46,6 +46,21 @@ class BedrockProvider(LLMProvider):
     quality_rank = 3
 
     def __init__(self) -> None:
+        self._client = None
+        self._ft_runtime = None
+        self._ft_management = None
+        self._custom_models: dict[str, str] = {}
+        self._custom_models_loaded = False
+
+    def _ensure_clients(self) -> None:
+        """Create AWS clients lazily to keep startup fast."""
+        if (
+            self._client is not None
+            and self._ft_runtime is not None
+            and self._ft_management is not None
+        ):
+            return
+
         session = boto3.session.Session(
             aws_access_key_id=settings.aws_access_key_id or None,
             aws_secret_access_key=settings.aws_secret_access_key or None,
@@ -53,7 +68,7 @@ class BedrockProvider(LLMProvider):
             region_name=settings.aws_region,
         )
         self._client = session.client("bedrock-runtime")
-        # Separate client for us-west-2 where fine-tuned models live
+
         ft_session = boto3.session.Session(
             aws_access_key_id=settings.aws_access_key_id or None,
             aws_secret_access_key=settings.aws_secret_access_key or None,
@@ -62,11 +77,13 @@ class BedrockProvider(LLMProvider):
         )
         self._ft_runtime = ft_session.client("bedrock-runtime")
         self._ft_management = ft_session.client("bedrock")
-        self._custom_models: dict[str, str] = {}
-        self._discover_custom_models()
 
     def _discover_custom_models(self) -> None:
         """Auto-discover mascarade-* custom models on Bedrock."""
+        if self._custom_models_loaded:
+            return
+
+        self._ensure_clients()
         try:
             response = self._ft_management.list_custom_models(maxResults=50)
             for m in response.get("modelSummaries", []):
@@ -80,9 +97,12 @@ class BedrockProvider(LLMProvider):
                 logger.info("Found %d custom model(s)", len(self._custom_models))
         except (BotoCoreError, ClientError) as exc:
             logger.debug("Could not list custom models: %s", exc)
+        finally:
+            self._custom_models_loaded = True
 
     def _runtime_for(self, model_id: str):
         """Return the right runtime client based on model."""
+        self._ensure_clients()
         if model_id in self._custom_models:
             return self._ft_runtime
         if model_id.startswith("arn:aws:bedrock:us-west-2"):
@@ -104,6 +124,7 @@ class BedrockProvider(LLMProvider):
         if model.startswith("arn:"):
             return model
         # Custom model by name
+        self._discover_custom_models()
         if model in self._custom_models:
             return self._custom_models[model]
         return model
@@ -125,7 +146,10 @@ class BedrockProvider(LLMProvider):
             kwargs: dict = {
                 "modelId": model_id,
                 "messages": _to_bedrock_messages(messages),
-                "inferenceConfig": {"temperature": temperature, "maxTokens": max_tokens},
+                "inferenceConfig": {
+                    "temperature": temperature,
+                    "maxTokens": max_tokens,
+                },
             }
             if system:
                 kwargs["system"] = [{"text": system}]
@@ -161,7 +185,10 @@ class BedrockProvider(LLMProvider):
             kwargs: dict = {
                 "modelId": model_id,
                 "messages": _to_bedrock_messages(messages),
-                "inferenceConfig": {"temperature": temperature, "maxTokens": max_tokens},
+                "inferenceConfig": {
+                    "temperature": temperature,
+                    "maxTokens": max_tokens,
+                },
             }
             if system:
                 kwargs["system"] = [{"text": system}]
@@ -174,18 +201,23 @@ class BedrockProvider(LLMProvider):
                 yield text
 
     def available_models(self) -> list[str]:
+        self._discover_custom_models()
         models = [settings.aws_bedrock_model_id]
         models.extend(sorted(self._custom_models.keys()))
         return models
 
     def custom_models(self) -> dict[str, str]:
         """Return {name: arn} of discovered custom models."""
+        self._discover_custom_models()
         return dict(self._custom_models)
 
     async def finetune_jobs(self) -> list[dict]:
         """List fine-tuning job statuses."""
+        self._ensure_clients()
+
         def _call():
             return self._ft_management.list_model_customization_jobs(maxResults=20)
+
         response = await asyncio.to_thread(_call)
         return [
             {

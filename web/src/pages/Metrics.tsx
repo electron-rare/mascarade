@@ -1,10 +1,9 @@
-import { useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 import { opsApi, type OpsMonitor } from "../api/ops";
-import { useApi } from "../hooks/useApi";
 import { Card, Spinner } from "../components/ui";
 
 function statusClass(ok: boolean): string {
-  return ok ? "text-accent" : "text-error";
+  return ok ? "glow-green" : "text-error";
 }
 
 function formatLatency(ms: number): string {
@@ -13,17 +12,25 @@ function formatLatency(ms: number): string {
 }
 
 export default function Metrics() {
-  const { execute, data, loading, error } = useApi<OpsMonitor, void>(() =>
-    opsApi.monitor(),
-  );
+  const [data, setData] = useState<OpsMonitor | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const mountedRef = useRef(true);
 
   useEffect(() => {
-    execute(undefined).catch(() => undefined);
-    const t = window.setInterval(() => {
-      execute(undefined).catch(() => undefined);
-    }, 5000);
-    return () => window.clearInterval(t);
-  }, [execute]);
+    mountedRef.current = true;
+    const fetchData = async () => {
+      try {
+        const result = await opsApi.monitor();
+        if (mountedRef.current) { setData(result); setLoading(false); }
+      } catch (e) {
+        if (mountedRef.current) { setError(e instanceof Error ? e.message : "Unknown error"); setLoading(false); }
+      }
+    };
+    fetchData();
+    const t = window.setInterval(fetchData, 5000);
+    return () => { mountedRef.current = false; window.clearInterval(t); };
+  }, []);
 
   if (loading && !data) return <Spinner className="mx-auto mt-20" />;
   if (error && !data) {
@@ -35,11 +42,16 @@ export default function Metrics() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-sm uppercase tracking-[0.16em] text-accent">ops monitor</h2>
-          <p className="text-xs text-muted mt-1">last sync: {new Date(data.timestamp).toLocaleTimeString()}</p>
+          <h2 className="text-sm uppercase tracking-[0.16em] text-accent glow-text glitch">ops monitor</h2>
+          <p className="text-xs text-muted mt-1 cursor-blink">last sync: {new Date(data.timestamp).toLocaleTimeString()}</p>
         </div>
         <button
-          onClick={() => execute(undefined)}
+          onClick={async () => {
+            try {
+              const result = await opsApi.monitor();
+              setData(result);
+            } catch { /* ignore */ }
+          }}
           className="bg-white/5 text-accent border border-border px-3 py-1 rounded text-xs hover:bg-white/10 transition-colors uppercase tracking-wide"
         >
           refresh
@@ -103,8 +115,11 @@ export default function Metrics() {
             <tbody>
               {data.services.map((svc) => (
                 <tr key={svc.name} className="border-b border-border/50">
-                  <td className="py-2 text-accent uppercase">{svc.name}</td>
-                  <td className={`py-2 ${statusClass(svc.ok)}`}>{svc.ok ? "ONLINE" : "DOWN"}</td>
+                  <td className="py-2 text-accent uppercase glow-text">{svc.name}</td>
+                  <td className={`py-2 ${statusClass(svc.ok)}`}>
+                    <span className={`pulse-dot mr-1.5 ${svc.ok ? "pulse-dot-ok" : "pulse-dot-err"}`} />
+                    {svc.ok ? "ONLINE" : "DOWN"}
+                  </td>
                   <td className="py-2 text-amber-100/80">{svc.status || "-"}</td>
                   <td className="py-2 text-amber-100/80">{formatLatency(svc.latency_ms)}</td>
                   <td className="py-2 text-muted">{svc.url}</td>
@@ -129,4 +144,3 @@ export default function Metrics() {
     </div>
   );
 }
-

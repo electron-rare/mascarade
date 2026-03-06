@@ -2,18 +2,23 @@
 # scripts/modules/redis.sh — Module Redis
 
 module_redis_config() {
-  input_value "REDIS_PORT" "Redis port" "6379"
+  REDIS_PORT=$(input_value "Redis port" "${REDIS_PORT:-6379}")
 }
 
 module_redis_compose() {
   echo "  redis:"
-  echo "    image: redis:7-alpine"
+  echo "    image: \${REDIS_IMAGE:-redis@sha256:8b81dd37ff027bec4e516d41acfbe9fe2460070dc6d4a4570a2ac5b9d59df065}"
   echo "    container_name: mascarade-redis"
   echo "    restart: unless-stopped"
   echo "    ports:"
   echo "      - \"127.0.0.1:\${REDIS_PORT}:6379\""
   echo "    volumes:"
   echo "      - redis-data:/data"
+  echo "    healthcheck:"
+  echo "      test: [\"CMD\", \"redis-cli\", \"ping\"]"
+  echo "      interval: 10s"
+  echo "      timeout: 3s"
+  echo "      retries: 10"
   echo "    networks:"
   echo "      - mascarade-network"
 }

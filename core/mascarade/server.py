@@ -2,19 +2,21 @@
 
 from __future__ import annotations
 
+import logging
 from contextlib import asynccontextmanager
 from typing import Literal
-
-import logging
 
 from fastapi import APIRouter, Depends, FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
-logger = logging.getLogger("mascarade.server")
-
 from mascarade.agents import Agent, AgentRegistry
 from mascarade.agents.skills import register_default_skills
-from mascarade.auth import add_api_key, get_active_api_keys, remove_api_key, require_auth
+from mascarade.auth import (
+    add_api_key,
+    get_active_api_keys,
+    remove_api_key,
+    require_auth,
+)
 from mascarade.config import settings
 from mascarade.integrations.comfyui import ComfyUIClient
 from mascarade.integrations.notion import NotionClient
@@ -22,6 +24,8 @@ from mascarade.orchestrator import Orchestrator
 from mascarade.orchestrator.engine import ExecutionMode
 from mascarade.router import Router
 from mascarade.router.router import Strategy
+
+logger = logging.getLogger("mascarade.server")
 
 
 @asynccontextmanager
@@ -50,6 +54,7 @@ app = FastAPI(title="Mascarade Core", version="0.1.0", lifespan=lifespan)
 
 
 # --- Models ---
+
 
 class Message(BaseModel):
     role: Literal["system", "user", "assistant", "tool"]
@@ -115,15 +120,16 @@ class ComfyUIWorkflowRequest(BaseModel):
 
 # --- Route publique ---
 
+
 @app.get("/health")
 async def health():
     """Health check endpoint - returns basic system status."""
     health_data = {"status": "ok"}
 
     # Add optional metrics if state is initialized
-    if hasattr(app.state, 'router'):
+    if hasattr(app.state, "router"):
         health_data["providers"] = app.state.router.available_providers
-    if hasattr(app.state, 'registry'):
+    if hasattr(app.state, "registry"):
         health_data["agents"] = len(app.state.registry)
 
     return health_data
@@ -135,6 +141,7 @@ protected = APIRouter(dependencies=[Depends(require_auth)])
 
 
 # --- Gestion des cles API ---
+
 
 class APIKeyCreate(BaseModel):
     key: str = Field(min_length=8, max_length=256, description="Nouvelle cle API")
@@ -164,6 +171,7 @@ async def list_api_keys():
 
 # --- LLM ---
 
+
 @protected.post("/send")
 async def send(req: SendRequest):
     messages = [m.model_dump() for m in req.messages]
@@ -179,7 +187,9 @@ async def send(req: SendRequest):
         )
     except ValueError as exc:
         logger.warning("Send request rejected: %s", exc)
-        raise HTTPException(status_code=400, detail="Invalid request parameters") from exc
+        raise HTTPException(
+            status_code=400, detail="Invalid request parameters"
+        ) from exc
     return {
         "content": response.content,
         "model": response.model,
@@ -218,6 +228,7 @@ async def bedrock_finetune_jobs():
 
 # --- Metrics ---
 
+
 @protected.get("/metrics")
 async def metrics_summary():
     return app.state.router.metrics_summary()
@@ -239,6 +250,7 @@ async def metrics_reset():
 
 # --- Cache ---
 
+
 @protected.get("/cache/stats")
 async def cache_stats():
     return app.state.router.cache.get_stats()
@@ -251,6 +263,7 @@ async def cache_reset():
 
 
 # --- Load Balancer ---
+
 
 @protected.get("/load-balancer/stats")
 async def lb_stats():
@@ -265,6 +278,7 @@ async def lb_reset():
 
 # --- Fallback ---
 
+
 @protected.get("/fallback/stats")
 async def fallback_stats():
     return app.state.router.fallback.get_failure_stats()
@@ -277,6 +291,7 @@ async def fallback_reset():
 
 
 # --- Agents ---
+
 
 @protected.post("/agents")
 async def create_agent(req: AgentCreate):
@@ -313,7 +328,9 @@ async def run_agent(name: str, req: SendRequest):
     try:
         agent = app.state.registry.get(name)
     except KeyError:
-        raise HTTPException(status_code=404, detail=f"Agent '{name}' not found")
+        raise HTTPException(
+            status_code=404, detail=f"Agent '{name}' not found"
+        ) from None
 
     messages = [m.model_dump() for m in req.messages]
     prompt = messages[-1]["content"]
@@ -328,6 +345,7 @@ async def run_agent(name: str, req: SendRequest):
 
 
 # --- Orchestration ---
+
 
 @protected.post("/orchestrate")
 async def orchestrate(req: TaskRequest):
@@ -356,6 +374,7 @@ async def orchestrate(req: TaskRequest):
 
 # --- Notion ---
 
+
 def _require_notion() -> NotionClient:
     if app.state.notion is None:
         raise HTTPException(
@@ -367,7 +386,9 @@ def _require_notion() -> NotionClient:
 @protected.get("/notion/search")
 async def notion_search(q: str):
     if len(q) > 1000:
-        raise HTTPException(status_code=400, detail="Search query too long (max 1000 chars)")
+        raise HTTPException(
+            status_code=400, detail="Search query too long (max 1000 chars)"
+        )
     client = _require_notion()
     results = await client.search(q)
     return {"results": results}
@@ -399,7 +420,9 @@ async def run_notion_scribe_and_push(req: NotionScribeRequest):
     try:
         agent = app.state.registry.get("notion-scribe")
     except KeyError:
-        raise HTTPException(status_code=404, detail="Agent 'notion-scribe' not found")
+        raise HTTPException(
+            status_code=404, detail="Agent 'notion-scribe' not found"
+        ) from None
 
     messages = [m.model_dump() for m in req.messages]
     prompt = messages[-1]["content"]
@@ -424,6 +447,7 @@ async def run_notion_scribe_and_push(req: NotionScribeRequest):
 
 
 # --- ComfyUI ---
+
 
 def _require_comfyui() -> ComfyUIClient:
     if app.state.comfyui is None:
@@ -456,9 +480,14 @@ async def comfyui_models(model_type: str = "checkpoints"):
 async def comfyui_generate(req: ComfyUIGenerateRequest):
     client = _require_comfyui()
     result = await client.generate_image(
-        req.prompt, req.negative_prompt,
-        checkpoint=req.checkpoint, width=req.width, height=req.height,
-        steps=req.steps, cfg=req.cfg, seed=req.seed,
+        req.prompt,
+        req.negative_prompt,
+        checkpoint=req.checkpoint,
+        width=req.width,
+        height=req.height,
+        steps=req.steps,
+        cfg=req.cfg,
+        seed=req.seed,
     )
     return result
 
@@ -466,7 +495,9 @@ async def comfyui_generate(req: ComfyUIGenerateRequest):
 @protected.post("/comfyui/workflow")
 async def comfyui_workflow(req: ComfyUIWorkflowRequest):
     if not req.workflow or not isinstance(req.workflow, dict):
-        raise HTTPException(status_code=400, detail="Workflow must be a non-empty object")
+        raise HTTPException(
+            status_code=400, detail="Workflow must be a non-empty object"
+        )
     if len(str(req.workflow)) > 500_000:
         raise HTTPException(status_code=400, detail="Workflow payload too large")
     client = _require_comfyui()
@@ -488,7 +519,9 @@ async def comfyui_image(filename: str, subfolder: str = "", type: str = "output"
     try:
         image_data = await client.get_image(filename, subfolder, type)
     except ValueError:
-        raise HTTPException(status_code=400, detail="Invalid image path parameters")
+        raise HTTPException(
+            status_code=400, detail="Invalid image path parameters"
+        ) from None
     return Response(content=image_data, media_type="image/png")
 
 
@@ -504,6 +537,7 @@ app.include_router(protected)
 
 def start():
     import uvicorn
+
     uvicorn.run(app, host=settings.core_host, port=settings.core_port)
 
 

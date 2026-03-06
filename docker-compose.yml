@@ -19,6 +19,11 @@ services:
       DEFAULT_MODEL: ${DEFAULT_MODEL}
     volumes:
       - core-data:/app/data
+    deploy:
+      resources:
+        limits:
+          cpus: "2"
+          memory: 2G
     networks:
       - mascarade-network
 
@@ -30,19 +35,23 @@ services:
     restart: unless-stopped
     ports:
       - "127.0.0.1:${API_PORT}:3000"
-      - "80:3000"
     env_file:
       - .env
     environment:
       CORE_URL: ${CORE_URL}
-      API_PORT: ${API_PORT}
+      API_PORT: 3000
     depends_on:
       - core
+    deploy:
+      resources:
+        limits:
+          cpus: "1"
+          memory: 512M
     networks:
       - mascarade-network
 
   litellm:
-    image: ghcr.io/berriai/litellm:main-latest
+    image: ${LITELLM_IMAGE:-ghcr.io/berriai/litellm@sha256:59a2736ac84800821fa0e1656487366089f2d29d10f8ae05c918df9c6e4940af}
     container_name: mascarade-litellm
     restart: unless-stopped
     ports:
@@ -57,12 +66,13 @@ services:
       - ./tools/litellm-config.yaml:/app/config.yaml:ro
     command: ["--config", "/app/config.yaml"]
     depends_on:
-      - redis
+      redis:
+        condition: service_healthy
     networks:
       - mascarade-network
 
   n8n:
-    image: n8nio/n8n:latest
+    image: ${N8N_IMAGE:-n8nio/n8n@sha256:cfa50544c4cc172506834da1ec9bb5171db55958c8d1918205df0bda237a56f4}
     container_name: mascarade-n8n
     restart: unless-stopped
     ports:
@@ -73,16 +83,17 @@ services:
       DB_POSTGRESDB_PORT: 5432
       DB_POSTGRESDB_DATABASE: mascarade
       DB_POSTGRESDB_USER: mascarade
-      DB_POSTGRESDB_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
+      DB_POSTGRESDB_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
     volumes:
       - n8n-data:/home/node/.n8n
     networks:
       - mascarade-network
 
   langfuse-worker:
-    image: langfuse/langfuse-worker:3
+    image: ${LANGFUSE_WORKER_IMAGE:-langfuse/langfuse-worker@sha256:8bb47a4240ea293a210e460eae912ce06ea8fc2f724ce89cb146547eed36f6b2}
     container_name: mascarade-langfuse-worker
     restart: unless-stopped
     environment: &langfuse-worker-env
@@ -95,36 +106,39 @@ services:
       LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES: "false"
       CLICKHOUSE_URL: http://clickhouse:8123
       CLICKHOUSE_MIGRATION_URL: clickhouse://clickhouse:9000
-      CLICKHOUSE_USER: langfuse
-      CLICKHOUSE_PASSWORD: langfuse
+      CLICKHOUSE_USER: ${CLICKHOUSE_USER:-langfuse}
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:?CLICKHOUSE_PASSWORD must be set}
       CLICKHOUSE_CLUSTER_ENABLED: "false"
-      REDIS_HOST: redis
-      REDIS_PORT: 6379
+      REDIS_CONNECTION_STRING: redis://redis:6379
       REDIS_TLS_ENABLED: "false"
       LANGFUSE_S3_EVENT_UPLOAD_BUCKET: langfuse
       LANGFUSE_S3_EVENT_UPLOAD_REGION: auto
-      LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID: minio
-      LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY: miniosecret
+      LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID: ${MINIO_ROOT_USER:-minio}
+      LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD:-}
       LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT: http://minio:9000
       LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE: "true"
       LANGFUSE_S3_EVENT_UPLOAD_PREFIX: events/
       LANGFUSE_S3_MEDIA_UPLOAD_BUCKET: langfuse
       LANGFUSE_S3_MEDIA_UPLOAD_REGION: auto
-      LANGFUSE_S3_MEDIA_UPLOAD_ACCESS_KEY_ID: minio
-      LANGFUSE_S3_MEDIA_UPLOAD_SECRET_ACCESS_KEY: miniosecret
+      LANGFUSE_S3_MEDIA_UPLOAD_ACCESS_KEY_ID: ${MINIO_ROOT_USER:-minio}
+      LANGFUSE_S3_MEDIA_UPLOAD_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD:-}
       LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT: http://minio:9000
       LANGFUSE_S3_MEDIA_UPLOAD_FORCE_PATH_STYLE: "true"
       LANGFUSE_S3_MEDIA_UPLOAD_PREFIX: media/
     depends_on:
-      - postgres
-      - clickhouse
-      - redis
-      - minio
+      postgres:
+        condition: service_healthy
+      clickhouse:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
     networks:
       - mascarade-network
 
   langfuse-web:
-    image: langfuse/langfuse:3
+    image: ${LANGFUSE_WEB_IMAGE:-langfuse/langfuse@sha256:8d3211972d2a0610258ff0cc86da6b2d367f804bf253e9b94863bf961e59d23c}
     container_name: mascarade-langfuse
     restart: unless-stopped
     ports:
@@ -134,40 +148,51 @@ services:
       LANGFUSE_INIT_PROJECT_PUBLIC_KEY: ${LANGFUSE_INIT_PROJECT_PUBLIC_KEY:-}
       LANGFUSE_INIT_PROJECT_SECRET_KEY: ${LANGFUSE_INIT_PROJECT_SECRET_KEY:-}
     depends_on:
-      - langfuse-worker
-      - postgres
-      - clickhouse
-      - redis
-      - minio
+      langfuse-worker:
+        condition: service_started
+      postgres:
+        condition: service_healthy
+      clickhouse:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
     networks:
       - mascarade-network
 
   minio:
-    image: minio/minio:latest
+    image: ${MINIO_IMAGE:-minio/minio@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e}
     container_name: mascarade-langfuse-minio
     restart: unless-stopped
     entrypoint: sh
     command: -c 'mkdir -p /data/langfuse && minio server --address ":9000" --console-address ":9001" /data'
     environment:
-      MINIO_ROOT_USER: minio
-      MINIO_ROOT_PASSWORD: miniosecret
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minio}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?MINIO_ROOT_PASSWORD must be set}
     ports:
       - "127.0.0.1:9190:9000"
       - "127.0.0.1:9191:9001"
     volumes:
       - langfuse-minio-data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:9000/minio/health/live >/dev/null"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
     networks:
       - mascarade-network
 
   dify-api:
-    image: langgenius/dify-api:latest
+    image: ${DIFY_API_IMAGE:-langgenius/dify-api@sha256:5f622b4d0b39bdc6d3b401063cfb60962fa92dcc63f55daccec138f98b260e67}
     container_name: mascarade-dify-api
     restart: unless-stopped
     ports:
       - "127.0.0.1:${DIFY_API_PORT}:5001"
     environment:
       DB_USERNAME: mascarade
-      DB_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-}
       DB_HOST: postgres
       DB_PORT: 5432
       DB_DATABASE: mascarade
@@ -177,19 +202,21 @@ services:
       OPENDAL_ROOT: /app/api/storage
       OPENDAL_FS_ROOT: /app/api/storage
     depends_on:
-      - postgres
-      - redis
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     networks:
       - mascarade-network
   dify-web:
-    image: langgenius/dify-web:latest
+    image: ${DIFY_WEB_IMAGE:-langgenius/dify-web@sha256:30339b4d5060488fac147ddc6fb40438ef71cd5f5dfdeb26c886768302bf7197}
     container_name: mascarade-dify-web
     restart: unless-stopped
     ports:
       - "127.0.0.1:${DIFY_WEB_PORT}:3000"
     environment:
       DB_USERNAME: mascarade
-      DB_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-}
       DB_HOST: postgres
       DB_PORT: 5432
       DB_DATABASE: mascarade
@@ -199,18 +226,20 @@ services:
       OPENDAL_ROOT: /app/api/storage
       OPENDAL_FS_ROOT: /app/api/storage
     depends_on:
-      - postgres
-      - redis
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     networks:
       - mascarade-network
   dify-worker:
-    image: langgenius/dify-api:latest
+    image: ${DIFY_API_IMAGE:-langgenius/dify-api@sha256:5f622b4d0b39bdc6d3b401063cfb60962fa92dcc63f55daccec138f98b260e67}
     container_name: mascarade-dify-worker
     restart: unless-stopped
     command: celery -A app.celery worker
     environment:
       DB_USERNAME: mascarade
-      DB_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-}
       DB_HOST: postgres
       DB_PORT: 5432
       DB_DATABASE: mascarade
@@ -220,42 +249,58 @@ services:
       OPENDAL_ROOT: /app/api/storage
       OPENDAL_FS_ROOT: /app/api/storage
     depends_on:
-      - postgres
-      - redis
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     networks:
       - mascarade-network
 
   clickhouse:
-    image: clickhouse/clickhouse-server:latest
+    image: ${CLICKHOUSE_IMAGE:-clickhouse/clickhouse-server@sha256:0b2d7824347397b2ba6fcb216f0ae772568105f1f47e19f0d3247e24c79bc10a}
     container_name: mascarade-clickhouse
     restart: unless-stopped
     volumes:
       - clickhouse-data:/var/lib/clickhouse
-      - ./deploy/clickhouse/users.d/langfuse-user.xml:/etc/clickhouse-server/users.d/langfuse-user.xml:ro
+      - ./deploy/clickhouse-config/langfuse-user.xml:/etc/clickhouse-server/users.d/langfuse-user.xml:ro
       - ./deploy/clickhouse-config/thread-pools.xml:/etc/clickhouse-server/config.d/thread-pools.xml:ro
+    environment:
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:?CLICKHOUSE_PASSWORD must be set}
+    healthcheck:
+      test: ["CMD-SHELL", "clickhouse-client --query 'SELECT 1' >/dev/null 2>&1"]
+      interval: 15s
+      timeout: 5s
+      retries: 15
+      start_period: 30s
     networks:
       - mascarade-network
 
-
   ollama:
-    image: ollama/ollama:latest
+    image: ${OLLAMA_IMAGE:-ollama/ollama@sha256:719122581b6932e1240ae70d788859089cb80d17e23cd4f98ba960b0290f70cb}
     container_name: mascarade-ollama
     restart: unless-stopped
     ports:
       - "127.0.0.1:${OLLAMA_PORT}:11434"
     volumes:
       - ollama-data:/root/.ollama
+    healthcheck:
+      test: ["CMD-SHELL", "ollama list >/dev/null 2>&1"]
+      interval: 20s
+      timeout: 10s
+      retries: 15
+      start_period: 40s
     networks:
       - mascarade-network
 
   open-webui:
-    image: ghcr.io/open-webui/open-webui:main
+    image: ${OPEN_WEBUI_IMAGE:-ghcr.io/open-webui/open-webui@sha256:bb3f0281554bf05a9d505ffb5a5f067ab53e13ac772eb4ea3077a92ddc64600e}
     container_name: mascarade-open-webui
     restart: unless-stopped
     ports:
       - "127.0.0.1:${OPEN_WEBUI_PORT}:8080"
     depends_on:
-      - ollama
+      ollama:
+        condition: service_healthy
     environment:
       OLLAMA_BASE_URL: http://ollama:11434
     volumes:
@@ -264,18 +309,23 @@ services:
       - mascarade-network
 
   redis:
-    image: redis:7-alpine
+    image: ${REDIS_IMAGE:-redis@sha256:8b81dd37ff027bec4e516d41acfbe9fe2460070dc6d4a4570a2ac5b9d59df065}
     container_name: mascarade-redis
     restart: unless-stopped
     ports:
       - "127.0.0.1:${REDIS_PORT}:6379"
     volumes:
       - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
     networks:
       - mascarade-network
 
   postgres:
-    image: postgres:16-alpine
+    image: ${POSTGRES_IMAGE:-postgres@sha256:20edbde7749f822887a1a022ad526fde0a47d6b2be9a8364433605cf65099416}
     container_name: mascarade-postgres
     restart: unless-stopped
     ports:
@@ -286,11 +336,17 @@ services:
       POSTGRES_DB: ${POSTGRES_DB}
     volumes:
       - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
     networks:
       - mascarade-network
 
   qdrant:
-    image: qdrant/qdrant:latest
+    image: ${QDRANT_IMAGE:-qdrant/qdrant@sha256:f1c7272cdac52b38c1a0e89313922d940ba50afd90d593a1605dbbc214e66ffb}
     container_name: mascarade-qdrant
     restart: unless-stopped
     ports:
@@ -301,7 +357,7 @@ services:
       - mascarade-network
 
   grafana:
-    image: grafana/grafana:latest
+    image: ${GRAFANA_IMAGE:-grafana/grafana@sha256:b0ae311af06228bcfd4a620504b653db80f5b91e94dc3dc2a5b7dab202bcde20}
     container_name: mascarade-grafana
     restart: unless-stopped
     ports:
@@ -312,7 +368,7 @@ services:
       - mascarade-network
 
   prometheus:
-    image: prom/prometheus:latest
+    image: ${PROMETHEUS_IMAGE:-prom/prometheus@sha256:4a61322ac1103a0e3aea2a61ef1718422a48fa046441f299d71e660a3bc71ae9}
     container_name: mascarade-prometheus
     restart: unless-stopped
     ports:
@@ -329,6 +385,7 @@ networks:
 volumes:
   core-data:
   n8n-data:
+  langfuse-minio-data:
   clickhouse-data:
   ollama-data:
   open-webui-data:
@@ -337,4 +394,3 @@ volumes:
   qdrant-data:
   grafana-data:
   prometheus-data:
-  langfuse-minio-data:

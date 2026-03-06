@@ -1,15 +1,20 @@
-"""Adaptateur Ollama — modèles LLM locaux."""
+"""Adaptateur Ollama — modeles LLM locaux."""
 
 from __future__ import annotations
 
 import json
 import logging
-from typing import AsyncIterator
+from collections.abc import AsyncIterator
 
 import httpx
 
 from mascarade.config import settings
-from mascarade.router.providers.base import LLMProvider, LLMResponse, make_retry
+from mascarade.router.providers.base import (
+    LLMProvider,
+    LLMResponse,
+    build_chat_messages,
+    make_retry,
+)
 
 logger = logging.getLogger("mascarade.providers.ollama")
 
@@ -32,12 +37,11 @@ class OllamaProvider(LLMProvider):
 
     @property
     def is_configured(self) -> bool:
-        try:
-            with httpx.Client(base_url=self._base_url, timeout=3.0) as client:
-                resp = client.get("/api/tags")
-                return resp.status_code == 200
-        except Exception:
+        if not self._base_url:
             return False
+        if settings.ollama_enabled:
+            return True
+        return self._base_url != "http://ollama:11434"
 
     @_retry
     async def send(
@@ -50,10 +54,7 @@ class OllamaProvider(LLMProvider):
         max_tokens: int = 4096,
     ) -> LLMResponse:
         model = model or self.default_model
-        chat_messages = []
-        if system:
-            chat_messages.append({"role": "system", "content": system})
-        chat_messages.extend(messages)
+        chat_messages = build_chat_messages(messages, system)
 
         response = await self._client.post(
             "/api/chat",
@@ -90,10 +91,7 @@ class OllamaProvider(LLMProvider):
         max_tokens: int = 4096,
     ) -> AsyncIterator[str]:
         model = model or self.default_model
-        chat_messages = []
-        if system:
-            chat_messages.append({"role": "system", "content": system})
-        chat_messages.extend(messages)
+        chat_messages = build_chat_messages(messages, system)
 
         async with self._client.stream(
             "POST",
@@ -127,5 +125,5 @@ class OllamaProvider(LLMProvider):
                 resp.raise_for_status()
                 return [m["name"] for m in resp.json().get("models", [])]
         except Exception:
-            logger.warning("Impossible de lister les modèles Ollama")
+            logger.warning("Cannot list Ollama models at %s", self._base_url)
             return [self.default_model]

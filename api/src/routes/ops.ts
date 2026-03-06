@@ -1,4 +1,5 @@
 import { Hono } from "hono";
+import { getCoreAuthHeaders } from "../client/core.js";
 
 type ProbeResult = {
   name: string;
@@ -12,12 +13,13 @@ type ProbeResult = {
 async function timedJson(
   url: string,
   timeoutMs: number = 1800,
+  headers?: Record<string, string>,
 ): Promise<{ ok: boolean; status: number; latencyMs: number; json?: any; error?: string }> {
   const started = Date.now();
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const res = await fetch(url, { signal: controller.signal });
+    const res = await fetch(url, { headers, signal: controller.signal });
     const latencyMs = Date.now() - started;
     const json = await res.json().catch(() => undefined);
     return { ok: res.ok, status: res.status, latencyMs, json };
@@ -81,7 +83,7 @@ ops.get("/monitor", async (c) => {
   const [ollama, qdrant, coreMetrics] = await Promise.all([
     timedJson("http://ollama:11434/api/tags", 2200),
     timedJson("http://qdrant:6333/collections", 2200),
-    timedJson("http://core:8100/metrics", 2200),
+    timedJson("http://core:8100/metrics", 2200, getCoreAuthHeaders()),
   ]);
 
   const ollamaModels = Array.isArray(ollama.json?.models) ? ollama.json.models.length : 0;
@@ -122,4 +124,3 @@ ops.get("/monitor", async (c) => {
 });
 
 export { ops };
-

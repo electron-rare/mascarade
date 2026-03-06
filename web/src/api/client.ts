@@ -1,11 +1,11 @@
 const API_KEY_STORAGE = "mascarade_api_key";
 
 export function getApiKey(): string {
-  return localStorage.getItem(API_KEY_STORAGE) || "";
+  return sessionStorage.getItem(API_KEY_STORAGE) || "";
 }
 
 export function setApiKey(key: string) {
-  localStorage.setItem(API_KEY_STORAGE, key);
+  sessionStorage.setItem(API_KEY_STORAGE, key);
 }
 
 export class ApiError extends Error {

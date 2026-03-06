@@ -1,7 +1,8 @@
 """Tests pour l'integration ComfyUI."""
 
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
 
 from mascarade.integrations.comfyui import ComfyUIClient
 
@@ -46,22 +47,20 @@ def test_txt2img_random_seed():
     w1 = ComfyUIClient.txt2img_workflow("test")
     w2 = ComfyUIClient.txt2img_workflow("test")
     # seeds should be different (random)
-    assert w1["3"]["inputs"]["seed"] != w2["3"]["inputs"]["seed"] or True  # non-deterministic
+    assert (
+        w1["3"]["inputs"]["seed"] != w2["3"]["inputs"]["seed"] or True
+    )  # non-deterministic
 
 
 def test_img2img_workflow():
-    workflow = ComfyUIClient.img2img_workflow(
-        "a dog", "uploaded.png", seed=123
-    )
+    workflow = ComfyUIClient.img2img_workflow("a dog", "uploaded.png", seed=123)
     assert "11" in workflow  # LoadImage
     assert workflow["11"]["inputs"]["image"] == "uploaded.png"
     assert workflow["3"]["inputs"]["denoise"] == 0.75
 
 
 def test_img2img_custom_denoise():
-    workflow = ComfyUIClient.img2img_workflow(
-        "a dog", "img.png", denoise=0.5, seed=1
-    )
+    workflow = ComfyUIClient.img2img_workflow("a dog", "img.png", denoise=0.5, seed=1)
     assert workflow["3"]["inputs"]["denoise"] == 0.5
 
 
@@ -80,9 +79,9 @@ async def test_queue_prompt(comfyui_client):
 @pytest.mark.asyncio
 async def test_get_history(comfyui_client):
     comfyui_client._client.get = AsyncMock(
-        return_value=_mock_response({
-            "abc-123": {"outputs": {"9": {"images": [{"filename": "out.png"}]}}}
-        })
+        return_value=_mock_response(
+            {"abc-123": {"outputs": {"9": {"images": [{"filename": "out.png"}]}}}}
+        )
     )
     history = await comfyui_client.get_history("abc-123")
     assert "outputs" in history
@@ -91,9 +90,7 @@ async def test_get_history(comfyui_client):
 
 @pytest.mark.asyncio
 async def test_get_history_not_found(comfyui_client):
-    comfyui_client._client.get = AsyncMock(
-        return_value=_mock_response({})
-    )
+    comfyui_client._client.get = AsyncMock(return_value=_mock_response({}))
     history = await comfyui_client.get_history("missing")
     assert history == {}
 
@@ -128,9 +125,7 @@ async def test_get_system_stats(comfyui_client):
 
 @pytest.mark.asyncio
 async def test_interrupt(comfyui_client):
-    comfyui_client._client.post = AsyncMock(
-        return_value=_mock_response({})
-    )
+    comfyui_client._client.post = AsyncMock(return_value=_mock_response({}))
     await comfyui_client.interrupt()
     comfyui_client._client.post.assert_called_once()
 

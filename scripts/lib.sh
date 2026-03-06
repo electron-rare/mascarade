@@ -563,6 +563,7 @@ health_check() {
 
 # ── Docker wrapper (sudo si necessaire) ──
 _DOCKER_NEEDS_SUDO="${_DOCKER_NEEDS_SUDO:-false}"
+_COMPOSE_ENV_WARNING_SHOWN="${_COMPOSE_ENV_WARNING_SHOWN:-false}"
 
 _ensure_docker_access() {
     dbg "_ensure_docker_access: _DOCKER_NEEDS_SUDO=$_DOCKER_NEEDS_SUDO"
@@ -605,8 +606,24 @@ docker_compose_cmd() {
     done
 
     local compose_args=()
-    if [[ "$has_env_file" == false && -f "$REPO_DIR/.env" ]]; then
-        compose_args+=(--env-file "$REPO_DIR/.env")
+    if [[ "$has_env_file" == false ]]; then
+        local compose_env_file=""
+        if [[ -n "${MASCARADE_ENV_FILE:-}" && -r "${MASCARADE_ENV_FILE}" ]]; then
+            compose_env_file="${MASCARADE_ENV_FILE}"
+        elif [[ -r "$REPO_DIR/.env" ]]; then
+            compose_env_file="$REPO_DIR/.env"
+        elif [[ -r "$REPO_DIR/.env.example" ]]; then
+            compose_env_file="$REPO_DIR/.env.example"
+            if [[ "$_COMPOSE_ENV_WARNING_SHOWN" == false ]]; then
+                warn "Fichier .env non lisible, fallback automatique sur .env.example"
+                _COMPOSE_ENV_WARNING_SHOWN=true
+            fi
+        elif [[ -f "$REPO_DIR/.env" && "$_COMPOSE_ENV_WARNING_SHOWN" == false ]]; then
+            warn "Fichier .env present mais non lisible, docker compose peut echouer"
+            _COMPOSE_ENV_WARNING_SHOWN=true
+        fi
+
+        [[ -n "$compose_env_file" ]] && compose_args+=(--env-file "$compose_env_file")
     fi
 
     if [[ "$_DOCKER_NEEDS_SUDO" == true ]]; then

@@ -1,0 +1,167 @@
+# Intégration Mistral Studio avec Mascarade
+
+Ce guide explique comment intégrer Mistral Studio avec le framework Mascarade pour le finetuning et l'utilisation de modèles spécialisés.
+
+## Configuration
+
+### 1. Configuration de l'API Mistral Studio
+
+Modifiez votre fichier `.env` pour ajouter votre clé API Mistral :
+
+```env
+MISTRAL_API_KEY="votre_cle_api_mistral_studio"
+```
+
+### 2. Configuration de LiteLLM
+
+Le fichier `tools/litellm-config.yaml` a été mis à jour avec les modèles Mistral :
+
+```yaml
+model_list:
+  - model_name: mistral-small-latest
+    litellm_params:
+      model: mistral/mistral-small-latest
+      api_key: ${MISTRAL_API_KEY}
+  - model_name: mistral-medium-latest
+    litellm_params:
+      model: mistral/mistral-medium-latest
+      api_key: ${MISTRAL_API_KEY}
+  - model_name: mistral-large-latest
+    litellm_params:
+      model: mistral/mistral-large-latest
+      api_key: ${MISTRAL_API_KEY}
+```
+
+### 3. Configuration Mascarade
+
+Dans `core/mascarade/config.py`, les paramètres suivants ont été ajoutés :
+
+```python
+# Mistral Studio
+mistral_api_base: str = "https://api.mistral.ai/v1"
+mistral_default_model: str = "mistral-large-latest"
+```
+
+## Utilisation des modèles Mistral
+
+### Modèles disponibles
+
+- `mistral-small-latest` - Modèle rapide et économique
+- `mistral-medium-latest` - Équilibre performance/prix
+- `mistral-large-latest` - Meilleure qualité
+- `codestral-latest` - Spécialisé pour le code
+
+### Utilisation via le router
+
+```python
+from mascarade.router import Router
+
+router = Router()
+response = await router.send(
+    messages=[{"role": "user", "content": "Hello from Mistral!"}],
+    provider="mistral",
+    model="mistral-large-latest"
+)
+```
+
+## Fine-tuning avec Mistral Studio
+
+### Préparation du dataset
+
+Un exemple de dataset FreeCAD a été créé dans `finetune/datasets/freecad_chat.jsonl` avec le format requis par Mistral Studio.
+
+### Script de construction
+
+Le script `finetune/build_freecad_dataset.py` permet de générer des datasets supplémentaires.
+
+### Processus de fine-tuning
+
+1. **Préparer le dataset** au format JSONL avec des conversations
+2. **Soumettre à Mistral Studio** via l'API ou l'interface web
+3. **Surveiller la progression** du job de fine-tuning
+4. **Tester le modèle** une fois le fine-tuning terminé
+5. **Intégrer avec Mascarade** en mettant à jour la configuration
+
+### Exemple de notebook
+
+Un notebook complet est disponible dans `finetune/notebooks/finetune_freecad_mistral_studio.ipynb` démontrant tout le processus.
+
+## Agent FreeCAD
+
+Un agent spécialisé FreeCAD a été créé et intégré :
+
+### Caractéristiques
+
+- **Nom** : `freecad-designer`
+- **Modèle par défaut** : `mistral-large-latest`
+- **Température** : 0.3 (pour des réponses précises)
+- **Max tokens** : 2048
+
+### Fonctionnalités
+
+```python
+from mascarade.agents import FreeCADAgent
+
+agent = FreeCADAgent()
+
+# Générer un script FreeCAD
+script = await agent.generate_freecad_script("créer un engrenage paramétrique", router)
+
+# Expliquer un concept
+explanation = await agent.explain_freecad_concept("contraintes d'esquisse", router)
+
+# Déboguer un problème
+solution = await agent.debug_freecad_issue("problème de recomputation", router)
+```
+
+### Intégration automatique
+
+L'agent FreeCAD est automatiquement enregistré dans le registre des agents via `register_default_skills()`.
+
+## Bonnes pratiques
+
+### Gestion des clés API
+
+- Utilisez toujours des variables d'environnement pour les clés API
+- Ne commitez jamais les clés dans le code ou les fichiers de configuration
+- Utilisez `.env` et ajoutez-le à `.gitignore`
+
+### Optimisation des coûts
+
+- Utilisez `mistral-small-latest` pour les tâches simples
+- Réservez `mistral-large-latest` pour les tâches complexes
+- Configurez des limites de tokens appropriées
+
+### Monitoring
+
+- Surveillez l'utilisation via le tableau de bord Mistral Studio
+- Configurez des alertes pour les dépenses
+- Revue régulière des logs d'utilisation
+
+## Dépannage
+
+### Problèmes courants
+
+1. **Erreur d'authentification** : Vérifiez que `MISTRAL_API_KEY` est correctement configuré
+2. **Modèle non trouvé** : Assurez-vous que le nom du modèle est correct
+3. **Limites de quota** : Vérifiez votre quota sur le tableau de bord Mistral
+4. **Problèmes de réseau** : Vérifiez la connectivité à `api.mistral.ai`
+
+### Logs et debugging
+
+Activez les logs détaillés dans la configuration :
+
+```python
+import logging
+logging.getLogger("mascarade.router.providers.mistral").setLevel(logging.DEBUG)
+```
+
+## Ressources supplémentaires
+
+- [Documentation Mistral Studio](https://docs.mistral.ai/)
+- [API Reference](https://docs.mistral.ai/api/)
+- [Guide de fine-tuning](https://docs.mistral.ai/fine-tuning/)
+
+## Support
+
+Pour toute question ou problème avec l'intégration Mistral Studio, contactez l'équipe Mascarade ou consultez la documentation officielle Mistral AI.

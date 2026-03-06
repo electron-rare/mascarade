@@ -27,8 +27,13 @@ SEED_EXAMPLES = [
     {
         "conversations": [
             {"from": "system", "value": SYSTEM_PROMPT},
-            {"from": "human", "value": "Design an EMI input filter for a 24V/5A DC power supply to pass conducted emissions testing (CISPR 32 Class B)."},
-            {"from": "gpt", "value": """EMI input filter for 24V/5A DC supply — CISPR 32 Class B:
+            {
+                "from": "human",
+                "value": "Design an EMI input filter for a 24V/5A DC power supply to pass conducted emissions testing (CISPR 32 Class B).",
+            },
+            {
+                "from": "gpt",
+                "value": """EMI input filter for 24V/5A DC supply — CISPR 32 Class B:
 
 **Target attenuation:** 40-60dB at 150kHz-30MHz (CISPR 32 Band A/B)
 
@@ -77,14 +82,20 @@ DC IN │                  │         │         │         │         │  
 - Separate input and output ground planes — connect only through filter
 - Cy capacitors connect to chassis/enclosure ground, NOT signal ground
 - Keep traces short to minimize parasitic inductance
-- Shield filter section with ground pour on both layers"""}
+- Shield filter section with ground pour on both layers""",
+            },
         ]
     },
     {
         "conversations": [
             {"from": "system", "value": SYSTEM_PROMPT},
-            {"from": "human", "value": "How to design ESD protection for USB 2.0 data lines? Include TVS selection criteria."},
-            {"from": "gpt", "value": """ESD protection for USB 2.0 — TVS diode array selection and layout:
+            {
+                "from": "human",
+                "value": "How to design ESD protection for USB 2.0 data lines? Include TVS selection criteria.",
+            },
+            {
+                "from": "gpt",
+                "value": """ESD protection for USB 2.0 — TVS diode array selection and layout:
 
 **Requirements:**
 - IEC 61000-4-2: ±8kV contact, ±15kV air discharge
@@ -145,14 +156,20 @@ GND  ──────────────┤          ├──── GND
 5. 90Ω differential impedance on D+/D- (USB 2.0 spec)
 6. Length-match D+ and D- traces within 2mm
 7. No vias between connector and TVS
-8. Add 0402 series resistors (27Ω) after TVS for impedance matching"""}
+8. Add 0402 series resistors (27Ω) after TVS for impedance matching""",
+            },
         ]
     },
     {
         "conversations": [
             {"from": "system", "value": SYSTEM_PROMPT},
-            {"from": "human", "value": "Design a 50Ω impedance matching network for a 433MHz antenna on a PCB."},
-            {"from": "gpt", "value": """433MHz antenna impedance matching — L-network design:
+            {
+                "from": "human",
+                "value": "Design a 50Ω impedance matching network for a 433MHz antenna on a PCB.",
+            },
+            {
+                "from": "gpt",
+                "value": """433MHz antenna impedance matching — L-network design:
 
 **Scenario:** Match SX1278 LoRa module (50Ω output) to PCB trace antenna (Zant = 35 - j15 Ω measured)
 
@@ -227,14 +244,20 @@ Populate only needed components:
 **Verification:**
 - Use VNA (NanoVNA) to measure S11 at antenna port
 - Target: S11 < -10dB at 433MHz (VSWR < 2:1)
-- Bandwidth: S11 < -10dB over 433±0.5MHz for LoRa"""}
+- Bandwidth: S11 < -10dB over 433±0.5MHz for LoRa""",
+            },
         ]
     },
     {
         "conversations": [
             {"from": "system", "value": SYSTEM_PROMPT},
-            {"from": "human", "value": "What are the key PCB layout rules for EMC compliance? Give me a practical checklist."},
-            {"from": "gpt", "value": """PCB EMC layout checklist — practical rules for CE/FCC compliance:
+            {
+                "from": "human",
+                "value": "What are the key PCB layout rules for EMC compliance? Give me a practical checklist.",
+            },
+            {
+                "from": "gpt",
+                "value": """PCB EMC layout checklist — practical rules for CE/FCC compliance:
 
 **Ground & Power:**
 - [ ] Solid ground plane on layer 2 (4-layer) or layer 2+3 (6-layer)
@@ -300,22 +323,53 @@ Layer 4: Signals (bottom)
 | CE >6dB | 30-100MHz | Ground plane gap | Fill the gap |
 | RE >6dB | 100-300MHz | Clock harmonics | Add spread spectrum |
 | RE >6dB | 300MHz-1GHz | Cable emission | Add CM choke on cable |
-| CE >6dB | 150kHz-1MHz | SMPS fundamental | Larger input filter |"""}
+| CE >6dB | 150kHz-1MHz | SMPS fundamental | Larger input filter |""",
+            },
         ]
     },
 ]
 
 
 EMC_RF_KEYWORDS = [
-    "emc", "emi", "esd", "electromagnetic", "interference",
-    "radiated emission", "conducted emission", "cispr", "fcc", "ce mark",
-    "shielding", "ferrite", "common mode", "differential mode",
-    "tvs", "varistor", "surge", "transient",
-    "impedance matching", "smith chart", "s-parameter", "s11", "vswr",
-    "antenna", "rf", "radio frequency", "microstrip", "stripline",
-    "pcb layout", "ground plane", "via stitching", "decoupling",
-    "filter", "pi filter", "lc filter", "emi filter",
-    "near field", "far field", "spectrum analyzer",
+    "emc",
+    "emi",
+    "esd",
+    "electromagnetic",
+    "interference",
+    "radiated emission",
+    "conducted emission",
+    "cispr",
+    "fcc",
+    "ce mark",
+    "shielding",
+    "ferrite",
+    "common mode",
+    "differential mode",
+    "tvs",
+    "varistor",
+    "surge",
+    "transient",
+    "impedance matching",
+    "smith chart",
+    "s-parameter",
+    "s11",
+    "vswr",
+    "antenna",
+    "rf",
+    "radio frequency",
+    "microstrip",
+    "stripline",
+    "pcb layout",
+    "ground plane",
+    "via stitching",
+    "decoupling",
+    "filter",
+    "pi filter",
+    "lc filter",
+    "emi filter",
+    "near field",
+    "far field",
+    "spectrum analyzer",
 ]
 
 
@@ -333,7 +387,9 @@ def build_from_huggingface(max_samples: int) -> list[dict]:
     # Columns: Id, Tags, Answer, Body, Title, CreationDate
     print("  Downloading bshada/electronics.stackexchange.com (EMC/RF filter)...")
     try:
-        ds = load_dataset("bshada/electronics.stackexchange.com", split="train", streaming=True)
+        ds = load_dataset(
+            "bshada/electronics.stackexchange.com", split="train", streaming=True
+        )
         count = 0
         for row in ds:
             title = row.get("Title", "")
@@ -345,17 +401,19 @@ def build_from_huggingface(max_samples: int) -> list[dict]:
             combined = (title + " " + body + " " + answer + " " + tags).lower()
             if not any(kw in combined for kw in EMC_RF_KEYWORDS):
                 continue
-            question = re.sub(r'<[^>]+>', '', title + "\n" + body).strip()
-            answer_clean = re.sub(r'<[^>]+>', '', answer).strip()
+            question = re.sub(r"<[^>]+>", "", title + "\n" + body).strip()
+            answer_clean = re.sub(r"<[^>]+>", "", answer).strip()
             if len(answer_clean) < 80:
                 continue
-            samples.append({
-                "conversations": [
-                    {"from": "system", "value": SYSTEM_PROMPT},
-                    {"from": "human", "value": question[:1000]},
-                    {"from": "gpt", "value": answer_clean[:4000]},
-                ]
-            })
+            samples.append(
+                {
+                    "conversations": [
+                        {"from": "system", "value": SYSTEM_PROMPT},
+                        {"from": "human", "value": question[:1000]},
+                        {"from": "gpt", "value": answer_clean[:4000]},
+                    ]
+                }
+            )
             count += 1
             if count >= max_samples:
                 break
@@ -366,25 +424,37 @@ def build_from_huggingface(max_samples: int) -> list[dict]:
     # 2. Electrical engineering dataset (STEM-AI, EMC/RF filter)
     print("  Downloading STEM-AI-mtl/Electrical-engineering (EMC/RF filter)...")
     try:
-        ds = load_dataset("STEM-AI-mtl/Electrical-engineering", split="train", streaming=True)
+        ds = load_dataset(
+            "STEM-AI-mtl/Electrical-engineering", split="train", streaming=True
+        )
         count = 0
         for row in ds:
-            question = row.get("question", "") or row.get("instruction", "") or row.get("title", "")
-            answer = row.get("answer", "") or row.get("output", "") or row.get("response", "")
+            question = (
+                row.get("question", "")
+                or row.get("instruction", "")
+                or row.get("title", "")
+            )
+            answer = (
+                row.get("answer", "")
+                or row.get("output", "")
+                or row.get("response", "")
+            )
             if not question or not answer or len(answer) < 80:
                 continue
             combined = (question + " " + answer).lower()
             if not any(kw in combined for kw in EMC_RF_KEYWORDS):
                 continue
-            answer = re.sub(r'<[^>]+>', '', answer)
-            question = re.sub(r'<[^>]+>', '', question)
-            samples.append({
-                "conversations": [
-                    {"from": "system", "value": SYSTEM_PROMPT},
-                    {"from": "human", "value": question.strip()},
-                    {"from": "gpt", "value": answer.strip()},
-                ]
-            })
+            answer = re.sub(r"<[^>]+>", "", answer)
+            question = re.sub(r"<[^>]+>", "", question)
+            samples.append(
+                {
+                    "conversations": [
+                        {"from": "system", "value": SYSTEM_PROMPT},
+                        {"from": "human", "value": question.strip()},
+                        {"from": "gpt", "value": answer.strip()},
+                    ]
+                }
+            )
             count += 1
             if count >= max_samples // 2:
                 break
@@ -410,21 +480,31 @@ def build_from_huggingface(max_samples: int) -> list[dict]:
             reply_text = ""
             for post in posts:
                 if isinstance(post, dict):
-                    content = post.get("content", "") or post.get("body", "") or post.get("text", "")
+                    content = (
+                        post.get("content", "")
+                        or post.get("body", "")
+                        or post.get("text", "")
+                    )
                     if post.get("is_op", False) and not op_text:
-                        op_text = re.sub(r'<[^>]+>', '', str(content)).strip()
-                    elif not post.get("is_op", False) and not reply_text and len(str(content)) > 100:
-                        reply_text = re.sub(r'<[^>]+>', '', str(content)).strip()
+                        op_text = re.sub(r"<[^>]+>", "", str(content)).strip()
+                    elif (
+                        not post.get("is_op", False)
+                        and not reply_text
+                        and len(str(content)) > 100
+                    ):
+                        reply_text = re.sub(r"<[^>]+>", "", str(content)).strip()
             if not reply_text or len(reply_text) < 100:
                 continue
             question = f"{title.strip()}\n{op_text[:500]}" if op_text else title.strip()
-            samples.append({
-                "conversations": [
-                    {"from": "system", "value": SYSTEM_PROMPT},
-                    {"from": "human", "value": question},
-                    {"from": "gpt", "value": reply_text[:4000]},
-                ]
-            })
+            samples.append(
+                {
+                    "conversations": [
+                        {"from": "system", "value": SYSTEM_PROMPT},
+                        {"from": "human", "value": question},
+                        {"from": "gpt", "value": reply_text[:4000]},
+                    ]
+                }
+            )
             count += 1
             if count >= max_samples // 2:
                 break
@@ -437,8 +517,12 @@ def build_from_huggingface(max_samples: int) -> list[dict]:
 
 def main():
     parser = argparse.ArgumentParser(description="Build EMC/RF fine-tuning dataset")
-    parser.add_argument("--with-hf", action="store_true", help="Include HuggingFace datasets")
-    parser.add_argument("--max-samples", type=int, default=2000, help="Max HF samples per source")
+    parser.add_argument(
+        "--with-hf", action="store_true", help="Include HuggingFace datasets"
+    )
+    parser.add_argument(
+        "--max-samples", type=int, default=2000, help="Max HF samples per source"
+    )
     parser.add_argument("--output", type=str, default=None)
     args = parser.parse_args()
 
@@ -459,7 +543,7 @@ def main():
     print(f"\n  Wrote {len(all_samples)} examples to {output_path}")
     print(f"  Size: {os.path.getsize(output_path) / 1024:.1f} KB")
     if not args.with_hf:
-        print(f"\n  To enrich: python build_emc_dataset.py --with-hf --max-samples 2000")
+        print("\n  To enrich: python build_emc_dataset.py --with-hf --max-samples 2000")
 
 
 if __name__ == "__main__":

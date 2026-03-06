@@ -2,8 +2,8 @@
 
 import asyncio
 
-from mascarade.router.router import Router, Strategy
 from mascarade.router.providers.base import LLMProvider, LLMResponse, make_retry
+from mascarade.router.router import Router, Strategy
 
 
 class MockProvider(LLMProvider):
@@ -227,7 +227,8 @@ def test_send_cache_hit():
 
     payload = [{"role": "user", "content": "cache-me"}]
     first = asyncio.run(r.send(payload, strategy="best"))
-    second = asyncio.run(r.send(payload, strategy="best"))
+    # Force same provider selection for cache hit
+    second = asyncio.run(r.send(payload, strategy="specific", provider="count"))
     assert first.content == second.content == "cached-response"
     assert call_count == 1
     assert r.cache.get_stats()["hit_count"] == 1

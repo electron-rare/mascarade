@@ -4,6 +4,9 @@ import { Hono } from "hono";
 import { logger } from "hono/logger";
 import { existsSync } from "node:fs";
 import { authMiddleware } from "./middleware/auth.js";
+import { corsMiddleware } from "./middleware/cors.js";
+import { rateLimitMiddleware } from "./middleware/rate-limit.js";
+import { securityHeaders } from "./middleware/security.js";
 import { health } from "./routes/health.js";
 import { agents } from "./routes/agents.js";
 import { notion } from "./routes/notion.js";
@@ -13,8 +16,14 @@ import { ops } from "./routes/ops.js";
 const app = new Hono();
 const hasFrontend = existsSync("./public/index.html");
 
+app.use("*", corsMiddleware);
+app.use("*", securityHeaders);
 app.use("*", logger());
-app.onError((err, c) => c.json({ error: err.message || "Internal error" }, 500));
+app.use("/api/*", rateLimitMiddleware);
+app.onError((err, c) => {
+  console.error("Internal error:", err);
+  return c.json({ error: "Internal server error" }, 500);
+});
 
 app.route("/health", health);
 app.use("/api/*", authMiddleware);

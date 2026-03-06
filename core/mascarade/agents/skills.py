@@ -12,6 +12,30 @@ def register_default_skills(registry: AgentRegistry) -> None:
     for skill in ALL_SKILLS:
         registry.register(skill, builtin=True)
 
+    # Register FreeCAD agent
+    from mascarade.agents.freecad_agent import FreeCADAgent
+
+    freecad_agent = FreeCADAgent()
+    registry.register(freecad_agent, builtin=True)
+
+    # Register SPICE agent
+    from mascarade.agents.spice_agent import SpiceAgent
+
+    spice_agent = SpiceAgent()
+    registry.register(spice_agent, builtin=True)
+
+    # Register KiCad agent
+    from mascarade.agents.kicad_agent import KiCadAgent
+
+    kicad_agent = KiCadAgent()
+    registry.register(kicad_agent, builtin=True)
+
+    # Register Components agent
+    from mascarade.agents.components_agent import ComponentsAgent
+
+    components_agent = ComponentsAgent()
+    registry.register(components_agent, builtin=True)
+
 
 # --- Summarizer ---
 

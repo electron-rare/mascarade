@@ -34,7 +34,7 @@ module_comfyui_config() {
 module_comfyui_compose() {
   [[ "${COMFYUI_LOCAL:-}" != "true" ]] && return
   echo "  comfyui:"
-  echo "    image: comfyanonymous/comfyui:latest"
+  echo "    image: \${COMFYUI_IMAGE:-comfyanonymous/comfyui:latest}"
   echo "    container_name: mascarade-comfyui"
   echo "    restart: unless-stopped"
   echo "    ports:"

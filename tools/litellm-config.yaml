@@ -1,0 +1,20 @@
+model_list:
+  - model_name: mistral-small-latest
+    litellm_params:
+      model: mistral/mistral-small-latest
+      api_key: ${MISTRAL_API_KEY}
+  - model_name: mistral-medium-latest
+    litellm_params:
+      model: mistral/mistral-medium-latest
+      api_key: ${MISTRAL_API_KEY}
+  - model_name: mistral-large-latest
+    litellm_params:
+      model: mistral/mistral-large-latest
+      api_key: ${MISTRAL_API_KEY}
+  - model_name: mistral-embed
+    litellm_params:
+      model: mistral/mistral-embed
+      api_key: ${MISTRAL_API_KEY}
+
+general_settings:
+  master_key: ${LITELLM_MASTER_KEY}

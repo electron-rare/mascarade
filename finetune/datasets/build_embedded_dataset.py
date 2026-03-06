@@ -30,8 +30,13 @@ SEED_EXAMPLES = [
     {
         "conversations": [
             {"from": "system", "value": SYSTEM_PROMPT},
-            {"from": "human", "value": "Write bare-metal ARM Cortex-M4 startup code in assembly with vector table and Reset_Handler."},
-            {"from": "gpt", "value": """ARM Cortex-M4 bare-metal startup (GNU AS syntax):
+            {
+                "from": "human",
+                "value": "Write bare-metal ARM Cortex-M4 startup code in assembly with vector table and Reset_Handler.",
+            },
+            {
+                "from": "gpt",
+                "value": """ARM Cortex-M4 bare-metal startup (GNU AS syntax):
 
 ```asm
 /* startup.s — Cortex-M4 startup for STM32F4xx */
@@ -145,14 +150,20 @@ Key points:
 - Vector table MUST start at address 0x0 (or set VTOR register)
 - FPU must be enabled before any float operations
 - `.data` copy and `.bss` zero are essential for C runtime
-- Weak handlers allow user code to override individual IRQs"""}
+- Weak handlers allow user code to override individual IRQs""",
+            },
         ]
     },
     {
         "conversations": [
             {"from": "system", "value": SYSTEM_PROMPT},
-            {"from": "human", "value": "Write ESP32 code using ESP-IDF to configure SPI master and communicate with an SPI flash chip (W25Q128)."},
-            {"from": "gpt", "value": """ESP-IDF SPI master driver for W25Q128 SPI flash:
+            {
+                "from": "human",
+                "value": "Write ESP32 code using ESP-IDF to configure SPI master and communicate with an SPI flash chip (W25Q128).",
+            },
+            {
+                "from": "gpt",
+                "value": """ESP-IDF SPI master driver for W25Q128 SPI flash:
 
 ```c
 #include "driver/spi_master.h"
@@ -316,14 +327,20 @@ Key points:
 - W25Q128: 128Mbit (16MB), 65536 pages of 256 bytes, 4KB sectors
 - Must erase before programming (sets bits to 1, programming sets to 0)
 - SPI Mode 0 (CPOL=0, CPHA=0) or Mode 3 (CPOL=1, CPHA=1)
-- Use DMA for transfers >64 bytes (ESP-IDF handles this with SPI_DMA_CH_AUTO)"""}
+- Use DMA for transfers >64 bytes (ESP-IDF handles this with SPI_DMA_CH_AUTO)""",
+            },
         ]
     },
     {
         "conversations": [
             {"from": "system", "value": SYSTEM_PROMPT},
-            {"from": "human", "value": "Write a RISC-V bare-metal program in assembly that blinks an LED on a SiFive HiFive1 board."},
-            {"from": "gpt", "value": """RISC-V bare-metal LED blink for SiFive HiFive1 (FE310-G000):
+            {
+                "from": "human",
+                "value": "Write a RISC-V bare-metal program in assembly that blinks an LED on a SiFive HiFive1 board.",
+            },
+            {
+                "from": "gpt",
+                "value": """RISC-V bare-metal LED blink for SiFive HiFive1 (FE310-G000):
 
 ```asm
 # led_blink.S — RISC-V RV32IMAC bare-metal LED blink
@@ -430,14 +447,20 @@ Key RISC-V differences from ARM:
 - CSR registers (mtvec, mstatus) instead of NVIC
 - No vector table — single trap handler dispatches via mcause
 - Memory-mapped GPIO (no special peripheral bus like AHB/APB)
-- RV32IMAC = Integer + Multiply + Atomic + Compressed instructions"""}
+- RV32IMAC = Integer + Multiply + Atomic + Compressed instructions""",
+            },
         ]
     },
     {
         "conversations": [
             {"from": "system", "value": SYSTEM_PROMPT},
-            {"from": "human", "value": "How to configure DMA on STM32F4 using LL drivers for high-speed ADC sampling?"},
-            {"from": "gpt", "value": """STM32F4 DMA + ADC with LL drivers for continuous high-speed sampling:
+            {
+                "from": "human",
+                "value": "How to configure DMA on STM32F4 using LL drivers for high-speed ADC sampling?",
+            },
+            {
+                "from": "gpt",
+                "value": """STM32F4 DMA + ADC with LL drivers for continuous high-speed sampling:
 
 ```c
 #include "stm32f4xx_ll_adc.h"
@@ -535,14 +558,20 @@ Double-buffering strategy:
 - DMA in circular mode fills buffer continuously
 - HT interrupt → process first half while DMA fills second half
 - TC interrupt → process second half while DMA wraps to first half
-- Zero CPU involvement in data transfer — true hardware pipeline"""}
+- Zero CPU involvement in data transfer — true hardware pipeline""",
+            },
         ]
     },
     {
         "conversations": [
             {"from": "system", "value": SYSTEM_PROMPT},
-            {"from": "human", "value": "Write a Raspberry Pi bare-metal program in C that blinks an LED on GPIO17 without any OS."},
-            {"from": "gpt", "value": """Raspberry Pi bare-metal LED blink (BCM2835/RPi 1, adaptable to RPi 3/4):
+            {
+                "from": "human",
+                "value": "Write a Raspberry Pi bare-metal program in C that blinks an LED on GPIO17 without any OS.",
+            },
+            {
+                "from": "gpt",
+                "value": """Raspberry Pi bare-metal LED blink (BCM2835/RPi 1, adaptable to RPi 3/4):
 
 ```c
 /* kernel.c — Bare-metal GPIO blink for Raspberry Pi */
@@ -644,14 +673,20 @@ arm-none-eabi-gcc -T linker.ld -o kernel.elf -ffreestanding \\
     -O2 -nostdlib boot.o kernel.o
 arm-none-eabi-objcopy kernel.elf -O binary kernel.img
 # Copy kernel.img to SD card root alongside bootcode.bin and start.elf
-```"""}
+```""",
+            },
         ]
     },
     {
         "conversations": [
             {"from": "system", "value": SYSTEM_PROMPT},
-            {"from": "human", "value": "Explain the Teensy 4.1 (i.MX RT1062) startup sequence and how to use its hardware timers in bare-metal."},
-            {"from": "gpt", "value": """Teensy 4.1 (i.MX RT1062 Cortex-M7) startup and hardware timers:
+            {
+                "from": "human",
+                "value": "Explain the Teensy 4.1 (i.MX RT1062) startup sequence and how to use its hardware timers in bare-metal.",
+            },
+            {
+                "from": "gpt",
+                "value": """Teensy 4.1 (i.MX RT1062 Cortex-M7) startup and hardware timers:
 
 **Boot sequence:**
 1. Boot ROM in i.MX RT1062 reads FlexSPI NOR flash
@@ -738,27 +773,85 @@ void pit_init(uint8_t channel, uint32_t period_us) {
 | TMR (Quad) | 16-bit | 4×4=16 | Configurable | PWM, quadrature encoder |
 | FlexPWM | 16-bit | 4 modules | Up to 150MHz | Motor control, center-aligned PWM |
 
-Teensy 4.1 specific: use `IntervalTimer` class for simplified access, but bare-metal gives you full control over DMA triggers and chained timers."""}
+Teensy 4.1 specific: use `IntervalTimer` class for simplified access, but bare-metal gives you full control over DMA triggers and chained timers.""",
+            },
         ]
     },
 ]
 
 
 EMBEDDED_KEYWORDS = [
-    "arm", "cortex", "cortex-m", "cortex-a", "stm32", "nrf52", "nrf53",
-    "samd", "sam", "atsamd", "teensy", "imxrt", "i.mx",
-    "esp32", "esp-idf", "esp8266", "espressif",
-    "risc-v", "riscv", "sifive", "hifive", "gd32v",
-    "raspberry pi", "bcm2835", "bcm2711", "bcm2712",
-    "bare metal", "bare-metal", "startup", "linker script", "vector table",
-    "cmsis", "hal driver", "ll driver", "register",
-    "dma", "interrupt", "isr", "nvic", "timer", "pwm", "adc", "dac",
-    "spi", "i2c", "uart", "usart", "can", "gpio",
-    "bootloader", "firmware", "flash", "eeprom",
-    "freertos", "rtos", "scheduler", "semaphore", "mutex",
-    "low power", "sleep", "deep sleep", "wfi", "wfe",
-    "jtag", "swd", "openocd", "gdb", "debug",
-    "assembly", "thumb", "arm asm",
+    "arm",
+    "cortex",
+    "cortex-m",
+    "cortex-a",
+    "stm32",
+    "nrf52",
+    "nrf53",
+    "samd",
+    "sam",
+    "atsamd",
+    "teensy",
+    "imxrt",
+    "i.mx",
+    "esp32",
+    "esp-idf",
+    "esp8266",
+    "espressif",
+    "risc-v",
+    "riscv",
+    "sifive",
+    "hifive",
+    "gd32v",
+    "raspberry pi",
+    "bcm2835",
+    "bcm2711",
+    "bcm2712",
+    "bare metal",
+    "bare-metal",
+    "startup",
+    "linker script",
+    "vector table",
+    "cmsis",
+    "hal driver",
+    "ll driver",
+    "register",
+    "dma",
+    "interrupt",
+    "isr",
+    "nvic",
+    "timer",
+    "pwm",
+    "adc",
+    "dac",
+    "spi",
+    "i2c",
+    "uart",
+    "usart",
+    "can",
+    "gpio",
+    "bootloader",
+    "firmware",
+    "flash",
+    "eeprom",
+    "freertos",
+    "rtos",
+    "scheduler",
+    "semaphore",
+    "mutex",
+    "low power",
+    "sleep",
+    "deep sleep",
+    "wfi",
+    "wfe",
+    "jtag",
+    "swd",
+    "openocd",
+    "gdb",
+    "debug",
+    "assembly",
+    "thumb",
+    "arm asm",
 ]
 
 
@@ -776,7 +869,9 @@ def build_from_huggingface(max_samples: int) -> list[dict]:
     # Columns: id, instruction, input, output, category
     print("  Downloading MuratKomurcu/stm32-hal-dataset...")
     try:
-        ds = load_dataset("MuratKomurcu/stm32-hal-dataset", split="train", streaming=True)
+        ds = load_dataset(
+            "MuratKomurcu/stm32-hal-dataset", split="train", streaming=True
+        )
         count = 0
         for row in ds:
             instruction = row.get("instruction", "")
@@ -787,13 +882,15 @@ def build_from_huggingface(max_samples: int) -> list[dict]:
             question = inp if inp else instruction
             if not question:
                 continue
-            samples.append({
-                "conversations": [
-                    {"from": "system", "value": SYSTEM_PROMPT},
-                    {"from": "human", "value": question.strip()},
-                    {"from": "gpt", "value": f"```c\n{output.strip()[:4000]}\n```"},
-                ]
-            })
+            samples.append(
+                {
+                    "conversations": [
+                        {"from": "system", "value": SYSTEM_PROMPT},
+                        {"from": "human", "value": question.strip()},
+                        {"from": "gpt", "value": f"```c\n{output.strip()[:4000]}\n```"},
+                    ]
+                }
+            )
             count += 1
             if count >= max_samples:
                 break
@@ -811,18 +908,20 @@ def build_from_huggingface(max_samples: int) -> list[dict]:
             if not text or len(text) < 100:
                 continue
             # Use first line or sentence as question
-            first_line = text.strip().split('\n')[0].strip()
+            first_line = text.strip().split("\n")[0].strip()
             if len(first_line) > 20:
                 question = f"Explain this ESP-IDF concept: {first_line[:100]}"
             else:
                 question = "Explain this ESP-IDF documentation."
-            samples.append({
-                "conversations": [
-                    {"from": "system", "value": SYSTEM_PROMPT},
-                    {"from": "human", "value": question},
-                    {"from": "gpt", "value": text.strip()[:4000]},
-                ]
-            })
+            samples.append(
+                {
+                    "conversations": [
+                        {"from": "system", "value": SYSTEM_PROMPT},
+                        {"from": "human", "value": question},
+                        {"from": "gpt", "value": text.strip()[:4000]},
+                    ]
+                }
+            )
             count += 1
             if count >= max_samples:
                 break
@@ -833,21 +932,29 @@ def build_from_huggingface(max_samples: int) -> list[dict]:
     # 3. ESP-IDF chunked documentation (MQTT, TLS, HTTP, etc.)
     print("  Downloading gouthamsk/esp_idf_chunked_data...")
     try:
-        ds = load_dataset("gouthamsk/esp_idf_chunked_data", split="train", streaming=True)
+        ds = load_dataset(
+            "gouthamsk/esp_idf_chunked_data", split="train", streaming=True
+        )
         count = 0
         for row in ds:
             data = row.get("data", "") or row.get("text", "")
             if not data or len(data) < 100:
                 continue
-            first_line = data.strip().split('\n')[0].strip()
-            question = f"Explain this ESP-IDF topic: {first_line[:100]}" if len(first_line) > 15 else "Explain this ESP-IDF documentation."
-            samples.append({
-                "conversations": [
-                    {"from": "system", "value": SYSTEM_PROMPT},
-                    {"from": "human", "value": question},
-                    {"from": "gpt", "value": data.strip()[:4000]},
-                ]
-            })
+            first_line = data.strip().split("\n")[0].strip()
+            question = (
+                f"Explain this ESP-IDF topic: {first_line[:100]}"
+                if len(first_line) > 15
+                else "Explain this ESP-IDF documentation."
+            )
+            samples.append(
+                {
+                    "conversations": [
+                        {"from": "system", "value": SYSTEM_PROMPT},
+                        {"from": "human", "value": question},
+                        {"from": "gpt", "value": data.strip()[:4000]},
+                    ]
+                }
+            )
             count += 1
             if count >= max_samples // 2:
                 break
@@ -859,7 +966,9 @@ def build_from_huggingface(max_samples: int) -> list[dict]:
     # Columns: Id, Tags, Answer, Body, Title, CreationDate
     print("  Downloading bshada/electronics.stackexchange.com (embedded filter)...")
     try:
-        ds = load_dataset("bshada/electronics.stackexchange.com", split="train", streaming=True)
+        ds = load_dataset(
+            "bshada/electronics.stackexchange.com", split="train", streaming=True
+        )
         count = 0
         for row in ds:
             title = row.get("Title", "")
@@ -871,17 +980,19 @@ def build_from_huggingface(max_samples: int) -> list[dict]:
             combined = (title + " " + body + " " + answer + " " + tags).lower()
             if not any(kw in combined for kw in EMBEDDED_KEYWORDS):
                 continue
-            question = re.sub(r'<[^>]+>', '', title + "\n" + body).strip()
-            answer_clean = re.sub(r'<[^>]+>', '', answer).strip()
+            question = re.sub(r"<[^>]+>", "", title + "\n" + body).strip()
+            answer_clean = re.sub(r"<[^>]+>", "", answer).strip()
             if len(answer_clean) < 80:
                 continue
-            samples.append({
-                "conversations": [
-                    {"from": "system", "value": SYSTEM_PROMPT},
-                    {"from": "human", "value": question[:1000]},
-                    {"from": "gpt", "value": answer_clean[:4000]},
-                ]
-            })
+            samples.append(
+                {
+                    "conversations": [
+                        {"from": "system", "value": SYSTEM_PROMPT},
+                        {"from": "human", "value": question[:1000]},
+                        {"from": "gpt", "value": answer_clean[:4000]},
+                    ]
+                }
+            )
             count += 1
             if count >= max_samples:
                 break
@@ -893,7 +1004,9 @@ def build_from_huggingface(max_samples: int) -> list[dict]:
     # Columns: id, problem_id, problem_title, difficulty, c_source, architecture, optimization, compiler, assembly
     print("  Downloading ronantakizawa/leetcode-assembly (ARM filter)...")
     try:
-        ds = load_dataset("ronantakizawa/leetcode-assembly", split="train", streaming=True)
+        ds = load_dataset(
+            "ronantakizawa/leetcode-assembly", split="train", streaming=True
+        )
         count = 0
         for row in ds:
             arch = row.get("architecture", "")
@@ -905,15 +1018,23 @@ def build_from_huggingface(max_samples: int) -> list[dict]:
             optim = row.get("optimization", "")
             if not assembly or len(assembly) < 20:
                 continue
-            question = f"Compile this C function to {arch} assembly ({optim}):\n```c\n{c_source.strip()[:500]}\n```" if c_source else f"Write {arch} assembly for: {title}"
-            answer = f"```asm\n; {title} — {arch} {optim}\n{assembly.strip()[:4000]}\n```"
-            samples.append({
-                "conversations": [
-                    {"from": "system", "value": SYSTEM_PROMPT},
-                    {"from": "human", "value": question},
-                    {"from": "gpt", "value": answer},
-                ]
-            })
+            question = (
+                f"Compile this C function to {arch} assembly ({optim}):\n```c\n{c_source.strip()[:500]}\n```"
+                if c_source
+                else f"Write {arch} assembly for: {title}"
+            )
+            answer = (
+                f"```asm\n; {title} — {arch} {optim}\n{assembly.strip()[:4000]}\n```"
+            )
+            samples.append(
+                {
+                    "conversations": [
+                        {"from": "system", "value": SYSTEM_PROMPT},
+                        {"from": "human", "value": question},
+                        {"from": "gpt", "value": answer},
+                    ]
+                }
+            )
             count += 1
             if count >= max_samples // 2:
                 break
@@ -924,23 +1045,35 @@ def build_from_huggingface(max_samples: int) -> list[dict]:
     # 6. STEM-AI Electrical Engineering (embedded filter)
     print("  Downloading STEM-AI-mtl/Electrical-engineering (embedded filter)...")
     try:
-        ds = load_dataset("STEM-AI-mtl/Electrical-engineering", split="train", streaming=True)
+        ds = load_dataset(
+            "STEM-AI-mtl/Electrical-engineering", split="train", streaming=True
+        )
         count = 0
         for row in ds:
-            question = row.get("question", "") or row.get("instruction", "") or row.get("title", "")
-            answer = row.get("answer", "") or row.get("output", "") or row.get("response", "")
+            question = (
+                row.get("question", "")
+                or row.get("instruction", "")
+                or row.get("title", "")
+            )
+            answer = (
+                row.get("answer", "")
+                or row.get("output", "")
+                or row.get("response", "")
+            )
             if not question or not answer or len(answer) < 80:
                 continue
             combined = (question + " " + answer).lower()
             if not any(kw in combined for kw in EMBEDDED_KEYWORDS):
                 continue
-            samples.append({
-                "conversations": [
-                    {"from": "system", "value": SYSTEM_PROMPT},
-                    {"from": "human", "value": question.strip()},
-                    {"from": "gpt", "value": answer.strip()},
-                ]
-            })
+            samples.append(
+                {
+                    "conversations": [
+                        {"from": "system", "value": SYSTEM_PROMPT},
+                        {"from": "human", "value": question.strip()},
+                        {"from": "gpt", "value": answer.strip()},
+                    ]
+                }
+            )
             count += 1
             if count >= max_samples // 2:
                 break
@@ -952,9 +1085,15 @@ def build_from_huggingface(max_samples: int) -> list[dict]:
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Build embedded ARM/ESP32/RISC-V fine-tuning dataset")
-    parser.add_argument("--with-hf", action="store_true", help="Include HuggingFace datasets")
-    parser.add_argument("--max-samples", type=int, default=2000, help="Max HF samples per source")
+    parser = argparse.ArgumentParser(
+        description="Build embedded ARM/ESP32/RISC-V fine-tuning dataset"
+    )
+    parser.add_argument(
+        "--with-hf", action="store_true", help="Include HuggingFace datasets"
+    )
+    parser.add_argument(
+        "--max-samples", type=int, default=2000, help="Max HF samples per source"
+    )
     parser.add_argument("--output", type=str, default=None)
     args = parser.parse_args()
 
@@ -975,7 +1114,9 @@ def main():
     print(f"\n  Wrote {len(all_samples)} examples to {output_path}")
     print(f"  Size: {os.path.getsize(output_path) / 1024:.1f} KB")
     if not args.with_hf:
-        print(f"\n  To enrich: python build_embedded_dataset.py --with-hf --max-samples 2000")
+        print(
+            "\n  To enrich: python build_embedded_dataset.py --with-hf --max-samples 2000"
+        )
 
 
 if __name__ == "__main__":

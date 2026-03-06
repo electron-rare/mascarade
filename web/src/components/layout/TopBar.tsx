@@ -1,15 +1,17 @@
 import { useState, useRef, useEffect } from "react";
-import { getApiKey, setApiKey } from "../../api/client";
-import { useFetch } from "../../hooks/useFetch";
+import { getApiKey, setApiKey, api } from "../../api/client";
+
+interface HealthData {
+  status: string;
+  core?: { status: string };
+}
 
 export default function TopBar({ title }: { title: string }) {
   const [open, setOpen] = useState(false);
   const [key, setKey] = useState(getApiKey);
+  const [health, setHealth] = useState<HealthData | null>(null);
   const ref = useRef<HTMLDivElement>(null);
-  const { data: health, refetch } = useFetch<{
-    status: string;
-    core?: { status: string };
-  }>("/health");
+  const mountedRef = useRef(true);
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -21,11 +23,17 @@ export default function TopBar({ title }: { title: string }) {
   }, []);
 
   useEffect(() => {
-    const t = window.setInterval(() => {
-      refetch();
-    }, 5000);
-    return () => window.clearInterval(t);
-  }, [refetch]);
+    mountedRef.current = true;
+    const fetchHealth = async () => {
+      try {
+        const res = await api<HealthData>("/health");
+        if (mountedRef.current) setHealth(res);
+      } catch { /* ignore */ }
+    };
+    fetchHealth();
+    const t = window.setInterval(fetchHealth, 5000);
+    return () => { mountedRef.current = false; window.clearInterval(t); };
+  }, []);
 
   const save = () => {
     setApiKey(key);
@@ -39,17 +47,19 @@ export default function TopBar({ title }: { title: string }) {
     <header className="h-12 border-b border-border flex items-center justify-between px-5 bg-surface/95 backdrop-blur shrink-0 shadow-[0_0_14px_rgba(27,77,44,0.25)]">
       <div className="flex items-center gap-3 min-w-0">
         <span className="text-xs text-muted hidden md:inline uppercase tracking-[0.14em]">sys_monitor</span>
-        <span className="text-xs text-accent hidden md:inline uppercase tracking-[0.14em]">--live</span>
+        <span className="text-xs text-accent hidden md:inline uppercase tracking-[0.14em] glow-text">--live</span>
         <span className="text-xs text-muted hidden md:inline">|</span>
         <span className="text-xs text-muted hidden md:inline uppercase">API:</span>
+        <span className={`pulse-dot hidden md:inline mr-1 ${apiStatus === "OK" ? "pulse-dot-ok" : "pulse-dot-err"}`} />
         <span
-          className={`text-xs hidden md:inline ${apiStatus === "OK" ? "text-accent" : "text-error"}`}
+          className={`text-xs hidden md:inline ${apiStatus === "OK" ? "glow-green" : "text-error"}`}
         >
           {apiStatus}
         </span>
-        <span className="text-xs text-muted hidden md:inline uppercase">CORE:</span>
+        <span className="text-xs text-muted hidden md:inline uppercase ml-1">CORE:</span>
+        <span className={`pulse-dot hidden md:inline mr-1 ${coreStatus === "OK" ? "pulse-dot-ok" : "pulse-dot-err"}`} />
         <span
-          className={`text-xs hidden md:inline ${coreStatus === "OK" ? "text-accent" : "text-error"}`}
+          className={`text-xs hidden md:inline ${coreStatus === "OK" ? "glow-green" : "text-error"}`}
         >
           {coreStatus}
         </span>

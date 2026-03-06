@@ -26,8 +26,13 @@ SEED_EXAMPLES = [
     {
         "conversations": [
             {"from": "system", "value": SYSTEM_PROMPT},
-            {"from": "human", "value": "Write ESP-IDF code for an MQTT client that publishes sensor data to a broker with TLS and auto-reconnection."},
-            {"from": "gpt", "value": """ESP-IDF MQTT client with TLS and auto-reconnect:
+            {
+                "from": "human",
+                "value": "Write ESP-IDF code for an MQTT client that publishes sensor data to a broker with TLS and auto-reconnection.",
+            },
+            {
+                "from": "gpt",
+                "value": """ESP-IDF MQTT client with TLS and auto-reconnect:
 
 ```c
 #include <stdio.h>
@@ -142,14 +147,20 @@ Key design choices:
 - **Last Will**: broker publishes "offline" if device disconnects unexpectedly
 - **TLS**: server certificate verification prevents MITM attacks
 - **Keepalive 30s**: detects broken connections within ~45s (1.5× keepalive)
-- **Auto-reconnect**: ESP-IDF MQTT client handles this natively with backoff"""}
+- **Auto-reconnect**: ESP-IDF MQTT client handles this natively with backoff""",
+            },
         ]
     },
     {
         "conversations": [
             {"from": "system", "value": SYSTEM_PROMPT},
-            {"from": "human", "value": "Create a Home Assistant YAML configuration for a custom ESP32 sensor with MQTT auto-discovery."},
-            {"from": "gpt", "value": """Home Assistant MQTT auto-discovery for ESP32 sensor:
+            {
+                "from": "human",
+                "value": "Create a Home Assistant YAML configuration for a custom ESP32 sensor with MQTT auto-discovery.",
+            },
+            {
+                "from": "gpt",
+                "value": """Home Assistant MQTT auto-discovery for ESP32 sensor:
 
 **ESP32 side** — publish discovery config on connect:
 
@@ -241,14 +252,20 @@ To remove a discovered entity, publish empty payload to its config topic:
 esp_mqtt_client_publish(client,
     "homeassistant/sensor/esp32_lr/temperature/config",
     "", 0, 1, 1);  // Empty payload = remove
-```"""}
+```""",
+            },
         ]
     },
     {
         "conversations": [
             {"from": "system", "value": SYSTEM_PROMPT},
-            {"from": "human", "value": "Write a FreeRTOS application with ESP-IDF that manages WiFi reconnection, MQTT, and deep sleep for a battery-powered sensor."},
-            {"from": "gpt", "value": """Battery-optimized ESP32 sensor with WiFi, MQTT, and deep sleep:
+            {
+                "from": "human",
+                "value": "Write a FreeRTOS application with ESP-IDF that manages WiFi reconnection, MQTT, and deep sleep for a battery-powered sensor.",
+            },
+            {
+                "from": "gpt",
+                "value": """Battery-optimized ESP32 sensor with WiFi, MQTT, and deep sleep:
 
 ```c
 #include "freertos/FreeRTOS.h"
@@ -380,14 +397,20 @@ Power budget:
 
 With 2× 18650 (6600mAh @ 3.7V = 24.4Wh):
 - Cycles: 24.4Wh / 1.257Wh×1000 ≈ 19,400 cycles
-- Battery life: 19,400 × 302.5s ≈ 68 days"""}
+- Battery life: 19,400 × 302.5s ≈ 68 days""",
+            },
         ]
     },
     {
         "conversations": [
             {"from": "system", "value": SYSTEM_PROMPT},
-            {"from": "human", "value": "Write a PlatformIO project configuration for an ESP32 with MQTT, DHT22, and OTA updates."},
-            {"from": "gpt", "value": """PlatformIO configuration for ESP32 sensor node:
+            {
+                "from": "human",
+                "value": "Write a PlatformIO project configuration for an ESP32 with MQTT, DHT22, and OTA updates.",
+            },
+            {
+                "from": "gpt",
+                "value": """PlatformIO configuration for ESP32 sensor node:
 
 ```ini
 ; platformio.ini
@@ -497,14 +520,20 @@ void loop() {
 Upload workflow:
 1. First flash: `pio run -t upload` (USB)
 2. Subsequent: `pio run -t upload` (OTA via WiFi)
-3. Web OTA: browse to `http://device-ip/update`"""}
+3. Web OTA: browse to `http://device-ip/update`""",
+            },
         ]
     },
     {
         "conversations": [
             {"from": "system", "value": SYSTEM_PROMPT},
-            {"from": "human", "value": "How do I implement MQTT QoS levels properly and when to use each one?"},
-            {"from": "gpt", "value": """MQTT QoS levels explained with implementation:
+            {
+                "from": "human",
+                "value": "How do I implement MQTT QoS levels properly and when to use each one?",
+            },
+            {
+                "from": "gpt",
+                "value": """MQTT QoS levels explained with implementation:
 
 **QoS 0 — At most once (fire and forget)**
 ```
@@ -571,7 +600,8 @@ esp_mqtt_client_publish(client, "home/device/status",
 | 1 | 2 | Medium | Medium | Good |
 | 2 | 4 | Highest | Highest | Worst |
 
-Rule of thumb: use QoS 0 for >1Hz data, QoS 1 for everything else, QoS 2 only when you absolutely cannot have duplicates."""}
+Rule of thumb: use QoS 0 for >1Hz data, QoS 1 for everything else, QoS 2 only when you absolutely cannot have duplicates.""",
+            },
         ]
     },
 ]
@@ -595,17 +625,25 @@ def build_from_huggingface(max_samples: int) -> list[dict]:
         for row in ds:
             # Adapt columns based on dataset structure
             code = row.get("code", "") or row.get("content", "") or row.get("text", "")
-            title = row.get("title", "") or row.get("name", "") or row.get("file_name", "")
+            title = (
+                row.get("title", "") or row.get("name", "") or row.get("file_name", "")
+            )
             if not code or len(code) < 80:
                 continue
-            question = f"Write ESP-IDF code for: {title}" if title else "Write this ESP-IDF C code and explain its purpose."
-            samples.append({
-                "conversations": [
-                    {"from": "system", "value": SYSTEM_PROMPT},
-                    {"from": "human", "value": question},
-                    {"from": "gpt", "value": f"```c\n{code.strip()}\n```"},
-                ]
-            })
+            question = (
+                f"Write ESP-IDF code for: {title}"
+                if title
+                else "Write this ESP-IDF C code and explain its purpose."
+            )
+            samples.append(
+                {
+                    "conversations": [
+                        {"from": "system", "value": SYSTEM_PROMPT},
+                        {"from": "human", "value": question},
+                        {"from": "gpt", "value": f"```c\n{code.strip()}\n```"},
+                    ]
+                }
+            )
             count += 1
             if count >= max_samples:
                 break
@@ -617,7 +655,9 @@ def build_from_huggingface(max_samples: int) -> list[dict]:
     # Columns: conversations (already ShareGPT format: list of {from, value})
     print("  Downloading acon96/Home-Assistant-Requests...")
     try:
-        ds = load_dataset("acon96/Home-Assistant-Requests", split="train", streaming=True)
+        ds = load_dataset(
+            "acon96/Home-Assistant-Requests", split="train", streaming=True
+        )
         count = 0
         for row in ds:
             convos = row.get("conversations", [])
@@ -628,11 +668,14 @@ def build_from_huggingface(max_samples: int) -> list[dict]:
             if has_system:
                 samples.append({"conversations": convos})
             else:
-                samples.append({
-                    "conversations": [
-                        {"from": "system", "value": SYSTEM_PROMPT},
-                    ] + convos
-                })
+                samples.append(
+                    {
+                        "conversations": [
+                            {"from": "system", "value": SYSTEM_PROMPT},
+                        ]
+                        + convos
+                    }
+                )
             count += 1
             if count >= max_samples:
                 break
@@ -650,14 +693,20 @@ def build_from_huggingface(max_samples: int) -> list[dict]:
             title = row.get("title", "") or row.get("name", "")
             if not text or len(text) < 100:
                 continue
-            question = f"Explain the Arduino concept: {title}" if title else "Explain this Arduino documentation."
-            samples.append({
-                "conversations": [
-                    {"from": "system", "value": SYSTEM_PROMPT},
-                    {"from": "human", "value": question},
-                    {"from": "gpt", "value": text.strip()},
-                ]
-            })
+            question = (
+                f"Explain the Arduino concept: {title}"
+                if title
+                else "Explain this Arduino documentation."
+            )
+            samples.append(
+                {
+                    "conversations": [
+                        {"from": "system", "value": SYSTEM_PROMPT},
+                        {"from": "human", "value": question},
+                        {"from": "gpt", "value": text.strip()},
+                    ]
+                }
+            )
             count += 1
             if count >= max_samples // 2:  # Less priority than ESP-IDF
                 break
@@ -669,7 +718,9 @@ def build_from_huggingface(max_samples: int) -> list[dict]:
     # Columns: Id, Tags, Answer, Body, Title, CreationDate (same as electronics SE)
     print("  Downloading bshada/arduino.stackexchange.com...")
     try:
-        ds = load_dataset("bshada/arduino.stackexchange.com", split="train", streaming=True)
+        ds = load_dataset(
+            "bshada/arduino.stackexchange.com", split="train", streaming=True
+        )
         count = 0
         for row in ds:
             title = row.get("Title", "")
@@ -677,17 +728,19 @@ def build_from_huggingface(max_samples: int) -> list[dict]:
             answer = row.get("Answer", "")
             if not title or not answer or len(answer) < 100:
                 continue
-            question = re.sub(r'<[^>]+>', '', title + "\n" + body).strip()
-            answer_clean = re.sub(r'<[^>]+>', '', answer).strip()
+            question = re.sub(r"<[^>]+>", "", title + "\n" + body).strip()
+            answer_clean = re.sub(r"<[^>]+>", "", answer).strip()
             if len(answer_clean) < 80:
                 continue
-            samples.append({
-                "conversations": [
-                    {"from": "system", "value": SYSTEM_PROMPT},
-                    {"from": "human", "value": question[:1000]},
-                    {"from": "gpt", "value": answer_clean[:4000]},
-                ]
-            })
+            samples.append(
+                {
+                    "conversations": [
+                        {"from": "system", "value": SYSTEM_PROMPT},
+                        {"from": "human", "value": question[:1000]},
+                        {"from": "gpt", "value": answer_clean[:4000]},
+                    ]
+                }
+            )
             count += 1
             if count >= max_samples // 2:
                 break
@@ -699,9 +752,15 @@ def build_from_huggingface(max_samples: int) -> list[dict]:
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Build IoT/embedded fine-tuning dataset")
-    parser.add_argument("--with-hf", action="store_true", help="Include HuggingFace datasets")
-    parser.add_argument("--max-samples", type=int, default=2000, help="Max HF samples per source")
+    parser = argparse.ArgumentParser(
+        description="Build IoT/embedded fine-tuning dataset"
+    )
+    parser.add_argument(
+        "--with-hf", action="store_true", help="Include HuggingFace datasets"
+    )
+    parser.add_argument(
+        "--max-samples", type=int, default=2000, help="Max HF samples per source"
+    )
     parser.add_argument("--output", type=str, default=None)
     args = parser.parse_args()
 
@@ -722,7 +781,7 @@ def main():
     print(f"\n  Wrote {len(all_samples)} examples to {output_path}")
     print(f"  Size: {os.path.getsize(output_path) / 1024:.1f} KB")
     if not args.with_hf:
-        print(f"\n  To enrich: python build_iot_dataset.py --with-hf --max-samples 2000")
+        print("\n  To enrich: python build_iot_dataset.py --with-hf --max-samples 2000")
 
 
 if __name__ == "__main__":

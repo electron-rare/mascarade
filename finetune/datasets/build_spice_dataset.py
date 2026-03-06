@@ -4,8 +4,10 @@
 Covers: ngspice netlists, LTspice, convergence debugging, PySpice automation.
 
 Usage:
-  python build_spice_dataset.py                # Seeds only (~25 examples)
-  python build_spice_dataset.py --with-hf      # Seeds + HuggingFace EE dataset
+  python build_spice_dataset.py                        # Seeds only (~7 examples)
+  python build_spice_dataset.py --with-external        # Seeds + Masala-CHAI + SPICEPilot
+  python build_spice_dataset.py --with-hf              # Seeds + HuggingFace EE dataset
+  python build_spice_dataset.py --with-external --with-hf  # All sources
 """
 
 import argparse
@@ -25,8 +27,13 @@ SEED_EXAMPLES = [
     {
         "conversations": [
             {"from": "system", "value": SYSTEM_PROMPT},
-            {"from": "human", "value": "Write a SPICE netlist for a common-emitter amplifier with voltage divider bias. Include AC analysis from 10Hz to 10MHz."},
-            {"from": "gpt", "value": """Common-emitter amplifier with voltage divider bias:
+            {
+                "from": "human",
+                "value": "Write a SPICE netlist for a common-emitter amplifier with voltage divider bias. Include AC analysis from 10Hz to 10MHz.",
+            },
+            {
+                "from": "gpt",
+                "value": """Common-emitter amplifier with voltage divider bias:
 
 ```spice
 * Common-Emitter Amplifier with Voltage Divider Bias
@@ -86,14 +93,20 @@ Design calculations:
 - **Vce** = Vcc - Ic×(Rc+Re) = 12 - 2.07m×7.48k = 12 - 15.5 → need to adjust
 - Better: Ic ≈ 1mA with Re=1.5k → Ve = 1.5V, Vb = 2.2V, R1=27k, R2=5.6k
 - **AC gain** = -Rc/re' where re' = 26mV/Ic = 26Ω → Av ≈ -6800/26 = -261 (with bypass cap)
-- **Bandwidth**: f_low ≈ 1/(2π×Cin×Rin) ≈ 10Hz, f_high limited by Cjc Miller effect"""}
+- **Bandwidth**: f_low ≈ 1/(2π×Cin×Rin) ≈ 10Hz, f_high limited by Cjc Miller effect""",
+            },
         ]
     },
     {
         "conversations": [
             {"from": "system", "value": SYSTEM_PROMPT},
-            {"from": "human", "value": "My SPICE simulation won't converge. I'm getting 'singular matrix' and 'timestep too small' errors. How do I debug this?"},
-            {"from": "gpt", "value": """SPICE convergence debugging checklist:
+            {
+                "from": "human",
+                "value": "My SPICE simulation won't converge. I'm getting 'singular matrix' and 'timestep too small' errors. How do I debug this?",
+            },
+            {
+                "from": "gpt",
+                "value": """SPICE convergence debugging checklist:
 
 **1. Singular Matrix Error**
 Usually means a floating node or voltage source loop:
@@ -162,14 +175,20 @@ Rgate gate drain 100Meg
 4. Check every node has a DC path to ground
 5. Check no inductor loops without resistance
 6. Replace ideal switches with smooth PWL sources
-7. Verify device model parameters (especially IS, BV for diodes)"""}
+7. Verify device model parameters (especially IS, BV for diodes)""",
+            },
         ]
     },
     {
         "conversations": [
             {"from": "system", "value": SYSTEM_PROMPT},
-            {"from": "human", "value": "Write a PySpice script to simulate a low-pass RC filter and plot the Bode diagram."},
-            {"from": "gpt", "value": """PySpice Bode plot for a low-pass RC filter:
+            {
+                "from": "human",
+                "value": "Write a PySpice script to simulate a low-pass RC filter and plot the Bode diagram.",
+            },
+            {
+                "from": "gpt",
+                "value": """PySpice Bode plot for a low-pass RC filter:
 
 ```python
 import numpy as np
@@ -242,14 +261,20 @@ Expected output:
 - Roll-off = -20 dB/decade (first-order filter)
 - DC gain = 0 dB
 
-Install: `pip install PySpice` + ngspice must be installed (`apt install ngspice`)."""}
+Install: `pip install PySpice` + ngspice must be installed (`apt install ngspice`).""",
+            },
         ]
     },
     {
         "conversations": [
             {"from": "system", "value": SYSTEM_PROMPT},
-            {"from": "human", "value": "Create a SPICE netlist for a 555 timer in astable mode generating a 1kHz square wave."},
-            {"from": "gpt", "value": """555 timer astable oscillator at 1kHz:
+            {
+                "from": "human",
+                "value": "Create a SPICE netlist for a 555 timer in astable mode generating a 1kHz square wave.",
+            },
+            {
+                "from": "gpt",
+                "value": """555 timer astable oscillator at 1kHz:
 
 ```spice
 * 555 Timer Astable Mode - 1kHz Square Wave
@@ -317,14 +342,20 @@ D1 threshold discharge 1N4148
 * Duty ≈ Ra/(Ra+Rb) = 6.8/(6.8+3.3) = 67%
 ```
 
-For exact 50% duty, use CMOS 555 (TLC555) or add a flip-flop divider at output."""}
+For exact 50% duty, use CMOS 555 (TLC555) or add a flip-flop divider at output.""",
+            },
         ]
     },
     {
         "conversations": [
             {"from": "system", "value": SYSTEM_PROMPT},
-            {"from": "human", "value": "Write a SPICE netlist for an op-amp inverting amplifier with gain of -10, and verify the bandwidth with AC analysis."},
-            {"from": "gpt", "value": """Op-amp inverting amplifier (gain = -10) with bandwidth verification:
+            {
+                "from": "human",
+                "value": "Write a SPICE netlist for an op-amp inverting amplifier with gain of -10, and verify the bandwidth with AC analysis.",
+            },
+            {
+                "from": "gpt",
+                "value": """Op-amp inverting amplifier (gain = -10) with bandwidth verification:
 
 ```spice
 * Inverting Amplifier: Gain = -Rf/Ri = -100k/10k = -10
@@ -383,14 +414,20 @@ Expected results:
 Gain-bandwidth product is constant for a voltage-feedback op-amp:
 - GBW = Gain × Bandwidth = 10 × 100kHz = 1MHz ✓
 
-For higher bandwidth, use an op-amp with higher GBW (e.g., OPA2134: 8MHz → BW = 800kHz at gain of 10)."""}
+For higher bandwidth, use an op-amp with higher GBW (e.g., OPA2134: 8MHz → BW = 800kHz at gain of 10).""",
+            },
         ]
     },
     {
         "conversations": [
             {"from": "system", "value": SYSTEM_PROMPT},
-            {"from": "human", "value": "Simulate a full-wave bridge rectifier with capacitor filter in SPICE. Calculate ripple voltage."},
-            {"from": "gpt", "value": """Full-wave bridge rectifier with capacitor filter:
+            {
+                "from": "human",
+                "value": "Simulate a full-wave bridge rectifier with capacitor filter in SPICE. Calculate ripple voltage.",
+            },
+            {
+                "from": "gpt",
+                "value": """Full-wave bridge rectifier with capacitor filter:
 
 ```spice
 * Full-Wave Bridge Rectifier
@@ -448,14 +485,20 @@ For lower ripple:
 Diode selection criteria:
 - PIV = Vpeak = 16.97V → 1N4007 (1000V PIV) is overkill but safe
 - Iavg = Idc = 155.7mA → 1N4007 rated 1A ✓
-- Isurge at power-on can be 10-20× Iavg"""}
+- Isurge at power-on can be 10-20× Iavg""",
+            },
         ]
     },
     {
         "conversations": [
             {"from": "system", "value": SYSTEM_PROMPT},
-            {"from": "human", "value": "Write a SPICE subcircuit model for a voltage regulator (LM7805) and test it."},
-            {"from": "gpt", "value": """LM7805 behavioral SPICE model with test circuit:
+            {
+                "from": "human",
+                "value": "Write a SPICE subcircuit model for a voltage regulator (LM7805) and test it.",
+            },
+            {
+                "from": "gpt",
+                "value": """LM7805 behavioral SPICE model with test circuit:
 
 ```spice
 * LM7805 Voltage Regulator - Behavioral Model
@@ -534,22 +577,260 @@ Key specifications (real LM7805):
 - Max output current: 1.5A (with heatsink)
 - Quiescent current: 5-8 mA
 
-Thermal: P = (Vin-Vout) × Iout = (9-5) × 0.5 = 2W → needs heatsink if Rθja > 60°C/W"""}
+Thermal: P = (Vin-Vout) × Iout = (9-5) × 0.5 = 2W → needs heatsink if Rθja > 60°C/W""",
+            },
         ]
     },
 ]
 
 
+PYSPICE_SYSTEM_PROMPT = (
+    "You are an expert in PySpice, the Python interface for ngspice. "
+    "You write correct PySpice code for analog and digital circuit simulation, "
+    "including MOSFET models (NMOS/PMOS), transient/AC/DC analysis, subcircuits, "
+    "and matplotlib visualization. You follow best practices: ground node defined, "
+    "proper units (@u_V, @u_kOhm, etc.), convergence options, and error handling."
+)
+
 SPICE_KEYWORDS = [
-    "spice", "netlist", "simulation", "ltspice", "ngspice", "pspice", "hspice",
-    "pyspice", ".tran", ".ac", ".dc", ".op", ".subckt", ".model",
-    "circuit", "amplifier", "filter", "transistor", "op-amp", "opamp",
-    "oscillat", "rectif", "capacitor", "inductor", "diode", "mosfet",
-    "bjt", "jfet", "voltage regulator", "power supply", "feedback",
-    "bode", "frequency response", "gain", "bandwidth", "phase margin",
-    "common emitter", "common source", "differential", "cascode",
-    "analog", "bias", "small signal", "transfer function",
+    "spice",
+    "netlist",
+    "simulation",
+    "ltspice",
+    "ngspice",
+    "pspice",
+    "hspice",
+    "pyspice",
+    ".tran",
+    ".ac",
+    ".dc",
+    ".op",
+    ".subckt",
+    ".model",
+    "circuit",
+    "amplifier",
+    "filter",
+    "transistor",
+    "op-amp",
+    "opamp",
+    "oscillat",
+    "rectif",
+    "capacitor",
+    "inductor",
+    "diode",
+    "mosfet",
+    "bjt",
+    "jfet",
+    "voltage regulator",
+    "power supply",
+    "feedback",
+    "bode",
+    "frequency response",
+    "gain",
+    "bandwidth",
+    "phase margin",
+    "common emitter",
+    "common source",
+    "differential",
+    "cascode",
+    "analog",
+    "bias",
+    "small signal",
+    "transfer function",
 ]
+
+
+def build_from_external() -> list[dict]:
+    """Load external datasets: Masala-CHAI (SPICE netlists) + SPICEPilot (PySpice code)."""
+    samples = []
+    ext_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "external")
+
+    # --- 1. Masala-CHAI: 2950 SPICE netlists (OpenAI messages → ShareGPT) ---
+    chai_path = os.path.join(ext_dir, "Masala-CHAI", "analoggenie.jsonl")
+    if os.path.isfile(chai_path):
+        print("  Loading Masala-CHAI analoggenie.jsonl...")
+        count = 0
+        with open(chai_path, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    row = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                messages = row.get("messages", [])
+                if len(messages) < 2:
+                    continue
+                # Convert OpenAI messages format → ShareGPT format
+                convos = []
+                for msg in messages:
+                    role = msg.get("role", "")
+                    content = msg.get("content", "")
+                    if not content:
+                        continue
+                    if role == "system":
+                        convos.append({"from": "system", "value": content})
+                    elif role == "user":
+                        convos.append({"from": "human", "value": content})
+                    elif role == "assistant":
+                        convos.append({"from": "gpt", "value": content})
+                if len(convos) >= 2:
+                    # Ensure system prompt exists
+                    if convos[0]["from"] != "system":
+                        convos.insert(0, {"from": "system", "value": SYSTEM_PROMPT})
+                    samples.append({"conversations": convos})
+                    count += 1
+        print(f"    Got {count} Masala-CHAI SPICE netlist examples")
+    else:
+        print(f"  [!] Masala-CHAI not found at {chai_path}")
+        print(
+            "      Clone: git clone https://github.com/jitx-inc/Masala-CHAI.git finetune/external/Masala-CHAI"
+        )
+
+    # --- 2. SPICEPilot: PySpice code files → Q&A pairs ---
+    spicepilot_dir = os.path.join(ext_dir, "SPICEPilot")
+    if os.path.isdir(spicepilot_dir):
+        print("  Loading SPICEPilot PySpice examples...")
+        count = 0
+        # Walk Claude_tests and GPT_tests for .py files
+        for test_dir in ["Claude_tests", "GPT_tests"]:
+            base = os.path.join(spicepilot_dir, test_dir)
+            if not os.path.isdir(base):
+                continue
+            for root, _dirs, files in os.walk(base):
+                for fname in sorted(files):
+                    if not fname.endswith(".py"):
+                        continue
+                    fpath = os.path.join(root, fname)
+                    with open(fpath, "r", encoding="utf-8") as f:
+                        code = f.read()
+                    if len(code) < 100:
+                        continue
+                    # Infer circuit name from code
+                    circuit_name = "circuit"
+                    for cl in code.splitlines():
+                        if "Circuit(" in cl:
+                            match = re.search(r"Circuit\(['\"](.+?)['\"]\)", cl)
+                            if match:
+                                circuit_name = match.group(1)
+                            break
+                    # Determine difficulty from path
+                    difficulty = "medium"
+                    path_lower = root.lower()
+                    if "easy" in path_lower:
+                        difficulty = "easy"
+                    elif "hard" in path_lower:
+                        difficulty = "hard"
+
+                    question = (
+                        f"Write a PySpice script to simulate a {circuit_name}. "
+                        f"Include MOSFET models, transient analysis, and plotting. "
+                        f"Difficulty: {difficulty}."
+                    )
+                    answer = f"PySpice simulation of {circuit_name}:\n\n```python\n{code}\n```"
+                    samples.append(
+                        {
+                            "conversations": [
+                                {"from": "system", "value": PYSPICE_SYSTEM_PROMPT},
+                                {"from": "human", "value": question},
+                                {"from": "gpt", "value": answer},
+                            ]
+                        }
+                    )
+                    count += 1
+        print(f"    Got {count} SPICEPilot PySpice code examples")
+
+        # --- 3. SPICEPilot benchmark: circuit descriptions → design Q&A ---
+        bench_path = os.path.join(spicepilot_dir, "New_bench-mark.md")
+        if os.path.isfile(bench_path):
+            print("  Loading SPICEPilot benchmark descriptions...")
+            with open(bench_path, "r", encoding="utf-8") as f:
+                bench_text = f.read()
+            # Parse numbered entries: N. **Name** \n - **Description:** text
+            entries = re.findall(
+                r"\d+\.\s+\*\*(.+?)\*\*\s*\n\s*-\s*\*\*Description:\*\*\s*(.+?)(?=\n\n|\n\d+\.|\n---|\Z)",
+                bench_text,
+                re.DOTALL,
+            )
+            count = 0
+            for name, desc in entries:
+                name = name.strip()
+                desc = desc.strip()
+                if len(desc) < 20:
+                    continue
+                question = f"Describe the design of a {name} circuit for SPICE simulation. How does it work and what are the key transistor connections?"
+                answer = f"**{name}**\n\n{desc}\n\nTo simulate this in SPICE:\n1. Define NMOS and PMOS models with appropriate parameters (kp, vto, lambda, w, l)\n2. Connect transistors as described above\n3. Add input sources (pulse or sinusoidal depending on the circuit type)\n4. Run transient analysis to verify timing and voltage levels\n5. Check DC operating point to verify bias conditions"
+                samples.append(
+                    {
+                        "conversations": [
+                            {"from": "system", "value": SYSTEM_PROMPT},
+                            {"from": "human", "value": question},
+                            {"from": "gpt", "value": answer},
+                        ]
+                    }
+                )
+                count += 1
+            print(f"    Got {count} SPICEPilot benchmark circuit descriptions")
+    else:
+        print(f"  [!] SPICEPilot not found at {spicepilot_dir}")
+        print(
+            "      Clone: git clone https://github.com/DavidLanworworworthy/SPICEPilot.git finetune/external/SPICEPilot"
+        )
+
+    # --- 4. symbench/spice-datasets: 6249 real SPICE netlists ---
+    symbench_dir = os.path.join(ext_dir, "spice-datasets")
+    if os.path.isdir(symbench_dir):
+        print("  Loading symbench/spice-datasets (LTspice + KiCad netlists)...")
+        count = 0
+        for subdir in ["ltspice_demos", "ltspice_examples", "kicad_github"]:
+            src_dir = os.path.join(symbench_dir, subdir)
+            if not os.path.isdir(src_dir):
+                continue
+            for root, _dirs, files in os.walk(src_dir):
+                for fname in sorted(files):
+                    if not fname.endswith((".net", ".sp", ".cir")):
+                        continue
+                    fpath = os.path.join(root, fname)
+                    try:
+                        with open(fpath, "r", encoding="utf-8", errors="ignore") as f:
+                            netlist = f.read()
+                    except Exception:
+                        continue
+                    if len(netlist) < 50 or len(netlist) > 8000:
+                        continue
+                    # Extract circuit name from first comment or filename
+                    circuit_name = (
+                        fname.replace(".net", "").replace(".sp", "").replace(".cir", "")
+                    )
+                    first_line = netlist.splitlines()[0] if netlist.splitlines() else ""
+                    if first_line.startswith("*"):
+                        circuit_name = (
+                            first_line.lstrip("* ").strip()[:80] or circuit_name
+                        )
+                    source = subdir.replace("_", " ").title()
+                    question = f"Write a SPICE netlist for: {circuit_name}"
+                    answer = (
+                        f"SPICE netlist ({source}):\n\n```spice\n{netlist.strip()}\n```"
+                    )
+                    samples.append(
+                        {
+                            "conversations": [
+                                {"from": "system", "value": SYSTEM_PROMPT},
+                                {"from": "human", "value": question},
+                                {"from": "gpt", "value": answer},
+                            ]
+                        }
+                    )
+                    count += 1
+        print(f"    Got {count} symbench SPICE netlist examples")
+    else:
+        print(f"  [!] symbench/spice-datasets not found at {symbench_dir}")
+        print(
+            "      Clone: git clone https://github.com/symbench/spice-datasets.git finetune/external/spice-datasets"
+        )
+
+    return samples
 
 
 def build_from_huggingface(max_samples: int) -> list[dict]:
@@ -565,7 +846,9 @@ def build_from_huggingface(max_samples: int) -> list[dict]:
     # 1. STEM-AI Electrical Engineering
     print("  Downloading STEM-AI-mtl/Electrical-engineering (SPICE-related)...")
     try:
-        ds = load_dataset("STEM-AI-mtl/Electrical-engineering", split="train", streaming=True)
+        ds = load_dataset(
+            "STEM-AI-mtl/Electrical-engineering", split="train", streaming=True
+        )
         count = 0
         for row in ds:
             instruction = row.get("instruction", "")
@@ -574,13 +857,15 @@ def build_from_huggingface(max_samples: int) -> list[dict]:
                 continue
             text_lower = (instruction + output).lower()
             if any(kw in text_lower for kw in SPICE_KEYWORDS):
-                samples.append({
-                    "conversations": [
-                        {"from": "system", "value": SYSTEM_PROMPT},
-                        {"from": "human", "value": instruction},
-                        {"from": "gpt", "value": output},
-                    ]
-                })
+                samples.append(
+                    {
+                        "conversations": [
+                            {"from": "system", "value": SYSTEM_PROMPT},
+                            {"from": "human", "value": instruction},
+                            {"from": "gpt", "value": output},
+                        ]
+                    }
+                )
                 count += 1
                 if count >= max_samples:
                     break
@@ -592,7 +877,9 @@ def build_from_huggingface(max_samples: int) -> list[dict]:
     # Columns: Id, Tags, Answer, Body, Title, CreationDate
     print("  Downloading bshada/electronics.stackexchange.com (SPICE/analog filter)...")
     try:
-        ds = load_dataset("bshada/electronics.stackexchange.com", split="train", streaming=True)
+        ds = load_dataset(
+            "bshada/electronics.stackexchange.com", split="train", streaming=True
+        )
         count = 0
         for row in ds:
             title = row.get("Title", "")
@@ -604,17 +891,19 @@ def build_from_huggingface(max_samples: int) -> list[dict]:
             combined = (title + " " + body + " " + answer + " " + tags).lower()
             if not any(kw in combined for kw in SPICE_KEYWORDS):
                 continue
-            question = re.sub(r'<[^>]+>', '', title + "\n" + body).strip()
-            answer_clean = re.sub(r'<[^>]+>', '', answer).strip()
+            question = re.sub(r"<[^>]+>", "", title + "\n" + body).strip()
+            answer_clean = re.sub(r"<[^>]+>", "", answer).strip()
             if len(answer_clean) < 80:
                 continue
-            samples.append({
-                "conversations": [
-                    {"from": "system", "value": SYSTEM_PROMPT},
-                    {"from": "human", "value": question[:1000]},
-                    {"from": "gpt", "value": answer_clean[:4000]},
-                ]
-            })
+            samples.append(
+                {
+                    "conversations": [
+                        {"from": "system", "value": SYSTEM_PROMPT},
+                        {"from": "human", "value": question[:1000]},
+                        {"from": "gpt", "value": answer_clean[:4000]},
+                    ]
+                }
+            )
             count += 1
             if count >= max_samples:
                 break
@@ -642,13 +931,15 @@ def build_from_huggingface(max_samples: int) -> list[dict]:
                 answer = text.strip()
             if not answer or len(answer) < 30:
                 continue
-            samples.append({
-                "conversations": [
-                    {"from": "system", "value": SYSTEM_PROMPT},
-                    {"from": "human", "value": prompt},
-                    {"from": "gpt", "value": answer},
-                ]
-            })
+            samples.append(
+                {
+                    "conversations": [
+                        {"from": "system", "value": SYSTEM_PROMPT},
+                        {"from": "human", "value": prompt},
+                        {"from": "gpt", "value": answer},
+                    ]
+                }
+            )
             count += 1
             if count >= max_samples // 2:
                 break
@@ -696,20 +987,50 @@ def build_from_huggingface(max_samples: int) -> list[dict]:
             combined = (name + " " + desc).lower()
             if not any(kw in combined for kw in SPICE_KEYWORDS[:20]):
                 continue
-            comp_list = ", ".join(components[:20]) if isinstance(components, list) else str(components)
+            comp_list = (
+                ", ".join(components[:20])
+                if isinstance(components, list)
+                else str(components)
+            )
             question = f"Design a circuit for: {desc.strip()}"
             answer = f"Circuit: {name}\n\nComponents needed:\n{comp_list}\n\nDescription: {desc.strip()}"
-            samples.append({
-                "conversations": [
-                    {"from": "system", "value": SYSTEM_PROMPT},
-                    {"from": "human", "value": question[:1000]},
-                    {"from": "gpt", "value": answer[:4000]},
-                ]
-            })
+            samples.append(
+                {
+                    "conversations": [
+                        {"from": "system", "value": SYSTEM_PROMPT},
+                        {"from": "human", "value": question[:1000]},
+                        {"from": "gpt", "value": answer[:4000]},
+                    ]
+                }
+            )
             count += 1
             if count >= max_samples // 2:
                 break
         print(f"    Got {count} open-schematics examples")
+    except Exception as e:
+        print(f"    Failed: {e}")
+
+    # 6. Vrindarani/netlistgen: 106 prompt→SPICE netlist pairs
+    print("  Downloading Vrindarani/netlistgen (prompt→netlist pairs)...")
+    try:
+        ds = load_dataset("Vrindarani/netlistgen", split="train", streaming=True)
+        count = 0
+        for row in ds:
+            prompt = row.get("Prompt", "") or row.get("prompt", "")
+            answer = row.get("Answer", "") or row.get("answer", "")
+            if not prompt or not answer or len(answer) < 30:
+                continue
+            samples.append(
+                {
+                    "conversations": [
+                        {"from": "system", "value": SYSTEM_PROMPT},
+                        {"from": "human", "value": prompt.strip()},
+                        {"from": "gpt", "value": answer.strip()},
+                    ]
+                }
+            )
+            count += 1
+        print(f"    Got {count} netlistgen prompt→netlist examples")
     except Exception as e:
         print(f"    Failed: {e}")
 
@@ -718,7 +1039,12 @@ def build_from_huggingface(max_samples: int) -> list[dict]:
 
 def main():
     parser = argparse.ArgumentParser(description="Build SPICE fine-tuning dataset")
-    parser.add_argument("--with-hf", action="store_true", help="Include HuggingFace datasets")
+    parser.add_argument(
+        "--with-hf", action="store_true", help="Include HuggingFace datasets"
+    )
+    parser.add_argument(
+        "--with-external", action="store_true", help="Include Masala-CHAI + SPICEPilot"
+    )
     parser.add_argument("--max-samples", type=int, default=1000, help="Max HF samples")
     parser.add_argument("--output", type=str, default=None)
     args = parser.parse_args()
@@ -728,6 +1054,10 @@ def main():
 
     all_samples = list(SEED_EXAMPLES)
     print(f"  {len(SEED_EXAMPLES)} seed examples")
+
+    if args.with_external:
+        ext_samples = build_from_external()
+        all_samples.extend(ext_samples)
 
     if args.with_hf:
         hf_samples = build_from_huggingface(args.max_samples)

@@ -1,21 +1,9 @@
 import { Hono } from "hono";
-import { CoreApiError, coreClient } from "../client/core.js";
+import { coreClient } from "../client/core.js";
+import { handleCoreError } from "../middleware/error.js";
 
 const agents = new Hono();
-
-function handleCoreError(error: unknown) {
-  if (error instanceof CoreApiError) {
-    const status = error.status >= 400 && error.status < 500 ? (400 as const) : (502 as const);
-    return {
-      status,
-      body: { error: error.message, core_status: error.status },
-    };
-  }
-  return {
-    status: 502 as const,
-    body: { error: "Core service unreachable" },
-  };
-}
+const SAFE_NAME_RE = /^[\w.-]+$/;
 
 /** Lister tous les agents */
 agents.get("/", async (c) => {
@@ -28,7 +16,7 @@ agents.get("/", async (c) => {
   }
 });
 
-/** Créer un agent */
+/** Creer un agent */
 agents.post("/", async (c) => {
   try {
     const body = await c.req.json();
@@ -40,10 +28,13 @@ agents.post("/", async (c) => {
   }
 });
 
-/** Exécuter un agent */
+/** Executer un agent */
 agents.post("/:name/run", async (c) => {
   try {
     const name = c.req.param("name");
+    if (!name || !SAFE_NAME_RE.test(name)) {
+      return c.json({ error: "Invalid agent name" }, 400);
+    }
     const { messages } = await c.req.json();
     const result = await coreClient.runAgent(name, messages);
     return c.json(result);
@@ -88,7 +79,7 @@ agents.get("/providers", async (c) => {
   }
 });
 
-/** Récupérer le résumé global de métriques */
+/** Recuperer le resume global de metriques */
 agents.get("/metrics", async (c) => {
   try {
     const result = await coreClient.getMetrics();
@@ -99,7 +90,7 @@ agents.get("/metrics", async (c) => {
   }
 });
 
-/** Reset de toutes les métriques runtime */
+/** Reset de toutes les metriques runtime */
 agents.post("/metrics/reset", async (c) => {
   try {
     const result = await coreClient.resetMetrics();
@@ -110,10 +101,13 @@ agents.post("/metrics/reset", async (c) => {
   }
 });
 
-/** Récupérer les métriques d'un provider */
+/** Recuperer les metriques d'un provider */
 agents.get("/metrics/:provider", async (c) => {
   try {
     const provider = c.req.param("provider");
+    if (!provider || !SAFE_NAME_RE.test(provider)) {
+      return c.json({ error: "Invalid provider name" }, 400);
+    }
     const result = await coreClient.getProviderMetrics(provider);
     return c.json(result);
   } catch (error) {
@@ -122,7 +116,7 @@ agents.get("/metrics/:provider", async (c) => {
   }
 });
 
-/** Statistiques du cache de réponses */
+/** Statistiques du cache de reponses */
 agents.get("/cache/stats", async (c) => {
   try {
     const result = await coreClient.getCacheStats();
@@ -188,7 +182,7 @@ agents.post("/fallback/reset", async (c) => {
   }
 });
 
-/** Notion Scribe : exécuter puis pousser dans Notion */
+/** Notion Scribe : executer puis pousser dans Notion */
 agents.post("/notion-scribe/run-and-push", async (c) => {
   try {
     const body = await c.req.json();

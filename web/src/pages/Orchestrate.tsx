@@ -34,6 +34,7 @@ export default function Orchestrate() {
               return (
                 <button
                   key={a.name}
+                  aria-pressed={active}
                   onClick={() =>
                     setSelected((curr) =>
                       curr.includes(a.name)
@@ -86,4 +87,3 @@ export default function Orchestrate() {
     </div>
   );
 }
-

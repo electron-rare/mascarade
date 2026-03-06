@@ -12,6 +12,7 @@ export function useApi<TResult, TArgs = void>(
     async (args: TArgs) => {
       setLoading(true);
       setError(null);
+      setData(null);
       try {
         const result = await fn(args);
         setData(result);

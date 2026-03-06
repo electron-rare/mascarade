@@ -72,12 +72,41 @@ collect_module_configs() {
 # ── Ecriture du fichier .env ──
 write_env_file() {
     local env_file="${1:-$REPO_DIR/.env}"
+    _rand_secret() {
+        local bytes="${1:-24}"
+        openssl rand -hex "$bytes" 2>/dev/null || head -c $((bytes * 2)) /dev/urandom | od -An -tx1 | tr -d ' \n'
+    }
+    local default_postgres_password="${POSTGRES_PASSWORD:-$(_rand_secret 24)}"
+    local default_clickhouse_password="${CLICKHOUSE_PASSWORD:-$(_rand_secret 24)}"
+    local default_minio_root_password="${MINIO_ROOT_PASSWORD:-$(_rand_secret 24)}"
 
     # Backup si existant
     backup_file "$env_file"
 
     {
         echo "# .env — Genere par Mascarade setup — $(date '+%Y-%m-%d %H:%M')"
+        echo ""
+        echo "# ── Images Docker (surchargables) ──"
+        echo "LITELLM_IMAGE=\"${LITELLM_IMAGE:-ghcr.io/berriai/litellm@sha256:59a2736ac84800821fa0e1656487366089f2d29d10f8ae05c918df9c6e4940af}\""
+        echo "N8N_IMAGE=\"${N8N_IMAGE:-n8nio/n8n@sha256:cfa50544c4cc172506834da1ec9bb5171db55958c8d1918205df0bda237a56f4}\""
+        echo "LANGFUSE_WORKER_IMAGE=\"${LANGFUSE_WORKER_IMAGE:-langfuse/langfuse-worker@sha256:8bb47a4240ea293a210e460eae912ce06ea8fc2f724ce89cb146547eed36f6b2}\""
+        echo "LANGFUSE_WEB_IMAGE=\"${LANGFUSE_WEB_IMAGE:-langfuse/langfuse@sha256:8d3211972d2a0610258ff0cc86da6b2d367f804bf253e9b94863bf961e59d23c}\""
+        echo "MINIO_IMAGE=\"${MINIO_IMAGE:-minio/minio@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e}\""
+        echo "DIFY_API_IMAGE=\"${DIFY_API_IMAGE:-langgenius/dify-api@sha256:5f622b4d0b39bdc6d3b401063cfb60962fa92dcc63f55daccec138f98b260e67}\""
+        echo "DIFY_WEB_IMAGE=\"${DIFY_WEB_IMAGE:-langgenius/dify-web@sha256:30339b4d5060488fac147ddc6fb40438ef71cd5f5dfdeb26c886768302bf7197}\""
+        echo "CLICKHOUSE_IMAGE=\"${CLICKHOUSE_IMAGE:-clickhouse/clickhouse-server@sha256:0b2d7824347397b2ba6fcb216f0ae772568105f1f47e19f0d3247e24c79bc10a}\""
+        echo "OLLAMA_IMAGE=\"${OLLAMA_IMAGE:-ollama/ollama@sha256:719122581b6932e1240ae70d788859089cb80d17e23cd4f98ba960b0290f70cb}\""
+        echo "OPEN_WEBUI_IMAGE=\"${OPEN_WEBUI_IMAGE:-ghcr.io/open-webui/open-webui@sha256:bb3f0281554bf05a9d505ffb5a5f067ab53e13ac772eb4ea3077a92ddc64600e}\""
+        echo "REDIS_IMAGE=\"${REDIS_IMAGE:-redis@sha256:8b81dd37ff027bec4e516d41acfbe9fe2460070dc6d4a4570a2ac5b9d59df065}\""
+        echo "POSTGRES_IMAGE=\"${POSTGRES_IMAGE:-postgres@sha256:20edbde7749f822887a1a022ad526fde0a47d6b2be9a8364433605cf65099416}\""
+        echo "QDRANT_IMAGE=\"${QDRANT_IMAGE:-qdrant/qdrant@sha256:f1c7272cdac52b38c1a0e89313922d940ba50afd90d593a1605dbbc214e66ffb}\""
+        echo "GRAFANA_IMAGE=\"${GRAFANA_IMAGE:-grafana/grafana@sha256:b0ae311af06228bcfd4a620504b653db80f5b91e94dc3dc2a5b7dab202bcde20}\""
+        echo "PROMETHEUS_IMAGE=\"${PROMETHEUS_IMAGE:-prom/prometheus@sha256:4a61322ac1103a0e3aea2a61ef1718422a48fa046441f299d71e660a3bc71ae9}\""
+        echo "COMFYUI_IMAGE=\"${COMFYUI_IMAGE:-comfyanonymous/comfyui:latest}\""
+        echo "STT_IMAGE=\"${STT_IMAGE:-onerahmet/openai-whisper-asr-webservice:latest}\""
+        echo "GENERATE_AUDIO_IMAGE=\"${GENERATE_AUDIO_IMAGE:-onerahmet/openai-whisper-asr-webservice:latest}\""
+        echo "TTS_PIPER_IMAGE=\"${TTS_PIPER_IMAGE:-rhasspy/wyoming-piper:latest}\""
+        echo "TTS_KOKORO_IMAGE=\"${TTS_KOKORO_IMAGE:-ghcr.io/marjocchi/wyoming-kokoro:latest}\""
         echo ""
 
         # Core
@@ -113,7 +142,7 @@ write_env_file() {
             echo "# ── PostgreSQL ──"
             echo "POSTGRES_PORT=\"${POSTGRES_PORT:-5432}\""
             echo "POSTGRES_USER=\"${POSTGRES_USER:-mascarade}\""
-            echo "POSTGRES_PASSWORD=\"${POSTGRES_PASSWORD:-changeme}\""
+            echo "POSTGRES_PASSWORD=\"$default_postgres_password\""
             echo "POSTGRES_DB=\"${POSTGRES_DB:-mascarade}\""
             echo ""
         fi
@@ -129,6 +158,7 @@ write_env_file() {
         if svc_selected "ollama"; then
             echo "# ── Ollama ──"
             echo "OLLAMA_PORT=\"${OLLAMA_PORT:-11434}\""
+            echo "OLLAMA_ENABLED=\"true\""
             echo ""
         fi
 
@@ -146,7 +176,11 @@ write_env_file() {
             echo "LANGFUSE_PORT=\"${LANGFUSE_PORT:-3200}\""
             echo "LANGFUSE_INIT_PROJECT_PUBLIC_KEY=\"${LANGFUSE_INIT_PROJECT_PUBLIC_KEY:-}\""
             echo "LANGFUSE_INIT_PROJECT_SECRET_KEY=\"${LANGFUSE_INIT_PROJECT_SECRET_KEY:-}\""
+            echo "CLICKHOUSE_USER=\"${CLICKHOUSE_USER:-langfuse}\""
+            echo "CLICKHOUSE_PASSWORD=\"$default_clickhouse_password\""
             echo "CLICKHOUSE_MIGRATION_URL=\"${CLICKHOUSE_MIGRATION_URL:-clickhouse://clickhouse:9000}\""
+            echo "MINIO_ROOT_USER=\"${MINIO_ROOT_USER:-minio}\""
+            echo "MINIO_ROOT_PASSWORD=\"$default_minio_root_password\""
             echo "NEXTAUTH_URL=\"${NEXTAUTH_URL:-http://localhost:${LANGFUSE_PORT:-3200}}\""
             echo "NEXTAUTH_SECRET=\"${NEXTAUTH_SECRET:-}\""
             echo "SALT=\"${SALT:-}\""

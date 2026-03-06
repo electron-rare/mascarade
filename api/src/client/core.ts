@@ -3,12 +3,24 @@
  */
 
 const CORE_URL = process.env.CORE_URL || "http://localhost:8100";
-const CORE_API_KEY = process.env.MASCARADE_API_KEY || "";
+
+function configuredCoreApiKeys(): string[] {
+  return (process.env.MASCARADE_API_KEY || "")
+    .split(",")
+    .map((key) => key.trim())
+    .filter((key) => key.length >= 8);
+}
+
+export function getCoreAuthHeaders(): Record<string, string> {
+  const [coreApiKey] = configuredCoreApiKeys();
+  return coreApiKey ? { Authorization: `Bearer ${coreApiKey}` } : {};
+}
 
 export class CoreApiError extends Error {
   constructor(
     message: string,
     public readonly status: number,
+    public readonly coreBody?: unknown,
   ) {
     super(message);
     this.name = "CoreApiError";
@@ -27,18 +39,37 @@ export interface AgentInfo {
   description: string;
 }
 
+const REQUEST_TIMEOUT_MS = parseInt(process.env.CORE_TIMEOUT_MS || "30000", 10);
+
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
-  const headers: Record<string, string> = { "Content-Type": "application/json" };
-  if (CORE_API_KEY) {
-    headers["Authorization"] = `Bearer ${CORE_API_KEY}`;
-  }
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    ...getCoreAuthHeaders(),
+  };
   const res = await fetch(`${CORE_URL}${path}`, {
     headers,
+    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     ...options,
   });
   if (!res.ok) {
     const text = await res.text();
-    throw new CoreApiError(`Core API error ${res.status}: ${text}`, res.status);
+    let parsedBody: unknown = text;
+    if (text) {
+      try {
+        parsedBody = JSON.parse(text);
+      } catch {
+        parsedBody = text;
+      }
+    }
+
+    const message =
+      typeof parsedBody === "object" && parsedBody !== null
+        ? ((parsedBody as Record<string, unknown>).error as string | undefined) ||
+          ((parsedBody as Record<string, unknown>).detail as string | undefined) ||
+          `Core API error ${res.status}`
+        : text || `Core API error ${res.status}`;
+
+    throw new CoreApiError(message, res.status, parsedBody);
   }
   return res.json() as Promise<T>;
 }
@@ -231,11 +262,10 @@ export const coreClient = {
     const params = new URLSearchParams({ filename });
     if (subfolder) params.set("subfolder", subfolder);
     if (type) params.set("type", type);
-    const headers: Record<string, string> = {};
-    if (CORE_API_KEY) {
-      headers["Authorization"] = `Bearer ${CORE_API_KEY}`;
-    }
-    return fetch(`${CORE_URL}/comfyui/image?${params}`, { headers });
+    return fetch(`${CORE_URL}/comfyui/image?${params}`, {
+      headers: getCoreAuthHeaders(),
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    });
   },
 
   notionScribeRunAndPush(body: {

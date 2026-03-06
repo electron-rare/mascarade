@@ -25,7 +25,7 @@ services:
     environment:
       - CLICKHOUSE_DB=default
       - CLICKHOUSE_USER=default
-      - CLICKHOUSE_PASSWORD=${CLICKHOUSE_PASSWORD:-clickhouse}
+      - CLICKHOUSE_PASSWORD=${CLICKHOUSE_PASSWORD}
     volumes:
       - clickhouse-data:/var/lib/clickhouse
     networks:
@@ -43,9 +43,9 @@ services:
       - "127.0.0.1:3200:3000"
     environment:
       - NEXTAUTH_URL=http://127.0.0.1:3200
-      - NEXTAUTH_SECRET=${LANGFUSE_NEXTAUTH_SECRET:-change-me}
-      - SALT=${LANGFUSE_SALT:-change-me}
-      - ENCRYPTION_KEY=${LANGFUSE_ENCRYPTION_KEY:-change-me}
+      - NEXTAUTH_SECRET=${LANGFUSE_NEXTAUTH_SECRET}
+      - SALT=${LANGFUSE_SALT}
+      - ENCRYPTION_KEY=${LANGFUSE_ENCRYPTION_KEY}
       - DATABASE_URL=${LANGFUSE_DATABASE_URL}
       - CLICKHOUSE_URL=http://tools-clickhouse:8123
       - REDIS_HOST=${REDIS_HOST:-zacus-redis}
@@ -100,7 +100,7 @@ services:
       - "127.0.0.1:3005:3001"
     environment:
       - STORAGE_DIR=/app/server/storage
-      - JWT_SECRET=${ANYTHINGLLM_JWT_SECRET:-change-me-anythingllm}
+      - JWT_SECRET=${ANYTHINGLLM_JWT_SECRET}
       - LLM_PROVIDER=localai
       - LOCAL_AI_BASE_PATH=http://tools-localai:8080/v1
       - EMBEDDING_ENGINE=localai

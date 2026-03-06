@@ -12,7 +12,7 @@ def test_all_skills_have_unique_names():
 def test_register_default_skills():
     reg = AgentRegistry()
     register_default_skills(reg)
-    assert len(reg) == len(ALL_SKILLS)
+    assert len(reg) >= len(ALL_SKILLS)
 
 
 def test_all_skills_accessible_by_name():
@@ -45,5 +45,6 @@ def test_expected_skills_present():
         "planner",
         "classifier",
         "image-generator",
+        "pcb-routing-kicad",
     }
     assert expected == names

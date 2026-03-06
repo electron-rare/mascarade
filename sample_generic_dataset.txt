@@ -1,0 +1,43 @@
+def quicksort(arr):
+    if len(arr) <= 1:
+        return arr
+    pivot = arr[len(arr) // 2]
+    left = [x for x in arr if x < pivot]
+    middle = [x for x in arr if x == pivot]
+    right = [x for x in arr if x > pivot]
+    return quicksort(left) + middle + quicksort(right)
+
+
+================================================================================
+
+class BinaryTree:
+    def __init__(self, value):
+        self.value = value
+        self.left = None
+        self.right = None
+    def insert(self, value):
+        if value < self.value:
+            if self.left is None:
+                self.left = BinaryTree(value)
+            else:
+                self.left.insert(value)
+        else:
+            if self.right is None:
+                self.right = BinaryTree(value)
+            else:
+                self.right.insert(value)
+
+
+================================================================================
+
+# REST API Example
+from flask import Flask, jsonify
+app = Flask(__name__)
+@app.route('/api/data', methods=['GET'])
+def get_data():
+    return jsonify({'status': 'success', 'data': [1, 2, 3]})
+if __name__ == '__main__':
+    app.run(debug=True)
+
+
+================================================================================

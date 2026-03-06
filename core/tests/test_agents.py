@@ -6,7 +6,9 @@ from mascarade.agents.registry import AgentRegistry
 
 def test_registry_register_and_get():
     reg = AgentRegistry(storage_path=None)
-    agent = Agent(name="test", description="A test agent", system_prompt="You are a test.")
+    agent = Agent(
+        name="test", description="A test agent", system_prompt="You are a test."
+    )
     reg.register(agent)
     assert reg.get("test") is agent
     assert len(reg) == 1
@@ -47,7 +49,9 @@ def test_registry_save_and_load(tmp_path):
     storage = tmp_path / "agents.json"
 
     reg = AgentRegistry(storage_path=storage)
-    reg.register(Agent(name="builtin", description="B", system_prompt="B"), builtin=True)
+    reg.register(
+        Agent(name="builtin", description="B", system_prompt="B"), builtin=True
+    )
     reg.register(Agent(name="dynamic", description="D", system_prompt="D"))
     reg.save()
 

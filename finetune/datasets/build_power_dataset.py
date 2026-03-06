@@ -28,8 +28,13 @@ SEED_EXAMPLES = [
     {
         "conversations": [
             {"from": "system", "value": SYSTEM_PROMPT},
-            {"from": "human", "value": "Design a synchronous buck converter: 12V to 3.3V, 3A output. Calculate all component values."},
-            {"from": "gpt", "value": """Synchronous buck converter design: 12V → 3.3V @ 3A
+            {
+                "from": "human",
+                "value": "Design a synchronous buck converter: 12V to 3.3V, 3A output. Calculate all component values.",
+            },
+            {
+                "from": "gpt",
+                "value": """Synchronous buck converter design: 12V → 3.3V @ 3A
 
 **Specifications:**
 - Vin = 12V, Vout = 3.3V, Iout = 3A
@@ -74,14 +79,20 @@ Inductor DCR: Iout² × DCR = 9 × 25m = 225mW
 **7. Feedback (voltage mode with Type III compensator)**
 Vref = 0.6V (typical), R1 = 100kΩ, R2 = R1 × Vref / (Vout - Vref) = 100k × 0.6 / 2.7 = 22.2kΩ → 22kΩ
 
-→ Use TPS54360 (TI) or LMR36006 for an integrated solution."""}
+→ Use TPS54360 (TI) or LMR36006 for an integrated solution.""",
+            },
         ]
     },
     {
         "conversations": [
             {"from": "system", "value": SYSTEM_PROMPT},
-            {"from": "human", "value": "Explain Field-Oriented Control (FOC) for a BLDC motor and write the Clarke/Park transforms in C."},
-            {"from": "gpt", "value": """Field-Oriented Control (FOC) for BLDC/PMSM motors:
+            {
+                "from": "human",
+                "value": "Explain Field-Oriented Control (FOC) for a BLDC motor and write the Clarke/Park transforms in C.",
+            },
+            {
+                "from": "gpt",
+                "value": """Field-Oriented Control (FOC) for BLDC/PMSM motors:
 
 **FOC Overview:**
 ```
@@ -184,14 +195,20 @@ Key points:
 - **id = 0** for maximum torque per ampere (MTPA) in surface-mount PMSM
 - **iq** is proportional to torque: T = (3/2) × p × λm × iq
 - PI gains: start with Kp = Ls × bandwidth, Ki = Rs × bandwidth
-- θe = electrical angle = mechanical angle × pole pairs"""}
+- θe = electrical angle = mechanical angle × pole pairs""",
+            },
         ]
     },
     {
         "conversations": [
             {"from": "system", "value": SYSTEM_PROMPT},
-            {"from": "human", "value": "How to select a MOSFET for a half-bridge gate driver circuit? Include thermal calculations."},
-            {"from": "gpt", "value": """MOSFET selection for half-bridge with thermal analysis:
+            {
+                "from": "human",
+                "value": "How to select a MOSFET for a half-bridge gate driver circuit? Include thermal calculations.",
+            },
+            {
+                "from": "gpt",
+                "value": """MOSFET selection for half-bridge with thermal analysis:
 
 **Application:** 48V DC bus, 10A load, 100kHz switching
 
@@ -265,14 +282,20 @@ Vcc ──┬── C_boot ──┬── VB (bootstrap supply)
 **Dead time**: must prevent shoot-through
 ```
 t_dead > max(td_on, td_off) + margin = 50ns + 100ns = 150ns
-```"""}
+```""",
+            },
         ]
     },
     {
         "conversations": [
             {"from": "system", "value": SYSTEM_PROMPT},
-            {"from": "human", "value": "Design a CC-CV lithium-ion battery charger circuit using a buck converter."},
-            {"from": "gpt", "value": """CC-CV Li-ion charger based on buck converter:
+            {
+                "from": "human",
+                "value": "Design a CC-CV lithium-ion battery charger circuit using a buck converter.",
+            },
+            {
+                "from": "gpt",
+                "value": """CC-CV Li-ion charger based on buck converter:
 
 **Specifications:**
 - Battery: 1S Li-ion (3.0-4.2V), 2000mAh
@@ -363,18 +386,43 @@ Voltage ↑           │
 2. NTC temperature monitoring: stop charging if T < 0°C or T > 45°C
 3. Pre-charge: if Vbat < 2.8V, charge at 100mA until 3.0V
 4. Timer: max charge time 4 hours (in case termination fails)
-5. Reverse polarity protection: PMOS or series diode"""}
+5. Reverse polarity protection: PMOS or series diode""",
+            },
         ]
     },
 ]
 
 
 POWER_KEYWORDS = [
-    "buck", "boost", "converter", "inductor", "mosfet", "gate driver",
-    "motor", "foc", "bldc", "pmsm", "inverter", "pwm", "battery",
-    "charger", "pfc", "power factor", "flyback", "transformer",
-    "switching", "dc-dc", "dc/dc", "smps", "regulator", "ldo",
-    "current sense", "shunt", "igbt", "sic", "gan",
+    "buck",
+    "boost",
+    "converter",
+    "inductor",
+    "mosfet",
+    "gate driver",
+    "motor",
+    "foc",
+    "bldc",
+    "pmsm",
+    "inverter",
+    "pwm",
+    "battery",
+    "charger",
+    "pfc",
+    "power factor",
+    "flyback",
+    "transformer",
+    "switching",
+    "dc-dc",
+    "dc/dc",
+    "smps",
+    "regulator",
+    "ldo",
+    "current sense",
+    "shunt",
+    "igbt",
+    "sic",
+    "gan",
 ]
 
 
@@ -392,7 +440,9 @@ def build_from_huggingface(max_samples: int) -> list[dict]:
     # Columns: Id, Tags, Answer, Body, Title, CreationDate
     print("  Downloading bshada/electronics.stackexchange.com (power filter)...")
     try:
-        ds = load_dataset("bshada/electronics.stackexchange.com", split="train", streaming=True)
+        ds = load_dataset(
+            "bshada/electronics.stackexchange.com", split="train", streaming=True
+        )
         count = 0
         for row in ds:
             title = row.get("Title", "")
@@ -405,17 +455,19 @@ def build_from_huggingface(max_samples: int) -> list[dict]:
             if not any(kw in combined for kw in POWER_KEYWORDS):
                 continue
             # Clean HTML
-            question = re.sub(r'<[^>]+>', '', title + "\n" + body).strip()
-            answer_clean = re.sub(r'<[^>]+>', '', answer).strip()
+            question = re.sub(r"<[^>]+>", "", title + "\n" + body).strip()
+            answer_clean = re.sub(r"<[^>]+>", "", answer).strip()
             if len(answer_clean) < 80:
                 continue
-            samples.append({
-                "conversations": [
-                    {"from": "system", "value": SYSTEM_PROMPT},
-                    {"from": "human", "value": question[:1000]},
-                    {"from": "gpt", "value": answer_clean[:4000]},
-                ]
-            })
+            samples.append(
+                {
+                    "conversations": [
+                        {"from": "system", "value": SYSTEM_PROMPT},
+                        {"from": "human", "value": question[:1000]},
+                        {"from": "gpt", "value": answer_clean[:4000]},
+                    ]
+                }
+            )
             count += 1
             if count >= max_samples:
                 break
@@ -444,21 +496,31 @@ def build_from_huggingface(max_samples: int) -> list[dict]:
             reply_text = ""
             for post in posts:
                 if isinstance(post, dict):
-                    content = post.get("content", "") or post.get("body", "") or post.get("text", "")
+                    content = (
+                        post.get("content", "")
+                        or post.get("body", "")
+                        or post.get("text", "")
+                    )
                     if post.get("is_op", False) and not op_text:
-                        op_text = re.sub(r'<[^>]+>', '', str(content)).strip()
-                    elif not post.get("is_op", False) and not reply_text and len(str(content)) > 100:
-                        reply_text = re.sub(r'<[^>]+>', '', str(content)).strip()
+                        op_text = re.sub(r"<[^>]+>", "", str(content)).strip()
+                    elif (
+                        not post.get("is_op", False)
+                        and not reply_text
+                        and len(str(content)) > 100
+                    ):
+                        reply_text = re.sub(r"<[^>]+>", "", str(content)).strip()
             if not reply_text or len(reply_text) < 100:
                 continue
             question = f"{title.strip()}\n{op_text[:500]}" if op_text else title.strip()
-            samples.append({
-                "conversations": [
-                    {"from": "system", "value": SYSTEM_PROMPT},
-                    {"from": "human", "value": question},
-                    {"from": "gpt", "value": reply_text[:4000]},
-                ]
-            })
+            samples.append(
+                {
+                    "conversations": [
+                        {"from": "system", "value": SYSTEM_PROMPT},
+                        {"from": "human", "value": question},
+                        {"from": "gpt", "value": reply_text[:4000]},
+                    ]
+                }
+            )
             count += 1
             if count >= max_samples // 2:
                 break
@@ -469,23 +531,35 @@ def build_from_huggingface(max_samples: int) -> list[dict]:
     # 3. STEM-AI Electrical Engineering (power filter)
     print("  Downloading STEM-AI-mtl/Electrical-engineering (power filter)...")
     try:
-        ds = load_dataset("STEM-AI-mtl/Electrical-engineering", split="train", streaming=True)
+        ds = load_dataset(
+            "STEM-AI-mtl/Electrical-engineering", split="train", streaming=True
+        )
         count = 0
         for row in ds:
-            question = row.get("question", "") or row.get("instruction", "") or row.get("title", "")
-            answer = row.get("answer", "") or row.get("output", "") or row.get("response", "")
+            question = (
+                row.get("question", "")
+                or row.get("instruction", "")
+                or row.get("title", "")
+            )
+            answer = (
+                row.get("answer", "")
+                or row.get("output", "")
+                or row.get("response", "")
+            )
             if not question or not answer or len(answer) < 80:
                 continue
             combined = (question + " " + answer).lower()
             if not any(kw in combined for kw in POWER_KEYWORDS):
                 continue
-            samples.append({
-                "conversations": [
-                    {"from": "system", "value": SYSTEM_PROMPT},
-                    {"from": "human", "value": question.strip()},
-                    {"from": "gpt", "value": answer.strip()},
-                ]
-            })
+            samples.append(
+                {
+                    "conversations": [
+                        {"from": "system", "value": SYSTEM_PROMPT},
+                        {"from": "human", "value": question.strip()},
+                        {"from": "gpt", "value": answer.strip()},
+                    ]
+                }
+            )
             count += 1
             if count >= max_samples // 2:
                 break
@@ -497,9 +571,15 @@ def build_from_huggingface(max_samples: int) -> list[dict]:
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Build power electronics fine-tuning dataset")
-    parser.add_argument("--with-hf", action="store_true", help="Include HuggingFace datasets")
-    parser.add_argument("--max-samples", type=int, default=2000, help="Max HF samples per source")
+    parser = argparse.ArgumentParser(
+        description="Build power electronics fine-tuning dataset"
+    )
+    parser.add_argument(
+        "--with-hf", action="store_true", help="Include HuggingFace datasets"
+    )
+    parser.add_argument(
+        "--max-samples", type=int, default=2000, help="Max HF samples per source"
+    )
     parser.add_argument("--output", type=str, default=None)
     args = parser.parse_args()
 
@@ -520,7 +600,9 @@ def main():
     print(f"\n  Wrote {len(all_samples)} examples to {output_path}")
     print(f"  Size: {os.path.getsize(output_path) / 1024:.1f} KB")
     if not args.with_hf:
-        print(f"\n  To enrich: python build_power_dataset.py --with-hf --max-samples 2000")
+        print(
+            "\n  To enrich: python build_power_dataset.py --with-hf --max-samples 2000"
+        )
 
 
 if __name__ == "__main__":

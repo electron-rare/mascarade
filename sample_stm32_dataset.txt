@@ -1,0 +1,38 @@
+// STM32 GPIO Configuration
+#include "stm32f4xx_hal.h"
+void GPIO_Init(void) {
+  GPIO_InitTypeDef GPIO_InitStruct = {0};
+  __HAL_RCC_GPIOA_CLK_ENABLE();
+  GPIO_InitStruct.Pin = GPIO_PIN_5;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+}
+
+
+================================================================================
+
+// UART Communication
+void UART_Transmit(char *data) {
+  HAL_UART_Transmit(&huart2, (uint8_t*)data, strlen(data), HAL_MAX_DELAY);
+}
+void UART_Receive(char *buffer, uint16_t size) {
+  HAL_UART_Receive(&huart2, (uint8_t*)buffer, size, HAL_MAX_DELAY);
+}
+
+
+================================================================================
+
+// Assembly function for STM32
+.syntax unified
+.thumb
+.section .text
+.global fast_add
+fast_add:
+  ADD r0, r0, r1
+  BX lr
+.end
+
+
+================================================================================

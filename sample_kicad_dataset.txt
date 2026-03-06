@@ -1,0 +1,35 @@
+# KiCad Schematic Example
+EESchema Schematic File Version 4
+LIBS: power,device,conn
+EELAYER 25 0
+EELAYER END
+$Comp
+L LED LED_0805
+U 1 1 63C00000
+P 1000 2000
+AR Path='/1000 2000' Reference='D1' Value='LED'
+$EndComp
+
+
+================================================================================
+
+# PCB Design Rules
+(rule "Clearance" (constraint pcb_text (min 0.2mm)))
+(rule "Track Width" (constraint track_width (min 0.25mm)))
+(rule "Via Diameter" (constraint via_diameter (min 0.8mm)))
+
+
+================================================================================
+
+# Python script for KiCad automation
+def generate_footprint(name, size):
+    # Create footprint
+    footprint = Footprint(name)
+    # Add pads
+    for i in range(2):
+        pad = Pad(i+1, "thru_hole", shape="rect", at=[i*size, 0], size=[1.5, 1.5], drill=0.8)
+        footprint.add(pad)
+    return footprint
+
+
+================================================================================

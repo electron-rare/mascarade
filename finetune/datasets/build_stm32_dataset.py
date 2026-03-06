@@ -30,8 +30,13 @@ SEED_EXAMPLES = [
     {
         "conversations": [
             {"from": "system", "value": SYSTEM_PROMPT},
-            {"from": "human", "value": "Configure UART2 on STM32F4 at 115200 baud with DMA reception."},
-            {"from": "gpt", "value": """Here's a complete UART2 + DMA setup for STM32F4:
+            {
+                "from": "human",
+                "value": "Configure UART2 on STM32F4 at 115200 baud with DMA reception.",
+            },
+            {
+                "from": "gpt",
+                "value": """Here's a complete UART2 + DMA setup for STM32F4:
 
 ```c
 #include "stm32f4xx_hal.h"
@@ -109,14 +114,20 @@ Key points:
 - USART2 is on APB1 (42MHz max on F4), baud rate error is <0.1% at 115200
 - DMA1 Stream5 Channel4 is the fixed mapping for USART2_RX (see reference manual Table 42)
 - Circular mode allows continuous reception without re-starting DMA
-- Half-complete callback lets you process data while the other half fills"""}
+- Half-complete callback lets you process data while the other half fills""",
+            },
         ]
     },
     {
         "conversations": [
             {"from": "system", "value": SYSTEM_PROMPT},
-            {"from": "human", "value": "Write a FreeRTOS task that reads an I2C sensor (BME280) every 2 seconds and sends data to a queue."},
-            {"from": "gpt", "value": """Here's a FreeRTOS task for BME280 I2C reading with queue:
+            {
+                "from": "human",
+                "value": "Write a FreeRTOS task that reads an I2C sensor (BME280) every 2 seconds and sends data to a queue.",
+            },
+            {
+                "from": "gpt",
+                "value": """Here's a FreeRTOS task for BME280 I2C reading with queue:
 
 ```c
 #include "FreeRTOS.h"
@@ -216,14 +227,20 @@ Design notes:
 - Queue depth 10 prevents data loss if consumer is temporarily busy
 - 100ms timeout on xQueueSend avoids blocking if queue is full
 - Task priority 2 (above idle) — adjust based on your system
-- BME280 compensation follows the datasheet algorithm exactly"""}
+- BME280 compensation follows the datasheet algorithm exactly""",
+            },
         ]
     },
     {
         "conversations": [
             {"from": "system", "value": SYSTEM_PROMPT},
-            {"from": "human", "value": "Write ARM Thumb-2 assembly for a fast memcpy with 32-bit aligned transfers on Cortex-M4."},
-            {"from": "gpt", "value": """Here's an optimized aligned memcpy in Thumb-2 assembly for Cortex-M4:
+            {
+                "from": "human",
+                "value": "Write ARM Thumb-2 assembly for a fast memcpy with 32-bit aligned transfers on Cortex-M4.",
+            },
+            {
+                "from": "gpt",
+                "value": """Here's an optimized aligned memcpy in Thumb-2 assembly for Cortex-M4:
 
 ```asm
     .syntax unified
@@ -281,14 +298,20 @@ fast_memcpy(dest_buf, src_buf, 256);
 Caveats:
 - No unaligned access handling — caller must ensure alignment
 - No overlap detection (not memmove)
-- Length must be multiple of 4; for arbitrary lengths, add byte-level tail handling"""}
+- Length must be multiple of 4; for arbitrary lengths, add byte-level tail handling""",
+            },
         ]
     },
     {
         "conversations": [
             {"from": "system", "value": SYSTEM_PROMPT},
-            {"from": "human", "value": "How to configure the ADC on STM32F4 with DMA for continuous multi-channel scanning?"},
-            {"from": "gpt", "value": """Here's ADC1 multi-channel scan with DMA on STM32F4:
+            {
+                "from": "human",
+                "value": "How to configure the ADC on STM32F4 with DMA for continuous multi-channel scanning?",
+            },
+            {
+                "from": "gpt",
+                "value": """Here's ADC1 multi-channel scan with DMA on STM32F4:
 
 ```c
 #include "stm32f4xx_hal.h"
@@ -357,14 +380,20 @@ float get_voltage(uint8_t channel) {
 
 Timing: with 84-cycle sampling + 12-cycle conversion at 21MHz ADC clock, each channel takes ~4.6us. Full scan of 4 channels: ~18.4us → ~54kHz effective sample rate per channel.
 
-DMA circular mode means `adc_values[]` is always up-to-date without CPU intervention."""}
+DMA circular mode means `adc_values[]` is always up-to-date without CPU intervention.""",
+            },
         ]
     },
     {
         "conversations": [
             {"from": "system", "value": SYSTEM_PROMPT},
-            {"from": "human", "value": "Implement a hardware timer interrupt on STM32F4 that toggles an LED at exactly 1kHz."},
-            {"from": "gpt", "value": """Timer interrupt at 1kHz using TIM2 on STM32F4 (assuming 84MHz APB1 clock):
+            {
+                "from": "human",
+                "value": "Implement a hardware timer interrupt on STM32F4 that toggles an LED at exactly 1kHz.",
+            },
+            {
+                "from": "gpt",
+                "value": """Timer interrupt at 1kHz using TIM2 on STM32F4 (assuming 84MHz APB1 clock):
 
 ```c
 #include "stm32f4xx_hal.h"
@@ -410,14 +439,20 @@ Calculation verification:
 - PSC = 83 → counter clock = 84MHz / (83+1) = 1MHz (1us resolution)
 - ARR = 999 → overflow every (999+1) × 1us = 1ms → 1kHz
 
-Accuracy: crystal-referenced, jitter < 1 cycle of AHB clock (~6ns). For sub-microsecond timing, use TIM2 in 32-bit mode (ARR up to 2^32-1)."""}
+Accuracy: crystal-referenced, jitter < 1 cycle of AHB clock (~6ns). For sub-microsecond timing, use TIM2 in 32-bit mode (ARR up to 2^32-1).""",
+            },
         ]
     },
     {
         "conversations": [
             {"from": "system", "value": SYSTEM_PROMPT},
-            {"from": "human", "value": "Write a SPI driver for STM32 to communicate with a W25Q128 flash memory. Include read, write, and erase functions."},
-            {"from": "gpt", "value": """W25Q128 SPI flash driver for STM32:
+            {
+                "from": "human",
+                "value": "Write a SPI driver for STM32 to communicate with a W25Q128 flash memory. Include read, write, and erase functions.",
+            },
+            {
+                "from": "gpt",
+                "value": """W25Q128 SPI flash driver for STM32:
 
 ```c
 #include "stm32f4xx_hal.h"
@@ -551,14 +586,20 @@ Important notes:
 - Page program can only write within a single 256-byte page boundary
 - `w25q_write()` handles cross-page writes automatically
 - Flash must be erased (0xFF) before programming — erase sets bits to 1, program clears to 0
-- SPI clock: up to 104MHz for standard read (mode 0 or 3)"""}
+- SPI clock: up to 104MHz for standard read (mode 0 or 3)""",
+            },
         ]
     },
     {
         "conversations": [
             {"from": "system", "value": SYSTEM_PROMPT},
-            {"from": "human", "value": "How do I set up the STM32 MPU (Memory Protection Unit) to protect a critical memory region?"},
-            {"from": "gpt", "value": """Here's how to configure the MPU on Cortex-M4/M7 to protect a critical data region:
+            {
+                "from": "human",
+                "value": "How do I set up the STM32 MPU (Memory Protection Unit) to protect a critical memory region?",
+            },
+            {
+                "from": "gpt",
+                "value": """Here's how to configure the MPU on Cortex-M4/M7 to protect a critical data region:
 
 ```c
 #include "stm32f4xx_hal.h"
@@ -622,14 +663,20 @@ void MemManage_Handler(void) {
 
 MPU region size must be a power of 2 (32B to 4GB). Base address must be aligned to region size. Cortex-M4 supports 8 regions, M7 supports 8 or 16.
 
-Use case: protect calibration data, cryptographic keys, or safety-critical state from accidental corruption by application code."""}
+Use case: protect calibration data, cryptographic keys, or safety-critical state from accidental corruption by application code.""",
+            },
         ]
     },
     {
         "conversations": [
             {"from": "system", "value": SYSTEM_PROMPT},
-            {"from": "human", "value": "Implement a CAN bus driver for STM32F4 to send and receive messages."},
-            {"from": "gpt", "value": """CAN1 driver for STM32F4 with TX/RX and filtering:
+            {
+                "from": "human",
+                "value": "Implement a CAN bus driver for STM32F4 to send and receive messages.",
+            },
+            {
+                "from": "gpt",
+                "value": """CAN1 driver for STM32F4 with TX/RX and filtering:
 
 ```c
 #include "stm32f4xx_hal.h"
@@ -720,14 +767,20 @@ Bit timing verification for 500kbps:
 - Bit time = 14 × TQ = 2.0us → 500kbps ✓
 - Sample point = (1 + 11) / 14 = 85.7% (recommended: 75-87.5%)
 
-For filtered reception, set mask bits to 1 for bits that must match the filter ID."""}
+For filtered reception, set mask bits to 1 for bits that must match the filter ID.""",
+            },
         ]
     },
     {
         "conversations": [
             {"from": "system", "value": SYSTEM_PROMPT},
-            {"from": "human", "value": "Write a low-power sleep mode implementation for STM32L4 with RTC wakeup."},
-            {"from": "gpt", "value": """STM32L4 Stop 2 mode with RTC wakeup alarm:
+            {
+                "from": "human",
+                "value": "Write a low-power sleep mode implementation for STM32L4 with RTC wakeup.",
+            },
+            {
+                "from": "gpt",
+                "value": """STM32L4 Stop 2 mode with RTC wakeup alarm:
 
 ```c
 #include "stm32l4xx_hal.h"
@@ -814,14 +867,20 @@ Power modes comparison (STM32L4):
 | Standby | ~0.3uA | ~50us | No (only BKP regs) |
 | Shutdown | ~30nA | ~50us | No |
 
-Stop 2 is the sweet spot: lowest current with full SRAM retention and fast wakeup."""}
+Stop 2 is the sweet spot: lowest current with full SRAM retention and fast wakeup.""",
+            },
         ]
     },
     {
         "conversations": [
             {"from": "system", "value": SYSTEM_PROMPT},
-            {"from": "human", "value": "Explain the STM32 clock tree and write the SystemClock_Config for 168MHz on STM32F407."},
-            {"from": "gpt", "value": """STM32F407 clock tree and 168MHz configuration:
+            {
+                "from": "human",
+                "value": "Explain the STM32 clock tree and write the SystemClock_Config for 168MHz on STM32F407.",
+            },
+            {
+                "from": "gpt",
+                "value": """STM32F407 clock tree and 168MHz configuration:
 
 ```
 HSE (8MHz crystal)
@@ -887,14 +946,20 @@ Common mistakes:
 1. Wrong flash latency → hard fault or random crashes
 2. PLLM must produce 1-2MHz VCO input — adjust for your crystal
 3. APB1 max is 42MHz — exceeding it causes peripheral malfunction
-4. Timer clocks are 2× APB clock when APB prescaler > 1"""}
+4. Timer clocks are 2× APB clock when APB prescaler > 1""",
+            },
         ]
     },
     {
         "conversations": [
             {"from": "system", "value": SYSTEM_PROMPT},
-            {"from": "human", "value": "How to use the STM32 hardware CRC peripheral for data integrity verification?"},
-            {"from": "gpt", "value": """STM32 hardware CRC32 peripheral usage:
+            {
+                "from": "human",
+                "value": "How to use the STM32 hardware CRC peripheral for data integrity verification?",
+            },
+            {
+                "from": "gpt",
+                "value": """STM32 hardware CRC32 peripheral usage:
 
 ```c
 #include "stm32f4xx_hal.h"
@@ -945,14 +1010,20 @@ Notes:
 - Input is 32-bit words, not bytes — pad your data if needed
 - Hardware CRC takes 4 AHB cycles per word (very fast, ~42M words/sec at 168MHz)
 - `HAL_CRC_Calculate()` resets the CRC register first; `HAL_CRC_Accumulate()` continues
-- STM32F7/H7 support configurable polynomial, initial value, and byte-level input"""}
+- STM32F7/H7 support configurable polynomial, initial value, and byte-level input""",
+            },
         ]
     },
     {
         "conversations": [
             {"from": "system", "value": SYSTEM_PROMPT},
-            {"from": "human", "value": "Write a bootloader concept for STM32 that jumps to the application after CRC check."},
-            {"from": "gpt", "value": """Minimal bootloader for STM32F4 with CRC verification:
+            {
+                "from": "human",
+                "value": "Write a bootloader concept for STM32 that jumps to the application after CRC check.",
+            },
+            {
+                "from": "gpt",
+                "value": """Minimal bootloader for STM32F4 with CRC verification:
 
 ```c
 #include "stm32f4xx_hal.h"
@@ -1038,7 +1109,8 @@ Application linker must set `ORIGIN = 0x08008000` and in `system_stm32f4xx.c`:
 #define VECT_TAB_OFFSET  0x8000
 ```
 
-The application's vector table must start at 0x08008000 with the initial SP value and Reset_Handler address."""}
+The application's vector table must start at 0x08008000 with the initial SP value and Reset_Handler address.""",
+            },
         ]
     },
 ]
@@ -1055,20 +1127,24 @@ def build_from_huggingface(max_samples: int) -> list[dict]:
     samples = []
     print("  Downloading MuratKomurcu/stm32-hal-dataset...")
     try:
-        ds = load_dataset("MuratKomurcu/stm32-hal-dataset", split="train", streaming=True)
+        ds = load_dataset(
+            "MuratKomurcu/stm32-hal-dataset", split="train", streaming=True
+        )
         count = 0
         for row in ds:
             instruction = row.get("instruction", "")
             code = row.get("output", "") or row.get("code", "")
             if not instruction or not code or len(code) < 50:
                 continue
-            samples.append({
-                "conversations": [
-                    {"from": "system", "value": SYSTEM_PROMPT},
-                    {"from": "human", "value": instruction},
-                    {"from": "gpt", "value": code},
-                ]
-            })
+            samples.append(
+                {
+                    "conversations": [
+                        {"from": "system", "value": SYSTEM_PROMPT},
+                        {"from": "human", "value": instruction},
+                        {"from": "gpt", "value": code},
+                    ]
+                }
+            )
             count += 1
             if count >= max_samples:
                 break
@@ -1079,8 +1155,12 @@ def build_from_huggingface(max_samples: int) -> list[dict]:
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Build STM32/firmware fine-tuning dataset")
-    parser.add_argument("--with-hf", action="store_true", help="Include HuggingFace datasets")
+    parser = argparse.ArgumentParser(
+        description="Build STM32/firmware fine-tuning dataset"
+    )
+    parser.add_argument(
+        "--with-hf", action="store_true", help="Include HuggingFace datasets"
+    )
     parser.add_argument("--max-samples", type=int, default=2000, help="Max HF samples")
     parser.add_argument("--output", type=str, default=None, help="Output file path")
     args = parser.parse_args()
@@ -1101,8 +1181,10 @@ def main():
 
     print(f"\n  Wrote {len(all_samples)} examples to {output_path}")
     print(f"  Size: {os.path.getsize(output_path) / 1024:.1f} KB")
-    print(f"\n  Next: upload to HuggingFace Hub:")
-    print(f"    huggingface-cli upload your-username/mascarade-stm32-dataset {output_path}")
+    print("\n  Next: upload to HuggingFace Hub:")
+    print(
+        f"    huggingface-cli upload your-username/mascarade-stm32-dataset {output_path}"
+    )
 
 
 if __name__ == "__main__":

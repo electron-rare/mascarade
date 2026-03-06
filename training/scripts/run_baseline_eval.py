@@ -12,7 +12,6 @@ import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
 
-
 DEFAULT_PROVIDERS = "bedrock,openai,claude,google,mistral,huggingface"
 
 
@@ -41,7 +40,9 @@ def load_jsonl(path: Path) -> list[dict]:
     return rows
 
 
-def post_json(url: str, body: dict, headers: dict[str, str], timeout: int = 120) -> dict:
+def post_json(
+    url: str, body: dict, headers: dict[str, str], timeout: int = 120
+) -> dict:
     data = json.dumps(body).encode("utf-8")
     req = urllib.request.Request(url, data=data, method="POST")
     for k, v in headers.items():
@@ -69,8 +70,14 @@ def summarize(results: list[EvalRow]) -> dict[str, dict]:
             "success_rate": (len(oks) / len(rows)) if rows else 0.0,
             "exact_match_rate": (exact_hits / len(rows)) if rows else 0.0,
             "latency_ms_p50": statistics.median(latencies) if latencies else None,
-            "latency_ms_p95": (sorted(latencies)[int(len(latencies) * 0.95) - 1] if len(latencies) > 1 else (latencies[0] if latencies else None)),
-            "avg_output_len": (sum(r.output_len for r in oks) / len(oks)) if oks else 0.0,
+            "latency_ms_p95": (
+                sorted(latencies)[int(len(latencies) * 0.95) - 1]
+                if len(latencies) > 1
+                else (latencies[0] if latencies else None)
+            ),
+            "avg_output_len": (
+                (sum(r.output_len for r in oks) / len(oks)) if oks else 0.0
+            ),
         }
     return summary
 
@@ -97,11 +104,17 @@ def main() -> int:
     parser.add_argument("--eval", required=True, help="Path to eval JSONL")
     parser.add_argument("--out", required=True, help="Path to output JSONL")
     parser.add_argument("--summary", required=True, help="Path to summary markdown")
-    parser.add_argument("--api-url", default="http://localhost:3100", help="Mascarade API base URL")
-    parser.add_argument("--providers", default=DEFAULT_PROVIDERS, help="Comma-separated provider list")
+    parser.add_argument(
+        "--api-url", default="http://localhost:3100", help="Mascarade API base URL"
+    )
+    parser.add_argument(
+        "--providers", default=DEFAULT_PROVIDERS, help="Comma-separated provider list"
+    )
     parser.add_argument("--api-key", default="", help="MASCARADE_API_KEY value")
     parser.add_argument("--strategy", default="best", help="Routing strategy")
-    parser.add_argument("--dry-run", action="store_true", help="No HTTP call, writes synthetic outputs")
+    parser.add_argument(
+        "--dry-run", action="store_true", help="No HTTP call, writes synthetic outputs"
+    )
     args = parser.parse_args()
 
     eval_path = Path(args.eval)
@@ -174,7 +187,9 @@ def main() -> int:
                 )
             )
             status = "OK" if ok else "FAIL"
-            print(f"[{status}] {provider} sample={sample_id} latency={latency_ms:.1f}ms error={error or '-'}")
+            print(
+                f"[{status}] {provider} sample={sample_id} latency={latency_ms:.1f}ms error={error or '-'}"
+            )
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
     with out_path.open("w", encoding="utf-8") as f:

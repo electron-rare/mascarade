@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import os
-from typing import AsyncIterator
+from collections.abc import AsyncIterator
 
 from google import genai
 
@@ -34,7 +34,9 @@ class GoogleProvider(LLMProvider):
 
     def __init__(self) -> None:
         if settings.google_application_credentials:
-            os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = settings.google_application_credentials
+            os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = (
+                settings.google_application_credentials
+            )
 
         self._client: genai.Client | None = None
 
@@ -54,7 +56,11 @@ class GoogleProvider(LLMProvider):
         if self._client is not None:
             return self._client
 
-        api_key = settings.google_api_key if is_secret_configured(settings.google_api_key) else None
+        api_key = (
+            settings.google_api_key
+            if is_secret_configured(settings.google_api_key)
+            else None
+        )
         if api_key:
             self._client = genai.Client(api_key=api_key)
         else:
@@ -95,7 +101,9 @@ class GoogleProvider(LLMProvider):
             provider=self.name,
             usage={
                 "input_tokens": int(getattr(usage_meta, "prompt_token_count", 0) or 0),
-                "output_tokens": int(getattr(usage_meta, "candidates_token_count", 0) or 0),
+                "output_tokens": int(
+                    getattr(usage_meta, "candidates_token_count", 0) or 0
+                ),
             },
         )
 

@@ -4,15 +4,15 @@ from __future__ import annotations
 
 import logging
 from abc import ABC, abstractmethod
+from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
-from typing import AsyncIterator
 
 from tenacity import (
+    before_sleep_log,
     retry,
+    retry_if_exception_type,
     stop_after_attempt,
     wait_exponential,
-    retry_if_exception_type,
-    before_sleep_log,
 )
 
 logger = logging.getLogger("mascarade.providers")
@@ -30,6 +30,15 @@ def make_retry(*extra_exceptions: type[BaseException]):
         before_sleep=before_sleep_log(logger, logging.WARNING),
         reraise=True,
     )
+
+
+def build_chat_messages(messages: list[dict], system: str | None = None) -> list[dict]:
+    """Prepend a system message if provided, then extend with user messages."""
+    chat: list[dict] = []
+    if system:
+        chat.append({"role": "system", "content": system})
+    chat.extend(messages)
+    return chat
 
 
 @dataclass

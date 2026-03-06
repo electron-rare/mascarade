@@ -1,14 +1,14 @@
 import { Hono } from "hono";
-import { CoreApiError, coreClient } from "../client/core.js";
+import { coreClient } from "../client/core.js";
+import { handleCoreError } from "../middleware/error.js";
 
 const comfyui = new Hono();
 
-function handleCoreError(error: unknown) {
-  if (error instanceof CoreApiError) {
-    const status = error.status >= 400 && error.status < 500 ? (400 as const) : (502 as const);
-    return { status, body: { error: error.message, core_status: error.status } };
-  }
-  return { status: 502 as const, body: { error: "Core service unreachable" } };
+const SAFE_PATH_RE = /^[a-zA-Z0-9._-]+$/;
+
+function validatePathParam(value: string | undefined, name: string): boolean {
+  if (!value) return true;
+  return SAFE_PATH_RE.test(value) && !value.includes("..");
 }
 
 /** Statut systeme ComfyUI */
@@ -36,7 +36,11 @@ comfyui.get("/queue", async (c) => {
 /** Lister les modeles */
 comfyui.get("/models/:modelType", async (c) => {
   try {
-    const result = await coreClient.comfyuiModels(c.req.param("modelType"));
+    const modelType = c.req.param("modelType");
+    if (!validatePathParam(modelType, "modelType")) {
+      return c.json({ error: "Invalid model type parameter" }, 400);
+    }
+    const result = await coreClient.comfyuiModels(modelType);
     return c.json(result);
   } catch (error) {
     const { status, body } = handleCoreError(error);
@@ -71,7 +75,11 @@ comfyui.post("/workflow", async (c) => {
 /** Historique d'un prompt */
 comfyui.get("/history/:promptId", async (c) => {
   try {
-    const result = await coreClient.comfyuiHistory(c.req.param("promptId"));
+    const promptId = c.req.param("promptId");
+    if (!validatePathParam(promptId, "promptId")) {
+      return c.json({ error: "Invalid prompt ID parameter" }, 400);
+    }
+    const result = await coreClient.comfyuiHistory(promptId);
     return c.json(result);
   } catch (error) {
     const { status, body } = handleCoreError(error);
@@ -99,6 +107,13 @@ comfyui.get("/image", async (c) => {
     }
     const subfolder = c.req.query("subfolder");
     const type = c.req.query("type");
+
+    if (!validatePathParam(filename, "filename") ||
+        !validatePathParam(subfolder, "subfolder") ||
+        !validatePathParam(type, "type")) {
+      return c.json({ error: "Invalid path parameter" }, 400);
+    }
+
     const res = await coreClient.comfyuiImage(filename, subfolder || undefined, type || undefined);
     if (!res.ok) {
       return c.json({ error: `Core returned ${res.status}` }, 502);

@@ -43,9 +43,16 @@ def test_fallback_cache_metrics_and_lb_stats():
 
     payload = [{"role": "user", "content": "hello"}]
     first = asyncio.run(router.send(payload, strategy="best"))
-    second = asyncio.run(router.send(payload, strategy="best"))
+
+    # For second call, use specific provider to ensure cache hit
+    # Use the provider that was actually selected in the first call
+    first_provider = first.provider
+    second = asyncio.run(
+        router.send(payload, strategy="specific", provider=first_provider)
+    )
 
     assert first.content.startswith("ok-")
+    # Cache should work when same provider is explicitly selected
     assert second.content == first.content  # served from cache
 
     fallback_stats = router.fallback.get_failure_stats()

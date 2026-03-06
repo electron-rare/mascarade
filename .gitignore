@@ -44,3 +44,21 @@ finetune/datasets/*.jsonl
 finetune/datasets/bedrock/
 finetune/datasets/bedrock-claude/
 finetune/models/
+finetune/models_local/
+finetune/external/
+
+# Backups (data dumps)
+backups/
+
+# Temp files
+.tmp/
+
+# Audit evidence (local artifacts)
+docs/audit/AUDIT_EVIDENCE_*/
+
+# Datasets (stored in separate repo electron-rare/mascarade-datasets)
+datasets/
+
+# Node dependency checksums (local)
+api/.mascarade_node_deps.sha256
+vendors/kicadrouterai/

@@ -8,6 +8,10 @@ This runbook covers install/update/rollback/backup for:
 
 ## Install / Bootstrap
 
+Important:
+- Ne pas lancer `npm`/`docker compose` en `sudo` dans ce repo.
+- Utiliser un utilisateur membre du groupe `docker` pour éviter la génération de fichiers root-owned.
+
 1. Create env files:
    - `cp /mascarade/.env.example /mascarade/.env`
    - `cp /opt/docker-studio-ai/tools/dev/docker-studio-ai/.env.example.project /opt/docker-studio-ai/tools/dev/docker-studio-ai/.env.local`
@@ -17,8 +21,9 @@ This runbook covers install/update/rollback/backup for:
 3. Start containers:
    - `cd /mascarade && docker compose up -d`
    - `cd /opt/docker-studio-ai/tools/dev/docker-studio-ai && scripts/compose_env.sh up -d`
-4. Enable ops timers:
-   - `cd /opt/docker-studio-ai/tools/dev/docker-studio-ai && scripts/install_backup_automation.sh`
+4. Enable local backup automation:
+   - `cd /mascarade && scripts/install_backup_automation.sh`
+5. Optional (docker studio stack only, if present):
    - `cd /opt/docker-studio-ai/tools/dev/docker-studio-ai && scripts/install_container_observability.sh`
 
 ## Update
@@ -44,15 +49,14 @@ This runbook covers install/update/rollback/backup for:
 
 ## Backup
 
-PostgreSQL:
-- Manual: `cd /opt/docker-studio-ai/tools/dev/docker-studio-ai && scripts/pg_backup.sh`
-- Verify: `scripts/pg_restore_verify.sh --backup-file <dump-file>`
-- Retention: `scripts/pg_backup_retention.sh`
+PostgreSQL (`/mascarade`):
+- Manual backup: `cd /mascarade && scripts/pg_backup.sh`
+- Verify backup: `cd /mascarade && scripts/pg_restore_verify.sh --backup-file /path/to/backup.dump`
+- Retention: `cd /mascarade && scripts/pg_backup_retention.sh --days 14`
 
-Timers:
-- `systemctl status postgres-backup.timer`
-- `systemctl status postgres-backup-retention.timer`
-- `systemctl list-timers postgres-backup*`
+Automation:
+- Install cron jobs: `cd /mascarade && scripts/install_backup_automation.sh`
+- Check cron: `crontab -l | grep mascarade-pg-backup`
 
 ## Alerting / Logs
 

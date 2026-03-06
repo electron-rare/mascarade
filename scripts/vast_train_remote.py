@@ -28,7 +28,9 @@ DOMAIN_MODELS = {
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--domain", default="stm32", choices=["kicad", "stm32", "generic"])
+    parser.add_argument(
+        "--domain", default="stm32", choices=["kicad", "stm32", "generic"]
+    )
     parser.add_argument("--dataset", required=True)
     parser.add_argument("--output-dir", default="/workspace/output")
     parser.add_argument("--epochs", type=int, default=3)
@@ -155,7 +157,9 @@ def main():
     }
     inputs = tokenizer(prompts[args.domain], return_tensors="pt").to("cuda")
     with torch.no_grad():
-        outputs = model.generate(**inputs, max_new_tokens=150, temperature=0.7, do_sample=True)
+        outputs = model.generate(
+            **inputs, max_new_tokens=150, temperature=0.7, do_sample=True
+        )
     print(tokenizer.decode(outputs[0], skip_special_tokens=True))
 
 

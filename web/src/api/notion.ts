@@ -13,11 +13,11 @@ export const notionApi = {
     ),
 
   getPage: (pageId: string) =>
-    get<{ page_id: string; content: string }>(`/api/notion/pages/${pageId}`),
+    get<{ page_id: string; content: string }>(`/api/notion/pages/${encodeURIComponent(pageId)}`),
 
   appendToPage: (pageId: string, content: string) =>
     post<{ status: string; page_id: string }>(
-      `/api/notion/pages/${pageId}/append`,
+      `/api/notion/pages/${encodeURIComponent(pageId)}/append`,
       { content },
     ),
 

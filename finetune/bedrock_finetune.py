@@ -133,7 +133,7 @@ def cmd_train(args):
     bedrock_file = BEDROCK_DIR / f"{domain}_bedrock.jsonl"
 
     if not bedrock_file.exists():
-        print(f"Bedrock dataset not found. Converting first...")
+        print("Bedrock dataset not found. Converting first...")
         convert_domain(domain)
         if not bedrock_file.exists():
             print(f"Error: could not create {bedrock_file}")
@@ -159,8 +159,8 @@ def cmd_train(args):
         print("     - s3:GetObject, s3:PutObject on your bucket")
         print("  3. Run:")
         print(f"     python {Path(__file__).name} train {domain} \\")
-        print(f"       --s3-bucket my-bucket \\")
-        print(f"       --role-arn arn:aws:iam::123456789:role/BedrockFineTuneRole")
+        print("       --s3-bucket my-bucket \\")
+        print("       --role-arn arn:aws:iam::123456789:role/BedrockFineTuneRole")
         sys.exit(1)
 
     # Upload to S3
@@ -179,7 +179,7 @@ def cmd_train(args):
     job_name = f"mascarade-{domain}-{int(time.time())}"
     custom_model_name = f"mascarade-{domain}"
 
-    print(f"\nStarting fine-tuning job...")
+    print("\nStarting fine-tuning job...")
     print(f"  Job name: {job_name}")
     print(f"  Base model: {args.base_model} ({base_model_id})")
     print(f"  Custom model: {custom_model_name}")
@@ -201,7 +201,7 @@ def cmd_train(args):
         )
         job_arn = response["jobArn"]
         print(f"\n  Job started: {job_arn}")
-        print(f"\n  Monitor with:")
+        print("\n  Monitor with:")
         print(f"    python {Path(__file__).name} status {job_arn}")
         print(f"    aws bedrock get-model-customization-job --job-identifier {job_arn}")
 
@@ -233,7 +233,9 @@ def cmd_status(args):
         print(f"{'Job Name':<45} {'Status':<15} {'Model'}")
         print("-" * 85)
         for job in jobs:
-            print(f"{job['jobName']:<45} {job['status']:<15} {job.get('customModelName', 'N/A')}")
+            print(
+                f"{job['jobName']:<45} {job['status']:<15} {job.get('customModelName', 'N/A')}"
+            )
 
 
 def cmd_list(args):
@@ -251,8 +253,8 @@ def cmd_list(args):
     for m in models:
         print(f"{m['modelName']:<35} {m.get('modelArn', 'N/A')}")
 
-    print(f"\nUsage in Mascarade:")
-    print(f"  POST /send  {{\"provider\": \"bedrock\", \"model\": \"mascarade-stm32-llama\"}}")
+    print("\nUsage in Mascarade:")
+    print('  POST /send  {"provider": "bedrock", "model": "mascarade-stm32-llama"}')
 
 
 def cmd_provision(args):
@@ -275,7 +277,7 @@ def cmd_provision(args):
         sys.exit(1)
 
     pt_name = f"{args.model_name}-pt"
-    print(f"Creating provisioned throughput...")
+    print("Creating provisioned throughput...")
     print(f"  Model: {args.model_name}")
     print(f"  ARN: {model_arn}")
     print(f"  Units: {args.units}")
@@ -287,7 +289,7 @@ def cmd_provision(args):
             modelId=model_arn,
         )
         print(f"\n  Provisioned throughput ARN: {resp['provisionedModelArn']}")
-        print(f"\n  Use this ARN as model ID in Mascarade:")
+        print("\n  Use this ARN as model ID in Mascarade:")
         print(f"    model=\"{resp['provisionedModelArn']}\"")
     except ClientError as e:
         print(f"\nError: {e}")
@@ -310,11 +312,16 @@ def main():
     # train
     p_train = sub.add_parser("train", help="Upload and start fine-tuning")
     p_train.add_argument("domain", choices=DOMAINS)
-    p_train.add_argument("--base-model", default=DEFAULT_BASE_MODEL,
-                         choices=BASE_MODELS.keys(),
-                         help=f"Base model (default: {DEFAULT_BASE_MODEL})")
+    p_train.add_argument(
+        "--base-model",
+        default=DEFAULT_BASE_MODEL,
+        choices=BASE_MODELS.keys(),
+        help=f"Base model (default: {DEFAULT_BASE_MODEL})",
+    )
     p_train.add_argument("--s3-bucket", help="S3 bucket for training data")
-    p_train.add_argument("--s3-prefix", help="S3 prefix (default: mascarade/finetune/<domain>)")
+    p_train.add_argument(
+        "--s3-prefix", help="S3 prefix (default: mascarade/finetune/<domain>)"
+    )
     p_train.add_argument("--role-arn", help="IAM role ARN for Bedrock")
     p_train.add_argument("--epochs", type=int, default=3)
     p_train.add_argument("--batch-size", type=int, default=1)
@@ -328,9 +335,15 @@ def main():
     sub.add_parser("list", help="List fine-tuned models")
 
     # provision
-    p_provision = sub.add_parser("provision", help="Create provisioned throughput for a custom model")
-    p_provision.add_argument("model_name", help="Custom model name (e.g. mascarade-stm32-llama)")
-    p_provision.add_argument("--units", type=int, default=1, help="Model units (default: 1)")
+    p_provision = sub.add_parser(
+        "provision", help="Create provisioned throughput for a custom model"
+    )
+    p_provision.add_argument(
+        "model_name", help="Custom model name (e.g. mascarade-stm32-llama)"
+    )
+    p_provision.add_argument(
+        "--units", type=int, default=1, help="Model units (default: 1)"
+    )
 
     args = parser.parse_args()
 

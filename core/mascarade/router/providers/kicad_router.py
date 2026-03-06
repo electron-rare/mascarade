@@ -12,8 +12,8 @@ from __future__ import annotations
 import json
 import logging
 import sys
+from collections.abc import AsyncIterator
 from pathlib import Path
-from typing import Any, AsyncIterator, Optional
 
 from mascarade.router.providers.base import LLMProvider, LLMResponse
 
@@ -28,8 +28,9 @@ if str(VENDOR_DIR) not in sys.path:
 def _check_deps() -> bool:
     """Check if kicadrouterai dependencies are available."""
     try:
-        import torch
         import numpy
+        import torch
+
         return True
     except ImportError:
         return False
@@ -64,8 +65,8 @@ class KiCadRouterProvider(LLMProvider):
 
     def __init__(
         self,
-        model_path: Optional[str] = None,
-        device: Optional[str] = None,
+        model_path: str | None = None,
+        device: str | None = None,
         use_fp8: bool = True,
     ):
         self.model_path = model_path
@@ -90,6 +91,7 @@ class KiCadRouterProvider(LLMProvider):
                 raise ValueError("model_path required for inference")
 
             from src.router.inference import FP8Router
+
             self._router = FP8Router(
                 model_path=self.model_path,
                 device=self.device,
@@ -119,10 +121,12 @@ class KiCadRouterProvider(LLMProvider):
             request = json.loads(last_msg)
         except (json.JSONDecodeError, TypeError):
             return LLMResponse(
-                content=json.dumps({
-                    "error": "Expected JSON with 'action' field",
-                    "supported_actions": ["route", "train", "analyze"],
-                }),
+                content=json.dumps(
+                    {
+                        "error": "Expected JSON with 'action' field",
+                        "supported_actions": ["route", "train", "analyze"],
+                    }
+                ),
                 model=self.default_model,
                 provider=self.name,
             )
@@ -163,6 +167,7 @@ class KiCadRouterProvider(LLMProvider):
             tags = []
             if tags_data:
                 from src.tags import load_tags_from_list
+
                 tags = load_tags_from_list(tags_data)
 
             # Route
@@ -201,14 +206,15 @@ class KiCadRouterProvider(LLMProvider):
         tags_data = request.get("tags", [])
 
         try:
-            from src.router.model import GNNRouter
             from src.router.environment import KiCadRoutingEnv
+            from src.router.model import GNNRouter
             from src.router.trainer import FP8Trainer, TrainingConfig
 
             # Load tags
             tags = []
             if tags_data:
                 from src.tags import load_tags_from_list
+
                 tags = load_tags_from_list(tags_data)
 
             # Create environment
@@ -252,7 +258,10 @@ class KiCadRouterProvider(LLMProvider):
                 "model_path": final_path,
                 "total_timesteps": trainer.total_timesteps,
                 "episodes": len(trainer.episode_rewards),
-                "avg_reward": float(sum(trainer.episode_rewards[-100:]) / max(len(trainer.episode_rewards[-100:]), 1)),
+                "avg_reward": float(
+                    sum(trainer.episode_rewards[-100:])
+                    / max(len(trainer.episode_rewards[-100:]), 1)
+                ),
             }
 
         except Exception as e:
@@ -270,6 +279,7 @@ class KiCadRouterProvider(LLMProvider):
 
             try:
                 import pcbnew
+
                 board = pcbnew.LoadBoard(board_path)
                 graph = BoardGraph.from_kicad_board(board)
             except ImportError:
@@ -283,20 +293,27 @@ class KiCadRouterProvider(LLMProvider):
 
             # Suggest impedance tags for high-speed nets
             for net in nets:
-                if any(kw in net.lower() for kw in ["clk", "clock", "usb", "eth", "spi", "i2c"]):
-                    suggestions.append({
-                        "tag_type": "IMPEDANCE_SINGLE",
-                        "net": net,
-                        "target_ohm": 50,
-                        "reason": "High-speed signal detected",
-                    })
+                if any(
+                    kw in net.lower()
+                    for kw in ["clk", "clock", "usb", "eth", "spi", "i2c"]
+                ):
+                    suggestions.append(
+                        {
+                            "tag_type": "IMPEDANCE_SINGLE",
+                            "net": net,
+                            "target_ohm": 50,
+                            "reason": "High-speed signal detected",
+                        }
+                    )
                 if any(kw in net.lower() for kw in ["dp", "dn", "usb_p", "usb_n"]):
-                    suggestions.append({
-                        "tag_type": "IMPEDANCE_DIFF",
-                        "net": net,
-                        "diff_ohm": 90,
-                        "reason": "Differential pair detected",
-                    })
+                    suggestions.append(
+                        {
+                            "tag_type": "IMPEDANCE_DIFF",
+                            "net": net,
+                            "diff_ohm": 90,
+                            "reason": "Differential pair detected",
+                        }
+                    )
 
             return {
                 "status": "success",
@@ -323,8 +340,11 @@ class KiCadRouterProvider(LLMProvider):
     ) -> AsyncIterator[str]:
         """Stream routing progress updates."""
         response = await self.send(
-            messages, model=model, system=system,
-            temperature=temperature, max_tokens=max_tokens,
+            messages,
+            model=model,
+            system=system,
+            temperature=temperature,
+            max_tokens=max_tokens,
         )
         yield response.content
 
@@ -342,7 +362,9 @@ class KiCadRouterProvider(LLMProvider):
         project_models = Path(__file__).resolve().parents[4] / "fine_tuned_models"
         if project_models.exists():
             for kicad_dir in project_models.glob("kicad_*"):
-                if (kicad_dir / "final").exists() or (kicad_dir / "final_model.pt").exists():
+                if (kicad_dir / "final").exists() or (
+                    kicad_dir / "final_model.pt"
+                ).exists():
                     models.append(f"finetuned:{kicad_dir.name}")
 
         return models

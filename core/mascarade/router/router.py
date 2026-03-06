@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+import logging
 import time
-from enum import Enum
-from typing import AsyncIterator
+from collections.abc import AsyncIterator
+from enum import StrEnum
 
 from mascarade.cache.cache import ResponseCache
 from mascarade.load_balancer.balancer import LoadBalancer
@@ -12,8 +13,10 @@ from mascarade.metrics.tracker import MetricsTracker
 from mascarade.router.fallback import FallbackState
 from mascarade.router.providers.base import LLMProvider, LLMResponse
 
+logger = logging.getLogger("mascarade.router")
 
-class Strategy(str, Enum):
+
+class Strategy(StrEnum):
     BEST = "best"
     CHEAPEST = "cheapest"
     FASTEST = "fastest"
@@ -46,10 +49,18 @@ class Router:
             try:
                 module = __import__(module_name, fromlist=[class_name])
                 provider_cls = getattr(module, class_name)
-            except (ImportError, AttributeError):
+            except (ImportError, AttributeError) as exc:
+                logger.warning(
+                    "Skipping provider %s (%s): %s", class_name, module_name, exc
+                )
                 continue
 
-            provider = provider_cls()
+            try:
+                provider = provider_cls()
+            except Exception as exc:
+                logger.warning("Failed to initialize provider %s: %s", class_name, exc)
+                continue
+
             if provider.is_configured:
                 self.register(provider)
 
@@ -95,11 +106,15 @@ class Router:
         strategy: Strategy = Strategy.BEST,
         provider_name: str | None = None,
     ) -> LLMProvider:
-        candidates = self._select_candidates(strategy=strategy, provider_name=provider_name)
+        candidates = self._select_candidates(
+            strategy=strategy, provider_name=provider_name
+        )
         if len(candidates) == 1:
             return candidates[0]
 
-        chosen_name = self.load_balancer.select_provider([p.name for p in candidates], 'round_robin')
+        chosen_name = self.load_balancer.select_provider(
+            [p.name for p in candidates], "round_robin"
+        )
         return self._providers[chosen_name]
 
     @staticmethod
@@ -125,7 +140,7 @@ class Router:
         return self.metrics.get_provider_stats(provider_name)
 
     def reset_metrics(self) -> None:
-        self.metrics = MetricsTracker()  # Reset by creating new instance
+        self.metrics.reset()
         self.cache.clear()
         self.load_balancer.reset_stats()
         self.fallback.reset()
@@ -155,9 +170,9 @@ class Router:
         if cached:
             return LLMResponse(
                 content=cached.response,
-                model=cached.provider,
+                model=cached.model,
                 provider=cached.provider,
-                usage={"total_tokens": cached.tokens}
+                usage={"total_tokens": cached.tokens},
             )
 
         last_error: Exception | None = None
@@ -183,7 +198,12 @@ class Router:
                 )
             except Exception as exc:
                 elapsed = time.perf_counter() - started_at
-                self.load_balancer.request_completed(selected.name, response_time=elapsed, success=False)
+                logger.warning(
+                    "Provider %s failed (%.2fs): %s", selected.name, elapsed, exc
+                )
+                self.load_balancer.request_completed(
+                    selected.name, response_time=elapsed, success=False
+                )
                 self.metrics.track_request(
                     provider_name=selected.name,
                     tokens=0,
@@ -196,7 +216,9 @@ class Router:
                 continue
 
             elapsed = time.perf_counter() - started_at
-            self.load_balancer.request_completed(selected.name, response_time=elapsed, success=True)
+            self.load_balancer.request_completed(
+                selected.name, response_time=elapsed, success=True
+            )
 
             usage = response.usage or {}
             self.metrics.track_request(
@@ -207,15 +229,20 @@ class Router:
                 success=True,
             )
 
+            # Store in cache with original strategy to enable cache hits
+            # even after fallback to different provider
+            # But store the actual provider that was used for accurate response metadata
+            cache_strategy = strategy.value
+
             self.cache.store(
                 messages,
                 response.content,
                 tokens=self._usage_tokens(response.usage),
                 cost=self._calculate_cost(selected, response.usage),
                 ttl=3600,
-                strategy=strategy.value,
-                provider=provider,
-                model=model,
+                strategy=cache_strategy,
+                provider=selected.name,  # Store actual provider used
+                model=response.model,
                 system=system,
                 temperature=temperature,
                 max_tokens=max_tokens,
@@ -265,7 +292,12 @@ class Router:
                     yield token
             except Exception as exc:
                 elapsed = time.perf_counter() - started_at
-                self.load_balancer.request_completed(selected.name, response_time=elapsed, success=False)
+                logger.warning(
+                    "Provider %s stream failed (%.2fs): %s", selected.name, elapsed, exc
+                )
+                self.load_balancer.request_completed(
+                    selected.name, response_time=elapsed, success=False
+                )
                 self.metrics.track_request(
                     provider_name=selected.name,
                     tokens=0,
@@ -278,7 +310,9 @@ class Router:
                 continue
 
             elapsed = time.perf_counter() - started_at
-            self.load_balancer.request_completed(selected.name, response_time=elapsed, success=True)
+            self.load_balancer.request_completed(
+                selected.name, response_time=elapsed, success=True
+            )
             self.metrics.track_request(
                 provider_name=selected.name,
                 tokens=0,

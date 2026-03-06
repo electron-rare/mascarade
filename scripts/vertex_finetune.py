@@ -131,7 +131,7 @@ def launch_tuning_job(
     )
 
     print(f"  Job name: {tuning_job.name}")
-    print(f"  Waiting for completion...")
+    print("  Waiting for completion...")
 
     completed_states = {
         "JOB_STATE_SUCCEEDED",

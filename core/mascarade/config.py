@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from pydantic_settings import BaseSettings
 
-
 _PLACEHOLDER_SECRETS = {
     "",
     "sk-...",
@@ -54,6 +53,7 @@ class Settings(BaseSettings):
     notion_api_key: str = ""
 
     # Ollama
+    ollama_enabled: bool = False
     ollama_base_url: str = "http://ollama:11434"
 
     # ComfyUI
@@ -65,6 +65,10 @@ class Settings(BaseSettings):
 
     # Authentication
     mascarade_api_key: str = ""
+
+    # Mistral Studio
+    mistral_api_base: str = "https://api.mistral.ai/v1"
+    mistral_default_model: str = "mistral-large-latest"
 
     # Defaults
     default_provider: str = "claude"

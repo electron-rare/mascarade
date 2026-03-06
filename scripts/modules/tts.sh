@@ -19,10 +19,10 @@ module_tts_compose() {
 
   case "$engine" in
     kokoro)
-      echo "    image: ghcr.io/marjocchi/wyoming-kokoro:latest"
+      echo "    image: \${TTS_KOKORO_IMAGE:-ghcr.io/marjocchi/wyoming-kokoro:latest}"
       ;;
     piper|*)
-      echo "    image: rhasspy/wyoming-piper:latest"
+      echo "    image: \${TTS_PIPER_IMAGE:-rhasspy/wyoming-piper:latest}"
       ;;
   esac
 

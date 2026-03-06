@@ -2,12 +2,17 @@
 
 from __future__ import annotations
 
-from typing import AsyncIterator
+from collections.abc import AsyncIterator
 
 import openai
 
 from mascarade.config import is_secret_configured, settings
-from mascarade.router.providers.base import LLMProvider, LLMResponse, make_retry
+from mascarade.router.providers.base import (
+    LLMProvider,
+    LLMResponse,
+    build_chat_messages,
+    make_retry,
+)
 
 _retry = make_retry(
     openai.RateLimitError,
@@ -44,10 +49,7 @@ class OpenAIProvider(LLMProvider):
         max_tokens: int = 4096,
     ) -> LLMResponse:
         model = model or self.default_model
-        chat_messages = []
-        if system:
-            chat_messages.append({"role": "system", "content": system})
-        chat_messages.extend(messages)
+        chat_messages = build_chat_messages(messages, system)
 
         response = await self._client.chat.completions.create(
             model=model,
@@ -62,7 +64,9 @@ class OpenAIProvider(LLMProvider):
             provider=self.name,
             usage={
                 "input_tokens": response.usage.prompt_tokens if response.usage else 0,
-                "output_tokens": response.usage.completion_tokens if response.usage else 0,
+                "output_tokens": (
+                    response.usage.completion_tokens if response.usage else 0
+                ),
             },
         )
 
@@ -76,10 +80,7 @@ class OpenAIProvider(LLMProvider):
         max_tokens: int = 4096,
     ) -> AsyncIterator[str]:
         model = model or self.default_model
-        chat_messages = []
-        if system:
-            chat_messages.append({"role": "system", "content": system})
-        chat_messages.extend(messages)
+        chat_messages = build_chat_messages(messages, system)
 
         stream = await self._client.chat.completions.create(
             model=model,

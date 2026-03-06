@@ -5,8 +5,8 @@ import asyncio
 from mascarade.agents.base import Agent
 from mascarade.agents.registry import AgentRegistry
 from mascarade.orchestrator.engine import Orchestrator
-from mascarade.router.router import Router
 from mascarade.router.providers.base import LLMProvider, LLMResponse
+from mascarade.router.router import Router
 
 
 class MockProvider(LLMProvider):
@@ -41,8 +41,12 @@ def _make_orchestrator() -> Orchestrator:
     router.register(MockProvider())
 
     registry = AgentRegistry()
-    registry.register(Agent(name="analyst", description="Analyzes", system_prompt="Analyze."))
-    registry.register(Agent(name="writer", description="Writes", system_prompt="Write."))
+    registry.register(
+        Agent(name="analyst", description="Analyzes", system_prompt="Analyze.")
+    )
+    registry.register(
+        Agent(name="writer", description="Writes", system_prompt="Write.")
+    )
 
     return Orchestrator(router=router, registry=registry)
 

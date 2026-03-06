@@ -37,7 +37,7 @@ export const agentsApi = {
   }) => post<Agent>("/api/agents", agent),
 
   run: (name: string, messages: Message[]) =>
-    post<LLMResponse>(`/api/agents/${name}/run`, { messages }),
+    post<LLMResponse>(`/api/agents/${encodeURIComponent(name)}/run`, { messages }),
 
   send: (params: {
     messages: Message[];

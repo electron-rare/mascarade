@@ -13,7 +13,6 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
-
 app = FastAPI(title="Mascarade Generate Audio", version="0.1.0")
 
 
@@ -58,7 +57,11 @@ def _resolve_model(engine: str, requested: str | None) -> str:
         if engine == "audiogen" and "musicgen" in env_model.lower():
             return "facebook/audiogen-medium"
         return env_model
-    return "facebook/musicgen-small" if engine == "musicgen" else "facebook/audiogen-medium"
+    return (
+        "facebook/musicgen-small"
+        if engine == "musicgen"
+        else "facebook/audiogen-medium"
+    )
 
 
 def _load_model(engine: str, model_name: str, device: str):
@@ -81,9 +84,13 @@ def _load_model(engine: str, model_name: str, device: str):
 
                 model = AudioGen.get_pretrained(model_name, device=device)
         except Exception as exc:  # pragma: no cover
-            raise HTTPException(status_code=500, detail=f"Model load failed: {exc}") from exc
+            raise HTTPException(
+                status_code=500, detail=f"Model load failed: {exc}"
+            ) from exc
 
-        _loaded.update({"engine": engine, "model": model_name, "device": device, "obj": model})
+        _loaded.update(
+            {"engine": engine, "model": model_name, "device": device, "obj": model}
+        )
         return model
 
 
@@ -119,7 +126,9 @@ def generate(req: GenerateRequest):
         model.set_generation_params(duration=req.duration)
         wav = model.generate([req.prompt])
     except Exception as exc:  # pragma: no cover
-        raise HTTPException(status_code=500, detail=f"Generation failed: {exc}") from exc
+        raise HTTPException(
+            status_code=500, detail=f"Generation failed: {exc}"
+        ) from exc
 
     if wav is None or len(wav) == 0:
         raise HTTPException(status_code=500, detail="Generation returned empty audio")

@@ -28,8 +28,13 @@ SEED_EXAMPLES = [
     {
         "conversations": [
             {"from": "system", "value": SYSTEM_PROMPT},
-            {"from": "human", "value": "Implement a real-time FFT spectrum analyzer on STM32 using CMSIS-DSP."},
-            {"from": "gpt", "value": """Real-time FFT spectrum analyzer using CMSIS-DSP on Cortex-M4:
+            {
+                "from": "human",
+                "value": "Implement a real-time FFT spectrum analyzer on STM32 using CMSIS-DSP.",
+            },
+            {
+                "from": "gpt",
+                "value": """Real-time FFT spectrum analyzer using CMSIS-DSP on Cortex-M4:
 
 ```c
 #include "arm_math.h"
@@ -101,14 +106,20 @@ Performance on STM32F4 @ 168MHz:
 Memory: ~16KB for buffers (could use Q15 fixed-point to halve it)
 
 Frequency resolution = fs/N = 44100/1024 = **43.07 Hz per bin**
-Max frequency = fs/2 = **22050 Hz** (Nyquist)"""}
+Max frequency = fs/2 = **22050 Hz** (Nyquist)""",
+            },
         ]
     },
     {
         "conversations": [
             {"from": "system", "value": SYSTEM_PROMPT},
-            {"from": "human", "value": "Design a low-pass FIR filter with 100Hz cutoff at 1kHz sample rate. Show the coefficient calculation and C implementation."},
-            {"from": "gpt", "value": """FIR low-pass filter design: fc=100Hz, fs=1kHz, 31 taps
+            {
+                "from": "human",
+                "value": "Design a low-pass FIR filter with 100Hz cutoff at 1kHz sample rate. Show the coefficient calculation and C implementation.",
+            },
+            {
+                "from": "gpt",
+                "value": """FIR low-pass filter design: fc=100Hz, fs=1kHz, 31 taps
 
 **Design using windowed sinc method:**
 
@@ -232,14 +243,20 @@ Filter characteristics:
 - Stopband (>150Hz): attenuation > 40dB (Hamming window)
 - Group delay: (N-1)/2 = 15 samples = 15ms at 1kHz
 
-For steeper roll-off: increase taps (51 or 101) or use IIR (Butterworth/Chebyshev)."""}
+For steeper roll-off: increase taps (51 or 101) or use IIR (Butterworth/Chebyshev).""",
+            },
         ]
     },
     {
         "conversations": [
             {"from": "system", "value": SYSTEM_PROMPT},
-            {"from": "human", "value": "Implement a second-order IIR biquad filter (Butterworth low-pass) in C with Direct Form II."},
-            {"from": "gpt", "value": """Biquad IIR filter — Butterworth low-pass, Direct Form II Transposed:
+            {
+                "from": "human",
+                "value": "Implement a second-order IIR biquad filter (Butterworth low-pass) in C with Direct Form II.",
+            },
+            {
+                "from": "gpt",
+                "value": """Biquad IIR filter — Butterworth low-pass, Direct Form II Transposed:
 
 ```c
 #include <math.h>
@@ -325,20 +342,48 @@ Why Direct Form II Transposed:
 - Only 2 state variables per biquad (vs 4 for Direct Form I)
 - Best numerical properties for floating-point arithmetic
 - Each section: 5 multiplies + 4 additions per sample
-- On Cortex-M4 with FPU: ~10 cycles per biquad section"""}
+- On Cortex-M4 with FPU: ~10 cycles per biquad section""",
+            },
         ]
     },
 ]
 
 
 DSP_KEYWORDS = [
-    "fft", "filter", "fir", "iir", "dsp", "signal processing",
-    "fourier", "spectrum", "frequency", "sampling", "nyquist",
-    "convolution", "autocorrelation", "z-transform", "laplace",
-    "biquad", "butterworth", "chebyshev", "windowing", "hanning",
-    "hamming", "kaiser", "audio", "modulation", "demodulation",
-    "decimation", "interpolation", "oversampling", "aliasing",
-    "cmsis-dsp", "arm_math", "fixed-point", "q15", "q31",
+    "fft",
+    "filter",
+    "fir",
+    "iir",
+    "dsp",
+    "signal processing",
+    "fourier",
+    "spectrum",
+    "frequency",
+    "sampling",
+    "nyquist",
+    "convolution",
+    "autocorrelation",
+    "z-transform",
+    "laplace",
+    "biquad",
+    "butterworth",
+    "chebyshev",
+    "windowing",
+    "hanning",
+    "hamming",
+    "kaiser",
+    "audio",
+    "modulation",
+    "demodulation",
+    "decimation",
+    "interpolation",
+    "oversampling",
+    "aliasing",
+    "cmsis-dsp",
+    "arm_math",
+    "fixed-point",
+    "q15",
+    "q31",
 ]
 
 
@@ -356,7 +401,9 @@ def build_from_huggingface(max_samples: int) -> list[dict]:
     # Columns: Id, Tags, Answer, Body, Title, CreationDate
     print("  Downloading bshada/electronics.stackexchange.com (DSP filter)...")
     try:
-        ds = load_dataset("bshada/electronics.stackexchange.com", split="train", streaming=True)
+        ds = load_dataset(
+            "bshada/electronics.stackexchange.com", split="train", streaming=True
+        )
         count = 0
         for row in ds:
             title = row.get("Title", "")
@@ -368,17 +415,19 @@ def build_from_huggingface(max_samples: int) -> list[dict]:
             combined = (title + " " + body + " " + answer + " " + tags).lower()
             if not any(kw in combined for kw in DSP_KEYWORDS):
                 continue
-            question = re.sub(r'<[^>]+>', '', title + "\n" + body).strip()
-            answer_clean = re.sub(r'<[^>]+>', '', answer).strip()
+            question = re.sub(r"<[^>]+>", "", title + "\n" + body).strip()
+            answer_clean = re.sub(r"<[^>]+>", "", answer).strip()
             if len(answer_clean) < 80:
                 continue
-            samples.append({
-                "conversations": [
-                    {"from": "system", "value": SYSTEM_PROMPT},
-                    {"from": "human", "value": question[:1000]},
-                    {"from": "gpt", "value": answer_clean[:4000]},
-                ]
-            })
+            samples.append(
+                {
+                    "conversations": [
+                        {"from": "system", "value": SYSTEM_PROMPT},
+                        {"from": "human", "value": question[:1000]},
+                        {"from": "gpt", "value": answer_clean[:4000]},
+                    ]
+                }
+            )
             count += 1
             if count >= max_samples:
                 break
@@ -409,13 +458,15 @@ def build_from_huggingface(max_samples: int) -> list[dict]:
             else:
                 q = "Explain this DSP concept."
                 a = text.strip()
-            samples.append({
-                "conversations": [
-                    {"from": "system", "value": SYSTEM_PROMPT},
-                    {"from": "human", "value": q[:500]},
-                    {"from": "gpt", "value": a[:4000]},
-                ]
-            })
+            samples.append(
+                {
+                    "conversations": [
+                        {"from": "system", "value": SYSTEM_PROMPT},
+                        {"from": "human", "value": q[:500]},
+                        {"from": "gpt", "value": a[:4000]},
+                    ]
+                }
+            )
             count += 1
             if count >= max_samples // 2:
                 break
@@ -426,25 +477,37 @@ def build_from_huggingface(max_samples: int) -> list[dict]:
     # 3. Electrical engineering dataset (STEM-AI, DSP filter)
     print("  Downloading STEM-AI-mtl/Electrical-engineering (DSP filter)...")
     try:
-        ds = load_dataset("STEM-AI-mtl/Electrical-engineering", split="train", streaming=True)
+        ds = load_dataset(
+            "STEM-AI-mtl/Electrical-engineering", split="train", streaming=True
+        )
         count = 0
         for row in ds:
-            question = row.get("question", "") or row.get("instruction", "") or row.get("title", "")
-            answer = row.get("answer", "") or row.get("output", "") or row.get("response", "")
+            question = (
+                row.get("question", "")
+                or row.get("instruction", "")
+                or row.get("title", "")
+            )
+            answer = (
+                row.get("answer", "")
+                or row.get("output", "")
+                or row.get("response", "")
+            )
             if not question or not answer or len(answer) < 80:
                 continue
             combined = (question + " " + answer).lower()
             if not any(kw in combined for kw in DSP_KEYWORDS):
                 continue
-            answer = re.sub(r'<[^>]+>', '', answer)
-            question = re.sub(r'<[^>]+>', '', question)
-            samples.append({
-                "conversations": [
-                    {"from": "system", "value": SYSTEM_PROMPT},
-                    {"from": "human", "value": question.strip()},
-                    {"from": "gpt", "value": answer.strip()},
-                ]
-            })
+            answer = re.sub(r"<[^>]+>", "", answer)
+            question = re.sub(r"<[^>]+>", "", question)
+            samples.append(
+                {
+                    "conversations": [
+                        {"from": "system", "value": SYSTEM_PROMPT},
+                        {"from": "human", "value": question.strip()},
+                        {"from": "gpt", "value": answer.strip()},
+                    ]
+                }
+            )
             count += 1
             if count >= max_samples // 2:
                 break
@@ -457,8 +520,12 @@ def build_from_huggingface(max_samples: int) -> list[dict]:
 
 def main():
     parser = argparse.ArgumentParser(description="Build DSP fine-tuning dataset")
-    parser.add_argument("--with-hf", action="store_true", help="Include HuggingFace datasets")
-    parser.add_argument("--max-samples", type=int, default=2000, help="Max HF samples per source")
+    parser.add_argument(
+        "--with-hf", action="store_true", help="Include HuggingFace datasets"
+    )
+    parser.add_argument(
+        "--max-samples", type=int, default=2000, help="Max HF samples per source"
+    )
     parser.add_argument("--output", type=str, default=None)
     args = parser.parse_args()
 
@@ -479,7 +546,7 @@ def main():
     print(f"\n  Wrote {len(all_samples)} examples to {output_path}")
     print(f"  Size: {os.path.getsize(output_path) / 1024:.1f} KB")
     if not args.with_hf:
-        print(f"\n  To enrich: python build_dsp_dataset.py --with-hf --max-samples 2000")
+        print("\n  To enrich: python build_dsp_dataset.py --with-hf --max-samples 2000")
 
 
 if __name__ == "__main__":
