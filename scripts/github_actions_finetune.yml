@@ -1,0 +1,279 @@
+name: Mascarade Fine-Tuning Pipeline
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'datasets/**'
+      - 'finetune/**'
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+    inputs:
+      domain:
+        description: 'Domain to fine-tune'
+        required: true
+        default: 'stm32'
+        type: choice
+        options:
+          - stm32
+          - kicad
+          - spice
+          - freecad
+          - dsp
+          - platformio
+          - power
+          - emc
+          - embedded
+          - components
+          - generic
+      model:
+        description: 'Base model'
+        required: true
+        default: 'mistral-7b'
+        type: choice
+        options:
+          - mistral-7b
+          - mistral-7b-instruct
+          - gemma-7b
+          - gemma-7b-it
+          - mistral-7b-v0.2
+          - mistral-7b-instruct-v0.2
+      epochs:
+        description: 'Number of epochs'
+        required: true
+        default: '3'
+        type: string
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      domain: ${{ steps.set-vars.outputs.domain }}
+      model: ${{ steps.set-vars.outputs.model }}
+      epochs: ${{ steps.set-vars.outputs.epochs }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set variables
+        id: set-vars
+        run: |
+          DOMAIN="${{ github.event.inputs.domain || 'stm32' }}"
+          MODEL="${{ github.event.inputs.model || 'mistral-7b' }}"
+          EPOCHS="${{ github.event.inputs.epochs || '3' }}"
+
+          echo "domain=$DOMAIN" >> $GITHUB_OUTPUT
+          echo "model=$MODEL" >> $GITHUB_OUTPUT
+          echo "epochs=$EPOCHS" >> $GITHUB_OUTPUT
+
+          echo "Configuration:"
+          echo "  Domain: $DOMAIN"
+          echo "  Model: $MODEL"
+          echo "  Epochs: $EPOCHS"
+
+  convert-dataset:
+    needs: prepare
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install huggingface-hub datasets
+
+      - name: Convert dataset
+        run: |
+          python scripts/convert_dataset.py \
+            --domain ${{ needs.prepare.outputs.domain }} \
+            --format mistral \
+            --output datasets/${{ needs.prepare.outputs.domain }}_training.jsonl
+
+      - name: Upload converted dataset
+        uses: actions/upload-artifact@v3
+        with:
+          name: training-dataset
+          path: datasets/${{ needs.prepare.outputs.domain }}_training.jsonl
+
+  fine-tune:
+    needs: [prepare, convert-dataset]
+    runs-on: ["self-hosted", "gpu", "large"]
+    container:
+      image: nvidia/cuda:12.1.1-base-ubuntu22.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download dataset
+        uses: actions/download-artifact@v3
+        with:
+          name: training-dataset
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install dependencies
+        run: |
+          apt-get update && apt-get install -y git-lfs
+          pip install --upgrade pip
+          pip install torch transformers datasets accelerate peft bitsandbytes trl
+          pip install huggingface-hub
+
+      - name: Login to Hugging Face
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: huggingface-cli login --token $HF_TOKEN
+
+      - name: Fine-tune model
+        env:
+          WANDB_DISABLED: true
+        run: |
+          python finetune/train_local.py \
+            --domain ${{ needs.prepare.outputs.domain }} \
+            --model ${{ needs.prepare.outputs.model }} \
+            --epochs ${{ needs.prepare.outputs.epochs }} \
+            --dataset datasets/${{ needs.prepare.outputs.domain }}_training.jsonl \
+            --output ./fine_tuned_models/${{ needs.prepare.outputs.domain }}_github
+
+      - name: Upload fine-tuned model
+        uses: actions/upload-artifact@v3
+        with:
+          name: fine-tuned-model
+          path: fine_tuned_models/${{ needs.prepare.outputs.domain }}_github
+
+  evaluate:
+    needs: [prepare, fine-tune]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download fine-tuned model
+        uses: actions/download-artifact@v3
+        with:
+          name: fine-tuned-model
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install transformers torch
+
+      - name: Run evaluation
+        run: |
+          python finetune/evaluate.py \
+            --model ./fine_tuned_models/${{ needs.prepare.outputs.domain }}_github \
+            --domain ${{ needs.prepare.outputs.domain }} \
+            --output evaluation_results.json
+
+      - name: Upload evaluation results
+        uses: actions/upload-artifact@v3
+        with:
+          name: evaluation-results
+          path: evaluation_results.json
+
+  deploy:
+    needs: [prepare, evaluate]
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download fine-tuned model
+        uses: actions/download-artifact@v3
+        with:
+          name: fine-tuned-model
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install huggingface-hub
+
+      - name: Login to Hugging Face
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: huggingface-cli login --token $HF_TOKEN
+
+      - name: Push to Hugging Face Hub
+        run: |
+          REPO_NAME="mascarade-${{ needs.prepare.outputs.domain }}-github"
+
+          # Create repo if it doesn't exist
+          python -c "
+          from huggingface_hub import HfApi
+          api = HfApi()
+          api.create_repo(repo_id='$REPO_NAME', exist_ok=True, repo_type='model')
+          "
+
+          # Push model
+          huggingface-cli upload \
+            $REPO_NAME \
+            ./fine_tuned_models/${{ needs.prepare.outputs.domain }}_github/ \
+            --repo-type=model
+
+          echo "Model deployed to: https://huggingface.co/$REPO_NAME"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ needs.prepare.outputs.domain }}-v${{ github.run_number }}
+          name: ${{ needs.prepare.outputs.domain }} Fine-Tuned Model
+          body: |
+            Fine-tuned model for ${{ needs.prepare.outputs.domain }} domain
+
+            - Base model: ${{ needs.prepare.outputs.model }}
+            - Epochs: ${{ needs.prepare.outputs.epochs }}
+            - Hugging Face: https://huggingface.co/mascarade-${{ needs.prepare.outputs.domain }}-github
+          files: |
+            fine_tuned_models/${{ needs.prepare.outputs.domain }}_github/*
+
+  notify:
+    needs: deploy
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Send notification
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number
+            });
+
+            const status = ${{ job.status }};
+            const color = status === 'success' ? '🟢' : '🔴';
+            const message = `${color} Fine-tuning pipeline ${status}`;
+
+            if (status === 'success') {
+              github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: message + '\n' +
+                  'Domain: ${{ needs.prepare.outputs.domain }}\n' +
+                  'Model: ${{ needs.prepare.outputs.model }}\n' +
+                  'Epochs: ${{ needs.prepare.outputs.epochs }}\n' +
+                  'Available at: https://huggingface.co/mascarade-${{ needs.prepare.outputs.domain }}-github'
+              });
+            }
