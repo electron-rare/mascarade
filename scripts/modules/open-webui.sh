@@ -18,7 +18,7 @@ module_open_webui_compose() {
     echo "        condition: service_healthy"
   fi
   echo "    environment:"
-  echo "      OLLAMA_BASE_URL: http://ollama:11434"
+  echo "      OLLAMA_BASE_URL: \${OLLAMA_BASE_URL:-http://ollama:11434}"
   echo "    volumes:"
   echo "      - open-webui-data:/app/backend/data"
   echo "    networks:"

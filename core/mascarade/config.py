@@ -56,6 +56,13 @@ class Settings(BaseSettings):
     ollama_enabled: bool = False
     ollama_base_url: str = "http://ollama:11434"
 
+    # Apple Silicon local LLM service
+    apple_llm_enabled: bool = False
+    apple_llm_base_url: str = "http://apple-llm:8201"
+    apple_llm_model_id: str = "apple-local"
+    apple_llm_backend: str = "coreml"
+    apple_llm_timeout_seconds: float = 300.0
+
     # ComfyUI
     comfyui_url: str = ""
 

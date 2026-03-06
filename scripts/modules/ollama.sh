@@ -15,7 +15,7 @@ module_ollama_compose() {
   echo "    volumes:"
   echo "      - ollama-data:/root/.ollama"
   echo "    healthcheck:"
-  echo "      test: ["CMD-SHELL", "ollama list >/dev/null 2>&1"]"
+  echo '      test: ["CMD-SHELL", "ollama list >/dev/null 2>&1"]'
   echo "      interval: 20s"
   echo "      timeout: 10s"
   echo "      retries: 15"

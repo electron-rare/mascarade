@@ -9,9 +9,14 @@ detect_pkg_manager() {
     elif command -v yum &>/dev/null; then mgr="yum"
     elif command -v pacman &>/dev/null; then mgr="pacman"
     elif command -v tdnf &>/dev/null; then mgr="tdnf"
+    elif command -v brew &>/dev/null; then mgr="brew"
     fi
     dbg "detect_pkg_manager: $mgr"
     echo "$mgr"
+}
+
+extract_semver() {
+    echo "$1" | sed -nE 's/.*([0-9]+\.[0-9]+\.[0-9]+).*/\1/p' | head -1
 }
 
 # ── Sudo helper ──
@@ -96,7 +101,7 @@ install_docker() {
 
     if command -v docker &>/dev/null; then
         local dver
-        dver=$(docker --version 2>/dev/null | grep -oP '\d+\.\d+\.\d+' | head -1)
+        dver=$(extract_semver "$(docker --version 2>/dev/null)")
         ok "Docker $dver installe"
         dbg "  docker version=$dver path=$(command -v docker)"
         return 0
@@ -144,6 +149,9 @@ install_node22() {
     dbg "  methode: package manager ($pkg_mgr)"
     spin_start "Installation Node.js 22..."
     case "$pkg_mgr" in
+        brew)
+            brew install node >/dev/null 2>&1
+            ;;
         apt)
             dbg "  nodesource setup_22.x..."
             curl -fsSL https://deb.nodesource.com/setup_22.x | $sudo_cmd bash - >/dev/null 2>&1
@@ -286,13 +294,18 @@ check_prerequisites() {
     if command -v docker &>/dev/null; then
         local dver dpath
         dpath=$(command -v docker)
-        dver=$(docker --version 2>/dev/null | grep -oP '\d+\.\d+\.\d+' | head -1)
+        dver=$(extract_semver "$(docker --version 2>/dev/null)")
         dbg "  docker=$dpath version=$dver"
         ok "Docker $dver"
-        if docker compose version &>/dev/null || sudo docker compose version &>/dev/null 2>&1; then
+        if docker compose version &>/dev/null; then
             local dcver
-            dcver=$(docker compose version --short 2>/dev/null || sudo docker compose version --short 2>/dev/null)
+            dcver=$(docker compose version --short 2>/dev/null)
             dbg "  docker compose version=$dcver"
+            ok "Docker Compose $dcver"
+        elif ! is_macos && sudo docker compose version &>/dev/null 2>&1; then
+            local dcver
+            dcver=$(sudo docker compose version --short 2>/dev/null)
+            dbg "  docker compose version=$dcver (sudo)"
             ok "Docker Compose $dcver"
         else
             warn "Plugin Docker Compose manquant"
@@ -304,8 +317,12 @@ check_prerequisites() {
             dbg "  docker info OK (permissions OK)"
         else
             dbg "  docker info FAILED (permission denied)"
-            warn "Pas de permission Docker pour l'utilisateur $USER"
-            if confirm "Ajouter $USER au groupe docker ? (necessite sudo)"; then
+            if is_macos; then
+                warn "Docker ne repond pas. Verifie que Docker Desktop ou OrbStack est lance."
+            else
+                warn "Pas de permission Docker pour l'utilisateur $USER"
+            fi
+            if ! is_macos && confirm "Ajouter $USER au groupe docker ? (necessite sudo)"; then
                 local sudo_cmd=""
                 sudo_cmd=$(ensure_sudo) || true
                 if [[ -n "$sudo_cmd" || $EUID -eq 0 ]]; then
@@ -327,7 +344,7 @@ check_prerequisites() {
     # curl
     if command -v curl &>/dev/null; then
         local curlver
-        curlver=$(curl --version 2>/dev/null | head -1 | grep -oP '\d+\.\d+\.\d+' | head -1)
+        curlver=$(extract_semver "$(curl --version 2>/dev/null | head -1)")
         dbg "  curl=$(command -v curl) version=$curlver"
         ok "curl $curlver"
     else
@@ -352,7 +369,9 @@ check_prerequisites() {
         echo ""
         warn "Docker n'est pas installe."
         info "Docker est necessaire pour deployer les services."
-        if confirm "Installer Docker Engine + Compose automatiquement ?"; then
+        if is_macos; then
+            info "Sur macOS, installe Docker Desktop ou OrbStack puis relance le setup."
+        elif confirm "Installer Docker Engine + Compose automatiquement ?"; then
             install_docker && need_install=true
         else
             warn "Docker non installe — le deploiement ne fonctionnera pas"
@@ -407,7 +426,7 @@ check_prerequisites() {
     if [[ "$need_install" == true ]]; then
         echo ""
         log "Verification post-installation..."
-        command -v docker &>/dev/null && ok "Docker $(docker --version 2>/dev/null | grep -oP '\d+\.\d+\.\d+' | head -1)"
+        command -v docker &>/dev/null && ok "Docker $(extract_semver "$(docker --version 2>/dev/null)")"
         command -v node &>/dev/null   && ok "Node.js $(node -v)"
         command -v npm &>/dev/null    && ok "npm $(npm -v)"
     fi

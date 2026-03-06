@@ -1,0 +1,856 @@
+#!/usr/bin/env python3
+"""Host-native Apple Silicon text generation service."""
+
+from __future__ import annotations
+
+import importlib.metadata
+import json
+import os
+from dataclasses import dataclass
+from pathlib import Path
+from threading import Lock
+from typing import Any, Protocol
+
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel, Field
+
+app = FastAPI(title="Mascarade Apple LLM", version="0.1.0")
+
+
+class Message(BaseModel):
+    role: str = Field(..., min_length=1, max_length=20)
+    content: str = Field(..., min_length=1, max_length=100_000)
+
+
+class GenerateRequest(BaseModel):
+    messages: list[Message] = Field(..., min_length=1, max_length=200)
+    system: str | None = Field(default=None, max_length=10_000)
+    model: str | None = Field(default=None, max_length=200)
+    temperature: float = Field(default=0.7, ge=0.0, le=2.0)
+    max_tokens: int | None = Field(default=None, gt=0, le=8192)
+
+
+class RuntimeConfigError(Exception):
+    """Configuration or dependency error for the runtime."""
+
+
+class RuntimeState(Protocol):
+    backend_name: str
+
+    def check_ready(self) -> None: ...
+
+    def dependency_versions(self) -> dict[str, str | None]: ...
+
+    def available_models(self) -> list[str]: ...
+
+    def describe(self) -> dict[str, Any]: ...
+
+    def generate(self, req: GenerateRequest) -> dict[str, Any]: ...
+
+
+@dataclass(frozen=True)
+class RuntimeConfig:
+    backend: str
+    model_id: str
+    model_path: str
+    tokenizer_path: str
+    compute_units: str
+    max_input_tokens: int
+    max_new_tokens: int
+    trust_remote_code: bool
+
+
+_runtime_lock = Lock()
+_runtime_cache: RuntimeState | None = None
+_runtime_signature: RuntimeConfig | None = None
+InputSpec = tuple[str, str, list[Any] | None]
+
+
+def _package_version(name: str) -> str | None:
+    try:
+        return importlib.metadata.version(name)
+    except importlib.metadata.PackageNotFoundError:
+        return None
+
+
+def _env_flag(name: str, default: bool = False) -> bool:
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    return raw.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _env_int(name: str, default: int) -> int:
+    raw = os.getenv(name, "").strip()
+    if not raw:
+        return default
+    try:
+        return int(raw)
+    except ValueError:
+        return default
+
+
+def _normalize_backend(raw: str | None) -> str:
+    value = (raw or "coreml").strip().lower()
+    aliases = {
+        "coreml": "coreml",
+        "onnx-coreml": "onnx-coreml",
+        "ort-coreml": "onnx-coreml",
+    }
+    return aliases.get(value, "coreml")
+
+
+def _normalize_compute_units(raw: str | None) -> str:
+    value = (raw or "cpu_and_ne").strip().lower().replace("-", "_")
+    aliases = {
+        "all": "all",
+        "cpu_only": "cpu_only",
+        "cpu_and_gpu": "cpu_and_gpu",
+        "cpu_and_ne": "cpu_and_ne",
+        "cpu_and_neural_engine": "cpu_and_ne",
+    }
+    return aliases.get(value, "cpu_and_ne")
+
+
+def _runtime_config() -> RuntimeConfig:
+    return RuntimeConfig(
+        backend=_normalize_backend(os.getenv("APPLE_LLM_BACKEND")),
+        model_id=os.getenv("APPLE_LLM_MODEL_ID", "apple-local").strip() or "apple-local",
+        model_path=os.getenv("APPLE_LLM_MODEL_PATH", "").strip(),
+        tokenizer_path=os.getenv("APPLE_LLM_TOKENIZER_PATH", "").strip(),
+        compute_units=_normalize_compute_units(os.getenv("APPLE_LLM_COMPUTE_UNITS")),
+        max_input_tokens=max(32, _env_int("APPLE_LLM_MAX_INPUT_TOKENS", 2048)),
+        max_new_tokens=max(1, _env_int("APPLE_LLM_MAX_NEW_TOKENS", 256)),
+        trust_remote_code=_env_flag("APPLE_LLM_TRUST_REMOTE_CODE", False),
+    )
+
+
+def _configured(config: RuntimeConfig) -> bool:
+    return bool(config.model_path and config.tokenizer_path)
+
+
+def _load_tokenizer(tokenizer_path: str, *, trust_remote_code: bool):
+    try:
+        from transformers import AutoTokenizer, PreTrainedTokenizerFast
+    except Exception as exc:  # pragma: no cover
+        raise RuntimeConfigError(
+            f"transformers tokenizer dependencies are not available: {exc}"
+        ) from exc
+
+    try:
+        return AutoTokenizer.from_pretrained(
+            tokenizer_path,
+            trust_remote_code=trust_remote_code,
+        )
+    except Exception as exc:
+        if "Tokenizer class TokenizersBackend" not in str(exc):
+            raise
+
+        tokenizer_dir = Path(tokenizer_path)
+        tokenizer_file = tokenizer_dir / "tokenizer.json"
+        tokenizer_config_file = tokenizer_dir / "tokenizer_config.json"
+        if not tokenizer_file.exists() or not tokenizer_config_file.exists():
+            raise
+
+        with tokenizer_config_file.open() as handle:
+            tokenizer_config = json.load(handle)
+
+        tokenizer_kwargs = {
+            "tokenizer_file": str(tokenizer_file),
+        }
+        for key in (
+            "bos_token",
+            "eos_token",
+            "pad_token",
+            "unk_token",
+            "sep_token",
+            "cls_token",
+            "mask_token",
+        ):
+            value = tokenizer_config.get(key)
+            if value is not None:
+                tokenizer_kwargs[key] = value
+
+        tokenizer = PreTrainedTokenizerFast(**tokenizer_kwargs)
+        model_max_length = tokenizer_config.get("model_max_length")
+        if isinstance(model_max_length, int) and model_max_length > 0:
+            tokenizer.model_max_length = model_max_length
+        for attr in ("padding_side", "truncation_side"):
+            value = tokenizer_config.get(attr)
+            if isinstance(value, str) and value:
+                setattr(tokenizer, attr, value)
+        chat_template = tokenizer_config.get("chat_template")
+        if isinstance(chat_template, str) and chat_template:
+            tokenizer.chat_template = chat_template
+        return tokenizer
+
+
+def _fallback_prompt(messages: list[dict[str, str]], system: str | None = None) -> str:
+    lines: list[str] = []
+    if system:
+        lines.append(f"System: {system.strip()}")
+    for message in messages:
+        role = message.get("role", "user").strip().lower()
+        label = {
+            "system": "System",
+            "user": "User",
+            "assistant": "Assistant",
+            "tool": "Tool",
+        }.get(role, role.title() or "User")
+        lines.append(f"{label}: {message.get('content', '').strip()}")
+    lines.append("Assistant:")
+    return "\n\n".join(part for part in lines if part).strip()
+
+
+class _IterativeDecoderRuntime:
+    backend_name = "unknown"
+
+    def __init__(self, config: RuntimeConfig) -> None:
+        if not _configured(config):
+            raise RuntimeConfigError(
+                "APPLE_LLM_MODEL_PATH and APPLE_LLM_TOKENIZER_PATH must be configured"
+            )
+        self.config = config
+        self._runtime_lock = Lock()
+        self._tokenizer = None
+        self._runtime_obj = None
+        self._input_specs: list[InputSpec] = []
+
+    def dependency_versions(self) -> dict[str, str | None]:
+        return {
+            "numpy": _package_version("numpy"),
+            "transformers": _package_version("transformers"),
+        }
+
+    def check_ready(self) -> None:
+        self._load_runtime()
+
+    def available_models(self) -> list[str]:
+        return [self.config.model_id]
+
+    def describe(self) -> dict[str, Any]:
+        return {
+            "backend": self.backend_name,
+            "model_id": self.config.model_id,
+            "model_path": self.config.model_path,
+            "tokenizer_path": self.config.tokenizer_path,
+            "compute_units": self.config.compute_units,
+            "model_loaded": self._runtime_obj is not None,
+        }
+
+    def _embed_input_ids(self, token_ids):
+        raise RuntimeConfigError(
+            f"Model '{self.config.model_id}' requires embedded inputs, but "
+            f"{self.backend_name} does not provide an embed_tokens runtime"
+        )
+
+    def _load_runtime(self) -> None:
+        with self._runtime_lock:
+            if self._runtime_obj is not None and self._tokenizer is not None:
+                return
+
+            try:
+                import numpy as np
+            except Exception as exc:  # pragma: no cover
+                raise RuntimeConfigError(
+                    f"{self.backend_name} dependencies are not available: {exc}"
+                ) from exc
+
+            self._np = np
+            try:
+                self._tokenizer = _load_tokenizer(
+                    self.config.tokenizer_path,
+                    trust_remote_code=self.config.trust_remote_code,
+                )
+            except Exception as exc:
+                raise RuntimeConfigError(
+                    f"Tokenizer could not be loaded from {self.config.tokenizer_path}: {exc}"
+                ) from exc
+            self._runtime_obj, self._input_specs = self._create_runtime()
+
+    def _create_runtime(self):  # pragma: no cover
+        raise NotImplementedError
+
+    def _run_model(self, inputs: dict[str, Any]):  # pragma: no cover
+        raise NotImplementedError
+
+    def _run_step(
+        self,
+        inputs: dict[str, Any],
+        *,
+        cache_state: dict[str, Any] | None = None,
+    ):
+        return self._run_model(inputs)
+
+    @staticmethod
+    def _dtype_from_onnx(type_name: str):
+        import numpy as np
+
+        mapping = {
+            "tensor(int32)": np.int32,
+            "tensor(int64)": np.int64,
+            "tensor(float)": np.float32,
+            "tensor(float16)": np.float16,
+            "tensor(double)": np.float64,
+        }
+        return mapping.get(type_name, np.int32)
+
+    @staticmethod
+    def _dtype_from_coreml(type_name: str):
+        import numpy as np
+
+        mapping = {
+            "int32": np.int32,
+            "int64": np.int64,
+            "float32": np.float32,
+            "float16": np.float16,
+            "double": np.float64,
+        }
+        return mapping.get(type_name, np.int32)
+
+    def _render_prompt(self, req: GenerateRequest) -> str:
+        self._load_runtime()
+        assert self._tokenizer is not None
+        messages = [message.model_dump() for message in req.messages]
+        chat_messages: list[dict[str, str]] = []
+        if req.system:
+            chat_messages.append({"role": "system", "content": req.system})
+        chat_messages.extend(messages)
+
+        tokenizer = self._tokenizer
+        if hasattr(tokenizer, "apply_chat_template"):
+            try:
+                template_kwargs: dict[str, Any] = {}
+                chat_template = getattr(tokenizer, "chat_template", "") or ""
+                if "enable_thinking" in chat_template:
+                    template_kwargs["enable_thinking"] = _env_flag(
+                        "APPLE_LLM_ENABLE_THINKING",
+                        False,
+                    )
+                return tokenizer.apply_chat_template(
+                    chat_messages,
+                    tokenize=False,
+                    add_generation_prompt=True,
+                    **template_kwargs,
+                )
+            except Exception:
+                pass
+
+        return _fallback_prompt(messages, req.system)
+
+    def _resolve_model(self, requested: str | None) -> str:
+        if requested and requested != self.config.model_id:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"Model '{requested}' is not available. "
+                    f"Configured model: {self.config.model_id}"
+                ),
+            )
+        return self.config.model_id
+
+    @staticmethod
+    def _is_dynamic_dim(value: Any) -> bool:
+        return not isinstance(value, int)
+
+    def _empty_past_array(self, shape_spec: list[Any] | None, dtype):
+        np = self._np
+        if not shape_spec:
+            raise RuntimeConfigError("Missing shape metadata for past_key_values input")
+
+        resolved_shape: list[int] = []
+        for index, dim in enumerate(shape_spec):
+            if isinstance(dim, int):
+                resolved_shape.append(dim)
+                continue
+            if index == 0:
+                resolved_shape.append(1)
+                continue
+            resolved_shape.append(0)
+        return np.zeros(tuple(resolved_shape), dtype=dtype)
+
+    def _cache_length(self, cache_state: dict[str, Any]) -> int:
+        for name, value in cache_state.items():
+            if not name.startswith("past_key_values."):
+                continue
+            shape = getattr(value, "shape", None)
+            if shape is not None and len(shape) >= 3:
+                return int(shape[2])
+        return 0
+
+    def _build_position_ids(
+        self,
+        shape_spec: list[Any] | None,
+        *,
+        past_length: int,
+        batch_size: int,
+        seq_len: int,
+    ):
+        np = self._np
+        positions = np.arange(past_length, past_length + seq_len, dtype=np.int64)
+
+        if not shape_spec or len(shape_spec) <= 2:
+            return np.broadcast_to(
+                positions.reshape(1, seq_len),
+                (batch_size, seq_len),
+            ).copy()
+
+        prefix_dim = shape_spec[0] if isinstance(shape_spec[0], int) and shape_spec[0] > 0 else 1
+        return np.broadcast_to(
+            positions.reshape(1, 1, seq_len),
+            (prefix_dim, batch_size, seq_len),
+        ).copy()
+
+    def _prepare_inputs(self, token_ids, *, cache_state: dict[str, Any] | None = None):
+        assert self._tokenizer is not None
+        np = self._np
+        cache_state = cache_state or {}
+        past_length = self._cache_length(cache_state)
+        seq_len = token_ids.shape[1]
+        total_len = past_length + seq_len
+        inputs: dict[str, Any] = {}
+        embedded_tokens = None
+
+        for name, type_name, shape_spec in self._input_specs:
+            lower = name.lower()
+            if lower == "input_ids" or lower.endswith(".input_ids"):
+                source = token_ids
+            elif lower == "inputs_embeds" or lower.endswith(".inputs_embeds"):
+                if embedded_tokens is None:
+                    embedded_tokens = self._embed_input_ids(token_ids)
+                source = embedded_tokens
+            elif "attention_mask" in lower:
+                source = np.ones((token_ids.shape[0], total_len), dtype=np.int64)
+            elif "position_ids" in lower:
+                source = self._build_position_ids(
+                    shape_spec,
+                    past_length=past_length,
+                    batch_size=token_ids.shape[0],
+                    seq_len=seq_len,
+                )
+            elif (
+                lower.startswith("past_key_values.")
+                or lower.startswith("past_conv.")
+                or lower.startswith("past_recurrent.")
+            ):
+                if name in cache_state:
+                    source = cache_state[name]
+                else:
+                    if self.backend_name == "onnx-coreml":
+                        dtype = self._dtype_from_onnx(type_name)
+                    else:
+                        dtype = self._dtype_from_coreml(type_name)
+                    source = self._empty_past_array(shape_spec, dtype)
+            else:
+                raise RuntimeConfigError(
+                    f"Unsupported model input '{name}'. "
+                    "Supported inputs: input_ids, inputs_embeds, attention_mask, "
+                    "position_ids, past_key_values.*, past_conv.*, past_recurrent.*"
+                )
+
+            if self.backend_name == "onnx-coreml":
+                dtype = self._dtype_from_onnx(type_name)
+            else:
+                dtype = self._dtype_from_coreml(type_name)
+            inputs[name] = source.astype(dtype, copy=False)
+
+        return inputs
+
+    def _extract_logits(self, outputs: dict[str, Any]):
+        np = self._np
+        for key, value in outputs.items():
+            if "logits" in key.lower():
+                return np.asarray(value)
+        for value in outputs.values():
+            array = np.asarray(value)
+            if array.ndim >= 2:
+                return array
+        raise RuntimeConfigError("The selected model did not return logits")
+
+    def _extract_cache_state(self, outputs: dict[str, Any]) -> dict[str, Any]:
+        remapped: dict[str, Any] = {}
+        for name, value in outputs.items():
+            if name.startswith("present."):
+                remapped[name.replace("present.", "past_key_values.", 1)] = value
+            elif name.startswith("present_conv."):
+                remapped[name.replace("present_conv.", "past_conv.", 1)] = value
+            elif name.startswith("present_recurrent."):
+                remapped[name.replace("present_recurrent.", "past_recurrent.", 1)] = value
+        return remapped
+
+    def _sample_token(self, logits, temperature: float) -> int:
+        np = self._np
+        vector = np.asarray(logits, dtype=np.float64)
+        if temperature <= 0.05:
+            return int(np.argmax(vector))
+        scaled = vector / max(temperature, 1e-5)
+        scaled -= scaled.max()
+        probs = np.exp(scaled)
+        probs /= probs.sum()
+        return int(np.random.default_rng().choice(len(probs), p=probs))
+
+    def generate(self, req: GenerateRequest) -> dict[str, Any]:
+        self._load_runtime()
+        assert self._tokenizer is not None
+        np = self._np
+        model = self._resolve_model(req.model)
+        prompt = self._render_prompt(req)
+        max_new_tokens = req.max_tokens or self.config.max_new_tokens
+
+        encoded = self._tokenizer(
+            prompt,
+            return_tensors="np",
+            truncation=True,
+            max_length=self.config.max_input_tokens,
+        )
+        input_ids = np.asarray(encoded["input_ids"], dtype=np.int32)
+        prompt_tokens = int(input_ids.shape[1])
+        generated = input_ids
+        current_input_ids = input_ids
+        cache_state: dict[str, Any] | None = None
+        produced: list[int] = []
+
+        eos_token_id = getattr(self._tokenizer, "eos_token_id", None)
+
+        for _ in range(max_new_tokens):
+            prepared_inputs = self._prepare_inputs(
+                current_input_ids,
+                cache_state=cache_state,
+            )
+            outputs = self._run_step(
+                prepared_inputs,
+                cache_state=cache_state,
+            )
+            logits = self._extract_logits(outputs)
+            next_logits = logits[0, -1] if logits.ndim >= 3 else logits[-1]
+            next_token = self._sample_token(next_logits, req.temperature)
+            produced.append(next_token)
+            next_token_ids = np.array([[next_token]], dtype=generated.dtype)
+            generated = np.concatenate([generated, next_token_ids], axis=1)
+            next_cache_state = self._extract_cache_state(outputs)
+            if next_cache_state:
+                cache_state = next_cache_state
+                current_input_ids = next_token_ids
+            else:
+                current_input_ids = generated
+            if eos_token_id is not None and next_token == int(eos_token_id):
+                break
+
+        content = self._tokenizer.decode(produced, skip_special_tokens=True).strip()
+        finish_reason = "stop" if produced and produced[-1] == eos_token_id else "length"
+
+        return {
+            "content": content,
+            "model": model,
+            "backend": self.backend_name,
+            "finish_reason": finish_reason,
+            "usage": {
+                "input_tokens": prompt_tokens,
+                "output_tokens": len(produced),
+            },
+        }
+
+
+class CoreMLRuntime(_IterativeDecoderRuntime):
+    backend_name = "coreml"
+
+    def dependency_versions(self) -> dict[str, str | None]:
+        versions = super().dependency_versions()
+        versions["coremltools"] = _package_version("coremltools")
+        return versions
+
+    def _create_runtime(self):
+        try:
+            import coremltools as ct
+        except Exception as exc:  # pragma: no cover
+            raise RuntimeConfigError(
+                f"coremltools is not available: {exc}"
+            ) from exc
+
+        compute_units_name = {
+            "all": "ALL",
+            "cpu_only": "CPU_ONLY",
+            "cpu_and_gpu": "CPU_AND_GPU",
+            "cpu_and_ne": "CPU_AND_NE",
+        }[self.config.compute_units]
+        compute_units = getattr(ct.ComputeUnit, compute_units_name)
+        model = ct.models.MLModel(self.config.model_path, compute_units=compute_units)
+        spec = model.get_spec()
+        input_specs: list[InputSpec] = []
+        for feature in spec.description.input:
+            multi_array = getattr(feature.type, "multiArrayType", None)
+            dtype_name = "int32"
+            if multi_array is not None:
+                data_type = getattr(multi_array, "dataType", None)
+                dtype_name = {
+                    65568: "int32",
+                    131104: "float32",
+                    65552: "double",
+                    65600: "float16",
+                    131072: "int64",
+                }.get(data_type, "int32")
+            input_specs.append((feature.name, dtype_name, None))
+        return model, input_specs
+
+    def _run_model(self, inputs: dict[str, Any]):
+        assert self._runtime_obj is not None
+        return self._runtime_obj.predict(inputs)
+
+
+class OnnxCoreMLRuntime(_IterativeDecoderRuntime):
+    backend_name = "onnx-coreml"
+
+    def dependency_versions(self) -> dict[str, str | None]:
+        versions = super().dependency_versions()
+        versions["onnxruntime"] = _package_version("onnxruntime")
+        return versions
+
+    def describe(self) -> dict[str, Any]:
+        details = super().describe()
+        if self._runtime_obj is not None and self._runtime_obj.get("embed_model_path"):
+            details["embed_model_path"] = self._runtime_obj["embed_model_path"]
+        return details
+
+    def _resolve_embed_model_path(self) -> str | None:
+        model_path = Path(self.config.model_path)
+        candidates: list[Path] = []
+        name = model_path.name
+
+        if name.startswith("decoder_model_merged"):
+            suffix = name[len("decoder_model_merged") :]
+            candidates.append(model_path.with_name(f"embed_tokens{suffix}"))
+        elif name.startswith("decoder_model"):
+            suffix = name[len("decoder_model") :]
+            candidates.append(model_path.with_name(f"embed_tokens{suffix}"))
+
+        candidates.extend(
+            [
+                model_path.with_name("embed_tokens.onnx"),
+                model_path.with_name("embed_tokens_fp16.onnx"),
+                model_path.with_name("embed_tokens_q4f16.onnx"),
+                model_path.with_name("embed_tokens_q4.onnx"),
+                model_path.with_name("embed_tokens_quantized.onnx"),
+            ]
+        )
+
+        seen: set[str] = set()
+        for candidate in candidates:
+            resolved = str(candidate)
+            if resolved in seen:
+                continue
+            seen.add(resolved)
+            if candidate.exists():
+                return resolved
+        return None
+
+    def _create_runtime(self):
+        try:
+            import onnxruntime as ort
+        except Exception as exc:  # pragma: no cover
+            raise RuntimeConfigError(
+                f"onnxruntime is not available: {exc}"
+            ) from exc
+
+        provider_options = {
+            "ModelFormat": os.getenv("APPLE_LLM_ORT_MODEL_FORMAT", "MLProgram"),
+            "MLComputeUnits": {
+                "all": "ALL",
+                "cpu_only": "CPUOnly",
+                "cpu_and_gpu": "CPUAndGPU",
+                "cpu_and_ne": "CPUAndNeuralEngine",
+            }[self.config.compute_units],
+            "RequireStaticInputShapes": os.getenv(
+                "APPLE_LLM_ORT_REQUIRE_STATIC_INPUT_SHAPES",
+                "0",
+            ),
+            "EnableOnSubgraphs": os.getenv("APPLE_LLM_ORT_ENABLE_ON_SUBGRAPHS", "0"),
+        }
+        coreml_session = ort.InferenceSession(
+            self.config.model_path,
+            providers=[
+                ("CoreMLExecutionProvider", provider_options),
+                "CPUExecutionProvider",
+            ],
+        )
+        cpu_session = ort.InferenceSession(
+            self.config.model_path,
+            providers=["CPUExecutionProvider"],
+        )
+        input_specs = [
+            (item.name, item.type, list(item.shape))
+            for item in coreml_session.get_inputs()
+        ]
+        runtime = {
+            "coreml": coreml_session,
+            "cpu": cpu_session,
+        }
+        needs_embeds = any(
+            name.lower() == "inputs_embeds" or name.lower().endswith(".inputs_embeds")
+            for name, _, _ in input_specs
+        )
+        if needs_embeds:
+            embed_model_path = self._resolve_embed_model_path()
+            if not embed_model_path:
+                raise RuntimeConfigError(
+                    "Model requires inputs_embeds, but no embed_tokens*.onnx sibling "
+                    f"was found next to {self.config.model_path}"
+                )
+            runtime["embed_model_path"] = embed_model_path
+            runtime["embed_coreml"] = ort.InferenceSession(
+                embed_model_path,
+                providers=[
+                    ("CoreMLExecutionProvider", provider_options),
+                    "CPUExecutionProvider",
+                ],
+            )
+            runtime["embed_cpu"] = ort.InferenceSession(
+                embed_model_path,
+                providers=["CPUExecutionProvider"],
+            )
+        return runtime, input_specs
+
+    def _run_model(self, inputs: dict[str, Any]):
+        assert self._runtime_obj is not None
+        session = self._runtime_obj["coreml"]
+        output_names = [item.name for item in session.get_outputs()]
+        values = session.run(output_names, inputs)
+        return dict(zip(output_names, values, strict=False))
+
+    def _run_step(
+        self,
+        inputs: dict[str, Any],
+        *,
+        cache_state: dict[str, Any] | None = None,
+    ):
+        assert self._runtime_obj is not None
+        has_past_inputs = any(name.startswith("past_key_values.") for name, _, _ in self._input_specs)
+        use_cpu_session = has_past_inputs and not cache_state
+        session = self._runtime_obj["cpu"] if use_cpu_session else self._runtime_obj["coreml"]
+        output_names = [item.name for item in session.get_outputs()]
+        values = session.run(output_names, inputs)
+        return dict(zip(output_names, values, strict=False))
+
+    def _embed_input_ids(self, token_ids):
+        assert self._runtime_obj is not None
+
+        def _run(session_key: str):
+            session = self._runtime_obj.get(session_key)
+            if session is None:
+                raise RuntimeConfigError(
+                    f"Model '{self.config.model_id}' requires embed_tokens, but no "
+                    f"{session_key} session is configured"
+                )
+            input_meta = session.get_inputs()[0]
+            output_name = session.get_outputs()[0].name
+            input_dtype = self._dtype_from_onnx(input_meta.type)
+            values = session.run(
+                [output_name],
+                {
+                    input_meta.name: token_ids.astype(input_dtype, copy=False),
+                },
+            )
+            return self._np.asarray(values[0])
+
+        try:
+            return _run("embed_coreml")
+        except Exception:
+            return _run("embed_cpu")
+
+
+def _build_runtime(config: RuntimeConfig) -> RuntimeState:
+    if config.backend == "onnx-coreml":
+        return OnnxCoreMLRuntime(config)
+    return CoreMLRuntime(config)
+
+
+def _resolve_runtime() -> RuntimeState:
+    config = _runtime_config()
+    with _runtime_lock:
+        global _runtime_cache, _runtime_signature
+        if _runtime_cache is not None and _runtime_signature == config:
+            return _runtime_cache
+        runtime = _build_runtime(config)
+        _runtime_cache = runtime
+        _runtime_signature = config
+        return runtime
+
+
+@app.get("/health")
+async def health() -> dict[str, Any]:
+    config = _runtime_config()
+    configured = _configured(config)
+    runtime_ready = False
+    runtime_error: str | None = None
+    details: dict[str, Any] = {
+        "backend": config.backend,
+        "configured": configured,
+        "model_id": config.model_id,
+        "model_path": config.model_path or None,
+        "tokenizer_path": config.tokenizer_path or None,
+        "compute_units": config.compute_units,
+        "max_input_tokens": config.max_input_tokens,
+        "max_new_tokens": config.max_new_tokens,
+    }
+
+    if configured:
+        try:
+            runtime = _resolve_runtime()
+            runtime.check_ready()
+            runtime_ready = True
+            details.update(runtime.describe())
+            details["dependencies"] = runtime.dependency_versions()
+        except RuntimeConfigError as exc:
+            runtime_error = str(exc)
+            details["dependencies"] = {
+                "numpy": _package_version("numpy"),
+                "transformers": _package_version("transformers"),
+                "coremltools": _package_version("coremltools"),
+                "onnxruntime": _package_version("onnxruntime"),
+            }
+    else:
+        runtime_error = "APPLE_LLM_MODEL_PATH and APPLE_LLM_TOKENIZER_PATH must be configured"
+        details["dependencies"] = {
+            "numpy": _package_version("numpy"),
+            "transformers": _package_version("transformers"),
+            "coremltools": _package_version("coremltools"),
+            "onnxruntime": _package_version("onnxruntime"),
+        }
+
+    return {
+        "ok": True,
+        "runtime_ready": runtime_ready,
+        "runtime_error": runtime_error,
+        **details,
+    }
+
+
+@app.get("/models")
+async def models() -> dict[str, Any]:
+    config = _runtime_config()
+    if not _configured(config):
+        return {"models": []}
+    runtime = _resolve_runtime()
+    return {
+        "models": runtime.available_models(),
+        "backend": runtime.backend_name,
+    }
+
+
+@app.post("/generate")
+async def generate(req: GenerateRequest):
+    config = _runtime_config()
+    if not _configured(config):
+        raise HTTPException(
+            status_code=503,
+            detail="APPLE_LLM_MODEL_PATH and APPLE_LLM_TOKENIZER_PATH must be configured",
+        )
+
+    try:
+        runtime = _resolve_runtime()
+        return runtime.generate(req)
+    except HTTPException:
+        raise
+    except RuntimeConfigError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except Exception as exc:  # pragma: no cover
+        raise HTTPException(status_code=500, detail=f"Generation failed: {exc}") from exc

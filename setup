@@ -80,7 +80,7 @@ Options:
   -v, --verbose              Afficher les traces de debug
   -y, --yes                  Repondre "oui" aux confirmations
       --with <ids>           Preselection services (csv), ex: core,api,redis
-      --profile <name>       Profil services: minimal|standard|full|auto
+      --profile <name>       Profil services: minimal|standard|full|apple-silicon|auto
       --all                  Alias de --profile full (active tous les services)
       --no-start             Ne pas lancer docker compose up a la fin
       --skip-deps            Ne pas installer les dependances Python/Node locales
@@ -101,6 +101,9 @@ Packs Ollama (indicatif):
   balanced  CPU: 4-8 vCPU | RAM: 6-10 GiB    | GPU: optionnel (4-8 GiB VRAM)
   heavy     CPU: 8+ vCPU  | RAM: 12-24+ GiB  | GPU: recommande (8-16+ GiB VRAM)
 
+Profils:
+  apple-silicon  macOS Apple Silicon (M1-M5), stack legere et Ollama natif si disponible
+
 Services disponibles:
   core, api, litellm, n8n, langfuse, dify, clickhouse, comfyui, tts, stt, generate-audio (AudioCraft CPU/GPU),
   ollama, open-webui, ops-console, redis, postgres, qdrant, grafana, prometheus
@@ -109,18 +112,25 @@ HELP
 
 # Resource validation
 check_resources() {
-    local total_ram=$(free -g | awk '/Mem:/ {print $2}')
-    local total_cpu=$(nproc)
+    local total_ram=""
+    local total_cpu=""
 
-    if [[ "$total_ram" -lt 8 ]] && [[ "$OLLAMA_PACK" != "lite" ]]; then
+    total_ram=$(system_total_ram_gib 2>/dev/null || true)
+    total_cpu=$(system_cpu_count 2>/dev/null || true)
+
+    if [[ -n "$total_ram" && "$total_ram" =~ ^[0-9]+$ ]] && [[ "$total_ram" -lt 8 ]] && [[ "$OLLAMA_PACK" != "lite" ]]; then
         warn "Low memory detected ($total_ram GB). Consider using --ollama-pack lite"
         if [[ "$AUTO_CONFIRM" == false ]]; then
             confirm "Continue anyway?" || exit 1
         fi
     fi
 
-    if [[ "$total_cpu" -lt 4 ]]; then
+    if [[ -n "$total_cpu" && "$total_cpu" =~ ^[0-9]+$ ]] && [[ "$total_cpu" -lt 4 ]]; then
         warn "Low CPU cores detected ($total_cpu). Performance may be impacted"
+    fi
+
+    if is_apple_silicon; then
+        info "Apple Silicon detecte — profil apple-silicon recommande pour Ollama natif / MLX / Core ML."
     fi
 }
 
@@ -148,7 +158,7 @@ parse_setup_args() {
                 ;;
             --profile)
                 if [[ $# -lt 2 || -z "${2:-}" ]]; then
-                    err "Option --profile attend: minimal|standard|full|auto"
+                    err "Option --profile attend: minimal|standard|full|apple-silicon|auto"
                     exit 2
                 fi
                 PROFILE_MODE="$2"
@@ -249,10 +259,10 @@ parse_setup_args() {
     fi
 
     case "${PROFILE_MODE:-}" in
-        ""|minimal|standard|full|auto) ;;
+        ""|minimal|standard|full|apple-silicon|auto) ;;
         *)
             err "Profil invalide: '$PROFILE_MODE'"
-            echo "Valeurs attendues: minimal|standard|full|auto"
+            echo "Valeurs attendues: minimal|standard|full|apple-silicon|auto"
             exit 2
             ;;
     esac
@@ -261,12 +271,26 @@ parse_setup_args() {
 # Correction de confirm_or_auto pour propager le code de retour
 confirm_or_auto() {
     local prompt="$1"
+    local auto_default="${2:-yes}"
     if [[ "$AUTO_CONFIRM" == true ]]; then
+        if [[ "$auto_default" == "no" ]]; then
+            info "$prompt [auto-non]"
+            return 1
+        fi
         info "$prompt [auto-oui]"
         return 0
     fi
     confirm "$prompt"
     return $?
+}
+
+configure_native_ollama_defaults() {
+    local ollama_port="${OLLAMA_PORT:-11434}"
+    OLLAMA_ENABLED="true"
+    OLLAMA_HOST_MODE="native"
+    OLLAMA_BASE_URL="$(native_ollama_base_url "$ollama_port")"
+    DEFAULT_PROVIDER="${DEFAULT_PROVIDER:-ollama}"
+    DEFAULT_MODEL="${DEFAULT_MODEL:-llama3.2:3b}"
 }
 
 apply_preselected_services() {
@@ -318,6 +342,12 @@ profile_services_csv() {
         full)
             csv="core,api,litellm,n8n,langfuse,dify,clickhouse,comfyui,tts,stt,generate-audio,ollama,open-webui,ops-console,redis,postgres,qdrant,grafana,prometheus"
             ;;
+        apple-silicon)
+            csv="core,api,ops-console"
+            if has_native_ollama; then
+                csv="${csv},open-webui"
+            fi
+            ;;
         *)
             err "Profil inconnu: '$profile'"
             exit 2
@@ -327,22 +357,15 @@ profile_services_csv() {
 }
 
 detect_auto_profile() {
-    local cpu_count mem_kib mem_gib
+    local cpu_count mem_gib
 
-    # Validation robuste des commandes système
-    if ! cpu_count=$(getconf _NPROCESSORS_ONLN 2>/dev/null); then
-        if ! cpu_count=$(nproc 2>/dev/null); then
-            err "Impossible de détecter le nombre de CPU"
-            return 1
-        fi
+    if is_apple_silicon; then
+        echo "apple-silicon"
+        return 0
     fi
 
-    if ! mem_kib=$(awk '/MemTotal/ {print $2; exit}' /proc/meminfo 2>/dev/null); then
-        err "Impossible de détecter la mémoire"
-        return 1
-    fi
-
-    mem_gib=$(( mem_kib / 1024 / 1024 ))
+    cpu_count=$(system_cpu_count 2>/dev/null || true)
+    mem_gib=$(system_total_ram_gib 2>/dev/null || true)
 
     # Validation des valeurs
     if ! [[ "$cpu_count" =~ ^[0-9]+$ ]] || ! [[ "$mem_gib" =~ ^[0-9]+$ ]]; then
@@ -374,6 +397,15 @@ apply_profile_selection() {
     if [[ -z "$resolved" ]]; then
         err "Aucun profil valide selectionne"
         return 1
+    fi
+
+    if [[ "$resolved" == "apple-silicon" ]]; then
+        if has_native_ollama; then
+            configure_native_ollama_defaults
+            info "Apple Silicon: Ollama natif detecte via $(command -v ollama)"
+        else
+            info "Apple Silicon: profil leger sans Ollama docker. Installe Ollama natif pour activer le provider local."
+        fi
     fi
 
     csv=$(profile_services_csv "$resolved") || return 1
@@ -684,9 +716,13 @@ step_progress 4 8 "Configuration .env"
 dbg "Chargement .env existant: $REPO_DIR/.env"
 load_env "$REPO_DIR/.env" 2>/dev/null || true
 
+if [[ "${PROFILE_EFFECTIVE:-}" == "apple-silicon" && "${OLLAMA_HOST_MODE:-}" == "native" ]]; then
+    configure_native_ollama_defaults
+fi
+
 if [[ -f "$REPO_DIR/.env" ]]; then
     dbg ".env existe deja ($(wc -l < "$REPO_DIR/.env") lignes)"
-    if confirm_or_auto "Un fichier .env existe. Le reconfigurer ?"; then
+    if [[ "${MASCARADE_RECONFIGURE_ENV:-false}" == "true" ]] || confirm_or_auto "Un fichier .env existe. Le reconfigurer ?" "no"; then
         dbg "Reconfiguration .env..."
         collect_module_configs
     else
