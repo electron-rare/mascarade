@@ -8,10 +8,6 @@ if [ -z "${BASH_VERSION:-}" ]; then
 fi
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "$SCRIPT_DIR/scripts/lib.sh"
-source "$SCRIPT_DIR/scripts/services.sh"
-source "$SCRIPT_DIR/scripts/prereqs.sh"
-source "$SCRIPT_DIR/scripts/compose.sh"
 
 AUTO_CONFIRM=false
 NO_START=false
@@ -28,6 +24,16 @@ OLLAMA_PACK="balanced"
 PROFILE_MODE=""
 PROFILE_EFFECTIVE=""
 OPS_CONSOLE_ONLY=false
+FORCE_CLEAN=false
+
+# Initialisation - ORDRE CORRIGÉ
+source "$SCRIPT_DIR/scripts/lib.sh"
+source "$SCRIPT_DIR/scripts/services.sh"
+source "$SCRIPT_DIR/scripts/prereqs.sh"
+source "$SCRIPT_DIR/scripts/compose.sh"
+
+# Maintenant les fonctions sont disponibles
+setup_trap
 
 declare -a OLLAMA_PACK_LITE=(
     "tinyllama"
@@ -86,6 +92,7 @@ Options:
       --ollama-pack <name>   Pack LLM: lite|balanced|heavy (defaut: balanced)
       --ollama-models <csv>  Liste de modeles Ollama a pull (prioritaire sur --ollama-pack)
       --ops-console-only     Lance uniquement l'init/sync du cockpit DevOps puis quitte
+      --force-clean          Nettoyage complet avant installation
 
 Packs Ollama (indicatif):
   lite      CPU: 2-4 vCPU | RAM: 4-6 GiB     | GPU: non requis (0-4 GiB VRAM)
@@ -96,6 +103,23 @@ Services disponibles:
   core, api, litellm, n8n, langfuse, dify, clickhouse, comfyui, tts, stt, generate-audio,
   ollama, open-webui, ops-console, redis, postgres, qdrant, grafana, prometheus
 HELP
+}
+
+# Resource validation
+check_resources() {
+    local total_ram=$(free -g | awk '/Mem:/ {print $2}')
+    local total_cpu=$(nproc)
+
+    if [[ "$total_ram" -lt 8 ]] && [[ "$OLLAMA_PACK" != "lite" ]]; then
+        warn "Low memory detected ($total_ram GB). Consider using --ollama-pack lite"
+        if [[ "$AUTO_CONFIRM" == false ]]; then
+            confirm "Continue anyway?" || exit 1
+        fi
+    fi
+
+    if [[ "$total_cpu" -lt 4 ]]; then
+        warn "Low CPU cores detected ($total_cpu). Performance may be impacted"
+    fi
 }
 
 parse_setup_args() {
@@ -184,6 +208,9 @@ parse_setup_args() {
             --ops-console-only)
                 OPS_CONSOLE_ONLY=true
                 ;;
+            --force-clean)
+                FORCE_CLEAN=true
+                ;;
             *)
                 err "Option inconnue: $1"
                 echo "Utilise: ./setup --help"
@@ -192,6 +219,14 @@ parse_setup_args() {
         esac
         shift
     done
+
+    # Validation croisée des options
+    if [[ "$INSTALL_REPO_ASSETS_ONLY" == true ]]; then
+        if [[ "$WITH_SERVICES_RAW" != "" || "$PROFILE_MODE" != "" ]]; then
+            err "--install-repo-assets-only est incompatible avec --with/--profile"
+            exit 2
+        fi
+    fi
 
     case "$OLLAMA_PACK" in
         lite|balanced|heavy) ;;
@@ -218,14 +253,31 @@ parse_setup_args() {
     esac
 }
 
+# Correction de confirm_or_auto pour propager le code de retour
+confirm_or_auto() {
+    local prompt="$1"
+    if [[ "$AUTO_CONFIRM" == true ]]; then
+        info "$prompt [auto-oui]"
+        return 0
+    fi
+    confirm "$prompt"
+    return $?
+}
+
 apply_preselected_services() {
     local csv="$1"
     local token
     local valid
 
+    # Réinitialisation propre
     for id in "${SVC_IDS[@]}"; do
         SVC_ON[$id]="0"
     done
+
+    if [[ -z "$csv" ]]; then
+        err "Aucun service spécifié"
+        return 1
+    fi
 
     IFS=',' read -ra _req_svcs <<< "$csv"
     for token in "${_req_svcs[@]}"; do
@@ -242,9 +294,10 @@ apply_preselected_services() {
         if [[ "$valid" != true ]]; then
             err "Service inconnu dans --with: '$token'"
             echo "Services valides: ${SVC_IDS[*]}"
-            exit 2
+            return 1
         fi
     done
+    return 0
 }
 
 profile_services_csv() {
@@ -271,9 +324,27 @@ profile_services_csv() {
 
 detect_auto_profile() {
     local cpu_count mem_kib mem_gib
-    cpu_count=$(getconf _NPROCESSORS_ONLN 2>/dev/null || nproc 2>/dev/null || echo 0)
-    mem_kib=$(awk '/MemTotal/ {print $2; exit}' /proc/meminfo 2>/dev/null || echo 0)
+
+    # Validation robuste des commandes système
+    if ! cpu_count=$(getconf _NPROCESSORS_ONLN 2>/dev/null); then
+        if ! cpu_count=$(nproc 2>/dev/null); then
+            err "Impossible de détecter le nombre de CPU"
+            return 1
+        fi
+    fi
+
+    if ! mem_kib=$(awk '/MemTotal/ {print $2; exit}' /proc/meminfo 2>/dev/null); then
+        err "Impossible de détecter la mémoire"
+        return 1
+    fi
+
     mem_gib=$(( mem_kib / 1024 / 1024 ))
+
+    # Validation des valeurs
+    if ! [[ "$cpu_count" =~ ^[0-9]+$ ]] || ! [[ "$mem_gib" =~ ^[0-9]+$ ]]; then
+        err "Valeurs système invalides: CPU=$cpu_count, RAM=$mem_gib"
+        return 1
+    fi
 
     if [[ "$cpu_count" -ge 8 && "$mem_gib" -ge 24 ]]; then
         echo "full"
@@ -282,28 +353,34 @@ detect_auto_profile() {
     else
         echo "minimal"
     fi
+    return 0
 }
 
 apply_profile_selection() {
     local requested="$1"
     local resolved="$requested"
+    local csv=""
+
     if [[ "$requested" == "auto" ]]; then
-        resolved=$(detect_auto_profile)
+        resolved=$(detect_auto_profile) || return 1
         info "Profil auto detecte: $resolved"
     fi
-    local csv
-    csv=$(profile_services_csv "$resolved")
-    apply_preselected_services "$csv"
-    PROFILE_EFFECTIVE="$resolved"
-}
 
-confirm_or_auto() {
-    local prompt="$1"
-    if [[ "$AUTO_CONFIRM" == true ]]; then
-        info "$prompt [auto-oui]"
-        return 0
+    # Validation
+    if [[ -z "$resolved" ]]; then
+        err "Aucun profil valide selectionne"
+        return 1
     fi
-    confirm "$prompt"
+
+    csv=$(profile_services_csv "$resolved") || return 1
+    if [[ -z "$csv" ]]; then
+        err "Aucun service defini pour le profil $resolved"
+        return 1
+    fi
+
+    apply_preselected_services "$csv" || return 1
+    PROFILE_EFFECTIVE="$resolved"
+    return 0
 }
 
 hash_files_sha256() {
@@ -743,6 +820,16 @@ sync_ops_managed_containers() {
 
 parse_setup_args "$@"
 
+# Post-parse init
+GPU_INFO=$(detect_gpu 2>/dev/null) || true
+dbg "GPU: $GPU_INFO"
+
+if [[ "$FORCE_CLEAN" == true ]]; then
+    docker_cleanup true
+fi
+
+check_resources
+
 dbg "=== setup demarre ==="
 dbg "  REPO_DIR=$REPO_DIR"
 dbg "  SCRIPT_DIR=$SCRIPT_DIR"
@@ -785,10 +872,10 @@ fi
 # ── 1/8 : Selection des services ──
 step_progress 1 8 "Selection des services"
 if [[ "$PRESELECT_MODE" == true ]]; then
-    apply_preselected_services "$WITH_SERVICES_RAW"
+    apply_preselected_services "$WITH_SERVICES_RAW" || exit 1
     ok "Services preselectionnes via --with"
 elif [[ -n "$PROFILE_MODE" ]]; then
-    apply_profile_selection "$PROFILE_MODE"
+    apply_profile_selection "$PROFILE_MODE" || exit 1
     ok "Profil applique: ${PROFILE_EFFECTIVE:-$PROFILE_MODE}"
 elif [[ ! -t 0 || ! -t 1 ]]; then
     if [[ "$AUTO_CONFIRM" != true ]]; then

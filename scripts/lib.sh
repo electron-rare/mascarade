@@ -37,6 +37,56 @@ info()    { echo -e "  ${DIM}$*${NC}"; }
 section() { echo ""; echo -e "  ${MAGENTA}${BOLD}$*${NC}"; line; }
 dbg()     { [[ "$VERBOSE" == true ]] && echo -e "  ${DIM}[dbg]${NC} $*" >&2 || true; }
 
+# ── GPU Detection ──
+detect_gpu() {
+    if command -v nvidia-smi &> /dev/null; then
+        local gpu_info=$(nvidia-smi --query-gpu=name,memory.total --format=csv,noheader,nounits)
+        echo "$gpu_info"
+        return 0
+    elif [[ -d /sys/class/drm ]]; then
+        echo "Intel/AMD GPU detected"
+        return 0
+    else
+        echo "No GPU detected"
+        return 1
+    fi
+}
+
+# ── Port Validation ──
+check_ports() {
+    local ports=("$@")
+    local conflicts=()
+
+    for port in "${ports[@]}"; do
+        if command -v ss &> /dev/null && ss -tuln | grep -q ":$port "; then
+            conflicts+=("$port")
+        fi
+    done
+
+    if [[ ${#conflicts[@]} -gt 0 ]]; then
+        err "Ports already in use: ${conflicts[*]}"
+        return 1
+    fi
+    return 0
+}
+
+# ── Docker Cleanup ──
+docker_cleanup() {
+    local force=${1:-false}
+
+    if [[ "$force" == true ]]; then
+        log "Cleaning up old containers..."
+        docker compose down --remove-orphans || true
+        docker system prune -f --volumes || true
+    fi
+}
+
+# ── Error Handling ──
+setup_trap() {
+    trap 'err "Setup failed at line $LINENO"; exit 1' ERR
+    trap 'warn "Setup interrupted"; exit 1' INT
+}
+
 # ── Args communs (appeler dans chaque script) ──
 # Usage : parse_args "setup" "Description." "$@"
 parse_args() {
