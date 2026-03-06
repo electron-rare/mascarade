@@ -19,14 +19,15 @@ const hasFrontend = existsSync("./public/index.html");
 app.use("*", corsMiddleware);
 app.use("*", securityHeaders);
 app.use("*", logger());
-app.use("/api/*", rateLimitMiddleware);
 app.onError((err, c) => {
   console.error("Internal error:", err);
   return c.json({ error: "Internal server error" }, 500);
 });
 
 app.route("/health", health);
+// Auth first — reject unauthenticated before consuming rate-limit quota
 app.use("/api/*", authMiddleware);
+app.use("/api/*", rateLimitMiddleware);
 app.route("/api/agents", agents);
 app.route("/api/notion", notion);
 app.route("/api/comfyui", comfyui);

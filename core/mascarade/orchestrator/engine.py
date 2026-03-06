@@ -52,6 +52,7 @@ class Orchestrator:
         self,
         agent_names: list[str],
         prompt: str,
+        timeout: float = 120.0,
     ) -> list[TaskResult]:
         """Exécuter des agents en parallèle sur le même prompt."""
 
@@ -61,20 +62,24 @@ class Orchestrator:
             return TaskResult(agent_name=name, response=response, step=step)
 
         tasks = [_run_one(name, i) for i, name in enumerate(agent_names)]
-        raw_results = await asyncio.gather(*tasks, return_exceptions=True)
+        raw_results = await asyncio.gather(
+            *[asyncio.wait_for(t, timeout=timeout) for t in tasks],
+            return_exceptions=True,
+        )
 
         results: list[TaskResult] = []
         for i, r in enumerate(raw_results):
             if isinstance(r, BaseException):
-                logger.error("Agent %s failed: %s", agent_names[i], r)
+                error_msg = str(r)
+                if isinstance(r, asyncio.TimeoutError):
+                    error_msg = f"Agent timed out after {timeout}s"
+                logger.error("Agent %s failed: %s", agent_names[i], error_msg)
                 results.append(
                     TaskResult(
                         agent_name=agent_names[i],
-                        response=LLMResponse(
-                            content="", model="", provider="", usage={}
-                        ),
+                        response=LLMResponse(content="", model="", provider="", usage={}),
                         step=i,
-                        error=str(r),
+                        error=error_msg,
                     )
                 )
             else:
@@ -92,7 +97,19 @@ class Orchestrator:
 
         for i, name in enumerate(agent_names):
             agent = self.registry.get(name)
-            response = await agent.run(current_input, router=self.router)
+            try:
+                response = await agent.run(current_input, router=self.router)
+            except Exception as exc:
+                logger.error("Pipeline agent %s (step %d) failed: %s", name, i, exc)
+                results.append(
+                    TaskResult(
+                        agent_name=name,
+                        response=LLMResponse(content="", model="", provider="", usage={}),
+                        step=i,
+                        error=str(exc),
+                    )
+                )
+                break
             results.append(TaskResult(agent_name=name, response=response, step=i))
             current_input = response.content
 

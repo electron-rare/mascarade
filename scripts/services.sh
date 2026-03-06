@@ -58,9 +58,14 @@ resolve_dependencies() {
     dbg "resolve_dependencies: debut"
     local changed=true
     local pass=0
+    local max_passes=${#SVC_IDS[@]}
     while $changed; do
         changed=false
         ((pass++)) || true
+        if (( pass > max_passes )); then
+            err "Cycle detecte dans les dependances de services (apres $pass passes)"
+            exit 2
+        fi
         dbg "  passe $pass..."
         for id in "${SVC_IDS[@]}"; do
             [[ "${SVC_ON[$id]}" != "1" ]] && continue

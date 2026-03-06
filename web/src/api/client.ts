@@ -1,11 +1,22 @@
-const API_KEY_STORAGE = "mascarade_api_key";
+const API_KEY_COOKIE = "mascarade_key";
+
+function setCookie(name: string, value: string) {
+  // SameSite=Strict + Secure in production — mitigates XSS/CSRF
+  const secure = location.protocol === "https:" ? ";Secure" : "";
+  document.cookie = `${name}=${encodeURIComponent(value)};SameSite=Strict;Path=/${secure}`;
+}
+
+function getCookie(name: string): string {
+  const match = document.cookie.match(new RegExp(`(?:^|; )${name}=([^;]*)`));
+  return match ? decodeURIComponent(match[1]) : "";
+}
 
 export function getApiKey(): string {
-  return sessionStorage.getItem(API_KEY_STORAGE) || "";
+  return getCookie(API_KEY_COOKIE);
 }
 
 export function setApiKey(key: string) {
-  sessionStorage.setItem(API_KEY_STORAGE, key);
+  setCookie(API_KEY_COOKIE, key);
 }
 
 export class ApiError extends Error {
@@ -28,7 +39,14 @@ export async function api<T>(
   };
   if (key) headers["Authorization"] = `Bearer ${key}`;
 
-  const res = await fetch(path, { ...options, headers });
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 30_000);
+
+  const res = await fetch(path, {
+    ...options,
+    headers,
+    signal: controller.signal,
+  }).finally(() => clearTimeout(timeout));
 
   if (!res.ok) {
     const body = await res.json().catch(() => ({ error: res.statusText }));

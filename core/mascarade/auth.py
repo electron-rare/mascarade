@@ -39,23 +39,20 @@ def _load_api_keys() -> None:
             if _api_keys:
                 logger.info("Clearing all API keys (none configured)")
                 _api_keys.clear()
-            logger.warning(
-                "No MASCARADE_API_KEY configured — all protected routes are PUBLIC"
-            )
+            logger.warning("No MASCARADE_API_KEY configured — all protected routes are PUBLIC")
 
         _last_key_rotation = time.time()
 
 
 def _rotate_keys_if_needed() -> None:
     """Rotate keys if needed (every hour) - thread-safe."""
-    global _last_key_rotation
-
-    should_reload = False
     with _keys_lock:
-        should_reload = time.time() - _last_key_rotation > _KEY_ROTATION_INTERVAL
-
-    if should_reload:
-        _load_api_keys()
+        if time.time() - _last_key_rotation > _KEY_ROTATION_INTERVAL:
+            # Release lock before reload (load_api_keys acquires it)
+            pass
+        else:
+            return
+    _load_api_keys()
 
 
 def _timing_safe_compare(a: str, b: str) -> bool:

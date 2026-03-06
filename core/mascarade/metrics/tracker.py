@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections import deque
 from dataclasses import dataclass, field
 from datetime import datetime
 
@@ -17,11 +18,9 @@ class ProviderMetrics:
     avg_response_time: float = 0.0
     error_rate: float = 0.0
     last_used: datetime | None = None
-    response_times: list[float] = field(default_factory=list)
+    response_times: deque[float] = field(default_factory=lambda: deque(maxlen=500))
 
-    def update(
-        self, tokens: int, cost: float, response_time: float, success: bool
-    ) -> None:
+    def update(self, tokens: int, cost: float, response_time: float, success: bool) -> None:
         """Mettre à jour les métriques avec les données d'une nouvelle requête."""
         self.total_requests += 1
         self.total_tokens += tokens
@@ -36,11 +35,16 @@ class ProviderMetrics:
                 (self.avg_response_time * (self.total_requests - 1)) + response_time
             ) / self.total_requests
 
-        # Mettre à jour le taux d'erreur
+        # Mettre à jour le taux d'erreur (running average)
         if not success:
             self.error_rate = (
-                (self.error_rate * (self.total_requests - 1)) + 1
+                (self.error_rate * (self.total_requests - 1)) + 1.0
             ) / self.total_requests
+        else:
+            if self.total_requests > 1:
+                self.error_rate = (
+                    self.error_rate * (self.total_requests - 1)
+                ) / self.total_requests
 
         self.last_used = datetime.now()
 
@@ -50,8 +54,7 @@ class MetricsTracker:
 
     def __init__(self) -> None:
         self.providers: dict[str, ProviderMetrics] = {}
-        self.request_history: list[dict] = []
-        self.max_history = 1000
+        self.request_history: deque[dict] = deque(maxlen=1000)
 
     def track_request(
         self,
@@ -80,8 +83,6 @@ class MetricsTracker:
         }
 
         self.request_history.append(request_data)
-        if len(self.request_history) > self.max_history:
-            self.request_history.pop(0)
 
     def get_provider_stats(self, provider_name: str) -> dict:
         """Obtenir les statistiques pour un provider spécifique."""
@@ -101,9 +102,7 @@ class MetricsTracker:
     def get_summary(self) -> dict:
         """Obtenir un résumé des métriques du système."""
         return {
-            "providers": {
-                name: self.get_provider_stats(name) for name in self.providers
-            },
+            "providers": {name: self.get_provider_stats(name) for name in self.providers},
             "total_requests": sum(p.total_requests for p in self.providers.values()),
             "total_cost": round(sum(p.total_cost for p in self.providers.values()), 4),
             "best_performer": self._get_best_performer(),

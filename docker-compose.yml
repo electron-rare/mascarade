@@ -68,6 +68,17 @@ services:
     depends_on:
       redis:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:4000/health >/dev/null"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    deploy:
+      resources:
+        limits:
+          cpus: "1"
+          memory: 1G
     networks:
       - mascarade-network
 
@@ -89,6 +100,17 @@ services:
         condition: service_healthy
     volumes:
       - n8n-data:/home/node/.n8n
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:5678/healthz >/dev/null"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: "1"
+          memory: 1G
     networks:
       - mascarade-network
 
@@ -272,6 +294,11 @@ services:
       timeout: 5s
       retries: 15
       start_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: "2"
+          memory: 2G
     networks:
       - mascarade-network
 
@@ -321,6 +348,11 @@ services:
       interval: 10s
       timeout: 3s
       retries: 10
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 512M
     networks:
       - mascarade-network
 
@@ -342,6 +374,11 @@ services:
       timeout: 5s
       retries: 10
       start_period: 20s
+    deploy:
+      resources:
+        limits:
+          cpus: "2"
+          memory: 2G
     networks:
       - mascarade-network
 
@@ -353,6 +390,17 @@ services:
       - "127.0.0.1:${QDRANT_PORT}:6333"
     volumes:
       - qdrant-data:/qdrant/storage
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:6333/healthz >/dev/null"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+    deploy:
+      resources:
+        limits:
+          cpus: "1"
+          memory: 2G
     networks:
       - mascarade-network
 
@@ -364,6 +412,17 @@ services:
       - "127.0.0.1:${GRAFANA_PORT}:3000"
     volumes:
       - grafana-data:/var/lib/grafana
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:3000/api/health >/dev/null"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 512M
     networks:
       - mascarade-network
 
@@ -375,6 +434,17 @@ services:
       - "127.0.0.1:${PROMETHEUS_PORT}:9090"
     volumes:
       - prometheus-data:/prometheus
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:9090/-/healthy >/dev/null"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 512M
     networks:
       - mascarade-network
 
