@@ -92,10 +92,10 @@ build_domain_args() {
 acme_run() {
     require_cmd docker
     docker run --rm \
-        -e "CF_Token=${CLOUDFLARE_API_TOKEN}" \
+        -e "CF_Token=${CLOUDFLARE_API_TOKEN:-}" \
         -v "${ACME_HOME_VOLUME}:/acme.sh" \
         -v "${CERTS_VOLUME}:/certs" \
-        "$ACME_IMAGE" "$@"
+        "$ACME_IMAGE" acme.sh "$@"
 }
 
 reload_edge_proxy() {
@@ -132,11 +132,19 @@ issue_cert() {
     issue_args+=("${DOMAIN_ARGS[@]}")
     issue_args+=(--dnssleep "${EDGE_PROXY_ACME_DNS_SLEEP}" --keylength "${EDGE_PROXY_ACME_KEY_LENGTH}")
     [[ "$FORCE" == true ]] && issue_args+=(--force)
-    acme_run "${issue_args[@]}"
     if is_manual_provider; then
+        local rc=0
+        set +e
+        acme_run "${issue_args[@]}"
+        rc=$?
+        set -e
+        if [[ $rc -ne 0 && $rc -ne 3 ]]; then
+            return "$rc"
+        fi
         info "Ajoute le TXT ACME dans Cloudflare, puis relance: bash scripts/edge_proxy_cert.sh renew --provider manual"
         return 0
     fi
+    acme_run "${issue_args[@]}"
     install_cert
 }
 
