@@ -1,3 +1,3 @@
-from mascarade.orchestrator.engine import Orchestrator
+from mascarade.orchestrator.engine import OrchestrationRun, Orchestrator
 
-__all__ = ["Orchestrator"]
+__all__ = ["OrchestrationRun", "Orchestrator"]

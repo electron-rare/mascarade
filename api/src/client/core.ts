@@ -39,6 +39,26 @@ export interface AgentInfo {
   description: string;
 }
 
+export interface AgentTraceEvent {
+  id: string;
+  ts: string;
+  run_id: string;
+  mode: string;
+  event_type: string;
+  step: number;
+  severity: "debug" | "info" | "warning" | "error" | "critical";
+  agent_name?: string | null;
+  from_agent?: string | null;
+  to_agent?: string | null;
+  prompt_excerpt?: string | null;
+  content_excerpt?: string | null;
+  provider?: string | null;
+  model?: string | null;
+  token_usage?: { input_tokens?: number; output_tokens?: number } | null;
+  error?: string | null;
+  message: string;
+}
+
 const REQUEST_TIMEOUT_MS = parseInt(process.env.CORE_TIMEOUT_MS || "30000", 10);
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
@@ -164,17 +184,42 @@ export const coreClient = {
     mode?: string;
   }) {
     return request<{
+      run_id: string;
+      mode: string;
       results: {
         agent: string;
         step: number;
         content: string;
         model: string;
         provider: string;
+        error?: string;
       }[];
     }>("/orchestrate", {
       method: "POST",
       body: JSON.stringify(body),
     });
+  },
+
+  recentAgentTraces(params?: {
+    limit?: number;
+    run_id?: string;
+    agent_name?: string;
+    event_type?: string;
+  }) {
+    const search = new URLSearchParams();
+    if (params?.limit) search.set("limit", String(params.limit));
+    if (params?.run_id) search.set("run_id", params.run_id);
+    if (params?.agent_name) search.set("agent_name", params.agent_name);
+    if (params?.event_type) search.set("event_type", params.event_type);
+    const suffix = search.toString() ? `?${search.toString()}` : "";
+    return request<{ events: AgentTraceEvent[]; count: number }>(`/agent-traces/recent${suffix}`);
+  },
+
+  runAgentTraces(runId: string, limit?: number) {
+    const suffix = limit ? `?limit=${encodeURIComponent(String(limit))}` : "";
+    return request<{ run_id: string; events: AgentTraceEvent[]; count: number }>(
+      `/agent-traces/${encodeURIComponent(runId)}${suffix}`,
+    );
   },
 
   // --- Notion ---

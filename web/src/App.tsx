@@ -6,6 +6,7 @@ import Playground from "./pages/Playground";
 import Agents from "./pages/Agents";
 import AgentDetail from "./pages/AgentDetail";
 import Orchestrate from "./pages/Orchestrate";
+import Logs from "./pages/Logs";
 import Metrics from "./pages/Metrics";
 import Infrastructure from "./pages/Infrastructure";
 import NotionBrowser from "./pages/NotionBrowser";
@@ -21,6 +22,7 @@ export default function App() {
           <Route path="agents" element={<Agents />} />
           <Route path="agents/:name" element={<AgentDetail />} />
           <Route path="orchestrate" element={<Orchestrate />} />
+          <Route path="logs" element={<Logs />} />
           <Route path="metrics" element={<Metrics />} />
           <Route path="infra" element={<Infrastructure />} />
           <Route path="notion" element={<NotionBrowser />} />

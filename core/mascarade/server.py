@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import asyncio
+import json
 import logging
 from contextlib import asynccontextmanager
 from typing import Literal
 
-from fastapi import APIRouter, Depends, FastAPI, HTTPException
+from fastapi import APIRouter, Depends, FastAPI, HTTPException, Query, Request
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from mascarade.agents import Agent, AgentRegistry
@@ -20,6 +23,7 @@ from mascarade.auth import (
 from mascarade.config import settings
 from mascarade.integrations.comfyui import ComfyUIClient
 from mascarade.integrations.notion import NotionClient
+from mascarade.observability import AgentTraceBuffer, iso_utc_now
 from mascarade.orchestrator import Orchestrator
 from mascarade.orchestrator.engine import ExecutionMode
 from mascarade.router import Router
@@ -33,11 +37,17 @@ async def lifespan(app: FastAPI):
     router = Router()
     registry = AgentRegistry()
     register_default_skills(registry)
-    orchestrator = Orchestrator(router=router, registry=registry)
+    trace_buffer = AgentTraceBuffer()
+    orchestrator = Orchestrator(
+        router=router,
+        registry=registry,
+        trace_buffer=trace_buffer,
+    )
 
     app.state.router = router
     app.state.registry = registry
     app.state.orchestrator = orchestrator
+    app.state.trace_buffer = trace_buffer
     app.state.notion = NotionClient() if settings.notion_api_key else None
     app.state.comfyui = ComfyUIClient() if settings.comfyui_url else None
 
@@ -352,7 +362,7 @@ async def run_agent(name: str, req: SendRequest):
 @protected.post("/orchestrate")
 async def orchestrate(req: TaskRequest):
     try:
-        results = await app.state.orchestrator.run(
+        run = await app.state.orchestrator.run(
             req.agent_names,
             req.prompt,
             mode=req.mode,
@@ -360,6 +370,8 @@ async def orchestrate(req: TaskRequest):
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=f"Agent not found: {exc}") from exc
     return {
+        "run_id": run.run_id,
+        "mode": run.mode.value,
         "results": [
             {
                 "agent": r.agent_name,
@@ -369,8 +381,90 @@ async def orchestrate(req: TaskRequest):
                 "provider": r.response.provider,
                 **({"error": r.error} if r.error else {}),
             }
-            for r in results
+            for r in run.results
         ]
+    }
+
+
+# --- Orchestration traces ---
+
+
+@protected.get("/agent-traces/recent")
+async def recent_agent_traces(
+    limit: int = Query(default=50, ge=1, le=500),
+    run_id: str | None = Query(default=None, max_length=64),
+    agent_name: str | None = Query(default=None, max_length=128),
+    event_type: str | None = Query(default=None, max_length=64),
+):
+    events = app.state.trace_buffer.recent(
+        limit=limit,
+        run_id=run_id,
+        agent_name=agent_name,
+        event_type=event_type,
+    )
+    return {
+        "events": [event.to_dict() for event in events],
+        "count": len(events),
+    }
+
+
+@protected.get("/agent-traces/stream")
+async def stream_agent_traces(
+    request: Request,
+    run_id: str | None = Query(default=None, max_length=64),
+    agent_name: str | None = Query(default=None, max_length=128),
+    event_type: str | None = Query(default=None, max_length=64),
+    limit: int = Query(default=20, ge=0, le=200),
+):
+    async def event_stream():
+        queue, unsubscribe = app.state.trace_buffer.subscribe(
+            run_id=run_id,
+            agent_name=agent_name,
+            event_type=event_type,
+        )
+        try:
+            if limit > 0:
+                for event in app.state.trace_buffer.recent(
+                    limit=limit,
+                    run_id=run_id,
+                    agent_name=agent_name,
+                    event_type=event_type,
+                ):
+                    yield f"event: agent_trace\ndata: {json.dumps(event.to_dict())}\n\n"
+
+            while True:
+                if await request.is_disconnected():
+                    break
+                try:
+                    event = await asyncio.wait_for(queue.get(), timeout=15)
+                except TimeoutError:
+                    yield f"event: heartbeat\ndata: {json.dumps({'ts': iso_utc_now()})}\n\n"
+                    continue
+                yield f"event: agent_trace\ndata: {json.dumps(event.to_dict())}\n\n"
+        finally:
+            unsubscribe()
+
+    return StreamingResponse(
+        event_stream(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
+@protected.get("/agent-traces/{run_id}")
+async def run_agent_traces(
+    run_id: str,
+    limit: int = Query(default=200, ge=1, le=1000),
+):
+    events = app.state.trace_buffer.run_events(run_id, limit=limit)
+    return {
+        "run_id": run_id,
+        "events": [event.to_dict() for event in events],
+        "count": len(events),
     }
 
 

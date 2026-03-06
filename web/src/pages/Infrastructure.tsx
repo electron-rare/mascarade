@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 import { useMemo } from "react";
 import { type OpsMonitor } from "../api/ops";
 import { useFetch } from "../hooks/useFetch";
@@ -103,6 +104,12 @@ export default function Infrastructure() {
                 >
                   refresh all
                 </Button>
+                <Link
+                  to="/logs"
+                  className="rounded-2xl border border-accent/35 bg-accent/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-accent transition hover:bg-accent/15"
+                >
+                  open logs
+                </Link>
               </div>
             </div>
 

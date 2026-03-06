@@ -77,10 +77,21 @@ export const navigationGroups: NavGroup[] = [
     label: "Operations",
     items: [
       {
+        to: "/logs",
+        icon: "▒",
+        label: "Logs",
+        shortLabel: "Logs",
+        hint: "live traces",
+        eyebrow: "live observability",
+        title: "Logs",
+        description: "Flux temps reel des traces inter-agent et des incidents de service consolides par la gateway.",
+        section: "Operations",
+      },
+      {
         to: "/metrics",
         icon: "▣",
         label: "Metrics",
-        shortLabel: "Ops",
+        shortLabel: "Pulse",
         hint: "health + latency",
         eyebrow: "ops monitor",
         title: "Metrics",
@@ -131,7 +142,7 @@ export const navigationGroups: NavGroup[] = [
 
 export const navigationItems = navigationGroups.flatMap((group) => group.items);
 export const mobileDockItems = navigationItems.filter((item) =>
-  ["/", "/playground", "/agents", "/metrics"].includes(item.to),
+  ["/", "/playground", "/agents", "/logs"].includes(item.to),
 );
 
 function resolveBaseItem(pathname: string): NavItem | undefined {

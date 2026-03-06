@@ -33,6 +33,12 @@ const actionCards = [
     body: "Confirmer la sante de la gateway, du core et des services relies a la stack locale.",
   },
   {
+    to: "/logs",
+    label: "Live feed",
+    title: "Open Logs",
+    body: "Suivre les incidents de service et les echanges inter-agent dans une seule console temps reel.",
+  },
+  {
     to: "/infra",
     label: "Stack map",
     title: "Read Infrastructure",
@@ -128,6 +134,12 @@ export default function Dashboard() {
                   className="rounded-2xl border border-border/80 bg-black/25 px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-amber-100/78 transition hover:border-accent/35 hover:text-accent"
                 >
                   inspect metrics
+                </Link>
+                <Link
+                  to="/logs"
+                  className="rounded-2xl border border-border/80 bg-black/25 px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-amber-100/78 transition hover:border-accent/35 hover:text-accent"
+                >
+                  open logs
                 </Link>
                 <Button variant="ghost" className="rounded-2xl border border-border/80 px-4 py-2 text-xs uppercase tracking-[0.18em]" onClick={() => void refetch()}>
                   refresh status

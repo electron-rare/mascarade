@@ -4,6 +4,7 @@ import asyncio
 
 from mascarade.agents.base import Agent
 from mascarade.agents.registry import AgentRegistry
+from mascarade.observability import AgentTraceBuffer
 from mascarade.orchestrator.engine import Orchestrator
 from mascarade.router.providers.base import LLMProvider, LLMResponse
 from mascarade.router.router import Router
@@ -48,28 +49,45 @@ def _make_orchestrator() -> Orchestrator:
         Agent(name="writer", description="Writes", system_prompt="Write.")
     )
 
-    return Orchestrator(router=router, registry=registry)
+    return Orchestrator(router=router, registry=registry, trace_buffer=AgentTraceBuffer())
 
 
 def test_sequential():
     orch = _make_orchestrator()
-    results = asyncio.run(orch.run(["analyst", "writer"], "test", mode="sequential"))
-    assert len(results) == 2
-    assert results[0].agent_name == "analyst"
-    assert results[1].agent_name == "writer"
+    run = asyncio.run(orch.run(["analyst", "writer"], "test", mode="sequential"))
+    assert run.run_id
+    assert run.mode.value == "sequential"
+    assert len(run.results) == 2
+    assert run.results[0].agent_name == "analyst"
+    assert run.results[1].agent_name == "writer"
 
 
 def test_parallel():
     orch = _make_orchestrator()
-    results = asyncio.run(orch.run(["analyst", "writer"], "test", mode="parallel"))
-    assert len(results) == 2
-    agent_names = {r.agent_name for r in results}
+    run = asyncio.run(orch.run(["analyst", "writer"], "test", mode="parallel"))
+    assert run.run_id
+    assert len(run.results) == 2
+    agent_names = {r.agent_name for r in run.results}
     assert agent_names == {"analyst", "writer"}
 
 
 def test_pipeline():
     orch = _make_orchestrator()
-    results = asyncio.run(orch.run(["analyst", "writer"], "start", mode="pipeline"))
-    assert len(results) == 2
+    run = asyncio.run(orch.run(["analyst", "writer"], "start", mode="pipeline"))
+    assert len(run.results) == 2
     # Pipeline: output of first becomes input of second
-    assert "[mock]" in results[1].response.content
+    assert "[mock]" in run.results[1].response.content
+
+
+def test_traces_are_recorded_for_pipeline_runs():
+    orch = _make_orchestrator()
+    run = asyncio.run(orch.run(["analyst", "writer"], "start", mode="pipeline"))
+
+    events = orch.trace_buffer.run_events(run.run_id)
+    event_types = [event.event_type for event in events]
+
+    assert "run_started" in event_types
+    assert "agent_input" in event_types
+    assert "agent_output" in event_types
+    assert "handoff" in event_types
+    assert "run_completed" in event_types

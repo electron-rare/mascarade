@@ -97,6 +97,10 @@ Automation:
 
 ## Logs / Operations
 
+Cockpit:
+- `http://<host>:3100/logs` pour la vue live des traces inter-agent et des incidents services
+- `http://<host>:3100/metrics` pour la posture health/latency
+
 Stack logs:
 - `cd /mascarade && docker compose logs -f --tail 100`
 
@@ -109,6 +113,10 @@ Single service logs:
 Status:
 - `cd /mascarade && docker compose ps`
 - `cd /mascarade && docker stats --no-stream`
+
+Observability complementaire opt-in:
+- `cd /mascarade && ./setup --with core,api,ops-console,loki,promtail,otel-collector --yes`
+- Loki et Promtail sont scaffoldes pour l'historique, mais la vue cockpit actuelle s'appuie deja sur la trace native du core et le monitor gateway
 
 Setup backups:
 - generated setup backups now live under `./.tmp/setup-backups/`
