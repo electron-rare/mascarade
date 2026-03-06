@@ -5,6 +5,9 @@ export function useFetch<T>(path: string | null) {
   const [data, setData] = useState<T | null>(null);
   const [loading, setLoading] = useState(!!path);
   const [error, setError] = useState<string | null>(null);
+  const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">(
+    path ? "loading" : "idle",
+  );
   const controllerRef = useRef<AbortController | null>(null);
 
   const fetchData = useCallback(async () => {
@@ -15,14 +18,17 @@ export function useFetch<T>(path: string | null) {
 
     setLoading(true);
     setError(null);
+    setStatus("loading");
     try {
       const result = await get<T>(path);
       if (!controller.signal.aborted) {
         setData(result);
+        setStatus("success");
       }
     } catch (e) {
       if (!controller.signal.aborted) {
         setError(e instanceof ApiError ? e.message : "Unknown error");
+        setStatus("error");
       }
     } finally {
       if (!controller.signal.aborted) {
@@ -38,5 +44,5 @@ export function useFetch<T>(path: string | null) {
     };
   }, [fetchData]);
 
-  return { data, loading, error, refetch: fetchData };
+  return { data, loading, error, refetch: fetchData, status };
 }

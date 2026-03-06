@@ -7,19 +7,23 @@ export function useApi<TResult, TArgs = void>(
   const [data, setData] = useState<TResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
 
   const execute = useCallback(
     async (args: TArgs) => {
       setLoading(true);
       setError(null);
       setData(null);
+      setStatus("loading");
       try {
         const result = await fn(args);
         setData(result);
+        setStatus("success");
         return result;
       } catch (e) {
         const msg = e instanceof ApiError ? e.message : "Unknown error";
         setError(msg);
+        setStatus("error");
         throw e;
       } finally {
         setLoading(false);
@@ -28,5 +32,5 @@ export function useApi<TResult, TArgs = void>(
     [fn],
   );
 
-  return { execute, data, loading, error };
+  return { execute, data, loading, error, status };
 }

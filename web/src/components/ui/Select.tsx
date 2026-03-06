@@ -12,12 +12,16 @@ export default function Select({
   ...props
 }: Props) {
   return (
-    <div>
+    <div className="space-y-2">
       {label && (
-        <label className="block text-[11px] text-muted mb-1 uppercase tracking-wide">{label}</label>
+        <label className="block text-[11px] uppercase tracking-[0.18em] text-muted">{label}</label>
       )}
       <select
-        className={`w-full bg-bg border border-border rounded px-3 py-2 text-sm text-amber-100 outline-none focus:border-accent focus:shadow-[0_0_0_2px_rgba(255,209,102,0.08)] transition-colors ${className}`}
+        className={[
+          "w-full rounded-2xl border border-border/80 bg-black/30 px-4 py-3 text-sm text-amber-100",
+          "outline-none transition-all focus:border-accent/45 focus:bg-black/40 focus:shadow-[0_0_0_2px_rgba(255,209,102,0.08)]",
+          className,
+        ].join(" ")}
         {...props}
       >
         {options.map((o) => (

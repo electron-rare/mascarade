@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { getApiKey, setApiKey, api } from "../../api/client";
+import Button from "../ui/Button";
 
 interface HealthData {
   status: string;
@@ -10,6 +11,8 @@ type TopBarProps = {
   eyebrow: string;
   title: string;
   description: string;
+  section: string;
+  index: string;
   navOpen: boolean;
   onMenuToggle: () => void;
 };
@@ -24,11 +27,16 @@ export default function TopBar({
   eyebrow,
   title,
   description,
+  section,
+  index,
   navOpen,
   onMenuToggle,
 }: TopBarProps) {
   const [open, setOpen] = useState(false);
-  const [key, setKey] = useState(getApiKey);
+  const [storedKey, setStoredKey] = useState(getApiKey);
+  const [draftKey, setDraftKey] = useState(getApiKey);
+  const [showKey, setShowKey] = useState(false);
+  const [savedAt, setSavedAt] = useState<string | null>(null);
   const [health, setHealth] = useState<HealthData | null>(null);
   const [clockLabel, setClockLabel] = useState(() =>
     new Intl.DateTimeFormat("fr-FR", {
@@ -48,6 +56,17 @@ export default function TopBar({
     };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setOpen(false);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
 
   useEffect(() => {
@@ -84,13 +103,39 @@ export default function TopBar({
   }, []);
 
   const save = () => {
-    setApiKey(key.trim());
-    setOpen(false);
+    const nextKey = draftKey.trim();
+    setApiKey(nextKey);
+    setStoredKey(nextKey);
+    setDraftKey(nextKey);
+    setSavedAt(
+      new Intl.DateTimeFormat("fr-FR", {
+        hour: "2-digit",
+        minute: "2-digit",
+      }).format(new Date()),
+    );
+  };
+
+  const clear = () => {
+    setApiKey("");
+    setStoredKey("");
+    setDraftKey("");
+    setSavedAt(null);
   };
 
   const apiOk = health?.status === "ok";
   const coreOk = health?.core?.status === "ok";
-  const authReady = key.trim().length > 0;
+  const authReady = storedKey.trim().length > 0;
+  const endpoints = useMemo(() => {
+    const origin = window.location.origin;
+    const { protocol, hostname } = window.location;
+    return {
+      cockpit: origin,
+      apiHealth: `${origin}/health`,
+      metrics: `${origin}/api/ops/monitor`,
+      coreHealth: `${protocol}//${hostname}:8100/health`,
+      opsConsole: `${origin}/ops/`,
+    };
+  }, []);
 
   return (
     <header className="sticky top-0 z-20 border-b border-border/80 bg-[linear-gradient(180deg,rgba(7,9,8,0.88),rgba(7,8,7,0.72))] px-4 py-4 backdrop-blur-xl md:px-6 lg:px-8">
@@ -106,6 +151,12 @@ export default function TopBar({
               {navOpen ? "✕" : "☰"}
             </button>
             <span className="screen-label">{eyebrow}</span>
+            <span className="hidden rounded-full border border-border/80 bg-black/25 px-3 py-1 text-[10px] uppercase tracking-[0.18em] text-amber-100/42 md:inline">
+              {section}
+            </span>
+            <span className="hidden rounded-full border border-accent/25 bg-accent/6 px-3 py-1 text-[10px] uppercase tracking-[0.18em] text-accent md:inline">
+              lane {index}
+            </span>
             <span className="hidden text-[11px] uppercase tracking-[0.22em] text-amber-100/38 md:inline">
               {clockLabel}
             </span>
@@ -117,6 +168,30 @@ export default function TopBar({
             <p className="max-w-3xl text-sm leading-6 text-amber-100/58 md:text-[15px]">
               {description}
             </p>
+          </div>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <a
+              href={endpoints.opsConsole}
+              className="status-chip min-h-0 border-border/80 bg-black/25 px-3 py-2 text-muted transition hover:border-accent/35 hover:text-accent"
+            >
+              ops console
+            </a>
+            <a
+              href={endpoints.apiHealth}
+              target="_blank"
+              rel="noreferrer"
+              className="status-chip min-h-0 border-border/80 bg-black/25 px-3 py-2 text-muted transition hover:border-accent/35 hover:text-accent"
+            >
+              api health
+            </a>
+            <a
+              href={endpoints.coreHealth}
+              target="_blank"
+              rel="noreferrer"
+              className="status-chip min-h-0 border-border/80 bg-black/25 px-3 py-2 text-muted transition hover:border-accent/35 hover:text-accent"
+            >
+              core health
+            </a>
           </div>
         </div>
 
@@ -146,40 +221,118 @@ export default function TopBar({
               title="API Key"
             >
               <span className="text-sm">🔑</span>
-              auth key
+              session
             </button>
             {open && (
-              <div className="absolute right-0 top-14 z-50 w-[21rem] rounded-3xl border border-border/80 bg-[linear-gradient(180deg,rgba(7,7,7,0.98),rgba(10,11,10,0.96))] p-4 shadow-[0_24px_80px_rgba(0,0,0,0.45)]">
-                <div className="mb-4 space-y-1">
-                  <p className="screen-label">gateway auth</p>
-                  <h3 className="text-sm font-semibold uppercase tracking-[0.18em] text-accent">
-                    Bearer token
-                  </h3>
-                  <p className="text-[12px] leading-5 text-amber-100/50">
-                    Cle locale stockee en cookie pour appeler l'API Mascarade depuis le cockpit.
-                  </p>
-                </div>
-                <label className="mb-2 block text-[11px] uppercase tracking-[0.18em] text-muted">
-                  API Key
-                </label>
-                <input
-                  type="password"
-                  value={key}
-                  onChange={(e) => setKey(e.target.value)}
-                  className="w-full rounded-2xl border border-border/80 bg-black/35 px-3 py-3 text-sm text-amber-100 outline-none transition focus:border-accent/50"
-                  placeholder="Enter your API key"
-                />
-                <div className="mt-4 flex items-center justify-between gap-3">
-                  <span className="text-[11px] uppercase tracking-[0.16em] text-amber-100/40">
-                    {authReady ? "key present" : "no key loaded"}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={save}
-                    className="rounded-2xl border border-accent/40 bg-accent/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-accent transition hover:bg-accent/15"
-                  >
-                    save
-                  </button>
+              <div className="absolute right-0 top-14 z-50 w-[min(26rem,calc(100vw-1rem))] rounded-3xl border border-border/80 bg-[linear-gradient(180deg,rgba(7,7,7,0.98),rgba(10,11,10,0.96))] p-4 shadow-[0_24px_80px_rgba(0,0,0,0.45)]">
+                <div className="space-y-4">
+                  <div className="space-y-1">
+                    <p className="screen-label">session control</p>
+                    <h3 className="text-sm font-semibold uppercase tracking-[0.18em] text-accent">
+                      Auth and runtime endpoints
+                    </h3>
+                    <p className="text-[12px] leading-5 text-amber-100/50">
+                      Gere le bearer token local et garde sous la main les points d'entree utiles du cockpit.
+                    </p>
+                  </div>
+
+                  <div className="rounded-[1.4rem] border border-border/80 bg-black/25 p-4">
+                    <div className="mb-3 flex items-center justify-between gap-3">
+                      <div>
+                        <p className="text-[10px] uppercase tracking-[0.2em] text-muted">gateway auth</p>
+                        <p className="mt-1 text-[12px] leading-5 text-amber-100/60">
+                          Cookie local utilise pour appeler l'API Mascarade.
+                        </p>
+                      </div>
+                      <span
+                        className={[
+                          "status-chip min-h-0 px-3 py-2",
+                          authReady
+                            ? "border-accent/35 bg-accent/10 text-accent"
+                            : "border-border/80 bg-black/25 text-muted",
+                        ].join(" ")}
+                      >
+                        {authReady ? "loaded" : "missing"}
+                      </span>
+                    </div>
+
+                    <label className="mb-2 block text-[11px] uppercase tracking-[0.18em] text-muted">
+                      API Key
+                    </label>
+                    <div className="flex gap-2">
+                      <input
+                        type={showKey ? "text" : "password"}
+                        value={draftKey}
+                        onChange={(e) => setDraftKey(e.target.value)}
+                        className="min-w-0 flex-1 rounded-2xl border border-border/80 bg-black/35 px-3 py-3 text-sm text-amber-100 outline-none transition focus:border-accent/50"
+                        placeholder="Enter your API key"
+                      />
+                      <Button
+                        variant="ghost"
+                        type="button"
+                        className="px-3"
+                        onClick={() => setShowKey((current) => !current)}
+                      >
+                        {showKey ? "hide" : "show"}
+                      </Button>
+                    </div>
+
+                    <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+                      <span className="text-[11px] uppercase tracking-[0.16em] text-amber-100/40">
+                        {savedAt ? `saved ${savedAt}` : authReady ? "key present" : "no key loaded"}
+                      </span>
+                      <div className="flex flex-wrap gap-2">
+                        <Button variant="ghost" type="button" onClick={clear}>
+                          clear
+                        </Button>
+                        <Button type="button" onClick={save}>
+                          save
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="rounded-[1.4rem] border border-border/80 bg-black/25 p-4">
+                    <div className="mb-3">
+                      <p className="text-[10px] uppercase tracking-[0.2em] text-muted">runtime links</p>
+                      <p className="mt-1 text-[12px] leading-5 text-amber-100/60">
+                        Acces rapide aux endpoints utiles pour debug et supervision.
+                      </p>
+                    </div>
+                    <div className="grid gap-2">
+                      <a
+                        href={endpoints.cockpit}
+                        className="rounded-2xl border border-border/80 bg-black/30 px-3 py-3 text-[11px] uppercase tracking-[0.16em] text-amber-100/68 transition hover:border-accent/35 hover:text-accent"
+                      >
+                        cockpit
+                        <span className="mt-1 block normal-case tracking-normal text-amber-100/38">
+                          {endpoints.cockpit}
+                        </span>
+                      </a>
+                      <a
+                        href={endpoints.metrics}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="rounded-2xl border border-border/80 bg-black/30 px-3 py-3 text-[11px] uppercase tracking-[0.16em] text-amber-100/68 transition hover:border-accent/35 hover:text-accent"
+                      >
+                        ops monitor
+                        <span className="mt-1 block normal-case tracking-normal text-amber-100/38">
+                          {endpoints.metrics}
+                        </span>
+                      </a>
+                      <a
+                        href={endpoints.coreHealth}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="rounded-2xl border border-border/80 bg-black/30 px-3 py-3 text-[11px] uppercase tracking-[0.16em] text-amber-100/68 transition hover:border-accent/35 hover:text-accent"
+                      >
+                        core health
+                        <span className="mt-1 block normal-case tracking-normal text-amber-100/38">
+                          {endpoints.coreHealth}
+                        </span>
+                      </a>
+                    </div>
+                  </div>
                 </div>
               </div>
             )}

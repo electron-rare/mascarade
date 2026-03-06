@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { opsApi, type OpsMonitor } from "../api/ops";
-import { Badge, Button, Card, JsonView, Spinner } from "../components/ui";
+import { Badge, Button, Card, InlineNotice, JsonView, LoadingPanel } from "../components/ui";
 
 function statusTone(ok: boolean): string {
   return ok ? "text-[#8cffb7]" : "text-error";
@@ -113,9 +113,23 @@ export default function Metrics() {
   const servicesDown = services.length - servicesUp;
   const postureOk = !!data && data.gateway.api.ok && data.gateway.core && servicesDown === 0;
 
-  if (loading && !data) return <Spinner className="mx-auto mt-20" />;
+  if (loading && !data) {
+    return (
+      <LoadingPanel
+        title="Syncing metrics"
+        message="Collecting the consolidated ops snapshot from the gateway."
+      />
+    );
+  }
   if (error && !data) {
-    return <p className="mt-20 text-center text-sm text-error">{error}</p>;
+    return (
+      <InlineNotice
+        title="monitor error"
+        message={error}
+        tone="error"
+        className="mx-auto mt-20 max-w-3xl"
+      />
+    );
   }
   if (!data) return null;
 
@@ -302,20 +316,22 @@ export default function Metrics() {
             {data.core_metrics.ok ? (
               <JsonView data={data.core_metrics.data ?? {}} />
             ) : (
-              <p className="text-sm leading-6 text-error">
-                core metrics unavailable ({data.core_metrics.status}) {data.core_metrics.error || ""}
-              </p>
+              <InlineNotice
+                title="core metrics unavailable"
+                message={`Status ${data.core_metrics.status}. ${data.core_metrics.error || "No extra error details were returned."}`}
+                tone="error"
+              />
             )}
           </div>
         </Card>
       </section>
 
       {error ? (
-        <Card title="Fetch note" className="border-error/30">
-          <p className="text-sm leading-6 text-error">
-            Derniere erreur remontee pendant le polling: {error}
-          </p>
-        </Card>
+        <InlineNotice
+          title="polling note"
+          message={`Derniere erreur remontee pendant le polling: ${error}`}
+          tone="error"
+        />
       ) : null}
     </div>
   );

@@ -1,10 +1,10 @@
 type Color = "accent" | "error" | "warning" | "muted";
 
 const colors: Record<Color, string> = {
-  accent: "bg-accent/12 text-accent border-accent/40",
-  error: "bg-error/10 text-error border-error/30",
-  warning: "bg-warning/10 text-warning border-warning/30",
-  muted: "bg-white/5 text-muted border-border",
+  accent: "border-accent/35 bg-accent/10 text-accent",
+  error: "border-error/35 bg-error/10 text-error",
+  warning: "border-warning/35 bg-warning/10 text-warning",
+  muted: "border-border/80 bg-black/25 text-muted",
 };
 
 export default function Badge({
@@ -16,7 +16,7 @@ export default function Badge({
 }) {
   return (
     <span
-      className={`inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium border uppercase tracking-wide ${colors[color]}`}
+      className={`inline-flex min-h-8 items-center rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] ${colors[color]}`}
     >
       {children}
     </span>

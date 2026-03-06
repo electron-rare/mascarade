@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
 import { useFetch } from "../hooks/useFetch";
-import { Badge, Button, Card, Spinner } from "../components/ui";
+import { Badge, Button, Card, InlineNotice, LoadingPanel } from "../components/ui";
 
 interface HealthData {
   status: string;
@@ -49,9 +49,23 @@ function narrative(status: string, providers: string[], agents: number) {
 export default function Dashboard() {
   const { data, loading, error, refetch } = useFetch<HealthData>("/health");
 
-  if (loading) return <Spinner className="mx-auto mt-20" />;
+  if (loading && !data) {
+    return (
+      <LoadingPanel
+        title="Syncing dashboard"
+        message="Collecting gateway health, provider posture and registry density."
+      />
+    );
+  }
   if (error) {
-    return <p className="mt-20 text-center text-sm text-error">{error}</p>;
+    return (
+      <InlineNotice
+        title="dashboard error"
+        message={error}
+        tone="error"
+        className="mx-auto mt-20 max-w-3xl"
+      />
+    );
   }
   if (!data) return null;
 
