@@ -53,7 +53,7 @@ export default function Agents() {
       />
     );
   }
-  if (error) {
+  if (error && !data) {
     return (
       <InlineNotice
         title="registry error"
@@ -79,6 +79,13 @@ export default function Agents() {
           title="agent created"
           message={`Registry updated with ${createdName}. The lane can now be opened from the grid below.`}
           tone="success"
+        />
+      ) : null}
+      {error ? (
+        <InlineNotice
+          title="registry note"
+          message={`Last refresh failed: ${error}`}
+          tone="error"
         />
       ) : null}
 

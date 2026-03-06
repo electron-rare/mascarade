@@ -63,7 +63,7 @@ export default function Dashboard() {
       />
     );
   }
-  if (error) {
+  if (error && !data) {
     return (
       <InlineNotice
         title="dashboard error"
@@ -83,6 +83,14 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6">
+      {error ? (
+        <InlineNotice
+          title="dashboard note"
+          message={`Last refresh failed: ${error}`}
+          tone="error"
+        />
+      ) : null}
+
       <section className="grid gap-4 xl:grid-cols-[minmax(0,1.4fr)_minmax(320px,0.8fr)]">
         <Card className="overflow-hidden border-accent/20 bg-[linear-gradient(135deg,rgba(255,209,102,0.08),rgba(9,14,11,0.9)_26%,rgba(7,7,7,0.95))]">
           <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
