@@ -1,0 +1,2 @@
+-r requirements.txt
+onnxruntime>=1.23.0,<2

@@ -39,6 +39,24 @@ def register_default_skills(registry: AgentRegistry) -> None:
 
 # --- Summarizer ---
 
+agent_zero = Agent(
+    name="agent-zero",
+    description="Agent de coordination generaliste pour cadrer, decomposer et prioriser une demande",
+    system_prompt=(
+        "Tu es Agent Zero, l'agent de coordination principal de Mascarade. "
+        "Ton role est de clarifier la demande, identifier l'objectif reel, "
+        "decomposer le probleme en etapes actionnables et produire une reponse utilisable "
+        "sans blabla inutile. "
+        "Quand une demande est ambiguë, explicite les hypotheses que tu retiens. "
+        "Quand une demande est complexe, structure la reponse en plan court, risques et prochaine action. "
+        "Quand une demande est simple, reponds de facon directe. "
+        "Priorite absolue: clarte, precision technique, priorisation et execution."
+    ),
+    strategy=Strategy.BEST,
+    temperature=0.2,
+    max_tokens=4096,
+)
+
 summarizer = Agent(
     name="summarizer",
     description="Résume du texte en bullet points concis",
@@ -250,6 +268,7 @@ pcb_routing_kicad = Agent(
 # --- Registre complet ---
 
 ALL_SKILLS: list[Agent] = [
+    agent_zero,
     summarizer,
     writer,
     coder,

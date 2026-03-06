@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
 import { useFetch } from "../hooks/useFetch";
-import { Badge, Button, Card, Spinner } from "../components/ui";
+import { Badge, Button, Card, InlineNotice, LoadingPanel } from "../components/ui";
 
 interface HealthData {
   status: string;
@@ -8,6 +8,12 @@ interface HealthData {
 }
 
 const actionCards = [
+  {
+    to: "/agents/agent-zero",
+    label: "Lead agent",
+    title: "Open Agent Zero",
+    body: "Point d'entree generaliste pour cadrer une demande, la decomposer et prioriser la prochaine action.",
+  },
   {
     to: "/playground",
     label: "Prompt lane",
@@ -49,9 +55,23 @@ function narrative(status: string, providers: string[], agents: number) {
 export default function Dashboard() {
   const { data, loading, error, refetch } = useFetch<HealthData>("/health");
 
-  if (loading) return <Spinner className="mx-auto mt-20" />;
-  if (error) {
-    return <p className="mt-20 text-center text-sm text-error">{error}</p>;
+  if (loading && !data) {
+    return (
+      <LoadingPanel
+        title="Syncing dashboard"
+        message="Collecting gateway health, provider posture and registry density."
+      />
+    );
+  }
+  if (error && !data) {
+    return (
+      <InlineNotice
+        title="dashboard error"
+        message={error}
+        tone="error"
+        className="mx-auto mt-20 max-w-3xl"
+      />
+    );
   }
   if (!data) return null;
 
@@ -63,6 +83,14 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6">
+      {error ? (
+        <InlineNotice
+          title="dashboard note"
+          message={`Last refresh failed: ${error}`}
+          tone="error"
+        />
+      ) : null}
+
       <section className="grid gap-4 xl:grid-cols-[minmax(0,1.4fr)_minmax(320px,0.8fr)]">
         <Card className="overflow-hidden border-accent/20 bg-[linear-gradient(135deg,rgba(255,209,102,0.08),rgba(9,14,11,0.9)_26%,rgba(7,7,7,0.95))]">
           <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
@@ -192,7 +220,7 @@ export default function Dashboard() {
         </Card>
       </section>
 
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
         {actionCards.map((card) => (
           <Link
             key={card.to}

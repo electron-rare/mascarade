@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { opsApi, type OpsMonitor } from "../api/ops";
-import { Badge, Button, Card, JsonView, Spinner } from "../components/ui";
+import { useMemo } from "react";
+import type { OpsMonitor } from "../api/ops";
+import { useFetch } from "../hooks/useFetch";
+import { Badge, Button, Card, InlineNotice, JsonView, LoadingPanel } from "../components/ui";
 
 function statusTone(ok: boolean): string {
   return ok ? "text-[#8cffb7]" : "text-error";
@@ -78,44 +79,33 @@ function MetricPanel({
 }
 
 export default function Metrics() {
-  const [data, setData] = useState<OpsMonitor | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const mountedRef = useRef(true);
-
-  useEffect(() => {
-    mountedRef.current = true;
-    const fetchData = async () => {
-      try {
-        const result = await opsApi.monitor();
-        if (mountedRef.current) {
-          setData(result);
-          setError(null);
-          setLoading(false);
-        }
-      } catch (e) {
-        if (mountedRef.current) {
-          setError(e instanceof Error ? e.message : "Unknown error");
-          setLoading(false);
-        }
-      }
-    };
-    fetchData();
-    const t = window.setInterval(fetchData, 5000);
-    return () => {
-      mountedRef.current = false;
-      window.clearInterval(t);
-    };
-  }, []);
+  const { data, loading, error, refetch } = useFetch<OpsMonitor>(
+    "/api/ops/monitor",
+    { pollIntervalMs: 5000 },
+  );
 
   const services = data?.services ?? [];
   const servicesUp = useMemo(() => services.filter((svc) => svc.ok).length, [services]);
   const servicesDown = services.length - servicesUp;
   const postureOk = !!data && data.gateway.api.ok && data.gateway.core && servicesDown === 0;
 
-  if (loading && !data) return <Spinner className="mx-auto mt-20" />;
+  if (loading && !data) {
+    return (
+      <LoadingPanel
+        title="Syncing metrics"
+        message="Collecting the consolidated ops snapshot from the gateway."
+      />
+    );
+  }
   if (error && !data) {
-    return <p className="mt-20 text-center text-sm text-error">{error}</p>;
+    return (
+      <InlineNotice
+        title="monitor error"
+        message={error}
+        tone="error"
+        className="mx-auto mt-20 max-w-3xl"
+      />
+    );
   }
   if (!data) return null;
 
@@ -143,15 +133,7 @@ export default function Metrics() {
                 <Button
                   variant="ghost"
                   className="rounded-2xl border border-border/80 px-4 py-2 text-xs uppercase tracking-[0.18em]"
-                  onClick={async () => {
-                    try {
-                      const result = await opsApi.monitor();
-                      setData(result);
-                      setError(null);
-                    } catch (e) {
-                      setError(e instanceof Error ? e.message : "Unknown error");
-                    }
-                  }}
+                  onClick={() => void refetch()}
                 >
                   refresh monitor
                 </Button>
@@ -258,37 +240,37 @@ export default function Metrics() {
 
       <section className="grid gap-4 xl:grid-cols-[minmax(0,1.3fr)_minmax(320px,0.7fr)]">
         <div id="services-health">
-        <Card title="Services health table">
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[760px] text-xs">
-              <thead>
-                <tr className="border-b border-border text-[10px] uppercase tracking-[0.18em] text-muted">
-                  <th className="py-3 text-left">service</th>
-                  <th className="py-3 text-left">status</th>
-                  <th className="py-3 text-left">http</th>
-                  <th className="py-3 text-left">latency</th>
-                  <th className="py-3 text-left">target</th>
-                  <th className="py-3 text-left">note</th>
-                </tr>
-              </thead>
-              <tbody>
-                {services.map((svc) => (
-                  <tr key={svc.name} className="border-b border-border/50 align-top">
-                    <td className="py-3 text-accent uppercase glow-text">{svc.name}</td>
-                    <td className={`py-3 ${statusTone(svc.ok)}`}>
-                      <span className={`pulse-dot mr-2 ${svc.ok ? "pulse-dot-ok" : "pulse-dot-err"}`} />
-                      {svc.ok ? "ONLINE" : "DOWN"}
-                    </td>
-                    <td className="py-3 text-amber-100/74">{svc.status || "-"}</td>
-                    <td className="py-3 text-amber-100/74">{formatLatency(svc.latency_ms)}</td>
-                    <td className="py-3 text-amber-100/45">{svc.url}</td>
-                    <td className="py-3 text-amber-100/45">{svc.error || (svc.ok ? "healthy" : "no details")}</td>
+          <Card title="Services health table">
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[760px] text-xs">
+                <thead>
+                  <tr className="border-b border-border text-[10px] uppercase tracking-[0.18em] text-muted">
+                    <th className="py-3 text-left">service</th>
+                    <th className="py-3 text-left">status</th>
+                    <th className="py-3 text-left">http</th>
+                    <th className="py-3 text-left">latency</th>
+                    <th className="py-3 text-left">target</th>
+                    <th className="py-3 text-left">note</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </Card>
+                </thead>
+                <tbody>
+                  {services.map((svc) => (
+                    <tr key={svc.name} className="border-b border-border/50 align-top">
+                      <td className="py-3 text-accent uppercase glow-text">{svc.name}</td>
+                      <td className={`py-3 ${statusTone(svc.ok)}`}>
+                        <span className={`pulse-dot mr-2 ${svc.ok ? "pulse-dot-ok" : "pulse-dot-err"}`} />
+                        {svc.ok ? "ONLINE" : "DOWN"}
+                      </td>
+                      <td className="py-3 text-amber-100/74">{svc.status || "-"}</td>
+                      <td className="py-3 text-amber-100/74">{formatLatency(svc.latency_ms)}</td>
+                      <td className="py-3 text-amber-100/45">{svc.url}</td>
+                      <td className="py-3 text-amber-100/45">{svc.error || (svc.ok ? "healthy" : "no details")}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </Card>
         </div>
 
         <Card title="Core metrics payload">
@@ -302,20 +284,22 @@ export default function Metrics() {
             {data.core_metrics.ok ? (
               <JsonView data={data.core_metrics.data ?? {}} />
             ) : (
-              <p className="text-sm leading-6 text-error">
-                core metrics unavailable ({data.core_metrics.status}) {data.core_metrics.error || ""}
-              </p>
+              <InlineNotice
+                title="core metrics unavailable"
+                message={`Status ${data.core_metrics.status}. ${data.core_metrics.error || "No extra error details were returned."}`}
+                tone="error"
+              />
             )}
           </div>
         </Card>
       </section>
 
       {error ? (
-        <Card title="Fetch note" className="border-error/30">
-          <p className="text-sm leading-6 text-error">
-            Derniere erreur remontee pendant le polling: {error}
-          </p>
-        </Card>
+        <InlineNotice
+          title="polling note"
+          message={`Derniere erreur remontee pendant le polling: ${error}`}
+          tone="error"
+        />
       ) : null}
     </div>
   );

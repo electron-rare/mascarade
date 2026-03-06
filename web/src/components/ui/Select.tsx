@@ -1,4 +1,4 @@
-import { SelectHTMLAttributes } from "react";
+import { SelectHTMLAttributes, useId } from "react";
 
 interface Props extends SelectHTMLAttributes<HTMLSelectElement> {
   label?: string;
@@ -9,15 +9,27 @@ export default function Select({
   label,
   options,
   className = "",
+  id: externalId,
   ...props
 }: Props) {
+  const autoId = useId();
+  const id = externalId || autoId;
+
   return (
-    <div>
+    <div className="space-y-2">
       {label && (
-        <label className="block text-[11px] text-muted mb-1 uppercase tracking-wide">{label}</label>
+        <label htmlFor={id} className="block text-[11px] uppercase tracking-[0.18em] text-muted">
+          {label}
+        </label>
       )}
       <select
-        className={`w-full bg-bg border border-border rounded px-3 py-2 text-sm text-amber-100 outline-none focus:border-accent focus:shadow-[0_0_0_2px_rgba(255,209,102,0.08)] transition-colors ${className}`}
+        id={id}
+        className={[
+          "w-full rounded-2xl border border-border/80 bg-black/30 px-4 py-3 text-sm text-amber-100",
+          "outline-none transition-all focus:border-accent/45 focus:bg-black/40 focus:shadow-[0_0_0_2px_rgba(255,209,102,0.08)]",
+          "focus-visible:ring-2 focus-visible:ring-accent/55 focus-visible:ring-offset-2 focus-visible:ring-offset-[#050505]",
+          className,
+        ].join(" ")}
         {...props}
       >
         {options.map((o) => (
