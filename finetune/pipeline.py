@@ -82,6 +82,8 @@ BASE_MODELS = {
 }
 
 DEFAULT_BASE = "finetune/models_cache/qwen2.5-7b"  # Use local cache by default
+GGUF_QUANTS = ["q4_k_m", "q4_k_s", "q5_k_m", "q8_0"]
+TRAIN_QUANT_MODES = ["4bit", "none"]
 
 # Chat templates per model family
 CHAT_TEMPLATES = {
@@ -153,6 +155,7 @@ def step_train(
     epochs: int = 3,
     max_seq_len: int = 512,
     max_samples: int | None = None,
+    train_quant: str = "4bit",
 ):
     dataset_path = DATASETS_DIR / f"{domain}_chat.jsonl"
     if not dataset_path.exists():
@@ -200,24 +203,45 @@ def step_train(
     print(f"  Train: {len(tok_ds['train'])}, Eval: {len(tok_ds['test'])}")
 
     # Model
-    print("\n[3/5] Model (4-bit NF4)...")
-    os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
-
-    bnb_config = BitsAndBytesConfig(
-        load_in_4bit=True,
-        bnb_4bit_compute_dtype=torch.float16,
-        bnb_4bit_quant_type="nf4",
-        bnb_4bit_use_double_quant=True,
-    )
+    if train_quant == "none":
+        print("\n[3/5] Model (FP16 sans quantification)...")
+        os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
+        model_kwargs = {
+            "device_map": "auto",
+            "trust_remote_code": True,
+            "torch_dtype": torch.float16,
+        }
+        optimizer = "adamw_torch"
+    else:
+        print("\n[3/5] Model (4-bit NF4 avec offloading CPU)...")
+        os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
+        bnb_config = BitsAndBytesConfig(
+            load_in_4bit=True,
+            bnb_4bit_compute_dtype=torch.float16,
+            bnb_4bit_quant_type="nf4",
+            bnb_4bit_use_double_quant=True,
+        )
+        device_map = {
+            "": "cuda:0",
+            "model.embed_tokens": "cpu",
+            "model.norm": "cpu",
+            "lm_head": "cpu"
+        }
+        model_kwargs = {
+            "quantization_config": bnb_config,
+            "device_map": device_map,
+            "trust_remote_code": True,
+            "torch_dtype": torch.float16,
+        }
+        optimizer = "paged_adamw_8bit"
 
     model = AutoModelForCausalLM.from_pretrained(
         base_model,
-        quantization_config=bnb_config,
-        device_map="auto",
-        trust_remote_code=True,
-        torch_dtype=torch.float16,
+        **model_kwargs,
     )
-    model = prepare_model_for_kbit_training(model)
+    if train_quant != "none":
+        model = prepare_model_for_kbit_training(model)
+    model.config.use_cache = False
     vram = torch.cuda.memory_allocated() / 1024**2
     print(f"  Loaded: {vram:.0f} MB VRAM")
 
@@ -259,7 +283,7 @@ def step_train(
         lr_scheduler_type="cosine",
         warmup_ratio=0.03,
         fp16=True,
-        optim="paged_adamw_8bit",
+        optim=optimizer,
         logging_steps=10,
         save_steps=200,
         save_total_limit=2,
@@ -298,6 +322,7 @@ def step_train(
         "epochs": epochs,
         "seq_len": max_seq_len,
         "loss": loss,
+        "train_quant": train_quant,
         "lora_r": 16,
         "lora_alpha": 32,
     }
@@ -617,6 +642,8 @@ def step_deploy(domain: str):
 # ──────────────────────────────────────────────────────────────
 def run_pipeline(domain: str, base_model: str, step: str | None, **kwargs):
     steps = ["train", "merge", "gguf", "deploy"] if step is None else [step]
+    train_quant = kwargs.get("train_quant", "4bit")
+    gguf_quant = kwargs.get("quant", "q4_k_m")
 
     for s in steps:
         print(f"\n{'#'*60}")
@@ -630,11 +657,12 @@ def run_pipeline(domain: str, base_model: str, step: str | None, **kwargs):
                 epochs=kwargs.get("epochs", 3),
                 max_seq_len=kwargs.get("seq_len", 512),
                 max_samples=kwargs.get("max_samples"),
+                train_quant=train_quant,
             )
         elif s == "merge":
             ok = step_merge(domain, base_model)
         elif s == "gguf":
-            ok = step_gguf(domain, kwargs.get("quant", "q4_k_m"))
+            ok = step_gguf(domain, gguf_quant)
         elif s == "deploy":
             ok = step_deploy(domain)
         else:
@@ -684,9 +712,29 @@ Available base models:
     parser.add_argument("--seq-len", type=int, default=512)
     parser.add_argument("--max-samples", type=int, default=None)
     parser.add_argument(
-        "--quant", default="q4_k_m", choices=["q4_k_m", "q4_k_s", "q5_k_m", "q8_0"]
+        "--quant",
+        default="q4_k_m",
+        choices=GGUF_QUANTS + ["none"],
+        help="GGUF quantization format; `none` is kept only as a legacy alias for FP16 training load",
+    )
+    parser.add_argument(
+        "--train-quant",
+        default=None,
+        choices=TRAIN_QUANT_MODES,
+        help="Training load mode: `4bit` for QLoRA, `none` for full FP16 load",
     )
     args = parser.parse_args()
+    train_quant = args.train_quant or "4bit"
+    gguf_quant = args.quant
+
+    if args.quant == "none":
+        if args.train_quant is None:
+            train_quant = "none"
+        gguf_quant = "q4_k_m"
+        print(
+            "[!] `--quant none` est interprete comme un alias legacy pour "
+            "`--train-quant none --quant q4_k_m`."
+        )
 
     domains = DOMAINS if args.domain == "all" else [args.domain]
 
@@ -698,7 +746,8 @@ Available base models:
             epochs=args.epochs,
             seq_len=args.seq_len,
             max_samples=args.max_samples,
-            quant=args.quant,
+            quant=gguf_quant,
+            train_quant=train_quant,
         )
 
 
