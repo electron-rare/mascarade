@@ -76,6 +76,27 @@ export default function Orchestrate() {
     error: runError,
     status: runStatus,
   } = useApi(runFn);
+  const runTrace = useFetch<{
+    run_id: string;
+    count: number;
+    events: {
+      id: string;
+      ts: string;
+      event_type: string;
+      message: string;
+      agent_name?: string | null;
+      from_agent?: string | null;
+      to_agent?: string | null;
+      prompt_excerpt?: string | null;
+      content_excerpt?: string | null;
+      error?: string | null;
+    }[];
+  }>(
+    result?.run_id
+      ? `/api/ops/agent-traces/${encodeURIComponent(result.run_id)}?limit=120`
+      : null,
+    { pollIntervalMs: result?.run_id ? 1400 : undefined, timeoutMs: 20000 },
+  );
 
   const selectedAgents = useMemo(
     () => agents.filter((agent) => selected.includes(agent.name)),
@@ -392,7 +413,7 @@ export default function Orchestrate() {
               {runStatus === "success" ? (
                 <InlineNotice
                   title="dispatch complete"
-                  message={`${result.results?.length ?? 0} step(s) returned by the current orchestration run.`}
+                  message={`${result.results?.length ?? 0} step(s) returned by the current orchestration run. run_id=${result.run_id}`}
                   tone="success"
                 />
               ) : null}
@@ -413,14 +434,75 @@ export default function Orchestrate() {
                   <pre className="whitespace-pre-wrap text-sm leading-7 text-amber-100/76">
                     {row.content}
                   </pre>
+                  {row.error ? (
+                    <p className="mt-3 text-sm leading-6 text-error">
+                      error: {row.error}
+                    </p>
+                  ) : null}
                 </div>
               ))}
             </div>
           </Card>
 
-          <Card title="Raw orchestration payload">
-            <JsonView data={result} />
-          </Card>
+          <div className="space-y-4">
+            <Card title="Live run trace">
+              {runTrace.loading && !runTrace.data ? (
+                <LoadingPanel
+                  compact
+                  title="Loading run trace"
+                  message="Following the structured trace emitted by the core for the current run."
+                />
+              ) : runTrace.error && !runTrace.data ? (
+                <InlineNotice title="trace error" message={runTrace.error} tone="error" />
+              ) : !runTrace.data || runTrace.data.events.length === 0 ? (
+                <EmptyState message="No trace event recorded yet for this run." />
+              ) : (
+                <div className="max-h-[520px] space-y-3 overflow-y-auto pr-1">
+                  {runTrace.data.events.map((event) => (
+                    <div
+                      key={event.id}
+                      className="rounded-[1.5rem] border border-border/80 bg-black/25 p-4"
+                    >
+                      <div className="flex flex-wrap items-center gap-2 text-[11px] uppercase tracking-[0.18em]">
+                        <span className="text-muted">{event.ts.slice(11, 19)}</span>
+                        <span className="text-accent">{event.event_type}</span>
+                        {event.agent_name ? (
+                          <Badge color="accent">{event.agent_name}</Badge>
+                        ) : null}
+                        {event.from_agent && event.to_agent ? (
+                          <span className="status-chip border-[#214e31] bg-[#0c170f]/80 text-[#82ffc1]">
+                            {event.from_agent} → {event.to_agent}
+                          </span>
+                        ) : null}
+                      </div>
+                      <p className="mt-3 text-sm leading-6 text-amber-100/74">
+                        {event.message}
+                      </p>
+                      {event.prompt_excerpt ? (
+                        <p className="mt-2 text-[12px] leading-5 text-amber-100/46">
+                          input: {event.prompt_excerpt}
+                        </p>
+                      ) : null}
+                      {event.content_excerpt ? (
+                        <p className="mt-2 text-[12px] leading-5 text-amber-100/46">
+                          output: {event.content_excerpt}
+                        </p>
+                      ) : null}
+                      {event.error ? (
+                        <p className="mt-2 text-[12px] leading-5 text-error">
+                          error: {event.error}
+                        </p>
+                      ) : null}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </Card>
+
+            <Card title="Raw orchestration payload">
+              <JsonView data={result} />
+            </Card>
+          </div>
         </section>
       ) : null}
     </div>

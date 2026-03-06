@@ -23,6 +23,7 @@ export interface OrchestrationResult {
   content: string;
   model: string;
   provider: string;
+  error?: string;
 }
 
 export const agentsApi = {
@@ -53,7 +54,11 @@ export const agentsApi = {
     agent_names: string[];
     prompt: string;
     mode?: string;
-  }) => post<{ results: OrchestrationResult[] }>("/api/agents/orchestrate", params),
+  }) =>
+    post<{ run_id: string; mode: string; results: OrchestrationResult[] }>(
+      "/api/agents/orchestrate",
+      params,
+    ),
 
   providers: () => get<{ providers: string[] }>("/api/agents/providers"),
 };

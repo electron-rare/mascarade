@@ -41,6 +41,9 @@ define_service "postgres"   "PostgreSQL"        "Base relationnelle (Langfuse, D
 define_service "qdrant"     "Qdrant"            "Base vectorielle (embeddings, RAG)"               "6333"  "infra" 0 ""
 define_service "grafana"    "Grafana"           "Dashboards monitoring"                            "3001"  "infra" 0 ""
 define_service "prometheus" "Prometheus"        "Collecte metriques"                               "9090"  "infra" 0 ""
+define_service "loki"       "Loki"              "Historique des logs et traces structurees"        "3101"  "infra" 0 ""
+define_service "promtail"   "Promtail"          "Collecte Docker/journald vers Loki"               "9080"  "infra" 0 "loki"
+define_service "otel-collector" "OTel Collector" "Recepteur OTLP et point d'export observability"  "4318"  "infra" 0 ""
 
 dbg "services.sh: ${#SVC_IDS[@]} services definis"
 
@@ -78,6 +81,9 @@ sync_service_ports_from_env() {
             qdrant) env_var="QDRANT_PORT" ;;
             grafana) env_var="GRAFANA_PORT" ;;
             prometheus) env_var="PROMETHEUS_PORT" ;;
+            loki) env_var="LOKI_PORT" ;;
+            promtail) env_var="PROMTAIL_PORT" ;;
+            otel-collector) env_var="OTEL_COLLECTOR_HTTP_PORT" ;;
             *)
                 env_var=""
                 ;;

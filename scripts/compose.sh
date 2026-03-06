@@ -102,6 +102,9 @@ write_env_file() {
         echo "QDRANT_IMAGE=\"${QDRANT_IMAGE:-qdrant/qdrant@sha256:f1c7272cdac52b38c1a0e89313922d940ba50afd90d593a1605dbbc214e66ffb}\""
         echo "GRAFANA_IMAGE=\"${GRAFANA_IMAGE:-grafana/grafana@sha256:b0ae311af06228bcfd4a620504b653db80f5b91e94dc3dc2a5b7dab202bcde20}\""
         echo "PROMETHEUS_IMAGE=\"${PROMETHEUS_IMAGE:-prom/prometheus@sha256:4a61322ac1103a0e3aea2a61ef1718422a48fa046441f299d71e660a3bc71ae9}\""
+        echo "LOKI_IMAGE=\"${LOKI_IMAGE:-grafana/loki:3.5.3}\""
+        echo "PROMTAIL_IMAGE=\"${PROMTAIL_IMAGE:-grafana/promtail:3.5.3}\""
+        echo "OTEL_COLLECTOR_IMAGE=\"${OTEL_COLLECTOR_IMAGE:-otel/opentelemetry-collector-contrib:0.116.1}\""
         echo "COMFYUI_IMAGE=\"${COMFYUI_IMAGE:-comfyanonymous/comfyui:latest}\""
         echo "STT_IMAGE=\"${STT_IMAGE:-onerahmet/openai-whisper-asr-webservice:latest}\""
         echo "GENERATE_AUDIO_IMAGE=\"${GENERATE_AUDIO_IMAGE:-}\""
@@ -343,6 +346,26 @@ write_env_file() {
         if svc_selected "prometheus"; then
             echo "# ── Prometheus ──"
             echo "PROMETHEUS_PORT=\"${PROMETHEUS_PORT:-9090}\""
+            echo ""
+        fi
+
+        if svc_selected "loki"; then
+            echo "# ── Loki ──"
+            echo "LOKI_PORT=\"${LOKI_PORT:-3101}\""
+            echo ""
+        fi
+
+        if svc_selected "promtail"; then
+            echo "# ── Promtail ──"
+            echo "PROMTAIL_PORT=\"${PROMTAIL_PORT:-9080}\""
+            echo ""
+        fi
+
+        if svc_selected "otel-collector"; then
+            echo "# ── OpenTelemetry Collector ──"
+            echo "OTEL_COLLECTOR_GRPC_PORT=\"${OTEL_COLLECTOR_GRPC_PORT:-4317}\""
+            echo "OTEL_COLLECTOR_HTTP_PORT=\"${OTEL_COLLECTOR_HTTP_PORT:-4318}\""
+            echo "OTEL_COLLECTOR_HEALTH_PORT=\"${OTEL_COLLECTOR_HEALTH_PORT:-13133}\""
             echo ""
         fi
 

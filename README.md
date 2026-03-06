@@ -237,6 +237,7 @@ limites observees pendant le portage, voir `docs/PORTAGE_MASCARADE.md`.
 Deux containers demarrent :
 - `core` sur `:8100`
 - `api` sur `:3100`
+- le cockpit expose maintenant une vraie lane `Logs` sur `http://localhost:3100/logs`
 - tous les ports publies utilisent `PUBLISH_BIND_HOST=0.0.0.0` par defaut
 - `ops-console` sur `:80` (si selectionne), avec override possible via `OPS_CONSOLE_BIND_HOST`
 - `edge-proxy` peut exposer seulement `:80/:443` pour l'entree publique
@@ -251,6 +252,14 @@ PUBLISH_BIND_HOST=127.0.0.1 ./setup --with core,api,ops-console,edge-proxy --yes
 ```
 
 Dans ce mode, seuls `edge-proxy` sur `:80/:443` sont publics; les autres ports restent sur loopback.
+
+Observability complementaire opt-in:
+
+```bash
+./setup --with core,api,ops-console,loki,promtail,otel-collector --yes
+```
+
+Ce lot ajoute le stockage/relais observability, mais le cockpit utilise deja aujourd'hui la trace native du core pour afficher les echanges inter-agent dans `Logs`.
 
 Certificat Let's Encrypt par DNS-01 Cloudflare:
 

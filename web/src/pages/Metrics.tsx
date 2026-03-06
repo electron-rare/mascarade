@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 import { useMemo } from "react";
 import type { OpsMonitor } from "../api/ops";
 import { useFetch } from "../hooks/useFetch";
@@ -143,6 +144,12 @@ export default function Metrics() {
                 >
                   inspect services
                 </a>
+                <Link
+                  to="/logs"
+                  className="rounded-2xl border border-border/80 bg-black/25 px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-amber-100/78 transition hover:border-accent/35 hover:text-accent"
+                >
+                  open logs
+                </Link>
               </div>
             </div>
 
@@ -213,6 +220,23 @@ export default function Metrics() {
                 {!data.core_metrics.ok && data.core_metrics.error ? (
                   <p className="mt-2 text-[12px] leading-5 text-amber-100/48">{data.core_metrics.error}</p>
                 ) : null}
+              </div>
+              <div className="rounded-3xl border border-border/80 bg-black/25 p-4">
+                <p className="text-[10px] uppercase tracking-[0.18em] text-muted">incident framing</p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <Link
+                    to="/logs"
+                    className="rounded-2xl border border-accent/35 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-accent transition hover:bg-accent/10"
+                  >
+                    open logs
+                  </Link>
+                  <Link
+                    to="/agents/agent-zero"
+                    className="rounded-2xl border border-border/80 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-amber-100/72 transition hover:border-accent/35 hover:text-accent"
+                  >
+                    agent-zero
+                  </Link>
+                </div>
               </div>
             </div>
           </div>

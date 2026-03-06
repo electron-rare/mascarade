@@ -106,7 +106,7 @@ Profils:
 
 Services disponibles:
   core, api, litellm, n8n, langfuse, dify, clickhouse, comfyui, tts, stt, generate-audio (AudioCraft CPU/GPU),
-  ollama, open-webui, ops-console, redis, postgres, qdrant, grafana, prometheus
+  ollama, open-webui, ops-console, redis, postgres, qdrant, grafana, prometheus, loki, promtail, otel-collector
 HELP
 }
 
