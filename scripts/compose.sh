@@ -166,10 +166,36 @@ write_env_file() {
         fi
 
         # Ollama
-        if svc_selected "ollama"; then
+        if svc_selected "ollama" || [[ -n "${OLLAMA_BASE_URL:-}" ]] || [[ -n "${OLLAMA_HOST_MODE:-}" ]] || [[ "${OLLAMA_ENABLED:-false}" == "true" ]]; then
+            local default_ollama_mode="${OLLAMA_HOST_MODE:-docker}"
+            local default_ollama_url="http://ollama:${OLLAMA_PORT:-11434}"
+            if [[ "$default_ollama_mode" == "native" ]]; then
+                default_ollama_url="$(native_ollama_base_url "${OLLAMA_PORT:-11434}")"
+            fi
             echo "# ── Ollama ──"
             echo "OLLAMA_PORT=\"${OLLAMA_PORT:-11434}\""
-            echo "OLLAMA_ENABLED=\"true\""
+            echo "OLLAMA_ENABLED=\"${OLLAMA_ENABLED:-$(svc_selected "ollama" && echo true || echo false)}\""
+            echo "OLLAMA_HOST_MODE=\"${default_ollama_mode}\""
+            echo "OLLAMA_BASE_URL=\"${OLLAMA_BASE_URL:-$default_ollama_url}\""
+            echo ""
+        fi
+
+        if [[ -n "${APPLE_LLM_BASE_URL:-}" ]] || [[ "${APPLE_LLM_ENABLED:-false}" == "true" ]] || [[ -n "${APPLE_LLM_MODEL_PATH:-}" ]] || [[ -n "${APPLE_LLM_TOKENIZER_PATH:-}" ]]; then
+            echo "# ── Apple LLM (service hote macOS) ──"
+            echo "APPLE_LLM_ENABLED=\"${APPLE_LLM_ENABLED:-false}\""
+            echo "APPLE_LLM_BASE_URL=\"${APPLE_LLM_BASE_URL:-http://host.docker.internal:${APPLE_LLM_PORT:-8201}}\""
+            echo "APPLE_LLM_MODEL_ID=\"${APPLE_LLM_MODEL_ID:-apple-local}\""
+            echo "APPLE_LLM_BACKEND=\"${APPLE_LLM_BACKEND:-coreml}\""
+            echo "APPLE_LLM_HOST=\"${APPLE_LLM_HOST:-127.0.0.1}\""
+            echo "APPLE_LLM_PORT=\"${APPLE_LLM_PORT:-8201}\""
+            echo "APPLE_LLM_COMPUTE_UNITS=\"${APPLE_LLM_COMPUTE_UNITS:-cpu_and_ne}\""
+            echo "APPLE_LLM_MODEL_PATH=\"${APPLE_LLM_MODEL_PATH:-}\""
+            echo "APPLE_LLM_TOKENIZER_PATH=\"${APPLE_LLM_TOKENIZER_PATH:-}\""
+            echo "APPLE_LLM_ENABLE_THINKING=\"${APPLE_LLM_ENABLE_THINKING:-false}\""
+            echo "APPLE_LLM_MAX_INPUT_TOKENS=\"${APPLE_LLM_MAX_INPUT_TOKENS:-2048}\""
+            echo "APPLE_LLM_MAX_NEW_TOKENS=\"${APPLE_LLM_MAX_NEW_TOKENS:-256}\""
+            echo "APPLE_LLM_TRUST_REMOTE_CODE=\"${APPLE_LLM_TRUST_REMOTE_CODE:-false}\""
+            echo "APPLE_LLM_TIMEOUT_SECONDS=\"${APPLE_LLM_TIMEOUT_SECONDS:-300}\""
             echo ""
         fi
 

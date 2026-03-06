@@ -1,0 +1,2 @@
+-r requirements.txt
+coremltools>=8.0.0,<9

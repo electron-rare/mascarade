@@ -2,9 +2,9 @@
 # scripts/modules/api.sh — Module Mascarade API
 
 module_api_config() {
-  API_PORT=$(input_value "Port API" "3100")
-  API_HOST=$(input_value "Host API" "0.0.0.0")
-  CORE_URL=$(input_value "URL Core interne" "http://core:${CORE_PORT:-8100}")
+  API_PORT=$(input_value "Port API" "${API_PORT:-3100}")
+  API_HOST=$(input_value "Host API" "${API_HOST:-0.0.0.0}")
+  CORE_URL=$(input_value "URL Core interne" "${CORE_URL:-http://core:${CORE_PORT:-8100}}")
 }
 
 module_api_compose() {
