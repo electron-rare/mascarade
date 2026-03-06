@@ -21,6 +21,7 @@ export default function Textarea({ label, className = "", id: externalId, ...pro
           "min-h-[120px] w-full resize-y rounded-[1.5rem] border border-border/80 bg-black/30 px-4 py-3",
           "text-sm text-amber-100 outline-none transition-all placeholder:text-muted/60",
           "focus:border-accent/45 focus:bg-black/40 focus:shadow-[0_0_0_2px_rgba(255,209,102,0.08)]",
+          "focus-visible:ring-2 focus-visible:ring-accent/55 focus-visible:ring-offset-2 focus-visible:ring-offset-[#050505]",
           className,
         ].join(" ")}
         {...props}

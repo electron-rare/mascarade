@@ -33,6 +33,7 @@ export default function MobileDock({ onMenuOpen }: MobileDockProps) {
         <button
           type="button"
           onClick={onMenuOpen}
+          aria-label="Open navigation menu"
           className="flex min-h-[4.25rem] flex-col items-center justify-center rounded-[1.4rem] border border-border/70 bg-black/30 px-2 py-2 text-center text-amber-100/70 transition hover:border-accent/35 hover:text-accent"
         >
           <span className="text-base">☰</span>

@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
-import { Outlet, useLocation } from "react-router-dom";
+import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import MobileDock from "./MobileDock";
-import { resolvePage } from "./navigation";
+import { navigationItems, resolvePage } from "./navigation";
 import Sidebar from "./Sidebar";
 import TopBar from "./TopBar";
 
 export default function Shell() {
   const { pathname } = useLocation();
+  const navigate = useNavigate();
   const [navOpen, setNavOpen] = useState(false);
   const page = useMemo(() => resolvePage(pathname), [pathname]);
 
@@ -16,17 +17,50 @@ export default function Shell() {
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      const isTypingContext =
+        target instanceof HTMLInputElement ||
+        target instanceof HTMLTextAreaElement ||
+        target instanceof HTMLSelectElement ||
+        target?.isContentEditable;
+
       if (event.key === "Escape") {
         setNavOpen(false);
+        return;
       }
+
+      if (!event.altKey || isTypingContext) {
+        return;
+      }
+
+      const index = Number.parseInt(event.key, 10);
+      if (Number.isNaN(index)) {
+        return;
+      }
+
+      const destination = navigationItems[index - 1];
+      if (!destination) {
+        return;
+      }
+
+      event.preventDefault();
+      setNavOpen(false);
+      navigate(destination.to);
     };
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, []);
+  }, [navigate]);
 
   return (
     <div className="relative flex min-h-screen text-amber-50">
+      <a
+        href="#main-content"
+        className="sr-only z-[70] rounded-2xl border border-accent/40 bg-black/90 px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-accent focus:not-sr-only focus:fixed focus:left-4 focus:top-4"
+      >
+        Skip to content
+      </a>
+
       {navOpen && (
         <button
           type="button"
@@ -48,7 +82,10 @@ export default function Shell() {
           navOpen={navOpen}
           onMenuToggle={() => setNavOpen((current) => !current)}
         />
-        <main className="flex-1 overflow-y-auto px-4 pb-28 pt-4 md:px-6 md:pb-10 lg:px-8 lg:pb-8">
+        <main
+          id="main-content"
+          className="flex-1 overflow-y-auto px-4 pb-28 pt-4 md:px-6 md:pb-10 lg:px-8 lg:pb-8"
+        >
           <div className="mx-auto w-full max-w-[1440px]">
             <Outlet />
           </div>

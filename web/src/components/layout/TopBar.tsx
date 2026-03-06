@@ -217,6 +217,8 @@ export default function TopBar({
             <button
               type="button"
               onClick={() => setOpen((current) => !current)}
+              aria-expanded={open}
+              aria-haspopup="dialog"
               className="flex h-10 items-center gap-2 rounded-2xl border border-border/80 bg-black/30 px-3 text-xs uppercase tracking-[0.18em] text-amber-100/74 transition hover:border-accent/45 hover:text-accent"
               title="API Key"
             >
@@ -331,6 +333,26 @@ export default function TopBar({
                           {endpoints.coreHealth}
                         </span>
                       </a>
+                    </div>
+                  </div>
+
+                  <div className="rounded-[1.4rem] border border-border/80 bg-black/25 p-4">
+                    <div className="mb-3">
+                      <p className="text-[10px] uppercase tracking-[0.2em] text-muted">keyboard lane</p>
+                      <p className="mt-1 text-[12px] leading-5 text-amber-100/60">
+                        Raccourcis exposes directement dans le shell pour garder une navigation rapide au clavier.
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <span className="status-chip min-h-0 border-border/80 bg-black/30 px-3 py-2 text-muted">
+                        Alt+1..8 switch lane
+                      </span>
+                      <span className="status-chip min-h-0 border-border/80 bg-black/30 px-3 py-2 text-muted">
+                        Esc close panels
+                      </span>
+                      <span className="status-chip min-h-0 border-border/80 bg-black/30 px-3 py-2 text-muted">
+                        Tab trap modal
+                      </span>
                     </div>
                   </div>
                 </div>
