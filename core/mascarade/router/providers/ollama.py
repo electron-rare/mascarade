@@ -50,23 +50,31 @@ class OllamaProvider(LLMProvider):
         *,
         model: str | None = None,
         system: str | None = None,
+        response_format: dict | None = None,
         temperature: float = 0.7,
         max_tokens: int = 4096,
     ) -> LLMResponse:
         model = model or self.default_model
         chat_messages = build_chat_messages(messages, system)
 
+        payload = {
+            "model": model,
+            "messages": chat_messages,
+            "stream": False,
+            "options": {
+                "temperature": temperature,
+                "num_predict": max_tokens,
+            },
+        }
+        if response_format is not None:
+            if response_format.get("type") == "json_object":
+                payload["format"] = "json"
+            else:
+                payload["format"] = response_format
+
         response = await self._client.post(
             "/api/chat",
-            json={
-                "model": model,
-                "messages": chat_messages,
-                "stream": False,
-                "options": {
-                    "temperature": temperature,
-                    "num_predict": max_tokens,
-                },
-            },
+            json=payload,
         )
         response.raise_for_status()
         data = response.json()

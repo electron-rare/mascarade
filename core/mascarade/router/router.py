@@ -208,7 +208,7 @@ class Router:
                     "temperature": temperature,
                     "max_tokens": max_tokens,
                 }
-                if response_format is not None and selected.name == "mistral":
+                if response_format is not None and selected.name in {"mistral", "ollama"}:
                     send_kwargs["response_format"] = response_format
                 response = await selected.send(messages, **send_kwargs)
             except Exception as exc:
