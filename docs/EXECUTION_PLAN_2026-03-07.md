@@ -9,10 +9,10 @@ Plan court, factuel, base sur l'etat reel du repo au 7 mars 2026.
 - Tant que ces sujets restent melanges, les lots TUI/shell deviennent fragiles a integrer proprement.
 
 ### Prochain lot recommande
-1. Nettoyer les artefacts frontend hors lot.
-2. Garder un choix CPU coherent dans `finetune`.
-3. Isoler les derives docs `crazy_life` dans leur propre lot si elles sont confirmees.
-4. Ranger les docs audit dans un commit documentation separe.
+1. Garder un choix CPU coherent dans `finetune`.
+2. Isoler `model_selector.py` comme outil experimental.
+3. Ranger les remediations MCP dans les sous-modules KiCad.
+4. Traiter ensuite seulement les derives docs `crazy_life`.
 
 ## Axe 2 - CAD / KiCad
 
@@ -20,10 +20,10 @@ Plan court, factuel, base sur l'etat reel du repo au 7 mars 2026.
 - Les sous-modules KiCad et les helpers versionnes existent deja.
 - Il manque encore le pilotage propre depuis `./config` et `./setup`.
 
-### Prochain lot recommande
-1. Ajouter une section `CAD / KiCad` dans `./config`.
-2. Ajouter `--cad-plugins`, `--cad-doctor`, `--cad-stack` dans `./setup`.
-3. Consolider la doc operateur CAD.
+### Etat courant
+- La section `CAD / KiCad` dans `./config` est implementee.
+- `./setup` supporte `--cad-plugins`, `--cad-doctor`, `--cad-stack`.
+- Les helpers plugins/doctor et `cad_stack.sh` sont versionnes.
 
 ## Axe 3 - Cockpit / Observability
 
@@ -66,8 +66,7 @@ Plan court, factuel, base sur l'etat reel du repo au 7 mars 2026.
 
 ## Ordre global recommande
 
-1. Stabiliser le worktree local et ranger les lots non relies.
-2. Brancher `CAD / KiCad` dans `config` et `setup`.
-3. Terminer ensuite le lot observability commence localement.
-4. Brancher apres cela OTel + Loki history end-to-end.
-5. Revenir enfin sur le fine-tuning batch complet.
+1. Stabiliser le lot `finetune` du parent.
+2. Ranger les remediations dans les sous-modules KiCad.
+3. Traiter ensuite le lot `crazy_life` separement.
+4. Reprendre alors le cockpit / observability ou le fine-tuning batch complet.
