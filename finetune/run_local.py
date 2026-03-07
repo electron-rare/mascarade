@@ -39,7 +39,7 @@ RUNS_DIR = SCRIPT_DIR / "runs"
 GPU_TRAINER = SCRIPT_DIR / "train_local.py"
 CPU_TRAINER = SCRIPT_DIR / "train_cpu.py"
 
-DEFAULT_GPU_MODEL = "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
+DEFAULT_GPU_MODEL = "Qwen/Qwen2.5-Coder-1.5B-Instruct"
 DEFAULT_CPU_MODEL = "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
 DOMAINS = [
     "stm32",

@@ -3,9 +3,9 @@
 """CPU-only fine-tuning script.
 
 Optimized for a local fallback path when CUDA is unavailable. The default
-model is `TinyLlama/TinyLlama-1.1B-Chat-v1.0` so the CPU queue stays aligned
-with the lightweight student model used by the local pipeline, while a larger
-cached model can still be supplied with `--model`.
+model is `TinyLlama/TinyLlama-1.1B-Chat-v1.0` so the CPU queue stays light on
+machines where RAM and swap are already under pressure, while a larger cached
+model can still be supplied with `--model`.
 
 Usage:
   python train_cpu.py kicad

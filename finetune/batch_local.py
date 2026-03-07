@@ -782,7 +782,7 @@ def main() -> int:
         help="Force the old two-phase behavior: all distills, then all trainings",
     )
     parser.add_argument("--device", choices=["gpu", "cpu", "auto"], default="gpu")
-    parser.add_argument("--student-model", default="TinyLlama/TinyLlama-1.1B-Chat-v1.0")
+    parser.add_argument("--student-model", default="Qwen/Qwen2.5-Coder-1.5B-Instruct")
     parser.add_argument("--student-max-samples", type=int, default=None)
     parser.add_argument("--seq-len", type=int, default=256)
     parser.add_argument("--epochs", type=int, default=2)
