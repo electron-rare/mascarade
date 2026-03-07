@@ -19,6 +19,8 @@ Commands:
   status          Show remote configuration and current subtree split SHA
   init-remote     Create/update the local git remote for crazy_life
   split           Print the current subtree split SHA for web/
+  pull            Pull crazy_life back into web/ with git subtree
+  sync-back       Alias for pull
   push            Push the web/ subtree to the crazy_life repository
 
 Options:
@@ -34,6 +36,7 @@ Options:
 Examples:
   scripts/sync_crazy_life.sh init-remote
   scripts/sync_crazy_life.sh status
+  scripts/sync_crazy_life.sh pull
   scripts/sync_crazy_life.sh push --allow-dirty --force
 EOF
 }
@@ -130,11 +133,23 @@ push_cmd() {
   fi
 }
 
+pull_cmd() {
+  require_cmd git
+  if worktree_dirty; then
+    die "Dirty worktree detected. Commit/stash changes before pulling crazy_life back into $PREFIX."
+  fi
+  ensure_remote
+  log "Fetching $REMOTE_NAME/$TARGET_BRANCH"
+  git -C "$ROOT_DIR" fetch "$REMOTE_NAME" "$TARGET_BRANCH"
+  log "Pulling $REMOTE_NAME/$TARGET_BRANCH into $PREFIX (squash)"
+  git -C "$ROOT_DIR" subtree pull --prefix="$PREFIX" "$REMOTE_NAME" "$TARGET_BRANCH" --squash
+}
+
 COMMAND="help"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    help|status|init-remote|split|push)
+    help|status|init-remote|split|pull|sync-back|push)
       COMMAND="$1"
       shift
       ;;
@@ -190,6 +205,9 @@ case "$COMMAND" in
     ;;
   split)
     split_cmd
+    ;;
+  pull|sync-back)
+    pull_cmd
     ;;
   push)
     push_cmd
