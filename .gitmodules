@@ -6,7 +6,7 @@
 	url = https://github.com/bennymeg/Fabrication-Toolkit.git
 [submodule "finetune/kicad_kic_ai"]
 	path = finetune/kicad_kic_ai
-	url = https://github.com/jochemkroon/KiC-AI.git
+	url = https://github.com/electron-rare/KiC-AI.git
 [submodule "finetune/kicad_mcp_server"]
 	path = finetune/kicad_mcp_server
-	url = https://github.com/mixelpixx/KiCAD-MCP-Server.git
+	url = https://github.com/electron-rare/KiCAD-MCP-Server.git

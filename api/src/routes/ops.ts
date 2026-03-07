@@ -1,3 +1,5 @@
+import { spawn } from "node:child_process";
+import path from "node:path";
 import { Hono } from "hono";
 import {
   coreClient,
@@ -79,6 +81,35 @@ type MonitorSnapshot = {
   };
 };
 
+type McpProbePayload = {
+  status?: string;
+  requested_runtime?: string;
+  runtime_mode?: string;
+  quick?: boolean;
+  protocol_version?: string | null;
+  server_name?: string | null;
+  tool_count?: number;
+  resource_count?: number;
+  prompt_count?: number;
+  checks?: string[];
+  error?: string;
+};
+
+type McpRuntimeStatus = {
+  ok: boolean;
+  status: "ready" | "degraded" | "failed";
+  requested_runtime: string;
+  runtime_mode: string | null;
+  protocol_version: string | null;
+  server_name: string | null;
+  tool_count: number;
+  resource_count: number;
+  prompt_count: number;
+  latency_ms: number;
+  checks: string[];
+  error?: string;
+};
+
 async function timedJson(
   url: string,
   timeoutMs: number = 1800,
@@ -142,6 +173,20 @@ const APPLE_LLM_BASE_URL = (process.env.APPLE_LLM_BASE_URL || "").replace(/\/+$/
 const OPS_AGENT_URL = (process.env.OPS_AGENT_URL || "http://ops-agent:9200").replace(/\/+$/, "");
 const LOKI_URL = (process.env.LOKI_URL || "http://loki:3100").replace(/\/+$/, "");
 const CORE_URL = (process.env.CORE_URL || "http://core:8100").replace(/\/+$/, "");
+const KILL_LIFE_ROOT = path.resolve(process.env.KILL_LIFE_ROOT || "/home/clems/Kill_LIFE");
+const KILL_LIFE_MCP_SMOKE = path.join(KILL_LIFE_ROOT, "tools", "hw", "mcp_smoke.py");
+const OPS_MCP_PROBE_CACHE_TTL_MS = Math.max(
+  1000,
+  Number(process.env.OPS_MCP_PROBE_CACHE_TTL_MS || "15000") || 15000,
+);
+
+let cachedMcpProbe:
+  | {
+      expiresAt: number;
+      value: McpRuntimeStatus;
+    }
+  | null = null;
+let inflightMcpProbe: Promise<McpRuntimeStatus> | null = null;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -448,6 +493,116 @@ async function lokiReady(timeoutMs: number = 1600): Promise<boolean> {
   return result.ok;
 }
 
+async function probeMcpRuntime(timeoutMs: number = 8000): Promise<McpRuntimeStatus> {
+  const now = Date.now();
+  if (cachedMcpProbe && cachedMcpProbe.expiresAt > now) {
+    return cachedMcpProbe.value;
+  }
+  if (inflightMcpProbe) {
+    return await inflightMcpProbe;
+  }
+
+  inflightMcpProbe = (async () => {
+    const started = Date.now();
+    const value = await new Promise<McpRuntimeStatus>((resolve) => {
+      const timeoutSeconds = Math.max(timeoutMs / 1000, 1).toFixed(1);
+      const child = spawn(
+        "python3",
+        [KILL_LIFE_MCP_SMOKE, "--json", "--quick", "--timeout", timeoutSeconds],
+        {
+          cwd: KILL_LIFE_ROOT,
+          env: process.env,
+          stdio: ["ignore", "pipe", "pipe"],
+        },
+      );
+
+      let stdout = "";
+      let stderr = "";
+      let settled = false;
+
+      const finish = (payload: Partial<McpRuntimeStatus>) => {
+        if (settled) return;
+        settled = true;
+        resolve({
+          ok: false,
+          status: "failed",
+          requested_runtime: "auto",
+          runtime_mode: null,
+          protocol_version: null,
+          server_name: null,
+          tool_count: 0,
+          resource_count: 0,
+          prompt_count: 0,
+          latency_ms: Date.now() - started,
+          checks: [],
+          ...payload,
+        });
+      };
+
+      const timer = setTimeout(() => {
+        child.kill("SIGKILL");
+        finish({ error: `Timed out after ${timeoutSeconds}s waiting for MCP probe` });
+      }, timeoutMs);
+
+      child.stdout.on("data", (chunk) => {
+        stdout += String(chunk);
+      });
+      child.stderr.on("data", (chunk) => {
+        stderr += String(chunk);
+      });
+      child.on("error", (error) => {
+        clearTimeout(timer);
+        finish({ error: error.message });
+      });
+      child.on("close", (code) => {
+        clearTimeout(timer);
+        const line = stdout
+          .split(/\r?\n/)
+          .map((entry) => entry.trim())
+          .filter(Boolean)
+          .at(-1);
+
+        let json: McpProbePayload | null = null;
+        if (line) {
+          try {
+            json = JSON.parse(line) as McpProbePayload;
+          } catch {
+            json = null;
+          }
+        }
+
+        finish({
+          ok: code === 0 && json?.status === "ready",
+          status: json?.status === "ready" ? "ready" : code === 0 ? "degraded" : "failed",
+          requested_runtime: json?.requested_runtime || "auto",
+          runtime_mode: json?.runtime_mode || null,
+          protocol_version: json?.protocol_version || null,
+          server_name: json?.server_name || null,
+          tool_count: json?.tool_count || 0,
+          resource_count: json?.resource_count || 0,
+          prompt_count: json?.prompt_count || 0,
+          checks: Array.isArray(json?.checks) ? json!.checks! : [],
+          error:
+            json?.error ||
+            stderr.trim() ||
+            (code === 0 ? undefined : `Probe exited with code ${code}`),
+        });
+      });
+    });
+    cachedMcpProbe = {
+      value,
+      expiresAt: Date.now() + OPS_MCP_PROBE_CACHE_TTL_MS,
+    };
+    return value;
+  })();
+
+  try {
+    return await inflightMcpProbe;
+  } finally {
+    inflightMcpProbe = null;
+  }
+}
+
 async function queryLoki(params: {
   source?: string;
   limit: number;
@@ -677,13 +832,27 @@ ops.get("/sources", async (c) =>
 
 ops.get("/summary", async (c) => {
   try {
-    const [monitor, traces, opsAgent, loki, clusterIdentity, clusterPeers] = await Promise.all([
+    const [monitor, traces, opsAgent, loki, clusterIdentity, clusterPeers, mcp] = await Promise.all([
       collectMonitorSnapshot(),
       coreClient.recentAgentTraces({ limit: 60 }),
       opsAgentJson("/summary"),
       lokiReady(),
       coreClient.clusterIdentity().catch(() => null),
       coreClient.clusterPeers().catch(() => null),
+      probeMcpRuntime().catch((error) => ({
+        ok: false,
+        status: "failed" as const,
+        requested_runtime: "auto",
+        runtime_mode: null,
+        protocol_version: null,
+        server_name: null,
+        tool_count: 0,
+        resource_count: 0,
+        prompt_count: 0,
+        latency_ms: 0,
+        checks: [],
+        error: error instanceof Error ? error.message : "MCP probe failed",
+      })),
     ]);
 
     const recentRuns = Array.from(
@@ -751,6 +920,7 @@ ops.get("/summary", async (c) => {
         peers_total: clusterPeers?.peers?.length || 0,
         peers_ok: clusterPeers?.peers?.filter((peer) => peer.ok).length || 0,
       },
+      mcp,
       ops_agent: opsAgent.json ?? null,
     });
   } catch (error) {
