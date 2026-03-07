@@ -17,7 +17,7 @@ for arg in "$@"; do
         -h|--help)
             echo "Usage: ./config [--help] [--verbose|-v]"
             echo ""
-            echo "Reconfiguration interactive du .env Mascarade. Permet de modifier cles API, ports et integrations par sections sans tout reinstaller."
+            echo "Reconfiguration interactive du .env Mascarade. Permet de modifier cles API, ports, integrations, cluster et CAD/KiCad par sections sans tout reinstaller."
             echo ""
             echo "Options :"
             echo "  -h, --help      Afficher cette aide et quitter"
@@ -49,6 +49,9 @@ declare -ag CONFIG_CLUSTER_FIELDS=(
     CLUSTER_ENABLED NODE_ID NODE_ROLE NODE_LABEL MESH_BIND_HOST MESH_SCHEME
     CLUSTER_SHARED_KEY CLUSTER_REQUEST_TIMEOUT_MS CLUSTER_HEARTBEAT_SECONDS
     CLUSTER_FORWARD_ENABLED CLUSTER_PEERS
+)
+declare -ag CONFIG_CAD_FIELDS=(
+    KICAD_VERSION KICAD_PLUGIN_DIR CAD_WORKSPACE_DIR CAD_INSTALL_BUNDLES
 )
 declare -ag CONFIG_PORT_FIELDS=(
     PUBLISH_BIND_HOST CORE_PORT API_PORT POSTGRES_PORT REDIS_PORT CLICKHOUSE_HTTP_PORT CLICKHOUSE_NATIVE_PORT OLLAMA_PORT OPEN_WEBUI_PORT EDGE_PROXY_BIND_HOST EDGE_PROXY_HTTP_PORT EDGE_PROXY_HTTPS_PORT
@@ -160,6 +163,7 @@ capture_config_snapshot() {
         CLUSTER_ENABLED NODE_ID NODE_ROLE NODE_LABEL MESH_BIND_HOST MESH_SCHEME
         CLUSTER_SHARED_KEY CLUSTER_REQUEST_TIMEOUT_MS CLUSTER_HEARTBEAT_SECONDS
         CLUSTER_FORWARD_ENABLED CLUSTER_PEERS
+        KICAD_VERSION KICAD_PLUGIN_DIR CAD_WORKSPACE_DIR CAD_INSTALL_BUNDLES
         NOTION_API_KEY COMFYUI_URL COMFYUI_LOCAL
         PUBLISH_BIND_HOST CORE_PORT API_PORT POSTGRES_PORT REDIS_PORT CLICKHOUSE_HTTP_PORT CLICKHOUSE_NATIVE_PORT OLLAMA_PORT OPEN_WEBUI_PORT EDGE_PROXY_BIND_HOST EDGE_PROXY_HTTP_PORT EDGE_PROXY_HTTPS_PORT
         LITELLM_PORT N8N_PORT LANGFUSE_PORT DIFY_API_PORT DIFY_WEB_PORT TTS_PORT STT_PORT
@@ -203,6 +207,23 @@ show_active_stack_overview() {
     show_service_selection_summary "${ACTIVE_SERVICE_IDS[@]}"
 
     return 0
+}
+
+config_default_kicad_plugin_dir() {
+    local version="${KICAD_VERSION:-9.0}"
+    if is_macos; then
+        printf '%s/Library/Application Support/kicad/%s/scripting/plugins\n' "$HOME" "$version"
+    else
+        printf '%s/.config/kicad/%s/scripting/plugins\n' "$HOME" "$version"
+    fi
+}
+
+config_effective_cad_workspace_dir() {
+    if [[ -n "${CAD_WORKSPACE_DIR:-}" ]]; then
+        echo "$CAD_WORKSPACE_DIR"
+    else
+        echo "$REPO_DIR"
+    fi
 }
 
 configure_api_keys_section() {
@@ -295,6 +316,37 @@ configure_integrations_section() {
     return 0
 }
 
+configure_cad_section() {
+    config_mark_scope "cad"
+    section "CAD / KiCad"
+    info "Configurer le dossier plugins KiCad, le workspace CAD et les bundles a installer."
+    info "Entree = conserver, '-' = vider une valeur optionnelle."
+    echo ""
+
+    KICAD_VERSION=$(input_value "Version KiCad :" "${KICAD_VERSION:-9.0}")
+    KICAD_PLUGIN_DIR=$(input_optional_value "Repertoire plugins KiCad (optionnel) :" "${KICAD_PLUGIN_DIR:-}")
+    CAD_WORKSPACE_DIR=$(input_optional_value "Workspace CAD (optionnel) :" "${CAD_WORKSPACE_DIR:-}")
+
+    echo ""
+    menu_select "Bundles plugins a preparer :" \
+        "All plugins (Recommended)" \
+        "Fabrication Toolkit only" \
+        "KIC-AI only"
+    case "$MENU_RESULT" in
+        0)
+            CAD_INSTALL_BUNDLES="all"
+            ;;
+        1)
+            CAD_INSTALL_BUNDLES="fabrication-toolkit"
+            ;;
+        2)
+            CAD_INSTALL_BUNDLES="kic-ai"
+            ;;
+    esac
+
+    return 0
+}
+
 configure_cluster_section() {
     config_mark_scope "cluster"
     section "Cluster multi-machine"
@@ -368,13 +420,15 @@ configure_ports_section() {
 }
 
 run_guided_config() {
-    step_progress 1 4 "Cles API et defaut LLM"
+    step_progress 1 5 "Cles API et defaut LLM"
     configure_api_keys_section
-    step_progress 2 4 "Integrations externes"
+    step_progress 2 5 "Integrations externes"
     configure_integrations_section
-    step_progress 3 4 "Cluster multi-machine"
+    step_progress 3 5 "Cluster multi-machine"
     configure_cluster_section
-    step_progress 4 4 "Ports exposes"
+    step_progress 4 5 "CAD / KiCad"
+    configure_cad_section
+    step_progress 5 5 "Ports exposes"
     configure_ports_section
 
     return 0
@@ -449,6 +503,29 @@ show_cluster_summary() {
     return 0
 }
 
+show_cad_summary() {
+    echo -e "  ${BOLD}CAD / KiCad${NC}"
+
+    local plugin_dir="${KICAD_PLUGIN_DIR:-}"
+    local plugin_note=""
+    if [[ -z "$plugin_dir" ]]; then
+        plugin_dir="$(config_default_kicad_plugin_dir)"
+        plugin_note=" ${DIM}(auto)${NC}"
+    fi
+
+    local workspace_dir
+    workspace_dir="$(config_effective_cad_workspace_dir)"
+    if [[ -z "${CAD_WORKSPACE_DIR:-}" ]]; then
+        workspace_dir+=" ${DIM}(repo root)${NC}"
+    fi
+
+    echo -e "    KiCad : ${KICAD_VERSION:-9.0}"
+    echo -e "    Plugin dir : ${plugin_dir}${plugin_note}"
+    echo -e "    Bundles : ${CAD_INSTALL_BUNDLES:-all}"
+    echo -e "    Workspace CAD : ${workspace_dir}"
+    return 0
+}
+
 has_port_changes() {
     local var
     for var in "${CONFIG_PORT_FIELDS[@]}"; do
@@ -483,6 +560,28 @@ validate_cluster_section() {
             return 1
         fi
     done
+
+    return 0
+}
+
+validate_cad_section() {
+    local version="${KICAD_VERSION:-}"
+    local bundles="${CAD_INSTALL_BUNDLES:-all}"
+
+    if [[ -z "$version" ]]; then
+        err "Configuration CAD incomplete: KICAD_VERSION est vide"
+        return 1
+    fi
+
+    case "$bundles" in
+        all|fabrication-toolkit|kic-ai)
+            ;;
+        *)
+            err "CAD_INSTALL_BUNDLES invalide: $bundles"
+            info "Valeurs attendues: all | fabrication-toolkit | kic-ai"
+            return 1
+            ;;
+    esac
 
     return 0
 }
@@ -529,6 +628,10 @@ show_config_summary() {
     fi
     if [[ "${CONFIG_SCOPE_TOUCHED[cluster]:-0}" == "1" || "$CONFIG_SCOPE_LABEL" == "Configuration complete" ]]; then
         show_cluster_summary
+        echo ""
+    fi
+    if [[ "${CONFIG_SCOPE_TOUCHED[cad]:-0}" == "1" || "$CONFIG_SCOPE_LABEL" == "Configuration complete" ]]; then
+        show_cad_summary
         echo ""
     fi
     if [[ "${CONFIG_SCOPE_TOUCHED[ports]:-0}" == "1" || "$CONFIG_SCOPE_LABEL" == "Configuration complete" ]]; then
@@ -583,10 +686,11 @@ show_active_stack_overview
 # ── Menu principal ──
 echo ""
 menu_select "Que voulez-vous reconfigurer ?" \
-    "Assistant guide — cles API, integrations, cluster, ports" \
+    "Assistant guide — cles API, integrations, cluster, CAD, ports" \
     "Cles API LLM + defaut" \
     "Integrations (Notion, ComfyUI)" \
     "Cluster multi-machine" \
+    "CAD / KiCad" \
     "Ports des services actifs" \
     "Tout reconfigurer"
 
@@ -612,14 +716,19 @@ case $config_choice in
         configure_cluster_section
         ;;
     4)
+        CONFIG_SCOPE_LABEL="CAD / KiCad"
+        configure_cad_section
+        ;;
+    5)
         CONFIG_SCOPE_LABEL="Ports des services"
         configure_ports_section
         ;;
-    5)
+    6)
         CONFIG_SCOPE_LABEL="Configuration complete"
         config_mark_scope "api_keys"
         config_mark_scope "integrations"
         config_mark_scope "cluster"
+        config_mark_scope "cad"
         config_mark_scope "ports"
         section "Configuration complete"
         for mod_file in "$REPO_DIR/scripts/modules/"*.sh; do
@@ -629,6 +738,7 @@ case $config_choice in
         done
         collect_module_configs
         sync_service_ports_from_env
+        configure_cad_section
         ;;
 esac
 
@@ -637,6 +747,7 @@ echo ""
 section "Preparation du diff"
 
 validate_cluster_section || exit 2
+validate_cad_section || exit 2
 
 dbg "Ecriture .env temporaire pour diff..."
 tmp_dir=$(mktemp -d)

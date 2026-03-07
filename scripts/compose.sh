@@ -388,6 +388,13 @@ write_env_file() {
             echo ""
         fi
 
+        echo "# ── CAD / KiCad ──"
+        echo "KICAD_VERSION=\"${KICAD_VERSION:-9.0}\""
+        echo "KICAD_PLUGIN_DIR=\"${KICAD_PLUGIN_DIR:-}\""
+        echo "CAD_WORKSPACE_DIR=\"${CAD_WORKSPACE_DIR:-}\""
+        echo "CAD_INSTALL_BUNDLES=\"${CAD_INSTALL_BUNDLES:-all}\""
+        echo ""
+
         # Notion
         [[ -n "${NOTION_API_KEY:-}" ]] && echo "# ── Notion ──" && echo "NOTION_API_KEY=\"$NOTION_API_KEY\"" && echo ""
 
