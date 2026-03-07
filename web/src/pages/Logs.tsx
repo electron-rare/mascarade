@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import {
   type OpsLogEntry,
+  type OpsMcpServerStatus,
   type OpsLogSource,
   type OpsSourceStatus,
   type OpsSummary,
@@ -166,6 +167,32 @@ function matchesRoutingTraceEvent(
 
 function sourceTone(available: boolean): "accent" | "error" {
   return available ? "accent" : "error";
+}
+
+function mcpTone(status?: string): "accent" | "warning" | "error" | "muted" {
+  if (status === "ready") return "accent";
+  if (status === "degraded") return "warning";
+  if (status === "failed") return "error";
+  return "muted";
+}
+
+function formatLatency(ms?: number | null): string {
+  if (!Number.isFinite(ms) || !ms || ms <= 0) return "-";
+  return `${Math.round(ms)} ms`;
+}
+
+function formatMcpName(name?: string | null): string {
+  if (!name) return "unknown";
+  return name.replace(/[-_]/g, " ");
+}
+
+function summarizeMcpServer(server: OpsMcpServerStatus): string {
+  const stats = `${server.tool_count} tools / ${server.resource_count} resources / ${server.prompt_count} prompts`;
+  if (server.error) return `${stats} / ${server.error}`;
+  if (server.checks && server.checks.length > 0) {
+    return `${stats} / ${server.checks.join(" / ")}`;
+  }
+  return stats;
 }
 
 function severityRank(severity: OpsLogEntry["severity"]): number {
@@ -367,6 +394,16 @@ export default function Logs() {
       ),
     [routingFilters, runDetail.data?.events],
   );
+  const mcp = summary.data?.mcp;
+  const mcpServers = Object.entries(mcp?.servers ?? {});
+  const mcpPrimary = mcp?.primary ?? null;
+  const mcpAggregateStatus = mcp?.aggregate_status ?? mcp?.status ?? "pending";
+  const mcpPrimaryName = mcp?.primary_server ?? mcpPrimary?.server_name ?? mcp?.server_name ?? "unknown";
+  const mcpPrimaryStatus = mcpPrimary?.status ?? mcp?.status ?? "pending";
+  const mcpPrimarySurface = mcpPrimary ?? mcp;
+  const mcpServerCount = mcp?.server_count ?? mcpServers.length;
+  const mcpServersOk = mcp?.servers_ok ?? mcpServers.filter(([, server]) => server.ok).length;
+  const mcpDegradedServers = mcp?.degraded_servers ?? [];
 
   useEffect(() => {
     const next = new URLSearchParams();
@@ -659,6 +696,9 @@ export default function Logs() {
                 <span className="status-chip border-border/80 bg-black/30 text-muted">
                   mode {mode}
                 </span>
+                <span className="status-chip border-border/80 bg-black/30 text-muted">
+                  mcp {mcpAggregateStatus}
+                </span>
                 <span className={["status-chip", paused ? "border-[#7a2436] bg-[#18070d]/80 text-error" : "border-[#214e31] bg-[#0c170f]/80 text-[#8cffb7]"].join(" ")}>
                   {mode === "history"
                     ? "history query"
@@ -754,113 +794,180 @@ export default function Logs() {
           </div>
         </Card>
 
-        <Card title="Feed filters">
-          <div className="space-y-4">
-            <Select
-              label="Mode"
-              value={mode}
-              onChange={(event) => setMode(event.target.value as "live" | "history")}
-              options={modeOptions}
-            />
-            <Select
-              label="Source"
-              value={source}
-              onChange={(event) => setSource(event.target.value as typeof source)}
-              options={sourceOptions}
-            />
-            <Select
-              label="Severity"
-              value={severity}
-              onChange={(event) => setSeverity(event.target.value as typeof severity)}
-              options={severityOptions}
-            />
-            <Input
-              label="Run id"
-              value={runIdFilter}
-              onChange={(event) => setRunIdFilter(event.target.value)}
-              placeholder="ab12cd34..."
-            />
-            <Input
-              label="Agent filter"
-              value={agentFilter}
-              onChange={(event) => setAgentFilter(event.target.value)}
-              placeholder="agent-zero, planner..."
-            />
-            <Input
-              label="Event type"
-              value={eventTypeFilter}
-              onChange={(event) => setEventTypeFilter(event.target.value)}
-              placeholder="handoff, run_failed..."
-            />
-            <Input
-              label="Routing role"
-              value={routingRoleFilter}
-              onChange={(event) => setRoutingRoleFilter(event.target.value)}
-              placeholder="gpu, general, worker..."
-            />
-            <Input
-              label="Routing provider"
-              value={routingProviderFilter}
-              onChange={(event) => setRoutingProviderFilter(event.target.value)}
-              placeholder="ollama, mistral..."
-            />
-            <Input
-              label="Routing model"
-              value={routingModelFilter}
-              onChange={(event) => setRoutingModelFilter(event.target.value)}
-              placeholder="llama3.2:3b, mistral-large..."
-            />
-            <Input
-              label="Service filter"
-              value={serviceFilter}
-              onChange={(event) => setServiceFilter(event.target.value)}
-              placeholder="core, api, postgres..."
-            />
-            {mode === "history" ? (
-              <>
-                <Select
-                  label="History window"
-                  value={historyWindow}
-                  onChange={(event) => setHistoryWindow(event.target.value)}
-                  options={historyWindowOptions}
-                />
-                <Input
-                  label="Search text"
-                  value={queryText}
-                  onChange={(event) => setQueryText(event.target.value)}
-                  placeholder="failed, exception, handoff..."
-                />
-              </>
-            ) : null}
-            <div className="flex flex-wrap gap-3">
-              <Button
-                variant="ghost"
-                className="border border-border/80"
-                onClick={() => {
-                  setSource("all");
-                  setSeverity("info");
-                  setRunIdFilter("");
-                  setAgentFilter("");
-                  setEventTypeFilter("");
-                  setRoutingRoleFilter("");
-                  setRoutingProviderFilter("");
-                  setRoutingModelFilter("");
-                  setServiceFilter("");
-                  setQueryText("");
-                  setHistoryWindow("1h");
-                }}
-              >
-                reset filters
-              </Button>
-              <Link
-                to="/orchestrate"
-                className="rounded-2xl border border-accent/35 px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-accent transition hover:bg-accent/10"
-              >
-                frame with agent-zero
-              </Link>
+        <div className="grid gap-4">
+          <Card title="Feed filters">
+            <div className="space-y-4">
+              <Select
+                label="Mode"
+                value={mode}
+                onChange={(event) => setMode(event.target.value as "live" | "history")}
+                options={modeOptions}
+              />
+              <Select
+                label="Source"
+                value={source}
+                onChange={(event) => setSource(event.target.value as typeof source)}
+                options={sourceOptions}
+              />
+              <Select
+                label="Severity"
+                value={severity}
+                onChange={(event) => setSeverity(event.target.value as typeof severity)}
+                options={severityOptions}
+              />
+              <Input
+                label="Run id"
+                value={runIdFilter}
+                onChange={(event) => setRunIdFilter(event.target.value)}
+                placeholder="ab12cd34..."
+              />
+              <Input
+                label="Agent filter"
+                value={agentFilter}
+                onChange={(event) => setAgentFilter(event.target.value)}
+                placeholder="agent-zero, planner..."
+              />
+              <Input
+                label="Event type"
+                value={eventTypeFilter}
+                onChange={(event) => setEventTypeFilter(event.target.value)}
+                placeholder="handoff, run_failed..."
+              />
+              <Input
+                label="Routing role"
+                value={routingRoleFilter}
+                onChange={(event) => setRoutingRoleFilter(event.target.value)}
+                placeholder="gpu, general, worker..."
+              />
+              <Input
+                label="Routing provider"
+                value={routingProviderFilter}
+                onChange={(event) => setRoutingProviderFilter(event.target.value)}
+                placeholder="ollama, mistral..."
+              />
+              <Input
+                label="Routing model"
+                value={routingModelFilter}
+                onChange={(event) => setRoutingModelFilter(event.target.value)}
+                placeholder="llama3.2:3b, mistral-large..."
+              />
+              <Input
+                label="Service filter"
+                value={serviceFilter}
+                onChange={(event) => setServiceFilter(event.target.value)}
+                placeholder="core, api, postgres..."
+              />
+              {mode === "history" ? (
+                <>
+                  <Select
+                    label="History window"
+                    value={historyWindow}
+                    onChange={(event) => setHistoryWindow(event.target.value)}
+                    options={historyWindowOptions}
+                  />
+                  <Input
+                    label="Search text"
+                    value={queryText}
+                    onChange={(event) => setQueryText(event.target.value)}
+                    placeholder="failed, exception, handoff..."
+                  />
+                </>
+              ) : null}
+              <div className="flex flex-wrap gap-3">
+                <Button
+                  variant="ghost"
+                  className="border border-border/80"
+                  onClick={() => {
+                    setSource("all");
+                    setSeverity("info");
+                    setRunIdFilter("");
+                    setAgentFilter("");
+                    setEventTypeFilter("");
+                    setRoutingRoleFilter("");
+                    setRoutingProviderFilter("");
+                    setRoutingModelFilter("");
+                    setServiceFilter("");
+                    setQueryText("");
+                    setHistoryWindow("1h");
+                  }}
+                >
+                  reset filters
+                </Button>
+                <Link
+                  to="/orchestrate"
+                  className="rounded-2xl border border-accent/35 px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-accent transition hover:bg-accent/10"
+                >
+                  frame with agent-zero
+                </Link>
+              </div>
             </div>
-          </div>
-        </Card>
+          </Card>
+
+          <Card title="MCP widget">
+            {!mcp ? (
+              <InlineNotice
+                title="mcp pending"
+                message="Le resume ops ne contient pas encore de bloc MCP."
+              />
+            ) : (
+              <div className="space-y-4">
+                <div className="flex flex-wrap gap-2">
+                  <Badge color={mcpTone(mcpAggregateStatus)}>{mcpAggregateStatus}</Badge>
+                  <Badge color={mcpTone(mcpPrimaryStatus)}>{formatMcpName(mcpPrimaryName)}</Badge>
+                  {mcpPrimarySurface?.runtime_mode ? (
+                    <Badge color="muted">runtime {mcpPrimarySurface.runtime_mode}</Badge>
+                  ) : null}
+                  {mcpPrimarySurface?.protocol_version ? (
+                    <Badge color="muted">protocol {mcpPrimarySurface.protocol_version}</Badge>
+                  ) : null}
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="rounded-[1.4rem] border border-border/80 bg-black/25 p-4">
+                    <p className="text-[10px] uppercase tracking-[0.2em] text-muted">servers ok</p>
+                    <p className="mt-3 text-xl font-semibold uppercase tracking-[0.14em] text-accent">
+                      {mcpServersOk} / {mcpServerCount}
+                    </p>
+                    <p className="mt-2 text-[12px] leading-5 text-amber-100/46">
+                      Etat global de la suite MCP surveillee.
+                    </p>
+                  </div>
+                  <div className="rounded-[1.4rem] border border-border/80 bg-black/25 p-4">
+                    <p className="text-[10px] uppercase tracking-[0.2em] text-muted">primary latency</p>
+                    <p className="mt-3 text-xl font-semibold uppercase tracking-[0.14em] text-accent">
+                      {formatLatency(mcpPrimarySurface?.latency_ms)}
+                    </p>
+                    <p className="mt-2 text-[12px] leading-5 text-amber-100/46">
+                      Handshake et listing du serveur MCP primaire.
+                    </p>
+                  </div>
+                </div>
+                {mcpDegradedServers.length > 0 ? (
+                  <InlineNotice
+                    title="degraded servers"
+                    message={mcpDegradedServers.map((name) => formatMcpName(name)).join(" / ")}
+                  />
+                ) : null}
+                <div className="space-y-3">
+                  {mcpServers.map(([name, server]) => (
+                    <div
+                      key={name}
+                      className="rounded-[1.4rem] border border-border/80 bg-black/25 p-4"
+                    >
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Badge color={mcpTone(server.status)}>{server.status}</Badge>
+                        <Badge color="muted">{formatMcpName(name)}</Badge>
+                        {server.runtime_mode ? <Badge color="muted">runtime {server.runtime_mode}</Badge> : null}
+                      </div>
+                      <p className="mt-3 text-sm leading-6 text-amber-100/72">
+                        {summarizeMcpServer(server)}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </Card>
+        </div>
       </section>
 
       <section className="grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(340px,0.8fr)]">
