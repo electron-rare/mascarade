@@ -38,12 +38,16 @@ class _FakeCuda:
     def __init__(self, available: bool):
         self._available = available
         self.seed = None
+        self.cache_cleared = False
 
     def is_available(self) -> bool:
         return self._available
 
     def manual_seed_all(self, seed: int) -> None:
         self.seed = seed
+
+    def empty_cache(self) -> None:
+        self.cache_cleared = True
 
 
 class _FakeTorch:
@@ -168,6 +172,9 @@ async def test_health_reports_runtime_readiness(monkeypatch, service_module):
         "loaded_engine": None,
         "loaded_model": None,
         "loaded_device": None,
+        "keep_loaded": False,
+        "idle_unload_seconds": 0,
+        "inflight_requests": 0,
     }
 
 
@@ -185,6 +192,9 @@ async def test_health_reports_runtime_failures(monkeypatch, service_module):
     assert response.json()["runtime_ready"] is False
     assert response.json()["runtime_error"] == "deps missing"
     assert response.json()["model_loaded"] is False
+    assert response.json()["keep_loaded"] is False
+    assert response.json()["idle_unload_seconds"] == 0
+    assert response.json()["inflight_requests"] == 0
 
 
 @pytest.mark.asyncio
@@ -213,6 +223,7 @@ async def test_generate_returns_wav_for_audiogen(monkeypatch, service_module):
     assert response.content.startswith(b"RIFF")
     assert registry["AudioGen"].params == [1.0]
     assert registry["AudioGen"].prompts == ["hello world"]
+    assert service_module._loaded["obj"] is None
 
 
 @pytest.mark.asyncio
@@ -258,6 +269,53 @@ async def test_generate_falls_back_to_cpu_when_cuda_unavailable(monkeypatch, ser
     assert response.status_code == 200
     assert response.headers["x-audio-device"] == "cpu"
     assert registry["AudioGen"].device == "cpu"
+
+
+@pytest.mark.asyncio
+async def test_generate_keeps_model_loaded_when_enabled(monkeypatch, service_module):
+    fake_torch = _FakeTorch(cuda_available=False)
+    fake_torchaudio = _FakeTorchaudio()
+    registry = {}
+
+    monkeypatch.setattr(service_module, "_import_torch_stack", lambda: (fake_torch, fake_torchaudio))
+    monkeypatch.setenv("GENERATE_AUDIO_KEEP_LOADED", "true")
+    _install_fake_audiocraft(monkeypatch, registry)
+
+    async with _client(service_module.app) as client:
+        response = await client.post(
+            "/generate",
+            json={"prompt": "keep warm", "duration": 1.0},
+        )
+
+    assert response.status_code == 200
+    assert service_module._loaded["obj"] is registry["AudioGen"]
+    assert service_module._loaded["inflight"] == 0
+
+
+@pytest.mark.asyncio
+async def test_unload_endpoint_clears_loaded_model(monkeypatch, service_module):
+    fake_torch = _FakeTorch(cuda_available=True)
+    fake_torchaudio = _FakeTorchaudio()
+    registry = {}
+
+    monkeypatch.setattr(service_module, "_import_torch_stack", lambda: (fake_torch, fake_torchaudio))
+    monkeypatch.setenv("GENERATE_AUDIO_KEEP_LOADED", "true")
+    _install_fake_audiocraft(monkeypatch, registry)
+
+    async with _client(service_module.app) as client:
+        response = await client.post(
+            "/generate",
+            json={"prompt": "clear cache", "duration": 1.0},
+        )
+        assert response.status_code == 200
+        assert service_module._loaded["obj"] is registry["AudioGen"]
+
+        unload_response = await client.post("/unload")
+
+    assert unload_response.status_code == 200
+    assert unload_response.json() == {"ok": True, "unloaded": True}
+    assert service_module._loaded["obj"] is None
+    assert fake_torch.cuda.cache_cleared is True
 
 
 @pytest.mark.asyncio

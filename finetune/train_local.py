@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
 # ruff: noqa: E402
-"""Local fine-tuning script for Quadro P2000 (5GB VRAM).
+"""Local GPU fine-tuning script with 4-bit QLoRA.
 
-Reads ShareGPT JSONL datasets and trains with QLoRA on TinyLlama-1.1B.
+Reads ShareGPT JSONL datasets and trains a local student model.
 
 Usage:
   python train_local.py stm32           # Train on STM32 dataset
   python train_local.py kicad           # Train on KiCad dataset
   python train_local.py all             # Train all domains sequentially
   python train_local.py stm32 --eval    # Evaluate after training
-  python train_local.py stm32 --model Qwen/Qwen2.5-Coder-1.5B
+  python train_local.py stm32 --model Qwen/Qwen2.5-Coder-7B-Instruct
 """
 
 import argparse
@@ -18,10 +18,13 @@ import os
 import gc
 import sys
 import warnings
+from itertools import chain
+from importlib.util import find_spec
 
 if "--quiet" in sys.argv:
     warnings.filterwarnings("ignore")
 
+import transformers
 from runtime_compat import disable_broken_torchvision
 
 _RUNTIME_COMPAT_NOTE = disable_broken_torchvision()
@@ -30,6 +33,7 @@ import torch
 from datasets import Dataset
 from datasets.utils.logging import disable_progress_bar, enable_progress_bar
 from transformers import (
+    AutoConfig,
     AutoModelForCausalLM,
     AutoTokenizer,
     BitsAndBytesConfig,
@@ -69,6 +73,30 @@ LORA_TARGETS = {
     "phi": ["q_proj", "v_proj", "k_proj", "dense"],
 }
 
+TEACHER_ONLY_STUDENT_PATTERNS = {
+    "qwen/qwen3.5-35b-a3b-gptq-int4": (
+        "teacher-only in this pipeline: GPTQ Int4 MoE checkpoint intended for inference/teacher use"
+    ),
+    "qwen/qwen3-next-80b-a3b-instruct-fp8": (
+        "teacher-only in this pipeline: FP8 MoE checkpoint intended for serving/teacher use"
+    ),
+    "devstral-small-2507": (
+        "teacher-only in this pipeline: Mistral coding teacher/inference model"
+    ),
+    "mistral-small-3.1": (
+        "teacher-only in this pipeline: Mistral teacher/inference model"
+    ),
+    "deepseek-ai/deepseek-r1": (
+        "teacher-only in this pipeline: DeepSeek reasoning teacher model"
+    ),
+    "deepseek-ai/deepseek-v3": (
+        "teacher-only in this pipeline: DeepSeek V3 teacher model"
+    ),
+    "deepseek-ai/deepseek-coder-v2-lite-instruct": (
+        "teacher-only in this pipeline: DeepSeek coder teacher model for code-domain distillation"
+    ),
+}
+
 
 def detect_lora_targets(model_name: str) -> list[str]:
     name = model_name.lower()
@@ -76,6 +104,55 @@ def detect_lora_targets(model_name: str) -> list[str]:
         if key in name:
             return targets
     return ["q_proj", "v_proj"]
+
+
+def resolve_model_type(model_name: str) -> str | None:
+    try:
+        config = AutoConfig.from_pretrained(model_name, trust_remote_code=True)
+    except Exception:
+        return None
+    return getattr(config, "model_type", None)
+
+
+def assert_supported_student_model(model_name: str) -> None:
+    name = model_name.lower()
+    for pattern, reason in TEACHER_ONLY_STUDENT_PATTERNS.items():
+        if pattern in name:
+            raise ValueError(f"Unsupported student model {model_name}: {reason}")
+
+
+def load_quantized_model(
+    model_name: str,
+    bnb_config: BitsAndBytesConfig,
+    *,
+    attn_implementation: str | None = None,
+):
+    model_type = resolve_model_type(model_name)
+    common_kwargs = {
+        "quantization_config": bnb_config,
+        "device_map": "auto",
+        "trust_remote_code": True,
+    }
+    if attn_implementation is not None:
+        common_kwargs["attn_implementation"] = attn_implementation
+
+    if model_type == "qwen3_5":
+        try:
+            from transformers import Qwen3_5ForConditionalGeneration
+        except Exception as exc:
+            raise RuntimeError(
+                "Qwen3.5 models require a transformers build with qwen3_5 support. "
+                f"Current transformers version: {transformers.__version__}"
+            ) from exc
+        return Qwen3_5ForConditionalGeneration.from_pretrained(
+            model_name,
+            **common_kwargs,
+        )
+
+    return AutoModelForCausalLM.from_pretrained(
+        model_name,
+        **common_kwargs,
+    )
 
 
 def format_chat(convos: list[dict], model_name: str) -> str:
@@ -145,6 +222,113 @@ def resolve_tokenize_workers(requested: int | None, sample_count: int) -> int:
     return max(1, min(requested, sample_count))
 
 
+def supports_bf16() -> bool:
+    return bool(torch.cuda.is_available() and torch.cuda.is_bf16_supported())
+
+
+def resolve_compute_dtype() -> torch.dtype:
+    return torch.bfloat16 if supports_bf16() else torch.float16
+
+
+def resolve_attention_implementation() -> str | None:
+    requested = os.environ.get("MASCARADE_ATTN_IMPL", "auto").strip().lower()
+    if requested in {"", "auto"}:
+        if find_spec("flash_attn") is not None:
+            return "flash_attention_2"
+        if torch.cuda.is_available():
+            return "sdpa"
+        return None
+    if requested in {"none", "off"}:
+        return None
+    return requested
+
+
+def load_quantized_model_with_fallback(
+    model_name: str,
+    bnb_config: BitsAndBytesConfig,
+    attn_implementation: str | None,
+):
+    try:
+        return load_quantized_model(
+            model_name,
+            bnb_config,
+            attn_implementation=attn_implementation,
+        ), attn_implementation
+    except TypeError:
+        if attn_implementation is None:
+            raise
+    except Exception as exc:
+        if attn_implementation is None:
+            raise
+        if "flash_attention_2" not in str(exc).lower():
+            raise
+    model = load_quantized_model(model_name, bnb_config, attn_implementation=None)
+    return model, None
+
+
+def tokenize_dataset(
+    dataset: Dataset,
+    *,
+    tokenizer,
+    max_seq_len: int,
+    tokenize_workers: int,
+    packing: bool,
+):
+    def tokenize_dynamic(examples):
+        return tokenizer(
+            examples["text"],
+            truncation=False,
+            padding=False,
+        )
+
+    def tokenize_eval(examples):
+        return tokenizer(
+            examples["text"],
+            truncation=True,
+            max_length=max_seq_len,
+            padding=False,
+        )
+
+    def group_texts(examples):
+        concatenated_examples = {
+            key: list(chain.from_iterable(examples[key])) for key in examples.keys()
+        }
+        total_length = len(concatenated_examples["input_ids"])
+        if total_length < max_seq_len:
+            return {key: [] for key in concatenated_examples}
+        total_length = (total_length // max_seq_len) * max_seq_len
+        return {
+            key: [
+                values[i : i + max_seq_len]
+                for i in range(0, total_length, max_seq_len)
+            ]
+            for key, values in concatenated_examples.items()
+        }
+
+    map_kwargs = {
+        "batched": True,
+        "remove_columns": ["text"],
+    }
+    if tokenize_workers > 1:
+        map_kwargs["num_proc"] = tokenize_workers
+
+    train_tokenized = dataset["train"].map(tokenize_dynamic, **map_kwargs)
+    eval_tokenized = dataset["test"].map(tokenize_eval, **map_kwargs)
+
+    if not packing:
+        return train_tokenized, eval_tokenized, False
+
+    packing_kwargs = {
+        "batched": True,
+    }
+    if tokenize_workers > 1:
+        packing_kwargs["num_proc"] = tokenize_workers
+    packed_train = train_tokenized.map(group_texts, **packing_kwargs)
+    if len(packed_train) == 0:
+        return train_tokenized, eval_tokenized, False
+    return packed_train, eval_tokenized, True
+
+
 def train_domain(
     domain: str,
     model_name: str = DEFAULT_MODEL,
@@ -179,6 +363,7 @@ def train_domain(
 
     output_dir = output_dir or os.path.join(OUTPUT_DIR, domain)
     os.makedirs(output_dir, exist_ok=True)
+    assert_supported_student_model(model_name)
 
     if quiet:
         emit(
@@ -211,15 +396,6 @@ def train_domain(
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
 
-    # Tokenize
-    def tokenize(examples):
-        return tokenizer(
-            examples["text"],
-            truncation=True,
-            max_length=max_seq_len,
-            padding="max_length",
-        )
-
     dataset = Dataset.from_dict({"text": texts})
     if len(dataset) < 2:
         raise ValueError(f"Dataset {dataset_path} needs at least 2 samples to train.")
@@ -229,14 +405,20 @@ def train_domain(
     resolved_tokenize_workers = resolve_tokenize_workers(tokenize_workers, len(dataset))
     if resolved_tokenize_workers > 1:
         os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
-    map_kwargs = {
-        "batched": True,
-        "remove_columns": ["text"],
+    packing_enabled = os.environ.get("MASCARADE_TRAIN_PACKING", "1").strip().lower() not in {
+        "0",
+        "false",
+        "no",
+        "off",
     }
-    if resolved_tokenize_workers > 1:
-        map_kwargs["num_proc"] = resolved_tokenize_workers
     try:
-        tokenized = split.map(tokenize, **map_kwargs)
+        train_dataset, eval_dataset, used_packing = tokenize_dataset(
+            split,
+            tokenizer=tokenizer,
+            max_seq_len=max_seq_len,
+            tokenize_workers=resolved_tokenize_workers,
+            packing=packing_enabled,
+        )
     except Exception as exc:
         if resolved_tokenize_workers <= 1:
             raise
@@ -244,36 +426,57 @@ def train_domain(
             f"[WARN] tokenize workers fallback to 1 ({exc.__class__.__name__}: {exc})",
             important=True,
         )
-        tokenized = split.map(tokenize, batched=True, remove_columns=["text"])
+        train_dataset, eval_dataset, used_packing = tokenize_dataset(
+            split,
+            tokenizer=tokenizer,
+            max_seq_len=max_seq_len,
+            tokenize_workers=1,
+            packing=packing_enabled,
+        )
         resolved_tokenize_workers = 1
     emit(
-        f"  Train: {len(tokenized['train'])}, Test: {len(tokenized['test'])}",
+        f"  Train: {len(train_dataset)}, Test: {len(eval_dataset)}",
         important=verbose,
     )
     emit(f"  Tokenize workers: {resolved_tokenize_workers}", important=verbose)
+    emit(f"  Packing: {used_packing}", important=verbose)
 
     # 3. Load model with 4-bit quantization
     emit("\n[3/5] Loading model (4-bit quantized)...")
     os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
+    torch.backends.cuda.matmul.allow_tf32 = True
+    torch.backends.cudnn.allow_tf32 = True
+    if hasattr(torch, "set_float32_matmul_precision"):
+        torch.set_float32_matmul_precision("high")
+
+    compute_dtype = resolve_compute_dtype()
+    attn_implementation = resolve_attention_implementation()
 
     bnb_config = BitsAndBytesConfig(
         load_in_4bit=True,
-        bnb_4bit_compute_dtype=torch.float16,
+        bnb_4bit_compute_dtype=compute_dtype,
         bnb_4bit_quant_type="nf4",
         bnb_4bit_use_double_quant=True,
     )
 
-    model = AutoModelForCausalLM.from_pretrained(
+    model, resolved_attn_implementation = load_quantized_model_with_fallback(
         model_name,
-        quantization_config=bnb_config,
-        device_map="auto",
-        trust_remote_code=True,
+        bnb_config,
+        attn_implementation,
     )
     model = prepare_model_for_kbit_training(model)
     model.config.use_cache = False
 
     mem_mb = torch.cuda.memory_allocated() / 1024**2
     emit(f"  Model loaded: {mem_mb:.0f} MB GPU", important=verbose)
+    emit(
+        f"  Compute dtype: {'bf16' if compute_dtype == torch.bfloat16 else 'fp16'}",
+        important=verbose,
+    )
+    emit(
+        f"  Attention: {resolved_attn_implementation or 'default'}",
+        important=verbose,
+    )
 
     # 4. Configure LoRA
     emit("\n[4/5] Configuring LoRA...")
@@ -303,19 +506,23 @@ def train_domain(
         learning_rate=2e-4,
         lr_scheduler_type="cosine",
         warmup_steps=50,
-        fp16=True,
+        fp16=compute_dtype == torch.float16,
+        bf16=compute_dtype == torch.bfloat16,
+        tf32=True,
         optim="paged_adamw_8bit",
         logging_steps=25,
         logging_strategy="no" if quiet else "steps",
         save_steps=500,
         save_total_limit=2,
-        eval_strategy="steps" if len(tokenized["test"]) > 0 else "no",
+        eval_strategy="steps" if len(eval_dataset) > 0 else "no",
         eval_steps=500,
         gradient_checkpointing=True,
         gradient_checkpointing_kwargs={"use_reentrant": False},
         report_to="none",
         load_best_model_at_end=False,
-        dataloader_pin_memory=False,
+        dataloader_pin_memory=True,
+        dataloader_num_workers=max(1, min(4, resolved_tokenize_workers)),
+        dataloader_persistent_workers=resolved_tokenize_workers > 1,
         disable_tqdm=quiet,
         log_level="error" if quiet else ("info" if verbose else "warning"),
     )
@@ -323,8 +530,8 @@ def train_domain(
     trainer = Trainer(
         model=model,
         args=training_args,
-        train_dataset=tokenized["train"],
-        eval_dataset=tokenized["test"],
+        train_dataset=train_dataset,
+        eval_dataset=eval_dataset,
         data_collator=DataCollatorForLanguageModeling(tokenizer=tokenizer, mlm=False),
     )
     if quiet:
@@ -350,6 +557,10 @@ def train_domain(
         "lora_r": 16,
         "lora_alpha": 32,
         "lora_targets": targets,
+        "tokenize_workers": resolved_tokenize_workers,
+        "packing": used_packing,
+        "compute_dtype": "bf16" if compute_dtype == torch.bfloat16 else "fp16",
+        "attention_implementation": resolved_attn_implementation or "default",
     }
     with open(os.path.join(output_dir, "training_info.json"), "w") as f:
         json.dump(info, f, indent=2)

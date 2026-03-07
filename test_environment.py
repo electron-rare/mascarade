@@ -30,6 +30,16 @@ OPTIONAL_MODELS = {
 }
 
 
+def detect_cpu_fallback_model() -> str | None:
+    for model_id in (
+        OPTIONAL_MODELS["cpu_default"],
+        OPTIONAL_MODELS["gpu_default"],
+    ):
+        if has_hf_cache(model_id):
+            return model_id
+    return None
+
+
 def has_hf_cache(model_id: str) -> bool:
     cache_root = Path.home() / ".cache" / "huggingface" / "hub"
     model_dir = cache_root / f"models--{model_id.replace('/', '--')}"
@@ -107,25 +117,32 @@ def summary(missing: list[str]) -> int:
         except Exception:
             gpu_ready = False
 
-    cpu_ready = not missing and has_hf_cache(OPTIONAL_MODELS["cpu_default"])
+    cpu_model = detect_cpu_fallback_model()
+    cpu_ready = not missing and cpu_model is not None
 
     if missing:
         print(f"Missing libraries: {', '.join(missing)}")
+        print("Suggested bootstrap: ./scripts/bootstrap_finetune_env.sh")
         print("Status: blocked")
         return 1
 
     if gpu_ready:
-        print("Status: GPU + CPU fine-tuning available")
+        print("Status: GPU fine-tuning available")
+        if cpu_ready:
+            print(f"CPU fallback cache: {cpu_model}")
+        else:
+            print("CPU fallback cache: missing (will require a model download)")
         print("Suggested command: python finetune/run_local.py stm32")
         return 0
 
     if cpu_ready:
-        print("Status: CPU fallback available, GPU unavailable")
+        print(f"Status: CPU fallback available with cached model {cpu_model}")
         print("Suggested command: python finetune/run_local.py stm32 --device cpu")
         return 0
 
     print("Status: partially configured")
-    print("Reason: default CPU model cache is missing and GPU is unavailable")
+    print("Reason: no cached CPU fallback model and GPU is unavailable")
+    print("Suggested bootstrap: ./scripts/bootstrap_finetune_env.sh")
     print(
         "Suggested command after model download: python finetune/run_local.py stm32 --device cpu"
     )
