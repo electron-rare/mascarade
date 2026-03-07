@@ -67,7 +67,8 @@
 ### 8. Sécuriser les accès
 - [x] Tous les ports Mascarade/Tools ajoutés sont en `127.0.0.1` (local uniquement)
 - [ ] Mettre en place un reverse proxy (Caddy/nginx) pour exposer avec HTTPS
-- [x] Activer l'auth Bearer sur Mascarade (`MASCARADE_API_KEY` dans `.env`)
+- [x] Activer l'auth Bearer sur Mascarade — middleware implemente (timing-safe, bearer+cookie)
+- [ ] **ATTENTION**: `MASCARADE_API_KEY=""` dans `.env` = auth desactivee en pratique
 - [x] Changer le mot de passe Postgres (rotation effectuée)
 
 ### 9. Monitoring
