@@ -1,23 +1,100 @@
 from __future__ import annotations
 
 import asyncio
+import hmac
 import json
 import os
 import re
+import secrets
 import shutil
 from collections import deque
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any
 
 import httpx
-from fastapi import FastAPI, Query, Request
+from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
+from pydantic import BaseModel, Field
 
 app = FastAPI(title="Mascarade Ops Agent", version="0.1.0")
 
 DOCKER_SOCKET_PATH = "/var/run/docker.sock"
 LOKI_URL = (os.getenv("LOKI_URL") or "http://loki:3100").rstrip("/")
 AGENTSIGHT_URL = (os.getenv("AGENTSIGHT_URL") or "").rstrip("/")
+KILL_LIFE_ROOT = Path(os.getenv("KILL_LIFE_ROOT") or "/home/clems/Kill_LIFE").resolve()
+MASCARADE_ROOT = Path(os.getenv("MASCARADE_DIR") or "/home/clems/mascarade").resolve()
+MASCARADE_ENV_FILE = Path(
+    os.getenv("MASCARADE_ENV_FILE") or MASCARADE_ROOT / ".env"
+).resolve()
+MASCARADE_COMPOSE_FILE = Path(
+    os.getenv("MASCARADE_COMPOSE_FILE") or MASCARADE_ROOT / "docker-compose.yml"
+).resolve()
+OPS_AGENT_API_KEY_COOKIE = "mascarade_key"
+OPS_MCP_PROBE_CACHE_TTL_MS = max(
+    1.0,
+    (float(os.getenv("OPS_MCP_PROBE_CACHE_TTL_MS") or "15000") or 15000.0) / 1000.0,
+)
+DOCKER_COMPOSE_PLUGIN_CANDIDATES = [
+    Path("/usr/libexec/docker/cli-plugins/docker-compose"),
+    Path("/usr/local/libexec/docker/cli-plugins/docker-compose"),
+    Path("/usr/lib/docker/cli-plugins/docker-compose"),
+]
+ENV_ASSIGN_RE = re.compile(r"^([A-Za-z_][A-Za-z0-9_]*)=(.*)$")
+
+RUNTIME_SECRET_GROUPS: dict[str, dict[str, Any]] = {
+    "auth": {
+        "label": "Mascarade auth",
+        "description": "Controle le Bearer token de l'API, du core et de l'ops-agent.",
+        "generate_supported": True,
+        "fields": [
+            {
+                "env": "MASCARADE_API_KEY",
+                "label": "Mascarade API key",
+                "secret": True,
+                "restart_services": ["core"],
+            }
+        ],
+    },
+    "notion": {
+        "label": "Notion MCP",
+        "description": "Cle Notion runtime et page de smoke test utilisee par les probes MCP.",
+        "generate_supported": False,
+        "fields": [
+            {
+                "env": "NOTION_API_KEY",
+                "label": "Notion API key",
+                "secret": True,
+                "restart_services": ["core"],
+            },
+            {
+                "env": "NOTION_MCP_SMOKE_PAGE_ID",
+                "label": "Smoke page ID",
+                "secret": False,
+                "restart_services": [],
+            },
+        ],
+    },
+    "github-dispatch": {
+        "label": "GitHub dispatch MCP",
+        "description": "Tokens utilises pour les dispatch GitHub et leur smoke MCP.",
+        "generate_supported": False,
+        "fields": [
+            {
+                "env": "KILL_LIFE_GITHUB_TOKEN",
+                "label": "Kill_LIFE GitHub token",
+                "secret": True,
+                "restart_services": [],
+            },
+            {
+                "env": "GITHUB_TOKEN",
+                "label": "Fallback GitHub token",
+                "secret": True,
+                "restart_services": [],
+            },
+        ],
+    },
+}
 
 SEVERITY_RE = [
     (re.compile(r"\b(critical|fatal|panic)\b", re.I), "critical"),
@@ -25,6 +102,151 @@ SEVERITY_RE = [
     (re.compile(r"\b(warn|warning)\b", re.I), "warning"),
     (re.compile(r"\b(debug|trace)\b", re.I), "debug"),
 ]
+
+ROUTINE_HTTP_PROBE_RE = re.compile(
+    r"\b(GET|HEAD)\s+\"?/"
+    r"(health(?:/liveliness)?|healthz|ready|api/health|api/tags|collections|metrics|agent-traces/recent|cluster/identity|cluster/peers|api/ops/summary|logs/recent|events/recent)"
+    r"(?:\?|\"|\s|$)",
+    re.I,
+)
+ROUTINE_SERVICE_PATTERNS = [
+    ROUTINE_HTTP_PROBE_RE,
+    re.compile(r"No last resource version found, starting from scratch", re.I),
+    re.compile(r"added Docker target", re.I),
+    re.compile(r"finished transferring logs", re.I),
+    re.compile(r"completed recalculate owned streams job", re.I),
+    re.compile(r"starting recalculate owned streams job", re.I),
+]
+ROUTINE_MACHINE_PATTERNS = [
+    re.compile(
+        r"Activating via systemd: service name='org\.freedesktop\.login1'", re.I
+    ),
+    re.compile(
+        r"Failed to activate service 'org\.freedesktop\.login1': timed out", re.I
+    ),
+    re.compile(r"Starting modprobe@drm\.service", re.I),
+    re.compile(r"Finished modprobe@drm\.service", re.I),
+    re.compile(r"modprobe@drm\.service: Deactivated successfully", re.I),
+]
+ROUTINE_MACHINE_SERVICE_PATTERNS: dict[str, list[re.Pattern[str]]] = {
+    "avahi-daemon.service": [
+        re.compile(r"Joining mDNS multicast group", re.I),
+        re.compile(r"New relevant interface", re.I),
+        re.compile(r"Registering new address record", re.I),
+    ],
+    "networkmanager.service": [
+        re.compile(r"\bveth[a-z0-9]+\b", re.I),
+        re.compile(r"\bbr-[a-f0-9]+\b", re.I),
+    ],
+    "docker.service": [
+        re.compile(r"\bsbJoin\b", re.I),
+        re.compile(r"\bNetworkDB stats\b", re.I),
+    ],
+    "kernel": [
+        re.compile(r"\bveth[a-z0-9]+\b", re.I),
+        re.compile(r"\bbr-[a-f0-9]+\b", re.I),
+    ],
+}
+
+MCP_PROBE_CONFIGS: list[dict[str, Any]] = [
+    {
+        "key": "kicad",
+        "command": [
+            "python3",
+            str(KILL_LIFE_ROOT / "tools" / "hw" / "mcp_smoke.py"),
+            "--json",
+            "--quick",
+            "--timeout",
+            "8.0",
+        ],
+        "cwd": KILL_LIFE_ROOT,
+        "timeout_s": 8.0,
+        "primary": True,
+    },
+    {
+        "key": "validate-specs",
+        "command": [
+            "python3",
+            str(KILL_LIFE_ROOT / "tools" / "validate_specs_mcp_smoke.py"),
+            "--json",
+            "--quick",
+            "--timeout",
+            "8.0",
+        ],
+        "cwd": KILL_LIFE_ROOT,
+        "timeout_s": 8.0,
+    },
+    {
+        "key": "notion",
+        "command": [
+            "python3",
+            str(KILL_LIFE_ROOT / "tools" / "notion_mcp_smoke.py"),
+            "--json",
+            "--timeout",
+            "12.0",
+        ],
+        "cwd": KILL_LIFE_ROOT,
+        "timeout_s": 12.0,
+    },
+    {
+        "key": "github-dispatch",
+        "command": [
+            "python3",
+            str(KILL_LIFE_ROOT / "tools" / "github_dispatch_mcp_smoke.py"),
+            "--json",
+            "--timeout",
+            "8.0",
+        ],
+        "cwd": KILL_LIFE_ROOT,
+        "timeout_s": 8.0,
+    },
+]
+
+_mcp_probe_cache: dict[str, Any] | None = None
+_mcp_probe_cache_expires_at = 0.0
+_mcp_probe_lock = asyncio.Lock()
+_runtime_secret_lock = asyncio.Lock()
+
+
+class RuntimeSecretUpdateRequest(BaseModel):
+    values: dict[str, str] = Field(default_factory=dict)
+
+
+class RuntimeSecretClearRequest(BaseModel):
+    fields: list[str] | None = Field(default=None)
+
+
+def is_routine_service_message(service: str, severity: str, message: str) -> bool:
+    if severity_rank(severity) >= severity_rank("warning"):
+        return False
+    normalized_service = service.strip().lower()
+    for pattern in ROUTINE_SERVICE_PATTERNS:
+        if pattern.search(message):
+            return True
+    if normalized_service == "ops-agent" and ROUTINE_HTTP_PROBE_RE.search(message):
+        return True
+    return False
+
+
+def is_routine_machine_message(service: str, severity: str, message: str) -> bool:
+    if severity_rank(severity) >= severity_rank("warning"):
+        return False
+    normalized_service = service.strip().lower()
+    if any(pattern.search(message) for pattern in ROUTINE_MACHINE_PATTERNS):
+        return True
+    return any(
+        pattern.search(message)
+        for pattern in ROUTINE_MACHINE_SERVICE_PATTERNS.get(normalized_service, [])
+    )
+
+
+def is_routine_docker_event(action: str) -> bool:
+    lowered = action.strip().lower()
+    return (
+        lowered == "exec_die"
+        or lowered.startswith("exec_create:")
+        or lowered.startswith("exec_start:")
+    )
 
 
 def iso_utc_now() -> str:
@@ -35,7 +257,12 @@ def to_iso(value: str | None) -> str:
     if not value:
         return iso_utc_now()
     try:
-        return datetime.fromisoformat(value.replace("Z", "+00:00")).astimezone(UTC).isoformat().replace("+00:00", "Z")
+        return (
+            datetime.fromisoformat(value.replace("Z", "+00:00"))
+            .astimezone(UTC)
+            .isoformat()
+            .replace("+00:00", "Z")
+        )
     except ValueError:
         return iso_utc_now()
 
@@ -67,6 +294,564 @@ def parse_csv_set(value: str | None) -> set[str]:
 
 def sse_frame(event: str, payload: Any) -> str:
     return f"event: {event}\ndata: {json.dumps(payload)}\n\n"
+
+
+def make_default_mcp_status(**overrides: Any) -> dict[str, Any]:
+    payload = {
+        "ok": False,
+        "status": "failed",
+        "requested_runtime": "local",
+        "runtime_mode": None,
+        "protocol_version": None,
+        "server_name": None,
+        "tool_count": 0,
+        "resource_count": 0,
+        "prompt_count": 0,
+        "latency_ms": 0,
+        "checks": [],
+    }
+    payload.update(overrides)
+    return payload
+
+
+def invalidate_mcp_probe_cache() -> None:
+    global _mcp_probe_cache, _mcp_probe_cache_expires_at
+    _mcp_probe_cache = None
+    _mcp_probe_cache_expires_at = 0.0
+
+
+def configured_api_keys() -> list[str]:
+    return [
+        key.strip()
+        for key in (os.getenv("MASCARADE_API_KEY") or "").split(",")
+        if key.strip() and len(key.strip()) >= 16
+    ]
+
+
+def token_from_cookie(cookie_header: str | None) -> str | None:
+    if not cookie_header:
+        return None
+    for part in cookie_header.split(";"):
+        raw_name, _, raw_value = part.strip().partition("=")
+        if raw_name != OPS_AGENT_API_KEY_COOKIE or not raw_value:
+            continue
+        try:
+            return httpx.URL(f"http://cookie.local/?v={raw_value}").params.get("v")
+        except Exception:
+            return raw_value
+    return None
+
+
+async def require_admin_auth(request: Request) -> None:
+    api_keys = configured_api_keys()
+    if not api_keys:
+        return
+
+    auth_header = request.headers.get("Authorization") or ""
+    header_token = auth_header[7:] if auth_header.startswith("Bearer ") else None
+    cookie_token = token_from_cookie(request.headers.get("Cookie"))
+    token = header_token or cookie_token
+    if not token:
+        raise HTTPException(status_code=401, detail="Token invalide ou manquant")
+
+    if not any(hmac.compare_digest(token, key) for key in api_keys):
+        raise HTTPException(status_code=401, detail="Token invalide ou manquant")
+
+
+def resolve_runtime_secret_group(name: str) -> dict[str, Any]:
+    group = RUNTIME_SECRET_GROUPS.get(name)
+    if not group:
+        raise HTTPException(
+            status_code=404, detail=f"Unknown runtime secret group: {name}"
+        )
+    return group
+
+
+def _decode_env_value(raw_value: str) -> str:
+    value = raw_value.strip()
+    if not value:
+        return ""
+    if len(value) >= 2 and value[0] == value[-1] == '"':
+        inner = value[1:-1]
+        return inner.replace("\\n", "\n").replace('\\"', '"').replace("\\\\", "\\")
+    if len(value) >= 2 and value[0] == value[-1] == "'":
+        return value[1:-1]
+    return value
+
+
+def read_env_values() -> dict[str, str]:
+    values: dict[str, str] = {}
+    if not MASCARADE_ENV_FILE.exists():
+        return values
+    for raw_line in MASCARADE_ENV_FILE.read_text(encoding="utf-8").splitlines():
+        stripped = raw_line.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        match = ENV_ASSIGN_RE.match(stripped)
+        if not match:
+            continue
+        values[match.group(1)] = _decode_env_value(match.group(2))
+    return values
+
+
+def encode_env_value(value: str) -> str:
+    escaped = value.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n")
+    return f'"{escaped}"'
+
+
+def write_env_updates(updates: dict[str, str]) -> None:
+    if not MASCARADE_ENV_FILE.exists():
+        raise FileNotFoundError(f"Runtime env file is missing: {MASCARADE_ENV_FILE}")
+
+    original_text = MASCARADE_ENV_FILE.read_text(encoding="utf-8")
+    original_mode = MASCARADE_ENV_FILE.stat().st_mode
+    lines = original_text.splitlines()
+    seen: set[str] = set()
+    new_lines: list[str] = []
+
+    for line in lines:
+        stripped = line.lstrip()
+        match = ENV_ASSIGN_RE.match(stripped)
+        if match and match.group(1) in updates:
+            key = match.group(1)
+            indent = line[: len(line) - len(stripped)]
+            new_lines.append(f"{indent}{key}={encode_env_value(updates[key])}")
+            seen.add(key)
+        else:
+            new_lines.append(line)
+
+    for key, value in updates.items():
+        if key in seen:
+            continue
+        new_lines.append(f"{key}={encode_env_value(value)}")
+
+    trailing_newline = "\n" if original_text.endswith("\n") or new_lines else ""
+    with MASCARADE_ENV_FILE.open("w", encoding="utf-8") as handle:
+        handle.write("\n".join(new_lines) + trailing_newline)
+    os.chmod(MASCARADE_ENV_FILE, original_mode)
+
+
+def apply_runtime_env_updates(updates: dict[str, str]) -> None:
+    for key, value in updates.items():
+        os.environ[key] = value
+
+
+def masked_hint(value: str, *, secret: bool) -> str:
+    if not value:
+        return ""
+    if secret:
+        if len(value) <= 8:
+            return "*" * len(value)
+        return f"{value[:4]}...{value[-4:]}"
+    if len(value) <= 18:
+        return value
+    return f"{value[:8]}...{value[-6:]}"
+
+
+def build_runtime_secret_group_status(name: str) -> dict[str, Any]:
+    group = resolve_runtime_secret_group(name)
+    env_values = read_env_values()
+    fields: list[dict[str, Any]] = []
+    restart_services: set[str] = set()
+    configured_count = 0
+
+    for field in group["fields"]:
+        env_name = str(field["env"])
+        value = env_values.get(env_name, os.getenv(env_name, ""))
+        configured = bool(value)
+        if configured:
+            configured_count += 1
+        restart_services.update(
+            str(service) for service in field.get("restart_services", [])
+        )
+        fields.append(
+            {
+                "env": env_name,
+                "label": str(field["label"]),
+                "configured": configured,
+                "hint": masked_hint(value, secret=bool(field.get("secret"))),
+                "secret": bool(field.get("secret")),
+                "restart_services": list(field.get("restart_services", [])),
+            }
+        )
+
+    return {
+        "name": name,
+        "label": str(group["label"]),
+        "description": str(group["description"]),
+        "configured": configured_count > 0,
+        "configured_count": configured_count,
+        "field_count": len(fields),
+        "generate_supported": bool(group.get("generate_supported")),
+        "restart_services": sorted(restart_services),
+        "fields": fields,
+    }
+
+
+def list_runtime_secret_groups() -> list[dict[str, Any]]:
+    return [build_runtime_secret_group_status(name) for name in RUNTIME_SECRET_GROUPS]
+
+
+def compose_plugin_path() -> Path:
+    for candidate in DOCKER_COMPOSE_PLUGIN_CANDIDATES:
+        if candidate.exists():
+            return candidate
+    raise FileNotFoundError("docker-compose plugin unavailable in ops-agent runtime")
+
+
+async def recreate_compose_services(services: list[str]) -> None:
+    if not services:
+        return
+    compose_plugin = compose_plugin_path()
+    command = [
+        str(compose_plugin),
+        "--env-file",
+        str(MASCARADE_ENV_FILE),
+        "-f",
+        str(MASCARADE_COMPOSE_FILE),
+        "up",
+        "-d",
+        "--force-recreate",
+        "--no-deps",
+        *services,
+    ]
+    process = await asyncio.create_subprocess_exec(
+        *command,
+        cwd=str(MASCARADE_ROOT),
+        env=os.environ.copy(),
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+    stdout, stderr = await process.communicate()
+    if process.returncode != 0:
+        message = (
+            stderr.decode("utf-8", errors="replace").strip()
+            or stdout.decode("utf-8", errors="replace").strip()
+        )
+        raise RuntimeError(
+            message or f"docker compose exited with code {process.returncode}"
+        )
+
+
+async def wait_for_core_ready(timeout_s: float = 45.0) -> None:
+    deadline = asyncio.get_running_loop().time() + timeout_s
+    last_error = "core did not become ready"
+    async with httpx.AsyncClient(timeout=2.5) as client:
+        while asyncio.get_running_loop().time() < deadline:
+            try:
+                response = await client.get("http://core:8100/health")
+                if response.is_success:
+                    return
+                last_error = f"core health returned HTTP {response.status_code}"
+            except Exception as exc:
+                last_error = str(exc)
+            await asyncio.sleep(1.0)
+    raise RuntimeError(last_error)
+
+
+def normalize_update_values(
+    group: dict[str, Any], payload: dict[str, str]
+) -> dict[str, str]:
+    allowed_fields = {str(field["env"]): field for field in group["fields"]}
+    updates: dict[str, str] = {}
+    for key, value in payload.items():
+        field = allowed_fields.get(key)
+        if not field:
+            continue
+        updates[key] = str(value).strip()
+    return updates
+
+
+def restart_services_for_updates(
+    group: dict[str, Any], updates: dict[str, str]
+) -> list[str]:
+    services: set[str] = set()
+    field_map = {str(field["env"]): field for field in group["fields"]}
+    for env_name in updates:
+        services.update(
+            str(service) for service in field_map[env_name].get("restart_services", [])
+        )
+    return sorted(services)
+
+
+def client_token_for_auth(value: str | None) -> str | None:
+    if not value:
+        return None
+    tokens = [token.strip() for token in value.split(",") if token.strip()]
+    if len(tokens) == 1:
+        return tokens[0]
+    return None
+
+
+async def persist_runtime_secret_updates(
+    group_name: str, updates: dict[str, str]
+) -> dict[str, Any]:
+    group = resolve_runtime_secret_group(group_name)
+    normalized_updates = normalize_update_values(group, updates)
+    if not normalized_updates:
+        raise HTTPException(
+            status_code=400, detail="No valid runtime secret values supplied"
+        )
+
+    async with _runtime_secret_lock:
+        write_env_updates(normalized_updates)
+        apply_runtime_env_updates(normalized_updates)
+        invalidate_mcp_probe_cache()
+        restart_services = restart_services_for_updates(group, normalized_updates)
+        if restart_services:
+            await recreate_compose_services(restart_services)
+            if "core" in restart_services:
+                await wait_for_core_ready()
+
+    result = {
+        "status": "ok",
+        "message": "Runtime secrets updated",
+        "group": build_runtime_secret_group_status(group_name),
+        "updated_env": sorted(normalized_updates),
+        "restarted_services": restart_services,
+    }
+    if group_name == "auth":
+        token = client_token_for_auth(normalized_updates.get("MASCARADE_API_KEY"))
+        if token:
+            result["client_token"] = token
+    return result
+
+
+async def clear_runtime_secret_group(
+    group_name: str, fields: list[str] | None = None
+) -> dict[str, Any]:
+    group = resolve_runtime_secret_group(group_name)
+    target_fields = {
+        str(field["env"]): ""
+        for field in group["fields"]
+        if fields is None or str(field["env"]) in set(fields)
+    }
+    if not target_fields:
+        raise HTTPException(
+            status_code=400, detail="No runtime secret fields selected for clear"
+        )
+
+    async with _runtime_secret_lock:
+        write_env_updates(target_fields)
+        apply_runtime_env_updates(target_fields)
+        invalidate_mcp_probe_cache()
+        restart_services = restart_services_for_updates(group, target_fields)
+        if restart_services:
+            await recreate_compose_services(restart_services)
+            if "core" in restart_services:
+                await wait_for_core_ready()
+
+    return {
+        "status": "ok",
+        "message": "Runtime secrets cleared",
+        "group": build_runtime_secret_group_status(group_name),
+        "cleared_env": sorted(target_fields),
+        "restarted_services": restart_services,
+    }
+
+
+async def generate_auth_runtime_secret() -> dict[str, Any]:
+    token = secrets.token_urlsafe(48)
+    result = await persist_runtime_secret_updates("auth", {"MASCARADE_API_KEY": token})
+    result["generated_value"] = token
+    result["message"] = "Mascarade API key generated"
+    return result
+
+
+async def run_mcp_probe(config: dict[str, Any]) -> dict[str, Any]:
+    started = asyncio.get_running_loop().time()
+    cwd = Path(config["cwd"])
+    key = str(config["key"])
+    command = [str(part) for part in config["command"]]
+    timeout_s = float(config.get("timeout_s", 8.0) or 8.0)
+
+    if not cwd.exists():
+        return make_default_mcp_status(
+            status="degraded",
+            latency_ms=round((asyncio.get_running_loop().time() - started) * 1000),
+            server_name=key,
+            error=f"Probe workspace unavailable in ops-agent runtime: {cwd}",
+        )
+
+    script_candidate = Path(command[1]) if len(command) > 1 else None
+    if (
+        script_candidate
+        and script_candidate.suffix in {".py", ".sh"}
+        and not script_candidate.exists()
+    ):
+        return make_default_mcp_status(
+            status="degraded",
+            latency_ms=round((asyncio.get_running_loop().time() - started) * 1000),
+            server_name=key,
+            error=f"Probe script unavailable in ops-agent runtime: {script_candidate}",
+        )
+
+    try:
+        process = await asyncio.create_subprocess_exec(
+            *command,
+            cwd=str(cwd),
+            env=os.environ.copy(),
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+    except FileNotFoundError as exc:
+        return make_default_mcp_status(
+            status="degraded",
+            latency_ms=round((asyncio.get_running_loop().time() - started) * 1000),
+            server_name=key,
+            error=f"Probe dependency unavailable in ops-agent runtime: {exc}",
+        )
+    except Exception as exc:
+        return make_default_mcp_status(
+            status="failed",
+            latency_ms=round((asyncio.get_running_loop().time() - started) * 1000),
+            server_name=key,
+            error=str(exc),
+        )
+
+    try:
+        stdout, stderr = await asyncio.wait_for(
+            process.communicate(), timeout=timeout_s
+        )
+    except asyncio.TimeoutError:
+        process.kill()
+        await process.communicate()
+        return make_default_mcp_status(
+            status="failed",
+            latency_ms=round((asyncio.get_running_loop().time() - started) * 1000),
+            server_name=key,
+            error=f"Timed out after {timeout_s:.1f}s waiting for MCP probe",
+        )
+
+    stdout_text = stdout.decode("utf-8", errors="replace")
+    stderr_text = stderr.decode("utf-8", errors="replace").strip()
+    line = next(
+        (
+            entry.strip()
+            for entry in reversed(stdout_text.splitlines())
+            if entry.strip()
+        ),
+        "",
+    )
+
+    payload: dict[str, Any] | None = None
+    if line:
+        try:
+            parsed = json.loads(line)
+            if isinstance(parsed, dict):
+                payload = parsed
+        except json.JSONDecodeError:
+            payload = None
+
+    normalized_status = "failed"
+    if payload and payload.get("status") in {"ready", "degraded", "failed"}:
+        normalized_status = str(payload["status"])
+    elif process.returncode == 0:
+        normalized_status = "degraded"
+
+    return make_default_mcp_status(
+        ok=normalized_status == "ready",
+        status=normalized_status,
+        requested_runtime=(payload or {}).get("requested_runtime") or "local",
+        runtime_mode=(payload or {}).get("runtime_mode"),
+        protocol_version=(payload or {}).get("protocol_version"),
+        server_name=(payload or {}).get("server_name") or key,
+        tool_count=int((payload or {}).get("tool_count") or 0),
+        resource_count=int((payload or {}).get("resource_count") or 0),
+        prompt_count=int((payload or {}).get("prompt_count") or 0),
+        latency_ms=round((asyncio.get_running_loop().time() - started) * 1000),
+        checks=(
+            (payload or {}).get("checks")
+            if isinstance((payload or {}).get("checks"), list)
+            else []
+        ),
+        secret_configured=(payload or {}).get("secret_configured"),
+        token_configured=(payload or {}).get("token_configured"),
+        live_requested=(payload or {}).get("live_requested"),
+        live_validation=(payload or {}).get("live_validation"),
+        error=(payload or {}).get("error")
+        or stderr_text
+        or (
+            None
+            if process.returncode == 0
+            else f"Probe exited with code {process.returncode}"
+        ),
+    )
+
+
+def aggregate_mcp_status(servers: dict[str, dict[str, Any]]) -> dict[str, Any]:
+    entries = list(servers.items())
+    primary_entry = next(
+        (
+            entry
+            for entry in entries
+            if entry[0] == "kicad"
+            or next(
+                (
+                    cfg
+                    for cfg in MCP_PROBE_CONFIGS
+                    if cfg["key"] == entry[0] and cfg.get("primary")
+                ),
+                None,
+            )
+        ),
+        entries[0] if entries else ("unknown", make_default_mcp_status()),
+    )
+    primary_server, primary = primary_entry
+    if any(status.get("status") == "failed" for _, status in entries):
+        aggregate_status = "failed"
+    elif any(status.get("status") == "degraded" for _, status in entries):
+        aggregate_status = "degraded"
+    else:
+        aggregate_status = "ready"
+
+    payload = dict(primary)
+    payload.update(
+        {
+            "ok": aggregate_status == "ready",
+            "status": aggregate_status,
+            "aggregate_status": aggregate_status,
+            "primary_server": primary_server,
+            "primary": primary,
+            "server_count": len(entries),
+            "servers_ok": sum(
+                1 for _, status in entries if status.get("status") == "ready"
+            ),
+            "degraded_servers": [
+                key for key, status in entries if status.get("status") != "ready"
+            ],
+            "servers": servers,
+        }
+    )
+    return payload
+
+
+async def probe_mcp_runtime(*, force: bool = False) -> dict[str, Any]:
+    global _mcp_probe_cache, _mcp_probe_cache_expires_at
+
+    now = asyncio.get_running_loop().time()
+    if not force and _mcp_probe_cache and _mcp_probe_cache_expires_at > now:
+        return _mcp_probe_cache
+
+    async with _mcp_probe_lock:
+        now = asyncio.get_running_loop().time()
+        if not force and _mcp_probe_cache and _mcp_probe_cache_expires_at > now:
+            return _mcp_probe_cache
+
+        statuses = await asyncio.gather(
+            *(run_mcp_probe(config) for config in MCP_PROBE_CONFIGS)
+        )
+        value = aggregate_mcp_status(
+            {
+                str(config["key"]): status
+                for config, status in zip(MCP_PROBE_CONFIGS, statuses, strict=False)
+            }
+        )
+        _mcp_probe_cache = value
+        _mcp_probe_cache_expires_at = (
+            asyncio.get_running_loop().time() + OPS_MCP_PROBE_CACHE_TTL_MS
+        )
+        return value
 
 
 def remember_entry(
@@ -209,7 +994,12 @@ async def fetch_container_logs(container_id: str, tail: int) -> list[str]:
         return demux_docker_log_bytes(response.content)
 
 
-async def recent_docker_events(limit: int, since_seconds: int = 900) -> list[dict[str, Any]]:
+async def recent_docker_events(
+    limit: int,
+    since_seconds: int = 900,
+    *,
+    include_routine: bool = False,
+) -> list[dict[str, Any]]:
     if not await docker_available():
         return []
 
@@ -238,12 +1028,18 @@ async def recent_docker_events(limit: int, since_seconds: int = 900) -> list[dic
         event_ts = payload.get("timeNano") or payload.get("time")
         if isinstance(event_ts, (int, float)):
             divisor = 1_000_000_000 if payload.get("timeNano") else 1
-            ts = datetime.fromtimestamp(float(event_ts) / divisor, tz=UTC).isoformat().replace("+00:00", "Z")
+            ts = (
+                datetime.fromtimestamp(float(event_ts) / divisor, tz=UTC)
+                .isoformat()
+                .replace("+00:00", "Z")
+            )
         else:
             ts = iso_utc_now()
 
         action = str(payload.get("Action") or payload.get("status") or "event")
         event_type = str(payload.get("Type") or "docker")
+        if not include_routine and is_routine_docker_event(action):
+            continue
         service = event_service_name(payload)
         severity = "info"
         lowered_action = action.lower()
@@ -263,7 +1059,11 @@ async def recent_docker_events(limit: int, since_seconds: int = 900) -> list[dic
                 "labels": {
                     "action": action,
                     "type": event_type,
-                    "actor_id": str((payload.get("Actor") or {}).get("ID") or payload.get("id") or "")[:12],
+                    "actor_id": str(
+                        (payload.get("Actor") or {}).get("ID")
+                        or payload.get("id")
+                        or ""
+                    )[:12],
                 },
             }
         )
@@ -272,14 +1072,18 @@ async def recent_docker_events(limit: int, since_seconds: int = 900) -> list[dic
 
 
 def journal_dirs() -> list[str]:
-    return [path for path in ("/var/log/journal", "/run/log/journal") if os.path.isdir(path)]
+    return [
+        path for path in ("/var/log/journal", "/run/log/journal") if os.path.isdir(path)
+    ]
 
 
 def journalctl_available() -> bool:
     return shutil.which("journalctl") is not None and bool(journal_dirs())
 
 
-async def recent_journal_logs(limit: int) -> list[dict[str, Any]]:
+async def recent_journal_logs(
+    limit: int, *, include_routine: bool = False
+) -> list[dict[str, Any]]:
     if not journalctl_available():
         return []
 
@@ -309,7 +1113,11 @@ async def recent_journal_logs(limit: int) -> list[dict[str, Any]]:
             continue
         timestamp_us = payload.get("__REALTIME_TIMESTAMP")
         if timestamp_us:
-            ts = datetime.fromtimestamp(int(timestamp_us) / 1_000_000, tz=UTC).isoformat().replace("+00:00", "Z")
+            ts = (
+                datetime.fromtimestamp(int(timestamp_us) / 1_000_000, tz=UTC)
+                .isoformat()
+                .replace("+00:00", "Z")
+            )
         else:
             ts = iso_utc_now()
         priority = str(payload.get("PRIORITY", "6"))
@@ -326,12 +1134,19 @@ async def recent_journal_logs(limit: int) -> list[dict[str, Any]]:
         message = str(payload.get("MESSAGE", "")).strip()
         if not message:
             continue
+        service = str(
+            payload.get("_SYSTEMD_UNIT") or payload.get("SYSLOG_IDENTIFIER") or "system"
+        )
+        if not include_routine and is_routine_machine_message(
+            service, severity, message
+        ):
+            continue
         entries.append(
             {
                 "id": f"journal:{ts}:{len(entries)}",
                 "ts": ts,
                 "source": "machine",
-                "service": payload.get("_SYSTEMD_UNIT") or payload.get("SYSLOG_IDENTIFIER") or "system",
+                "service": service,
                 "severity": severity,
                 "message": message,
                 "labels": {
@@ -367,6 +1182,83 @@ def gpu_available() -> bool:
     return shutil.which("nvidia-smi") is not None
 
 
+def gpu_probe() -> dict[str, Any]:
+    """Run nvidia-smi and return structured GPU status."""
+    if not gpu_available():
+        return {"available": False, "kind": "nvidia-smi"}
+    try:
+        result = __import__("subprocess").run(
+            [
+                "nvidia-smi",
+                "--query-gpu=name,memory.total,memory.used,memory.free,utilization.gpu,temperature.gpu",
+                "--format=csv,noheader,nounits",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        if result.returncode != 0:
+            return {
+                "available": True,
+                "kind": "nvidia-smi",
+                "error": result.stderr.strip(),
+            }
+        gpus = []
+        for line in result.stdout.strip().splitlines():
+            parts = [p.strip() for p in line.split(",")]
+            if len(parts) >= 6:
+                gpus.append(
+                    {
+                        "name": parts[0],
+                        "memory_total_mb": int(parts[1]),
+                        "memory_used_mb": int(parts[2]),
+                        "memory_free_mb": int(parts[3]),
+                        "utilization_pct": int(parts[4]),
+                        "temperature_c": int(parts[5]),
+                    }
+                )
+        return {"available": True, "kind": "nvidia-smi", "gpus": gpus}
+    except Exception as exc:
+        return {"available": True, "kind": "nvidia-smi", "error": str(exc)}
+
+
+@app.get("/runtime-secrets/status")
+async def runtime_secrets_status(_auth: None = Depends(require_admin_auth)):
+    return {
+        "groups": list_runtime_secret_groups(),
+        "timestamp": iso_utc_now(),
+    }
+
+
+@app.put("/runtime-secrets/{group_name}")
+async def runtime_secrets_update(
+    group_name: str,
+    payload: RuntimeSecretUpdateRequest,
+    _auth: None = Depends(require_admin_auth),
+):
+    return await persist_runtime_secret_updates(group_name, payload.values)
+
+
+@app.post("/runtime-secrets/{group_name}/clear")
+async def runtime_secrets_clear(
+    group_name: str,
+    payload: RuntimeSecretClearRequest,
+    _auth: None = Depends(require_admin_auth),
+):
+    return await clear_runtime_secret_group(group_name, payload.fields)
+
+
+@app.post("/runtime-secrets/{group_name}/generate")
+async def runtime_secrets_generate(
+    group_name: str, _auth: None = Depends(require_admin_auth)
+):
+    if group_name != "auth":
+        raise HTTPException(
+            status_code=400, detail=f"Generation not supported for {group_name}"
+        )
+    return await generate_auth_runtime_secret()
+
+
 @app.get("/health")
 async def health():
     docker_ok = await docker_available()
@@ -374,7 +1266,7 @@ async def health():
         "status": "ok",
         "docker": docker_ok,
         "journald": journalctl_available(),
-        "gpu": gpu_available(),
+        "gpu": gpu_probe(),
     }
 
 
@@ -382,9 +1274,12 @@ async def health():
 async def sources():
     return {
         "docker_logs": {"available": await docker_available(), "kind": "docker-api"},
-        "docker_events": {"available": await docker_available(), "kind": "docker-api-events"},
+        "docker_events": {
+            "available": await docker_available(),
+            "kind": "docker-api-events",
+        },
         "journald": {"available": journalctl_available(), "kind": "journalctl"},
-        "gpu": {"available": gpu_available(), "kind": "nvidia-smi"},
+        "gpu": gpu_probe(),
         "loki": {"available": await loki_available(), "kind": "loki"},
         "agentsight": {
             "available": await agentsight_available(),
@@ -393,18 +1288,32 @@ async def sources():
     }
 
 
+@app.get("/mcp/summary")
+async def mcp_summary(force: bool = Query(default=False)):
+    return await probe_mcp_runtime(force=force)
+
+
 @app.get("/summary")
 async def summary():
     docker_ok = await docker_available()
     containers = await list_containers() if docker_ok else []
-    recent = await logs_recent(limit=40, include_services=True, include_machine=True)
-    events = await recent_docker_events(limit=20) if docker_ok else []
+    recent = await logs_recent(
+        limit=40,
+        services=None,
+        include_services=True,
+        include_machine=True,
+        include_routine=False,
+    )
+    events = (
+        await recent_docker_events(limit=20, include_routine=False) if docker_ok else []
+    )
     return {
         "timestamp": iso_utc_now(),
         "container_count": len(containers),
         "services": sorted(service_name(container) for container in containers),
         "recent": recent,
         "events": events,
+        "mcp": await probe_mcp_runtime(),
         "sources": await sources(),
     }
 
@@ -413,8 +1322,13 @@ async def summary():
 async def events_recent(
     limit: int = Query(default=40, ge=1, le=200),
     since_seconds: int = Query(default=900, ge=30, le=86400),
+    include_routine: bool = Query(default=False),
 ):
-    events = await recent_docker_events(limit=limit, since_seconds=since_seconds)
+    events = await recent_docker_events(
+        limit=limit,
+        since_seconds=since_seconds,
+        include_routine=include_routine,
+    )
     return {
         "events": events,
         "count": len(events),
@@ -428,8 +1342,11 @@ async def logs_recent(
     services: str | None = Query(default=None),
     include_services: bool = Query(default=True),
     include_machine: bool = Query(default=True),
+    include_routine: bool = Query(default=False),
 ):
-    service_filter = {token.strip() for token in (services or "").split(",") if token.strip()}
+    service_filter = {
+        token.strip() for token in (services or "").split(",") if token.strip()
+    }
     entries: list[dict[str, Any]] = []
 
     if include_services and await docker_available():
@@ -442,15 +1359,22 @@ async def logs_recent(
         per_container_tail = max(10, min(limit, 60))
         for container in selected:
             svc = service_name(container)
-            for idx, line in enumerate(await fetch_container_logs(container["Id"], per_container_tail)):
+            for idx, line in enumerate(
+                await fetch_container_logs(container["Id"], per_container_tail)
+            ):
                 ts, message = parse_timestamped_line(line)
+                severity = infer_severity(message)
+                if not include_routine and is_routine_service_message(
+                    svc, severity, message
+                ):
+                    continue
                 entries.append(
                     {
                         "id": f"service:{svc}:{ts}:{idx}",
                         "ts": ts,
                         "source": "service",
                         "service": svc,
-                        "severity": infer_severity(message),
+                        "severity": severity,
                         "message": message,
                         "labels": {
                             "container_id": str(container.get("Id", ""))[:12],
@@ -459,7 +1383,9 @@ async def logs_recent(
                 )
 
     if include_machine:
-        entries.extend(await recent_journal_logs(min(limit, 120)))
+        entries.extend(
+            await recent_journal_logs(min(limit, 120), include_routine=include_routine)
+        )
 
     entries = sorted(entries, key=lambda entry: entry["ts"], reverse=True)[:limit]
     return {
@@ -476,6 +1402,7 @@ async def logs_stream(
     include_services: bool = Query(default=True),
     include_machine: bool = Query(default=True),
     include_events: bool = Query(default=True),
+    include_routine: bool = Query(default=False),
     severity: str = Query(default="info"),
     backfill: int = Query(default=40, ge=0, le=200),
     poll_interval_ms: int = Query(default=1200, ge=250, le=10000),
@@ -489,10 +1416,17 @@ async def logs_stream(
             services=services,
             include_services=include_services,
             include_machine=include_machine,
+            include_routine=include_routine,
         )
         entries = list(payload.get("entries", []))
         if include_events:
-            entries.extend(await recent_docker_events(limit=max(10, min(limit, 80)), since_seconds=since_seconds))
+            entries.extend(
+                await recent_docker_events(
+                    limit=max(10, min(limit, 80)),
+                    since_seconds=since_seconds,
+                    include_routine=include_routine,
+                )
+            )
         return entries
 
     async def event_stream():

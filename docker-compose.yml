@@ -17,12 +17,21 @@ services:
       CORE_PORT: ${CORE_PORT}
       DEFAULT_PROVIDER: ${DEFAULT_PROVIDER}
       DEFAULT_MODEL: ${DEFAULT_MODEL}
+      NOTION_API_KEY: ${NOTION_API_KEY:-}
+      KILL_LIFE_GITHUB_TOKEN: ${KILL_LIFE_GITHUB_TOKEN:-}
+      GITHUB_TOKEN: ${GITHUB_TOKEN:-}
       OTEL_ENABLED: ${OTEL_ENABLED:-true}
       OTEL_COLLECTOR_HTTP_ENDPOINT: ${OTEL_COLLECTOR_HTTP_ENDPOINT:-http://otel-collector:4318}
       OPS_AGENT_URL: ${OPS_AGENT_URL:-http://ops-agent:9200}
       LOKI_URL: ${LOKI_URL:-http://loki:3100}
     volumes:
       - core-data:/app/data
+    healthcheck:
+      test: ["CMD-SHELL", "python -c 'import urllib.request; urllib.request.urlopen(\"http://127.0.0.1:8100/health\", timeout=3)' >/dev/null"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
     networks:
       - mascarade-network
 
@@ -39,12 +48,21 @@ services:
     environment:
       CORE_URL: ${CORE_URL}
       API_PORT: 3000
+      NOTION_API_KEY: ${NOTION_API_KEY:-}
+      KILL_LIFE_GITHUB_TOKEN: ${KILL_LIFE_GITHUB_TOKEN:-}
+      GITHUB_TOKEN: ${GITHUB_TOKEN:-}
       OTEL_ENABLED: ${OTEL_ENABLED:-true}
       OTEL_COLLECTOR_HTTP_ENDPOINT: ${OTEL_COLLECTOR_HTTP_ENDPOINT:-http://otel-collector:4318}
       OPS_AGENT_URL: ${OPS_AGENT_URL:-http://ops-agent:9200}
       LOKI_URL: ${LOKI_URL:-http://loki:3100}
     depends_on:
       - core
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/health >/dev/null"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
     networks:
       - mascarade-network
 
@@ -429,6 +447,7 @@ services:
       - "${PUBLISH_BIND_HOST:-0.0.0.0}:${GRAFANA_PORT}:3000"
     volumes:
       - grafana-data:/var/lib/grafana
+      - ./deploy/grafana/provisioning:/etc/grafana/provisioning:ro
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://localhost:3000/api/health >/dev/null"]
       interval: 15s
@@ -445,6 +464,7 @@ services:
       - "${PUBLISH_BIND_HOST:-0.0.0.0}:${PROMETHEUS_PORT}:9090"
     volumes:
       - prometheus-data:/prometheus
+      - ./deploy/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:9090/-/healthy >/dev/null"]
       interval: 15s
@@ -467,11 +487,23 @@ services:
       OPS_AGENT_PORT: 9200
       AGENTSIGHT_URL: ${AGENTSIGHT_URL:-}
       LOKI_URL: ${LOKI_URL:-http://loki:3100}
+      KILL_LIFE_ROOT: ${KILL_LIFE_ROOT:-/home/clems/Kill_LIFE}
+      MASCARADE_DIR: ${MASCARADE_DIR:-/home/clems/mascarade}
+      OPS_MCP_PROBE_CACHE_TTL_MS: ${OPS_MCP_PROBE_CACHE_TTL_MS:-15000}
+      NOTION_API_KEY: ${NOTION_API_KEY:-}
+      KILL_LIFE_GITHUB_TOKEN: ${KILL_LIFE_GITHUB_TOKEN:-}
+      GITHUB_TOKEN: ${GITHUB_TOKEN:-}
+      NOTION_MCP_SMOKE_PAGE_ID: ${NOTION_MCP_SMOKE_PAGE_ID:-}
     volumes:
+      - /usr/bin/docker:/usr/bin/docker:ro
+      - /usr/libexec/docker/cli-plugins:/usr/libexec/docker/cli-plugins:ro
       - /var/run/docker.sock:/var/run/docker.sock
       - /var/log/journal:/var/log/journal:ro
       - /run/log/journal:/run/log/journal:ro
       - /etc/machine-id:/etc/machine-id:ro
+      - .:/home/clems/mascarade:ro
+      - ./.env:/home/clems/mascarade/.env
+      - ${KILL_LIFE_ROOT:-/home/clems/Kill_LIFE}:${KILL_LIFE_ROOT:-/home/clems/Kill_LIFE}
     healthcheck:
       test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:9200/health')\""]
       interval: 15s
