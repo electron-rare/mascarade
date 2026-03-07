@@ -14,6 +14,7 @@ Source de vérité opérateur:
 
 - un runtime KiCad principal est réellement opérable via `Kill_LIFE/tools/hw/run_kicad_mcp.sh`
 - `validate-specs` existe réellement et n'est plus une promesse cassée
+- `notion` et `github-dispatch` existent désormais comme serveurs MCP locaux versionnés
 - `component_database` et `kicad_tools` ne sont plus des mocks
 - `nexar_api` est cohérent côté token, mais son mode live reste à valider
 - la pile MCP locale converge désormais sur `2025-03-26`
@@ -25,6 +26,8 @@ Source de vérité opérateur:
 | --- | --- | --- | --- |
 | `kicad` | `Kill_LIFE/tools/hw/run_kicad_mcp.sh` -> `mascarade/finetune/kicad_mcp_server` | runtime principal, smoke OK, fallback conteneur OK | Supporté |
 | `validate-specs` | `Kill_LIFE/tools/validate_specs.py --mcp` | CLI + MCP réels | Supporté |
+| `notion` | `Kill_LIFE/tools/run_notion_mcp.sh` -> `mascarade/core/mascarade/integrations/notion.py` | handshake OK, erreurs structurées sans secret | Supporté |
+| `github-dispatch` | `Kill_LIFE/tools/run_github_dispatch_mcp.sh` -> `mascarade/core/mascarade/integrations/github_dispatch.py` | handshake OK, allowlist + statut local structurés | Supporté |
 | `component_database` | `mascarade/finetune/kicad_kic_ai/mcp_servers/component_db.py` | file-backed, cache KiCad v10, index SQLite | Supporté |
 | `kicad_tools` | `mascarade/finetune/kicad_kic_ai/mcp_servers/kicad_tools.py` | analyses réelles schéma/PCB/BOM/footprints | Supporté |
 | `nexar_api` | `mascarade/finetune/kicad_kic_ai/mcp_servers/nexar.py` | mode démo explicite, mode live non encore validé | Supporté |
@@ -80,6 +83,11 @@ Source de vérité opérateur:
 
 - Résolu
 - `/api/ops/summary` expose maintenant un bloc `mcp` avec statut, runtime, protocole et compteurs
+
+### B-004 — Implémenter les MCP `notion` et `github-dispatch`
+
+- Résolu
+- `Kill_LIFE/mcp.json` référence désormais les deux serveurs locaux et leurs launchers versionnés
 
 ## Backlog restant
 

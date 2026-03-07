@@ -4,9 +4,9 @@
 # Splits domains into waves that fit in available RAM.
 #
 # Usage:
-#   ./train_parallel.sh                          # Train remaining domains
+#   ./train_parallel.sh                           # Train remaining domains (serial by default)
 #   ./train_parallel.sh --domains power,dsp,emc  # Specific domains
-#   ./train_parallel.sh --parallel 3             # Max parallel jobs
+#   MASCARADE_ALLOW_PARALLEL_CPU=1 ./train_parallel.sh --parallel 3
 #
 
 set -euo pipefail
@@ -27,7 +27,7 @@ fi
 SEQ_LEN=512
 EPOCHS=2
 MAX_SAMPLES=500
-MAX_PARALLEL=4
+MAX_PARALLEL=1
 SELECTED_DOMAINS=""
 
 RED='\033[0;31m'
@@ -48,10 +48,18 @@ while [[ $# -gt 0 ]]; do
         --parallel) MAX_PARALLEL="$2"; shift 2 ;;
         -h|--help)
             echo "Usage: $0 [--domains d1,d2] [--parallel N] [--max-samples N]"
+            echo "By default CPU training is serialized on this machine."
+            echo "Set MASCARADE_ALLOW_PARALLEL_CPU=1 to allow --parallel > 1."
             exit 0 ;;
         *) echo "Unknown: $1"; exit 1 ;;
     esac
 done
+
+if [[ "$MAX_PARALLEL" -gt 1 && "${MASCARADE_ALLOW_PARALLEL_CPU:-0}" != "1" ]]; then
+    echo "Parallel CPU training above 1 is disabled by default on this machine." >&2
+    echo "Set MASCARADE_ALLOW_PARALLEL_CPU=1 to override intentionally." >&2
+    exit 1
+fi
 
 # Activate venv
 if [[ -f "$VENV" ]]; then

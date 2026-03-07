@@ -395,8 +395,14 @@ write_env_file() {
         echo "CAD_INSTALL_BUNDLES=\"${CAD_INSTALL_BUNDLES:-all}\""
         echo ""
 
-        # Notion
-        [[ -n "${NOTION_API_KEY:-}" ]] && echo "# ── Notion ──" && echo "NOTION_API_KEY=\"$NOTION_API_KEY\"" && echo ""
+        # Integrations
+        if [[ -n "${NOTION_API_KEY:-}" || -n "${KILL_LIFE_GITHUB_TOKEN:-}" || -n "${GITHUB_TOKEN:-}" ]]; then
+            echo "# ── Integrations ──"
+            [[ -n "${NOTION_API_KEY:-}" ]] && echo "NOTION_API_KEY=\"$NOTION_API_KEY\""
+            [[ -n "${KILL_LIFE_GITHUB_TOKEN:-}" ]] && echo "KILL_LIFE_GITHUB_TOKEN=\"$KILL_LIFE_GITHUB_TOKEN\""
+            [[ -n "${GITHUB_TOKEN:-}" ]] && echo "GITHUB_TOKEN=\"$GITHUB_TOKEN\""
+            echo ""
+        fi
 
     } > "$env_file"
 

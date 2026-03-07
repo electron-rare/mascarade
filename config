@@ -164,7 +164,7 @@ capture_config_snapshot() {
         CLUSTER_SHARED_KEY CLUSTER_REQUEST_TIMEOUT_MS CLUSTER_HEARTBEAT_SECONDS
         CLUSTER_FORWARD_ENABLED CLUSTER_PEERS
         KICAD_VERSION KICAD_PLUGIN_DIR CAD_WORKSPACE_DIR CAD_INSTALL_BUNDLES
-        NOTION_API_KEY COMFYUI_URL COMFYUI_LOCAL
+        NOTION_API_KEY KILL_LIFE_GITHUB_TOKEN COMFYUI_URL COMFYUI_LOCAL
         PUBLISH_BIND_HOST CORE_PORT API_PORT POSTGRES_PORT REDIS_PORT CLICKHOUSE_HTTP_PORT CLICKHOUSE_NATIVE_PORT OLLAMA_PORT OPEN_WEBUI_PORT EDGE_PROXY_BIND_HOST EDGE_PROXY_HTTP_PORT EDGE_PROXY_HTTPS_PORT
         LITELLM_PORT N8N_PORT LANGFUSE_PORT DIFY_API_PORT DIFY_WEB_PORT TTS_PORT STT_PORT
         GENERATE_AUDIO_PORT QDRANT_PORT QDRANT_GRPC_PORT GRAFANA_PORT PROMETHEUS_PORT
@@ -284,6 +284,10 @@ configure_integrations_section() {
 
     echo -e "  ${BOLD}Notion${NC}"
     NOTION_API_KEY=$(input_optional_secret "Notion API Key (optionnel) :" "${NOTION_API_KEY:-}")
+
+    echo ""
+    echo -e "  ${BOLD}GitHub dispatch${NC}"
+    KILL_LIFE_GITHUB_TOKEN=$(input_optional_secret "KILL_LIFE_GITHUB_TOKEN (optionnel) :" "${KILL_LIFE_GITHUB_TOKEN:-}")
 
     echo ""
     echo -e "  ${BOLD}ComfyUI${NC}"
@@ -470,6 +474,13 @@ show_integrations_summary() {
         notion_state+=" ${DIM}(modifie)${NC}"
     fi
     echo -e "    Notion : ${notion_state}"
+
+    local github_dispatch_state="absent"
+    [[ -n "${KILL_LIFE_GITHUB_TOKEN:-}" ]] && github_dispatch_state="configure ($(mask_config_value "$KILL_LIFE_GITHUB_TOKEN"))"
+    if value_changed "KILL_LIFE_GITHUB_TOKEN"; then
+        github_dispatch_state+=" ${DIM}(modifie)${NC}"
+    fi
+    echo -e "    GitHub dispatch : ${github_dispatch_state}"
 
     local comfy_state="desactive"
     if [[ "${COMFYUI_LOCAL:-false}" == "true" ]]; then
