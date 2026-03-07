@@ -120,6 +120,17 @@ export const navigationGroups: NavGroup[] = [
         description: "Endpoints exposes, providers declares et etat brut de l'infrastructure.",
         section: "Operations",
       },
+      {
+        to: "/settings",
+        icon: "⚿",
+        label: "Settings",
+        shortLabel: "Keys",
+        hint: "provider keys",
+        eyebrow: "admin",
+        title: "Settings",
+        description: "Configuration des cles API providers et parametres de la gateway.",
+        section: "Operations",
+      },
     ],
   },
   {
