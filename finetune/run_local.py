@@ -8,7 +8,7 @@ driver is temporarily unavailable.
 Examples:
   python finetune/run_local.py stm32
   python finetune/run_local.py kicad --device gpu --eval
-  python finetune/run_local.py embedded --device cpu --model gpt2
+  python finetune/run_local.py embedded --device cpu --model TinyLlama/TinyLlama-1.1B-Chat-v1.0
 """
 
 from __future__ import annotations
@@ -40,7 +40,7 @@ GPU_TRAINER = SCRIPT_DIR / "train_local.py"
 CPU_TRAINER = SCRIPT_DIR / "train_cpu.py"
 
 DEFAULT_GPU_MODEL = "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
-DEFAULT_CPU_MODEL = "gpt2"
+DEFAULT_CPU_MODEL = "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
 DOMAINS = [
     "stm32",
     "spice",

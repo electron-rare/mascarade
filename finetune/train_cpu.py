@@ -3,9 +3,9 @@
 """CPU-only fine-tuning script.
 
 Optimized for a local fallback path when CUDA is unavailable. The default
-model is `gpt2` because it is lightweight enough to validate the full
-pipeline locally, but a larger cached model can still be supplied with
-`--model`.
+model is `TinyLlama/TinyLlama-1.1B-Chat-v1.0` so the CPU queue stays aligned
+with the lightweight student model used by the local pipeline, while a larger
+cached model can still be supplied with `--model`.
 
 Usage:
   python train_cpu.py kicad
@@ -59,7 +59,7 @@ DOMAINS = [
     "freecad",
 ]
 
-DEFAULT_MODEL = "Qwen/Qwen2.5-Coder-1.5B-Instruct"
+DEFAULT_MODEL = "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
 
 LORA_TARGETS = {
     "gpt2": ["c_attn"],
