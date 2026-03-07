@@ -5,7 +5,7 @@
 # Usage:
 #   ./train_all.sh                    # All domains, GPU (Qwen2.5-Coder-1.5B)
 #   ./train_all.sh --domains spice,kicad,stm32
-#   ./train_all.sh --model Qwen/Qwen2.5-Coder-7B-Instruct --cpu
+#   ./train_all.sh --model TinyLlama/TinyLlama-1.1B-Chat-v1.0 --cpu
 #   ./train_all.sh --dry-run          # Show what would run
 #
 
