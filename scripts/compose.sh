@@ -195,6 +195,7 @@ write_env_file() {
             echo "OLLAMA_PORT=\"${OLLAMA_PORT:-11434}\""
             echo "OLLAMA_ENABLED=\"true\""
             echo "OLLAMA_PUBLISH_PORT=\"${OLLAMA_PUBLISH_PORT:-true}\""
+            echo "OLLAMA_USE_GPU=\"${OLLAMA_USE_GPU:-false}\""
             [[ -n "${OLLAMA_HOST_MODELS_DIR:-}" ]] && echo "OLLAMA_HOST_MODELS_DIR=\"${OLLAMA_HOST_MODELS_DIR}\""
             echo "OLLAMA_ENABLED=\"${OLLAMA_ENABLED:-$(svc_selected "ollama" && echo true || echo false)}\""
             echo "OLLAMA_HOST_MODE=\"${default_ollama_mode}\""
