@@ -136,6 +136,10 @@ DEFAULT_MODEL=claude-sonnet-4-6
 
 Le routeur active automatiquement les providers dont la cle est presente. Pas de cle = provider ignore.
 
+## CAD / EDA
+
+Une stack Docker dédiée `KiCad headless`, `KiCad MCP`, `FreeCAD` et `PlatformIO` est disponible dans [deploy/cad/README.md](/home/clems/mascarade/deploy/cad/README.md).
+
 Validation cloud rapide:
 
 ```bash

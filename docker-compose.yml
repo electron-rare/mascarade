@@ -208,6 +208,10 @@ services:
       DB_DATABASE: mascarade
       REDIS_HOST: redis
       REDIS_PORT: 6379
+      APP_WEB_URL: ${DIFY_PUBLIC_ORIGIN:-https://dify.localhost}
+      CONSOLE_WEB_URL: ${DIFY_PUBLIC_ORIGIN:-https://dify.localhost}
+      CONSOLE_API_URL: ${DIFY_PUBLIC_ORIGIN:-https://dify.localhost}
+      SERVICE_API_URL: ${DIFY_PUBLIC_ORIGIN:-https://dify.localhost}
       OPENDAL_SCHEME: fs
       OPENDAL_ROOT: /app/api/storage
       OPENDAL_FS_ROOT: /app/api/storage
@@ -232,6 +236,8 @@ services:
       DB_DATABASE: mascarade
       REDIS_HOST: redis
       REDIS_PORT: 6379
+      APP_API_URL: ${DIFY_PUBLIC_ORIGIN:-https://dify.localhost}
+      CONSOLE_API_URL: ${DIFY_PUBLIC_ORIGIN:-https://dify.localhost}
       OPENDAL_SCHEME: fs
       OPENDAL_ROOT: /app/api/storage
       OPENDAL_FS_ROOT: /app/api/storage
@@ -255,6 +261,10 @@ services:
       DB_DATABASE: mascarade
       REDIS_HOST: redis
       REDIS_PORT: 6379
+      APP_WEB_URL: ${DIFY_PUBLIC_ORIGIN:-https://dify.localhost}
+      CONSOLE_WEB_URL: ${DIFY_PUBLIC_ORIGIN:-https://dify.localhost}
+      CONSOLE_API_URL: ${DIFY_PUBLIC_ORIGIN:-https://dify.localhost}
+      SERVICE_API_URL: ${DIFY_PUBLIC_ORIGIN:-https://dify.localhost}
       OPENDAL_SCHEME: fs
       OPENDAL_ROOT: /app/api/storage
       OPENDAL_FS_ROOT: /app/api/storage

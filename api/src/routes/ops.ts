@@ -313,6 +313,31 @@ function severityRank(severity: OpsLogEntry["severity"]): number {
   }
 }
 
+function labelsMatchRouting(
+  entry: OpsLogEntry,
+  filters: {
+    routing_role?: string;
+    routing_provider?: string;
+    routing_model?: string;
+  },
+): boolean {
+  const role = filters.routing_role?.trim().toLowerCase();
+  const provider = filters.routing_provider?.trim().toLowerCase();
+  const model = filters.routing_model?.trim().toLowerCase();
+  const labels = entry.labels || {};
+
+  if (role && (labels.routing_role || "").trim().toLowerCase() !== role) {
+    return false;
+  }
+  if (provider && (labels.routing_provider || "").trim().toLowerCase() !== provider) {
+    return false;
+  }
+  if (model && (labels.routing_model || "").trim().toLowerCase() !== model) {
+    return false;
+  }
+  return true;
+}
+
 function coerceSeverity(value: string | undefined): OpsLogEntry["severity"] | null {
   if (!value) return null;
   const normalized = value.trim().toLowerCase();
@@ -853,6 +878,13 @@ ops.get("/logs/recent", async (c) => {
 
     const filtered = sortLogs(entries)
       .filter((entry) => severityRank(entry.severity) >= severityRank(minSeverity))
+      .filter((entry) =>
+        labelsMatchRouting(entry, {
+          routing_role: query.routing_role,
+          routing_provider: query.routing_provider,
+          routing_model: query.routing_model,
+        }),
+      )
       .slice(0, limit);
 
     return c.json({
@@ -892,9 +924,16 @@ ops.get("/logs/query", async (c) => {
       severity: coerceSeverity(query.severity),
       since: query.since,
     });
+    const filtered = entries.filter((entry) =>
+      labelsMatchRouting(entry, {
+        routing_role: query.routing_role,
+        routing_provider: query.routing_provider,
+        routing_model: query.routing_model,
+      }),
+    );
     return c.json({
-      entries,
-      count: entries.length,
+      entries: filtered,
+      count: filtered.length,
       source: "loki",
       timestamp: new Date().toISOString(),
     });
