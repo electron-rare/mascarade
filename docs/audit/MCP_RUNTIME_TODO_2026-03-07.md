@@ -30,16 +30,18 @@ Format:
 - [x] M-007 — Indexer le catalogue auxiliaire
   - AC: `component_database` utilise un index SQLite persistant pour le cache symboles.
 
-## Reste ouvert
+## Implemente apres la derniere mise a jour
 
 - [x] M-008 — Exposer un état synthétique MCP dans l'observabilité ops
-  - AC: état `ready/degraded/failed` visible sans lire les logs bruts.
+  - AC: `probeMcpRuntime()` dans `api/src/routes/ops.ts` avec cache TTL, statut `ready/degraded/failed` dans `/summary`.
 
 - [x] M-009 — Aligner la version de protocole MCP entre runtime principal et micro-serveurs restants
   - AC: une matrice explicite documente le support effectif.
 
-- [ ] M-010 — Faire passer le boot réel du serveur sur une machine avec KiCad Python disponible
-  - AC: `initialize` puis `tools/list` passent aussi sur le chemin host-native.
-
 - [x] M-011 — Décider le statut final des micro-serveurs auxiliaires
   - AC: `component_database`, `kicad_tools` et `nexar_api` sont explicitement classés comme surfaces auxiliaires supportées.
+
+## Reste ouvert
+
+- [ ] M-010 — Faire passer le boot réel du serveur sur une machine avec KiCad Python disponible
+  - AC: `initialize` puis `tools/list` passent aussi sur le chemin host-native.

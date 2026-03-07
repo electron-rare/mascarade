@@ -70,11 +70,17 @@ Etat de reference du chantier fine-tuning/distillation local au 6 mars 2026.
 - [x] `esp32` alias `iot` passe maintenant sur le chemin distill + merge en smoke test batch
 - [x] Le dataset source `iot` est valide apres normalisation `ensure_row_ids()`
 
+### Verifie par audit (7 mars 2026)
+- [x] `--resume` fonctionne: `load_resume_manifest()`, skip des domaines completed
+- [x] `batch_status.py` distingue correctement `distill` et `train` par domaine
+- [x] `selected_model.json` lu par `run_local.py` au boot via `resolve_model()`
+- [x] Export GGUF complet dans `pipeline.py`: q4_k_m, q4_k_s, q5_k_m, q8_0
+- [x] Deploy GGUF vers Ollama dans `pipeline.py`: docker cp/exec + test inference
+
 ### Ce qui reste a verrouiller
 - [ ] Valider la phase `train` de bout en bout sur un run batch `esp32 spice pio`
-- [ ] Documenter clairement la reprise d'un run batch interrompu avec `--resume`
+- [ ] Documenter la reprise `--resume` dans la doc operateur (code OK, doc manquante)
 - [ ] Mesurer si `2` trainings GPU paralleles apportent un gain reel sur Quadro P2000
-- [ ] Ajouter un resume CLI/rapport qui distingue `distill completed` de `train pending`
 
 ### Verification au 6 mars 2026
 - [x] `finetune/runs/smoke_batch_20260306_191758`: `esp32`, `spice`, `pio` en `distill=completed`
@@ -104,7 +110,7 @@ Objectif: cadrer si `Agent Zero` doit rester un sujet d'etude, un outil de debug
 ## 5. Prochain ordre de travail recommande
 
 1. Terminer un batch `esp32 spice pio` avec phase `train` complete et logs conserves.
-2. Ajouter un resume d'etat batch lisible (`distill completed`, `train running`, `train pending`, `failed`).
+2. Ecrire la doc operateur `--resume` (le code fonctionne deja).
 3. Lancer un vrai batch multi-domaines avec queue GPU a `1`.
 4. Mesurer ensuite un mode experimental a `2` trainings GPU paralleles.
 5. Cadrer `Agent Zero` separement, apres stabilisation du pipeline local.

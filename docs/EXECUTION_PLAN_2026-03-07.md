@@ -16,38 +16,39 @@ Plan court, factuel, base sur l'etat reel du repo au 7 mars 2026.
 
 ## Axe 2 - CAD / KiCad
 
-### Etat constate
-- Les sous-modules KiCad et les helpers versionnes existent deja.
-- Il manque encore le pilotage propre depuis `./config` et `./setup`.
-
-### Etat courant
+### Etat courant (verifie par audit 7 mars)
+- Les sous-modules KiCad pointent vers electron-rare (commite).
 - La section `CAD / KiCad` dans `./config` est implementee.
 - `./setup` supporte `--cad-plugins`, `--cad-doctor`, `--cad-stack`.
 - Les helpers plugins/doctor et `cad_stack.sh` sont versionnes.
+- Reste: smoke TUI, doc chemins par OS, doctor MCP dedie.
 
 ## Axe 3 - Cockpit / Observability
 
-### Etat constate
-- Le cockpit React et la lane `Logs` sont deja livres.
-- La trace inter-agent native avec `run_id` est deja visible dans le cockpit.
-- Le lot complementaire `ops-agent + Loki history + OTel exporters` est commence localement mais pas encore valide ni pousse.
+### Etat courant (verifie par audit 7 mars)
+- Le cockpit React et la lane `Logs` sont livres.
+- `ops-agent` est **complet**: /health, /sources, /summary, /logs/recent, /logs/stream (SSE).
+- `api/src/routes/ops.ts` est **stable**: logs/recent, logs/query (Loki), logs/stream, summary (avec MCP probe).
+- Le mode `history` de `web/src/pages/Logs.tsx` est **implemente**: toggle live/history, fenetres 15m/1h/6h/24h, recherche texte.
+- Exporteurs OTel custom implementes dans core (`otel.py`) et API (`otel.ts`).
 
 ### Prochain lot recommande
-1. Finaliser `ops-agent` pour les logs machine + Docker live.
-2. Stabiliser `api/src/routes/ops.ts` sur `logs/recent`, `logs/query`, `sources`, `summary`.
-3. Finir le mode `history` de `web/src/pages/Logs.tsx`.
-4. Valider `core`, `api`, `web` et la generation compose.
+1. Configurer un vrai exporter dans `deploy/otel-collector/config.yaml` (actuellement stub debug-only).
+2. Configurer Grafana datasources (Loki + Prometheus) en code.
+3. Ajouter un probe GPU (nvidia-smi) dans ops-agent ou API.
 
 ## Axe 4 - OTel / Loki
 
-### Etat constate
-- `loki`, `promtail` et `otel-collector` sont scaffoldes.
-- Les exporteurs applicatifs ne sont pas encore relies de bout en bout.
+### Etat courant (verifie par audit 7 mars)
+- `loki`, `promtail` et `otel-collector` deployes dans docker-compose.
+- Exporteurs OTLP custom branches dans core et API (OTEL_ENABLED=true).
+- **OTel Collector** recoit les donnees mais exporte uniquement en debug (stdout).
+- Promtail scrape Docker + journald vers Loki.
 
 ### Prochain lot recommande
-1. Brancher les exporteurs OTLP dans le core et l'API.
-2. Ajouter les labels utiles cote Loki/Promtail.
-3. Rendre l'historique Loki exploitable dans la lane `Logs`.
+1. Remplacer l'exporter debug du Collector par un vrai backend (Loki, Jaeger, etc.).
+2. Enrichir Promtail pour parser les logs JSON structures.
+3. Verifier les labels Loki utiles: `source`, `run_id`, `agent_name`, `event_type`, `severity`.
 
 ## Axe 5 - Fine-tuning local
 

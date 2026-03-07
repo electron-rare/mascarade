@@ -1,6 +1,7 @@
 # TODO - Cockpit / Ops / Observability
 
 Etat de reference au 7 mars 2026.
+Mis a jour apres audit croise code/docs le 7 mars 2026.
 
 ## 1. Ce qui est deja livre
 
@@ -12,66 +13,72 @@ Etat de reference au 7 mars 2026.
 - [x] Routes API de facade pour `summary`, `sources`, `logs/recent`, `agent-traces/*`
 - [x] Scaffolding Docker pour `loki`, `promtail`, `otel-collector`
 
-## 2. Blocage reel actuel
+## 2. Implemente depuis le dernier TODO (verifie par audit)
 
-Le prochain lot n'est plus la refonte UI.
-Le vrai travail restant est d'achever l'observability complementaire deja commencee localement:
+### Ops Agent (`deploy/ops_agent/app.py`)
+- [x] `ops-agent` finalise: /health, /sources, /summary, /logs/recent, /logs/stream (SSE)
+- [x] Collecte Docker via socket Unix `/var/run/docker.sock`
+- [x] Fallback propre quand `journald` n'est pas disponible
+- [x] Inference de severite via regex, parsing de logs structures
 
-- [ ] finaliser `ops-agent` pour les logs machine + Docker live
-- [ ] finir `/api/ops/logs/query` pour l'historique Loki
-- [ ] terminer le mode `history` de la page `Logs`
-- [ ] brancher les exporteurs OTel reels dans le core et l'API
+### Facade API ops (`api/src/routes/ops.ts`)
+- [x] Merge `ops-agent + traces natives + Loki` termine
+- [x] `/api/ops/logs/recent` stable (merge traces + probes + ops-agent + docker events)
+- [x] `/api/ops/logs/query` implemente: query_range Loki, filtres source/q/run_id/agent_name/severity/since/service
+- [x] `/api/ops/logs/stream` proxy SSE vers ops-agent
+- [x] Auth obligatoire sur toutes les routes /api/* (middleware timing-safe)
+- [x] MCP probe synthetique (`probeMcpRuntime()`) avec cache TTL dans `/summary`
 
-## 3. Priorite immediate
+### Frontend Logs (`web/src/pages/Logs.tsx`)
+- [x] Toggle `live` (SSE streams) vs `history` (requete Loki)
+- [x] Filtres: source, severity, run_id, agent_name, event_type, service, routing_role/provider/model
+- [x] Recherche texte en mode history (parametre `q` vers Loki)
+- [x] Fenetres temporelles history: 15m, 1h, 6h, 24h
+- [x] CTAs `agent-zero` conserves
+- [x] Panneau detail run avec timeline evenements
+- [x] Posture sources affichee
 
-### Ops Agent
-- [ ] valider `deploy/ops_agent/app.py`
-- [ ] exposer `/health`, `/sources`, `/summary`, `/logs/recent`
-- [ ] verifier collecte Docker via socket Unix
-- [ ] verifier fallback propre quand `journald` n'est pas disponible
+### Exporteurs OTel
+- [x] Export OTLP custom dans le core (`core/mascarade/observability/otel.py`): schedule_otlp_log(), OTEL_ENABLED
+- [x] Export OTLP custom dans l'API (`api/src/lib/otel.ts`): emitStructuredLog(), fire-and-forget
+- [x] Mapping severite OTLP: debug(5), info(9), warning(13), error(17), critical(21)
+- [x] Appele depuis agent_trace.py (core) et agents.ts (API)
 
-### Facade API ops
-- [ ] finir le merge `ops-agent + traces natives + Loki` dans `api/src/routes/ops.ts`
-- [ ] stabiliser `/api/ops/logs/recent`
-- [ ] stabiliser `/api/ops/logs/query`
-- [ ] garder auth obligatoire sur les routes ops
+## 3. Ce qui reste reellement
 
-### Frontend Logs
-- [ ] finir les filtres `mode/source/service/query/window`
-- [ ] distinguer proprement `live` vs `history`
-- [ ] garder les CTAs `agent-zero`
-- [ ] verifier le rendu des sources `machine`, `service`, `agent-trace`
+### OTel Collector
+- [ ] Configurer un vrai exporter dans `deploy/otel-collector/config.yaml` (actuellement stub debug-only)
+- [ ] Router les logs OTLP vers Loki ou un backend reel
+- [ ] Ajouter les metrics/spans si pertinent
 
-## 4. Priorite suivante
+### Grafana
+- [ ] Configurer les datasources en code (Loki, Prometheus)
+- [ ] Ajouter des dashboards pour les services Mascarade
 
-### OTel / Loki
-- [ ] brancher l'export OTLP du core
-- [ ] brancher l'export OTLP de l'API
-- [ ] enrichir Promtail pour parser les logs JSON structures
-- [ ] verifier les labels Loki utiles: `source`, `run_id`, `agent_name`, `event_type`, `severity`
+### Promtail
+- [ ] Enrichir le parsing des logs JSON structures
+- [ ] Verifier les labels Loki utiles: `source`, `run_id`, `agent_name`, `event_type`, `severity`
 
-### Historique cockpit
-- [ ] requete historique Loki exploitable depuis `Logs`
-- [ ] filtres persistants dans l'URL en mode history
-- [ ] handling propre des erreurs Loki/timeout
+### Frontend Logs (ajustements mineurs)
+- [ ] Filtres persistants dans l'URL en mode history
+- [ ] Handling propre des erreurs Loki/timeout
 
-## 5. Complement optionnel
+## 4. Complement optionnel
 
-- [ ] statut `AgentSight` dans `/api/ops/sources`
-- [ ] lien/documentation d'usage AgentSight si installe
-- [ ] aucune dependance critique du cockpit a AgentSight
+- [ ] Statut `AgentSight` dans `/api/ops/sources`
+- [ ] Lien/documentation d'usage AgentSight si installe
 
-## 6. Hors perimetre de ce lot
+## 5. Hors perimetre de ce lot
 
-- [ ] tuning ClickHouse agressif
+- [ ] Tuning ClickHouse agressif
 - [ ] TLS / certificat public
-- [ ] lot CAD / KiCad local
-- [ ] stabilisation batch fine-tuning end-to-end
+- [ ] Lot CAD / KiCad local
+- [ ] Stabilisation batch fine-tuning end-to-end
 
-## 7. Ordre recommande
+## 6. Ordre recommande
 
-1. Finir `ops-agent` et les routes API ops.
-2. Finir le mode `history` de `Logs`.
-3. Valider `core`, `api`, `web`, generation compose.
-4. Brancher ensuite les exporteurs OTel et l'historique Loki.
+1. Configurer le vrai exporter OTel Collector (remplacer le stub debug).
+2. Configurer Grafana datasources (Loki + Prometheus).
+3. Enrichir Promtail pour les logs structures.
+4. Ajustements mineurs frontend (URL persistants, error handling).
 5. Garder `AgentSight` en complement optionnel, en dernier.
