@@ -27,6 +27,33 @@ Stack Docker dédiée aux outils CAD/EDA du repo, séparée du `docker-compose.y
 ./scripts/cad_stack.sh mcp
 ```
 
+## Helpers locaux versionnés dans `mascarade`
+
+Les wrappers locaux ne vivent plus dans les sous-modules KiCad. Les entrées partagées sont maintenant:
+
+```bash
+./scripts/install_kicad_plugins.sh list
+./scripts/install_kicad_plugins.sh install fabrication-toolkit --yes
+./scripts/install_kicad_plugins.sh install kic-ai --yes
+./scripts/cad_stack.sh mcp
+```
+
+Par défaut, l'install cible:
+
+```text
+~/.config/kicad/9.0/scripting/plugins
+```
+
+Tu peux surcharger le répertoire cible:
+
+```bash
+./scripts/install_kicad_plugins.sh install all \
+  --plugin-dir /chemin/custom/plugins \
+  --yes
+```
+
+Le lancement `MCP` local passe par `./scripts/cad_stack.sh mcp`, ce qui remplace le vieux helper local non versionné du sous-module.
+
 Le workspace monté dans les conteneurs est, par défaut, la racine du repo. Pour pointer ailleurs:
 
 ```bash
