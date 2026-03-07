@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import { type OpsMonitor } from "../api/ops";
 import { useFetch } from "../hooks/useFetch";
+import { getDifyHealthUrl, getDifyOrigin } from "../lib/dify";
 import { Badge, Button, Card, CompactModelList, InlineNotice, LoadingPanel } from "../components/ui";
 
 interface HealthData {
@@ -92,6 +93,10 @@ export default function Dashboard() {
   const ollamaExposed = providers.includes("ollama");
   const localRuntimeGap = ollamaRuntimeReady && !ollamaExposed;
   const ollamaModelNames = monitor.data?.ai.ollama.model_names ?? [];
+  const difyWeb = monitor.data?.services.find((service) => service.name === "dify-web");
+  const difyApi = monitor.data?.services.find((service) => service.name === "dify-api");
+  const difyWebHref = `${getDifyOrigin()}/`;
+  const difyApiHref = getDifyHealthUrl();
 
   return (
     <div className="space-y-6">
@@ -272,6 +277,126 @@ export default function Dashboard() {
             </p>
           </Link>
         ))}
+      </section>
+
+      <section className="grid gap-4 xl:grid-cols-2">
+        <Card
+          title="Agent Zero lane"
+          className="bg-[linear-gradient(180deg,rgba(255,209,102,0.06),rgba(8,9,8,0.98))]"
+        >
+          <div className="space-y-4">
+            <p className="text-sm leading-7 text-amber-100/60">
+              Porte d&apos;entree recommandee pour cadrer une demande floue, decomposer une action et basculer
+              ensuite vers les lanes specialisees.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <span className="status-chip border-accent/35 bg-accent/10 text-accent">lead workflow</span>
+              <span className="status-chip border-border/80 bg-black/25 text-muted">intake + triage</span>
+            </div>
+            <div className="grid gap-3 md:grid-cols-2">
+              <Link
+                to="/agents/agent-zero"
+                className="rounded-[1.4rem] border border-accent/35 bg-black/25 px-4 py-4 transition hover:bg-accent/10"
+              >
+                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-accent">
+                  open agent zero
+                </p>
+                <p className="mt-2 text-sm text-amber-100/72">/agents/agent-zero</p>
+                <p className="mt-2 text-[12px] leading-5 text-amber-100/44">
+                  Vue detaillee, usages recommandes et acces direct au run lane.
+                </p>
+              </Link>
+              <Link
+                to="/orchestrate"
+                className="rounded-[1.4rem] border border-border/80 bg-black/25 px-4 py-4 transition hover:border-accent/35 hover:bg-black/30"
+              >
+                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-accent">
+                  start with zero
+                </p>
+                <p className="mt-2 text-sm text-amber-100/72">guided dispatch lane</p>
+                <p className="mt-2 text-[12px] leading-5 text-amber-100/44">
+                  Lance un cadrage operateur avant de repartir vers les agents specialises.
+                </p>
+              </Link>
+            </div>
+          </div>
+        </Card>
+
+        <Card title="Dify lane">
+          <div className="space-y-4">
+            <p className="text-sm leading-7 text-amber-100/60">
+              Surface builder deja presente dans la stack pour les workflows IA, avec acces web, health API et
+              raccourcis logs quand le service derive.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <span
+                className={[
+                  "status-chip",
+                  difyWeb?.ok
+                    ? "border-[#214e31] bg-[#0c170f]/80 text-[#8cffb7]"
+                    : "border-[#5d2332] bg-[#18070d]/80 text-error",
+                ].join(" ")}
+              >
+                dify web {difyWeb?.ok ? "online" : "watch"}
+              </span>
+              <span
+                className={[
+                  "status-chip",
+                  difyApi?.ok
+                    ? "border-[#214e31] bg-[#0c170f]/80 text-[#8cffb7]"
+                    : "border-[#5d2332] bg-[#18070d]/80 text-error",
+                ].join(" ")}
+              >
+                dify api {difyApi?.ok ? "online" : "watch"}
+              </span>
+              <span className="status-chip border-border/80 bg-black/25 text-muted">redis + postgres</span>
+            </div>
+            <div className="grid gap-3 md:grid-cols-2">
+              <a
+                href={difyWebHref}
+                target="_blank"
+                rel="noreferrer"
+                className="rounded-[1.4rem] border border-border/80 bg-black/25 px-4 py-4 transition hover:border-accent/35 hover:bg-black/30"
+              >
+                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-accent">
+                  open dify web
+                </p>
+                <p className="mt-2 text-sm text-amber-100/72">{difyWebHref.replace(/^https?:\/\//, "")}</p>
+                <p className="mt-2 text-[12px] leading-5 text-amber-100/44">
+                  {difyWeb ? `http ${difyWeb.status || "-"} / ${Math.round(difyWeb.latency_ms || 0)} ms` : "surface builder pending"}
+                </p>
+              </a>
+              <a
+                href={difyApiHref}
+                target="_blank"
+                rel="noreferrer"
+                className="rounded-[1.4rem] border border-border/80 bg-black/25 px-4 py-4 transition hover:border-accent/35 hover:bg-black/30"
+              >
+                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-accent">
+                  open dify api
+                </p>
+                <p className="mt-2 text-sm text-amber-100/72">{difyApiHref.replace(/^https?:\/\//, "")}</p>
+                <p className="mt-2 text-[12px] leading-5 text-amber-100/44">
+                  {difyApi ? `http ${difyApi.status || "-"} / ${Math.round(difyApi.latency_ms || 0)} ms` : "workflow api pending"}
+                </p>
+              </a>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Link
+                to="/logs?service=dify-web"
+                className="rounded-2xl border border-accent/35 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-accent transition hover:bg-accent/10"
+              >
+                dify web logs
+              </Link>
+              <Link
+                to="/logs?service=dify-api"
+                className="rounded-2xl border border-accent/35 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-accent transition hover:bg-accent/10"
+              >
+                dify api logs
+              </Link>
+            </div>
+          </div>
+        </Card>
       </section>
     </div>
   );

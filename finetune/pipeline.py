@@ -350,7 +350,7 @@ def step_merge(domain: str, base_model: str | None = None):
     # Read base model from training info
     if base_model is None:
         info = json.loads((output_dir / "training_info.json").read_text())
-        base_model = info["base_model"]
+        base_model = info.get("base_model") or info.get("model")
 
     print(f"\n{'='*60}")
     print(f"  MERGE: {domain}")

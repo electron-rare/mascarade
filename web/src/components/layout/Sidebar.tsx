@@ -1,4 +1,5 @@
 import { NavLink } from "react-router-dom";
+import { getDifyOrigin } from "../../lib/dify";
 import { navigationGroups, navigationItems, resolvePage } from "./navigation";
 
 type SidebarProps = {
@@ -10,6 +11,7 @@ type SidebarProps = {
 export default function Sidebar({ pathname, open, onClose }: SidebarProps) {
   const page = resolvePage(pathname);
   const host = window.location.host;
+  const difyHref = `${getDifyOrigin()}/`;
 
   return (
     <aside
@@ -65,6 +67,23 @@ export default function Sidebar({ pathname, open, onClose }: SidebarProps) {
               {page.index}
             </span>
           </div>
+        </div>
+
+        <div className="mt-3 grid grid-cols-2 gap-2 text-[11px] uppercase tracking-[0.16em]">
+          <NavLink
+            to="/agents/agent-zero"
+            className="rounded-2xl border border-accent/28 bg-accent/8 px-3 py-3 text-center text-accent transition hover:border-accent/45 hover:bg-accent/12"
+          >
+            agent zero
+          </NavLink>
+          <a
+            href={difyHref}
+            target="_blank"
+            rel="noreferrer"
+            className="rounded-2xl border border-border/70 bg-black/25 px-3 py-3 text-center text-amber-100/70 transition hover:border-accent/35 hover:text-accent"
+          >
+            dify
+          </a>
         </div>
       </div>
 

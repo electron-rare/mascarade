@@ -44,7 +44,7 @@ from peft import LoraConfig, get_peft_model
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 DATASETS_DIR = os.path.join(SCRIPT_DIR, "datasets")
-OUTPUT_DIR = os.path.join(SCRIPT_DIR, "models_cpu")
+OUTPUT_DIR = os.path.join(SCRIPT_DIR, "models_local")
 
 DOMAINS = [
     "stm32",

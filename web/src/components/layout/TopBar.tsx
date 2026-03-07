@@ -1,5 +1,7 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { Link } from "react-router-dom";
 import { getApiKey, setApiKey, api } from "../../api/client";
+import { getDifyHealthUrl } from "../../lib/dify";
 import Button from "../ui/Button";
 
 interface HealthData {
@@ -142,13 +144,13 @@ export default function TopBar({
   const authReady = storedKey.trim().length > 0;
   const endpoints = useMemo(() => {
     const origin = window.location.origin;
-    const { protocol, hostname } = window.location;
     return {
       cockpit: origin,
       apiHealth: `${origin}/health`,
       metrics: `${origin}/api/ops/monitor`,
-      coreHealth: `${protocol}//${hostname}:8100/health`,
+      coreHealth: `${origin}/core-health`,
       opsConsole: `${origin}/ops`,
+      difyHealth: getDifyHealthUrl(),
     };
   }, []);
 
@@ -187,11 +189,25 @@ export default function TopBar({
             </p>
           </div>
           <div className="mt-3 flex flex-wrap gap-2">
-            <a
-              href={endpoints.opsConsole}
+            <Link
+              to="/ops"
               className="status-chip min-h-0 border-border/80 bg-black/25 px-3 py-2 text-muted transition hover:border-accent/35 hover:text-accent"
             >
               ops hub
+            </Link>
+            <Link
+              to="/agents/agent-zero"
+              className="status-chip min-h-0 border-accent/28 bg-accent/8 px-3 py-2 text-accent transition hover:border-accent/45 hover:bg-accent/12"
+            >
+              agent zero
+            </Link>
+            <a
+              href={endpoints.difyHealth}
+              target="_blank"
+              rel="noreferrer"
+              className="status-chip min-h-0 border-border/80 bg-black/25 px-3 py-2 text-muted transition hover:border-accent/35 hover:text-accent"
+            >
+              dify health
             </a>
             <a
               href={endpoints.apiHealth}

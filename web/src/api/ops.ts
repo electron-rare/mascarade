@@ -138,6 +138,9 @@ export const opsApi = {
     agent_name?: string;
     event_type?: string;
     service?: string;
+    routing_role?: string;
+    routing_provider?: string;
+    routing_model?: string;
   }) => {
     const search = new URLSearchParams();
     if (params?.limit) search.set("limit", String(params.limit));
@@ -147,6 +150,9 @@ export const opsApi = {
     if (params?.agent_name) search.set("agent_name", params.agent_name);
     if (params?.event_type) search.set("event_type", params.event_type);
     if (params?.service) search.set("service", params.service);
+    if (params?.routing_role) search.set("routing_role", params.routing_role);
+    if (params?.routing_provider) search.set("routing_provider", params.routing_provider);
+    if (params?.routing_model) search.set("routing_model", params.routing_model);
     const suffix = search.toString() ? `?${search.toString()}` : "";
     return get<{ entries: OpsLogEntry[]; count: number; timestamp: string }>(
       `/api/ops/logs/recent${suffix}`,
@@ -162,6 +168,9 @@ export const opsApi = {
     service?: string;
     q?: string;
     since?: string;
+    routing_role?: string;
+    routing_provider?: string;
+    routing_model?: string;
   }) => {
     const search = new URLSearchParams();
     if (params?.limit) search.set("limit", String(params.limit));
@@ -173,6 +182,9 @@ export const opsApi = {
     if (params?.service) search.set("service", params.service);
     if (params?.q) search.set("q", params.q);
     if (params?.since) search.set("since", params.since);
+    if (params?.routing_role) search.set("routing_role", params.routing_role);
+    if (params?.routing_provider) search.set("routing_provider", params.routing_provider);
+    if (params?.routing_model) search.set("routing_model", params.routing_model);
     const suffix = search.toString() ? `?${search.toString()}` : "";
     return get<{ entries: OpsLogEntry[]; count: number; timestamp: string; source: string }>(
       `/api/ops/logs/query${suffix}`,
