@@ -222,6 +222,19 @@ Avec `generate-audio` et un vrai smoke test HTTP de `POST /generate`:
 
 `generate-audio` utilise AudioCraft avec une pile PyTorch/XFormers epinglee. En mode `cpu`, le build prend les wheels CPU; en mode `cuda`, le setup bascule vers les wheels CUDA 11.8. Le service emet `gpus: all` et suppose `nvidia-container-toolkit` installe sur l'hote. Les builds CPU et CUDA ont ete verifies localement.
 
+Par defaut, `generate-audio` charge maintenant le modele seulement au moment de `POST /generate`, puis le decharge apres la requete. Il n'est donc plus cense garder plusieurs Go de VRAM en resident entre deux usages. Tu peux changer ce comportement avec:
+
+```bash
+GENERATE_AUDIO_KEEP_LOADED=true
+GENERATE_AUDIO_IDLE_UNLOAD_SECONDS=300
+```
+
+et le liberer explicitement avec:
+
+```bash
+curl -X POST http://localhost:9000/unload
+```
+
 Par defaut, `setup` verifie seulement `GET /health`. Le vrai smoke test `POST /generate` est opt-in avec `--smoke-generate-audio`, car il peut declencher un premier chargement modele plus long.
 
 Si la machine a deja un service Ollama systeme avec ses modeles sous `/usr/share/ollama/.ollama`, la stack peut reutiliser ce stockage via:
