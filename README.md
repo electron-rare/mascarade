@@ -49,6 +49,42 @@ Systeme d'orchestration agentique personnel. Route intelligemment les requetes L
 
 ---
 
+## Crazy Life Frontend
+
+Le frontend cockpit est aussi publie dans un repo prive separe:
+
+- repo: `electron-rare/crazy_life`
+- role: extraction autonome de `web/`
+- sync depuis `mascarade`: [scripts/sync_crazy_life.sh](/home/clems/mascarade/scripts/sync_crazy_life.sh)
+
+Badges du repo frontend:
+
+[![CI](https://github.com/electron-rare/crazy_life/actions/workflows/ci.yml/badge.svg)](https://github.com/electron-rare/crazy_life/actions/workflows/ci.yml)
+[![Deploy Pages](https://github.com/electron-rare/crazy_life/actions/workflows/deploy-pages.yml/badge.svg)](https://github.com/electron-rare/crazy_life/actions/workflows/deploy-pages.yml)
+
+URL cible GitHub Pages une fois active:
+
+```text
+https://electron-rare.github.io/crazy_life/
+```
+
+Etat actuel:
+
+- le workflow Pages est present dans `web/.github/workflows/`
+- GitHub Pages n'est pas encore active sur `crazy_life`
+- `push` publie `HEAD:web` vers `crazy_life`
+- `pull` resynchronise `web/` depuis `crazy_life/main` et cree un commit local
+
+Raccourcis:
+
+```bash
+scripts/sync_crazy_life.sh status
+scripts/sync_crazy_life.sh push --allow-dirty --force
+scripts/sync_crazy_life.sh pull
+```
+
+---
+
 ## Prerequis
 
 - **Docker** et **Docker Compose** (deploiement)
