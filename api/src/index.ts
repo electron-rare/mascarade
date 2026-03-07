@@ -13,6 +13,7 @@ import { cluster } from "./routes/cluster.js";
 import { notion } from "./routes/notion.js";
 import { comfyui } from "./routes/comfyui.js";
 import { ops } from "./routes/ops.js";
+import { killlife } from "./routes/killlife.js";
 
 const app = new Hono();
 const hasFrontend = existsSync("./public/index.html");
@@ -34,6 +35,7 @@ app.route("/api/cluster", cluster);
 app.route("/api/notion", notion);
 app.route("/api/comfyui", comfyui);
 app.route("/api/ops", ops);
+app.route("/api/killlife", killlife);
 
 if (hasFrontend) {
   app.use("/assets/*", serveStatic({ root: "./public" }));
