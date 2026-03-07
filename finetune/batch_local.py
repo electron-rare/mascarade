@@ -5,15 +5,25 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import subprocess
 import sys
 import time
 from collections import deque
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
+from urllib import error, request
 
 import torch
 
+from dataset_bootstrap import ensure_seed_dataset
+from llmfit_utils import (
+    build_llmfit_record,
+    env_flag,
+    plan_model_with_llmfit,
+    write_llmfit_plan,
+)
 from sharegpt_utils import (
     dedupe_rows,
     ensure_row_ids,
@@ -27,6 +37,10 @@ DISTILL_SCRIPT = SCRIPT_DIR / "distill_dataset.py"
 RUN_LOCAL_SCRIPT = SCRIPT_DIR / "run_local.py"
 DATASETS_DIR = SCRIPT_DIR / "datasets"
 RUNS_DIR = SCRIPT_DIR / "runs"
+ROOT_DIR = SCRIPT_DIR.parent
+DEFAULT_API_URLS = ["http://127.0.0.1:8100"]
+LOCAL_HF_PROVIDER = "local-hf"
+DEFAULT_OLLAMA_API_URL = "http://127.0.0.1:11434"
 
 DEFAULT_DOMAINS = ["esp32", "spice", "pio"]
 ALIAS_MAP = {
@@ -60,6 +74,8 @@ class DomainJob:
     retry_report_path: Path
     retry_failures_out: Path
     train_output_dir: Path
+    train_run_manifest: Path
+    train_llmfit_plan: Path
     distill_log: Path
     train_log: Path
 
@@ -79,6 +95,32 @@ def resolve_path(raw_path: str | None) -> Path | None:
     if not path.is_absolute():
         path = (Path.cwd() / path).resolve()
     return path
+
+
+def load_env_var_from_dotenv(name: str) -> str | None:
+    env_path = ROOT_DIR / ".env"
+    if not env_path.exists():
+        return None
+    for raw_line in env_path.read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        if key != name:
+            continue
+        value = value.strip()
+        if len(value) >= 2 and value[0] == value[-1] and value[0] in {"'", '"'}:
+            value = value[1:-1]
+        return value
+    return None
+
+
+def ensure_local_api_key_env() -> None:
+    if os.environ.get("MASCARADE_API_KEY"):
+        return
+    api_key = load_env_var_from_dotenv("MASCARADE_API_KEY")
+    if api_key:
+        os.environ["MASCARADE_API_KEY"] = api_key
 
 
 def write_manifest(path: Path, payload: dict) -> None:
@@ -103,6 +145,10 @@ def build_jobs(
             raise SystemExit(f"Unsupported domain: {label} -> {canonical}")
         source_dataset = DATASETS_DIR / f"{canonical}_chat.jsonl"
         if not source_dataset.exists():
+            builder = ensure_seed_dataset(SCRIPT_DIR, canonical, source_dataset)
+            if builder is not None:
+                print(f"[BOOTSTRAP] built seed dataset for {label} via {builder.name}")
+        if not source_dataset.exists():
             raise SystemExit(f"Source dataset not found: {source_dataset}")
         jobs[label] = DomainJob(
             label=label,
@@ -119,6 +165,14 @@ def build_jobs(
             train_output_dir=SCRIPT_DIR
             / "models_local"
             / f"{label}_{run_label}_{stamp}",
+            train_run_manifest=SCRIPT_DIR
+            / "models_local"
+            / f"{label}_{run_label}_{stamp}"
+            / "run.json",
+            train_llmfit_plan=SCRIPT_DIR
+            / "models_local"
+            / f"{label}_{run_label}_{stamp}"
+            / "llmfit_plan.json",
             distill_log=log_dir / f"{label}_distill.log",
             train_log=log_dir / f"{label}_train.log",
         )
@@ -145,10 +199,14 @@ def build_new_manifest(
             "retry_report_path": str(job.retry_report_path),
             "retry_failures_out": str(job.retry_failures_out),
             "train_output_dir": str(job.train_output_dir),
+            "train_run_manifest": str(job.train_run_manifest),
+            "train_llmfit_plan": str(job.train_llmfit_plan),
             "distill_log": str(job.distill_log),
             "train_log": str(job.train_log),
             "distill": {"status": "pending"},
-            "train": {"status": "pending"},
+            "train": {
+                "status": "skipped" if args.skip_train else "pending",
+            },
         }
     return {
         "version": 1,
@@ -160,7 +218,8 @@ def build_new_manifest(
         "config": {
             "teacher_provider": args.teacher_provider,
             "teacher_model": args.teacher_model,
-            "api_urls": args.api_urls or [],
+            "api_urls": args.api_urls or DEFAULT_API_URLS,
+            "teacher_only": args.teacher_only,
             "strategy": args.strategy,
             "temperature": args.temperature,
             "max_tokens": args.max_tokens,
@@ -172,17 +231,25 @@ def build_new_manifest(
             "seed": args.seed,
             "sleep_ms": args.sleep_ms,
             "teacher_system_path": args.teacher_system_path,
+            "overlap_teacher_train": args.overlap_teacher_train,
             "device": args.device,
             "student_model": args.student_model,
             "student_max_samples": args.student_max_samples,
             "seq_len": args.seq_len,
             "epochs": args.epochs,
             "tokenize_workers": args.tokenize_workers,
+            "skip_train": args.skip_train,
             "offline": args.offline,
             "eval": args.eval,
             "max_parallel_gpu_trains": args.max_parallel_gpu_trains,
             "gpu_job_vram_mb": args.gpu_job_vram_mb,
             "gpu_buffer_mb": args.gpu_buffer_mb,
+            "llmfit_preflight": env_flag("LLMFIT_PREFLIGHT", True),
+            "llmfit_min_fit": os.environ.get("LLMFIT_MIN_FIT", "marginal"),
+            "llmfit_memory": os.environ.get("LLMFIT_MEMORY"),
+            "llmfit_bin": os.environ.get("LLMFIT_BIN"),
+            "llmfit_root": os.environ.get("LLMFIT_ROOT"),
+            "llmfit_allow_cargo_run": env_flag("LLMFIT_ALLOW_CARGO_RUN", False),
         },
         "domains": domains,
     }
@@ -212,6 +279,8 @@ def jobs_from_manifest(manifest: dict) -> dict[str, DomainJob]:
             retry_report_path=Path(payload["retry_report_path"]),
             retry_failures_out=Path(payload["retry_failures_out"]),
             train_output_dir=Path(payload["train_output_dir"]),
+            train_run_manifest=Path(payload["train_run_manifest"]),
+            train_llmfit_plan=Path(payload["train_llmfit_plan"]),
             distill_log=Path(payload["distill_log"]),
             train_log=Path(payload["train_log"]),
         )
@@ -220,6 +289,12 @@ def jobs_from_manifest(manifest: dict) -> dict[str, DomainJob]:
 
 def read_json(path: Path) -> dict:
     return json.loads(path.read_text(encoding="utf-8"))
+
+
+def load_json_if_exists(path: Path) -> dict | None:
+    if not path.exists():
+        return None
+    return read_json(path)
 
 
 def load_jsonl_if_exists(path: Path) -> list[dict]:
@@ -377,6 +452,113 @@ def run_distill_job(job: DomainJob, config: dict, concurrency: int) -> dict:
     }
 
 
+def resolve_overlap_teacher_train(config: dict) -> bool:
+    requested = config.get("overlap_teacher_train")
+    if requested is not None:
+        return bool(requested)
+    if config.get("teacher_provider") == LOCAL_HF_PROVIDER:
+        return False
+    return True
+
+
+def resolve_train_slot_limit(config: dict, active_distills: dict[object, str]) -> int:
+    slots = max(1, int(config.get("max_parallel_gpu_trains") or 1))
+    if slots <= 1:
+        return 1
+    if active_distills:
+        # A 14B Ollama teacher plus 2x 4B students overruns a single 4090.
+        return 1
+    return slots
+
+
+def resolve_ollama_api_url(config: dict) -> str:
+    return str(
+        config.get("teacher_ollama_api_url")
+        or os.environ.get("OLLAMA_API_URL")
+        or DEFAULT_OLLAMA_API_URL
+    ).rstrip("/")
+
+
+def unload_ollama_model(config: dict) -> tuple[bool, str]:
+    if str(config.get("teacher_provider") or "").lower() != "ollama":
+        return False, "teacher unload skipped: provider is not ollama"
+
+    model = str(config.get("teacher_model") or "").strip()
+    if not model:
+        return False, "teacher unload skipped: no teacher model configured"
+
+    api_url = resolve_ollama_api_url(config)
+    body = json.dumps(
+        {
+            "model": model,
+            "prompt": "",
+            "stream": False,
+            "keep_alive": 0,
+        }
+    ).encode("utf-8")
+    req = request.Request(
+        f"{api_url}/api/generate",
+        data=body,
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    try:
+        with request.urlopen(req, timeout=15) as response:
+            response.read()
+        return True, f"teacher unloaded via Ollama API: {model}"
+    except error.URLError as exc:
+        return False, f"teacher unload skipped: {exc}"
+
+
+def estimate_student_train_vram_mb(
+    config: dict, llmfit_record: dict | None = None
+) -> int:
+    explicit = int(config.get("gpu_job_vram_mb") or 0)
+    if explicit > 0:
+        return explicit
+
+    model_name = str(config.get("student_model") or "").lower()
+    seq_len = int(config.get("seq_len") or 512)
+    recommended_vram_gb = None
+    if llmfit_record is not None:
+        recommended_vram_gb = llmfit_record.get("recommended_vram_gb")
+
+    if recommended_vram_gb is None:
+        try:
+            summary = plan_model_with_llmfit(
+                model_name=str(config.get("student_model")),
+                context=seq_len,
+                llmfit_bin=os.environ.get("LLMFIT_BIN"),
+                llmfit_root=os.environ.get("LLMFIT_ROOT"),
+                memory_override=os.environ.get("LLMFIT_MEMORY"),
+                allow_cargo_run=env_flag("LLMFIT_ALLOW_CARGO_RUN", False),
+                timeout=30,
+            )
+        except Exception:
+            summary = None
+        if summary is not None:
+            recommended_vram_gb = summary.recommended_vram_gb
+
+    if recommended_vram_gb is not None:
+        base = int(recommended_vram_gb * 1024 * 1.6)
+    elif "qwen/qwen3.5-9b" in model_name or "qwen/qwen3-8b" in model_name:
+        base = 12288
+    elif "qwen/qwen2.5-coder-7b" in model_name or "7b" in model_name:
+        base = 10240
+    elif "qwen/qwen3-4b" in model_name or "4b" in model_name:
+        base = 6144
+    elif "qwen/qwen2.5-coder-1.5b" in model_name or "1.5b" in model_name:
+        base = 4096
+    elif "tinyllama" in model_name or "1.1b" in model_name:
+        base = 3072
+    else:
+        base = 6144
+
+    if seq_len > 512:
+        base += int(((seq_len - 512) / 256) * 512)
+    return max(2048, base)
+
+
 def probe_vram_mb() -> tuple[int, int]:
     if not torch.cuda.is_available():
         return 0, 0
@@ -390,7 +572,7 @@ def gpu_wait_reason(config: dict, active_gpu_jobs: int) -> str | None:
     if not torch.cuda.is_available():
         return "CUDA unavailable for batch training"
     free_mb, _total_mb = probe_vram_mb()
-    required_mb = config["gpu_job_vram_mb"] + config["gpu_buffer_mb"]
+    required_mb = config["resolved_gpu_job_vram_mb"] + config["gpu_buffer_mb"]
     if free_mb < required_mb:
         return (
             f"GPU memory busy: free={free_mb}MB required>={required_mb}MB "
@@ -403,11 +585,14 @@ def can_start_gpu_job(config: dict, active_gpu_jobs: int) -> bool:
     return gpu_wait_reason(config, active_gpu_jobs) is None
 
 
-def start_train_process(job: DomainJob, config: dict):
+def start_train_process(
+    job: DomainJob, config: dict, train_slot_limit: int | None = None
+):
     job.train_log.parent.mkdir(parents=True, exist_ok=True)
     tokenize_workers = config["tokenize_workers"]
-    if tokenize_workers > 1 and config["max_parallel_gpu_trains"] > 1:
-        tokenize_workers = max(1, tokenize_workers // config["max_parallel_gpu_trains"])
+    effective_slots = max(1, train_slot_limit or config["max_parallel_gpu_trains"])
+    if tokenize_workers > 1 and effective_slots > 1:
+        tokenize_workers = max(1, tokenize_workers // effective_slots)
 
     command = [
         sys.executable,
@@ -447,6 +632,18 @@ def start_train_process(job: DomainJob, config: dict):
     return process, log_handle
 
 
+def stop_active_trains(active_trains: dict[str, tuple[subprocess.Popen, object]]) -> None:
+    for process, log_handle in active_trains.values():
+        try:
+            process.terminate()
+        except Exception:
+            pass
+        try:
+            log_handle.close()
+        except Exception:
+            pass
+
+
 def save_updated_manifest(manifest_path: Path, manifest: dict) -> None:
     manifest["updated_at"] = now_ts()
     write_manifest(manifest_path, manifest)
@@ -454,6 +651,78 @@ def save_updated_manifest(manifest_path: Path, manifest: dict) -> None:
 
 def domain_done(payload: dict, phase: str) -> bool:
     return payload[phase]["status"] == "completed"
+
+
+def resolve_batch_llmfit(
+    config: dict, run_dir: Path
+) -> dict:
+    enabled = bool(config.get("llmfit_preflight", True))
+    requested_device = str(config.get("device") or "gpu")
+    model_name = str(config.get("student_model") or "")
+    context = int(config.get("seq_len") or 256)
+    minimum_fit = str(config.get("llmfit_min_fit") or "marginal")
+    report_path = run_dir / "llmfit_plan.json"
+
+    if config.get("skip_train"):
+        return {
+            "enabled": enabled,
+            "requested_device": requested_device,
+            "model": model_name,
+            "context": context,
+            "minimum_fit": minimum_fit,
+            "status": "skipped",
+            "reason": "Training skipped by configuration",
+            "train_blocked": False,
+            "report_path": str(report_path),
+        }
+
+    if requested_device != "gpu":
+        record = build_llmfit_record(
+            enabled=enabled,
+            requested_device=requested_device,
+            model_name=model_name,
+            context=context,
+            minimum_fit=minimum_fit,
+        )
+        record["train_blocked"] = False
+        return record
+
+    summary = None
+    warning = None
+    if enabled:
+        try:
+            summary = plan_model_with_llmfit(
+                model_name=model_name,
+                context=context,
+                llmfit_bin=config.get("llmfit_bin"),
+                llmfit_root=config.get("llmfit_root"),
+                memory_override=config.get("llmfit_memory"),
+                allow_cargo_run=bool(config.get("llmfit_allow_cargo_run")),
+                timeout=30,
+            )
+            if summary is None:
+                warning = (
+                    "llmfit preflight skipped: no llmfit binary found. "
+                    "Build /ai/saisail/llmfit with cargo +stable build --release -p llmfit "
+                    "or set LLMFIT_BIN."
+                )
+            else:
+                write_llmfit_plan(report_path, summary)
+        except Exception as exc:  # noqa: BLE001
+            warning = f"llmfit preflight skipped: {exc}"
+
+    record = build_llmfit_record(
+        enabled=enabled,
+        requested_device=requested_device,
+        model_name=model_name,
+        context=context,
+        minimum_fit=minimum_fit,
+        summary=summary,
+        report_path=report_path if summary is not None else None,
+        warning=warning,
+    )
+    record["train_blocked"] = record["status"] == "rejected"
+    return record
 
 
 def main() -> int:
@@ -473,8 +742,8 @@ def main() -> int:
         dest="api_urls",
         help="Mascarade base URL, repeatable",
     )
-    parser.add_argument("--teacher-provider", default="mistral")
-    parser.add_argument("--teacher-model", default="mistral-large-latest")
+    parser.add_argument("--teacher-provider", default="ollama")
+    parser.add_argument("--teacher-model", default="qwen2.5:14b")
     parser.add_argument("--strategy", default="best")
     parser.add_argument("--temperature", type=float, default=0.4)
     parser.add_argument("--max-tokens", type=int, default=2048)
@@ -497,18 +766,40 @@ def main() -> int:
         default=1,
         help="GPU training slots (1 or 2)",
     )
-    parser.add_argument("--gpu-job-vram-mb", type=int, default=1800)
+    parser.add_argument("--gpu-job-vram-mb", type=int, default=0)
     parser.add_argument("--gpu-buffer-mb", type=int, default=512)
+    parser.add_argument(
+        "--overlap-teacher-train",
+        dest="overlap_teacher_train",
+        action="store_true",
+        default=None,
+        help="Allow training to start while other domains are still distilling",
+    )
+    parser.add_argument(
+        "--no-overlap-teacher-train",
+        dest="overlap_teacher_train",
+        action="store_false",
+        help="Force the old two-phase behavior: all distills, then all trainings",
+    )
     parser.add_argument("--device", choices=["gpu", "cpu", "auto"], default="gpu")
     parser.add_argument("--student-model", default="TinyLlama/TinyLlama-1.1B-Chat-v1.0")
     parser.add_argument("--student-max-samples", type=int, default=None)
     parser.add_argument("--seq-len", type=int, default=256)
     parser.add_argument("--epochs", type=int, default=2)
     parser.add_argument("--tokenize-workers", type=int, default=4)
+    parser.add_argument(
+        "--teacher-only",
+        action="store_true",
+        help="Distill/merge only, skip local student training",
+    )
+    parser.add_argument("--skip-train", action="store_true")
     parser.add_argument("--offline", action="store_true")
     parser.add_argument("--eval", action="store_true")
     parser.add_argument("--verbose", action="store_true")
     args = parser.parse_args()
+    if args.teacher_only:
+        args.skip_train = True
+    ensure_local_api_key_env()
 
     if args.max_parallel_gpu_trains < 1 or args.max_parallel_gpu_trains > 2:
         raise SystemExit("--max-parallel-gpu-trains must be 1 or 2")
@@ -527,35 +818,111 @@ def main() -> int:
     run_dir = Path(manifest["run_dir"])
     jobs = jobs_from_manifest(manifest)
     config = manifest["config"]
-    config.setdefault("api_urls", [])
+    config["api_urls"] = config.get("api_urls") or DEFAULT_API_URLS
     config["teacher_system_path"] = config.get("teacher_system_path")
     config["student_max_samples"] = config.get("student_max_samples")
+    config["teacher_only"] = config.get("teacher_only", False)
+    config["skip_train"] = config.get("skip_train", False)
+    config["llmfit_preflight"] = config.get("llmfit_preflight", env_flag("LLMFIT_PREFLIGHT", True))
+    config["llmfit_min_fit"] = config.get("llmfit_min_fit", os.environ.get("LLMFIT_MIN_FIT", "marginal"))
+    config["llmfit_memory"] = config.get("llmfit_memory", os.environ.get("LLMFIT_MEMORY"))
+    config["llmfit_bin"] = config.get("llmfit_bin", os.environ.get("LLMFIT_BIN"))
+    config["llmfit_root"] = config.get("llmfit_root", os.environ.get("LLMFIT_ROOT"))
+    config["llmfit_allow_cargo_run"] = config.get(
+        "llmfit_allow_cargo_run",
+        env_flag("LLMFIT_ALLOW_CARGO_RUN", False),
+    )
+    config["teacher_ollama_api_url"] = resolve_ollama_api_url(config)
+    config["resolved_overlap_teacher_train"] = resolve_overlap_teacher_train(config)
+    batch_llmfit = resolve_batch_llmfit(config, run_dir)
+    manifest["llmfit"] = batch_llmfit
+    config["resolved_gpu_job_vram_mb"] = estimate_student_train_vram_mb(
+        config,
+        llmfit_record=batch_llmfit,
+    )
+    train_blocked_by_llmfit = bool(batch_llmfit.get("train_blocked"))
+    for payload in manifest["domains"].values():
+        if payload["train"]["status"] == "pending":
+            payload["train"]["llmfit"] = {
+                "status": batch_llmfit["status"],
+                "reason": batch_llmfit.get("reason"),
+                "report_path": batch_llmfit.get("report_path"),
+            }
+    save_updated_manifest(manifest_path, manifest)
 
     print(f"[INFO] run_dir={run_dir}")
     print(f"[INFO] domains={' '.join(jobs.keys())}")
     print(f"[INFO] teacher={config['teacher_provider']}/{config['teacher_model']}")
     print(f"[INFO] gpu_slots={config['max_parallel_gpu_trains']}")
+    print(
+        "[INFO] overlap_teacher_train="
+        f"{config['resolved_overlap_teacher_train']} "
+        f"gpu_job_vram_mb={config['resolved_gpu_job_vram_mb']}"
+    )
+    if config["device"] == "gpu" and not config["skip_train"]:
+        print(
+            "[INFO] llmfit="
+            f"{batch_llmfit['status']} "
+            f"fit={batch_llmfit.get('current_fit_level', '-')} "
+            f"gpu_path={'yes' if batch_llmfit.get('gpu_path_feasible') else 'no'}"
+        )
+        if batch_llmfit.get("reason"):
+            print(f"[INFO] llmfit_reason={batch_llmfit['reason']}")
 
-    pending_distills = [
+    pending_distills = deque(
         label
         for label, payload in manifest["domains"].items()
         if not domain_done(payload, "distill")
-    ]
+    )
+    pending_trains = deque(
+        label
+        for label, payload in manifest["domains"].items()
+        if not config["skip_train"]
+        and not train_blocked_by_llmfit
+        and payload["distill"]["status"] == "completed"
+        and payload["train"]["status"] == "pending"
+    )
+    active_trains: dict[str, tuple[subprocess.Popen, object]] = {}
+    active_distills: dict[object, str] = {}
+    last_wait_notice = 0.0
+    teacher_released_for_parallel_trains = False
+
+    per_domain_concurrency = 1
+    distill_workers = 0
     if pending_distills:
+        if config["teacher_provider"] == LOCAL_HF_PROVIDER:
+            config["max_parallel_distills"] = 1
         per_domain_concurrency = max(
             1, config["max_parallel_distills"] // max(1, len(pending_distills))
         )
         per_domain_concurrency = min(
             per_domain_concurrency, config["max_source_samples"]
         )
-        print(
-            f"[INFO] pending_distills={len(pending_distills)} per_domain_concurrency={per_domain_concurrency}"
+        if config["teacher_provider"] == LOCAL_HF_PROVIDER:
+            per_domain_concurrency = 1
+        distill_workers = (
+            1
+            if config["teacher_provider"] == LOCAL_HF_PROVIDER
+            else max(
+                1,
+                min(
+                    len(pending_distills),
+                    max(1, config["max_parallel_distills"] // per_domain_concurrency),
+                ),
+            )
         )
-        from concurrent.futures import ThreadPoolExecutor, as_completed
+        print(
+            f"[INFO] pending_distills={len(pending_distills)} "
+            f"per_domain_concurrency={per_domain_concurrency} "
+            f"distill_workers={distill_workers}"
+        )
+    if pending_trains:
+        print(f"[INFO] pending_trains={len(pending_trains)}")
 
-        with ThreadPoolExecutor(max_workers=len(pending_distills)) as executor:
-            future_map = {}
-            for label in pending_distills:
+    with ThreadPoolExecutor(max_workers=max(1, distill_workers or 1)) as executor:
+        while pending_distills or active_distills or pending_trains or active_trains:
+            while pending_distills and len(active_distills) < max(1, distill_workers):
+                label = pending_distills.popleft()
                 manifest["domains"][label]["distill"] = {
                     "status": "running",
                     "started_at": now_ts(),
@@ -565,13 +932,16 @@ def main() -> int:
                 future = executor.submit(
                     run_distill_job, jobs[label], config, per_domain_concurrency
                 )
-                future_map[future] = label
+                active_distills[future] = label
 
-            for future in as_completed(future_map):
-                label = future_map[future]
+            for future, label in list(active_distills.items()):
+                if not future.done():
+                    continue
+                del active_distills[future]
                 try:
                     result = future.result()
                 except Exception as exc:  # noqa: BLE001
+                    stop_active_trains(active_trains)
                     manifest["domains"][label]["distill"] = {
                         "status": "failed",
                         "completed_at": now_ts(),
@@ -589,66 +959,136 @@ def main() -> int:
                 print(
                     f"[OK] distill {label}: merged={result['merged_rows']} retry_failures={result['retry_failures']}"
                 )
+                if (
+                    not config["skip_train"]
+                    and not train_blocked_by_llmfit
+                    and manifest["domains"][label]["train"]["status"] == "pending"
+                ):
+                    pending_trains.append(label)
 
-    pending_trains = deque(
-        label
-        for label, payload in manifest["domains"].items()
-        if payload["distill"]["status"] == "completed"
-        and not domain_done(payload, "train")
-    )
-    active_trains: dict[str, tuple[subprocess.Popen, object]] = {}
-    last_wait_notice = 0.0
-    if pending_trains:
-        print(f"[INFO] pending_trains={len(pending_trains)}")
+            for label in list(active_trains):
+                process, log_handle = active_trains[label]
+                returncode = process.poll()
+                if returncode is None:
+                    continue
+                log_handle.close()
+                child_run = load_json_if_exists(jobs[label].train_run_manifest)
+                child_llmfit = None if child_run is None else child_run.get("llmfit")
+                if returncode == 0:
+                    manifest["domains"][label]["train"] = {
+                        "status": "completed",
+                        "completed_at": now_ts(),
+                        "returncode": 0,
+                        "run_manifest_path": str(jobs[label].train_run_manifest),
+                    }
+                    if child_llmfit is not None:
+                        manifest["domains"][label]["train"]["llmfit"] = child_llmfit
+                    if child_run is not None:
+                        training_info = (
+                            child_run.get("artifacts", {}) or {}
+                        ).get("training_info")
+                        if training_info is not None:
+                            manifest["domains"][label]["train"]["training_info"] = (
+                                training_info
+                            )
+                    print(f"[OK] train {label}")
+                else:
+                    if child_llmfit is not None and child_llmfit.get("status") == "rejected":
+                        train_blocked_by_llmfit = True
+                        manifest["llmfit"] = child_llmfit
+                        pending_trains.clear()
+                        manifest["domains"][label]["train"] = {
+                            "status": "blocked",
+                            "completed_at": now_ts(),
+                            "returncode": returncode,
+                            "reason": child_llmfit.get("reason"),
+                            "run_manifest_path": str(jobs[label].train_run_manifest),
+                            "llmfit": child_llmfit,
+                        }
+                        print(f"[BLOCK] train {label}: {child_llmfit.get('reason')}")
+                        save_updated_manifest(manifest_path, manifest)
+                        del active_trains[label]
+                        continue
+                    stop_active_trains(active_trains)
+                    manifest["domains"][label]["train"] = {
+                        "status": "failed",
+                        "completed_at": now_ts(),
+                        "returncode": returncode,
+                        "run_manifest_path": str(jobs[label].train_run_manifest),
+                    }
+                    if child_llmfit is not None:
+                        manifest["domains"][label]["train"]["llmfit"] = child_llmfit
+                    save_updated_manifest(manifest_path, manifest)
+                    raise SystemExit(
+                        f"Training failed for {label} (see {jobs[label].train_log})"
+                    )
+                save_updated_manifest(manifest_path, manifest)
+                del active_trains[label]
 
-    while pending_trains or active_trains:
-        for label in list(active_trains):
-            process, log_handle = active_trains[label]
-            returncode = process.poll()
-            if returncode is None:
-                continue
-            log_handle.close()
-            if returncode == 0:
+            overlap_allowed = config["resolved_overlap_teacher_train"]
+            if (
+                pending_trains
+                and not pending_distills
+                and not active_distills
+                and not teacher_released_for_parallel_trains
+                and int(config.get("max_parallel_gpu_trains") or 1) > 1
+            ):
+                released, message = unload_ollama_model(config)
+                teacher_released_for_parallel_trains = True
+                print(f"[INFO] {message}")
+                if released:
+                    time.sleep(2)
+
+            train_slot_limit = resolve_train_slot_limit(config, active_distills)
+            while pending_trains and len(active_trains) < train_slot_limit:
+                if active_distills and not overlap_allowed:
+                    break
+                wait_reason = gpu_wait_reason(config, len(active_trains))
+                if wait_reason is not None:
+                    now = time.time()
+                    if now - last_wait_notice >= 15:
+                        print(f"[WAIT] {wait_reason}")
+                        last_wait_notice = now
+                    break
+                label = pending_trains.popleft()
+                process, log_handle = start_train_process(
+                    jobs[label], config, train_slot_limit=train_slot_limit
+                )
                 manifest["domains"][label]["train"] = {
-                    "status": "completed",
-                    "completed_at": now_ts(),
-                    "returncode": 0,
-                }
-                print(f"[OK] train {label}")
-            else:
-                manifest["domains"][label]["train"] = {
-                    "status": "failed",
-                    "completed_at": now_ts(),
-                    "returncode": returncode,
+                    "status": "running",
+                    "started_at": now_ts(),
+                    "pid": process.pid,
                 }
                 save_updated_manifest(manifest_path, manifest)
-                raise SystemExit(
-                    f"Training failed for {label} (see {jobs[label].train_log})"
-                )
-            save_updated_manifest(manifest_path, manifest)
-            del active_trains[label]
+                active_trains[label] = (process, log_handle)
+                print(f"[RUN] train {label} pid={process.pid}")
 
-        while pending_trains and len(active_trains) < config["max_parallel_gpu_trains"]:
-            wait_reason = gpu_wait_reason(config, len(active_trains))
-            if wait_reason is not None:
-                now = time.time()
-                if now - last_wait_notice >= 15:
-                    print(f"[WAIT] {wait_reason}")
-                    last_wait_notice = now
-                break
-            label = pending_trains.popleft()
-            process, log_handle = start_train_process(jobs[label], config)
-            manifest["domains"][label]["train"] = {
-                "status": "running",
-                "started_at": now_ts(),
-                "pid": process.pid,
-            }
-            save_updated_manifest(manifest_path, manifest)
-            active_trains[label] = (process, log_handle)
-            print(f"[RUN] train {label} pid={process.pid}")
+            if pending_distills or active_distills or pending_trains or active_trains:
+                time.sleep(2)
 
-        if pending_trains or active_trains:
-            time.sleep(5)
+    if config["skip_train"] or train_blocked_by_llmfit:
+        for label, payload in manifest["domains"].items():
+            if (
+                payload["distill"]["status"] == "completed"
+                and payload["train"]["status"] == "pending"
+            ):
+                payload["train"] = {
+                    "status": "blocked" if train_blocked_by_llmfit else "skipped",
+                    "completed_at": now_ts(),
+                    "reason": batch_llmfit.get("reason") if train_blocked_by_llmfit else None,
+                    "llmfit": {
+                        "status": batch_llmfit["status"],
+                        "reason": batch_llmfit.get("reason"),
+                        "report_path": batch_llmfit.get("report_path"),
+                    },
+                }
+        save_updated_manifest(manifest_path, manifest)
+        if train_blocked_by_llmfit:
+            print(f"[BLOCK] training disabled by llmfit ({batch_llmfit.get('reason')})")
+        else:
+            print(f"[SKIP] training disabled (teacher_only={config['teacher_only']})")
+        print(f"[DONE] manifest={manifest_path}")
+        return 0
 
     print(f"[DONE] manifest={manifest_path}")
     return 0
