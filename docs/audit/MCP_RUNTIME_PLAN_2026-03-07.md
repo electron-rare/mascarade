@@ -2,46 +2,57 @@
 
 Last updated: 2026-03-07
 
+Document d'audit mis à jour après implémentation du runtime MCP.
+
 ## Objectif
 
-Faire de `finetune/kicad_mcp_server` le serveur MCP KiCad réellement supporté par le workspace local.
+Garder `finetune/kicad_mcp_server` comme serveur MCP KiCad réellement supporté par le workspace local, tout en reclassant correctement les micro-serveurs `kicad_kic_ai`.
 
-## Cibles de sortie
+## État actuel
 
-- démarrage STDIO sans crash
-- écriture uniquement dans des répertoires user-writable
-- découverte minimale des libs KiCad même sans `sym-lib-table` / `fp-lib-table`
-- classification claire des serveurs `kicad_kic_ai` en `live` ou `demo-only`
+- le serveur KiCad principal démarre via `Kill_LIFE/tools/hw/run_kicad_mcp.sh`
+- le runtime écrit dans un data dir writable sous `.cad-home/kicad-mcp`
+- le fallback hôte -> conteneur fonctionne sur la machine auditée
+- le smoke `initialize -> tools/list -> resources/list -> prompts/list` passe
+- `component_database` et `kicad_tools` ne sont plus des mocks, mais des micro-serveurs réels désormais supportés comme surfaces auxiliaires
+- la pile MCP locale converge désormais sur `2025-03-26`
+- l'observabilité synthétique MCP est exposée via `/api/ops/summary`
 
 ## Décisions retenues
 
-- Le serveur de référence est `finetune/kicad_mcp_server`.
-- Le transport de référence est `stdio`.
-- Les MCP mock/demo restent hors chemin de production par défaut.
-- `Kill_LIFE` consomme ce runtime via un launcher local, il ne possède pas son propre serveur MCP.
+- le serveur de référence reste `finetune/kicad_mcp_server`
+- le transport de référence reste `stdio`
+- le point d'entrée opérateur reste côté `Kill_LIFE`
+- les micro-serveurs `kicad_kic_ai` sont supportés comme surfaces auxiliaires, sans être promus au rang de runtime principal
 
-## Exécution
+## Travail absorbé
 
 ### Phase 1 — Hygiène runtime
 
-1. Garantir un `KICAD_MCP_DATA_DIR` writable pour les données locales.
-2. Vérifier que les logs/runtime tombent sous un `HOME` maîtrisé.
-3. Éviter toute dépendance à un préfixe install immuable type `/opt/kicad-mcp`.
+1. Garantir un `KICAD_MCP_DATA_DIR` writable
+2. Faire tomber les logs/runtime sous un `HOME` maîtrisé
+3. Éviter les écritures par défaut dans `/opt/kicad-mcp`
 
 ### Phase 2 — Discovery KiCad
 
-1. Charger les libs depuis `sym-lib-table` / `fp-lib-table` si présents.
-2. En fallback, scanner les répertoires système et user connus.
-3. Considérer l’absence totale de lib comme un état dégradé explicite.
+1. Charger des librairies KiCad réelles
+2. Ajouter un fallback praticable même sans tables KiCad complètes
+3. Faire fonctionner le runtime sur conteneur KiCad v10 quand l'hôte n'expose pas `pcbnew`
 
-### Phase 3 — Surface exposée
+### Phase 3 — Micro-serveurs auxiliaires
 
-1. Garder `kicad_mcp_server` comme surface supportée.
-2. Marquer `component_database` et `kicad_tools` comme `demo-only`.
-3. Exiger un `NEXAR_TOKEN` pour toute activation crédible de `nexar_api`.
+1. Remplacer le mock `component_database` par une source réelle locale + cache KiCad v10
+2. Remplacer le mock `kicad_tools` par des analyses réelles de fichiers KiCad
+3. Clarifier `nexar_api`: mode démo explicite, mode live encore à valider
 
 ### Phase 4 — Vérification
 
-1. Tests unitaires ciblés sur writable paths et fallback discovery.
-2. Smoke test local via le launcher `Kill_LIFE`.
-3. Journaliser les écarts restants dans `MCP_BACKLOG_2026-03-07.md`.
+1. Smoke versionné côté consommateur
+2. Sync/versioning du cache KiCad v10
+3. Mesures de cold start pour les MCP auxiliaires
+
+## Ce qu'il reste
+
+1. Revalider le chemin host-native sur une machine avec `pcbnew`
+2. Valider `nexar_api` en mode live avec `NEXAR_TOKEN`
+3. Garder la séparation entre runtime principal et surfaces auxiliaires supportées
