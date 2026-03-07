@@ -31,6 +31,41 @@ npm run build
 
 Production assets are emitted to `dist/` in the extracted `crazy_life` repo.
 
+## Local Deploy
+
+Docker deployment is available for the extracted repo and for `mascarade/web`:
+
+```bash
+scripts/deploy_local.sh up
+```
+
+Default local URL:
+
+```text
+http://127.0.0.1:8088
+```
+
+Default upstreams:
+
+```text
+CRAZY_LIFE_API_ORIGIN=http://host.docker.internal
+CRAZY_LIFE_PROXY_ORIGIN=http://host.docker.internal
+```
+
+That means:
+
+- `/api` and `/health` go through the main Mascarade reverse proxy on `80/443`
+- `/core-health` and `/dify-health` go through the main reverse-proxy host
+
+Useful commands:
+
+```bash
+scripts/deploy_local.sh build
+scripts/deploy_local.sh up
+scripts/deploy_local.sh logs
+scripts/deploy_local.sh down
+```
+
 ## GitHub Pages
 
 The extracted repository ships GitHub Actions workflows for:
