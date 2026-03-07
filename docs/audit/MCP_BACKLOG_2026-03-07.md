@@ -31,6 +31,7 @@ Source de vérité opérateur:
 | `component_database` | `mascarade/finetune/kicad_kic_ai/mcp_servers/component_db.py` | file-backed, cache KiCad v10, index SQLite | Supporté |
 | `kicad_tools` | `mascarade/finetune/kicad_kic_ai/mcp_servers/kicad_tools.py` | analyses réelles schéma/PCB/BOM/footprints | Supporté |
 | `nexar_api` | `mascarade/finetune/kicad_kic_ai/mcp_servers/nexar.py` | mode démo explicite, mode live non encore validé | Supporté |
+| `huggingface` | `https://huggingface.co/mcp` (remote HTTP SSE) | token auth via `HUGGINGFACE_API_KEY`, OAuth login via `?login` | Supporté |
 | `kicad-sch-mcp` | docs historiques | pas de chemin supporté dans ce workspace | Non supporté |
 
 ## Résolu depuis l'audit initial

@@ -489,11 +489,13 @@ services:
       LOKI_URL: ${LOKI_URL:-http://loki:3100}
       KILL_LIFE_ROOT: ${KILL_LIFE_ROOT:-/home/clems/Kill_LIFE}
       MASCARADE_DIR: ${MASCARADE_DIR:-/home/clems/mascarade}
+      MASCARADE_API_BASE_URL: ${MASCARADE_API_BASE_URL:-http://api:3000}
       OPS_MCP_PROBE_CACHE_TTL_MS: ${OPS_MCP_PROBE_CACHE_TTL_MS:-15000}
       NOTION_API_KEY: ${NOTION_API_KEY:-}
       KILL_LIFE_GITHUB_TOKEN: ${KILL_LIFE_GITHUB_TOKEN:-}
       GITHUB_TOKEN: ${GITHUB_TOKEN:-}
       NOTION_MCP_SMOKE_PAGE_ID: ${NOTION_MCP_SMOKE_PAGE_ID:-}
+      HUGGINGFACE_API_KEY: ${HUGGINGFACE_API_KEY:-}
     volumes:
       - /usr/bin/docker:/usr/bin/docker:ro
       - /usr/libexec/docker/cli-plugins:/usr/libexec/docker/cli-plugins:ro
