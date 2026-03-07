@@ -14,6 +14,7 @@ import { notion } from "./routes/notion.js";
 import { comfyui } from "./routes/comfyui.js";
 import { ops } from "./routes/ops.js";
 import { killlife } from "./routes/killlife.js";
+import { settings } from "./routes/settings.js";
 
 const app = new Hono();
 const hasFrontend = existsSync("./public/index.html");
@@ -36,6 +37,7 @@ app.route("/api/notion", notion);
 app.route("/api/comfyui", comfyui);
 app.route("/api/ops", ops);
 app.route("/api/killlife", killlife);
+app.route("/api/settings", settings);
 
 if (hasFrontend) {
   app.use("/assets/*", serveStatic({ root: "./public" }));

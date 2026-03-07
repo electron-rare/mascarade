@@ -19,7 +19,7 @@ RUN npm ci
 
 COPY api/tsconfig.json ./
 COPY api/src/ src/
-COPY --from=web-builder /api/public ./public
+COPY --from=web-builder /web/dist ./public
 
 RUN npm run build && npm prune --omit=dev
 
