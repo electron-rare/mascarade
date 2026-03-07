@@ -1,11 +1,13 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { getApiKey, setApiKey, api } from "../../api/client";
+import { getApiKey, isPersisted, api } from "../../api/client";
+import { useAuth } from "../../auth/AuthContext";
 import { getDifyHealthUrl } from "../../lib/dify";
 import Button from "../ui/Button";
 
 interface HealthData {
   status: string;
+  auth_required?: boolean;
   core?: { status: string };
 }
 
@@ -34,13 +36,16 @@ export default function TopBar({
   navOpen,
   onMenuToggle,
 }: TopBarProps) {
+  const { login, logout } = useAuth();
   const sessionTitleId = useId();
   const sessionPanelId = useId();
   const [open, setOpen] = useState(false);
   const [storedKey, setStoredKey] = useState(getApiKey);
   const [draftKey, setDraftKey] = useState(getApiKey);
   const [showKey, setShowKey] = useState(false);
+  const [persist, setPersist] = useState(isPersisted);
   const [savedAt, setSavedAt] = useState<string | null>(null);
+  const [keyStatus, setKeyStatus] = useState<"idle" | "checking" | "valid" | "invalid">("idle");
   const [health, setHealth] = useState<HealthData | null>(null);
   const [clockLabel, setClockLabel] = useState(() =>
     new Intl.DateTimeFormat("fr-FR", {
@@ -118,11 +123,21 @@ export default function TopBar({
     };
   }, []);
 
-  const save = () => {
+  const save = async () => {
     const nextKey = draftKey.trim();
-    setApiKey(nextKey);
+    if (!nextKey) {
+      clear();
+      return;
+    }
+    setKeyStatus("checking");
+    const valid = await login(nextKey, persist);
+    if (!valid) {
+      setKeyStatus("invalid");
+      return;
+    }
     setStoredKey(nextKey);
     setDraftKey(nextKey);
+    setKeyStatus("valid");
     setSavedAt(
       new Intl.DateTimeFormat("fr-FR", {
         hour: "2-digit",
@@ -133,10 +148,11 @@ export default function TopBar({
   };
 
   const clear = () => {
-    setApiKey("");
+    logout();
     setStoredKey("");
     setDraftKey("");
     setSavedAt(null);
+    setKeyStatus("idle");
   };
 
   const apiOk = health?.status === "ok";
@@ -310,7 +326,7 @@ export default function TopBar({
                         ref={inputRef}
                         type={showKey ? "text" : "password"}
                         value={draftKey}
-                        onChange={(e) => setDraftKey(e.target.value)}
+                        onChange={(e) => { setDraftKey(e.target.value); setKeyStatus("idle"); }}
                         className="min-w-0 flex-1 rounded-2xl border border-border/80 bg-black/35 px-3 py-3 text-sm text-amber-100 outline-none transition focus:border-accent/50"
                         placeholder="Enter your API key"
                       />
@@ -324,16 +340,37 @@ export default function TopBar({
                       </Button>
                     </div>
 
+                    {keyStatus === "invalid" && (
+                      <p className="mt-2 text-[12px] text-red-400">
+                        Cle invalide — verifiez le token ou la connectivite API.
+                      </p>
+                    )}
+                    {keyStatus === "valid" && (
+                      <p className="mt-2 text-[12px] text-emerald-400">
+                        Cle validee.
+                      </p>
+                    )}
+
+                    <label className="mt-3 flex cursor-pointer items-center gap-2 text-[11px] uppercase tracking-[0.16em] text-muted">
+                      <input
+                        type="checkbox"
+                        checked={persist}
+                        onChange={(e) => setPersist(e.target.checked)}
+                        className="accent-accent"
+                      />
+                      Retenir 30 jours
+                    </label>
+
                     <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
                       <span className="text-[11px] uppercase tracking-[0.16em] text-amber-100/40">
-                        {savedAt ? `saved ${savedAt}` : authReady ? "key present" : "no key loaded"}
+                        {savedAt ? `saved ${savedAt}${persist ? " (30d)" : ""}` : authReady ? "key present" : "no key loaded"}
                       </span>
                       <div className="flex flex-wrap gap-2">
                         <Button variant="ghost" type="button" onClick={clear}>
                           clear
                         </Button>
-                        <Button type="button" onClick={save}>
-                          save
+                        <Button type="button" onClick={save} disabled={keyStatus === "checking"}>
+                          {keyStatus === "checking" ? "check..." : "save"}
                         </Button>
                       </div>
                     </div>
