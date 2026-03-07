@@ -9,23 +9,32 @@ receivers:
 
 processors:
   batch:
+    send_batch_size: 1024
+    timeout: 2s
+  attributes/loki:
+    actions:
+      - action: insert
+        key: loki.attribute.labels
+        value: severity,source,run_id,agent_name,event_type
 
 exporters:
+  loki:
+    endpoint: http://loki:3100/loki/api/v1/push
   debug:
-    verbosity: normal
+    verbosity: basic
 
 service:
   extensions: [health_check]
   pipelines:
+    logs:
+      receivers: [otlp]
+      processors: [batch, attributes/loki]
+      exporters: [loki, debug]
     traces:
       receivers: [otlp]
       processors: [batch]
       exporters: [debug]
     metrics:
-      receivers: [otlp]
-      processors: [batch]
-      exporters: [debug]
-    logs:
       receivers: [otlp]
       processors: [batch]
       exporters: [debug]
