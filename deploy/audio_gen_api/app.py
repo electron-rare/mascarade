@@ -3,8 +3,10 @@
 
 from __future__ import annotations
 
+import gc
 import importlib.metadata
 import os
+import time
 from io import BytesIO
 from threading import Lock
 
@@ -23,7 +25,14 @@ class GenerateRequest(BaseModel):
 
 
 _model_lock = Lock()
-_loaded = {"engine": None, "model": None, "device": None, "obj": None}
+_loaded = {
+    "engine": None,
+    "model": None,
+    "device": None,
+    "obj": None,
+    "inflight": 0,
+    "last_used_at": None,
+}
 
 
 def _package_version(name: str) -> str | None:
@@ -75,6 +84,25 @@ def _runtime_status() -> tuple[bool, str | None, bool]:
     return True, None, bool(torch.cuda.is_available())
 
 
+def _truthy_env(name: str, default: bool) -> bool:
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    return raw.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _idle_unload_seconds() -> int:
+    raw = os.getenv("GENERATE_AUDIO_IDLE_UNLOAD_SECONDS", "0").strip()
+    try:
+        return max(0, int(raw))
+    except ValueError:
+        return 0
+
+
+def _keep_loaded() -> bool:
+    return _truthy_env("GENERATE_AUDIO_KEEP_LOADED", False)
+
+
 def _resolve_model(engine: str, requested: str | None) -> str:
     if requested:
         return requested
@@ -90,6 +118,59 @@ def _resolve_model(engine: str, requested: str | None) -> str:
         if engine == "musicgen"
         else "facebook/audiogen-medium"
     )
+
+
+def _clear_model_locked(torch_module=None) -> bool:
+    model = _loaded["obj"]
+    if model is None:
+        _loaded.update(
+            {
+                "engine": None,
+                "model": None,
+                "device": None,
+                "obj": None,
+                "last_used_at": None,
+            }
+        )
+        return False
+
+    _loaded.update(
+        {
+            "engine": None,
+            "model": None,
+            "device": None,
+            "obj": None,
+            "last_used_at": None,
+        }
+    )
+    del model
+    gc.collect()
+    if torch_module is not None:
+        try:
+            if torch_module.cuda.is_available():
+                torch_module.cuda.empty_cache()
+        except Exception:
+            pass
+    return True
+
+
+def _maybe_unload_idle_model(torch_module=None) -> bool:
+    if not _keep_loaded():
+        return False
+
+    idle_after = _idle_unload_seconds()
+    if idle_after <= 0:
+        return False
+
+    with _model_lock:
+        if _loaded["obj"] is None or _loaded["inflight"] > 0:
+            return False
+        last_used_at = _loaded["last_used_at"]
+        if last_used_at is None:
+            return False
+        if (time.time() - last_used_at) < idle_after:
+            return False
+        return _clear_model_locked(torch_module=torch_module)
 
 
 def _load_model(engine: str, model_name: str, device: str):
@@ -128,12 +209,35 @@ def _load_model(engine: str, model_name: str, device: str):
         return model
 
 
+def _retain_model() -> None:
+    with _model_lock:
+        _loaded["inflight"] += 1
+
+
+def _release_model(torch_module) -> None:
+    with _model_lock:
+        _loaded["inflight"] = max(0, int(_loaded["inflight"]) - 1)
+        _loaded["last_used_at"] = time.time()
+        if _loaded["inflight"] > 0:
+            return
+        if _keep_loaded():
+            return
+        _clear_model_locked(torch_module=torch_module)
+
+
 @app.get("/health")
 async def health() -> dict:
     torch_version = _package_version("torch")
     torchaudio_version = _package_version("torchaudio")
     audiocraft_version = _package_version("audiocraft")
     runtime_ready, runtime_error, cuda_available = _runtime_status()
+    torch_module = None
+    if runtime_ready:
+        try:
+            torch_module, _ = _import_torch_stack()
+        except HTTPException:
+            torch_module = None
+    _maybe_unload_idle_model(torch_module=torch_module)
 
     return {
         "ok": True,
@@ -148,11 +252,15 @@ async def health() -> dict:
         "loaded_engine": _loaded["engine"],
         "loaded_model": _loaded["model"],
         "loaded_device": _loaded["device"],
+        "keep_loaded": _keep_loaded(),
+        "idle_unload_seconds": _idle_unload_seconds(),
+        "inflight_requests": _loaded["inflight"],
     }
 
 
 def _generate_response(req: GenerateRequest):
     torch, torchaudio = _import_torch_stack()
+    _maybe_unload_idle_model(torch_module=torch)
     engine = _sanitize_choice(
         os.getenv("GENERATE_AUDIO_ENGINE", "audiogen"),
         {"audiogen", "musicgen"},
@@ -162,19 +270,22 @@ def _generate_response(req: GenerateRequest):
     model_name = _resolve_model(engine, req.model)
 
     model = _load_model(engine, model_name, device)
-
-    if req.seed is not None:
-        torch.manual_seed(req.seed)
-        if torch.cuda.is_available():
-            torch.cuda.manual_seed_all(req.seed)
+    _retain_model()
 
     try:
+        if req.seed is not None:
+            torch.manual_seed(req.seed)
+            if torch.cuda.is_available():
+                torch.cuda.manual_seed_all(req.seed)
+
         model.set_generation_params(duration=req.duration)
         wav = model.generate([req.prompt])
     except Exception as exc:  # pragma: no cover
         raise HTTPException(
             status_code=500, detail=f"Generation failed: {exc}"
         ) from exc
+    finally:
+        _release_model(torch)
 
     if wav is None or len(wav) == 0:
         raise HTTPException(status_code=500, detail="Generation returned empty audio")
@@ -199,3 +310,21 @@ def _generate_response(req: GenerateRequest):
 @app.post("/generate")
 async def generate(req: GenerateRequest):
     return _generate_response(req)
+
+
+@app.post("/unload")
+async def unload() -> dict:
+    try:
+        torch, _ = _import_torch_stack()
+    except HTTPException:
+        torch = None
+
+    with _model_lock:
+        if _loaded["inflight"] > 0:
+            raise HTTPException(
+                status_code=409,
+                detail="Cannot unload while a generation request is running",
+            )
+        unloaded = _clear_model_locked(torch_module=torch)
+
+    return {"ok": True, "unloaded": unloaded}

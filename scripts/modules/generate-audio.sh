@@ -128,6 +128,8 @@ module_generate_audio_compose() {
   echo "      GENERATE_AUDIO_MODEL: \${GENERATE_AUDIO_MODEL:-facebook/audiogen-medium}"
   echo "      GENERATE_AUDIO_RUNTIME: $build_variant"
   echo "      GENERATE_AUDIO_TORCH_VARIANT: $build_variant"
+  echo "      GENERATE_AUDIO_KEEP_LOADED: \${GENERATE_AUDIO_KEEP_LOADED:-false}"
+  echo "      GENERATE_AUDIO_IDLE_UNLOAD_SECONDS: \${GENERATE_AUDIO_IDLE_UNLOAD_SECONDS:-0}"
   if [[ "$build_variant" == "cuda" ]]; then
     echo "      NVIDIA_VISIBLE_DEVICES: all"
     echo "      NVIDIA_DRIVER_CAPABILITIES: compute,utility"
