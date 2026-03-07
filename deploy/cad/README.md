@@ -2,6 +2,29 @@
 
 Stack Docker dédiée aux outils CAD/EDA du repo, séparée du `docker-compose.yml` principal généré par `./config`.
 
+## Pilotage via la TUI Mascarade
+
+Le flux recommandé est maintenant:
+
+```bash
+./config
+```
+
+Puis sélectionner `CAD / KiCad` pour régler:
+
+- `KICAD_VERSION`
+- `KICAD_PLUGIN_DIR`
+- `CAD_WORKSPACE_DIR`
+- `CAD_INSTALL_BUNDLES`
+
+Ensuite, depuis le setup principal:
+
+```bash
+./setup --cad-plugins --cad-doctor --cad-stack
+```
+
+En interactif, `./setup` propose aussi ces actions en post-setup sans les activer par défaut.
+
 ## Direction retenue
 
 - `KiCad headless`: usage de `kicad-cli` dans l'image officielle `kicad/kicad:9.0`.
@@ -75,6 +98,13 @@ Le workspace monté dans les conteneurs est, par défaut, la racine du repo. Pou
 ```bash
 CAD_WORKSPACE_DIR=/chemin/vers/projets ./scripts/cad_stack.sh up
 ```
+
+Variables associees:
+
+- `KICAD_VERSION`: version KiCad utilisee pour calculer le plugin dir par defaut
+- `KICAD_PLUGIN_DIR`: override du repertoire plugins KiCad
+- `CAD_WORKSPACE_DIR`: workspace monte dans `cad_stack`
+- `CAD_INSTALL_BUNDLES`: `all`, `fabrication-toolkit` ou `kic-ai`
 
 ## Note MCP
 

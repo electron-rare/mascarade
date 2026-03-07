@@ -162,3 +162,21 @@ Objectif: cadrer si `Agent Zero` doit rester un sujet d'etude, un outil de debug
 
 - [x] Backlog fine-tuning detaille dans `TODO_TUNNING_PARTY.md`
 - [x] Backlog cockpit/ops detaille dans `TODO_COCKPIT_OPS.md`
+
+## 9. CAD / KiCad deja implemente
+
+### Structure repo
+- [x] Repositories KiCad enregistres comme sous-modules
+- [x] Sous-module legacy `vendors/kicadrouterai` remappe proprement dans `.gitmodules`
+
+### Helpers versionnes
+- [x] `scripts/install_kicad_plugins.sh list`
+- [x] `scripts/install_kicad_plugins.sh plugin-dir`
+- [x] `scripts/install_kicad_plugins.sh install`
+- [x] `scripts/install_kicad_plugins.sh doctor`
+- [x] `scripts/cad_stack.sh up|down|ps|doctor|mcp`
+
+### Ce qui reste a faire
+- [x] Integrer la section `CAD / KiCad` dans `./config`
+- [x] Ajouter les actions `--cad-plugins`, `--cad-doctor`, `--cad-stack` dans `./setup`
+- [x] Consolider la doc operateur CAD/TUI
