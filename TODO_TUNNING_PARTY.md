@@ -7,9 +7,12 @@ Etat de reference au 6 mars 2026.
 - [x] Pipeline local `distill -> merge -> train`
 - [x] Distillation teacher via Mascarade local (`127.0.0.1:3100` / `127.0.0.1:8100`)
 - [x] Support CPU et GPU local
+- [x] Defaut GPU / student principal = `Qwen/Qwen2.5-Coder-1.5B-Instruct`
+- [x] Fallback CPU canonique = `TinyLlama/TinyLlama-1.1B-Chat-v1.0`
 - [x] Smoke tests reels distillation valides sur `esp32`, `spice`, `pio`
 - [x] Queue GPU et garde-fous VRAM dans `finetune/batch_local.py`
 - [x] Scripts shell de lancement et de debug
+- [x] `finetune/model_selector.py` disponible comme outil experimental local
 
 ## 2. Ce qui est obsolete dans l'ancien TODO
 
@@ -39,6 +42,8 @@ Etat de reference au 6 mars 2026.
 - [ ] Export GGUF des meilleurs runs
 - [ ] Integrer les modeles valides dans Mascarade
 - [ ] Evaluer `Agent Zero` hors du pipeline critique
+- [ ] Decider si `selected_model.json` doit etre lu par `run_local.py` / `batch_local.py`
+- [ ] Benchmarker `model_selector.py` vs selection manuelle sur cette machine
 
 ## 4. Ordre recommande
 

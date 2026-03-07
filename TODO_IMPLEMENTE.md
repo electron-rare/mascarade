@@ -9,6 +9,9 @@ Etat de reference du chantier fine-tuning/distillation local au 6 mars 2026.
 - [x] Support `LoRA/QLoRA` local avec `venv_tuning`
 - [x] Fallback CPU utilisable quand CUDA est indisponible
 - [x] Smoke tests reels valides en CPU et en GPU
+- [x] Politique de defaults coherente:
+  - GPU / student principal = `Qwen/Qwen2.5-Coder-1.5B-Instruct`
+  - CPU fallback = `TinyLlama/TinyLlama-1.1B-Chat-v1.0`
 
 ### Distillation teacher -> student
 - [x] Pipeline complet `distill -> merge -> train`
@@ -51,6 +54,7 @@ Etat de reference du chantier fine-tuning/distillation local au 6 mars 2026.
 - [x] `finetune/distill_and_train.py`
 - [x] `finetune/batch_local.py`
 - [x] `finetune/batch_status.py`
+- [x] `finetune/model_selector.py` (experimental, non branche au pipeline)
 - [x] `scripts/finetune_local.sh`
 - [x] `scripts/distill_and_train.sh`
 - [x] `scripts/parallel_domains_gpu_queue.sh`

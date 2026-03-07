@@ -21,7 +21,7 @@ python test_environment.py
 python finetune/run_local.py stm32 --max-samples 128 --epochs 1
 
 # Forcer le fallback CPU
-python finetune/run_local.py kicad --device cpu --model gpt2 --max-samples 64
+python finetune/run_local.py kicad --device cpu --model TinyLlama/TinyLlama-1.1B-Chat-v1.0 --max-samples 64
 
 # Wrapper shell equivalent
 ./scripts/finetune_local.sh embedded --device auto --max-samples 256
@@ -87,7 +87,7 @@ MODE=dual-8b-512 ./scripts/triple_train_4090.sh
 Defaut retenu dans ce preset :
 
 - teacher local : `ollama/qwen2.5:14b`
-- student local : `Qwen/Qwen2.5-Coder-7B-Instruct`
+- student local : `Qwen/Qwen2.5-Coder-1.5B-Instruct`
 
 Alternative generaliste plus recente :
 
@@ -129,7 +129,7 @@ Comportement:
 - sinon il bascule sur `train_cpu.py`
 - si `datasets/<domain>_chat.jsonl` manque, le launcher genere automatiquement le seed dataset local s il existe
 - `--dataset-path` permet d'entraîner sur un dataset dérivé sans écraser `datasets/<domain>_chat.jsonl`
-- `--offline` force l'usage du cache Hugging Face local; en fallback CPU, le launcher reutilise `gpt2` si present, sinon `TinyLlama/TinyLlama-1.1B-Chat-v1.0` si deja en cache
+- `--offline` force l'usage du cache Hugging Face local; en fallback CPU, le launcher attend `TinyLlama/TinyLlama-1.1B-Chat-v1.0` en cache et peut reutiliser le modele GPU par defaut s'il est deja present localement
 - `--eval` est disponible uniquement sur le chemin GPU
 - `--verbose` affiche plus de détails sur le launcher et le trainer
 - `--quiet` réduit les logs et masque les progress bars quand c est supporté
@@ -176,6 +176,27 @@ Validation pratique sur cette machine:
 - `2 x Qwen/Qwen3-8B` en `seq_len=512` ne passe pas proprement: un run finit, l autre part en `CUDA OOM`
 - `scripts/triple_train_4090.sh` coupe `ComfyUI` avant le test et le relance a la fin par defaut
 - `scripts/triple_train_4090_safe_max.sh` reste volontairement sur `seq_len=768`; `1024` est valide mais trop proche du plafond VRAM pour etre le preset par defaut
+
+## Model Selector experimental
+
+Un helper local experimental permet de chercher et classer des students
+compatibles avec la machine sans modifier automatiquement le pipeline:
+
+```bash
+python finetune/model_selector.py --help
+python finetune/model_selector.py --auto
+python finetune/model_selector.py --auto --download --validate
+```
+
+Comportement:
+
+- l outil interroge le Hub Hugging Face, met les resultats en cache local et
+  classe les modeles selon VRAM, signaux de qualite et popularite
+- il ecrit un `finetune/selected_model.json` local quand un modele est choisi
+- `finetune/.model_selector_cache.json` et `finetune/selected_model.json`
+  sont ignores par Git
+- il n est pas encore branche automatiquement a `run_local.py`,
+  `batch_local.py` ou `train_all.sh`
 
 ## Distillation Teacher -> Student
 
