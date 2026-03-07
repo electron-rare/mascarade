@@ -1,0 +1,12 @@
+[submodule "vendors/kicadrouterai"]
+	path = vendors/kicadrouterai
+	url = https://huggingface.co/niko3x/kicadrouterai
+[submodule "finetune/kicad_fabrication_toolkit"]
+	path = finetune/kicad_fabrication_toolkit
+	url = https://github.com/bennymeg/Fabrication-Toolkit.git
+[submodule "finetune/kicad_kic_ai"]
+	path = finetune/kicad_kic_ai
+	url = https://github.com/jochemkroon/KiC-AI.git
+[submodule "finetune/kicad_mcp_server"]
+	path = finetune/kicad_mcp_server
+	url = https://github.com/mixelpixx/KiCAD-MCP-Server.git
