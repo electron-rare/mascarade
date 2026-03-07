@@ -89,6 +89,35 @@ export type OpsLogEntry = {
   labels?: Record<string, string>;
 };
 
+export type OpsMcpServerStatus = {
+  ok: boolean;
+  status: string;
+  requested_runtime?: string | null;
+  runtime_mode?: string | null;
+  protocol_version?: string | null;
+  server_name?: string | null;
+  tool_count: number;
+  resource_count: number;
+  prompt_count: number;
+  latency_ms?: number | null;
+  checks?: string[];
+  secret_configured?: boolean | null;
+  token_configured?: boolean | null;
+  live_requested?: boolean | null;
+  live_validation?: string | null;
+  error?: string | null;
+};
+
+export type OpsMcpSummary = OpsMcpServerStatus & {
+  aggregate_status?: string;
+  primary_server?: string;
+  primary?: OpsMcpServerStatus | null;
+  server_count?: number;
+  servers_ok?: number;
+  degraded_servers?: string[];
+  servers?: Record<string, OpsMcpServerStatus>;
+};
+
 export type OpsSummary = {
   timestamp: string;
   monitor: OpsMonitor;
@@ -122,6 +151,7 @@ export type OpsSummary = {
     peers_total: number;
     peers_ok: number;
   };
+  mcp?: OpsMcpSummary | null;
   ops_agent?: Record<string, unknown> | null;
 };
 
@@ -230,8 +260,10 @@ export const opsApi = {
     );
     search.set(
       "include_events",
-      String(source === "all" || source === "docker-event"),
+      String(source === "docker-event"),
     );
+    search.set("backfill", source === "docker-event" ? "20" : "12");
+    search.set("poll_interval_ms", "1500");
 
     return `/api/ops/logs/stream?${search.toString()}`;
   },

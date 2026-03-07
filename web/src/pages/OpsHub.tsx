@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
 import { useMemo } from "react";
-import type { OpsMonitor, OpsSourceStatus, OpsSummary } from "../api/ops";
+import type { OpsMcpServerStatus, OpsMonitor, OpsSourceStatus, OpsSummary } from "../api/ops";
 import { useFetch } from "../hooks/useFetch";
 import { getDifyHealthUrl, getDifyOrigin } from "../lib/dify";
 import { Badge, Button, Card, CompactModelList, InlineNotice, LoadingPanel } from "../components/ui";
@@ -38,6 +38,29 @@ function logSourceTone(source: "service" | "machine" | "agent-trace" | "docker-e
   if (source === "agent-trace") return "accent";
   if (source === "machine") return "warning";
   return "muted";
+}
+
+function mcpTone(status?: string): "accent" | "warning" | "error" | "muted" {
+  if (status === "ready") return "accent";
+  if (status === "degraded") return "warning";
+  if (status === "failed") return "error";
+  return "muted";
+}
+
+function formatMcpName(name?: string | null): string {
+  if (!name) return "unknown";
+  return name.replace(/[-_]/g, " ");
+}
+
+function formatChecks(checks?: string[]): string {
+  if (!checks || checks.length === 0) return "No checks reported";
+  return checks.join(" · ");
+}
+
+function summarizeMcpServer(server: OpsMcpServerStatus): string {
+  const stats = `${server.tool_count} tools / ${server.resource_count} resources / ${server.prompt_count} prompts`;
+  if (server.error) return `${stats} · ${server.error}`;
+  return `${stats} · ${formatChecks(server.checks)}`;
 }
 
 export default function OpsHub() {
@@ -105,6 +128,18 @@ export default function OpsHub() {
   const difyApi = services.find((service) => service.name === "dify-api");
   const difyWebHref = `${getDifyOrigin()}/`;
   const difyApiHref = getDifyHealthUrl();
+  const mcp = summary.data?.mcp;
+  const mcpServers = Object.entries(mcp?.servers ?? {});
+  const mcpPrimary = mcp?.primary ?? null;
+  const mcpPrimaryName = mcp?.primary_server ?? mcpPrimary?.server_name ?? mcp?.server_name ?? "unknown";
+  const mcpPrimaryStatus = mcpPrimary?.status ?? mcp?.status ?? "pending";
+  const mcpAggregateStatus = mcp?.aggregate_status ?? mcp?.status ?? "pending";
+  const mcpProtocol = mcpPrimary?.protocol_version ?? mcp?.protocol_version ?? "n/a";
+  const mcpRuntime = mcpPrimary?.runtime_mode ?? mcp?.runtime_mode ?? "n/a";
+  const mcpDegradedServers = mcp?.degraded_servers ?? [];
+  const mcpServerCount = mcp?.server_count ?? mcpServers.length;
+  const mcpServersOk = mcp?.servers_ok ?? mcpServers.filter(([, server]) => server.ok).length;
+  const mcpPrimarySurface = mcpPrimary ?? mcp;
 
   return (
     <div className="space-y-6">
@@ -137,6 +172,9 @@ export default function OpsHub() {
                 </span>
                 <span className={["status-chip", chipTone(data.gateway.core)].join(" ")}>
                   core {data.gateway.core ? "online" : "down"}
+                </span>
+                <span className="status-chip border-border/80 bg-black/30 text-muted">
+                  mcp {mcpAggregateStatus}
                 </span>
                 <span className="status-chip border-border/80 bg-black/30 text-muted">
                   ollama {data.ai.ollama.models} models
@@ -423,6 +461,89 @@ export default function OpsHub() {
         </Card>
 
         <div className="grid gap-4">
+          <Card title="MCP lane">
+            {!mcp ? (
+              <InlineNotice
+                title="mcp pending"
+                message="Le resume ops ne contient pas encore le bloc MCP."
+              />
+            ) : (
+              <div className="space-y-4">
+                <p className="text-sm leading-7 text-amber-100/60">
+                  Probe MCP synthetique execute par `ops-agent`, puis relaye dans le cockpit ops. Cette carte
+                  montre le serveur primaire, le runtime utilisé et les serveurs encore dégradés.
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  <Badge color={mcpTone(mcpAggregateStatus)}>{mcpAggregateStatus}</Badge>
+                  <Badge color={mcpTone(mcpPrimaryStatus)}>{formatMcpName(mcpPrimaryName)}</Badge>
+                  <Badge color="muted">runtime {mcpRuntime}</Badge>
+                  <Badge color="muted">protocol {mcpProtocol}</Badge>
+                </div>
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <div className="rounded-[1.4rem] border border-border/80 bg-black/25 p-4">
+                    <p className="text-[10px] uppercase tracking-[0.2em] text-muted">servers ok</p>
+                    <p className="mt-3 text-xl font-semibold uppercase tracking-[0.14em] text-accent">
+                      {mcpServersOk} / {mcpServerCount}
+                    </p>
+                    <p className="mt-2 text-[12px] leading-5 text-amber-100/46">
+                      Serveurs MCP actuellement verts dans la suite opérateur.
+                    </p>
+                  </div>
+                  <div className="rounded-[1.4rem] border border-border/80 bg-black/25 p-4">
+                    <p className="text-[10px] uppercase tracking-[0.2em] text-muted">primary surface</p>
+                    <p className="mt-3 text-xl font-semibold uppercase tracking-[0.14em] text-accent">
+                      {mcpPrimarySurface?.tool_count ?? 0} / {mcpPrimarySurface?.resource_count ?? 0} / {mcpPrimarySurface?.prompt_count ?? 0}
+                    </p>
+                    <p className="mt-2 text-[12px] leading-5 text-amber-100/46">
+                      tools / resources / prompts du serveur primaire.
+                    </p>
+                  </div>
+                  <div className="rounded-[1.4rem] border border-border/80 bg-black/25 p-4">
+                    <p className="text-[10px] uppercase tracking-[0.2em] text-muted">primary latency</p>
+                    <p className="mt-3 text-xl font-semibold uppercase tracking-[0.14em] text-accent">
+                      {formatLatency(mcpPrimarySurface?.latency_ms ?? undefined)}
+                    </p>
+                    <p className="mt-2 text-[12px] leading-5 text-amber-100/46">
+                      Temps de handshake et listing depuis la suite MCP.
+                    </p>
+                  </div>
+                </div>
+                {mcpDegradedServers.length > 0 ? (
+                  <div className="rounded-[1.4rem] border border-warning/30 bg-warning/10 p-4 text-warning">
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.18em]">degraded servers</p>
+                    <p className="mt-2 text-sm leading-6">
+                      {mcpDegradedServers.map((name) => formatMcpName(name)).join(" · ")}
+                    </p>
+                  </div>
+                ) : (
+                  <InlineNotice
+                    title="mcp ready"
+                    message="Aucun serveur MCP n'est en mode degrade dans le resume courant."
+                    tone="success"
+                  />
+                )}
+                <div className="space-y-3">
+                  {mcpServers.map(([name, server]) => (
+                    <div
+                      key={name}
+                      className="rounded-[1.4rem] border border-border/80 bg-black/25 p-4"
+                    >
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Badge color={mcpTone(server.status)}>{server.status}</Badge>
+                        <Badge color="muted">{formatMcpName(name)}</Badge>
+                        {server.runtime_mode ? <Badge color="muted">runtime {server.runtime_mode}</Badge> : null}
+                        {server.protocol_version ? <Badge color="muted">protocol {server.protocol_version}</Badge> : null}
+                      </div>
+                      <p className="mt-3 text-sm leading-6 text-amber-100/72">
+                        {summarizeMcpServer(server)}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </Card>
+
           <Card title="Recent alerts">
             {alerts.length === 0 ? (
               <InlineNotice
