@@ -17,7 +17,13 @@ VENV_FALLBACK="${SCRIPT_DIR}/../core/.venv/bin/activate"
 LOG_DIR="${SCRIPT_DIR}/logs"
 DATASETS_DIR="${SCRIPT_DIR}/datasets"
 
-MODEL="TinyLlama/TinyLlama-1.1B-Chat-v1.0"
+MODEL="Qwen/Qwen2.5-Coder-1.5B-Instruct"
+# Use model_selector choice if available
+_SEL_FILE="${SCRIPT_DIR}/selected_model.json"
+if [[ -f "$_SEL_FILE" ]]; then
+    _sel=$(python3 -c "import json; print(json.load(open('$_SEL_FILE'))['model_id'])" 2>/dev/null)
+    [[ -n "$_sel" ]] && MODEL="$_sel"
+fi
 SEQ_LEN=512
 EPOCHS=2
 MAX_SAMPLES=500

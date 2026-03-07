@@ -62,7 +62,12 @@ DOMAINS = [
     "freecad",
 ]
 
-DEFAULT_MODEL = "Qwen/Qwen2.5-Coder-1.5B-Instruct"
+try:
+    from model_selector import resolve_model as _resolve
+
+    DEFAULT_MODEL = _resolve("Qwen/Qwen2.5-Coder-1.5B-Instruct")
+except Exception:
+    DEFAULT_MODEL = "Qwen/Qwen2.5-Coder-1.5B-Instruct"
 
 # LoRA targets per model architecture
 LORA_TARGETS = {
@@ -249,11 +254,14 @@ def load_quantized_model_with_fallback(
     attn_implementation: str | None,
 ):
     try:
-        return load_quantized_model(
-            model_name,
-            bnb_config,
-            attn_implementation=attn_implementation,
-        ), attn_implementation
+        return (
+            load_quantized_model(
+                model_name,
+                bnb_config,
+                attn_implementation=attn_implementation,
+            ),
+            attn_implementation,
+        )
     except TypeError:
         if attn_implementation is None:
             raise
@@ -299,8 +307,7 @@ def tokenize_dataset(
         total_length = (total_length // max_seq_len) * max_seq_len
         return {
             key: [
-                values[i : i + max_seq_len]
-                for i in range(0, total_length, max_seq_len)
+                values[i : i + max_seq_len] for i in range(0, total_length, max_seq_len)
             ]
             for key, values in concatenated_examples.items()
         }
@@ -405,7 +412,9 @@ def train_domain(
     resolved_tokenize_workers = resolve_tokenize_workers(tokenize_workers, len(dataset))
     if resolved_tokenize_workers > 1:
         os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
-    packing_enabled = os.environ.get("MASCARADE_TRAIN_PACKING", "1").strip().lower() not in {
+    packing_enabled = os.environ.get(
+        "MASCARADE_TRAIN_PACKING", "1"
+    ).strip().lower() not in {
         "0",
         "false",
         "no",

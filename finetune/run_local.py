@@ -8,7 +8,7 @@ driver is temporarily unavailable.
 Examples:
   python finetune/run_local.py stm32
   python finetune/run_local.py kicad --device gpu --eval
-  python finetune/run_local.py embedded --device cpu --model TinyLlama/TinyLlama-1.1B-Chat-v1.0
+  python finetune/run_local.py embedded --device cpu --model Qwen/Qwen2.5-Coder-1.5B-Instruct
 """
 
 from __future__ import annotations
@@ -39,8 +39,13 @@ RUNS_DIR = SCRIPT_DIR / "runs"
 GPU_TRAINER = SCRIPT_DIR / "train_local.py"
 CPU_TRAINER = SCRIPT_DIR / "train_cpu.py"
 
-DEFAULT_GPU_MODEL = "Qwen/Qwen2.5-Coder-1.5B-Instruct"
-DEFAULT_CPU_MODEL = "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
+try:
+    from model_selector import resolve_model as _resolve
+
+    DEFAULT_GPU_MODEL = _resolve("Qwen/Qwen2.5-Coder-1.5B-Instruct")
+except Exception:
+    DEFAULT_GPU_MODEL = "Qwen/Qwen2.5-Coder-1.5B-Instruct"
+DEFAULT_CPU_MODEL = DEFAULT_GPU_MODEL
 DOMAINS = [
     "stm32",
     "spice",
@@ -175,7 +180,9 @@ def make_manifest(
     trainer_command: list[str],
     llmfit_report_path: Path | None,
 ) -> tuple[Path, dict]:
-    manifest_path = (run_dir / "run.json") if run_dir is not None else (output_dir / "run.json")
+    manifest_path = (
+        (run_dir / "run.json") if run_dir is not None else (output_dir / "run.json")
+    )
     training_info_path = output_dir / "training_info.json"
     manifest = {
         "version": 1,

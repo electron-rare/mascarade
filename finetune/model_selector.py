@@ -33,11 +33,39 @@ CACHE_FILE = SCRIPT_DIR / ".model_selector_cache.json"
 CACHE_TTL_HOURS = 24
 SELECTION_FILE = SCRIPT_DIR / "selected_model.json"
 
+FALLBACK_MODEL = "Qwen/Qwen2.5-Coder-1.5B-Instruct"
+
+
+def resolve_model(fallback: str = FALLBACK_MODEL) -> str:
+    """Return the model_id from selected_model.json, or fallback default.
+
+    Importable by training scripts to auto-use the selector's choice:
+        from model_selector import resolve_model
+        model = resolve_model()
+    """
+    if SELECTION_FILE.exists():
+        try:
+            data = json.loads(SELECTION_FILE.read_text())
+            model_id = data.get("model_id", "").strip()
+            if model_id:
+                return model_id
+        except Exception:
+            pass
+    return fallback
+
+
 # ── Known good authors ────────────────────────────────────────────────────
 
 TRUSTED_AUTHORS = {
-    "Qwen", "deepseek-ai", "bigcode", "microsoft", "codellama",
-    "mistralai", "google", "meta-llama", "01-ai",
+    "Qwen",
+    "deepseek-ai",
+    "bigcode",
+    "microsoft",
+    "codellama",
+    "mistralai",
+    "google",
+    "meta-llama",
+    "01-ai",
 }
 
 # ── Search queries per task ───────────────────────────────────────────────
@@ -58,7 +86,8 @@ SEARCH_QUERIES = {
 # ── Patterns to skip ─────────────────────────────────────────────────────
 
 _QUANT_RE = re.compile(
-    r"(gptq|awq|gguf|ggml|exl2|fp8|squeezellm|marlin)", re.IGNORECASE,
+    r"(gptq|awq|gguf|ggml|exl2|fp8|squeezellm|marlin)",
+    re.IGNORECASE,
 )
 _MOE_RE = re.compile(r"\bA\d+B\b")
 _PARAM_RE = re.compile(r"(\d+(?:\.\d+)?)\s*[Bb]")
@@ -92,6 +121,7 @@ KNOWN_BENCHMARKS: dict[str, float] = {
 
 # ── GPU probe ─────────────────────────────────────────────────────────────
 
+
 def probe_gpu() -> tuple[str | None, float]:
     """Detect GPU name and total VRAM in GB."""
     try:
@@ -108,6 +138,7 @@ def probe_gpu() -> tuple[str | None, float]:
 
 # ── VRAM estimation ───────────────────────────────────────────────────────
 
+
 def estimate_qlora_vram_gb(
     param_b: float,
     seq_len: int = 512,
@@ -119,9 +150,9 @@ def estimate_qlora_vram_gb(
     Components: model weights (NF4) + LoRA adapters (FP16) +
     optimizer states (paged AdamW 8-bit) + activations + CUDA overhead.
     """
-    model_weights = param_b * 0.55          # NF4 + quant tables
+    model_weights = param_b * 0.55  # NF4 + quant tables
     lora_adapters = param_b * 0.03 * (lora_rank / 16)
-    optimizer = lora_adapters * 3            # momentum + variance (8-bit)
+    optimizer = lora_adapters * 3  # momentum + variance (8-bit)
     activations = 0.3 * batch_size * (seq_len / 512)
     cuda_overhead = 0.7
     return round(
@@ -131,6 +162,7 @@ def estimate_qlora_vram_gb(
 
 
 # ── Model candidate ──────────────────────────────────────────────────────
+
 
 @dataclass
 class ModelCandidate:
@@ -166,6 +198,7 @@ class ModelCandidate:
 
 
 # ── HuggingFace Hub helpers ──────────────────────────────────────────────
+
 
 def _is_quantized(model_id: str, tags: list[str]) -> bool:
     if _QUANT_RE.search(model_id):
@@ -207,6 +240,7 @@ def _check_hf_cache(model_id: str) -> bool:
 
 # ── Search ────────────────────────────────────────────────────────────────
 
+
 def search_hub(
     *,
     task: str = "code",
@@ -226,13 +260,15 @@ def search_hub(
         if verbose:
             print(f"  Searching: '{query}' ...", end="", flush=True)
         try:
-            models = list(api.list_models(
-                search=query,
-                pipeline_tag="text-generation",
-                sort="downloads",
-                direction=-1,
-                limit=limit_per_query,
-            ))
+            models = list(
+                api.list_models(
+                    search=query,
+                    pipeline_tag="text-generation",
+                    sort="downloads",
+                    direction=-1,
+                    limit=limit_per_query,
+                )
+            )
         except Exception as e:
             if verbose:
                 print(f" failed ({e})")
@@ -261,9 +297,7 @@ def search_hub(
                 continue
 
             author = mid.split("/")[0] if "/" in mid else ""
-            is_instruct = any(
-                kw in mid.lower() for kw in ("instruct", "chat", "-it")
-            )
+            is_instruct = any(kw in mid.lower() for kw in ("instruct", "chat", "-it"))
 
             c = ModelCandidate(
                 model_id=mid,
@@ -290,6 +324,7 @@ def search_hub(
 
 
 # ── Scoring & ranking ─────────────────────────────────────────────────────
+
 
 def rank_candidates(
     candidates: list[ModelCandidate],
@@ -332,8 +367,12 @@ def rank_candidates(
         author = 1.0 if c.author in TRUSTED_AUTHORS else 0.3
 
         c.score = round(
-            bench * 35 + size * 20 + instruct * 15
-            + community * 15 + fit * 10 + author * 5,
+            bench * 35
+            + size * 20
+            + instruct * 15
+            + community * 15
+            + fit * 10
+            + author * 5,
             1,
         )
 
@@ -342,6 +381,7 @@ def rank_candidates(
 
 
 # ── Cache ─────────────────────────────────────────────────────────────────
+
 
 def save_cache(candidates: list[ModelCandidate]) -> None:
     data = {
@@ -365,6 +405,7 @@ def load_cache() -> list[ModelCandidate] | None:
 
 
 # ── Download & validate ───────────────────────────────────────────────────
+
 
 def download_model(model_id: str) -> Path:
     """Download model snapshot to HF cache."""
@@ -394,6 +435,7 @@ def validate_model(model_id: str) -> dict:
 
 # ── Selection output ──────────────────────────────────────────────────────
 
+
 def write_selection(
     candidate: ModelCandidate,
     validation: dict | None = None,
@@ -415,52 +457,71 @@ def write_selection(
 
 # ── CLI ───────────────────────────────────────────────────────────────────
 
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         description="Search, rank, and download fine-tuning models from HuggingFace Hub.",
     )
     parser.add_argument(
-        "--vram", type=float, default=0,
+        "--vram",
+        type=float,
+        default=0,
         help="VRAM budget in GB (0 = auto-detect)",
     )
     parser.add_argument(
-        "--max-params", type=float, default=3.0,
+        "--max-params",
+        type=float,
+        default=3.0,
         help="Max parameter count in billions (default: 3.0)",
     )
     parser.add_argument(
-        "--seq-len", type=int, default=512,
+        "--seq-len",
+        type=int,
+        default=512,
         help="Training sequence length for VRAM estimation (default: 512)",
     )
     parser.add_argument(
-        "--task", choices=["code", "general"], default="code",
+        "--task",
+        choices=["code", "general"],
+        default="code",
         help="Model task focus (default: code)",
     )
     parser.add_argument(
-        "--auto", action="store_true",
+        "--auto",
+        action="store_true",
         help="Auto-select the best model (rank 1)",
     )
     parser.add_argument(
-        "--pick", type=int, default=0, metavar="N",
+        "--pick",
+        type=int,
+        default=0,
+        metavar="N",
         help="Select the model at rank N",
     )
     parser.add_argument(
-        "--download", action="store_true",
+        "--download",
+        action="store_true",
         help="Download the selected model to HF cache",
     )
     parser.add_argument(
-        "--validate", action="store_true",
+        "--validate",
+        action="store_true",
         help="Validate architecture compatibility after selection",
     )
     parser.add_argument(
-        "--refresh", action="store_true",
+        "--refresh",
+        action="store_true",
         help="Force refresh from HuggingFace Hub (ignore cache)",
     )
     parser.add_argument(
-        "--top", type=int, default=15,
+        "--top",
+        type=int,
+        default=15,
         help="Show top N candidates (default: 15)",
     )
     parser.add_argument(
-        "--json", action="store_true",
+        "--json",
+        action="store_true",
         help="Output ranked list as JSON",
     )
     args = parser.parse_args()
@@ -536,7 +597,7 @@ def main() -> None:
             sys.exit(1)
 
     if selected is None:
-        print(f"\nRe-run with --auto or --pick N to select a model.")
+        print("\nRe-run with --auto or --pick N to select a model.")
         return
 
     # ── Download ──────────────────────────────────────────────────────
@@ -561,7 +622,7 @@ def main() -> None:
     # ── Write selection ───────────────────────────────────────────────
     write_selection(selected, validation)
 
-    print(f"\nUsage:")
+    print("\nUsage:")
     print(f"  python run_local.py stm32 --model {selected.model_id}")
     print(f"  python batch_local.py --student-model {selected.model_id}")
 
