@@ -7,11 +7,14 @@ import os
 from collections.abc import AsyncIterator
 
 from google import genai
+from google.genai import types as genai_types
 
 from mascarade.config import is_secret_configured, settings
 from mascarade.router.providers.base import LLMProvider, LLMResponse, make_retry
 
 _retry = make_retry()
+
+_TIMEOUT_S = 60
 
 
 def _messages_to_text(messages: list[dict], system: str | None = None) -> str:
@@ -34,9 +37,7 @@ class GoogleProvider(LLMProvider):
 
     def __init__(self) -> None:
         if settings.google_application_credentials:
-            os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = (
-                settings.google_application_credentials
-            )
+            os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = settings.google_application_credentials
 
         self._client: genai.Client | None = None
 
@@ -56,18 +57,16 @@ class GoogleProvider(LLMProvider):
         if self._client is not None:
             return self._client
 
-        api_key = (
-            settings.google_api_key
-            if is_secret_configured(settings.google_api_key)
-            else None
-        )
+        api_key = settings.google_api_key if is_secret_configured(settings.google_api_key) else None
+        http_opts = genai_types.HttpOptions(timeout=_TIMEOUT_S)
         if api_key:
-            self._client = genai.Client(api_key=api_key)
+            self._client = genai.Client(api_key=api_key, http_options=http_opts)
         else:
             self._client = genai.Client(
                 vertexai=True,
                 project=settings.google_cloud_project,
                 location=settings.google_cloud_location,
+                http_options=http_opts,
             )
         return self._client
 
@@ -92,7 +91,7 @@ class GoogleProvider(LLMProvider):
                 config={"temperature": temperature, "max_output_tokens": max_tokens},
             )
 
-        response = await asyncio.to_thread(_call)
+        response = await asyncio.wait_for(asyncio.to_thread(_call), timeout=_TIMEOUT_S)
         usage_meta = getattr(response, "usage_metadata", None)
 
         return LLMResponse(
@@ -101,9 +100,7 @@ class GoogleProvider(LLMProvider):
             provider=self.name,
             usage={
                 "input_tokens": int(getattr(usage_meta, "prompt_token_count", 0) or 0),
-                "output_tokens": int(
-                    getattr(usage_meta, "candidates_token_count", 0) or 0
-                ),
+                "output_tokens": int(getattr(usage_meta, "candidates_token_count", 0) or 0),
             },
         )
 
@@ -127,7 +124,7 @@ class GoogleProvider(LLMProvider):
                 config={"temperature": temperature, "max_output_tokens": max_tokens},
             )
 
-        stream = await asyncio.to_thread(_call)
+        stream = await asyncio.wait_for(asyncio.to_thread(_call), timeout=_TIMEOUT_S)
         for chunk in stream:
             text = getattr(chunk, "text", None)
             if text:
