@@ -27,6 +27,11 @@ from mascarade.integrations.notion import NotionClient
 from mascarade.observability import AgentTraceBuffer, iso_utc_now
 from mascarade.orchestrator import Orchestrator
 from mascarade.orchestrator.engine import ExecutionMode
+from mascarade.provider_admin import (
+    PROVIDER_REGISTRY,
+    get_providers_status,
+    update_provider_keys,
+)
 from mascarade.router import Router
 from mascarade.router.router import Strategy
 
@@ -205,6 +210,10 @@ def _serialize_agent(agent: Agent) -> dict[str, object]:
 # --- Gestion des cles API ---
 
 
+class ProviderKeyUpdate(BaseModel):
+    keys: dict[str, str] = Field(description="Map ENV_VAR -> value")
+
+
 class APIKeyCreate(BaseModel):
     key: str = Field(min_length=8, max_length=256, description="Nouvelle cle API")
 
@@ -250,9 +259,7 @@ async def send(req: SendRequest):
         )
     except ValueError as exc:
         logger.warning("Send request rejected: %s", exc)
-        raise HTTPException(
-            status_code=400, detail="Invalid request parameters"
-        ) from exc
+        raise HTTPException(status_code=400, detail="Invalid request parameters") from exc
     return {
         "content": response.content,
         "model": response.model,
@@ -264,6 +271,21 @@ async def send(req: SendRequest):
 @protected.get("/providers")
 async def list_providers():
     return {"providers": app.state.router.available_providers}
+
+
+@protected.get("/providers/status")
+async def providers_status():
+    return {"providers": get_providers_status(app.state.router)}
+
+
+@protected.put("/providers/{name}/key")
+async def update_provider(name: str, req: ProviderKeyUpdate):
+    if name not in PROVIDER_REGISTRY:
+        raise HTTPException(status_code=404, detail=f"Unknown provider: {name}")
+    result = update_provider_keys(name, req.keys, app.state.router)
+    if "error" in result:
+        raise HTTPException(status_code=400, detail=result["error"])
+    return result
 
 
 @protected.get("/providers/bedrock/models")
@@ -384,9 +406,7 @@ async def get_agent(name: str):
     try:
         agent = app.state.registry.get(name)
     except KeyError:
-        raise HTTPException(
-            status_code=404, detail=f"Agent '{name}' not found"
-        ) from None
+        raise HTTPException(status_code=404, detail=f"Agent '{name}' not found") from None
     return _serialize_agent(agent)
 
 
@@ -395,9 +415,7 @@ async def update_agent(name: str, req: AgentUpdate):
     try:
         agent = app.state.registry.get(name)
     except KeyError:
-        raise HTTPException(
-            status_code=404, detail=f"Agent '{name}' not found"
-        ) from None
+        raise HTTPException(status_code=404, detail=f"Agent '{name}' not found") from None
     if app.state.registry.is_builtin(name):
         raise HTTPException(
             status_code=403,
@@ -424,9 +442,7 @@ async def run_agent(name: str, req: SendRequest):
     try:
         agent = app.state.registry.get(name)
     except KeyError:
-        raise HTTPException(
-            status_code=404, detail=f"Agent '{name}' not found"
-        ) from None
+        raise HTTPException(status_code=404, detail=f"Agent '{name}' not found") from None
 
     messages = [m.model_dump() for m in req.messages]
     prompt = messages[-1]["content"]
@@ -475,7 +491,7 @@ async def orchestrate(req: TaskRequest):
                 **({"error": r.error} if r.error else {}),
             }
             for r in run.results
-        ]
+        ],
     }
 
 
@@ -635,9 +651,7 @@ def _require_notion() -> NotionClient:
 @protected.get("/notion/search")
 async def notion_search(q: str):
     if len(q) > 1000:
-        raise HTTPException(
-            status_code=400, detail="Search query too long (max 1000 chars)"
-        )
+        raise HTTPException(status_code=400, detail="Search query too long (max 1000 chars)")
     client = _require_notion()
     results = await client.search(q)
     return {"results": results}
@@ -669,9 +683,7 @@ async def run_notion_scribe_and_push(req: NotionScribeRequest):
     try:
         agent = app.state.registry.get("notion-scribe")
     except KeyError:
-        raise HTTPException(
-            status_code=404, detail="Agent 'notion-scribe' not found"
-        ) from None
+        raise HTTPException(status_code=404, detail="Agent 'notion-scribe' not found") from None
 
     messages = [m.model_dump() for m in req.messages]
     prompt = messages[-1]["content"]
@@ -700,9 +712,7 @@ async def run_notion_scribe_and_push(req: NotionScribeRequest):
 
 def _require_comfyui() -> ComfyUIClient:
     if app.state.comfyui is None:
-        raise HTTPException(
-            status_code=503, detail="ComfyUI non configure (COMFYUI_URL manquant)"
-        )
+        raise HTTPException(status_code=503, detail="ComfyUI non configure (COMFYUI_URL manquant)")
     return app.state.comfyui
 
 
@@ -744,9 +754,7 @@ async def comfyui_generate(req: ComfyUIGenerateRequest):
 @protected.post("/comfyui/workflow")
 async def comfyui_workflow(req: ComfyUIWorkflowRequest):
     if not req.workflow or not isinstance(req.workflow, dict):
-        raise HTTPException(
-            status_code=400, detail="Workflow must be a non-empty object"
-        )
+        raise HTTPException(status_code=400, detail="Workflow must be a non-empty object")
     if len(str(req.workflow)) > 500_000:
         raise HTTPException(status_code=400, detail="Workflow payload too large")
     client = _require_comfyui()
@@ -768,9 +776,7 @@ async def comfyui_image(filename: str, subfolder: str = "", type: str = "output"
     try:
         image_data = await client.get_image(filename, subfolder, type)
     except ValueError:
-        raise HTTPException(
-            status_code=400, detail="Invalid image path parameters"
-        ) from None
+        raise HTTPException(status_code=400, detail="Invalid image path parameters") from None
     return Response(content=image_data, media_type="image/png")
 
 

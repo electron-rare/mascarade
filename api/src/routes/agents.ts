@@ -97,6 +97,33 @@ agents.get("/providers", async (c) => {
   }
 });
 
+/** Status detaille de tous les providers (cles, config) */
+agents.get("/providers/status", async (c) => {
+  try {
+    const result = await coreClient.providersStatus();
+    return c.json(result);
+  } catch (error) {
+    const { status, body } = handleCoreError(error);
+    return c.json(body, status);
+  }
+});
+
+/** Mettre a jour la cle d'un provider */
+agents.put("/providers/:name/key", async (c) => {
+  try {
+    const name = c.req.param("name");
+    if (!name || !SAFE_NAME_RE.test(name)) {
+      return c.json({ error: "Invalid provider name" }, 400);
+    }
+    const { keys } = await c.req.json();
+    const result = await coreClient.updateProviderKey(name, keys);
+    return c.json(result);
+  } catch (error) {
+    const { status, body } = handleCoreError(error);
+    return c.json(body, status);
+  }
+});
+
 /** Recuperer le resume global de metriques */
 agents.get("/metrics", async (c) => {
   try {

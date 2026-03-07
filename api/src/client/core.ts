@@ -97,6 +97,26 @@ export interface ClusterPeerStatus {
   last_seen?: string | null;
 }
 
+export interface ProviderFieldStatus {
+  env: string;
+  label: string;
+  configured: boolean;
+  hint: string;
+  secret: boolean;
+}
+
+export interface ProviderStatus {
+  name: string;
+  label: string;
+  configured: boolean;
+  active: boolean;
+  fields: ProviderFieldStatus[];
+  default_model: string | null;
+  models: string[];
+  enabled?: boolean;
+  toggle_env?: string;
+}
+
 const REQUEST_TIMEOUT_MS = parseInt(process.env.CORE_TIMEOUT_MS || "30000", 10);
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
@@ -154,6 +174,17 @@ export const coreClient = {
 
   listProviders() {
     return request<{ providers: string[] }>("/providers");
+  },
+
+  providersStatus() {
+    return request<{ providers: ProviderStatus[] }>("/providers/status");
+  },
+
+  updateProviderKey(name: string, keys: Record<string, string>) {
+    return request<{ status: string; active: boolean; message?: string }>(
+      `/providers/${encodeURIComponent(name)}/key`,
+      { method: "PUT", body: JSON.stringify({ keys }) },
+    );
   },
 
   getMetrics() {
