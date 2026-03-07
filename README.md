@@ -2,6 +2,18 @@
 
 Systeme d'orchestration agentique personnel. Route intelligemment les requetes LLM entre Claude, GPT, Mistral, AWS Bedrock, Google Gemini et Hugging Face, avec agents specialises, orchestration multi-agents, cache, fallback automatique et integration Notion.
 
+## Ecosysteme
+
+Mascarade fait partie d'un ecosysteme de 5 repos :
+
+| Repo | Role |
+|------|------|
+| **[mascarade](https://github.com/electron-rare/mascarade)** | Orchestrateur agentique, LLM routing, fine-tuning |
+| **[mascarade-datasets](https://github.com/electron-rare/mascarade-datasets)** | Datasets de fine-tuning (13 domaines, ~74k exemples) |
+| **[mascarade-cockpit](https://github.com/electron-rare/mascarade-cockpit)** | Console ops SvelteKit (monitoring Docker, metriques, energie) |
+| **[crazy_life](https://github.com/electron-rare/crazy_life)** | Frontend React du cockpit Mascarade (agents, orchestration, logs) |
+| **[Kill_LIFE](https://github.com/electron-rare/Kill_LIFE)** | Template agentique pour projets embarques IA (spec-first, gates, evidence packs) |
+
 ## Architecture
 
 ```
@@ -49,38 +61,42 @@ Systeme d'orchestration agentique personnel. Route intelligemment les requetes L
 
 ---
 
-## Crazy Life Frontend
+## Crazy Life (frontend)
 
-Le frontend cockpit est aussi publie dans un repo prive separe:
-
-- repo: `electron-rare/crazy_life`
-- role: extraction autonome de `web/`
-- sync depuis `mascarade`: [scripts/sync_crazy_life.sh](/home/clems/mascarade/scripts/sync_crazy_life.sh)
-
-Badges du repo frontend:
-
-[![CI](https://github.com/electron-rare/crazy_life/actions/workflows/ci.yml/badge.svg)](https://github.com/electron-rare/crazy_life/actions/workflows/ci.yml)
-[![Deploy Pages](https://github.com/electron-rare/crazy_life/actions/workflows/deploy-pages.yml/badge.svg)](https://github.com/electron-rare/crazy_life/actions/workflows/deploy-pages.yml)
-
-URL cible GitHub Pages une fois active:
-
-```text
-https://electron-rare.github.io/crazy_life/
-```
-
-Etat actuel:
-
-- le workflow Pages est present dans `web/.github/workflows/`
-- GitHub Pages n'est pas encore active sur `crazy_life`
-- `push` publie `HEAD:web` vers `crazy_life`
-- `pull` resynchronise `web/` depuis `crazy_life/main` et cree un commit local
-
-Raccourcis:
+`mascarade/web/` est un subtree bridge vers le repo canonique [crazy_life](https://github.com/electron-rare/crazy_life).
 
 ```bash
-scripts/sync_crazy_life.sh status
-scripts/sync_crazy_life.sh push --allow-dirty --force
-scripts/sync_crazy_life.sh pull
+scripts/sync_crazy_life.sh status          # Etat de sync
+scripts/sync_crazy_life.sh push            # web/ -> crazy_life
+scripts/sync_crazy_life.sh pull            # crazy_life/main -> web/
+```
+
+---
+
+## Fine-Tuning
+
+Pipeline de fine-tuning QLoRA pour modeles code specialises electronique embarquee.
+
+- **GPU cible** : Quadro P2000 (5 GB VRAM, CUDA 6.1) avec PyTorch 2.3.1+cu121
+- **Modele par defaut** : `Qwen/Qwen2.5-Coder-1.5B-Instruct`
+- **10 domaines** : stm32, spice, iot, power, dsp, emc, kicad, embedded, platformio, freecad
+- **Datasets** : ~74k exemples au format ShareGPT (repo [mascarade-datasets](https://github.com/electron-rare/mascarade-datasets))
+
+```bash
+# Selection automatique du modele optimal
+.venv/bin/python finetune/model_selector.py --vram 5 --auto --download
+
+# Entrainement GPU (QLoRA 4-bit)
+.venv/bin/python finetune/train_local.py stm32
+
+# Entrainement CPU (fallback)
+.venv/bin/python finetune/train_cpu.py kicad
+
+# Batch sur tous les domaines
+bash finetune/train_all.sh
+
+# Pipeline complet : train -> merge -> GGUF -> deploy Ollama
+.venv/bin/python finetune/pipeline.py stm32 --step all
 ```
 
 ---
@@ -650,50 +666,58 @@ python -m pytest -v       # 42 tests
 
 ```
 mascarade/
-├── core/                             # Python FastAPI
+├── core/                             # Python FastAPI (port 8100)
 │   ├── mascarade/
 │   │   ├── server.py                 # Routes FastAPI + lifespan
 │   │   ├── config.py                 # Settings (.env)
 │   │   ├── auth.py                   # Bearer token auth
+│   │   ├── cluster.py                # Coordination multi-noeud
 │   │   ├── agents/
 │   │   │   ├── base.py               # Dataclass Agent
 │   │   │   ├── registry.py           # Registre + persistance JSON
-│   │   │   └── skills.py             # 9 agents built-in
+│   │   │   ├── skills.py             # 9 agents built-in
+│   │   │   ├── kicad_agent.py        # Agent KiCad
+│   │   │   └── spice_agent.py        # Agent SPICE
 │   │   ├── router/
-│   │   │   ├── router.py             # Routeur intelligent + cache/metrics/LB/fallback
-│   │   │   ├── fallback.py           # Mecanisme de fallback
-│   │   │   └── providers/
-│   │   │       ├── base.py           # Interface LLMProvider + retry factory
-│   │   │       ├── claude.py         # Adapter Anthropic
-│   │   │       ├── openai.py         # Adapter OpenAI
-│   │   │       └── mistral.py        # Adapter Mistral
-│   │   ├── orchestrator/
-│   │   │   └── engine.py             # Sequential / parallel / pipeline
+│   │   │   ├── router.py             # Routeur intelligent + cache/LB/fallback
+│   │   │   └── providers/            # Claude, OpenAI, Mistral, Bedrock,
+│   │   │       └── ...               #   Google, HF, Ollama, Apple CoreML
+│   │   ├── orchestrator/engine.py    # Sequential / parallel / pipeline
 │   │   ├── integrations/
-│   │   │   └── notion.py             # Client Notion async
-│   │   ├── cache/cache.py            # Cache reponses en memoire
-│   │   ├── metrics/tracker.py        # Tracking usage/perf
-│   │   └── load_balancer/balancer.py # Distribution de charge
+│   │   │   ├── notion.py             # Client Notion async
+│   │   │   └── comfyui.py            # Generation d'images ComfyUI
+│   │   ├── observability/            # OpenTelemetry, traces agents
+│   │   ├── cache/                    # Cache reponses (TTL 1h)
+│   │   ├── metrics/                  # Tracking usage/perf/couts
+│   │   └── load_balancer/            # Distribution round-robin
 │   ├── tests/                        # pytest (42 tests)
 │   └── pyproject.toml
-├── api/                              # TypeScript Hono
+├── api/                              # TypeScript Hono (port 3100)
 │   ├── src/
-│   │   ├── index.ts                  # App Hono + mount routes
-│   │   ├── middleware/auth.ts        # Auth middleware Bearer
-│   │   ├── client/core.ts            # Client HTTP vers le core
-│   │   └── routes/
-│   │       ├── health.ts             # GET /health
-│   │       ├── agents.ts             # Proxy agents/send/orchestrate
-│   │       └── notion.ts             # Proxy Notion
+│   │   ├── index.ts                  # App + middleware (CORS, auth, rate-limit)
+│   │   └── routes/                   # health, agents, cluster, notion, comfyui,
+│   │       └── ...                   #   ops, killlife
 │   └── package.json
-├── deploy/
-│   ├── Dockerfile.core               # Image Python
-│   ├── Dockerfile.api                # Image Node.js
-│   └── update.sh                     # Script de deploiement VM
-├── scripts/
-│   ├── vm-docker.sh                  # Docker via SSH context
-│   └── vm-api.sh                     # curl vers l'API de la VM
-├── docker-compose.yml
-├── .env.example
+├── web/                              # Frontend React (subtree -> crazy_life)
+├── finetune/                         # Pipeline fine-tuning QLoRA
+│   ├── model_selector.py             # Selection automatique de modele (HF Hub)
+│   ├── train_local.py                # Entrainement GPU (4-bit QLoRA)
+│   ├── train_cpu.py                  # Entrainement CPU (fallback)
+│   ├── train_all.sh                  # Batch dashboard multi-domaines
+│   ├── pipeline.py                   # train -> merge -> GGUF -> Ollama
+│   ├── batch_local.py                # Orchestration distillation + training
+│   ├── datasets/                     # Builders + datasets JSONL
+│   └── kicad_*/                      # Submodules KiCad (KiC-AI, MCP, Fab Toolkit)
+├── deploy/                           # Dockerfiles (core, api, edge-proxy, audio)
+│   ├── cad/                          # Stack CAD (KiCad, FreeCAD, PlatformIO)
+│   └── update.sh                     # Deploiement VM
+├── scripts/                          # Automation (setup, deploy, finetune, CAD)
+├── docs/                             # Architecture, audits, runbooks, plans
+├── tools/                            # htop repo-local, litellm config
+├── vendors/                          # Submodule kicadrouterai (HuggingFace)
+├── setup                             # Installeur TUI interactif
+├── config                            # Reconfiguration .env
+├── docker-compose.yml                # Genere par setup
+├── .env.example                      # Template configuration
 └── CLAUDE.md                         # Conventions dev
 ```

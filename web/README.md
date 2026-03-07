@@ -1,6 +1,8 @@
 # Crazy Life
 
-Frontend cockpit extracted from `mascarade/web`.
+Bridge workspace for the standalone `crazy_life` repo.
+
+This directory is no longer the canonical home of the cockpit. The canonical frontend+backend target is `crazy_life`; `mascarade/web` is kept as a subtree bridge when sync is still needed.
 
 ## Run
 
@@ -93,7 +95,9 @@ scripts/sync_crazy_life.sh pull
 
 Rules:
 
+- run the canonical release preflight in the extracted `crazy_life` repo before any publish attempt
 - `push` publishes the committed `web/` subtree to `crazy_life`
 - `pull` fetches `crazy_life/main`, replaces `web/` from that tree and creates a local sync commit
 - `pull` requires a clean worktree
 - `push --allow-dirty` is safe for local unrelated changes because only `HEAD:web` is exported
+- product ownership lives in `crazy_life`, not in `mascarade/web`
