@@ -28,6 +28,12 @@ python finetune/run_local.py kicad --device cpu --model TinyLlama/TinyLlama-1.1B
 
 # Run jetable isole dans finetune/runs/smoke_<domain>_<timestamp>/
 ./scripts/finetune_local.sh stm32 --device gpu --max-samples 8 --epochs 1 --smoke
+
+# CPU parallel helper is serialized by default on this machine
+./finetune/train_parallel.sh --domains dsp,emc
+
+# Opt-in override only when memory/swap margin has been revalidated
+MASCARADE_ALLOW_PARALLEL_CPU=1 ./finetune/train_parallel.sh --parallel 2
 ```
 
 Preset recommande pour cette machine (RTX 4090 24 Go VRAM) :

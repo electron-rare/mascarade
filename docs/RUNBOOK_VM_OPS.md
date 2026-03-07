@@ -27,7 +27,7 @@ Important:
 2. Fill at least:
    - `MASCARADE_API_KEY`
    - provider keys you actually use
-   - optional `COMFYUI_URL`, `NOTION_API_KEY`
+   - optional `COMFYUI_URL`, `NOTION_API_KEY`, `KILL_LIFE_GITHUB_TOKEN`
 3. Start the standard stack:
    - `cd /mascarade && ./setup --with core,api,ops-console,ollama --yes`
 4. Start with AudioCraft too, if needed:

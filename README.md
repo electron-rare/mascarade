@@ -136,8 +136,15 @@ ANTHROPIC_API_KEY=sk-ant-xxxxx          # Claude (best quality)
 OPENAI_API_KEY=sk-xxxxx                 # GPT (fastest)
 MISTRAL_API_KEY=xxxxx                   # Mistral (cheapest)
 GOOGLE_API_KEY=xxxxx                    # Gemini API (optionnel)
-HUGGINGFACE_API_KEY=hf_xxxxx            # Hugging Face Inference
+HUGGINGFACE_API_KEY=hf_xxxxx            # Hugging Face Inference (mode api_key)
+HUGGINGFACE_AUTH_MODE=api_key           # or oauth_oidc
 HUGGINGFACE_BASE_URL=https://router.huggingface.co/v1
+HUGGINGFACE_OAUTH_ACCESS_TOKEN=
+HUGGINGFACE_OAUTH_REFRESH_TOKEN=
+HUGGINGFACE_OAUTH_CLIENT_ID=
+HUGGINGFACE_OAUTH_CLIENT_SECRET=
+HUGGINGFACE_OAUTH_TOKEN_ENDPOINT=https://huggingface.co/oauth/token
+HUGGINGFACE_OAUTH_EXPIRES_AT=
 HUGGINGFACE_MODEL=meta-llama/Meta-Llama-3.1-8B-Instruct
 
 # AWS Bedrock (optionnel)
@@ -154,6 +161,9 @@ GOOGLE_MODEL=gemini-2.5-flash
 
 # Notion — optionnel, pour la KB et les dashboards
 NOTION_API_KEY=ntn_xxxxx
+
+# GitHub dispatch — optionnel, pour les workflows Kill_LIFE / crazy_life
+KILL_LIFE_GITHUB_TOKEN=ghp_xxxxx
 
 # Auth — si vide, toutes les routes sont ouvertes (mode dev)
 MASCARADE_API_KEY=un-token-secret
@@ -607,6 +617,21 @@ curl -X POST http://localhost:3100/api/agents/notion-scribe/run-and-push \
     "messages": [{"role": "user", "content": "Formate ce rapport : ..."}],
     "push_to": "<page-id>"
   }'
+```
+
+### GitHub dispatch
+
+Si `KILL_LIFE_GITHUB_TOKEN` ou `GITHUB_TOKEN` est configure :
+
+```bash
+# Lister les workflows allowlistes exposes par le MCP / bridge
+python3 /home/clems/Kill_LIFE/tools/github_dispatch_mcp_smoke.py --json
+
+# Ou tester le bridge API cote mascarade sans dispatch reel
+curl -X POST http://localhost:3100/api/killlife/workflows/repo_state/run \
+  -H "Authorization: Bearer $KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"mode":"github","dry_run":true}'
 ```
 
 ### Observabilite
