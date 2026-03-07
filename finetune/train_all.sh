@@ -5,7 +5,7 @@
 # Usage:
 #   ./train_all.sh                    # All domains, GPU (Qwen2.5-Coder-1.5B)
 #   ./train_all.sh --domains spice,kicad,stm32
-#   ./train_all.sh --model TinyLlama/TinyLlama-1.1B-Chat-v1.0 --cpu
+#   ./train_all.sh --model Qwen/Qwen2.5-Coder-1.5B-Instruct --cpu
 #   ./train_all.sh --dry-run          # Show what would run
 #
 
@@ -19,7 +19,16 @@ DATASETS_DIR="${SCRIPT_DIR}/datasets"
 
 ALL_DOMAINS="stm32 spice iot power dsp emc kicad embedded platformio freecad"
 DEFAULT_GPU_MODEL="Qwen/Qwen2.5-Coder-1.5B-Instruct"
-DEFAULT_CPU_MODEL="TinyLlama/TinyLlama-1.1B-Chat-v1.0"
+DEFAULT_CPU_MODEL="$DEFAULT_GPU_MODEL"
+# Use model_selector choice if available
+SELECTED_MODEL_FILE="${SCRIPT_DIR}/selected_model.json"
+if [[ -f "$SELECTED_MODEL_FILE" ]]; then
+    _sel=$(python3 -c "import json; print(json.load(open('$SELECTED_MODEL_FILE'))['model_id'])" 2>/dev/null)
+    if [[ -n "$_sel" ]]; then
+        DEFAULT_GPU_MODEL="$_sel"
+        DEFAULT_CPU_MODEL="$_sel"
+    fi
+fi
 MODEL="$DEFAULT_GPU_MODEL"
 SEQ_LEN=1024
 EPOCHS=2

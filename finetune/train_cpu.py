@@ -2,15 +2,14 @@
 # ruff: noqa: E402
 """CPU-only fine-tuning script.
 
-Optimized for a local fallback path when CUDA is unavailable. The default
-model is `TinyLlama/TinyLlama-1.1B-Chat-v1.0` so the CPU queue stays light on
-machines where RAM and swap are already under pressure, while a larger cached
-model can still be supplied with `--model`.
+Optimized for a local fallback path when CUDA is unavailable. Uses the model
+selected by model_selector.py if available, otherwise defaults to
+Qwen/Qwen2.5-Coder-1.5B-Instruct.
 
 Usage:
   python train_cpu.py kicad
   python train_cpu.py spice --epochs 2
-  python train_cpu.py stm32 --model TinyLlama/TinyLlama-1.1B-Chat-v1.0
+  python train_cpu.py stm32 --model Qwen/Qwen2.5-Coder-1.5B-Instruct
   python train_cpu.py all
 """
 
@@ -59,7 +58,12 @@ DOMAINS = [
     "freecad",
 ]
 
-DEFAULT_MODEL = "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
+try:
+    from model_selector import resolve_model as _resolve
+
+    DEFAULT_MODEL = _resolve("Qwen/Qwen2.5-Coder-1.5B-Instruct")
+except Exception:
+    DEFAULT_MODEL = "Qwen/Qwen2.5-Coder-1.5B-Instruct"
 
 LORA_TARGETS = {
     "gpt2": ["c_attn"],
