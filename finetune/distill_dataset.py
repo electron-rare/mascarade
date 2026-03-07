@@ -9,6 +9,7 @@ import hashlib
 import json
 import random
 import re
+import threading
 import time
 import urllib.error
 import urllib.request
@@ -57,6 +58,12 @@ DOMAIN_BRIEFS = {
     "freecad": "FreeCAD, parametric CAD, Python macros, workbenches, sketches, constraints, TechDraw, STEP export.",
 }
 
+LOCAL_HF_PROVIDER = "local-hf"
+_LOCAL_HF_TEACHER = None
+_LOCAL_HF_TEACHER_MODEL = None
+_LOCAL_HF_LOAD_LOCK = threading.Lock()
+_LOCAL_HF_GENERATE_LOCK = threading.Lock()
+
 
 @dataclass
 class EndpointConfig:
@@ -64,6 +71,104 @@ class EndpointConfig:
     providers_url: str
     send_url: str
     providers: list[str]
+
+
+class LocalHFTeacher:
+    def __init__(self, model_name: str) -> None:
+        import torch
+        from transformers import AutoConfig, AutoProcessor, AutoTokenizer
+
+        self.model_name = model_name
+        self.torch = torch
+        self.config = AutoConfig.from_pretrained(model_name, trust_remote_code=True)
+        self.model_type = getattr(self.config, "model_type", None)
+        self.processor = None
+        try:
+            self.processor = AutoProcessor.from_pretrained(
+                model_name, trust_remote_code=True
+            )
+        except Exception:
+            self.processor = None
+        self.tokenizer = AutoTokenizer.from_pretrained(
+            model_name, trust_remote_code=True
+        )
+        self.model = self._load_model()
+        self.model.eval()
+        self.device = next(self.model.parameters()).device
+
+    def _load_model(self):
+        from transformers import AutoModelForCausalLM
+
+        common_kwargs = {
+            "device_map": "auto",
+            "trust_remote_code": True,
+        }
+        if self.model_type == "qwen3_5":
+            from transformers import Qwen3_5ForConditionalGeneration
+
+            return Qwen3_5ForConditionalGeneration.from_pretrained(
+                self.model_name,
+                **common_kwargs,
+            )
+        return AutoModelForCausalLM.from_pretrained(
+            self.model_name,
+            **common_kwargs,
+        )
+
+    def _apply_chat_template(
+        self, teacher_system: str, user_prompt: str
+    ) -> str:
+        messages = []
+        if teacher_system.strip():
+            messages.append({"role": "system", "content": teacher_system})
+        messages.append({"role": "user", "content": user_prompt})
+
+        if self.processor is not None and hasattr(self.processor, "apply_chat_template"):
+            return self.processor.apply_chat_template(
+                messages,
+                tokenize=False,
+                add_generation_prompt=True,
+            )
+        return self.tokenizer.apply_chat_template(
+            messages,
+            tokenize=False,
+            add_generation_prompt=True,
+        )
+
+    def generate_json(
+        self, *, teacher_system: str, user_prompt: str, max_tokens: int, temperature: float
+    ) -> str:
+        prompt = self._apply_chat_template(teacher_system, user_prompt)
+        encoder = self.processor if self.processor is not None else self.tokenizer
+        inputs = encoder(prompt, return_tensors="pt")
+        inputs = {
+            key: value.to(self.device) if hasattr(value, "to") else value
+            for key, value in inputs.items()
+        }
+        generate_kwargs = {
+            "max_new_tokens": max_tokens,
+            "do_sample": temperature > 0,
+        }
+        if temperature > 0:
+            generate_kwargs["temperature"] = temperature
+            generate_kwargs["top_p"] = 0.95
+
+        with self.torch.inference_mode():
+            output_ids = self.model.generate(**inputs, **generate_kwargs)
+        prompt_length = inputs["input_ids"].shape[1]
+        generated_ids = output_ids[:, prompt_length:]
+        return self.tokenizer.batch_decode(
+            generated_ids, skip_special_tokens=True
+        )[0].strip()
+
+
+def get_local_hf_teacher(model_name: str) -> LocalHFTeacher:
+    global _LOCAL_HF_TEACHER, _LOCAL_HF_TEACHER_MODEL
+    with _LOCAL_HF_LOAD_LOCK:
+        if _LOCAL_HF_TEACHER is None or _LOCAL_HF_TEACHER_MODEL != model_name:
+            _LOCAL_HF_TEACHER = LocalHFTeacher(model_name)
+            _LOCAL_HF_TEACHER_MODEL = model_name
+    return _LOCAL_HF_TEACHER
 
 
 def shorten(text: str, limit: int = 800) -> str:
@@ -360,6 +465,10 @@ def resolve_concurrency(requested: int, sample_count: int) -> int:
     return max(1, min(requested, sample_count))
 
 
+def teacher_uses_local_hf(teacher_provider: str | None) -> bool:
+    return (teacher_provider or "").strip().lower() == LOCAL_HF_PROVIDER
+
+
 def distill_source_row(
     *,
     index: int,
@@ -398,6 +507,22 @@ def distill_source_row(
         provider_used = "dry-run"
         model_used = "dry-run"
         latency_ms = 0.0
+    elif teacher_uses_local_hf(teacher_provider):
+        if not teacher_model:
+            raise ValueError("teacher_model is required when teacher_provider=local-hf")
+        started_at = time.perf_counter()
+        with _LOCAL_HF_GENERATE_LOCK:
+            teacher = get_local_hf_teacher(teacher_model)
+            repair_raw = teacher.generate_json(
+                teacher_system=teacher_system,
+                user_prompt=prompt,
+                max_tokens=max_tokens,
+                temperature=temperature,
+            )
+        latency_ms = round((time.perf_counter() - started_at) * 1000, 2)
+        payload = parse_teacher_payload(repair_raw)
+        provider_used = LOCAL_HF_PROVIDER
+        model_used = teacher_model
     else:
         route_strategy = "specific" if teacher_provider else strategy
         provider_used = None
@@ -427,7 +552,7 @@ def distill_source_row(
                 "temperature": temperature if attempt == 0 else 0.0,
                 "max_tokens": max_tokens,
             }
-            if teacher_provider == "mistral":
+            if teacher_provider in {None, "mistral", "ollama"}:
                 body["response_format"] = {"type": "json_object"}
             try:
                 started_at = time.perf_counter()
@@ -507,7 +632,11 @@ def main() -> int:
         dest="api_urls",
         help="Mascarade base URL, repeatable",
     )
-    parser.add_argument("--api-key", default="", help="MASCARADE_API_KEY bearer token")
+    parser.add_argument(
+        "--api-key",
+        default=os.environ.get("MASCARADE_API_KEY", ""),
+        help="MASCARADE_API_KEY bearer token",
+    )
     parser.add_argument(
         "--teacher-provider", default=None, help="Provider name to force, e.g. mistral"
     )
@@ -576,6 +705,8 @@ def main() -> int:
         f"{args.domain}-source",
     )
     resolved_concurrency = resolve_concurrency(args.concurrency, len(selected_rows))
+    if teacher_uses_local_hf(args.teacher_provider):
+        resolved_concurrency = 1
 
     progress: tqdm | None = None
 
@@ -598,7 +729,7 @@ def main() -> int:
         headers["Authorization"] = f"Bearer {args.api_key}"
 
     endpoint = None
-    if not args.dry_run:
+    if not args.dry_run and not teacher_uses_local_hf(args.teacher_provider):
         api_urls = args.api_urls or DEFAULT_API_URLS
         endpoint = resolve_endpoint(api_urls, headers, args.timeout)
         emit(f"[OK] API: {endpoint.send_url}", important=True)
@@ -611,6 +742,13 @@ def main() -> int:
                 f"[WARN] Teacher provider '{args.teacher_provider}' is not currently advertised by the API",
                 important=True,
             )
+    elif teacher_uses_local_hf(args.teacher_provider):
+        if not args.teacher_model:
+            raise SystemExit(
+                "--teacher-model is required when --teacher-provider local-hf"
+            )
+        emit(f"[OK] local teacher: {args.teacher_model}", important=True)
+        emit("[OK] local teacher concurrency forced to 1", important=True)
 
     if args.verbose:
         emit(f"[INFO] Source dataset: {source_dataset}", important=True)
