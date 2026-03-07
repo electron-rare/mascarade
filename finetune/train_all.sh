@@ -18,7 +18,9 @@ LOG_DIR="${SCRIPT_DIR}/logs"
 DATASETS_DIR="${SCRIPT_DIR}/datasets"
 
 ALL_DOMAINS="stm32 spice iot power dsp emc kicad embedded platformio freecad"
-MODEL="Qwen/Qwen2.5-Coder-1.5B-Instruct"
+DEFAULT_GPU_MODEL="Qwen/Qwen2.5-Coder-1.5B-Instruct"
+DEFAULT_CPU_MODEL="TinyLlama/TinyLlama-1.1B-Chat-v1.0"
+MODEL="$DEFAULT_GPU_MODEL"
 SEQ_LEN=1024
 EPOCHS=2
 MAX_SAMPLES=""
@@ -65,6 +67,10 @@ while [[ $# -gt 0 ]]; do
         *) echo "Unknown option: $1"; usage ;;
     esac
 done
+
+if $USE_CPU && [[ "$MODEL" == "$DEFAULT_GPU_MODEL" ]]; then
+    MODEL="$DEFAULT_CPU_MODEL"
+fi
 
 DOMAINS="${SELECTED_DOMAINS:-$ALL_DOMAINS}"
 DOMAIN_LIST=($DOMAINS)

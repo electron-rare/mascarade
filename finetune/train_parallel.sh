@@ -17,7 +17,7 @@ VENV_FALLBACK="${SCRIPT_DIR}/../core/.venv/bin/activate"
 LOG_DIR="${SCRIPT_DIR}/logs"
 DATASETS_DIR="${SCRIPT_DIR}/datasets"
 
-MODEL="Qwen/Qwen2.5-Coder-1.5B-Instruct"
+MODEL="TinyLlama/TinyLlama-1.1B-Chat-v1.0"
 SEQ_LEN=512
 EPOCHS=2
 MAX_SAMPLES=500
