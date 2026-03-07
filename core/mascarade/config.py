@@ -73,6 +73,12 @@ class Settings(BaseSettings):
     # Authentication
     mascarade_api_key: str = ""
 
+    # Observability
+    otel_enabled: bool = False
+    otel_collector_http_endpoint: str = "http://otel-collector:4318"
+    ops_agent_url: str = "http://ops-agent:9200"
+    loki_url: str = "http://loki:3100"
+
     # Mistral Studio
     mistral_api_base: str = "https://api.mistral.ai/v1"
     mistral_default_model: str = "mistral-large-latest"

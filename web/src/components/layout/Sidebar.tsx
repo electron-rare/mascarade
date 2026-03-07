@@ -139,7 +139,7 @@ export default function Sidebar({ pathname, open, onClose }: SidebarProps) {
 
           <div className="grid grid-cols-2 gap-2 text-[11px] uppercase tracking-[0.16em]">
             <a
-              href="/ops/"
+              href="/ops"
               className="rounded-2xl border border-border/70 bg-black/25 px-3 py-3 text-center text-amber-100/70 transition hover:border-accent/35 hover:text-accent"
             >
               ops

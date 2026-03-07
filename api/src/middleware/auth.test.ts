@@ -39,6 +39,16 @@ describe("authMiddleware", () => {
     expect(res.status).toBe(200);
   });
 
+  it("accepts the API key from the mascarade_key cookie", async () => {
+    process.env.MASCARADE_API_KEY = "alpha-key-123456";
+
+    const res = await makeApp().request("/", {
+      headers: { Cookie: "mascarade_key=alpha-key-123456" },
+    });
+
+    expect(res.status).toBe(200);
+  });
+
   it("rejects missing tokens when auth is enabled", async () => {
     process.env.MASCARADE_API_KEY = "alpha-key-123456";
 

@@ -26,7 +26,7 @@ type TimedJsonResult = {
 type OpsLogEntry = {
   id: string;
   ts: string;
-  source: "service" | "agent-trace";
+  source: "service" | "machine" | "agent-trace" | "docker-event";
   service?: string;
   severity: "debug" | "info" | "warning" | "error" | "critical";
   message: string;
@@ -50,6 +50,7 @@ type MonitorSnapshot = {
       status: number;
       latency_ms: number;
       models: number;
+      model_names: string[];
       error?: string;
     };
     apple_llm: null | {
@@ -138,6 +139,144 @@ async function timedProbe(
 const OLLAMA_BASE_URL = (process.env.OLLAMA_BASE_URL || "http://ollama:11434").replace(/\/+$/, "");
 const APPLE_LLM_ENABLED = (process.env.APPLE_LLM_ENABLED || "").toLowerCase() === "true";
 const APPLE_LLM_BASE_URL = (process.env.APPLE_LLM_BASE_URL || "").replace(/\/+$/, "");
+const OPS_AGENT_URL = (process.env.OPS_AGENT_URL || "http://ops-agent:9200").replace(/\/+$/, "");
+const LOKI_URL = (process.env.LOKI_URL || "http://loki:3100").replace(/\/+$/, "");
+const CORE_URL = (process.env.CORE_URL || "http://core:8100").replace(/\/+$/, "");
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function parseJsonRecord(value: string): Record<string, unknown> | null {
+  try {
+    const parsed = JSON.parse(value);
+    return isRecord(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+type DecodedLokiLine = {
+  line: string;
+  structured: Record<string, unknown> | null;
+  envelopeTs?: string;
+};
+
+export function decodeLokiLine(rawLine: string): DecodedLokiLine {
+  let currentLine = rawLine.trim();
+  let envelopeTs: string | undefined;
+
+  for (let depth = 0; depth < 3; depth += 1) {
+    const parsed = parseJsonRecord(currentLine);
+    if (!parsed) {
+      return { line: currentLine, structured: null, envelopeTs };
+    }
+    if (typeof parsed.log === "string") {
+      currentLine = parsed.log.trim();
+      if (!envelopeTs && typeof parsed.time === "string") {
+        envelopeTs = parsed.time;
+      }
+      continue;
+    }
+    return { line: currentLine, structured: parsed, envelopeTs };
+  }
+
+  return { line: currentLine, structured: null, envelopeTs };
+}
+
+function coerceSource(value: unknown, fallback: OpsLogEntry["source"]): OpsLogEntry["source"] {
+  return value === "agent-trace" ||
+    value === "machine" ||
+    value === "service" ||
+    value === "docker-event"
+    ? value
+    : fallback;
+}
+
+function fallbackSourceFromLabels(labels: Record<string, string>): OpsLogEntry["source"] {
+  return labels.job === "systemd-journal" ? "machine" : "service";
+}
+
+function coerceOptionalString(value: unknown): string | undefined {
+  return typeof value === "string" && value.trim() ? value.trim() : undefined;
+}
+
+function extractServiceFromLabels(labels: Record<string, string>): string | undefined {
+  const direct =
+    labels.service ||
+    labels.compose_service ||
+    labels.container ||
+    labels.container_name ||
+    labels.unit;
+  if (direct) {
+    return direct;
+  }
+
+  const filename = labels.filename || labels.__path__ || "";
+  const containerMatch = /\/containers\/([a-f0-9]{12,64})\//i.exec(filename);
+  if (containerMatch) {
+    return containerMatch[1].slice(0, 12);
+  }
+  return undefined;
+}
+
+function normalizedIsoTimestamp(rawTimestampNs: string, envelopeTs?: string): string {
+  if (envelopeTs) {
+    const parsed = new Date(envelopeTs);
+    if (!Number.isNaN(parsed.getTime())) {
+      return parsed.toISOString();
+    }
+  }
+  return new Date(Number(rawTimestampNs) / 1_000_000).toISOString();
+}
+
+export function lokiValueToOpsLogEntry(args: {
+  rawTimestampNs: string;
+  rawLine: string;
+  labels?: Record<string, string>;
+}): OpsLogEntry | null {
+  const labels = args.labels ?? {};
+  const decoded = decodeLokiLine(args.rawLine);
+  const ts = normalizedIsoTimestamp(args.rawTimestampNs, decoded.envelopeTs);
+  const fallbackSource = fallbackSourceFromLabels(labels);
+
+  if (decoded.structured) {
+    const source = coerceSource(decoded.structured.source, fallbackSource);
+    const message = coerceOptionalString(decoded.structured.message) || decoded.line;
+    return {
+      id:
+        coerceOptionalString(decoded.structured.id) ||
+        `${source}:${ts}:${coerceOptionalString(decoded.structured.run_id) || "structured"}`,
+      ts,
+      source,
+      service: coerceOptionalString(decoded.structured.service) || extractServiceFromLabels(labels),
+      severity:
+        coerceSeverity(coerceOptionalString(decoded.structured.severity)) ||
+        inferSeverityFromMessage(message),
+      message,
+      run_id: coerceOptionalString(decoded.structured.run_id),
+      agent_name: coerceOptionalString(decoded.structured.agent_name),
+      from_agent: coerceOptionalString(decoded.structured.from_agent),
+      to_agent: coerceOptionalString(decoded.structured.to_agent),
+      event_type: coerceOptionalString(decoded.structured.event_type),
+      labels,
+    };
+  }
+
+  if (!decoded.line) {
+    return null;
+  }
+
+  return {
+    id: `${fallbackSource}:${ts}:plain`,
+    ts,
+    source: fallbackSource,
+    service: extractServiceFromLabels(labels),
+    severity: inferSeverityFromMessage(decoded.line),
+    message: decoded.line,
+    labels,
+  };
+}
 
 function severityRank(severity: OpsLogEntry["severity"]): number {
   switch (severity) {
@@ -224,6 +363,153 @@ function sortLogs(entries: OpsLogEntry[]): OpsLogEntry[] {
   });
 }
 
+async function opsAgentJson(
+  path: string,
+  timeoutMs: number = 2200,
+): Promise<TimedJsonResult> {
+  return timedJson(`${OPS_AGENT_URL}${path}`, timeoutMs);
+}
+
+async function proxySseResponse(
+  url: string,
+  headers?: Record<string, string>,
+): Promise<Response> {
+  const upstream = await fetch(url, {
+    headers: {
+      Accept: "text/event-stream",
+      ...(headers || {}),
+    },
+  });
+
+  if (!upstream.ok || !upstream.body) {
+    const body = await upstream.text().catch(() => "");
+    throw new Error(body || `Upstream SSE failed (${upstream.status})`);
+  }
+
+  return new Response(upstream.body, {
+    status: 200,
+    headers: {
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache",
+      Connection: "keep-alive",
+      "X-Accel-Buffering": "no",
+    },
+  });
+}
+
+async function lokiReady(timeoutMs: number = 1600): Promise<boolean> {
+  const result = await timedJson(`${LOKI_URL}/ready`, timeoutMs);
+  return result.ok;
+}
+
+async function queryLoki(params: {
+  source?: string;
+  limit: number;
+  query?: string;
+  run_id?: string;
+  agent_name?: string;
+  event_type?: string;
+  service?: string;
+  severity?: OpsLogEntry["severity"] | null;
+  since?: string;
+}): Promise<OpsLogEntry[]> {
+  const limit = Math.max(1, Math.min(params.limit, 400));
+  const selector =
+    params.source === "agent-trace"
+      ? `{job="docker"}`
+      : params.source === "machine"
+        ? `{job="systemd-journal"}`
+        : params.source === "service"
+          ? `{job="docker"}`
+          : `{job=~"docker|systemd-journal"}`;
+
+  const filters: string[] = [];
+  if (params.query?.trim()) {
+    filters.push(` |= ${JSON.stringify(params.query.trim())}`);
+  }
+  if (params.source === "agent-trace" && params.run_id?.trim()) {
+    filters.push(` |= ${JSON.stringify(params.run_id.trim())}`);
+  }
+  if (params.source === "agent-trace" && params.agent_name?.trim()) {
+    filters.push(` |= ${JSON.stringify(params.agent_name.trim())}`);
+  }
+  if (params.source === "agent-trace" && params.event_type?.trim()) {
+    filters.push(` |= ${JSON.stringify(params.event_type.trim())}`);
+  }
+  const query = `${selector}${filters.join("")}`;
+  const endNs = String(Date.now() * 1_000_000);
+  const startNs = String((Date.now() - parseSinceWindow(params.since)) * 1_000_000);
+  const search = new URLSearchParams({
+    query,
+    limit: String(limit),
+    direction: "BACKWARD",
+    start: startNs,
+    end: endNs,
+  });
+
+  const response = await timedJson(`${LOKI_URL}/loki/api/v1/query_range?${search.toString()}`, 3500);
+  if (!response.ok) {
+    throw new Error(response.error || `Loki query failed (${response.status})`);
+  }
+
+  const result = response.json?.data?.result;
+  if (!Array.isArray(result)) {
+    return [];
+  }
+
+  const entries: OpsLogEntry[] = [];
+  for (const stream of result) {
+    const labels = stream?.stream ?? {};
+    const values = Array.isArray(stream?.values) ? stream.values : [];
+    for (const value of values) {
+      if (!Array.isArray(value) || value.length < 2) continue;
+      const entry = lokiValueToOpsLogEntry({
+        rawTimestampNs: String(value[0] || ""),
+        rawLine: String(value[1] || ""),
+        labels,
+      });
+      if (!entry) {
+        continue;
+      }
+      if (params.source && params.source !== "all" && entry.source !== params.source) {
+        continue;
+      }
+      if (params.service?.trim() && entry.service !== params.service.trim()) {
+        continue;
+      }
+      entries.push(entry);
+    }
+  }
+
+  return sortLogs(entries)
+    .filter((entry) => !params.severity || severityRank(entry.severity) >= severityRank(params.severity))
+    .slice(0, limit);
+}
+
+function inferSeverityFromMessage(message: string): OpsLogEntry["severity"] {
+  if (/\b(critical|fatal|panic)\b/i.test(message)) return "critical";
+  if (/\b(error|exception|traceback|failed)\b/i.test(message)) return "error";
+  if (/\b(warn|warning)\b/i.test(message)) return "warning";
+  if (/\b(debug|trace)\b/i.test(message)) return "debug";
+  return "info";
+}
+
+function parseSinceWindow(value: string | undefined): number {
+  if (!value) return 60 * 60 * 1000;
+  const match = /^(\d+)([smhd])$/i.exec(value.trim());
+  if (!match) return 60 * 60 * 1000;
+
+  const amount = Number.parseInt(match[1], 10);
+  if (!Number.isFinite(amount) || amount <= 0) return 60 * 60 * 1000;
+
+  const unit = match[2].toLowerCase();
+  if (unit === "s") return amount * 1000;
+  if (unit === "m") return amount * 60 * 1000;
+  if (unit === "h") return amount * 60 * 60 * 1000;
+  if (unit === "d") return amount * 24 * 60 * 60 * 1000;
+  return 60 * 60 * 1000;
+}
+
 async function collectMonitorSnapshot(): Promise<MonitorSnapshot> {
   const probes = await Promise.all([
     timedProbe("core", "http://core:8100/health"),
@@ -245,6 +531,11 @@ async function collectMonitorSnapshot(): Promise<MonitorSnapshot> {
     : null;
 
   const ollamaModels = Array.isArray(ollama.json?.models) ? ollama.json.models.length : 0;
+  const ollamaModelNames = Array.isArray(ollama.json?.models)
+    ? ollama.json.models
+        .map((model: { name?: unknown }) => (typeof model?.name === "string" ? model.name : ""))
+        .filter((name: string) => !!name)
+    : [];
   const qdrantCollections = Array.isArray(qdrant.json?.result?.collections)
     ? qdrant.json.result.collections.length
     : 0;
@@ -261,6 +552,7 @@ async function collectMonitorSnapshot(): Promise<MonitorSnapshot> {
         status: ollama.status,
         latency_ms: ollama.latencyMs,
         models: ollamaModels,
+        model_names: ollamaModelNames,
         error: ollama.error,
       },
       apple_llm: appleLLM ? {
@@ -301,22 +593,49 @@ const ops = new Hono();
 ops.get("/monitor", async (c) => c.json(await collectMonitorSnapshot()));
 
 ops.get("/sources", async (c) =>
-  c.json({
-    service_monitor: { available: true, kind: "http-probe" },
-    agent_traces: { available: true, kind: "native-trace" },
-    machine_logs: { available: false, kind: "pending-ops-agent" },
-    docker_events: { available: false, kind: "pending-ops-agent" },
-    loki_history: { available: false, kind: "pending-loki" },
-    otel: { available: false, kind: "pending-otel" },
-    agentsight: { available: false, kind: "optional-complement" },
-  }),
+  c.json(
+    await (async () => {
+      const [opsAgentSources, loki] = await Promise.all([
+        opsAgentJson("/sources"),
+        lokiReady(),
+      ]);
+
+      return {
+        service_monitor: { available: true, kind: "http-probe" },
+        agent_traces: { available: true, kind: "native-trace" },
+        machine_logs: {
+          available: !!opsAgentSources.json?.journald?.available,
+          kind: opsAgentSources.json?.journald?.kind || "ops-agent",
+        },
+        docker_events: {
+          available: !!opsAgentSources.json?.docker_events?.available,
+          kind: opsAgentSources.json?.docker_events?.kind || "ops-agent",
+        },
+        docker_logs: {
+          available: !!opsAgentSources.json?.docker_logs?.available,
+          kind: opsAgentSources.json?.docker_logs?.kind || "ops-agent",
+        },
+        loki_history: { available: loki, kind: "loki" },
+        otel: {
+          available: (process.env.OTEL_ENABLED || "").toLowerCase() === "true",
+          kind: "otlp-http",
+        },
+        agentsight: {
+          available: !!opsAgentSources.json?.agentsight?.available,
+          kind: "optional-complement",
+        },
+      };
+    })(),
+  ),
 );
 
 ops.get("/summary", async (c) => {
   try {
-    const [monitor, traces] = await Promise.all([
+    const [monitor, traces, opsAgent, loki] = await Promise.all([
       collectMonitorSnapshot(),
       coreClient.recentAgentTraces({ limit: 60 }),
+      opsAgentJson("/summary"),
+      lokiReady(),
     ]);
 
     const recentRuns = Array.from(
@@ -360,16 +679,24 @@ ops.get("/summary", async (c) => {
         ...monitor.services
           .map((probe) => probeToLogEntry(probe, monitor.timestamp))
           .filter((entry): entry is OpsLogEntry => entry !== null),
+        ...((Array.isArray(opsAgent.json?.recent?.entries) ? opsAgent.json.recent.entries : [])
+          .filter((entry: OpsLogEntry) =>
+            entry.severity === "warning" ||
+            entry.severity === "error" ||
+            entry.severity === "critical"
+          )
+          .slice(0, 20)),
       ]).slice(0, 25),
       sources: {
         service_monitor: true,
         agent_traces: true,
-        machine_logs: false,
-        docker_events: false,
-        loki_history: false,
-        otel: false,
-        agentsight: false,
+        machine_logs: !!opsAgent.json?.sources?.journald?.available,
+        docker_events: !!opsAgent.json?.sources?.docker_events?.available,
+        loki_history: loki,
+        otel: (process.env.OTEL_ENABLED || "").toLowerCase() === "true",
+        agentsight: !!opsAgent.json?.sources?.agentsight?.available,
       },
+      ops_agent: opsAgent.json ?? null,
     });
   } catch (error) {
     const { status, body } = handleCoreError(error);
@@ -387,6 +714,19 @@ ops.get("/agent-traces/recent", async (c) => {
       event_type: query.event_type,
     });
     return c.json(result);
+  } catch (error) {
+    const { status, body } = handleCoreError(error);
+    return c.json(body, status);
+  }
+});
+
+ops.get("/agent-traces/stream", async (c) => {
+  try {
+    const search = new URL(c.req.url).search;
+    return await proxySseResponse(
+      `${CORE_URL}/agent-traces/stream${search}`,
+      getCoreAuthHeaders(),
+    );
   } catch (error) {
     const { status, body } = handleCoreError(error);
     return c.json(body, status);
@@ -412,7 +752,7 @@ ops.get("/logs/recent", async (c) => {
     const minSeverity = coerceSeverity(query.severity) || "info";
     const limit = getNumberParam(query.limit, 80, 400);
 
-    const [monitor, traces] = await Promise.all([
+    const [monitor, traces, opsAgentLogs, opsAgentEvents] = await Promise.all([
       collectMonitorSnapshot(),
       coreClient.recentAgentTraces({
         limit,
@@ -420,6 +760,22 @@ ops.get("/logs/recent", async (c) => {
         agent_name: query.agent_name,
         event_type: query.event_type,
       }),
+      source === "all" || source === "service" || source === "machine"
+        ? opsAgentJson(
+            `/logs/recent?limit=${encodeURIComponent(String(limit))}&include_services=${encodeURIComponent(
+              String(source === "all" || source === "service"),
+            )}&include_machine=${encodeURIComponent(
+              String(source === "all" || source === "machine"),
+            )}${query.service ? `&services=${encodeURIComponent(query.service)}` : ""}`,
+            3200,
+          )
+        : Promise.resolve({ ok: false, status: 0, latencyMs: 0, json: undefined } as TimedJsonResult),
+      source === "all" || source === "docker-event"
+        ? opsAgentJson(
+            `/events/recent?limit=${encodeURIComponent(String(limit))}&since_seconds=900`,
+            3200,
+          )
+        : Promise.resolve({ ok: false, status: 0, latencyMs: 0, json: undefined } as TimedJsonResult),
     ]);
 
     const entries: OpsLogEntry[] = [];
@@ -446,6 +802,24 @@ ops.get("/logs/recent", async (c) => {
         });
       }
     }
+    if ((source === "all" || source === "service" || source === "machine") && Array.isArray(opsAgentLogs.json?.entries)) {
+      entries.push(
+        ...opsAgentLogs.json.entries.map((entry: OpsLogEntry) => ({
+          ...entry,
+          source: entry.source === "machine" ? "machine" : "service",
+        })),
+      );
+    }
+    if ((source === "all" || source === "docker-event") && Array.isArray(opsAgentEvents.json?.events)) {
+      entries.push(
+        ...opsAgentEvents.json.events.filter((entry: OpsLogEntry) => {
+          if (!query.service?.trim()) {
+            return true;
+          }
+          return entry.service === query.service.trim();
+        }),
+      );
+    }
 
     const filtered = sortLogs(entries)
       .filter((entry) => severityRank(entry.severity) >= severityRank(minSeverity))
@@ -459,6 +833,46 @@ ops.get("/logs/recent", async (c) => {
   } catch (error) {
     const { status, body } = handleCoreError(error);
     return c.json(body, status);
+  }
+});
+
+ops.get("/logs/stream", async (c) => {
+  try {
+    const search = new URL(c.req.url).search;
+    return await proxySseResponse(`${OPS_AGENT_URL}/logs/stream${search}`);
+  } catch (error) {
+    return c.json(
+      { error: error instanceof Error ? error.message : "Ops Agent stream failed" },
+      503,
+    );
+  }
+});
+
+ops.get("/logs/query", async (c) => {
+  try {
+    const query = c.req.query();
+    const entries = await queryLoki({
+      source: query.source,
+      limit: getNumberParam(query.limit, 120, 400),
+      query: query.q,
+      run_id: query.run_id,
+      agent_name: query.agent_name,
+      event_type: query.event_type,
+      service: query.service,
+      severity: coerceSeverity(query.severity),
+      since: query.since,
+    });
+    return c.json({
+      entries,
+      count: entries.length,
+      source: "loki",
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    return c.json(
+      { error: error instanceof Error ? error.message : "Loki query failed" },
+      503,
+    );
   }
 });
 

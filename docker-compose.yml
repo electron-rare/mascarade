@@ -17,6 +17,10 @@ services:
       CORE_PORT: ${CORE_PORT}
       DEFAULT_PROVIDER: ${DEFAULT_PROVIDER}
       DEFAULT_MODEL: ${DEFAULT_MODEL}
+      OTEL_ENABLED: ${OTEL_ENABLED:-true}
+      OTEL_COLLECTOR_HTTP_ENDPOINT: ${OTEL_COLLECTOR_HTTP_ENDPOINT:-http://otel-collector:4318}
+      OPS_AGENT_URL: ${OPS_AGENT_URL:-http://ops-agent:9200}
+      LOKI_URL: ${LOKI_URL:-http://loki:3100}
     volumes:
       - core-data:/app/data
     networks:
@@ -35,6 +39,10 @@ services:
     environment:
       CORE_URL: ${CORE_URL}
       API_PORT: 3000
+      OTEL_ENABLED: ${OTEL_ENABLED:-true}
+      OTEL_COLLECTOR_HTTP_ENDPOINT: ${OTEL_COLLECTOR_HTTP_ENDPOINT:-http://otel-collector:4318}
+      OPS_AGENT_URL: ${OPS_AGENT_URL:-http://ops-agent:9200}
+      LOKI_URL: ${LOKI_URL:-http://loki:3100}
     depends_on:
       - core
     networks:
@@ -313,23 +321,6 @@ services:
     networks:
       - mascarade-network
 
-  ops-console:
-    image: nginx:alpine
-    container_name: mascarade-ops-console
-    restart: unless-stopped
-    expose:
-      - "80"
-    volumes:
-      - ./deploy/ops-console/index.html:/usr/share/nginx/html/index.html:ro
-    healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:80/ >/dev/null"]
-      interval: 15s
-      timeout: 5s
-      retries: 5
-      start_period: 5s
-    networks:
-      - mascarade-network
-
   edge-proxy:
     build:
       context: .
@@ -345,8 +336,6 @@ services:
       - edge-proxy-certs:/etc/nginx/certs
     depends_on:
       api:
-        condition: service_started
-      ops-console:
         condition: service_started
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/healthz >/dev/null"]
@@ -443,6 +432,96 @@ services:
     networks:
       - mascarade-network
 
+  ops-agent:
+    build:
+      context: .
+      dockerfile: deploy/Dockerfile.ops-agent
+    container_name: mascarade-ops-agent
+    restart: unless-stopped
+    ports:
+      - "${PUBLISH_BIND_HOST:-0.0.0.0}:${OPS_AGENT_PORT:-9200}:9200"
+    env_file:
+      - .env
+    environment:
+      OPS_AGENT_PORT: 9200
+      AGENTSIGHT_URL: ${AGENTSIGHT_URL:-}
+      LOKI_URL: ${LOKI_URL:-http://loki:3100}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /var/log/journal:/var/log/journal:ro
+      - /run/log/journal:/run/log/journal:ro
+      - /etc/machine-id:/etc/machine-id:ro
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:9200/health')\""]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+    networks:
+      - mascarade-network
+
+  loki:
+    image: ${LOKI_IMAGE:-grafana/loki:3.5.3}
+    container_name: mascarade-loki
+    restart: unless-stopped
+    command: ["-config.file=/etc/loki/local-config.yaml"]
+    ports:
+      - "${PUBLISH_BIND_HOST:-0.0.0.0}:${LOKI_PORT:-3101}:3100"
+    volumes:
+      - ./deploy/loki/loki-config.yaml:/etc/loki/local-config.yaml:ro
+      - loki-data:/loki
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3100/ready >/dev/null"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+    networks:
+      - mascarade-network
+
+  promtail:
+    image: ${PROMTAIL_IMAGE:-grafana/promtail:3.5.3}
+    container_name: mascarade-promtail
+    restart: unless-stopped
+    entrypoint: ["/bin/sh", "/usr/local/bin/promtail-entrypoint.sh"]
+    ports:
+      - "${PUBLISH_BIND_HOST:-0.0.0.0}:${PROMTAIL_PORT:-9080}:9080"
+    volumes:
+      - ./deploy/promtail/promtail-config.yaml:/etc/promtail/config.yml:ro
+      - ./deploy/promtail/entrypoint.sh:/usr/local/bin/promtail-entrypoint.sh:ro
+      - promtail-data:/var/lib/promtail
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /var/log/journal:/var/log/journal:ro
+      - /run/log/journal:/run/log/journal:ro
+      - /etc/machine-id:/etc/machine-id:ro
+    depends_on:
+      loki:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "promtail", "--version"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+    networks:
+      - mascarade-network
+
+  otel-collector:
+    image: ${OTEL_COLLECTOR_IMAGE:-otel/opentelemetry-collector-contrib:0.116.1}
+    container_name: mascarade-otel-collector
+    restart: unless-stopped
+    command: ["--config=/etc/otelcol-contrib/config.yaml"]
+    ports:
+      - "${PUBLISH_BIND_HOST:-0.0.0.0}:${OTEL_COLLECTOR_GRPC_PORT:-4317}:4317"
+      - "${PUBLISH_BIND_HOST:-0.0.0.0}:${OTEL_COLLECTOR_HTTP_PORT:-4318}:4318"
+      - "${PUBLISH_BIND_HOST:-0.0.0.0}:${OTEL_COLLECTOR_HEALTH_PORT:-13133}:13133"
+    volumes:
+      - ./deploy/otel-collector/config.yaml:/etc/otelcol-contrib/config.yaml:ro
+    healthcheck:
+      test: ["CMD", "/otelcol-contrib", "--version"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+    networks:
+      - mascarade-network
+
 networks:
   mascarade-network:
     driver: bridge
@@ -463,3 +542,5 @@ volumes:
   qdrant-data:
   grafana-data:
   prometheus-data:
+  loki-data:
+  promtail-data:

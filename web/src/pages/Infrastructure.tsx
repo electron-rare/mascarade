@@ -2,7 +2,7 @@ import { Link } from "react-router-dom";
 import { useMemo } from "react";
 import { type OpsMonitor } from "../api/ops";
 import { useFetch } from "../hooks/useFetch";
-import { Badge, Button, Card, InlineNotice, JsonView, LoadingPanel } from "../components/ui";
+import { Badge, Button, Card, CompactModelList, InlineNotice, JsonView, LoadingPanel } from "../components/ui";
 
 type HealthPayload = {
   status?: string;
@@ -44,6 +44,9 @@ export default function Infrastructure() {
     [serviceList],
   );
   const servicesDown = serviceList.length - servicesUp;
+  const ollamaRuntimeReady = (monitor.data?.ai.ollama.ok ?? false) && (monitor.data?.ai.ollama.models ?? 0) > 0;
+  const localRuntimeGap = ollamaRuntimeReady && !providerList.includes("ollama");
+  const ollamaModelNames = monitor.data?.ai.ollama.model_names ?? [];
 
   if (health.loading && !health.data) {
     return (
@@ -157,8 +160,14 @@ export default function Infrastructure() {
         <Card title="Provider bus" className="bg-[linear-gradient(180deg,rgba(10,12,11,0.92),rgba(7,7,7,0.96))]">
           <div className="space-y-4">
             <p className="text-sm leading-7 text-amber-100/60">
-              Lecture rapide du bus de providers expose par la gateway, avec le rappel des providers visibles dans le health du core.
+              Lecture rapide du bus de providers expose par la gateway. Ici on suit les adapters declares pour le routage, pas la liste complete des modeles locaux.
             </p>
+            {localRuntimeGap ? (
+              <InlineNotice
+                title="local runtime not exposed"
+                message={`Ollama est joignable avec ${monitor.data?.ai.ollama.models ?? 0} modele(s), mais le core n'expose pas encore \`ollama\` dans le provider bus.`}
+              />
+            ) : null}
             <div className="flex flex-wrap gap-2">
               {providerList.length > 0 ? (
                 providerList.map((provider) => (
@@ -169,7 +178,13 @@ export default function Infrastructure() {
               ) : (
                 <Badge color="error">no provider exposed</Badge>
               )}
+              {ollamaRuntimeReady ? (
+                <Badge color={localRuntimeGap ? "error" : "accent"}>
+                  ollama runtime {monitor.data?.ai.ollama.models ?? 0} models
+                </Badge>
+              ) : null}
             </div>
+            <CompactModelList items={ollamaModelNames} previewCount={8} />
             <div className="rounded-3xl border border-border/80 bg-black/25 p-4">
               <p className="text-[10px] uppercase tracking-[0.18em] text-muted">core health providers</p>
               <p className="mt-2 text-sm leading-6 text-amber-100/68">

@@ -77,6 +77,17 @@ export const navigationGroups: NavGroup[] = [
     label: "Operations",
     items: [
       {
+        to: "/ops",
+        icon: "◫",
+        label: "Ops Hub",
+        shortLabel: "Ops",
+        hint: "runtime entrypoint",
+        eyebrow: "ops hub",
+        title: "Ops Hub",
+        description: "Point d'entree operateur, liens runtime et lecture rapide des modeles locaux exposes.",
+        section: "Operations",
+      },
+      {
         to: "/logs",
         icon: "▒",
         label: "Logs",
@@ -142,7 +153,7 @@ export const navigationGroups: NavGroup[] = [
 
 export const navigationItems = navigationGroups.flatMap((group) => group.items);
 export const mobileDockItems = navigationItems.filter((item) =>
-  ["/", "/playground", "/agents", "/logs"].includes(item.to),
+  ["/", "/playground", "/agents", "/ops"].includes(item.to),
 );
 
 function resolveBaseItem(pathname: string): NavItem | undefined {

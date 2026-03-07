@@ -36,8 +36,6 @@ module_edge_proxy_compose() {
   echo "    depends_on:"
   echo "      api:"
   echo "        condition: service_started"
-  echo "      ops-console:"
-  echo "        condition: service_started"
   echo "    healthcheck:"
   echo "      test: [\"CMD-SHELL\", \"wget -qO- http://127.0.0.1/healthz >/dev/null\"]"
   echo "      interval: 15s"

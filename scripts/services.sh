@@ -34,8 +34,8 @@ define_service "generate-audio" "Generate Audio" "Generation audio locale (Audio
 # ── Infrastructure ──
 define_service "ollama"     "Ollama"            "Serveur LLM local (llama, mistral, etc.)"        "11434" "infra" 0 ""
 define_service "open-webui" "Open WebUI"        "Interface chat pour Ollama"                       "8080"  "infra" 0 "ollama"
-define_service "ops-console" "Ops Console"      "Cockpit web (accueil et liens de la stack)"       "80"    "infra" 0 ""
-define_service "edge-proxy" "Edge Proxy"        "Reverse proxy HTTP/HTTPS pour l'API et ops-console" "80/443" "infra" 0 "api,ops-console"
+define_service "edge-proxy" "Edge Proxy"        "Reverse proxy HTTP/HTTPS pour l'API et le cockpit /ops" "80/443" "infra" 0 "api"
+define_service "ops-agent"  "Ops Agent"         "Collecte live Docker/journald pour le cockpit"     "9200"  "infra" 0 ""
 define_service "redis"      "Redis"             "Cache & broker (LiteLLM, Dify)"                   "6379"  "infra" 0 ""
 define_service "postgres"   "PostgreSQL"        "Base relationnelle (Langfuse, Dify, n8n)"         "5432"  "infra" 0 ""
 define_service "qdrant"     "Qdrant"            "Base vectorielle (embeddings, RAG)"               "6333"  "infra" 0 ""
@@ -74,8 +74,8 @@ sync_service_ports_from_env() {
             generate-audio) env_var="GENERATE_AUDIO_PORT" ;;
             ollama) env_var="OLLAMA_PORT" ;;
             open-webui) env_var="OPEN_WEBUI_PORT" ;;
-            ops-console) env_var="OPS_CONSOLE_PORT" ;;
             edge-proxy) env_var="EDGE_PROXY_HTTP_PORT" ;;
+            ops-agent) env_var="OPS_AGENT_PORT" ;;
             redis) env_var="REDIS_PORT" ;;
             postgres) env_var="POSTGRES_PORT" ;;
             qdrant) env_var="QDRANT_PORT" ;;
