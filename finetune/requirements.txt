@@ -1,0 +1,19 @@
+# Local fine-tuning / distillation dependencies.
+#
+# Install with ./scripts/bootstrap_finetune_env.sh so torch comes from the
+# matching PyTorch wheel index for the target machine.
+accelerate==1.12.0
+bitsandbytes==0.46.1
+datasets==4.1.1
+# bootstrap_finetune_env.sh pins a stable huggingface_hub for the default lane
+# and upgrades it automatically when TRANSFORMERS_CHANNEL=main is requested.
+huggingface_hub[cli]>=0.35.3,<2
+peft==0.18.0
+protobuf>=5,<7
+psutil>=7,<8
+safetensors>=0.5,<1
+sentencepiece>=0.2,<1
+tqdm>=4.67,<5
+# bootstrap_finetune_env.sh keeps the default lane on 4.57.6 and can switch to
+# transformers main for Qwen3.5 support with TRANSFORMERS_CHANNEL=main.
+transformers>=4.57.6,<6
