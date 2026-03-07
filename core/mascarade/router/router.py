@@ -73,6 +73,12 @@ class Router:
     def available_providers(self) -> list[str]:
         return list(self._providers.keys())
 
+    def provider_model_map(self) -> dict[str, list[str]]:
+        return {
+            name: provider.available_models()
+            for name, provider in self._providers.items()
+        }
+
     def _select_candidates(
         self,
         strategy: Strategy = Strategy.BEST,

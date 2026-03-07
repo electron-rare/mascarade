@@ -243,6 +243,24 @@ export function lokiValueToOpsLogEntry(args: {
   if (decoded.structured) {
     const source = coerceSource(decoded.structured.source, fallbackSource);
     const message = coerceOptionalString(decoded.structured.message) || decoded.line;
+    const structuredLabels = {
+      ...labels,
+      ...(coerceOptionalString(decoded.structured.provider)
+        ? { provider: coerceOptionalString(decoded.structured.provider)! }
+        : {}),
+      ...(coerceOptionalString(decoded.structured.model)
+        ? { model: coerceOptionalString(decoded.structured.model)! }
+        : {}),
+      ...(coerceOptionalString(decoded.structured.routing_role)
+        ? { routing_role: coerceOptionalString(decoded.structured.routing_role)! }
+        : {}),
+      ...(coerceOptionalString(decoded.structured.routing_provider)
+        ? { routing_provider: coerceOptionalString(decoded.structured.routing_provider)! }
+        : {}),
+      ...(coerceOptionalString(decoded.structured.routing_model)
+        ? { routing_model: coerceOptionalString(decoded.structured.routing_model)! }
+        : {}),
+    };
     return {
       id:
         coerceOptionalString(decoded.structured.id) ||
@@ -259,7 +277,7 @@ export function lokiValueToOpsLogEntry(args: {
       from_agent: coerceOptionalString(decoded.structured.from_agent),
       to_agent: coerceOptionalString(decoded.structured.to_agent),
       event_type: coerceOptionalString(decoded.structured.event_type),
-      labels,
+      labels: structuredLabels,
     };
   }
 
@@ -326,6 +344,9 @@ function traceToLogEntry(event: AgentTraceEvent): OpsLogEntry {
       mode: event.mode,
       provider: event.provider ?? "",
       model: event.model ?? "",
+      routing_role: event.routing_role ?? "",
+      routing_provider: event.routing_provider ?? "",
+      routing_model: event.routing_model ?? "",
     },
   };
 }
@@ -631,11 +652,13 @@ ops.get("/sources", async (c) =>
 
 ops.get("/summary", async (c) => {
   try {
-    const [monitor, traces, opsAgent, loki] = await Promise.all([
+    const [monitor, traces, opsAgent, loki, clusterIdentity, clusterPeers] = await Promise.all([
       collectMonitorSnapshot(),
       coreClient.recentAgentTraces({ limit: 60 }),
       opsAgentJson("/summary"),
       lokiReady(),
+      coreClient.clusterIdentity().catch(() => null),
+      coreClient.clusterPeers().catch(() => null),
     ]);
 
     const recentRuns = Array.from(
@@ -695,6 +718,13 @@ ops.get("/summary", async (c) => {
         loki_history: loki,
         otel: (process.env.OTEL_ENABLED || "").toLowerCase() === "true",
         agentsight: !!opsAgent.json?.sources?.agentsight?.available,
+      },
+      cluster: {
+        enabled: !!clusterIdentity?.cluster_enabled,
+        node_id: clusterIdentity?.node_id || null,
+        role: clusterIdentity?.role || null,
+        peers_total: clusterPeers?.peers?.length || 0,
+        peers_ok: clusterPeers?.peers?.filter((peer) => peer.ok).length || 0,
       },
       ops_agent: opsAgent.json ?? null,
     });

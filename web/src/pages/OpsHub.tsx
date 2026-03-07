@@ -2,6 +2,7 @@ import { Link } from "react-router-dom";
 import { useMemo } from "react";
 import type { OpsMonitor, OpsSourceStatus, OpsSummary } from "../api/ops";
 import { useFetch } from "../hooks/useFetch";
+import { getDifyHealthUrl, getDifyOrigin } from "../lib/dify";
 import { Badge, Button, Card, CompactModelList, InlineNotice, LoadingPanel } from "../components/ui";
 
 function statusTone(ok: boolean): string {
@@ -56,7 +57,9 @@ export default function OpsHub() {
     return [
       { label: "API health", href: `${origin}/health`, note: "gateway health endpoint" },
       { label: "Ops monitor", href: `${origin}/api/ops/monitor`, note: "consolidated runtime snapshot" },
-      { label: "Core health", href: `${protocol}//${hostname}:8100/health`, note: "direct core liveness" },
+      { label: "Core health", href: `${origin}/core-health`, note: "core liveness via reverse proxy" },
+      { label: "Dify web", href: `${getDifyOrigin()}/`, note: "app builder surface via reverse proxy" },
+      { label: "Dify API", href: getDifyHealthUrl(), note: "workflow api health on the main proxy" },
       { label: "Open WebUI", href: `${protocol}//${hostname}:8080/`, note: "local chat surface" },
       { label: "Grafana", href: `${protocol}//${hostname}:3001/`, note: "dashboards and panels" },
       { label: "Prometheus", href: `${protocol}//${hostname}:9090/`, note: "raw metrics store" },
@@ -93,10 +96,15 @@ export default function OpsHub() {
   const ollamaModels = data.ai.ollama.model_names ?? [];
   const alerts = summary.data?.alerts.slice(0, 4) ?? [];
   const recentRuns = summary.data?.traces.recent_runs.slice(0, 4) ?? [];
+  const cluster = summary.data?.cluster;
   const sourceEntries = Object.entries(sourceStatus.data ?? {});
   const historyReady = sourceStatus.data?.loki_history?.available ?? false;
   const machineReady = sourceStatus.data?.machine_logs?.available ?? false;
   const tracesReady = sourceStatus.data?.agent_traces?.available ?? true;
+  const difyWeb = services.find((service) => service.name === "dify-web");
+  const difyApi = services.find((service) => service.name === "dify-api");
+  const difyWebHref = `${getDifyOrigin()}/`;
+  const difyApiHref = getDifyHealthUrl();
 
   return (
     <div className="space-y-6">
@@ -236,15 +244,124 @@ export default function OpsHub() {
       </section>
 
       <section className="grid gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(320px,0.85fr)]">
-        <Card title="Local model bus">
-          <div className="space-y-4">
-            <p className="text-sm leading-7 text-amber-100/60">
-              Liste compacte des modeles actuellement disponibles dans le runtime Ollama local. Ce bloc sert
-              d&apos;equivalent utile a l&apos;ancienne carte `Ollama (11434)` de la page ops statique.
-            </p>
-            <CompactModelList items={ollamaModels} previewCount={8} />
-          </div>
-        </Card>
+        <div className="grid gap-4">
+          <Card title="Local model bus">
+            <div className="space-y-4">
+              <p className="text-sm leading-7 text-amber-100/60">
+                Liste compacte des modeles actuellement disponibles dans le runtime Ollama local. Ce bloc sert
+                d&apos;equivalent utile a l&apos;ancienne carte `Ollama (11434)` de la page ops statique.
+              </p>
+              <CompactModelList items={ollamaModels} previewCount={8} />
+            </div>
+          </Card>
+
+          <Card title="Cluster posture">
+            <div className="space-y-4">
+              <p className="text-sm leading-7 text-amber-100/60">
+                Etat minimal du maillage prive entre noeuds Mascarade. Cette carte reste volontairement compacte:
+                elle sert a verifier que le cluster est arme et que les peers repondent.
+              </p>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="rounded-[1.4rem] border border-border/80 bg-black/25 p-4">
+                  <p className="text-[10px] uppercase tracking-[0.2em] text-muted">cluster</p>
+                  <p className={["mt-3 text-xl font-semibold uppercase tracking-[0.14em]", statusTone(cluster?.enabled ?? false)].join(" ")}>
+                    {cluster?.enabled ? "enabled" : "local-only"}
+                  </p>
+                  <p className="mt-2 text-[12px] leading-5 text-amber-100/46">
+                    node {cluster?.node_id ?? "n/a"} / role {cluster?.role ?? "n/a"}
+                  </p>
+                </div>
+                <div className="rounded-[1.4rem] border border-border/80 bg-black/25 p-4">
+                  <p className="text-[10px] uppercase tracking-[0.2em] text-muted">peers</p>
+                  <p className="mt-3 text-xl font-semibold uppercase tracking-[0.14em] text-accent">
+                    {cluster?.peers_ok ?? 0} / {cluster?.peers_total ?? 0}
+                  </p>
+                  <p className="mt-2 text-[12px] leading-5 text-amber-100/46">
+                    Peers joignables sur le reseau prive.
+                  </p>
+                </div>
+              </div>
+              <a
+                href="/api/cluster/peers"
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex rounded-2xl border border-border/80 bg-black/20 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-amber-100/74 transition hover:border-accent/35 hover:text-accent"
+              >
+                open cluster inventory
+              </a>
+            </div>
+          </Card>
+
+          <Card title="Dify lane">
+            <div className="space-y-4">
+              <p className="text-sm leading-7 text-amber-100/60">
+                Dify est deja dans la stack. Cette carte le rend visible comme surface builder, avec ses deux
+                entrees utiles et des raccourcis logs pre-filtres.
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <span className={["status-chip", chipTone(Boolean(difyWeb?.ok))].join(" ")}>
+                  dify web {difyWeb?.ok ? "online" : "watch"}
+                </span>
+                <span className={["status-chip", chipTone(Boolean(difyApi?.ok))].join(" ")}>
+                  dify api {difyApi?.ok ? "online" : "watch"}
+                </span>
+                <span className="status-chip border-border/80 bg-black/25 text-muted">
+                  redis + postgres required
+                </span>
+              </div>
+              <div className="grid gap-3 md:grid-cols-2">
+                <a
+                  href={difyWebHref}
+                  className="block rounded-[1.4rem] border border-border/80 bg-black/25 px-4 py-4 transition hover:border-accent/35 hover:bg-black/30"
+                >
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-accent">
+                    open dify web
+                  </p>
+                  <p className="mt-2 text-sm text-amber-100/72">{shortUrl(difyWebHref)}</p>
+                  <p className="mt-2 text-[12px] leading-5 text-amber-100/44">
+                    {difyWeb
+                      ? `http ${difyWeb.status || "-"} / ${formatLatency(difyWeb.latency_ms)}`
+                      : "surface builder non detectee dans le monitor"}
+                  </p>
+                </a>
+                <a
+                  href={difyApiHref}
+                  className="block rounded-[1.4rem] border border-border/80 bg-black/25 px-4 py-4 transition hover:border-accent/35 hover:bg-black/30"
+                >
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-accent">
+                    open dify api health
+                  </p>
+                  <p className="mt-2 text-sm text-amber-100/72">{shortUrl(difyApiHref)}</p>
+                  <p className="mt-2 text-[12px] leading-5 text-amber-100/44">
+                    {difyApi
+                      ? `http ${difyApi.status || "-"} / ${formatLatency(difyApi.latency_ms)}`
+                      : "endpoint api non detecte dans le monitor"}
+                  </p>
+                </a>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Link
+                  to="/logs?service=dify-web"
+                  className="rounded-2xl border border-accent/35 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-accent transition hover:bg-accent/10"
+                >
+                  dify web logs
+                </Link>
+                <Link
+                  to="/logs?service=dify-api"
+                  className="rounded-2xl border border-accent/35 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-accent transition hover:bg-accent/10"
+                >
+                  dify api logs
+                </Link>
+                <Link
+                  to="/logs?service=dify-worker"
+                  className="rounded-2xl border border-border/80 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-amber-100/72 transition hover:border-accent/35 hover:text-accent"
+                >
+                  dify worker logs
+                </Link>
+              </div>
+            </div>
+          </Card>
+        </div>
 
         <Card title="Service posture">
           <div className="space-y-3">

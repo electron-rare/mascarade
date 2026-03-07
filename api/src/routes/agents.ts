@@ -212,4 +212,35 @@ agents.post("/notion-scribe/run-and-push", async (c) => {
   }
 });
 
+/** Detail agent */
+agents.get("/:name", async (c) => {
+  try {
+    const name = c.req.param("name");
+    if (!name || !SAFE_NAME_RE.test(name)) {
+      return c.json({ error: "Invalid agent name" }, 400);
+    }
+    const result = await coreClient.getAgent(name);
+    return c.json(result);
+  } catch (error) {
+    const { status, body } = handleCoreError(error);
+    return c.json(body, status);
+  }
+});
+
+/** Mettre a jour un agent */
+agents.put("/:name", async (c) => {
+  try {
+    const name = c.req.param("name");
+    if (!name || !SAFE_NAME_RE.test(name)) {
+      return c.json({ error: "Invalid agent name" }, 400);
+    }
+    const body = await c.req.json();
+    const result = await coreClient.updateAgent(name, body);
+    return c.json(result);
+  } catch (error) {
+    const { status, body } = handleCoreError(error);
+    return c.json(body, status);
+  }
+});
+
 export { agents };

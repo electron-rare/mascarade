@@ -26,6 +26,7 @@ PROFILE_EFFECTIVE=""
 OPS_CONSOLE_ONLY=false
 FORCE_CLEAN=false
 SMOKE_GENERATE_AUDIO=false
+ENABLE_CLUSTER=false
 
 # Initialisation - ORDRE CORRIGÉ
 source "$SCRIPT_DIR/scripts/lib.sh"
@@ -93,6 +94,7 @@ Options:
       --ollama-pack <name>   Pack LLM: lite|balanced|heavy (defaut: balanced)
       --ollama-models <csv>  Liste de modeles Ollama a pull (prioritaire sur --ollama-pack)
       --ops-console-only     Alias legacy: lance core+api+edge-proxy pour servir /ops puis quitte
+      --cluster              Active la configuration multi-machine privee pour le core
       --smoke-generate-audio  Lance un vrai POST /generate apres demarrage (opt-in)
       --force-clean          Nettoyage complet avant installation
 
@@ -220,6 +222,10 @@ parse_setup_args() {
             --ops-console-only)
                 OPS_CONSOLE_ONLY=true
                 ;;
+            --cluster)
+                ENABLE_CLUSTER=true
+                CLUSTER_ENABLED=true
+                ;;
             --smoke-generate-audio)
                 SMOKE_GENERATE_AUDIO=true
                 ;;
@@ -266,6 +272,39 @@ parse_setup_args() {
             exit 2
             ;;
     esac
+}
+
+validate_cluster_config() {
+    [[ "${CLUSTER_ENABLED:-false}" == "true" ]] || return 0
+
+    if [[ "${SVC_ON[core]:-0}" != "1" ]]; then
+        err "Le mode cluster requiert le service core."
+        exit 2
+    fi
+
+    local missing=()
+    [[ -z "${NODE_ID:-}" ]] && missing+=("NODE_ID")
+    [[ -z "${NODE_ROLE:-}" ]] && missing+=("NODE_ROLE")
+    [[ -z "${MESH_BIND_HOST:-}" ]] && missing+=("MESH_BIND_HOST")
+    [[ -z "${CLUSTER_SHARED_KEY:-}" ]] && missing+=("CLUSTER_SHARED_KEY")
+
+    if [[ ${#missing[@]} -gt 0 ]]; then
+        err "Configuration cluster incomplete: ${missing[*]}"
+        info "Renseigne ces variables via ./setup --cluster ou ./config."
+        exit 2
+    fi
+
+    local peer
+    IFS=';' read -ra peer_list <<< "${CLUSTER_PEERS:-}"
+    for peer in "${peer_list[@]}"; do
+        [[ -z "${peer// }" ]] && continue
+        IFS='|' read -ra fields <<< "$peer"
+        if [[ ${#fields[@]} -ne 3 ]]; then
+            err "Entree CLUSTER_PEERS invalide: $peer"
+            info "Format attendu: peer-id|role|http://ip:8100;peer2|role|http://ip:8100"
+            exit 2
+        fi
+    done
 }
 
 # Correction de confirm_or_auto pour propager le code de retour
@@ -734,6 +773,10 @@ step_progress 4 8 "Configuration .env"
 dbg "Chargement .env existant: $REPO_DIR/.env"
 load_env "$REPO_DIR/.env" 2>/dev/null || true
 
+if [[ "$ENABLE_CLUSTER" == true ]]; then
+    CLUSTER_ENABLED=true
+fi
+
 if [[ "${PROFILE_EFFECTIVE:-}" == "apple-silicon" && "${OLLAMA_HOST_MODE:-}" == "native" ]]; then
     configure_native_ollama_defaults
 fi
@@ -750,6 +793,8 @@ else
     dbg "Pas de .env existant, lancement config modules"
     collect_module_configs
 fi
+
+validate_cluster_config
 
 # ── 5/8 : Generation docker-compose.yml ──
 step_progress 5 8 "Generation docker-compose.yml"

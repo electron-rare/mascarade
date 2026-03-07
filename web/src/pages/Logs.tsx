@@ -95,6 +95,10 @@ function traceTone(eventType: string | undefined): string {
   return "text-accent";
 }
 
+function nonEmptyLabel(value: string | undefined): string | null {
+  return value && value.trim() ? value.trim() : null;
+}
+
 function sourceTone(available: boolean): "accent" | "error" {
   return available ? "accent" : "error";
 }
@@ -345,6 +349,9 @@ export default function Logs() {
               mode: entry.mode,
               provider: entry.provider ?? "",
               model: entry.model ?? "",
+              routing_role: entry.routing_role ?? "",
+              routing_provider: entry.routing_provider ?? "",
+              routing_model: entry.routing_model ?? "",
             },
           },
         ]);
@@ -708,6 +715,27 @@ export default function Logs() {
                   <p className="mt-3 font-mono text-[13px] leading-6 text-amber-100/78">
                     {entry.message}
                   </p>
+                  {entry.labels?.routing_role ||
+                  entry.labels?.routing_provider ||
+                  entry.labels?.routing_model ? (
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {nonEmptyLabel(entry.labels?.routing_role) ? (
+                        <span className="status-chip border-[#6d5c1c] bg-[#1a1507] text-[#ffd166]">
+                          role {entry.labels?.routing_role}
+                        </span>
+                      ) : null}
+                      {nonEmptyLabel(entry.labels?.routing_provider) ? (
+                        <span className="status-chip border-border/70 bg-black/35 text-amber-100/66">
+                          provider {entry.labels?.routing_provider}
+                        </span>
+                      ) : null}
+                      {nonEmptyLabel(entry.labels?.routing_model) ? (
+                        <span className="status-chip border-border/70 bg-black/35 text-amber-100/66">
+                          model {entry.labels?.routing_model}
+                        </span>
+                      ) : null}
+                    </div>
+                  ) : null}
                 </button>
               ))}
             </div>
@@ -777,6 +805,19 @@ export default function Logs() {
                       <p className="mt-3 font-mono text-[13px] leading-6 text-amber-100/74">
                         {event.message}
                       </p>
+                      {event.routing_role || event.routing_provider || event.routing_model ? (
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          {event.routing_role ? (
+                            <Badge color="warning">role {event.routing_role}</Badge>
+                          ) : null}
+                          {event.routing_provider ? (
+                            <Badge color="muted">provider {event.routing_provider}</Badge>
+                          ) : null}
+                          {event.routing_model ? (
+                            <Badge color="muted">model {event.routing_model}</Badge>
+                          ) : null}
+                        </div>
+                      ) : null}
                       {event.prompt_excerpt ? (
                         <p className="mt-3 text-[12px] leading-5 text-amber-100/42">
                           input: {event.prompt_excerpt}
