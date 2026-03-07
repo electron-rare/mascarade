@@ -16,6 +16,7 @@ import httpx
 from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
+from mascarade.provider_admin import resolve_provider_meta, valid_provider_envs
 
 app = FastAPI(title="Mascarade Ops Agent", version="0.1.0")
 
@@ -58,14 +59,83 @@ RUNTIME_SECRET_GROUPS: dict[str, dict[str, Any]] = {
     },
     "notion": {
         "label": "Notion MCP",
-        "description": "Cle Notion runtime et page de smoke test utilisee par les probes MCP.",
+        "description": "Auth Notion runtime et page de smoke test utilisee par les probes MCP.",
         "generate_supported": False,
+        "auth_mode": {
+            "env": "NOTION_AUTH_MODE",
+            "default": "api_key",
+            "options": ["api_key", "oauth_oidc"],
+        },
         "fields": [
             {
                 "env": "NOTION_API_KEY",
                 "label": "Notion API key",
                 "secret": True,
                 "restart_services": ["core"],
+                "auth_modes": ["api_key"],
+            },
+            {
+                "env": "NOTION_OAUTH_ACCESS_TOKEN",
+                "label": "OAuth access token",
+                "secret": True,
+                "restart_services": ["core"],
+                "auth_modes": ["oauth_oidc"],
+            },
+            {
+                "env": "NOTION_OAUTH_REFRESH_TOKEN",
+                "label": "OAuth refresh token",
+                "secret": True,
+                "restart_services": ["core"],
+                "auth_modes": ["oauth_oidc"],
+            },
+            {
+                "env": "NOTION_OAUTH_CLIENT_ID",
+                "label": "OAuth client ID",
+                "secret": False,
+                "restart_services": [],
+                "auth_modes": ["oauth_oidc"],
+            },
+            {
+                "env": "NOTION_OAUTH_CLIENT_SECRET",
+                "label": "OAuth client secret",
+                "secret": True,
+                "restart_services": [],
+                "auth_modes": ["oauth_oidc"],
+            },
+            {
+                "env": "NOTION_OAUTH_AUTHORIZATION_ENDPOINT",
+                "label": "OAuth authorization endpoint",
+                "secret": False,
+                "restart_services": [],
+                "auth_modes": ["oauth_oidc"],
+            },
+            {
+                "env": "NOTION_OAUTH_TOKEN_ENDPOINT",
+                "label": "OAuth token endpoint",
+                "secret": False,
+                "restart_services": [],
+                "auth_modes": ["oauth_oidc"],
+            },
+            {
+                "env": "NOTION_OAUTH_REDIRECT_URI",
+                "label": "OAuth redirect URI override",
+                "secret": False,
+                "restart_services": [],
+                "auth_modes": ["oauth_oidc"],
+            },
+            {
+                "env": "NOTION_OAUTH_EXPIRES_AT",
+                "label": "OAuth expires at",
+                "secret": False,
+                "restart_services": [],
+                "auth_modes": ["oauth_oidc"],
+            },
+            {
+                "env": "NOTION_OAUTH_WORKSPACE_NAME",
+                "label": "OAuth workspace name",
+                "secret": False,
+                "restart_services": [],
+                "auth_modes": ["oauth_oidc"],
             },
             {
                 "env": "NOTION_MCP_SMOKE_PAGE_ID",
@@ -77,18 +147,59 @@ RUNTIME_SECRET_GROUPS: dict[str, dict[str, Any]] = {
     },
     "github-dispatch": {
         "label": "GitHub dispatch MCP",
-        "description": "Tokens utilises pour les dispatch GitHub et leur smoke MCP.",
+        "description": "Auth GitHub utilises pour les dispatch GitHub et leur smoke MCP.",
         "generate_supported": False,
+        "auth_mode": {
+            "env": "GITHUB_DISPATCH_AUTH_MODE",
+            "default": "token",
+            "options": ["token", "app"],
+        },
         "fields": [
             {
                 "env": "KILL_LIFE_GITHUB_TOKEN",
                 "label": "Kill_LIFE GitHub token",
                 "secret": True,
                 "restart_services": [],
+                "auth_modes": ["token"],
             },
             {
                 "env": "GITHUB_TOKEN",
                 "label": "Fallback GitHub token",
+                "secret": True,
+                "restart_services": [],
+                "auth_modes": ["token"],
+            },
+            {
+                "env": "GITHUB_APP_ID",
+                "label": "GitHub App ID",
+                "secret": False,
+                "restart_services": [],
+                "auth_modes": ["app"],
+            },
+            {
+                "env": "GITHUB_APP_PRIVATE_KEY",
+                "label": "GitHub App private key",
+                "secret": True,
+                "restart_services": [],
+                "auth_modes": ["app"],
+            },
+            {
+                "env": "GITHUB_APP_INSTALLATION_ID",
+                "label": "GitHub App installation ID",
+                "secret": False,
+                "restart_services": [],
+                "auth_modes": ["app"],
+            },
+        ],
+    },
+    "huggingface": {
+        "label": "HuggingFace MCP",
+        "description": "Token READ pour le serveur MCP HuggingFace (https://huggingface.co/mcp). Utiliser OAuth login via https://huggingface.co/mcp?login si pas de token.",
+        "generate_supported": False,
+        "fields": [
+            {
+                "env": "HUGGINGFACE_API_KEY",
+                "label": "HuggingFace API key / READ token",
                 "secret": True,
                 "restart_services": [],
             },
@@ -200,6 +311,13 @@ MCP_PROBE_CONFIGS: list[dict[str, Any]] = [
         "cwd": KILL_LIFE_ROOT,
         "timeout_s": 8.0,
     },
+    {
+        "key": "huggingface",
+        "type": "http",
+        "url": "https://huggingface.co/mcp",
+        "token_env": "HUGGINGFACE_API_KEY",
+        "timeout_s": 10.0,
+    },
 ]
 
 _mcp_probe_cache: dict[str, Any] | None = None
@@ -214,6 +332,10 @@ class RuntimeSecretUpdateRequest(BaseModel):
 
 class RuntimeSecretClearRequest(BaseModel):
     fields: list[str] | None = Field(default=None)
+
+
+class ProviderUpdateRequest(BaseModel):
+    keys: dict[str, str] = Field(default_factory=dict)
 
 
 def is_routine_service_message(service: str, severity: str, message: str) -> bool:
@@ -367,6 +489,15 @@ def resolve_runtime_secret_group(name: str) -> dict[str, Any]:
     return group
 
 
+def resolve_provider(name: str) -> dict[str, Any]:
+    try:
+        return resolve_provider_meta(name)
+    except KeyError as exc:
+        raise HTTPException(
+            status_code=404, detail=f"Unknown provider: {name}"
+        ) from exc
+
+
 def _decode_env_value(raw_value: str) -> str:
     value = raw_value.strip()
     if not value:
@@ -448,17 +579,99 @@ def masked_hint(value: str, *, secret: bool) -> str:
     return f"{value[:8]}...{value[-6:]}"
 
 
+def runtime_group_auth_mode(
+    group: dict[str, Any], env_values: dict[str, str]
+) -> str | None:
+    auth_mode_meta = group.get("auth_mode")
+    if not auth_mode_meta:
+        return None
+    env_name = str(auth_mode_meta["env"])
+    value = (env_values.get(env_name, os.getenv(env_name, "")) or "").strip().lower()
+    options = [str(option) for option in auth_mode_meta.get("options", [])]
+    default = str(auth_mode_meta.get("default", options[0] if options else ""))
+    return value if value in options else default
+
+
+def is_runtime_secret_group_configured(
+    group_name: str,
+    env_values: dict[str, str],
+    auth_mode: str | None,
+) -> bool:
+    if group_name == "auth":
+        return bool(
+            env_values.get(
+                "MASCARADE_API_KEY", os.getenv("MASCARADE_API_KEY", "")
+            ).strip()
+        )
+    if group_name == "notion":
+        if auth_mode == "oauth_oidc":
+            return bool(
+                env_values.get(
+                    "NOTION_OAUTH_CLIENT_ID", os.getenv("NOTION_OAUTH_CLIENT_ID", "")
+                ).strip()
+                and (
+                    env_values.get(
+                        "NOTION_OAUTH_ACCESS_TOKEN",
+                        os.getenv("NOTION_OAUTH_ACCESS_TOKEN", ""),
+                    ).strip()
+                    or env_values.get(
+                        "NOTION_OAUTH_REFRESH_TOKEN",
+                        os.getenv("NOTION_OAUTH_REFRESH_TOKEN", ""),
+                    ).strip()
+                )
+                and env_values.get(
+                    "NOTION_OAUTH_CLIENT_SECRET",
+                    os.getenv("NOTION_OAUTH_CLIENT_SECRET", ""),
+                ).strip()
+            )
+        return bool(
+            env_values.get("NOTION_API_KEY", os.getenv("NOTION_API_KEY", "")).strip()
+        )
+    if group_name == "github-dispatch":
+        if auth_mode == "app":
+            return bool(
+                env_values.get("GITHUB_APP_ID", os.getenv("GITHUB_APP_ID", "")).strip()
+                and env_values.get(
+                    "GITHUB_APP_PRIVATE_KEY",
+                    os.getenv("GITHUB_APP_PRIVATE_KEY", ""),
+                ).strip()
+                and env_values.get(
+                    "GITHUB_APP_INSTALLATION_ID",
+                    os.getenv("GITHUB_APP_INSTALLATION_ID", ""),
+                ).strip()
+            )
+        return bool(
+            env_values.get(
+                "KILL_LIFE_GITHUB_TOKEN",
+                os.getenv("KILL_LIFE_GITHUB_TOKEN", ""),
+            ).strip()
+            or env_values.get("GITHUB_TOKEN", os.getenv("GITHUB_TOKEN", "")).strip()
+        )
+    return False
+
+
 def build_runtime_secret_group_status(name: str) -> dict[str, Any]:
     group = resolve_runtime_secret_group(name)
     env_values = read_env_values()
+    auth_mode_meta = group.get("auth_mode")
+    auth_mode = runtime_group_auth_mode(group, env_values)
     fields: list[dict[str, Any]] = []
     restart_services: set[str] = set()
     configured_count = 0
+    active_fields = [
+        field
+        for field in group["fields"]
+        if not field.get("auth_modes")
+        or auth_mode is None
+        or auth_mode in field.get("auth_modes", [])
+    ]
 
     for field in group["fields"]:
         env_name = str(field["env"])
         value = env_values.get(env_name, os.getenv(env_name, ""))
         configured = bool(value)
+        auth_modes = [str(mode) for mode in field.get("auth_modes", [])]
+        field_is_active = not auth_modes or auth_mode is None or auth_mode in auth_modes
         if configured:
             configured_count += 1
         restart_services.update(
@@ -472,20 +685,31 @@ def build_runtime_secret_group_status(name: str) -> dict[str, Any]:
                 "hint": masked_hint(value, secret=bool(field.get("secret"))),
                 "secret": bool(field.get("secret")),
                 "restart_services": list(field.get("restart_services", [])),
+                "auth_modes": auth_modes,
+                "active": field_is_active,
             }
         )
 
-    return {
+    result = {
         "name": name,
         "label": str(group["label"]),
         "description": str(group["description"]),
-        "configured": configured_count > 0,
-        "configured_count": configured_count,
-        "field_count": len(fields),
+        "configured": is_runtime_secret_group_configured(name, env_values, auth_mode),
+        "configured_count": sum(
+            1 for field in fields if field["active"] and field["configured"]
+        ),
+        "field_count": len(active_fields),
         "generate_supported": bool(group.get("generate_supported")),
         "restart_services": sorted(restart_services),
         "fields": fields,
     }
+    if auth_mode_meta:
+        result["auth_mode"] = auth_mode
+        result["auth_mode_env"] = str(auth_mode_meta["env"])
+        result["auth_modes"] = [
+            str(option) for option in auth_mode_meta.get("options", [])
+        ]
+    return result
 
 
 def list_runtime_secret_groups() -> list[dict[str, Any]]:
@@ -553,8 +777,15 @@ def normalize_update_values(
     group: dict[str, Any], payload: dict[str, str]
 ) -> dict[str, str]:
     allowed_fields = {str(field["env"]): field for field in group["fields"]}
+    auth_mode_meta = group.get("auth_mode")
     updates: dict[str, str] = {}
     for key, value in payload.items():
+        if auth_mode_meta and key == str(auth_mode_meta["env"]):
+            normalized = str(value).strip().lower()
+            options = [str(option) for option in auth_mode_meta.get("options", [])]
+            if normalized in options:
+                updates[key] = normalized
+            continue
         field = allowed_fields.get(key)
         if not field:
             continue
@@ -572,6 +803,40 @@ def restart_services_for_updates(
             str(service) for service in field_map[env_name].get("restart_services", [])
         )
     return sorted(services)
+
+
+def normalize_provider_updates(
+    meta: dict[str, Any], payload: dict[str, str]
+) -> dict[str, str]:
+    allowed_fields = valid_provider_envs(meta)
+    auth_mode_meta = meta.get("auth_mode")
+    toggle_meta = meta.get("toggle")
+    normalized: dict[str, str] = {}
+
+    for raw_key, raw_value in payload.items():
+        key = str(raw_key)
+        if key not in allowed_fields:
+            raise HTTPException(status_code=400, detail=f"Unknown field: {key}")
+        value = str(raw_value).strip()
+
+        if auth_mode_meta and key == str(auth_mode_meta["env"]):
+            options = [str(option) for option in auth_mode_meta.get("options", [])]
+            if value not in options:
+                raise HTTPException(
+                    status_code=400, detail=f"Invalid auth mode: {value}"
+                )
+            normalized[key] = value
+            continue
+
+        if toggle_meta and key == str(toggle_meta["env"]):
+            normalized[key] = (
+                "true" if value.lower() in {"1", "true", "yes", "on"} else "false"
+            )
+            continue
+
+        normalized[key] = value
+
+    return normalized
 
 
 def client_token_for_auth(value: str | None) -> str | None:
@@ -656,6 +921,85 @@ async def generate_auth_runtime_secret() -> dict[str, Any]:
     result["generated_value"] = token
     result["message"] = "Mascarade API key generated"
     return result
+
+
+async def persist_provider_updates(
+    provider_name: str, updates: dict[str, str]
+) -> dict[str, Any]:
+    meta = resolve_provider(provider_name)
+    normalized_updates = normalize_provider_updates(meta, updates)
+    if not normalized_updates:
+        raise HTTPException(status_code=400, detail="No valid provider values supplied")
+
+    async with _runtime_secret_lock:
+        write_env_updates(normalized_updates)
+        apply_runtime_env_updates(normalized_updates)
+        await recreate_compose_services(["core"])
+        await wait_for_core_ready()
+
+    return {
+        "status": "ok",
+        "message": "Provider settings updated",
+        "provider": provider_name,
+        "updated_env": sorted(normalized_updates),
+        "restarted_services": ["core"],
+    }
+
+
+async def run_mcp_http_probe(config: dict[str, Any]) -> dict[str, Any]:
+    """Probe a remote HTTP MCP server (e.g. HuggingFace)."""
+    started = asyncio.get_running_loop().time()
+    key = str(config["key"])
+    url = str(config["url"])
+    timeout_s = float(config.get("timeout_s", 10.0) or 10.0)
+    token_env = str(config.get("token_env", ""))
+    token = os.getenv(token_env, "").strip() if token_env else ""
+
+    headers: dict[str, str] = {"Accept": "application/json"}
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+
+    try:
+        async with httpx.AsyncClient(timeout=timeout_s) as client:
+            resp = await client.get(url, headers=headers)
+    except Exception as exc:
+        return make_default_mcp_status(
+            status="failed",
+            latency_ms=round((asyncio.get_running_loop().time() - started) * 1000),
+            server_name=key,
+            error=str(exc),
+            secret_configured=bool(token),
+        )
+
+    latency_ms = round((asyncio.get_running_loop().time() - started) * 1000)
+
+    if resp.status_code == 401:
+        return make_default_mcp_status(
+            status="degraded",
+            latency_ms=latency_ms,
+            server_name=key,
+            error="Authentication required (401). Set token or use OAuth login.",
+            secret_configured=bool(token),
+        )
+
+    if resp.status_code >= 400:
+        return make_default_mcp_status(
+            status="failed",
+            latency_ms=latency_ms,
+            server_name=key,
+            error=f"HTTP {resp.status_code}: {resp.text[:200]}",
+            secret_configured=bool(token),
+        )
+
+    return make_default_mcp_status(
+        ok=True,
+        status="ready",
+        requested_runtime="remote-http",
+        runtime_mode="sse",
+        server_name=key,
+        latency_ms=latency_ms,
+        secret_configured=bool(token),
+    )
 
 
 async def run_mcp_probe(config: dict[str, Any]) -> dict[str, Any]:
@@ -839,7 +1183,14 @@ async def probe_mcp_runtime(*, force: bool = False) -> dict[str, Any]:
             return _mcp_probe_cache
 
         statuses = await asyncio.gather(
-            *(run_mcp_probe(config) for config in MCP_PROBE_CONFIGS)
+            *(
+                (
+                    run_mcp_http_probe(config)
+                    if config.get("type") == "http"
+                    else run_mcp_probe(config)
+                )
+                for config in MCP_PROBE_CONFIGS
+            )
         )
         value = aggregate_mcp_status(
             {
@@ -1257,6 +1608,15 @@ async def runtime_secrets_generate(
             status_code=400, detail=f"Generation not supported for {group_name}"
         )
     return await generate_auth_runtime_secret()
+
+
+@app.put("/providers/{provider_name}")
+async def provider_update(
+    provider_name: str,
+    payload: ProviderUpdateRequest,
+    _auth: None = Depends(require_admin_auth),
+):
+    return await persist_provider_updates(provider_name, payload.keys)
 
 
 @app.get("/health")
