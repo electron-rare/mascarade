@@ -20,6 +20,7 @@ from mascarade.auth import (
     remove_api_key,
     require_auth,
 )
+from mascarade.cluster import ClusterManager, require_cluster_auth
 from mascarade.config import settings
 from mascarade.integrations.comfyui import ComfyUIClient
 from mascarade.integrations.notion import NotionClient
@@ -38,16 +39,22 @@ async def lifespan(app: FastAPI):
     registry = AgentRegistry()
     register_default_skills(registry)
     trace_buffer = AgentTraceBuffer()
+    cluster = ClusterManager(
+        router=router,
+        agents_count_provider=lambda: len(registry),
+    )
     orchestrator = Orchestrator(
         router=router,
         registry=registry,
         trace_buffer=trace_buffer,
+        cluster=cluster,
     )
 
     app.state.router = router
     app.state.registry = registry
     app.state.orchestrator = orchestrator
     app.state.trace_buffer = trace_buffer
+    app.state.cluster = cluster
     app.state.notion = NotionClient() if settings.notion_api_key else None
     app.state.comfyui = ComfyUIClient() if settings.comfyui_url else None
 
@@ -88,15 +95,40 @@ class AgentCreate(BaseModel):
     system_prompt: str = Field(max_length=50_000)
     preferred_provider: str | None = Field(default=None, max_length=50)
     preferred_model: str | None = Field(default=None, max_length=100)
+    preferred_role: str | None = Field(default=None, max_length=100)
     strategy: Strategy = Strategy.BEST
     temperature: float = Field(default=0.7, ge=0.0, le=2.0)
     max_tokens: int = Field(default=4096, gt=0, le=128000)
+
+
+class AgentUpdate(BaseModel):
+    description: str = Field(max_length=1000)
+    system_prompt: str = Field(max_length=50_000)
+    preferred_provider: str | None = Field(default=None, max_length=50)
+    preferred_model: str | None = Field(default=None, max_length=100)
+    preferred_role: str | None = Field(default=None, max_length=100)
+    strategy: Strategy = Strategy.BEST
+    temperature: float = Field(default=0.7, ge=0.0, le=2.0)
+    max_tokens: int = Field(default=4096, gt=0, le=128000)
+
+
+class AgentRoutingOverride(BaseModel):
+    preferred_role: str | None = Field(default=None, max_length=100)
+    preferred_provider: str | None = Field(default=None, max_length=50)
+    preferred_model: str | None = Field(default=None, max_length=100)
 
 
 class TaskRequest(BaseModel):
     agent_names: list[str] = Field(max_length=20)
     prompt: str = Field(min_length=1, max_length=100_000)
     mode: ExecutionMode = ExecutionMode.SEQUENTIAL
+    routing_overrides: dict[str, AgentRoutingOverride] = Field(default_factory=dict)
+
+
+class ClusterForwardSendRequest(SendRequest):
+    peer_id: str | None = Field(default=None, max_length=100)
+    preferred_role: str | None = Field(default=None, max_length=100)
+    allow_local: bool = True
 
 
 class NotionAppendRequest(BaseModel):
@@ -149,6 +181,25 @@ async def health():
 # --- Routes protegees ---
 
 protected = APIRouter(dependencies=[Depends(require_auth)])
+cluster_protected = APIRouter(
+    prefix="/cluster/node",
+    dependencies=[Depends(require_cluster_auth)],
+)
+
+
+def _serialize_agent(agent: Agent) -> dict[str, object]:
+    return {
+        "name": agent.name,
+        "description": agent.description,
+        "system_prompt": agent.system_prompt,
+        "preferred_provider": agent.preferred_provider,
+        "preferred_model": agent.preferred_model,
+        "preferred_role": agent.preferred_role,
+        "strategy": agent.strategy.value,
+        "temperature": agent.temperature,
+        "max_tokens": agent.max_tokens,
+        "builtin": app.state.registry.is_builtin(agent.name),
+    }
 
 
 # --- Gestion des cles API ---
@@ -313,23 +364,56 @@ async def create_agent(req: AgentCreate):
         system_prompt=req.system_prompt,
         preferred_provider=req.preferred_provider,
         preferred_model=req.preferred_model,
+        preferred_role=req.preferred_role,
         strategy=req.strategy,
         temperature=req.temperature,
         max_tokens=req.max_tokens,
     )
     app.state.registry.register(agent)
     app.state.registry.save()
-    return {"name": agent.name, "description": agent.description}
+    return _serialize_agent(agent)
 
 
 @protected.get("/agents")
 async def list_agents():
-    return {
-        "agents": [
-            {"name": a.name, "description": a.description}
-            for a in app.state.registry.list()
-        ]
-    }
+    return {"agents": [_serialize_agent(agent) for agent in app.state.registry.list()]}
+
+
+@protected.get("/agents/{name}")
+async def get_agent(name: str):
+    try:
+        agent = app.state.registry.get(name)
+    except KeyError:
+        raise HTTPException(
+            status_code=404, detail=f"Agent '{name}' not found"
+        ) from None
+    return _serialize_agent(agent)
+
+
+@protected.put("/agents/{name}")
+async def update_agent(name: str, req: AgentUpdate):
+    try:
+        agent = app.state.registry.get(name)
+    except KeyError:
+        raise HTTPException(
+            status_code=404, detail=f"Agent '{name}' not found"
+        ) from None
+    if app.state.registry.is_builtin(name):
+        raise HTTPException(
+            status_code=403,
+            detail="Built-in agents are read-only; create a dynamic agent from the UI to edit routing.",
+        )
+
+    agent.description = req.description
+    agent.system_prompt = req.system_prompt
+    agent.preferred_provider = req.preferred_provider
+    agent.preferred_model = req.preferred_model
+    agent.preferred_role = req.preferred_role
+    agent.strategy = req.strategy
+    agent.temperature = req.temperature
+    agent.max_tokens = req.max_tokens
+    app.state.registry.save()
+    return _serialize_agent(agent)
 
 
 @protected.post("/agents/{name}/run")
@@ -366,6 +450,10 @@ async def orchestrate(req: TaskRequest):
             req.agent_names,
             req.prompt,
             mode=req.mode,
+            routing_overrides={
+                agent_name: override.model_dump()
+                for agent_name, override in req.routing_overrides.items()
+            },
         )
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=f"Agent not found: {exc}") from exc
@@ -379,10 +467,75 @@ async def orchestrate(req: TaskRequest):
                 "content": r.response.content,
                 "model": r.response.model,
                 "provider": r.response.provider,
+                "remote": r.remote,
+                "selected_by": r.selected_by,
+                "peer_id": r.peer_id,
+                "node_id": r.node_id,
+                "role": r.role,
                 **({"error": r.error} if r.error else {}),
             }
             for r in run.results
         ]
+    }
+
+
+# --- Cluster / multi-node ---
+
+
+@protected.get("/cluster/identity")
+async def cluster_identity():
+    return app.state.cluster.local_identity().to_dict()
+
+
+@protected.get("/cluster/peers")
+async def cluster_peers():
+    peers = await app.state.cluster.probe_peers()
+    return {
+        "node": app.state.cluster.local_identity().to_dict(),
+        "peers": [peer.to_dict() for peer in peers],
+    }
+
+
+@protected.post("/cluster/forward/send")
+async def cluster_forward_send(req: ClusterForwardSendRequest):
+    payload = req.model_dump(exclude={"peer_id", "preferred_role", "allow_local"})
+    return await app.state.cluster.forward_send(
+        peer_id=req.peer_id,
+        preferred_role=req.preferred_role,
+        allow_local=req.allow_local,
+        payload=payload,
+    )
+
+
+@cluster_protected.get("/identity")
+async def cluster_node_identity():
+    return app.state.cluster.local_identity().to_dict()
+
+
+@cluster_protected.post("/send")
+async def cluster_node_send(req: SendRequest):
+    messages = [m.model_dump() for m in req.messages]
+    try:
+        response = await app.state.router.send(
+            messages,
+            strategy=req.strategy,
+            provider=req.provider,
+            model=req.model,
+            system=req.system,
+            response_format=req.response_format,
+            temperature=req.temperature,
+            max_tokens=req.max_tokens,
+        )
+    except ValueError as exc:
+        logger.warning("Cluster send request rejected: %s", exc)
+        raise HTTPException(status_code=400, detail="Invalid request parameters") from exc
+
+    return {
+        "node_id": settings.node_id,
+        "content": response.content,
+        "model": response.model,
+        "provider": response.provider,
+        "usage": response.usage,
     }
 
 
@@ -629,6 +782,7 @@ async def comfyui_interrupt():
 
 
 app.include_router(protected)
+app.include_router(cluster_protected)
 
 
 def start():

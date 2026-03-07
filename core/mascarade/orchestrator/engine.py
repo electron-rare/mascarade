@@ -8,6 +8,7 @@ from dataclasses import dataclass, field
 from enum import StrEnum
 
 from mascarade.agents.registry import AgentRegistry
+from mascarade.cluster import ClusterManager
 from mascarade.observability import AgentTraceBuffer, new_run_id
 from mascarade.router import Router
 from mascarade.router.providers.base import LLMResponse
@@ -27,6 +28,11 @@ class TaskResult:
     response: LLMResponse
     step: int = 0
     error: str | None = None
+    remote: bool = False
+    selected_by: str = "local-direct"
+    peer_id: str | None = None
+    node_id: str | None = None
+    role: str | None = None
 
 
 @dataclass
@@ -43,6 +49,7 @@ class Orchestrator:
     router: Router = field(default_factory=Router)
     registry: AgentRegistry = field(default_factory=AgentRegistry)
     trace_buffer: AgentTraceBuffer | None = None
+    cluster: ClusterManager | None = None
 
     def _trace(
         self,
@@ -59,6 +66,9 @@ class Orchestrator:
         content_excerpt: str | None = None,
         provider: str | None = None,
         model: str | None = None,
+        routing_role: str | None = None,
+        routing_provider: str | None = None,
+        routing_model: str | None = None,
         token_usage: dict[str, int] | None = None,
         error: str | None = None,
     ) -> None:
@@ -78,6 +88,9 @@ class Orchestrator:
             content_excerpt=content_excerpt,
             provider=provider,
             model=model,
+            routing_role=routing_role,
+            routing_provider=routing_provider,
+            routing_model=routing_model,
             token_usage=token_usage,
             error=error,
         )
@@ -89,17 +102,22 @@ class Orchestrator:
         *,
         run_id: str,
         mode: ExecutionMode,
+        routing_overrides: dict[str, dict[str, str | None]] | None = None,
     ) -> list[TaskResult]:
         """Exécuter des agents séquentiellement, chacun avec le prompt original."""
         results = []
         for i, name in enumerate(agent_names):
             agent = self.registry.get(name)
+            override = (routing_overrides or {}).get(name) or {}
             self._trace(
                 run_id=run_id,
                 mode=mode,
                 event_type="step_started",
                 step=i,
                 agent_name=name,
+                routing_role=override.get("preferred_role"),
+                routing_provider=override.get("preferred_provider"),
+                routing_model=override.get("preferred_model"),
             )
             self._trace(
                 run_id=run_id,
@@ -108,20 +126,28 @@ class Orchestrator:
                 step=i,
                 agent_name=name,
                 prompt_excerpt=prompt,
+                routing_role=override.get("preferred_role"),
+                routing_provider=override.get("preferred_provider"),
+                routing_model=override.get("preferred_model"),
             )
-            response = await agent.run(prompt, router=self.router)
+            result = await self._execute_agent(
+                agent,
+                prompt,
+                step=i,
+                routing_override=override,
+            )
             self._trace(
                 run_id=run_id,
                 mode=mode,
                 event_type="agent_output",
                 step=i,
                 agent_name=name,
-                content_excerpt=response.content,
-                provider=response.provider,
-                model=response.model,
-                token_usage=response.usage,
+                content_excerpt=result.response.content,
+                provider=result.response.provider,
+                model=result.response.model,
+                token_usage=result.response.usage,
             )
-            results.append(TaskResult(agent_name=name, response=response, step=i))
+            results.append(result)
         return results
 
     async def run_parallel(
@@ -131,18 +157,23 @@ class Orchestrator:
         *,
         run_id: str,
         mode: ExecutionMode,
+        routing_overrides: dict[str, dict[str, str | None]] | None = None,
         timeout: float = 120.0,
     ) -> list[TaskResult]:
         """Exécuter des agents en parallèle sur le même prompt."""
 
         async def _run_one(name: str, step: int) -> TaskResult:
             agent = self.registry.get(name)
+            override = (routing_overrides or {}).get(name) or {}
             self._trace(
                 run_id=run_id,
                 mode=mode,
                 event_type="step_started",
                 step=step,
                 agent_name=name,
+                routing_role=override.get("preferred_role"),
+                routing_provider=override.get("preferred_provider"),
+                routing_model=override.get("preferred_model"),
             )
             self._trace(
                 run_id=run_id,
@@ -151,20 +182,28 @@ class Orchestrator:
                 step=step,
                 agent_name=name,
                 prompt_excerpt=prompt,
+                routing_role=override.get("preferred_role"),
+                routing_provider=override.get("preferred_provider"),
+                routing_model=override.get("preferred_model"),
             )
-            response = await agent.run(prompt, router=self.router)
+            result = await self._execute_agent(
+                agent,
+                prompt,
+                step=step,
+                routing_override=override,
+            )
             self._trace(
                 run_id=run_id,
                 mode=mode,
                 event_type="agent_output",
                 step=step,
                 agent_name=name,
-                content_excerpt=response.content,
-                provider=response.provider,
-                model=response.model,
-                token_usage=response.usage,
+                content_excerpt=result.response.content,
+                provider=result.response.provider,
+                model=result.response.model,
+                token_usage=result.response.usage,
             )
-            return TaskResult(agent_name=name, response=response, step=step)
+            return result
 
         tasks = [_run_one(name, i) for i, name in enumerate(agent_names)]
         raw_results = await asyncio.gather(
@@ -188,14 +227,7 @@ class Orchestrator:
                     agent_name=agent_names[i],
                     error=error_msg,
                 )
-                results.append(
-                    TaskResult(
-                        agent_name=agent_names[i],
-                        response=LLMResponse(content="", model="", provider="", usage={}),
-                        step=i,
-                        error=error_msg,
-                    )
-                )
+                results.append(TaskResult(agent_name=agent_names[i], response=LLMResponse(content="", model="", provider="", usage={}), step=i, error=error_msg))
             else:
                 results.append(r)
         return results
@@ -207,6 +239,7 @@ class Orchestrator:
         *,
         run_id: str,
         mode: ExecutionMode,
+        routing_overrides: dict[str, dict[str, str | None]] | None = None,
     ) -> list[TaskResult]:
         """Pipeline : la sortie d'un agent devient l'entrée du suivant."""
         results = []
@@ -214,12 +247,16 @@ class Orchestrator:
 
         for i, name in enumerate(agent_names):
             agent = self.registry.get(name)
+            override = (routing_overrides or {}).get(name) or {}
             self._trace(
                 run_id=run_id,
                 mode=mode,
                 event_type="step_started",
                 step=i,
                 agent_name=name,
+                routing_role=override.get("preferred_role"),
+                routing_provider=override.get("preferred_provider"),
+                routing_model=override.get("preferred_model"),
             )
             self._trace(
                 run_id=run_id,
@@ -228,9 +265,17 @@ class Orchestrator:
                 step=i,
                 agent_name=name,
                 prompt_excerpt=current_input,
+                routing_role=override.get("preferred_role"),
+                routing_provider=override.get("preferred_provider"),
+                routing_model=override.get("preferred_model"),
             )
             try:
-                response = await agent.run(current_input, router=self.router)
+                result = await self._execute_agent(
+                    agent,
+                    current_input,
+                    step=i,
+                    routing_override=override,
+                )
             except Exception as exc:
                 logger.error("Pipeline agent %s (step %d) failed: %s", name, i, exc)
                 self._trace(
@@ -242,14 +287,7 @@ class Orchestrator:
                     agent_name=name,
                     error=str(exc),
                 )
-                results.append(
-                    TaskResult(
-                        agent_name=name,
-                        response=LLMResponse(content="", model="", provider="", usage={}),
-                        step=i,
-                        error=str(exc),
-                    )
-                )
+                results.append(TaskResult(agent_name=name, response=LLMResponse(content="", model="", provider="", usage={}), step=i, error=str(exc)))
                 break
             self._trace(
                 run_id=run_id,
@@ -257,12 +295,12 @@ class Orchestrator:
                 event_type="agent_output",
                 step=i,
                 agent_name=name,
-                content_excerpt=response.content,
-                provider=response.provider,
-                model=response.model,
-                token_usage=response.usage,
+                content_excerpt=result.response.content,
+                provider=result.response.provider,
+                model=result.response.model,
+                token_usage=result.response.usage,
             )
-            results.append(TaskResult(agent_name=name, response=response, step=i))
+            results.append(result)
             if i < len(agent_names) - 1:
                 self._trace(
                     run_id=run_id,
@@ -271,11 +309,73 @@ class Orchestrator:
                     step=i,
                     from_agent=name,
                     to_agent=agent_names[i + 1],
-                    content_excerpt=response.content,
+                    content_excerpt=result.response.content,
                 )
-            current_input = response.content
+            current_input = result.response.content
 
         return results
+
+    async def _execute_agent(
+        self,
+        agent,
+        prompt: str,
+        *,
+        step: int,
+        routing_override: dict[str, str | None] | None = None,
+    ) -> TaskResult:
+        payload = agent.build_send_payload(prompt)
+        if routing_override:
+            if routing_override.get("preferred_provider"):
+                payload["provider"] = routing_override["preferred_provider"]
+            if routing_override.get("preferred_model"):
+                payload["model"] = routing_override["preferred_model"]
+
+        preferred_role = (routing_override or {}).get("preferred_role") or getattr(
+            agent, "preferred_role", None
+        )
+
+        if self.cluster is not None and self.cluster.enabled:
+            routed = await self.cluster.forward_send(
+                peer_id=None,
+                preferred_role=preferred_role,
+                allow_local=True,
+                payload=payload,
+            )
+            response = LLMResponse(
+                content=str(routed["content"]),
+                model=str(routed["model"]),
+                provider=str(routed["provider"]),
+                usage=dict(routed.get("usage") or {}),
+            )
+            return TaskResult(
+                agent_name=agent.name,
+                response=response,
+                step=step,
+                remote=bool(routed.get("remote")),
+                selected_by=str(routed.get("selected_by") or "cluster"),
+                peer_id=routed.get("peer_id"),
+                node_id=str(routed.get("node_id") or "") or None,
+                role=str(routed.get("role") or "") or None,
+            )
+
+        response = await self.router.send(
+            payload["messages"],
+            strategy=payload["strategy"],
+            provider=payload["provider"],
+            model=payload["model"],
+            system=payload["system"],
+            temperature=payload["temperature"],
+            max_tokens=payload["max_tokens"],
+        )
+        return TaskResult(
+            agent_name=agent.name,
+            response=response,
+            step=step,
+            remote=False,
+            selected_by="local-direct",
+            node_id=None,
+            role=None,
+        )
 
     async def run(
         self,
@@ -283,6 +383,7 @@ class Orchestrator:
         prompt: str,
         *,
         mode: ExecutionMode | str = ExecutionMode.SEQUENTIAL,
+        routing_overrides: dict[str, dict[str, str | None]] | None = None,
     ) -> OrchestrationRun:
         """Point d'entrée principal — choisir le mode d'exécution."""
         mode = ExecutionMode(mode)
@@ -303,6 +404,7 @@ class Orchestrator:
                     prompt,
                     run_id=run_id,
                     mode=mode,
+                    routing_overrides=routing_overrides,
                 )
             elif mode == ExecutionMode.PARALLEL:
                 results = await self.run_parallel(
@@ -310,6 +412,7 @@ class Orchestrator:
                     prompt,
                     run_id=run_id,
                     mode=mode,
+                    routing_overrides=routing_overrides,
                 )
             else:
                 results = await self.run_pipeline(
@@ -317,6 +420,7 @@ class Orchestrator:
                     prompt,
                     run_id=run_id,
                     mode=mode,
+                    routing_overrides=routing_overrides,
                 )
         except Exception as exc:
             self._trace(

@@ -72,6 +72,19 @@ class Settings(BaseSettings):
 
     # Authentication
     mascarade_api_key: str = ""
+    cluster_enabled: bool = False
+    cluster_shared_key: str = ""
+
+    # Cluster / multi-node
+    node_id: str = "node-1"
+    node_role: str = "general"
+    node_label: str = "Mascarade Node 1"
+    mesh_bind_host: str = ""
+    mesh_scheme: str = "http"
+    cluster_request_timeout_ms: int = 5000
+    cluster_heartbeat_seconds: int = 30
+    cluster_forward_enabled: bool = True
+    cluster_peers: str = ""
 
     # Observability
     otel_enabled: bool = False

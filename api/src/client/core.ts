@@ -37,6 +37,14 @@ export interface LLMResponse {
 export interface AgentInfo {
   name: string;
   description: string;
+  system_prompt?: string;
+  preferred_provider?: string | null;
+  preferred_model?: string | null;
+  preferred_role?: string | null;
+  strategy?: string;
+  temperature?: number;
+  max_tokens?: number;
+  builtin?: boolean;
 }
 
 export interface AgentTraceEvent {
@@ -54,9 +62,39 @@ export interface AgentTraceEvent {
   content_excerpt?: string | null;
   provider?: string | null;
   model?: string | null;
+  routing_role?: string | null;
+  routing_provider?: string | null;
+  routing_model?: string | null;
   token_usage?: { input_tokens?: number; output_tokens?: number } | null;
   error?: string | null;
   message: string;
+}
+
+export interface ClusterIdentity {
+  node_id: string;
+  role: string;
+  label: string;
+  base_url: string | null;
+  providers: string[];
+  provider_models: Record<string, string[]>;
+  agents: number;
+  cluster_enabled: boolean;
+}
+
+export interface ClusterPeerStatus {
+  peer_id: string;
+  role: string;
+  base_url: string;
+  ok: boolean;
+  status: number;
+  latency_ms: number;
+  error?: string | null;
+  remote_node_id?: string | null;
+  remote_label?: string | null;
+  providers?: string[] | null;
+  provider_models?: Record<string, string[]> | null;
+  agents?: number | null;
+  last_seen?: string | null;
 }
 
 const REQUEST_TIMEOUT_MS = parseInt(process.env.CORE_TIMEOUT_MS || "30000", 10);
@@ -159,7 +197,11 @@ export const coreClient = {
     description: string;
     system_prompt: string;
     preferred_provider?: string;
+    preferred_model?: string;
+    preferred_role?: string;
     strategy?: string;
+    temperature?: number;
+    max_tokens?: number;
   }) {
     return request<AgentInfo>("/agents", {
       method: "POST",
@@ -169,6 +211,29 @@ export const coreClient = {
 
   listAgents() {
     return request<{ agents: AgentInfo[] }>("/agents");
+  },
+
+  getAgent(name: string) {
+    return request<AgentInfo>(`/agents/${encodeURIComponent(name)}`);
+  },
+
+  updateAgent(
+    name: string,
+    body: {
+      description: string;
+      system_prompt: string;
+      preferred_provider?: string | null;
+      preferred_model?: string | null;
+      preferred_role?: string | null;
+      strategy?: string;
+      temperature?: number;
+      max_tokens?: number;
+    },
+  ) {
+    return request<AgentInfo>(`/agents/${encodeURIComponent(name)}`, {
+      method: "PUT",
+      body: JSON.stringify(body),
+    });
   },
 
   runAgent(name: string, messages: { role: string; content: string }[]) {
@@ -182,6 +247,14 @@ export const coreClient = {
     agent_names: string[];
     prompt: string;
     mode?: string;
+    routing_overrides?: Record<
+      string,
+      {
+        preferred_role?: string | null;
+        preferred_provider?: string | null;
+        preferred_model?: string | null;
+      }
+    >;
   }) {
     return request<{
       run_id: string;
@@ -193,6 +266,11 @@ export const coreClient = {
         model: string;
         provider: string;
         error?: string;
+        remote?: boolean;
+        selected_by?: string;
+        peer_id?: string | null;
+        node_id?: string | null;
+        role?: string | null;
       }[];
     }>("/orchestrate", {
       method: "POST",
@@ -220,6 +298,43 @@ export const coreClient = {
     return request<{ run_id: string; events: AgentTraceEvent[]; count: number }>(
       `/agent-traces/${encodeURIComponent(runId)}${suffix}`,
     );
+  },
+
+  clusterIdentity() {
+    return request<ClusterIdentity>("/cluster/identity");
+  },
+
+  clusterPeers() {
+    return request<{ node: ClusterIdentity; peers: ClusterPeerStatus[] }>("/cluster/peers");
+  },
+
+  clusterForwardSend(body: {
+    peer_id?: string;
+    preferred_role?: string;
+    allow_local?: boolean;
+    messages: { role: string; content: string }[];
+    strategy?: string;
+    provider?: string;
+    model?: string;
+    system?: string | null;
+    temperature?: number;
+    max_tokens?: number;
+  }) {
+    return request<{
+      peer_id: string | null;
+      selected_by: string;
+      remote: boolean;
+      latency_ms: number;
+      node_id: string;
+      role: string;
+      content: string;
+      model: string;
+      provider: string;
+      usage: { input_tokens: number; output_tokens: number };
+    }>("/cluster/forward/send", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
   },
 
   // --- Notion ---

@@ -66,6 +66,9 @@ export type OpsTraceEvent = {
   content_excerpt?: string | null;
   provider?: string | null;
   model?: string | null;
+  routing_role?: string | null;
+  routing_provider?: string | null;
+  routing_model?: string | null;
   token_usage?: { input_tokens?: number; output_tokens?: number } | null;
   error?: string | null;
   message: string;
@@ -111,6 +114,13 @@ export type OpsSummary = {
     loki_history: boolean;
     otel: boolean;
     agentsight: boolean;
+  };
+  cluster?: {
+    enabled: boolean;
+    node_id?: string | null;
+    role?: string | null;
+    peers_total: number;
+    peers_ok: number;
   };
   ops_agent?: Record<string, unknown> | null;
 };
