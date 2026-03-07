@@ -59,6 +59,6 @@ scripts/sync_crazy_life.sh pull
 Rules:
 
 - `push` publishes the committed `web/` subtree to `crazy_life`
-- `pull` imports changes from `crazy_life` back into `web/` using `git subtree pull --squash`
+- `pull` fetches `crazy_life/main`, replaces `web/` from that tree and creates a local sync commit
 - `pull` requires a clean worktree
 - `push --allow-dirty` is safe for local unrelated changes because only `HEAD:web` is exported

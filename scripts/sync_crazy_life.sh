@@ -135,14 +135,33 @@ push_cmd() {
 
 pull_cmd() {
   require_cmd git
+  require_cmd tar
   if worktree_dirty; then
     die "Dirty worktree detected. Commit/stash changes before pulling crazy_life back into $PREFIX."
   fi
   ensure_remote
   log "Fetching $REMOTE_NAME/$TARGET_BRANCH"
   git -C "$ROOT_DIR" fetch "$REMOTE_NAME" "$TARGET_BRANCH"
-  log "Pulling $REMOTE_NAME/$TARGET_BRANCH into $PREFIX (squash)"
-  git -C "$ROOT_DIR" subtree pull --prefix="$PREFIX" "$REMOTE_NAME" "$TARGET_BRANCH" --squash
+
+  local tmpdir
+  tmpdir="$(mktemp -d)"
+  trap 'rm -rf "$tmpdir"' RETURN
+
+  log "Exporting $REMOTE_NAME/$TARGET_BRANCH into temporary workspace"
+  git -C "$ROOT_DIR" archive "$REMOTE_NAME/$TARGET_BRANCH" | tar -x -C "$tmpdir"
+
+  log "Replacing $PREFIX from $REMOTE_NAME/$TARGET_BRANCH"
+  rm -rf "$ROOT_DIR/$PREFIX"
+  mkdir -p "$ROOT_DIR/$PREFIX"
+  cp -a "$tmpdir"/. "$ROOT_DIR/$PREFIX"/
+
+  git -C "$ROOT_DIR" add -A "$PREFIX"
+  if git -C "$ROOT_DIR" diff --cached --quiet; then
+    log "No sync-back changes detected for $PREFIX"
+    return
+  fi
+
+  git -C "$ROOT_DIR" commit -m "Sync $PREFIX from $REMOTE_NAME/$TARGET_BRANCH"
 }
 
 COMMAND="help"
