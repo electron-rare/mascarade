@@ -148,7 +148,7 @@ export default function TopBar({
       apiHealth: `${origin}/health`,
       metrics: `${origin}/api/ops/monitor`,
       coreHealth: `${protocol}//${hostname}:8100/health`,
-      opsConsole: `${origin}/ops/`,
+      opsConsole: `${origin}/ops`,
     };
   }, []);
 
@@ -191,7 +191,7 @@ export default function TopBar({
               href={endpoints.opsConsole}
               className="status-chip min-h-0 border-border/80 bg-black/25 px-3 py-2 text-muted transition hover:border-accent/35 hover:text-accent"
             >
-              ops console
+              ops hub
             </a>
             <a
               href={endpoints.apiHealth}
@@ -250,7 +250,7 @@ export default function TopBar({
                 aria-modal="false"
                 aria-labelledby={sessionTitleId}
                 data-shortcuts-lock="true"
-                className="absolute right-0 top-14 z-50 w-[min(26rem,calc(100vw-1rem))] rounded-3xl border border-border/80 bg-[linear-gradient(180deg,rgba(7,7,7,0.98),rgba(10,11,10,0.96))] p-4 shadow-[0_24px_80px_rgba(0,0,0,0.45)]"
+                className="absolute right-0 top-14 z-50 max-h-[min(78vh,34rem)] w-[min(26rem,calc(100vw-1rem))] overflow-y-auto overscroll-contain rounded-3xl border border-border/80 bg-[linear-gradient(180deg,rgba(7,7,7,0.98),rgba(10,11,10,0.96))] p-4 pr-3 shadow-[0_24px_80px_rgba(0,0,0,0.45)]"
               >
                 <div className="space-y-4">
                   <div className="space-y-1">

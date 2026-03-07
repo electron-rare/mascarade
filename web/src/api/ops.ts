@@ -1,5 +1,12 @@
 import { get } from "./client";
 
+export type OpsLogSource =
+  | "all"
+  | "service"
+  | "machine"
+  | "docker-event"
+  | "agent-trace";
+
 export type OpsMonitor = {
   timestamp: string;
   gateway: {
@@ -12,6 +19,7 @@ export type OpsMonitor = {
       status: number;
       latency_ms: number;
       models: number;
+      model_names: string[];
       error?: string;
     };
     qdrant: {
@@ -66,7 +74,7 @@ export type OpsTraceEvent = {
 export type OpsLogEntry = {
   id: string;
   ts: string;
-  source: "service" | "agent-trace";
+  source: "service" | "machine" | "agent-trace" | "docker-event";
   service?: string;
   severity: "debug" | "info" | "warning" | "error" | "critical";
   message: string;
@@ -97,12 +105,14 @@ export type OpsSummary = {
   sources: {
     service_monitor: boolean;
     agent_traces: boolean;
+    docker_logs?: boolean;
     machine_logs: boolean;
     docker_events: boolean;
     loki_history: boolean;
     otel: boolean;
     agentsight: boolean;
   };
+  ops_agent?: Record<string, unknown> | null;
 };
 
 export const opsApi = {
@@ -112,11 +122,12 @@ export const opsApi = {
     get<Record<string, OpsSourceStatus>>("/api/ops/sources"),
   recentLogs: (params?: {
     limit?: number;
-    source?: "all" | "service" | "agent-trace";
+    source?: OpsLogSource;
     severity?: "debug" | "info" | "warning" | "error" | "critical";
     run_id?: string;
     agent_name?: string;
     event_type?: string;
+    service?: string;
   }) => {
     const search = new URLSearchParams();
     if (params?.limit) search.set("limit", String(params.limit));
@@ -125,9 +136,36 @@ export const opsApi = {
     if (params?.run_id) search.set("run_id", params.run_id);
     if (params?.agent_name) search.set("agent_name", params.agent_name);
     if (params?.event_type) search.set("event_type", params.event_type);
+    if (params?.service) search.set("service", params.service);
     const suffix = search.toString() ? `?${search.toString()}` : "";
     return get<{ entries: OpsLogEntry[]; count: number; timestamp: string }>(
       `/api/ops/logs/recent${suffix}`,
+    );
+  },
+  queryLogs: (params?: {
+    limit?: number;
+    source?: OpsLogSource;
+    severity?: "debug" | "info" | "warning" | "error" | "critical";
+    run_id?: string;
+    agent_name?: string;
+    event_type?: string;
+    service?: string;
+    q?: string;
+    since?: string;
+  }) => {
+    const search = new URLSearchParams();
+    if (params?.limit) search.set("limit", String(params.limit));
+    if (params?.source) search.set("source", params.source);
+    if (params?.severity) search.set("severity", params.severity);
+    if (params?.run_id) search.set("run_id", params.run_id);
+    if (params?.agent_name) search.set("agent_name", params.agent_name);
+    if (params?.event_type) search.set("event_type", params.event_type);
+    if (params?.service) search.set("service", params.service);
+    if (params?.q) search.set("q", params.q);
+    if (params?.since) search.set("since", params.since);
+    const suffix = search.toString() ? `?${search.toString()}` : "";
+    return get<{ entries: OpsLogEntry[]; count: number; timestamp: string; source: string }>(
+      `/api/ops/logs/query${suffix}`,
     );
   },
   recentAgentTraces: (params?: {
@@ -150,4 +188,43 @@ export const opsApi = {
     get<{ run_id: string; events: OpsTraceEvent[]; count: number }>(
       `/api/ops/agent-traces/${encodeURIComponent(runId)}?limit=${encodeURIComponent(String(limit))}`,
     ),
+  logStreamPath: (params?: {
+    source?: OpsLogSource;
+    severity?: "debug" | "info" | "warning" | "error" | "critical";
+    service?: string;
+  }) => {
+    const search = new URLSearchParams();
+    if (params?.severity) search.set("severity", params.severity);
+    if (params?.service) search.set("services", params.service);
+
+    const source = params?.source ?? "all";
+    search.set(
+      "include_services",
+      String(source === "all" || source === "service"),
+    );
+    search.set(
+      "include_machine",
+      String(source === "all" || source === "machine"),
+    );
+    search.set(
+      "include_events",
+      String(source === "all" || source === "docker-event"),
+    );
+
+    return `/api/ops/logs/stream?${search.toString()}`;
+  },
+  agentTraceStreamPath: (params?: {
+    run_id?: string;
+    agent_name?: string;
+    event_type?: string;
+    limit?: number;
+  }) => {
+    const search = new URLSearchParams();
+    if (params?.run_id) search.set("run_id", params.run_id);
+    if (params?.agent_name) search.set("agent_name", params.agent_name);
+    if (params?.event_type) search.set("event_type", params.event_type);
+    if (params?.limit) search.set("limit", String(params.limit));
+    const suffix = search.toString() ? `?${search.toString()}` : "";
+    return `/api/ops/agent-traces/stream${suffix}`;
+  },
 };

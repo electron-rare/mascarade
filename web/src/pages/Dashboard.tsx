@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
+import { type OpsMonitor } from "../api/ops";
 import { useFetch } from "../hooks/useFetch";
-import { Badge, Button, Card, InlineNotice, LoadingPanel } from "../components/ui";
+import { Badge, Button, Card, CompactModelList, InlineNotice, LoadingPanel } from "../components/ui";
 
 interface HealthData {
   status: string;
@@ -60,6 +61,7 @@ function narrative(status: string, providers: string[], agents: number) {
 
 export default function Dashboard() {
   const { data, loading, error, refetch } = useFetch<HealthData>("/health");
+  const monitor = useFetch<OpsMonitor>("/api/ops/monitor", { pollIntervalMs: 6000 });
 
   if (loading && !data) {
     return (
@@ -86,6 +88,10 @@ export default function Dashboard() {
   const providers = isUp ? core.providers : [];
   const agents = isUp ? core.agents : 0;
   const statusTone = data.status === "ok" ? "text-[#8cffb7]" : "text-error";
+  const ollamaRuntimeReady = (monitor.data?.ai.ollama.ok ?? false) && (monitor.data?.ai.ollama.models ?? 0) > 0;
+  const ollamaExposed = providers.includes("ollama");
+  const localRuntimeGap = ollamaRuntimeReady && !ollamaExposed;
+  const ollamaModelNames = monitor.data?.ai.ollama.model_names ?? [];
 
   return (
     <div className="space-y-6">
@@ -118,6 +124,11 @@ export default function Dashboard() {
                 <span className="status-chip border-border/80 bg-black/30 text-muted">
                   providers {providers.length}
                 </span>
+                {ollamaRuntimeReady ? (
+                  <span className="status-chip border-[#214e31] bg-[#0c170f]/80 text-[#8cffb7]">
+                    ollama {monitor.data?.ai.ollama.models ?? 0} models
+                  </span>
+                ) : null}
                 <span className="status-chip border-border/80 bg-black/30 text-muted">
                   agents {agents}
                 </span>
@@ -192,9 +203,16 @@ export default function Dashboard() {
           <div className="space-y-5">
             <div>
               <p className="text-sm leading-7 text-amber-100/62">
-                Les providers declares par le core donnent le ton du runtime. Cette section sert de lecture rapide avant d'ouvrir la metrique detaillee.
+                Le provider bus liste les adapters enregistres par le core, pas les modeles individuels. Les LLM locaux apparaissent ici via `ollama` ou `apple-local` quand le routage core les expose.
               </p>
             </div>
+
+            {localRuntimeGap ? (
+              <InlineNotice
+                title="local runtime detected"
+                message={`Ollama repond avec ${monitor.data?.ai.ollama.models ?? 0} modele(s), mais le core ne publie pas encore l'adapter \`ollama\` dans le provider bus. Verifie \`OLLAMA_ENABLED=true\` et \`OLLAMA_BASE_URL=http://ollama:11434\`, puis redemarre le core.`}
+              />
+            ) : null}
 
             <div className="flex flex-wrap gap-2">
               {providers.length > 0 ? (
@@ -206,7 +224,12 @@ export default function Dashboard() {
               ) : (
                 <Badge color="error">no provider detected</Badge>
               )}
+              {ollamaRuntimeReady && !ollamaExposed ? (
+                <Badge color="error">ollama runtime only</Badge>
+              ) : null}
             </div>
+
+            <CompactModelList items={ollamaModelNames} />
 
             <div className="space-y-3 rounded-3xl border border-border/80 bg-black/25 p-4">
               <div className="flex items-center justify-between text-[11px] uppercase tracking-[0.18em]">

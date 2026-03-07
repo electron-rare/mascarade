@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import { coreClient } from "../client/core.js";
+import { emitStructuredLog } from "../lib/otel.js";
 import { handleCoreError } from "../middleware/error.js";
 
 const agents = new Hono();
@@ -61,8 +62,25 @@ agents.post("/orchestrate", async (c) => {
   try {
     const body = await c.req.json();
     const result = await coreClient.orchestrate(body);
+    emitStructuredLog({
+      source: "api-observation",
+      service: "api",
+      severity: result.results.some((row) => !!row.error) ? "warning" : "info",
+      message: `orchestration completed with ${result.results.length} step(s)`,
+      run_id: result.run_id,
+      mode: result.mode,
+      event_type: "orchestrate_completed",
+      result_count: result.results.length,
+    });
     return c.json(result);
   } catch (error) {
+    emitStructuredLog({
+      source: "api-observation",
+      service: "api",
+      severity: "error",
+      message: "orchestration request failed",
+      event_type: "orchestrate_failed",
+    });
     const { status, body } = handleCoreError(error);
     return c.json(body, status);
   }

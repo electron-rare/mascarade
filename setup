@@ -92,7 +92,7 @@ Options:
       --skills-dest <path>   Dossier cible skills (defaut: ~/.codex/skills/mascarade)
       --ollama-pack <name>   Pack LLM: lite|balanced|heavy (defaut: balanced)
       --ollama-models <csv>  Liste de modeles Ollama a pull (prioritaire sur --ollama-pack)
-      --ops-console-only     Lance uniquement l'init/sync du cockpit DevOps puis quitte
+      --ops-console-only     Alias legacy: lance core+api+edge-proxy pour servir /ops puis quitte
       --smoke-generate-audio  Lance un vrai POST /generate apres demarrage (opt-in)
       --force-clean          Nettoyage complet avant installation
 
@@ -106,7 +106,7 @@ Profils:
 
 Services disponibles:
   core, api, litellm, n8n, langfuse, dify, clickhouse, comfyui, tts, stt, generate-audio (AudioCraft CPU/GPU),
-  ollama, open-webui, ops-console, redis, postgres, qdrant, grafana, prometheus, loki, promtail, otel-collector
+  ollama, open-webui, edge-proxy, ops-agent, redis, postgres, qdrant, grafana, prometheus, loki, promtail, otel-collector
 HELP
 }
 
@@ -312,6 +312,10 @@ apply_preselected_services() {
     for token in "${_req_svcs[@]}"; do
         token="${token// /}"
         [[ -z "$token" ]] && continue
+        if [[ "$token" == "ops-console" ]]; then
+            info "Alias legacy detecte: ops-console -> edge-proxy"
+            token="edge-proxy"
+        fi
         valid=false
         for id in "${SVC_IDS[@]}"; do
             if [[ "$token" == "$id" ]]; then
@@ -337,13 +341,13 @@ profile_services_csv() {
             csv="core,api"
             ;;
         standard)
-            csv="core,api,redis,postgres,qdrant,ollama,open-webui,ops-console,grafana,prometheus,litellm"
+            csv="core,api,edge-proxy,redis,postgres,qdrant,ollama,open-webui,grafana,prometheus,litellm"
             ;;
         full)
-            csv="core,api,litellm,n8n,langfuse,dify,clickhouse,comfyui,tts,stt,generate-audio,ollama,open-webui,ops-console,redis,postgres,qdrant,grafana,prometheus"
+            csv="core,api,edge-proxy,litellm,n8n,langfuse,dify,clickhouse,comfyui,tts,stt,generate-audio,ollama,open-webui,redis,postgres,qdrant,grafana,prometheus"
             ;;
         apple-silicon)
-            csv="core,api,ops-console"
+            csv="core,api,edge-proxy"
             if has_native_ollama; then
                 csv="${csv},open-webui"
             fi
@@ -634,14 +638,14 @@ dbg "  services definis: ${#SVC_IDS[@]} (${SVC_IDS[*]})"
 dbg "  AUTO_CONFIRM=$AUTO_CONFIRM PRESELECT_MODE=$PRESELECT_MODE NO_START=$NO_START SKIP_DEPS=$SKIP_DEPS SKIP_TESTS=$SKIP_TESTS INSTALL_REPO_SKILLS=$INSTALL_REPO_SKILLS INSTALL_REPO_LLMS=$INSTALL_REPO_LLMS INSTALL_REPO_ASSETS_ONLY=$INSTALL_REPO_ASSETS_ONLY OLLAMA_PACK=$OLLAMA_PACK SMOKE_GENERATE_AUDIO=$SMOKE_GENERATE_AUDIO"
 
 if [[ "$OPS_CONSOLE_ONLY" == true ]]; then
-    log "Mode --ops-console-only: init cockpit DevOps uniquement"
-    if [[ ! -f "$REPO_DIR/deploy/ops-console/docker-compose.yml" ]]; then
-        err "Compose ops-console introuvable: $REPO_DIR/deploy/ops-console/docker-compose.yml"
+    log "Mode --ops-console-only: alias legacy vers Ops Hub React"
+    if [[ ! -f "$REPO_DIR/docker-compose.yml" ]]; then
+        err "docker-compose.yml introuvable. Utilise ./setup --with core,api,edge-proxy --yes"
         exit 1
     fi
-    info "Ops Console local demarre depuis le repo"
-    docker_compose_cmd -f "$REPO_DIR/deploy/ops-console/docker-compose.yml" up -d
-    ok "Termine (--ops-console-only)"
+    info "Demarrage du cockpit React via core + api + edge-proxy"
+    docker_compose_cmd -f "$REPO_DIR/docker-compose.yml" up -d core api edge-proxy
+    ok "Termine (--ops-console-only -> /ops)"
     exit 0
 fi
 
@@ -1028,22 +1032,16 @@ else
                 if svc_selected "api"; then
                     health_check "http://localhost:${API_PORT:-3100}/health" "API" 5 2 || true
                 fi
-                if svc_selected "ops-console"; then
-                    if svc_selected "edge-proxy"; then
-                        health_check "http://localhost:${EDGE_PROXY_HTTP_PORT:-80}/ops/" "Ops Console" 5 2 || true
-                    else
-                        health_check "http://localhost:${OPS_CONSOLE_PORT:-80}/" "Ops Console" 5 2 || true
-                    fi
-                fi
                 if svc_selected "edge-proxy"; then
+                    health_check "http://localhost:${EDGE_PROXY_HTTP_PORT:-80}/ops/" "Ops Hub" 5 2 || true
                     health_check "http://localhost:${EDGE_PROXY_HTTP_PORT:-80}/healthz" "Edge Proxy" 5 2 || true
                 fi
                 if svc_selected "generate-audio"; then
                     health_check "http://localhost:${GENERATE_AUDIO_PORT:-9000}/health" "Generate Audio" 5 2 || true
                 fi
 
-                if svc_selected "ops-console"; then
-                    info "Ops Console local fourni par le compose principal"
+                if svc_selected "edge-proxy"; then
+                    info "Ops Hub React servi via l'edge proxy sur /ops"
                 fi
                 if svc_selected "edge-proxy" && [[ "${PUBLISH_BIND_HOST:-0.0.0.0}" != "127.0.0.1" ]]; then
                     warn "Edge Proxy actif mais les services publient encore hors loopback. Regle PUBLISH_BIND_HOST=127.0.0.1 pour n'exposer publiquement que 80/443."

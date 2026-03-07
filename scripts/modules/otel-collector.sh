@@ -20,7 +20,7 @@ module_otel_collector_compose() {
   echo "    volumes:"
   echo "      - ./deploy/otel-collector/config.yaml:/etc/otelcol-contrib/config.yaml:ro"
   echo "    healthcheck:"
-  echo "      test: [\"CMD-SHELL\", \"wget -qO- http://localhost:13133/ >/dev/null\"]"
+  echo "      test: [\"CMD\", \"/otelcol-contrib\", \"--version\"]"
   echo "      interval: 15s"
   echo "      timeout: 5s"
   echo "      retries: 10"

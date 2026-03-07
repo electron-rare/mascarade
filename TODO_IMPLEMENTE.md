@@ -104,3 +104,61 @@ Objectif: cadrer si `Agent Zero` doit rester un sujet d'etude, un outil de debug
 3. Lancer un vrai batch multi-domaines avec queue GPU a `1`.
 4. Mesurer ensuite un mode experimental a `2` trainings GPU paralleles.
 5. Cadrer `Agent Zero` separement, apres stabilisation du pipeline local.
+
+## 6. Cockpit frontend deja implemente
+
+### Shell et navigation
+- [x] Shell React unifie avec sidebar desktop, drawer mobile et mobile dock
+- [x] Raccourcis clavier `Alt+1..9`
+- [x] Panneau session/auth clavier-safe
+- [x] Fond visuel Matrix/CRT conserve comme direction par defaut
+
+### Pages cockpit
+- [x] Refonte `Dashboard`
+- [x] Refonte `Playground`
+- [x] Refonte `Agents`
+- [x] Refonte `Agent Detail`
+- [x] Refonte `Orchestrate`
+- [x] Refonte `Metrics`
+- [x] Refonte `Infrastructure`
+- [x] Refonte `Notion Browser`
+- [x] Refonte `ComfyUI`
+- [x] Lane `Logs` ajoutee au cockpit
+
+### Agent Zero
+- [x] `agent-zero` ajoute comme agent builtin dans le core
+- [x] `agent-zero` expose visiblement dans le cockpit
+- [x] `agent-zero` mis en avant dans `Dashboard`, `Agents`, `Agent Detail`, `Orchestrate`
+- [x] CTA de cadrage incident vers `agent-zero` ajoutes dans les surfaces ops
+
+## 7. Observability deja implemente
+
+### Trace native Mascarade
+- [x] `run_id` stable sur les runs d'orchestration
+- [x] Evenements inter-agent structures dans le core
+- [x] Buffer recent de traces dans le core
+- [x] Exposition des traces via routes core dediees
+
+### Facade ops API
+- [x] `GET /api/ops/monitor`
+- [x] `GET /api/ops/summary`
+- [x] `GET /api/ops/sources`
+- [x] `GET /api/ops/logs/recent`
+- [x] `GET /api/ops/agent-traces/recent`
+- [x] `GET /api/ops/agent-traces/:runId`
+
+### Surface cockpit
+- [x] Vue `Logs` pour lire incidents services + traces inter-agent
+- [x] Panneau `live run trace` dans `Orchestrate`
+- [x] Liens directs vers `Logs` depuis `Dashboard`, `Metrics`, `Infrastructure`
+
+### Infra complementaire scaffolded
+- [x] Modules `loki`, `promtail`, `otel-collector`
+- [x] Configs `deploy/loki`, `deploy/promtail`, `deploy/otel-collector`
+- [x] Spec produit cockpit dans `docs/FRONTEND_SPEC.md`
+- [x] Spec technique observability dans `docs/OBSERVABILITY_ARCHITECTURE.md`
+
+## 8. Backlogs actifs a suivre
+
+- [x] Backlog fine-tuning detaille dans `TODO_TUNNING_PARTY.md`
+- [x] Backlog cockpit/ops detaille dans `TODO_COCKPIT_OPS.md`

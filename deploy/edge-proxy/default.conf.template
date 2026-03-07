@@ -3,9 +3,14 @@ map $http_upgrade $connection_upgrade {
     '' close;
 }
 
+resolver 127.0.0.11 ipv6=off valid=10s;
+resolver_timeout 5s;
+
 server {
     listen 80;
     server_name ${EDGE_PROXY_SERVER_NAME};
+
+    set $api_upstream http://api:3000;
 
     location = /healthz {
         access_log off;
@@ -14,19 +19,27 @@ server {
     }
 
     location = /ops {
-        return 302 /ops/;
+        proxy_pass $api_upstream;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $connection_upgrade;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     }
 
     location /ops/ {
-        proxy_pass http://ops-console/;
+        proxy_pass $api_upstream;
         proxy_http_version 1.1;
         proxy_set_header Host $host;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $connection_upgrade;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     }
 
     location / {
-        proxy_pass http://api:3000;
+        proxy_pass $api_upstream;
         proxy_http_version 1.1;
         proxy_set_header Host $host;
         proxy_set_header Upgrade $http_upgrade;
@@ -39,6 +52,8 @@ server {
 server {
     listen 443 ssl;
     server_name ${EDGE_PROXY_SERVER_NAME};
+
+    set $api_upstream http://api:3000;
 
     ssl_certificate /etc/nginx/certs/tls.crt;
     ssl_certificate_key /etc/nginx/certs/tls.key;
@@ -54,19 +69,27 @@ server {
     }
 
     location = /ops {
-        return 302 /ops/;
+        proxy_pass $api_upstream;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $connection_upgrade;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     }
 
     location /ops/ {
-        proxy_pass http://ops-console/;
+        proxy_pass $api_upstream;
         proxy_http_version 1.1;
         proxy_set_header Host $host;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $connection_upgrade;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     }
 
     location / {
-        proxy_pass http://api:3000;
+        proxy_pass $api_upstream;
         proxy_http_version 1.1;
         proxy_set_header Host $host;
         proxy_set_header Upgrade $http_upgrade;

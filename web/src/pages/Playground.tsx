@@ -1,11 +1,13 @@
 import { useCallback, useMemo, useState } from "react";
 import { agentsApi } from "../api/agents";
+import { type OpsMonitor } from "../api/ops";
 import { useFetch } from "../hooks/useFetch";
 import { useApi } from "../hooks/useApi";
 import {
   Badge,
   Button,
   Card,
+  CompactModelList,
   InlineNotice,
   Input,
   JsonView,
@@ -35,7 +37,11 @@ export default function Playground() {
     error: providersError,
     refetch: refetchProviders,
   } = useFetch<{ providers: string[] }>("/api/agents/providers");
+  const monitor = useFetch<OpsMonitor>("/api/ops/monitor", { pollIntervalMs: 6000 });
   const providers = providerData?.providers || [];
+  const ollamaRuntimeReady = (monitor.data?.ai.ollama.ok ?? false) && (monitor.data?.ai.ollama.models ?? 0) > 0;
+  const localRuntimeGap = ollamaRuntimeReady && !providers.includes("ollama");
+  const ollamaModelNames = monitor.data?.ai.ollama.model_names ?? [];
 
   const sendFn = useCallback(
     () =>
@@ -146,6 +152,20 @@ export default function Playground() {
                     ? `${providers.length} provider(s) disponibles pour le routage manuel ou auto.`
                     : "No providers detected on the gateway. Auto routing stays constrained until the bus comes back."}
                 </p>
+                <p className="mt-2 text-[12px] leading-5 text-amber-100/42">
+                  Le provider bus liste les adapters de routage exposes par le core, pas les modeles locaux un par un.
+                </p>
+                {localRuntimeGap ? (
+                  <div className="mt-4">
+                    <InlineNotice
+                      title="ollama not routed"
+                      message={`Le runtime Ollama repond avec ${monitor.data?.ai.ollama.models ?? 0} modele(s), mais l'adapter \`ollama\` n'est pas encore expose dans le bus du core.`}
+                    />
+                  </div>
+                ) : null}
+                <div className="mt-4">
+                  <CompactModelList items={ollamaModelNames} previewCount={5} />
+                </div>
                 {providers.length === 0 ? (
                   <div className="mt-4">
                     <Button variant="secondary" onClick={() => void refetchProviders()}>

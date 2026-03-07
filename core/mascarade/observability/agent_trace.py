@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 import asyncio
+import json
 from collections import deque
 from collections.abc import Callable
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from threading import Lock
 from uuid import uuid4
+
+from mascarade.observability.otel import schedule_otlp_log
 
 
 def iso_utc_now() -> str:
@@ -132,6 +135,38 @@ class AgentTraceBuffer:
         self._events = deque(maxlen=self.max_events)
 
     def emit(self, event: AgentTraceEvent) -> AgentTraceEvent:
+        payload = event.to_dict()
+        structured_log = {
+            "source": "agent-trace",
+            "service": "core",
+            "severity": event.severity,
+            "message": payload["message"],
+            "run_id": event.run_id,
+            "agent_name": event.agent_name,
+            "from_agent": event.from_agent,
+            "to_agent": event.to_agent,
+            "event_type": event.event_type,
+            "mode": event.mode,
+            "provider": event.provider,
+            "model": event.model,
+            "ts": event.ts,
+        }
+        print(json.dumps(structured_log, ensure_ascii=True), flush=True)
+        schedule_otlp_log(
+            service_name="mascarade-core",
+            body=payload["message"],
+            severity=event.severity,
+            attributes={
+                "source": "agent-trace",
+                "run_id": event.run_id,
+                "agent_name": event.agent_name or "",
+                "event_type": event.event_type,
+                "mode": event.mode,
+                "provider": event.provider or "",
+                "model": event.model or "",
+            },
+        )
+
         with self._lock:
             self._events.append(event)
             subscriptions = list(self._subscriptions.values())

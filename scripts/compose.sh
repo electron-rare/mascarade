@@ -141,6 +141,10 @@ write_env_file() {
             echo "# ── Mascarade API ──"
             echo "API_PORT=\"${API_PORT:-3100}\""
             echo "CORE_URL=\"${CORE_URL:-http://core:${CORE_PORT:-8100}}\""
+            echo "OTEL_ENABLED=\"${OTEL_ENABLED:-false}\""
+            echo "OTEL_COLLECTOR_HTTP_ENDPOINT=\"${OTEL_COLLECTOR_HTTP_ENDPOINT:-http://otel-collector:4318}\""
+            echo "OPS_AGENT_URL=\"${OPS_AGENT_URL:-http://ops-agent:9200}\""
+            echo "LOKI_URL=\"${LOKI_URL:-http://loki:3100}\""
             echo ""
         fi
 
@@ -309,14 +313,6 @@ write_env_file() {
             echo ""
         fi
 
-        # Ops Console
-        if svc_selected "ops-console"; then
-            echo "# ── Ops Console ──"
-            echo "OPS_CONSOLE_BIND_HOST=\"${OPS_CONSOLE_BIND_HOST:-${PUBLISH_BIND_HOST:-0.0.0.0}}\""
-            echo "OPS_CONSOLE_PORT=\"${OPS_CONSOLE_PORT:-80}\""
-            echo ""
-        fi
-
         # Edge Proxy
         if svc_selected "edge-proxy"; then
             echo "# ── Edge Proxy ──"
@@ -346,6 +342,13 @@ write_env_file() {
         if svc_selected "prometheus"; then
             echo "# ── Prometheus ──"
             echo "PROMETHEUS_PORT=\"${PROMETHEUS_PORT:-9090}\""
+            echo ""
+        fi
+
+        if svc_selected "ops-agent"; then
+            echo "# ── Ops Agent ──"
+            echo "OPS_AGENT_PORT=\"${OPS_AGENT_PORT:-9200}\""
+            echo "AGENTSIGHT_URL=\"${AGENTSIGHT_URL:-}\""
             echo ""
         fi
 

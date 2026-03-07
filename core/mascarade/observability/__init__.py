@@ -7,6 +7,7 @@ from mascarade.observability.agent_trace import (
     iso_utc_now,
     new_run_id,
 )
+from mascarade.observability.otel import schedule_otlp_log
 
 __all__ = [
     "AgentTraceBuffer",
@@ -14,4 +15,5 @@ __all__ = [
     "build_trace_message",
     "iso_utc_now",
     "new_run_id",
+    "schedule_otlp_log",
 ]
