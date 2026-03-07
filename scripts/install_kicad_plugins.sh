@@ -14,6 +14,7 @@ Commands:
   list                                  Show available plugin bundles
   plugin-dir [--kicad-version VER]      Print the default KiCad plugin directory
   install <name|all> [options]          Install one or more plugin bundles
+  doctor [name|all] [options]           Verify installed plugin bundles
   help                                  Show this help
 
 Bundles:
@@ -107,6 +108,34 @@ bundle_entries() {
   esac
 }
 
+bundle_identifier() {
+  case "$1" in
+    fabrication-toolkit)
+      printf 'com.github.bennymeg.JLC-Plugin-for-KiCad\n'
+      ;;
+    kic-ai)
+      printf 'com.jochem.kic-ai-assistant\n'
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
+bundle_entrypoint() {
+  case "$1" in
+    fabrication-toolkit)
+      printf 'plugins/__init__.py\n'
+      ;;
+    kic-ai)
+      printf 'plugins/__init__.py\n'
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
 confirm_overwrite() {
   local target="$1"
   if [ ! -e "$target" ]; then
@@ -178,6 +207,47 @@ kic-ai
 EOF
 }
 
+doctor_bundle() {
+  local bundle="$1"
+  local plugin_dir="$2"
+  local target_name identifier entrypoint target_dir metadata_path status=0
+
+  target_name="$(bundle_target_name "$bundle")" || die "Unknown bundle: $bundle"
+  identifier="$(bundle_identifier "$bundle")" || die "Unknown bundle: $bundle"
+  entrypoint="$(bundle_entrypoint "$bundle")" || die "Unknown bundle: $bundle"
+  target_dir="${plugin_dir%/}/$target_name"
+  metadata_path="$target_dir/metadata.json"
+
+  if [ ! -d "$target_dir" ]; then
+    printf 'FAIL  %-20s missing directory %s\n' "$bundle" "$target_dir"
+    return 1
+  fi
+
+  if [ ! -f "$metadata_path" ]; then
+    printf 'FAIL  %-20s missing metadata %s\n' "$bundle" "$metadata_path"
+    status=1
+  elif ! grep -Fq "\"identifier\": \"$identifier\"" "$metadata_path"; then
+    printf 'FAIL  %-20s metadata identifier mismatch in %s\n' "$bundle" "$metadata_path"
+    status=1
+  fi
+
+  if [ ! -d "$target_dir/plugins" ]; then
+    printf 'FAIL  %-20s missing plugins directory %s\n' "$bundle" "$target_dir/plugins"
+    status=1
+  fi
+
+  if [ ! -f "$target_dir/$entrypoint" ]; then
+    printf 'FAIL  %-20s missing entrypoint %s\n' "$bundle" "$target_dir/$entrypoint"
+    status=1
+  fi
+
+  if [ "$status" -eq 0 ]; then
+    printf 'OK    %-20s %s\n' "$bundle" "$target_dir"
+  fi
+
+  return "$status"
+}
+
 plugin_dir_cmd() {
   local kicad_version="${KICAD_VERSION:-9.0}"
 
@@ -199,6 +269,66 @@ plugin_dir_cmd() {
   done
 
   default_plugin_dir "$kicad_version"
+}
+
+doctor_cmd() {
+  local bundle="${1:-all}"
+  if [ "$#" -gt 0 ]; then
+    shift
+  fi
+
+  local kicad_version="${KICAD_VERSION:-9.0}"
+  local plugin_dir="${KICAD_PLUGIN_DIR:-}"
+  local status=0
+
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      --plugin-dir)
+        [ "$#" -ge 2 ] || die "--plugin-dir requires a value"
+        plugin_dir="$2"
+        shift 2
+        ;;
+      --kicad-version)
+        [ "$#" -ge 2 ] || die "--kicad-version requires a value"
+        kicad_version="$2"
+        shift 2
+        ;;
+      -v|--verbose)
+        VERBOSE=1
+        shift
+        ;;
+      -h|--help)
+        usage
+        exit 0
+        ;;
+      *)
+        die "Unknown doctor option: $1"
+        ;;
+    esac
+  done
+
+  if [ -z "$plugin_dir" ]; then
+    plugin_dir="$(default_plugin_dir "$kicad_version")"
+  fi
+
+  log "Checking KiCad plugins in $plugin_dir"
+
+  case "$bundle" in
+    fabrication-toolkit|kic-ai)
+      doctor_bundle "$bundle" "$plugin_dir" || status=1
+      ;;
+    all)
+      doctor_bundle fabrication-toolkit "$plugin_dir" || status=1
+      doctor_bundle kic-ai "$plugin_dir" || status=1
+      ;;
+    *)
+      die "Unknown bundle: $bundle"
+      ;;
+  esac
+
+  if [ "$status" -ne 0 ]; then
+    die "One or more KiCad plugin checks failed."
+  fi
 }
 
 install_cmd() {
@@ -276,6 +406,9 @@ main() {
       ;;
     install)
       install_cmd "$@"
+      ;;
+    doctor)
+      doctor_cmd "$@"
       ;;
     help|-h|--help)
       usage

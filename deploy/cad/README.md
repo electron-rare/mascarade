@@ -35,6 +35,7 @@ Les wrappers locaux ne vivent plus dans les sous-modules KiCad. Les entrées par
 ./scripts/install_kicad_plugins.sh list
 ./scripts/install_kicad_plugins.sh install fabrication-toolkit --yes
 ./scripts/install_kicad_plugins.sh install kic-ai --yes
+./scripts/install_kicad_plugins.sh doctor all
 ./scripts/cad_stack.sh mcp
 ```
 
@@ -51,6 +52,21 @@ Tu peux surcharger le répertoire cible:
   --plugin-dir /chemin/custom/plugins \
   --yes
 ```
+
+Vérifier que KiCad verra bien les bundles installés:
+
+```bash
+./scripts/install_kicad_plugins.sh doctor all
+./scripts/install_kicad_plugins.sh doctor kic-ai --plugin-dir /chemin/custom/plugins
+```
+
+Le `doctor` vérifie:
+
+- le dossier bundle ciblé
+- `metadata.json`
+- l'identifiant plugin attendu
+- le répertoire `plugins/`
+- le point d'entrée `plugins/__init__.py`
 
 Le lancement `MCP` local passe par `./scripts/cad_stack.sh mcp`, ce qui remplace le vieux helper local non versionné du sous-module.
 
