@@ -393,6 +393,22 @@ Observability complementaire opt-in:
 ```
 
 Ce lot ajoute le stockage/relais observability, mais le cockpit utilise deja aujourd'hui la trace native du core pour afficher les echanges inter-agent dans `Logs`.
+Pour la pile observability complete, ajouter aussi `prometheus,grafana,tempo,blackbox-exporter,langfuse`.
+
+`Tempo` est maintenant le backend de traces nominal pour Grafana. `Loki` reste la source de logs et `Prometheus` la source de metriques; `blackbox-exporter` complete la couverture des services qui n'exposent pas `/metrics`.
+
+Surfaces operateur proxifiees:
+
+```bash
+EDGE_PROXY_GRAFANA_SERVER_NAME=grafana.saillant.cc
+EDGE_PROXY_LANGFUSE_SERVER_NAME=langfuse.saillant.cc
+GRAFANA_PUBLIC_ORIGIN=https://grafana.saillant.cc
+LANGFUSE_PUBLIC_ORIGIN=https://langfuse.saillant.cc
+EDGE_PROXY_OPS_AUTH_USER=ops
+EDGE_PROXY_OPS_AUTH_PASSWORD=...
+```
+
+Avec ces variables, `Grafana` et `Langfuse` passent derriere `edge-proxy` avec une auth dediee au proxy. Par defaut, ce routage reste seulement sur loopback tant que `EDGE_PROXY_BIND_HOST=127.0.0.1`.
 
 Smoke test OTLP -> Loki:
 
@@ -534,6 +550,7 @@ docker compose -f docker-compose.yml -f docker-compose.ai.yml --profile heavy up
 Sur VM legere, garder ces services arretes par defaut (profil `heavy`).
 
 `Langfuse` reste une brique supportee du repo, mais optionnelle hors profil standard. `Firecrawl` est supporte comme service MCP optionnel via l'image officielle `mcp/firecrawl`; il exige `FIRECRAWL_API_KEY` ou `FIRECRAWL_API_URL` pour demarrer. `Mem0` est supporte via `mem0/openmemory-mcp`, adosse a `Qdrant` et route par defaut ses appels OpenAI-compatibles vers `LiteLLM`.
+`Tempo` est supporte comme backend traces de reference de la stack observability locale, et les surfaces operateur `Grafana` / `Langfuse` peuvent etre publiees derriere `edge-proxy` sans exposer `Prometheus` ni les services internes.
 
 ### Interagir avec la VM depuis le Mac
 

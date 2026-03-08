@@ -13,6 +13,7 @@ Etat relu le `8 mars 2026` sur la stack `mascarade-*` actuellement en service.
 | Langfuse Web | `mascarade-langfuse` | 3200 | OK (`healthy`) |
 | Langfuse Worker | `mascarade-langfuse-worker` | — | OK |
 | Firecrawl MCP | `mascarade-firecrawl` | 3400 | OK (`healthy`) |
+| Mem0 / OpenMemory | `mascarade-mem0` | 8765 | OK (`healthy`) |
 | n8n | `mascarade-n8n` | 5678 | OK (`healthy`) |
 | Dify API | `mascarade-dify-api` | 5001 | OK |
 | Dify Web | `mascarade-dify-web` | 3500 | OK |
@@ -23,10 +24,13 @@ Etat relu le `8 mars 2026` sur la stack `mascarade-*` actuellement en service.
 | Qdrant | `mascarade-qdrant` | 6333 | OK (`healthy`) |
 | Grafana | `mascarade-grafana` | 3001 | OK (`healthy`) |
 | Prometheus | `mascarade-prometheus` | 9090 | OK (`healthy`) |
+| Tempo | `mascarade-tempo` | 3201 | OK (`healthy`) |
+| Blackbox Exporter | `mascarade-blackbox-exporter` | 9115 | OK (`healthy`) |
 
 Notes:
 - L'ancien constat `tools-langfuse KO (ZodError)` ne correspond plus au runtime actuel. `langfuse-web:3000` répond `200` depuis le réseau Docker.
 - Les curls host-side vers `127.0.0.1:3200` ne sont pas conclusifs depuis l'environnement sandboxé; la vérification retenue est donc celle faite depuis le réseau Docker et via l'état Docker.
+- `Grafana` et `Langfuse` sont maintenant publiables derrière `edge-proxy` sur `grafana.saillant.cc` et `langfuse.saillant.cc`, avec auth dédiée côté proxy. Le bind hôte reste volontairement `127.0.0.1` tant qu'aucune exposition publique n'est demandée.
 
 ## TODO priorisés
 
@@ -35,6 +39,8 @@ Notes:
 - [x] Ajouter un `healthcheck` Docker explicite sur `mascarade-langfuse`.
 - [x] Recréer `langfuse-web` pour matérialiser le nouveau statut `healthy` dans `docker ps`.
 - [x] `Langfuse` retenu comme brique supportée, optionnelle hors profil standard sur VM légère.
+- [x] `Tempo` branché comme backend de traces nominal.
+- [x] `Grafana` et `Langfuse` sont atteignables via le proxy opérateur.
 
 ### Sécurité
 - [x] `MASCARADE_API_KEY` est renseignée dans `/home/clems/mascarade/.env`; l'auth n'est pas désactivée en pratique.
@@ -54,22 +60,33 @@ Notes:
   - Cible retenue: `mem0/openmemory-mcp`.
   - Runtime valide sur la VM: `mascarade-mem0` est `healthy`.
   - Cablage actif sur `Qdrant` + `LiteLLM` (OpenAI-compatible).
-- [ ] Installer `Docling` dans le venv tools.
-- [ ] Installer `openai-whisper` dans le venv tools.
+- [x] `Docling` est importable dans le venv tools.
+- [x] `openai-whisper` est importable dans le venv tools.
 
 ### Réseau
 - [x] Le reverse proxy HTTPS existe déjà via `edge-proxy`.
 - [x] Les binds HTTP/HTTPS restent limités à `127.0.0.1`.
+- [x] `Grafana` et `Langfuse` ont un routage dédié derrière `edge-proxy`.
+- [x] Une auth opérateur dédiée protège ces surfaces côté proxy.
 - [ ] Si exposition externe voulue: publier `edge-proxy` hors loopback et finaliser le chemin ACME/DNS réellement utilisé.
 
 ### Monitoring
-- [ ] Connecter `Langfuse` à `Mascarade` pour tracer les appels LLM.
-- [ ] Ajouter des dashboards Grafana pour `Langfuse`, `n8n`, `Dify`, `LiteLLM`.
-- [ ] Ajouter ou documenter les endpoints Prometheus réellement scrapeables pour les services exposés.
+- [x] `Langfuse` est connecté à `Mascarade` pour tracer les appels LLM.
+- [x] Des dashboards Grafana couvrent `Langfuse`, `n8n`, `Dify`, `LiteLLM` et la posture tooling/observability.
+- [x] `Prometheus` scrape les endpoints natifs et les probes HTTP via `blackbox-exporter`.
+- [x] `Tempo` est branché sur l'OTel Collector et visible dans Grafana.
 
 ### Mac local
 - [ ] Installer les serveurs MCP utiles côté Mac.
 - [ ] Installer `Playwright MCP` côté Mac.
+
+## Restes reels
+
+Les restes encore ouverts ne sont plus des blocs locaux d'implementation:
+
+- exposition publique reelle du proxy (`EDGE_PROXY_BIND_HOST=0.0.0.0` + chemin `ACME/DNS`)
+- secrets operateur additionnels uniquement si les providers correspondants doivent etre actifs
+- setup local Mac (`MCP`, `Playwright MCP`)
 
 ## Infra existante sur la VM
 
@@ -81,6 +98,8 @@ Notes:
 | Postgres | `mascarade-postgres` | 5432 |
 | Grafana | `mascarade-grafana` | 3001 |
 | Prometheus | `mascarade-prometheus` | 9090 |
+| Tempo | `mascarade-tempo` | 3201 |
+| Blackbox Exporter | `mascarade-blackbox-exporter` | 9115 |
 
 ## Fichiers clés
 

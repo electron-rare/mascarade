@@ -119,7 +119,10 @@ Condition de reouverture:
 2. bundles locaux consolides sur les repos concernes.
 
 ## Next step
-1. Publier le reliquat suivi de `mascarade` par bundles (`runtime-core-fixes`, puis `ops-observability-followups`).
-2. Garder `Kill_LIFE` et `crazy_life` fermes localement tant qu'une vague de publication distante n'est pas ouverte.
+1. Le backlog `RA-*` reste clos; ne pas le rouvrir sans signal reel de regression.
+2. Garder les sujets encore ouverts hors audit:
+   - `DNS/ACME` public si une exposition externe est voulue;
+   - secrets providers optionnels si un provider supplementaire doit etre actif;
+   - setup Mac local (`MCP`, `Playwright MCP`) si ce poste doit redevenir un environnement operateur.
 3. N'ouvrir un chantier Nexar supplementaire que si le sourcing live requiert un token/plan avec quota de parts non nul.
 4. Ne rejouer `K-012` que si le host-native KiCad devient une exigence runtime.

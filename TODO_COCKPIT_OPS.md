@@ -16,22 +16,27 @@ Le lot local est stable; ce fichier ne porte plus de blocage critique.
 
 ## 2. Observabilite en place
 
-- [x] OTel Collector sain avec OTLP HTTP/gRPC, `/health`, `/metrics` et archivage local durable `traces`/`metrics`
+- [x] OTel Collector sain avec OTLP HTTP/gRPC, `/health`, `/metrics` et export traces vers `Tempo`
 - [x] Loki, Promtail, Prometheus et Grafana provisionnes en code et verifies en live
 - [x] `blackbox-exporter` en place pour les services sans `/metrics`
 - [x] Dashboards provisionnes:
   - `Mascarade Ops Overview`
   - `Mascarade Service Logs`
   - `Mascarade AI Runtime`
+  - `Mascarade Tooling Observability`
 - [x] Smoke OTLP versionne et valide sur trafic reel
 - [x] Rapport de cardinalite Loki versionne et exploitation reelle des labels enrichis
 - [x] Langfuse raccorde au chemin LLM commun avec traces runtime visibles
+- [x] `Tempo` branche comme backend traces Grafana
+- [x] `Grafana` et `Langfuse` exposes comme surfaces operateur derriere `edge-proxy`
+- [x] `OpsHub` distingue maintenant posture runtime, observabilite et surfaces publiques/proxifiees
 
 ## 3. Ce qui reste reellement
 
 - [ ] Etendre Grafana seulement si un nouveau domaine le justifie
 - [ ] Recueillir des retours UX a froid sur `Logs` et `OpsHub`
-- [ ] Remplacer l'archivage local OTel par un backend plus riche uniquement si la retention/requete transverse devient necessaire
+- [ ] Ouvrir publiquement le proxy uniquement si le chemin `DNS/ACME` doit vraiment etre active
+- [ ] Etendre les actions operateur d'`Agent Zero` uniquement si un usage concret depasse le mode copilot actuel
 
 ## 4. Complement optionnel
 
@@ -49,5 +54,5 @@ Le lot local est stable; ce fichier ne porte plus de blocage critique.
 
 1. Ne pas rouvrir ce lot sans besoin concret.
 2. Considerer le lot cockpit/ops comme livre apres rejeu vert des checks canoniques du `2026-03-08`.
-3. Sortir d'abord les bundles locaux multi-repo restants, sans reouvrir d'items MCP/ops deja livres.
-4. Garder la ligne `MCP/agentics` sur le backlog specialise `Kill_LIFE/specs/mcp_tasks.md`.
+3. Garder la ligne `MCP/agentics` sur le backlog specialise `Kill_LIFE/specs/mcp_tasks.md`.
+4. Traiter separement les sujets externes: `DNS/ACME`, secrets providers, setup Mac local.
