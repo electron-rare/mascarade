@@ -58,6 +58,7 @@ finetune/llama-quantize
 finetune/external/
 finetune/.model_selector_cache.json
 finetune/selected_model.json
+finetune/promoted_models.local.json
 
 # Backups (data dumps)
 backups/
