@@ -44,11 +44,16 @@ Politique active de stabilisation machine:
 - [x] Ecrire la commande standard de reprise `--resume` dans la doc operateur (README batch local mis a jour)
 
 ### Differe post-stabilisation
-- [ ] Valider un run batch complet jusqu'a `train=completed`
-  - run de reprise retenu: `finetune/runs/p2000_bench_gpu1_fixed_20260308_143343`
-  - commande canonique de reprise:
-    `python finetune/batch_local.py --resume finetune/runs/p2000_bench_gpu1_fixed_20260308_143343`
-  - correctif applique le `8 mars 2026`: garde-fou `tf32` dans `finetune/train_local.py` pour eviter l'erreur `--tf32 requires Ampere` sur Quadro P2000
+- [x] Valider un run batch complet jusqu'a `train=completed`
+  - run canonique termine: `finetune/runs/p2000_bench_gpu1_fixed_20260308_143343`
+  - reprise finale validee le `8 mars 2026` avec recyclage correct des `train=running` orphelins
+  - resultats finaux:
+    - `esp32`: `loss=1.3550`
+    - `spice`: `loss=1.8444`
+    - `pio`: `loss=2.0611`
+  - correctifs utilises:
+    - garde-fou `tf32` dans `finetune/train_local.py` pour eviter `--tf32 requires Ampere` sur Quadro P2000
+    - reconciliation des PIDs morts a la reprise dans `finetune/batch_local.py`
 
 ### Priorite suivante
 - [x] Comparer `max_parallel_gpu_trains=1` vs `2` sur Quadro P2000
@@ -74,8 +79,7 @@ Politique active de stabilisation machine:
 
 ## 4. Ordre recommande
 
-1. Finir `p2000_bench_gpu1_fixed_20260308_143343` jusqu'a `train=completed`.
-2. Promouvoir au moins un deuxieme domaine valide (`spice` ou `pio`) si le batch canonique termine vert.
-3. Decider si une exportation GGUF doit accompagner l adapter promu.
-4. Revenir sur `Agent Zero` hors du pipeline critique.
-5. Revenir sur les sujets exploratoires.
+1. Promouvoir au moins un deuxieme domaine valide (`spice` ou `pio`) maintenant que le batch canonique est vert.
+2. Decider si une exportation GGUF doit accompagner l adapter promu.
+3. Revenir sur `Agent Zero` hors du pipeline critique.
+4. Revenir sur les sujets exploratoires.
