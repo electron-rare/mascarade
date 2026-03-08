@@ -16,13 +16,13 @@ publication multi-repo.
 | Worktrees regroupes en bundles reviewables | FAIT |
 | Premier bundle `mascarade:mcp-runtime-surfaces` | FAIT |
 | Deuxieme bundle `mascarade:ops-observability-runtime` | FAIT |
-| Publication locale `Kill_LIFE` | EN COURS |
-| Publication locale `crazy_life` | EN COURS |
+| Publication locale `Kill_LIFE` | FAIT |
+| Publication locale `crazy_life` | FAIT |
 
 ### Prochain lot
-1. Sortir `mascarade:docs-state`.
-2. Sortir ensuite `Kill_LIFE` bundle par bundle.
-3. Sortir enfin `crazy_life`.
+1. Rejouer les checks finaux repo par repo.
+2. Decider si la publication distante doit etre lancee maintenant.
+3. Ne pas rouvrir de nouveau chantier avant cette decision.
 
 ---
 
@@ -135,17 +135,14 @@ publication multi-repo.
 | Contrat `crazy_life` / `Kill_LIFE` / `mascarade` | FAIT |
 | CI/release sur chemins canoniques | FAIT |
 | Bundles locaux documentes | FAIT |
-| Commits locaux `mascarade` en cours | EN COURS |
-| Commits locaux `Kill_LIFE` | EN COURS |
-| Commits locaux `crazy_life` | EN COURS |
+| Commits locaux `mascarade` | FAIT |
+| Commits locaux `Kill_LIFE` | FAIT |
+| Commits locaux `crazy_life` | FAIT |
 
 ### Prochain lot
-1. `mascarade:docs-state`
-2. `Kill_LIFE:mcp-runtime`
-3. `Kill_LIFE:cad-mcp`
-4. `Kill_LIFE:python-local`
-5. `crazy_life:cockpit runtime alignment`
-6. `crazy_life:docs state`
+1. Rejouer les checks minimaux sur les 3 repos.
+2. Publier a distance si voulu.
+3. Garder les reliquats externes (`K-014`, TLS public, setup Mac) hors de cette phase.
 
 ---
 
@@ -159,9 +156,9 @@ publication multi-repo.
 | 4. OTel / Loki | ~95% | Aucun blocage critique |
 | 5. Fine-tuning | ~95% | Seulement du suivi optionnel |
 | 6. VM / Infra | ~95% | Sujets externes/optionnels |
-| 7. Multi-repo | ~90% | Finir la materialisation des bundles |
+| 7. Multi-repo | ~95% | Rejouer les checks finaux puis decider du push |
 
 ### Priorite immediate recommandee
-1. Finaliser les commits locaux restants dans l'ordre deja fige.
-2. Rejouer les checks minimaux par repo avant toute publication distante.
-3. Ne pas rouvrir de nouveau chantier tant que la phase de consolidation n'est pas terminee.
+1. Rejouer les checks minimaux par repo avant toute publication distante.
+2. Decider du push repo par repo.
+3. Ne pas rouvrir de nouveau chantier tant que la phase de publication n'est pas tranchee.

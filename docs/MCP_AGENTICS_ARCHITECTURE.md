@@ -109,8 +109,8 @@ Si `A2A` s'ouvre plus tard:
 
 Les restes techniques encore ouverts ne sont plus sur la ligne `A-*`, mais sur le backlog KiCad specialise:
 
-- `K-012`: bloque sur cette machine car `pcbnew` n'est pas importable en host-native
 - `K-014`: bloque sur cette machine car `NEXAR_TOKEN` est absent et `nexar_api` reste en mode demo
+- `K-012`: reste une validation host-native optionnelle; le runtime canonique actuel utilise deja le conteneur KiCad MCP avec succes
 
 ## Repartition pratique par repo
 
