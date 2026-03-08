@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { Hono, type Context } from "hono";
+import { OAuth2Client } from "google-auth-library";
 import * as oidc from "openid-client";
 import {
   getGitHubDispatchAccessToken,
@@ -10,12 +11,29 @@ const settings = new Hono();
 const OPS_AGENT_URL = (process.env.OPS_AGENT_URL || "http://ops-agent:9200").replace(/\/+$/, "");
 const REQUEST_TIMEOUT_MS = 15_000;
 const NOTION_OAUTH_STATE_COOKIE = "mascarade_notion_oauth_state";
+const HUGGINGFACE_OAUTH_STATE_COOKIE = "mascarade_huggingface_oauth_state";
+const GOOGLE_OAUTH_STATE_COOKIE = "mascarade_google_oauth_state";
 const NOTION_OAUTH_STATE_MAX_AGE = 10 * 60;
+const PROVIDER_OAUTH_STATE_MAX_AGE = 10 * 60;
 const NOTION_AUTHORIZATION_ENDPOINT =
   process.env.NOTION_OAUTH_AUTHORIZATION_ENDPOINT || "https://api.notion.com/v1/oauth/authorize";
 const NOTION_TOKEN_ENDPOINT =
   process.env.NOTION_OAUTH_TOKEN_ENDPOINT || "https://api.notion.com/v1/oauth/token";
 const NOTION_ISSUER = "https://api.notion.com/v1";
+const HUGGINGFACE_AUTHORIZATION_ENDPOINT =
+  process.env.HUGGINGFACE_OAUTH_AUTHORIZATION_ENDPOINT || "https://huggingface.co/oauth/authorize";
+const HUGGINGFACE_TOKEN_ENDPOINT =
+  process.env.HUGGINGFACE_OAUTH_TOKEN_ENDPOINT || "https://huggingface.co/oauth/token";
+const HUGGINGFACE_ISSUER = "https://huggingface.co";
+const GOOGLE_AUTHORIZATION_ENDPOINT =
+  process.env.GOOGLE_OAUTH_AUTHORIZATION_ENDPOINT || "https://accounts.google.com/o/oauth2/v2/auth";
+const GOOGLE_TOKEN_ENDPOINT =
+  process.env.GOOGLE_OAUTH_TOKEN_ENDPOINT || "https://oauth2.googleapis.com/token";
+const GOOGLE_OAUTH_SCOPES = (process.env.GOOGLE_OAUTH_SCOPES ||
+  "https://www.googleapis.com/auth/cloud-platform https://www.googleapis.com/auth/generative-language.retriever")
+  .split(/[,\s]+/)
+  .map((scope) => scope.trim())
+  .filter(Boolean);
 
 type RuntimeSecretMutationResponse = {
   status: string;
@@ -66,6 +84,16 @@ function notionOAuthRedirectUri(c: Context): string {
   return `${current.origin}/api/settings/oauth/notion/callback`;
 }
 
+function providerOAuthRedirectUri(c: Context, provider: string): string {
+  const envName = `${provider.toUpperCase().replaceAll("-", "_")}_OAUTH_REDIRECT_URI`;
+  const override = String(process.env[envName] || "").trim();
+  if (override) {
+    return override;
+  }
+  const current = new URL(c.req.url);
+  return `${current.origin}/api/settings/oauth/${provider}/callback`;
+}
+
 function notionOAuthConfig() {
   const clientId = String(process.env.NOTION_OAUTH_CLIENT_ID || "").trim();
   const clientSecret = String(process.env.NOTION_OAUTH_CLIENT_SECRET || "").trim();
@@ -88,10 +116,50 @@ function notionOAuthConfig() {
   );
 }
 
-function popupResponse(message: string, ok: boolean, extraHeaders?: HeadersInit): Response {
+function huggingFaceOAuthConfig() {
+  const clientId = String(process.env.HUGGINGFACE_OAUTH_CLIENT_ID || "").trim();
+  const clientSecret = String(process.env.HUGGINGFACE_OAUTH_CLIENT_SECRET || "").trim();
+  if (!clientId || !clientSecret) {
+    throw new Error("Missing HUGGINGFACE_OAUTH_CLIENT_ID or HUGGINGFACE_OAUTH_CLIENT_SECRET");
+  }
+  return new oidc.Configuration(
+    {
+      issuer: HUGGINGFACE_ISSUER,
+      authorization_endpoint: String(
+        process.env.HUGGINGFACE_OAUTH_AUTHORIZATION_ENDPOINT || HUGGINGFACE_AUTHORIZATION_ENDPOINT,
+      ).trim(),
+      token_endpoint: String(
+        process.env.HUGGINGFACE_OAUTH_TOKEN_ENDPOINT || HUGGINGFACE_TOKEN_ENDPOINT,
+      ).trim(),
+    },
+    clientId,
+    undefined,
+    oidc.ClientSecretBasic(clientSecret),
+  );
+}
+
+function googleOAuthClient(c: Context): OAuth2Client {
+  const clientId = String(process.env.GOOGLE_OAUTH_CLIENT_ID || "").trim();
+  const clientSecret = String(process.env.GOOGLE_OAUTH_CLIENT_SECRET || "").trim();
+  if (!clientId || !clientSecret) {
+    throw new Error("Missing GOOGLE_OAUTH_CLIENT_ID or GOOGLE_OAUTH_CLIENT_SECRET");
+  }
+  return new OAuth2Client({
+    clientId,
+    clientSecret,
+    redirectUri: providerOAuthRedirectUri(c, "google"),
+  });
+}
+
+function popupResponse(
+  message: string,
+  ok: boolean,
+  provider: string,
+  extraHeaders?: HeadersInit,
+): Response {
   const payload = JSON.stringify({
     type: "mascarade-oauth-result",
-    provider: "notion",
+    provider,
     ok,
     message,
   }).replaceAll("<", "\\u003c");
@@ -184,6 +252,37 @@ function syncRuntimeEnvFromClear(fields: string[]) {
   for (const key of fields) {
     process.env[key] = "";
   }
+}
+
+function syncProviderEnvFromUpdate(values: Record<string, string>) {
+  for (const [key, value] of Object.entries(values)) {
+    process.env[key] = value;
+  }
+}
+
+async function persistProviderValues(
+  c: Context,
+  providerName: string,
+  keys: Record<string, string>,
+): Promise<{ error?: string }> {
+  const { upstream, text, json } = await proxyOpsAgentJson(
+    c,
+    `/providers/${encodeURIComponent(providerName)}`,
+    {
+      method: "PUT",
+      body: JSON.stringify({ keys }),
+    },
+  );
+  if (!upstream.ok) {
+    return {
+      error:
+        (json && typeof json.error === "string" && json.error) ||
+        text ||
+        `Ops Agent request failed (${upstream.status})`,
+    };
+  }
+  syncProviderEnvFromUpdate(keys);
+  return {};
 }
 
 settings.get("/runtime-secrets", async (c) => {
@@ -308,19 +407,19 @@ settings.get("/oauth/notion/callback", async (c) => {
   try {
     const expectedState = cookieValue(c.req.header("Cookie"), NOTION_OAUTH_STATE_COOKIE);
     if (!expectedState) {
-      return popupResponse("Missing OAuth state cookie", false, { "Set-Cookie": clearCookie });
+      return popupResponse("Missing OAuth state cookie", false, "notion", { "Set-Cookie": clearCookie });
     }
     const config = notionOAuthConfig();
     const redirectUri = notionOAuthRedirectUri(c);
     const callbackUrl = new URL(c.req.url);
     const returnedState = callbackUrl.searchParams.get("state") || "";
     if (!returnedState || returnedState !== expectedState) {
-      return popupResponse("OAuth state mismatch", false, { "Set-Cookie": clearCookie });
+      return popupResponse("OAuth state mismatch", false, "notion", { "Set-Cookie": clearCookie });
     }
     const oauthError = callbackUrl.searchParams.get("error");
     if (oauthError) {
       const message = callbackUrl.searchParams.get("error_description") || oauthError;
-      return popupResponse(message, false, { "Set-Cookie": clearCookie });
+      return popupResponse(message, false, "notion", { "Set-Cookie": clearCookie });
     }
 
     const tokens = await oidc.authorizationCodeGrant(
@@ -331,7 +430,7 @@ settings.get("/oauth/notion/callback", async (c) => {
     );
     const accessToken = String(tokens.access_token || "").trim();
     if (!accessToken) {
-      return popupResponse("Notion OAuth returned no access token", false, { "Set-Cookie": clearCookie });
+      return popupResponse("Notion OAuth returned no access token", false, "notion", { "Set-Cookie": clearCookie });
     }
 
     const values: Record<string, string> = {
@@ -355,15 +454,178 @@ settings.get("/oauth/notion/callback", async (c) => {
         (json && typeof json.error === "string" && json.error) ||
         text ||
         `Ops Agent request failed (${upstream.status})`;
-      return popupResponse(detail, false, { "Set-Cookie": clearCookie });
+      return popupResponse(detail, false, "notion", { "Set-Cookie": clearCookie });
     }
 
     syncRuntimeEnvFromUpdate(values);
-    return popupResponse("Notion OAuth linked", true, { "Set-Cookie": clearCookie });
+    return popupResponse("Notion OAuth linked", true, "notion", { "Set-Cookie": clearCookie });
   } catch (error) {
     return popupResponse(
       error instanceof Error ? error.message : "Notion OAuth callback failed",
       false,
+      "notion",
+      { "Set-Cookie": clearCookie },
+    );
+  }
+});
+
+settings.get("/providers/huggingface/oauth/start", async (c) => {
+  try {
+    const config = huggingFaceOAuthConfig();
+    const redirectUri = providerOAuthRedirectUri(c, "huggingface");
+    const state = `${randomUUID()}.${oidc.randomState()}`;
+    const authorizationUrl = oidc.buildAuthorizationUrl(config, {
+      redirect_uri: redirectUri,
+      response_type: "code",
+      scope: "openid profile inference-api",
+      state,
+    });
+    const secure = new URL(c.req.url).protocol === "https:" ? "; Secure" : "";
+    return c.newResponse(null, 302 as any, {
+      Location: authorizationUrl.href,
+      "Set-Cookie": `${HUGGINGFACE_OAUTH_STATE_COOKIE}=${encodeURIComponent(state)}; HttpOnly; SameSite=Lax; Path=/api/settings/oauth/huggingface/callback; Max-Age=${PROVIDER_OAUTH_STATE_MAX_AGE}${secure}`,
+    });
+  } catch (error) {
+    return c.json(
+      { error: error instanceof Error ? error.message : "Unable to start HuggingFace OAuth" },
+      400,
+    );
+  }
+});
+
+settings.get("/oauth/huggingface/callback", async (c) => {
+  const secure = new URL(c.req.url).protocol === "https:" ? "; Secure" : "";
+  const clearCookie = `${HUGGINGFACE_OAUTH_STATE_COOKIE}=; HttpOnly; SameSite=Lax; Path=/api/settings/oauth/huggingface/callback; Max-Age=0${secure}`;
+  try {
+    const expectedState = cookieValue(c.req.header("Cookie"), HUGGINGFACE_OAUTH_STATE_COOKIE);
+    if (!expectedState) {
+      return popupResponse("Missing OAuth state cookie", false, "huggingface", { "Set-Cookie": clearCookie });
+    }
+    const config = huggingFaceOAuthConfig();
+    const redirectUri = providerOAuthRedirectUri(c, "huggingface");
+    const callbackUrl = new URL(c.req.url);
+    const returnedState = callbackUrl.searchParams.get("state") || "";
+    if (!returnedState || returnedState !== expectedState) {
+      return popupResponse("OAuth state mismatch", false, "huggingface", { "Set-Cookie": clearCookie });
+    }
+    const oauthError = callbackUrl.searchParams.get("error");
+    if (oauthError) {
+      const message = callbackUrl.searchParams.get("error_description") || oauthError;
+      return popupResponse(message, false, "huggingface", { "Set-Cookie": clearCookie });
+    }
+
+    const tokens = await oidc.authorizationCodeGrant(
+      config,
+      callbackUrl,
+      { expectedState },
+      { redirect_uri: redirectUri },
+    );
+    const accessToken = String(tokens.access_token || "").trim();
+    if (!accessToken) {
+      return popupResponse("HuggingFace OAuth returned no access token", false, "huggingface", { "Set-Cookie": clearCookie });
+    }
+
+    const values: Record<string, string> = {
+      HUGGINGFACE_AUTH_MODE: "oauth_oidc",
+      HUGGINGFACE_API_KEY: "",
+      HUGGINGFACE_OAUTH_ACCESS_TOKEN: accessToken,
+      HUGGINGFACE_OAUTH_REFRESH_TOKEN: String(tokens.refresh_token || "").trim(),
+      HUGGINGFACE_OAUTH_EXPIRES_AT:
+        typeof tokens.expires_in === "number" && Number.isFinite(tokens.expires_in)
+          ? new Date(Date.now() + tokens.expires_in * 1000).toISOString()
+          : "",
+    };
+    const persisted = await persistProviderValues(c, "huggingface", values);
+    if (persisted.error) {
+      return popupResponse(persisted.error, false, "huggingface", { "Set-Cookie": clearCookie });
+    }
+
+    return popupResponse("HuggingFace OAuth linked", true, "huggingface", { "Set-Cookie": clearCookie });
+  } catch (error) {
+    return popupResponse(
+      error instanceof Error ? error.message : "HuggingFace OAuth callback failed",
+      false,
+      "huggingface",
+      { "Set-Cookie": clearCookie },
+    );
+  }
+});
+
+settings.get("/providers/google/oauth/start", async (c) => {
+  try {
+    const client = googleOAuthClient(c);
+    const state = `${randomUUID()}.${Math.random().toString(36).slice(2)}`;
+    const authorizationUrl = client.generateAuthUrl({
+      access_type: "offline",
+      include_granted_scopes: true,
+      prompt: "consent",
+      scope: GOOGLE_OAUTH_SCOPES,
+      state,
+    });
+    const secure = new URL(c.req.url).protocol === "https:" ? "; Secure" : "";
+    return c.newResponse(null, 302 as any, {
+      Location: authorizationUrl,
+      "Set-Cookie": `${GOOGLE_OAUTH_STATE_COOKIE}=${encodeURIComponent(state)}; HttpOnly; SameSite=Lax; Path=/api/settings/oauth/google/callback; Max-Age=${PROVIDER_OAUTH_STATE_MAX_AGE}${secure}`,
+    });
+  } catch (error) {
+    return c.json(
+      { error: error instanceof Error ? error.message : "Unable to start Google OAuth" },
+      400,
+    );
+  }
+});
+
+settings.get("/oauth/google/callback", async (c) => {
+  const secure = new URL(c.req.url).protocol === "https:" ? "; Secure" : "";
+  const clearCookie = `${GOOGLE_OAUTH_STATE_COOKIE}=; HttpOnly; SameSite=Lax; Path=/api/settings/oauth/google/callback; Max-Age=0${secure}`;
+  try {
+    const expectedState = cookieValue(c.req.header("Cookie"), GOOGLE_OAUTH_STATE_COOKIE);
+    if (!expectedState) {
+      return popupResponse("Missing OAuth state cookie", false, "google", { "Set-Cookie": clearCookie });
+    }
+    const callbackUrl = new URL(c.req.url);
+    const returnedState = callbackUrl.searchParams.get("state") || "";
+    if (!returnedState || returnedState !== expectedState) {
+      return popupResponse("OAuth state mismatch", false, "google", { "Set-Cookie": clearCookie });
+    }
+    const oauthError = callbackUrl.searchParams.get("error");
+    if (oauthError) {
+      const message = callbackUrl.searchParams.get("error_description") || oauthError;
+      return popupResponse(message, false, "google", { "Set-Cookie": clearCookie });
+    }
+    const code = callbackUrl.searchParams.get("code") || "";
+    if (!code) {
+      return popupResponse("Missing Google authorization code", false, "google", { "Set-Cookie": clearCookie });
+    }
+
+    const client = googleOAuthClient(c);
+    const tokenResponse = await client.getToken(code);
+    const accessToken = String(tokenResponse.tokens.access_token || "").trim();
+    if (!accessToken) {
+      return popupResponse("Google OAuth returned no access token", false, "google", { "Set-Cookie": clearCookie });
+    }
+
+    const values: Record<string, string> = {
+      GOOGLE_AUTH_MODE: "oauth_oidc",
+      GOOGLE_API_KEY: "",
+      GOOGLE_OAUTH_ACCESS_TOKEN: accessToken,
+      GOOGLE_OAUTH_REFRESH_TOKEN: String(tokenResponse.tokens.refresh_token || "").trim(),
+      GOOGLE_OAUTH_EXPIRES_AT:
+        typeof tokenResponse.tokens.expiry_date === "number" && Number.isFinite(tokenResponse.tokens.expiry_date)
+          ? new Date(tokenResponse.tokens.expiry_date).toISOString()
+          : "",
+    };
+    const persisted = await persistProviderValues(c, "google", values);
+    if (persisted.error) {
+      return popupResponse(persisted.error, false, "google", { "Set-Cookie": clearCookie });
+    }
+
+    return popupResponse("Google OAuth linked", true, "google", { "Set-Cookie": clearCookie });
+  } catch (error) {
+    return popupResponse(
+      error instanceof Error ? error.message : "Google OAuth callback failed",
+      false,
+      "google",
       { "Set-Cookie": clearCookie },
     );
   }

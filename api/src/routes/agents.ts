@@ -53,6 +53,18 @@ function jsonWithStatus(c: Context, body: Record<string, unknown>, status: numbe
   });
 }
 
+function syncProviderEnvFromUpdate(values: Record<string, unknown>) {
+  for (const [key, value] of Object.entries(values)) {
+    process.env[key] = String(value);
+  }
+}
+
+function syncProviderEnvFromClear(fields: string[]) {
+  for (const key of fields) {
+    process.env[key] = "";
+  }
+}
+
 async function proxyOpsAgentJson(
   c: Context,
   path: string,
@@ -81,7 +93,10 @@ async function providerMutationResult(
 ) {
   const { upstream, text, json } = await proxyOpsAgentJson(c, path, init);
   if (!upstream.ok) {
-    return jsonWithStatus(c, json || { error: text || "Ops Agent request failed" }, upstream.status);
+    return {
+      response: jsonWithStatus(c, json || { error: text || "Ops Agent request failed" }, upstream.status),
+      payload: null as ProviderMutationResponse | null,
+    };
   }
 
   let active = false;
@@ -116,7 +131,10 @@ async function providerMutationResult(
   if (Array.isArray(json?.restarted_services)) {
     body.restarted_services = json.restarted_services as string[];
   }
-  return c.json(body);
+  return {
+    response: c.json(body),
+    payload: body,
+  };
 }
 
 /** Lister tous les agents */
@@ -229,7 +247,7 @@ agents.put("/providers/:name/key", async (c) => {
       return c.json({ error: "Invalid provider name" }, 400);
     }
     const { keys } = await c.req.json();
-    return await providerMutationResult(
+    const { response } = await providerMutationResult(
       c,
       name,
       `/providers/${encodeURIComponent(name)}`,
@@ -238,6 +256,10 @@ agents.put("/providers/:name/key", async (c) => {
         body: JSON.stringify({ keys }),
       },
     );
+    if (response.status < 400) {
+      syncProviderEnvFromUpdate(keys || {});
+    }
+    return response;
   } catch (error) {
     if (error instanceof Error && !(error instanceof CoreApiError)) {
       return c.json({ error: error.message || "Ops Agent request failed" }, 503);
@@ -255,7 +277,7 @@ agents.post("/providers/:name/clear", async (c) => {
     }
     const body = (await c.req.json().catch(() => ({}))) as { fields?: string[] };
     const fields = Array.isArray(body.fields) ? body.fields.map((field) => String(field)) : undefined;
-    return await providerMutationResult(
+    const { response, payload } = await providerMutationResult(
       c,
       name,
       `/providers/${encodeURIComponent(name)}/clear`,
@@ -264,6 +286,10 @@ agents.post("/providers/:name/clear", async (c) => {
         body: JSON.stringify(fields ? { fields } : {}),
       },
     );
+    if (response.status < 400) {
+      syncProviderEnvFromClear(payload?.cleared_env || fields || []);
+    }
+    return response;
   } catch (error) {
     if (error instanceof Error && !(error instanceof CoreApiError)) {
       return c.json({ error: error.message || "Ops Agent request failed" }, 503);
