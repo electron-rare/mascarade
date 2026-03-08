@@ -109,8 +109,9 @@ Si `A2A` s'ouvre plus tard:
 
 Les restes techniques encore ouverts ne sont plus sur la ligne `A-*`, mais sur le backlog KiCad specialise:
 
-- `K-014`: bloque sur cette machine car `NEXAR_TOKEN` est absent et `nexar_api` reste en mode demo
+- aucun blocker MCP/agentics local actif sur la machine de reference
 - `K-012`: reste une validation host-native optionnelle; le runtime canonique actuel utilise deja le conteneur KiCad MCP avec succes
+- `nexar_api`: le chemin live est valide, mais le token de reference reste soumis a une limite externe de quota Nexar (`part limit of 0`)
 
 ## Repartition pratique par repo
 
