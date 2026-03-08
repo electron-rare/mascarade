@@ -76,12 +76,61 @@ PROVIDER_REGISTRY: dict[str, dict] = {
         "label": "HuggingFace",
         "module": "mascarade.router.providers.huggingface",
         "class": "HuggingFaceProvider",
+        "auth_mode": {
+            "env": "HUGGINGFACE_AUTH_MODE",
+            "attr": "huggingface_auth_mode",
+            "default": "api_key",
+            "options": ["api_key", "oauth_oidc"],
+        },
         "fields": [
             {
                 "env": "HUGGINGFACE_API_KEY",
                 "attr": "huggingface_api_key",
                 "label": "API Key",
                 "secret": True,
+                "auth_modes": ["api_key"],
+            },
+            {
+                "env": "HUGGINGFACE_OAUTH_ACCESS_TOKEN",
+                "attr": "huggingface_oauth_access_token",
+                "label": "OAuth access token",
+                "secret": True,
+                "auth_modes": ["oauth_oidc"],
+            },
+            {
+                "env": "HUGGINGFACE_OAUTH_REFRESH_TOKEN",
+                "attr": "huggingface_oauth_refresh_token",
+                "label": "OAuth refresh token",
+                "secret": True,
+                "auth_modes": ["oauth_oidc"],
+            },
+            {
+                "env": "HUGGINGFACE_OAUTH_CLIENT_ID",
+                "attr": "huggingface_oauth_client_id",
+                "label": "OAuth client ID",
+                "secret": False,
+                "auth_modes": ["oauth_oidc"],
+            },
+            {
+                "env": "HUGGINGFACE_OAUTH_CLIENT_SECRET",
+                "attr": "huggingface_oauth_client_secret",
+                "label": "OAuth client secret",
+                "secret": True,
+                "auth_modes": ["oauth_oidc"],
+            },
+            {
+                "env": "HUGGINGFACE_OAUTH_TOKEN_ENDPOINT",
+                "attr": "huggingface_oauth_token_endpoint",
+                "label": "OAuth token endpoint",
+                "secret": False,
+                "auth_modes": ["oauth_oidc"],
+            },
+            {
+                "env": "HUGGINGFACE_OAUTH_EXPIRES_AT",
+                "attr": "huggingface_oauth_expires_at",
+                "label": "OAuth expires at",
+                "secret": False,
+                "auth_modes": ["oauth_oidc"],
             },
         ],
     },
@@ -102,10 +151,86 @@ PROVIDER_REGISTRY: dict[str, dict] = {
 }
 
 
+def resolve_provider_meta(name: str) -> dict:
+    meta = PROVIDER_REGISTRY.get(name)
+    if not meta:
+        raise KeyError(name)
+    return meta
+
+
+def valid_provider_envs(meta: dict) -> set[str]:
+    envs = {str(field["env"]) for field in meta["fields"]}
+    auth_mode = meta.get("auth_mode")
+    if auth_mode:
+        envs.add(str(auth_mode["env"]))
+    toggle = meta.get("toggle")
+    if toggle:
+        envs.add(str(toggle["env"]))
+    return envs
+
+
 def _mask(value: str) -> str:
     if not value or len(value) < 10:
         return "***" if value else ""
     return f"{value[:4]}...{value[-4:]}"
+
+
+def _provider_auth_mode(meta: dict) -> str | None:
+    auth_mode_meta = meta.get("auth_mode")
+    if not auth_mode_meta:
+        return None
+    options = [str(option) for option in auth_mode_meta.get("options", [])]
+    default = str(auth_mode_meta.get("default", options[0] if options else ""))
+    raw_value = str(getattr(settings, auth_mode_meta["attr"], default)).strip()
+    return raw_value if raw_value in options else default
+
+
+def _field_is_active(field: dict, auth_mode: str | None) -> bool:
+    auth_modes = [str(mode) for mode in field.get("auth_modes", [])]
+    return not auth_modes or auth_mode is None or auth_mode in auth_modes
+
+
+def _field_status(field: dict, auth_mode: str | None) -> dict:
+    value = str(getattr(settings, field["attr"], ""))
+    configured = is_secret_configured(value) if field.get("secret") else bool(value.strip())
+    return {
+        "env": field["env"],
+        "label": field["label"],
+        "configured": configured,
+        "hint": (
+            _mask(value)
+            if field.get("secret") and configured
+            else value.strip() if configured else ""
+        ),
+        "secret": field.get("secret", False),
+        "auth_modes": [str(mode) for mode in field.get("auth_modes", [])],
+        "active": _field_is_active(field, auth_mode),
+    }
+
+
+def _provider_is_configured(
+    name: str,
+    meta: dict,
+    auth_mode: str | None,
+    fields_status: list[dict],
+) -> bool:
+    active_fields = [field for field in fields_status if field["active"]]
+    if meta.get("auth_mode") and not active_fields:
+        return False
+
+    if name == "huggingface":
+        if auth_mode == "api_key":
+            return is_secret_configured(settings.huggingface_api_key)
+        return bool(
+            settings.huggingface_oauth_client_id.strip()
+            and is_secret_configured(settings.huggingface_oauth_client_secret)
+            and (
+                is_secret_configured(settings.huggingface_oauth_access_token)
+                or is_secret_configured(settings.huggingface_oauth_refresh_token)
+            )
+        )
+
+    return all(field["configured"] for field in active_fields)
 
 
 def get_providers_status(router) -> list[dict]:
@@ -113,28 +238,10 @@ def get_providers_status(router) -> list[dict]:
     result = []
 
     for name, meta in PROVIDER_REGISTRY.items():
-        fields_status = []
-        all_configured = True
-
-        for field in meta["fields"]:
-            value = getattr(settings, field["attr"], "")
-            if field.get("secret"):
-                configured = is_secret_configured(value)
-                hint = _mask(value) if configured else ""
-            else:
-                configured = bool(value.strip())
-                hint = value.strip() if configured else ""
-            if not configured:
-                all_configured = False
-            fields_status.append(
-                {
-                    "env": field["env"],
-                    "label": field["label"],
-                    "configured": configured,
-                    "hint": hint,
-                    "secret": field.get("secret", False),
-                }
-            )
+        auth_mode_meta = meta.get("auth_mode")
+        auth_mode = _provider_auth_mode(meta)
+        fields_status = [_field_status(field, auth_mode) for field in meta["fields"]]
+        all_configured = _provider_is_configured(name, meta, auth_mode, fields_status)
 
         toggle = meta.get("toggle")
         enabled = True
@@ -150,9 +257,16 @@ def get_providers_status(router) -> list[dict]:
             "configured": all_configured and (enabled if toggle else True),
             "active": active,
             "fields": fields_status,
-            "default_model": getattr(provider_obj, "default_model", None) if provider_obj else None,
+            "default_model": (
+                getattr(provider_obj, "default_model", None) if provider_obj else None
+            ),
             "models": provider_obj.available_models() if provider_obj else [],
         }
+
+        if auth_mode_meta:
+            entry["auth_mode"] = auth_mode
+            entry["auth_mode_env"] = auth_mode_meta["env"]
+            entry["auth_modes"] = list(auth_mode_meta.get("options", []))
 
         if toggle:
             entry["enabled"] = enabled
@@ -163,20 +277,30 @@ def get_providers_status(router) -> list[dict]:
     return result
 
 
-def update_provider_keys(name: str, keys: dict[str, str], router) -> dict:
-    if name not in PROVIDER_REGISTRY:
+def update_provider_keys(
+    name: str,
+    keys: dict[str, str],
+    router,
+    *,
+    persist_env: bool = True,
+) -> dict:
+    try:
+        meta = resolve_provider_meta(name)
+    except KeyError:
         return {"error": f"Unknown provider: {name}"}
 
-    meta = PROVIDER_REGISTRY[name]
-    valid_envs = {f["env"] for f in meta["fields"]}
-    if meta.get("toggle"):
-        valid_envs.add(meta["toggle"]["env"])
-
+    valid_envs = valid_provider_envs(meta)
     for env_key in keys:
         if env_key not in valid_envs:
             return {"error": f"Unknown field: {env_key}"}
 
-    # Update settings in-memory
+    auth_mode_meta = meta.get("auth_mode")
+    if auth_mode_meta and auth_mode_meta["env"] in keys:
+        auth_mode_value = keys[auth_mode_meta["env"]].strip()
+        if auth_mode_value not in auth_mode_meta.get("options", []):
+            return {"error": f"Invalid auth mode: {auth_mode_value}"}
+        setattr(settings, auth_mode_meta["attr"], auth_mode_value)
+
     for field in meta["fields"]:
         if field["env"] in keys:
             setattr(settings, field["attr"], keys[field["env"]])
@@ -185,11 +309,11 @@ def update_provider_keys(name: str, keys: dict[str, str], router) -> dict:
         val = keys[meta["toggle"]["env"]]
         setattr(settings, meta["toggle"]["attr"], val.lower() in ("true", "1", "yes"))
 
-    # Persist to .env (best-effort)
-    try:
-        _persist_env(keys)
-    except Exception as exc:
-        logger.warning("Failed to persist to .env: %s", exc)
+    if persist_env:
+        try:
+            _persist_env(keys)
+        except Exception as exc:
+            logger.warning("Failed to persist to .env: %s", exc)
 
     # Re-initialize provider
     try:
@@ -199,14 +323,24 @@ def update_provider_keys(name: str, keys: dict[str, str], router) -> dict:
 
         if provider.is_configured:
             router.register(provider)
-            return {"status": "ok", "active": True}
+            result = {"status": "ok", "active": True}
+            if not persist_env:
+                result["message"] = (
+                    "Core runtime updated only; use the API facade for durable .env persistence"
+                )
+            return result
 
         router._providers.pop(name, None)
-        return {
+        result = {
             "status": "ok",
             "active": False,
             "message": "Saved but provider reports not configured",
         }
+        if not persist_env:
+            result["message"] = (
+                "Core runtime updated only; use the API facade for durable .env persistence"
+            )
+        return result
     except Exception as exc:
         logger.warning("Failed to re-initialize %s: %s", name, exc)
         return {"status": "ok", "active": False, "message": f"Saved but init failed: {exc}"}

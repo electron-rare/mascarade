@@ -33,8 +33,15 @@ class Settings(BaseSettings):
     mistral_api_key: str = ""
     google_api_key: str = ""
     huggingface_api_key: str = ""
+    huggingface_auth_mode: str = "api_key"
     huggingface_base_url: str = "https://router.huggingface.co/v1"
     huggingface_model: str = "meta-llama/Meta-Llama-3.1-8B-Instruct"
+    huggingface_oauth_access_token: str = ""
+    huggingface_oauth_refresh_token: str = ""
+    huggingface_oauth_client_id: str = ""
+    huggingface_oauth_client_secret: str = ""
+    huggingface_oauth_token_endpoint: str = "https://huggingface.co/oauth/token"
+    huggingface_oauth_expires_at: str = ""
 
     # AWS Bedrock
     aws_access_key_id: str = ""
@@ -50,7 +57,23 @@ class Settings(BaseSettings):
     google_model: str = "gemini-2.5-flash"
 
     # Notion
+    notion_auth_mode: str = "api_key"
     notion_api_key: str = ""
+    notion_oauth_access_token: str = ""
+    notion_oauth_refresh_token: str = ""
+    notion_oauth_client_id: str = ""
+    notion_oauth_client_secret: str = ""
+    notion_oauth_authorization_endpoint: str = "https://api.notion.com/v1/oauth/authorize"
+    notion_oauth_token_endpoint: str = "https://api.notion.com/v1/oauth/token"
+    notion_oauth_redirect_uri: str = ""
+    notion_oauth_expires_at: str = ""
+    notion_oauth_workspace_name: str = ""
+
+    # GitHub dispatch
+    github_dispatch_auth_mode: str = "token"
+    github_app_id: str = ""
+    github_app_private_key: str = ""
+    github_app_installation_id: str = ""
 
     # Ollama
     ollama_enabled: bool = False

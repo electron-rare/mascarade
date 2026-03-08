@@ -50,7 +50,10 @@ def test_list_allowlisted_workflows_returns_curated_surface():
 
 
 @pytest.mark.asyncio
-async def test_dispatch_workflow_requires_token(tmp_path: Path):
+async def test_dispatch_workflow_requires_token(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setenv("GITHUB_DISPATCH_AUTH_MODE", "token")
+    monkeypatch.setenv("KILL_LIFE_GITHUB_TOKEN", "")
+    monkeypatch.setenv("GITHUB_TOKEN", "")
     client = GitHubDispatchClient(
         api_token="",
         state_dir=tmp_path,
@@ -117,3 +120,26 @@ async def test_dispatch_rejects_non_allowlisted_workflow(tmp_path: Path):
 
     with pytest.raises(GitHubDispatchError):
         await client.dispatch_workflow("dangerous.yml")
+
+
+@pytest.mark.asyncio
+async def test_dispatch_supports_github_app_mode(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    fake_http = _FakeAsyncClient([_FakeResponse(204)])
+    client = GitHubDispatchClient(
+        api_token="",
+        state_dir=tmp_path,
+        http_client=fake_http,
+    )
+    monkeypatch.setenv("GITHUB_DISPATCH_AUTH_MODE", "app")
+
+    async def _fake_installation_token() -> dict:
+        return {"token": "ghs_installation_token_123456789", "expires_at": "2026-03-08T12:00:00Z"}
+
+    client.auth_mode = "app"
+    client._request_installation_token = _fake_installation_token  # type: ignore[method-assign]
+
+    dispatch = await client.dispatch_workflow("badges.yml")
+
+    assert dispatch["status"] == "accepted"
+    assert fake_http.calls[0][0] == "POST"
+    assert client.api_token == "ghs_installation_token_123456789"  # noqa: S105

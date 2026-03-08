@@ -23,7 +23,7 @@ from mascarade.auth import (
 from mascarade.cluster import ClusterManager, require_cluster_auth
 from mascarade.config import settings
 from mascarade.integrations.comfyui import ComfyUIClient
-from mascarade.integrations.notion import NotionClient
+from mascarade.integrations.notion import NotionClient, notion_auth_configured
 from mascarade.observability import AgentTraceBuffer, iso_utc_now
 from mascarade.orchestrator import Orchestrator
 from mascarade.orchestrator.engine import ExecutionMode
@@ -60,7 +60,7 @@ async def lifespan(app: FastAPI):
     app.state.orchestrator = orchestrator
     app.state.trace_buffer = trace_buffer
     app.state.cluster = cluster
-    app.state.notion = NotionClient() if settings.notion_api_key else None
+    app.state.notion = NotionClient() if notion_auth_configured() else None
     app.state.comfyui = ComfyUIClient() if settings.comfyui_url else None
 
     registry.load()
@@ -282,7 +282,12 @@ async def providers_status():
 async def update_provider(name: str, req: ProviderKeyUpdate):
     if name not in PROVIDER_REGISTRY:
         raise HTTPException(status_code=404, detail=f"Unknown provider: {name}")
-    result = update_provider_keys(name, req.keys, app.state.router)
+    result = update_provider_keys(
+        name,
+        req.keys,
+        app.state.router,
+        persist_env=False,
+    )
     if "error" in result:
         raise HTTPException(status_code=400, detail=result["error"])
     return result
@@ -643,7 +648,10 @@ async def run_agent_traces(
 def _require_notion() -> NotionClient:
     if app.state.notion is None:
         raise HTTPException(
-            status_code=503, detail="Notion non configure (NOTION_API_KEY manquant)"
+            status_code=503,
+            detail=(
+                "Notion non configure " "(NOTION_API_KEY ou credentials OAuth Notion manquants)"
+            ),
         )
     return app.state.notion
 
