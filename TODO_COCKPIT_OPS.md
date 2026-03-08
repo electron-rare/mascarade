@@ -48,5 +48,6 @@ Le lot local est stable; ce fichier ne porte plus de blocage critique.
 ## 6. Ordre recommande
 
 1. Ne pas rouvrir ce lot sans besoin concret.
-2. Sortir d'abord les bundles locaux multi-repo.
-3. Garder la ligne `MCP/agentics` sur le backlog specialise `Kill_LIFE/specs/mcp_tasks.md`.
+2. Considerer le lot cockpit/ops comme livre apres rejeu vert des checks canoniques du `2026-03-08`.
+3. Sortir d'abord les bundles locaux multi-repo restants, sans reouvrir d'items MCP/ops deja livres.
+4. Garder la ligne `MCP/agentics` sur le backlog specialise `Kill_LIFE/specs/mcp_tasks.md`.
