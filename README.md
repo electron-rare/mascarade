@@ -135,7 +135,14 @@ Editer `.env` et remplir les cles :
 ANTHROPIC_API_KEY=sk-ant-xxxxx          # Claude (best quality)
 OPENAI_API_KEY=sk-xxxxx                 # GPT (fastest)
 MISTRAL_API_KEY=xxxxx                   # Mistral (cheapest)
-GOOGLE_API_KEY=xxxxx                    # Gemini API (optionnel)
+GOOGLE_API_KEY=xxxxx                    # Gemini API (mode api_key)
+GOOGLE_AUTH_MODE=api_key                # or oauth_oidc or adc
+GOOGLE_OAUTH_ACCESS_TOKEN=
+GOOGLE_OAUTH_REFRESH_TOKEN=
+GOOGLE_OAUTH_CLIENT_ID=
+GOOGLE_OAUTH_CLIENT_SECRET=
+GOOGLE_OAUTH_TOKEN_ENDPOINT=https://oauth2.googleapis.com/token
+GOOGLE_OAUTH_EXPIRES_AT=
 HUGGINGFACE_API_KEY=hf_xxxxx            # Hugging Face Inference (mode api_key)
 HUGGINGFACE_AUTH_MODE=api_key           # or oauth_oidc
 HUGGINGFACE_BASE_URL=https://router.huggingface.co/v1
@@ -153,7 +160,7 @@ AWS_SECRET_ACCESS_KEY=...
 AWS_REGION=eu-west-1
 AWS_BEDROCK_MODEL_ID=anthropic.claude-3-5-sonnet-20241022-v2:0
 
-# Google Cloud / Vertex (optionnel)
+# Google Cloud / Vertex (optionnel, requis en mode adc et utilisable aussi avec oauth_oidc)
 GOOGLE_CLOUD_PROJECT=mon-projet
 GOOGLE_CLOUD_LOCATION=europe-west1
 GOOGLE_APPLICATION_CREDENTIALS=/chemin/key.json
@@ -697,10 +704,11 @@ Resilience integree :
 ## Tests
 
 ```bash
-cd core
-source .venv/bin/activate
-python -m pytest -v       # 42 tests
+bash scripts/bootstrap_python_env.sh
+bash scripts/test_python.sh
 ```
+
+Le chemin supporte pour les tests Python du repo est `core/.venv`. Ne lance pas `python3 -m pytest` depuis l'hote sans passer par ce venv.
 
 ---
 
