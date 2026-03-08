@@ -143,6 +143,16 @@ function ProviderCard({
       ? drafts[provider.auth_mode_env]
       : provider.auth_mode;
 
+  const settle = (nextState: SaveState, nextMessage: string) => {
+    setSaveState(nextState);
+    setMessage(nextMessage);
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => {
+      setSaveState("idle");
+      setMessage("");
+    }, 5000);
+  };
+
   const setField = (env: string, value: string) => {
     setDrafts((prev) => ({ ...prev, [env]: value }));
     setSaveState("idle");
@@ -221,13 +231,7 @@ function ProviderCard({
       const field = provider.fields.find((entry) => entry.env === fieldEnv);
       if (field && !field.configured && drafts[fieldEnv] !== undefined) {
         clearDraftField(fieldEnv);
-        setSaveState("ok");
-        setMessage(`${field.label} efface du brouillon`);
-        if (timerRef.current) clearTimeout(timerRef.current);
-        timerRef.current = setTimeout(() => {
-          setSaveState("idle");
-          setMessage("");
-        }, 2500);
+        settle("ok", `${field.label} efface du brouillon`);
         return;
       }
     }
@@ -250,17 +254,12 @@ function ProviderCard({
         setDrafts({});
       }
       await onSaved();
-      setSaveState("ok");
-      setMessage(
+      settle(
+        "ok",
         res.restarted_services?.length
           ? `${scopeLabel || "Valeurs"} efface${fields?.length === 1 ? "e" : "es"}, restart: ${res.restarted_services.join(", ")}`
           : res.message || `${scopeLabel || "Valeurs"} efface${fields?.length === 1 ? "e" : "es"}`,
       );
-      if (timerRef.current) clearTimeout(timerRef.current);
-      timerRef.current = setTimeout(() => {
-        setSaveState("idle");
-        setMessage("");
-      }, 4000);
     } catch (err) {
       setSaveState("error");
       setMessage(err instanceof Error ? err.message : "Erreur");
@@ -268,6 +267,46 @@ function ProviderCard({
   };
 
   useEffect(() => () => { if (timerRef.current) clearTimeout(timerRef.current); }, []);
+
+  useEffect(() => {
+    const handleMessage = (event: MessageEvent) => {
+      const payload = event.data;
+      if (!payload || typeof payload !== "object") {
+        return;
+      }
+      if ((payload as { type?: string }).type !== "mascarade-oauth-result") {
+        return;
+      }
+      const targetProvider = (payload as { provider?: string }).provider;
+      if (targetProvider !== provider.name) {
+        return;
+      }
+      const ok = (payload as { ok?: boolean }).ok === true;
+      const nextMessage =
+        typeof (payload as { message?: string }).message === "string"
+          ? (payload as { message?: string }).message!
+          : ok
+            ? "OAuth linked"
+            : "OAuth failed";
+      void onSaved();
+      settle(ok ? "ok" : "error", nextMessage);
+    };
+    window.addEventListener("message", handleMessage);
+    return () => window.removeEventListener("message", handleMessage);
+  }, [onSaved, provider.name]);
+
+  const connectProviderOAuth = () => {
+    const popup = window.open(
+      `/api/settings/providers/${provider.name}/oauth/start`,
+      `mascarade-${provider.name}-oauth`,
+      "popup=yes,width=720,height=820",
+    );
+    if (!popup) {
+      settle("error", "Popup bloquee");
+      return;
+    }
+    settle("ok", `OAuth ${provider.label} en cours...`);
+  };
 
   const visibleFields = provider.fields.filter((field) => {
     if (!field.auth_modes?.length) {
@@ -283,6 +322,9 @@ function ProviderCard({
     provider.configured ||
     (provider.enabled ?? false) ||
     provider.fields.some((field) => field.configured);
+  const supportsOAuthPopup =
+    selectedAuthMode === "oauth_oidc" &&
+    (provider.name === "huggingface" || provider.name === "google");
 
   return (
     <div className="rounded-[1.4rem] border border-border/80 bg-black/25 p-5">
@@ -392,6 +434,16 @@ function ProviderCard({
           )}
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          {supportsOAuthPopup && (
+            <button
+              type="button"
+              disabled={saveState === "saving"}
+              onClick={connectProviderOAuth}
+              className="rounded-2xl border border-[#214e31] bg-[#0c170f]/80 px-4 py-2 text-[11px] uppercase tracking-[0.16em] text-[#8cffb7] transition hover:border-[#2d6942] hover:bg-[#0f2116] disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              connect
+            </button>
+          )}
           <button
             type="button"
             disabled={!canClear || saveState === "saving"}

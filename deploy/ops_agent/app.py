@@ -1841,7 +1841,8 @@ async def logs_stream(
     include_events: bool = Query(default=True),
     include_routine: bool = Query(default=False),
     severity: str = Query(default="info"),
-    backfill: int = Query(default=40, ge=0, le=200),
+    backfill: int = Query(default=20, ge=0, le=120),
+    live_limit: int = Query(default=24, ge=5, le=120),
     poll_interval_ms: int = Query(default=1200, ge=250, le=10000),
 ):
     service_filter = parse_csv_set(services)
@@ -1887,7 +1888,7 @@ async def logs_stream(
 
             emitted = False
             window_seconds = max(30, int((poll_interval_ms / 1000) * 20))
-            batch = await collect_entries(max(backfill, 60), window_seconds)
+            batch = await collect_entries(max(backfill, live_limit), window_seconds)
             for entry in select_new_entries(
                 batch,
                 seen_ids=seen_ids,
