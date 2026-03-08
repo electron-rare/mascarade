@@ -25,6 +25,12 @@ module_api_compose() {
     echo "    depends_on:"
     echo "      - core"
   fi
+  echo "    healthcheck:"
+  echo "      test: [\"CMD-SHELL\", \"node -e \\\"fetch('http://127.0.0.1:3000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\\\"\"]"
+  echo "      interval: 15s"
+  echo "      timeout: 5s"
+  echo "      retries: 10"
+  echo "      start_period: 20s"
   echo "    networks:"
   echo "      - mascarade-network"
 }

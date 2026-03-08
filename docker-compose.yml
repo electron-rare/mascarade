@@ -58,7 +58,7 @@ services:
     depends_on:
       - core
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/health >/dev/null"]
+      test: ["CMD-SHELL", "node -e \"fetch('http://127.0.0.1:3000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""]
       interval: 15s
       timeout: 5s
       retries: 10
@@ -479,6 +479,14 @@ services:
       dockerfile: deploy/Dockerfile.ops-agent
     container_name: mascarade-ops-agent
     restart: unless-stopped
+    gpus: all
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
     ports:
       - "${PUBLISH_BIND_HOST:-0.0.0.0}:${OPS_AGENT_PORT:-9200}:9200"
     env_file:
@@ -491,6 +499,8 @@ services:
       MASCARADE_DIR: ${MASCARADE_DIR:-/home/clems/mascarade}
       MASCARADE_API_BASE_URL: ${MASCARADE_API_BASE_URL:-http://api:3000}
       OPS_MCP_PROBE_CACHE_TTL_MS: ${OPS_MCP_PROBE_CACHE_TTL_MS:-15000}
+      NVIDIA_VISIBLE_DEVICES: all
+      NVIDIA_DRIVER_CAPABILITIES: utility
       NOTION_API_KEY: ${NOTION_API_KEY:-}
       KILL_LIFE_GITHUB_TOKEN: ${KILL_LIFE_GITHUB_TOKEN:-}
       GITHUB_TOKEN: ${GITHUB_TOKEN:-}

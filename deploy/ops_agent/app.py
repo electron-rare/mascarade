@@ -338,6 +338,10 @@ class ProviderUpdateRequest(BaseModel):
     keys: dict[str, str] = Field(default_factory=dict)
 
 
+class ProviderClearRequest(BaseModel):
+    fields: list[str] | None = Field(default=None)
+
+
 def is_routine_service_message(service: str, severity: str, message: str) -> bool:
     if severity_rank(severity) >= severity_rank("warning"):
         return False
@@ -839,6 +843,36 @@ def normalize_provider_updates(
     return normalized
 
 
+def provider_clear_updates(
+    meta: dict[str, Any], fields: list[str] | None = None
+) -> dict[str, str]:
+    allowed_fields = valid_provider_envs(meta)
+    selected_fields = (
+        allowed_fields if fields is None else {str(field) for field in fields}
+    )
+    unknown_fields = sorted(selected_fields - allowed_fields)
+    if unknown_fields:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unknown field(s): {', '.join(unknown_fields)}",
+        )
+
+    updates: dict[str, str] = {}
+    auth_mode_meta = meta.get("auth_mode")
+    if auth_mode_meta and str(auth_mode_meta["env"]) in selected_fields:
+        updates[str(auth_mode_meta["env"])] = str(
+            auth_mode_meta.get("default", "")
+        ).strip()
+    toggle_meta = meta.get("toggle")
+    if toggle_meta and str(toggle_meta["env"]) in selected_fields:
+        updates[str(toggle_meta["env"])] = "false"
+    for field in meta["fields"]:
+        env_name = str(field["env"])
+        if env_name in selected_fields:
+            updates[env_name] = ""
+    return updates
+
+
 def client_token_for_auth(value: str | None) -> str | None:
     if not value:
         return None
@@ -942,6 +976,31 @@ async def persist_provider_updates(
         "message": "Provider settings updated",
         "provider": provider_name,
         "updated_env": sorted(normalized_updates),
+        "restarted_services": ["core"],
+    }
+
+
+async def clear_provider_settings(
+    provider_name: str, fields: list[str] | None = None
+) -> dict[str, Any]:
+    meta = resolve_provider(provider_name)
+    clear_updates = provider_clear_updates(meta, fields)
+    if not clear_updates:
+        raise HTTPException(
+            status_code=400, detail="No provider fields selected for clear"
+        )
+
+    async with _runtime_secret_lock:
+        write_env_updates(clear_updates)
+        apply_runtime_env_updates(clear_updates)
+        await recreate_compose_services(["core"])
+        await wait_for_core_ready()
+
+    return {
+        "status": "ok",
+        "message": "Provider settings cleared",
+        "provider": provider_name,
+        "cleared_env": sorted(clear_updates),
         "restarted_services": ["core"],
     }
 
@@ -1535,12 +1594,21 @@ def gpu_available() -> bool:
 
 def gpu_probe() -> dict[str, Any]:
     """Run nvidia-smi and return structured GPU status."""
-    if not gpu_available():
-        return {"available": False, "kind": "nvidia-smi"}
+    nvidia_smi = shutil.which("nvidia-smi")
+    if not nvidia_smi:
+        return {
+            "available": False,
+            "kind": "nvidia-smi",
+            "error": "nvidia-smi unavailable in ops-agent runtime",
+            "runtime": {
+                "visible_devices": os.getenv("NVIDIA_VISIBLE_DEVICES") or "",
+                "driver_capabilities": os.getenv("NVIDIA_DRIVER_CAPABILITIES") or "",
+            },
+        }
     try:
         result = __import__("subprocess").run(
             [
-                "nvidia-smi",
+                nvidia_smi,
                 "--query-gpu=name,memory.total,memory.used,memory.free,utilization.gpu,temperature.gpu",
                 "--format=csv,noheader,nounits",
             ],
@@ -1617,6 +1685,15 @@ async def provider_update(
     _auth: None = Depends(require_admin_auth),
 ):
     return await persist_provider_updates(provider_name, payload.keys)
+
+
+@app.post("/providers/{provider_name}/clear")
+async def provider_clear(
+    provider_name: str,
+    payload: ProviderClearRequest,
+    _auth: None = Depends(require_admin_auth),
+):
+    return await clear_provider_settings(provider_name, payload.fields)
 
 
 @app.get("/health")
