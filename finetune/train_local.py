@@ -232,6 +232,35 @@ def supports_bf16() -> bool:
     return bool(torch.cuda.is_available() and torch.cuda.is_bf16_supported())
 
 
+def supports_tf32() -> bool:
+    if not torch.cuda.is_available():
+        return False
+    major, _minor = torch.cuda.get_device_capability(0)
+    return major >= 8
+
+
+def resolve_tf32_enabled() -> bool:
+    requested = os.environ.get("MASCARADE_TF32", "auto").strip().lower()
+    if requested in {"0", "false", "off", "disabled"}:
+        return False
+
+    candidate = supports_tf32() if requested in {"", "auto"} else True
+    if not candidate:
+        return False
+
+    # TrainingArguments performs its own runtime validation and is stricter
+    # than a plain compute-capability check on some mixed/legacy CUDA setups.
+    try:
+        TrainingArguments(
+            output_dir=os.path.join(SCRIPT_DIR, ".tf32_probe"),
+            tf32=True,
+            report_to="none",
+        )
+    except Exception:
+        return False
+    return True
+
+
 def resolve_compute_dtype() -> torch.dtype:
     return torch.bfloat16 if supports_bf16() else torch.float16
 
@@ -454,10 +483,11 @@ def train_domain(
     # 3. Load model with 4-bit quantization
     emit("\n[3/5] Loading model (4-bit quantized)...")
     os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
-    torch.backends.cuda.matmul.allow_tf32 = True
-    torch.backends.cudnn.allow_tf32 = True
+    tf32_enabled = resolve_tf32_enabled()
+    torch.backends.cuda.matmul.allow_tf32 = tf32_enabled
+    torch.backends.cudnn.allow_tf32 = tf32_enabled
     if hasattr(torch, "set_float32_matmul_precision"):
-        torch.set_float32_matmul_precision("high")
+        torch.set_float32_matmul_precision("high" if tf32_enabled else "highest")
 
     compute_dtype = resolve_compute_dtype()
     attn_implementation = resolve_attention_implementation()
@@ -487,6 +517,7 @@ def train_domain(
         f"  Attention: {resolved_attn_implementation or 'default'}",
         important=verbose,
     )
+    emit(f"  TF32: {'on' if tf32_enabled else 'off'}", important=verbose)
 
     # 4. Configure LoRA
     emit("\n[4/5] Configuring LoRA...")
@@ -518,7 +549,7 @@ def train_domain(
         warmup_steps=50,
         fp16=compute_dtype == torch.float16,
         bf16=compute_dtype == torch.bfloat16,
-        tf32=True,
+        tf32=tf32_enabled,
         optim="paged_adamw_8bit",
         logging_steps=25,
         logging_strategy="no" if quiet else "steps",
@@ -570,6 +601,7 @@ def train_domain(
         "tokenize_workers": resolved_tokenize_workers,
         "packing": used_packing,
         "compute_dtype": "bf16" if compute_dtype == torch.bfloat16 else "fp16",
+        "tf32": tf32_enabled,
         "attention_implementation": resolved_attn_implementation or "default",
     }
     with open(os.path.join(output_dir, "training_info.json"), "w") as f:

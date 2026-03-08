@@ -8,6 +8,7 @@ Lecture recommandee:
 - recap methodes / etat de l art 2026: `docs/FINETUNING_ETAT_DE_L_ART_2026-03-06.md`
 - plan 4090 / scheduling parallele: `docs/FINETUNING_4090_PARALLEL_PLAN.md`
 - bench selector vs manuel sur P2000: `docs/MODEL_SELECTOR_BENCH_2026-03-08.md`
+- bench GPU slots 1 vs 2 sur P2000: `docs/GPU_SLOT_BENCH_P2000_2026-03-08.md`
 
 ## Quick Start Local
 
@@ -228,6 +229,7 @@ Ce workflow:
 
 - lit `finetune/datasets/<domain>_chat.jsonl`
 - demande au teacher de produire des variantes/distillations au format ShareGPT
+- recharge `MASCARADE_API_KEY` depuis `.env` pour `distill_dataset.py` et `distill_and_train.py` si elle n est pas deja exportee
 - écrit un dataset distillé dans `finetune/datasets/distilled/`
 - fusionne source + distillation avec déduplication
 - lance ensuite `run_local.py` sur le dataset fusionné
@@ -245,6 +247,34 @@ Scripts concernés:
 - `finetune/distill_dataset.py`: génère le dataset distillé
 - `finetune/distill_and_train.py`: enchaîne distillation, merge et training
 - `scripts/distill_and_train.sh`: wrapper shell
+
+## Promotion locale d un run valide
+
+Quand un batch ou un run local est valide, on peut declarer un adapter comme
+modele promu local dans un registre stable pour l operateur:
+
+```bash
+python finetune/promote_model.py \
+  --run finetune/runs/<run_label>_<timestamp> \
+  --domain spice \
+  --alias spice_local_v1
+```
+
+Les runs de benchmark `finetune/bench_gpu_slots.py` sont aussi promotables:
+
+```bash
+python finetune/promote_model.py \
+  --run finetune/runs/p2000_train_clean_slots2_20260308_155928/bench.json \
+  --domain esp32 \
+  --alias esp32_local_v1
+```
+
+Ce que fait la promotion:
+
+- lit un `manifest.json` batch ou un `bench.json` de benchmark
+- pointe vers l `adapter`, le `training_info.json`, le `run.json` enfant et le plan `llmfit`
+- ecrit un registre local `finetune/promoted_models.local.json`
+- n ajoute aucun gros artefact au Git: seul le registre machine-local est mis a jour
 
 ## Batch multi-domaine
 
