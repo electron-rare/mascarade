@@ -161,13 +161,13 @@ brainstorm = Agent(
     max_tokens=4096,
 )
 
-# --- Notion Scribe ---
+# --- Knowledge Scribe ---
 
-notion_scribe = Agent(
-    name="notion-scribe",
-    description="Formate du contenu pour Notion (logs, notes, rapports)",
+knowledge_scribe = Agent(
+    name="knowledge-scribe",
+    description="Formate du contenu pour la knowledge base (notes, rapports, logs)",
     system_prompt=(
-        "Tu es un assistant spécialisé en formatage pour Notion. "
+        "Tu es un assistant spécialisé en formatage pour une knowledge base self-hosted. "
         "Transforme le contenu brut en texte bien structuré et lisible : "
         "utilise des titres, bullet points, callouts, toggles et tableaux. "
         "Sois concis et visuel. "
@@ -275,7 +275,7 @@ ALL_SKILLS: list[Agent] = [
     translator,
     analyst,
     brainstorm,
-    notion_scribe,
+    knowledge_scribe,
     planner,
     classifier,
     image_generator,

@@ -23,8 +23,13 @@ from mascarade.auth import (
 from mascarade.cluster import ClusterManager, require_cluster_auth
 from mascarade.config import settings
 from mascarade.integrations.comfyui import ComfyUIClient
-from mascarade.integrations.notion import NotionClient, notion_auth_configured
-from mascarade.observability import AgentTraceBuffer, iso_utc_now
+from mascarade.integrations.knowledge_base import (
+    knowledge_base_auth_configured,
+    knowledge_base_status_detail,
+)
+from mascarade.mcp import McpCallError, McpRuntimeClient, McpServerUnavailable
+from mascarade.mcp.client import McpError
+from mascarade.observability import AgentTraceBuffer, iso_utc_now, new_run_id
 from mascarade.orchestrator import Orchestrator
 from mascarade.orchestrator.engine import ExecutionMode
 from mascarade.provider_admin import (
@@ -60,14 +65,12 @@ async def lifespan(app: FastAPI):
     app.state.orchestrator = orchestrator
     app.state.trace_buffer = trace_buffer
     app.state.cluster = cluster
-    app.state.notion = NotionClient() if notion_auth_configured() else None
+    app.state.mcp = McpRuntimeClient(trace_buffer=trace_buffer)
     app.state.comfyui = ComfyUIClient() if settings.comfyui_url else None
 
     registry.load()
     yield
 
-    if app.state.notion is not None:
-        await app.state.notion.close()
     if app.state.comfyui is not None:
         await app.state.comfyui.close()
 
@@ -136,19 +139,65 @@ class ClusterForwardSendRequest(SendRequest):
     allow_local: bool = True
 
 
-class NotionAppendRequest(BaseModel):
+class KnowledgeBaseAppendRequest(BaseModel):
     content: str = Field(min_length=1, max_length=50_000)
 
 
-class NotionCreateRequest(BaseModel):
+class KnowledgeBaseCreateRequest(BaseModel):
     parent_id: str = Field(max_length=200)
     title: str = Field(max_length=500)
     content: str = Field(default="", max_length=50_000)
 
 
-class NotionScribeRequest(BaseModel):
+class KnowledgeScribeRequest(BaseModel):
     messages: list[Message] = Field(max_length=200)
     push_to: str | None = Field(default=None, max_length=200)
+    run_id: str | None = Field(default=None, max_length=64)
+
+
+class GitHubDispatchRequest(BaseModel):
+    workflow_file: str = Field(min_length=1, max_length=200)
+    ref: str | None = Field(default=None, max_length=200)
+    inputs: dict[str, str | int | float | bool] = Field(default_factory=dict)
+    run_id: str | None = Field(default=None, max_length=64)
+
+
+class GitHubDispatchStatusRequest(BaseModel):
+    dispatch_id: str = Field(min_length=1, max_length=200)
+    run_id: str | None = Field(default=None, max_length=64)
+
+
+class FreeCADCreateDocumentRequest(BaseModel):
+    output_path: str = Field(min_length=1, max_length=400)
+    name: str = Field(default="McpDocument", min_length=1, max_length=80)
+    primitive: Literal["box"] = "box"
+    length: float = Field(default=10.0, gt=0, le=10_000)
+    width: float = Field(default=8.0, gt=0, le=10_000)
+    height: float = Field(default=6.0, gt=0, le=10_000)
+    run_id: str | None = Field(default=None, max_length=64)
+
+
+class FreeCADExportDocumentRequest(BaseModel):
+    document_path: str = Field(min_length=1, max_length=400)
+    output_path: str = Field(min_length=1, max_length=400)
+    run_id: str | None = Field(default=None, max_length=64)
+
+
+class FreeCADRunScriptRequest(BaseModel):
+    script: str = Field(min_length=1, max_length=20_000)
+    output_path: str | None = Field(default=None, max_length=400)
+    run_id: str | None = Field(default=None, max_length=64)
+
+
+class OpenSCADValidateRequest(BaseModel):
+    source: str = Field(min_length=1, max_length=20_000)
+    run_id: str | None = Field(default=None, max_length=64)
+
+
+class OpenSCADRenderRequest(BaseModel):
+    source: str = Field(min_length=1, max_length=20_000)
+    output_path: str = Field(min_length=1, max_length=400)
+    run_id: str | None = Field(default=None, max_length=64)
 
 
 class ComfyUIGenerateRequest(BaseModel):
@@ -205,6 +254,26 @@ def _serialize_agent(agent: Agent) -> dict[str, object]:
         "max_tokens": agent.max_tokens,
         "builtin": app.state.registry.is_builtin(agent.name),
     }
+
+
+def _mcp_http_exception(error: McpError) -> HTTPException:
+    detail = error.structured_content.get("error") if error.structured_content else None
+    code = ""
+    if isinstance(detail, dict):
+        code = str(detail.get("code") or "").strip()
+    if not code:
+        code = str(error.error_code or "").strip()
+
+    if code == "invalid_arguments":
+        status = 400
+    elif code == "missing_secret":
+        status = 503
+    elif isinstance(error, McpServerUnavailable):
+        status = 503
+    else:
+        status = 502
+
+    return HTTPException(status_code=status, detail=str(error))
 
 
 # --- Gestion des cles API ---
@@ -642,56 +711,109 @@ async def run_agent_traces(
     }
 
 
-# --- Notion ---
+# --- Knowledge Base ---
 
 
-def _require_notion() -> NotionClient:
-    if app.state.notion is None:
+def _require_mcp_client() -> McpRuntimeClient:
+    if not hasattr(app.state, "mcp"):
+        raise HTTPException(status_code=503, detail="MCP runtime non initialise")
+    return app.state.mcp
+
+
+def _require_knowledge_base() -> McpRuntimeClient:
+    if not knowledge_base_auth_configured():
         raise HTTPException(
             status_code=503,
-            detail=(
-                "Notion non configure " "(NOTION_API_KEY ou credentials OAuth Notion manquants)"
-            ),
+            detail=knowledge_base_status_detail(),
         )
-    return app.state.notion
+    return _require_mcp_client()
 
 
-@protected.get("/notion/search")
-async def notion_search(q: str):
+@protected.get("/knowledge-base/search")
+async def knowledge_base_search(q: str):
     if len(q) > 1000:
         raise HTTPException(status_code=400, detail="Search query too long (max 1000 chars)")
-    client = _require_notion()
-    results = await client.search(q)
-    return {"results": results}
-
-
-@protected.get("/notion/pages/{page_id}")
-async def notion_read_page(page_id: str):
-    client = _require_notion()
-    content = await client.read_page(page_id)
-    return {"page_id": page_id, "content": content}
-
-
-@protected.post("/notion/pages/{page_id}/append")
-async def notion_append(page_id: str, req: NotionAppendRequest):
-    client = _require_notion()
-    await client.append_to_page(page_id, req.content)
-    return {"status": "ok", "page_id": page_id}
-
-
-@protected.post("/notion/pages")
-async def notion_create_page(req: NotionCreateRequest):
-    client = _require_notion()
-    page_id = await client.create_page(req.parent_id, req.title, req.content)
-    return {"page_id": page_id}
-
-
-@protected.post("/agents/notion-scribe/run-and-push")
-async def run_notion_scribe_and_push(req: NotionScribeRequest):
+    client = _require_knowledge_base()
     try:
-        agent = app.state.registry.get("notion-scribe")
+        payload = await client.knowledge_base_search(
+            q,
+            mode="http",
+            agent_name="knowledge-base-api",
+        )
+    except (McpCallError, McpServerUnavailable) as exc:
+        raise _mcp_http_exception(exc) from exc
+    return {
+        "results": payload.get("results") or [],
+        "provider": payload.get("provider"),
+        "provider_label": payload.get("provider_label"),
+    }
+
+
+@protected.get("/knowledge-base/pages/{page_id}")
+async def knowledge_base_read_page(page_id: str):
+    client = _require_knowledge_base()
+    try:
+        payload = await client.knowledge_base_read_page(
+            page_id,
+            mode="http",
+            agent_name="knowledge-base-api",
+        )
+    except (McpCallError, McpServerUnavailable) as exc:
+        raise _mcp_http_exception(exc) from exc
+    return {
+        "page_id": page_id,
+        "content": payload.get("content") or "",
+        "provider": payload.get("provider"),
+        "provider_label": payload.get("provider_label"),
+    }
+
+
+@protected.post("/knowledge-base/pages/{page_id}/append")
+async def knowledge_base_append(page_id: str, req: KnowledgeBaseAppendRequest):
+    client = _require_knowledge_base()
+    try:
+        payload = await client.knowledge_base_append(
+            page_id,
+            req.content,
+            mode="http",
+            agent_name="knowledge-base-api",
+        )
+    except (McpCallError, McpServerUnavailable) as exc:
+        raise _mcp_http_exception(exc) from exc
+    return {
+        "status": "ok",
+        "page_id": page_id,
+        "provider": payload.get("provider"),
+        "provider_label": payload.get("provider_label"),
+    }
+
+
+@protected.post("/knowledge-base/pages")
+async def knowledge_base_create_page(req: KnowledgeBaseCreateRequest):
+    client = _require_knowledge_base()
+    try:
+        payload = await client.knowledge_base_create_page(
+            req.parent_id,
+            req.title,
+            req.content,
+            mode="http",
+            agent_name="knowledge-base-api",
+        )
+    except (McpCallError, McpServerUnavailable) as exc:
+        raise _mcp_http_exception(exc) from exc
+    return {
+        "page_id": payload.get("page_id") or "",
+        "provider": payload.get("provider"),
+        "provider_label": payload.get("provider_label"),
+    }
+
+
+@protected.post("/agents/knowledge-scribe/run-and-push")
+async def run_knowledge_scribe_and_push(req: KnowledgeScribeRequest):
+    try:
+        agent = app.state.registry.get("knowledge-scribe")
     except KeyError:
-        raise HTTPException(status_code=404, detail="Agent 'notion-scribe' not found") from None
+        raise HTTPException(status_code=404, detail="Agent 'knowledge-scribe' not found") from None
 
     messages = [m.model_dump() for m in req.messages]
     prompt = messages[-1]["content"]
@@ -703,16 +825,228 @@ async def run_notion_scribe_and_push(req: NotionScribeRequest):
         "model": response.model,
         "provider": response.provider,
         "usage": response.usage,
-        "pushed_to_notion": False,
+        "pushed_to_knowledge_base": False,
+        "run_id": req.run_id,
     }
 
     if req.push_to:
-        client = _require_notion()
-        await client.append_to_page(req.push_to, response.content)
-        result["pushed_to_notion"] = True
-        result["notion_page_id"] = req.push_to
+        client = _require_knowledge_base()
+        trace_run_id = req.run_id or new_run_id()
+        try:
+            payload = await client.knowledge_base_append(
+                req.push_to,
+                response.content,
+                run_id=trace_run_id,
+                mode="knowledge-scribe",
+                step=0,
+                agent_name="knowledge-scribe",
+            )
+        except (McpCallError, McpServerUnavailable) as exc:
+            raise _mcp_http_exception(exc) from exc
+        result["pushed_to_knowledge_base"] = True
+        result["knowledge_base_page_id"] = req.push_to
+        result["knowledge_base_provider"] = payload.get("provider")
+        result["knowledge_base_provider_label"] = payload.get("provider_label")
+        result["run_id"] = trace_run_id
 
     return result
+
+
+# --- GitHub dispatch MCP facade ---
+
+
+@protected.get("/mcp/github-dispatch/workflows")
+async def github_dispatch_workflows():
+    client = _require_mcp_client()
+    try:
+        payload = await client.github_list_allowlisted_workflows(
+            mode="http",
+            agent_name="github-dispatch-api",
+        )
+    except (McpCallError, McpServerUnavailable) as exc:
+        raise _mcp_http_exception(exc) from exc
+
+    return payload
+
+
+@protected.post("/mcp/github-dispatch/dispatch")
+async def github_dispatch_dispatch(req: GitHubDispatchRequest):
+    client = _require_mcp_client()
+    try:
+        payload = await client.github_dispatch_workflow(
+            req.workflow_file,
+            ref=req.ref,
+            inputs=req.inputs,
+            run_id=req.run_id,
+            mode="github-dispatch",
+            step=0,
+            agent_name="github-dispatch",
+        )
+    except (McpCallError, McpServerUnavailable) as exc:
+        raise _mcp_http_exception(exc) from exc
+    return payload
+
+
+@protected.post("/mcp/github-dispatch/status")
+async def github_dispatch_status(req: GitHubDispatchStatusRequest):
+    client = _require_mcp_client()
+    try:
+        payload = await client.github_get_dispatch_status(
+            req.dispatch_id,
+            run_id=req.run_id,
+            mode="github-dispatch",
+            step=0,
+            agent_name="github-dispatch",
+        )
+    except (McpCallError, McpServerUnavailable) as exc:
+        raise _mcp_http_exception(exc) from exc
+    return payload
+
+
+# --- FreeCAD / OpenSCAD MCP facade ---
+
+
+@protected.get("/mcp/freecad/runtime")
+async def freecad_runtime_info(run_id: str | None = Query(default=None, max_length=64)):
+    client = _require_mcp_client()
+    trace_run_id = run_id or new_run_id()
+    try:
+        payload = await client.freecad_get_runtime_info(
+            run_id=trace_run_id,
+            mode="freecad",
+            step=0,
+            agent_name="freecad",
+        )
+    except (McpCallError, McpServerUnavailable) as exc:
+        raise _mcp_http_exception(exc) from exc
+    return {**payload, "run_id": trace_run_id}
+
+
+@protected.post("/mcp/freecad/documents")
+async def freecad_create_document(req: FreeCADCreateDocumentRequest):
+    client = _require_mcp_client()
+    trace_run_id = req.run_id or new_run_id()
+    try:
+        payload = await client.freecad_create_document(
+            req.output_path,
+            name=req.name,
+            primitive=req.primitive,
+            length=req.length,
+            width=req.width,
+            height=req.height,
+            run_id=trace_run_id,
+            mode="freecad",
+            step=0,
+            agent_name="freecad",
+        )
+    except (McpCallError, McpServerUnavailable) as exc:
+        raise _mcp_http_exception(exc) from exc
+    return {**payload, "run_id": trace_run_id}
+
+
+@protected.post("/mcp/freecad/export")
+async def freecad_export_document(req: FreeCADExportDocumentRequest):
+    client = _require_mcp_client()
+    trace_run_id = req.run_id or new_run_id()
+    try:
+        payload = await client.freecad_export_document(
+            req.document_path,
+            req.output_path,
+            run_id=trace_run_id,
+            mode="freecad",
+            step=0,
+            agent_name="freecad",
+        )
+    except (McpCallError, McpServerUnavailable) as exc:
+        raise _mcp_http_exception(exc) from exc
+    return {**payload, "run_id": trace_run_id}
+
+
+@protected.post("/mcp/freecad/script")
+async def freecad_run_script(req: FreeCADRunScriptRequest):
+    client = _require_mcp_client()
+    trace_run_id = req.run_id or new_run_id()
+    try:
+        payload = await client.freecad_run_python_script(
+            req.script,
+            output_path=req.output_path,
+            run_id=trace_run_id,
+            mode="freecad",
+            step=0,
+            agent_name="freecad",
+        )
+    except (McpCallError, McpServerUnavailable) as exc:
+        raise _mcp_http_exception(exc) from exc
+    return {**payload, "run_id": trace_run_id}
+
+
+@protected.get("/mcp/openscad/runtime")
+async def openscad_runtime_info(run_id: str | None = Query(default=None, max_length=64)):
+    client = _require_mcp_client()
+    trace_run_id = run_id or new_run_id()
+    try:
+        payload = await client.openscad_get_runtime_info(
+            run_id=trace_run_id,
+            mode="openscad",
+            step=0,
+            agent_name="openscad",
+        )
+    except (McpCallError, McpServerUnavailable) as exc:
+        raise _mcp_http_exception(exc) from exc
+    return {**payload, "run_id": trace_run_id}
+
+
+@protected.post("/mcp/openscad/validate")
+async def openscad_validate_model(req: OpenSCADValidateRequest):
+    client = _require_mcp_client()
+    trace_run_id = req.run_id or new_run_id()
+    try:
+        payload = await client.openscad_validate_model(
+            req.source,
+            run_id=trace_run_id,
+            mode="openscad",
+            step=0,
+            agent_name="openscad",
+        )
+    except (McpCallError, McpServerUnavailable) as exc:
+        raise _mcp_http_exception(exc) from exc
+    return {**payload, "run_id": trace_run_id}
+
+
+@protected.post("/mcp/openscad/render")
+async def openscad_render_model(req: OpenSCADRenderRequest):
+    client = _require_mcp_client()
+    trace_run_id = req.run_id or new_run_id()
+    try:
+        payload = await client.openscad_render_model(
+            req.source,
+            req.output_path,
+            run_id=trace_run_id,
+            mode="openscad",
+            step=0,
+            agent_name="openscad",
+        )
+    except (McpCallError, McpServerUnavailable) as exc:
+        raise _mcp_http_exception(exc) from exc
+    return {**payload, "run_id": trace_run_id}
+
+
+@protected.post("/mcp/openscad/export")
+async def openscad_export_model(req: OpenSCADRenderRequest):
+    client = _require_mcp_client()
+    trace_run_id = req.run_id or new_run_id()
+    try:
+        payload = await client.openscad_export_model(
+            req.source,
+            req.output_path,
+            run_id=trace_run_id,
+            mode="openscad",
+            step=0,
+            agent_name="openscad",
+        )
+    except (McpCallError, McpServerUnavailable) as exc:
+        raise _mcp_http_exception(exc) from exc
+    return {**payload, "run_id": trace_run_id}
 
 
 # --- ComfyUI ---

@@ -1,0 +1,783 @@
+"""Internal stdio MCP client for local Kill_LIFE launchers."""
+
+from __future__ import annotations
+
+import asyncio
+import json
+import logging
+import os
+import time
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any
+
+from mascarade.observability import AgentTraceBuffer
+
+logger = logging.getLogger("mascarade.mcp.client")
+
+DEFAULT_PROTOCOL_VERSION = "2025-03-26"
+DEFAULT_MASCARADE_DIR = Path(os.getenv("MASCARADE_DIR", "/home/clems/mascarade")).resolve()
+DEFAULT_KILL_LIFE_ROOT = Path(os.getenv("KILL_LIFE_ROOT", "/home/clems/Kill_LIFE")).resolve()
+DEFAULT_MASCARADE_ENV_FILE = Path(
+    os.getenv("MASCARADE_ENV_FILE", DEFAULT_MASCARADE_DIR / ".env")
+).resolve()
+
+
+@dataclass(slots=True)
+class McpServerDefinition:
+    key: str
+    launcher: Path
+    timeout_s: float = 45.0
+    transport: str = "stdio"
+
+
+@dataclass(slots=True)
+class McpToolResult:
+    server_key: str
+    tool_name: str
+    structured_content: dict[str, Any]
+    message: str
+    protocol_version: str | None
+    server_name: str | None
+    is_error: bool
+    latency_ms: float
+    transport: str = "stdio"
+
+
+class McpError(RuntimeError):
+    def __init__(
+        self,
+        message: str,
+        *,
+        server_key: str,
+        tool_name: str | None = None,
+        protocol_version: str | None = None,
+        transport: str = "stdio",
+        latency_ms: float | None = None,
+        structured_content: dict[str, Any] | None = None,
+        error_code: str | None = None,
+    ) -> None:
+        super().__init__(message)
+        self.server_key = server_key
+        self.tool_name = tool_name
+        self.protocol_version = protocol_version
+        self.transport = transport
+        self.latency_ms = latency_ms
+        self.structured_content = structured_content or {}
+        self.error_code = error_code
+
+
+class McpServerUnavailable(McpError):
+    """The target MCP server could not be started or initialized."""
+
+
+class McpCallError(McpError):
+    """The MCP server answered, but the requested tool call failed."""
+
+
+def _message_text(payload: dict[str, Any]) -> str:
+    content = payload.get("content")
+    if isinstance(content, list):
+        for item in content:
+            if isinstance(item, dict) and item.get("type") == "text":
+                text = str(item.get("text") or "").strip()
+                if text:
+                    return text
+    return ""
+
+
+async def _read_message(
+    stdout: asyncio.StreamReader,
+) -> dict[str, Any] | None:
+    headers: dict[str, str] = {}
+    while True:
+        line = await stdout.readline()
+        if not line:
+            return None
+        if line in (b"\r\n", b"\n"):
+            break
+        key, _, value = line.decode("utf-8").partition(":")
+        headers[key.strip().lower()] = value.strip()
+
+    content_length = int(headers.get("content-length", "0") or "0")
+    if content_length <= 0:
+        return None
+
+    body = await stdout.readexactly(content_length)
+    return json.loads(body.decode("utf-8"))
+
+
+async def _write_message(
+    stdin: asyncio.StreamWriter,
+    payload: dict[str, Any],
+) -> None:
+    body = json.dumps(payload).encode("utf-8")
+    stdin.write(f"Content-Length: {len(body)}\r\n\r\n".encode())
+    stdin.write(body)
+    await stdin.drain()
+
+
+class McpRuntimeClient:
+    """Thin async stdio client for local MCP launchers."""
+
+    def __init__(
+        self,
+        *,
+        trace_buffer: AgentTraceBuffer | None = None,
+        mascarade_dir: Path | None = None,
+        kill_life_root: Path | None = None,
+        mascarade_env_file: Path | None = None,
+    ) -> None:
+        self.trace_buffer = trace_buffer
+        self.mascarade_dir = (mascarade_dir or DEFAULT_MASCARADE_DIR).resolve()
+        self.kill_life_root = (kill_life_root or DEFAULT_KILL_LIFE_ROOT).resolve()
+        self.mascarade_env_file = (mascarade_env_file or DEFAULT_MASCARADE_ENV_FILE).resolve()
+        self._servers: dict[str, McpServerDefinition] = {
+            "knowledge-base": McpServerDefinition(
+                key="knowledge-base",
+                launcher=self.kill_life_root / "tools" / "run_knowledge_base_mcp.sh",
+                timeout_s=35.0,
+            ),
+            "github-dispatch": McpServerDefinition(
+                key="github-dispatch",
+                launcher=self.kill_life_root / "tools" / "run_github_dispatch_mcp.sh",
+                timeout_s=45.0,
+            ),
+            "freecad": McpServerDefinition(
+                key="freecad",
+                launcher=self.kill_life_root / "tools" / "run_freecad_mcp.sh",
+                timeout_s=60.0,
+            ),
+            "openscad": McpServerDefinition(
+                key="openscad",
+                launcher=self.kill_life_root / "tools" / "run_openscad_mcp.sh",
+                timeout_s=60.0,
+            ),
+        }
+
+    def _server(self, server_key: str) -> McpServerDefinition:
+        try:
+            return self._servers[server_key]
+        except KeyError as exc:  # pragma: no cover - programming error
+            raise McpServerUnavailable(
+                f"Unknown MCP server '{server_key}'",
+                server_key=server_key,
+            ) from exc
+
+    def _trace(
+        self,
+        *,
+        run_id: str | None,
+        mode: str,
+        step: int,
+        agent_name: str | None,
+        event_type: str,
+        server_key: str,
+        tool_name: str,
+        status: str,
+        severity: str = "info",
+        latency_ms: float | None = None,
+        protocol_version: str | None = None,
+        error: str | None = None,
+        content_excerpt: str | None = None,
+    ) -> None:
+        if not self.trace_buffer or not run_id:
+            return
+        self.trace_buffer.record(
+            run_id=run_id,
+            mode=mode,
+            event_type=event_type,
+            step=step,
+            severity=severity,
+            agent_name=agent_name,
+            content_excerpt=content_excerpt,
+            error=error,
+            mcp_server=server_key,
+            mcp_tool=tool_name,
+            mcp_status=status,
+            mcp_transport="stdio",
+            mcp_latency_ms=latency_ms,
+            mcp_protocol_version=protocol_version,
+        )
+
+    async def call_tool(
+        self,
+        server_key: str,
+        tool_name: str,
+        arguments: dict[str, Any] | None = None,
+        *,
+        run_id: str | None = None,
+        mode: str = "internal",
+        step: int = 0,
+        agent_name: str | None = None,
+        timeout_s: float | None = None,
+    ) -> McpToolResult:
+        server = self._server(server_key)
+        launcher = server.launcher
+        if not launcher.exists():
+            raise McpServerUnavailable(
+                f"MCP launcher missing for {server_key}: {launcher}",
+                server_key=server_key,
+                tool_name=tool_name,
+                transport=server.transport,
+            )
+
+        env = os.environ.copy()
+        env["MASCARADE_DIR"] = str(self.mascarade_dir)
+        env["MASCARADE_ENV_FILE"] = str(self.mascarade_env_file)
+        env["KILL_LIFE_ROOT"] = str(self.kill_life_root)
+
+        started = time.perf_counter()
+        self._trace(
+            run_id=run_id,
+            mode=mode,
+            step=step,
+            agent_name=agent_name,
+            event_type="mcp_call_started",
+            server_key=server_key,
+            tool_name=tool_name,
+            status="started",
+        )
+        proc = await asyncio.create_subprocess_exec(
+            "bash",
+            str(launcher),
+            stdin=asyncio.subprocess.PIPE,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+            env=env,
+        )
+        protocol_version: str | None = None
+        server_name: str | None = None
+        timeout = timeout_s or server.timeout_s
+
+        async def _request(message: dict[str, Any]) -> dict[str, Any]:
+            if proc.stdin is None or proc.stdout is None:
+                raise McpServerUnavailable(
+                    f"MCP server '{server_key}' stdin/stdout unavailable",
+                    server_key=server_key,
+                    tool_name=tool_name,
+                    protocol_version=protocol_version,
+                    transport=server.transport,
+                )
+            await _write_message(proc.stdin, message)
+            response = await asyncio.wait_for(_read_message(proc.stdout), timeout=timeout)
+            if response is None:
+                stderr_excerpt = ""
+                try:
+                    await asyncio.wait_for(proc.wait(), timeout=0.5)
+                except TimeoutError:
+                    pass
+                if proc.stderr is not None:
+                    stderr_excerpt = (
+                        (await proc.stderr.read()).decode("utf-8", errors="replace").strip()
+                    )
+                detail = f"MCP server '{server_key}' returned EOF"
+                if stderr_excerpt:
+                    detail = f"{detail}: {stderr_excerpt}"
+                raise McpServerUnavailable(
+                    detail,
+                    server_key=server_key,
+                    tool_name=tool_name,
+                    protocol_version=protocol_version,
+                    transport=server.transport,
+                )
+            if "error" in response:
+                error = response["error"] or {}
+                raise McpServerUnavailable(
+                    str(error.get("message") or "MCP request failed"),
+                    server_key=server_key,
+                    tool_name=tool_name,
+                    protocol_version=protocol_version,
+                    transport=server.transport,
+                    error_code=str(error.get("code") or ""),
+                )
+            return response
+
+        try:
+            initialize = await _request(
+                {
+                    "jsonrpc": "2.0",
+                    "id": 1,
+                    "method": "initialize",
+                    "params": {},
+                }
+            )
+            result = initialize.get("result") or {}
+            protocol_version = str(result.get("protocolVersion") or "")
+            server_info = result.get("serverInfo") or {}
+            if isinstance(server_info, dict):
+                server_name = str(server_info.get("name") or "").strip() or None
+
+            if proc.stdin is None:
+                raise McpServerUnavailable(
+                    f"MCP server '{server_key}' stdin unavailable after initialize",
+                    server_key=server_key,
+                    tool_name=tool_name,
+                    protocol_version=protocol_version,
+                    transport=server.transport,
+                )
+            await _write_message(
+                proc.stdin,
+                {
+                    "jsonrpc": "2.0",
+                    "method": "notifications/initialized",
+                    "params": {},
+                },
+            )
+
+            tool_response = await _request(
+                {
+                    "jsonrpc": "2.0",
+                    "id": 2,
+                    "method": "tools/call",
+                    "params": {
+                        "name": tool_name,
+                        "arguments": arguments or {},
+                    },
+                }
+            )
+            tool_result = tool_response.get("result") or {}
+            latency_ms = (time.perf_counter() - started) * 1000
+            structured = tool_result.get("structuredContent")
+            if not isinstance(structured, dict):
+                structured = {}
+            message = _message_text(tool_result) or tool_name
+            is_error = bool(tool_result.get("isError"))
+            if is_error:
+                error_code = None
+                if isinstance(structured.get("error"), dict):
+                    error_code = str(structured["error"].get("code") or "").strip() or None
+                self._trace(
+                    run_id=run_id,
+                    mode=mode,
+                    step=step,
+                    agent_name=agent_name,
+                    event_type="mcp_call_failed",
+                    server_key=server_key,
+                    tool_name=tool_name,
+                    status="error",
+                    severity="error",
+                    latency_ms=latency_ms,
+                    protocol_version=protocol_version,
+                    error=message,
+                )
+                raise McpCallError(
+                    message,
+                    server_key=server_key,
+                    tool_name=tool_name,
+                    protocol_version=protocol_version,
+                    transport=server.transport,
+                    latency_ms=latency_ms,
+                    structured_content=structured,
+                    error_code=error_code,
+                )
+
+            self._trace(
+                run_id=run_id,
+                mode=mode,
+                step=step,
+                agent_name=agent_name,
+                event_type="mcp_call_completed",
+                server_key=server_key,
+                tool_name=tool_name,
+                status="ok",
+                latency_ms=latency_ms,
+                protocol_version=protocol_version,
+                content_excerpt=message,
+            )
+            return McpToolResult(
+                server_key=server_key,
+                tool_name=tool_name,
+                structured_content=structured,
+                message=message,
+                protocol_version=protocol_version,
+                server_name=server_name,
+                is_error=False,
+                latency_ms=latency_ms,
+                transport=server.transport,
+            )
+        except TimeoutError as exc:
+            latency_ms = (time.perf_counter() - started) * 1000
+            self._trace(
+                run_id=run_id,
+                mode=mode,
+                step=step,
+                agent_name=agent_name,
+                event_type="mcp_call_failed",
+                server_key=server_key,
+                tool_name=tool_name,
+                status="timeout",
+                severity="error",
+                latency_ms=latency_ms,
+                protocol_version=protocol_version,
+                error=f"MCP timeout after {timeout:.1f}s",
+            )
+            raise McpServerUnavailable(
+                f"MCP timeout after {timeout:.1f}s",
+                server_key=server_key,
+                tool_name=tool_name,
+                protocol_version=protocol_version,
+                transport=server.transport,
+                latency_ms=latency_ms,
+                error_code="timeout",
+            ) from exc
+        finally:
+            stderr_text = ""
+            if proc.stdin is not None:
+                proc.stdin.close()
+                try:
+                    await proc.stdin.wait_closed()
+                except (OSError, RuntimeError) as exc:
+                    logger.debug("Failed to close MCP stdin cleanly: %s", exc)
+            try:
+                await asyncio.wait_for(proc.wait(), timeout=3.0)
+            except TimeoutError:
+                proc.kill()
+                await proc.wait()
+            if proc.stderr is not None:
+                stderr_text = (await proc.stderr.read()).decode("utf-8", errors="replace").strip()
+            if proc.returncode not in (0, None) and not stderr_text:
+                stderr_text = f"launcher exited with code {proc.returncode}"
+            if proc.returncode not in (0, None) and stderr_text:
+                # Preserve stderr on unexpected launcher exits when the request path
+                # did not already surface an MCP-level error.
+                pass
+
+    async def knowledge_base_search(
+        self,
+        query: str,
+        *,
+        limit: int = 10,
+        run_id: str | None = None,
+        mode: str = "internal",
+        step: int = 0,
+        agent_name: str | None = None,
+    ) -> dict[str, Any]:
+        result = await self.call_tool(
+            "knowledge-base",
+            "search_pages",
+            {"query": query, "limit": limit},
+            run_id=run_id,
+            mode=mode,
+            step=step,
+            agent_name=agent_name,
+        )
+        return result.structured_content
+
+    async def knowledge_base_read_page(
+        self,
+        page_id: str,
+        *,
+        run_id: str | None = None,
+        mode: str = "internal",
+        step: int = 0,
+        agent_name: str | None = None,
+    ) -> dict[str, Any]:
+        result = await self.call_tool(
+            "knowledge-base",
+            "read_page",
+            {"page_id": page_id},
+            run_id=run_id,
+            mode=mode,
+            step=step,
+            agent_name=agent_name,
+        )
+        return result.structured_content
+
+    async def knowledge_base_append(
+        self,
+        page_id: str,
+        content: str,
+        *,
+        run_id: str | None = None,
+        mode: str = "internal",
+        step: int = 0,
+        agent_name: str | None = None,
+    ) -> dict[str, Any]:
+        result = await self.call_tool(
+            "knowledge-base",
+            "append_to_page",
+            {"page_id": page_id, "content": content},
+            run_id=run_id,
+            mode=mode,
+            step=step,
+            agent_name=agent_name,
+        )
+        return result.structured_content
+
+    async def knowledge_base_create_page(
+        self,
+        parent_id: str,
+        title: str,
+        content: str = "",
+        *,
+        run_id: str | None = None,
+        mode: str = "internal",
+        step: int = 0,
+        agent_name: str | None = None,
+    ) -> dict[str, Any]:
+        result = await self.call_tool(
+            "knowledge-base",
+            "create_page",
+            {
+                "parent_id": parent_id,
+                "title": title,
+                "content": content,
+            },
+            run_id=run_id,
+            mode=mode,
+            step=step,
+            agent_name=agent_name,
+        )
+        return result.structured_content
+
+    async def github_list_allowlisted_workflows(
+        self,
+        *,
+        run_id: str | None = None,
+        mode: str = "internal",
+        step: int = 0,
+        agent_name: str | None = None,
+    ) -> dict[str, Any]:
+        result = await self.call_tool(
+            "github-dispatch",
+            "list_allowlisted_workflows",
+            {},
+            run_id=run_id,
+            mode=mode,
+            step=step,
+            agent_name=agent_name,
+        )
+        return result.structured_content
+
+    async def github_dispatch_workflow(
+        self,
+        workflow_file: str,
+        *,
+        ref: str | None = None,
+        inputs: dict[str, Any] | None = None,
+        run_id: str | None = None,
+        mode: str = "internal",
+        step: int = 0,
+        agent_name: str | None = None,
+    ) -> dict[str, Any]:
+        result = await self.call_tool(
+            "github-dispatch",
+            "dispatch_workflow",
+            {
+                "workflow_file": workflow_file,
+                **({"ref": ref} if ref else {}),
+                **({"inputs": inputs} if inputs else {}),
+            },
+            run_id=run_id,
+            mode=mode,
+            step=step,
+            agent_name=agent_name,
+        )
+        return result.structured_content
+
+    async def github_get_dispatch_status(
+        self,
+        dispatch_id: str,
+        *,
+        run_id: str | None = None,
+        mode: str = "internal",
+        step: int = 0,
+        agent_name: str | None = None,
+    ) -> dict[str, Any]:
+        result = await self.call_tool(
+            "github-dispatch",
+            "get_dispatch_status",
+            {"dispatch_id": dispatch_id},
+            run_id=run_id,
+            mode=mode,
+            step=step,
+            agent_name=agent_name,
+        )
+        return result.structured_content
+
+    async def freecad_get_runtime_info(
+        self,
+        *,
+        run_id: str | None = None,
+        mode: str = "internal",
+        step: int = 0,
+        agent_name: str | None = None,
+    ) -> dict[str, Any]:
+        result = await self.call_tool(
+            "freecad",
+            "get_runtime_info",
+            {},
+            run_id=run_id,
+            mode=mode,
+            step=step,
+            agent_name=agent_name,
+        )
+        return result.structured_content
+
+    async def freecad_create_document(
+        self,
+        output_path: str,
+        *,
+        name: str = "McpDocument",
+        primitive: str = "box",
+        length: float = 10.0,
+        width: float = 8.0,
+        height: float = 6.0,
+        run_id: str | None = None,
+        mode: str = "internal",
+        step: int = 0,
+        agent_name: str | None = None,
+    ) -> dict[str, Any]:
+        result = await self.call_tool(
+            "freecad",
+            "create_document",
+            {
+                "output_path": output_path,
+                "name": name,
+                "primitive": primitive,
+                "length": length,
+                "width": width,
+                "height": height,
+            },
+            run_id=run_id,
+            mode=mode,
+            step=step,
+            agent_name=agent_name,
+        )
+        return result.structured_content
+
+    async def freecad_export_document(
+        self,
+        document_path: str,
+        output_path: str,
+        *,
+        run_id: str | None = None,
+        mode: str = "internal",
+        step: int = 0,
+        agent_name: str | None = None,
+    ) -> dict[str, Any]:
+        result = await self.call_tool(
+            "freecad",
+            "export_document",
+            {
+                "document_path": document_path,
+                "output_path": output_path,
+            },
+            run_id=run_id,
+            mode=mode,
+            step=step,
+            agent_name=agent_name,
+        )
+        return result.structured_content
+
+    async def freecad_run_python_script(
+        self,
+        script: str,
+        *,
+        output_path: str | None = None,
+        run_id: str | None = None,
+        mode: str = "internal",
+        step: int = 0,
+        agent_name: str | None = None,
+    ) -> dict[str, Any]:
+        arguments: dict[str, Any] = {"script": script}
+        if output_path:
+            arguments["output_path"] = output_path
+        result = await self.call_tool(
+            "freecad",
+            "run_python_script",
+            arguments,
+            run_id=run_id,
+            mode=mode,
+            step=step,
+            agent_name=agent_name,
+        )
+        return result.structured_content
+
+    async def openscad_get_runtime_info(
+        self,
+        *,
+        run_id: str | None = None,
+        mode: str = "internal",
+        step: int = 0,
+        agent_name: str | None = None,
+    ) -> dict[str, Any]:
+        result = await self.call_tool(
+            "openscad",
+            "get_runtime_info",
+            {},
+            run_id=run_id,
+            mode=mode,
+            step=step,
+            agent_name=agent_name,
+        )
+        return result.structured_content
+
+    async def openscad_validate_model(
+        self,
+        source: str,
+        *,
+        run_id: str | None = None,
+        mode: str = "internal",
+        step: int = 0,
+        agent_name: str | None = None,
+    ) -> dict[str, Any]:
+        result = await self.call_tool(
+            "openscad",
+            "validate_model",
+            {"source": source},
+            run_id=run_id,
+            mode=mode,
+            step=step,
+            agent_name=agent_name,
+        )
+        return result.structured_content
+
+    async def openscad_render_model(
+        self,
+        source: str,
+        output_path: str,
+        *,
+        run_id: str | None = None,
+        mode: str = "internal",
+        step: int = 0,
+        agent_name: str | None = None,
+    ) -> dict[str, Any]:
+        result = await self.call_tool(
+            "openscad",
+            "render_model",
+            {
+                "source": source,
+                "output_path": output_path,
+            },
+            run_id=run_id,
+            mode=mode,
+            step=step,
+            agent_name=agent_name,
+        )
+        return result.structured_content
+
+    async def openscad_export_model(
+        self,
+        source: str,
+        output_path: str,
+        *,
+        run_id: str | None = None,
+        mode: str = "internal",
+        step: int = 0,
+        agent_name: str | None = None,
+    ) -> dict[str, Any]:
+        result = await self.call_tool(
+            "openscad",
+            "export_model",
+            {
+                "source": source,
+                "output_path": output_path,
+            },
+            run_id=run_id,
+            mode=mode,
+            step=step,
+            agent_name=agent_name,
+        )
+        return result.structured_content

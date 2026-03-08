@@ -1,5 +1,9 @@
 import { useMemo, useState } from "react";
-import { notionApi, type NotionSearchResult } from "../api/notion";
+import {
+  knowledgeBaseApi,
+  type KnowledgeBaseResponseMeta,
+  type KnowledgeBaseSearchResult,
+} from "../api/knowledgeBase";
 import { useApi } from "../hooks/useApi";
 import {
   Badge,
@@ -13,7 +17,7 @@ import {
   Textarea,
 } from "../components/ui";
 
-const notionPresets = [
+const knowledgePresets = [
   "audit observability",
   "router mistral",
   "ops console",
@@ -24,30 +28,31 @@ function shortenUrl(url: string): string {
   return url.replace(/^https?:\/\//, "");
 }
 
-export default function NotionBrowser() {
+export default function KnowledgeBrowser() {
   const [query, setQuery] = useState("");
-  const [selected, setSelected] = useState<NotionSearchResult | null>(null);
+  const [selected, setSelected] = useState<KnowledgeBaseSearchResult | null>(null);
   const [appendText, setAppendText] = useState("");
 
-  const searchApi = useApi<{ results: NotionSearchResult[] }, void>(() =>
-    notionApi.search(query),
+  const searchApi = useApi<{ results: KnowledgeBaseSearchResult[] } & KnowledgeBaseResponseMeta, void>(() =>
+    knowledgeBaseApi.search(query),
   );
-  const pageApi = useApi<{ page_id: string; content: string }, string>((pageId) =>
-    notionApi.getPage(pageId),
+  const pageApi = useApi<{ page_id: string; content: string } & KnowledgeBaseResponseMeta, string>((pageId) =>
+    knowledgeBaseApi.getPage(pageId),
   );
-  const appendApi = useApi<{ status: string; page_id: string }, void>(() =>
-    notionApi.appendToPage(selected!.id, appendText),
+  const appendApi = useApi<{ status: string; page_id: string } & KnowledgeBaseResponseMeta, void>(() =>
+    knowledgeBaseApi.appendToPage(selected!.id, appendText),
   );
 
   const results = searchApi.data?.results ?? [];
+  const providerLabel = searchApi.data?.provider_label ?? pageApi.data?.provider_label ?? "Knowledge Base";
   const contentLength = pageApi.data?.content?.length ?? 0;
   const appendReady = !!selected && appendText.trim().length > 0;
 
   const searchNarrative = useMemo(() => {
-    if (!query.trim()) return "Aucune requete envoyee. Choisis un terme cible pour ouvrir la lane Notion.";
+    if (!query.trim()) return "Aucune requete envoyee. Choisis un terme cible pour ouvrir la lane knowledge base.";
     if (results.length === 0) return "La recherche est partie mais aucun resultat n'est revenu pour le terme courant.";
-    return `${results.length} page(s) candidates pour la requete courante. Selectionne une page pour lire le contenu brut ou appendre du texte.`;
-  }, [query, results.length]);
+    return `${results.length} page(s) candidates sur ${providerLabel}. Selectionne une page pour lire le contenu brut ou appendre du texte.`;
+  }, [providerLabel, query, results.length]);
 
   return (
     <div className="space-y-6">
@@ -57,10 +62,10 @@ export default function NotionBrowser() {
             <div className="max-w-3xl">
               <p className="screen-label">knowledge bus</p>
               <h2 className="mt-3 text-3xl font-semibold uppercase tracking-[0.12em] text-accent glow-text md:text-5xl">
-                Search, inspect and append to Notion without leaving the cockpit
+                Search, inspect and append to your knowledge base without leaving the cockpit
               </h2>
               <p className="mt-4 max-w-2xl text-sm leading-7 text-amber-100/60 md:text-[15px]">
-                Cette vue sert a traverser le bus Notion depuis Mascarade: recherche ciblee, lecture brute d'une page, puis append local sans changer d'outil.
+                Cette vue sert a traverser le bus knowledge base depuis Mascarade: recherche ciblee, lecture brute d'une page, puis append local sans changer d'outil.
               </p>
               <div className="mt-5 flex flex-wrap gap-2">
                 <span className="status-chip border-accent/35 bg-accent/10 text-accent">
@@ -82,7 +87,8 @@ export default function NotionBrowser() {
                   {query.trim().length.toString().padStart(3, "0")}
                 </p>
                 <p className="mt-2 text-[12px] leading-5 text-amber-100/46">
-                  Taille de la requete courante envoyee a la recherche Notion.
+                  Taille de la requete courante envoyee a la recherche knowledge base.
+                  {providerLabel !== "Knowledge Base" ? ` Provider courant: ${providerLabel}.` : ""}
                 </p>
               </div>
               <div className="rounded-3xl border border-border/80 bg-black/30 p-4">
@@ -126,7 +132,7 @@ export default function NotionBrowser() {
               placeholder="router mistral, ops console, audit..."
             />
             <div className="flex flex-wrap gap-2">
-              {notionPresets.map((preset) => (
+              {knowledgePresets.map((preset) => (
                 <button
                   key={preset}
                   type="button"
@@ -143,7 +149,7 @@ export default function NotionBrowser() {
                 loading={searchApi.loading}
                 disabled={!query.trim()}
               >
-                search notion
+                search knowledge base
               </Button>
             </div>
             {searchApi.error ? (
@@ -168,7 +174,7 @@ export default function NotionBrowser() {
               >
                 <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
                   <div>
-                    <p className="screen-label">notion page</p>
+                    <p className="screen-label">knowledge page</p>
                     <p className="mt-2 text-[12px] font-semibold uppercase tracking-[0.16em] text-accent">
                       {row.title}
                     </p>
@@ -186,7 +192,7 @@ export default function NotionBrowser() {
         </Card>
       ) : query.trim() && !searchApi.loading ? (
         <EmptyState
-          message="No Notion pages matched the current query."
+          message="No knowledge-base pages matched the current query."
           action={
             <Button variant="secondary" onClick={() => setQuery("")}>
               Clear query
@@ -202,7 +208,7 @@ export default function NotionBrowser() {
               <LoadingPanel
                 compact
                 title="Loading page"
-                message="Fetching the raw page content from the Notion bridge."
+                message={`Fetching the raw page content from ${providerLabel}.`}
               />
             ) : pageApi.error ? (
               <InlineNotice title="page error" message={pageApi.error} tone="error" />
@@ -234,7 +240,7 @@ export default function NotionBrowser() {
                   <LoadingPanel
                     compact
                     title="Appending to page"
-                    message="The selected page is being updated through the Notion bridge."
+                    message={`The selected page is being updated through ${providerLabel}.`}
                   />
                 ) : null}
                 {appendApi.error ? (
