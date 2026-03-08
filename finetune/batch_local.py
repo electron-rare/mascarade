@@ -456,6 +456,9 @@ def resolve_overlap_teacher_train(config: dict) -> bool:
     requested = config.get("overlap_teacher_train")
     if requested is not None:
         return bool(requested)
+    if str(config.get("device") or "").lower() == "cpu":
+        # CPU students can train while the local GPU teacher keeps distilling.
+        return True
     if config.get("teacher_provider") == LOCAL_HF_PROVIDER:
         return False
     return True
