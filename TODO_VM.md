@@ -50,9 +50,10 @@ Notes:
 - [x] Intégration repo `Firecrawl` prête dans la stack Mascarade.
 - [x] `FIRECRAWL_API_KEY` configurée sur la VM.
 - [x] `mascarade-firecrawl` démarré et `healthy` sur le port `3400`.
-- [ ] Déployer `Mem0` avec une cible réelle.
-  - L'image `mem0ai/mem0` n'est pas disponible telle quelle.
-  - Options restantes: venv Python dédié (`mem0ai`) ou `openmemory-mcp`.
+- [x] Déployer `Mem0` avec une cible réelle.
+  - Cible retenue: `mem0/openmemory-mcp`.
+  - Runtime valide sur la VM: `mascarade-mem0` est `healthy`.
+  - Cablage actif sur `Qdrant` + `LiteLLM` (OpenAI-compatible).
 - [ ] Installer `Docling` dans le venv tools.
 - [ ] Installer `openai-whisper` dans le venv tools.
 

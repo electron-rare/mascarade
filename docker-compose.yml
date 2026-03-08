@@ -225,6 +225,34 @@ services:
     networks:
       - mascarade-network
 
+  mem0:
+    image: ${MEM0_IMAGE:-mem0/openmemory-mcp:latest}
+    container_name: mascarade-mem0
+    restart: unless-stopped
+    ports:
+      - "${PUBLISH_BIND_HOST:-0.0.0.0}:${MEM0_PORT:-3300}:8765"
+    env_file:
+      - .env
+    environment:
+      USER: ${MEM0_USER:-mascarade}
+      OPENAI_API_KEY: ${LITELLM_MASTER_KEY:-}
+      OPENAI_BASE_URL: ${MEM0_OPENAI_BASE_URL:-http://litellm:4000}
+      QDRANT_HOST: ${MEM0_QDRANT_HOST:-qdrant}
+      QDRANT_PORT: ${MEM0_QDRANT_PORT:-6333}
+    depends_on:
+      litellm:
+        condition: service_healthy
+      qdrant:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import socket; sock = socket.create_connection(('127.0.0.1', 8765), 3); sock.close()\""]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 25s
+    networks:
+      - mascarade-network
+
   dify-api:
     image: ${DIFY_API_IMAGE:-langgenius/dify-api@sha256:5f622b4d0b39bdc6d3b401063cfb60962fa92dcc63f55daccec138f98b260e67}
     container_name: mascarade-dify-api

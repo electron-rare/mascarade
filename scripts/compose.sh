@@ -100,6 +100,7 @@ write_env_file() {
         echo "LANGFUSE_WORKER_IMAGE=\"${LANGFUSE_WORKER_IMAGE:-langfuse/langfuse-worker@sha256:8bb47a4240ea293a210e460eae912ce06ea8fc2f724ce89cb146547eed36f6b2}\""
         echo "LANGFUSE_WEB_IMAGE=\"${LANGFUSE_WEB_IMAGE:-langfuse/langfuse@sha256:8d3211972d2a0610258ff0cc86da6b2d367f804bf253e9b94863bf961e59d23c}\""
         echo "FIRECRAWL_IMAGE=\"${FIRECRAWL_IMAGE:-mcp/firecrawl@sha256:e6676bd31d1806574d931b7a7b7b6fba953c031853e80adc1ec8115c17ab81ca}\""
+        echo "MEM0_IMAGE=\"${MEM0_IMAGE:-mem0/openmemory-mcp:latest}\""
         echo "MINIO_IMAGE=\"${MINIO_IMAGE:-minio/minio@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e}\""
         echo "DIFY_API_IMAGE=\"${DIFY_API_IMAGE:-langgenius/dify-api@sha256:5f622b4d0b39bdc6d3b401063cfb60962fa92dcc63f55daccec138f98b260e67}\""
         echo "DIFY_WEB_IMAGE=\"${DIFY_WEB_IMAGE:-langgenius/dify-web@sha256:30339b4d5060488fac147ddc6fb40438ef71cd5f5dfdeb26c886768302bf7197}\""
@@ -262,6 +263,16 @@ write_env_file() {
             echo "FIRECRAWL_HOST=\"${FIRECRAWL_HOST:-0.0.0.0}\""
             echo "FIRECRAWL_API_KEY=\"${FIRECRAWL_API_KEY:-}\""
             echo "FIRECRAWL_API_URL=\"${FIRECRAWL_API_URL:-}\""
+            echo ""
+        fi
+
+        if svc_selected "mem0"; then
+            echo "# ── Mem0 / OpenMemory ──"
+            echo "MEM0_PORT=\"${MEM0_PORT:-3300}\""
+            echo "MEM0_USER=\"${MEM0_USER:-mascarade}\""
+            echo "MEM0_OPENAI_BASE_URL=\"${MEM0_OPENAI_BASE_URL:-http://litellm:4000}\""
+            echo "MEM0_QDRANT_HOST=\"${MEM0_QDRANT_HOST:-qdrant}\""
+            echo "MEM0_QDRANT_PORT=\"${MEM0_QDRANT_PORT:-6333}\""
             echo ""
         fi
 

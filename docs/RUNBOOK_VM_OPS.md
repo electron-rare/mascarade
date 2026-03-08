@@ -120,6 +120,9 @@ Observability complementaire opt-in:
 - Validation OTLP -> Loki:
   - `cd /mascarade && bash scripts/smoke_otel_loki.sh`
   - `cd /mascarade && bash scripts/smoke_otel_loki.sh --json`
+- Controle de cardinalite Loki:
+  - `cd /mascarade && bash scripts/loki_cardinality_report.sh`
+  - `cd /mascarade && bash scripts/loki_cardinality_report.sh --json`
 
 Setup backups:
 - generated setup backups now live under `./.tmp/setup-backups/`

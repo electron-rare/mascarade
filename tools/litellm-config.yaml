@@ -1,4 +1,12 @@
 model_list:
+  - model_name: gpt-4.1-mini
+    litellm_params:
+      model: mistral/mistral-small-latest
+      api_key: ${MISTRAL_API_KEY}
+  - model_name: text-embedding-3-small
+    litellm_params:
+      model: mistral/mistral-embed
+      api_key: ${MISTRAL_API_KEY}
   - model_name: mistral-small-latest
     litellm_params:
       model: mistral/mistral-small-latest

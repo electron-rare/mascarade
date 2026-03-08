@@ -119,7 +119,7 @@ Profils:
   apple-silicon  macOS Apple Silicon (M1-M5), stack legere et Ollama natif si disponible
 
 Services disponibles:
-  core, api, litellm, n8n, langfuse, firecrawl, dify, clickhouse, comfyui, tts, stt, generate-audio (AudioCraft CPU/GPU),
+  core, api, litellm, n8n, langfuse, firecrawl, mem0, dify, clickhouse, comfyui, tts, stt, generate-audio (AudioCraft CPU/GPU),
   ollama, edge-proxy, ops-agent, redis, postgres, qdrant, grafana, prometheus, loki, promtail, otel-collector
 HELP
 }

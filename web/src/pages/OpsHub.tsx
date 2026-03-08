@@ -83,6 +83,8 @@ export default function OpsHub() {
       { label: "Core health", href: `${origin}/core-health`, note: "core liveness via reverse proxy" },
       { label: "Dify web", href: `${getDifyOrigin()}/`, note: "app builder surface via reverse proxy" },
       { label: "Dify API", href: getDifyHealthUrl(), note: "workflow api health on the main proxy" },
+      { label: "Firecrawl MCP", href: `${protocol}//${hostname}:3400/mcp`, note: "streamable MCP endpoint" },
+      { label: "Mem0 / OpenMemory", href: `${protocol}//${hostname}:3300/docs`, note: "memory api docs on qdrant + litellm" },
       { label: "Grafana", href: `${protocol}//${hostname}:3001/`, note: "dashboards and panels" },
       { label: "Prometheus", href: `${protocol}//${hostname}:9090/`, note: "raw metrics store" },
       { label: "Ollama", href: `${protocol}//${hostname}:11434/`, note: "local model runtime" },
@@ -125,8 +127,13 @@ export default function OpsHub() {
   const tracesReady = sourceStatus.data?.agent_traces?.available ?? true;
   const difyWeb = services.find((service) => service.name === "dify-web");
   const difyApi = services.find((service) => service.name === "dify-api");
+  const { protocol, hostname } = window.location;
   const difyWebHref = `${getDifyOrigin()}/`;
   const difyApiHref = getDifyHealthUrl();
+  const firecrawl = services.find((service) => service.name === "firecrawl");
+  const firecrawlHref = `${protocol}//${hostname}:3400/mcp`;
+  const mem0 = services.find((service) => service.name === "mem0");
+  const mem0Href = `${protocol}//${hostname}:3300/docs`;
   const mcp = summary.data?.mcp;
   const mcpServers = Object.entries(mcp?.servers ?? {});
   const mcpPrimary = mcp?.primary ?? null;
@@ -394,6 +401,84 @@ export default function OpsHub() {
                   className="rounded-2xl border border-border/80 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-amber-100/72 transition hover:border-accent/35 hover:text-accent"
                 >
                   dify worker logs
+                </Link>
+              </div>
+            </div>
+          </Card>
+
+          <Card title="Firecrawl lane">
+            <div className="space-y-4">
+              <p className="text-sm leading-7 text-amber-100/60">
+                Firecrawl est expose comme endpoint MCP streamable. Un GET brut sur <code>/mcp</code> renvoie
+                normalement <code>400 No sessionId</code>; le monitor le traite donc comme un signal runtime valide.
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <span className={["status-chip", chipTone(Boolean(firecrawl?.ok))].join(" ")}>
+                  firecrawl {firecrawl?.ok ? "online" : "watch"}
+                </span>
+                <span className="status-chip border-border/80 bg-black/25 text-muted">
+                  mcp streamable / port 3400
+                </span>
+              </div>
+              <a
+                href={firecrawlHref}
+                className="block rounded-[1.4rem] border border-border/80 bg-black/25 px-4 py-4 transition hover:border-accent/35 hover:bg-black/30"
+              >
+                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-accent">
+                  open firecrawl mcp
+                </p>
+                <p className="mt-2 text-sm text-amber-100/72">{shortUrl(firecrawlHref)}</p>
+                <p className="mt-2 text-[12px] leading-5 text-amber-100/44">
+                  {firecrawl
+                    ? `http ${firecrawl.status || "-"} / ${formatLatency(firecrawl.latency_ms)}`
+                    : "endpoint MCP non detecte dans le monitor"}
+                </p>
+              </a>
+              <div className="flex flex-wrap gap-2">
+                <Link
+                  to="/logs?service=firecrawl"
+                  className="rounded-2xl border border-accent/35 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-accent transition hover:bg-accent/10"
+                >
+                  firecrawl logs
+                </Link>
+              </div>
+            </div>
+          </Card>
+
+          <Card title="Mem0 lane">
+            <div className="space-y-4">
+              <p className="text-sm leading-7 text-amber-100/60">
+                Mem0 est expose ici via OpenMemory, branche sur Qdrant et route vers LiteLLM en mode
+                OpenAI-compatible. Cette carte sert a verifier que la surface memoire reste joignable.
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <span className={["status-chip", chipTone(Boolean(mem0?.ok))].join(" ")}>
+                  mem0 {mem0?.ok ? "online" : "watch"}
+                </span>
+                <span className="status-chip border-border/80 bg-black/25 text-muted">
+                  openmemory / qdrant / litellm
+                </span>
+              </div>
+              <a
+                href={mem0Href}
+                className="block rounded-[1.4rem] border border-border/80 bg-black/25 px-4 py-4 transition hover:border-accent/35 hover:bg-black/30"
+              >
+                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-accent">
+                  open mem0 docs
+                </p>
+                <p className="mt-2 text-sm text-amber-100/72">{shortUrl(mem0Href)}</p>
+                <p className="mt-2 text-[12px] leading-5 text-amber-100/44">
+                  {mem0
+                    ? `http ${mem0.status || "-"} / ${formatLatency(mem0.latency_ms)}`
+                    : "surface memoire non detectee dans le monitor"}
+                </p>
+              </a>
+              <div className="flex flex-wrap gap-2">
+                <Link
+                  to="/logs?service=mem0"
+                  className="rounded-2xl border border-accent/35 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-accent transition hover:bg-accent/10"
+                >
+                  mem0 logs
                 </Link>
               </div>
             </div>

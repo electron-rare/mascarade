@@ -32,7 +32,7 @@ Options:
       --skip-tests                Ignorer les tests Python optionnels
 
 Services valides (--with):
-  core, api, litellm, n8n, langfuse, firecrawl, dify, clickhouse, comfyui,
+  core, api, litellm, n8n, langfuse, firecrawl, mem0, dify, clickhouse, comfyui,
   ollama, ops-console, redis, postgres, qdrant, grafana, prometheus
 HELP
 }

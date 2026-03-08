@@ -167,16 +167,18 @@ async function timedProbe(
   name: string,
   url: string,
   timeoutMs: number = 1500,
+  acceptedStatuses: number[] = [],
 ): Promise<ProbeResult> {
   const started = Date.now();
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const res = await fetch(url, { signal: controller.signal });
+    const ok = res.ok || acceptedStatuses.includes(res.status);
     return {
       name,
       url,
-      ok: res.ok,
+      ok,
       status: res.status,
       latency_ms: Date.now() - started,
     };
@@ -874,6 +876,8 @@ async function collectMonitorSnapshot(): Promise<MonitorSnapshot> {
     timedProbe("grafana", "http://grafana:3000/api/health"),
     timedProbe("n8n", "http://n8n:5678/"),
     timedProbe("langfuse", "http://langfuse-web:3000/"),
+    timedProbe("firecrawl", "http://firecrawl:3000/mcp", 1500, [400]),
+    timedProbe("mem0", "http://mem0:8765/", 1500, [404, 405]),
     timedProbe("dify-web", "http://dify-web:3000/"),
     timedProbe("dify-api", "http://dify-api:5001/health"),
   ]);
