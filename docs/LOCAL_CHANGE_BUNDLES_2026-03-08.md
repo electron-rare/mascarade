@@ -1,7 +1,7 @@
 # Local Change Bundles — 2026-03-08
 
-But: figer le residuel local de `mascarade` en lots de commit explicites,
-avec le statut reel apres rejeu des checks canoniques du `2026-03-08`.
+But: clore le reliquat local de `mascarade` en gardant une cartographie
+historique lisible des lots deja sortis au `2026-03-08`.
 
 ## Etat courant
 
@@ -11,13 +11,14 @@ Commits locaux deja sortis:
 2. `1e50bea` — `ops-observability-runtime`
 3. `8291d3e` — `docs-state`
 
-Etat residuel:
+Etat courant:
 
-- un reliquat suivi reste ouvert dans `mascarade`
-- `Kill_LIFE` est pret cote repo suivi hors mise a jour documentaire locale; seul `.mascarade/` reste local/exclu
-- `crazy_life` passe son preflight de publication local; seul ce document d'etat reste modifie dans son worktree
+- `mascarade` ne porte plus qu'un lot de cloture doc/etat, plus un ajustement
+  de dashboard Grafana
+- `Kill_LIFE` reste propre cote suivi Git; seul `.mascarade/` reste local/exclu
+- `crazy_life` est propre
 - le prochain travail n'est plus de rouvrir la pile `MCP/agentics`; c'est de
-  publier proprement les bundles locaux restants
+  garder les sujets externes ou optionnels hors du repo courant
 
 Checks canoniques rejoues avec succes sur `mascarade`:
 
@@ -30,100 +31,27 @@ Checks canoniques rejoues avec succes sur `mascarade`:
 
 Reliquats suivis actuels:
 
-1. `runtime-core-fixes`
-2. `ops-observability-followups`
-3. `docs-state`
-4. `finetune/kicad_kic_ai` reste dirty dans le repo imbrique et n'entre pas
+1. `docs-state-followup`
+2. `finetune/kicad_kic_ai` reste dirty dans le repo imbrique et n'entre pas
    dans le bundle `mascarade` courant
 
-## Bundle `runtime-core-fixes`
+## Bundle `docs-state-followup`
 
 Objet:
 
-- recoller le chemin Python canonique a l'etat reel du runtime courant
-- couvrir les champs `knowledge-base`/MCP et le proxy `Mistral` attendus par
-  les tests repo-locaux
+- realigner les TODO/plans/documents d'etat sur le runtime reel final du lot
+  observabilite/proxy
+- clore la cartographie des bundles ouverts dans `mascarade`
+- corriger le panneau Grafana restant sur une metrique effectivement exposee
 
 Fichiers:
 
-- `api/src/routes/agents.ts`
-- `core/mascarade/agents/skills.py`
-- `core/mascarade/config.py`
-- `core/mascarade/observability/agent_trace.py`
-- `core/mascarade/router/providers/mistral.py`
-- `web/src/api/agents.ts`
-- `web/src/pages/AgentDetail.tsx`
-
-Validation minimale:
-
-```bash
-cd /home/clems/mascarade/core && \
-  /home/clems/mascarade/core/.venv/bin/python -m pytest \
-    tests/test_knowledge_base.py \
-    tests/test_mistral_provider.py \
-    tests/test_mcp_client.py -q
-bash /home/clems/mascarade/scripts/test_python.sh --bootstrap \
-  --venv-dir /tmp/mascarade-plan-impl-2
-```
-
-Commit recommande:
-
-```bash
-git add api/src/routes/agents.ts \
-  core/mascarade/agents/skills.py \
-  core/mascarade/config.py \
-  core/mascarade/observability/agent_trace.py \
-  core/mascarade/router/providers/mistral.py
-git commit -m "core(runtime): realign canonical python paths"
-```
-
-## Bundle `ops-observability-followups`
-
-Objet:
-
-- figer le reliquat observabilite encore local dans `mascarade`
-- publier ensemble les morceaux `tempo` / `blackbox` / service wiring restants
-
-Fichiers:
-
-- `.env.example`
-- `api/public/`
-- `api/src/routes/ops.ts`
-- `deploy/Dockerfile.edge-proxy`
-- `deploy/edge-proxy/20-generate-ops-auth.sh`
-- `deploy/edge-proxy/default.conf.template`
-- `deploy/grafana/provisioning/dashboards/json/mascarade-tooling-observability.json`
-- `deploy/grafana/provisioning/datasources/datasources.yaml`
-- `deploy/otel-collector/config.yaml`
-- `deploy/prometheus/blackbox.yml`
-- `deploy/prometheus/prometheus.yml`
-- `deploy/tempo/`
-- `docker-compose.yml`
-- `scripts/compose.sh`
-- `scripts/modules/edge-proxy.sh`
-- `scripts/modules/grafana.sh`
-- `scripts/modules/langfuse.sh`
-- `scripts/modules/otel-collector.sh`
-- `scripts/modules/prometheus.sh`
-- `scripts/modules/blackbox-exporter.sh`
-- `scripts/modules/tempo.sh`
-- `scripts/services.sh`
-- `web/src/api/ops.ts`
-- `web/src/pages/Logs.tsx`
-- `web/src/pages/OpsHub.tsx`
-- `web/src/pages/Orchestrate.tsx`
-
-## Bundle `docs-state`
-
-Objet:
-
-- realigner les TODO/plans/documents d'etat sur le runtime reel
-- figer la cartographie des bundles et le statut de remediations fermees
-- documenter le passage en phase de publication multi-repo
-
-Fichiers:
-
+- `README.md`
+- `TODO_VM.md`
 - `TODO_COCKPIT_OPS.md`
+- `TODO_IMPLEMENTE.md`
+- `deploy/grafana/provisioning/dashboards/json/mascarade-tooling-observability.json`
+- `docs/EXECUTION_PLAN_2026-03-07.md`
 - `docs/MCP_AGENTICS_ARCHITECTURE.md`
 - `docs/LOCAL_CHANGE_BUNDLES_2026-03-08.md`
 - `docs/audit/REMEDIATION_STATUS_2026-03-08.md`
@@ -131,7 +59,10 @@ Fichiers:
 Validation minimale:
 
 ```bash
-git diff --check -- TODO_COCKPIT_OPS.md docs/MCP_AGENTICS_ARCHITECTURE.md \
+python3 -c 'import json; json.load(open("deploy/grafana/provisioning/dashboards/json/mascarade-tooling-observability.json"))'
+git diff --check -- README.md TODO_VM.md TODO_COCKPIT_OPS.md TODO_IMPLEMENTE.md \
+  deploy/grafana/provisioning/dashboards/json/mascarade-tooling-observability.json \
+  docs/EXECUTION_PLAN_2026-03-07.md docs/MCP_AGENTICS_ARCHITECTURE.md \
   docs/LOCAL_CHANGE_BUNDLES_2026-03-08.md \
   docs/audit/REMEDIATION_STATUS_2026-03-08.md
 ```
@@ -146,13 +77,13 @@ Commits locaux sortis:
 
 Prochain ordre:
 
-1. publier `runtime-core-fixes`
-2. publier `ops-observability-followups`
-3. publier `docs-state`
-4. ne rouvrir aucun chantier technique nouveau tant que cette phase de
-   publication n'est pas terminee
+1. sortir `docs-state-followup`
+2. ne rouvrir aucun chantier technique nouveau tant qu'aucun besoin concret ne
+   le justifie
+3. garder les sujets externes (`DNS/ACME`, secrets providers, setup Mac)
+   hors de ce repo tant qu'ils ne sont pas explicitement ouverts
 
 ## Regle
 
-Ne pas rouvrir un lot technique nouveau tant que cette phase de publication
-locale n'est pas terminee.
+Ne pas rouvrir un lot technique nouveau tant qu'un besoin reel ne requalifie
+pas les restes externes ou optionnels.

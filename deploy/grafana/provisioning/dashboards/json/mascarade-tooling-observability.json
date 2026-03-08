@@ -133,12 +133,12 @@
       },
       "targets": [
         {
-          "expr": "sum(otelcol_exporter_sent_spans{exporter=\"otlphttp/tempo\"})",
-          "legendFormat": "spans sent",
+          "expr": "sum(otelcol_receiver_accepted_spans{receiver=\"otlp\",transport=\"http\"})",
+          "legendFormat": "accepted spans",
           "refId": "A"
         }
       ],
-      "title": "Tempo Spans Sent",
+      "title": "OTLP Spans Accepted",
       "type": "stat"
     },
     {

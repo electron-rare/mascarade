@@ -47,13 +47,14 @@ Conclusion:
 
 - `A-003` est ferme: le runtime canonique passe maintenant par les MCP specialises pour la knowledge base, `GitHub`, `FreeCAD` et `OpenSCAD`
 
-### Observability plane = `OTel` + `ops-agent` + `Loki` + `Grafana`
+### Observability plane = `OTel` + `Tempo` + `ops-agent` + `Loki` + `Grafana`
 
 Le plan d'observabilite couvre:
 
 - probes MCP synthetiques par serveur
 - logs structurés
-- traces/runtime metrics OTel
+- traces OTel vers `Tempo`
+- runtime metrics OTel / Prometheus
 - dashboards Grafana
 - actions operateur de reprobe depuis l'UI
 
@@ -63,12 +64,13 @@ Etat courant:
 - `OpsHub` et `Logs` peuvent lancer une reprobe par serveur
 - `ops-agent` exporte maintenant des evenements OTLP structures `source=mcp-probe` pour tous les probes MCP synthetiques supportes
 - le core exporte maintenant des traces metier `mcp_call_*` corrigees par `run_id`
+- l'OTel Collector envoie maintenant les traces vers `Tempo`
 - `/api/ops/logs/query` et la page `Logs` savent filtrer `source=mcp-probe`, `mcp_server`, `mcp_tool`, `mcp_status`
 - le dashboard Grafana `Mascarade AI Runtime` expose maintenant des panneaux MCP dedies aux probes, erreurs et volumes d'appels
 
 Conclusion:
 
-- `A-002` est ferme: l'observabilite MCP est maintenant exploitable en synthese, en historique ops, en timeline applicative et dans Grafana
+- `A-002` est ferme: l'observabilite MCP est maintenant exploitable en synthese, en historique ops, en timeline applicative, dans Grafana et via un backend traces nominal `Tempo`
 
 ### Operator plane = `crazy_life` et `mascarade/web`
 
@@ -83,6 +85,8 @@ Etat courant:
 
 - `A-201` et `A-202` sont livres
 - `A-203` est ferme: la supervision par `run_id` existe, la timeline `Orchestrate` expose `mcp_server`, `mcp_tool`, `mcp_status`, et les validations live `github-dispatch`, `FreeCAD`, `OpenSCAD` sont corrigees par ce meme `run_id`
+- `Agent Zero` existe maintenant aussi comme copilot operateur sur `OpsHub`, `Logs` et `Orchestrate`
+- `Grafana` et `Langfuse` peuvent etre publies derriere `edge-proxy` comme surfaces operateur dediees
 
 ## A2A
 

@@ -1,14 +1,14 @@
 # Plan d'execution - 7 mars 2026
 
 Plan de reference recale au 8 mars 2026 apres fermeture du backlog RA,
-stabilisation du runtime local et ouverture de la phase de consolidation/
-publication multi-repo.
+stabilisation du runtime local, consolidation multi-repo et livraison du lot
+observabilite/proxy operateur.
 
 ---
 
 ## Axe 1 - Hygiene repo / publication locale
 
-### Avancement: ~90%
+### Avancement: ~100%
 
 | Action | Statut |
 |--------|--------|
@@ -18,11 +18,12 @@ publication multi-repo.
 | Deuxieme bundle `mascarade:ops-observability-runtime` | FAIT |
 | Publication locale `Kill_LIFE` | FAIT |
 | Publication locale `crazy_life` | FAIT |
+| Publication distante des lots precedents | FAIT |
 
 ### Prochain lot
-1. Rejouer les checks finaux repo par repo.
-2. Decider si la publication distante doit etre lancee maintenant.
-3. Ne pas rouvrir de nouveau chantier avant cette decision.
+1. Aucun lot repo/hygiene bloquant local restant.
+2. Le seul lot encore ouvert dans `mascarade` est un follow-up documentaire de cloture.
+3. Ne rouvrir une vague multi-repo que si un nouveau besoin de publication apparait.
 
 ---
 
@@ -46,7 +47,7 @@ publication multi-repo.
 
 ## Axe 3 - Cockpit / Observability
 
-### Avancement: ~95%
+### Avancement: ~100%
 
 | Action | Statut |
 |--------|--------|
@@ -56,6 +57,8 @@ publication multi-repo.
 | Probes MCP synthetiques visibles et reprobeables | FAIT |
 | GPU coherent dans les surfaces ops | FAIT |
 | Dashboards Grafana provisionnes en code | FAIT |
+| `Agent Zero` en mode operator copilot | FAIT |
+| Surfaces publiques/proxifiees dans `OpsHub` | FAIT |
 | Extensions UX ou dashboards supplementaires | DIFFERE |
 
 ### Prochain lot
@@ -66,26 +69,26 @@ publication multi-repo.
 
 ## Axe 4 - OTel / Loki
 
-### Avancement: ~95%
+### Avancement: ~100%
 
 | Action | Statut |
 |--------|--------|
 | Exporteurs OTLP core + API | FAIT |
 | OTel Collector sain et scrape | FAIT |
-| Archivage durable local `traces` / `metrics` | FAIT |
+| `Tempo` branche comme backend traces | FAIT |
 | Parsing Promtail et labels utiles | FAIT |
 | Cardinalite Loki verifiee | FAIT |
-| Backend analytique plus riche | OPTIONNEL |
+| Backend analytique plus riche que `Tempo` | OPTIONNEL |
 
 ### Prochain lot
-1. Garder l'archivage local tant qu'il suffit.
+1. Garder `Tempo + Loki + Prometheus` comme trilogie nominale.
 2. N'ajouter un backend plus riche que si un besoin d'analyse transverse apparait.
 
 ---
 
 ## Axe 5 - Fine-tuning local
 
-### Avancement: ~95%
+### Avancement: ~100%
 
 | Action | Statut |
 |--------|--------|
@@ -105,17 +108,19 @@ publication multi-repo.
 
 ## Axe 6 - VM / Infra
 
-### Avancement: ~95%
+### Avancement: ~100%
 
 | Action | Statut |
 |--------|--------|
 | Auth runtime active | FAIT |
 | Surface hote reduite | FAIT |
 | Langfuse supporte et sain | FAIT |
+| Langfuse branche au runtime LLM | FAIT |
 | Firecrawl deployee | FAIT |
 | Mem0 / OpenMemory deploye | FAIT |
 | Docling / Whisper installables dans le venv tools | FAIT |
 | Probes Prometheus / blackbox pour services | FAIT |
+| `Grafana` / `Langfuse` publies derriere `edge-proxy` | FAIT |
 | TLS public `ACME/DNS` | EXTERNE |
 | Cles operateur additionnelles | OPTIONNEL |
 | Setup Mac local | EXTERNE |
@@ -128,7 +133,7 @@ publication multi-repo.
 
 ## Axe 7 - Multi-repo / publication
 
-### Avancement: ~90%
+### Avancement: ~95%
 
 | Action | Statut |
 |--------|--------|
@@ -138,11 +143,12 @@ publication multi-repo.
 | Commits locaux `mascarade` | FAIT |
 | Commits locaux `Kill_LIFE` | FAIT |
 | Commits locaux `crazy_life` | FAIT |
+| Push des lots precedents | FAIT |
 
 ### Prochain lot
-1. Rejouer les checks minimaux sur les 3 repos.
-2. Publier a distance si voulu.
-3. Garder les reliquats externes (`K-014`, TLS public, setup Mac) hors de cette phase.
+1. Aucun reliquat repo critique restant apres fermeture du follow-up `mascarade`.
+2. Garder les reliquats externes (`K-014`, TLS public, setup Mac) hors de cette phase.
+3. Ne pas rouvrir de nouvelle consolidation inter-repo sans besoin concret.
 
 ---
 
@@ -150,15 +156,15 @@ publication multi-repo.
 
 | Axe | Avancement | Bloqueur principal |
 |-----|------------|-------------------|
-| 1. Hygiene repo | ~90% | Finir la serie de commits locaux |
+| 1. Hygiene repo | ~95% | Aucun blocage critique |
 | 2. CAD / KiCad | ~90% | Restes specialises externes |
-| 3. Cockpit / Obs | ~95% | Aucun blocage critique |
-| 4. OTel / Loki | ~95% | Aucun blocage critique |
+| 3. Cockpit / Obs | ~100% | Aucun blocage critique |
+| 4. OTel / Loki | ~100% | Aucun blocage critique |
 | 5. Fine-tuning | ~95% | Seulement du suivi optionnel |
-| 6. VM / Infra | ~95% | Sujets externes/optionnels |
-| 7. Multi-repo | ~95% | Rejouer les checks finaux puis decider du push |
+| 6. VM / Infra | ~100% | Sujets externes/optionnels |
+| 7. Multi-repo | ~100% | Aucun blocage critique |
 
 ### Priorite immediate recommandee
-1. Rejouer les checks minimaux par repo avant toute publication distante.
-2. Decider du push repo par repo.
-3. Ne pas rouvrir de nouveau chantier tant que la phase de publication n'est pas tranchee.
+1. Ne pas rouvrir de nouveau chantier local sans besoin concret.
+2. Traiter seulement les sujets externes ou optionnels: `DNS/ACME` public, secrets providers, setup Mac local.
+3. Si une nouvelle vague repo s'ouvre, repartir d'un lot neuf au lieu de reutiliser un reliquat historique.

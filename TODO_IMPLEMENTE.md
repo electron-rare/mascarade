@@ -33,8 +33,11 @@ Note de contexte multi-repo:
 
 - [x] `agent-zero` evalue comme brique hors pipeline critique
 - [x] `POST /api/agents/agent-zero/run` valide sur le chemin simple
+- [x] `POST /api/agents/agent-zero/copilot` accepte un contexte operateur structure
+- [x] Le mode `operator copilot` est expose dans `OpsHub`, `Logs` et `Orchestrate`
 - [x] Les traces d'orchestration associees restent visibles dans le cockpit ops
-- [ ] Ne le rouvrir comme sujet actif que si un besoin explicite depasse l'orchestrateur local actuel
+- [x] `Agent Zero` reste volontairement hors pipeline critique et hors scheduling fine-tuning
+- [ ] N'etendre ses actions que si un besoin operateur explicite depasse le mode copilot actuel
 
 ## 4. Cockpit et observabilite deja implemente
 
@@ -42,6 +45,8 @@ Note de contexte multi-repo:
 - [x] Surfaces runtime `knowledge-base` et `cad` en place a la place des anciennes surfaces `notion`
 - [x] Trace native `run_id`, timeline operateur et facade ops complete
 - [x] `ops-agent`, Loki, Promtail, OTel Collector, Prometheus, Grafana et Langfuse verifies
+- [x] `Tempo` comme backend traces Grafana et `blackbox-exporter` pour les surfaces sans `/metrics`
+- [x] `Grafana` et `Langfuse` accessibles via `edge-proxy` avec auth operateur dediee
 
 ## 5. Backlogs encore utiles
 
@@ -51,6 +56,7 @@ Note de contexte multi-repo:
 
 ## 6. Prochain ordre recommande
 
-1. Rejouer les checks finaux par repo avant toute publication distante.
+1. Ne pas rouvrir de nouveau lot local par defaut: le socle runtime/ops est livre.
 2. Garder `Agent Zero` hors chemin critique.
 3. Ne rouvrir les E2E differes que sur besoin explicite.
+4. Traiter seulement les restes externes ou optionnels: `DNS/ACME` public, secrets providers, setup Mac local.
