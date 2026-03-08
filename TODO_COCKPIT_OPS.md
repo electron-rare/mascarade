@@ -40,9 +40,10 @@ Le lot local est stable; ce fichier ne porte plus de blocage critique.
 ## 5. Hors perimetre de ce lot
 
 - [ ] TLS / certificat public
-- [ ] Secrets operateur optionnels (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `NOTION_TOKEN`)
+- [ ] Secrets operateur optionnels (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `NEXAR_TOKEN`)
 - [ ] Setup Mac local (`MCP`, `Playwright MCP`)
-- [ ] Restes specialises `K-012` / `K-014` portes par `Kill_LIFE`
+- [ ] Reste specialise actif `K-014` porte par `Kill_LIFE`
+- [ ] `K-012` uniquement si le host-native KiCad redevient requis
 
 ## 6. Ordre recommande
 

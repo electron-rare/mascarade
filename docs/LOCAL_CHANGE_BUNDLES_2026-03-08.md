@@ -9,15 +9,15 @@ Commits locaux deja sortis:
 
 1. `e9de1e0` — `mcp-runtime-surfaces`
 2. `1e50bea` — `ops-observability-runtime`
+3. `8291d3e` — `docs-state`
 
 Etat residuel:
 
-- un seul bundle `mascarade` reste ouvert: `docs-state`
-- `finetune-followups` n'a plus de delta local a sortir
-- le prochain travail n'est plus technique; c'est de la consolidation/
-  publication
+- aucun bundle `mascarade` n'est encore ouvert
+- `Kill_LIFE` et `crazy_life` ont eux aussi leurs commits locaux de consolidation
+- le prochain travail n'est plus technique; c'est `checks finaux + decision de publication distante`
 
-## Bundle restant — `docs-state`
+## Bundle `docs-state`
 
 Objet:
 
@@ -56,14 +56,19 @@ git add TODO_COCKPIT_OPS.md TODO_IMPLEMENTE.md \
 git commit -m "docs(state): realign plans and local bundle map"
 ```
 
-## Ordre inter-repo recommande
+## Etat inter-repo
 
-1. finir `mascarade:docs-state`
-2. sortir `Kill_LIFE:mcp-runtime`
-3. sortir `Kill_LIFE:cad-mcp`
-4. sortir `Kill_LIFE:python-local`
-5. sortir `crazy_life:cockpit runtime alignment`
-6. sortir `crazy_life:docs state`
+Commits locaux sortis:
+
+- `mascarade`: `e9de1e0`, `1e50bea`, `8291d3e`
+- `Kill_LIFE`: `bd49fc6`, `e0b7b17`, `0d61c88`, `b33682a`
+- `crazy_life`: `0f8d6ce`, `9205f1a`
+
+Prochain ordre:
+
+1. rejouer les checks minimaux par repo
+2. decider du push repo par repo
+3. laisser les restes externes/optionnels hors de cette phase
 
 ## Regle
 

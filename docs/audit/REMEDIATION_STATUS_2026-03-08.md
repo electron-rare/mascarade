@@ -10,7 +10,7 @@ Backlog de reference:
 ## Global status
 - Remediations verifiees comme fermees: `RA-001` a `RA-013`
 - Gate RA actif: aucun
-- Restes specialises hors ligne `RA-*`: `K-012` et `K-014` dans le backlog KiCad
+- Restes specialises hors ligne `RA-*`: `K-014` actif dans le backlog KiCad; `K-012` devient optionnel tant que le runtime conteneur KiCad reste canonique
 
 ## Detail par RA
 
@@ -79,7 +79,7 @@ Backlog de reference:
   - le MCP `knowledge-base` est valide en live sur le provider actif `memos`;
   - `GitHub dispatch MCP` est valide en live via token persiste;
   - le MCP `HuggingFace` est a nouveau `ready` en mode remote HTTP anonyme;
-  - les blocages specialises restants (`K-012`, `K-014`) ne relevent plus de cette remediation.
+  - les restes specialises restants ne relevent plus de cette remediation; `K-014` reste actif, `K-012` devient optionnel tant que le runtime conteneur KiCad reste canonique.
 
 ### RA-011 — Clarifier le contrat multi-repo
 - Status: **Done**
@@ -114,8 +114,6 @@ Condition de reouverture:
 2. bundles locaux consolides sur les repos concernes.
 
 ## Next step
-1. Finir la materialisation des bundles locaux dans `mascarade`, `Kill_LIFE` et `crazy_life`.
-2. Rejouer les checks minimaux par repo avant publication distante.
-3. Traiter `K-012` et `K-014` comme restes specialises hors ligne `RA-*`:
-   - `K-012` sur une machine avec `pcbnew` host-native;
-   - `K-014` avec un `NEXAR_TOKEN` live.
+1. Rejouer les checks minimaux par repo avant publication distante.
+2. Traiter `K-014` comme reste specialise hors ligne `RA-*`, avec un `NEXAR_TOKEN` live.
+3. Ne rejouer `K-012` que si le host-native KiCad devient une exigence runtime.

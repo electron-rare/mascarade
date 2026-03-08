@@ -51,6 +51,6 @@ Note de contexte multi-repo:
 
 ## 6. Prochain ordre recommande
 
-1. Sortir les bundles locaux multi-repo deja prepares.
+1. Rejouer les checks finaux par repo avant toute publication distante.
 2. Garder `Agent Zero` hors chemin critique.
 3. Ne rouvrir les E2E differes que sur besoin explicite.
