@@ -63,7 +63,17 @@ class Settings(BaseSettings):
     google_application_credentials: str = ""
     google_model: str = "gemini-2.5-flash"
 
-    # Notion
+    # Knowledge base provider (legacy Notion settings kept for compatibility)
+    knowledge_base_provider: str = "memos"
+    knowledge_base_smoke_page_id: str = ""
+    memos_base_url: str = ""
+    memos_public_url: str = ""
+    memos_access_token: str = ""
+    memos_default_visibility: str = "PRIVATE"
+    docmost_base_url: str = ""
+    docmost_email: str = ""
+    docmost_password: str = ""
+    docmost_space_id: str = ""
     notion_auth_mode: str = "api_key"
     notion_api_key: str = ""
     notion_oauth_access_token: str = ""
@@ -126,6 +136,9 @@ class Settings(BaseSettings):
     mistral_api_base: str = "https://api.mistral.ai/v1"
     mistral_default_model: str = "mistral-large-latest"
     mistral_timeout_ms: int = 120000
+    litellm_proxy_enabled: bool = False
+    litellm_base_url: str = "http://litellm:4000"
+    litellm_master_key: str = ""
 
     # Defaults
     default_provider: str = "claude"

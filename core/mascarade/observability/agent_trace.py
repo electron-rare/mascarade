@@ -58,6 +58,12 @@ class AgentTraceEvent:
     routing_role: str | None = None
     routing_provider: str | None = None
     routing_model: str | None = None
+    mcp_server: str | None = None
+    mcp_tool: str | None = None
+    mcp_status: str | None = None
+    mcp_transport: str | None = None
+    mcp_latency_ms: float | None = None
+    mcp_protocol_version: str | None = None
     token_usage: dict[str, int] | None = None
     error: str | None = None
 
@@ -81,9 +87,8 @@ def build_routing_suffix(event: AgentTraceEvent) -> str:
 def build_trace_message(event: AgentTraceEvent) -> str:
     """Build a compact operator-facing message for a trace event."""
     if event.event_type == "run_started":
-        return (
-            f"run {event.run_id} started in {event.mode} mode"
-            + (f" with {event.agent_name}" if event.agent_name else "")
+        return f"run {event.run_id} started in {event.mode} mode" + (
+            f" with {event.agent_name}" if event.agent_name else ""
         )
     if event.event_type == "step_started":
         return (
@@ -104,16 +109,21 @@ def build_trace_message(event: AgentTraceEvent) -> str:
             summary += f' "{event.content_excerpt}"'
         return summary
     if event.event_type == "handoff":
-        return (
-            f"{event.from_agent or 'agent'} -> {event.to_agent or 'agent'} handoff"
-            + (f' "{event.content_excerpt}"' if event.content_excerpt else "")
+        return f"{event.from_agent or 'agent'} -> {event.to_agent or 'agent'} handoff" + (
+            f' "{event.content_excerpt}"' if event.content_excerpt else ""
         )
     if event.event_type == "run_completed":
         return f"run {event.run_id} completed"
     if event.event_type == "run_failed":
-        return f"run {event.run_id} failed" + (
-            f" ({event.error})" if event.error else ""
-        )
+        return f"run {event.run_id} failed" + (f" ({event.error})" if event.error else "")
+    if event.event_type == "mcp_call_started":
+        return f"MCP {event.mcp_server or 'server'}::{event.mcp_tool or 'tool'} started"
+    if event.event_type == "mcp_call_completed":
+        suffix = f" ({event.mcp_latency_ms:.1f} ms)" if event.mcp_latency_ms is not None else ""
+        return f"MCP {event.mcp_server or 'server'}::{event.mcp_tool or 'tool'} completed{suffix}"
+    if event.event_type == "mcp_call_failed":
+        detail = f" ({event.error})" if event.error else ""
+        return f"MCP {event.mcp_server or 'server'}::{event.mcp_tool or 'tool'} failed{detail}"
     return event.content_excerpt or event.prompt_excerpt or event.event_type
 
 
@@ -170,6 +180,12 @@ class AgentTraceBuffer:
             "routing_role": event.routing_role,
             "routing_provider": event.routing_provider,
             "routing_model": event.routing_model,
+            "mcp_server": event.mcp_server,
+            "mcp_tool": event.mcp_tool,
+            "mcp_status": event.mcp_status,
+            "mcp_transport": event.mcp_transport,
+            "mcp_latency_ms": event.mcp_latency_ms,
+            "mcp_protocol_version": event.mcp_protocol_version,
             "ts": event.ts,
         }
         print(json.dumps(structured_log, ensure_ascii=True), flush=True)
@@ -188,6 +204,11 @@ class AgentTraceBuffer:
                 "routing_role": event.routing_role or "",
                 "routing_provider": event.routing_provider or "",
                 "routing_model": event.routing_model or "",
+                "mcp_server": event.mcp_server or "",
+                "mcp_tool": event.mcp_tool or "",
+                "mcp_status": event.mcp_status or "",
+                "mcp_transport": event.mcp_transport or "",
+                "mcp_protocol_version": event.mcp_protocol_version or "",
             },
         )
 
@@ -230,6 +251,12 @@ class AgentTraceBuffer:
         routing_role: str | None = None,
         routing_provider: str | None = None,
         routing_model: str | None = None,
+        mcp_server: str | None = None,
+        mcp_tool: str | None = None,
+        mcp_status: str | None = None,
+        mcp_transport: str | None = None,
+        mcp_latency_ms: float | None = None,
+        mcp_protocol_version: str | None = None,
         token_usage: dict[str, int] | None = None,
         error: str | None = None,
     ) -> AgentTraceEvent:
@@ -251,6 +278,12 @@ class AgentTraceBuffer:
             routing_role=excerpt_text(routing_role, limit=120),
             routing_provider=excerpt_text(routing_provider, limit=120),
             routing_model=excerpt_text(routing_model, limit=160),
+            mcp_server=excerpt_text(mcp_server, limit=120),
+            mcp_tool=excerpt_text(mcp_tool, limit=160),
+            mcp_status=excerpt_text(mcp_status, limit=80),
+            mcp_transport=excerpt_text(mcp_transport, limit=80),
+            mcp_latency_ms=mcp_latency_ms,
+            mcp_protocol_version=excerpt_text(mcp_protocol_version, limit=80),
             token_usage=token_usage,
             error=excerpt_text(error),
         )
