@@ -13,6 +13,7 @@ Usage: install_kicad_plugins.sh <command> [options]
 Commands:
   list                                  Show available plugin bundles
   plugin-dir [--kicad-version VER]      Print the default KiCad plugin directory
+  paths [--kicad-version VER]           Show plugin paths for all supported OS
   install <name|all> [options]          Install one or more plugin bundles
   doctor [name|all] [options]           Verify installed plugin bundles
   help                                  Show this help
@@ -271,6 +272,42 @@ plugin_dir_cmd() {
   default_plugin_dir "$kicad_version"
 }
 
+paths_cmd() {
+  local kicad_version="${KICAD_VERSION:-9.0}"
+
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      --kicad-version)
+        [ "$#" -ge 2 ] || die "--kicad-version requires a value"
+        kicad_version="$2"
+        shift 2
+        ;;
+      -h|--help)
+        usage
+        exit 0
+        ;;
+      *)
+        die "Unknown option for paths: $1"
+        ;;
+    esac
+  done
+
+  local current_os
+  current_os="$(uname -s 2>/dev/null || echo unknown)"
+
+  printf 'KiCad %s plugin paths by OS:\n\n' "$kicad_version"
+  printf '  %-10s %s\n' "Linux" "\$HOME/.config/kicad/${kicad_version}/scripting/plugins"
+  printf '  %-10s %s\n' "macOS" "\$HOME/Library/Application Support/kicad/${kicad_version}/scripting/plugins"
+  printf '  %-10s %s\n' "Windows" "%%APPDATA%%\\kicad\\${kicad_version}\\scripting\\plugins"
+  echo ""
+  printf 'Current OS: %s\n' "$current_os"
+  printf 'Resolved:   %s\n' "$(default_plugin_dir "$kicad_version")"
+
+  if [ -n "${KICAD_PLUGIN_DIR:-}" ]; then
+    printf 'Override:   %s (via KICAD_PLUGIN_DIR)\n' "$KICAD_PLUGIN_DIR"
+  fi
+}
+
 doctor_cmd() {
   local bundle="${1:-all}"
   if [ "$#" -gt 0 ]; then
@@ -403,6 +440,9 @@ main() {
       ;;
     plugin-dir)
       plugin_dir_cmd "$@"
+      ;;
+    paths)
+      paths_cmd "$@"
       ;;
     install)
       install_cmd "$@"

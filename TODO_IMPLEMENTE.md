@@ -190,3 +190,6 @@ Objectif: cadrer si `Agent Zero` doit rester un sujet d'etude, un outil de debug
 - [x] Integrer la section `CAD / KiCad` dans `./config`
 - [x] Ajouter les actions `--cad-plugins`, `--cad-doctor`, `--cad-stack` dans `./setup`
 - [x] Consolider la doc operateur CAD/TUI
+- [x] Smoke operateur CAD (`cad_stack.sh smoke`, `setup --cad-smoke`)
+- [x] Doc chemins plugins par OS (`install_kicad_plugins.sh paths`)
+- [x] Doctor MCP dedie (`cad_stack.sh doctor-mcp`)
