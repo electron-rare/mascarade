@@ -31,7 +31,7 @@ Notes:
 - L'ancien constat `tools-langfuse KO (ZodError)` ne correspond plus au runtime actuel. `langfuse-web:3000` répond `200` depuis le réseau Docker.
 - Les curls host-side vers `127.0.0.1:3200` ne sont pas conclusifs depuis l'environnement sandboxé; la vérification retenue est donc celle faite depuis le réseau Docker et via l'état Docker.
 - `Grafana` et `Langfuse` sont maintenant publiables derrière `edge-proxy` sur `grafana.saillant.cc` et `langfuse.saillant.cc`, avec auth dédiée côté proxy.
-- Le bind hôte de `edge-proxy` est maintenant `0.0.0.0`; le certificat réel reste en attente du challenge DNS manuel pour `saillant.cc`, `grafana.saillant.cc`, `langfuse.saillant.cc` et `dify.saillant.cc`.
+- Le bind hôte de `edge-proxy` est maintenant `0.0.0.0`; le certificat réel Let's Encrypt est installé via DNS-01 Cloudflare avec couverture `saillant.cc` + `*.saillant.cc`.
 
 ## TODO priorisés
 
@@ -49,8 +49,8 @@ Notes:
 - [ ] Compléter les secrets opérateurs encore absents dans `.env` selon le besoin réel:
   - `ANTHROPIC_API_KEY`
   - `OPENAI_API_KEY`
-  - `NOTION_TOKEN`
 - [x] `MISTRAL_API_KEY` est déjà configurée.
+- [x] `Notion` est sorti du scope actif; ne plus traiter `NOTION_*` comme secrets à compléter sur cette VM.
 
 ### Infra
 - [x] Source `Firecrawl` retenue: image officielle `mcp/firecrawl@sha256:e6676bd31d1806574d931b7a7b7b6fba953c031853e80adc1ec8115c17ab81ca`.
@@ -70,7 +70,8 @@ Notes:
 - [x] `Grafana` et `Langfuse` ont un routage dédié derrière `edge-proxy`.
 - [x] Une auth opérateur dédiée protège ces surfaces côté proxy.
 - [x] Le certificat auto-signé de fallback couvre maintenant `saillant.cc`, `grafana.saillant.cc`, `langfuse.saillant.cc` et `dify.saillant.cc`.
-- [ ] Finaliser le certificat réel via le challenge TXT ACME manuel puis `bash scripts/edge_proxy_cert.sh renew --provider manual`.
+- [x] Certificat réel Let's Encrypt installé via ACME DNS-01 Cloudflare.
+- [x] Couverture wildcard active: `saillant.cc` et `*.saillant.cc`.
 
 ### Monitoring
 - [x] `Langfuse` est connecté à `Mascarade` pour tracer les appels LLM.
@@ -87,9 +88,7 @@ Notes:
 
 Les restes encore ouverts ne sont plus des blocs locaux d'implementation:
 
-- exposition publique reelle du proxy (`EDGE_PROXY_BIND_HOST=0.0.0.0` + chemin `ACME/DNS`)
-- finalisation du challenge TXT ACME puis installation du certificat reel
-- secrets operateur additionnels uniquement si les providers correspondants doivent etre actifs
+- secrets operateur additionnels uniquement si les providers correspondants doivent etre actifs (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`)
 - execution du bootstrap Mac sur le poste cible (`MCP`, `Playwright MCP`)
 
 ## Infra existante sur la VM
