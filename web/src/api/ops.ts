@@ -140,10 +140,12 @@ export type OpsSummary = {
     docker_logs?: boolean;
     machine_logs: boolean;
     docker_events: boolean;
+    gpu?: boolean;
     loki_history: boolean;
     otel: boolean;
     agentsight: boolean;
   };
+  gpu?: OpsSourceStatus | null;
   cluster?: {
     enabled: boolean;
     node_id?: string | null;
@@ -263,6 +265,7 @@ export const opsApi = {
       String(source === "docker-event"),
     );
     search.set("backfill", source === "docker-event" ? "20" : "12");
+    search.set("live_limit", source === "docker-event" ? "24" : "18");
     search.set("poll_interval_ms", "1500");
 
     return `/api/ops/logs/stream?${search.toString()}`;

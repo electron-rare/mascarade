@@ -973,6 +973,12 @@ ops.get("/sources", async (c) =>
           available: !!opsAgentSources.json?.docker_logs?.available,
           kind: opsAgentSources.json?.docker_logs?.kind || "ops-agent",
         },
+        gpu: {
+          available: !!opsAgentSources.json?.gpu?.available,
+          kind: opsAgentSources.json?.gpu?.kind || "ops-agent",
+          ...(Array.isArray(opsAgentSources.json?.gpu?.gpus) ? { gpus: opsAgentSources.json.gpu.gpus } : {}),
+          ...(opsAgentSources.json?.gpu?.error ? { error: opsAgentSources.json.gpu.error } : {}),
+        },
         loki_history: { available: loki, kind: "loki" },
         otel: {
           available: (process.env.OTEL_ENABLED || "").toLowerCase() === "true",
@@ -1075,6 +1081,7 @@ ops.get("/summary", async (c) => {
         agent_traces: true,
         machine_logs: !!opsAgent.json?.sources?.journald?.available,
         docker_events: !!opsAgent.json?.sources?.docker_events?.available,
+        gpu: !!opsAgent.json?.sources?.gpu?.available,
         loki_history: loki,
         otel: (process.env.OTEL_ENABLED || "").toLowerCase() === "true",
         agentsight: !!opsAgent.json?.sources?.agentsight?.available,
@@ -1086,6 +1093,7 @@ ops.get("/summary", async (c) => {
         peers_total: clusterPeers?.peers?.length || 0,
         peers_ok: clusterPeers?.peers?.filter((peer) => peer.ok).length || 0,
       },
+      gpu: opsAgent.json?.sources?.gpu ?? null,
       mcp,
       ops_agent: opsAgent.json ?? null,
     });
