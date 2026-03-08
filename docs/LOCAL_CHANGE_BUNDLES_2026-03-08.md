@@ -1,89 +1,65 @@
 # Local Change Bundles — 2026-03-08
 
-But: clore le reliquat local de `mascarade` en gardant une cartographie
-historique lisible des lots deja sortis au `2026-03-08`.
+But: figer l'etat reel de `mascarade` apres publication de la vague
+`runtime + ops + docs`, puis documenter les seuls restes locaux hors
+repo-suivi.
 
 ## Etat courant
 
-Commits locaux deja sortis:
+Commits publies:
 
-1. `e9de1e0` — `mcp-runtime-surfaces`
-2. `1e50bea` — `ops-observability-runtime`
-3. `8291d3e` — `docs-state`
+1. `2c45cf4` — `runtime(core): align canonical python and agent surfaces`
+2. `6b2bce9` — `ops(observability): publish runtime and cockpit followups`
+3. `51ecbe8` — `docs(state): realign publication and remediation status`
+4. `05120b4` — `docs(ops): close observability follow-up state`
 
-Etat courant:
+Etat reel:
 
-- `mascarade` ne porte plus qu'un lot de cloture doc/etat, plus un ajustement
-  de dashboard Grafana
-- `Kill_LIFE` reste propre cote suivi Git; seul `.mascarade/` reste local/exclu
-- `crazy_life` est propre
-- le prochain travail n'est plus de rouvrir la pile `MCP/agentics`; c'est de
-  garder les sujets externes ou optionnels hors du repo courant
+- aucun delta repo-suivi actif ne reste a sortir dans `mascarade`
+- les checks canoniques restent verts
+- la ligne `MCP/agentics` est fermee localement
+- le seul reliquat visible hors repo-suivi est le repo compagnon
+  `finetune/kicad_kic_ai`
 
-Checks canoniques rejoues avec succes sur `mascarade`:
+Checks canoniques rejoues avec succes:
 
 - `bash scripts/test_python.sh --bootstrap --venv-dir /tmp/mascarade-plan-impl-2`
+- `cd api && npm run test -- src/routes/ops.test.ts`
 - `cd api && npm run build`
-- `cd web && npm run build`
+- `cd web && npm run build:api-public`
 - `docker compose config -q`
 - `GET /api/ops/summary` authentifie -> `mcp.aggregate_status=ready`, `7/7`
   serveurs `ready`
+- `POST /api/ops/mcp/probe/freecad?force=true` -> `ready`
 
-Reliquats suivis actuels:
+## Reliquats locaux
 
-1. `docs-state-followup`
-2. `finetune/kicad_kic_ai` reste dirty dans le repo imbrique et n'entre pas
-   dans le bundle `mascarade` courant
+### 1. Repo compagnon `finetune/kicad_kic_ai`
 
-## Bundle `docs-state-followup`
+- ce repo reste opere comme un companion repo independant
+- il ne fait plus partie des bundles `mascarade`
+- le parent ignore maintenant son dirty state via `ignore = dirty` dans
+  `.gitmodules`
 
-Objet:
+Ce que cela signifie:
 
-- realigner les TODO/plans/documents d'etat sur le runtime reel final du lot
-  observabilite/proxy
-- clore la cartographie des bundles ouverts dans `mascarade`
-- corriger le panneau Grafana restant sur une metrique effectivement exposee
+- un changement dans `finetune/kicad_kic_ai` doit etre gere et publie depuis ce
+  repo compagnon
+- il ne doit pas rouvrir artificiellement un chantier dans `mascarade`
 
-Fichiers:
+### 2. Aucun bundle repo-suivi ouvert
 
-- `README.md`
-- `TODO_VM.md`
-- `TODO_COCKPIT_OPS.md`
-- `TODO_IMPLEMENTE.md`
-- `deploy/grafana/provisioning/dashboards/json/mascarade-tooling-observability.json`
-- `docs/EXECUTION_PLAN_2026-03-07.md`
-- `docs/MCP_AGENTICS_ARCHITECTURE.md`
-- `docs/LOCAL_CHANGE_BUNDLES_2026-03-08.md`
-- `docs/audit/REMEDIATION_STATUS_2026-03-08.md`
-
-Validation minimale:
-
-```bash
-python3 -c 'import json; json.load(open("deploy/grafana/provisioning/dashboards/json/mascarade-tooling-observability.json"))'
-git diff --check -- README.md TODO_VM.md TODO_COCKPIT_OPS.md TODO_IMPLEMENTE.md \
-  deploy/grafana/provisioning/dashboards/json/mascarade-tooling-observability.json \
-  docs/EXECUTION_PLAN_2026-03-07.md docs/MCP_AGENTICS_ARCHITECTURE.md \
-  docs/LOCAL_CHANGE_BUNDLES_2026-03-08.md \
-  docs/audit/REMEDIATION_STATUS_2026-03-08.md
-```
+Il n'y a plus de bundle local a couper dans `mascarade`.
 
 ## Etat inter-repo
 
-Commits locaux sortis:
+Etat courant:
 
-- `mascarade`: `e9de1e0`, `1e50bea`, `8291d3e`
-- `Kill_LIFE`: `bd49fc6`, `e0b7b17`, `0d61c88`, `b33682a`
-- `crazy_life`: `0f8d6ce`, `9205f1a`
-
-Prochain ordre:
-
-1. sortir `docs-state-followup`
-2. ne rouvrir aucun chantier technique nouveau tant qu'aucun besoin concret ne
-   le justifie
-3. garder les sujets externes (`DNS/ACME`, secrets providers, setup Mac)
-   hors de ce repo tant qu'ils ne sont pas explicitement ouverts
+- `mascarade`: vague locale publiee, repo-suivi ferme
+- `Kill_LIFE`: repo-suivi ferme; seul `.mascarade/` reste local/exclu
+- `crazy_life`: repo-suivi ferme
 
 ## Regle
 
-Ne pas rouvrir un lot technique nouveau tant qu'un besoin reel ne requalifie
-pas les restes externes ou optionnels.
+Ne pas rouvrir un lot technique nouveau dans `mascarade` tant qu'un besoin reel
+ne requalifie pas un sujet externe ou optionnel.

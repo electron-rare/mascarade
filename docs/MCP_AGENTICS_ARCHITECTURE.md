@@ -116,6 +116,7 @@ Les restes techniques encore ouverts ne sont plus sur la ligne `A-*`, mais sur l
 - aucun blocker MCP/agentics local actif sur la machine de reference
 - `K-012`: reste une validation host-native optionnelle; le runtime canonique actuel utilise deja le conteneur KiCad MCP avec succes
 - `nexar_api`: le chemin live est valide, mais le token de reference reste soumis a une limite externe de quota Nexar (`part limit of 0`)
+- `finetune/kicad_kic_ai`: reste un repo compagnon autonome; son dirty state est ignore par le parent `mascarade` et ne requalifie pas un chantier `MCP/agentics`
 
 ## Repartition pratique par repo
 

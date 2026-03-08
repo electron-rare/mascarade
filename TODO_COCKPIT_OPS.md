@@ -56,3 +56,4 @@ Le lot local est stable; ce fichier ne porte plus de blocage critique.
 2. Considerer le lot cockpit/ops comme livre apres rejeu vert des checks canoniques du `2026-03-08`.
 3. Garder la ligne `MCP/agentics` sur le backlog specialise `Kill_LIFE/specs/mcp_tasks.md`.
 4. Traiter separement les sujets externes: `DNS/ACME`, secrets providers, setup Mac local.
+5. Ne pas traiter le repo compagnon `finetune/kicad_kic_ai` comme un delta `mascarade`; il suit sa propre publication.
