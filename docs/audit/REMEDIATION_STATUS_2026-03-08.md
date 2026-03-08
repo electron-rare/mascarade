@@ -3,6 +3,11 @@
 ## Scope
 Etat courant apres reprise des RA du re-audit du 7 mars 2026.
 Requalification faite sur verifications live du 8 mars 2026 (`free -h`, `ss`, `docker ps`, `ops-agent`, `/api/ops/summary`, et etat Git local des repos).
+Checks canoniques rejoues et valides le 8 mars 2026:
+
+- `mascarade`: `scripts/test_python.sh --bootstrap`, build `api`, build `web`, `docker compose config -q`, `/api/ops/summary`
+- `Kill_LIFE`: `tools/test_python.sh --suite stable`, `mcp_runtime_status.py --json`, smokes `knowledge-base`, `github-dispatch`, `nexar_api`
+- `crazy_life`: build `web`, `scripts/publish_preflight.sh check`
 
 Backlog de reference:
 - `REMEDIATION_BACKLOG_2026-03-07_REAUDIT.md`
@@ -114,6 +119,7 @@ Condition de reouverture:
 2. bundles locaux consolides sur les repos concernes.
 
 ## Next step
-1. Rejouer les checks minimaux par repo avant publication distante.
-2. N'ouvrir un chantier Nexar supplementaire que si le sourcing live requiert un token/plan avec quota de parts non nul.
-3. Ne rejouer `K-012` que si le host-native KiCad devient une exigence runtime.
+1. Publier le reliquat suivi de `mascarade` par bundles (`runtime-core-fixes`, puis `ops-observability-followups`).
+2. Garder `Kill_LIFE` et `crazy_life` fermes localement tant qu'une vague de publication distante n'est pas ouverte.
+3. N'ouvrir un chantier Nexar supplementaire que si le sourcing live requiert un token/plan avec quota de parts non nul.
+4. Ne rejouer `K-012` que si le host-native KiCad devient une exigence runtime.

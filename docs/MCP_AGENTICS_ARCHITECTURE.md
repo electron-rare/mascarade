@@ -105,7 +105,7 @@ Si `A2A` s'ouvre plus tard:
 - il sert uniquement aux handoffs inter-agents
 - il ne remplace pas `MCP` pour l'acces aux outils
 
-## Restes specialises ouverts
+## Restes specialises externes ou optionnels
 
 Les restes techniques encore ouverts ne sont plus sur la ligne `A-*`, mais sur le backlog KiCad specialise:
 
