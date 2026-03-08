@@ -1,8 +1,7 @@
 # Local Change Bundles — 2026-03-08
 
 But: figer l'etat reel de `mascarade` apres publication de la vague
-`runtime + ops + docs`, puis suivre le nouveau lot local
-`operator-surfaces-public-proxy` avant sa prochaine publication.
+`runtime + ops + docs`, puis consigner les follow-ups operateur deja publies.
 
 ## Etat courant
 
@@ -15,13 +14,13 @@ Commits publies:
 
 Etat reel:
 
-- un nouveau delta repo-suivi local est implemente et valide dans `mascarade`:
-  `operator-surfaces-public-proxy`
 - les checks canoniques de la vague precedente restent verts
 - la ligne `MCP/agentics` reste fermee localement
+- les follow-ups `operator-surfaces-public-proxy` puis
+  `zeroclaw-langgraph-operator-lane` sont publies
 - le repo compagnon `finetune/kicad_kic_ai` reste hors bundle `mascarade`
 
-Bundle local actif:
+## Lots logiques publies
 
 ### `operator-surfaces-public-proxy`
 
@@ -63,6 +62,41 @@ Checks canoniques rejoues avec succes:
   serveurs `ready`
 - `POST /api/ops/mcp/probe/freecad?force=true` -> `ready`
 
+### `zeroclaw-langgraph-operator-lane`
+
+Perimetre:
+
+- vhosts publics proteges pour `zeroclaw.saillant.cc` et
+  `langgraph.saillant.cc`
+- surfaces publiques `zeroclaw` / `langgraph` dans `OpsHub` et `/api/ops/summary`
+- posture explicite `ZeroClaw` on-demand, runbooks `ZeroClaw` / `LangGraph`
+  servis meme runtime arrete
+- docs/TODOs recales sur cette posture
+
+Checks rejoues pour fermer ce bundle:
+
+- `zeroclaw --version`
+- `bash -n ../Kill_LIFE/tools/ai/zeroclaw_*.sh`
+- `bash ../Kill_LIFE/tools/ai/zeroclaw_stack_up.sh`
+- `curl http://127.0.0.1:3000/health`
+- `curl http://127.0.0.1:8788/`
+- `bash ../Kill_LIFE/tools/ai/zeroclaw_stack_down.sh`
+- `docker compose config -q`
+- `cd api && npm run test -- src/routes/ops.test.ts`
+- `cd api && npm run build`
+- `cd web && npm run build:api-public`
+- `cd ../crazy_life && npm run build`
+- probes HTTPS `zeroclaw.saillant.cc` / `langgraph.saillant.cc`
+
+Resultat local:
+
+- `zeroclaw --version` -> `0.1.7`
+- `zeroclaw.saillant.cc` -> `401` sans auth, `200` avec auth
+- `langgraph.saillant.cc` -> `401` sans auth, `200` avec auth
+- `/api/ops/summary` authentifie -> `mcp.aggregate_status=ready`, `7/7`
+  serveurs `ready`
+- `zeroclaw` / `langgraph` remontent comme surfaces publiques `ok=true`
+
 ## Reliquats locaux
 
 ### 1. Repo compagnon `finetune/kicad_kic_ai`
@@ -78,10 +112,10 @@ Ce que cela signifie:
   repo compagnon
 - il ne doit pas rouvrir artificiellement un chantier dans `mascarade`
 
-### 2. Bundle repo-suivi pret a publier
+### 2. Aucun bundle repo-suivi actif
 
-Le bundle local `operator-surfaces-public-proxy` est ferme techniquement et
-pret a etre publie.
+Les deux follow-ups operateur ont ete publies. Il n'y a plus de delta
+repo-suivi `mascarade` actif sur cette ligne.
 
 ## Etat inter-repo
 

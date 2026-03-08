@@ -32,6 +32,8 @@ Notes:
 - Les curls host-side vers `127.0.0.1:3200` ne sont pas conclusifs depuis l'environnement sandboxé; la vérification retenue est donc celle faite depuis le réseau Docker et via l'état Docker.
 - `Grafana` et `Langfuse` sont maintenant publiables derrière `edge-proxy` sur `grafana.saillant.cc` et `langfuse.saillant.cc`, avec auth dédiée côté proxy.
 - `Firecrawl`, `Mem0`, `Prometheus` et `Ollama` sont aussi publiables derrière `edge-proxy` sur `firecrawl.saillant.cc`, `mem0.saillant.cc`, `prometheus.saillant.cc` et `ollama.saillant.cc`, avec la même auth opérateur.
+- `ZeroClaw` est maintenant installe nativement sur la VM (`zeroclaw 0.1.7`), avec un runtime operateur demarrable a la demande via `Kill_LIFE/tools/ai/zeroclaw_stack_up.sh`.
+- `ZeroClaw` / `LangGraph` restent publies derriere `edge-proxy` sur `zeroclaw.saillant.cc` et `langgraph.saillant.cc` comme surfaces operateur authentifiees; ces hostnames servent les runbooks meme quand le runtime `ZeroClaw` est arrete.
 - Le bind hôte de `edge-proxy` est maintenant `0.0.0.0`; le certificat réel Let's Encrypt est installé via DNS-01 Cloudflare avec couverture `saillant.cc` + `*.saillant.cc`.
 
 ## TODO priorisés
@@ -44,6 +46,8 @@ Notes:
 - [x] `Tempo` branché comme backend de traces nominal.
 - [x] `Grafana` et `Langfuse` sont atteignables via le proxy opérateur.
 - [x] `Firecrawl`, `Mem0`, `Prometheus` et `Ollama` sont atteignables via le proxy opérateur.
+- [x] `ZeroClaw` et `LangGraph` sont visibles comme surfaces opérateur proxifiées.
+- [x] Le runtime `ZeroClaw` se demarre et s'arrete proprement a la demande via les scripts `Kill_LIFE`.
 
 ### Sécurité
 - [x] `MASCARADE_API_KEY` est renseignée dans `/home/clems/mascarade/.env`; l'auth n'est pas désactivée en pratique.
@@ -71,6 +75,7 @@ Notes:
 - [x] `edge-proxy` est maintenant publié sur `0.0.0.0:80/443`.
 - [x] `Grafana` et `Langfuse` ont un routage dédié derrière `edge-proxy`.
 - [x] `Firecrawl`, `Mem0`, `Prometheus` et `Ollama` ont un routage dédié derrière `edge-proxy`.
+- [x] `ZeroClaw` et `LangGraph` ont un routage dédié derrière `edge-proxy`.
 - [x] Une auth opérateur dédiée protège ces surfaces côté proxy.
 - [x] Le certificat auto-signé de fallback couvre maintenant `saillant.cc`, `grafana.saillant.cc`, `langfuse.saillant.cc` et `dify.saillant.cc`.
 - [x] Certificat réel Let's Encrypt installé via ACME DNS-01 Cloudflare.
