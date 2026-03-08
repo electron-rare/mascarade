@@ -28,7 +28,7 @@ Commands:
   split           Print the current subtree split SHA for web/
   pull            Pull crazy_life back into web/ with git subtree
   sync-back       Alias for pull
-  push            Push the web/ subtree to the crazy_life repository
+  push            Export the committed web/ subtree to the crazy_life repository
 
 Options:
   --remote <name>     Remote name to use (default: crazy_life)
@@ -132,12 +132,13 @@ push_cmd() {
   ensure_remote
   split_sha="$(compute_split_sha)"
 
-  log "Pushing $PREFIX subtree ($split_sha) to $REMOTE_NAME/$TARGET_BRANCH"
+  log "Exporting $PREFIX subtree ($split_sha) to $REMOTE_NAME/$TARGET_BRANCH"
   if [[ "$FORCE_PUSH" -eq 1 ]]; then
     git -C "$ROOT_DIR" push --force "$REMOTE_NAME" "$split_sha:$TARGET_BRANCH"
   else
     git -C "$ROOT_DIR" push "$REMOTE_NAME" "$split_sha:$TARGET_BRANCH"
   fi
+  log "Bridge export complete. Release readiness still belongs to /home/clems/crazy_life/scripts/publish_preflight.sh."
 }
 
 pull_cmd() {

@@ -24,6 +24,7 @@ define_service "api"        "Mascarade API"     "Hono — gateway HTTP, auth mid
 define_service "litellm"    "LiteLLM"           "Proxy LLM unifie + cache Redis"                  "4000"  "tools" 0 "redis"
 define_service "n8n"        "n8n"               "Automatisation workflows low-code"                "5678"  "tools" 0 "postgres"
 define_service "langfuse"   "Langfuse"          "Observabilite LLM (tracing, evals)"              "3200"  "tools" 0 "postgres,clickhouse"
+define_service "firecrawl"  "Firecrawl MCP"     "Scraping / search web via serveur MCP Firecrawl" "3400"  "tools" 0 ""
 define_service "dify"       "Dify"              "App builder IA (API + Web + Worker)"              "3500"  "tools" 0 "postgres,redis"
 define_service "clickhouse" "ClickHouse"        "Base analytique colonnaire (Langfuse)"            "—"     "tools" 0 ""
 define_service "comfyui"    "ComfyUI"           "Generation d'images (SD, Flux)"                   "8188"  "tools" 0 ""
@@ -63,6 +64,7 @@ sync_service_ports_from_env() {
             litellm) env_var="LITELLM_PORT" ;;
             n8n) env_var="N8N_PORT" ;;
             langfuse) env_var="LANGFUSE_PORT" ;;
+            firecrawl) env_var="FIRECRAWL_PORT" ;;
             dify) env_var="DIFY_WEB_PORT" ;;
             comfyui) env_var="COMFYUI_PORT" ;;
             tts) env_var="TTS_PORT" ;;

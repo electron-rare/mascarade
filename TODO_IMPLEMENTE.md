@@ -2,6 +2,13 @@
 
 Etat de reference du chantier fine-tuning/distillation local au 6 mars 2026.
 
+Note de contexte multi-repo:
+- les sections frontend/cockpit ci-dessous sont un inventaire historique de ce
+  qui a ete implemente depuis `mascarade`
+- l'ownership produit et la release canonique du cockpit vivent maintenant dans
+  `crazy_life`
+- `mascarade/web` reste un bridge/snapshot, pas la source de verite web
+
 ## 1. Deja implemente
 
 ### Pipeline local

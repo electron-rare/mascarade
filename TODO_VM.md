@@ -33,7 +33,7 @@ Notes:
 - [x] `Langfuse` ne crashe plus et répond sur le réseau Docker.
 - [x] Ajouter un `healthcheck` Docker explicite sur `mascarade-langfuse`.
 - [x] Recréer `langfuse-web` pour matérialiser le nouveau statut `healthy` dans `docker ps`.
-- [ ] Trancher si `Langfuse` reste une brique supportée ou redevient un service `heavy` optionnel seulement.
+- [x] `Langfuse` retenu comme brique supportée, optionnelle hors profil standard sur VM légère.
 
 ### Sécurité
 - [x] `MASCARADE_API_KEY` est renseignée dans `/home/clems/mascarade/.env`; l'auth n'est pas désactivée en pratique.
@@ -45,9 +45,9 @@ Notes:
 - [x] `MISTRAL_API_KEY` est déjà configurée.
 
 ### Infra
-- [ ] Déployer `Firecrawl` avec une source publiable réelle.
-  - Contrainte actuelle: `ghcr.io/mendableai/firecrawl:latest` privée.
-  - Options restantes: image Docker Hub compatible ou build depuis le repo source.
+- [x] Source `Firecrawl` retenue: image officielle `mcp/firecrawl@sha256:e6676bd31d1806574d931b7a7b7b6fba953c031853e80adc1ec8115c17ab81ca`.
+- [x] Intégration repo `Firecrawl` prête dans la stack Mascarade.
+- [ ] Renseigner `FIRECRAWL_API_KEY` ou `FIRECRAWL_API_URL` sur la VM, puis démarrer le service.
 - [ ] Déployer `Mem0` avec une cible réelle.
   - L'image `mem0ai/mem0` n'est pas disponible telle quelle.
   - Options restantes: venv Python dédié (`mem0ai`) ou `openmemory-mcp`.

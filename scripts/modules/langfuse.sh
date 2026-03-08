@@ -63,6 +63,14 @@ module_langfuse_compose() {
   fi
   echo "      minio:"
   echo "        condition: service_healthy"
+  echo "    healthcheck:"
+  echo "      test:"
+  echo "        - CMD-SHELL"
+  echo '        - IP=$$(hostname -i | awk '\''{print $$1}'\'') && wget -q --spider "http://$$IP:3000/"'
+  echo "      interval: 15s"
+  echo "      timeout: 5s"
+  echo "      retries: 10"
+  echo "      start_period: 20s"
   echo "    networks:"
   echo "      - mascarade-network"
   echo ""

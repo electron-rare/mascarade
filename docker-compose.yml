@@ -17,21 +17,10 @@ services:
       CORE_PORT: ${CORE_PORT}
       DEFAULT_PROVIDER: ${DEFAULT_PROVIDER}
       DEFAULT_MODEL: ${DEFAULT_MODEL}
-      NOTION_API_KEY: ${NOTION_API_KEY:-}
-      KILL_LIFE_GITHUB_TOKEN: ${KILL_LIFE_GITHUB_TOKEN:-}
-      GITHUB_TOKEN: ${GITHUB_TOKEN:-}
-      OTEL_ENABLED: ${OTEL_ENABLED:-true}
-      OTEL_COLLECTOR_HTTP_ENDPOINT: ${OTEL_COLLECTOR_HTTP_ENDPOINT:-http://otel-collector:4318}
-      OPS_AGENT_URL: ${OPS_AGENT_URL:-http://ops-agent:9200}
-      LOKI_URL: ${LOKI_URL:-http://loki:3100}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       - core-data:/app/data
-    healthcheck:
-      test: ["CMD-SHELL", "python -c 'import urllib.request; urllib.request.urlopen(\"http://127.0.0.1:8100/health\", timeout=3)' >/dev/null"]
-      interval: 15s
-      timeout: 5s
-      retries: 10
-      start_period: 30s
     networks:
       - mascarade-network
 
@@ -48,13 +37,6 @@ services:
     environment:
       CORE_URL: ${CORE_URL}
       API_PORT: 3000
-      NOTION_API_KEY: ${NOTION_API_KEY:-}
-      KILL_LIFE_GITHUB_TOKEN: ${KILL_LIFE_GITHUB_TOKEN:-}
-      GITHUB_TOKEN: ${GITHUB_TOKEN:-}
-      OTEL_ENABLED: ${OTEL_ENABLED:-true}
-      OTEL_COLLECTOR_HTTP_ENDPOINT: ${OTEL_COLLECTOR_HTTP_ENDPOINT:-http://otel-collector:4318}
-      OPS_AGENT_URL: ${OPS_AGENT_URL:-http://ops-agent:9200}
-      LOKI_URL: ${LOKI_URL:-http://loki:3100}
     depends_on:
       - core
     healthcheck:
@@ -162,6 +144,14 @@ services:
         condition: service_healthy
       minio:
         condition: service_healthy
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - IP=$$(hostname -i | awk '{print $$1}') && wget -q --spider "http://$$IP:3000/"
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
     networks:
       - mascarade-network
 
@@ -186,14 +176,6 @@ services:
         condition: service_healthy
       minio:
         condition: service_healthy
-    healthcheck:
-      test:
-        - CMD-SHELL
-        - IP=$$(hostname -i | awk '{print $$1}') && wget -q --spider "http://$${IP}:3000/"
-      interval: 15s
-      timeout: 5s
-      retries: 10
-      start_period: 20s
     networks:
       - mascarade-network
 
@@ -217,6 +199,30 @@ services:
       timeout: 5s
       retries: 10
       start_period: 15s
+    networks:
+      - mascarade-network
+
+  firecrawl:
+    image: ${FIRECRAWL_IMAGE:-mcp/firecrawl@sha256:e6676bd31d1806574d931b7a7b7b6fba953c031853e80adc1ec8115c17ab81ca}
+    container_name: mascarade-firecrawl
+    restart: unless-stopped
+    ports:
+      - "${PUBLISH_BIND_HOST:-0.0.0.0}:${FIRECRAWL_PORT:-3400}:3000"
+    env_file:
+      - .env
+    environment:
+      HTTP_STREAMABLE_SERVER: "true"
+      PORT: 3000
+      FIRECRAWL_API_KEY: ${FIRECRAWL_API_KEY:-}
+      FIRECRAWL_API_URL: ${FIRECRAWL_API_URL:-}
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - IP=$$(hostname -i | awk '{print $$1}') && node -e 'if (!process.env.FIRECRAWL_API_KEY && !process.env.FIRECRAWL_API_URL) process.exit(1); const net = require("net"); const host = process.argv[1]; const socket = net.connect(3000, host); socket.on("connect", () => { socket.end(); process.exit(0); }); socket.on("error", () => process.exit(1)); setTimeout(() => process.exit(1), 3000);' "$$IP"
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
     networks:
       - mascarade-network
 
@@ -262,11 +268,14 @@ services:
       DB_DATABASE: mascarade
       REDIS_HOST: redis
       REDIS_PORT: 6379
-      APP_API_URL: ${DIFY_PUBLIC_ORIGIN:-https://dify.localhost}
+      APP_WEB_URL: ${DIFY_PUBLIC_ORIGIN:-https://dify.localhost}
+      CONSOLE_WEB_URL: ${DIFY_PUBLIC_ORIGIN:-https://dify.localhost}
       CONSOLE_API_URL: ${DIFY_PUBLIC_ORIGIN:-https://dify.localhost}
+      SERVICE_API_URL: ${DIFY_PUBLIC_ORIGIN:-https://dify.localhost}
       OPENDAL_SCHEME: fs
       OPENDAL_ROOT: /app/api/storage
       OPENDAL_FS_ROOT: /app/api/storage
+      APP_API_URL: ${DIFY_PUBLIC_ORIGIN:-https://dify.localhost}
     depends_on:
       postgres:
         condition: service_healthy
@@ -328,19 +337,8 @@ services:
     image: ${OLLAMA_IMAGE:-ollama/ollama@sha256:719122581b6932e1240ae70d788859089cb80d17e23cd4f98ba960b0290f70cb}
     container_name: mascarade-ollama
     restart: unless-stopped
-    gpus: all
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [gpu]
     ports:
       - "${PUBLISH_BIND_HOST:-0.0.0.0}:${OLLAMA_PORT}:11434"
-    environment:
-      NVIDIA_VISIBLE_DEVICES: all
-      NVIDIA_DRIVER_CAPABILITIES: compute,utility
     volumes:
       - ollama-data:/root/.ollama
     healthcheck:
@@ -359,8 +357,8 @@ services:
     container_name: mascarade-edge-proxy
     restart: unless-stopped
     ports:
-      - "${EDGE_PROXY_BIND_HOST:-0.0.0.0}:${EDGE_PROXY_HTTP_PORT}:80"
-      - "${EDGE_PROXY_BIND_HOST:-0.0.0.0}:${EDGE_PROXY_HTTPS_PORT}:443"
+      - "${EDGE_PROXY_BIND_HOST:-127.0.0.1}:${EDGE_PROXY_HTTP_PORT}:80"
+      - "${EDGE_PROXY_BIND_HOST:-127.0.0.1}:${EDGE_PROXY_HTTPS_PORT}:443"
     env_file:
       - .env
     volumes:
@@ -374,6 +372,33 @@ services:
       timeout: 5s
       retries: 10
       start_period: 10s
+    networks:
+      - mascarade-network
+
+  ops-agent:
+    build:
+      context: .
+      dockerfile: deploy/Dockerfile.ops-agent
+    container_name: mascarade-ops-agent
+    restart: unless-stopped
+    ports:
+      - "${PUBLISH_BIND_HOST:-0.0.0.0}:${OPS_AGENT_PORT}:9200"
+    env_file:
+      - .env
+    environment:
+      OPS_AGENT_PORT: 9200
+      AGENTSIGHT_URL: ${AGENTSIGHT_URL:-}
+      LOKI_URL: ${LOKI_URL:-http://loki:3100}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /var/log/journal:/var/log/journal:ro
+      - /run/log/journal:/run/log/journal:ro
+      - /etc/machine-id:/etc/machine-id:ro
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:9200/health')\""]
+      interval: 15s
+      timeout: 5s
+      retries: 10
     networks:
       - mascarade-network
 
@@ -456,63 +481,11 @@ services:
       - "${PUBLISH_BIND_HOST:-0.0.0.0}:${PROMETHEUS_PORT}:9090"
     volumes:
       - prometheus-data:/prometheus
-      - ./deploy/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:9090/-/healthy >/dev/null"]
       interval: 15s
       timeout: 5s
       retries: 5
-    networks:
-      - mascarade-network
-
-  ops-agent:
-    build:
-      context: .
-      dockerfile: deploy/Dockerfile.ops-agent
-    container_name: mascarade-ops-agent
-    restart: unless-stopped
-    gpus: all
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [gpu]
-    ports:
-      - "${PUBLISH_BIND_HOST:-0.0.0.0}:${OPS_AGENT_PORT:-9200}:9200"
-    env_file:
-      - .env
-    environment:
-      OPS_AGENT_PORT: 9200
-      AGENTSIGHT_URL: ${AGENTSIGHT_URL:-}
-      LOKI_URL: ${LOKI_URL:-http://loki:3100}
-      KILL_LIFE_ROOT: ${KILL_LIFE_ROOT:-/home/clems/Kill_LIFE}
-      MASCARADE_DIR: ${MASCARADE_DIR:-/home/clems/mascarade}
-      MASCARADE_API_BASE_URL: ${MASCARADE_API_BASE_URL:-http://api:3000}
-      OPS_MCP_PROBE_CACHE_TTL_MS: ${OPS_MCP_PROBE_CACHE_TTL_MS:-15000}
-      NVIDIA_VISIBLE_DEVICES: all
-      NVIDIA_DRIVER_CAPABILITIES: utility
-      NOTION_API_KEY: ${NOTION_API_KEY:-}
-      KILL_LIFE_GITHUB_TOKEN: ${KILL_LIFE_GITHUB_TOKEN:-}
-      GITHUB_TOKEN: ${GITHUB_TOKEN:-}
-      NOTION_MCP_SMOKE_PAGE_ID: ${NOTION_MCP_SMOKE_PAGE_ID:-}
-      HUGGINGFACE_API_KEY: ${HUGGINGFACE_API_KEY:-}
-    volumes:
-      - /usr/bin/docker:/usr/bin/docker:ro
-      - /usr/libexec/docker/cli-plugins:/usr/libexec/docker/cli-plugins:ro
-      - /var/run/docker.sock:/var/run/docker.sock
-      - /var/log/journal:/var/log/journal:ro
-      - /run/log/journal:/run/log/journal:ro
-      - /etc/machine-id:/etc/machine-id:ro
-      - .:/home/clems/mascarade:ro
-      - ./.env:/home/clems/mascarade/.env
-      - ${KILL_LIFE_ROOT:-/home/clems/Kill_LIFE}:${KILL_LIFE_ROOT:-/home/clems/Kill_LIFE}
-    healthcheck:
-      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:9200/health')\""]
-      interval: 15s
-      timeout: 5s
-      retries: 10
     networks:
       - mascarade-network
 
@@ -522,7 +495,7 @@ services:
     restart: unless-stopped
     command: ["-config.file=/etc/loki/local-config.yaml"]
     ports:
-      - "${PUBLISH_BIND_HOST:-0.0.0.0}:${LOKI_PORT:-3101}:3100"
+      - "${PUBLISH_BIND_HOST:-0.0.0.0}:${LOKI_PORT}:3100"
     volumes:
       - ./deploy/loki/loki-config.yaml:/etc/loki/local-config.yaml:ro
       - loki-data:/loki
@@ -540,7 +513,7 @@ services:
     restart: unless-stopped
     entrypoint: ["/bin/sh", "/usr/local/bin/promtail-entrypoint.sh"]
     ports:
-      - "${PUBLISH_BIND_HOST:-0.0.0.0}:${PROMTAIL_PORT:-9080}:9080"
+      - "${PUBLISH_BIND_HOST:-0.0.0.0}:${PROMTAIL_PORT}:9080"
     volumes:
       - ./deploy/promtail/promtail-config.yaml:/etc/promtail/config.yml:ro
       - ./deploy/promtail/entrypoint.sh:/usr/local/bin/promtail-entrypoint.sh:ro
@@ -566,9 +539,9 @@ services:
     restart: unless-stopped
     command: ["--config=/etc/otelcol-contrib/config.yaml"]
     ports:
-      - "${PUBLISH_BIND_HOST:-0.0.0.0}:${OTEL_COLLECTOR_GRPC_PORT:-4317}:4317"
-      - "${PUBLISH_BIND_HOST:-0.0.0.0}:${OTEL_COLLECTOR_HTTP_PORT:-4318}:4318"
-      - "${PUBLISH_BIND_HOST:-0.0.0.0}:${OTEL_COLLECTOR_HEALTH_PORT:-13133}:13133"
+      - "${PUBLISH_BIND_HOST:-0.0.0.0}:${OTEL_COLLECTOR_GRPC_PORT}:4317"
+      - "${PUBLISH_BIND_HOST:-0.0.0.0}:${OTEL_COLLECTOR_HTTP_PORT}:4318"
+      - "${PUBLISH_BIND_HOST:-0.0.0.0}:${OTEL_COLLECTOR_HEALTH_PORT}:13133"
     volumes:
       - ./deploy/otel-collector/config.yaml:/etc/otelcol-contrib/config.yaml:ro
     healthcheck:

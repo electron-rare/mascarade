@@ -8,10 +8,10 @@ Mascarade fait partie d'un ecosysteme de 5 repos :
 
 | Repo | Role |
 |------|------|
-| **[mascarade](https://github.com/electron-rare/mascarade)** | Orchestrateur agentique, LLM routing, fine-tuning |
+| **[mascarade](https://github.com/electron-rare/mascarade)** | Repo compagnon runtime/ops, orchestration agentique, fine-tuning et bridge historique |
 | **[mascarade-datasets](https://github.com/electron-rare/mascarade-datasets)** | Datasets de fine-tuning (13 domaines, ~74k exemples) |
 | **[mascarade-cockpit](https://github.com/electron-rare/mascarade-cockpit)** | Console ops SvelteKit (monitoring Docker, metriques, energie) |
-| **[crazy_life](https://github.com/electron-rare/crazy_life)** | Frontend React du cockpit Mascarade (agents, orchestration, logs) |
+| **[crazy_life](https://github.com/electron-rare/crazy_life)** | Repo canonique web/devops du cockpit et de la surface `Crazy Lane` |
 | **[Kill_LIFE](https://github.com/electron-rare/Kill_LIFE)** | Template agentique pour projets embarques IA (spec-first, gates, evidence packs) |
 
 ## Architecture
@@ -63,6 +63,7 @@ Mascarade fait partie d'un ecosysteme de 5 repos :
 
 ## Crazy Life (frontend)
 
+`mascarade` pilote l'operateur local et le runtime Docker de cette machine.
 `mascarade/web/` est un subtree bridge vers le repo canonique [crazy_life](https://github.com/electron-rare/crazy_life).
 
 Contrat courant:
@@ -72,11 +73,15 @@ Contrat courant:
 
 ```bash
 scripts/sync_crazy_life.sh status          # Etat de sync
-scripts/sync_crazy_life.sh push            # web/ -> crazy_life
+scripts/sync_crazy_life.sh push            # export bridge web/ -> crazy_life
 scripts/sync_crazy_life.sh pull            # crazy_life/main -> web/
 npm --prefix web run build                 # build local dans web/dist
 npm --prefix web run build:api-public      # refresh explicite du snapshot api/public
 ```
+
+Rappel operatoire:
+- `scripts/sync_crazy_life.sh` ne publie pas une release canonique
+- la readiness de release vit dans `crazy_life`, via `scripts/publish_preflight.sh`
 
 ---
 
@@ -203,6 +208,10 @@ GITHUB_TOKEN=
 GITHUB_APP_ID=
 GITHUB_APP_PRIVATE_KEY=
 GITHUB_APP_INSTALLATION_ID=
+
+# Firecrawl MCP — integration optionnelle
+FIRECRAWL_API_KEY=fc_xxxxx
+FIRECRAWL_API_URL=                     # optionnel, seulement si vous ciblez une API Firecrawl self-hosted
 
 # Core
 CORE_HOST=0.0.0.0
@@ -377,6 +386,13 @@ Observability complementaire opt-in:
 
 Ce lot ajoute le stockage/relais observability, mais le cockpit utilise deja aujourd'hui la trace native du core pour afficher les echanges inter-agent dans `Logs`.
 
+Smoke test OTLP -> Loki:
+
+```bash
+bash scripts/smoke_otel_loki.sh
+bash scripts/smoke_otel_loki.sh --json
+```
+
 Certificat Let's Encrypt par DNS-01 Cloudflare:
 
 ```bash
@@ -414,16 +430,24 @@ bash scripts/smoke_generate_audio.sh --url http://localhost:9000
 
 ```bash
 # Core Python
+bash scripts/bootstrap_python_env.sh
 cd core
-python -m venv .venv
 source .venv/bin/activate
-pip install -e ".[dev]"
 python -m uvicorn mascarade.server:app --host 0.0.0.0 --port 8100 --reload
 
 # API TypeScript (autre terminal)
 cd api
 npm install
 npm run dev
+```
+
+Validation repo-locale recommandee avant tout tri de delta:
+
+```bash
+bash scripts/test_python.sh
+curl -fsS http://127.0.0.1:8100/health
+curl -fsS http://127.0.0.1:3100/health
+curl -fsS http://127.0.0.1:9200/health
 ```
 
 ---
@@ -493,6 +517,8 @@ docker compose -f docker-compose.yml -f docker-compose.ai.yml --profile heavy up
 ```
 
 Sur VM legere, garder ces services arretes par defaut (profil `heavy`).
+
+`Langfuse` reste une brique supportee du repo, mais optionnelle hors profil standard. `Firecrawl` est supporte comme service MCP optionnel via l'image officielle `mcp/firecrawl`; il exige `FIRECRAWL_API_KEY` ou `FIRECRAWL_API_URL` pour demarrer.
 
 ### Interagir avec la VM depuis le Mac
 
@@ -722,6 +748,7 @@ bash scripts/test_python.sh
 ```
 
 Le chemin supporte pour les tests Python du repo est `core/.venv`. Ne lance pas `python3 -m pytest` depuis l'hote sans passer par ce venv.
+Le bootstrap couvre aussi les dependances du `deploy/ops_agent`, afin que le meme venv suffise pour les tests `core/tests/` qui importent l'ops-agent.
 Pour une verification type "machine fraiche" sans toucher au venv principal:
 
 ```bash

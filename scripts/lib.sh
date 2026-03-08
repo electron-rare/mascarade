@@ -1211,28 +1211,26 @@ load_env() {
 # ── Run pytest (shared entre setup et update) ──
 run_pytest() {
     local allow_continue="${1:-false}"
+    local test_cmd=(
+        bash
+        "$REPO_DIR/scripts/test_python.sh"
+        --bootstrap
+        --venv-dir
+        "$REPO_DIR/core/.venv"
+    )
     dbg "run_pytest: allow_continue=$allow_continue"
-    if [[ ! -d "$REPO_DIR/core/.venv" ]]; then
-        dbg "  pas de venv dans core/, skip"
-        return 0
-    fi
-    if [[ ! -f "$REPO_DIR/core/.venv/bin/python" ]]; then
-        dbg "  pas de python dans venv, skip"
-        return 0
-    fi
-    if [[ ! -f "$REPO_DIR/core/.venv/bin/pytest" ]]; then
-        dbg "  pytest non installe dans le venv, skip"
-        info "pytest non installe — skip tests"
+    if [[ ! -f "$REPO_DIR/scripts/test_python.sh" ]]; then
+        dbg "  scripts/test_python.sh introuvable, skip"
         return 0
     fi
     if ! confirm "Lancer les tests ?"; then
         dbg "  tests refuses par l'utilisateur"
         return 0
     fi
-    dbg "  lancement pytest dans $REPO_DIR/core..."
+    dbg "  lancement des tests repo-locaux via scripts/test_python.sh..."
     spin_start "Tests en cours..."
     local rc=0 test_output=""
-    test_output=$(cd "$REPO_DIR/core" && .venv/bin/python -m pytest -q 2>&1) || rc=$?
+    test_output=$("${test_cmd[@]}" 2>&1) || rc=$?
     spin_stop
     dbg "pytest exit code: $rc"
     if [[ "$VERBOSE" == true && -n "$test_output" ]]; then

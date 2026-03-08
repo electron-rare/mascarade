@@ -10,6 +10,7 @@
         "litellm",
         "n8n",
         "langfuse",
+        "firecrawl",
         "dify",
         "clickhouse",
         "comfyui",
