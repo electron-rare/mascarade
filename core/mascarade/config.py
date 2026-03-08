@@ -32,6 +32,7 @@ class Settings(BaseSettings):
     openai_api_key: str = ""
     mistral_api_key: str = ""
     google_api_key: str = ""
+    google_auth_mode: str = "api_key"
     huggingface_api_key: str = ""
     huggingface_auth_mode: str = "api_key"
     huggingface_base_url: str = "https://router.huggingface.co/v1"
@@ -51,6 +52,12 @@ class Settings(BaseSettings):
     aws_bedrock_model_id: str = "anthropic.claude-3-5-sonnet-20241022-v2:0"
 
     # Google / Gemini
+    google_oauth_access_token: str = ""
+    google_oauth_refresh_token: str = ""
+    google_oauth_client_id: str = ""
+    google_oauth_client_secret: str = ""
+    google_oauth_token_endpoint: str = "https://oauth2.googleapis.com/token"
+    google_oauth_expires_at: str = ""
     google_cloud_project: str = ""
     google_cloud_location: str = "europe-west1"
     google_application_credentials: str = ""

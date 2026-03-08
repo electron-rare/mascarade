@@ -49,8 +49,83 @@ PROVIDER_REGISTRY: dict[str, dict] = {
         "label": "Google Gemini",
         "module": "mascarade.router.providers.google",
         "class": "GoogleProvider",
+        "auth_mode": {
+            "env": "GOOGLE_AUTH_MODE",
+            "attr": "google_auth_mode",
+            "default": "api_key",
+            "options": ["api_key", "oauth_oidc", "adc"],
+        },
         "fields": [
-            {"env": "GOOGLE_API_KEY", "attr": "google_api_key", "label": "API Key", "secret": True},
+            {
+                "env": "GOOGLE_API_KEY",
+                "attr": "google_api_key",
+                "label": "API Key",
+                "secret": True,
+                "auth_modes": ["api_key"],
+            },
+            {
+                "env": "GOOGLE_OAUTH_ACCESS_TOKEN",
+                "attr": "google_oauth_access_token",
+                "label": "OAuth access token",
+                "secret": True,
+                "auth_modes": ["oauth_oidc"],
+            },
+            {
+                "env": "GOOGLE_OAUTH_REFRESH_TOKEN",
+                "attr": "google_oauth_refresh_token",
+                "label": "OAuth refresh token",
+                "secret": True,
+                "auth_modes": ["oauth_oidc"],
+            },
+            {
+                "env": "GOOGLE_OAUTH_CLIENT_ID",
+                "attr": "google_oauth_client_id",
+                "label": "OAuth client ID",
+                "secret": False,
+                "auth_modes": ["oauth_oidc"],
+            },
+            {
+                "env": "GOOGLE_OAUTH_CLIENT_SECRET",
+                "attr": "google_oauth_client_secret",
+                "label": "OAuth client secret",
+                "secret": True,
+                "auth_modes": ["oauth_oidc"],
+            },
+            {
+                "env": "GOOGLE_OAUTH_TOKEN_ENDPOINT",
+                "attr": "google_oauth_token_endpoint",
+                "label": "OAuth token endpoint",
+                "secret": False,
+                "auth_modes": ["oauth_oidc"],
+            },
+            {
+                "env": "GOOGLE_OAUTH_EXPIRES_AT",
+                "attr": "google_oauth_expires_at",
+                "label": "OAuth expires at",
+                "secret": False,
+                "auth_modes": ["oauth_oidc"],
+            },
+            {
+                "env": "GOOGLE_CLOUD_PROJECT",
+                "attr": "google_cloud_project",
+                "label": "Google Cloud project",
+                "secret": False,
+                "auth_modes": ["oauth_oidc", "adc"],
+            },
+            {
+                "env": "GOOGLE_CLOUD_LOCATION",
+                "attr": "google_cloud_location",
+                "label": "Google Cloud location",
+                "secret": False,
+                "auth_modes": ["oauth_oidc", "adc"],
+            },
+            {
+                "env": "GOOGLE_APPLICATION_CREDENTIALS",
+                "attr": "google_application_credentials",
+                "label": "Application credentials path",
+                "secret": False,
+                "auth_modes": ["adc"],
+            },
         ],
     },
     "bedrock": {
@@ -228,6 +303,23 @@ def _provider_is_configured(
                 is_secret_configured(settings.huggingface_oauth_access_token)
                 or is_secret_configured(settings.huggingface_oauth_refresh_token)
             )
+        )
+
+    if name == "google":
+        if auth_mode == "api_key":
+            return is_secret_configured(settings.google_api_key)
+        if auth_mode == "oauth_oidc":
+            return bool(
+                settings.google_oauth_client_id.strip()
+                and is_secret_configured(settings.google_oauth_client_secret)
+                and (
+                    is_secret_configured(settings.google_oauth_access_token)
+                    or is_secret_configured(settings.google_oauth_refresh_token)
+                )
+            )
+        return bool(
+            settings.google_cloud_project.strip()
+            and settings.google_application_credentials.strip()
         )
 
     return all(field["configured"] for field in active_fields)
