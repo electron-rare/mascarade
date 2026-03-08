@@ -4,6 +4,7 @@ import sys
 from types import ModuleType
 
 import pytest
+from deploy.ops_agent.app import provider_clear_updates
 
 from mascarade.config import settings
 from mascarade.provider_admin import (
@@ -156,3 +157,29 @@ def test_update_provider_keys_runtime_only_skips_env_persistence(monkeypatch):
         "message": "Core runtime updated only; use the API facade for durable .env persistence",
     }
     assert settings.ollama_enabled is False
+
+
+def test_provider_clear_updates_resets_toggle_and_fields():
+    updates = provider_clear_updates(PROVIDER_REGISTRY["ollama"])
+
+    assert updates == {
+        "OLLAMA_BASE_URL": "",
+        "OLLAMA_ENABLED": "false",
+    }
+
+
+def test_provider_clear_updates_can_reset_selected_auth_fields_only():
+    updates = provider_clear_updates(
+        PROVIDER_REGISTRY["huggingface"],
+        [
+            "HUGGINGFACE_AUTH_MODE",
+            "HUGGINGFACE_OAUTH_CLIENT_ID",
+            "HUGGINGFACE_OAUTH_CLIENT_SECRET",
+        ],
+    )
+
+    assert updates == {
+        "HUGGINGFACE_AUTH_MODE": "api_key",
+        "HUGGINGFACE_OAUTH_CLIENT_ID": "",
+        "HUGGINGFACE_OAUTH_CLIENT_SECRET": "",
+    }
