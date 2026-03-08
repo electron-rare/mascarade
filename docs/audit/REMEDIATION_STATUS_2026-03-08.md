@@ -10,7 +10,7 @@ Backlog de reference:
 ## Global status
 - Remediations verifiees comme fermees: `RA-001` a `RA-013`
 - Gate RA actif: aucun
-- Restes specialises hors ligne `RA-*`: `K-014` actif dans le backlog KiCad; `K-012` devient optionnel tant que le runtime conteneur KiCad reste canonique
+- Restes specialises hors ligne `RA-*`: aucun blocker MCP/agentics local actif; `K-012` devient optionnel tant que le runtime conteneur KiCad reste canonique; `nexar_api` est valide en live mais limite par un quota Nexar externe sur le token de reference
 
 ## Detail par RA
 
@@ -79,7 +79,7 @@ Backlog de reference:
   - le MCP `knowledge-base` est valide en live sur le provider actif `memos`;
   - `GitHub dispatch MCP` est valide en live via token persiste;
   - le MCP `HuggingFace` est a nouveau `ready` en mode remote HTTP anonyme;
-  - les restes specialises restants ne relevent plus de cette remediation; `K-014` reste actif, `K-012` devient optionnel tant que le runtime conteneur KiCad reste canonique.
+  - les restes specialises restants ne relevent plus de cette remediation; `K-012` devient optionnel tant que le runtime conteneur KiCad reste canonique, et `nexar_api` est valide en live avec une limite de quota Nexar externe qui ne rouvre pas le gate `RA-*`.
 
 ### RA-011 — Clarifier le contrat multi-repo
 - Status: **Done**
@@ -115,5 +115,5 @@ Condition de reouverture:
 
 ## Next step
 1. Rejouer les checks minimaux par repo avant publication distante.
-2. Traiter `K-014` comme reste specialise hors ligne `RA-*`, avec un `NEXAR_TOKEN` live.
+2. N'ouvrir un chantier Nexar supplementaire que si le sourcing live requiert un token/plan avec quota de parts non nul.
 3. Ne rejouer `K-012` que si le host-native KiCad devient une exigence runtime.
