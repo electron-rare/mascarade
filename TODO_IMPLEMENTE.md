@@ -1,202 +1,56 @@
 # TODO IMPLEMENTE
 
-Etat de reference du chantier fine-tuning/distillation local au 6 mars 2026.
+Etat de reference du chantier local recale au 8 mars 2026.
 
 Note de contexte multi-repo:
-- les sections frontend/cockpit ci-dessous sont un inventaire historique de ce
-  qui a ete implemente depuis `mascarade`
 - l'ownership produit et la release canonique du cockpit vivent maintenant dans
   `crazy_life`
-- `mascarade/web` reste un bridge/snapshot, pas la source de verite web
+- `mascarade/web` reste un bridge/snapshot
+- ce fichier sert surtout a figer ce qui est vraiment implemente cote runtime
+  local et fine-tuning
 
-## 1. Deja implemente
+## 1. Pipeline fine-tuning local stabilise
 
-### Pipeline local
-- [x] Point d'entree unique pour lancer le fine-tuning local CPU/GPU
-- [x] Support `LoRA/QLoRA` local avec `venv_tuning`
-- [x] Fallback CPU utilisable quand CUDA est indisponible
-- [x] Smoke tests reels valides en CPU et en GPU
-- [x] Politique de defaults coherente:
-  - GPU / student principal = `Qwen/Qwen2.5-Coder-1.5B-Instruct`
-  - CPU fallback = `TinyLlama/TinyLlama-1.1B-Chat-v1.0`
+- [x] Point d'entree unique CPU/GPU avec `venv_tuning`
+- [x] Pipeline complet `distill -> merge -> train -> export GGUF -> import Ollama`
+- [x] Teacher Mistral via API locale avec JSON strict, retries et logs lisibles
+- [x] `--resume`, `batch_status.py`, manifests de run et queue GPU versionnes
+- [x] Verrou GPU global machine pour eviter les chevauchements de trainings
+- [x] Garde-fous VRAM et reprise des statuts batch orphelins
 
-### Distillation teacher -> student
-- [x] Pipeline complet `distill -> merge -> train`
-- [x] Support teacher via API locale sur `http://127.0.0.1:8100`
-- [x] Support `mistral` comme teacher principal
-- [x] Mode JSON strict cote teacher Mistral
-- [x] Retries sur JSON invalide et erreurs reseau/transitoires
-- [x] Rapport de distillation JSON avec succes/echecs
-- [x] Export optionnel des rows en echec
+## 2. Etat reel du batch canonique
 
-### Robustesse du routeur
-- [x] Requetes teacher strictes sans fallback silencieux vers `bedrock`
-- [x] Garde-fou si le provider retourne autre chose que celui demande
-- [x] Cache evite sur les requetes strictes cross-provider
-- [x] Timeout Mistral allonge pour les gros prompts
+- [x] Le batch canonique `p2000_bench_gpu1_fixed_20260308_143343` est `completed`
+- [x] `esp32`, `spice` et `pio` sont tous en `train=completed`
+- [x] Promotions locales disponibles:
+  - `esp32_local_v1`
+  - `spice_local_v1`
+  - `pio_local_v1`
+- [x] Export GGUF et chargement Ollama verifies sur les modeles promus
+- [x] `promote_model.py` accepte maintenant les manifests batch sans `kind`
 
-### Verbosite et suivi
-- [x] Flags `--verbose` et `--quiet`
-- [x] Progress bars cote tokenization/training
-- [x] Logs plus lisibles cote distillation
-- [x] Scripts de debug pour le core local sur `8100`
+## 3. Agent Zero
 
-### Parallellisation du pipeline
-- [x] Concurrence configurable pour la distillation teacher
-- [x] Tokenization multi-workers cote training
-- [x] Orchestrateur batch multi-domaines ajoute
-- [x] Aliases de domaines:
-  - `esp32 -> iot`
-  - `pio -> platformio`
-- [x] Manifest d'execution par run batch
-- [x] Reprise `--resume` sur le batch
-- [x] Queue GPU avec limite de trainings paralleles
-- [x] Garde-fou VRAM avant lancement d'un second training GPU
-- [x] Wrapper shell pour lancer le batch multi-domaines
+- [x] `agent-zero` evalue comme brique hors pipeline critique
+- [x] `POST /api/agents/agent-zero/run` valide sur le chemin simple
+- [x] Les traces d'orchestration associees restent visibles dans le cockpit ops
+- [ ] Ne le rouvrir comme sujet actif que si un besoin explicite depasse l'orchestrateur local actuel
 
-## 2. Scripts et entrees disponibles
+## 4. Cockpit et observabilite deja implemente
 
-- [x] `finetune/run_local.py`
-- [x] `finetune/distill_dataset.py`
-- [x] `finetune/distill_and_train.py`
-- [x] `finetune/batch_local.py`
-- [x] `finetune/batch_status.py`
-- [x] `finetune/model_selector.py` (experimental, non branche au pipeline)
-- [x] `scripts/finetune_local.sh`
-- [x] `scripts/distill_and_train.sh`
-- [x] `scripts/parallel_domains_gpu_queue.sh`
-- [x] `scripts/debug_core_8100.sh`
-- [x] `scripts/debug_mistral_smoke.sh`
+- [x] Cockpit React unifie avec `Dashboard`, `Agents`, `Orchestrate`, `Logs`, `OpsHub`
+- [x] Surfaces runtime `knowledge-base` et `cad` en place a la place des anciennes surfaces `notion`
+- [x] Trace native `run_id`, timeline operateur et facade ops complete
+- [x] `ops-agent`, Loki, Promtail, OTel Collector, Prometheus, Grafana et Langfuse verifies
 
-## 3. Etat reel du batch parallele
-
-### Ce qui passe deja
-- [x] `kicad` valide en distillation Mistral + training GPU local
-- [x] `spice` passe sur le chemin distill + merge en smoke test batch
-- [x] `platformio` passe sur le chemin distill + merge en smoke test batch
-- [x] `esp32` alias `iot` passe maintenant sur le chemin distill + merge en smoke test batch
-- [x] Le dataset source `iot` est valide apres normalisation `ensure_row_ids()`
-
-### Verifie par audit (7 mars 2026)
-- [x] `--resume` fonctionne: `load_resume_manifest()`, skip des domaines completed
-- [x] `batch_status.py` distingue correctement `distill` et `train` par domaine
-- [x] `selected_model.json` lu par `run_local.py` au boot via `resolve_model()`
-- [x] Export GGUF complet dans `pipeline.py`: q4_k_m, q4_k_s, q5_k_m, q8_0
-- [x] Deploy GGUF vers Ollama dans `pipeline.py`: docker cp/exec + test inference
-
-### Ce qui reste a verrouiller
-- [ ] Valider la phase `train` de bout en bout sur un run batch `esp32 spice pio`
-- [ ] Documenter la reprise `--resume` dans la doc operateur (code OK, doc manquante)
-- [ ] Mesurer si `2` trainings GPU paralleles apportent un gain reel sur Quadro P2000
-
-### Verification au 6 mars 2026
-- [x] `finetune/runs/smoke_batch_20260306_191758`: `esp32`, `spice`, `pio` en `distill=completed`
-- [x] `finetune/runs/smoke_batch_gpu_20260306_193427`: `esp32`, `spice`, `pio` en `distill=completed`
-- [x] `finetune/runs/smoke_batch_gpu2_20260306_195107`: `esp32`, `spice`, `pio` en `distill=completed`
-- [ ] Les manifests ci-dessus restent en `train=pending`; l'entrainement batch complet n'est donc pas encore valide de bout en bout
-
-## 4. TODO Agent Zero
-
-Objectif: cadrer si `Agent Zero` doit rester un sujet d'etude, un outil de debug, ou une vraie brique d'orchestration dans Mascarade.
-
-- [ ] Identifier precisement le perimetre `Agent Zero` vise ici
-- [ ] Comparer `Agent Zero` avec l'orchestrateur local deja implemente dans `finetune/batch_local.py`
-- [ ] Definir si `Agent Zero` sert a:
-  - orchestration multi-agents
-  - planification de jobs
-  - supervision d'execution
-  - experimentation locale
-- [ ] Faire un POC isole, sans melanger tout de suite la chaine de fine-tuning existante
-- [ ] Evaluer le cout de maintenance avant integration repo
-- [ ] Definir les garde-fous:
-  - isolation des secrets
-  - limites CPU/GPU
-  - timeout des jobs
-  - logs et reprise
-
-## 5. Prochain ordre de travail recommande
-
-1. Terminer un batch `esp32 spice pio` avec phase `train` complete et logs conserves.
-2. Ecrire la doc operateur `--resume` (le code fonctionne deja).
-3. Lancer un vrai batch multi-domaines avec queue GPU a `1`.
-4. Mesurer ensuite un mode experimental a `2` trainings GPU paralleles.
-5. Cadrer `Agent Zero` separement, apres stabilisation du pipeline local.
-
-## 6. Cockpit frontend deja implemente
-
-### Shell et navigation
-- [x] Shell React unifie avec sidebar desktop, drawer mobile et mobile dock
-- [x] Raccourcis clavier `Alt+1..9`
-- [x] Panneau session/auth clavier-safe
-- [x] Fond visuel Matrix/CRT conserve comme direction par defaut
-
-### Pages cockpit
-- [x] Refonte `Dashboard`
-- [x] Refonte `Playground`
-- [x] Refonte `Agents`
-- [x] Refonte `Agent Detail`
-- [x] Refonte `Orchestrate`
-- [x] Refonte `Metrics`
-- [x] Refonte `Infrastructure`
-- [x] Refonte `Notion Browser`
-- [x] Refonte `ComfyUI`
-- [x] Lane `Logs` ajoutee au cockpit
-
-### Agent Zero
-- [x] `agent-zero` ajoute comme agent builtin dans le core
-- [x] `agent-zero` expose visiblement dans le cockpit
-- [x] `agent-zero` mis en avant dans `Dashboard`, `Agents`, `Agent Detail`, `Orchestrate`
-- [x] CTA de cadrage incident vers `agent-zero` ajoutes dans les surfaces ops
-
-## 7. Observability deja implemente
-
-### Trace native Mascarade
-- [x] `run_id` stable sur les runs d'orchestration
-- [x] Evenements inter-agent structures dans le core
-- [x] Buffer recent de traces dans le core
-- [x] Exposition des traces via routes core dediees
-
-### Facade ops API
-- [x] `GET /api/ops/monitor`
-- [x] `GET /api/ops/summary`
-- [x] `GET /api/ops/sources`
-- [x] `GET /api/ops/logs/recent`
-- [x] `GET /api/ops/agent-traces/recent`
-- [x] `GET /api/ops/agent-traces/:runId`
-
-### Surface cockpit
-- [x] Vue `Logs` pour lire incidents services + traces inter-agent
-- [x] Panneau `live run trace` dans `Orchestrate`
-- [x] Liens directs vers `Logs` depuis `Dashboard`, `Metrics`, `Infrastructure`
-
-### Infra complementaire scaffolded
-- [x] Modules `loki`, `promtail`, `otel-collector`
-- [x] Configs `deploy/loki`, `deploy/promtail`, `deploy/otel-collector`
-- [x] Spec produit cockpit dans `docs/FRONTEND_SPEC.md`
-- [x] Spec technique observability dans `docs/OBSERVABILITY_ARCHITECTURE.md`
-
-## 8. Backlogs actifs a suivre
+## 5. Backlogs encore utiles
 
 - [x] Backlog fine-tuning detaille dans `TODO_TUNNING_PARTY.md`
 - [x] Backlog cockpit/ops detaille dans `TODO_COCKPIT_OPS.md`
+- [x] Plan global d'execution recale dans `docs/EXECUTION_PLAN_2026-03-07.md`
 
-## 9. CAD / KiCad deja implemente
+## 6. Prochain ordre recommande
 
-### Structure repo
-- [x] Repositories KiCad enregistres comme sous-modules
-- [x] Sous-module legacy `vendors/kicadrouterai` remappe proprement dans `.gitmodules`
-
-### Helpers versionnes
-- [x] `scripts/install_kicad_plugins.sh list`
-- [x] `scripts/install_kicad_plugins.sh plugin-dir`
-- [x] `scripts/install_kicad_plugins.sh install`
-- [x] `scripts/install_kicad_plugins.sh doctor`
-- [x] `scripts/cad_stack.sh up|down|ps|doctor|mcp`
-
-### Ce qui reste a faire
-- [x] Integrer la section `CAD / KiCad` dans `./config`
-- [x] Ajouter les actions `--cad-plugins`, `--cad-doctor`, `--cad-stack` dans `./setup`
-- [x] Consolider la doc operateur CAD/TUI
-- [x] Smoke operateur CAD (`cad_stack.sh smoke`, `setup --cad-smoke`)
-- [x] Doc chemins plugins par OS (`install_kicad_plugins.sh paths`)
-- [x] Doctor MCP dedie (`cad_stack.sh doctor-mcp`)
+1. Sortir les bundles locaux multi-repo deja prepares.
+2. Garder `Agent Zero` hors chemin critique.
+3. Ne rouvrir les E2E differes que sur besoin explicite.
