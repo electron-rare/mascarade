@@ -162,6 +162,15 @@ def validate_rows(rows: list[dict]) -> list[str]:
     return errors
 
 
+def count_missing_row_ids(rows: list[dict]) -> int:
+    missing = 0
+    for row in rows:
+        row_id = row.get("id")
+        if not isinstance(row_id, str) or not row_id.strip():
+            missing += 1
+    return missing
+
+
 def fingerprint_row(row: dict) -> str:
     messages = row_messages(row)
     system = next((m["content"] for m in messages if m["role"] == "system"), "")

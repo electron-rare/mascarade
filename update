@@ -33,7 +33,7 @@ Options:
 
 Services valides (--with):
   core, api, litellm, n8n, langfuse, dify, clickhouse, comfyui,
-  ollama, open-webui, ops-console, redis, postgres, qdrant, grafana, prometheus
+  ollama, ops-console, redis, postgres, qdrant, grafana, prometheus
 HELP
 }
 

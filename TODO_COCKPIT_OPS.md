@@ -2,6 +2,7 @@
 
 Etat de reference au 7 mars 2026.
 Mis a jour apres audit croise code/docs le 7 mars 2026.
+Recale sur le runtime reel le 8 mars 2026.
 
 ## 1. Ce qui est deja livre
 
@@ -44,24 +45,38 @@ Mis a jour apres audit croise code/docs le 7 mars 2026.
 - [x] Mapping severite OTLP: debug(5), info(9), warning(13), error(17), critical(21)
 - [x] Appele depuis agent_trace.py (core) et agents.ts (API)
 
+### OTel / Loki / Prometheus / Grafana (verifie en live)
+- [x] OTel Collector ecoute reellement sur `0.0.0.0:4317`, `0.0.0.0:4318` et `/health` sur `0.0.0.0:13133`
+- [x] Logs OTLP routes vers Loki via `deploy/otel-collector/config.yaml`
+- [x] Smoke OTLP -> Loki valide avec labels `source`, `run_id`, `agent_name`, `event_type`, `mode`, `provider`, `routing_role`, `routing_provider`
+- [x] Telemetrie interne du collector exposee sur `:8888` et scrapee par Prometheus
+- [x] `ops-agent` expose `/metrics` pour Prometheus
+- [x] Grafana datasources provisionnees en code (`Loki`, `Prometheus`) et chargees au demarrage
+- [x] Dashboard Grafana provisionne en code: `Mascarade Ops Overview`
+
+### Promtail
+- [x] Parsing JSON structure enrichi: `severity`, `source`, `run_id`, `agent_name`, `event_type`, `mode`, `provider`, `model`, `routing_role`, `routing_provider`, `routing_model`
+
+### Frontend Logs (verifie dans le code)
+- [x] Filtres history persistants dans l'URL
+- [x] Handling de base des erreurs Loki/timeout avec notices explicites
+
 ## 3. Ce qui reste reellement
 
 ### OTel Collector
-- [ ] Configurer un vrai exporter dans `deploy/otel-collector/config.yaml` (actuellement stub debug-only)
-- [ ] Router les logs OTLP vers Loki ou un backend reel
-- [ ] Ajouter les metrics/spans si pertinent
+- [ ] Sortir `traces` et `metrics` du mode `debug` vers un backend reel si l'on veut les conserver
+- [ ] Decider si le warning de securite `0.0.0.0` doit etre accepte tel quel (bind hote deja borne en `127.0.0.1`) ou davantage restreint
+- [ ] Ajouter un smoke OTLP automatise et versionne pour eviter les regressions du collector
 
 ### Grafana
-- [ ] Configurer les datasources en code (Loki, Prometheus)
-- [ ] Ajouter des dashboards pour les services Mascarade
+- [ ] Etendre le lot de dashboards au-dela du cockpit de base (par service ou par domaine)
 
 ### Promtail
-- [ ] Enrichir le parsing des logs JSON structures
-- [ ] Verifier les labels Loki utiles: `source`, `run_id`, `agent_name`, `event_type`, `severity`
+- [ ] Verifier sur trafic reel la cardinalite des labels enrichis (`run_id`, `provider`, `routing_*`)
+- [ ] Ajuster la matrice `labels` vs `structured metadata` si Loki commence a grossir trop vite
 
 ### Frontend Logs (ajustements mineurs)
-- [ ] Filtres persistants dans l'URL en mode history
-- [ ] Handling propre des erreurs Loki/timeout
+- [ ] Rien de bloquant dans ce lot; garder seulement les retours UX a froid apres usage
 
 ## 4. Complement optionnel
 
@@ -78,7 +93,7 @@ Mis a jour apres audit croise code/docs le 7 mars 2026.
 ## 6. Ordre recommande
 
 1. Configurer le vrai exporter OTel Collector (remplacer le stub debug).
-2. Configurer Grafana datasources (Loki + Prometheus).
-3. Enrichir Promtail pour les logs structures.
-4. Ajustements mineurs frontend (URL persistants, error handling).
+2. Ajouter un smoke OTLP automatise et versionne.
+3. Etendre les dashboards Grafana utiles pour les services Mascarade.
+4. Verifier la cardinalite Loki sur trafic reel et ajuster si besoin.
 5. Garder `AgentSight` en complement optionnel, en dernier.

@@ -7,6 +7,7 @@ Lecture recommandee:
 - cheatsheet rapide: `docs/FINETUNING_CHEATSHEET_2026-03-06.md`
 - recap methodes / etat de l art 2026: `docs/FINETUNING_ETAT_DE_L_ART_2026-03-06.md`
 - plan 4090 / scheduling parallele: `docs/FINETUNING_4090_PARALLEL_PLAN.md`
+- bench selector vs manuel sur P2000: `docs/MODEL_SELECTOR_BENCH_2026-03-08.md`
 
 ## Quick Start Local
 
@@ -186,7 +187,7 @@ Validation pratique sur cette machine:
 ## Model Selector experimental
 
 Un helper local experimental permet de chercher et classer des students
-compatibles avec la machine sans modifier automatiquement le pipeline:
+compatibles avec la machine et d alimenter les launchers locaux:
 
 ```bash
 python finetune/model_selector.py --help
@@ -201,8 +202,9 @@ Comportement:
 - il ecrit un `finetune/selected_model.json` local quand un modele est choisi
 - `finetune/.model_selector_cache.json` et `finetune/selected_model.json`
   sont ignores par Git
-- il n est pas encore branche automatiquement a `run_local.py`,
-  `batch_local.py` ou `train_all.sh`
+- `run_local.py`, `batch_local.py` et les wrappers shell reutilisent ce choix
+  tant qu aucun `--model` / `--student-model` explicite n est fourni
+- `--student-model` garde toujours la priorite sur `selected_model.json`
 
 ## Distillation Teacher -> Student
 
@@ -260,9 +262,12 @@ Pour enchaîner plusieurs domaines avec manifest et logs dédiés:
 Comportement du batch local valide sur cette machine:
 
 - bootstrappe le seed dataset si `datasets/<domain>_chat.jsonl` manque mais qu un `build_<domain>_dataset.py` existe
+- prevalide chaque dataset source avant de lancer la distillation batch; un dataset vide ou invalide bloque le run tout de suite
 - utilise par défaut `http://127.0.0.1:8100` avec `ollama` / `qwen2.5:14b`
+- reutilise `finetune/selected_model.json` pour le student si `--student-model` n est pas fourni
 - recharge `MASCARADE_API_KEY` depuis `.env` si elle n est pas deja exportee
 - écrit un manifest et des logs par run dans `finetune/runs/`
+- ecrit aussi un `dataset_report.json` court avec `source_rows`, `distilled_rows` et `merged_rows` par domaine
 - overlap distill/train en mode `auto`: un domaine peut partir en training des que sa distillation est mergee
 - ce mode se desactive automatiquement pour `teacher-provider=local-hf`
 - avec `--max-parallel-gpu-trains 2`, le scheduler reste volontairement a `1` training tant que le teacher `ollama` distille encore sur une RTX 4090
@@ -272,6 +277,31 @@ Comportement du batch local valide sur cette machine:
 - le manifest batch expose un noeud racine `llmfit` pour le student courant
 - chaque domaine recopie ensuite le `llmfit` du child `run.json` sous `domains.<domain>.train.llmfit`
 - un training GPU refuse par `llmfit` est marque `train.status=blocked` plutot qu un simple `failed`
+
+### Reprendre un run interrompu
+
+Commande operateur standard:
+
+```bash
+python finetune/batch_local.py \
+  --resume finetune/runs/<run_label>_<timestamp>
+```
+
+Version wrapper shell equivalente:
+
+```bash
+./scripts/parallel_domains_gpu_queue.sh \
+  --resume finetune/runs/<run_label>_<timestamp>
+```
+
+Pour inspecter rapidement l etat avant reprise:
+
+```bash
+python finetune/batch_status.py \
+  --manifest finetune/runs/<run_label>_<timestamp>/manifest.json
+```
+
+Le resume recharge `manifest.json`, saute les domaines deja `completed` et ne relance que les phases encore `pending` ou `running` au moment de l interruption.
 
 ## Matrice de scénarios teacher/student
 

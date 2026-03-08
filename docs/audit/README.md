@@ -3,8 +3,8 @@
 Latest audit pack:
 
 - `AUDIT_GLOBAL_2026-03-07.md`: rapport global avec findings priorises machine + multi-repo.
-- `REMEDIATION_BACKLOG_2026-03-07.md`: backlog canonique `J0` / `J7` / `J30`, avec bloc `DIFFERE (post-stabilisation)` sur `R-010` a `R-015`.
-- `REMEDIATION_STATUS_2026-03-07.md`: statut d'execution des remediations et etat du bloc differe.
+- `REMEDIATION_BACKLOG_2026-03-07_REAUDIT.md`: backlog canonique `RA-*` issu du re-audit courant.
+- `REMEDIATION_STATUS_2026-03-08.md`: etat courant apres fermeture des RA `002` a `013` et gate E2E explicite.
 - `MCP_BACKLOG_2026-03-07.md`: backlog MCP dedie.
 - `MCP_RUNTIME_PLAN_2026-03-07.md`: plan runtime MCP.
 - `MCP_RUNTIME_TODO_2026-03-07.md`: TODO runtime MCP.

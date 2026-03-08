@@ -4,7 +4,7 @@
 Execution status of J0 actions from `REMEDIATION_BACKLOG_2026-03-05.md`.
 
 ## Global Status (2026-03-05 17:30 CET)
-- Runtime: **18/18 services running**, infra healthchecks green for ClickHouse/MinIO/Postgres/Redis/Ollama/Open WebUI.
+- Runtime: **18/18 services running**, infra healthchecks green pour les composants infra actifs a cette date, dont ClickHouse/MinIO/Postgres/Redis/Ollama et l'ancienne interface chat locale.
 - J0: **3 done, 0 partial**.
 - Primary residual risk moved to J7/J30 backlog (CI, healthchecks applicatifs, n8n task runner warning).
 

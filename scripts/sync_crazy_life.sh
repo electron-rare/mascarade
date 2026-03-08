@@ -17,6 +17,7 @@ Usage: scripts/sync_crazy_life.sh <command> [options]
 Bridge note:
   `crazy_life` is the canonical frontend/backend repo.
   `mascarade/web` is a subtree bridge used only when sync is still required.
+  The bridge is a transport mechanism, not the canonical release gate.
   Run `/home/clems/crazy_life/scripts/publish_preflight.sh check` in the
   extracted repo before treating a subtree push as release-ready.
 

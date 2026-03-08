@@ -98,7 +98,6 @@ Services sur `192.168.0.119` :
 |-----------|------|------|
 | zacus-ollama | 11434 | Serveur LLM local |
 | zacus-studio-ai-gateway | 8787 | AI Gateway |
-| zacus-open-webui | 3000 | Interface chat |
 | zacus-redis | 6379 | Cache & broker |
 | zacus-qdrant | 6333 | Base vectorielle |
 | zacus-postgres | 5432 | Base relationnelle + pgvector |

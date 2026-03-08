@@ -186,6 +186,14 @@ services:
         condition: service_healthy
       minio:
         condition: service_healthy
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - IP=$$(hostname -i | awk '{print $$1}') && wget -q --spider "http://$${IP}:3000/"
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
     networks:
       - mascarade-network
 
@@ -341,22 +349,6 @@ services:
       timeout: 10s
       retries: 15
       start_period: 40s
-    networks:
-      - mascarade-network
-
-  open-webui:
-    image: ${OPEN_WEBUI_IMAGE:-ghcr.io/open-webui/open-webui@sha256:bb3f0281554bf05a9d505ffb5a5f067ab53e13ac772eb4ea3077a92ddc64600e}
-    container_name: mascarade-open-webui
-    restart: unless-stopped
-    ports:
-      - "${PUBLISH_BIND_HOST:-0.0.0.0}:${OPEN_WEBUI_PORT}:8080"
-    depends_on:
-      ollama:
-        condition: service_healthy
-    environment:
-      OLLAMA_BASE_URL: http://ollama:11434
-    volumes:
-      - open-webui-data:/app/backend/data
     networks:
       - mascarade-network
 
@@ -597,7 +589,6 @@ volumes:
   langfuse-minio-data:
   clickhouse-data:
   ollama-data:
-  open-webui-data:
   edge-proxy-certs:
     name: mascarade-edge-proxy-certs
   edge-proxy-acme:

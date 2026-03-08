@@ -871,7 +871,6 @@ function parseSinceWindow(value: string | undefined): number {
 async function collectMonitorSnapshot(): Promise<MonitorSnapshot> {
   const probes = await Promise.all([
     timedProbe("core", "http://core:8100/health"),
-    timedProbe("openwebui", "http://open-webui:8080/"),
     timedProbe("grafana", "http://grafana:3000/api/health"),
     timedProbe("n8n", "http://n8n:5678/"),
     timedProbe("langfuse", "http://langfuse-web:3000/"),

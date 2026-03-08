@@ -96,7 +96,6 @@ write_env_file() {
         echo "DIFY_WEB_IMAGE=\"${DIFY_WEB_IMAGE:-langgenius/dify-web@sha256:30339b4d5060488fac147ddc6fb40438ef71cd5f5dfdeb26c886768302bf7197}\""
         echo "CLICKHOUSE_IMAGE=\"${CLICKHOUSE_IMAGE:-clickhouse/clickhouse-server@sha256:0b2d7824347397b2ba6fcb216f0ae772568105f1f47e19f0d3247e24c79bc10a}\""
         echo "OLLAMA_IMAGE=\"${OLLAMA_IMAGE:-ollama/ollama@sha256:719122581b6932e1240ae70d788859089cb80d17e23cd4f98ba960b0290f70cb}\""
-        echo "OPEN_WEBUI_IMAGE=\"${OPEN_WEBUI_IMAGE:-ghcr.io/open-webui/open-webui@sha256:bb3f0281554bf05a9d505ffb5a5f067ab53e13ac772eb4ea3077a92ddc64600e}\""
         echo "REDIS_IMAGE=\"${REDIS_IMAGE:-redis@sha256:8b81dd37ff027bec4e516d41acfbe9fe2460070dc6d4a4570a2ac5b9d59df065}\""
         echo "POSTGRES_IMAGE=\"${POSTGRES_IMAGE:-postgres@sha256:20edbde7749f822887a1a022ad526fde0a47d6b2be9a8364433605cf65099416}\""
         echo "QDRANT_IMAGE=\"${QDRANT_IMAGE:-qdrant/qdrant@sha256:f1c7272cdac52b38c1a0e89313922d940ba50afd90d593a1605dbbc214e66ffb}\""
@@ -319,13 +318,6 @@ write_env_file() {
             echo "# ── Qdrant ──"
             echo "QDRANT_PORT=\"${QDRANT_PORT:-6333}\""
             echo "QDRANT_GRPC_PORT=\"${QDRANT_GRPC_PORT:-6334}\""
-            echo ""
-        fi
-
-        # Open WebUI
-        if svc_selected "open-webui"; then
-            echo "# ── Open WebUI ──"
-            echo "OPEN_WEBUI_PORT=\"${OPEN_WEBUI_PORT:-8080}\""
             echo ""
         fi
 

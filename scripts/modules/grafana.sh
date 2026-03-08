@@ -14,6 +14,7 @@ module_grafana_compose() {
   echo "      - \"\${PUBLISH_BIND_HOST:-0.0.0.0}:\${GRAFANA_PORT}:3000\""
   echo "    volumes:"
   echo "      - grafana-data:/var/lib/grafana"
+  echo "      - ./deploy/grafana/provisioning:/etc/grafana/provisioning:ro"
   echo "    healthcheck:"
   echo "      test: [\"CMD-SHELL\", \"curl -fsS http://localhost:3000/api/health >/dev/null\"]"
   echo "      interval: 15s"

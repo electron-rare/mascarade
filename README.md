@@ -65,6 +65,11 @@ Mascarade fait partie d'un ecosysteme de 5 repos :
 
 `mascarade/web/` est un subtree bridge vers le repo canonique [crazy_life](https://github.com/electron-rare/crazy_life).
 
+Contrat courant:
+- `crazy_life` = repo canonique web/devops et release du shell cockpit
+- `Kill_LIFE` = source de verite runtime, workflows JSON, evidence, firmware, CAD et compliance
+- `mascarade` = repo compagnon/orchestration + bridge historique optionnel
+
 ```bash
 scripts/sync_crazy_life.sh status          # Etat de sync
 scripts/sync_crazy_life.sh push            # web/ -> crazy_life
@@ -108,7 +113,8 @@ bash finetune/train_all.sh
 - **Docker** et **Docker Compose** (deploiement)
 - **Python 3.11+** (dev local core)
 - **Node.js 22+** (dev local API)
-- Au moins une cle API LLM (Anthropic, OpenAI, Mistral, AWS Bedrock ou Google)
+- `MASCARADE_API_KEY` pour un runtime protege
+- Au moins un provider LLM configure, ou `OLLAMA_ENABLED=true` avec un runtime Ollama joignable
 
 Le setup installe aussi un `htop` repo-local epingle en `3.4.0` sous `tools/.local/` et l'expose via `./tools/htop`.
 Pourquoi: Ubuntu 24.04 livre `htop 3.3.0`, qui n'inclut pas le meter `GPU usage`. La `3.4.0` ajoute ce meter, utile pour suivre les services GPU du repo sans ecraser le `htop` systeme.
@@ -132,8 +138,16 @@ cp .env.example .env
 
 Editer `.env` et remplir les cles :
 
+- `required-security`: `MASCARADE_API_KEY` protege l'API, le core et l'ops-agent.
+- `feature-required`: providers LLM et integrations que vous activez reellement.
+- `live-validation-optional`: cibles de smoke/runtime live seulement.
+- `local-operator-context`: endpoints OAuth, chemins et overrides locaux.
+
 ```bash
-# LLM — au moins une cle requise
+# Runtime security — toujours requis pour un runtime protege
+MASCARADE_API_KEY=un-token-secret
+
+# Providers LLM — configurer seulement ce que vous utilisez
 ANTHROPIC_API_KEY=sk-ant-xxxxx          # Claude (best quality)
 OPENAI_API_KEY=sk-xxxxx                 # GPT (fastest)
 MISTRAL_API_KEY=xxxxx                   # Mistral (cheapest)
@@ -168,7 +182,7 @@ GOOGLE_CLOUD_LOCATION=europe-west1
 GOOGLE_APPLICATION_CREDENTIALS=/chemin/key.json
 GOOGLE_MODEL=gemini-2.5-flash
 
-# Notion — optionnel, pour la KB et les dashboards
+# Notion — integration optionnelle
 NOTION_AUTH_MODE=api_key              # or oauth_oidc
 NOTION_API_KEY=ntn_xxxxx
 NOTION_OAUTH_ACCESS_TOKEN=
@@ -182,16 +196,13 @@ NOTION_OAUTH_EXPIRES_AT=
 NOTION_OAUTH_WORKSPACE_NAME=
 NOTION_MCP_SMOKE_PAGE_ID=
 
-# GitHub dispatch — optionnel, pour les workflows Kill_LIFE / crazy_life
+# GitHub dispatch — integration optionnelle
 GITHUB_DISPATCH_AUTH_MODE=token       # or app
 KILL_LIFE_GITHUB_TOKEN=ghp_xxxxx
 GITHUB_TOKEN=
 GITHUB_APP_ID=
 GITHUB_APP_PRIVATE_KEY=
 GITHUB_APP_INSTALLATION_ID=
-
-# Auth — si vide, toutes les routes sont ouvertes (mode dev)
-MASCARADE_API_KEY=un-token-secret
 
 # Core
 CORE_HOST=0.0.0.0

@@ -17,7 +17,6 @@
         "stt",
         "generate-audio",
         "ollama",
-        "open-webui",
         "ops-console",
         "redis",
         "postgres",
@@ -32,8 +31,7 @@
         { "from": "langfuse", "to": "postgres", "type": "depends_on" },
         { "from": "langfuse", "to": "clickhouse", "type": "depends_on" },
         { "from": "dify", "to": "postgres", "type": "depends_on" },
-        { "from": "dify", "to": "redis", "type": "depends_on" },
-        { "from": "open-webui", "to": "ollama", "type": "depends_on" }
+        { "from": "dify", "to": "redis", "type": "depends_on" }
       ]
     },
     "setup_pipeline": {

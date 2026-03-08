@@ -56,6 +56,7 @@ DOMAINS = [
     "embedded",
     "platformio",
     "freecad",
+    "project",
 ]
 
 try:

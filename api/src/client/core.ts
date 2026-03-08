@@ -103,12 +103,18 @@ export interface ProviderFieldStatus {
   configured: boolean;
   hint: string;
   secret: boolean;
+  classification?: string;
+  criticality?: string;
   auth_modes?: string[];
 }
 
 export interface ProviderStatus {
   name: string;
   label: string;
+  classification?: string;
+  criticality?: string;
+  required_when?: string;
+  used_by?: string[];
   configured: boolean;
   active: boolean;
   fields: ProviderFieldStatus[];

@@ -1,106 +1,88 @@
-# TODO — Finalisation VM (192.168.0.119)
+# TODO — Finalisation VM
+
+Etat relu le `8 mars 2026` sur la stack `mascarade-*` actuellement en service.
 
 ## Statut actuel
 
 | Service | Container | Port | Statut |
 |---------|-----------|------|--------|
-| Mascarade Core | mascarade-core-1 | 8100 | OK |
-| Mascarade API | mascarade-api-1 | 3100 | OK |
-| ClickHouse | tools-clickhouse | — | OK |
-| Langfuse | tools-langfuse | 3200 | KO (ZodError) |
-| n8n | tools-n8n | 5678 | OK |
-| LiteLLM | tools-litellm | 4000 | OK |
-| Dify API | tools-dify-api | 5001 | OK |
-| Dify Web | tools-dify-web | 3500 | OK |
-| Dify Worker | tools-dify-worker | — | OK |
+| Mascarade Core | `mascarade-core` | 8100 | OK (`healthy`) |
+| Mascarade API | `mascarade-api` | 3100 | OK (`healthy`) |
+| Edge Proxy | `mascarade-edge-proxy` | 80 / 443 | OK (`healthy`, bind loopback) |
+| LiteLLM | `mascarade-litellm` | 4000 | OK (`healthy`) |
+| Langfuse Web | `mascarade-langfuse` | 3200 | OK (`healthy`) |
+| Langfuse Worker | `mascarade-langfuse-worker` | — | OK |
+| n8n | `mascarade-n8n` | 5678 | OK (`healthy`) |
+| Dify API | `mascarade-dify-api` | 5001 | OK |
+| Dify Web | `mascarade-dify-web` | 3500 | OK |
+| Dify Worker | `mascarade-dify-worker` | — | OK |
+| ClickHouse | `mascarade-clickhouse` | — | OK (`healthy`) |
+| Postgres | `mascarade-postgres` | 5432 | OK (`healthy`) |
+| Redis | `mascarade-redis` | 6379 | OK (`healthy`) |
+| Qdrant | `mascarade-qdrant` | 6333 | OK (`healthy`) |
+| Grafana | `mascarade-grafana` | 3001 | OK (`healthy`) |
+| Prometheus | `mascarade-prometheus` | 9090 | OK (`healthy`) |
 
----
+Notes:
+- L'ancien constat `tools-langfuse KO (ZodError)` ne correspond plus au runtime actuel. `langfuse-web:3000` répond `200` depuis le réseau Docker.
+- Les curls host-side vers `127.0.0.1:3200` ne sont pas conclusifs depuis l'environnement sandboxé; la vérification retenue est donc celle faite depuis le réseau Docker et via l'état Docker.
 
-## A faire
+## TODO priorisés
 
-### 1. Fixer Langfuse
-- [ ] Le container ne crash plus mais le health endpoint ne répond pas (toujours KO)
-- [ ] Erreur : `TypeError: Cannot set property message of ZodError which has only a getter`
-- [ ] Env vars ajoutées : `ENCRYPTION_KEY`, `REDIS_HOST/PORT`, `LANGFUSE_S3_EVENT_UPLOAD_ENABLED=false`
-- [x] Piste testée : version spécifique `3.50.0` (KO aussi)
-- [x] Décision machine légère : service désactivé par défaut (profile `heavy`)
-- [ ] Fichier : `~/tools/docker-compose.yml`
+### Bloquant
+- [x] `Langfuse` ne crashe plus et répond sur le réseau Docker.
+- [x] Ajouter un `healthcheck` Docker explicite sur `mascarade-langfuse`.
+- [x] Recréer `langfuse-web` pour matérialiser le nouveau statut `healthy` dans `docker ps`.
+- [ ] Trancher si `Langfuse` reste une brique supportée ou redevient un service `heavy` optionnel seulement.
 
-### 2. Configurer les clés API
-- [ ] Remplir les vraies clés dans `/mascarade/.env` sur la VM
+### Sécurité
+- [x] `MASCARADE_API_KEY` est renseignée dans `/home/clems/mascarade/.env`; l'auth n'est pas désactivée en pratique.
+- [ ] Garder la règle: ne jamais régénérer un `.env` de VM avec `MASCARADE_API_KEY` vide.
+- [ ] Compléter les secrets opérateurs encore absents dans `.env` selon le besoin réel:
   - `ANTHROPIC_API_KEY`
   - `OPENAI_API_KEY`
-  - `MISTRAL_API_KEY`
   - `NOTION_TOKEN`
-- [x] Copier/linker le `.env` pour `~/tools/` (LiteLLM, Dify en ont besoin) — synchronisation effectuée
-- [x] Restart mascarade + tools après
+- [x] `MISTRAL_API_KEY` est déjà configurée.
 
-### 3. Déployer Firecrawl
-- [ ] L'image `ghcr.io/mendableai/firecrawl:latest` est privée (denied)
-- [ ] Alternative : `mendableai/firecrawl` sur Docker Hub ou build depuis le repo GitHub
-- [x] Port prévu : 3400
-- [ ] Utilise Redis existant (`zacus-redis:6379/2`)
+### Infra
+- [ ] Déployer `Firecrawl` avec une source publiable réelle.
+  - Contrainte actuelle: `ghcr.io/mendableai/firecrawl:latest` privée.
+  - Options restantes: image Docker Hub compatible ou build depuis le repo source.
+- [ ] Déployer `Mem0` avec une cible réelle.
+  - L'image `mem0ai/mem0` n'est pas disponible telle quelle.
+  - Options restantes: venv Python dédié (`mem0ai`) ou `openmemory-mcp`.
+- [ ] Installer `Docling` dans le venv tools.
+- [ ] Installer `openai-whisper` dans le venv tools.
 
-### 4. Déployer Mem0
-- [ ] L'image `mem0ai/mem0` n'existe pas sur Docker Hub
-- [ ] Alternative 1 : installer via pip (`pip install mem0ai`) dans un venv Python sur la VM
-- [ ] Alternative 2 : utiliser `openmemory-mcp` (le repo officiel Mem0)
-- [x] Port prévu : 3300
-- [ ] Utilise Qdrant existant (`zacus-qdrant:6333`)
+### Réseau
+- [x] Le reverse proxy HTTPS existe déjà via `edge-proxy`.
+- [x] Les binds HTTP/HTTPS restent limités à `127.0.0.1`.
+- [ ] Si exposition externe voulue: publier `edge-proxy` hors loopback et finaliser le chemin ACME/DNS réellement utilisé.
 
-### 5. Installer les outils Python
-- [x] Créer un venv dans `~/tools/python-tools/`
-- [x] **GraphRAG** (`pip install graphrag`) — installé dans `~/tools/python-tools/.venv`
-- [ ] **Docling** (`pip install docling`) — résolution de dépendances très longue / interrompue
-- [ ] **Whisper** (`pip install openai-whisper`) — inclus dans la tentative globale interrompue
+### Monitoring
+- [ ] Connecter `Langfuse` à `Mascarade` pour tracer les appels LLM.
+- [ ] Ajouter des dashboards Grafana pour `Langfuse`, `n8n`, `Dify`, `LiteLLM`.
+- [ ] Ajouter ou documenter les endpoints Prometheus réellement scrapeables pour les services exposés.
 
-### 6. Ajouter deps Mascarade
-- [x] **CrewAI** — ajouté dans `core/pyproject.toml`, skill d'orchestration ajouté
-- [x] **OpenAI Agents SDK** — ajouté comme dépendance
-- [x] Rebuild image Docker mascarade après
-
-### 7. Configurer MCP Servers (local Mac)
-- [ ] Installer `@anthropic-ai/mcp` et serveurs MCP utiles (à faire sur Mac)
-- [ ] Playwright MCP pour le scraping navigateur (à faire sur Mac)
-- [x] Connecter Claude Code aux MCP servers via `~/.claude/settings.json` (config locale VM prête)
-
-### 8. Sécuriser les accès
-- [x] Tous les ports Mascarade/Tools ajoutés sont en `127.0.0.1` (local uniquement)
-- [ ] Mettre en place un reverse proxy (Caddy/nginx) pour exposer avec HTTPS
-- [x] Activer l'auth Bearer sur Mascarade — middleware implemente (timing-safe, bearer+cookie)
-- [ ] **ATTENTION**: `MASCARADE_API_KEY=""` dans `.env` = auth desactivee en pratique
-- [x] Changer le mot de passe Postgres (rotation effectuée)
-
-### 9. Monitoring
-- [ ] Connecter Langfuse (une fois fixé) à Mascarade pour tracer les appels LLM
-- [ ] Grafana existant sur la VM — ajouter des dashboards pour les nouveaux services
-- [ ] Prometheus — ajouter les endpoints metrics des services
-
----
+### Mac local
+- [ ] Installer les serveurs MCP utiles côté Mac.
+- [ ] Installer `Playwright MCP` côté Mac.
 
 ## Infra existante sur la VM
 
 | Service | Container | Port |
 |---------|-----------|------|
-| Ollama | zacus-ollama | 11434 |
-| Open WebUI | zacus-open-webui | 3000 |
-| Qdrant | zacus-qdrant | 6333 |
-| Redis | zacus-redis | 6379 |
-| Postgres | zacus-postgres | 5432 |
-| Grafana | zacus-grafana | 3001 |
-| Prometheus | zacus-prometheus | 9090 |
-
-**Réseau Docker** : `docker-studio-ai_default` (tous les services infra)
+| Ollama | `mascarade-ollama` | 11434 |
+| Qdrant | `mascarade-qdrant` | 6333 |
+| Redis | `mascarade-redis` | 6379 |
+| Postgres | `mascarade-postgres` | 5432 |
+| Grafana | `mascarade-grafana` | 3001 |
+| Prometheus | `mascarade-prometheus` | 9090 |
 
 ## Fichiers clés
 
-```
-/mascarade/                  # Repo mascarade (core + api)
-/mascarade/.env              # Clés API (à remplir)
-/mascarade/docker-compose.yml
-
-~/tools/docker-compose.yml   # Stack outils (Langfuse, n8n, LiteLLM, Dify)
-~/tools/litellm-config.yaml  # Config LiteLLM (modèles + cache Redis)
-~/tools/clickhouse/config.xml # Config ClickHouse Keeper
-~/tools/.env                 # Copie des clés API
+```text
+/home/clems/mascarade/.env
+/home/clems/mascarade/docker-compose.yml
+/home/clems/mascarade/TODO_VM.md
 ```
