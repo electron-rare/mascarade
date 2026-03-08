@@ -1,51 +1,25 @@
-# Plan Mascarade x Kill_LIFE Workflow Editor
+# Historical Plan — Mascarade x Kill_LIFE Workflow Editor
 
-## Résumé
+Ce document conserve le plan d'origine qui a servi a lancer la lane `Kill_LIFE`
+depuis `mascarade`.
 
-Objectif: intégrer dans `mascarade` une lane `Kill_LIFE` avec un **full editor graphique réel** pour les workflows embarqués, en gardant `Kill_LIFE` comme source métier et runtime.
+Contrat courant a appliquer a la place de ce plan historique:
 
-Principes retenus:
+- `crazy_life` = repo canonique web/devops et release du shell cockpit
+- `Kill_LIFE` = source de verite runtime, workflows JSON, evidence, firmware, CAD et compliance
+- `mascarade` = repo compagnon runtime/ops + bridge historique optionnel
 
-- `mascarade/web` héberge le cockpit et l’éditeur graphique
-- `mascarade/api` expose une façade sécurisée `/api/killlife/*`
-- `Kill_LIFE/workflows/*.json` devient le format canonique éditable
-- la v1 supporte `local` et `github`
-- la v1 est un éditeur graphique direct, pas une vue formulaire
+Consequence:
 
-## TODO Produit et architecture
+- les surfaces frontend/backend produit lancees initialement depuis `mascarade`
+  doivent etre considerees comme des antecedents historiques ou des snapshots
+  de bridge;
+- la readiness de release du cockpit ne se decide plus dans `mascarade`;
+- le bridge `mascarade/web` reste un mecanisme de sync, pas une source
+  canonique.
 
-- [x] Définir un format JSON canonique pour les workflows `Kill_LIFE`
-- [x] Créer des workflows seed pour lancer la lane
-- [x] Exposer listing, lecture, save, validation et run via `/api/killlife/*`
-- [x] Ajouter une lane `Kill_LIFE` dans la navigation `mascarade`
-- [x] Ajouter une page registry et une page editor
-- [x] Implémenter un canvas graphique éditable avec nœuds et liaisons
-- [x] Permettre save, validate, run local et dispatch GitHub depuis l’UI
-- [ ] Ajouter Blockly dans les nœuds de logique avancée en lot 2
-- [ ] Ajouter import assisté depuis `docs/workflows/*.md`
-- [ ] Ajouter diff visuel avant save et historique multi-version
+Pour le contrat actif et la sequence de publication:
 
-## Interfaces et comportements
-
-- `KILL_LIFE_ROOT` pointe vers le repo `Kill_LIFE`
-- `GET /api/killlife/workflows` liste les graphes canoniques
-- `GET /api/killlife/workflows/:id` retourne workflow + validation + runs
-- `PUT /api/killlife/workflows/:id` sauvegarde le JSON canonique
-- `POST /api/killlife/workflows/:id/validate` valide le graphe courant
-- `POST /api/killlife/workflows/:id/run` accepte `mode=local|github`
-- `GET /api/killlife/evidence/:target` expose les evidence packs ciblés
-
-## Tests attendus
-
-- validation du schéma et des références de nœuds
-- rejet des IDs/path traversal
-- save atomique + backup local
-- run local `Kill_LIFE` avec logs et evidence refs
-- dispatch GitHub uniquement sur workflow allowlisté
-- build web et API sans casser les lanes existantes
-
-## Hypothèses
-
-- le repo `Kill_LIFE` reste le runtime métier
-- `mascarade` reste l’unique shell frontend
-- la v1 accepte l’édition directe des JSON, pas des `.github/workflows/*.yml`
+- `../crazy_life/docs/REPO_CARTOGRAPHY_2026-03-07.md`
+- `../crazy_life/docs/PUBLISH_FLOW.md`
+- `README.md`

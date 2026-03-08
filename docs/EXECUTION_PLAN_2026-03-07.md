@@ -140,9 +140,9 @@ Mis a jour apres audit croise complet code/docs.
 | GraphRAG | FAIT |
 | Claude Code MCP config VM | FAIT |
 | edge-proxy nginx | FAIT — pas de TLS |
-| Langfuse ZodError | OUVERT — desactive profile heavy |
+| Langfuse ZodError | CLOS — service supporte et runtime sain, optionnel hors profil standard |
 | Cles API .env (Anthropic/OpenAI/Notion) | OUVERT |
-| Firecrawl | OUVERT |
+| Firecrawl | PARTIEL — image officielle retenue, secret/API cible manquant |
 | Mem0 | PARTIEL — compose migration seulement |
 | Docling / Whisper | OUVERT |
 | Reverse proxy HTTPS | OUVERT |

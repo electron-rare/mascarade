@@ -5,6 +5,12 @@
 > **Date** : 2026-03-04
 > **Signature** : *L'electron rare — unstable by design*
 
+> Note:
+> ce fichier est un snapshot machine/operator, pas une source de verite pour
+> l'ownership des repos ni pour le chemin de release.
+> Le contrat multi-repo actif est fige dans
+> `/home/clems/crazy_life/docs/REPO_CARTOGRAPHY_2026-03-07.md`.
+
 ---
 
 ## 1. Zellij Sessions

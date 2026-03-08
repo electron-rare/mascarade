@@ -56,7 +56,6 @@ module_dify_compose() {
   echo "    environment:"
   echo -e "$dify_env"
   echo "      APP_API_URL: \${DIFY_PUBLIC_ORIGIN:-https://dify.localhost}"
-  echo "      CONSOLE_API_URL: \${DIFY_PUBLIC_ORIGIN:-https://dify.localhost}"
   if svc_selected "postgres" || svc_selected "redis"; then
     echo "    depends_on:"
     if svc_selected "postgres"; then
