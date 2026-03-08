@@ -112,7 +112,7 @@ write_env_file() {
         echo "TTS_KOKORO_IMAGE=\"${TTS_KOKORO_IMAGE:-ghcr.io/marjocchi/wyoming-kokoro:latest}\""
         echo ""
         echo "# ── Publication reseau ──"
-        echo "PUBLISH_BIND_HOST=\"${PUBLISH_BIND_HOST:-0.0.0.0}\""
+        echo "PUBLISH_BIND_HOST=\"${PUBLISH_BIND_HOST:-127.0.0.1}\""
         echo ""
 
         # Core
@@ -332,7 +332,7 @@ write_env_file() {
         # Edge Proxy
         if svc_selected "edge-proxy"; then
             echo "# ── Edge Proxy ──"
-            echo "EDGE_PROXY_BIND_HOST=\"${EDGE_PROXY_BIND_HOST:-0.0.0.0}\""
+            echo "EDGE_PROXY_BIND_HOST=\"${EDGE_PROXY_BIND_HOST:-127.0.0.1}\""
             echo "EDGE_PROXY_HTTP_PORT=\"${EDGE_PROXY_HTTP_PORT:-80}\""
             echo "EDGE_PROXY_HTTPS_PORT=\"${EDGE_PROXY_HTTPS_PORT:-443}\""
             echo "EDGE_PROXY_SERVER_NAME=\"${EDGE_PROXY_SERVER_NAME:-localhost}\""
