@@ -160,10 +160,26 @@ GOOGLE_APPLICATION_CREDENTIALS=/chemin/key.json
 GOOGLE_MODEL=gemini-2.5-flash
 
 # Notion — optionnel, pour la KB et les dashboards
+NOTION_AUTH_MODE=api_key              # or oauth_oidc
 NOTION_API_KEY=ntn_xxxxx
+NOTION_OAUTH_ACCESS_TOKEN=
+NOTION_OAUTH_REFRESH_TOKEN=
+NOTION_OAUTH_CLIENT_ID=
+NOTION_OAUTH_CLIENT_SECRET=
+NOTION_OAUTH_AUTHORIZATION_ENDPOINT=https://api.notion.com/v1/oauth/authorize
+NOTION_OAUTH_TOKEN_ENDPOINT=https://api.notion.com/v1/oauth/token
+NOTION_OAUTH_REDIRECT_URI=
+NOTION_OAUTH_EXPIRES_AT=
+NOTION_OAUTH_WORKSPACE_NAME=
+NOTION_MCP_SMOKE_PAGE_ID=
 
 # GitHub dispatch — optionnel, pour les workflows Kill_LIFE / crazy_life
+GITHUB_DISPATCH_AUTH_MODE=token       # or app
 KILL_LIFE_GITHUB_TOKEN=ghp_xxxxx
+GITHUB_TOKEN=
+GITHUB_APP_ID=
+GITHUB_APP_PRIVATE_KEY=
+GITHUB_APP_INSTALLATION_ID=
 
 # Auth — si vide, toutes les routes sont ouvertes (mode dev)
 MASCARADE_API_KEY=un-token-secret
@@ -317,12 +333,13 @@ Deux containers demarrent :
 - `core` sur `:8100`
 - `api` sur `:3100`
 - le cockpit expose maintenant une vraie lane `Logs` sur `http://localhost:3100/logs`
-- tous les ports publies utilisent `PUBLISH_BIND_HOST=0.0.0.0` par defaut
+- tous les ports publies utilisent maintenant `PUBLISH_BIND_HOST=127.0.0.1` par defaut
 - `ops-console` sur `:80` (si selectionne), avec override possible via `OPS_CONSOLE_BIND_HOST`
 - `edge-proxy` peut exposer seulement `:80/:443` pour l'entree publique
 
-Si tu veux tout rebloquer en local, remets `PUBLISH_BIND_HOST=127.0.0.1` dans `.env`.
-Si tu veux seulement `ops-console` en local, garde `PUBLISH_BIND_HOST=0.0.0.0` et mets `OPS_CONSOLE_BIND_HOST=127.0.0.1`.
+Si tu veux tout garder en local, laisse `PUBLISH_BIND_HOST=127.0.0.1` dans `.env`.
+Si tu veux exposer des services internes au LAN, passe explicitement `PUBLISH_BIND_HOST=0.0.0.0`.
+Si tu veux publier `edge-proxy` sur `:80/:443`, passe explicitement `EDGE_PROXY_BIND_HOST=0.0.0.0`.
 
 Mode reverse proxy:
 
@@ -330,7 +347,7 @@ Mode reverse proxy:
 PUBLISH_BIND_HOST=127.0.0.1 ./setup --with core,api,ops-console,edge-proxy --yes
 ```
 
-Dans ce mode, seuls `edge-proxy` sur `:80/:443` sont publics; les autres ports restent sur loopback.
+Dans ce mode, seuls `edge-proxy` sur `:80/:443` sont publics si `EDGE_PROXY_BIND_HOST=0.0.0.0`; sinon toute la stack reste sur loopback.
 
 Observability complementaire opt-in:
 
