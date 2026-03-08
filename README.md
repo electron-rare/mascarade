@@ -430,7 +430,7 @@ Certificat Let's Encrypt par DNS-01 Cloudflare:
 # Variables minimales dans .env
 EDGE_PROXY_SERVER_NAME=saillant.cc
 EDGE_PROXY_ACME_EMAIL=toi@example.com
-EDGE_PROXY_ACME_DOMAINS=saillant.cc,www.saillant.cc
+EDGE_PROXY_ACME_DOMAINS=saillant.cc,grafana.saillant.cc,langfuse.saillant.cc,dify.saillant.cc
 CLOUDFLARE_API_TOKEN=...
 
 # Emission du certificat
@@ -438,6 +438,16 @@ bash scripts/edge_proxy_cert.sh issue
 ```
 
 Le proxy continue a generer un certificat auto-signe tant qu'aucun certificat reel n'est installe. Une fois le certificat emis, `edge-proxy` recharge Nginx automatiquement.
+
+Si tu restes en provider `manual`, le flux devient:
+
+```bash
+bash scripts/edge_proxy_cert.sh issue --provider manual
+# ajouter les TXT ACME demandes par le script
+bash scripts/edge_proxy_cert.sh renew --provider manual
+```
+
+Sur la machine de reference, `edge-proxy` est maintenant publie sur `0.0.0.0:80/443`, avec les hostnames `saillant.cc`, `grafana.saillant.cc`, `langfuse.saillant.cc` et `dify.saillant.cc`.
 
 Les agents dynamiques sont persistes dans un volume Docker (`core-data:/app/data`).
 
