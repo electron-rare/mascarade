@@ -82,35 +82,54 @@ export default function OpsHub() {
 
   const links = useMemo(() => {
     const origin = window.location.origin;
-    const { protocol, hostname } = window.location;
     const grafanaSurface = findPublicSurface(data, "grafana");
     const langfuseSurface = findPublicSurface(data, "langfuse");
+    const prometheusSurface = findPublicSurface(data, "prometheus");
+    const ollamaSurface = findPublicSurface(data, "ollama");
+    const firecrawlSurface = findPublicSurface(data, "firecrawl");
+    const mem0Surface = findPublicSurface(data, "mem0");
     return [
       { label: "API health", href: `${origin}/health`, note: "gateway health endpoint" },
       { label: "Ops monitor", href: `${origin}/api/ops/monitor`, note: "consolidated runtime snapshot" },
       { label: "Core health", href: `${origin}/core-health`, note: "core liveness via reverse proxy" },
       { label: "Dify web", href: `${getDifyOrigin()}/`, note: "app builder surface via reverse proxy" },
       { label: "Dify API", href: getDifyHealthUrl(), note: "workflow api health on the main proxy" },
-      {
+      grafanaSurface?.url ? {
         label: "Grafana proxy",
-        href: grafanaSurface?.url ?? data?.observability.grafana_proxy_url ?? `${protocol}//${hostname}:3001/`,
+        href: grafanaSurface.url,
         note: "public operator dashboards via edge-proxy",
-      },
-      {
+      } : null,
+      langfuseSurface?.url ? {
         label: "Langfuse proxy",
-        href: langfuseSurface?.url ?? data?.observability.langfuse_proxy_url ?? `${protocol}//${hostname}:3200/`,
+        href: langfuseSurface.url,
         note: "llm traces and evals behind edge-proxy",
-      },
-      {
+      } : null,
+      grafanaSurface?.url ? {
         label: "Tempo traces",
-        href: grafanaSurface?.url ?? data?.observability.grafana_proxy_url ?? `${protocol}//${hostname}:3001/`,
+        href: grafanaSurface.url,
         note: "trace search via the Tempo datasource in Grafana",
-      },
-      { label: "Firecrawl MCP", href: `${protocol}//${hostname}:3400/mcp`, note: "streamable MCP endpoint" },
-      { label: "Mem0 / OpenMemory", href: `${protocol}//${hostname}:3300/docs`, note: "memory api docs on qdrant + litellm" },
-      { label: "Prometheus", href: `${protocol}//${hostname}:9090/`, note: "raw metrics store" },
-      { label: "Ollama", href: `${protocol}//${hostname}:11434/`, note: "local model runtime" },
-    ];
+      } : null,
+      prometheusSurface?.url ? {
+        label: "Prometheus proxy",
+        href: prometheusSurface.url,
+        note: "raw metrics store behind edge-proxy",
+      } : null,
+      ollamaSurface?.url ? {
+        label: "Ollama proxy",
+        href: ollamaSurface.url,
+        note: "local model runtime behind edge-proxy",
+      } : null,
+      mem0Surface?.url ? {
+        label: "Mem0 proxy",
+        href: mem0Surface.url,
+        note: "openmemory docs behind edge-proxy",
+      } : null,
+      firecrawlSurface?.url ? {
+        label: "Firecrawl proxy",
+        href: firecrawlSurface.url,
+        note: "streamable MCP endpoint behind edge-proxy",
+      } : null,
+    ].filter((link): link is { label: string; href: string; note: string } => Boolean(link));
   }, [data]);
 
   const opsCopilotPayload = useMemo(
@@ -184,13 +203,13 @@ export default function OpsHub() {
   const tempoReady = sourceStatus.data?.tempo_traces?.available ?? data.observability.tempo?.ok ?? false;
   const difyWeb = services.find((service) => service.name === "dify-web");
   const difyApi = services.find((service) => service.name === "dify-api");
-  const { protocol, hostname } = window.location;
   const difyWebHref = `${getDifyOrigin()}/`;
   const difyApiHref = getDifyHealthUrl();
   const firecrawl = services.find((service) => service.name === "firecrawl");
-  const firecrawlHref = `${protocol}//${hostname}:3400/mcp`;
+  const firecrawlSurface = findPublicSurface(data, "firecrawl");
   const mem0 = services.find((service) => service.name === "mem0");
-  const mem0Href = `${protocol}//${hostname}:3300/docs`;
+  const mem0Surface = findPublicSurface(data, "mem0");
+  const ollamaSurface = findPublicSurface(data, "ollama");
   const proxyPublic = data.public.public_bind;
   const proxyAuthReady = data.public.auth_configured;
   const mcp = summary.data?.mcp;
@@ -336,7 +355,8 @@ export default function OpsHub() {
             <div className="space-y-3">
               <p className="text-sm leading-7 text-amber-100/60">
                 Raccourcis ops utiles quand tu arrives sur la stack depuis le proxy. Les surfaces
-                `Grafana` et `Langfuse` passent maintenant par des hôtes dédiés derrière `edge-proxy`.
+                operator tooling passent maintenant par des hôtes dedies derriere `edge-proxy`, avec
+                auth operateur plutot que des ports bruts exposes.
               </p>
               {links.map((link) => (
                 <a
@@ -440,6 +460,16 @@ export default function OpsHub() {
                 d&apos;equivalent utile a l&apos;ancienne carte `Ollama (11434)` de la page ops statique.
               </p>
               <CompactModelList items={ollamaModels} previewCount={8} />
+              {ollamaSurface ? (
+                <a
+                  href={ollamaSurface.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex rounded-2xl border border-accent/35 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-accent transition hover:bg-accent/10"
+                >
+                  open ollama proxy
+                </a>
+              ) : null}
             </div>
           </Card>
 
@@ -561,21 +591,28 @@ export default function OpsHub() {
                   firecrawl {firecrawl?.ok ? "online" : "watch"}
                 </span>
                 <span className="status-chip border-border/80 bg-black/25 text-muted">
-                  mcp streamable / port 3400
+                  mcp streamable / proxifie
                 </span>
               </div>
               <a
-                href={firecrawlHref}
+                href={firecrawlSurface?.url ?? "#"}
+                target="_blank"
+                rel="noreferrer"
                 className="block rounded-[1.4rem] border border-border/80 bg-black/25 px-4 py-4 transition hover:border-accent/35 hover:bg-black/30"
               >
                 <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-accent">
-                  open firecrawl mcp
+                  open firecrawl proxy
                 </p>
-                <p className="mt-2 text-sm text-amber-100/72">{shortUrl(firecrawlHref)}</p>
+                <p className="mt-2 text-sm text-amber-100/72">
+                  {firecrawlSurface ? shortUrl(firecrawlSurface.url) : "proxy pending"}
+                </p>
                 <p className="mt-2 text-[12px] leading-5 text-amber-100/44">
                   {firecrawl
                     ? `http ${firecrawl.status || "-"} / ${formatLatency(firecrawl.latency_ms)}`
                     : "endpoint MCP non detecte dans le monitor"}
+                </p>
+                <p className="mt-2 text-[12px] leading-5 text-amber-100/44">
+                  Le endpoint MCP passe maintenant par un hostname dedie protege par auth operateur.
                 </p>
               </a>
               <div className="flex flex-wrap gap-2">
@@ -600,21 +637,28 @@ export default function OpsHub() {
                   mem0 {mem0?.ok ? "online" : "watch"}
                 </span>
                 <span className="status-chip border-border/80 bg-black/25 text-muted">
-                  openmemory / qdrant / litellm
+                  openmemory / qdrant / litellm / proxifie
                 </span>
               </div>
               <a
-                href={mem0Href}
+                href={mem0Surface?.url ?? "#"}
+                target="_blank"
+                rel="noreferrer"
                 className="block rounded-[1.4rem] border border-border/80 bg-black/25 px-4 py-4 transition hover:border-accent/35 hover:bg-black/30"
               >
                 <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-accent">
-                  open mem0 docs
+                  open mem0 proxy
                 </p>
-                <p className="mt-2 text-sm text-amber-100/72">{shortUrl(mem0Href)}</p>
+                <p className="mt-2 text-sm text-amber-100/72">
+                  {mem0Surface ? shortUrl(mem0Surface.url) : "proxy pending"}
+                </p>
                 <p className="mt-2 text-[12px] leading-5 text-amber-100/44">
                   {mem0
                     ? `http ${mem0.status || "-"} / ${formatLatency(mem0.latency_ms)}`
                     : "surface memoire non detectee dans le monitor"}
+                </p>
+                <p className="mt-2 text-[12px] leading-5 text-amber-100/44">
+                  La doc OpenMemory est maintenant servie par un hostname dedie protege par auth operateur.
                 </p>
               </a>
               <div className="flex flex-wrap gap-2">

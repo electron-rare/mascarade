@@ -13,4 +13,4 @@ if [ -z "${AUTH_PASSWORD}" ]; then
 fi
 
 printf '%s:%s\n' "${AUTH_USER}" "$(openssl passwd -apr1 "${AUTH_PASSWORD}")" > "${AUTH_FILE}"
-chmod 600 "${AUTH_FILE}"
+chmod 644 "${AUTH_FILE}"
