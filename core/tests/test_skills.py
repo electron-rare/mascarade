@@ -42,7 +42,7 @@ def test_expected_skills_present():
         "translator",
         "analyst",
         "brainstorm",
-        "notion-scribe",
+        "knowledge-scribe",
         "planner",
         "classifier",
         "image-generator",

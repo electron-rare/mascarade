@@ -402,11 +402,11 @@ agents.post("/fallback/reset", async (c) => {
   }
 });
 
-/** Notion Scribe : executer puis pousser dans Notion */
-agents.post("/notion-scribe/run-and-push", async (c) => {
+/** Knowledge Scribe : executer puis pousser dans la knowledge base */
+agents.post("/knowledge-scribe/run-and-push", async (c) => {
   try {
     const body = await c.req.json();
-    const result = await coreClient.notionScribeRunAndPush(body);
+    const result = await coreClient.knowledgeScribeRunAndPush(body);
     return c.json(result);
   } catch (error) {
     const { status, body } = handleCoreError(error);
