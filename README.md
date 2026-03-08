@@ -1,6 +1,6 @@
 # Mascarade
 
-Systeme d'orchestration agentique personnel. Route intelligemment les requetes LLM entre Claude, GPT, Mistral, AWS Bedrock, Google Gemini et Hugging Face, avec agents specialises, orchestration multi-agents, cache, fallback automatique et integration Notion.
+Systeme d'orchestration agentique personnel. Route intelligemment les requetes LLM entre Claude, GPT, Mistral, AWS Bedrock, Google Gemini et Hugging Face, avec agents specialises, orchestration multi-agents, cache, fallback automatique et surfaces runtime `knowledge-base` / `cad`.
 
 ## Ecosysteme
 
@@ -50,9 +50,10 @@ Mascarade fait partie d'un ecosysteme de 5 repos :
 |Claude |  | OpenAI |  | Mistral  |
 +-------+  +--------+  +----------+
 
-                  +--------+
-                  | Notion |  (KB + dashboard)
-                  +--------+
+                  +------------------+
+                  | Knowledge Base / |
+                  | MCP integrations |
+                  +------------------+
 ```
 
 **Core Python** (`core/`, port `8100`) -- Moteur d'orchestration, routeur LLM, agents, metriques
@@ -187,20 +188,6 @@ GOOGLE_CLOUD_LOCATION=europe-west1
 GOOGLE_APPLICATION_CREDENTIALS=/chemin/key.json
 GOOGLE_MODEL=gemini-2.5-flash
 
-# Notion — integration optionnelle
-NOTION_AUTH_MODE=api_key              # or oauth_oidc
-NOTION_API_KEY=ntn_xxxxx
-NOTION_OAUTH_ACCESS_TOKEN=
-NOTION_OAUTH_REFRESH_TOKEN=
-NOTION_OAUTH_CLIENT_ID=
-NOTION_OAUTH_CLIENT_SECRET=
-NOTION_OAUTH_AUTHORIZATION_ENDPOINT=https://api.notion.com/v1/oauth/authorize
-NOTION_OAUTH_TOKEN_ENDPOINT=https://api.notion.com/v1/oauth/token
-NOTION_OAUTH_REDIRECT_URI=
-NOTION_OAUTH_EXPIRES_AT=
-NOTION_OAUTH_WORKSPACE_NAME=
-NOTION_MCP_SMOKE_PAGE_ID=
-
 # GitHub dispatch — integration optionnelle
 GITHUB_DISPATCH_AUTH_MODE=token       # or app
 KILL_LIFE_GITHUB_TOKEN=ghp_xxxxx
@@ -250,6 +237,11 @@ DEFAULT_MODEL=claude-sonnet-4-6
 ```
 
 Le routeur active automatiquement les providers dont la cle est presente. Pas de cle = provider ignore.
+
+Note:
+- `Notion` n'est plus dans le scope operateur actif de `mascarade`.
+- Les variables `NOTION_*` ne doivent plus etre traitees comme prerequis courants.
+- Les chemins `Notion` encore presents dans le repo relevent de la compatibilite legacy uniquement.
 
 ## CAD / EDA
 
@@ -431,13 +423,20 @@ Certificat Let's Encrypt par DNS-01 Cloudflare:
 EDGE_PROXY_SERVER_NAME=saillant.cc
 EDGE_PROXY_ACME_EMAIL=toi@example.com
 EDGE_PROXY_ACME_DOMAINS=saillant.cc,grafana.saillant.cc,langfuse.saillant.cc,dify.saillant.cc
-CLOUDFLARE_API_TOKEN=...
+CLOUDFLARE_API_TOKEN=...              # API token Cloudflare
+# ou, si tu utilises une Global API Key:
+CLOUDFLARE_API_EMAIL=toi@example.com
+CLOUDFLARE_API_KEY=...
 
 # Emission du certificat
 bash scripts/edge_proxy_cert.sh issue
 ```
 
 Le proxy continue a generer un certificat auto-signe tant qu'aucun certificat reel n'est installe. Une fois le certificat emis, `edge-proxy` recharge Nginx automatiquement.
+
+Sur la machine de reference, le certificat reel en place couvre maintenant
+`saillant.cc` et `*.saillant.cc`, ce qui absorbe `grafana.saillant.cc`,
+`langfuse.saillant.cc` et `dify.saillant.cc`.
 
 Si tu restes en provider `manual`, le flux devient:
 
@@ -685,9 +684,10 @@ Modes d'execution :
 | `parallel`   | Tous les agents traitent le prompt en parallele       |
 | `pipeline`   | La sortie d'un agent devient l'entree du suivant      |
 
-### Notion
+### Compat legacy Notion
 
-Si `NOTION_API_KEY` est configure :
+Hors scope operateur actif. Ce chemin reste seulement pour compatibilite legacy si
+vous devez relire un ancien flux `Notion` :
 
 ```bash
 # Rechercher dans la KB Notion

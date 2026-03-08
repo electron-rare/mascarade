@@ -121,13 +121,13 @@ observabilite/proxy operateur.
 | Docling / Whisper installables dans le venv tools | FAIT |
 | Probes Prometheus / blackbox pour services | FAIT |
 | `Grafana` / `Langfuse` publies derriere `edge-proxy` | FAIT |
-| TLS public `ACME/DNS` | EN COURS |
+| TLS public `ACME/DNS` | FAIT |
 | Cles operateur additionnelles | OPTIONNEL |
 | Setup Mac local | PREPARE |
 
 ### Prochain lot
-1. Le bind public `edge-proxy` est ouvert; il reste a terminer le challenge TXT ACME manuel puis le `renew`.
-2. Les secrets providers restent optionnels mais absents tant qu'aucune valeur reelle n'est fournie.
+1. Le bind public `edge-proxy` est ouvert et le certificat Let's Encrypt wildcard (`saillant.cc`, `*.saillant.cc`) est installe.
+2. Les secrets providers encore pertinents restent optionnels (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`) tant qu'aucune valeur reelle n'est fournie; `Notion` est hors scope actif.
 3. Le setup Mac local est maintenant scriptable; il reste a l'executer sur le poste cible.
 
 ---
@@ -162,10 +162,10 @@ observabilite/proxy operateur.
 | 3. Cockpit / Obs | ~100% | Aucun blocage critique |
 | 4. OTel / Loki | ~100% | Aucun blocage critique |
 | 5. Fine-tuning | ~95% | Seulement du suivi optionnel |
-| 6. VM / Infra | ~100% | Sujets externes/optionnels |
+| 6. VM / Infra | ~100% | Plus de bloc local; seulement des sujets externes/optionnels |
 | 7. Multi-repo | ~100% | Aucun blocage critique |
 
 ### Priorite immediate recommandee
 1. Ne pas rouvrir de nouveau chantier local sans besoin concret.
-2. Traiter seulement les sujets externes ou optionnels: `DNS/ACME` public, secrets providers, setup Mac local.
+2. Traiter seulement les sujets externes ou optionnels: secrets providers, setup Mac local.
 3. Si une nouvelle vague repo s'ouvre, repartir d'un lot neuf au lieu de reutiliser un reliquat historique.
