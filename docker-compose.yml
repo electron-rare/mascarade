@@ -147,7 +147,7 @@ services:
     healthcheck:
       test:
         - CMD-SHELL
-        - IP=$$(hostname -i | awk '{print $$1}') && wget -q --spider "http://$$IP:3000/"
+        - IP=$$(hostname -i | awk '{print $$1}') && wget -q --spider "http://$$IP:3030/"
       interval: 15s
       timeout: 5s
       retries: 10
@@ -163,6 +163,7 @@ services:
       - "${PUBLISH_BIND_HOST:-0.0.0.0}:${LANGFUSE_PORT}:3000"
     environment:
       <<: *langfuse-worker-env
+      LANGFUSE_PUBLIC_ORIGIN: ${LANGFUSE_PUBLIC_ORIGIN:-http://langfuse-web:3000}
       LANGFUSE_INIT_PROJECT_PUBLIC_KEY: ${LANGFUSE_INIT_PROJECT_PUBLIC_KEY:-}
       LANGFUSE_INIT_PROJECT_SECRET_KEY: ${LANGFUSE_INIT_PROJECT_SECRET_KEY:-}
     depends_on:
@@ -391,6 +392,7 @@ services:
       - .env
     volumes:
       - edge-proxy-certs:/etc/nginx/certs
+      - edge-proxy-auth:/etc/nginx/auth
     depends_on:
       api:
         condition: service_started
@@ -495,6 +497,9 @@ services:
     volumes:
       - grafana-data:/var/lib/grafana
       - ./deploy/grafana/provisioning:/etc/grafana/provisioning:ro
+    environment:
+      GF_SERVER_ROOT_URL: ${GRAFANA_PUBLIC_ORIGIN:-http://grafana.localhost}
+      GF_SERVER_DOMAIN: ${EDGE_PROXY_GRAFANA_SERVER_NAME:-grafana.localhost}
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://localhost:3000/api/health >/dev/null"]
       interval: 15s
@@ -503,14 +508,57 @@ services:
     networks:
       - mascarade-network
 
+  tempo:
+    image: ${TEMPO_IMAGE:-grafana/tempo:latest}
+    container_name: mascarade-tempo
+    restart: unless-stopped
+    command: ["-config.file=/etc/tempo/tempo.yaml"]
+    ports:
+      - "${PUBLISH_BIND_HOST:-0.0.0.0}:${TEMPO_PORT}:3200"
+    volumes:
+      - ./deploy/tempo/tempo.yaml:/etc/tempo/tempo.yaml:ro
+      - tempo-data:/var/tempo
+    healthcheck:
+      test: ["CMD", "/tempo", "-version"]
+      interval: 15s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+    networks:
+      - mascarade-network
+
+  blackbox-exporter:
+    image: ${BLACKBOX_EXPORTER_IMAGE:-prom/blackbox-exporter:latest}
+    container_name: mascarade-blackbox-exporter
+    restart: unless-stopped
+    ports:
+      - "${PUBLISH_BIND_HOST:-0.0.0.0}:${BLACKBOX_EXPORTER_PORT}:9115"
+    command: ["--config.file=/etc/blackbox/blackbox.yml"]
+    volumes:
+      - ./deploy/prometheus/blackbox.yml:/etc/blackbox/blackbox.yml:ro
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:9115/-/healthy >/dev/null"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    networks:
+      - mascarade-network
+
   prometheus:
     image: ${PROMETHEUS_IMAGE:-prom/prometheus@sha256:4a61322ac1103a0e3aea2a61ef1718422a48fa046441f299d71e660a3bc71ae9}
     container_name: mascarade-prometheus
     restart: unless-stopped
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
     ports:
       - "${PUBLISH_BIND_HOST:-0.0.0.0}:${PROMETHEUS_PORT}:9090"
     volumes:
+      - ./deploy/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus-data:/prometheus
+    depends_on:
+      blackbox-exporter:
+        condition: service_started
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:9090/-/healthy >/dev/null"]
       interval: 15s
@@ -567,6 +615,7 @@ services:
     image: ${OTEL_COLLECTOR_IMAGE:-otel/opentelemetry-collector-contrib:0.116.1}
     container_name: mascarade-otel-collector
     restart: unless-stopped
+    user: "0:0"
     command: ["--config=/etc/otelcol-contrib/config.yaml"]
     ports:
       - "${PUBLISH_BIND_HOST:-0.0.0.0}:${OTEL_COLLECTOR_GRPC_PORT}:4317"
@@ -574,6 +623,9 @@ services:
       - "${PUBLISH_BIND_HOST:-0.0.0.0}:${OTEL_COLLECTOR_HEALTH_PORT}:13133"
     volumes:
       - ./deploy/otel-collector/config.yaml:/etc/otelcol-contrib/config.yaml:ro
+    depends_on:
+      tempo:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "/otelcol-contrib", "--version"]
       interval: 15s
@@ -600,6 +652,9 @@ volumes:
   postgres-data:
   qdrant-data:
   grafana-data:
+  tempo-data:
   prometheus-data:
   loki-data:
   promtail-data:
+  edge-proxy-auth:
+    name: mascarade-edge-proxy-auth

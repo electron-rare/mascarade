@@ -47,6 +47,32 @@ type MonitorSnapshot = {
     api: { ok: boolean; status: number };
     core: boolean;
   };
+  observability: {
+    traces_backend: "tempo";
+    logs_backend: "loki";
+    metrics_backend: "prometheus";
+    tempo: ProbeResult | null;
+    grafana_proxy_url: string;
+    langfuse_proxy_url: string;
+  };
+  public: {
+    proxy_enabled: boolean;
+    bind_host: string;
+    public_bind: boolean;
+    server_name: string;
+    auth_configured: boolean;
+    surfaces: Array<{
+      name: string;
+      host: string;
+      url: string;
+      protected: boolean;
+      ok: boolean;
+      status: number;
+      latency_ms: number;
+      note: string;
+      error?: string;
+    }>;
+  };
   ai: {
     ollama: {
       ok: boolean;
@@ -168,12 +194,13 @@ async function timedProbe(
   url: string,
   timeoutMs: number = 1500,
   acceptedStatuses: number[] = [],
+  headers?: Record<string, string>,
 ): Promise<ProbeResult> {
   const started = Date.now();
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const res = await fetch(url, { signal: controller.signal });
+    const res = await fetch(url, { headers, signal: controller.signal });
     const ok = res.ok || acceptedStatuses.includes(res.status);
     return {
       name,
@@ -202,6 +229,22 @@ const APPLE_LLM_BASE_URL = (process.env.APPLE_LLM_BASE_URL || "").replace(/\/+$/
 const OPS_AGENT_URL = (process.env.OPS_AGENT_URL || "http://ops-agent:9200").replace(/\/+$/, "");
 const LOKI_URL = (process.env.LOKI_URL || "http://loki:3100").replace(/\/+$/, "");
 const CORE_URL = (process.env.CORE_URL || "http://core:8100").replace(/\/+$/, "");
+const EDGE_PROXY_BIND_HOST = (process.env.EDGE_PROXY_BIND_HOST || "127.0.0.1").trim();
+const EDGE_PROXY_SERVER_NAME = (process.env.EDGE_PROXY_SERVER_NAME || "localhost").trim();
+const EDGE_PROXY_GRAFANA_SERVER_NAME = (
+  process.env.EDGE_PROXY_GRAFANA_SERVER_NAME || `grafana.${EDGE_PROXY_SERVER_NAME}`
+).trim();
+const EDGE_PROXY_LANGFUSE_SERVER_NAME = (
+  process.env.EDGE_PROXY_LANGFUSE_SERVER_NAME || `langfuse.${EDGE_PROXY_SERVER_NAME}`
+).trim();
+const GRAFANA_PUBLIC_ORIGIN = (
+  process.env.GRAFANA_PUBLIC_ORIGIN || `https://${EDGE_PROXY_GRAFANA_SERVER_NAME}`
+).replace(/\/+$/, "");
+const LANGFUSE_PUBLIC_ORIGIN = (
+  process.env.LANGFUSE_PUBLIC_ORIGIN || `https://${EDGE_PROXY_LANGFUSE_SERVER_NAME}`
+).replace(/\/+$/, "");
+const EDGE_PROXY_OPS_AUTH_USER = (process.env.EDGE_PROXY_OPS_AUTH_USER || "").trim();
+const EDGE_PROXY_OPS_AUTH_PASSWORD = process.env.EDGE_PROXY_OPS_AUTH_PASSWORD || "";
 const KILL_LIFE_ROOT = path.resolve(process.env.KILL_LIFE_ROOT || "/home/clems/Kill_LIFE");
 const KILL_LIFE_MCP_SMOKE = path.join(KILL_LIFE_ROOT, "tools", "hw", "mcp_smoke.py");
 const KILL_LIFE_VALIDATE_SPECS_MCP_SMOKE = path.join(
@@ -265,6 +308,20 @@ let cachedMcpProbe:
     }
   | null = null;
 let inflightMcpProbe: Promise<McpSuiteStatus> | null = null;
+
+function proxyAuthHeaders(host: string): Record<string, string> {
+  const headers: Record<string, string> = { Host: host };
+  if (EDGE_PROXY_OPS_AUTH_USER && EDGE_PROXY_OPS_AUTH_PASSWORD) {
+    headers.Authorization = `Basic ${Buffer.from(
+      `${EDGE_PROXY_OPS_AUTH_USER}:${EDGE_PROXY_OPS_AUTH_PASSWORD}`,
+    ).toString("base64")}`;
+  }
+  return headers;
+}
+
+function isProxyPublic(): boolean {
+  return !["127.0.0.1", "localhost", "::1"].includes(EDGE_PROXY_BIND_HOST);
+}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -537,6 +594,38 @@ async function opsAgentJson(
   timeoutMs: number = 2200,
 ): Promise<TimedJsonResult> {
   return timedJson(`${OPS_AGENT_URL}${path}`, timeoutMs);
+}
+
+function makeFailedMcpSuiteStatus(message: string): McpSuiteStatus {
+  const primary = makeDefaultMcpStatus({
+    requested_runtime: "auto",
+    server_name: "kicad",
+    status: "failed",
+    error: message,
+  });
+  return {
+    ...primary,
+    ok: false,
+    status: "failed",
+    aggregate_status: "failed",
+    primary_server: "kicad",
+    primary,
+    server_count: 0,
+    servers_ok: 0,
+    degraded_servers: [],
+    servers: {},
+  };
+}
+
+async function fetchOpsAgentMcpSummary(force: boolean = false): Promise<McpSuiteStatus> {
+  const suffix = force ? "?force=true" : "";
+  const result = await opsAgentJson(`/mcp/summary${suffix}`, 9000);
+  if (isRecord(result.json)) {
+    return result.json as McpSuiteStatus;
+  }
+  return makeFailedMcpSuiteStatus(
+    result.error || `Ops Agent MCP summary unavailable (${result.status || 0})`,
+  );
 }
 
 async function proxySseResponse(
@@ -878,8 +967,24 @@ async function collectMonitorSnapshot(): Promise<MonitorSnapshot> {
     timedProbe("langfuse", "http://langfuse-web:3000/"),
     timedProbe("firecrawl", "http://firecrawl:3000/mcp", 1500, [400]),
     timedProbe("mem0", "http://mem0:8765/", 1500, [404, 405]),
+    timedProbe("tempo", "http://tempo:3200/ready"),
     timedProbe("dify-web", "http://dify-web:3000/"),
     timedProbe("dify-api", "http://dify-api:5001/health"),
+    timedProbe("edge-proxy", "http://edge-proxy/healthz"),
+    timedProbe(
+      "grafana-proxy",
+      "http://edge-proxy/login",
+      1500,
+      [200, 302, 401],
+      proxyAuthHeaders(EDGE_PROXY_GRAFANA_SERVER_NAME),
+    ),
+    timedProbe(
+      "langfuse-proxy",
+      "http://edge-proxy/",
+      1500,
+      [200, 302, 401],
+      proxyAuthHeaders(EDGE_PROXY_LANGFUSE_SERVER_NAME),
+    ),
   ]);
 
   const [ollama, qdrant, coreMetrics] = await Promise.all([
@@ -900,12 +1005,66 @@ async function collectMonitorSnapshot(): Promise<MonitorSnapshot> {
   const qdrantCollections = Array.isArray(qdrant.json?.result?.collections)
     ? qdrant.json.result.collections.length
     : 0;
+  const tempoProbe = probes.find((probe) => probe.name === "tempo") ?? null;
+  const edgeProxyProbe = probes.find((probe) => probe.name === "edge-proxy");
+  const grafanaProxyProbe = probes.find((probe) => probe.name === "grafana-proxy");
+  const langfuseProxyProbe = probes.find((probe) => probe.name === "langfuse-proxy");
 
   return {
     timestamp: new Date().toISOString(),
     gateway: {
       api: { ok: true, status: 200 },
       core: probes.find((p) => p.name === "core")?.ok ?? false,
+    },
+    observability: {
+      traces_backend: "tempo",
+      logs_backend: "loki",
+      metrics_backend: "prometheus",
+      tempo: tempoProbe,
+      grafana_proxy_url: `${GRAFANA_PUBLIC_ORIGIN}/`,
+      langfuse_proxy_url: `${LANGFUSE_PUBLIC_ORIGIN}/`,
+    },
+    public: {
+      proxy_enabled: true,
+      bind_host: EDGE_PROXY_BIND_HOST,
+      public_bind: isProxyPublic(),
+      server_name: EDGE_PROXY_SERVER_NAME,
+      auth_configured: Boolean(EDGE_PROXY_OPS_AUTH_USER && EDGE_PROXY_OPS_AUTH_PASSWORD),
+      surfaces: [
+        {
+          name: "edge-proxy",
+          host: EDGE_PROXY_SERVER_NAME,
+          url: `https://${EDGE_PROXY_SERVER_NAME}/`,
+          protected: false,
+          ok: edgeProxyProbe?.ok ?? false,
+          status: edgeProxyProbe?.status ?? 0,
+          latency_ms: edgeProxyProbe?.latency_ms ?? 0,
+          note: "public entrypoint for app and ops gateway",
+          ...(edgeProxyProbe?.error ? { error: edgeProxyProbe.error } : {}),
+        },
+        {
+          name: "grafana",
+          host: EDGE_PROXY_GRAFANA_SERVER_NAME,
+          url: `${GRAFANA_PUBLIC_ORIGIN}/`,
+          protected: true,
+          ok: grafanaProxyProbe?.ok ?? false,
+          status: grafanaProxyProbe?.status ?? 0,
+          latency_ms: grafanaProxyProbe?.latency_ms ?? 0,
+          note: "dashboards behind edge-proxy basic auth",
+          ...(grafanaProxyProbe?.error ? { error: grafanaProxyProbe.error } : {}),
+        },
+        {
+          name: "langfuse",
+          host: EDGE_PROXY_LANGFUSE_SERVER_NAME,
+          url: `${LANGFUSE_PUBLIC_ORIGIN}/`,
+          protected: true,
+          ok: langfuseProxyProbe?.ok ?? false,
+          status: langfuseProxyProbe?.status ?? 0,
+          latency_ms: langfuseProxyProbe?.latency_ms ?? 0,
+          note: "llm traces behind edge-proxy basic auth",
+          ...(langfuseProxyProbe?.error ? { error: langfuseProxyProbe.error } : {}),
+        },
+      ],
     },
     ai: {
       ollama: {
@@ -983,6 +1142,10 @@ ops.get("/sources", async (c) =>
           ...(opsAgentSources.json?.gpu?.error ? { error: opsAgentSources.json.gpu.error } : {}),
         },
         loki_history: { available: loki, kind: "loki" },
+        tempo_traces: {
+          available: (process.env.OTEL_ENABLED || "").toLowerCase() === "true",
+          kind: "tempo",
+        },
         otel: {
           available: (process.env.OTEL_ENABLED || "").toLowerCase() === "true",
           kind: "otlp-http",
@@ -998,37 +1161,15 @@ ops.get("/sources", async (c) =>
 
 ops.get("/summary", async (c) => {
   try {
-    const [monitor, traces, opsAgent, loki, clusterIdentity, clusterPeers] = await Promise.all([
+    const [monitor, traces, opsAgent, mcp, loki, clusterIdentity, clusterPeers] = await Promise.all([
       collectMonitorSnapshot(),
       coreClient.recentAgentTraces({ limit: 60 }),
-      opsAgentJson("/summary"),
+      opsAgentJson("/summary", 5000),
+      fetchOpsAgentMcpSummary(false),
       lokiReady(),
       coreClient.clusterIdentity().catch(() => null),
       coreClient.clusterPeers().catch(() => null),
     ]);
-    const mcp = isRecord(opsAgent.json?.mcp)
-      ? (opsAgent.json.mcp as McpSuiteStatus)
-      : await probeMcpRuntime().catch((error) => ({
-          ok: false,
-          status: "failed" as const,
-          aggregate_status: "failed" as const,
-          requested_runtime: "auto",
-          runtime_mode: null,
-          protocol_version: null,
-          server_name: null,
-          tool_count: 0,
-          resource_count: 0,
-          prompt_count: 0,
-          latency_ms: 0,
-          checks: [],
-          primary_server: "kicad",
-          primary: makeDefaultMcpStatus({ requested_runtime: "auto" }),
-          server_count: 0,
-          servers_ok: 0,
-          degraded_servers: [],
-          servers: {},
-          error: error instanceof Error ? error.message : "MCP probe failed",
-        }));
 
     const recentRuns = Array.from(
       new Map(
@@ -1086,9 +1227,12 @@ ops.get("/summary", async (c) => {
         docker_events: !!opsAgent.json?.sources?.docker_events?.available,
         gpu: !!opsAgent.json?.sources?.gpu?.available,
         loki_history: loki,
+        tempo_traces: monitor.observability.tempo?.ok ?? false,
         otel: (process.env.OTEL_ENABLED || "").toLowerCase() === "true",
         agentsight: !!opsAgent.json?.sources?.agentsight?.available,
       },
+      observability: monitor.observability,
+      public: monitor.public,
       cluster: {
         enabled: !!clusterIdentity?.cluster_enabled,
         node_id: clusterIdentity?.node_id || null,
@@ -1099,6 +1243,36 @@ ops.get("/summary", async (c) => {
       gpu: opsAgent.json?.sources?.gpu ?? null,
       mcp,
       ops_agent: opsAgent.json ?? null,
+    });
+  } catch (error) {
+    const { status, body } = handleCoreError(error);
+    return c.json(body, status);
+  }
+});
+
+ops.post("/mcp/probe/:serverKey", async (c) => {
+  try {
+    const serverKey = c.req.param("serverKey");
+    const force = (c.req.query("force") || "true").toLowerCase() !== "false";
+    const suite = await fetchOpsAgentMcpSummary(force);
+    const server = suite.servers?.[serverKey];
+
+    if (!server) {
+      return c.json(
+        {
+          error: `Unknown MCP server '${serverKey}'`,
+          available_servers: Object.keys(suite.servers || {}),
+        },
+        404,
+      );
+    }
+
+    return c.json({
+      server_key: serverKey,
+      aggregate_status: suite.aggregate_status,
+      server_count: suite.server_count,
+      degraded_servers: suite.degraded_servers,
+      ...server,
     });
   } catch (error) {
     const { status, body } = handleCoreError(error);

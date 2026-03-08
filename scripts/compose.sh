@@ -101,6 +101,7 @@ write_env_file() {
         echo "LANGFUSE_WEB_IMAGE=\"${LANGFUSE_WEB_IMAGE:-langfuse/langfuse@sha256:8d3211972d2a0610258ff0cc86da6b2d367f804bf253e9b94863bf961e59d23c}\""
         echo "FIRECRAWL_IMAGE=\"${FIRECRAWL_IMAGE:-mcp/firecrawl@sha256:e6676bd31d1806574d931b7a7b7b6fba953c031853e80adc1ec8115c17ab81ca}\""
         echo "MEM0_IMAGE=\"${MEM0_IMAGE:-mem0/openmemory-mcp:latest}\""
+        echo "TEMPO_IMAGE=\"${TEMPO_IMAGE:-grafana/tempo:latest}\""
         echo "MINIO_IMAGE=\"${MINIO_IMAGE:-minio/minio@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e}\""
         echo "DIFY_API_IMAGE=\"${DIFY_API_IMAGE:-langgenius/dify-api@sha256:5f622b4d0b39bdc6d3b401063cfb60962fa92dcc63f55daccec138f98b260e67}\""
         echo "DIFY_WEB_IMAGE=\"${DIFY_WEB_IMAGE:-langgenius/dify-web@sha256:30339b4d5060488fac147ddc6fb40438ef71cd5f5dfdeb26c886768302bf7197}\""
@@ -111,6 +112,7 @@ write_env_file() {
         echo "QDRANT_IMAGE=\"${QDRANT_IMAGE:-qdrant/qdrant@sha256:f1c7272cdac52b38c1a0e89313922d940ba50afd90d593a1605dbbc214e66ffb}\""
         echo "GRAFANA_IMAGE=\"${GRAFANA_IMAGE:-grafana/grafana@sha256:b0ae311af06228bcfd4a620504b653db80f5b91e94dc3dc2a5b7dab202bcde20}\""
         echo "PROMETHEUS_IMAGE=\"${PROMETHEUS_IMAGE:-prom/prometheus@sha256:4a61322ac1103a0e3aea2a61ef1718422a48fa046441f299d71e660a3bc71ae9}\""
+        echo "BLACKBOX_EXPORTER_IMAGE=\"${BLACKBOX_EXPORTER_IMAGE:-prom/blackbox-exporter:latest}\""
         echo "LOKI_IMAGE=\"${LOKI_IMAGE:-grafana/loki:3.5.3}\""
         echo "PROMTAIL_IMAGE=\"${PROMTAIL_IMAGE:-grafana/promtail:3.5.3}\""
         echo "OTEL_COLLECTOR_IMAGE=\"${OTEL_COLLECTOR_IMAGE:-otel/opentelemetry-collector-contrib:0.116.1}\""
@@ -248,6 +250,7 @@ write_env_file() {
         if svc_selected "langfuse"; then
             echo "# ── Langfuse ──"
             echo "LANGFUSE_PORT=\"${LANGFUSE_PORT:-3200}\""
+            echo "LANGFUSE_PUBLIC_ORIGIN=\"${LANGFUSE_PUBLIC_ORIGIN:-https://langfuse.localhost}\""
             echo "LANGFUSE_INIT_PROJECT_PUBLIC_KEY=\"${LANGFUSE_INIT_PROJECT_PUBLIC_KEY:-}\""
             echo "LANGFUSE_INIT_PROJECT_SECRET_KEY=\"${LANGFUSE_INIT_PROJECT_SECRET_KEY:-}\""
             echo "CLICKHOUSE_USER=\"${CLICKHOUSE_USER:-langfuse}\""
@@ -255,7 +258,7 @@ write_env_file() {
             echo "CLICKHOUSE_MIGRATION_URL=\"${CLICKHOUSE_MIGRATION_URL:-clickhouse://clickhouse:9000}\""
             echo "MINIO_ROOT_USER=\"${MINIO_ROOT_USER:-minio}\""
             echo "MINIO_ROOT_PASSWORD=\"$default_minio_root_password\""
-            echo "NEXTAUTH_URL=\"${NEXTAUTH_URL:-http://localhost:${LANGFUSE_PORT:-3200}}\""
+            echo "NEXTAUTH_URL=\"${NEXTAUTH_URL:-${LANGFUSE_PUBLIC_ORIGIN:-http://localhost:${LANGFUSE_PORT:-3200}}}\""
             echo "NEXTAUTH_SECRET=\"${NEXTAUTH_SECRET:-}\""
             echo "SALT=\"${SALT:-}\""
             echo "ENCRYPTION_KEY=\"${ENCRYPTION_KEY:-}\""
@@ -359,6 +362,7 @@ write_env_file() {
         # Edge Proxy
         if svc_selected "edge-proxy"; then
             echo "# ── Edge Proxy ──"
+            local default_proxy_password="${EDGE_PROXY_OPS_AUTH_PASSWORD:-$(_rand_secret 16)}"
             echo "EDGE_PROXY_BIND_HOST=\"${EDGE_PROXY_BIND_HOST:-127.0.0.1}\""
             echo "EDGE_PROXY_HTTP_PORT=\"${EDGE_PROXY_HTTP_PORT:-80}\""
             echo "EDGE_PROXY_HTTPS_PORT=\"${EDGE_PROXY_HTTPS_PORT:-443}\""
@@ -370,6 +374,10 @@ write_env_file() {
             echo "EDGE_PROXY_ACME_CA=\"${EDGE_PROXY_ACME_CA:-letsencrypt}\""
             echo "EDGE_PROXY_ACME_KEY_LENGTH=\"${EDGE_PROXY_ACME_KEY_LENGTH:-ec-256}\""
             echo "EDGE_PROXY_ACME_DNS_SLEEP=\"${EDGE_PROXY_ACME_DNS_SLEEP:-30}\""
+            echo "EDGE_PROXY_GRAFANA_SERVER_NAME=\"${EDGE_PROXY_GRAFANA_SERVER_NAME:-grafana.localhost}\""
+            echo "EDGE_PROXY_LANGFUSE_SERVER_NAME=\"${EDGE_PROXY_LANGFUSE_SERVER_NAME:-langfuse.localhost}\""
+            echo "EDGE_PROXY_OPS_AUTH_USER=\"${EDGE_PROXY_OPS_AUTH_USER:-ops}\""
+            echo "EDGE_PROXY_OPS_AUTH_PASSWORD=\"${default_proxy_password}\""
             echo "CLOUDFLARE_API_TOKEN=\"${CLOUDFLARE_API_TOKEN:-}\""
             echo ""
         fi
@@ -378,6 +386,13 @@ write_env_file() {
         if svc_selected "grafana"; then
             echo "# ── Grafana ──"
             echo "GRAFANA_PORT=\"${GRAFANA_PORT:-3001}\""
+            echo "GRAFANA_PUBLIC_ORIGIN=\"${GRAFANA_PUBLIC_ORIGIN:-https://grafana.localhost}\""
+            echo ""
+        fi
+
+        if svc_selected "tempo"; then
+            echo "# ── Tempo ──"
+            echo "TEMPO_PORT=\"${TEMPO_PORT:-3201}\""
             echo ""
         fi
 
@@ -385,6 +400,12 @@ write_env_file() {
         if svc_selected "prometheus"; then
             echo "# ── Prometheus ──"
             echo "PROMETHEUS_PORT=\"${PROMETHEUS_PORT:-9090}\""
+            echo ""
+        fi
+
+        if svc_selected "blackbox-exporter"; then
+            echo "# ── Blackbox Exporter ──"
+            echo "BLACKBOX_EXPORTER_PORT=\"${BLACKBOX_EXPORTER_PORT:-9115}\""
             echo ""
         fi
 
