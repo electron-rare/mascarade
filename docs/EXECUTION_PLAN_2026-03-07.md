@@ -1,182 +1,151 @@
 # Plan d'execution - 7 mars 2026
 
-Plan court, factuel, base sur l'etat reel du repo au 7 mars 2026.
-Mis a jour apres audit croise complet code/docs.
+Plan de reference recale au 8 mars 2026 apres fermeture du backlog RA,
+stabilisation du runtime local et ouverture de la phase de consolidation/
+publication multi-repo.
 
 ---
 
-## Axe 1 - Stabilisation locale / hygiene repo
+## Axe 1 - Hygiene repo / publication locale
 
-### Avancement: ~60%
+### Avancement: ~90%
 
 | Action | Statut |
 |--------|--------|
-| Choix CPU coherent dans finetune | FAIT — serie par defaut, parallel derriere env guard |
-| model_selector.py isole comme experimental | FAIT — standalone + integration opt-in dans run_local.py |
-| Remediations MCP dans sous-modules KiCad | FAIT — submodules pointes vers electron-rare, commites |
-| crazy_life propre | FAIT — repo clean, CI presente, README versionne (R-005 resolu) |
-| Derives docs crazy_life | OUVERT — sync_crazy_life.sh existe, contrat multi-repo non clarifie (R-010) |
-| Worktree non melange | OUVERT — encore des fichiers non commites multi-sujets |
+| Contrat multi-repo clarifie | FAIT |
+| Worktrees regroupes en bundles reviewables | FAIT |
+| Premier bundle `mascarade:mcp-runtime-surfaces` | FAIT |
+| Deuxieme bundle `mascarade:ops-observability-runtime` | FAIT |
+| Publication locale `Kill_LIFE` | EN COURS |
+| Publication locale `crazy_life` | EN COURS |
 
 ### Prochain lot
-1. Commiter les fichiers github_dispatch en attente.
-2. Decider du sort des fichiers _REAUDIT non suivis.
-3. Clarifier le contrat multi-repo (R-010).
+1. Sortir `mascarade:docs-state`.
+2. Sortir ensuite `Kill_LIFE` bundle par bundle.
+3. Sortir enfin `crazy_life`.
 
 ---
 
 ## Axe 2 - CAD / KiCad
 
-### Avancement: ~85%
+### Avancement: ~90%
 
 | Action | Statut |
 |--------|--------|
-| Sous-modules electron-rare | FAIT — commite et pushe |
-| Section CAD dans ./config | FAIT |
-| Actions --cad-* dans ./setup | FAIT |
-| Helpers plugins/doctor/cad_stack.sh | FAIT |
-| Recapitulatif CAD dans ./config | FAIT |
-| Actions CAD post-setup interactif | FAIT |
-| Smoke CAD dans TUI | OUVERT |
-| Doc chemins plugins par OS | OUVERT |
-| Doctor MCP dedie | OUVERT |
+| Sous-modules et helpers CAD | FAIT |
+| Runtime MCP `freecad` / `openscad` | FAIT |
+| Documentation et smokes de base | FAIT |
+| `K-012` `pcbnew` host-native | EXTERNE |
+| `K-014` `NEXAR_TOKEN` live | EXTERNE |
 
 ### Prochain lot
-1. Smoke operateur CAD dans la TUI.
-2. Doc courte chemins plugins par OS.
+1. Ne rouvrir ce chantier que sur machine/support adequat.
+2. Garder `K-012` / `K-014` comme restes specialises hors backlog RA.
 
 ---
 
 ## Axe 3 - Cockpit / Observability
 
-### Avancement: ~85%
+### Avancement: ~95%
 
 | Action | Statut |
 |--------|--------|
 | Cockpit React unifie | FAIT |
-| Pages operations (Dashboard, Metrics, Infra, Logs) | FAIT |
-| agent-zero visible | FAIT |
-| Trace inter-agent native run_id | FAIT |
-| ops-agent complet | FAIT — /health, /sources, /summary, /logs/recent, /logs/stream |
-| /api/ops/logs/recent | FAIT |
-| /api/ops/logs/query (Loki) | FAIT — filtres source/severity/run_id/since/q |
-| /api/ops/logs/stream (SSE) | FAIT |
-| /api/ops/summary + MCP probe | FAIT — probeMcpRuntime() avec cache TTL |
-| Mode history Logs frontend | FAIT — toggle live/history, fenetres 15m/1h/6h/24h |
-| Exporteurs OTel core | FAIT — otel.py, OTLP HTTP custom |
-| Exporteurs OTel API | FAIT — otel.ts, OTLP HTTP custom |
-| Auth routes ops | FAIT — middleware timing-safe bearer+cookie |
-| OTel Collector config reelle | OUVERT — stub debug-only |
-| Grafana datasources en code | OUVERT |
-| Probe GPU (nvidia-smi) | OUVERT |
+| `ops-agent` complet | FAIT |
+| `Logs`, `OpsHub`, `Orchestrate` branches | FAIT |
+| Probes MCP synthetiques visibles et reprobeables | FAIT |
+| GPU coherent dans les surfaces ops | FAIT |
+| Dashboards Grafana provisionnes en code | FAIT |
+| Extensions UX ou dashboards supplementaires | DIFFERE |
 
 ### Prochain lot
-1. Configurer le vrai exporter OTel Collector.
-2. Configurer Grafana datasources (Loki + Prometheus).
-3. Probe GPU dans ops-agent.
+1. Ne pas rouvrir sans besoin concret.
+2. Traiter seulement les retours UX a froid si necessaire.
 
 ---
 
 ## Axe 4 - OTel / Loki
 
-### Avancement: ~60%
+### Avancement: ~95%
 
 | Action | Statut |
 |--------|--------|
-| loki deploye + healthcheck | FAIT |
-| promtail deploye (Docker + journald) | FAIT |
-| otel-collector deploye | FAIT |
-| OTEL_ENABLED=true dans compose | FAIT |
 | Exporteurs OTLP core + API | FAIT |
-| Collector exporte vers backend reel | OUVERT — debug-only actuellement |
-| Promtail parsing JSON structure | OUVERT |
-| Labels Loki utiles | OUVERT |
+| OTel Collector sain et scrape | FAIT |
+| Archivage durable local `traces` / `metrics` | FAIT |
+| Parsing Promtail et labels utiles | FAIT |
+| Cardinalite Loki verifiee | FAIT |
+| Backend analytique plus riche | OPTIONNEL |
 
 ### Prochain lot
-1. Remplacer l'exporter debug du Collector par Loki.
-2. Enrichir Promtail pour les logs JSON.
-3. Verifier les labels Loki.
+1. Garder l'archivage local tant qu'il suffit.
+2. N'ajouter un backend plus riche que si un besoin d'analyse transverse apparait.
 
 ---
 
 ## Axe 5 - Fine-tuning local
 
-### Avancement: ~65%
+### Avancement: ~95%
 
 | Action | Statut |
 |--------|--------|
 | Pipeline distill -> merge -> train | FAIT |
-| Support CPU + GPU | FAIT |
-| Queue GPU + garde-fous VRAM | FAIT |
-| --resume fonctionnel | FAIT |
-| batch_status.py (distill/train) | FAIT |
-| model_selector.py + selected_model.json | FAIT |
-| Export GGUF (4 formats) | FAIT |
-| Deploy GGUF vers Ollama | FAIT |
-| Batch train=completed | OUVERT — bloqueur principal |
-| Doc operateur --resume | OUVERT |
-| Benchmark gpu_slots 1 vs 2 | OUVERT |
-| Pre-validation datasets | OUVERT — existence check seulement |
-| Integration modeles dans Mascarade | OUVERT |
+| Queue GPU + verrou global + `--resume` | FAIT |
+| Batch canonique `train=completed` | FAIT |
+| Promotions locales `esp32/spice/pio` | FAIT |
+| Export GGUF + chargement Ollama | FAIT |
+| `Agent Zero` evalue hors chemin critique | FAIT |
+| Benchmark `gpu_slots=2` canonique | DIFFERE |
 
 ### Prochain lot
-1. Valider un batch complet train=completed.
-2. Ecrire la doc operateur --resume.
-3. Benchmark GPU slots.
+1. Ne rouvrir que si un nouveau besoin modele apparait.
+2. Garder `Agent Zero` hors pipeline critique.
 
 ---
 
 ## Axe 6 - VM / Infra
 
-### Avancement: ~45%
+### Avancement: ~95%
 
 | Action | Statut |
 |--------|--------|
-| Ports en 127.0.0.1 | FAIT |
-| Middleware auth implemente | FAIT |
-| Auth active (.env rempli) | OUVERT — MASCARADE_API_KEY="" |
-| Rotation Postgres | FAIT |
-| CrewAI + OpenAI Agents SDK | FAIT |
-| GraphRAG | FAIT |
-| Claude Code MCP config VM | FAIT |
-| edge-proxy nginx | FAIT — pas de TLS |
-| Langfuse ZodError | CLOS — service supporte et runtime sain, optionnel hors profil standard |
-| Cles API .env (Anthropic/OpenAI/Notion) | OUVERT |
-| Firecrawl | FAIT — image officielle retenue, cle configuree, service `healthy` |
-| Mem0 | PARTIEL — compose migration seulement |
-| Docling / Whisper | OUVERT |
-| Reverse proxy HTTPS | OUVERT |
-| Grafana dashboards | OUVERT |
-| Prometheus scrape services | OUVERT |
-| Pression memoire (R-001) | OUVERT |
-| Faux-verts healthchecks (R-003) | OUVERT |
+| Auth runtime active | FAIT |
+| Surface hote reduite | FAIT |
+| Langfuse supporte et sain | FAIT |
+| Firecrawl deployee | FAIT |
+| Mem0 / OpenMemory deploye | FAIT |
+| Docling / Whisper installables dans le venv tools | FAIT |
+| Probes Prometheus / blackbox pour services | FAIT |
+| TLS public `ACME/DNS` | EXTERNE |
+| Cles operateur additionnelles | OPTIONNEL |
+| Setup Mac local | EXTERNE |
 
 ### Prochain lot
-1. Remplir MASCARADE_API_KEY dans .env (critique).
-2. Reduire pression memoire/swap (R-001).
-3. Corriger faux-verts healthchecks (R-003).
+1. Aucun lot local bloquant restant.
+2. Ne traiter que les sujets externes ou optionnels sur demande.
 
 ---
 
-## Axe 7 - Multi-repo / Kill_LIFE
+## Axe 7 - Multi-repo / publication
 
-### Avancement: ~70%
+### Avancement: ~90%
 
 | Action | Statut |
 |--------|--------|
-| crazy_life propre + CI | FAIT |
-| Kill_LIFE 19 workflows CI | FAIT |
-| Zeroclaw dual HW todo (69/70 items) | FAIT |
-| I-205 validation e2e Docker | OUVERT |
-| ci_runtime.py / scope_policy.py | ABSENT — references cassees |
-| ai-agentic-embedded-base single source | OUVERT — duplique dans Kill_LIFE |
-| Contrat multi-repo (R-010) | OUVERT |
-| CI renforcee (R-011) | PARTIEL |
+| Contrat `crazy_life` / `Kill_LIFE` / `mascarade` | FAIT |
+| CI/release sur chemins canoniques | FAIT |
+| Bundles locaux documentes | FAIT |
+| Commits locaux `mascarade` en cours | EN COURS |
+| Commits locaux `Kill_LIFE` | EN COURS |
+| Commits locaux `crazy_life` | EN COURS |
 
 ### Prochain lot
-1. Nettoyer les references a ci_runtime.py / scope_policy.py.
-2. Valider I-205 (integrations Docker).
-3. Decider ai-agentic-embedded-base.
+1. `mascarade:docs-state`
+2. `Kill_LIFE:mcp-runtime`
+3. `Kill_LIFE:cad-mcp`
+4. `Kill_LIFE:python-local`
+5. `crazy_life:cockpit runtime alignment`
+6. `crazy_life:docs state`
 
 ---
 
@@ -184,15 +153,15 @@ Mis a jour apres audit croise complet code/docs.
 
 | Axe | Avancement | Bloqueur principal |
 |-----|------------|-------------------|
-| 1. Hygiene repo | ~60% | Worktree encore melange, contrat multi-repo |
-| 2. CAD / KiCad | ~85% | Smoke TUI, doc OS |
-| 3. Cockpit / Obs | ~85% | OTel Collector stub, Grafana, probe GPU |
-| 4. OTel / Loki | ~60% | Collector debug-only |
-| 5. Fine-tuning | ~65% | Batch train=completed jamais atteint |
-| 6. VM / Infra | ~45% | Auth desactivee, memoire, healthchecks |
-| 7. Multi-repo | ~70% | References cassees, ai-agentic-base |
+| 1. Hygiene repo | ~90% | Finir la serie de commits locaux |
+| 2. CAD / KiCad | ~90% | Restes specialises externes |
+| 3. Cockpit / Obs | ~95% | Aucun blocage critique |
+| 4. OTel / Loki | ~95% | Aucun blocage critique |
+| 5. Fine-tuning | ~95% | Seulement du suivi optionnel |
+| 6. VM / Infra | ~95% | Sujets externes/optionnels |
+| 7. Multi-repo | ~90% | Finir la materialisation des bundles |
 
 ### Priorite immediate recommandee
-1. **VM critique**: activer auth + reduire pression memoire + fixer healthchecks
-2. **Fine-tuning**: valider un batch train=completed
-3. **OTel**: remplacer le stub Collector par un vrai exporter
+1. Finaliser les commits locaux restants dans l'ordre deja fige.
+2. Rejouer les checks minimaux par repo avant toute publication distante.
+3. Ne pas rouvrir de nouveau chantier tant que la phase de consolidation n'est pas terminee.

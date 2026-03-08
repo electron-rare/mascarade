@@ -105,6 +105,13 @@ Si `A2A` s'ouvre plus tard:
 - il sert uniquement aux handoffs inter-agents
 - il ne remplace pas `MCP` pour l'acces aux outils
 
+## Restes specialises ouverts
+
+Les restes techniques encore ouverts ne sont plus sur la ligne `A-*`, mais sur le backlog KiCad specialise:
+
+- `K-012`: bloque sur cette machine car `pcbnew` n'est pas importable en host-native
+- `K-014`: bloque sur cette machine car `NEXAR_TOKEN` est absent et `nexar_api` reste en mode demo
+
 ## Repartition pratique par repo
 
 - `Kill_LIFE`: launchers, smokes, runtimes locaux, specs et matrices canoniques
