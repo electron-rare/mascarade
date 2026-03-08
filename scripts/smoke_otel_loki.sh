@@ -144,7 +144,8 @@ START_NS="$(date +%s%N)"
 PAYLOAD_FILE="$(mktemp)"
 POST_BODY_FILE="$(mktemp)"
 QUERY_BODY_FILE="$(mktemp)"
-trap 'rm -f "$PAYLOAD_FILE" "$POST_BODY_FILE" "$QUERY_BODY_FILE"' EXIT
+QUERY_ERROR_FILE="$(mktemp)"
+trap 'rm -f "$PAYLOAD_FILE" "$POST_BODY_FILE" "$QUERY_BODY_FILE" "$QUERY_ERROR_FILE"' EXIT
 
 dbg "collector=${COLLECTOR_URL} health=${COLLECTOR_HEALTH_URL} loki=${LOKI_URL} run_id=${RUN_ID}"
 
@@ -153,11 +154,11 @@ if ! HEALTH_JSON="$(curl -fsS --max-time 10 "$COLLECTOR_HEALTH_URL")"; then
   exit 1
 fi
 
-if ! printf '%s' "$HEALTH_JSON" | python3 - <<'PY' >/dev/null
+if ! python3 - "$HEALTH_JSON" <<'PY' >/dev/null
 import json
 import sys
 
-payload = json.load(sys.stdin)
+payload = json.loads(sys.argv[1])
 status = str(payload.get("status") or "").lower()
 if "available" not in status and status not in {"ok", "healthy", "ready"}:
     raise SystemExit(1)
@@ -251,7 +252,7 @@ do
       --data-urlencode "end=${END_NS}" \
       --data-urlencode "limit=5" \
       >"$QUERY_BODY_FILE"; then
-    if FOUND_JSON="$(python3 - "$QUERY_BODY_FILE" "$RUN_ID" "$MESSAGE" <<'PY'
+    if FOUND_JSON="$(python3 - "$QUERY_BODY_FILE" "$RUN_ID" "$MESSAGE" 2>"$QUERY_ERROR_FILE" <<'PY'
 import json
 import sys
 
@@ -297,7 +298,7 @@ PY
     else
       rc=$?
       if [[ $rc -eq 1 ]]; then
-        json_failure "$(cat "$QUERY_BODY_FILE")"
+        json_failure "$(tr -d '\n' < "$QUERY_ERROR_FILE")"
         exit 1
       fi
     fi
