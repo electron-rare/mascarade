@@ -42,7 +42,7 @@ Le lot local est stable; ce fichier ne porte plus de blocage critique.
 - [ ] TLS / certificat public
 - [ ] Secrets operateur optionnels (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `NEXAR_TOKEN`)
 - [ ] Setup Mac local (`MCP`, `Playwright MCP`)
-- [ ] Reste specialise actif `K-014` porte par `Kill_LIFE`
+- [ ] Si le sourcing Nexar live devient critique, prevoir un token/plan avec quota de parts non nul
 - [ ] `K-012` uniquement si le host-native KiCad redevient requis
 
 ## 6. Ordre recommande
