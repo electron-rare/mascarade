@@ -1,0 +1,5 @@
+# Additional python-tools packages kept outside the main repo runtime.
+# Installed into ~/tools/python-tools/.venv by scripts/bootstrap_python_tools_env.sh.
+docling==2.77.0
+openai-whisper==20250625
+imageio-ffmpeg==0.6.0
