@@ -26,6 +26,16 @@ interface ProviderStatus {
   auth_modes?: string[];
 }
 
+interface ProviderMutationResponse {
+  status: string;
+  active: boolean;
+  configured: boolean;
+  message?: string;
+  updated_env?: string[];
+  cleared_env?: string[];
+  restarted_services?: string[];
+}
+
 interface RuntimeSecretFieldStatus {
   env: string;
   label: string;
@@ -33,6 +43,8 @@ interface RuntimeSecretFieldStatus {
   hint: string;
   secret: boolean;
   restart_services: string[];
+  auth_modes?: string[];
+  active?: boolean;
 }
 
 interface RuntimeSecretGroupStatus {
@@ -45,6 +57,9 @@ interface RuntimeSecretGroupStatus {
   generate_supported: boolean;
   restart_services: string[];
   fields: RuntimeSecretFieldStatus[];
+  auth_mode?: string;
+  auth_mode_env?: string;
+  auth_modes?: string[];
 }
 
 interface RuntimeSecretMutationResponse {
@@ -117,7 +132,7 @@ function ProviderCard({
   onSaved,
 }: {
   provider: ProviderStatus;
-  onSaved: () => void;
+  onSaved: () => void | Promise<void>;
 }) {
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [saveState, setSaveState] = useState<SaveState>("idle");
@@ -130,6 +145,19 @@ function ProviderCard({
 
   const setField = (env: string, value: string) => {
     setDrafts((prev) => ({ ...prev, [env]: value }));
+    setSaveState("idle");
+    setMessage("");
+  };
+
+  const clearDraftField = (env: string) => {
+    setDrafts((prev) => {
+      if (!(env in prev)) {
+        return prev;
+      }
+      const next = { ...prev };
+      delete next[env];
+      return next;
+    });
     setSaveState("idle");
     setMessage("");
   };
@@ -162,14 +190,72 @@ function ProviderCard({
 
     setSaveState("saving");
     try {
-      const res = await put<{ status: string; active: boolean; message?: string }>(
+      const res = await put<ProviderMutationResponse>(
         `/api/agents/providers/${provider.name}/key`,
         { keys },
       );
       setSaveState("ok");
-      setMessage(res.active ? "Provider actif" : res.message || "Sauvegarde mais pas actif");
+      setMessage(
+        res.active
+          ? res.restarted_services?.length
+            ? `Provider actif, restart: ${res.restarted_services.join(", ")}`
+            : "Provider actif"
+          : res.message || "Sauvegarde mais pas actif",
+      );
       setDrafts({});
-      onSaved();
+      await onSaved();
+      if (timerRef.current) clearTimeout(timerRef.current);
+      timerRef.current = setTimeout(() => {
+        setSaveState("idle");
+        setMessage("");
+      }, 4000);
+    } catch (err) {
+      setSaveState("error");
+      setMessage(err instanceof Error ? err.message : "Erreur");
+    }
+  };
+
+  const clearProvider = async (fields?: string[], scopeLabel?: string) => {
+    if (fields?.length === 1) {
+      const [fieldEnv] = fields;
+      const field = provider.fields.find((entry) => entry.env === fieldEnv);
+      if (field && !field.configured && drafts[fieldEnv] !== undefined) {
+        clearDraftField(fieldEnv);
+        setSaveState("ok");
+        setMessage(`${field.label} efface du brouillon`);
+        if (timerRef.current) clearTimeout(timerRef.current);
+        timerRef.current = setTimeout(() => {
+          setSaveState("idle");
+          setMessage("");
+        }, 2500);
+        return;
+      }
+    }
+
+    setSaveState("saving");
+    try {
+      const res = await post<ProviderMutationResponse>(
+        `/api/agents/providers/${provider.name}/clear`,
+        fields?.length ? { fields } : undefined,
+      );
+      if (fields?.length) {
+        setDrafts((prev) => {
+          const next = { ...prev };
+          for (const field of fields) {
+            delete next[field];
+          }
+          return next;
+        });
+      } else {
+        setDrafts({});
+      }
+      await onSaved();
+      setSaveState("ok");
+      setMessage(
+        res.restarted_services?.length
+          ? `${scopeLabel || "Valeurs"} efface${fields?.length === 1 ? "e" : "es"}, restart: ${res.restarted_services.join(", ")}`
+          : res.message || `${scopeLabel || "Valeurs"} efface${fields?.length === 1 ? "e" : "es"}`,
+      );
       if (timerRef.current) clearTimeout(timerRef.current);
       timerRef.current = setTimeout(() => {
         setSaveState("idle");
@@ -192,6 +278,11 @@ function ProviderCard({
   const hasDraft = visibleFields.some((field) => drafts[field.env]?.trim()) ||
     (!!provider.auth_mode_env && drafts[provider.auth_mode_env] !== undefined) ||
     (!!provider.toggle_env && drafts[provider.toggle_env] !== undefined);
+  const canClear =
+    provider.active ||
+    provider.configured ||
+    (provider.enabled ?? false) ||
+    provider.fields.some((field) => field.configured);
 
   return (
     <div className="rounded-[1.4rem] border border-border/80 bg-black/25 p-5">
@@ -236,8 +327,21 @@ function ProviderCard({
           <div key={field.env}>
             <label className="mb-1.5 flex items-center justify-between text-[11px] uppercase tracking-[0.16em] text-muted">
               <span>{field.label}</span>
-              <span className="normal-case tracking-normal text-amber-100/35">
-                {field.env}
+              <span className="flex items-center gap-2">
+                <span className="normal-case tracking-normal text-amber-100/35">
+                  {field.env}
+                </span>
+                <button
+                  type="button"
+                  disabled={
+                    saveState === "saving" ||
+                    (!field.configured && drafts[field.env] === undefined)
+                  }
+                  onClick={() => clearProvider([field.env], field.label)}
+                  className="rounded-full border border-red-800/40 bg-red-900/10 px-2 py-0.5 text-[10px] uppercase tracking-[0.14em] text-red-300 transition hover:border-red-700/60 hover:bg-red-900/20 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  clear
+                </button>
               </span>
             </label>
             <input
@@ -287,14 +391,24 @@ function ProviderCard({
             </p>
           )}
         </div>
-        <button
-          type="button"
-          disabled={(!hasDraft && !Object.keys(drafts).length) || saveState === "saving"}
-          onClick={save}
-          className="rounded-2xl border border-accent/35 bg-accent/10 px-4 py-2 text-[11px] uppercase tracking-[0.16em] text-accent transition hover:border-accent/50 hover:bg-accent/18 disabled:cursor-not-allowed disabled:opacity-40"
-        >
-          {saveState === "saving" ? "..." : "save"}
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            disabled={!canClear || saveState === "saving"}
+            onClick={() => clearProvider()}
+            className="rounded-2xl border border-red-800/50 bg-red-900/10 px-4 py-2 text-[11px] uppercase tracking-[0.16em] text-red-300 transition hover:border-red-700/60 hover:bg-red-900/20 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            clear
+          </button>
+          <button
+            type="button"
+            disabled={(!hasDraft && !Object.keys(drafts).length) || saveState === "saving"}
+            onClick={save}
+            className="rounded-2xl border border-accent/35 bg-accent/10 px-4 py-2 text-[11px] uppercase tracking-[0.16em] text-accent transition hover:border-accent/50 hover:bg-accent/18 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            {saveState === "saving" ? "..." : "save"}
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -312,15 +426,51 @@ function RuntimeSecretCard({
   const [saveState, setSaveState] = useState<SaveState>("idle");
   const [message, setMessage] = useState("");
   const [generatedValue, setGeneratedValue] = useState("");
+  const [extraInfo, setExtraInfo] = useState("");
   const timerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const selectedAuthMode =
+    group.auth_mode_env && drafts[group.auth_mode_env] !== undefined
+      ? drafts[group.auth_mode_env]
+      : group.auth_mode;
 
   const setField = (env: string, value: string) => {
     setDrafts((prev) => ({ ...prev, [env]: value }));
     setSaveState("idle");
     setMessage("");
+    setExtraInfo("");
   };
 
   useEffect(() => () => { if (timerRef.current) clearTimeout(timerRef.current); }, []);
+
+  useEffect(() => {
+    if (group.name !== "notion") {
+      return;
+    }
+    const handleMessage = (event: MessageEvent) => {
+      const payload = event.data;
+      if (!payload || typeof payload !== "object") {
+        return;
+      }
+      if ((payload as { type?: string }).type !== "mascarade-oauth-result") {
+        return;
+      }
+      const provider = (payload as { provider?: string }).provider;
+      if (provider !== "notion") {
+        return;
+      }
+      const ok = (payload as { ok?: boolean }).ok === true;
+      const nextMessage =
+        typeof (payload as { message?: string }).message === "string"
+          ? (payload as { message?: string }).message!
+          : ok
+            ? "OAuth linked"
+            : "OAuth failed";
+      void onSaved();
+      settle(ok ? "ok" : "error", nextMessage);
+    };
+    window.addEventListener("message", handleMessage);
+    return () => window.removeEventListener("message", handleMessage);
+  }, [group.name, onSaved]);
 
   const settle = (nextState: SaveState, nextMessage: string) => {
     setSaveState(nextState);
@@ -348,11 +498,20 @@ function RuntimeSecretCard({
 
   const save = async () => {
     const values: Record<string, string> = {};
-    for (const field of group.fields) {
+    const visibleFields = group.fields.filter((field) => {
+      if (!field.auth_modes?.length) {
+        return true;
+      }
+      return !!selectedAuthMode && field.auth_modes.includes(selectedAuthMode);
+    });
+    for (const field of visibleFields) {
       const value = drafts[field.env];
       if (value !== undefined && value !== "") {
         values[field.env] = value;
       }
+    }
+    if (group.auth_mode_env && drafts[group.auth_mode_env] !== undefined) {
+      values[group.auth_mode_env] = drafts[group.auth_mode_env];
     }
 
     if (Object.keys(values).length === 0) {
@@ -371,6 +530,7 @@ function RuntimeSecretCard({
       }
       setDrafts({});
       setGeneratedValue("");
+      setExtraInfo("");
       await onSaved();
       settle(
         "ok",
@@ -394,6 +554,7 @@ function RuntimeSecretCard({
       }
       setDrafts({});
       setGeneratedValue("");
+      setExtraInfo("");
       await onSaved();
       settle(
         "ok",
@@ -415,6 +576,7 @@ function RuntimeSecretCard({
       await syncAuthIfNeeded(response);
       setGeneratedValue(response.generated_value || "");
       setDrafts({});
+      setExtraInfo("");
       await onSaved();
       settle(
         "ok",
@@ -427,7 +589,42 @@ function RuntimeSecretCard({
     }
   };
 
-  const hasDraft = group.fields.some((field) => (drafts[field.env] || "").trim().length > 0);
+  const connectNotionOAuth = () => {
+    const popup = window.open(
+      "/api/settings/runtime-secrets/notion/oauth/start",
+      "mascarade-notion-oauth",
+      "popup=yes,width=720,height=820",
+    );
+    if (!popup) {
+      settle("error", "Popup bloquee");
+      return;
+    }
+    settle("ok", "OAuth Notion en cours...");
+  };
+
+  const validateGitHubApp = async () => {
+    setSaveState("saving");
+    try {
+      const response = await post<{ status: string; expires_at?: string }>(
+        "/api/settings/runtime-secrets/github-dispatch/app-token",
+      );
+      setExtraInfo(response.expires_at ? `installation token expires ${response.expires_at}` : "");
+      settle("ok", "GitHub App valide");
+    } catch (error) {
+      settle("error", error instanceof Error ? error.message : "Erreur");
+    }
+  };
+
+  const visibleFields = group.fields.filter((field) => {
+    if (!field.auth_modes?.length) {
+      return true;
+    }
+    return !!selectedAuthMode && field.auth_modes.includes(selectedAuthMode);
+  });
+
+  const hasDraft =
+    visibleFields.some((field) => (drafts[field.env] || "").trim().length > 0) ||
+    (!!group.auth_mode_env && drafts[group.auth_mode_env] !== undefined);
 
   return (
     <div className="rounded-[1.4rem] border border-border/80 bg-black/25 p-5">
@@ -448,7 +645,29 @@ function RuntimeSecretCard({
       </div>
 
       <div className="space-y-3">
-        {group.fields.map((field) => (
+        {group.auth_mode_env && group.auth_modes && group.auth_modes.length > 1 && (
+          <div>
+            <label className="mb-1.5 flex items-center justify-between text-[11px] uppercase tracking-[0.16em] text-muted">
+              <span>Auth mode</span>
+              <span className="normal-case tracking-normal text-amber-100/35">
+                {group.auth_mode_env}
+              </span>
+            </label>
+            <select
+              value={selectedAuthMode ?? group.auth_modes[0]}
+              onChange={(e) => setField(group.auth_mode_env!, e.target.value)}
+              className="w-full rounded-2xl border border-border/80 bg-black/35 px-3 py-2.5 text-sm text-amber-100 outline-none transition focus:border-accent/50"
+            >
+              {group.auth_modes.map((mode) => (
+                <option key={mode} value={mode} className="bg-[#0a0a0a]">
+                  {mode}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+
+        {visibleFields.map((field) => (
           <div key={field.env}>
             <label className="mb-1.5 flex items-center justify-between text-[11px] uppercase tracking-[0.16em] text-muted">
               <span>{field.label}</span>
@@ -495,6 +714,11 @@ function RuntimeSecretCard({
               {message}
             </p>
           )}
+          {extraInfo && (
+            <p className="text-[11px] text-amber-100/35">
+              {extraInfo}
+            </p>
+          )}
           {group.restart_services.length > 0 && (
             <p className="text-[11px] text-amber-100/35">
               redemarrage pilote: {group.restart_services.join(", ")}
@@ -502,6 +726,26 @@ function RuntimeSecretCard({
           )}
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          {group.name === "notion" && selectedAuthMode === "oauth_oidc" && (
+            <button
+              type="button"
+              disabled={saveState === "saving"}
+              onClick={connectNotionOAuth}
+              className="rounded-2xl border border-[#214e31] bg-[#0c170f]/80 px-4 py-2 text-[11px] uppercase tracking-[0.16em] text-[#8cffb7] transition hover:border-[#2d6942] hover:bg-[#0f2116] disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              connect
+            </button>
+          )}
+          {group.name === "github-dispatch" && selectedAuthMode === "app" && (
+            <button
+              type="button"
+              disabled={saveState === "saving" || hasDraft}
+              onClick={validateGitHubApp}
+              className="rounded-2xl border border-[#214e31] bg-[#0c170f]/80 px-4 py-2 text-[11px] uppercase tracking-[0.16em] text-[#8cffb7] transition hover:border-[#2d6942] hover:bg-[#0f2116] disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              validate app
+            </button>
+          )}
           {group.generate_supported && (
             <button
               type="button"
