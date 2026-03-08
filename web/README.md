@@ -31,7 +31,19 @@ CRAZY_LIFE_API_ORIGIN=http://localhost:3100 npm run dev
 npm run build
 ```
 
-Production assets are emitted to `dist/` in the extracted `crazy_life` repo.
+Default build artifacts are emitted to `dist/` and should not modify tracked files in `mascarade`.
+
+When you intentionally want to refresh the versioned bridge snapshot served by `mascarade-api`, use:
+
+```bash
+npm run build:api-public
+```
+
+Policy:
+
+- `dist/` = local build artifact, ignored
+- `api/public/` = explicit bridge snapshot, refreshed only on purpose
+- `node_modules/.cache/tsconfig.tsbuildinfo` = local TypeScript cache, ignored via `node_modules/`
 
 ## Local Deploy
 

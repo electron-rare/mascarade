@@ -6,7 +6,7 @@ Statut d'exécution des actions issues de `REMEDIATION_BACKLOG_2026-03-07.md`.
 ## Global status
 - Audit exécuté: **Oui**
 - Remédiations appliquées pendant ce tour: **Oui**
-- Nature du travail réalisé: stabilisation machine, réactivation auth `mascarade`, correction ciblée du flux SSE ops, réduction du bruit cockpit ops, reprise du TODO fine-tuning
+- Nature du travail réalisé: stabilisation machine, réactivation auth `mascarade`, correction ciblée du flux SSE ops, réduction du bruit cockpit ops, reprise du TODO fine-tuning, normalisation des chemins bootstrap/test Python repo-locaux
 - Bloc différé post-stabilisation structuré: **Oui**
 
 ## J0 detail
@@ -44,12 +44,19 @@ Statut d'exécution des actions issues de `REMEDIATION_BACKLOG_2026-03-07.md`.
   - `promtail` garde encore des erreurs transitoires liees au churn/restart conteneur et reste a surveiller.
 
 ### R-004 — Rendre les tests Python exécutables
-- Status: **Not started**
+- Status: **Done**
 - Evidence:
   - `AUDIT_EVIDENCE_2026-03-07/mascarade_core_pytest_q.txt`
   - `AUDIT_EVIDENCE_2026-03-07/mascarade_core_pytest_venv.txt`
   - `AUDIT_EVIDENCE_2026-03-07/kill_life_pytest.txt`
   - `AUDIT_EVIDENCE_2026-03-07/kill_life_unittest_discover_setup_repo.txt`
+  - `AUDIT_EVIDENCE_2026-03-07/mascarade_test_python_temp_venv.txt`
+  - `AUDIT_EVIDENCE_2026-03-07/kill_life_test_python_temp_venv_stable.txt`
+- Outcome:
+  - `mascarade` expose désormais un chemin supporté `scripts/bootstrap_python_env.sh` + `scripts/test_python.sh` avec options `--venv-dir`, `--bootstrap` et `--help`;
+  - `Kill_LIFE` expose désormais un chemin supporté `tools/bootstrap_python_env.sh` + `tools/test_python.sh` avec suites `stable|mcp|all`, `--list` et bootstrap minimal incluant `PyYAML` et `jsonschema`;
+  - les deux chemins ont été vérifiés sur des venvs temporaires jetables, sans dépendre des environnements Python déjà présents;
+  - le miroir `ai-agentic-embedded-base/specs/mcp_tasks.md` a été resynchronisé avec `specs/mcp_tasks.md` pour que `validate_specs.py --json` redevienne vert dans la suite repo-locale stable.
 
 ### R-005 — Geler l'état publiable de `crazy_life`
 - Status: **Not started**
@@ -149,7 +156,7 @@ Statut d'exécution des actions issues de `REMEDIATION_BACKLOG_2026-03-07.md`.
   - `../../finetune/kicad_mcp_server/docs/ROADMAP.md`
 
 ## Next recommended step
-Poursuivre avec `R-004`, puis finaliser `R-006` (probe GPU + validation live des MCP a secrets), et garder un point de controle sur `R-001` tant que le swap n'est pas revenu a une valeur de repos acceptable.
+Poursuivre avec `R-006` (probe GPU + validation live des MCP a secrets), puis garder un point de controle sur `R-001` tant que le swap n'est pas revenu a une valeur de repos acceptable, avant d'attaquer `R-007` a `R-009`.
 
 ## Next after stabilization
 Quand `J0` et `J7` sont sous controle, ouvrir `R-010` a `R-015` dans l'ordre:
