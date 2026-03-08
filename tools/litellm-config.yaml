@@ -1,4 +1,8 @@
 model_list:
+  - model_name: gpt-4o-mini
+    litellm_params:
+      model: mistral/mistral-small-latest
+      api_key: ${MISTRAL_API_KEY}
   - model_name: gpt-4.1-mini
     litellm_params:
       model: mistral/mistral-small-latest
@@ -25,4 +29,4 @@ model_list:
       api_key: ${MISTRAL_API_KEY}
 
 general_settings:
-  master_key: ${LITELLM_MASTER_KEY}
+  master_key: os.environ/LITELLM_MASTER_KEY

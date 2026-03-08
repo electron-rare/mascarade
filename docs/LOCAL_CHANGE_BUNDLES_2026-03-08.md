@@ -10,7 +10,7 @@ Au moment de ce snapshot:
 
 - `crazy_life` est propre localement
 - `Kill_LIFE` est propre localement
-- `mascarade` garde `2` lots fonctionnels, puis un residuel de snapshot frontend
+- `mascarade` garde `3` lots fonctionnels, puis eventuellement un snapshot frontend
 
 Regle:
 
@@ -117,7 +117,45 @@ git add .env.example README.md TODO_COCKPIT_OPS.md TODO_VM.md \
 git commit -m "feat(ops): add mem0 and observability surfaces"
 ```
 
-## Lot 3 — `api-public-snapshot` (optionnel)
+## Lot 3 — `mem0-auth-alignment`
+
+Objet:
+
+- aligner les defaults `Mem0` avec `LiteLLM`
+- exposer une cle API locale explicite pour `Mem0`
+- ajouter l'alias reseau `mem0_store` cote `Qdrant`
+- rendre la config `LiteLLM` plus compatible avec les clients OpenAI-compatibles
+
+Fichiers:
+
+- `.env.example`
+- `README.md`
+- `docker-compose.yml`
+- `scripts/compose.sh`
+- `scripts/modules/mem0.sh`
+- `scripts/modules/qdrant.sh`
+- `tools/litellm-config.yaml`
+
+Validation minimale:
+
+```bash
+docker compose -f docker-compose.yml config >/tmp/mascarade-compose-check.out
+python3 - <<'PY'
+import yaml
+yaml.safe_load(open('tools/litellm-config.yaml', 'r', encoding='utf-8'))
+print('ok')
+PY
+```
+
+Commit recommande:
+
+```bash
+git add .env.example README.md docker-compose.yml scripts/compose.sh \
+  scripts/modules/mem0.sh scripts/modules/qdrant.sh tools/litellm-config.yaml
+git commit -m "fix(ops): align mem0 auth with litellm runtime"
+```
+
+## Lot 4 — `api-public-snapshot` (optionnel)
 
 Objet:
 
@@ -139,9 +177,10 @@ git commit -m "chore(web): refresh api-public snapshot"
 
 1. sortir `firecrawl-runtime` dans `mascarade`
 2. sortir `mem0-observability` dans `mascarade`
-3. decider si `api-public-snapshot` doit etre versionne ou laisse hors lot
-4. reverifier `git status` dans les trois repos
-5. seulement ensuite reprendre un chantier nouveau, pas avant
+3. sortir `mem0-auth-alignment` si le reliquat reapparait apres commit
+4. decider si `api-public-snapshot` doit etre versionne ou laisse hors lot
+5. reverifier `git status` dans les trois repos
+6. seulement ensuite reprendre un chantier nouveau, pas avant
 
 ## Note
 

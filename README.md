@@ -216,6 +216,7 @@ FIRECRAWL_API_URL=                     # optionnel, seulement si vous ciblez une
 
 # Mem0 / OpenMemory — integration optionnelle
 MEM0_USER=mascarade
+MEM0_OPENAI_API_KEY=sk-mem0-local    # si LiteLLM a une master key, reprendre la meme ici
 MEM0_OPENAI_BASE_URL=http://litellm:4000
 MEM0_QDRANT_HOST=qdrant
 MEM0_QDRANT_PORT=6333

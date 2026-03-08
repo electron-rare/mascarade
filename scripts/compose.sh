@@ -231,11 +231,16 @@ write_env_file() {
             echo ""
         fi
 
+        local default_litellm_master_key="${LITELLM_MASTER_KEY:-}"
+        if [[ -z "$default_litellm_master_key" ]] && svc_selected "mem0"; then
+            default_litellm_master_key="sk-mem0-local"
+        fi
+
         # LiteLLM
         if svc_selected "litellm"; then
             echo "# ── LiteLLM ──"
             echo "LITELLM_PORT=\"${LITELLM_PORT:-4000}\""
-            echo "LITELLM_MASTER_KEY=\"${LITELLM_MASTER_KEY:-}\""
+            echo "LITELLM_MASTER_KEY=\"${default_litellm_master_key}\""
             echo ""
         fi
 
@@ -270,6 +275,7 @@ write_env_file() {
             echo "# ── Mem0 / OpenMemory ──"
             echo "MEM0_PORT=\"${MEM0_PORT:-3300}\""
             echo "MEM0_USER=\"${MEM0_USER:-mascarade}\""
+            echo "MEM0_OPENAI_API_KEY=\"${MEM0_OPENAI_API_KEY:-sk-mem0-local}\""
             echo "MEM0_OPENAI_BASE_URL=\"${MEM0_OPENAI_BASE_URL:-http://litellm:4000}\""
             echo "MEM0_QDRANT_HOST=\"${MEM0_QDRANT_HOST:-qdrant}\""
             echo "MEM0_QDRANT_PORT=\"${MEM0_QDRANT_PORT:-6333}\""

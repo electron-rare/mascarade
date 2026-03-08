@@ -22,7 +22,9 @@ module_qdrant_compose() {
   echo "      timeout: 5s"
   echo "      retries: 5"
   echo "    networks:"
-  echo "      - mascarade-network"
+  echo "      mascarade-network:"
+  echo "        aliases:"
+  echo "          - mem0_store"
 }
 
 module_qdrant_volumes() {
