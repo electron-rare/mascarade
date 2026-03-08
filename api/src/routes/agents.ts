@@ -18,6 +18,37 @@ type ProviderMutationResponse = {
   cleared_env?: string[];
   restarted_services?: string[];
 };
+type OperatorCopilotLog = {
+  ts?: string;
+  source?: string;
+  service?: string;
+  severity?: string;
+  message?: string;
+  run_id?: string;
+  agent_name?: string | null;
+  event_type?: string;
+};
+type OperatorCopilotTrace = {
+  ts?: string;
+  agent_name?: string | null;
+  event_type?: string;
+  message?: string;
+  routing_role?: string | null;
+  routing_provider?: string | null;
+  routing_model?: string | null;
+  error?: string | null;
+};
+type OperatorCopilotRequest = {
+  mode?: string;
+  prompt?: string;
+  run_id?: string;
+  service?: string;
+  severity?: string;
+  mcp_server?: string;
+  window?: string;
+  logs?: OperatorCopilotLog[];
+  traces?: OperatorCopilotTrace[];
+};
 
 function parseJsonBody(text: string): JsonBody {
   if (!text.trim()) {
@@ -63,6 +94,88 @@ function syncProviderEnvFromClear(fields: string[]) {
   for (const key of fields) {
     process.env[key] = "";
   }
+}
+
+function asTrimmedString(value: unknown): string | undefined {
+  return typeof value === "string" && value.trim() ? value.trim() : undefined;
+}
+
+function clipLines(lines: string[], max: number): string[] {
+  return lines.filter(Boolean).slice(0, max);
+}
+
+function buildOperatorCopilotPrompt(body: OperatorCopilotRequest): string {
+  const sections: string[] = [
+    "Tu es Agent Zero en mode operator copilot.",
+    "Ta mission: cadrer l'incident ou le run observe, prioriser les causes probables, proposer les prochaines actions manuelles les plus sures, et signaler clairement ce qui est seulement hypothese.",
+    "Ne lance aucune action implicite. Pas de blabla.",
+  ];
+
+  const contextLines = clipLines(
+    [
+      body.mode ? `mode: ${body.mode}` : "",
+      body.run_id ? `run_id: ${body.run_id}` : "",
+      body.service ? `service: ${body.service}` : "",
+      body.severity ? `severity: ${body.severity}` : "",
+      body.mcp_server ? `mcp_server: ${body.mcp_server}` : "",
+      body.window ? `window: ${body.window}` : "",
+    ],
+    12,
+  );
+  if (contextLines.length > 0) {
+    sections.push(`Contexte operateur:\n${contextLines.join("\n")}`);
+  }
+
+  const logLines = clipLines(
+    (Array.isArray(body.logs) ? body.logs : []).map((entry) => {
+      const parts = [
+        asTrimmedString(entry.ts),
+        asTrimmedString(entry.source),
+        asTrimmedString(entry.service),
+        asTrimmedString(entry.severity),
+        asTrimmedString(entry.event_type),
+        asTrimmedString(entry.agent_name || undefined),
+        asTrimmedString(entry.run_id),
+      ].filter(Boolean);
+      return `${parts.join(" | ")} :: ${asTrimmedString(entry.message) || "(no message)"}`;
+    }),
+    18,
+  );
+  if (logLines.length > 0) {
+    sections.push(`Logs recents:\n${logLines.join("\n")}`);
+  }
+
+  const traceLines = clipLines(
+    (Array.isArray(body.traces) ? body.traces : []).map((entry) => {
+      const parts = [
+        asTrimmedString(entry.ts),
+        asTrimmedString(entry.agent_name || undefined),
+        asTrimmedString(entry.event_type),
+        asTrimmedString(entry.routing_role || undefined),
+        asTrimmedString(entry.routing_provider || undefined),
+        asTrimmedString(entry.routing_model || undefined),
+      ].filter(Boolean);
+      const error = asTrimmedString(entry.error || undefined);
+      return `${parts.join(" | ")} :: ${asTrimmedString(entry.message) || "(no message)"}${error ? ` / error: ${error}` : ""}`;
+    }),
+    18,
+  );
+  if (traceLines.length > 0) {
+    sections.push(`Traces recentes:\n${traceLines.join("\n")}`);
+  }
+
+  if (body.prompt && body.prompt.trim()) {
+    sections.push(`Demande operateur:\n${body.prompt.trim()}`);
+  } else {
+    sections.push(
+      "Demande operateur:\nResume la situation, liste les causes probables, les verifications immediates et la prochaine action manuelle recommandee.",
+    );
+  }
+
+  sections.push(
+    "Format de reponse attendu:\n1. Situation\n2. Causes probables\n3. Verifications immediates\n4. Prochaine action recommandee\n5. Risques / points incertains",
+  );
+  return sections.join("\n\n");
 }
 
 async function proxyOpsAgentJson(
@@ -171,6 +284,48 @@ agents.post("/:name/run", async (c) => {
     const result = await coreClient.runAgent(name, messages);
     return c.json(result);
   } catch (error) {
+    const { status, body } = handleCoreError(error);
+    return c.json(body, status);
+  }
+});
+
+agents.post("/agent-zero/copilot", async (c) => {
+  try {
+    const body = (await c.req.json()) as OperatorCopilotRequest;
+    const prompt = buildOperatorCopilotPrompt(body);
+    const result = await coreClient.runAgent("agent-zero", [{ role: "user", content: prompt }]);
+    emitStructuredLog({
+      source: "agent-trace",
+      service: "api",
+      severity: "info",
+      message: "agent-zero operator copilot completed",
+      run_id: body.run_id,
+      agent_name: "agent-zero",
+      event_type: "operator_copilot_completed",
+      mode: body.mode || "operator-copilot",
+    });
+    return c.json({
+      ...result,
+      operator_context: {
+        mode: body.mode || "operator-copilot",
+        run_id: body.run_id || null,
+        service: body.service || null,
+        severity: body.severity || null,
+        mcp_server: body.mcp_server || null,
+        log_count: Array.isArray(body.logs) ? body.logs.length : 0,
+        trace_count: Array.isArray(body.traces) ? body.traces.length : 0,
+      },
+    });
+  } catch (error) {
+    emitStructuredLog({
+      source: "agent-trace",
+      service: "api",
+      severity: "error",
+      message: "agent-zero operator copilot failed",
+      agent_name: "agent-zero",
+      event_type: "operator_copilot_failed",
+      mode: "operator-copilot",
+    });
     const { status, body } = handleCoreError(error);
     return c.json(body, status);
   }
