@@ -29,13 +29,14 @@ Le lot local est stable; ce fichier ne porte plus de blocage critique.
 - [x] Langfuse raccorde au chemin LLM commun avec traces runtime visibles
 - [x] `Tempo` branche comme backend traces Grafana
 - [x] `Grafana` et `Langfuse` exposes comme surfaces operateur derriere `edge-proxy`
+- [x] `Firecrawl`, `Mem0`, `Prometheus` et `Ollama` exposes comme surfaces operateur derriere `edge-proxy`
 - [x] `OpsHub` distingue maintenant posture runtime, observabilite et surfaces publiques/proxifiees
+- [x] `OpsHub` n'ouvre plus les surfaces tooling sur des ports bruts; il renvoie vers les hostnames proxifies proteges
 
 ## 3. Ce qui reste reellement
 
 - [ ] Etendre Grafana seulement si un nouveau domaine le justifie
 - [ ] Recueillir des retours UX a froid sur `Logs` et `OpsHub`
-- [ ] Ouvrir publiquement le proxy uniquement si le chemin `DNS/ACME` doit vraiment etre active
 - [ ] Etendre les actions operateur d'`Agent Zero` uniquement si un usage concret depasse le mode copilot actuel
 
 ## 4. Complement optionnel
@@ -44,7 +45,7 @@ Le lot local est stable; ce fichier ne porte plus de blocage critique.
 
 ## 5. Hors perimetre de ce lot
 
-- [ ] TLS / certificat public
+- [x] TLS / certificat public et DNS `*.saillant.cc`
 - [ ] Secrets operateur optionnels (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `NEXAR_TOKEN`)
 - [ ] Setup Mac local (`MCP`, `Playwright MCP`)
 - [ ] Si le sourcing Nexar live devient critique, prevoir un token/plan avec quota de parts non nul

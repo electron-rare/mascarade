@@ -31,6 +31,7 @@ Notes:
 - L'ancien constat `tools-langfuse KO (ZodError)` ne correspond plus au runtime actuel. `langfuse-web:3000` répond `200` depuis le réseau Docker.
 - Les curls host-side vers `127.0.0.1:3200` ne sont pas conclusifs depuis l'environnement sandboxé; la vérification retenue est donc celle faite depuis le réseau Docker et via l'état Docker.
 - `Grafana` et `Langfuse` sont maintenant publiables derrière `edge-proxy` sur `grafana.saillant.cc` et `langfuse.saillant.cc`, avec auth dédiée côté proxy.
+- `Firecrawl`, `Mem0`, `Prometheus` et `Ollama` sont aussi publiables derrière `edge-proxy` sur `firecrawl.saillant.cc`, `mem0.saillant.cc`, `prometheus.saillant.cc` et `ollama.saillant.cc`, avec la même auth opérateur.
 - Le bind hôte de `edge-proxy` est maintenant `0.0.0.0`; le certificat réel Let's Encrypt est installé via DNS-01 Cloudflare avec couverture `saillant.cc` + `*.saillant.cc`.
 
 ## TODO priorisés
@@ -42,6 +43,7 @@ Notes:
 - [x] `Langfuse` retenu comme brique supportée, optionnelle hors profil standard sur VM légère.
 - [x] `Tempo` branché comme backend de traces nominal.
 - [x] `Grafana` et `Langfuse` sont atteignables via le proxy opérateur.
+- [x] `Firecrawl`, `Mem0`, `Prometheus` et `Ollama` sont atteignables via le proxy opérateur.
 
 ### Sécurité
 - [x] `MASCARADE_API_KEY` est renseignée dans `/home/clems/mascarade/.env`; l'auth n'est pas désactivée en pratique.
@@ -68,6 +70,7 @@ Notes:
 - [x] Le reverse proxy HTTPS existe déjà via `edge-proxy`.
 - [x] `edge-proxy` est maintenant publié sur `0.0.0.0:80/443`.
 - [x] `Grafana` et `Langfuse` ont un routage dédié derrière `edge-proxy`.
+- [x] `Firecrawl`, `Mem0`, `Prometheus` et `Ollama` ont un routage dédié derrière `edge-proxy`.
 - [x] Une auth opérateur dédiée protège ces surfaces côté proxy.
 - [x] Le certificat auto-signé de fallback couvre maintenant `saillant.cc`, `grafana.saillant.cc`, `langfuse.saillant.cc` et `dify.saillant.cc`.
 - [x] Certificat réel Let's Encrypt installé via ACME DNS-01 Cloudflare.

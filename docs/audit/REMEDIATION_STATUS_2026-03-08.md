@@ -16,6 +16,9 @@ Backlog de reference:
 - Remediations verifiees comme fermees: `RA-001` a `RA-013`
 - Gate RA actif: aucun
 - Restes specialises hors ligne `RA-*`: aucun blocker MCP/agentics local actif; `K-012` devient optionnel tant que le runtime conteneur KiCad reste canonique; `nexar_api` est valide en live mais limite par un quota Nexar externe sur le token de reference
+- Follow-up post-`RA-*` actif dans `mascarade`: `operator-surfaces-public-proxy`
+  - statut: local implemente et verifie, en attente de publication
+  - perimetre: surfaces operateur publiques avec auth via `edge-proxy`, `api` runtime `Kill_LIFE` en `rw`, `OpsHub` recale sur les URLs proxifiees
 
 ## Detail par RA
 
@@ -35,8 +38,8 @@ Backlog de reference:
 ### RA-003 — Reduire la surface hote exposee
 - Status: **Done**
 - Outcome:
-  - la publication `80/443` de la pile `mascarade` reste bornee au loopback;
-  - le bridge n'est plus considere comme une justification de release publique.
+  - la reduction de surface initiale a bien ete appliquee pendant la phase de stabilisation;
+  - la publication publique actuelle des surfaces operateur se traite maintenant dans le follow-up `operator-surfaces-public-proxy`, avec auth dediee et hostnames `*.saillant.cc`, sans rouvrir `RA-003`.
 
 ### RA-004 — Reparer le contrat `ops-agent` / `summary` / GPU
 - Status: **Done**
@@ -120,10 +123,10 @@ Condition de reouverture:
 
 ## Next step
 1. Le backlog `RA-*` reste clos; ne pas le rouvrir sans signal reel de regression.
-2. Aucun chantier repo-suivi local n'est actif sur la ligne `MCP/agentics`.
-3. Garder les sujets encore ouverts hors audit:
-   - `DNS/ACME` public si une exposition externe est voulue;
+2. Publier le follow-up `operator-surfaces-public-proxy` dans `mascarade`.
+3. Aucun chantier repo-suivi local n'est actif sur la ligne `MCP/agentics`.
+4. Garder les sujets encore ouverts hors audit:
    - secrets providers optionnels si un provider supplementaire doit etre actif;
    - setup Mac local (`MCP`, `Playwright MCP`) si ce poste doit redevenir un environnement operateur.
-4. N'ouvrir un chantier Nexar supplementaire que si le sourcing live requiert un token/plan avec quota de parts non nul.
-5. Ne rejouer `K-012` que si le host-native KiCad devient une exigence runtime.
+5. N'ouvrir un chantier Nexar supplementaire que si le sourcing live requiert un token/plan avec quota de parts non nul.
+6. Ne rejouer `K-012` que si le host-native KiCad devient une exigence runtime.

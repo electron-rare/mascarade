@@ -1,3 +1,5 @@
+import { request as httpRequest } from "node:http";
+import { request as httpsRequest } from "node:https";
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import path from "node:path";
@@ -196,6 +198,51 @@ async function timedProbe(
   acceptedStatuses: number[] = [],
   headers?: Record<string, string>,
 ): Promise<ProbeResult> {
+  if (headers && Object.keys(headers).some((key) => key.toLowerCase() === "host")) {
+    const started = Date.now();
+    try {
+      const target = new URL(url);
+      const requester = target.protocol === "https:" ? httpsRequest : httpRequest;
+      const response = await new Promise<{ status: number }>((resolve, reject) => {
+        const req = requester(
+          {
+            protocol: target.protocol,
+            hostname: target.hostname,
+            port: target.port || (target.protocol === "https:" ? 443 : 80),
+            path: `${target.pathname}${target.search}`,
+            method: "GET",
+            headers,
+            rejectUnauthorized: false,
+          },
+          (res) => {
+            res.resume();
+            resolve({ status: res.statusCode || 0 });
+          },
+        );
+        req.setTimeout(timeoutMs, () => req.destroy(new Error("timeout")));
+        req.on("error", reject);
+        req.end();
+      });
+      const ok = response.status >= 200 && response.status < 300 || acceptedStatuses.includes(response.status);
+      return {
+        name,
+        url,
+        ok,
+        status: response.status,
+        latency_ms: Date.now() - started,
+      };
+    } catch (error) {
+      return {
+        name,
+        url,
+        ok: false,
+        status: 0,
+        latency_ms: Date.now() - started,
+        error: error instanceof Error ? error.message : "network error",
+      };
+    }
+  }
+
   const started = Date.now();
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -237,6 +284,18 @@ const EDGE_PROXY_GRAFANA_SERVER_NAME = (
 const EDGE_PROXY_LANGFUSE_SERVER_NAME = (
   process.env.EDGE_PROXY_LANGFUSE_SERVER_NAME || `langfuse.${EDGE_PROXY_SERVER_NAME}`
 ).trim();
+const EDGE_PROXY_OLLAMA_SERVER_NAME = (
+  process.env.EDGE_PROXY_OLLAMA_SERVER_NAME || `ollama.${EDGE_PROXY_SERVER_NAME}`
+).trim();
+const EDGE_PROXY_PROMETHEUS_SERVER_NAME = (
+  process.env.EDGE_PROXY_PROMETHEUS_SERVER_NAME || `prometheus.${EDGE_PROXY_SERVER_NAME}`
+).trim();
+const EDGE_PROXY_MEM0_SERVER_NAME = (
+  process.env.EDGE_PROXY_MEM0_SERVER_NAME || `mem0.${EDGE_PROXY_SERVER_NAME}`
+).trim();
+const EDGE_PROXY_FIRECRAWL_SERVER_NAME = (
+  process.env.EDGE_PROXY_FIRECRAWL_SERVER_NAME || `firecrawl.${EDGE_PROXY_SERVER_NAME}`
+).trim();
 const GRAFANA_PUBLIC_ORIGIN = (
   process.env.GRAFANA_PUBLIC_ORIGIN || `https://${EDGE_PROXY_GRAFANA_SERVER_NAME}`
 ).replace(/\/+$/, "");
@@ -252,10 +311,10 @@ const KILL_LIFE_VALIDATE_SPECS_MCP_SMOKE = path.join(
   "tools",
   "validate_specs_mcp_smoke.py",
 );
-const KILL_LIFE_NOTION_MCP_SMOKE = path.join(
+const KILL_LIFE_KNOWLEDGE_BASE_MCP_SMOKE = path.join(
   KILL_LIFE_ROOT,
   "tools",
-  "notion_mcp_smoke.py",
+  "knowledge_base_mcp_smoke.py",
 );
 const KILL_LIFE_GITHUB_DISPATCH_MCP_SMOKE = path.join(
   KILL_LIFE_ROOT,
@@ -281,8 +340,8 @@ const MCP_PROBE_CONFIGS: McpProbeConfig[] = [
     timeout_ms: 8000,
   },
   {
-    key: "notion",
-    command: ["python3", KILL_LIFE_NOTION_MCP_SMOKE, "--json", "--quick", "--timeout", "8.0"],
+    key: "knowledge-base",
+    command: ["python3", KILL_LIFE_KNOWLEDGE_BASE_MCP_SMOKE, "--json", "--quick", "--timeout", "8.0"],
     cwd: KILL_LIFE_ROOT,
     timeout_ms: 8000,
   },
@@ -985,6 +1044,34 @@ async function collectMonitorSnapshot(): Promise<MonitorSnapshot> {
       [200, 302, 401],
       proxyAuthHeaders(EDGE_PROXY_LANGFUSE_SERVER_NAME),
     ),
+    timedProbe(
+      "ollama-proxy",
+      "http://edge-proxy/api/tags",
+      1800,
+      [200],
+      proxyAuthHeaders(EDGE_PROXY_OLLAMA_SERVER_NAME),
+    ),
+    timedProbe(
+      "prometheus-proxy",
+      "http://edge-proxy/-/ready",
+      1800,
+      [200],
+      proxyAuthHeaders(EDGE_PROXY_PROMETHEUS_SERVER_NAME),
+    ),
+    timedProbe(
+      "mem0-proxy",
+      "http://edge-proxy/docs",
+      1800,
+      [200, 301, 302],
+      proxyAuthHeaders(EDGE_PROXY_MEM0_SERVER_NAME),
+    ),
+    timedProbe(
+      "firecrawl-proxy",
+      "http://edge-proxy/mcp",
+      1800,
+      [400],
+      proxyAuthHeaders(EDGE_PROXY_FIRECRAWL_SERVER_NAME),
+    ),
   ]);
 
   const [ollama, qdrant, coreMetrics] = await Promise.all([
@@ -1009,6 +1096,10 @@ async function collectMonitorSnapshot(): Promise<MonitorSnapshot> {
   const edgeProxyProbe = probes.find((probe) => probe.name === "edge-proxy");
   const grafanaProxyProbe = probes.find((probe) => probe.name === "grafana-proxy");
   const langfuseProxyProbe = probes.find((probe) => probe.name === "langfuse-proxy");
+  const ollamaProxyProbe = probes.find((probe) => probe.name === "ollama-proxy");
+  const prometheusProxyProbe = probes.find((probe) => probe.name === "prometheus-proxy");
+  const mem0ProxyProbe = probes.find((probe) => probe.name === "mem0-proxy");
+  const firecrawlProxyProbe = probes.find((probe) => probe.name === "firecrawl-proxy");
 
   return {
     timestamp: new Date().toISOString(),
@@ -1063,6 +1154,50 @@ async function collectMonitorSnapshot(): Promise<MonitorSnapshot> {
           latency_ms: langfuseProxyProbe?.latency_ms ?? 0,
           note: "llm traces behind edge-proxy basic auth",
           ...(langfuseProxyProbe?.error ? { error: langfuseProxyProbe.error } : {}),
+        },
+        {
+          name: "prometheus",
+          host: EDGE_PROXY_PROMETHEUS_SERVER_NAME,
+          url: `https://${EDGE_PROXY_PROMETHEUS_SERVER_NAME}/`,
+          protected: true,
+          ok: prometheusProxyProbe?.ok ?? false,
+          status: prometheusProxyProbe?.status ?? 0,
+          latency_ms: prometheusProxyProbe?.latency_ms ?? 0,
+          note: "raw metrics store behind edge-proxy basic auth",
+          ...(prometheusProxyProbe?.error ? { error: prometheusProxyProbe.error } : {}),
+        },
+        {
+          name: "ollama",
+          host: EDGE_PROXY_OLLAMA_SERVER_NAME,
+          url: `https://${EDGE_PROXY_OLLAMA_SERVER_NAME}/api/tags`,
+          protected: true,
+          ok: ollamaProxyProbe?.ok ?? false,
+          status: ollamaProxyProbe?.status ?? 0,
+          latency_ms: ollamaProxyProbe?.latency_ms ?? 0,
+          note: "local model runtime behind edge-proxy basic auth",
+          ...(ollamaProxyProbe?.error ? { error: ollamaProxyProbe.error } : {}),
+        },
+        {
+          name: "mem0",
+          host: EDGE_PROXY_MEM0_SERVER_NAME,
+          url: `https://${EDGE_PROXY_MEM0_SERVER_NAME}/docs`,
+          protected: true,
+          ok: mem0ProxyProbe?.ok ?? false,
+          status: mem0ProxyProbe?.status ?? 0,
+          latency_ms: mem0ProxyProbe?.latency_ms ?? 0,
+          note: "openmemory docs behind edge-proxy basic auth",
+          ...(mem0ProxyProbe?.error ? { error: mem0ProxyProbe.error } : {}),
+        },
+        {
+          name: "firecrawl",
+          host: EDGE_PROXY_FIRECRAWL_SERVER_NAME,
+          url: `https://${EDGE_PROXY_FIRECRAWL_SERVER_NAME}/mcp`,
+          protected: true,
+          ok: firecrawlProxyProbe?.ok ?? false,
+          status: firecrawlProxyProbe?.status ?? 0,
+          latency_ms: firecrawlProxyProbe?.latency_ms ?? 0,
+          note: "streamable MCP endpoint behind edge-proxy basic auth",
+          ...(firecrawlProxyProbe?.error ? { error: firecrawlProxyProbe.error } : {}),
         },
       ],
     },
