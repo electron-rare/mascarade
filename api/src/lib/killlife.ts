@@ -3,6 +3,7 @@ import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import { copyFile, mkdir, readdir, readFile, rename, stat, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { getGitHubDispatchAccessToken } from "./githubDispatchAuth.js";
 
 const DEFAULT_KILL_LIFE_ROOT = process.env.KILL_LIFE_ROOT || "/home/clems/Kill_LIFE";
 const DEFAULT_GITHUB_REPO = process.env.KILL_LIFE_GITHUB_REPO || "electron-rare/Kill_LIFE";
@@ -669,10 +670,7 @@ function sanitizeGitHubInputs(inputs: Record<string, unknown>): Record<string, s
 }
 
 async function runGithubDispatch(node: KillLifeWorkflowNode, runtimeInputs: Record<string, unknown>): Promise<Omit<KillLifeRunStep, "node_id" | "label" | "type" | "mode" | "runner_kind" | "started_at" | "finished_at" | "duration_ms">> {
-  const token = process.env.KILL_LIFE_GITHUB_TOKEN || process.env.GITHUB_TOKEN;
-  if (!token) {
-    throw new Error("Missing KILL_LIFE_GITHUB_TOKEN or GITHUB_TOKEN");
-  }
+  const { token, authMode, expiresAt } = await getGitHubDispatchAccessToken();
 
   const workflowFile = node.runner?.workflow_file || "";
   if (!ALLOWED_GITHUB_WORKFLOWS.has(workflowFile)) {
@@ -711,7 +709,7 @@ async function runGithubDispatch(node: KillLifeWorkflowNode, runtimeInputs: Reco
     workflow_file: workflowFile,
     ref: payload.ref,
     evidence_refs: [],
-    stdout_excerpt: `workflow_dispatch accepted for ${workflowFile}`,
+    stdout_excerpt: `workflow_dispatch accepted for ${workflowFile} via ${authMode}${expiresAt ? ` (expires ${expiresAt})` : ""}`,
     stderr_excerpt: "",
     message: "GitHub workflow dispatch accepted",
   };
