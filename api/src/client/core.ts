@@ -103,6 +103,7 @@ export interface ProviderFieldStatus {
   configured: boolean;
   hint: string;
   secret: boolean;
+  auth_modes?: string[];
 }
 
 export interface ProviderStatus {
@@ -115,6 +116,9 @@ export interface ProviderStatus {
   models: string[];
   enabled?: boolean;
   toggle_env?: string;
+  auth_mode?: string;
+  auth_mode_env?: string;
+  auth_modes?: string[];
 }
 
 const REQUEST_TIMEOUT_MS = parseInt(process.env.CORE_TIMEOUT_MS || "30000", 10);

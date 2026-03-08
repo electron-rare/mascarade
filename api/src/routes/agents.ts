@@ -1,10 +1,123 @@
-import { Hono } from "hono";
-import { coreClient } from "../client/core.js";
+import { Hono, type Context } from "hono";
+import { CoreApiError, coreClient } from "../client/core.js";
 import { emitStructuredLog } from "../lib/otel.js";
 import { handleCoreError } from "../middleware/error.js";
 
 const agents = new Hono();
 const SAFE_NAME_RE = /^[\w.-]+$/;
+const OPS_AGENT_URL = (process.env.OPS_AGENT_URL || "http://ops-agent:9200").replace(/\/+$/, "");
+const REQUEST_TIMEOUT_MS = 15_000;
+
+type JsonBody = Record<string, unknown> | null;
+type ProviderMutationResponse = {
+  status: string;
+  active: boolean;
+  configured: boolean;
+  message?: string;
+  updated_env?: string[];
+  cleared_env?: string[];
+  restarted_services?: string[];
+};
+
+function parseJsonBody(text: string): JsonBody {
+  if (!text.trim()) {
+    return null;
+  }
+  try {
+    const parsed = JSON.parse(text);
+    return typeof parsed === "object" && parsed !== null ? (parsed as Record<string, unknown>) : null;
+  } catch {
+    return null;
+  }
+}
+
+function requestHeaders(c: Context, body?: unknown): Headers {
+  const headers = new Headers();
+  const authHeader = c.req.header("Authorization");
+  const cookieHeader = c.req.header("Cookie");
+  if (authHeader) {
+    headers.set("Authorization", authHeader);
+  }
+  if (cookieHeader) {
+    headers.set("Cookie", cookieHeader);
+  }
+  if (body !== undefined) {
+    headers.set("Content-Type", "application/json");
+  }
+  return headers;
+}
+
+function jsonWithStatus(c: Context, body: Record<string, unknown>, status: number) {
+  return c.newResponse(JSON.stringify(body), status as any, {
+    "Content-Type": "application/json",
+  });
+}
+
+async function proxyOpsAgentJson(
+  c: Context,
+  path: string,
+  init: RequestInit = {},
+): Promise<{ upstream: Response; text: string; json: JsonBody }> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  try {
+    const upstream = await fetch(`${OPS_AGENT_URL}${path}`, {
+      ...init,
+      headers: requestHeaders(c, init.body),
+      signal: controller.signal,
+    });
+    const text = await upstream.text();
+    return { upstream, text, json: parseJsonBody(text) };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function providerMutationResult(
+  c: Context,
+  name: string,
+  path: string,
+  init: RequestInit,
+) {
+  const { upstream, text, json } = await proxyOpsAgentJson(c, path, init);
+  if (!upstream.ok) {
+    return jsonWithStatus(c, json || { error: text || "Ops Agent request failed" }, upstream.status);
+  }
+
+  let active = false;
+  let configured = false;
+  try {
+    const status = await coreClient.providersStatus();
+    const provider = status.providers.find((entry) => entry.name === name);
+    active = !!provider?.active;
+    configured = !!provider?.configured;
+  } catch {
+    // Keep the durable write result even if the post-restart status probe fails.
+  }
+
+  const body: ProviderMutationResponse = {
+    status: "ok",
+    active,
+    configured,
+  };
+  if (typeof json?.message === "string") {
+    body.message = json.message;
+  } else if (!active) {
+    body.message = configured
+      ? "Saved but provider inactive"
+      : "Saved but provider reports not configured";
+  }
+  if (Array.isArray(json?.updated_env)) {
+    body.updated_env = json.updated_env as string[];
+  }
+  if (Array.isArray(json?.cleared_env)) {
+    body.cleared_env = json.cleared_env as string[];
+  }
+  if (Array.isArray(json?.restarted_services)) {
+    body.restarted_services = json.restarted_services as string[];
+  }
+  return c.json(body);
+}
 
 /** Lister tous les agents */
 agents.get("/", async (c) => {
@@ -116,9 +229,45 @@ agents.put("/providers/:name/key", async (c) => {
       return c.json({ error: "Invalid provider name" }, 400);
     }
     const { keys } = await c.req.json();
-    const result = await coreClient.updateProviderKey(name, keys);
-    return c.json(result);
+    return await providerMutationResult(
+      c,
+      name,
+      `/providers/${encodeURIComponent(name)}`,
+      {
+        method: "PUT",
+        body: JSON.stringify({ keys }),
+      },
+    );
   } catch (error) {
+    if (error instanceof Error && !(error instanceof CoreApiError)) {
+      return c.json({ error: error.message || "Ops Agent request failed" }, 503);
+    }
+    const { status, body } = handleCoreError(error);
+    return c.json(body, status);
+  }
+});
+
+agents.post("/providers/:name/clear", async (c) => {
+  try {
+    const name = c.req.param("name");
+    if (!name || !SAFE_NAME_RE.test(name)) {
+      return c.json({ error: "Invalid provider name" }, 400);
+    }
+    const body = (await c.req.json().catch(() => ({}))) as { fields?: string[] };
+    const fields = Array.isArray(body.fields) ? body.fields.map((field) => String(field)) : undefined;
+    return await providerMutationResult(
+      c,
+      name,
+      `/providers/${encodeURIComponent(name)}/clear`,
+      {
+        method: "POST",
+        body: JSON.stringify(fields ? { fields } : {}),
+      },
+    );
+  } catch (error) {
+    if (error instanceof Error && !(error instanceof CoreApiError)) {
+      return c.json({ error: error.message || "Ops Agent request failed" }, 503);
+    }
     const { status, body } = handleCoreError(error);
     return c.json(body, status);
   }
