@@ -201,4 +201,4 @@ Le but de ce ré-audit est de revalider l'état courant, pas de recycler automat
 5. corriger le remote GitHub réel de `crazy_life`;
 6. standardiser les commandes bootstrap/test Python par repo;
 7. rendre `mascarade/web` non salissant;
-8. seulement ensuite rouvrir les lots E2E secondaires (`Kill_LIFE` import Open WebUI + n8n, validation batch fine-tuning complète, etc.).
+8. seulement ensuite rouvrir les lots E2E secondaires (`Kill_LIFE` import n8n, validation batch fine-tuning complète, etc.).

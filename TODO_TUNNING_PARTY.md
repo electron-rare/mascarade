@@ -32,8 +32,11 @@ Politique active de stabilisation machine:
 ## 3. Backlog reel
 
 ### Priorite immediate
+- [x] Ecrire la commande standard de reprise `--resume` dans la doc operateur (README batch local mis a jour)
+
+### Differe post-stabilisation
 - [ ] Valider un run batch complet jusqu'a `train=completed`
-- [ ] Ecrire la commande standard de reprise `--resume` dans la doc operateur (code OK, doc manquante)
+  - gate: ne pas relancer ce lot E2E tant que RA-010 a RA-012 ne sont pas soldes
 
 ### Priorite suivante
 - [ ] Comparer `max_parallel_gpu_trains=1` vs `2` sur Quadro P2000
@@ -41,15 +44,15 @@ Politique active de stabilisation machine:
 - [ ] Decider si `2` slots GPU restent supportes ou seulement experimentaux
 
 ### Stabilisation dataset
-- [ ] Ajouter un garde-fou de prevalidation source avant lancement batch (actuellement: existence check seulement)
-- [ ] Rendre explicite dans les logs quand la normalisation corrige les IDs manquants
-- [ ] Ajouter un rapport court sur `source_rows`, `distilled_rows`, `merged_rows`
+- [x] Ajouter un garde-fou de prevalidation source avant lancement batch (validation apres normalisation autorisee)
+- [x] Rendre explicite dans les logs quand la normalisation corrige les IDs manquants
+- [x] Ajouter un rapport court sur `source_rows`, `distilled_rows`, `merged_rows` (`dataset_report.json`)
 
 ### Apres stabilisation
 - [ ] Integrer les modeles valides dans Mascarade (pipeline GGUF pret, pas de modele promu)
 - [ ] Evaluer `Agent Zero` hors du pipeline critique
-- [ ] Integrer `selected_model.json` dans `batch_local.py` (actuellement hardcode via --student-model)
-- [ ] Benchmarker `model_selector.py` vs selection manuelle sur cette machine
+- [x] Integrer `selected_model.json` dans `batch_local.py` (override explicite `--student-model` conserve)
+- [x] Benchmarker `model_selector.py` vs selection manuelle sur cette machine (rapport heuristique: `docs/MODEL_SELECTOR_BENCH_2026-03-08.md`)
 
 ## 4. Ordre recommande
 

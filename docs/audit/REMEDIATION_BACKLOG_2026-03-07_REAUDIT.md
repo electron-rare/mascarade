@@ -162,7 +162,7 @@ Backlog canonique issu du ré-audit courant. Ce document remplace les priorités
 ### RA-013 — Différer les validations E2E non critiques jusqu'à stabilisation
 - Priorité: **Moyenne**
 - Actions:
-  - garder en attente les lots `batch fine-tuning completed` et `Open WebUI + n8n import E2E` tant que `RA-001` à `RA-008` ne sont pas sous contrôle;
+  - garder en attente les lots `batch fine-tuning completed` et `n8n import E2E` tant que `RA-001` à `RA-008` ne sont pas sous contrôle;
   - éviter d'utiliser des validations E2E comme substitut à la stabilisation runtime.
 - Critères d'acceptation:
   1. les E2E reprennent sur une machine stabilisée;

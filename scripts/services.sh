@@ -33,7 +33,6 @@ define_service "generate-audio" "Generate Audio" "Generation audio locale (Audio
 
 # ── Infrastructure ──
 define_service "ollama"     "Ollama"            "Serveur LLM local (llama, mistral, etc.)"        "11434" "infra" 0 ""
-define_service "open-webui" "Open WebUI"        "Interface chat pour Ollama"                       "8080"  "infra" 0 "ollama"
 define_service "edge-proxy" "Edge Proxy"        "Reverse proxy HTTP/HTTPS pour l'API et le cockpit /ops" "80/443" "infra" 0 "api"
 define_service "ops-agent"  "Ops Agent"         "Collecte live Docker/journald pour le cockpit"     "9200"  "infra" 0 ""
 define_service "redis"      "Redis"             "Cache & broker (LiteLLM, Dify)"                   "6379"  "infra" 0 ""
@@ -52,9 +51,6 @@ svc_selected() { [[ "${SVC_ON[${1}]:-0}" == "1" ]]; }
 
 svc_dep_satisfied_by_host() {
     local id="$1" dep="$2"
-    if [[ "$id" == "open-webui" && "$dep" == "ollama" && "${OLLAMA_HOST_MODE:-docker}" == "native" ]]; then
-        return 0
-    fi
     return 1
 }
 
@@ -73,7 +69,6 @@ sync_service_ports_from_env() {
             stt) env_var="STT_PORT" ;;
             generate-audio) env_var="GENERATE_AUDIO_PORT" ;;
             ollama) env_var="OLLAMA_PORT" ;;
-            open-webui) env_var="OPEN_WEBUI_PORT" ;;
             edge-proxy) env_var="EDGE_PROXY_HTTP_PORT" ;;
             ops-agent) env_var="OPS_AGENT_PORT" ;;
             redis) env_var="REDIS_PORT" ;;

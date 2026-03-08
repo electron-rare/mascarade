@@ -83,7 +83,6 @@ export default function OpsHub() {
       { label: "Core health", href: `${origin}/core-health`, note: "core liveness via reverse proxy" },
       { label: "Dify web", href: `${getDifyOrigin()}/`, note: "app builder surface via reverse proxy" },
       { label: "Dify API", href: getDifyHealthUrl(), note: "workflow api health on the main proxy" },
-      { label: "Open WebUI", href: `${protocol}//${hostname}:8080/`, note: "local chat surface" },
       { label: "Grafana", href: `${protocol}//${hostname}:3001/`, note: "dashboards and panels" },
       { label: "Prometheus", href: `${protocol}//${hostname}:9090/`, note: "raw metrics store" },
       { label: "Ollama", href: `${protocol}//${hostname}:11434/`, note: "local model runtime" },

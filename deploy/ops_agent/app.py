@@ -7,6 +7,7 @@ import os
 import re
 import secrets
 import shutil
+import time
 from collections import deque
 from datetime import UTC, datetime
 from pathlib import Path
@@ -14,11 +15,23 @@ from typing import Any
 
 import httpx
 from fastapi import Depends, FastAPI, HTTPException, Query, Request
-from fastapi.responses import StreamingResponse
+from fastapi.responses import Response, StreamingResponse
+from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_latest
 from pydantic import BaseModel, Field
 from mascarade.provider_admin import resolve_provider_meta, valid_provider_envs
 
 app = FastAPI(title="Mascarade Ops Agent", version="0.1.0")
+
+HTTP_REQUESTS_TOTAL = Counter(
+    "ops_agent_http_requests_total",
+    "Total HTTP requests served by the ops-agent.",
+    ["method", "path", "status"],
+)
+HTTP_REQUEST_DURATION_SECONDS = Histogram(
+    "ops_agent_http_request_duration_seconds",
+    "HTTP request latency for the ops-agent.",
+    ["method", "path"],
+)
 
 DOCKER_SOCKET_PATH = "/var/run/docker.sock"
 LOKI_URL = (os.getenv("LOKI_URL") or "http://loki:3100").rstrip("/")
@@ -43,10 +56,31 @@ DOCKER_COMPOSE_PLUGIN_CANDIDATES = [
 ]
 ENV_ASSIGN_RE = re.compile(r"^([A-Za-z_][A-Za-z0-9_]*)=(.*)$")
 
+
+@app.middleware("http")
+async def instrument_http_requests(request: Request, call_next):
+    path = request.url.path
+    method = request.method
+    start = time.perf_counter()
+    status = 500
+    try:
+        response = await call_next(request)
+        status = response.status_code
+        return response
+    finally:
+        duration = max(0.0, time.perf_counter() - start)
+        HTTP_REQUESTS_TOTAL.labels(method=method, path=path, status=str(status)).inc()
+        HTTP_REQUEST_DURATION_SECONDS.labels(method=method, path=path).observe(duration)
+
+
 RUNTIME_SECRET_GROUPS: dict[str, dict[str, Any]] = {
     "auth": {
         "label": "Mascarade auth",
         "description": "Controle le Bearer token de l'API, du core et de l'ops-agent.",
+        "classification": "runtime-auth",
+        "criticality": "required-security",
+        "required_when": "Toujours requis pour un runtime protege.",
+        "used_by": ["api", "core", "ops-agent"],
         "generate_supported": True,
         "fields": [
             {
@@ -60,6 +94,10 @@ RUNTIME_SECRET_GROUPS: dict[str, dict[str, Any]] = {
     "notion": {
         "label": "Notion MCP",
         "description": "Auth Notion runtime et page de smoke test utilisee par les probes MCP.",
+        "classification": "integration-credential",
+        "criticality": "feature-required",
+        "required_when": "Requis seulement si l'integration Notion est utilisee.",
+        "used_by": ["core", "ops-agent"],
         "generate_supported": False,
         "auth_mode": {
             "env": "NOTION_AUTH_MODE",
@@ -73,6 +111,7 @@ RUNTIME_SECRET_GROUPS: dict[str, dict[str, Any]] = {
                 "secret": True,
                 "restart_services": ["core"],
                 "auth_modes": ["api_key"],
+                "classification": "integration-credential",
             },
             {
                 "env": "NOTION_OAUTH_ACCESS_TOKEN",
@@ -80,6 +119,7 @@ RUNTIME_SECRET_GROUPS: dict[str, dict[str, Any]] = {
                 "secret": True,
                 "restart_services": ["core"],
                 "auth_modes": ["oauth_oidc"],
+                "classification": "integration-credential",
             },
             {
                 "env": "NOTION_OAUTH_REFRESH_TOKEN",
@@ -87,6 +127,7 @@ RUNTIME_SECRET_GROUPS: dict[str, dict[str, Any]] = {
                 "secret": True,
                 "restart_services": ["core"],
                 "auth_modes": ["oauth_oidc"],
+                "classification": "integration-credential",
             },
             {
                 "env": "NOTION_OAUTH_CLIENT_ID",
@@ -94,6 +135,7 @@ RUNTIME_SECRET_GROUPS: dict[str, dict[str, Any]] = {
                 "secret": False,
                 "restart_services": [],
                 "auth_modes": ["oauth_oidc"],
+                "classification": "oauth-config",
             },
             {
                 "env": "NOTION_OAUTH_CLIENT_SECRET",
@@ -101,6 +143,7 @@ RUNTIME_SECRET_GROUPS: dict[str, dict[str, Any]] = {
                 "secret": True,
                 "restart_services": [],
                 "auth_modes": ["oauth_oidc"],
+                "classification": "integration-credential",
             },
             {
                 "env": "NOTION_OAUTH_AUTHORIZATION_ENDPOINT",
@@ -108,6 +151,8 @@ RUNTIME_SECRET_GROUPS: dict[str, dict[str, Any]] = {
                 "secret": False,
                 "restart_services": [],
                 "auth_modes": ["oauth_oidc"],
+                "classification": "oauth-config",
+                "criticality": "local-operator-context",
             },
             {
                 "env": "NOTION_OAUTH_TOKEN_ENDPOINT",
@@ -115,6 +160,8 @@ RUNTIME_SECRET_GROUPS: dict[str, dict[str, Any]] = {
                 "secret": False,
                 "restart_services": [],
                 "auth_modes": ["oauth_oidc"],
+                "classification": "oauth-config",
+                "criticality": "local-operator-context",
             },
             {
                 "env": "NOTION_OAUTH_REDIRECT_URI",
@@ -122,6 +169,8 @@ RUNTIME_SECRET_GROUPS: dict[str, dict[str, Any]] = {
                 "secret": False,
                 "restart_services": [],
                 "auth_modes": ["oauth_oidc"],
+                "classification": "oauth-config",
+                "criticality": "local-operator-context",
             },
             {
                 "env": "NOTION_OAUTH_EXPIRES_AT",
@@ -129,6 +178,8 @@ RUNTIME_SECRET_GROUPS: dict[str, dict[str, Any]] = {
                 "secret": False,
                 "restart_services": [],
                 "auth_modes": ["oauth_oidc"],
+                "classification": "oauth-config",
+                "criticality": "local-operator-context",
             },
             {
                 "env": "NOTION_OAUTH_WORKSPACE_NAME",
@@ -136,18 +187,26 @@ RUNTIME_SECRET_GROUPS: dict[str, dict[str, Any]] = {
                 "secret": False,
                 "restart_services": [],
                 "auth_modes": ["oauth_oidc"],
+                "classification": "operator-context",
+                "criticality": "local-operator-context",
             },
             {
                 "env": "NOTION_MCP_SMOKE_PAGE_ID",
                 "label": "Smoke page ID",
                 "secret": False,
                 "restart_services": [],
+                "classification": "live-validation-target",
+                "criticality": "live-validation-optional",
             },
         ],
     },
     "github-dispatch": {
         "label": "GitHub dispatch MCP",
         "description": "Auth GitHub utilises pour les dispatch GitHub et leur smoke MCP.",
+        "classification": "integration-credential",
+        "criticality": "feature-required",
+        "required_when": "Requis seulement si les dispatch GitHub sont utilises.",
+        "used_by": ["core", "ops-agent", "crazy-lane"],
         "generate_supported": False,
         "auth_mode": {
             "env": "GITHUB_DISPATCH_AUTH_MODE",
@@ -161,6 +220,7 @@ RUNTIME_SECRET_GROUPS: dict[str, dict[str, Any]] = {
                 "secret": True,
                 "restart_services": [],
                 "auth_modes": ["token"],
+                "classification": "integration-credential",
             },
             {
                 "env": "GITHUB_TOKEN",
@@ -168,6 +228,7 @@ RUNTIME_SECRET_GROUPS: dict[str, dict[str, Any]] = {
                 "secret": True,
                 "restart_services": [],
                 "auth_modes": ["token"],
+                "classification": "integration-credential",
             },
             {
                 "env": "GITHUB_APP_ID",
@@ -175,6 +236,7 @@ RUNTIME_SECRET_GROUPS: dict[str, dict[str, Any]] = {
                 "secret": False,
                 "restart_services": [],
                 "auth_modes": ["app"],
+                "classification": "oauth-config",
             },
             {
                 "env": "GITHUB_APP_PRIVATE_KEY",
@@ -182,6 +244,7 @@ RUNTIME_SECRET_GROUPS: dict[str, dict[str, Any]] = {
                 "secret": True,
                 "restart_services": [],
                 "auth_modes": ["app"],
+                "classification": "integration-credential",
             },
             {
                 "env": "GITHUB_APP_INSTALLATION_ID",
@@ -189,12 +252,17 @@ RUNTIME_SECRET_GROUPS: dict[str, dict[str, Any]] = {
                 "secret": False,
                 "restart_services": [],
                 "auth_modes": ["app"],
+                "classification": "oauth-config",
             },
         ],
     },
     "huggingface": {
         "label": "HuggingFace MCP",
         "description": "Token READ pour le serveur MCP HuggingFace (https://huggingface.co/mcp). Utiliser OAuth login via https://huggingface.co/mcp?login si pas de token.",
+        "classification": "integration-credential",
+        "criticality": "feature-required",
+        "required_when": "Requis seulement si le MCP HuggingFace distant est utilise.",
+        "used_by": ["ops-agent"],
         "generate_supported": False,
         "fields": [
             {
@@ -202,6 +270,7 @@ RUNTIME_SECRET_GROUPS: dict[str, dict[str, Any]] = {
                 "label": "HuggingFace API key / READ token",
                 "secret": True,
                 "restart_services": [],
+                "classification": "integration-credential",
             },
         ],
     },
@@ -688,6 +757,17 @@ def build_runtime_secret_group_status(name: str) -> dict[str, Any]:
                 "configured": configured,
                 "hint": masked_hint(value, secret=bool(field.get("secret"))),
                 "secret": bool(field.get("secret")),
+                "classification": str(
+                    field.get(
+                        "classification",
+                        group.get("classification", "integration-credential"),
+                    )
+                ),
+                "criticality": str(
+                    field.get(
+                        "criticality", group.get("criticality", "feature-required")
+                    )
+                ),
                 "restart_services": list(field.get("restart_services", [])),
                 "auth_modes": auth_modes,
                 "active": field_is_active,
@@ -698,6 +778,10 @@ def build_runtime_secret_group_status(name: str) -> dict[str, Any]:
         "name": name,
         "label": str(group["label"]),
         "description": str(group["description"]),
+        "classification": str(group.get("classification", "integration-credential")),
+        "criticality": str(group.get("criticality", "feature-required")),
+        "required_when": str(group.get("required_when", "")),
+        "used_by": [str(item) for item in group.get("used_by", [])],
         "configured": is_runtime_secret_group_configured(name, env_values, auth_mode),
         "configured_count": sum(
             1 for field in fields if field["active"] and field["configured"]
@@ -1013,14 +1097,32 @@ async def run_mcp_http_probe(config: dict[str, Any]) -> dict[str, Any]:
     timeout_s = float(config.get("timeout_s", 10.0) or 10.0)
     token_env = str(config.get("token_env", ""))
     token = os.getenv(token_env, "").strip() if token_env else ""
-
-    headers: dict[str, str] = {"Accept": "application/json"}
+    headers: dict[str, str] = {
+        "Accept": "application/json, text/event-stream",
+        "Content-Type": "application/json",
+    }
     if token:
         headers["Authorization"] = f"Bearer {token}"
 
     try:
         async with httpx.AsyncClient(timeout=timeout_s) as client:
-            resp = await client.get(url, headers=headers)
+            init_resp = await client.post(
+                url,
+                headers=headers,
+                json={
+                    "jsonrpc": "2.0",
+                    "id": 1,
+                    "method": "initialize",
+                    "params": {
+                        "protocolVersion": "2025-03-26",
+                        "capabilities": {},
+                        "clientInfo": {
+                            "name": "mascarade-ops-agent",
+                            "version": "0.1.0",
+                        },
+                    },
+                },
+            )
     except Exception as exc:
         return make_default_mcp_status(
             status="failed",
@@ -1032,7 +1134,7 @@ async def run_mcp_http_probe(config: dict[str, Any]) -> dict[str, Any]:
 
     latency_ms = round((asyncio.get_running_loop().time() - started) * 1000)
 
-    if resp.status_code == 401:
+    if init_resp.status_code == 401:
         return make_default_mcp_status(
             status="degraded",
             latency_ms=latency_ms,
@@ -1041,21 +1143,69 @@ async def run_mcp_http_probe(config: dict[str, Any]) -> dict[str, Any]:
             secret_configured=bool(token),
         )
 
-    if resp.status_code >= 400:
+    if init_resp.status_code >= 400:
         return make_default_mcp_status(
             status="failed",
             latency_ms=latency_ms,
             server_name=key,
-            error=f"HTTP {resp.status_code}: {resp.text[:200]}",
+            error=f"HTTP {init_resp.status_code}: {init_resp.text[:200]}",
             secret_configured=bool(token),
         )
+
+    protocol_version = None
+    server_name = key
+    tool_count = 0
+
+    try:
+        init_payload = init_resp.json()
+    except Exception:
+        init_payload = {}
+
+    if isinstance(init_payload, dict):
+        result = init_payload.get("result")
+        if isinstance(result, dict):
+            protocol_version = result.get("protocolVersion")
+            server_info = result.get("serverInfo")
+            if isinstance(server_info, dict) and isinstance(
+                server_info.get("name"), str
+            ):
+                server_name = server_info["name"]
+
+    session_id = init_resp.headers.get("mcp-session-id")
+    if session_id:
+        list_headers = dict(headers)
+        list_headers["mcp-session-id"] = session_id
+        try:
+            async with httpx.AsyncClient(timeout=timeout_s) as client:
+                list_resp = await client.post(
+                    url,
+                    headers=list_headers,
+                    json={
+                        "jsonrpc": "2.0",
+                        "id": 2,
+                        "method": "tools/list",
+                        "params": {},
+                    },
+                )
+            if list_resp.status_code < 400:
+                list_payload = list_resp.json()
+                if isinstance(list_payload, dict):
+                    result = list_payload.get("result")
+                    if isinstance(result, dict) and isinstance(
+                        result.get("tools"), list
+                    ):
+                        tool_count = len(result["tools"])
+        except Exception:
+            pass
 
     return make_default_mcp_status(
         ok=True,
         status="ready",
         requested_runtime="remote-http",
-        runtime_mode="sse",
-        server_name=key,
+        runtime_mode="streamable-http",
+        protocol_version=str(protocol_version) if protocol_version else None,
+        server_name=server_name,
+        tool_count=tool_count,
         latency_ms=latency_ms,
         secret_configured=bool(token),
     )
@@ -1705,6 +1855,11 @@ async def health():
         "journald": journalctl_available(),
         "gpu": gpu_probe(),
     }
+
+
+@app.get("/metrics")
+async def metrics():
+    return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
 
 @app.get("/sources")

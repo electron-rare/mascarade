@@ -24,7 +24,13 @@ from llmfit_utils import (
     plan_model_with_llmfit,
     write_llmfit_plan,
 )
+from run_local import (
+    probe_cuda as probe_run_local_cuda,
+    reject_teacher_only_student,
+    resolve_model as resolve_run_local_model,
+)
 from sharegpt_utils import (
+    count_missing_row_ids,
     dedupe_rows,
     ensure_row_ids,
     load_jsonl,
@@ -58,6 +64,7 @@ SUPPORTED_DOMAINS = [
     "embedded",
     "platformio",
     "freecad",
+    "project",
 ]
 
 
@@ -95,6 +102,26 @@ def resolve_path(raw_path: str | None) -> Path | None:
     if not path.is_absolute():
         path = (Path.cwd() / path).resolve()
     return path
+
+
+def resolve_batch_student_model(config: dict) -> tuple[str, str | None, str]:
+    requested_model = config.get("student_model")
+    gpu_ready, _gpu_reason = probe_run_local_cuda()
+    resolved_device = (
+        "gpu"
+        if (
+            config.get("device") == "gpu"
+            or (config.get("device") == "auto" and gpu_ready)
+        )
+        else "cpu"
+    )
+    model_name, model_note = resolve_run_local_model(
+        requested_model,
+        resolved_device,
+        bool(config.get("offline")),
+    )
+    reject_teacher_only_student(model_name)
+    return model_name, model_note, resolved_device
 
 
 def load_env_var_from_dotenv(name: str) -> str | None:
@@ -136,14 +163,21 @@ def build_jobs(
     run_dir: Path,
     run_label: str,
     stamp: str,
+    source_dataset_override: Path | None = None,
 ) -> dict[str, DomainJob]:
     jobs: dict[str, DomainJob] = {}
     log_dir = run_dir / "logs"
+    if source_dataset_override is not None and len(labels) != 1:
+        raise SystemExit("--source-dataset only supports a single domain label")
     for label in labels:
         canonical = canonical_domain(label)
         if canonical not in SUPPORTED_DOMAINS:
             raise SystemExit(f"Unsupported domain: {label} -> {canonical}")
-        source_dataset = DATASETS_DIR / f"{canonical}_chat.jsonl"
+        source_dataset = (
+            source_dataset_override
+            if source_dataset_override is not None
+            else DATASETS_DIR / f"{canonical}_chat.jsonl"
+        )
         if not source_dataset.exists():
             builder = ensure_seed_dataset(SCRIPT_DIR, canonical, source_dataset)
             if builder is not None:
@@ -183,7 +217,11 @@ def build_new_manifest(
     args: argparse.Namespace, run_dir: Path, labels: list[str], stamp: str
 ) -> dict:
     jobs = build_jobs(
-        labels=labels, run_dir=run_dir, run_label=args.run_label, stamp=stamp
+        labels=labels,
+        run_dir=run_dir,
+        run_label=args.run_label,
+        stamp=stamp,
+        source_dataset_override=resolve_path(args.source_dataset),
     )
     domains: dict[str, dict] = {}
     for label, job in jobs.items():
@@ -203,6 +241,7 @@ def build_new_manifest(
             "train_llmfit_plan": str(job.train_llmfit_plan),
             "distill_log": str(job.distill_log),
             "train_log": str(job.train_log),
+            "source_validation": {"status": "pending"},
             "distill": {"status": "pending"},
             "train": {
                 "status": "skipped" if args.skip_train else "pending",
@@ -230,6 +269,7 @@ def build_new_manifest(
             "json_retries": args.json_retries,
             "seed": args.seed,
             "sleep_ms": args.sleep_ms,
+            "source_dataset_override": args.source_dataset,
             "teacher_system_path": args.teacher_system_path,
             "overlap_teacher_train": args.overlap_teacher_train,
             "device": args.device,
@@ -250,6 +290,9 @@ def build_new_manifest(
             "llmfit_bin": os.environ.get("LLMFIT_BIN"),
             "llmfit_root": os.environ.get("LLMFIT_ROOT"),
             "llmfit_allow_cargo_run": env_flag("LLMFIT_ALLOW_CARGO_RUN", False),
+        },
+        "reports": {
+            "dataset_report": str(run_dir / "dataset_report.json"),
         },
         "domains": domains,
     }
@@ -303,13 +346,40 @@ def load_jsonl_if_exists(path: Path) -> list[dict]:
     return load_jsonl(path)
 
 
-def merge_source_and_distilled(job: DomainJob) -> tuple[int, int, int]:
-    source_rows = ensure_row_ids(
-        load_jsonl(job.source_dataset), f"{job.canonical}-source"
+def load_normalized_rows(path: Path, prefix: str) -> tuple[list[dict], int]:
+    raw_rows = load_jsonl(path)
+    missing_ids_fixed = count_missing_row_ids(raw_rows)
+    normalized_rows = ensure_row_ids(raw_rows, prefix)
+    return normalized_rows, missing_ids_fixed
+
+
+def prevalidate_source_dataset(job: DomainJob) -> dict:
+    source_rows, missing_ids_fixed = load_normalized_rows(
+        job.source_dataset, f"{job.canonical}-source"
     )
-    distilled_rows = ensure_row_ids(
-        load_jsonl_if_exists(job.distilled_out), f"{job.canonical}-distill"
+    if not source_rows:
+        raise RuntimeError(f"Source dataset is empty: {job.source_dataset}")
+    validation_errors = validate_rows(source_rows)
+    if validation_errors:
+        sample = "; ".join(validation_errors[:3])
+        raise RuntimeError(
+            f"Source dataset invalid ({len(validation_errors)} errors): {sample}"
+        )
+    return {
+        "status": "completed",
+        "validated_at": now_ts(),
+        "source_rows": len(source_rows),
+        "missing_ids_fixed": missing_ids_fixed,
+    }
+
+
+def merge_source_and_distilled(job: DomainJob) -> dict[str, int]:
+    source_rows, source_missing_ids_fixed = load_normalized_rows(
+        job.source_dataset, f"{job.canonical}-source"
     )
+    distilled_payload = load_jsonl_if_exists(job.distilled_out)
+    distilled_missing_ids_fixed = count_missing_row_ids(distilled_payload)
+    distilled_rows = ensure_row_ids(distilled_payload, f"{job.canonical}-distill")
     merged_rows = dedupe_rows(source_rows + distilled_rows)
     validation_errors = validate_rows(merged_rows)
     if validation_errors:
@@ -317,7 +387,13 @@ def merge_source_and_distilled(job: DomainJob) -> tuple[int, int, int]:
             f"Merged dataset is invalid ({len(validation_errors)} errors)"
         )
     write_jsonl(job.merged_out, merged_rows)
-    return len(source_rows), len(distilled_rows), len(merged_rows)
+    return {
+        "source_rows": len(source_rows),
+        "source_missing_ids_fixed": source_missing_ids_fixed,
+        "distilled_rows": len(distilled_rows),
+        "distilled_missing_ids_fixed": distilled_missing_ids_fixed,
+        "merged_rows": len(merged_rows),
+    }
 
 
 def append_command_header(handle, command: list[str]) -> None:
@@ -441,14 +517,12 @@ def run_distill_job(job: DomainJob, config: dict, concurrency: int) -> dict:
                 encoding="utf-8",
             )
 
-    source_count, distilled_count, merged_count = merge_source_and_distilled(job)
+    merge_stats = merge_source_and_distilled(job)
     return {
         "initial_failures": initial_failures,
         "retry_failures": retry_failures,
         "retry_rows": retry_rows,
-        "source_rows": source_count,
-        "distilled_rows": distilled_count,
-        "merged_rows": merged_count,
+        **merge_stats,
     }
 
 
@@ -632,7 +706,9 @@ def start_train_process(
     return process, log_handle
 
 
-def stop_active_trains(active_trains: dict[str, tuple[subprocess.Popen, object]]) -> None:
+def stop_active_trains(
+    active_trains: dict[str, tuple[subprocess.Popen, object]]
+) -> None:
     for process, log_handle in active_trains.values():
         try:
             process.terminate()
@@ -644,18 +720,50 @@ def stop_active_trains(active_trains: dict[str, tuple[subprocess.Popen, object]]
             pass
 
 
+def write_dataset_report(path: Path, manifest: dict) -> None:
+    domains_report: dict[str, dict] = {}
+    for label, payload in manifest.get("domains", {}).items():
+        source_validation = payload.get("source_validation", {})
+        distill = payload.get("distill", {})
+        train = payload.get("train", {})
+        domains_report[label] = {
+            "canonical": payload.get("canonical"),
+            "source_status": source_validation.get("status"),
+            "source_rows": source_validation.get("source_rows"),
+            "source_missing_ids_fixed": source_validation.get("missing_ids_fixed"),
+            "distill_status": distill.get("status"),
+            "distilled_rows": distill.get("distilled_rows"),
+            "distilled_missing_ids_fixed": distill.get("distilled_missing_ids_fixed"),
+            "merged_rows": distill.get("merged_rows"),
+            "train_status": train.get("status"),
+        }
+    write_manifest(
+        path,
+        {
+            "generated_at": now_ts(),
+            "run_dir": manifest["run_dir"],
+            "run_label": manifest.get("run_label"),
+            "domains": domains_report,
+        },
+    )
+
+
 def save_updated_manifest(manifest_path: Path, manifest: dict) -> None:
     manifest["updated_at"] = now_ts()
     write_manifest(manifest_path, manifest)
+    dataset_report_path = (
+        Path(manifest.get("reports", {}).get("dataset_report"))
+        if manifest.get("reports", {}).get("dataset_report")
+        else Path(manifest["run_dir"]) / "dataset_report.json"
+    )
+    write_dataset_report(dataset_report_path, manifest)
 
 
 def domain_done(payload: dict, phase: str) -> bool:
     return payload[phase]["status"] == "completed"
 
 
-def resolve_batch_llmfit(
-    config: dict, run_dir: Path
-) -> dict:
+def resolve_batch_llmfit(config: dict, run_dir: Path) -> dict:
     enabled = bool(config.get("llmfit_preflight", True))
     requested_device = str(config.get("device") or "gpu")
     model_name = str(config.get("student_model") or "")
@@ -753,6 +861,11 @@ def main() -> int:
     parser.add_argument("--json-retries", type=int, default=3)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--sleep-ms", type=int, default=0)
+    parser.add_argument(
+        "--source-dataset",
+        default=None,
+        help="Override source ShareGPT JSONL path for a single-domain run",
+    )
     parser.add_argument("--teacher-system-path", default=None)
     parser.add_argument(
         "--max-parallel-distills",
@@ -782,7 +895,7 @@ def main() -> int:
         help="Force the old two-phase behavior: all distills, then all trainings",
     )
     parser.add_argument("--device", choices=["gpu", "cpu", "auto"], default="gpu")
-    parser.add_argument("--student-model", default="Qwen/Qwen2.5-Coder-1.5B-Instruct")
+    parser.add_argument("--student-model", default=None)
     parser.add_argument("--student-max-samples", type=int, default=None)
     parser.add_argument("--seq-len", type=int, default=256)
     parser.add_argument("--epochs", type=int, default=2)
@@ -823,15 +936,33 @@ def main() -> int:
     config["student_max_samples"] = config.get("student_max_samples")
     config["teacher_only"] = config.get("teacher_only", False)
     config["skip_train"] = config.get("skip_train", False)
-    config["llmfit_preflight"] = config.get("llmfit_preflight", env_flag("LLMFIT_PREFLIGHT", True))
-    config["llmfit_min_fit"] = config.get("llmfit_min_fit", os.environ.get("LLMFIT_MIN_FIT", "marginal"))
-    config["llmfit_memory"] = config.get("llmfit_memory", os.environ.get("LLMFIT_MEMORY"))
+    config["llmfit_preflight"] = config.get(
+        "llmfit_preflight", env_flag("LLMFIT_PREFLIGHT", True)
+    )
+    config["llmfit_min_fit"] = config.get(
+        "llmfit_min_fit", os.environ.get("LLMFIT_MIN_FIT", "marginal")
+    )
+    config["llmfit_memory"] = config.get(
+        "llmfit_memory", os.environ.get("LLMFIT_MEMORY")
+    )
     config["llmfit_bin"] = config.get("llmfit_bin", os.environ.get("LLMFIT_BIN"))
     config["llmfit_root"] = config.get("llmfit_root", os.environ.get("LLMFIT_ROOT"))
     config["llmfit_allow_cargo_run"] = config.get(
         "llmfit_allow_cargo_run",
         env_flag("LLMFIT_ALLOW_CARGO_RUN", False),
     )
+    requested_student_model = config.get("student_model")
+    resolved_student_model, student_model_note, resolved_student_device = (
+        resolve_batch_student_model(config)
+    )
+    config["requested_student_model"] = requested_student_model
+    config["student_model"] = resolved_student_model
+    config["resolved_student_device"] = resolved_student_device
+    manifest["config"]["requested_student_model"] = requested_student_model
+    manifest["config"]["student_model"] = resolved_student_model
+    manifest["config"]["resolved_student_device"] = resolved_student_device
+    if student_model_note:
+        manifest["config"]["student_model_note"] = student_model_note
     config["teacher_ollama_api_url"] = resolve_ollama_api_url(config)
     config["resolved_overlap_teacher_train"] = resolve_overlap_teacher_train(config)
     batch_llmfit = resolve_batch_llmfit(config, run_dir)
@@ -850,15 +981,43 @@ def main() -> int:
             }
     save_updated_manifest(manifest_path, manifest)
 
+    for label, payload in manifest["domains"].items():
+        if payload["distill"]["status"] == "completed":
+            continue
+        try:
+            source_validation = prevalidate_source_dataset(jobs[label])
+        except Exception as exc:  # noqa: BLE001
+            manifest["domains"][label]["source_validation"] = {
+                "status": "failed",
+                "validated_at": now_ts(),
+                "error": str(exc),
+            }
+            save_updated_manifest(manifest_path, manifest)
+            raise
+        manifest["domains"][label]["source_validation"] = source_validation
+        save_updated_manifest(manifest_path, manifest)
+        print(f"[OK] source {label}: rows={source_validation['source_rows']}")
+        if source_validation["missing_ids_fixed"]:
+            print(
+                f"[INFO] normalize {label}/source: "
+                f"inserted_ids={source_validation['missing_ids_fixed']}"
+            )
+
     print(f"[INFO] run_dir={run_dir}")
     print(f"[INFO] domains={' '.join(jobs.keys())}")
     print(f"[INFO] teacher={config['teacher_provider']}/{config['teacher_model']}")
+    print(
+        f"[INFO] student={config['student_model']} "
+        f"(requested={config.get('requested_student_model') or 'auto'})"
+    )
     print(f"[INFO] gpu_slots={config['max_parallel_gpu_trains']}")
     print(
         "[INFO] overlap_teacher_train="
         f"{config['resolved_overlap_teacher_train']} "
         f"gpu_job_vram_mb={config['resolved_gpu_job_vram_mb']}"
     )
+    if student_model_note:
+        print(student_model_note)
     if config["device"] == "gpu" and not config["skip_train"]:
         print(
             "[INFO] llmfit="
@@ -957,8 +1116,17 @@ def main() -> int:
                 }
                 save_updated_manifest(manifest_path, manifest)
                 print(
-                    f"[OK] distill {label}: merged={result['merged_rows']} retry_failures={result['retry_failures']}"
+                    f"[OK] distill {label}: "
+                    f"source={result['source_rows']} "
+                    f"distilled={result['distilled_rows']} "
+                    f"merged={result['merged_rows']} "
+                    f"retry_failures={result['retry_failures']}"
                 )
+                if result["distilled_missing_ids_fixed"]:
+                    print(
+                        f"[INFO] normalize {label}/distilled: "
+                        f"inserted_ids={result['distilled_missing_ids_fixed']}"
+                    )
                 if (
                     not config["skip_train"]
                     and not train_blocked_by_llmfit
@@ -984,16 +1152,19 @@ def main() -> int:
                     if child_llmfit is not None:
                         manifest["domains"][label]["train"]["llmfit"] = child_llmfit
                     if child_run is not None:
-                        training_info = (
-                            child_run.get("artifacts", {}) or {}
-                        ).get("training_info")
+                        training_info = (child_run.get("artifacts", {}) or {}).get(
+                            "training_info"
+                        )
                         if training_info is not None:
-                            manifest["domains"][label]["train"]["training_info"] = (
-                                training_info
-                            )
+                            manifest["domains"][label]["train"][
+                                "training_info"
+                            ] = training_info
                     print(f"[OK] train {label}")
                 else:
-                    if child_llmfit is not None and child_llmfit.get("status") == "rejected":
+                    if (
+                        child_llmfit is not None
+                        and child_llmfit.get("status") == "rejected"
+                    ):
                         train_blocked_by_llmfit = True
                         manifest["llmfit"] = child_llmfit
                         pending_trains.clear()
@@ -1075,7 +1246,9 @@ def main() -> int:
                 payload["train"] = {
                     "status": "blocked" if train_blocked_by_llmfit else "skipped",
                     "completed_at": now_ts(),
-                    "reason": batch_llmfit.get("reason") if train_blocked_by_llmfit else None,
+                    "reason": (
+                        batch_llmfit.get("reason") if train_blocked_by_llmfit else None
+                    ),
                     "llmfit": {
                         "status": batch_llmfit["status"],
                         "reason": batch_llmfit.get("reason"),

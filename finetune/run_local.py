@@ -57,6 +57,7 @@ DOMAINS = [
     "embedded",
     "platformio",
     "freecad",
+    "project",
 ]
 
 TEACHER_ONLY_STUDENT_PATTERNS = {

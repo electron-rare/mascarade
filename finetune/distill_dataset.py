@@ -39,6 +39,7 @@ DEFAULT_DOMAINS = [
     "embedded",
     "platformio",
     "freecad",
+    "project",
 ]
 DEFAULT_TEACHER_SYSTEM = """You create supervised fine-tuning data for a smaller local model.
 Return only valid JSON. Do not wrap the JSON in markdown fences.
@@ -56,6 +57,7 @@ DOMAIN_BRIEFS = {
     "embedded": "Bare-metal and RTOS embedded systems, debugging, interrupts, memory maps, toolchains, drivers.",
     "platformio": "PlatformIO, pio.ini, ESP32/ESP-IDF, Arduino, board definitions, build flags, libraries, flashing, debugging.",
     "freecad": "FreeCAD, parametric CAD, Python macros, workbenches, sketches, constraints, TechDraw, STEP export.",
+    "project": "Multi-repo engineering platform, backend/frontend services, orchestration, Docker, CI, scripts, runbooks, documentation, embedded tooling, architecture decisions.",
 }
 
 LOCAL_HF_PROVIDER = "local-hf"
@@ -115,15 +117,15 @@ class LocalHFTeacher:
             **common_kwargs,
         )
 
-    def _apply_chat_template(
-        self, teacher_system: str, user_prompt: str
-    ) -> str:
+    def _apply_chat_template(self, teacher_system: str, user_prompt: str) -> str:
         messages = []
         if teacher_system.strip():
             messages.append({"role": "system", "content": teacher_system})
         messages.append({"role": "user", "content": user_prompt})
 
-        if self.processor is not None and hasattr(self.processor, "apply_chat_template"):
+        if self.processor is not None and hasattr(
+            self.processor, "apply_chat_template"
+        ):
             return self.processor.apply_chat_template(
                 messages,
                 tokenize=False,
@@ -136,7 +138,12 @@ class LocalHFTeacher:
         )
 
     def generate_json(
-        self, *, teacher_system: str, user_prompt: str, max_tokens: int, temperature: float
+        self,
+        *,
+        teacher_system: str,
+        user_prompt: str,
+        max_tokens: int,
+        temperature: float,
     ) -> str:
         prompt = self._apply_chat_template(teacher_system, user_prompt)
         encoder = self.processor if self.processor is not None else self.tokenizer
@@ -157,9 +164,9 @@ class LocalHFTeacher:
             output_ids = self.model.generate(**inputs, **generate_kwargs)
         prompt_length = inputs["input_ids"].shape[1]
         generated_ids = output_ids[:, prompt_length:]
-        return self.tokenizer.batch_decode(
-            generated_ids, skip_special_tokens=True
-        )[0].strip()
+        return self.tokenizer.batch_decode(generated_ids, skip_special_tokens=True)[
+            0
+        ].strip()
 
 
 def get_local_hf_teacher(model_name: str) -> LocalHFTeacher:

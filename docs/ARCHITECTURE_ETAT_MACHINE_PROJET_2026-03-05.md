@@ -63,7 +63,7 @@ Etat: OK au moment du snapshot
 Logs systeme recents (`journalctl -p err`) montrent des alertes recurrentes sur des conteneurs en etat degrade/exited:
 
 - `zacus-ollama` (Exited)
-- `zacus-open-webui` (Exited 137)
+- ancienne interface chat locale (`Exited 137`)
 - `zacus-pinchtab` (Exited 137)
 - `ops-console` (degrade historique)
 - periodes d'"unhealthy" sur `zacus-studio-ai-gateway`, `zacus-redis`, `zacus-qdrant`, `zacus-postgres`, `zacus-zeroclaw`, `zacus-continue-ai`
@@ -121,7 +121,7 @@ Services declares (19):
 
 - coeur: `core`, `api`
 - outils: `litellm`, `n8n`, `langfuse`, `dify`, `clickhouse`, `comfyui`, `tts`, `stt`, `generate-audio`
-- infra: `ollama`, `open-webui`, `ops-console`, `redis`, `postgres`, `qdrant`, `grafana`, `prometheus`
+- infra: `ollama`, ancienne interface chat locale, `ops-console`, `redis`, `postgres`, `qdrant`, `grafana`, `prometheus`
 
 Evolutions recentes prises en compte:
 
@@ -138,7 +138,7 @@ Dependances explicites (extrait):
 - `n8n -> postgres`
 - `langfuse -> postgres + clickhouse`
 - `dify -> postgres + redis`
-- `open-webui -> ollama`
+- ancienne interface chat locale -> `ollama`
 
 Source de verite: `scripts/services.sh`
 Donnee consolidee: `docs/dependency_tree.json`
@@ -200,4 +200,3 @@ Projet Mascarade:
 - deploiement: `deploy/`
 - backend: `core/` + `api/`
 - donnees architecture: `docs/dependency_tree.json`
-
