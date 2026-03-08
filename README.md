@@ -69,6 +69,8 @@ Mascarade fait partie d'un ecosysteme de 5 repos :
 scripts/sync_crazy_life.sh status          # Etat de sync
 scripts/sync_crazy_life.sh push            # web/ -> crazy_life
 scripts/sync_crazy_life.sh pull            # crazy_life/main -> web/
+npm --prefix web run build                 # build local dans web/dist
+npm --prefix web run build:api-public      # refresh explicite du snapshot api/public
 ```
 
 ---
@@ -709,6 +711,11 @@ bash scripts/test_python.sh
 ```
 
 Le chemin supporte pour les tests Python du repo est `core/.venv`. Ne lance pas `python3 -m pytest` depuis l'hote sans passer par ce venv.
+Pour une verification type "machine fraiche" sans toucher au venv principal:
+
+```bash
+bash scripts/test_python.sh --bootstrap --venv-dir /tmp/mascarade-core-venv
+```
 
 ---
 
