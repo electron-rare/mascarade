@@ -88,6 +88,8 @@ export default function OpsHub() {
     const ollamaSurface = findPublicSurface(data, "ollama");
     const firecrawlSurface = findPublicSurface(data, "firecrawl");
     const mem0Surface = findPublicSurface(data, "mem0");
+    const zeroclawSurface = findPublicSurface(data, "zeroclaw");
+    const langgraphSurface = findPublicSurface(data, "langgraph");
     return [
       { label: "API health", href: `${origin}/health`, note: "gateway health endpoint" },
       { label: "Ops monitor", href: `${origin}/api/ops/monitor`, note: "consolidated runtime snapshot" },
@@ -128,6 +130,16 @@ export default function OpsHub() {
         label: "Firecrawl proxy",
         href: firecrawlSurface.url,
         note: "streamable MCP endpoint behind edge-proxy",
+      } : null,
+      zeroclawSurface?.url ? {
+        label: "ZeroClaw proxy",
+        href: zeroclawSurface.url,
+        note: "operator lane and integration index behind edge-proxy; runtime stays on-demand",
+      } : null,
+      langgraphSurface?.url ? {
+        label: "LangGraph proxy",
+        href: langgraphSurface.url,
+        note: "graph orchestration runbook behind edge-proxy; no always-on runtime",
       } : null,
     ].filter((link): link is { label: string; href: string; note: string } => Boolean(link));
   }, [data]);
@@ -210,6 +222,8 @@ export default function OpsHub() {
   const mem0 = services.find((service) => service.name === "mem0");
   const mem0Surface = findPublicSurface(data, "mem0");
   const ollamaSurface = findPublicSurface(data, "ollama");
+  const zeroclawSurface = findPublicSurface(data, "zeroclaw");
+  const langgraphSurface = findPublicSurface(data, "langgraph");
   const proxyPublic = data.public.public_bind;
   const proxyAuthReady = data.public.auth_configured;
   const mcp = summary.data?.mcp;
@@ -390,6 +404,12 @@ export default function OpsHub() {
                 </Badge>
                 <Badge color={tempoReady ? "accent" : "warning"}>
                   tempo {tempoReady ? "ready" : "watch"}
+                </Badge>
+                <Badge color={zeroclawSurface?.ok ? "accent" : "warning"}>
+                  zeroclaw {zeroclawSurface?.ok ? "ready" : "watch"}
+                </Badge>
+                <Badge color={langgraphSurface?.ok ? "accent" : "warning"}>
+                  langgraph {langgraphSurface?.ok ? "ready" : "watch"}
                 </Badge>
               </div>
               <div className="space-y-3">

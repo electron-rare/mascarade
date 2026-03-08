@@ -47,6 +47,7 @@ Note de contexte multi-repo:
 - [x] `ops-agent`, Loki, Promtail, OTel Collector, Prometheus, Grafana et Langfuse verifies
 - [x] `Tempo` comme backend traces Grafana et `blackbox-exporter` pour les surfaces sans `/metrics`
 - [x] `Grafana` et `Langfuse` accessibles via `edge-proxy` avec auth operateur dediee
+- [x] `ZeroClaw` installe nativement sur la VM, demarrable a la demande, et `ZeroClaw` / `LangGraph` conserves comme surfaces operateur proxifiees
 
 ## 5. Backlogs encore utiles
 
@@ -59,4 +60,4 @@ Note de contexte multi-repo:
 1. Ne pas rouvrir de nouveau lot local par defaut: le socle runtime/ops est livre.
 2. Garder `Agent Zero` hors chemin critique.
 3. Ne rouvrir les E2E differes que sur besoin explicite.
-4. Traiter seulement les restes externes ou optionnels: `DNS/ACME` public, secrets providers, setup Mac local.
+4. Traiter seulement les restes externes ou optionnels: secrets providers, setup Mac local.

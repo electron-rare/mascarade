@@ -398,6 +398,7 @@ services:
     volumes:
       - edge-proxy-certs:/etc/nginx/certs
       - edge-proxy-auth:/etc/nginx/auth
+      - ../Kill_LIFE/tools/ai/integrations:/srv/kill-life/integrations:ro
     depends_on:
       api:
         condition: service_started

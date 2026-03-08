@@ -509,6 +509,104 @@ server {
 
 server {
     listen 80;
+    server_name ${EDGE_PROXY_ZEROCLAW_SERVER_NAME};
+
+    root /srv/kill-life/integrations/zeroclaw;
+    index index.html;
+
+    location = /healthz {
+        access_log off;
+        add_header Content-Type text/plain;
+        return 200 'ok';
+    }
+
+    location / {
+        auth_basic "Mascarade operator tools";
+        auth_basic_user_file /etc/nginx/auth/ops-tools.htpasswd;
+        add_header Cache-Control "no-store";
+        try_files $uri $uri/ /index.html;
+    }
+}
+
+server {
+    listen 443 ssl;
+    server_name ${EDGE_PROXY_ZEROCLAW_SERVER_NAME};
+
+    root /srv/kill-life/integrations/zeroclaw;
+    index index.html;
+
+    ssl_certificate /etc/nginx/certs/tls.crt;
+    ssl_certificate_key /etc/nginx/certs/tls.key;
+    ssl_session_timeout 1d;
+    ssl_session_cache shared:SSL:10m;
+    ssl_session_tickets off;
+    ssl_protocols TLSv1.2 TLSv1.3;
+
+    location = /healthz {
+        access_log off;
+        add_header Content-Type text/plain;
+        return 200 'ok';
+    }
+
+    location / {
+        auth_basic "Mascarade operator tools";
+        auth_basic_user_file /etc/nginx/auth/ops-tools.htpasswd;
+        add_header Cache-Control "no-store";
+        try_files $uri $uri/ /index.html;
+    }
+}
+
+server {
+    listen 80;
+    server_name ${EDGE_PROXY_LANGGRAPH_SERVER_NAME};
+
+    root /srv/kill-life/integrations/langgraph;
+    index index.html;
+
+    location = /healthz {
+        access_log off;
+        add_header Content-Type text/plain;
+        return 200 'ok';
+    }
+
+    location / {
+        auth_basic "Mascarade operator tools";
+        auth_basic_user_file /etc/nginx/auth/ops-tools.htpasswd;
+        add_header Cache-Control "no-store";
+        try_files $uri $uri/ /index.html;
+    }
+}
+
+server {
+    listen 443 ssl;
+    server_name ${EDGE_PROXY_LANGGRAPH_SERVER_NAME};
+
+    root /srv/kill-life/integrations/langgraph;
+    index index.html;
+
+    ssl_certificate /etc/nginx/certs/tls.crt;
+    ssl_certificate_key /etc/nginx/certs/tls.key;
+    ssl_session_timeout 1d;
+    ssl_session_cache shared:SSL:10m;
+    ssl_session_tickets off;
+    ssl_protocols TLSv1.2 TLSv1.3;
+
+    location = /healthz {
+        access_log off;
+        add_header Content-Type text/plain;
+        return 200 'ok';
+    }
+
+    location / {
+        auth_basic "Mascarade operator tools";
+        auth_basic_user_file /etc/nginx/auth/ops-tools.htpasswd;
+        add_header Cache-Control "no-store";
+        try_files $uri $uri/ /index.html;
+    }
+}
+
+server {
+    listen 80;
     server_name ${DIFY_PROXY_SERVER_NAME};
 
     set $dify_web_upstream http://dify-web:3000;

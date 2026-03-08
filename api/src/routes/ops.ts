@@ -296,6 +296,12 @@ const EDGE_PROXY_MEM0_SERVER_NAME = (
 const EDGE_PROXY_FIRECRAWL_SERVER_NAME = (
   process.env.EDGE_PROXY_FIRECRAWL_SERVER_NAME || `firecrawl.${EDGE_PROXY_SERVER_NAME}`
 ).trim();
+const EDGE_PROXY_ZEROCLAW_SERVER_NAME = (
+  process.env.EDGE_PROXY_ZEROCLAW_SERVER_NAME || `zeroclaw.${EDGE_PROXY_SERVER_NAME}`
+).trim();
+const EDGE_PROXY_LANGGRAPH_SERVER_NAME = (
+  process.env.EDGE_PROXY_LANGGRAPH_SERVER_NAME || `langgraph.${EDGE_PROXY_SERVER_NAME}`
+).trim();
 const GRAFANA_PUBLIC_ORIGIN = (
   process.env.GRAFANA_PUBLIC_ORIGIN || `https://${EDGE_PROXY_GRAFANA_SERVER_NAME}`
 ).replace(/\/+$/, "");
@@ -1072,6 +1078,20 @@ async function collectMonitorSnapshot(): Promise<MonitorSnapshot> {
       [400],
       proxyAuthHeaders(EDGE_PROXY_FIRECRAWL_SERVER_NAME),
     ),
+    timedProbe(
+      "zeroclaw-proxy",
+      "http://edge-proxy/",
+      1800,
+      [200],
+      proxyAuthHeaders(EDGE_PROXY_ZEROCLAW_SERVER_NAME),
+    ),
+    timedProbe(
+      "langgraph-proxy",
+      "http://edge-proxy/",
+      1800,
+      [200],
+      proxyAuthHeaders(EDGE_PROXY_LANGGRAPH_SERVER_NAME),
+    ),
   ]);
 
   const [ollama, qdrant, coreMetrics] = await Promise.all([
@@ -1100,6 +1120,8 @@ async function collectMonitorSnapshot(): Promise<MonitorSnapshot> {
   const prometheusProxyProbe = probes.find((probe) => probe.name === "prometheus-proxy");
   const mem0ProxyProbe = probes.find((probe) => probe.name === "mem0-proxy");
   const firecrawlProxyProbe = probes.find((probe) => probe.name === "firecrawl-proxy");
+  const zeroclawProxyProbe = probes.find((probe) => probe.name === "zeroclaw-proxy");
+  const langgraphProxyProbe = probes.find((probe) => probe.name === "langgraph-proxy");
 
   return {
     timestamp: new Date().toISOString(),
@@ -1198,6 +1220,28 @@ async function collectMonitorSnapshot(): Promise<MonitorSnapshot> {
           latency_ms: firecrawlProxyProbe?.latency_ms ?? 0,
           note: "streamable MCP endpoint behind edge-proxy basic auth",
           ...(firecrawlProxyProbe?.error ? { error: firecrawlProxyProbe.error } : {}),
+        },
+        {
+          name: "zeroclaw",
+          host: EDGE_PROXY_ZEROCLAW_SERVER_NAME,
+          url: `https://${EDGE_PROXY_ZEROCLAW_SERVER_NAME}/`,
+          protected: true,
+          ok: zeroclawProxyProbe?.ok ?? false,
+          status: zeroclawProxyProbe?.status ?? 0,
+          latency_ms: zeroclawProxyProbe?.latency_ms ?? 0,
+          note: "ZeroClaw operator lane and local integration runbooks behind edge-proxy basic auth; live runtime stays on-demand",
+          ...(zeroclawProxyProbe?.error ? { error: zeroclawProxyProbe.error } : {}),
+        },
+        {
+          name: "langgraph",
+          host: EDGE_PROXY_LANGGRAPH_SERVER_NAME,
+          url: `https://${EDGE_PROXY_LANGGRAPH_SERVER_NAME}/`,
+          protected: true,
+          ok: langgraphProxyProbe?.ok ?? false,
+          status: langgraphProxyProbe?.status ?? 0,
+          latency_ms: langgraphProxyProbe?.latency_ms ?? 0,
+          note: "LangGraph operator overlay runbook behind edge-proxy basic auth; no always-on runtime required",
+          ...(langgraphProxyProbe?.error ? { error: langgraphProxyProbe.error } : {}),
         },
       ],
     },
