@@ -307,6 +307,58 @@ def load_resume_manifest(resume_path: Path) -> dict:
     return json.loads(manifest_path.read_text(encoding="utf-8"))
 
 
+def pid_is_running(pid: int | None) -> bool:
+    if pid is None or pid <= 0:
+        return False
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    return True
+
+
+def reconcile_resume_manifest(manifest: dict, jobs: dict[str, DomainJob]) -> bool:
+    changed = False
+    for label, payload in manifest["domains"].items():
+        train = payload.get("train", {})
+        if train.get("status") != "running":
+            continue
+
+        job = jobs[label]
+        child_run = load_json_if_exists(job.train_run_manifest) or {}
+        child_status = child_run.get("status")
+        child_llmfit = child_run.get("llmfit")
+
+        if child_status == "completed":
+            payload["train"] = {
+                "status": "completed",
+                "completed_at": child_run.get("updated_at") or now_ts(),
+                "returncode": (child_run.get("result") or {}).get("returncode", 0),
+                "run_manifest_path": str(job.train_run_manifest),
+            }
+            if child_llmfit is not None:
+                payload["train"]["llmfit"] = child_llmfit
+            training_info = (child_run.get("artifacts", {}) or {}).get("training_info")
+            if training_info is not None:
+                payload["train"]["training_info"] = training_info
+            changed = True
+            continue
+
+        pid = train.get("pid")
+        pid_int = int(pid) if isinstance(pid, int) or str(pid).isdigit() else None
+        if pid_is_running(pid_int):
+            continue
+
+        payload["train"] = {
+            "status": "pending",
+            "llmfit": train.get("llmfit"),
+        }
+        changed = True
+    return changed
+
+
 def jobs_from_manifest(manifest: dict) -> dict[str, DomainJob]:
     jobs: dict[str, DomainJob] = {}
     for label, payload in manifest["domains"].items():
@@ -930,6 +982,8 @@ def main() -> int:
 
     run_dir = Path(manifest["run_dir"])
     jobs = jobs_from_manifest(manifest)
+    if args.resume and reconcile_resume_manifest(manifest, jobs):
+        save_updated_manifest(manifest_path, manifest)
     config = manifest["config"]
     config["api_urls"] = config.get("api_urls") or DEFAULT_API_URLS
     config["teacher_system_path"] = config.get("teacher_system_path")
