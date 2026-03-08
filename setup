@@ -30,9 +30,11 @@ ENABLE_CLUSTER=false
 RUN_CAD_PLUGINS=false
 RUN_CAD_DOCTOR=false
 RUN_CAD_STACK=false
+RUN_CAD_SMOKE=false
 CAD_PLUGINS_EXPLICIT=false
 CAD_DOCTOR_EXPLICIT=false
 CAD_STACK_EXPLICIT=false
+CAD_SMOKE_EXPLICIT=false
 
 # Initialisation - ORDRE CORRIGÉ
 source "$SCRIPT_DIR/scripts/lib.sh"
@@ -104,6 +106,7 @@ Options:
       --cad-plugins         Installe les plugins KiCad configures dans le .env
       --cad-doctor          Verifie les plugins KiCad configures apres installation
       --cad-stack           Demarre la stack CAD/KiCad dediee apres le setup principal
+      --cad-smoke           Lance le smoke test CAD complet (doctor + MCP + plugins)
       --smoke-generate-audio  Lance un vrai POST /generate apres demarrage (opt-in)
       --force-clean          Nettoyage complet avant installation
 
@@ -117,7 +120,7 @@ Profils:
 
 Services disponibles:
   core, api, litellm, n8n, langfuse, dify, clickhouse, comfyui, tts, stt, generate-audio (AudioCraft CPU/GPU),
-  ollama, open-webui, edge-proxy, ops-agent, redis, postgres, qdrant, grafana, prometheus, loki, promtail, otel-collector
+  ollama, edge-proxy, ops-agent, redis, postgres, qdrant, grafana, prometheus, loki, promtail, otel-collector
 HELP
 }
 
@@ -246,6 +249,10 @@ parse_setup_args() {
             --cad-stack)
                 RUN_CAD_STACK=true
                 CAD_STACK_EXPLICIT=true
+                ;;
+            --cad-smoke)
+                RUN_CAD_SMOKE=true
+                CAD_SMOKE_EXPLICIT=true
                 ;;
             --smoke-generate-audio)
                 SMOKE_GENERATE_AUDIO=true
@@ -420,6 +427,23 @@ run_cad_stack_action() {
     return 1
 }
 
+run_cad_smoke_action() {
+    local strict="${1:-false}"
+
+    log "Smoke test CAD..."
+    if "$REPO_DIR/scripts/cad_stack.sh" smoke; then
+        ok "Smoke test CAD OK"
+        return 0
+    fi
+
+    if [[ "$strict" == true ]]; then
+        err "Smoke test CAD echoue"
+        return 1
+    fi
+    warn "Smoke test CAD echoue"
+    return 1
+}
+
 # Correction de confirm_or_auto pour propager le code de retour
 confirm_or_auto() {
     local prompt="$1"
@@ -493,16 +517,13 @@ profile_services_csv() {
             csv="core,api"
             ;;
         standard)
-            csv="core,api,edge-proxy,redis,postgres,qdrant,ollama,open-webui,grafana,prometheus,litellm"
+            csv="core,api,edge-proxy,redis,postgres,qdrant,ollama,grafana,prometheus,litellm"
             ;;
         full)
-            csv="core,api,edge-proxy,litellm,n8n,langfuse,dify,clickhouse,comfyui,tts,stt,generate-audio,ollama,open-webui,redis,postgres,qdrant,grafana,prometheus"
+            csv="core,api,edge-proxy,litellm,n8n,langfuse,dify,clickhouse,comfyui,tts,stt,generate-audio,ollama,redis,postgres,qdrant,grafana,prometheus"
             ;;
         apple-silicon)
             csv="core,api,edge-proxy"
-            if has_native_ollama; then
-                csv="${csv},open-webui"
-            fi
             ;;
         *)
             err "Profil inconnu: '$profile'"
@@ -1262,6 +1283,9 @@ if [[ "$AUTO_CONFIRM" != true ]]; then
     if [[ "$RUN_CAD_STACK" != true ]]; then
         confirm "Demarrer la stack CAD/KiCad dediee ?" && RUN_CAD_STACK=true || true
     fi
+    if [[ "$RUN_CAD_SMOKE" != true && "$RUN_CAD_STACK" == true ]]; then
+        confirm "Lancer le smoke test CAD (doctor + MCP + plugins) ?" && RUN_CAD_SMOKE=true || true
+    fi
 fi
 
 if [[ "$RUN_CAD_PLUGINS" == true ]]; then
@@ -1280,6 +1304,12 @@ if [[ "$RUN_CAD_STACK" == true ]]; then
     run_cad_stack_action "$CAD_STACK_EXPLICIT"
 else
     info "Stack CAD ignoree"
+fi
+
+if [[ "$RUN_CAD_SMOKE" == true ]]; then
+    run_cad_smoke_action "$CAD_SMOKE_EXPLICIT"
+else
+    info "Smoke test CAD ignore"
 fi
 
 # ── Resume ──
