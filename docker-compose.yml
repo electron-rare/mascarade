@@ -216,9 +216,7 @@ services:
       FIRECRAWL_API_KEY: ${FIRECRAWL_API_KEY:-}
       FIRECRAWL_API_URL: ${FIRECRAWL_API_URL:-}
     healthcheck:
-      test:
-        - CMD-SHELL
-        - IP=$$(hostname -i | awk '{print $$1}') && node -e 'if (!process.env.FIRECRAWL_API_KEY && !process.env.FIRECRAWL_API_URL) process.exit(1); const net = require("net"); const host = process.argv[1]; const socket = net.connect(3000, host); socket.on("connect", () => { socket.end(); process.exit(0); }); socket.on("error", () => process.exit(1)); setTimeout(() => process.exit(1), 3000);' "$$IP"
+      test: ["CMD-SHELL", "IP=$$(hostname -i | cut -d' ' -f1) && node -e \"if (!process.env.FIRECRAWL_API_KEY && !process.env.FIRECRAWL_API_URL) process.exit(1); const net = require('net'); const socket = net.connect(3000, process.argv[1]); socket.on('connect', () => { socket.end(); process.exit(0); }); socket.on('error', () => process.exit(1)); setTimeout(() => process.exit(1), 3000);\" \"$$IP\""]
       interval: 15s
       timeout: 5s
       retries: 10

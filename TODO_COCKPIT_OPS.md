@@ -53,6 +53,7 @@ Recale sur le runtime reel le 8 mars 2026.
 - [x] `ops-agent` expose `/metrics` pour Prometheus
 - [x] Grafana datasources provisionnees en code (`Loki`, `Prometheus`) et chargees au demarrage
 - [x] Dashboard Grafana provisionne en code: `Mascarade Ops Overview`
+- [x] Smoke OTLP versionne: `scripts/smoke_otel_loki.sh`
 
 ### Promtail
 - [x] Parsing JSON structure enrichi: `severity`, `source`, `run_id`, `agent_name`, `event_type`, `mode`, `provider`, `model`, `routing_role`, `routing_provider`, `routing_model`
@@ -66,7 +67,6 @@ Recale sur le runtime reel le 8 mars 2026.
 ### OTel Collector
 - [ ] Sortir `traces` et `metrics` du mode `debug` vers un backend reel si l'on veut les conserver
 - [ ] Decider si le warning de securite `0.0.0.0` doit etre accepte tel quel (bind hote deja borne en `127.0.0.1`) ou davantage restreint
-- [ ] Ajouter un smoke OTLP automatise et versionne pour eviter les regressions du collector
 
 ### Grafana
 - [ ] Etendre le lot de dashboards au-dela du cockpit de base (par service ou par domaine)
@@ -93,7 +93,6 @@ Recale sur le runtime reel le 8 mars 2026.
 ## 6. Ordre recommande
 
 1. Configurer le vrai exporter OTel Collector (remplacer le stub debug).
-2. Ajouter un smoke OTLP automatise et versionne.
-3. Etendre les dashboards Grafana utiles pour les services Mascarade.
-4. Verifier la cardinalite Loki sur trafic reel et ajuster si besoin.
-5. Garder `AgentSight` en complement optionnel, en dernier.
+2. Etendre les dashboards Grafana utiles pour les services Mascarade.
+3. Verifier la cardinalite Loki sur trafic reel et ajuster si besoin.
+4. Garder `AgentSight` en complement optionnel, en dernier.
