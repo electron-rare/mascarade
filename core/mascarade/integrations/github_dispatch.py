@@ -17,6 +17,10 @@ from mascarade.config import is_secret_configured
 DEFAULT_KILL_LIFE_ROOT = Path(os.getenv("KILL_LIFE_ROOT", "/home/clems/Kill_LIFE")).resolve()
 DEFAULT_GITHUB_REPO = os.getenv("KILL_LIFE_GITHUB_REPO", "electron-rare/Kill_LIFE")
 DEFAULT_GITHUB_REF = os.getenv("KILL_LIFE_GITHUB_REF", "main")
+DEFAULT_MASCARADE_API_BASE_URL = os.getenv(
+    "MASCARADE_API_BASE_URL",
+    f"http://127.0.0.1:{os.getenv('API_PORT', '3100')}",
+).rstrip("/")
 GITHUB_API_BASE_URL = "https://api.github.com"
 SAFE_INPUT_KEY_RE = re.compile(r"^[a-zA-Z0-9_.-]{1,64}$")
 ALLOWED_GITHUB_WORKFLOWS = (
@@ -52,6 +56,24 @@ def _trim_excerpt(value: str, limit: int = 400) -> str:
     if len(trimmed) <= limit:
         return trimmed
     return f"{trimmed[:limit]}..."
+
+
+def normalized_github_dispatch_auth_mode() -> str:
+    mode = os.getenv("GITHUB_DISPATCH_AUTH_MODE", "token").strip().lower()
+    return mode if mode in {"token", "app"} else "token"
+
+
+def github_dispatch_auth_configured() -> bool:
+    if normalized_github_dispatch_auth_mode() == "app":
+        return bool(
+            os.getenv("GITHUB_APP_ID", "").strip()
+            and is_secret_configured(os.getenv("GITHUB_APP_PRIVATE_KEY", ""))
+            and os.getenv("GITHUB_APP_INSTALLATION_ID", "").strip()
+        )
+    return bool(
+        is_secret_configured(os.getenv("KILL_LIFE_GITHUB_TOKEN", ""))
+        or is_secret_configured(os.getenv("GITHUB_TOKEN", ""))
+    )
 
 
 def list_allowlisted_workflows() -> list[dict[str, str]]:
@@ -101,9 +123,11 @@ class GitHubDispatchClient:
         state_dir: Path | None = None,
         http_client: httpx.AsyncClient | None = None,
     ) -> None:
+        self.auth_mode = normalized_github_dispatch_auth_mode()
         self.api_token = (
             api_token or os.getenv("KILL_LIFE_GITHUB_TOKEN") or os.getenv("GITHUB_TOKEN", "")
-        )
+        ).strip()
+        self.api_base_url = DEFAULT_MASCARADE_API_BASE_URL
         self.repo = repo
         self.default_ref = default_ref
         self.state_dir = state_dir or (
@@ -128,13 +152,56 @@ class GitHubDispatchClient:
         if self._owns_http_client:
             await self._http_client.aclose()
 
-    def _require_token(self) -> str:
+    def _auth_configured(self) -> bool:
+        if self.auth_mode == "app":
+            return github_dispatch_auth_configured()
+        return is_secret_configured(self.api_token)
+
+    async def _resolve_api_token(self) -> str:
+        if self.auth_mode == "app":
+            payload = await self._request_installation_token()
+            token = str(payload.get("token") or "").strip()
+            if not is_secret_configured(token):
+                raise GitHubDispatchAuthError(
+                    "GitHub App configured but no installation token was returned"
+                )
+            self.api_token = token
+            if hasattr(self._http_client, "headers"):
+                self._http_client.headers["Authorization"] = f"Bearer {token}"
+            return token
+
         token = self.api_token.strip()
         if not is_secret_configured(token):
             raise GitHubDispatchAuthError(
                 "GitHub dispatch non configure (KILL_LIFE_GITHUB_TOKEN ou GITHUB_TOKEN manquant)"
             )
         return token
+
+    async def _request_installation_token(self) -> dict[str, Any]:
+        api_key = os.getenv("MASCARADE_API_KEY", "").strip()
+        if not is_secret_configured(api_key):
+            raise GitHubDispatchAuthError(
+                "GitHub App mode requires MASCARADE_API_KEY for local token refresh"
+            )
+
+        url = f"{self.api_base_url}/api/settings/runtime-secrets/github-dispatch/app-token"
+        async with httpx.AsyncClient(timeout=20.0) as client:
+            response = await client.post(
+                url,
+                headers={
+                    "Authorization": f"Bearer {api_key}",
+                    "Accept": "application/json",
+                },
+            )
+        if response.status_code != 200:
+            raise GitHubDispatchAuthError(
+                "GitHub App token refresh failed "
+                f"({response.status_code}): {_trim_excerpt(response.text)}"
+            )
+        payload = response.json()
+        if not isinstance(payload, dict):
+            raise GitHubDispatchAuthError("GitHub App token refresh returned invalid payload")
+        return payload
 
     def _record_path(self, dispatch_id: str) -> Path:
         safe_id = dispatch_id.strip().lower()
@@ -164,7 +231,7 @@ class GitHubDispatchClient:
         ref: str | None = None,
         inputs: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
-        self._require_token()
+        await self._resolve_api_token()
         safe_workflow = ensure_allowlisted_workflow(workflow_file)
         target_ref = ref.strip() if isinstance(ref, str) and ref.strip() else self.default_ref
         payload = {
@@ -202,7 +269,7 @@ class GitHubDispatchClient:
         if workflow_run is not None:
             record["workflow_run"] = workflow_run
             record["status"] = self._run_status(workflow_run)
-        elif not is_secret_configured(self.api_token):
+        elif not self._auth_configured():
             record["status"] = record.get("status") or "accepted"
             record["note"] = "GitHub token absent; returning local dispatch state only"
         else:
@@ -213,8 +280,10 @@ class GitHubDispatchClient:
         return record
 
     async def _refresh_workflow_run(self, record: dict[str, Any]) -> dict[str, Any] | None:
-        if not is_secret_configured(self.api_token):
+        if not self._auth_configured():
             return record.get("workflow_run")
+
+        await self._resolve_api_token()
 
         existing = record.get("workflow_run")
         if isinstance(existing, dict) and isinstance(existing.get("run_id"), int):
@@ -295,10 +364,13 @@ __all__ = [
     "ALLOWED_GITHUB_WORKFLOWS",
     "DEFAULT_GITHUB_REF",
     "DEFAULT_GITHUB_REPO",
+    "DEFAULT_MASCARADE_API_BASE_URL",
     "GitHubDispatchAuthError",
     "GitHubDispatchClient",
     "GitHubDispatchError",
     "ensure_allowlisted_workflow",
+    "github_dispatch_auth_configured",
     "list_allowlisted_workflows",
+    "normalized_github_dispatch_auth_mode",
     "sanitize_github_inputs",
 ]
