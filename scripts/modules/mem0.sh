@@ -4,6 +4,7 @@
 module_mem0_config() {
   MEM0_PORT=$(input_value "Port Mem0 / OpenMemory" "${MEM0_PORT:-3300}")
   MEM0_USER=$(input_value "Utilisateur Mem0 / OpenMemory" "${MEM0_USER:-mascarade}")
+  MEM0_OPENAI_API_KEY=$(input_value "API key OpenAI-compatible pour Mem0" "${MEM0_OPENAI_API_KEY:-sk-mem0-local}")
   MEM0_OPENAI_BASE_URL=$(input_value "Base URL OpenAI-compatible pour Mem0" "${MEM0_OPENAI_BASE_URL:-http://litellm:4000}")
   MEM0_QDRANT_HOST=$(input_value "Hote Qdrant pour Mem0" "${MEM0_QDRANT_HOST:-qdrant}")
   MEM0_QDRANT_PORT=$(input_value "Port Qdrant pour Mem0" "${MEM0_QDRANT_PORT:-6333}")
@@ -21,7 +22,8 @@ module_mem0_compose() {
       - .env
     environment:
       USER: ${MEM0_USER:-mascarade}
-      OPENAI_API_KEY: ${LITELLM_MASTER_KEY:-}
+      OPENAI_API_KEY: ${MEM0_OPENAI_API_KEY:-sk-mem0-local}
+      OPENAI_API_BASE: ${MEM0_OPENAI_BASE_URL:-http://litellm:4000}
       OPENAI_BASE_URL: ${MEM0_OPENAI_BASE_URL:-http://litellm:4000}
       QDRANT_HOST: ${MEM0_QDRANT_HOST:-qdrant}
       QDRANT_PORT: ${MEM0_QDRANT_PORT:-6333}
