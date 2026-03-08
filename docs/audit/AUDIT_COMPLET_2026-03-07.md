@@ -30,7 +30,7 @@ Legende:
 ### Firecrawl
 | Item | TODO | Etat reel |
 |------|------|-----------|
-| Deploiement | PARTIEL | Support repo en cours d'integration autour de `mcp/firecrawl` |
+| Deploiement | FAIT | Service deploie dans la stack Mascarade et runtime `healthy` |
 | Image alternative | FAIT | Image officielle retenue: `mcp/firecrawl` |
 
 ### Mem0

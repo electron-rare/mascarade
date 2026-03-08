@@ -210,6 +210,7 @@ GITHUB_APP_PRIVATE_KEY=
 GITHUB_APP_INSTALLATION_ID=
 
 # Firecrawl MCP — integration optionnelle
+FIRECRAWL_HOST=0.0.0.0
 FIRECRAWL_API_KEY=fc_xxxxx
 FIRECRAWL_API_URL=                     # optionnel, seulement si vous ciblez une API Firecrawl self-hosted
 

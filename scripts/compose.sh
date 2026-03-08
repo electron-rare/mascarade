@@ -259,6 +259,7 @@ write_env_file() {
         if svc_selected "firecrawl"; then
             echo "# ── Firecrawl MCP ──"
             echo "FIRECRAWL_PORT=\"${FIRECRAWL_PORT:-3400}\""
+            echo "FIRECRAWL_HOST=\"${FIRECRAWL_HOST:-0.0.0.0}\""
             echo "FIRECRAWL_API_KEY=\"${FIRECRAWL_API_KEY:-}\""
             echo "FIRECRAWL_API_URL=\"${FIRECRAWL_API_URL:-}\""
             echo ""
