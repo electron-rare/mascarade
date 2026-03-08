@@ -15,6 +15,7 @@ import urllib.error
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
+from importlib.util import find_spec
 from pathlib import Path
 
 from sharegpt_utils import (
@@ -65,6 +66,27 @@ _LOCAL_HF_LOAD_LOCK = threading.Lock()
 _LOCAL_HF_GENERATE_LOCK = threading.Lock()
 
 
+def supports_bf16(torch_module) -> bool:
+    return bool(torch_module.cuda.is_available() and torch_module.cuda.is_bf16_supported())
+
+
+def resolve_local_hf_compute_dtype(torch_module):
+    return torch_module.bfloat16 if supports_bf16(torch_module) else torch_module.float16
+
+
+def resolve_local_hf_attention_implementation(torch_module) -> str | None:
+    requested = os.environ.get("MASCARADE_ATTN_IMPL", "auto").strip().lower()
+    if requested in {"", "auto"}:
+        if find_spec("flash_attn") is not None:
+            return "flash_attention_2"
+        if torch_module.cuda.is_available():
+            return "sdpa"
+        return None
+    if requested in {"none", "off"}:
+        return None
+    return requested
+
+
 @dataclass
 class EndpointConfig:
     base_url: str
@@ -80,6 +102,11 @@ class LocalHFTeacher:
 
         self.model_name = model_name
         self.torch = torch
+        if torch.cuda.is_available():
+            torch.backends.cuda.matmul.allow_tf32 = True
+            torch.backends.cudnn.allow_tf32 = True
+            if hasattr(torch, "set_float32_matmul_precision"):
+                torch.set_float32_matmul_precision("high")
         self.config = AutoConfig.from_pretrained(model_name, trust_remote_code=True)
         self.model_type = getattr(self.config, "model_type", None)
         self.processor = None
@@ -99,18 +126,48 @@ class LocalHFTeacher:
     def _load_model(self):
         from transformers import AutoModelForCausalLM
 
+        target_device = os.environ.get("MASCARADE_LOCAL_HF_DEVICE", "").strip()
+        if not target_device:
+            target_device = "auto"
+
         common_kwargs = {
-            "device_map": "auto",
             "trust_remote_code": True,
+            "low_cpu_mem_usage": True,
         }
+        if target_device != "cpu" and self.torch.cuda.is_available():
+            common_kwargs["dtype"] = resolve_local_hf_compute_dtype(self.torch)
+            attn_implementation = resolve_local_hf_attention_implementation(self.torch)
+            if attn_implementation is not None:
+                common_kwargs["attn_implementation"] = attn_implementation
+        if target_device == "auto":
+            common_kwargs["device_map"] = "auto"
+        elif target_device == "cpu":
+            common_kwargs["device_map"] = "cpu"
+        else:
+            common_kwargs["device_map"] = {"": target_device}
         if self.model_type == "qwen3_5":
             from transformers import Qwen3_5ForConditionalGeneration
 
-            return Qwen3_5ForConditionalGeneration.from_pretrained(
+            loader = Qwen3_5ForConditionalGeneration
+        else:
+            loader = AutoModelForCausalLM
+
+        try:
+            return loader.from_pretrained(
                 self.model_name,
                 **common_kwargs,
             )
-        return AutoModelForCausalLM.from_pretrained(
+        except TypeError:
+            if "attn_implementation" not in common_kwargs:
+                raise
+        except Exception as exc:
+            if common_kwargs.get("attn_implementation") != "flash_attention_2":
+                raise
+            if "flash_attention_2" not in str(exc).lower():
+                raise
+
+        common_kwargs.pop("attn_implementation", None)
+        return loader.from_pretrained(
             self.model_name,
             **common_kwargs,
         )
@@ -644,6 +701,11 @@ def main() -> int:
         "--teacher-model", default=None, help="Specific teacher model override"
     )
     parser.add_argument(
+        "--local-hf-device",
+        default=os.environ.get("MASCARADE_LOCAL_HF_DEVICE"),
+        help="Explicit device target for local-hf teachers (auto, cpu, cuda:0, ...)",
+    )
+    parser.add_argument(
         "--strategy",
         default="best",
         help="Routing strategy when provider is not forced",
@@ -682,6 +744,8 @@ def main() -> int:
         "--quiet", action="store_true", help="Only print important messages"
     )
     args = parser.parse_args()
+    if args.local_hf_device:
+        os.environ["MASCARADE_LOCAL_HF_DEVICE"] = args.local_hf_device
 
     script_dir = Path(__file__).resolve().parent
     source_dataset = (
@@ -748,6 +812,10 @@ def main() -> int:
                 "--teacher-model is required when --teacher-provider local-hf"
             )
         emit(f"[OK] local teacher: {args.teacher_model}", important=True)
+        emit(
+            f"[OK] local teacher device: {args.local_hf_device or 'auto'}",
+            important=True,
+        )
         emit("[OK] local teacher concurrency forced to 1", important=True)
 
     if args.verbose:
@@ -844,6 +912,7 @@ def main() -> int:
         "failed_source_rows": len(failed_rows),
         "teacher_provider": args.teacher_provider,
         "teacher_model": args.teacher_model,
+        "local_hf_device": args.local_hf_device,
         "strategy": "specific" if args.teacher_provider else args.strategy,
         "api_url": None if endpoint is None else endpoint.base_url,
         "failures_out": (

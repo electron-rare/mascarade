@@ -70,6 +70,7 @@ class ScenarioSpec:
     domains: tuple[str, ...] = ALL_DOMAINS
     max_tokens: int = 2048
     seq_len: int | None = 1024
+    local_hf_device: str | None = None
 
 
 PASS_SPECS = {
@@ -106,6 +107,26 @@ SCENARIO_SPECS = {
         student_model="TinyLlama/TinyLlama-1.1B-Chat-v1.0",
         device="cpu",
         seq_len=256,
+    ),
+    "qwen25_7b_instruct_to_tinyllama_cpu": ScenarioSpec(
+        name="qwen25_7b_instruct_to_tinyllama_cpu",
+        group="qwen",
+        teacher_provider="local-hf",
+        teacher_model="Qwen/Qwen2.5-7B-Instruct",
+        student_model="TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+        device="cpu",
+        seq_len=512,
+        local_hf_device="cuda:0",
+    ),
+    "qwen3_4b_instruct_2507_to_tinyllama_cpu": ScenarioSpec(
+        name="qwen3_4b_instruct_2507_to_tinyllama_cpu",
+        group="qwen",
+        teacher_provider="local-hf",
+        teacher_model="Qwen/Qwen3-4B-Instruct-2507",
+        student_model="TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+        device="cpu",
+        seq_len=512,
+        local_hf_device="cuda:0",
     ),
     "qwen35_35b_teacher_only_2048": ScenarioSpec(
         name="qwen35_35b_teacher_only_2048",
