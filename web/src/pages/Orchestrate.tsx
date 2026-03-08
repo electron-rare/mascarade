@@ -19,6 +19,11 @@ import {
 
 const orchestrationPresets = [
   {
+    label: "Operator copilot",
+    prompt:
+      "Cadre cet incident operateur: resume les signaux visibles, priorise les causes probables et propose la prochaine action manuelle la plus sure.",
+  },
+  {
     label: "Zero intake",
     prompt:
       "Cadre cette demande de bout en bout: objectif reel, hypotheses, plan court, risques et prochaine action immediate.",

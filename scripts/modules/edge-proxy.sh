@@ -16,6 +16,10 @@ module_edge_proxy_config() {
   EDGE_PROXY_ACME_CA=$(input_value "CA ACME Edge Proxy" "${EDGE_PROXY_ACME_CA:-letsencrypt}")
   EDGE_PROXY_ACME_KEY_LENGTH=$(input_value "Key length ACME Edge Proxy" "${EDGE_PROXY_ACME_KEY_LENGTH:-ec-256}")
   EDGE_PROXY_ACME_DNS_SLEEP=$(input_value "DNS sleep ACME Edge Proxy (s)" "${EDGE_PROXY_ACME_DNS_SLEEP:-30}")
+  EDGE_PROXY_GRAFANA_SERVER_NAME=$(input_value "Server name Grafana via proxy" "${EDGE_PROXY_GRAFANA_SERVER_NAME:-grafana.localhost}")
+  EDGE_PROXY_LANGFUSE_SERVER_NAME=$(input_value "Server name Langfuse via proxy" "${EDGE_PROXY_LANGFUSE_SERVER_NAME:-langfuse.localhost}")
+  EDGE_PROXY_OPS_AUTH_USER=$(input_value "Basic auth user ops tools" "${EDGE_PROXY_OPS_AUTH_USER:-ops}")
+  EDGE_PROXY_OPS_AUTH_PASSWORD=$(input_secret "Basic auth password ops tools" "${EDGE_PROXY_OPS_AUTH_PASSWORD:-$(openssl rand -hex 16)}")
   CLOUDFLARE_API_TOKEN=$(input_optional_secret "Token API Cloudflare" "${CLOUDFLARE_API_TOKEN:-}")
 }
 
@@ -33,6 +37,7 @@ module_edge_proxy_compose() {
   echo "      - .env"
   echo "    volumes:"
   echo "      - edge-proxy-certs:/etc/nginx/certs"
+  echo "      - edge-proxy-auth:/etc/nginx/auth"
   echo "    depends_on:"
   echo "      api:"
   echo "        condition: service_started"
@@ -51,4 +56,6 @@ module_edge_proxy_volumes() {
   echo "    name: mascarade-edge-proxy-certs"
   echo "  edge-proxy-acme:"
   echo "    name: mascarade-edge-proxy-acme"
+  echo "  edge-proxy-auth:"
+  echo "    name: mascarade-edge-proxy-auth"
 }

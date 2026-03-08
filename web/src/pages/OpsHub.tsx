@@ -1,7 +1,9 @@
 import { Link } from "react-router-dom";
 import { useMemo } from "react";
+import { agentsApi } from "../api/agents";
 import type { OpsMcpServerStatus, OpsMonitor, OpsSourceStatus, OpsSummary } from "../api/ops";
 import { useFetch } from "../hooks/useFetch";
+import { useApi } from "../hooks/useApi";
 import { getDifyHealthUrl, getDifyOrigin } from "../lib/dify";
 import { Badge, Button, Card, CompactModelList, InlineNotice, LoadingPanel } from "../components/ui";
 
@@ -63,6 +65,10 @@ function summarizeMcpServer(server: OpsMcpServerStatus): string {
   return `${stats} · ${formatChecks(server.checks)}`;
 }
 
+function findPublicSurface(data: OpsMonitor | null | undefined, name: string) {
+  return data?.public.surfaces.find((surface) => surface.name === name) ?? null;
+}
+
 export default function OpsHub() {
   const { data, loading, error, refetch } = useFetch<OpsMonitor>("/api/ops/monitor", {
     pollIntervalMs: 5000,
@@ -77,19 +83,69 @@ export default function OpsHub() {
   const links = useMemo(() => {
     const origin = window.location.origin;
     const { protocol, hostname } = window.location;
+    const grafanaSurface = findPublicSurface(data, "grafana");
+    const langfuseSurface = findPublicSurface(data, "langfuse");
     return [
       { label: "API health", href: `${origin}/health`, note: "gateway health endpoint" },
       { label: "Ops monitor", href: `${origin}/api/ops/monitor`, note: "consolidated runtime snapshot" },
       { label: "Core health", href: `${origin}/core-health`, note: "core liveness via reverse proxy" },
       { label: "Dify web", href: `${getDifyOrigin()}/`, note: "app builder surface via reverse proxy" },
       { label: "Dify API", href: getDifyHealthUrl(), note: "workflow api health on the main proxy" },
+      {
+        label: "Grafana proxy",
+        href: grafanaSurface?.url ?? data?.observability.grafana_proxy_url ?? `${protocol}//${hostname}:3001/`,
+        note: "public operator dashboards via edge-proxy",
+      },
+      {
+        label: "Langfuse proxy",
+        href: langfuseSurface?.url ?? data?.observability.langfuse_proxy_url ?? `${protocol}//${hostname}:3200/`,
+        note: "llm traces and evals behind edge-proxy",
+      },
+      {
+        label: "Tempo traces",
+        href: grafanaSurface?.url ?? data?.observability.grafana_proxy_url ?? `${protocol}//${hostname}:3001/`,
+        note: "trace search via the Tempo datasource in Grafana",
+      },
       { label: "Firecrawl MCP", href: `${protocol}//${hostname}:3400/mcp`, note: "streamable MCP endpoint" },
       { label: "Mem0 / OpenMemory", href: `${protocol}//${hostname}:3300/docs`, note: "memory api docs on qdrant + litellm" },
-      { label: "Grafana", href: `${protocol}//${hostname}:3001/`, note: "dashboards and panels" },
       { label: "Prometheus", href: `${protocol}//${hostname}:9090/`, note: "raw metrics store" },
       { label: "Ollama", href: `${protocol}//${hostname}:11434/`, note: "local model runtime" },
     ];
-  }, []);
+  }, [data]);
+
+  const opsCopilotPayload = useMemo(
+    () => ({
+      mode: "ops-hub",
+      prompt:
+        "Cadre la posture operateur actuelle de la stack, priorise les incidents visibles et propose la prochaine action manuelle la plus utile.",
+      run_id: summary.data?.traces.recent_runs[0]?.run_id,
+      service: summary.data?.alerts.find((entry) => entry.service)?.service,
+      severity: summary.data?.alerts[0]?.severity,
+      mcp_server: summary.data?.mcp?.degraded_servers?.[0],
+      logs: (summary.data?.alerts ?? []).slice(0, 8).map((entry) => ({
+        ts: entry.ts,
+        source: entry.source,
+        service: entry.service,
+        severity: entry.severity,
+        message: entry.message,
+        run_id: entry.run_id,
+        agent_name: entry.agent_name,
+        event_type: entry.event_type,
+      })),
+      traces: [],
+    }),
+    [summary.data],
+  );
+  const copilotFn = useMemo(
+    () => () => agentsApi.operatorCopilot(opsCopilotPayload),
+    [opsCopilotPayload],
+  );
+  const {
+    execute: runOpsCopilot,
+    data: opsCopilotResult,
+    loading: opsCopilotLoading,
+    error: opsCopilotError,
+  } = useApi(copilotFn);
 
   if (loading && !data) {
     return (
@@ -125,6 +181,7 @@ export default function OpsHub() {
   const historyReady = sourceStatus.data?.loki_history?.available ?? false;
   const machineReady = sourceStatus.data?.machine_logs?.available ?? false;
   const tracesReady = sourceStatus.data?.agent_traces?.available ?? true;
+  const tempoReady = sourceStatus.data?.tempo_traces?.available ?? data.observability.tempo?.ok ?? false;
   const difyWeb = services.find((service) => service.name === "dify-web");
   const difyApi = services.find((service) => service.name === "dify-api");
   const { protocol, hostname } = window.location;
@@ -134,6 +191,8 @@ export default function OpsHub() {
   const firecrawlHref = `${protocol}//${hostname}:3400/mcp`;
   const mem0 = services.find((service) => service.name === "mem0");
   const mem0Href = `${protocol}//${hostname}:3300/docs`;
+  const proxyPublic = data.public.public_bind;
+  const proxyAuthReady = data.public.auth_configured;
   const mcp = summary.data?.mcp;
   const mcpServers = Object.entries(mcp?.servers ?? {});
   const mcpPrimary = mcp?.primary ?? null;
@@ -166,8 +225,8 @@ export default function OpsHub() {
               </h2>
               <p className="mt-4 max-w-2xl text-sm leading-7 text-amber-100/60 md:text-[15px]">
                 Cette vue remplace l&apos;ancienne page ops statique. Elle sert de point d&apos;entree operateur
-                pour lire l&apos;etat de la stack, ouvrir les outils utiles et verifier les modeles locaux exposes
-                par Ollama.
+                pour lire l&apos;etat de la stack, distinguer les surfaces internes des surfaces proxifiees,
+                ouvrir les outils utiles et verifier les modeles locaux exposes par Ollama.
               </p>
               <div className="mt-5 flex flex-wrap gap-2">
                 <span className={["status-chip", chipTone(postureOk)].join(" ")}>
@@ -193,6 +252,15 @@ export default function OpsHub() {
                 </span>
                 <span className={["status-chip", tracesReady ? chipTone(true) : chipTone(false)].join(" ")}>
                   traces {tracesReady ? "wired" : "pending"}
+                </span>
+                <span className={["status-chip", tempoReady ? chipTone(true) : chipTone(false)].join(" ")}>
+                  tempo {tempoReady ? "ready" : "pending"}
+                </span>
+                <span className={["status-chip", proxyPublic ? chipTone(true) : "border-border/80 bg-black/30 text-muted"].join(" ")}>
+                  proxy {proxyPublic ? "public" : "loopback"}
+                </span>
+                <span className={["status-chip", proxyAuthReady ? chipTone(true) : chipTone(false)].join(" ")}>
+                  ops auth {proxyAuthReady ? "armed" : "missing"}
                 </span>
               </div>
               <div className="mt-6 flex flex-wrap gap-3">
@@ -263,28 +331,104 @@ export default function OpsHub() {
           </div>
         </Card>
 
-        <Card title="Quick links" className="bg-[linear-gradient(180deg,rgba(10,12,11,0.92),rgba(7,7,7,0.96))]">
-          <div className="space-y-3">
-            <p className="text-sm leading-7 text-amber-100/60">
-              Raccourcis ops utiles quand tu arrives sur la stack depuis le proxy.
-            </p>
-            {links.map((link) => (
-              <a
-                key={link.href}
-                href={link.href}
-                target={link.href.startsWith(window.location.origin) ? undefined : "_blank"}
-                rel={link.href.startsWith(window.location.origin) ? undefined : "noreferrer"}
-                className="block rounded-[1.4rem] border border-border/80 bg-black/25 px-4 py-4 transition hover:border-accent/35 hover:bg-black/30"
-              >
-                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-accent">
-                  {link.label}
+        <div className="grid gap-4">
+          <Card title="Quick links" className="bg-[linear-gradient(180deg,rgba(10,12,11,0.92),rgba(7,7,7,0.96))]">
+            <div className="space-y-3">
+              <p className="text-sm leading-7 text-amber-100/60">
+                Raccourcis ops utiles quand tu arrives sur la stack depuis le proxy. Les surfaces
+                `Grafana` et `Langfuse` passent maintenant par des hôtes dédiés derrière `edge-proxy`.
+              </p>
+              {links.map((link) => (
+                <a
+                  key={link.href}
+                  href={link.href}
+                  target={link.href.startsWith(window.location.origin) ? undefined : "_blank"}
+                  rel={link.href.startsWith(window.location.origin) ? undefined : "noreferrer"}
+                  className="block rounded-[1.4rem] border border-border/80 bg-black/25 px-4 py-4 transition hover:border-accent/35 hover:bg-black/30"
+                >
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-accent">
+                    {link.label}
+                  </p>
+                  <p className="mt-2 text-sm text-amber-100/72">{shortUrl(link.href)}</p>
+                  <p className="mt-2 text-[12px] leading-5 text-amber-100/44">{link.note}</p>
+                </a>
+              ))}
+            </div>
+          </Card>
+
+          <Card title="Operator lane">
+            <div className="space-y-4">
+              <p className="text-sm leading-7 text-amber-100/60">
+                Posture publique actuelle: {proxyPublic ? "exposition publique via edge-proxy" : "proxy encore borne au loopback"}.
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <Badge color={proxyPublic ? "accent" : "muted"}>
+                  proxy {proxyPublic ? "public" : "loopback"}
+                </Badge>
+                <Badge color={proxyAuthReady ? "accent" : "error"}>
+                  auth {proxyAuthReady ? "configured" : "missing"}
+                </Badge>
+                <Badge color={tempoReady ? "accent" : "warning"}>
+                  tempo {tempoReady ? "ready" : "watch"}
+                </Badge>
+              </div>
+              <div className="space-y-3">
+                {data.public.surfaces.map((surface) => (
+                  <a
+                    key={surface.name}
+                    href={surface.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="block rounded-[1.4rem] border border-border/80 bg-black/25 px-4 py-4 transition hover:border-accent/35 hover:bg-black/30"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-accent">
+                          {surface.name}
+                        </p>
+                        <p className="mt-2 text-sm text-amber-100/72">{surface.host}</p>
+                      </div>
+                      <Badge color={surface.ok ? "accent" : "warning"}>
+                        {surface.ok ? "ready" : "watch"}
+                      </Badge>
+                    </div>
+                    <p className="mt-2 text-[12px] leading-5 text-amber-100/44">
+                      {surface.note} / http {surface.status || "-"} / {formatLatency(surface.latency_ms)}
+                    </p>
+                  </a>
+                ))}
+              </div>
+              <div className="rounded-[1.4rem] border border-border/80 bg-black/25 p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-accent">
+                    agent-zero operator copilot
+                  </p>
+                  <Button
+                    variant="ghost"
+                    className="border border-accent/35"
+                    loading={opsCopilotLoading}
+                    onClick={() => {
+                      void runOpsCopilot(undefined);
+                    }}
+                  >
+                    frame stack
+                  </Button>
+                </div>
+                <p className="mt-2 text-[12px] leading-5 text-amber-100/44">
+                  Utilise les alertes courantes, le run recent et l&apos;etat MCP pour proposer la prochaine action operateur.
                 </p>
-                <p className="mt-2 text-sm text-amber-100/72">{shortUrl(link.href)}</p>
-                <p className="mt-2 text-[12px] leading-5 text-amber-100/44">{link.note}</p>
-              </a>
-            ))}
-          </div>
-        </Card>
+                {opsCopilotError ? (
+                  <InlineNotice title="copilot degraded" message={opsCopilotError} tone="error" className="mt-4" />
+                ) : null}
+                {opsCopilotResult ? (
+                  <div className="mt-4 whitespace-pre-wrap rounded-[1.4rem] border border-border/80 bg-black/35 p-4 text-sm leading-7 text-amber-100/74">
+                    {opsCopilotResult.content}
+                  </div>
+                ) : null}
+              </div>
+            </div>
+          </Card>
+        </div>
       </section>
 
       <section className="grid gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(320px,0.85fr)]">

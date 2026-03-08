@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
+import { agentsApi } from "../api/agents";
 import {
   type OpsLogEntry,
   type OpsMcpServerStatus,
@@ -9,6 +10,7 @@ import {
   type OpsTraceEvent,
   opsApi,
 } from "../api/ops";
+import { useApi } from "../hooks/useApi";
 import { useFetch } from "../hooks/useFetch";
 import {
   Badge,
@@ -404,6 +406,62 @@ export default function Logs() {
   const mcpServerCount = mcp?.server_count ?? mcpServers.length;
   const mcpServersOk = mcp?.servers_ok ?? mcpServers.filter(([, server]) => server.ok).length;
   const mcpDegradedServers = mcp?.degraded_servers ?? [];
+  const tempoReady = sourceStatus.data?.tempo_traces?.available ?? summary.data?.observability?.tempo?.ok ?? false;
+  const grafanaProxyUrl = summary.data?.observability?.grafana_proxy_url ?? window.location.origin;
+  const langfuseProxyUrl = summary.data?.observability?.langfuse_proxy_url ?? window.location.origin;
+  const operatorCopilotPayload = useMemo(
+    () => ({
+      mode: "logs",
+      prompt:
+        "Cadre cette vue logs/traces comme un incident operateur: priorise les signaux utiles, les causes probables et la prochaine action manuelle.",
+      run_id: selectedRunId ?? (runIdFilter.trim() || undefined),
+      service: serviceFilter.trim() || undefined,
+      severity,
+      mcp_server: mcpDegradedServers[0],
+      window: mode === "history" ? historyWindow : "live",
+      logs: entries.slice(0, 12).map((entry) => ({
+        ts: entry.ts,
+        source: entry.source,
+        service: entry.service,
+        severity: entry.severity,
+        message: entry.message,
+        run_id: entry.run_id,
+        agent_name: entry.agent_name,
+        event_type: entry.event_type,
+      })),
+      traces: runDetailEvents.slice(0, 12).map((event) => ({
+        ts: event.ts,
+        agent_name: event.agent_name,
+        event_type: event.event_type,
+        message: event.message,
+        routing_role: event.routing_role,
+        routing_provider: event.routing_provider,
+        routing_model: event.routing_model,
+        error: event.error,
+      })),
+    }),
+    [
+      entries,
+      historyWindow,
+      mcpDegradedServers,
+      mode,
+      runDetailEvents,
+      runIdFilter,
+      selectedRunId,
+      serviceFilter,
+      severity,
+    ],
+  );
+  const operatorCopilotFn = useMemo(
+    () => () => agentsApi.operatorCopilot(operatorCopilotPayload),
+    [operatorCopilotPayload],
+  );
+  const {
+    execute: runOperatorCopilot,
+    data: operatorCopilotResult,
+    loading: operatorCopilotLoading,
+    error: operatorCopilotError,
+  } = useApi(operatorCopilotFn);
 
   useEffect(() => {
     const next = new URLSearchParams();
@@ -711,6 +769,9 @@ export default function Logs() {
                 <span className={["status-chip", historyAvailable ? "border-[#214e31] bg-[#0c170f]/80 text-[#8cffb7]" : "border-[#5d2332] bg-[#18070d]/80 text-error"].join(" ")}>
                   loki {historyAvailable ? "ready" : "pending"}
                 </span>
+                <span className={["status-chip", tempoReady ? "border-[#214e31] bg-[#0c170f]/80 text-[#8cffb7]" : "border-[#5d2332] bg-[#18070d]/80 text-error"].join(" ")}>
+                  tempo {tempoReady ? "ready" : "pending"}
+                </span>
               </div>
               <div className="mt-6 flex flex-wrap gap-3">
                 <Button
@@ -741,6 +802,22 @@ export default function Logs() {
                 >
                   open agent-zero
                 </Link>
+                <a
+                  href={grafanaProxyUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="rounded-2xl border border-border/80 bg-black/25 px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-amber-100/78 transition hover:border-accent/35 hover:text-accent"
+                >
+                  open grafana
+                </a>
+                <a
+                  href={langfuseProxyUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="rounded-2xl border border-border/80 bg-black/25 px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-amber-100/78 transition hover:border-accent/35 hover:text-accent"
+                >
+                  open langfuse
+                </a>
               </div>
             </div>
 
@@ -900,6 +977,139 @@ export default function Logs() {
                   frame with agent-zero
                 </Link>
               </div>
+            </div>
+          </Card>
+
+          <Card title="Incident presets">
+            <div className="space-y-4">
+              <p className="text-sm leading-7 text-amber-100/58">
+                Presets rapides pour basculer entre incidents service, handoffs inter-agents et runs en cours.
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  variant="ghost"
+                  className="border border-border/80"
+                  onClick={() => {
+                    setMode("live");
+                    setSource("service");
+                    setSeverity("warning");
+                    setServiceFilter("");
+                    setRunIdFilter("");
+                  }}
+                >
+                  service incidents
+                </Button>
+                <Button
+                  variant="ghost"
+                  className="border border-border/80"
+                  onClick={() => {
+                    setMode("live");
+                    setSource("agent-trace");
+                    setSeverity("info");
+                    setServiceFilter("");
+                  }}
+                >
+                  handoffs
+                </Button>
+                <Button
+                  variant="ghost"
+                  className="border border-border/80"
+                  onClick={() => {
+                    if (selectedRunId) {
+                      setRunIdFilter(selectedRunId);
+                    }
+                    setSource("all");
+                    setSeverity("info");
+                  }}
+                >
+                  selected run
+                </Button>
+                <Button
+                  variant="ghost"
+                  className="border border-border/80"
+                  onClick={() => {
+                    setMode("history");
+                    setSource("all");
+                    setSeverity("warning");
+                    setHistoryWindow("6h");
+                  }}
+                >
+                  incident history
+                </Button>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <a
+                  href={`${grafanaProxyUrl}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="block rounded-[1.4rem] border border-border/80 bg-black/25 px-4 py-4 transition hover:border-accent/35 hover:bg-black/30"
+                >
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-accent">
+                    grafana / tempo
+                  </p>
+                  <p className="mt-2 text-sm text-amber-100/72">{grafanaProxyUrl.replace(/^https?:\/\//, "")}</p>
+                  <p className="mt-2 text-[12px] leading-5 text-amber-100/44">
+                    Dashboards, search traces Tempo et drilldown metrics.
+                  </p>
+                </a>
+                <a
+                  href={`${langfuseProxyUrl}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="block rounded-[1.4rem] border border-border/80 bg-black/25 px-4 py-4 transition hover:border-accent/35 hover:bg-black/30"
+                >
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-accent">
+                    langfuse
+                  </p>
+                  <p className="mt-2 text-sm text-amber-100/72">{langfuseProxyUrl.replace(/^https?:\/\//, "")}</p>
+                  <p className="mt-2 text-[12px] leading-5 text-amber-100/44">
+                    LLM traces applicatives et correlation runtime.
+                  </p>
+                </a>
+              </div>
+            </div>
+          </Card>
+
+          <Card title="Agent Zero Copilot">
+            <div className="space-y-4">
+              <p className="text-sm leading-7 text-amber-100/58">
+                Lance un cadrage opérateur structuré sur le buffer courant: logs, run detail et signaux MCP.
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <Badge color={tempoReady ? "accent" : "warning"}>
+                  tempo {tempoReady ? "ready" : "watch"}
+                </Badge>
+                <Badge color={historyAvailable ? "accent" : "warning"}>
+                  loki {historyAvailable ? "ready" : "watch"}
+                </Badge>
+                <Badge color={mcpTone(mcpAggregateStatus)}>
+                  mcp {mcpAggregateStatus}
+                </Badge>
+              </div>
+              <div className="flex flex-wrap gap-3">
+                <Button
+                  onClick={() => {
+                    void runOperatorCopilot(undefined);
+                  }}
+                  loading={operatorCopilotLoading}
+                >
+                  frame current lane
+                </Button>
+                <Link
+                  to="/agents/agent-zero"
+                  className="rounded-2xl border border-border/80 px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-amber-100/72 transition hover:border-accent/35 hover:text-accent"
+                >
+                  open agent-zero
+                </Link>
+              </div>
+              {operatorCopilotError ? (
+                <InlineNotice title="copilot degraded" message={operatorCopilotError} tone="error" />
+              ) : null}
+              {operatorCopilotResult ? (
+                <div className="whitespace-pre-wrap rounded-[1.5rem] border border-border/80 bg-black/25 p-4 text-sm leading-7 text-amber-100/78">
+                  {operatorCopilotResult.content}
+                </div>
+              ) : null}
             </div>
           </Card>
 
