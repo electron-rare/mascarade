@@ -12,6 +12,7 @@ Etat relu le `8 mars 2026` sur la stack `mascarade-*` actuellement en service.
 | LiteLLM | `mascarade-litellm` | 4000 | OK (`healthy`) |
 | Langfuse Web | `mascarade-langfuse` | 3200 | OK (`healthy`) |
 | Langfuse Worker | `mascarade-langfuse-worker` | — | OK |
+| Firecrawl MCP | `mascarade-firecrawl` | 3400 | OK (`healthy`) |
 | n8n | `mascarade-n8n` | 5678 | OK (`healthy`) |
 | Dify API | `mascarade-dify-api` | 5001 | OK |
 | Dify Web | `mascarade-dify-web` | 3500 | OK |
@@ -47,7 +48,8 @@ Notes:
 ### Infra
 - [x] Source `Firecrawl` retenue: image officielle `mcp/firecrawl@sha256:e6676bd31d1806574d931b7a7b7b6fba953c031853e80adc1ec8115c17ab81ca`.
 - [x] Intégration repo `Firecrawl` prête dans la stack Mascarade.
-- [ ] Renseigner `FIRECRAWL_API_KEY` ou `FIRECRAWL_API_URL` sur la VM, puis démarrer le service.
+- [x] `FIRECRAWL_API_KEY` configurée sur la VM.
+- [x] `mascarade-firecrawl` démarré et `healthy` sur le port `3400`.
 - [ ] Déployer `Mem0` avec une cible réelle.
   - L'image `mem0ai/mem0` n'est pas disponible telle quelle.
   - Options restantes: venv Python dédié (`mem0ai`) ou `openmemory-mcp`.
