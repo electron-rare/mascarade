@@ -214,6 +214,12 @@ FIRECRAWL_HOST=0.0.0.0
 FIRECRAWL_API_KEY=fc_xxxxx
 FIRECRAWL_API_URL=                     # optionnel, seulement si vous ciblez une API Firecrawl self-hosted
 
+# Mem0 / OpenMemory — integration optionnelle
+MEM0_USER=mascarade
+MEM0_OPENAI_BASE_URL=http://litellm:4000
+MEM0_QDRANT_HOST=qdrant
+MEM0_QDRANT_PORT=6333
+
 # Core
 CORE_HOST=0.0.0.0
 CORE_PORT=8100
@@ -394,6 +400,13 @@ bash scripts/smoke_otel_loki.sh
 bash scripts/smoke_otel_loki.sh --json
 ```
 
+Report de cardinalite Loki:
+
+```bash
+bash scripts/loki_cardinality_report.sh
+bash scripts/loki_cardinality_report.sh --json
+```
+
 Certificat Let's Encrypt par DNS-01 Cloudflare:
 
 ```bash
@@ -519,7 +532,7 @@ docker compose -f docker-compose.yml -f docker-compose.ai.yml --profile heavy up
 
 Sur VM legere, garder ces services arretes par defaut (profil `heavy`).
 
-`Langfuse` reste une brique supportee du repo, mais optionnelle hors profil standard. `Firecrawl` est supporte comme service MCP optionnel via l'image officielle `mcp/firecrawl`; il exige `FIRECRAWL_API_KEY` ou `FIRECRAWL_API_URL` pour demarrer.
+`Langfuse` reste une brique supportee du repo, mais optionnelle hors profil standard. `Firecrawl` est supporte comme service MCP optionnel via l'image officielle `mcp/firecrawl`; il exige `FIRECRAWL_API_KEY` ou `FIRECRAWL_API_URL` pour demarrer. `Mem0` est supporte via `mem0/openmemory-mcp`, adosse a `Qdrant` et route par defaut ses appels OpenAI-compatibles vers `LiteLLM`.
 
 ### Interagir avec la VM depuis le Mac
 

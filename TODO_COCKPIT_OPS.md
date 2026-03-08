@@ -53,10 +53,12 @@ Recale sur le runtime reel le 8 mars 2026.
 - [x] `ops-agent` expose `/metrics` pour Prometheus
 - [x] Grafana datasources provisionnees en code (`Loki`, `Prometheus`) et chargees au demarrage
 - [x] Dashboard Grafana provisionne en code: `Mascarade Ops Overview`
+- [x] Dashboard Grafana provisionne en code: `Mascarade Service Logs`
 - [x] Smoke OTLP versionne: `scripts/smoke_otel_loki.sh`
 
 ### Promtail
 - [x] Parsing JSON structure enrichi: `severity`, `source`, `run_id`, `agent_name`, `event_type`, `mode`, `provider`, `model`, `routing_role`, `routing_provider`, `routing_model`
+- [x] Report versionne de cardinalite Loki: `scripts/loki_cardinality_report.sh`
 
 ### Frontend Logs (verifie dans le code)
 - [x] Filtres history persistants dans l'URL
@@ -69,10 +71,10 @@ Recale sur le runtime reel le 8 mars 2026.
 - [ ] Decider si le warning de securite `0.0.0.0` doit etre accepte tel quel (bind hote deja borne en `127.0.0.1`) ou davantage restreint
 
 ### Grafana
-- [ ] Etendre le lot de dashboards au-dela du cockpit de base (par service ou par domaine)
+- [ ] Etendre encore au-dela des dashboards de base deja poses (`Ops Overview`, `Service Logs`) si un domaine le justifie
 
 ### Promtail
-- [ ] Verifier sur trafic reel la cardinalite des labels enrichis (`run_id`, `provider`, `routing_*`)
+- [ ] Verifier sur trafic reel la cardinalite des labels enrichis (`run_id`, `provider`, `routing_*`) a l'aide de `scripts/loki_cardinality_report.sh`
 - [ ] Ajuster la matrice `labels` vs `structured metadata` si Loki commence a grossir trop vite
 
 ### Frontend Logs (ajustements mineurs)
@@ -93,6 +95,5 @@ Recale sur le runtime reel le 8 mars 2026.
 ## 6. Ordre recommande
 
 1. Configurer le vrai exporter OTel Collector (remplacer le stub debug).
-2. Etendre les dashboards Grafana utiles pour les services Mascarade.
-3. Verifier la cardinalite Loki sur trafic reel et ajuster si besoin.
-4. Garder `AgentSight` en complement optionnel, en dernier.
+2. Verifier la cardinalite Loki sur trafic reel et ajuster si besoin.
+3. Garder `AgentSight` en complement optionnel, en dernier.

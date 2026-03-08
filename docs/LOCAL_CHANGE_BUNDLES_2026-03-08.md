@@ -10,13 +10,14 @@ Au moment de ce snapshot:
 
 - `crazy_life` est propre localement
 - `Kill_LIFE` est propre localement
-- `mascarade` garde `1` lot principal et `1` lot optionnel
+- `mascarade` garde `2` lots fonctionnels, puis un residuel de snapshot frontend
 
 Regle:
 
-- ne pas melanger le lot runtime `Firecrawl` avec l'ajout du dashboard Grafana
-- sortir d'abord le lot runtime
-- ne sortir le dashboard que si tu veux vraiment versionner cette nouvelle vue ops
+- ne pas melanger le lot runtime `Firecrawl` avec le lot `Mem0 + observability`
+- ne pas melanger les changements produit/ops avec le snapshot `api/public`
+- sortir d'abord les lots fonctionnels
+- ne versionner le snapshot frontend qu'en dernier, si vraiment necessaire
 
 ## Lot 1 — `firecrawl-runtime`
 
@@ -64,36 +65,83 @@ git add .env.example README.md TODO_VM.md docker-compose.yml \
 git commit -m "feat(ops): stabilize firecrawl runtime in local stack"
 ```
 
-## Lot 2 — `grafana-service-logs` (optionnel)
+## Lot 2 — `mem0-observability`
 
 Objet:
 
-- ajouter un dashboard Grafana dedie aux logs de services `mascarade`
+- ajouter `Mem0 / OpenMemory` a la stack locale
+- exposer cette surface dans `OpsHub` et dans le monitor API
+- ajouter le dashboard Grafana `Mascarade Service Logs`
+- versionner le rapport de cardinalite Loki et la doc ops associee
 
 Fichiers:
 
+- `.env.example`
+- `README.md`
+- `TODO_COCKPIT_OPS.md`
+- `TODO_VM.md`
+- `api/src/routes/ops.ts`
 - `deploy/grafana/provisioning/dashboards/json/mascarade-service-logs.json`
+- `docker-compose.yml`
+- `docs/LOCAL_CHANGE_BUNDLES_2026-03-08.md`
+- `docs/RUNBOOK_VM_OPS.md`
+- `scripts/compose.sh`
+- `scripts/loki_cardinality_report.sh`
+- `scripts/modules/mem0.sh`
+- `scripts/services.sh`
+- `setup`
+- `tools/litellm-config.yaml`
+- `update`
+- `web/src/pages/OpsHub.tsx`
 
-Revue:
+Validation minimale:
 
 ```bash
-jq -r '.title, .uid' deploy/grafana/provisioning/dashboards/json/mascarade-service-logs.json
-jq empty deploy/grafana/provisioning/dashboards/json/mascarade-service-logs.json
+docker ps --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}' | grep -E 'mem0|litellm|qdrant'
+ss -lntp | grep 3300
+bash scripts/loki_cardinality_report.sh --json >/tmp/loki-cardinality.json || true
+cd api && npm run build
+cd ../web && npm run build
 ```
 
 Commit recommande:
 
 ```bash
-git add deploy/grafana/provisioning/dashboards/json/mascarade-service-logs.json
-git commit -m "feat(grafana): add service logs dashboard"
+git add .env.example README.md TODO_COCKPIT_OPS.md TODO_VM.md \
+  api/src/routes/ops.ts \
+  deploy/grafana/provisioning/dashboards/json/mascarade-service-logs.json \
+  docker-compose.yml docs/LOCAL_CHANGE_BUNDLES_2026-03-08.md \
+  docs/RUNBOOK_VM_OPS.md scripts/compose.sh scripts/loki_cardinality_report.sh \
+  scripts/modules/mem0.sh scripts/services.sh setup tools/litellm-config.yaml \
+  update web/src/pages/OpsHub.tsx
+git commit -m "feat(ops): add mem0 and observability surfaces"
+```
+
+## Lot 3 — `api-public-snapshot` (optionnel)
+
+Objet:
+
+- rafraichir le snapshot frontend servi par `mascarade-api`
+
+Fichiers:
+
+- `api/public/index.html`
+- `api/public/assets/*`
+
+Commit recommande:
+
+```bash
+git add api/public/index.html api/public/assets
+git commit -m "chore(web): refresh api-public snapshot"
 ```
 
 ## Ordre recommande
 
 1. sortir `firecrawl-runtime` dans `mascarade`
-2. decider si `grafana-service-logs` doit etre versionne ou laisse hors lot
-3. reverifier `git status` dans les trois repos
-4. seulement ensuite reprendre un chantier nouveau, pas avant
+2. sortir `mem0-observability` dans `mascarade`
+3. decider si `api-public-snapshot` doit etre versionne ou laisse hors lot
+4. reverifier `git status` dans les trois repos
+5. seulement ensuite reprendre un chantier nouveau, pas avant
 
 ## Note
 

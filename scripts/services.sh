@@ -25,6 +25,7 @@ define_service "litellm"    "LiteLLM"           "Proxy LLM unifie + cache Redis"
 define_service "n8n"        "n8n"               "Automatisation workflows low-code"                "5678"  "tools" 0 "postgres"
 define_service "langfuse"   "Langfuse"          "Observabilite LLM (tracing, evals)"              "3200"  "tools" 0 "postgres,clickhouse"
 define_service "firecrawl"  "Firecrawl MCP"     "Scraping / search web via serveur MCP Firecrawl" "3400"  "tools" 0 ""
+define_service "mem0"       "Mem0 / OpenMemory" "Memoire agentique sur Qdrant via OpenMemory MCP" "3300"  "tools" 0 "litellm,qdrant"
 define_service "dify"       "Dify"              "App builder IA (API + Web + Worker)"              "3500"  "tools" 0 "postgres,redis"
 define_service "clickhouse" "ClickHouse"        "Base analytique colonnaire (Langfuse)"            "—"     "tools" 0 ""
 define_service "comfyui"    "ComfyUI"           "Generation d'images (SD, Flux)"                   "8188"  "tools" 0 ""
@@ -65,6 +66,7 @@ sync_service_ports_from_env() {
             n8n) env_var="N8N_PORT" ;;
             langfuse) env_var="LANGFUSE_PORT" ;;
             firecrawl) env_var="FIRECRAWL_PORT" ;;
+            mem0) env_var="MEM0_PORT" ;;
             dify) env_var="DIFY_WEB_PORT" ;;
             comfyui) env_var="COMFYUI_PORT" ;;
             tts) env_var="TTS_PORT" ;;
