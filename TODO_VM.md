@@ -8,7 +8,7 @@ Etat relu le `8 mars 2026` sur la stack `mascarade-*` actuellement en service.
 |---------|-----------|------|--------|
 | Mascarade Core | `mascarade-core` | 8100 | OK (`healthy`) |
 | Mascarade API | `mascarade-api` | 3100 | OK (`healthy`) |
-| Edge Proxy | `mascarade-edge-proxy` | 80 / 443 | OK (`healthy`, bind loopback) |
+| Edge Proxy | `mascarade-edge-proxy` | 80 / 443 | OK (`healthy`, bind public) |
 | LiteLLM | `mascarade-litellm` | 4000 | OK (`healthy`) |
 | Langfuse Web | `mascarade-langfuse` | 3200 | OK (`healthy`) |
 | Langfuse Worker | `mascarade-langfuse-worker` | — | OK |
@@ -30,7 +30,8 @@ Etat relu le `8 mars 2026` sur la stack `mascarade-*` actuellement en service.
 Notes:
 - L'ancien constat `tools-langfuse KO (ZodError)` ne correspond plus au runtime actuel. `langfuse-web:3000` répond `200` depuis le réseau Docker.
 - Les curls host-side vers `127.0.0.1:3200` ne sont pas conclusifs depuis l'environnement sandboxé; la vérification retenue est donc celle faite depuis le réseau Docker et via l'état Docker.
-- `Grafana` et `Langfuse` sont maintenant publiables derrière `edge-proxy` sur `grafana.saillant.cc` et `langfuse.saillant.cc`, avec auth dédiée côté proxy. Le bind hôte reste volontairement `127.0.0.1` tant qu'aucune exposition publique n'est demandée.
+- `Grafana` et `Langfuse` sont maintenant publiables derrière `edge-proxy` sur `grafana.saillant.cc` et `langfuse.saillant.cc`, avec auth dédiée côté proxy.
+- Le bind hôte de `edge-proxy` est maintenant `0.0.0.0`; le certificat réel reste en attente du challenge DNS manuel pour `saillant.cc`, `grafana.saillant.cc`, `langfuse.saillant.cc` et `dify.saillant.cc`.
 
 ## TODO priorisés
 
@@ -65,10 +66,11 @@ Notes:
 
 ### Réseau
 - [x] Le reverse proxy HTTPS existe déjà via `edge-proxy`.
-- [x] Les binds HTTP/HTTPS restent limités à `127.0.0.1`.
+- [x] `edge-proxy` est maintenant publié sur `0.0.0.0:80/443`.
 - [x] `Grafana` et `Langfuse` ont un routage dédié derrière `edge-proxy`.
 - [x] Une auth opérateur dédiée protège ces surfaces côté proxy.
-- [ ] Si exposition externe voulue: publier `edge-proxy` hors loopback et finaliser le chemin ACME/DNS réellement utilisé.
+- [x] Le certificat auto-signé de fallback couvre maintenant `saillant.cc`, `grafana.saillant.cc`, `langfuse.saillant.cc` et `dify.saillant.cc`.
+- [ ] Finaliser le certificat réel via le challenge TXT ACME manuel puis `bash scripts/edge_proxy_cert.sh renew --provider manual`.
 
 ### Monitoring
 - [x] `Langfuse` est connecté à `Mascarade` pour tracer les appels LLM.
@@ -77,16 +79,18 @@ Notes:
 - [x] `Tempo` est branché sur l'OTel Collector et visible dans Grafana.
 
 ### Mac local
-- [ ] Installer les serveurs MCP utiles côté Mac.
-- [ ] Installer `Playwright MCP` côté Mac.
+- [x] Un bootstrap MCP Mac est maintenant scripté dans `Kill_LIFE` via `tools/bootstrap_mac_mcp.sh`.
+- [x] `Playwright MCP` est intégré à ce bootstrap.
+- [ ] Exécuter ce bootstrap sur le Mac opérateur réel.
 
 ## Restes reels
 
 Les restes encore ouverts ne sont plus des blocs locaux d'implementation:
 
 - exposition publique reelle du proxy (`EDGE_PROXY_BIND_HOST=0.0.0.0` + chemin `ACME/DNS`)
+- finalisation du challenge TXT ACME puis installation du certificat reel
 - secrets operateur additionnels uniquement si les providers correspondants doivent etre actifs
-- setup local Mac (`MCP`, `Playwright MCP`)
+- execution du bootstrap Mac sur le poste cible (`MCP`, `Playwright MCP`)
 
 ## Infra existante sur la VM
 

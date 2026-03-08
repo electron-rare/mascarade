@@ -121,13 +121,14 @@ observabilite/proxy operateur.
 | Docling / Whisper installables dans le venv tools | FAIT |
 | Probes Prometheus / blackbox pour services | FAIT |
 | `Grafana` / `Langfuse` publies derriere `edge-proxy` | FAIT |
-| TLS public `ACME/DNS` | EXTERNE |
+| TLS public `ACME/DNS` | EN COURS |
 | Cles operateur additionnelles | OPTIONNEL |
-| Setup Mac local | EXTERNE |
+| Setup Mac local | PREPARE |
 
 ### Prochain lot
-1. Aucun lot local bloquant restant.
-2. Ne traiter que les sujets externes ou optionnels sur demande.
+1. Le bind public `edge-proxy` est ouvert; il reste a terminer le challenge TXT ACME manuel puis le `renew`.
+2. Les secrets providers restent optionnels mais absents tant qu'aucune valeur reelle n'est fournie.
+3. Le setup Mac local est maintenant scriptable; il reste a l'executer sur le poste cible.
 
 ---
 
