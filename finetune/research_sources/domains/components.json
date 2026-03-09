@@ -1,0 +1,178 @@
+{
+  "domain": "components",
+  "topic": "Electronic components / sourcing / libraries / datasheets",
+  "minimum_web_roots": 10,
+  "forum_urls": [
+    {
+      "label": "Electronics StackExchange",
+      "url": "https://electronics.stackexchange.com/"
+    },
+    {
+      "label": "All About Circuits Forum",
+      "url": "https://forum.allaboutcircuits.com/"
+    },
+    {
+      "label": "EEVblog Forum",
+      "url": "https://www.eevblog.com/forum/"
+    },
+    {
+      "label": "DigiKey TechForum",
+      "url": "https://forum.digikey.com/"
+    },
+    {
+      "label": "element14 Community",
+      "url": "https://community.element14.com/"
+    },
+    {
+      "label": "TI E2E",
+      "url": "https://e2e.ti.com/"
+    },
+    {
+      "label": "Analog Devices EngineerZone",
+      "url": "https://ez.analog.com/"
+    },
+    {
+      "label": "Infineon Community",
+      "url": "https://community.infineon.com/"
+    },
+    {
+      "label": "NXP Community",
+      "url": "https://community.nxp.com/"
+    },
+    {
+      "label": "Arduino Forum",
+      "url": "https://forum.arduino.cc/"
+    }
+  ],
+  "authoritative_urls": [
+    {
+      "label": "Mouser search help",
+      "url": "https://www.mouser.com/help/search/how-to-search-for-products/"
+    },
+    {
+      "label": "Farnell global",
+      "url": "https://www.farnell.com/"
+    },
+    {
+      "label": "element14 product search help",
+      "url": "https://in.element14.com/help-searching-for-products"
+    },
+    {
+      "label": "DigiKey help",
+      "url": "https://www.digikey.com/en/resources/help"
+    },
+    {
+      "label": "Altium documentation",
+      "url": "https://www.altium.com/documentation/"
+    },
+    {
+      "label": "EasyEDA libraries management",
+      "url": "https://docs.easyeda.com/en/Introduction/Libraries-Management/"
+    }
+  ],
+  "github_repos": [],
+  "software_sources": [
+    {
+      "label": "Mouser search tools",
+      "url": "https://www.mouser.com/searchtools/"
+    },
+    {
+      "label": "Farnell datasheets",
+      "url": "https://www.farnell.com/italy/datasheets.html"
+    },
+    {
+      "label": "element14",
+      "url": "https://www.element14.com/"
+    },
+    {
+      "label": "DigiKey",
+      "url": "https://www.digikey.com/"
+    },
+    {
+      "label": "Altium",
+      "url": "https://www.altium.com/documentation/"
+    },
+    {
+      "label": "EasyEDA",
+      "url": "https://www.easyeda.com/"
+    },
+    {
+      "label": "Octopart",
+      "url": "https://octopart.com/"
+    },
+    {
+      "label": "SnapEDA",
+      "url": "https://www.snapeda.com/"
+    },
+    {
+      "label": "Ultra Librarian",
+      "url": "https://www.ultralibrarian.com/"
+    },
+    {
+      "label": "SamacSys",
+      "url": "https://componentsearchengine.com/"
+    },
+    {
+      "label": "LCSC",
+      "url": "https://www.lcsc.com/"
+    },
+    {
+      "label": "JLCPCB parts and assembly",
+      "url": "https://jlcpcb.com/parts"
+    }
+  ],
+  "datasheet_roots": [
+    {
+      "label": "Mouser datasheet-oriented search",
+      "url": "https://www.mouser.com/help/search/"
+    },
+    {
+      "label": "Farnell datasheets",
+      "url": "https://www.farnell.com/italy/datasheets.html"
+    },
+    {
+      "label": "element14 product info and datasheet search",
+      "url": "https://in.element14.com/help-searching-for-products"
+    },
+    {
+      "label": "DigiKey datasheets and technical resources",
+      "url": "https://www.digikey.com/en/resources/"
+    },
+    {
+      "label": "SnapEDA search",
+      "url": "https://www.snapeda.com/"
+    },
+    {
+      "label": "Ultra Librarian search",
+      "url": "https://www.ultralibrarian.com/"
+    }
+  ],
+  "hf_sources": [
+    "bshada/electronics.stackexchange.com",
+    "STEM-AI-mtl/Electrical-engineering",
+    "nick007x/eevblog-posts"
+  ],
+  "queries": [
+    "site:mouser.com part number datasheet parametric search",
+    "site:farnell.com datasheets electronic components",
+    "site:element14.com component search datasheet availability",
+    "site:digikey.com parametric search datasheet availability",
+    "site:altium.com documentation component libraries alternates",
+    "site:easyeda.com component library lcsc footprint",
+    "site:octopart.com parametric component search alternatives"
+  ],
+  "trusted_domains": [
+    "mouser.com",
+    "farnell.com",
+    "element14.com",
+    "digikey.com",
+    "altium.com",
+    "easyeda.com",
+    "octopart.com",
+    "snapeda.com",
+    "ultralibrarian.com",
+    "componentsearchengine.com",
+    "lcsc.com",
+    "jlcpcb.com"
+  ]
+}

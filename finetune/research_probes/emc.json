@@ -1,0 +1,163 @@
+{
+  "domain": "emc",
+  "generated_at": "2026-03-09T12:09:00",
+  "source_file": "/ai/saisail/mascarade/finetune/research_sources/domains/emc.json",
+  "status": "partial",
+  "reachable_count": 8,
+  "total_count": 16,
+  "reachable_ratio": 0.5,
+  "entries": [
+    {
+      "group": "authoritative_urls",
+      "label": "Infineon EMC resources",
+      "url": "https://www.infineon.com/cms/en/design-support/",
+      "ok": true,
+      "status": 200,
+      "final_url": "https://www.infineon.com/",
+      "method": "HEAD"
+    },
+    {
+      "group": "authoritative_urls",
+      "label": "TI EMC overview",
+      "url": "https://www.ti.com/interface/emc-overview.html",
+      "ok": false,
+      "status": null,
+      "final_url": "https://www.ti.com/interface/emc-overview.html",
+      "method": "GET",
+      "error": "http:404"
+    },
+    {
+      "group": "datasheet_roots",
+      "label": "Infineon design support",
+      "url": "https://www.infineon.com/cms/en/design-support/",
+      "ok": true,
+      "status": 200,
+      "final_url": "https://www.infineon.com/",
+      "method": "HEAD"
+    },
+    {
+      "group": "datasheet_roots",
+      "label": "TI EMC overview",
+      "url": "https://www.ti.com/interface/emc-overview.html",
+      "ok": false,
+      "status": null,
+      "final_url": "https://www.ti.com/interface/emc-overview.html",
+      "method": "GET",
+      "error": "http:404"
+    },
+    {
+      "group": "forum_urls",
+      "label": "All About Circuits Forum",
+      "url": "https://forum.allaboutcircuits.com/",
+      "ok": false,
+      "status": null,
+      "final_url": "https://forum.allaboutcircuits.com/",
+      "method": "GET",
+      "error": "http:403"
+    },
+    {
+      "group": "forum_urls",
+      "label": "Analog Devices EngineerZone",
+      "url": "https://ez.analog.com/",
+      "ok": false,
+      "status": null,
+      "final_url": "https://ez.analog.com/",
+      "method": "GET",
+      "error": "The read operation timed out"
+    },
+    {
+      "group": "forum_urls",
+      "label": "Arduino Forum",
+      "url": "https://forum.arduino.cc/",
+      "ok": true,
+      "status": 200,
+      "final_url": "https://forum.arduino.cc/",
+      "method": "HEAD"
+    },
+    {
+      "group": "forum_urls",
+      "label": "DigiKey TechForum",
+      "url": "https://forum.digikey.com/",
+      "ok": true,
+      "status": 200,
+      "final_url": "https://forum.digikey.com/",
+      "method": "HEAD"
+    },
+    {
+      "group": "forum_urls",
+      "label": "EEVblog Forum",
+      "url": "https://www.eevblog.com/forum/",
+      "ok": true,
+      "status": 200,
+      "final_url": "https://www.eevblog.com/forum/",
+      "method": "HEAD"
+    },
+    {
+      "group": "forum_urls",
+      "label": "Electronics StackExchange",
+      "url": "https://electronics.stackexchange.com/",
+      "ok": false,
+      "status": null,
+      "final_url": "https://electronics.stackexchange.com/",
+      "method": "GET",
+      "error": "http:403"
+    },
+    {
+      "group": "forum_urls",
+      "label": "Infineon Community",
+      "url": "https://community.infineon.com/",
+      "ok": true,
+      "status": 200,
+      "final_url": "https://community.infineon.com:443/?nobounce=&profile.language=en",
+      "method": "HEAD"
+    },
+    {
+      "group": "forum_urls",
+      "label": "NXP Community",
+      "url": "https://community.nxp.com/",
+      "ok": true,
+      "status": 200,
+      "final_url": "https://community.nxp.com/",
+      "method": "HEAD"
+    },
+    {
+      "group": "forum_urls",
+      "label": "TI E2E",
+      "url": "https://e2e.ti.com/",
+      "ok": false,
+      "status": null,
+      "final_url": "https://e2e.ti.com/",
+      "method": "GET",
+      "error": "http:500"
+    },
+    {
+      "group": "forum_urls",
+      "label": "element14 Community",
+      "url": "https://community.element14.com/",
+      "ok": false,
+      "status": null,
+      "final_url": "https://community.element14.com/",
+      "method": "GET",
+      "error": "The read operation timed out"
+    },
+    {
+      "group": "software_sources",
+      "label": "Infineon design support",
+      "url": "https://www.infineon.com/cms/en/design-support/",
+      "ok": true,
+      "status": 200,
+      "final_url": "https://www.infineon.com/",
+      "method": "HEAD"
+    },
+    {
+      "group": "software_sources",
+      "label": "TI EMC overview",
+      "url": "https://www.ti.com/interface/emc-overview.html",
+      "ok": false,
+      "status": null,
+      "final_url": "https://www.ti.com/interface/emc-overview.html",
+      "method": "GET",
+      "error": "http:404"
+    }
+  ]
+}
