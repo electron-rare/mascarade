@@ -1018,3 +1018,16 @@ mascarade/
 - etat de reference ANE: aucun accepted, meilleur diagnostic: apple-coreml:qwen2.5-0.5b-instruct-onnx
 - prochain lot utile cote pipeline: Analyser les runs ayant atteint gate/repair puis resserrer la reference locale autour des meilleurs candidats.
 <!-- AUTO-SYNC:MASCARADE-README:END -->
+
+## P2P Secure Sync
+
+For secure peer-to-peer synchronization of environment files and API keys:
+
+- [P2P Sync Documentation](P2P_SYNC_README.md)
+- [Deployment Guide](P2P_NETWORK_README.md#deployment-scenarios)
+
+Features:
+- 8-character public key authentication
+- 32-character auth tokens
+- AES-256 encryption for secrets
+- Rsync-based efficient transfers
