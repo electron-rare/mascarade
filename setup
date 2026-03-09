@@ -363,7 +363,16 @@ run_cad_plugins_action() {
     [[ -n "${KICAD_PLUGIN_DIR:-}" ]] && cmd+=(--plugin-dir "$KICAD_PLUGIN_DIR")
 
     log "Installation plugins KiCad (${bundles})..."
-    if KICAD_VERSION="${KICAD_VERSION:-9.0}" "${cmd[@]}"; then
+    local kicad_version=""
+    if [[ -n "${KICAD_VERSION:-}" ]]; then
+      kicad_version="$KICAD_VERSION"
+    elif [[ "$(uname -s)" == "Darwin" ]]; then
+      kicad_version="10.0"
+    else
+      kicad_version="9.0"
+    fi
+
+    if KICAD_VERSION="$kicad_version" "${cmd[@]}"; then
         ok "Plugins KiCad installes"
         return 0
     fi
@@ -389,7 +398,16 @@ run_cad_doctor_action() {
     [[ -n "${KICAD_PLUGIN_DIR:-}" ]] && cmd+=(--plugin-dir "$KICAD_PLUGIN_DIR")
 
     log "Verification plugins KiCad (${bundles})..."
-    if KICAD_VERSION="${KICAD_VERSION:-9.0}" "${cmd[@]}"; then
+    local kicad_version=""
+    if [[ -n "${KICAD_VERSION:-}" ]]; then
+      kicad_version="$KICAD_VERSION"
+    elif [[ "$(uname -s)" == "Darwin" ]]; then
+      kicad_version="10.0"
+    else
+      kicad_version="9.0"
+    fi
+
+    if KICAD_VERSION="$kicad_version" "${cmd[@]}"; then
         ok "Doctor KiCad OK"
         return 0
     fi
