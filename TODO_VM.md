@@ -59,9 +59,11 @@ Notes:
 ### Sécurité
 - [x] `MASCARADE_API_KEY` est renseignée dans `/home/clems/mascarade/.env`; l'auth n'est pas désactivée en pratique.
 - [ ] Garder la règle: ne jamais régénérer un `.env` de VM avec `MASCARADE_API_KEY` vide.
-- [ ] Compléter les secrets opérateurs encore absents dans `.env` selon le besoin réel:
-  - `ANTHROPIC_API_KEY`
-  - `OPENAI_API_KEY`
+- [x] `OPENAI_API_KEY` est configurée et validée par un smoke strict `provider=openai`.
+- [x] `ANTHROPIC_API_KEY` est configurée dans la VM.
+- [ ] Lever le blocage billing `Anthropic` pour valider `claude` en strict.
+- [x] `GOOGLE_API_KEY` est configurée avec `GOOGLE_AUTH_MODE=api_key`.
+- [ ] Activer `generativelanguage.googleapis.com` sur le projet Google associé pour valider `google` en strict.
 - [x] `MISTRAL_API_KEY` est déjà configurée.
 - [x] `OPENROUTER_API_KEY` est configurée dans le runtime natif `ZeroClaw`.
 - [x] `Notion` est sorti du scope actif; ne plus traiter `NOTION_*` comme secrets à compléter sur cette VM.
@@ -105,7 +107,8 @@ Notes:
 
 Les restes encore ouverts ne sont plus des blocs locaux d'implementation:
 
-- secrets operateur additionnels uniquement si les providers correspondants doivent etre actifs (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`)
+- `Anthropic`: cle presente mais credit insuffisant sur l'API
+- `Google Gemini`: cle presente mais `generativelanguage.googleapis.com` est desactive sur le projet associe
 - execution du bootstrap Mac sur le poste cible (`MCP`, `Playwright MCP`)
 
 ## Infra existante sur la VM

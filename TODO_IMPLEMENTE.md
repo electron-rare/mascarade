@@ -50,15 +50,23 @@ Note de contexte multi-repo:
 - [x] `ZeroClaw` installe nativement sur la VM, demarrable a la demande, avec `zeroclaw.saillant.cc` en surface live et `zeroclaw-docs.saillant.cc` / `langgraph.saillant.cc` en surfaces runbook proxifiees
 - [x] Smoke reel `ZeroClaw` valide via `POST /webhook`, avec reponse modele retournee par le fallback `OpenRouter`
 
-## 5. Backlogs encore utiles
+## 5. Providers cloud additionnels
+
+- [x] `openai` active et validee sur un smoke strict (`provider=openai`, `strategy=specific`)
+- [x] `claude` configuree cote VM et visible dans l'admin providers
+- [x] `google` configure avec `GOOGLE_AUTH_MODE=api_key` et visible dans l'admin providers
+- [ ] `claude` reste bloquee par un probleme externe de credit Anthropic
+- [ ] `google` reste bloquee tant que l'API `generativelanguage.googleapis.com` n'est pas active sur le projet associe
+
+## 6. Backlogs encore utiles
 
 - [x] Backlog fine-tuning detaille dans `TODO_TUNNING_PARTY.md`
 - [x] Backlog cockpit/ops detaille dans `TODO_COCKPIT_OPS.md`
 - [x] Plan global d'execution recale dans `docs/EXECUTION_PLAN_2026-03-07.md`
 
-## 6. Prochain ordre recommande
+## 7. Prochain ordre recommande
 
 1. Ne pas rouvrir de nouveau lot local par defaut: le socle runtime/ops est livre.
 2. Garder `Agent Zero` hors chemin critique.
 3. Ne rouvrir les E2E differes que sur besoin explicite.
-4. Traiter seulement les restes externes ou optionnels: secrets providers, setup Mac local.
+4. Traiter seulement les restes externes ou optionnels: billing `Anthropic`, activation API Google, setup Mac local.
