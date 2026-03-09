@@ -1,34 +1,29 @@
 # Next Useful Lot State
 
-Generated: 2026-03-09 05:54:45 CET
+Generated: 2026-03-09 05:54:55 CET
 
 ## Summary
 
-- Detected lot: `mascarade-followup`
-- Kind: `local`
-- Primary repo: `mascarade`
-- Primary root: `/home/clems/mascarade`
-- Reason: Tracked local changes remain in mascarade and need the usual runtime/docs/build pass before publication.
+- Detected lot: `external-only`
+- Kind: `external`
+- Primary repo: `none`
+- Primary root: `-`
+- Reason: No tracked local implementation lot is open. Only external blockers or operator-side actions remain.
 
 ## Repo Snapshot
 
-- `mascarade`: 1 tracked delta(s)
+- `mascarade`: 0 tracked delta(s)
 - `crazy_life`: 0 tracked delta(s)
 - `Kill_LIFE`: 0 tracked delta(s)
 - `agent-factory-cockpit`: 0 tracked delta(s)
 
 ## Scope Paths
 
-- `scripts/next_useful_lot.sh`
+- none (no local lot detected)
 
 ## Canonical Checks
 
-```bash
-cd /home/clems/mascarade && bash scripts/review_local_change_bundle.sh all status
-cd /home/clems/mascarade && npm --prefix api run build
-cd /home/clems/mascarade && npm --prefix web run build:api-public
-git -C /home/clems/mascarade diff --check
-```
+- none; only external blockers remain
 
 ## External Blockers After Local Lots
 
