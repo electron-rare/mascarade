@@ -25,7 +25,7 @@ Bundles:
 
 Install options:
   --plugin-dir DIR                      Override target KiCad plugins directory
-  --kicad-version VER                   KiCad version for the default plugin dir (default: 10.0 on macOS, 9.0 otherwise)
+  --kicad-version VER                   KiCad version for the default plugin dir (default: 10.0)
   --yes                                 Overwrite existing bundle directories without prompting
   --dry-run                             Print actions without writing files
   -v, --verbose                         Print debug details
@@ -53,14 +53,7 @@ die() {
 }
 
 default_kicad_version() {
-  case "$(uname -s)" in
-    Darwin)
-      printf '10.0\n'
-      ;;
-    *)
-      printf '9.0\n'
-      ;;
-  esac
+  printf '10.0\n'
 }
 
 default_plugin_dir() {

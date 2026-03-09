@@ -144,6 +144,10 @@ write_env_file() {
             echo "CLUSTER_HEARTBEAT_SECONDS=\"${CLUSTER_HEARTBEAT_SECONDS:-30}\""
             echo "CLUSTER_FORWARD_ENABLED=\"${CLUSTER_FORWARD_ENABLED:-true}\""
             echo "CLUSTER_PEERS=\"${CLUSTER_PEERS:-}\""
+            echo "CLUSTER_MDNS_ENABLED=\"${CLUSTER_MDNS_ENABLED:-false}\""
+            echo "CLUSTER_MDNS_SERVICE=\"${CLUSTER_MDNS_SERVICE:-_mascarade._tcp.local.}\""
+            echo "CLUSTER_MDNS_DISCOVERY_TTL_SECONDS=\"${CLUSTER_MDNS_DISCOVERY_TTL_SECONDS:-60}\""
+            echo "CLUSTER_MDNS_ADVERTISE=\"${CLUSTER_MDNS_ADVERTISE:-false}\""
             echo "DEFAULT_LLM_PROVIDER=\"${DEFAULT_LLM_PROVIDER:-anthropic}\""
             echo "DEFAULT_LLM_MODEL=\"${DEFAULT_LLM_MODEL:-claude-sonnet-4-20250514}\""
             echo ""
@@ -416,8 +420,16 @@ write_env_file() {
             echo ""
         fi
 
+        local kicad_default_version
+        if [[ -n "${KICAD_VERSION:-}" ]]; then
+            kicad_default_version="$KICAD_VERSION"
+        else
+            kicad_default_version="10.0"
+        fi
+
         echo "# ── CAD / KiCad ──"
-        echo "KICAD_VERSION=\"${KICAD_VERSION:-9.0}\""
+        echo "KICAD_VERSION=\"${KICAD_VERSION:-$kicad_default_version}\""
+        echo "KICAD_IMAGE_TAG=\"${KICAD_IMAGE_TAG:-$kicad_default_version}\""
         echo "KICAD_PLUGIN_DIR=\"${KICAD_PLUGIN_DIR:-}\""
         echo "CAD_WORKSPACE_DIR=\"${CAD_WORKSPACE_DIR:-}\""
         echo "CAD_INSTALL_BUNDLES=\"${CAD_INSTALL_BUNDLES:-all}\""

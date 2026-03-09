@@ -389,6 +389,11 @@ validate_cluster_config() {
     [[ -z "${MESH_BIND_HOST}" ]] && missing+=("MESH_BIND_HOST")
     [[ -z "${CLUSTER_SHARED_KEY}" ]] && missing+=("CLUSTER_SHARED_KEY")
 
+    local mdns_ttl="${CLUSTER_MDNS_DISCOVERY_TTL_SECONDS:-60}"
+    if ! [[ "$mdns_ttl" =~ ^[0-9]+$ ]] || [[ "$mdns_ttl" -lt 5 ]]; then
+        missing+=("CLUSTER_MDNS_DISCOVERY_TTL_SECONDS")
+    fi
+
     if [[ ${#missing[@]} -gt 0 ]]; then
         err "Configuration cluster incomplete: ${missing[*]}"
         if [[ "${AUTO_CONFIRM}" != true ]] && _has_input_tty && [[ "${SVC_ON[core]:-0}" == "1" ]]; then
@@ -602,6 +607,32 @@ prompt_p2p_setup() {
     CLUSTER_SHARED_KEY=$(input_optional_secret "Cle Bearer inter-noeuds :" "${CLUSTER_SHARED_KEY:-}")
     CLUSTER_REQUEST_TIMEOUT_MS=$(input_value "Timeout cluster (ms) :" "${CLUSTER_REQUEST_TIMEOUT_MS:-5000}")
     CLUSTER_HEARTBEAT_SECONDS=$(input_value "Heartbeat logique (s) :" "${CLUSTER_HEARTBEAT_SECONDS:-30}")
+    if [[ "${CLUSTER_MDNS_ENABLED:-false}" == "true" ]]; then
+        if ! confirm "Activer la découverte Bonjour/mDNS ?"; then
+            CLUSTER_MDNS_ENABLED=false
+        fi
+    else
+        if confirm "Activer la découverte Bonjour/mDNS ?"; then
+            CLUSTER_MDNS_ENABLED=true
+        fi
+    fi
+    if [[ "${CLUSTER_MDNS_ENABLED:-false}" == "true" ]]; then
+        CLUSTER_MDNS_SERVICE=$(input_value "Nom service mDNS :" "${CLUSTER_MDNS_SERVICE:-_mascarade._tcp.local.}")
+        CLUSTER_MDNS_DISCOVERY_TTL_SECONDS=$(input_value "TTL découverte mDNS (secondes) :" "${CLUSTER_MDNS_DISCOVERY_TTL_SECONDS:-60}")
+        if [[ "${CLUSTER_MDNS_ADVERTISE:-false}" == "true" ]]; then
+            if ! confirm "Publier ce noeud en mDNS (Bonjour) ?"; then
+                CLUSTER_MDNS_ADVERTISE=false
+            fi
+        else
+            if confirm "Publier ce noeud en mDNS (Bonjour) ?"; then
+                CLUSTER_MDNS_ADVERTISE=true
+            fi
+        fi
+    else
+        CLUSTER_MDNS_SERVICE="${CLUSTER_MDNS_SERVICE:-_mascarade._tcp.local.}"
+        CLUSTER_MDNS_DISCOVERY_TTL_SECONDS="${CLUSTER_MDNS_DISCOVERY_TTL_SECONDS:-60}"
+        CLUSTER_MDNS_ADVERTISE="${CLUSTER_MDNS_ADVERTISE:-false}"
+    fi
     if [[ "${CLUSTER_FORWARD_ENABLED:-true}" == "true" ]]; then
         if ! confirm "Garder le forward `core -> core` actif ?"; then
             CLUSTER_FORWARD_ENABLED=false
