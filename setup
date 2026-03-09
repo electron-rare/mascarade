@@ -86,7 +86,7 @@ safe_mktemp_write_target() {
         err "Echec creation fichier temporaire: espace disque ou droits insuffisants."
         warn "Verification: "
         local target
-        for target in "${TMPDIR:-$HOME} /tmp /var/tmp $REPO_DIR/.tmp"; do
+        for target in "${TMPDIR:-$HOME}" "/tmp" "/var/tmp" "$REPO_DIR/.tmp"; do
             echo "  $target : $(df -h "$target" 2>/dev/null | awk 'NR==2 {print $4}')"
         done
         return 1
