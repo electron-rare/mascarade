@@ -59,7 +59,7 @@ observabilite/proxy operateur.
 | Dashboards Grafana provisionnes en code | FAIT |
 | `Agent Zero` en mode operator copilot | FAIT |
 | Surfaces publiques/proxifiees dans `OpsHub` | FAIT |
-| `ZeroClaw` / `LangGraph` visibles comme surfaces operateur (runtime `ZeroClaw` on-demand) | FAIT |
+| `ZeroClaw` live + `zeroclaw-docs` / `LangGraph` visibles comme surfaces operateur (runtime `ZeroClaw` on-demand) | FAIT |
 | Extensions UX ou dashboards supplementaires | DIFFERE |
 
 ### Prochain lot
@@ -122,7 +122,7 @@ observabilite/proxy operateur.
 | Docling / Whisper installables dans le venv tools | FAIT |
 | Probes Prometheus / blackbox pour services | FAIT |
 | `Grafana` / `Langfuse` publies derriere `edge-proxy` | FAIT |
-| `ZeroClaw` / `LangGraph` publies comme surfaces operateur documentees | FAIT |
+| `ZeroClaw` live + `zeroclaw-docs` / `LangGraph` publies derriere `edge-proxy` | FAIT |
 | TLS public `ACME/DNS` | FAIT |
 | Cles operateur additionnelles | OPTIONNEL |
 | Setup Mac local | PREPARE |
@@ -130,8 +130,9 @@ observabilite/proxy operateur.
 ### Prochain lot
 1. Le bind public `edge-proxy` est ouvert et le certificat Let's Encrypt wildcard (`saillant.cc`, `*.saillant.cc`) est installe.
 2. Les secrets providers encore pertinents restent optionnels (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`) tant qu'aucune valeur reelle n'est fournie; `Notion` est hors scope actif.
-3. `ZeroClaw` est maintenant installe nativement sur la VM, avec demarrage a la demande; `ZeroClaw` / `LangGraph` restent exposes comme surfaces operateur derriere `edge-proxy`.
-4. Le setup Mac local est maintenant scriptable; il reste a l'executer sur le poste cible.
+3. `ZeroClaw` est maintenant installe nativement sur la VM, avec demarrage a la demande; `zeroclaw.saillant.cc` sert la surface live, tandis que `zeroclaw-docs.saillant.cc` et `langgraph.saillant.cc` gardent les runbooks operateur.
+4. Le chemin provider hybride n'est plus theorique: un smoke reel `POST /webhook` via le gateway natif repond `200` avec `OpenRouter`.
+5. Le setup Mac local est maintenant scriptable; il reste a l'executer sur le poste cible.
 
 ---
 

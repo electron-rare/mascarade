@@ -131,6 +131,7 @@ write_env_file() {
             echo "# ── Mascarade Core ──"
             echo "CORE_PORT=\"${CORE_PORT:-8100}\""
             echo "CORE_HOST=\"${CORE_HOST:-0.0.0.0}\""
+            echo "AGENT_FACTORY_COCKPIT_DIR=\"${AGENT_FACTORY_COCKPIT_DIR:-/workspace/agent-factory-cockpit}\""
             echo "DEFAULT_PROVIDER=\"${DEFAULT_PROVIDER:-claude}\""
             echo "DEFAULT_MODEL=\"${DEFAULT_MODEL:-claude-sonnet-4-6}\""
             echo "OLLAMA_BASE_URL=\"${OLLAMA_BASE_URL:-http://ollama:11434}\""
@@ -170,6 +171,17 @@ write_env_file() {
             echo "OTEL_COLLECTOR_HTTP_ENDPOINT=\"${OTEL_COLLECTOR_HTTP_ENDPOINT:-http://otel-collector:4318}\""
             echo "OPS_AGENT_URL=\"${OPS_AGENT_URL:-http://ops-agent:9200}\""
             echo "LOKI_URL=\"${LOKI_URL:-http://loki:3100}\""
+            echo ""
+        fi
+
+        if svc_selected "agent-factory-cockpit"; then
+            echo "# ── Industrial Cockpit ──"
+            echo "AGENT_FACTORY_COCKPIT_PORT=\"${AGENT_FACTORY_COCKPIT_PORT:-4173}\""
+            echo "AGENT_FACTORY_TRUSTED_PROXY_CIDRS=\"${AGENT_FACTORY_TRUSTED_PROXY_CIDRS:-172.16.0.0/12}\""
+            echo "AGENT_FACTORY_OPERATOR_GROUPS=\"${AGENT_FACTORY_OPERATOR_GROUPS:-operator}\""
+            echo "AGENT_FACTORY_APPROVER_GROUPS=\"${AGENT_FACTORY_APPROVER_GROUPS:-approver}\""
+            echo "AGENT_FACTORY_AUDITOR_GROUPS=\"${AGENT_FACTORY_AUDITOR_GROUPS:-auditor}\""
+            echo "AGENT_FACTORY_ADMIN_GROUPS=\"${AGENT_FACTORY_ADMIN_GROUPS:-admin}\""
             echo ""
         fi
 
@@ -383,8 +395,14 @@ write_env_file() {
             echo "EDGE_PROXY_PROMETHEUS_SERVER_NAME=\"${EDGE_PROXY_PROMETHEUS_SERVER_NAME:-prometheus.saillant.cc}\""
             echo "EDGE_PROXY_MEM0_SERVER_NAME=\"${EDGE_PROXY_MEM0_SERVER_NAME:-mem0.saillant.cc}\""
             echo "EDGE_PROXY_FIRECRAWL_SERVER_NAME=\"${EDGE_PROXY_FIRECRAWL_SERVER_NAME:-firecrawl.saillant.cc}\""
+            echo "EDGE_PROXY_ZEROCLAW_SERVER_NAME=\"${EDGE_PROXY_ZEROCLAW_SERVER_NAME:-zeroclaw.saillant.cc}\""
+            echo "EDGE_PROXY_ZEROCLAW_DOCS_SERVER_NAME=\"${EDGE_PROXY_ZEROCLAW_DOCS_SERVER_NAME:-zeroclaw-docs.saillant.cc}\""
+            echo "EDGE_PROXY_LANGGRAPH_SERVER_NAME=\"${EDGE_PROXY_LANGGRAPH_SERVER_NAME:-langgraph.saillant.cc}\""
+            echo "EDGE_PROXY_INDUSTRIAL_SERVER_NAME=\"${EDGE_PROXY_INDUSTRIAL_SERVER_NAME:-industrial.saillant.cc}\""
             echo "EDGE_PROXY_OPS_AUTH_USER=\"${EDGE_PROXY_OPS_AUTH_USER:-ops}\""
             echo "EDGE_PROXY_OPS_AUTH_PASSWORD=\"${default_proxy_password}\""
+            echo "ZEROCLAW_GATEWAY_URL=\"${ZEROCLAW_GATEWAY_URL:-http://host.docker.internal:3000}\""
+            echo "ZEROCLAW_FOLLOW_URL=\"${ZEROCLAW_FOLLOW_URL:-http://host.docker.internal:8788}\""
             echo "CLOUDFLARE_API_TOKEN=\"${CLOUDFLARE_API_TOKEN:-}\""
             echo ""
         fi

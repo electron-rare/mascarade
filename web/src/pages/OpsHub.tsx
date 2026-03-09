@@ -88,7 +88,9 @@ export default function OpsHub() {
     const ollamaSurface = findPublicSurface(data, "ollama");
     const firecrawlSurface = findPublicSurface(data, "firecrawl");
     const mem0Surface = findPublicSurface(data, "mem0");
+    const industrialSurface = findPublicSurface(data, "industrial");
     const zeroclawSurface = findPublicSurface(data, "zeroclaw");
+    const zeroclawDocsSurface = findPublicSurface(data, "zeroclaw-docs");
     const langgraphSurface = findPublicSurface(data, "langgraph");
     return [
       { label: "API health", href: `${origin}/health`, note: "gateway health endpoint" },
@@ -126,18 +128,28 @@ export default function OpsHub() {
         href: mem0Surface.url,
         note: "openmemory docs behind edge-proxy",
       } : null,
+      industrialSurface?.url ? {
+        label: "Industrial cockpit",
+        href: industrialSurface.url,
+        note: "industrial operator cockpit behind edge-proxy; MCP servers stay on-demand over stdio",
+      } : null,
       firecrawlSurface?.url ? {
         label: "Firecrawl proxy",
         href: firecrawlSurface.url,
         note: "streamable MCP endpoint behind edge-proxy",
       } : null,
       zeroclawSurface?.url ? {
-        label: "ZeroClaw proxy",
+        label: "ZeroClaw live",
         href: zeroclawSurface.url,
-        note: "operator lane and integration index behind edge-proxy; runtime stays on-demand",
+        note: "live follow UI behind edge-proxy; native runtime stays on-demand",
+      } : null,
+      zeroclawDocsSurface?.url ? {
+        label: "ZeroClaw docs",
+        href: zeroclawDocsSurface.url,
+        note: "static operator runbook behind edge-proxy; always reachable",
       } : null,
       langgraphSurface?.url ? {
-        label: "LangGraph proxy",
+        label: "LangGraph docs",
         href: langgraphSurface.url,
         note: "graph orchestration runbook behind edge-proxy; no always-on runtime",
       } : null,
@@ -221,9 +233,15 @@ export default function OpsHub() {
   const firecrawlSurface = findPublicSurface(data, "firecrawl");
   const mem0 = services.find((service) => service.name === "mem0");
   const mem0Surface = findPublicSurface(data, "mem0");
+  const industrialSurface = findPublicSurface(data, "industrial");
   const ollamaSurface = findPublicSurface(data, "ollama");
   const zeroclawSurface = findPublicSurface(data, "zeroclaw");
+  const zeroclawDocsSurface = findPublicSurface(data, "zeroclaw-docs");
   const langgraphSurface = findPublicSurface(data, "langgraph");
+  const industrial = data.industrial;
+  const industrialServers = industrial?.servers ?? [];
+  const industrialRuntimeReady = industrial?.summary.runtime_ok_count ?? 0;
+  const industrialServerCount = industrial?.summary.server_count ?? industrialServers.length;
   const proxyPublic = data.public.public_bind;
   const proxyAuthReady = data.public.auth_configured;
   const mcp = summary.data?.mcp;
@@ -294,6 +312,9 @@ export default function OpsHub() {
                 </span>
                 <span className={["status-chip", proxyAuthReady ? chipTone(true) : chipTone(false)].join(" ")}>
                   ops auth {proxyAuthReady ? "armed" : "missing"}
+                </span>
+                <span className={["status-chip", industrialSurface?.ok ? chipTone(true) : chipTone(false)].join(" ")}>
+                  industrial {industrialRuntimeReady}/{industrialServerCount || 0}
                 </span>
               </div>
               <div className="mt-6 flex flex-wrap gap-3">
@@ -405,11 +426,17 @@ export default function OpsHub() {
                 <Badge color={tempoReady ? "accent" : "warning"}>
                   tempo {tempoReady ? "ready" : "watch"}
                 </Badge>
+                <Badge color={industrialSurface?.ok ? "accent" : "warning"}>
+                  industrial {industrialSurface?.ok ? "ready" : "watch"}
+                </Badge>
                 <Badge color={zeroclawSurface?.ok ? "accent" : "warning"}>
-                  zeroclaw {zeroclawSurface?.ok ? "ready" : "watch"}
+                  zeroclaw live {zeroclawSurface?.ok ? "ready" : "stopped"}
+                </Badge>
+                <Badge color={zeroclawDocsSurface?.ok ? "accent" : "warning"}>
+                  zeroclaw docs {zeroclawDocsSurface?.ok ? "ready" : "watch"}
                 </Badge>
                 <Badge color={langgraphSurface?.ok ? "accent" : "warning"}>
-                  langgraph {langgraphSurface?.ok ? "ready" : "watch"}
+                  langgraph docs {langgraphSurface?.ok ? "ready" : "watch"}
                 </Badge>
               </div>
               <div className="space-y-3">
@@ -465,6 +492,76 @@ export default function OpsHub() {
                     {opsCopilotResult.content}
                   </div>
                 ) : null}
+              </div>
+            </div>
+          </Card>
+
+          <Card title="Industrial lane">
+            <div className="space-y-4">
+              <p className="text-sm leading-7 text-amber-100/60">
+                Surface operateur dediee au cockpit industriel. L&apos;UI est servie derriere
+                `edge-proxy`, et les 7 serveurs MCP industriels restent lances a la demande via
+                stdio depuis le core.
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <Badge color={industrialSurface?.ok ? "accent" : "warning"}>
+                  cockpit {industrialSurface?.ok ? "ready" : "watch"}
+                </Badge>
+                <Badge color={(industrial?.summary.cockpit_service_ok ?? false) ? "accent" : "warning"}>
+                  service {(industrial?.summary.cockpit_service_ok ?? false) ? "ready" : "watch"}
+                </Badge>
+                <Badge color={(industrial?.summary.topology_valid ?? false) ? "accent" : "warning"}>
+                  topology {(industrial?.summary.topology_valid ?? false) ? "valid" : "watch"}
+                </Badge>
+                <Badge color={(industrial?.summary.vendor_contract_blocked_count ?? 0) === 0 ? "accent" : "warning"}>
+                  vendor blocked {industrial?.summary.vendor_contract_blocked_count ?? 0}
+                </Badge>
+              </div>
+              {industrialSurface ? (
+                <a
+                  href={industrialSurface.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="block rounded-[1.4rem] border border-border/80 bg-black/25 px-4 py-4 transition hover:border-accent/35 hover:bg-black/30"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-accent">
+                        industrial cockpit
+                      </p>
+                      <p className="mt-2 text-sm text-amber-100/72">{industrialSurface.host}</p>
+                    </div>
+                    <Badge color={industrialSurface.ok ? "accent" : "warning"}>
+                      {industrialSurface.ok ? "ready" : "watch"}
+                    </Badge>
+                  </div>
+                  <p className="mt-2 text-[12px] leading-5 text-amber-100/44">
+                    {industrialSurface.note} / http {industrialSurface.status || "-"} / {formatLatency(industrialSurface.latency_ms)}
+                  </p>
+                </a>
+              ) : null}
+              <div className="space-y-3">
+                {industrialServers.map((server) => (
+                  <div
+                    key={server.key}
+                    className="rounded-[1.4rem] border border-border/80 bg-black/25 px-4 py-4"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-accent">
+                          {server.label || formatMcpName(server.key)}
+                        </p>
+                        <p className="mt-2 text-sm text-amber-100/72">{server.key}</p>
+                      </div>
+                      <Badge color={server.runtime_ok ? "accent" : "warning"}>
+                        {server.runtime_ok ? "ready" : "watch"}
+                      </Badge>
+                    </div>
+                    <p className="mt-2 text-[12px] leading-5 text-amber-100/44">
+                      {server.description || "industrial contract surface"} / {server.tool_count} tools / {server.resource_count} resources / {server.prompt_count} prompts
+                    </p>
+                  </div>
+                ))}
               </div>
             </div>
           </Card>

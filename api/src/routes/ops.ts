@@ -75,6 +75,39 @@ type MonitorSnapshot = {
       error?: string;
     }>;
   };
+  industrial: {
+    ui: {
+      host: string;
+      url: string;
+      ok: boolean;
+      status: number;
+      latency_ms: number;
+      note: string;
+      error?: string;
+    } | null;
+    summary: {
+      server_count: number;
+      runtime_ok_count: number;
+      runtime_error_count: number;
+      topology_valid: boolean;
+      vendor_contract_ready_count: number;
+      vendor_contract_blocked_count: number;
+      cockpit_service_ok: boolean;
+      cockpit_proxy_ok: boolean;
+    };
+    servers: Array<{
+      key: string;
+      label: string;
+      description: string;
+      ok: boolean;
+      runtime_ok: boolean;
+      protocol_version?: string;
+      tool_count: number;
+      resource_count: number;
+      prompt_count: number;
+      error?: string;
+    }>;
+  };
   ai: {
     ollama: {
       ok: boolean;
@@ -299,9 +332,21 @@ const EDGE_PROXY_FIRECRAWL_SERVER_NAME = (
 const EDGE_PROXY_ZEROCLAW_SERVER_NAME = (
   process.env.EDGE_PROXY_ZEROCLAW_SERVER_NAME || `zeroclaw.${EDGE_PROXY_SERVER_NAME}`
 ).trim();
+const EDGE_PROXY_ZEROCLAW_DOCS_SERVER_NAME = (
+  process.env.EDGE_PROXY_ZEROCLAW_DOCS_SERVER_NAME || `zeroclaw-docs.${EDGE_PROXY_SERVER_NAME}`
+).trim();
 const EDGE_PROXY_LANGGRAPH_SERVER_NAME = (
   process.env.EDGE_PROXY_LANGGRAPH_SERVER_NAME || `langgraph.${EDGE_PROXY_SERVER_NAME}`
 ).trim();
+const EDGE_PROXY_INDUSTRIAL_SERVER_NAME = (
+  process.env.EDGE_PROXY_INDUSTRIAL_SERVER_NAME || `industrial.${EDGE_PROXY_SERVER_NAME}`
+).trim();
+const ZEROCLAW_GATEWAY_URL = (
+  process.env.ZEROCLAW_GATEWAY_URL || "http://host.docker.internal:3000"
+).replace(/\/+$/, "");
+const ZEROCLAW_FOLLOW_URL = (
+  process.env.ZEROCLAW_FOLLOW_URL || "http://host.docker.internal:8788"
+).replace(/\/+$/, "");
 const GRAFANA_PUBLIC_ORIGIN = (
   process.env.GRAFANA_PUBLIC_ORIGIN || `https://${EDGE_PROXY_GRAFANA_SERVER_NAME}`
 ).replace(/\/+$/, "");
@@ -382,6 +427,14 @@ function proxyAuthHeaders(host: string): Record<string, string> {
     ).toString("base64")}`;
   }
   return headers;
+}
+
+function industrialCockpitHeaders(): Record<string, string> {
+  return {
+    "X-Forwarded-User": "ops",
+    "X-Forwarded-Email": "ops",
+    "X-Forwarded-Groups": "operator,approver,auditor,admin",
+  };
 }
 
 function isProxyPublic(): boolean {
@@ -1035,6 +1088,15 @@ async function collectMonitorSnapshot(): Promise<MonitorSnapshot> {
     timedProbe("tempo", "http://tempo:3200/ready"),
     timedProbe("dify-web", "http://dify-web:3000/"),
     timedProbe("dify-api", "http://dify-api:5001/health"),
+    timedProbe(
+      "agent-factory-cockpit",
+      "http://mascarade-agent-factory-cockpit:4173/api/session",
+      1800,
+      [200],
+      industrialCockpitHeaders(),
+    ),
+    timedProbe("zeroclaw-gateway-live", `${ZEROCLAW_GATEWAY_URL}/health`, 1800, [200]),
+    timedProbe("zeroclaw-follow-live", `${ZEROCLAW_FOLLOW_URL}/`, 1800, [200]),
     timedProbe("edge-proxy", "http://edge-proxy/healthz"),
     timedProbe(
       "grafana-proxy",
@@ -1079,11 +1141,25 @@ async function collectMonitorSnapshot(): Promise<MonitorSnapshot> {
       proxyAuthHeaders(EDGE_PROXY_FIRECRAWL_SERVER_NAME),
     ),
     timedProbe(
+      "industrial-proxy",
+      "http://edge-proxy/",
+      1800,
+      [200],
+      proxyAuthHeaders(EDGE_PROXY_INDUSTRIAL_SERVER_NAME),
+    ),
+    timedProbe(
       "zeroclaw-proxy",
       "http://edge-proxy/",
       1800,
       [200],
       proxyAuthHeaders(EDGE_PROXY_ZEROCLAW_SERVER_NAME),
+    ),
+    timedProbe(
+      "zeroclaw-docs-proxy",
+      "http://edge-proxy/",
+      1800,
+      [200],
+      proxyAuthHeaders(EDGE_PROXY_ZEROCLAW_DOCS_SERVER_NAME),
     ),
     timedProbe(
       "langgraph-proxy",
@@ -1099,6 +1175,7 @@ async function collectMonitorSnapshot(): Promise<MonitorSnapshot> {
     timedJson("http://qdrant:6333/collections", 2200),
     timedJson("http://core:8100/metrics", 2200, getCoreAuthHeaders()),
   ]);
+  const industrialPlatform = await coreClient.industrialMcpPlatform().catch(() => null);
   const appleLLM = APPLE_LLM_ENABLED && APPLE_LLM_BASE_URL
     ? await timedJson(`${APPLE_LLM_BASE_URL}/health`, 2200)
     : null;
@@ -1120,7 +1197,10 @@ async function collectMonitorSnapshot(): Promise<MonitorSnapshot> {
   const prometheusProxyProbe = probes.find((probe) => probe.name === "prometheus-proxy");
   const mem0ProxyProbe = probes.find((probe) => probe.name === "mem0-proxy");
   const firecrawlProxyProbe = probes.find((probe) => probe.name === "firecrawl-proxy");
+  const industrialCockpitProbe = probes.find((probe) => probe.name === "agent-factory-cockpit");
+  const industrialProxyProbe = probes.find((probe) => probe.name === "industrial-proxy");
   const zeroclawProxyProbe = probes.find((probe) => probe.name === "zeroclaw-proxy");
+  const zeroclawDocsProxyProbe = probes.find((probe) => probe.name === "zeroclaw-docs-proxy");
   const langgraphProxyProbe = probes.find((probe) => probe.name === "langgraph-proxy");
 
   return {
@@ -1222,6 +1302,17 @@ async function collectMonitorSnapshot(): Promise<MonitorSnapshot> {
           ...(firecrawlProxyProbe?.error ? { error: firecrawlProxyProbe.error } : {}),
         },
         {
+          name: "industrial",
+          host: EDGE_PROXY_INDUSTRIAL_SERVER_NAME,
+          url: `https://${EDGE_PROXY_INDUSTRIAL_SERVER_NAME}/`,
+          protected: true,
+          ok: industrialProxyProbe?.ok ?? false,
+          status: industrialProxyProbe?.status ?? 0,
+          latency_ms: industrialProxyProbe?.latency_ms ?? 0,
+          note: "industrial operator cockpit behind edge-proxy basic auth; live-ready MCP servers stay stdio/on-demand",
+          ...(industrialProxyProbe?.error ? { error: industrialProxyProbe.error } : {}),
+        },
+        {
           name: "zeroclaw",
           host: EDGE_PROXY_ZEROCLAW_SERVER_NAME,
           url: `https://${EDGE_PROXY_ZEROCLAW_SERVER_NAME}/`,
@@ -1229,8 +1320,19 @@ async function collectMonitorSnapshot(): Promise<MonitorSnapshot> {
           ok: zeroclawProxyProbe?.ok ?? false,
           status: zeroclawProxyProbe?.status ?? 0,
           latency_ms: zeroclawProxyProbe?.latency_ms ?? 0,
-          note: "ZeroClaw operator lane and local integration runbooks behind edge-proxy basic auth; live runtime stays on-demand",
+          note: `ZeroClaw live follow UI behind edge-proxy basic auth; native runtime ${zeroclawProxyProbe?.ok ? "ready" : "stopped"}`,
           ...(zeroclawProxyProbe?.error ? { error: zeroclawProxyProbe.error } : {}),
+        },
+        {
+          name: "zeroclaw-docs",
+          host: EDGE_PROXY_ZEROCLAW_DOCS_SERVER_NAME,
+          url: `https://${EDGE_PROXY_ZEROCLAW_DOCS_SERVER_NAME}/`,
+          protected: true,
+          ok: zeroclawDocsProxyProbe?.ok ?? false,
+          status: zeroclawDocsProxyProbe?.status ?? 0,
+          latency_ms: zeroclawDocsProxyProbe?.latency_ms ?? 0,
+          note: "ZeroClaw static runbook behind edge-proxy basic auth; available even when runtime is stopped",
+          ...(zeroclawDocsProxyProbe?.error ? { error: zeroclawDocsProxyProbe.error } : {}),
         },
         {
           name: "langgraph",
@@ -1244,6 +1346,41 @@ async function collectMonitorSnapshot(): Promise<MonitorSnapshot> {
           ...(langgraphProxyProbe?.error ? { error: langgraphProxyProbe.error } : {}),
         },
       ],
+    },
+    industrial: {
+      ui: industrialProxyProbe ? {
+        host: EDGE_PROXY_INDUSTRIAL_SERVER_NAME,
+        url: `https://${EDGE_PROXY_INDUSTRIAL_SERVER_NAME}/`,
+        ok: industrialProxyProbe.ok,
+        status: industrialProxyProbe.status,
+        latency_ms: industrialProxyProbe.latency_ms,
+        note: "industrial cockpit UI proxied with operator auth; runtime MCP stdio discovery remains on-demand",
+        ...(industrialProxyProbe.error ? { error: industrialProxyProbe.error } : {}),
+      } : null,
+      summary: {
+        server_count: Number(industrialPlatform?.summary?.server_count ?? 0),
+        runtime_ok_count: Number(industrialPlatform?.summary?.runtime_ok_count ?? 0),
+        runtime_error_count: Number(industrialPlatform?.summary?.runtime_error_count ?? 0),
+        topology_valid: Boolean(industrialPlatform?.summary?.topology_valid ?? false),
+        vendor_contract_ready_count: Number(industrialPlatform?.summary?.vendor_contract_ready_count ?? 0),
+        vendor_contract_blocked_count: Number(industrialPlatform?.summary?.vendor_contract_blocked_count ?? 0),
+        cockpit_service_ok: industrialCockpitProbe?.ok ?? false,
+        cockpit_proxy_ok: industrialProxyProbe?.ok ?? false,
+      },
+      servers: Array.isArray(industrialPlatform?.servers)
+        ? industrialPlatform.servers.map((server: Record<string, unknown>) => ({
+            key: String(server.key || ""),
+            label: String(server.label || server.key || ""),
+            description: String(server.description || ""),
+            ok: Boolean(server.ok ?? server.runtime_ok ?? false),
+            runtime_ok: Boolean(server.runtime_ok ?? server.ok ?? false),
+            protocol_version: String(server.protocol_version || ""),
+            tool_count: Number(server.tool_count || 0),
+            resource_count: Number(server.resource_count || 0),
+            prompt_count: Number(server.prompt_count || 0),
+            ...(server.error ? { error: String(server.error) } : {}),
+          }))
+        : [],
     },
     ai: {
       ollama: {
@@ -1412,6 +1549,7 @@ ops.get("/summary", async (c) => {
       },
       observability: monitor.observability,
       public: monitor.public,
+      industrial: monitor.industrial,
       cluster: {
         enabled: !!clusterIdentity?.cluster_enabled,
         node_id: clusterIdentity?.node_id || null,
