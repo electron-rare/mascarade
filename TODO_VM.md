@@ -35,6 +35,7 @@ Notes:
 - `Firecrawl`, `Mem0`, `Prometheus` et `Ollama` sont aussi publiables derrière `edge-proxy` sur `firecrawl.saillant.cc`, `mem0.saillant.cc`, `prometheus.saillant.cc` et `ollama.saillant.cc`, avec la même auth opérateur.
 - `Industrial Cockpit` est maintenant publiable derrière `edge-proxy` sur `industrial.saillant.cc`, avec auth opérateur; le cockpit HTTP tourne en service dédié, et les 7 serveurs MCP industriels restent on-demand via stdio depuis `mascarade-core`.
 - la surface publique industrielle est vérifiée de bout en bout: `industrial.saillant.cc/` et `industrial.saillant.cc/api/session` répondent `200` avec auth opérateur; aucun port brut n'est publié pour ce cockpit.
+- `PLM` expose maintenant un contrat `generic-rest` live-ready dans cette lane industrielle: `/api/industrial/platform` remonte `health` + `contract`, ainsi qu'un statut par opération `live` / `simulated` / `blocked`. Le runtime top-level publie bien la posture canonique `api-key` via `X-API-Key`. Sur cette VM, le sandbox PLM n'est pas encore configuré, donc le runtime courant reste `simulated` sans faux succès live.
 - `ZeroClaw` est maintenant installe nativement sur la VM (`zeroclaw 0.1.7`), avec un runtime operateur demarrable a la demande via `Kill_LIFE/tools/ai/zeroclaw_stack_up.sh`.
 - `zeroclaw.saillant.cc` sert maintenant la surface live `ZeroClaw` derriere `edge-proxy`, avec fallback offline propre si le runtime est arrete.
 - `zeroclaw-docs.saillant.cc` et `langgraph.saillant.cc` servent les runbooks operateur authentifies.
@@ -101,7 +102,9 @@ Notes:
 ### Mac local
 - [x] Un bootstrap MCP Mac est maintenant scripté dans `Kill_LIFE` via `tools/bootstrap_mac_mcp.sh`.
 - [x] `Playwright MCP` est intégré à ce bootstrap.
-- [ ] Exécuter ce bootstrap sur le Mac opérateur réel.
+- [x] Bootstrap `Codex` exécuté avec succès sur le Mac opérateur réel via `bash tools/bootstrap_mac_mcp.sh codex --apply`.
+- [x] Les serveurs MCP attendus sont visibles dans `codex mcp list`: `kicad`, `validate-specs`, `knowledge-base`, `github-dispatch`, `freecad`, `openscad`, `huggingface`, `playwright`.
+- [x] `Playwright MCP` est validé sur le Mac cible via `npx -y @playwright/mcp@latest --help`.
 
 ## Restes reels
 
@@ -109,7 +112,8 @@ Les restes encore ouverts ne sont plus des blocs locaux d'implementation:
 
 - `Anthropic`: cle presente mais credit insuffisant sur l'API
 - `Google Gemini`: cle presente mais `generativelanguage.googleapis.com` est desactive sur le projet associe
-- execution du bootstrap Mac sur le poste cible (`MCP`, `Playwright MCP`)
+- sur le Mac cible, le worktree `/Users/electron/mascarade` reste dirty; ne pas faire de `git pull` tant que les changements locaux ne sont pas consolides
+- si le sandbox `PLM` doit passer en live, il faut encore renseigner `AGENT_FACTORY_PLM_BASE_URL`, `AGENT_FACTORY_PLM_API_KEY` et les `AGENT_FACTORY_PLM_RESOURCE_*` sur la VM
 
 ## Infra existante sur la VM
 

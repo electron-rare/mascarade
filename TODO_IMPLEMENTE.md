@@ -69,4 +69,4 @@ Note de contexte multi-repo:
 1. Ne pas rouvrir de nouveau lot local par defaut: le socle runtime/ops est livre.
 2. Garder `Agent Zero` hors chemin critique.
 3. Ne rouvrir les E2E differes que sur besoin explicite.
-4. Traiter seulement les restes externes ou optionnels: billing `Anthropic`, activation API Google, setup Mac local.
+4. Traiter seulement les restes externes ou optionnels: billing `Anthropic`, activation API Google, et consolidation du worktree `/Users/electron/mascarade` sur le Mac operateur avant tout `pull`.
