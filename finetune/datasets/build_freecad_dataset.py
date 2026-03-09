@@ -378,6 +378,100 @@ To make it truly parametric:
             },
         ]
     },
+    {
+        "conversations": [
+            {"from": "system", "value": SYSTEM_PROMPT},
+            {
+                "from": "human",
+                "value": (
+                    "How should I translate a parametric enclosure workflow from Fusion 360 into a FreeCAD-"
+                    "compatible scripting strategy without losing revision control?"
+                ),
+            },
+            {
+                "from": "gpt",
+                "value": """Treat Fusion 360 as the feature-history reference and FreeCAD as the reproducible script target.
+
+Recommended translation strategy:
+
+1. **Extract the real parameters first**
+- width, height, wall, fillet radius, boss spacing, lid clearance
+- manufacturing constraints like nozzle size, thread insert diameter, and PCB keepout
+
+2. **Move those parameters into a single FreeCAD spreadsheet**
+- one named parameter per design variable
+- keep units explicit
+- use expressions instead of hard-coded dimensions in sketches and pads
+
+3. **Rebuild features as simple scripted operations**
+- base solid
+- shell or cut
+- bosses
+- connector openings
+- ventilation
+- fillets and chamfers last
+
+4. **Do not try to mimic every Fusion feature one-to-one**
+- map intent, not UI steps
+- prefer a shorter FreeCAD script with named parameters and obvious booleans
+
+5. **Keep revision control text-first**
+- store the FreeCAD Python macro or CadQuery script in Git
+- keep exported STEP or STL as build artifacts, not source of truth
+
+A practical pattern is:
+- Fusion 360 used for exploratory modeling and dimension discovery
+- FreeCAD or CadQuery used for repeatable generation, design variants, and CI-driven export""",
+            },
+        ]
+    },
+    {
+        "conversations": [
+            {"from": "system", "value": SYSTEM_PROMPT},
+            {
+                "from": "human",
+                "value": (
+                    "What is the safe way to reproduce a SOLIDWORKS bracket design in FreeCAD while preserving "
+                    "mounting interfaces and manufacturing dimensions?"
+                ),
+            },
+            {
+                "from": "gpt",
+                "value": """Use SOLIDWORKS as the geometry reference and rebuild the bracket around controlled interfaces.
+
+Safe migration checklist:
+
+1. **Lock the interface dimensions**
+- hole pattern
+- datums
+- bend or flange reference planes
+- board or connector mating envelopes
+
+2. **Export a neutral reference**
+- STEP for solid geometry
+- DXF for critical profiles when useful
+
+3. **Rebuild natively in FreeCAD**
+- create a spreadsheet for all critical dimensions
+- sketch the primary profile
+- pad, pocket, fillet, chamfer
+- model holes from dimensions, not from imported edges
+
+4. **Validate what matters**
+- center-to-center distances
+- hole diameters
+- thickness
+- clearance zones
+- exported STEP comparison against the original
+
+5. **Avoid topological naming traps**
+- drive later features from sketches, datum planes, and spreadsheets
+- do not attach production dimensions to unstable imported faces when a native rebuild is possible
+
+If the bracket is production-critical, rebuild the parametric model in FreeCAD and keep the SOLIDWORKS export only as a frozen visual cross-check.""",
+            },
+        ]
+    },
 ]
 
 

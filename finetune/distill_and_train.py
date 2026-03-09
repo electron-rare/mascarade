@@ -11,11 +11,18 @@ import sys
 import time
 from pathlib import Path
 
+from auto_policy import (
+    detect_machine_profile,
+    resolve_teacher_objective,
+    resolve_teacher_selection,
+)
 from dataset_bootstrap import ensure_seed_dataset
+from dataset_quality import DatasetQualityError, enforce_dataset_quality, summarize_quality_report
 from run_manifest import load_json, now_ts, redact_command, write_manifest
 from sharegpt_utils import (
-    dedupe_rows,
+    dedupe_rows_with_stats,
     ensure_row_ids,
+    ensure_row_ids_with_stats,
     load_jsonl,
     validate_rows,
     write_jsonl,
@@ -36,6 +43,7 @@ DOMAINS = [
     "embedded",
     "platformio",
     "freecad",
+    "components",
 ]
 
 
@@ -113,6 +121,8 @@ def make_manifest(
             "api_urls": args.api_urls or [],
             "teacher_provider": args.teacher_provider,
             "teacher_model": args.teacher_model,
+            "teacher_objective": args.teacher_objective,
+            "teacher_selection": args.teacher_selection,
             "teacher_only": args.teacher_only,
             "strategy": args.strategy,
             "temperature": args.temperature,
@@ -125,6 +135,8 @@ def make_manifest(
             "seed": args.seed,
             "sleep_ms": args.sleep_ms,
             "teacher_system_path": args.teacher_system_path,
+            "local_hf_device": args.local_hf_device,
+            "machine_profile": args.machine_profile,
             "device": args.device,
             "student_model": args.student_model,
             "student_max_samples": args.student_max_samples,
@@ -193,6 +205,12 @@ def main() -> int:
     parser.add_argument("--api-key", default=os.environ.get("MASCARADE_API_KEY", ""))
     parser.add_argument("--teacher-provider", default=None)
     parser.add_argument("--teacher-model", default=None)
+    parser.add_argument(
+        "--teacher-objective",
+        choices=["fast", "balanced", "quality"],
+        default=os.environ.get("MASCARADE_TEACHER_OBJECTIVE", "balanced"),
+        help="Auto teacher policy: fast=true GPU 4B/7B first, quality=35B/24B offload first",
+    )
     parser.add_argument("--strategy", default="best")
     parser.add_argument("--temperature", type=float, default=0.4)
     parser.add_argument("--max-tokens", type=int, default=2048)
@@ -214,6 +232,11 @@ def main() -> int:
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--sleep-ms", type=int, default=0)
     parser.add_argument("--teacher-system-path", default=None)
+    parser.add_argument(
+        "--local-hf-device",
+        default=os.environ.get("MASCARADE_LOCAL_HF_DEVICE"),
+        help="Explicit device target for local-hf teachers (auto, cpu, cuda:0, ...)",
+    )
     parser.add_argument("--device", choices=["auto", "gpu", "cpu"], default="auto")
     parser.add_argument("--student-model", default=None)
     parser.add_argument("--student-max-samples", type=int, default=None)
@@ -244,8 +267,27 @@ def main() -> int:
         "--quiet", action="store_true", help="Keep pipeline output minimal"
     )
     args = parser.parse_args()
+    args.teacher_objective = resolve_teacher_objective(args.teacher_objective)
     if args.teacher_only:
         args.skip_train = True
+    args.machine_profile = detect_machine_profile(requested_device=args.device)
+    args.teacher_selection = resolve_teacher_selection(
+        machine_profile=args.machine_profile,
+        explicit_provider=args.teacher_provider,
+        explicit_model=args.teacher_model,
+        ollama_api_url=os.environ.get("OLLAMA_API_URL"),
+        domains=[args.domain],
+        objective=args.teacher_objective,
+    )
+    args.teacher_provider = args.teacher_selection["provider"]
+    args.teacher_model = args.teacher_selection["model"]
+    if not args.local_hf_device:
+        args.local_hf_device = args.teacher_selection.get("local_hf_device")
+    elif args.teacher_provider == "local-hf":
+        args.teacher_selection["local_hf_device"] = args.local_hf_device
+        args.teacher_selection["gpu_active"] = (
+            str(args.local_hf_device).strip().lower() != "cpu"
+        )
 
     def emit(message: str, *, important: bool = False) -> None:
         if args.quiet and not important:
@@ -305,10 +347,48 @@ def main() -> int:
     if not source_dataset.exists():
         raise SystemExit(f"Source dataset not found: {source_dataset}")
 
+    raw_source_rows = load_jsonl(source_dataset)
+    source_quality_rows, normalized_source_ids = ensure_row_ids_with_stats(
+        raw_source_rows, f"{args.domain}-source"
+    )
+    source_validation_errors = validate_rows(source_quality_rows)
+    if source_validation_errors:
+        for error in source_validation_errors[:20]:
+            print(f"[ERROR] {error}")
+        raise SystemExit(
+            f"Source dataset is invalid ({len(source_validation_errors)} errors)"
+        )
+    try:
+        source_quality = enforce_dataset_quality(
+            source_quality_rows,
+            label=f"{args.domain} source dataset",
+            ids_fixed=normalized_source_ids,
+        )
+    except DatasetQualityError as exc:
+        raise SystemExit(f"Source dataset quality gate failed: {exc}") from exc
+    if source_quality["warnings"]:
+        emit(
+            f"[WARN] source-quality: {summarize_quality_report(source_quality)}",
+            important=True,
+        )
+
     emit(
         f"[PLAN] domain={args.domain} distill={'no' if args.skip_distill else 'yes'} train={'no' if args.skip_train else 'yes'}",
         important=True,
     )
+    emit(
+        "[INFO] teacher="
+        f"{args.teacher_provider}/{args.teacher_model} "
+        f"objective={args.teacher_objective} "
+        f"mode={args.teacher_selection.get('mode', 'auto')}",
+        important=True,
+    )
+    emit(
+        f"[INFO] teacher_reason={args.teacher_selection.get('reason', '-')}",
+        important=True,
+    )
+    if args.teacher_provider == "local-hf" and args.local_hf_device:
+        emit(f"[INFO] local_hf_device={args.local_hf_device}", important=True)
     if run_dir is not None:
         emit(f"[INFO] run_dir={run_dir}", important=True)
     if args.verbose:
@@ -357,6 +437,8 @@ def main() -> int:
             distill_cmd.extend(["--teacher-provider", args.teacher_provider])
         if args.teacher_model:
             distill_cmd.extend(["--teacher-model", args.teacher_model])
+        if args.local_hf_device:
+            distill_cmd.extend(["--local-hf-device", args.local_hf_device])
         if args.teacher_system_path:
             distill_cmd.extend(["--teacher-system-path", args.teacher_system_path])
         if args.dry_run:
@@ -409,7 +491,9 @@ def main() -> int:
         write_manifest(manifest_path, manifest)
     source_rows = ensure_row_ids(load_jsonl(source_dataset), f"{args.domain}-source")
     distilled_rows = ensure_row_ids(load_jsonl(distilled_out), f"{args.domain}-distill")
-    merged_rows = dedupe_rows(source_rows + distilled_rows)
+    merged_rows, merged_duplicates_removed = dedupe_rows_with_stats(
+        source_rows + distilled_rows
+    )
     validation_errors = validate_rows(merged_rows)
     if validation_errors:
         if manifest is not None and manifest_path is not None:
@@ -423,6 +507,20 @@ def main() -> int:
         for error in validation_errors[:20]:
             print(f"[ERROR] {error}")
         raise SystemExit(f"Merged dataset is invalid ({len(validation_errors)} errors)")
+    try:
+        merged_quality = enforce_dataset_quality(
+            merged_rows,
+            label=f"{args.domain} merged dataset",
+        )
+    except DatasetQualityError as exc:
+        if manifest is not None and manifest_path is not None:
+            manifest["status"] = "failed"
+            manifest["steps"]["merge"] = {
+                "status": "failed",
+                "quality_gate": str(exc),
+            }
+            write_manifest(manifest_path, manifest)
+        raise SystemExit(f"Merged dataset quality gate failed: {exc}") from exc
 
     write_jsonl(merged_out, merged_rows)
     if manifest is not None and manifest_path is not None:
@@ -431,6 +529,9 @@ def main() -> int:
             "source_rows": len(source_rows),
             "distilled_rows": len(distilled_rows),
             "merged_rows": len(merged_rows),
+            "duplicates_removed": merged_duplicates_removed,
+            "source_quality": source_quality,
+            "quality_gate": merged_quality,
         }
         write_manifest(manifest_path, manifest)
     emit(f"[OK] wrote merged dataset: {merged_out}", important=True)
@@ -438,6 +539,16 @@ def main() -> int:
         f"[OK] source={len(source_rows)} distilled={len(distilled_rows)} merged={len(merged_rows)}",
         important=True,
     )
+    if merged_duplicates_removed:
+        emit(
+            f"[INFO] removed duplicate rows during consolidation: {merged_duplicates_removed}",
+            important=True,
+        )
+    if merged_quality["warnings"]:
+        emit(
+            f"[WARN] merged-quality: {summarize_quality_report(merged_quality)}",
+            important=True,
+        )
 
     if args.skip_train:
         if manifest is not None and manifest_path is not None:

@@ -76,17 +76,20 @@ Etat de reference du chantier fine-tuning/distillation local au 6 mars 2026.
 - [x] `selected_model.json` lu par `run_local.py` au boot via `resolve_model()`
 - [x] Export GGUF complet dans `pipeline.py`: q4_k_m, q4_k_s, q5_k_m, q8_0
 - [x] Deploy GGUF vers Ollama dans `pipeline.py`: docker cp/exec + test inference
+- [x] `auto_chain_next_lots.sh` continue avec fallback `selected_model.json` si le watch report est temporairement indisponible et reste en mode `--continue-on-error`.
 
 ### Ce qui reste a verrouiller
-- [ ] Valider la phase `train` de bout en bout sur un run batch `esp32 spice pio`
-- [ ] Documenter la reprise `--resume` dans la doc operateur (code OK, doc manquante)
+- [x] Valider la phase `train` de bout en bout sur un run batch `esp32 spice pio`
+- [x] Documenter la reprise `--resume` dans la doc operateur (code OK, doc manquante)
 - [ ] Mesurer si `2` trainings GPU paralleles apportent un gain reel sur Quadro P2000
+- [x] Robustifier `auto_chain_next_lots_loop.sh` : backoff adaptatif sur `blocked` et interdiction de `--report-dir` en pass-through.
 
 ### Verification au 6 mars 2026
 - [x] `finetune/runs/smoke_batch_20260306_191758`: `esp32`, `spice`, `pio` en `distill=completed`
 - [x] `finetune/runs/smoke_batch_gpu_20260306_193427`: `esp32`, `spice`, `pio` en `distill=completed`
 - [x] `finetune/runs/smoke_batch_gpu2_20260306_195107`: `esp32`, `spice`, `pio` en `distill=completed`
-- [ ] Les manifests ci-dessus restent en `train=pending`; l'entrainement batch complet n'est donc pas encore valide de bout en bout
+- [x] Les manifests ci-dessus sont passés en `train=completed` après reprise batch (validation consolidée dans le plan d'execution actuel).
+- [x] Tentative auto-lot `Mellum` réalisée: `finetune/runs/auto-next-lots_20260309_071455/manifest.json` (`status=blocked`, `runs_blocked=1`) en attendant fin `tuning-party-hf`.
 
 ## 4. TODO Agent Zero
 
@@ -109,11 +112,13 @@ Objectif: cadrer si `Agent Zero` doit rester un sujet d'etude, un outil de debug
 
 ## 5. Prochain ordre de travail recommande
 
-1. Terminer un batch `esp32 spice pio` avec phase `train` complete et logs conserves.
-2. Ecrire la doc operateur `--resume` (le code fonctionne deja).
-3. Lancer un vrai batch multi-domaines avec queue GPU a `1`.
-4. Mesurer ensuite un mode experimental a `2` trainings GPU paralleles.
-5. Cadrer `Agent Zero` separement, apres stabilisation du pipeline local.
+1. Relancer `./scripts/auto_chain_next_lots.sh --execute --iterations 1 --continue-on-error` dès libération GPU (dernier run bloqué: `auto-next-lots_20260309_071455`).
+   - alternative enchaînée: `./scripts/auto_chain_next_lots_loop.sh --iterations 1 --sleep-seconds 20 --max-cycles 3 --max-blocked-streak 10`
+     - preuve: `finetune/runs/auto-next-lots_20260309_071721_cycle_1/manifest.json`, `...071741_cycle_2/manifest.json`, `...071801_cycle_3/manifest.json`.
+   - preuve: `finetune/runs/auto-next-lots_20260309_071539_cycle_1/manifest.json` (`runs_blocked=1`).
+2. Mesurer le gain réel de `2` trainings GPU parallèles sur RTX 4090.
+3. Verrouiller le contrat `R-010` multi-repo avec preuves de sync `crazy_life` / `Kill_LIFE` / `llmfit`.
+4. Revoir la place d'`Agent Zero` hors pipeline critique (expérimentation isolée).
 
 ## 6. Cockpit frontend deja implemente
 

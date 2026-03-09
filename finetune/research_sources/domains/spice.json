@@ -1,0 +1,92 @@
+{
+  "domain": "spice",
+  "topic": "SPICE / circuit simulation",
+  "minimum_web_roots": 8,
+  "forum_urls": [
+    {
+      "label": "ngspice Discussions",
+      "url": "https://sourceforge.net/p/ngspice/discussion/"
+    },
+    {
+      "label": "LTspice Groups",
+      "url": "https://groups.io/g/LTspice"
+    },
+    {
+      "label": "Cadence Community",
+      "url": "https://community.cadence.com/"
+    },
+    {
+      "label": "Analog Devices EngineerZone",
+      "url": "https://ez.analog.com/"
+    },
+    {
+      "label": "TI E2E",
+      "url": "https://e2e.ti.com/"
+    },
+    {
+      "label": "All About Circuits Forum",
+      "url": "https://forum.allaboutcircuits.com/"
+    },
+    {
+      "label": "EEVblog Forum",
+      "url": "https://www.eevblog.com/forum/"
+    },
+    {
+      "label": "Electronics StackExchange SPICE",
+      "url": "https://electronics.stackexchange.com/questions/tagged/spice"
+    },
+    {
+      "label": "Electronics StackExchange LTspice",
+      "url": "https://electronics.stackexchange.com/questions/tagged/ltspice"
+    },
+    {
+      "label": "PSMA Technical Forums",
+      "url": "https://psma.com/technical-forums/"
+    }
+  ],
+  "authoritative_urls": [
+    {
+      "label": "ngspice documentation",
+      "url": "https://ngspice.sourceforge.io/docs.html"
+    },
+    {
+      "label": "LTspice overview",
+      "url": "https://www.analog.com/en/resources/design-tools-and-calculators/ltspice-simulator.html"
+    }
+  ],
+  "github_repos": [
+    {
+      "label": "ngspice",
+      "url": "https://github.com/ngspice/ngspice"
+    }
+  ],
+  "software_sources": [
+    {
+      "label": "ngspice upstream",
+      "url": "https://ngspice.sourceforge.io/"
+    },
+    {
+      "label": "LTspice download and models",
+      "url": "https://www.analog.com/en/resources/simulation-models/spice-models.html"
+    }
+  ],
+  "datasheet_roots": [
+    {
+      "label": "Analog Devices LTspice macromodels",
+      "url": "https://www.analog.com/en/resources/simulation-models/spice-models.html"
+    }
+  ],
+  "hf_sources": [
+    "STEM-AI-mtl/Electrical-engineering"
+  ],
+  "queries": [
+    "site:ngspice.sourceforge.io ngspice convergence transient noise",
+    "site:analog.com ltspice switch-mode power simulation",
+    "site:huggingface.co/datasets electrical engineering spice dataset"
+  ],
+  "trusted_domains": [
+    "ngspice.sourceforge.io",
+    "analog.com",
+    "huggingface.co"
+  ]
+}

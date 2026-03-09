@@ -959,6 +959,98 @@ for track in board.GetTracks():
             },
         ]
     },
+    {
+        "conversations": [
+            {"from": "system", "value": SYSTEM_PROMPT},
+            {
+                "from": "human",
+                "value": (
+                    "How do I migrate an Altium component library into a KiCad workflow without corrupting "
+                    "footprints, supplier metadata, and approved alternates?"
+                ),
+            },
+            {
+                "from": "gpt",
+                "value": """Treat the Altium library as input data, not as production truth.
+
+Recommended migration policy:
+
+1. **Freeze the canonical identity on MPN**
+- manufacturer
+- manufacturer part number
+- package
+- datasheet URL
+- internal approval state
+
+2. **Split the migration into layers**
+- schematic symbols
+- footprints
+- 3D models
+- supplier metadata
+- approved alternates
+
+3. **Re-validate every physical package**
+- pad pitch
+- toe and heel length
+- exposed pad geometry
+- courtyard and assembly layer
+- pin 1 and polarity markers
+
+4. **Move supplier data outside the footprint when possible**
+- keep distributor SKUs in fields or BOM plugins
+- do not let a Mouser or Farnell line silently redefine the electrical identity
+
+5. **Approve alternates only when package and height are truly compatible**
+- same footprint is not enough for connectors, inductors, electrolytics, or shielded parts
+
+In practice: import, review against the manufacturer datasheet, then publish only the corrected KiCad-native library objects.""",
+            },
+        ]
+    },
+    {
+        "conversations": [
+            {"from": "system", "value": SYSTEM_PROMPT},
+            {
+                "from": "human",
+                "value": (
+                    "What should I verify when moving a prototype from EasyEDA to KiCad for a board that will "
+                    "later go to JLCPCB assembly?"
+                ),
+            },
+            {
+                "from": "gpt",
+                "value": """Verify the manufacturing contract, not just the geometry.
+
+Checklist for EasyEDA -> KiCad:
+
+1. **Symbol and pin mapping**
+- compare every critical part against the manufacturer datasheet
+- do not trust marketplace symbol names alone
+
+2. **Footprint fidelity**
+- pad sizes
+- thermal pad
+- courtyard
+- paste reductions
+- 3D orientation
+
+3. **JLC and LCSC metadata**
+- preserve LCSC codes in fields
+- keep approved alternates separately from the primary MPN
+- confirm assembly availability before release
+
+4. **DRC and fabrication rules**
+- recreate track, clearance, via, mask, and courtyard rules in KiCad
+- verify connector keepouts and board edge constraints
+
+5. **Output comparison**
+- generate BOM, CPL, Gerbers, drill files, and assembly drawings from KiCad
+- compare them against the original EasyEDA release package before first production
+
+If a part was selected because it was convenient in EasyEDA, re-qualify it in KiCad against the real datasheet and JLC stock before freezing the design.""",
+            },
+        ]
+    },
 ]
 
 

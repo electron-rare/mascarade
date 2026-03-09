@@ -1,0 +1,102 @@
+{
+  "domain": "embedded",
+  "topic": "Embedded systems / ARM / ESP32 / RISC-V",
+  "minimum_web_roots": 8,
+  "forum_urls": [
+    {
+      "label": "ST Community",
+      "url": "https://community.st.com/"
+    },
+    {
+      "label": "PlatformIO Community",
+      "url": "https://community.platformio.org/"
+    },
+    {
+      "label": "ChibiOS Forum",
+      "url": "https://forum.chibios.org/"
+    },
+    {
+      "label": "FreeRTOS Forums",
+      "url": "https://forums.freertos.org/"
+    },
+    {
+      "label": "ARM Community Forums",
+      "url": "https://community.arm.com/support-forums/"
+    },
+    {
+      "label": "Arduino Forum",
+      "url": "https://forum.arduino.cc/"
+    },
+    {
+      "label": "EmbeddedRelated Forum",
+      "url": "https://www.embeddedrelated.com/forum.php"
+    },
+    {
+      "label": "Electronics StackExchange STM32",
+      "url": "https://electronics.stackexchange.com/questions/tagged/stm32"
+    },
+    {
+      "label": "Electronics StackExchange Embedded",
+      "url": "https://electronics.stackexchange.com/questions/tagged/embedded"
+    },
+    {
+      "label": "All About Circuits Embedded Systems",
+      "url": "https://forum.allaboutcircuits.com/forums/embedded-systems-and-microcontrollers.13/"
+    }
+  ],
+  "authoritative_urls": [
+    {
+      "label": "ESP-IDF programming guide",
+      "url": "https://docs.espressif.com/projects/esp-idf/en/stable/esp32/"
+    },
+    {
+      "label": "ST STM32Cube docs",
+      "url": "https://dev.st.com/stm32cube-docs/"
+    }
+  ],
+  "github_repos": [
+    {
+      "label": "esp-idf",
+      "url": "https://github.com/espressif/esp-idf"
+    },
+    {
+      "label": "STMicroelectronics org",
+      "url": "https://github.com/STMicroelectronics"
+    }
+  ],
+  "software_sources": [
+    {
+      "label": "ESP-IDF product page",
+      "url": "https://www.espressif.com/en/products/sdks/esp-idf"
+    },
+    {
+      "label": "STM32Cube docs",
+      "url": "https://dev.st.com/stm32cube-docs/"
+    }
+  ],
+  "datasheet_roots": [
+    {
+      "label": "ESP32 hardware reference",
+      "url": "https://docs.espressif.com/projects/esp-idf/en/stable/esp32/hw-reference/index.html"
+    },
+    {
+      "label": "STM32 MCU documentation",
+      "url": "https://www.st.com/en/microcontrollers-microprocessors/stm32-mainstream-mcus/documentation.html"
+    }
+  ],
+  "hf_sources": [
+    "gouthamsk/esp_idf_code",
+    "gavmac00/arduino-docs",
+    "bshada/arduino.stackexchange.com"
+  ],
+  "queries": [
+    "site:docs.espressif.com esp-idf spi dma cache alignment",
+    "site:dev.st.com cortex-m startup linker script dma application note",
+    "site:huggingface.co/datasets embedded firmware dataset"
+  ],
+  "trusted_domains": [
+    "docs.espressif.com",
+    "dev.st.com",
+    "huggingface.co"
+  ]
+}
