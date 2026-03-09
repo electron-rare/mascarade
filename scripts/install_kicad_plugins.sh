@@ -25,7 +25,7 @@ Bundles:
 
 Install options:
   --plugin-dir DIR                      Override target KiCad plugins directory
-  --kicad-version VER                   KiCad version for the default plugin dir (default: 9.0)
+  --kicad-version VER                   KiCad version for the default plugin dir (default: 10.0 on macOS, 9.0 otherwise)
   --yes                                 Overwrite existing bundle directories without prompting
   --dry-run                             Print actions without writing files
   -v, --verbose                         Print debug details
@@ -52,8 +52,19 @@ die() {
   exit 1
 }
 
+default_kicad_version() {
+  case "$(uname -s)" in
+    Darwin)
+      printf '10.0\n'
+      ;;
+    *)
+      printf '9.0\n'
+      ;;
+  esac
+}
+
 default_plugin_dir() {
-  local version="${1:-9.0}"
+  local version="${1:-$(default_kicad_version)}"
   case "$(uname -s)" in
     Linux)
       printf '%s/.config/kicad/%s/scripting/plugins\n' "$HOME" "$version"
@@ -278,7 +289,7 @@ doctor_bundle() {
 }
 
 plugin_dir_cmd() {
-  local kicad_version="${KICAD_VERSION:-9.0}"
+  local kicad_version="${KICAD_VERSION:-$(default_kicad_version)}"
 
   while [ "$#" -gt 0 ]; do
     case "$1" in
@@ -301,7 +312,7 @@ plugin_dir_cmd() {
 }
 
 paths_cmd() {
-  local kicad_version="${KICAD_VERSION:-9.0}"
+  local kicad_version="${KICAD_VERSION:-$(default_kicad_version)}"
 
   while [ "$#" -gt 0 ]; do
     case "$1" in
@@ -342,7 +353,7 @@ doctor_cmd() {
     shift
   fi
 
-  local kicad_version="${KICAD_VERSION:-9.0}"
+  local kicad_version="${KICAD_VERSION:-$(default_kicad_version)}"
   local plugin_dir="${KICAD_PLUGIN_DIR:-}"
   local status=0
 
@@ -401,7 +412,7 @@ install_cmd() {
 
   local bundle="$1"
   shift
-  local kicad_version="${KICAD_VERSION:-9.0}"
+  local kicad_version="${KICAD_VERSION:-$(default_kicad_version)}"
   local plugin_dir="${KICAD_PLUGIN_DIR:-}"
 
   while [ "$#" -gt 0 ]; do
