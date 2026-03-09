@@ -1,0 +1,168 @@
+{
+  "version": 1,
+  "updated_at": "2026-03-08T18:30:26",
+  "models": {
+    "esp32_local_v1": {
+      "promoted_at": "2026-03-08T18:30:26",
+      "alias": "esp32_local_v1",
+      "domain_label": "esp32",
+      "canonical_domain": "iot",
+      "source": {
+        "kind": "batch_local",
+        "run_dir": "/home/clems/mascarade/finetune/runs/p2000_bench_gpu1_fixed_20260308_143343",
+        "manifest_path": "/home/clems/mascarade/finetune/runs/p2000_bench_gpu1_fixed_20260308_143343/manifest.json",
+        "run_label": "p2000_bench_gpu1_fixed"
+      },
+      "artifacts": {
+        "train_output_dir": "/home/clems/mascarade/finetune/models_local/esp32_p2000_bench_gpu1_fixed_20260308_143343",
+        "adapter_path": "/home/clems/mascarade/finetune/models_local/esp32_p2000_bench_gpu1_fixed_20260308_143343/adapter",
+        "training_info_path": "/home/clems/mascarade/finetune/models_local/esp32_p2000_bench_gpu1_fixed_20260308_143343/training_info.json",
+        "run_manifest_path": "/home/clems/mascarade/finetune/models_local/esp32_p2000_bench_gpu1_fixed_20260308_143343/run.json",
+        "llmfit_plan_path": "/home/clems/mascarade/finetune/models_local/esp32_p2000_bench_gpu1_fixed_20260308_143343/llmfit_plan.json"
+      },
+      "student_model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+      "teacher_provider": "ollama",
+      "teacher_model": "qwen2.5-coder:3b",
+      "training_info": {
+        "domain": "iot",
+        "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+        "samples": 96,
+        "epochs": 2,
+        "max_seq_len": 256,
+        "loss": 1.3550443172454834,
+        "lora_r": 16,
+        "lora_alpha": 32,
+        "lora_targets": [
+          "q_proj",
+          "v_proj",
+          "k_proj",
+          "o_proj"
+        ],
+        "tokenize_workers": 4,
+        "packing": true,
+        "compute_dtype": "bf16",
+        "tf32": false,
+        "attention_implementation": "sdpa"
+      },
+      "llmfit": {
+        "enabled": true,
+        "requested_device": "gpu",
+        "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+        "context": 256,
+        "minimum_fit": "marginal",
+        "status": "unavailable",
+        "reason": "llmfit preflight skipped: no llmfit binary found. Build /ai/saisail/llmfit with cargo +stable build --release -p llmfit or set LLMFIT_BIN.",
+        "warning": "llmfit preflight skipped: no llmfit binary found. Build /ai/saisail/llmfit with cargo +stable build --release -p llmfit or set LLMFIT_BIN.",
+        "report_path": "/home/clems/mascarade/finetune/models_local/esp32_p2000_bench_gpu1_fixed_20260308_143343/llmfit_plan.json"
+      }
+    },
+    "spice_local_v1": {
+      "promoted_at": "2026-03-08T17:17:48",
+      "alias": "spice_local_v1",
+      "domain_label": "spice",
+      "canonical_domain": "spice",
+      "source": {
+        "kind": "batch_local",
+        "run_dir": "/home/clems/mascarade/finetune/runs/p2000_bench_gpu1_fixed_20260308_143343",
+        "manifest_path": "/home/clems/mascarade/finetune/runs/p2000_bench_gpu1_fixed_20260308_143343/manifest.json",
+        "run_label": "p2000_bench_gpu1_fixed"
+      },
+      "artifacts": {
+        "train_output_dir": "/home/clems/mascarade/finetune/models_local/spice_p2000_bench_gpu1_fixed_20260308_143343",
+        "adapter_path": "/home/clems/mascarade/finetune/models_local/spice_p2000_bench_gpu1_fixed_20260308_143343/adapter",
+        "training_info_path": "/home/clems/mascarade/finetune/models_local/spice_p2000_bench_gpu1_fixed_20260308_143343/training_info.json",
+        "run_manifest_path": "/home/clems/mascarade/finetune/models_local/spice_p2000_bench_gpu1_fixed_20260308_143343/run.json",
+        "llmfit_plan_path": "/home/clems/mascarade/finetune/models_local/spice_p2000_bench_gpu1_fixed_20260308_143343/llmfit_plan.json"
+      },
+      "student_model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+      "teacher_provider": "ollama",
+      "teacher_model": "qwen2.5-coder:3b",
+      "training_info": {
+        "domain": "spice",
+        "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+        "samples": 96,
+        "epochs": 2,
+        "max_seq_len": 256,
+        "loss": 1.8443546295166016,
+        "lora_r": 16,
+        "lora_alpha": 32,
+        "lora_targets": [
+          "q_proj",
+          "v_proj",
+          "k_proj",
+          "o_proj"
+        ],
+        "tokenize_workers": 4,
+        "packing": true,
+        "compute_dtype": "bf16",
+        "tf32": false,
+        "attention_implementation": "sdpa"
+      },
+      "llmfit": {
+        "enabled": true,
+        "requested_device": "gpu",
+        "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+        "context": 256,
+        "minimum_fit": "marginal",
+        "status": "unavailable",
+        "reason": "llmfit preflight skipped: no llmfit binary found. Build /ai/saisail/llmfit with cargo +stable build --release -p llmfit or set LLMFIT_BIN.",
+        "warning": "llmfit preflight skipped: no llmfit binary found. Build /ai/saisail/llmfit with cargo +stable build --release -p llmfit or set LLMFIT_BIN.",
+        "report_path": "/home/clems/mascarade/finetune/models_local/spice_p2000_bench_gpu1_fixed_20260308_143343/llmfit_plan.json"
+      }
+    },
+    "pio_local_v1": {
+      "promoted_at": "2026-03-08T17:35:37",
+      "alias": "pio_local_v1",
+      "domain_label": "pio",
+      "canonical_domain": "platformio",
+      "source": {
+        "kind": "batch_local",
+        "run_dir": "/home/clems/mascarade/finetune/runs/p2000_bench_gpu1_fixed_20260308_143343",
+        "manifest_path": "/home/clems/mascarade/finetune/runs/p2000_bench_gpu1_fixed_20260308_143343/manifest.json",
+        "run_label": "p2000_bench_gpu1_fixed"
+      },
+      "artifacts": {
+        "train_output_dir": "/home/clems/mascarade/finetune/models_local/pio_p2000_bench_gpu1_fixed_20260308_143343",
+        "adapter_path": "/home/clems/mascarade/finetune/models_local/pio_p2000_bench_gpu1_fixed_20260308_143343/adapter",
+        "training_info_path": "/home/clems/mascarade/finetune/models_local/pio_p2000_bench_gpu1_fixed_20260308_143343/training_info.json",
+        "run_manifest_path": "/home/clems/mascarade/finetune/models_local/pio_p2000_bench_gpu1_fixed_20260308_143343/run.json",
+        "llmfit_plan_path": "/home/clems/mascarade/finetune/models_local/pio_p2000_bench_gpu1_fixed_20260308_143343/llmfit_plan.json"
+      },
+      "student_model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+      "teacher_provider": "ollama",
+      "teacher_model": "qwen2.5-coder:3b",
+      "training_info": {
+        "domain": "platformio",
+        "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+        "samples": 96,
+        "epochs": 2,
+        "max_seq_len": 256,
+        "loss": 2.06114501953125,
+        "lora_r": 16,
+        "lora_alpha": 32,
+        "lora_targets": [
+          "q_proj",
+          "v_proj",
+          "k_proj",
+          "o_proj"
+        ],
+        "tokenize_workers": 4,
+        "packing": true,
+        "compute_dtype": "bf16",
+        "tf32": false,
+        "attention_implementation": "sdpa"
+      },
+      "llmfit": {
+        "enabled": true,
+        "requested_device": "gpu",
+        "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+        "context": 256,
+        "minimum_fit": "marginal",
+        "status": "unavailable",
+        "reason": "llmfit preflight skipped: no llmfit binary found. Build /ai/saisail/llmfit with cargo +stable build --release -p llmfit or set LLMFIT_BIN.",
+        "warning": "llmfit preflight skipped: no llmfit binary found. Build /ai/saisail/llmfit with cargo +stable build --release -p llmfit or set LLMFIT_BIN.",
+        "report_path": "/home/clems/mascarade/finetune/models_local/pio_p2000_bench_gpu1_fixed_20260308_143343/llmfit_plan.json"
+      }
+    }
+  }
+}
