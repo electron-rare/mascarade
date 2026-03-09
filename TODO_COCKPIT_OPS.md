@@ -37,6 +37,7 @@ Le lot local est stable; ce fichier ne porte plus de blocage critique.
 - [x] `SearXNG`, `Paperless-ngx` et `Karakeep` sont exposes comme surfaces operateur derriere `edge-proxy`, avec URLs proxifiees dans `OpsHub` et verification live dans `/api/ops/monitor`
 - [x] `PLM` remonte maintenant dans la lane industrielle avec son contrat MCP explicite (`health` + `contract`) et un statut par operation `live` / `simulated` / `blocked`
 - [x] `QMS` remonte maintenant dans la lane industrielle avec son contrat MCP explicite (`health` + `contract`) et un statut par operation `live` / `simulated` / `blocked`
+- [x] Integrer un sandbox `DCS` gouverne local a la lane industrielle pour disposer d'un flux live-ready de demo sans write direct OT
 - [x] `Infrastructure` expose maintenant les compteurs de topologie industrielle utiles (`sites`, `external partners`, `lines`) pour le rollout `grandris-1` / `ems-lyon`
 - [x] `OpsHub` distingue maintenant posture runtime, observabilite et surfaces publiques/proxifiees
 - [x] `OpsHub` n'ouvre plus les surfaces tooling sur des ports bruts; il renvoie vers les hostnames proxifies proteges
@@ -48,7 +49,7 @@ Le lot local est stable; ce fichier ne porte plus de blocage critique.
 - [ ] Etendre les actions operateur d'`Agent Zero` uniquement si un usage concret depasse le mode copilot actuel
 - [ ] N'etendre la stack `phase2` (`SearXNG`, `Paperless-ngx`, `Karakeep`) que si un workflow documentaire/recherche concret le justifie
 - [ ] Etendre le cockpit industriel seulement si un besoin reel depasse l'inventaire/runtime/tool-proxy actuel
-- [ ] Ne rouvrir `DCS` qu'avec un vrai sandbox/runtime OT; `WMS` est deja qualifie en `generic-rest` live-ready et reste volontairement `simulated` sur cette VM tant que le sandbox n'est pas configure
+- [ ] Ne rouvrir `DCS` live externe qu'avec un vrai runtime/contrat OT; `WMS` est deja qualifie en `generic-rest` live-ready et reste volontairement `simulated` sur cette VM tant que le sandbox n'est pas configure
 
 ## 4. Complement optionnel
 
@@ -69,3 +70,15 @@ Le lot local est stable; ce fichier ne porte plus de blocage critique.
 3. Garder la ligne `MCP/agentics` sur le backlog specialise `Kill_LIFE/specs/mcp_tasks.md`.
 4. Traiter separement les sujets externes: billing `Anthropic`, activation API Google, quota `NEXAR` si besoin live.
 5. Ne pas traiter le repo compagnon `finetune/kicad_kic_ai` comme un delta `mascarade`; il suit sa propre publication.
+
+## 7. Automation
+
+Pour reprendre le lot local actif sans requalifier tout le contexte a la main:
+
+```bash
+cd /home/clems/mascarade
+bash scripts/run_next_useful_lot.sh
+```
+
+Le snapshot genere par le script vit dans
+[NEXT_USEFUL_LOT_STATE.md](/home/clems/mascarade/docs/NEXT_USEFUL_LOT_STATE.md).

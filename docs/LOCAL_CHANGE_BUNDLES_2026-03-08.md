@@ -34,6 +34,9 @@ Etat reel:
   bind local-first, plus les surfaces publiques protegees
   `search.saillant.cc`, `paperless.saillant.cc` et `karakeep.saillant.cc`
 - le repo compagnon `finetune/kicad_kic_ai` reste hors bundle `mascarade`
+- le follow-up `industrial-dcs-governed-sandbox` est maintenant ferme
+  localement; il publie un sandbox OT gouverne, l'integre a la lane
+  industrielle et ajoute un flux de demo explicite sans write direct
 
 ## Lots logiques publies
 
@@ -292,3 +295,15 @@ Etat courant:
 
 Ne pas rouvrir un lot technique nouveau dans `mascarade` tant qu'un besoin reel
 ne requalifie pas un sujet externe ou optionnel.
+
+Chemin d'automatisation court terme:
+
+```bash
+cd /home/clems/mascarade
+bash scripts/next_useful_lot.sh detect
+bash scripts/next_useful_lot.sh checks
+bash scripts/next_useful_lot.sh state --write
+```
+
+Le fichier versionne [NEXT_USEFUL_LOT_STATE.md](/home/clems/mascarade/docs/NEXT_USEFUL_LOT_STATE.md)
+sert de handoff court terme pour le lot actif.

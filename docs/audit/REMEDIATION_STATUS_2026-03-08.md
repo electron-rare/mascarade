@@ -52,6 +52,13 @@ Backlog de reference:
     top-level `api-key` via `X-WMS-Key`, mais la VM ne porte pas encore de
     sandbox WMS configure; le statut courant reste donc `simulated` sans faux
     vert `live`
+- Follow-up post-`RA-*`: ferme
+  - `industrial-dcs-governed-sandbox`: publie
+  - perimetre clos: sandbox `DCS` gouverne local, integration a la lane
+    industrielle et flux de demo explicite sans write direct OT
+  - etat reel: le pack `DCS` est maintenant `live-ready` sur sandbox local
+    gouverne; ne rouvrir un vrai DCS live qu'avec un runtime/contrat OT
+    externe
 
 ## Detail par RA
 
@@ -163,3 +170,7 @@ Condition de reouverture:
    - consolidation du worktree `/Users/electron/mascarade` sur le Mac operateur avant tout `pull`.
 5. N'ouvrir un chantier Nexar supplementaire que si le sourcing live requiert un token/plan avec quota de parts non nul.
 6. Ne rejouer `K-012` que si le host-native KiCad devient une exigence runtime.
+7. Pour les lots locaux encore actifs hors `RA-*`, utiliser
+   `bash /home/clems/mascarade/scripts/run_next_useful_lot.sh`; le handoff
+   courant est regenere dans
+   [NEXT_USEFUL_LOT_STATE.md](/home/clems/mascarade/docs/NEXT_USEFUL_LOT_STATE.md).
