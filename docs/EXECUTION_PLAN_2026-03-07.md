@@ -127,14 +127,14 @@ observabilite/proxy operateur.
 | `openai` active et validee en strict | FAIT |
 | `claude` configuree mais bloquee par credit Anthropic | EXTERNE |
 | `google` configure avec `api_key` mais bloquee par `generativelanguage.googleapis.com` desactive | EXTERNE |
-| Setup Mac local | PREPARE |
+| Setup Mac local | FAIT |
 
 ### Prochain lot
 1. Le bind public `edge-proxy` est ouvert et le certificat Let's Encrypt wildcard (`saillant.cc`, `*.saillant.cc`) est installe.
 2. `OpenAI` est maintenant validee en strict; les restes providers sont externes: billing `Anthropic` et activation de l'API Google Generative Language.
 3. `ZeroClaw` est maintenant installe nativement sur la VM, avec demarrage a la demande; `zeroclaw.saillant.cc` sert la surface live, tandis que `zeroclaw-docs.saillant.cc` et `langgraph.saillant.cc` gardent les runbooks operateur.
 4. Le chemin provider hybride n'est plus theorique: un smoke reel `POST /webhook` via le gateway natif repond `200` avec `OpenRouter`.
-5. Le setup Mac local est maintenant scriptable et valide en dry-run local; il reste a l'executer sur le poste cible.
+5. Le setup Mac local est maintenant valide sur le poste cible: `codex --apply` a enregistre `kicad`, `validate-specs`, `knowledge-base`, `github-dispatch`, `freecad`, `openscad`, `huggingface` et `playwright`, et `Playwright MCP` repond.
 
 ---
 
@@ -173,5 +173,5 @@ observabilite/proxy operateur.
 
 ### Priorite immediate recommandee
 1. Ne pas rouvrir de nouveau chantier local sans besoin concret.
-2. Traiter seulement les sujets externes ou optionnels: billing `Anthropic`, activation API Google, setup Mac local.
+2. Traiter seulement les sujets externes ou optionnels: billing `Anthropic`, activation API Google, et consolidation du worktree `/Users/electron/mascarade` sur le Mac operateur avant tout `pull`.
 3. Si une nouvelle vague repo s'ouvre, repartir d'un lot neuf au lieu de reutiliser un reliquat historique.
