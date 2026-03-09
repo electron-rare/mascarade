@@ -1,0 +1,40 @@
+services:
+  kicad-headless:
+    image: kicad/kicad:9.0
+    container_name: mascarade-kicad-headless
+    working_dir: /workspace
+    command: ["sleep", "infinity"]
+    volumes:
+      - ${CAD_WORKSPACE_DIR:-../..}:/workspace
+
+  kicad-mcp:
+    build:
+      context: ../../finetune/kicad_mcp_server
+      dockerfile: ../../deploy/cad/Dockerfile.kicad-mcp
+    container_name: mascarade-kicad-mcp
+    working_dir: /workspace
+    command: ["sleep", "infinity"]
+    environment:
+      KICAD_PYTHON: /usr/bin/python3
+    volumes:
+      - ${CAD_WORKSPACE_DIR:-../..}:/workspace
+
+  freecad-headless:
+    build:
+      context: .
+      dockerfile: Dockerfile.freecad-headless
+    container_name: mascarade-freecad-headless
+    working_dir: /workspace
+    command: ["sleep", "infinity"]
+    volumes:
+      - ${CAD_WORKSPACE_DIR:-../..}:/workspace
+
+  platformio:
+    build:
+      context: .
+      dockerfile: Dockerfile.platformio
+    container_name: mascarade-platformio
+    working_dir: /workspace
+    command: ["sleep", "infinity"]
+    volumes:
+      - ${CAD_WORKSPACE_DIR:-../..}:/workspace

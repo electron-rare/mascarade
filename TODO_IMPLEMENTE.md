@@ -2,6 +2,13 @@
 
 Etat de reference du chantier fine-tuning/distillation local au 6 mars 2026.
 
+Note de contexte multi-repo:
+- les sections frontend/cockpit ci-dessous sont un inventaire historique de ce
+  qui a ete implemente depuis `mascarade`
+- l'ownership produit et la release canonique du cockpit vivent maintenant dans
+  `crazy_life`
+- `mascarade/web` reste un bridge/snapshot, pas la source de verite web
+
 ## 1. Deja implemente
 
 ### Pipeline local
@@ -9,6 +16,9 @@ Etat de reference du chantier fine-tuning/distillation local au 6 mars 2026.
 - [x] Support `LoRA/QLoRA` local avec `venv_tuning`
 - [x] Fallback CPU utilisable quand CUDA est indisponible
 - [x] Smoke tests reels valides en CPU et en GPU
+- [x] Politique de defaults coherente:
+  - GPU / student principal = `Qwen/Qwen2.5-Coder-1.5B-Instruct`
+  - CPU fallback = `TinyLlama/TinyLlama-1.1B-Chat-v1.0`
 
 ### Distillation teacher -> student
 - [x] Pipeline complet `distill -> merge -> train`
@@ -51,6 +61,7 @@ Etat de reference du chantier fine-tuning/distillation local au 6 mars 2026.
 - [x] `finetune/distill_and_train.py`
 - [x] `finetune/batch_local.py`
 - [x] `finetune/batch_status.py`
+- [x] `finetune/model_selector.py` (experimental, non branche au pipeline)
 - [x] `scripts/finetune_local.sh`
 - [x] `scripts/distill_and_train.sh`
 - [x] `scripts/parallel_domains_gpu_queue.sh`
@@ -66,11 +77,17 @@ Etat de reference du chantier fine-tuning/distillation local au 6 mars 2026.
 - [x] `esp32` alias `iot` passe maintenant sur le chemin distill + merge en smoke test batch
 - [x] Le dataset source `iot` est valide apres normalisation `ensure_row_ids()`
 
+### Verifie par audit (7 mars 2026)
+- [x] `--resume` fonctionne: `load_resume_manifest()`, skip des domaines completed
+- [x] `batch_status.py` distingue correctement `distill` et `train` par domaine
+- [x] `selected_model.json` lu par `run_local.py` au boot via `resolve_model()`
+- [x] Export GGUF complet dans `pipeline.py`: q4_k_m, q4_k_s, q5_k_m, q8_0
+- [x] Deploy GGUF vers Ollama dans `pipeline.py`: docker cp/exec + test inference
+
 ### Ce qui reste a verrouiller
 - [ ] Valider la phase `train` de bout en bout sur un run batch `esp32 spice pio`
-- [ ] Documenter clairement la reprise d'un run batch interrompu avec `--resume`
+- [ ] Documenter la reprise `--resume` dans la doc operateur (code OK, doc manquante)
 - [ ] Mesurer si `2` trainings GPU paralleles apportent un gain reel sur Quadro P2000
-- [ ] Ajouter un resume CLI/rapport qui distingue `distill completed` de `train pending`
 
 ### Verification au 6 mars 2026
 - [x] `finetune/runs/smoke_batch_20260306_191758`: `esp32`, `spice`, `pio` en `distill=completed`
@@ -100,7 +117,7 @@ Objectif: cadrer si `Agent Zero` doit rester un sujet d'etude, un outil de debug
 ## 5. Prochain ordre de travail recommande
 
 1. Terminer un batch `esp32 spice pio` avec phase `train` complete et logs conserves.
-2. Ajouter un resume d'etat batch lisible (`distill completed`, `train running`, `train pending`, `failed`).
+2. Ecrire la doc operateur `--resume` (le code fonctionne deja).
 3. Lancer un vrai batch multi-domaines avec queue GPU a `1`.
 4. Mesurer ensuite un mode experimental a `2` trainings GPU paralleles.
 5. Cadrer `Agent Zero` separement, apres stabilisation du pipeline local.
@@ -162,3 +179,24 @@ Objectif: cadrer si `Agent Zero` doit rester un sujet d'etude, un outil de debug
 
 - [x] Backlog fine-tuning detaille dans `TODO_TUNNING_PARTY.md`
 - [x] Backlog cockpit/ops detaille dans `TODO_COCKPIT_OPS.md`
+
+## 9. CAD / KiCad deja implemente
+
+### Structure repo
+- [x] Repositories KiCad enregistres comme sous-modules
+- [x] Sous-module legacy `vendors/kicadrouterai` remappe proprement dans `.gitmodules`
+
+### Helpers versionnes
+- [x] `scripts/install_kicad_plugins.sh list`
+- [x] `scripts/install_kicad_plugins.sh plugin-dir`
+- [x] `scripts/install_kicad_plugins.sh install`
+- [x] `scripts/install_kicad_plugins.sh doctor`
+- [x] `scripts/cad_stack.sh up|down|ps|doctor|mcp`
+
+### Ce qui reste a faire
+- [x] Integrer la section `CAD / KiCad` dans `./config`
+- [x] Ajouter les actions `--cad-plugins`, `--cad-doctor`, `--cad-stack` dans `./setup`
+- [x] Consolider la doc operateur CAD/TUI
+- [x] Smoke operateur CAD (`cad_stack.sh smoke`, `setup --cad-smoke`)
+- [x] Doc chemins plugins par OS (`install_kicad_plugins.sh paths`)
+- [x] Doctor MCP dedie (`cad_stack.sh doctor-mcp`)

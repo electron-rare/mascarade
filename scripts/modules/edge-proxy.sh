@@ -5,7 +5,7 @@ module_edge_proxy_config() {
   if [[ -z "${PUBLISH_BIND_HOST:-}" || "${PUBLISH_BIND_HOST}" == "0.0.0.0" ]]; then
     PUBLISH_BIND_HOST=$(input_value "Bind host services internes" "127.0.0.1")
   fi
-  EDGE_PROXY_BIND_HOST=$(input_value "Bind host Edge Proxy" "${EDGE_PROXY_BIND_HOST:-0.0.0.0}")
+  EDGE_PROXY_BIND_HOST=$(input_value "Bind host Edge Proxy" "${EDGE_PROXY_BIND_HOST:-127.0.0.1}")
   EDGE_PROXY_HTTP_PORT=$(input_value "Port HTTP Edge Proxy" "${EDGE_PROXY_HTTP_PORT:-80}")
   EDGE_PROXY_HTTPS_PORT=$(input_value "Port HTTPS Edge Proxy" "${EDGE_PROXY_HTTPS_PORT:-443}")
   EDGE_PROXY_SERVER_NAME=$(input_value "Server name Edge Proxy" "${EDGE_PROXY_SERVER_NAME:-localhost}")
@@ -27,8 +27,8 @@ module_edge_proxy_compose() {
   echo "    container_name: mascarade-edge-proxy"
   echo "    restart: unless-stopped"
   echo "    ports:"
-  echo "      - \"\${EDGE_PROXY_BIND_HOST:-0.0.0.0}:\${EDGE_PROXY_HTTP_PORT}:80\""
-  echo "      - \"\${EDGE_PROXY_BIND_HOST:-0.0.0.0}:\${EDGE_PROXY_HTTPS_PORT}:443\""
+  echo "      - \"\${EDGE_PROXY_BIND_HOST:-127.0.0.1}:\${EDGE_PROXY_HTTP_PORT}:80\""
+  echo "      - \"\${EDGE_PROXY_BIND_HOST:-127.0.0.1}:\${EDGE_PROXY_HTTPS_PORT}:443\""
   echo "    env_file:"
   echo "      - .env"
   echo "    volumes:"

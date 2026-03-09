@@ -120,6 +120,17 @@ export const navigationGroups: NavGroup[] = [
         description: "Endpoints exposes, providers declares et etat brut de l'infrastructure.",
         section: "Operations",
       },
+      {
+        to: "/settings",
+        icon: "⚿",
+        label: "Settings",
+        shortLabel: "Keys",
+        hint: "provider keys",
+        eyebrow: "admin",
+        title: "Settings",
+        description: "Configuration des cles API providers et parametres de la gateway.",
+        section: "Operations",
+      },
     ],
   },
   {
@@ -147,6 +158,17 @@ export const navigationGroups: NavGroup[] = [
         description: "Pilotage des workflows ComfyUI et verification rapide du pipeline image.",
         section: "Integrations",
       },
+      {
+        to: "/kill-life",
+        icon: "◫",
+        label: "Kill_LIFE",
+        shortLabel: "Workflow",
+        hint: "graph editor",
+        eyebrow: "embedded lane",
+        title: "Kill_LIFE",
+        description: "Editeur graphique de workflows embarques, validation locale et dispatch GitHub depuis le cockpit.",
+        section: "Integrations",
+      },
     ],
   },
 ];
@@ -159,6 +181,10 @@ export const mobileDockItems = navigationItems.filter((item) =>
 function resolveBaseItem(pathname: string): NavItem | undefined {
   if (pathname.startsWith("/agents/")) {
     return navigationItems.find((item) => item.to === "/agents");
+  }
+
+  if (pathname.startsWith("/kill-life/")) {
+    return navigationItems.find((item) => item.to === "/kill-life");
   }
 
   return navigationItems.find((item) => item.to === pathname);
@@ -179,6 +205,17 @@ export function resolvePage(pathname: string): PageMeta {
       title: `Agent ${agent}`,
       description: "Configuration, capacites et introspection detaillee de l'agent selectionne.",
       section: matched?.section || "Core",
+      index,
+    };
+  }
+
+  if (pathname.startsWith("/kill-life/")) {
+    const workflowId = pathname.split("/").pop() || "workflow";
+    return {
+      eyebrow: "workflow editor",
+      title: `Kill_LIFE ${workflowId}`,
+      description: "Edition directe du graphe, validation, run local et dispatch GitHub pour les workflows Kill_LIFE.",
+      section: matched?.section || "Integrations",
       index,
     };
   }

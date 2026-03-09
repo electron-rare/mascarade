@@ -11,8 +11,15 @@ do
     if [ -f "$VENV" ]; then
         # shellcheck disable=SC1090
         source "$VENV"
+        FOUND_VENV=1
         break
     fi
 done
+
+if [ "${FOUND_VENV:-0}" -ne 1 ]; then
+    echo "No fine-tuning virtualenv found." >&2
+    echo "Run ./scripts/bootstrap_finetune_env.sh first." >&2
+    exit 1
+fi
 
 exec python finetune/run_local.py "$@"

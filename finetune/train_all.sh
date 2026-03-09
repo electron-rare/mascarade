@@ -5,7 +5,7 @@
 # Usage:
 #   ./train_all.sh                    # All domains, GPU (Qwen2.5-Coder-1.5B)
 #   ./train_all.sh --domains spice,kicad,stm32
-#   ./train_all.sh --model Qwen/Qwen2.5-Coder-7B-Instruct --cpu
+#   ./train_all.sh --model Qwen/Qwen2.5-Coder-1.5B-Instruct --cpu
 #   ./train_all.sh --dry-run          # Show what would run
 #
 
@@ -18,7 +18,18 @@ LOG_DIR="${SCRIPT_DIR}/logs"
 DATASETS_DIR="${SCRIPT_DIR}/datasets"
 
 ALL_DOMAINS="stm32 spice iot power dsp emc kicad embedded platformio freecad"
-MODEL="Qwen/Qwen2.5-Coder-1.5B-Instruct"
+DEFAULT_GPU_MODEL="Qwen/Qwen2.5-Coder-1.5B-Instruct"
+DEFAULT_CPU_MODEL="$DEFAULT_GPU_MODEL"
+# Use model_selector choice if available
+SELECTED_MODEL_FILE="${SCRIPT_DIR}/selected_model.json"
+if [[ -f "$SELECTED_MODEL_FILE" ]]; then
+    _sel=$(python3 -c "import json; print(json.load(open('$SELECTED_MODEL_FILE'))['model_id'])" 2>/dev/null)
+    if [[ -n "$_sel" ]]; then
+        DEFAULT_GPU_MODEL="$_sel"
+        DEFAULT_CPU_MODEL="$_sel"
+    fi
+fi
+MODEL="$DEFAULT_GPU_MODEL"
 SEQ_LEN=1024
 EPOCHS=2
 MAX_SAMPLES=""
@@ -65,6 +76,10 @@ while [[ $# -gt 0 ]]; do
         *) echo "Unknown option: $1"; usage ;;
     esac
 done
+
+if $USE_CPU && [[ "$MODEL" == "$DEFAULT_GPU_MODEL" ]]; then
+    MODEL="$DEFAULT_CPU_MODEL"
+fi
 
 DOMAINS="${SELECTED_DOMAINS:-$ALL_DOMAINS}"
 DOMAIN_LIST=($DOMAINS)

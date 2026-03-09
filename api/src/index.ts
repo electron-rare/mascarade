@@ -9,9 +9,12 @@ import { rateLimitMiddleware } from "./middleware/rate-limit.js";
 import { securityHeaders } from "./middleware/security.js";
 import { health } from "./routes/health.js";
 import { agents } from "./routes/agents.js";
+import { cluster } from "./routes/cluster.js";
 import { notion } from "./routes/notion.js";
 import { comfyui } from "./routes/comfyui.js";
 import { ops } from "./routes/ops.js";
+import { killlife } from "./routes/killlife.js";
+import { settings } from "./routes/settings.js";
 
 const app = new Hono();
 const hasFrontend = existsSync("./public/index.html");
@@ -29,9 +32,12 @@ app.route("/health", health);
 app.use("/api/*", authMiddleware);
 app.use("/api/*", rateLimitMiddleware);
 app.route("/api/agents", agents);
+app.route("/api/cluster", cluster);
 app.route("/api/notion", notion);
 app.route("/api/comfyui", comfyui);
 app.route("/api/ops", ops);
+app.route("/api/killlife", killlife);
+app.route("/api/settings", settings);
 
 if (hasFrontend) {
   app.use("/assets/*", serveStatic({ root: "./public" }));

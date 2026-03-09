@@ -17,7 +17,7 @@ for arg in "$@"; do
         -h|--help)
             echo "Usage: ./config [--help] [--verbose|-v]"
             echo ""
-            echo "Reconfiguration interactive du .env Mascarade. Permet de modifier cles API, ports et integrations par sections sans tout reinstaller."
+            echo "Reconfiguration interactive du .env Mascarade. Permet de modifier cles API, ports, integrations, cluster et CAD/KiCad par sections sans tout reinstaller."
             echo ""
             echo "Options :"
             echo "  -h, --help      Afficher cette aide et quitter"
@@ -45,8 +45,16 @@ fi
 declare -Ag CONFIG_ORIG=()
 declare -Ag CONFIG_SCOPE_TOUCHED=()
 declare -ag ACTIVE_SERVICE_IDS=()
+declare -ag CONFIG_CLUSTER_FIELDS=(
+    CLUSTER_ENABLED NODE_ID NODE_ROLE NODE_LABEL MESH_BIND_HOST MESH_SCHEME
+    CLUSTER_SHARED_KEY CLUSTER_REQUEST_TIMEOUT_MS CLUSTER_HEARTBEAT_SECONDS
+    CLUSTER_FORWARD_ENABLED CLUSTER_PEERS
+)
+declare -ag CONFIG_CAD_FIELDS=(
+    KICAD_VERSION KICAD_PLUGIN_DIR CAD_WORKSPACE_DIR CAD_INSTALL_BUNDLES
+)
 declare -ag CONFIG_PORT_FIELDS=(
-    PUBLISH_BIND_HOST CORE_PORT API_PORT POSTGRES_PORT REDIS_PORT CLICKHOUSE_HTTP_PORT CLICKHOUSE_NATIVE_PORT OLLAMA_PORT OPEN_WEBUI_PORT EDGE_PROXY_BIND_HOST EDGE_PROXY_HTTP_PORT EDGE_PROXY_HTTPS_PORT
+    PUBLISH_BIND_HOST CORE_PORT API_PORT POSTGRES_PORT REDIS_PORT CLICKHOUSE_HTTP_PORT CLICKHOUSE_NATIVE_PORT OLLAMA_PORT EDGE_PROXY_BIND_HOST EDGE_PROXY_HTTP_PORT EDGE_PROXY_HTTPS_PORT
     LITELLM_PORT N8N_PORT LANGFUSE_PORT DIFY_API_PORT DIFY_WEB_PORT TTS_PORT STT_PORT
     GENERATE_AUDIO_PORT QDRANT_PORT QDRANT_GRPC_PORT GRAFANA_PORT PROMETHEUS_PORT
 )
@@ -59,7 +67,6 @@ declare -Ag CONFIG_PORT_LABEL=(
     [CLICKHOUSE_HTTP_PORT]="Port ClickHouse HTTP"
     [CLICKHOUSE_NATIVE_PORT]="Port ClickHouse native"
     [OLLAMA_PORT]="Port Ollama"
-    [OPEN_WEBUI_PORT]="Port Open WebUI"
     [EDGE_PROXY_BIND_HOST]="Bind Edge Proxy"
     [EDGE_PROXY_HTTP_PORT]="Port HTTP Edge Proxy"
     [EDGE_PROXY_HTTPS_PORT]="Port HTTPS Edge Proxy"
@@ -85,7 +92,6 @@ declare -Ag CONFIG_PORT_SERVICE=(
     [CLICKHOUSE_HTTP_PORT]="clickhouse"
     [CLICKHOUSE_NATIVE_PORT]="clickhouse"
     [OLLAMA_PORT]="ollama"
-    [OPEN_WEBUI_PORT]="open-webui"
     [EDGE_PROXY_BIND_HOST]="edge-proxy"
     [EDGE_PROXY_HTTP_PORT]="edge-proxy"
     [EDGE_PROXY_HTTPS_PORT]="edge-proxy"
@@ -152,8 +158,12 @@ capture_config_snapshot() {
     local vars=(
         ANTHROPIC_API_KEY OPENAI_API_KEY GOOGLE_API_KEY MISTRAL_API_KEY GROQ_API_KEY
         DEFAULT_LLM_PROVIDER DEFAULT_LLM_MODEL MASCARADE_API_KEY
-        NOTION_API_KEY COMFYUI_URL COMFYUI_LOCAL
-        PUBLISH_BIND_HOST CORE_PORT API_PORT POSTGRES_PORT REDIS_PORT CLICKHOUSE_HTTP_PORT CLICKHOUSE_NATIVE_PORT OLLAMA_PORT OPEN_WEBUI_PORT EDGE_PROXY_BIND_HOST EDGE_PROXY_HTTP_PORT EDGE_PROXY_HTTPS_PORT
+        CLUSTER_ENABLED NODE_ID NODE_ROLE NODE_LABEL MESH_BIND_HOST MESH_SCHEME
+        CLUSTER_SHARED_KEY CLUSTER_REQUEST_TIMEOUT_MS CLUSTER_HEARTBEAT_SECONDS
+        CLUSTER_FORWARD_ENABLED CLUSTER_PEERS
+        KICAD_VERSION KICAD_PLUGIN_DIR CAD_WORKSPACE_DIR CAD_INSTALL_BUNDLES
+        NOTION_API_KEY KILL_LIFE_GITHUB_TOKEN COMFYUI_URL COMFYUI_LOCAL
+        PUBLISH_BIND_HOST CORE_PORT API_PORT POSTGRES_PORT REDIS_PORT CLICKHOUSE_HTTP_PORT CLICKHOUSE_NATIVE_PORT OLLAMA_PORT EDGE_PROXY_BIND_HOST EDGE_PROXY_HTTP_PORT EDGE_PROXY_HTTPS_PORT
         LITELLM_PORT N8N_PORT LANGFUSE_PORT DIFY_API_PORT DIFY_WEB_PORT TTS_PORT STT_PORT
         GENERATE_AUDIO_PORT QDRANT_PORT QDRANT_GRPC_PORT GRAFANA_PORT PROMETHEUS_PORT
     )
@@ -195,6 +205,23 @@ show_active_stack_overview() {
     show_service_selection_summary "${ACTIVE_SERVICE_IDS[@]}"
 
     return 0
+}
+
+config_default_kicad_plugin_dir() {
+    local version="${KICAD_VERSION:-9.0}"
+    if is_macos; then
+        printf '%s/Library/Application Support/kicad/%s/scripting/plugins\n' "$HOME" "$version"
+    else
+        printf '%s/.config/kicad/%s/scripting/plugins\n' "$HOME" "$version"
+    fi
+}
+
+config_effective_cad_workspace_dir() {
+    if [[ -n "${CAD_WORKSPACE_DIR:-}" ]]; then
+        echo "$CAD_WORKSPACE_DIR"
+    else
+        echo "$REPO_DIR"
+    fi
 }
 
 configure_api_keys_section() {
@@ -257,6 +284,10 @@ configure_integrations_section() {
     NOTION_API_KEY=$(input_optional_secret "Notion API Key (optionnel) :" "${NOTION_API_KEY:-}")
 
     echo ""
+    echo -e "  ${BOLD}GitHub dispatch${NC}"
+    KILL_LIFE_GITHUB_TOKEN=$(input_optional_secret "KILL_LIFE_GITHUB_TOKEN (optionnel) :" "${KILL_LIFE_GITHUB_TOKEN:-}")
+
+    echo ""
     echo -e "  ${BOLD}ComfyUI${NC}"
     menu_select "Configuration ComfyUI :" \
         "Serveur distant (URL existante)" \
@@ -287,6 +318,88 @@ configure_integrations_section() {
     return 0
 }
 
+configure_cad_section() {
+    config_mark_scope "cad"
+    section "CAD / KiCad"
+    info "Configurer le dossier plugins KiCad, le workspace CAD et les bundles a installer."
+    info "Entree = conserver, '-' = vider une valeur optionnelle."
+    echo ""
+
+    KICAD_VERSION=$(input_value "Version KiCad :" "${KICAD_VERSION:-9.0}")
+    KICAD_PLUGIN_DIR=$(input_optional_value "Repertoire plugins KiCad (optionnel) :" "${KICAD_PLUGIN_DIR:-}")
+    CAD_WORKSPACE_DIR=$(input_optional_value "Workspace CAD (optionnel) :" "${CAD_WORKSPACE_DIR:-}")
+
+    echo ""
+    menu_select "Bundles plugins a preparer :" \
+        "All plugins (Recommended)" \
+        "Fabrication Toolkit only" \
+        "KIC-AI only"
+    case "$MENU_RESULT" in
+        0)
+            CAD_INSTALL_BUNDLES="all"
+            ;;
+        1)
+            CAD_INSTALL_BUNDLES="fabrication-toolkit"
+            ;;
+        2)
+            CAD_INSTALL_BUNDLES="kic-ai"
+            ;;
+    esac
+
+    return 0
+}
+
+configure_cluster_section() {
+    config_mark_scope "cluster"
+    section "Cluster multi-machine"
+    info "Le cluster v1 utilise un VPN prive et un Bearer dedie inter-noeuds."
+    echo ""
+
+    if [[ "${CLUSTER_ENABLED:-false}" == "true" ]]; then
+        if ! confirm "Conserver le mode cluster actif ?"; then
+            CLUSTER_ENABLED=false
+        fi
+    else
+        if confirm "Activer le mode cluster ?"; then
+            CLUSTER_ENABLED=true
+        fi
+    fi
+
+    if [[ "${CLUSTER_ENABLED:-false}" == "true" ]]; then
+        NODE_ID=$(input_value "Node ID :" "${NODE_ID:-node-1}")
+        NODE_ROLE=$(input_value "Role du noeud :" "${NODE_ROLE:-general}")
+        NODE_LABEL=$(input_value "Label du noeud :" "${NODE_LABEL:-Mascarade Node 1}")
+        MESH_BIND_HOST=$(input_value "IP mesh/VPN du noeud :" "${MESH_BIND_HOST:-}")
+        MESH_SCHEME=$(input_value "Scheme mesh (http/https) :" "${MESH_SCHEME:-http}")
+        CLUSTER_SHARED_KEY=$(input_optional_secret "Cle Bearer inter-noeuds :" "${CLUSTER_SHARED_KEY:-}")
+        CLUSTER_REQUEST_TIMEOUT_MS=$(input_value "Timeout cluster (ms) :" "${CLUSTER_REQUEST_TIMEOUT_MS:-5000}")
+        CLUSTER_HEARTBEAT_SECONDS=$(input_value "Heartbeat logique (s) :" "${CLUSTER_HEARTBEAT_SECONDS:-30}")
+        if [[ "${CLUSTER_FORWARD_ENABLED:-true}" == "true" ]]; then
+            if ! confirm "Conserver le forward `core -> core` actif ?"; then
+                CLUSTER_FORWARD_ENABLED=false
+            fi
+        else
+            if confirm "Activer le forward `core -> core` ?"; then
+                CLUSTER_FORWARD_ENABLED=true
+            fi
+        fi
+        CLUSTER_PEERS=$(input_optional_value "Peers (peer|role|url;...) :" "${CLUSTER_PEERS:-}")
+    else
+        NODE_ID="${NODE_ID:-node-1}"
+        NODE_ROLE="${NODE_ROLE:-general}"
+        NODE_LABEL="${NODE_LABEL:-Mascarade Node 1}"
+        MESH_BIND_HOST=""
+        MESH_SCHEME="${MESH_SCHEME:-http}"
+        CLUSTER_SHARED_KEY=""
+        CLUSTER_REQUEST_TIMEOUT_MS="${CLUSTER_REQUEST_TIMEOUT_MS:-5000}"
+        CLUSTER_HEARTBEAT_SECONDS="${CLUSTER_HEARTBEAT_SECONDS:-30}"
+        CLUSTER_FORWARD_ENABLED=false
+        CLUSTER_PEERS=""
+    fi
+
+    return 0
+}
+
 configure_ports_section() {
     config_mark_scope "ports"
     section "Ports des services"
@@ -309,11 +422,15 @@ configure_ports_section() {
 }
 
 run_guided_config() {
-    step_progress 1 3 "Cles API et defaut LLM"
+    step_progress 1 5 "Cles API et defaut LLM"
     configure_api_keys_section
-    step_progress 2 3 "Integrations externes"
+    step_progress 2 5 "Integrations externes"
     configure_integrations_section
-    step_progress 3 3 "Ports exposes"
+    step_progress 3 5 "Cluster multi-machine"
+    configure_cluster_section
+    step_progress 4 5 "CAD / KiCad"
+    configure_cad_section
+    step_progress 5 5 "Ports exposes"
     configure_ports_section
 
     return 0
@@ -356,6 +473,13 @@ show_integrations_summary() {
     fi
     echo -e "    Notion : ${notion_state}"
 
+    local github_dispatch_state="absent"
+    [[ -n "${KILL_LIFE_GITHUB_TOKEN:-}" ]] && github_dispatch_state="configure ($(mask_config_value "$KILL_LIFE_GITHUB_TOKEN"))"
+    if value_changed "KILL_LIFE_GITHUB_TOKEN"; then
+        github_dispatch_state+=" ${DIM}(modifie)${NC}"
+    fi
+    echo -e "    GitHub dispatch : ${github_dispatch_state}"
+
     local comfy_state="desactive"
     if [[ "${COMFYUI_LOCAL:-false}" == "true" ]]; then
         comfy_state="local via Docker"
@@ -370,6 +494,47 @@ show_integrations_summary() {
     return 0
 }
 
+show_cluster_summary() {
+    echo -e "  ${BOLD}Cluster${NC}"
+    if [[ "${CLUSTER_ENABLED:-false}" != "true" ]]; then
+        echo -e "    ${DIM}Mode local uniquement${NC}"
+        return 0
+    fi
+
+    local shared_key_state="absent"
+    [[ -n "${CLUSTER_SHARED_KEY:-}" ]] && shared_key_state="$(mask_config_value "$CLUSTER_SHARED_KEY")"
+    echo -e "    Node : ${NODE_ID:-node-1} / ${NODE_ROLE:-general}"
+    echo -e "    Label : ${NODE_LABEL:-Mascarade Node 1}"
+    echo -e "    Mesh : ${MESH_SCHEME:-http}://${MESH_BIND_HOST:-?}:${CORE_PORT:-8100}"
+    echo -e "    Bearer cluster : ${shared_key_state}"
+    echo -e "    Forward core->core : ${CLUSTER_FORWARD_ENABLED:-false}"
+    echo -e "    Peers : ${CLUSTER_PEERS:-aucun}"
+    return 0
+}
+
+show_cad_summary() {
+    echo -e "  ${BOLD}CAD / KiCad${NC}"
+
+    local plugin_dir="${KICAD_PLUGIN_DIR:-}"
+    local plugin_note=""
+    if [[ -z "$plugin_dir" ]]; then
+        plugin_dir="$(config_default_kicad_plugin_dir)"
+        plugin_note=" ${DIM}(auto)${NC}"
+    fi
+
+    local workspace_dir
+    workspace_dir="$(config_effective_cad_workspace_dir)"
+    if [[ -z "${CAD_WORKSPACE_DIR:-}" ]]; then
+        workspace_dir+=" ${DIM}(repo root)${NC}"
+    fi
+
+    echo -e "    KiCad : ${KICAD_VERSION:-9.0}"
+    echo -e "    Plugin dir : ${plugin_dir}${plugin_note}"
+    echo -e "    Bundles : ${CAD_INSTALL_BUNDLES:-all}"
+    echo -e "    Workspace CAD : ${workspace_dir}"
+    return 0
+}
+
 has_port_changes() {
     local var
     for var in "${CONFIG_PORT_FIELDS[@]}"; do
@@ -378,6 +543,56 @@ has_port_changes() {
         fi
     done
     return 1
+}
+
+validate_cluster_section() {
+    [[ "${CLUSTER_ENABLED:-false}" == "true" ]] || return 0
+
+    local missing=()
+    [[ -z "${NODE_ID:-}" ]] && missing+=("NODE_ID")
+    [[ -z "${NODE_ROLE:-}" ]] && missing+=("NODE_ROLE")
+    [[ -z "${MESH_BIND_HOST:-}" ]] && missing+=("MESH_BIND_HOST")
+    [[ -z "${CLUSTER_SHARED_KEY:-}" ]] && missing+=("CLUSTER_SHARED_KEY")
+    if [[ ${#missing[@]} -gt 0 ]]; then
+        err "Configuration cluster incomplete: ${missing[*]}"
+        return 1
+    fi
+
+    local peer
+    IFS=';' read -ra peer_list <<< "${CLUSTER_PEERS:-}"
+    for peer in "${peer_list[@]}"; do
+        [[ -z "${peer// }" ]] && continue
+        IFS='|' read -ra fields <<< "$peer"
+        if [[ ${#fields[@]} -ne 3 ]]; then
+            err "Entree CLUSTER_PEERS invalide: $peer"
+            info "Format attendu: peer-id|role|http://ip:8100;peer2|role|http://ip:8100"
+            return 1
+        fi
+    done
+
+    return 0
+}
+
+validate_cad_section() {
+    local version="${KICAD_VERSION:-}"
+    local bundles="${CAD_INSTALL_BUNDLES:-all}"
+
+    if [[ -z "$version" ]]; then
+        err "Configuration CAD incomplete: KICAD_VERSION est vide"
+        return 1
+    fi
+
+    case "$bundles" in
+        all|fabrication-toolkit|kic-ai)
+            ;;
+        *)
+            err "CAD_INSTALL_BUNDLES invalide: $bundles"
+            info "Valeurs attendues: all | fabrication-toolkit | kic-ai"
+            return 1
+            ;;
+    esac
+
+    return 0
 }
 
 show_ports_summary() {
@@ -418,6 +633,14 @@ show_config_summary() {
     fi
     if [[ "${CONFIG_SCOPE_TOUCHED[integrations]:-0}" == "1" || "$CONFIG_SCOPE_LABEL" == "Configuration complete" ]]; then
         show_integrations_summary
+        echo ""
+    fi
+    if [[ "${CONFIG_SCOPE_TOUCHED[cluster]:-0}" == "1" || "$CONFIG_SCOPE_LABEL" == "Configuration complete" ]]; then
+        show_cluster_summary
+        echo ""
+    fi
+    if [[ "${CONFIG_SCOPE_TOUCHED[cad]:-0}" == "1" || "$CONFIG_SCOPE_LABEL" == "Configuration complete" ]]; then
+        show_cad_summary
         echo ""
     fi
     if [[ "${CONFIG_SCOPE_TOUCHED[ports]:-0}" == "1" || "$CONFIG_SCOPE_LABEL" == "Configuration complete" ]]; then
@@ -472,9 +695,11 @@ show_active_stack_overview
 # ── Menu principal ──
 echo ""
 menu_select "Que voulez-vous reconfigurer ?" \
-    "Assistant guide — cles API, integrations, ports" \
+    "Assistant guide — cles API, integrations, cluster, CAD, ports" \
     "Cles API LLM + defaut" \
     "Integrations (Notion, ComfyUI)" \
+    "Cluster multi-machine" \
+    "CAD / KiCad" \
     "Ports des services actifs" \
     "Tout reconfigurer"
 
@@ -496,13 +721,23 @@ case $config_choice in
         configure_integrations_section
         ;;
     3)
+        CONFIG_SCOPE_LABEL="Cluster multi-machine"
+        configure_cluster_section
+        ;;
+    4)
+        CONFIG_SCOPE_LABEL="CAD / KiCad"
+        configure_cad_section
+        ;;
+    5)
         CONFIG_SCOPE_LABEL="Ports des services"
         configure_ports_section
         ;;
-    4)
+    6)
         CONFIG_SCOPE_LABEL="Configuration complete"
         config_mark_scope "api_keys"
         config_mark_scope "integrations"
+        config_mark_scope "cluster"
+        config_mark_scope "cad"
         config_mark_scope "ports"
         section "Configuration complete"
         for mod_file in "$REPO_DIR/scripts/modules/"*.sh; do
@@ -512,12 +747,16 @@ case $config_choice in
         done
         collect_module_configs
         sync_service_ports_from_env
+        configure_cad_section
         ;;
 esac
 
 # ── Preview des modifications ──
 echo ""
 section "Preparation du diff"
+
+validate_cluster_section || exit 2
+validate_cad_section || exit 2
 
 dbg "Ecriture .env temporaire pour diff..."
 tmp_dir=$(mktemp -d)

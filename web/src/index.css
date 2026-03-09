@@ -235,6 +235,27 @@ body::after {
   }
 }
 
+.killlife-canvas {
+  background:
+    radial-gradient(circle at top left, rgba(255, 209, 102, 0.06), transparent 18%),
+    radial-gradient(circle at 88% 24%, rgba(0, 255, 133, 0.05), transparent 20%),
+    linear-gradient(rgba(255, 209, 102, 0.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 209, 102, 0.045) 1px, transparent 1px),
+    linear-gradient(180deg, rgba(9, 12, 10, 0.95), rgba(4, 4, 4, 0.98));
+  background-size: auto, auto, 100% 40px, 40px 100%, auto;
+  border-radius: 1.25rem;
+  overflow: hidden;
+}
+
+.killlife-canvas::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at center, transparent 42%, rgba(0, 0, 0, 0.35) 100%);
+}
+
 .glitch:hover {
   animation: glitch 0.3s ease-in-out;
   text-shadow: -1px 0 #ff3b5c, 1px 0 #00ff85;

@@ -50,6 +50,9 @@ class AgentRegistry:
     def __len__(self) -> int:
         return len(self._agents)
 
+    def is_builtin(self, name: str) -> bool:
+        return name in self._builtin_names
+
     # --- Persistance ---
 
     def save(self) -> None:

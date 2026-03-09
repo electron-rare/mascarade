@@ -18,10 +18,29 @@ class Agent:
     system_prompt: str
     preferred_provider: str | None = None
     preferred_model: str | None = None
+    preferred_role: str | None = None
     strategy: Strategy = Strategy.BEST
     tools: list[str] = field(default_factory=list)
     temperature: float = 0.7
     max_tokens: int = 4096
+
+    def build_send_payload(
+        self,
+        prompt: str,
+        *,
+        context: list[dict] | None = None,
+    ) -> dict[str, object]:
+        messages = list(context) if context else []
+        messages.append({"role": "user", "content": prompt})
+        return {
+            "messages": messages,
+            "strategy": self.strategy,
+            "provider": self.preferred_provider,
+            "model": self.preferred_model,
+            "system": self.system_prompt,
+            "temperature": self.temperature,
+            "max_tokens": self.max_tokens,
+        }
 
     async def run(
         self,
@@ -31,17 +50,15 @@ class Agent:
         context: list[dict] | None = None,
     ) -> LLMResponse:
         """Exécuter l'agent avec un prompt donné."""
-        messages = list(context) if context else []
-        messages.append({"role": "user", "content": prompt})
-
+        payload = self.build_send_payload(prompt, context=context)
         return await router.send(
-            messages,
-            strategy=self.strategy,
-            provider=self.preferred_provider,
-            model=self.preferred_model,
-            system=self.system_prompt,
-            temperature=self.temperature,
-            max_tokens=self.max_tokens,
+            payload["messages"],
+            strategy=payload["strategy"],
+            provider=payload["provider"],
+            model=payload["model"],
+            system=payload["system"],
+            temperature=payload["temperature"],
+            max_tokens=payload["max_tokens"],
         )
 
     async def run_with_history(

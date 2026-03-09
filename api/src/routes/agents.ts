@@ -1,10 +1,141 @@
-import { Hono } from "hono";
-import { coreClient } from "../client/core.js";
+import { Hono, type Context } from "hono";
+import { CoreApiError, coreClient } from "../client/core.js";
 import { emitStructuredLog } from "../lib/otel.js";
 import { handleCoreError } from "../middleware/error.js";
 
 const agents = new Hono();
 const SAFE_NAME_RE = /^[\w.-]+$/;
+const OPS_AGENT_URL = (process.env.OPS_AGENT_URL || "http://ops-agent:9200").replace(/\/+$/, "");
+const REQUEST_TIMEOUT_MS = 15_000;
+
+type JsonBody = Record<string, unknown> | null;
+type ProviderMutationResponse = {
+  status: string;
+  active: boolean;
+  configured: boolean;
+  message?: string;
+  updated_env?: string[];
+  cleared_env?: string[];
+  restarted_services?: string[];
+};
+
+function parseJsonBody(text: string): JsonBody {
+  if (!text.trim()) {
+    return null;
+  }
+  try {
+    const parsed = JSON.parse(text);
+    return typeof parsed === "object" && parsed !== null ? (parsed as Record<string, unknown>) : null;
+  } catch {
+    return null;
+  }
+}
+
+function requestHeaders(c: Context, body?: unknown): Headers {
+  const headers = new Headers();
+  const authHeader = c.req.header("Authorization");
+  const cookieHeader = c.req.header("Cookie");
+  if (authHeader) {
+    headers.set("Authorization", authHeader);
+  }
+  if (cookieHeader) {
+    headers.set("Cookie", cookieHeader);
+  }
+  if (body !== undefined) {
+    headers.set("Content-Type", "application/json");
+  }
+  return headers;
+}
+
+function jsonWithStatus(c: Context, body: Record<string, unknown>, status: number) {
+  return c.newResponse(JSON.stringify(body), status as any, {
+    "Content-Type": "application/json",
+  });
+}
+
+function syncProviderEnvFromUpdate(values: Record<string, unknown>) {
+  for (const [key, value] of Object.entries(values)) {
+    process.env[key] = String(value);
+  }
+}
+
+function syncProviderEnvFromClear(fields: string[]) {
+  for (const key of fields) {
+    process.env[key] = "";
+  }
+}
+
+async function proxyOpsAgentJson(
+  c: Context,
+  path: string,
+  init: RequestInit = {},
+): Promise<{ upstream: Response; text: string; json: JsonBody }> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  try {
+    const upstream = await fetch(`${OPS_AGENT_URL}${path}`, {
+      ...init,
+      headers: requestHeaders(c, init.body),
+      signal: controller.signal,
+    });
+    const text = await upstream.text();
+    return { upstream, text, json: parseJsonBody(text) };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function providerMutationResult(
+  c: Context,
+  name: string,
+  path: string,
+  init: RequestInit,
+) {
+  const { upstream, text, json } = await proxyOpsAgentJson(c, path, init);
+  if (!upstream.ok) {
+    return {
+      response: jsonWithStatus(c, json || { error: text || "Ops Agent request failed" }, upstream.status),
+      payload: null as ProviderMutationResponse | null,
+    };
+  }
+
+  let active = false;
+  let configured = false;
+  try {
+    const status = await coreClient.providersStatus();
+    const provider = status.providers.find((entry) => entry.name === name);
+    active = !!provider?.active;
+    configured = !!provider?.configured;
+  } catch {
+    // Keep the durable write result even if the post-restart status probe fails.
+  }
+
+  const body: ProviderMutationResponse = {
+    status: "ok",
+    active,
+    configured,
+  };
+  if (typeof json?.message === "string") {
+    body.message = json.message;
+  } else if (!active) {
+    body.message = configured
+      ? "Saved but provider inactive"
+      : "Saved but provider reports not configured";
+  }
+  if (Array.isArray(json?.updated_env)) {
+    body.updated_env = json.updated_env as string[];
+  }
+  if (Array.isArray(json?.cleared_env)) {
+    body.cleared_env = json.cleared_env as string[];
+  }
+  if (Array.isArray(json?.restarted_services)) {
+    body.restarted_services = json.restarted_services as string[];
+  }
+  return {
+    response: c.json(body),
+    payload: body,
+  };
+}
 
 /** Lister tous les agents */
 agents.get("/", async (c) => {
@@ -92,6 +223,77 @@ agents.get("/providers", async (c) => {
     const result = await coreClient.listProviders();
     return c.json(result);
   } catch (error) {
+    const { status, body } = handleCoreError(error);
+    return c.json(body, status);
+  }
+});
+
+/** Status detaille de tous les providers (cles, config) */
+agents.get("/providers/status", async (c) => {
+  try {
+    const result = await coreClient.providersStatus();
+    return c.json(result);
+  } catch (error) {
+    const { status, body } = handleCoreError(error);
+    return c.json(body, status);
+  }
+});
+
+/** Mettre a jour la cle d'un provider */
+agents.put("/providers/:name/key", async (c) => {
+  try {
+    const name = c.req.param("name");
+    if (!name || !SAFE_NAME_RE.test(name)) {
+      return c.json({ error: "Invalid provider name" }, 400);
+    }
+    const { keys } = await c.req.json();
+    const { response } = await providerMutationResult(
+      c,
+      name,
+      `/providers/${encodeURIComponent(name)}`,
+      {
+        method: "PUT",
+        body: JSON.stringify({ keys }),
+      },
+    );
+    if (response.status < 400) {
+      syncProviderEnvFromUpdate(keys || {});
+    }
+    return response;
+  } catch (error) {
+    if (error instanceof Error && !(error instanceof CoreApiError)) {
+      return c.json({ error: error.message || "Ops Agent request failed" }, 503);
+    }
+    const { status, body } = handleCoreError(error);
+    return c.json(body, status);
+  }
+});
+
+agents.post("/providers/:name/clear", async (c) => {
+  try {
+    const name = c.req.param("name");
+    if (!name || !SAFE_NAME_RE.test(name)) {
+      return c.json({ error: "Invalid provider name" }, 400);
+    }
+    const body = (await c.req.json().catch(() => ({}))) as { fields?: string[] };
+    const fields = Array.isArray(body.fields) ? body.fields.map((field) => String(field)) : undefined;
+    const { response, payload } = await providerMutationResult(
+      c,
+      name,
+      `/providers/${encodeURIComponent(name)}/clear`,
+      {
+        method: "POST",
+        body: JSON.stringify(fields ? { fields } : {}),
+      },
+    );
+    if (response.status < 400) {
+      syncProviderEnvFromClear(payload?.cleared_env || fields || []);
+    }
+    return response;
+  } catch (error) {
+    if (error instanceof Error && !(error instanceof CoreApiError)) {
+      return c.json({ error: error.message || "Ops Agent request failed" }, 503);
+    }
     const { status, body } = handleCoreError(error);
     return c.json(body, status);
   }
@@ -205,6 +407,37 @@ agents.post("/notion-scribe/run-and-push", async (c) => {
   try {
     const body = await c.req.json();
     const result = await coreClient.notionScribeRunAndPush(body);
+    return c.json(result);
+  } catch (error) {
+    const { status, body } = handleCoreError(error);
+    return c.json(body, status);
+  }
+});
+
+/** Detail agent */
+agents.get("/:name", async (c) => {
+  try {
+    const name = c.req.param("name");
+    if (!name || !SAFE_NAME_RE.test(name)) {
+      return c.json({ error: "Invalid agent name" }, 400);
+    }
+    const result = await coreClient.getAgent(name);
+    return c.json(result);
+  } catch (error) {
+    const { status, body } = handleCoreError(error);
+    return c.json(body, status);
+  }
+});
+
+/** Mettre a jour un agent */
+agents.put("/:name", async (c) => {
+  try {
+    const name = c.req.param("name");
+    if (!name || !SAFE_NAME_RE.test(name)) {
+      return c.json({ error: "Invalid agent name" }, 400);
+    }
+    const body = await c.req.json();
+    const result = await coreClient.updateAgent(name, body);
     return c.json(result);
   } catch (error) {
     const { status, body } = handleCoreError(error);

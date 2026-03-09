@@ -9,8 +9,11 @@ from mascarade.integrations.notion import NotionClient
 
 @pytest.fixture
 def notion_client():
-    with patch("mascarade.integrations.notion.AsyncClient"):
-        return NotionClient(api_key="fake-key")
+    with patch("mascarade.integrations.notion.AsyncClient") as async_client_cls:
+        client = NotionClient(api_key="fake-key")
+        client._client = async_client_cls.return_value
+        client._client_token = "fake-key"  # noqa: S105
+        return client
 
 
 def test_blocks_to_text():

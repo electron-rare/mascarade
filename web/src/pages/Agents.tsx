@@ -12,8 +12,21 @@ import {
   Input,
   LoadingPanel,
   Modal,
+  Select,
   Textarea,
 } from "../components/ui";
+
+const strategyOptions = [
+  { value: "best", label: "Best" },
+  { value: "fastest", label: "Fastest" },
+  { value: "cheapest", label: "Cheapest" },
+  { value: "specific", label: "Specific" },
+];
+
+function normalizeOptional(value: string): string | undefined {
+  const trimmed = value.trim();
+  return trimmed ? trimmed : undefined;
+}
 
 export default function Agents() {
   const { data, loading, error, refetch } = useFetch<{ agents: Agent[] }>("/api/agents");
@@ -23,6 +36,12 @@ export default function Agents() {
     name: "",
     description: "",
     system_prompt: "",
+    preferred_provider: "",
+    preferred_model: "",
+    preferred_role: "",
+    strategy: "best",
+    temperature: 0.7,
+    max_tokens: 4096,
   });
 
   const {
@@ -30,7 +49,19 @@ export default function Agents() {
     loading: creating,
     error: createError,
     status: createStatus,
-  } = useApi(() => agentsApi.create(form));
+  } = useApi(() =>
+    agentsApi.create({
+      name: form.name.trim(),
+      description: form.description,
+      system_prompt: form.system_prompt,
+      preferred_provider: normalizeOptional(form.preferred_provider),
+      preferred_model: normalizeOptional(form.preferred_model),
+      preferred_role: normalizeOptional(form.preferred_role),
+      strategy: form.strategy,
+      temperature: form.temperature,
+      max_tokens: form.max_tokens,
+    }),
+  );
 
   const handleCreate = async () => {
     if (!form.name || !form.system_prompt) return;
@@ -41,7 +72,17 @@ export default function Agents() {
     }
     setCreatedName(currentName);
     setShowCreate(false);
-    setForm({ name: "", description: "", system_prompt: "" });
+    setForm({
+      name: "",
+      description: "",
+      system_prompt: "",
+      preferred_provider: "",
+      preferred_model: "",
+      preferred_role: "",
+      strategy: "best",
+      temperature: 0.7,
+      max_tokens: 4096,
+    });
     void refetch();
   };
 
@@ -194,9 +235,28 @@ export default function Agents() {
                       {a.name === "agent-zero" ? "lead" : "ready"}
                     </Badge>
                   </div>
+                  {a.builtin ? (
+                    <p className="text-[11px] uppercase tracking-[0.18em] text-amber-100/34">
+                      built-in registry entry
+                    </p>
+                  ) : (
+                    <p className="text-[11px] uppercase tracking-[0.18em] text-[#82ffc1]">
+                      dynamic editable agent
+                    </p>
+                  )}
                   <p className="text-sm leading-7 text-amber-100/56">
                     {a.description || "No description provided for this registry entry."}
                   </p>
+                  <div className="flex flex-wrap gap-2">
+                    {a.preferred_role ? <Badge color="warning">role {a.preferred_role}</Badge> : null}
+                    {a.preferred_provider ? (
+                      <Badge color="muted">{a.preferred_provider}</Badge>
+                    ) : null}
+                    {a.preferred_model ? (
+                      <Badge color="muted">{a.preferred_model}</Badge>
+                    ) : null}
+                    {a.strategy ? <Badge color="muted">{a.strategy}</Badge> : null}
+                  </div>
                   {a.name === "agent-zero" ? (
                     <p className="text-[11px] uppercase tracking-[0.18em] text-accent">
                       primary intake lane
@@ -226,6 +286,34 @@ export default function Agents() {
             onChange={(e) => setForm({ ...form, description: e.target.value })}
             placeholder="What does this agent do?"
           />
+          <div className="grid gap-4 md:grid-cols-2">
+            <Input
+              label="Preferred Provider"
+              value={form.preferred_provider}
+              onChange={(e) => setForm({ ...form, preferred_provider: e.target.value })}
+              placeholder="ollama, mistral, bedrock..."
+            />
+            <Input
+              label="Preferred Model"
+              value={form.preferred_model}
+              onChange={(e) => setForm({ ...form, preferred_model: e.target.value })}
+              placeholder="llama3.2:3b, mistral-large-latest..."
+            />
+          </div>
+          <div className="grid gap-4 md:grid-cols-2">
+            <Input
+              label="Preferred Role"
+              value={form.preferred_role}
+              onChange={(e) => setForm({ ...form, preferred_role: e.target.value })}
+              placeholder="gpu, edge, general..."
+            />
+            <Select
+              label="Strategy"
+              value={form.strategy}
+              onChange={(e) => setForm({ ...form, strategy: e.target.value })}
+              options={strategyOptions}
+            />
+          </div>
           <Textarea
             label="System Prompt"
             value={form.system_prompt}
@@ -233,6 +321,43 @@ export default function Agents() {
             placeholder="You are..."
             rows={6}
           />
+          <div className="grid gap-4 md:grid-cols-2">
+            <Input
+              label="Temperature"
+              type="number"
+              min="0"
+              max="2"
+              step="0.1"
+              value={String(form.temperature)}
+              onChange={(e) =>
+                setForm({
+                  ...form,
+                  temperature: Number.isFinite(Number(e.target.value))
+                    ? Number(e.target.value)
+                    : 0.7,
+                })
+              }
+            />
+            <Input
+              label="Max Tokens"
+              type="number"
+              min="1"
+              max="128000"
+              step="1"
+              value={String(form.max_tokens)}
+              onChange={(e) =>
+                setForm({
+                  ...form,
+                  max_tokens: Number.isFinite(Number(e.target.value))
+                    ? Number(e.target.value)
+                    : 4096,
+                })
+              }
+            />
+          </div>
+          <p className="text-[12px] leading-6 text-amber-100/46">
+            `preferred_role` alimente maintenant le routage auto cluster. Un agent cree depuis l&apos;UI peut donc cibler directement un noeud `gpu`, `edge` ou `general`.
+          </p>
           {createError ? (
             <InlineNotice title="create failed" message={createError} tone="error" />
           ) : null}

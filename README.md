@@ -2,6 +2,18 @@
 
 Systeme d'orchestration agentique personnel. Route intelligemment les requetes LLM entre Claude, GPT, Mistral, AWS Bedrock, Google Gemini et Hugging Face, avec agents specialises, orchestration multi-agents, cache, fallback automatique et integration Notion.
 
+## Ecosysteme
+
+Mascarade fait partie d'un ecosysteme de 5 repos :
+
+| Repo | Role |
+|------|------|
+| **[mascarade](https://github.com/electron-rare/mascarade)** | Repo compagnon runtime/ops, orchestration agentique, fine-tuning et bridge historique |
+| **[mascarade-datasets](https://github.com/electron-rare/mascarade-datasets)** | Datasets de fine-tuning (13 domaines, ~74k exemples) |
+| **[mascarade-cockpit](https://github.com/electron-rare/mascarade-cockpit)** | Console ops SvelteKit (monitoring Docker, metriques, energie) |
+| **[crazy_life](https://github.com/electron-rare/crazy_life)** | Repo canonique web/devops du cockpit et de la surface `Crazy Lane` |
+| **[Kill_LIFE](https://github.com/electron-rare/Kill_LIFE)** | Template agentique pour projets embarques IA (spec-first, gates, evidence packs) |
+
 ## Architecture
 
 ```
@@ -69,12 +81,65 @@ Usage:
 
 ---
 
+## Crazy Life (frontend)
+
+`mascarade` pilote l'operateur local et le runtime Docker de cette machine.
+`mascarade/web/` est un subtree bridge vers le repo canonique [crazy_life](https://github.com/electron-rare/crazy_life).
+
+Contrat courant:
+- `crazy_life` = repo canonique web/devops et release du shell cockpit
+- `Kill_LIFE` = source de verite runtime, workflows JSON, evidence, firmware, CAD et compliance
+- `mascarade` = repo compagnon/orchestration + bridge historique optionnel
+
+```bash
+scripts/sync_crazy_life.sh status          # Etat de sync
+scripts/sync_crazy_life.sh push            # export bridge web/ -> crazy_life
+scripts/sync_crazy_life.sh pull            # crazy_life/main -> web/
+npm --prefix web run build                 # build local dans web/dist
+npm --prefix web run build:api-public      # refresh explicite du snapshot api/public
+```
+
+Rappel operatoire:
+- `scripts/sync_crazy_life.sh` ne publie pas une release canonique
+- la readiness de release vit dans `crazy_life`, via `scripts/publish_preflight.sh`
+
+---
+
+## Fine-Tuning
+
+Pipeline de fine-tuning QLoRA pour modeles code specialises electronique embarquee.
+
+- **GPU cible** : Quadro P2000 (5 GB VRAM, CUDA 6.1) avec PyTorch 2.3.1+cu121
+- **Modele par defaut** : `Qwen/Qwen2.5-Coder-1.5B-Instruct`
+- **10 domaines** : stm32, spice, iot, power, dsp, emc, kicad, embedded, platformio, freecad
+- **Datasets** : ~74k exemples au format ShareGPT (repo [mascarade-datasets](https://github.com/electron-rare/mascarade-datasets))
+
+```bash
+# Selection automatique du modele optimal
+.venv/bin/python finetune/model_selector.py --vram 5 --auto --download
+
+# Entrainement GPU (QLoRA 4-bit)
+.venv/bin/python finetune/train_local.py stm32
+
+# Entrainement CPU (fallback)
+.venv/bin/python finetune/train_cpu.py kicad
+
+# Batch sur tous les domaines
+bash finetune/train_all.sh
+
+# Pipeline complet : train -> merge -> GGUF -> deploy Ollama
+.venv/bin/python finetune/pipeline.py stm32 --step all
+```
+
+---
+
 ## Prerequis
 
 - **Docker** et **Docker Compose** (deploiement)
 - **Python 3.11+** (dev local core)
 - **Node.js 22+** (dev local API)
-- Au moins une cle API LLM (Anthropic, OpenAI, Mistral, AWS Bedrock ou Google)
+- `MASCARADE_API_KEY` pour un runtime protege
+- Au moins un provider LLM configure, ou `OLLAMA_ENABLED=true` avec un runtime Ollama joignable
 
 Le setup installe aussi un `htop` repo-local epingle en `3.4.0` sous `tools/.local/` et l'expose via `./tools/htop`.
 Pourquoi: Ubuntu 24.04 livre `htop 3.3.0`, qui n'inclut pas le meter `GPU usage`. La `3.4.0` ajoute ce meter, utile pour suivre les services GPU du repo sans ecraser le `htop` systeme.
@@ -98,14 +163,36 @@ cp .env.example .env
 
 Editer `.env` et remplir les cles :
 
+- `required-security`: `MASCARADE_API_KEY` protege l'API, le core et l'ops-agent.
+- `feature-required`: providers LLM et integrations que vous activez reellement.
+- `live-validation-optional`: cibles de smoke/runtime live seulement.
+- `local-operator-context`: endpoints OAuth, chemins et overrides locaux.
+
 ```bash
-# LLM — au moins une cle requise
+# Runtime security — toujours requis pour un runtime protege
+MASCARADE_API_KEY=un-token-secret
+
+# Providers LLM — configurer seulement ce que vous utilisez
 ANTHROPIC_API_KEY=sk-ant-xxxxx          # Claude (best quality)
 OPENAI_API_KEY=sk-xxxxx                 # GPT (fastest)
 MISTRAL_API_KEY=xxxxx                   # Mistral (cheapest)
-GOOGLE_API_KEY=xxxxx                    # Gemini API (optionnel)
-HUGGINGFACE_API_KEY=hf_xxxxx            # Hugging Face Inference
+GOOGLE_API_KEY=xxxxx                    # Gemini API (mode api_key)
+GOOGLE_AUTH_MODE=api_key                # or oauth_oidc or adc
+GOOGLE_OAUTH_ACCESS_TOKEN=
+GOOGLE_OAUTH_REFRESH_TOKEN=
+GOOGLE_OAUTH_CLIENT_ID=
+GOOGLE_OAUTH_CLIENT_SECRET=
+GOOGLE_OAUTH_TOKEN_ENDPOINT=https://oauth2.googleapis.com/token
+GOOGLE_OAUTH_EXPIRES_AT=
+HUGGINGFACE_API_KEY=hf_xxxxx            # Hugging Face Inference (mode api_key)
+HUGGINGFACE_AUTH_MODE=api_key           # or oauth_oidc
 HUGGINGFACE_BASE_URL=https://router.huggingface.co/v1
+HUGGINGFACE_OAUTH_ACCESS_TOKEN=
+HUGGINGFACE_OAUTH_REFRESH_TOKEN=
+HUGGINGFACE_OAUTH_CLIENT_ID=
+HUGGINGFACE_OAUTH_CLIENT_SECRET=
+HUGGINGFACE_OAUTH_TOKEN_ENDPOINT=https://huggingface.co/oauth/token
+HUGGINGFACE_OAUTH_EXPIRES_AT=
 HUGGINGFACE_MODEL=meta-llama/Meta-Llama-3.1-8B-Instruct
 
 # AWS Bedrock (optionnel)
@@ -114,17 +201,45 @@ AWS_SECRET_ACCESS_KEY=...
 AWS_REGION=eu-west-1
 AWS_BEDROCK_MODEL_ID=anthropic.claude-3-5-sonnet-20241022-v2:0
 
-# Google Cloud / Vertex (optionnel)
+# Google Cloud / Vertex (optionnel, requis en mode adc et utilisable aussi avec oauth_oidc)
 GOOGLE_CLOUD_PROJECT=mon-projet
 GOOGLE_CLOUD_LOCATION=europe-west1
 GOOGLE_APPLICATION_CREDENTIALS=/chemin/key.json
 GOOGLE_MODEL=gemini-2.5-flash
 
-# Notion — optionnel, pour la KB et les dashboards
+# Notion — integration optionnelle
+NOTION_AUTH_MODE=api_key              # or oauth_oidc
 NOTION_API_KEY=ntn_xxxxx
+NOTION_OAUTH_ACCESS_TOKEN=
+NOTION_OAUTH_REFRESH_TOKEN=
+NOTION_OAUTH_CLIENT_ID=
+NOTION_OAUTH_CLIENT_SECRET=
+NOTION_OAUTH_AUTHORIZATION_ENDPOINT=https://api.notion.com/v1/oauth/authorize
+NOTION_OAUTH_TOKEN_ENDPOINT=https://api.notion.com/v1/oauth/token
+NOTION_OAUTH_REDIRECT_URI=
+NOTION_OAUTH_EXPIRES_AT=
+NOTION_OAUTH_WORKSPACE_NAME=
+NOTION_MCP_SMOKE_PAGE_ID=
 
-# Auth — si vide, toutes les routes sont ouvertes (mode dev)
-MASCARADE_API_KEY=un-token-secret
+# GitHub dispatch — integration optionnelle
+GITHUB_DISPATCH_AUTH_MODE=token       # or app
+KILL_LIFE_GITHUB_TOKEN=ghp_xxxxx
+GITHUB_TOKEN=
+GITHUB_APP_ID=
+GITHUB_APP_PRIVATE_KEY=
+GITHUB_APP_INSTALLATION_ID=
+
+# Firecrawl MCP — integration optionnelle
+FIRECRAWL_HOST=0.0.0.0
+FIRECRAWL_API_KEY=fc_xxxxx
+FIRECRAWL_API_URL=                     # optionnel, seulement si vous ciblez une API Firecrawl self-hosted
+
+# Mem0 / OpenMemory — integration optionnelle
+MEM0_USER=mascarade
+MEM0_OPENAI_API_KEY=sk-mem0-local    # si LiteLLM a une master key, reprendre la meme ici
+MEM0_OPENAI_BASE_URL=http://litellm:4000
+MEM0_QDRANT_HOST=qdrant
+MEM0_QDRANT_PORT=6333
 
 # Core
 CORE_HOST=0.0.0.0
@@ -157,6 +272,10 @@ DEFAULT_MODEL=claude-sonnet-4-6
 ```
 
 Le routeur active automatiquement les providers dont la cle est presente. Pas de cle = provider ignore.
+
+## CAD / EDA
+
+Une stack Docker dédiée `KiCad headless`, `KiCad MCP`, `FreeCAD` et `PlatformIO` est disponible dans [deploy/cad/README.md](/home/clems/mascarade/deploy/cad/README.md).
 
 Validation cloud rapide:
 
@@ -294,6 +413,19 @@ Avec `generate-audio` et un vrai smoke test HTTP de `POST /generate`:
 
 `generate-audio` utilise AudioCraft avec une pile PyTorch/XFormers epinglee. En mode `cpu`, le build prend les wheels CPU; en mode `cuda`, le setup bascule vers les wheels CUDA 11.8. Le service emet `gpus: all` et suppose `nvidia-container-toolkit` installe sur l'hote. Les builds CPU et CUDA ont ete verifies localement.
 
+Par defaut, `generate-audio` charge maintenant le modele seulement au moment de `POST /generate`, puis le decharge apres la requete. Il n'est donc plus cense garder plusieurs Go de VRAM en resident entre deux usages. Tu peux changer ce comportement avec:
+
+```bash
+GENERATE_AUDIO_KEEP_LOADED=true
+GENERATE_AUDIO_IDLE_UNLOAD_SECONDS=300
+```
+
+et le liberer explicitement avec:
+
+```bash
+curl -X POST http://localhost:9000/unload
+```
+
 Par defaut, `setup` verifie seulement `GET /health`. Le vrai smoke test `POST /generate` est opt-in avec `--smoke-generate-audio`, car il peut declencher un premier chargement modele plus long.
 
 Si la machine a deja un service Ollama systeme avec ses modeles sous `/usr/share/ollama/.ollama`, la stack peut reutiliser ce stockage via:
@@ -314,12 +446,13 @@ Deux containers demarrent :
 - `core` sur `:8100`
 - `api` sur `:3100`
 - le cockpit expose maintenant une vraie lane `Logs` sur `http://localhost:3100/logs`
-- tous les ports publies utilisent `PUBLISH_BIND_HOST=0.0.0.0` par defaut
+- tous les ports publies utilisent maintenant `PUBLISH_BIND_HOST=127.0.0.1` par defaut
 - `ops-console` sur `:80` (si selectionne), avec override possible via `OPS_CONSOLE_BIND_HOST`
 - `edge-proxy` peut exposer seulement `:80/:443` pour l'entree publique
 
-Si tu veux tout rebloquer en local, remets `PUBLISH_BIND_HOST=127.0.0.1` dans `.env`.
-Si tu veux seulement `ops-console` en local, garde `PUBLISH_BIND_HOST=0.0.0.0` et mets `OPS_CONSOLE_BIND_HOST=127.0.0.1`.
+Si tu veux tout garder en local, laisse `PUBLISH_BIND_HOST=127.0.0.1` dans `.env`.
+Si tu veux exposer des services internes au LAN, passe explicitement `PUBLISH_BIND_HOST=0.0.0.0`.
+Si tu veux publier `edge-proxy` sur `:80/:443`, passe explicitement `EDGE_PROXY_BIND_HOST=0.0.0.0`.
 
 Mode reverse proxy:
 
@@ -327,7 +460,7 @@ Mode reverse proxy:
 PUBLISH_BIND_HOST=127.0.0.1 ./setup --with core,api,ops-console,edge-proxy --yes
 ```
 
-Dans ce mode, seuls `edge-proxy` sur `:80/:443` sont publics; les autres ports restent sur loopback.
+Dans ce mode, seuls `edge-proxy` sur `:80/:443` sont publics si `EDGE_PROXY_BIND_HOST=0.0.0.0`; sinon toute la stack reste sur loopback.
 
 Observability complementaire opt-in:
 
@@ -336,6 +469,20 @@ Observability complementaire opt-in:
 ```
 
 Ce lot ajoute le stockage/relais observability, mais le cockpit utilise deja aujourd'hui la trace native du core pour afficher les echanges inter-agent dans `Logs`.
+
+Smoke test OTLP -> Loki:
+
+```bash
+bash scripts/smoke_otel_loki.sh
+bash scripts/smoke_otel_loki.sh --json
+```
+
+Report de cardinalite Loki:
+
+```bash
+bash scripts/loki_cardinality_report.sh
+bash scripts/loki_cardinality_report.sh --json
+```
 
 Certificat Let's Encrypt par DNS-01 Cloudflare:
 
@@ -374,16 +521,24 @@ bash scripts/smoke_generate_audio.sh --url http://localhost:9000
 
 ```bash
 # Core Python
+bash scripts/bootstrap_python_env.sh
 cd core
-python -m venv .venv
 source .venv/bin/activate
-pip install -e ".[dev]"
 python -m uvicorn mascarade.server:app --host 0.0.0.0 --port 8100 --reload
 
 # API TypeScript (autre terminal)
 cd api
 npm install
 npm run dev
+```
+
+Validation repo-locale recommandee avant tout tri de delta:
+
+```bash
+bash scripts/test_python.sh
+curl -fsS http://127.0.0.1:8100/health
+curl -fsS http://127.0.0.1:3100/health
+curl -fsS http://127.0.0.1:9200/health
 ```
 
 ---
@@ -453,6 +608,8 @@ docker compose -f docker-compose.yml -f docker-compose.ai.yml --profile heavy up
 ```
 
 Sur VM legere, garder ces services arretes par defaut (profil `heavy`).
+
+`Langfuse` reste une brique supportee du repo, mais optionnelle hors profil standard. `Firecrawl` est supporte comme service MCP optionnel via l'image officielle `mcp/firecrawl`; il exige `FIRECRAWL_API_KEY` ou `FIRECRAWL_API_URL` pour demarrer. `Mem0` est supporte via `mem0/openmemory-mcp`, adosse a `Qdrant` et route par defaut ses appels OpenAI-compatibles vers `LiteLLM`.
 
 ### Interagir avec la VM depuis le Mac
 
@@ -673,6 +830,21 @@ curl -X POST http://localhost:3100/api/agents/notion-scribe/run-and-push \
   }'
 ```
 
+### GitHub dispatch
+
+Si `KILL_LIFE_GITHUB_TOKEN` ou `GITHUB_TOKEN` est configure :
+
+```bash
+# Lister les workflows allowlistes exposes par le MCP / bridge
+python3 /home/clems/Kill_LIFE/tools/github_dispatch_mcp_smoke.py --json
+
+# Ou tester le bridge API cote mascarade sans dispatch reel
+curl -X POST http://localhost:3100/api/killlife/workflows/repo_state/run \
+  -H "Authorization: Bearer $KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"mode":"github","dry_run":true}'
+```
+
 ### Observabilite
 
 ```bash
@@ -719,9 +891,16 @@ Resilience integree :
 ## Tests
 
 ```bash
-cd core
-source .venv/bin/activate
-python -m pytest -v       # 42 tests
+bash scripts/bootstrap_python_env.sh
+bash scripts/test_python.sh
+```
+
+Le chemin supporte pour les tests Python du repo est `core/.venv`. Ne lance pas `python3 -m pytest` depuis l'hote sans passer par ce venv.
+Le bootstrap couvre aussi les dependances du `deploy/ops_agent`, afin que le meme venv suffise pour les tests `core/tests/` qui importent l'ops-agent.
+Pour une verification type "machine fraiche" sans toucher au venv principal:
+
+```bash
+bash scripts/test_python.sh --bootstrap --venv-dir /tmp/mascarade-core-venv
 ```
 
 ---
@@ -730,51 +909,59 @@ python -m pytest -v       # 42 tests
 
 ```
 mascarade/
-├── core/                             # Python FastAPI
+├── core/                             # Python FastAPI (port 8100)
 │   ├── mascarade/
 │   │   ├── server.py                 # Routes FastAPI + lifespan
 │   │   ├── config.py                 # Settings (.env)
 │   │   ├── auth.py                   # Bearer token auth
+│   │   ├── cluster.py                # Coordination multi-noeud
 │   │   ├── agents/
 │   │   │   ├── base.py               # Dataclass Agent
 │   │   │   ├── registry.py           # Registre + persistance JSON
-│   │   │   └── skills.py             # 9 agents built-in
+│   │   │   ├── skills.py             # 9 agents built-in
+│   │   │   ├── kicad_agent.py        # Agent KiCad
+│   │   │   └── spice_agent.py        # Agent SPICE
 │   │   ├── router/
-│   │   │   ├── router.py             # Routeur intelligent + cache/metrics/LB/fallback
-│   │   │   ├── fallback.py           # Mecanisme de fallback
-│   │   │   └── providers/
-│   │   │       ├── base.py           # Interface LLMProvider + retry factory
-│   │   │       ├── claude.py         # Adapter Anthropic
-│   │   │       ├── openai.py         # Adapter OpenAI
-│   │   │       └── mistral.py        # Adapter Mistral
-│   │   ├── orchestrator/
-│   │   │   └── engine.py             # Sequential / parallel / pipeline
+│   │   │   ├── router.py             # Routeur intelligent + cache/LB/fallback
+│   │   │   └── providers/            # Claude, OpenAI, Mistral, Bedrock,
+│   │   │       └── ...               #   Google, HF, Ollama, Apple CoreML
+│   │   ├── orchestrator/engine.py    # Sequential / parallel / pipeline
 │   │   ├── integrations/
-│   │   │   └── notion.py             # Client Notion async
-│   │   ├── cache/cache.py            # Cache reponses en memoire
-│   │   ├── metrics/tracker.py        # Tracking usage/perf
-│   │   └── load_balancer/balancer.py # Distribution de charge
+│   │   │   ├── notion.py             # Client Notion async
+│   │   │   └── comfyui.py            # Generation d'images ComfyUI
+│   │   ├── observability/            # OpenTelemetry, traces agents
+│   │   ├── cache/                    # Cache reponses (TTL 1h)
+│   │   ├── metrics/                  # Tracking usage/perf/couts
+│   │   └── load_balancer/            # Distribution round-robin
 │   ├── tests/                        # pytest (42 tests)
 │   └── pyproject.toml
-├── api/                              # TypeScript Hono
+├── api/                              # TypeScript Hono (port 3100)
 │   ├── src/
-│   │   ├── index.ts                  # App Hono + mount routes
-│   │   ├── middleware/auth.ts        # Auth middleware Bearer
-│   │   ├── client/core.ts            # Client HTTP vers le core
-│   │   └── routes/
-│   │       ├── health.ts             # GET /health
-│   │       ├── agents.ts             # Proxy agents/send/orchestrate
-│   │       └── notion.ts             # Proxy Notion
+│   │   ├── index.ts                  # App + middleware (CORS, auth, rate-limit)
+│   │   └── routes/                   # health, agents, cluster, notion, comfyui,
+│   │       └── ...                   #   ops, killlife
 │   └── package.json
-├── deploy/
-│   ├── Dockerfile.core               # Image Python
-│   ├── Dockerfile.api                # Image Node.js
-│   └── update.sh                     # Script de deploiement VM
-├── scripts/
-│   ├── vm-docker.sh                  # Docker via SSH context
-│   └── vm-api.sh                     # curl vers l'API de la VM
-├── docker-compose.yml
-├── .env.example
+├── web/                              # Frontend React (subtree -> crazy_life)
+├── finetune/                         # Pipeline fine-tuning QLoRA
+│   ├── model_selector.py             # Selection automatique de modele (HF Hub)
+│   ├── train_local.py                # Entrainement GPU (4-bit QLoRA)
+│   ├── train_cpu.py                  # Entrainement CPU (fallback)
+│   ├── train_all.sh                  # Batch dashboard multi-domaines
+│   ├── pipeline.py                   # train -> merge -> GGUF -> Ollama
+│   ├── batch_local.py                # Orchestration distillation + training
+│   ├── datasets/                     # Builders + datasets JSONL
+│   └── kicad_*/                      # Submodules KiCad (KiC-AI, MCP, Fab Toolkit)
+├── deploy/                           # Dockerfiles (core, api, edge-proxy, audio)
+│   ├── cad/                          # Stack CAD (KiCad, FreeCAD, PlatformIO)
+│   └── update.sh                     # Deploiement VM
+├── scripts/                          # Automation (setup, deploy, finetune, CAD)
+├── docs/                             # Architecture, audits, runbooks, plans
+├── tools/                            # htop repo-local, litellm config
+├── vendors/                          # Submodule kicadrouterai (HuggingFace)
+├── setup                             # Installeur TUI interactif
+├── config                            # Reconfiguration .env
+├── docker-compose.yml                # Genere par setup
+├── .env.example                      # Template configuration
 └── CLAUDE.md                         # Conventions dev
 ```
 

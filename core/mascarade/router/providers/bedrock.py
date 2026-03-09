@@ -7,6 +7,7 @@ import logging
 from collections.abc import AsyncIterator
 
 import boto3
+from botocore.config import Config as BotoConfig
 from botocore.exceptions import BotoCoreError, ClientError
 
 from mascarade.config import is_secret_configured, settings
@@ -18,6 +19,13 @@ _retry = make_retry(BotoCoreError, ClientError)
 
 # Region where fine-tuned models are hosted
 FINETUNE_REGION = "us-west-2"
+
+_TIMEOUT_S = 60
+_BOTO_CFG = BotoConfig(
+    connect_timeout=10,
+    read_timeout=_TIMEOUT_S,
+    retries={"max_attempts": 0},  # tenacity gere les retries
+)
 
 # Domain-to-custom-model mapping (populated by discover_custom_models)
 DOMAIN_MODELS: dict[str, str] = {}
@@ -67,7 +75,7 @@ class BedrockProvider(LLMProvider):
             aws_session_token=settings.aws_session_token or None,
             region_name=settings.aws_region,
         )
-        self._client = session.client("bedrock-runtime")
+        self._client = session.client("bedrock-runtime", config=_BOTO_CFG)
 
         ft_session = boto3.session.Session(
             aws_access_key_id=settings.aws_access_key_id or None,
@@ -75,7 +83,7 @@ class BedrockProvider(LLMProvider):
             aws_session_token=settings.aws_session_token or None,
             region_name=FINETUNE_REGION,
         )
-        self._ft_runtime = ft_session.client("bedrock-runtime")
+        self._ft_runtime = ft_session.client("bedrock-runtime", config=_BOTO_CFG)
         self._ft_management = ft_session.client("bedrock")
 
     def _discover_custom_models(self) -> None:
@@ -155,7 +163,7 @@ class BedrockProvider(LLMProvider):
                 kwargs["system"] = [{"text": system}]
             return client.converse(**kwargs)
 
-        response = await asyncio.to_thread(_call)
+        response = await asyncio.wait_for(asyncio.to_thread(_call), timeout=_TIMEOUT_S)
         parts = response.get("output", {}).get("message", {}).get("content", [])
         usage = response.get("usage", {}) or {}
         content = "".join(p.get("text", "") for p in parts if isinstance(p, dict))
@@ -194,7 +202,7 @@ class BedrockProvider(LLMProvider):
                 kwargs["system"] = [{"text": system}]
             return client.converse_stream(**kwargs)
 
-        response = await asyncio.to_thread(_call)
+        response = await asyncio.wait_for(asyncio.to_thread(_call), timeout=_TIMEOUT_S)
         for event in response.get("stream", []):
             text = event.get("contentBlockDelta", {}).get("delta", {}).get("text")
             if text:

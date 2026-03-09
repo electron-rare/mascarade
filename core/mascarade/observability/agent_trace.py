@@ -55,6 +55,9 @@ class AgentTraceEvent:
     content_excerpt: str | None = None
     provider: str | None = None
     model: str | None = None
+    routing_role: str | None = None
+    routing_provider: str | None = None
+    routing_model: str | None = None
     token_usage: dict[str, int] | None = None
     error: str | None = None
 
@@ -62,6 +65,17 @@ class AgentTraceEvent:
         payload = asdict(self)
         payload["message"] = build_trace_message(self)
         return payload
+
+
+def build_routing_suffix(event: AgentTraceEvent) -> str:
+    parts: list[str] = []
+    if event.routing_role:
+        parts.append(f"role={event.routing_role}")
+    if event.routing_provider:
+        parts.append(f"provider={event.routing_provider}")
+    if event.routing_model:
+        parts.append(f"model={event.routing_model}")
+    return f" [{', '.join(parts)}]" if parts else ""
 
 
 def build_trace_message(event: AgentTraceEvent) -> str:
@@ -72,11 +86,15 @@ def build_trace_message(event: AgentTraceEvent) -> str:
             + (f" with {event.agent_name}" if event.agent_name else "")
         )
     if event.event_type == "step_started":
-        return f"step {event.step:02d} started for {event.agent_name or 'unknown-agent'}"
+        return (
+            f"step {event.step:02d} started for {event.agent_name or 'unknown-agent'}"
+            + build_routing_suffix(event)
+        )
     if event.event_type == "agent_input":
         return (
             f"{event.agent_name or 'agent'} received input"
             + (f' "{event.prompt_excerpt}"' if event.prompt_excerpt else "")
+            + build_routing_suffix(event)
         )
     if event.event_type == "agent_output":
         summary = f"{event.agent_name or 'agent'} returned output"
@@ -149,6 +167,9 @@ class AgentTraceBuffer:
             "mode": event.mode,
             "provider": event.provider,
             "model": event.model,
+            "routing_role": event.routing_role,
+            "routing_provider": event.routing_provider,
+            "routing_model": event.routing_model,
             "ts": event.ts,
         }
         print(json.dumps(structured_log, ensure_ascii=True), flush=True)
@@ -164,6 +185,9 @@ class AgentTraceBuffer:
                 "mode": event.mode,
                 "provider": event.provider or "",
                 "model": event.model or "",
+                "routing_role": event.routing_role or "",
+                "routing_provider": event.routing_provider or "",
+                "routing_model": event.routing_model or "",
             },
         )
 
@@ -203,6 +227,9 @@ class AgentTraceBuffer:
         content_excerpt: str | None = None,
         provider: str | None = None,
         model: str | None = None,
+        routing_role: str | None = None,
+        routing_provider: str | None = None,
+        routing_model: str | None = None,
         token_usage: dict[str, int] | None = None,
         error: str | None = None,
     ) -> AgentTraceEvent:
@@ -221,6 +248,9 @@ class AgentTraceBuffer:
             content_excerpt=excerpt_text(content_excerpt),
             provider=provider,
             model=model,
+            routing_role=excerpt_text(routing_role, limit=120),
+            routing_provider=excerpt_text(routing_provider, limit=120),
+            routing_model=excerpt_text(routing_model, limit=160),
             token_usage=token_usage,
             error=excerpt_text(error),
         )

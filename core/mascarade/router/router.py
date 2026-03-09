@@ -15,17 +15,6 @@ from mascarade.router.providers.base import LLMProvider, LLMResponse
 
 logger = logging.getLogger("mascarade.router")
 
-DEFAULT_PROVIDER_SPECS: tuple[tuple[str, str, str], ...] = (
-    ("claude", "mascarade.router.providers.claude", "ClaudeProvider"),
-    ("openai", "mascarade.router.providers.openai", "OpenAIProvider"),
-    ("mistral", "mascarade.router.providers.mistral", "MistralProvider"),
-    ("bedrock", "mascarade.router.providers.bedrock", "BedrockProvider"),
-    ("google", "mascarade.router.providers.google", "GoogleProvider"),
-    ("huggingface", "mascarade.router.providers.huggingface", "HuggingFaceProvider"),
-    ("ollama", "mascarade.router.providers.ollama", "OllamaProvider"),
-    ("apple-coreml", "mascarade.router.providers.apple_coreml", "AppleCoreMLProvider"),
-)
-
 
 class Strategy(StrEnum):
     BEST = "best"
@@ -46,20 +35,31 @@ class Router:
         self._register_defaults()
 
     def _register_defaults(self) -> None:
-        for provider_name, module_name, class_name in DEFAULT_PROVIDER_SPECS:
+        provider_specs = [
+            ("mascarade.router.providers.claude", "ClaudeProvider"),
+            ("mascarade.router.providers.openai", "OpenAIProvider"),
+            ("mascarade.router.providers.mistral", "MistralProvider"),
+            ("mascarade.router.providers.bedrock", "BedrockProvider"),
+            ("mascarade.router.providers.google", "GoogleProvider"),
+            ("mascarade.router.providers.huggingface", "HuggingFaceProvider"),
+            ("mascarade.router.providers.ollama", "OllamaProvider"),
+            ("mascarade.router.providers.apple_coreml", "AppleCoreMLProvider"),
+        ]
+
+        for module_name, class_name in provider_specs:
             try:
                 module = __import__(module_name, fromlist=[class_name])
                 provider_cls = getattr(module, class_name)
             except (ImportError, AttributeError) as exc:
                 logger.warning(
-                    "Skipping provider %s (%s): %s", provider_name, module_name, exc
+                    "Skipping provider %s (%s): %s", class_name, module_name, exc
                 )
                 continue
 
             try:
                 provider = provider_cls()
             except Exception as exc:
-                logger.warning("Failed to initialize provider %s: %s", provider_name, exc)
+                logger.warning("Failed to initialize provider %s: %s", class_name, exc)
                 continue
 
             if provider.is_configured:
@@ -73,9 +73,11 @@ class Router:
     def available_providers(self) -> list[str]:
         return list(self._providers.keys())
 
-    @property
-    def supported_provider_names(self) -> list[str]:
-        return [name for name, _, _ in DEFAULT_PROVIDER_SPECS]
+    def provider_model_map(self) -> dict[str, list[str]]:
+        return {
+            name: provider.available_models()
+            for name, provider in self._providers.items()
+        }
 
     def _select_candidates(
         self,
@@ -206,7 +208,7 @@ class Router:
                     "temperature": temperature,
                     "max_tokens": max_tokens,
                 }
-                if response_format is not None and selected.name == "mistral":
+                if response_format is not None and selected.name in {"mistral", "ollama"}:
                     send_kwargs["response_format"] = response_format
                 response = await selected.send(messages, **send_kwargs)
             except Exception as exc:

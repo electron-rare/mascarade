@@ -12,6 +12,9 @@ import Metrics from "./pages/Metrics";
 import Infrastructure from "./pages/Infrastructure";
 import NotionBrowser from "./pages/NotionBrowser";
 import ComfyUI from "./pages/ComfyUI";
+import KillLifeWorkflows from "./pages/KillLifeWorkflows";
+import KillLifeWorkflowEditor from "./pages/KillLifeWorkflowEditor";
+import Settings from "./pages/Settings";
 
 export default function App() {
   return (
@@ -29,6 +32,9 @@ export default function App() {
           <Route path="infra" element={<Infrastructure />} />
           <Route path="notion" element={<NotionBrowser />} />
           <Route path="comfyui" element={<ComfyUI />} />
+          <Route path="kill-life" element={<KillLifeWorkflows />} />
+          <Route path="kill-life/:workflowId" element={<KillLifeWorkflowEditor />} />
+          <Route path="settings" element={<Settings />} />
           <Route path="*" element={<p className="text-error text-sm text-center mt-20">404 — page not found</p>} />
         </Route>
       </Routes>

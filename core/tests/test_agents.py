@@ -61,6 +61,15 @@ def test_registry_save_and_load(tmp_path):
     assert "builtin" not in reg2  # Built-in non persisté
 
 
+def test_registry_is_builtin_tracks_builtin_entries():
+    reg = AgentRegistry(storage_path=None)
+    reg.register(Agent(name="builtin", description="B", system_prompt="B"), builtin=True)
+    reg.register(Agent(name="dynamic", description="D", system_prompt="D"))
+
+    assert reg.is_builtin("builtin") is True
+    assert reg.is_builtin("dynamic") is False
+
+
 def test_registry_save_noop_when_disabled():
     """Pas d'erreur si storage_path=None."""
     reg = AgentRegistry(storage_path=None)

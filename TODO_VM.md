@@ -1,105 +1,95 @@
-# TODO — Finalisation VM (192.168.0.119)
+# TODO — Finalisation VM
 
-## Statut actuel
+Etat relu le `9 mars 2026` sur `photon-machine`.
 
-| Service | Container | Port | Statut |
-|---------|-----------|------|--------|
-| Mascarade Core | mascarade-core-1 | 8100 | OK |
-| Mascarade API | mascarade-api-1 | 3100 | OK |
-| ClickHouse | tools-clickhouse | — | OK |
-| Langfuse | tools-langfuse | 3200 | KO (ZodError) |
-| n8n | tools-n8n | 5678 | OK |
-| LiteLLM | tools-litellm | 4000 | OK |
-| Dify API | tools-dify-api | 5001 | OK |
-| Dify Web | tools-dify-web | 3500 | OK |
-| Dify Worker | tools-dify-worker | — | OK |
+Ce fichier couvre uniquement la VM et la stack runtime de `/mascarade`.
+Le pilotage central multi-repo vit dans `docs/EXECUTION_HUB.md`.
 
----
+## Pilotage multi-machine
 
-## A faire
+- [x] Le hub d'execution sait maintenant filtrer les lots par `Portee`:
+  - `global`
+  - `machine:<hostname>`
+  - `cap:<capability>`
+- [x] Le profil local de `photon-machine` est declare dans `docs/MACHINE_PROFILES.json`.
+- [x] Declarer des profils logiques pour les prochaines machines utiles dans `docs/MACHINE_PROFILES.json`:
+  - `net-runner`
+  - `kicad-runner`
+  - `nexar-runner`
+- [x] Une matrice de dispatch multi-machine existe via `scripts/machine_lot_matrix.sh`.
+- [ ] Quand une autre machine sera prete, utiliser `scripts/current_machine_context.sh` puis `scripts/chain_next_lot.sh --machine <nom>` pour reprendre les lots delegues.
 
-### 1. Fixer Langfuse
-- [ ] Le container ne crash plus mais le health endpoint ne répond pas (toujours KO)
-- [ ] Erreur : `TypeError: Cannot set property message of ZodError which has only a getter`
-- [ ] Env vars ajoutées : `ENCRYPTION_KEY`, `REDIS_HOST/PORT`, `LANGFUSE_S3_EVENT_UPLOAD_ENABLED=false`
-- [x] Piste testée : version spécifique `3.50.0` (KO aussi)
-- [x] Décision machine légère : service désactivé par défaut (profile `heavy`)
-- [ ] Fichier : `~/tools/docker-compose.yml`
+## Surface runtime de reference
 
-### 2. Configurer les clés API
-- [ ] Remplir les vraies clés dans `/mascarade/.env` sur la VM
+| Surface | Compose / container | Bind retenu | Statut |
+| --- | --- | --- | --- |
+| Ops Console | main compose / `mascarade-ops-console` | LAN `:80` | OK |
+| Dify Web | `deploy/dify.machine.yml` / `mascarade-dify-web` | LAN `:3500` | OK |
+| Dify API | `deploy/dify.machine.yml` / `mascarade-dify-api` | LAN `:5001` | OK |
+| Mascarade API | main compose / `mascarade-api` | loopback `:3100` | OK |
+| Mascarade Core | main compose / `mascarade-core` | loopback `:8100` | OK |
+| Grafana | main compose / `mascarade-grafana` | loopback `:3001` | OK |
+| Prometheus | main compose / `mascarade-prometheus` | loopback `:9090` | OK |
+| Ollama | main compose / `mascarade-ollama` | loopback `:11434` | OK / optionnel |
+
+Notes:
+- `ops-console` sur `:80` via le main compose est maintenant la surface standard. `edge-proxy` n'est plus le chemin principal par defaut pour cette machine.
+- `core`, `api`, `grafana`, `prometheus`, `ollama`, `qdrant`, `n8n` et `studio-ai-gateway` restent sur loopback sauf besoin explicite.
+- Dify reste sur le compose dedie `deploy/dify.machine.yml`, avec `DIFY_MACHINE_HOST` comme source unique des URLs publiees.
+
+## Ce qui est verrouille
+
+- [x] `./setup` ne remappe plus `ops-console` vers `edge-proxy`.
+- [x] `ops-console` main compose reprend `:80` et sert la surface operateur de la machine.
+- [x] L'overlay `photon-machine` est separe dans `.env.machine.local(.example)`.
+- [x] La page Ops Console applique un filtrage LAN et des cartes loopback basees sur verification locale.
+- [x] `./setup` / `write_env_file()` ne laissent plus sortir un `.env` runtime avec `MASCARADE_API_KEY` vide si `core` ou `api` sont selectionnes.
+
+## Stack personnelle legere
+
+- [x] `deploy/personal.machine.yml` est la source de verite pour la stack perso locale.
+- [x] Le cockpit perso est precharge et versionne via `deploy/personal-seed/*.json`.
+- [x] Les scripts `scripts/personal_stack_reconcile.sh`, `scripts/personal_stack_verify.sh` et `scripts/personal_stack_lots.sh` rejouent et verifient la wave 1 sans refaire le seed a la main.
+- [x] Les checks `Healthchecks` sont laisses sans cron placeholder tant qu'aucun job reel n'est cable.
+- [ ] Cabler les premiers jobs reels vers `mascarade-ops`, `mascarade-jobs`, `mascarade-watch` et les checks `Healthchecks`.
+- [ ] Preparer la phase 2 distante (`SearXNG`, `Paperless-ngx`, `Karakeep`) et l'ajouter a l'Ops Console sans alourdir `photon-machine`.
+
+## Backlog prioritaire restant
+
+### Securite / secrets operateur
+
+- [ ] Renseigner seulement les secrets reellement utiles sur cette machine:
   - `ANTHROPIC_API_KEY`
   - `OPENAI_API_KEY`
-  - `MISTRAL_API_KEY`
-  - `NOTION_TOKEN`
-- [x] Copier/linker le `.env` pour `~/tools/` (LiteLLM, Dify en ont besoin) — synchronisation effectuée
-- [x] Restart mascarade + tools après
+  - `NOTION_API_KEY`
+- [ ] Garder les secrets machine hors des fichiers versionnes:
+  - `.env`
+  - `.env.machine.local`
 
-### 3. Déployer Firecrawl
-- [ ] L'image `ghcr.io/mendableai/firecrawl:latest` est privée (denied)
-- [ ] Alternative : `mendableai/firecrawl` sur Docker Hub ou build depuis le repo GitHub
-- [x] Port prévu : 3400
-- [ ] Utilise Redis existant (`zacus-redis:6379/2`)
+### Tooling opt-in
 
-### 4. Déployer Mem0
-- [ ] L'image `mem0ai/mem0` n'existe pas sur Docker Hub
-- [ ] Alternative 1 : installer via pip (`pip install mem0ai`) dans un venv Python sur la VM
-- [ ] Alternative 2 : utiliser `openmemory-mcp` (le repo officiel Mem0)
-- [x] Port prévu : 3300
-- [ ] Utilise Qdrant existant (`zacus-qdrant:6333`)
+- [ ] Installer `Docling` dans le venv tools uniquement si un flux local de parsing documentaire le demande.
+- [ ] Installer `openai-whisper` dans le venv tools uniquement si une transcription locale hors conteneur devient necessaire.
 
-### 5. Installer les outils Python
-- [x] Créer un venv dans `~/tools/python-tools/`
-- [x] **GraphRAG** (`pip install graphrag`) — installé dans `~/tools/python-tools/.venv`
-- [ ] **Docling** (`pip install docling`) — résolution de dépendances très longue / interrompue
-- [ ] **Whisper** (`pip install openai-whisper`) — inclus dans la tentative globale interrompue
+### Reseau / exposition
 
-### 6. Ajouter deps Mascarade
-- [x] **CrewAI** — ajouté dans `core/pyproject.toml`, skill d'orchestration ajouté
-- [x] **OpenAI Agents SDK** — ajouté comme dépendance
-- [x] Rebuild image Docker mascarade après
+- [ ] Revalider la regle hote/`DOCKER-USER` pour `80/tcp`, `3500/tcp` et `5001/tcp` apres tout changement reseau.
+- [ ] Si une exposition publique TLS redevient voulue, definir un chemin explicite `edge-proxy` ou reverse proxy tiers au lieu de rouvrir des binds au hasard.
 
-### 7. Configurer MCP Servers (local Mac)
-- [ ] Installer `@anthropic-ai/mcp` et serveurs MCP utiles (à faire sur Mac)
-- [ ] Playwright MCP pour le scraping navigateur (à faire sur Mac)
-- [x] Connecter Claude Code aux MCP servers via `~/.claude/settings.json` (config locale VM prête)
+## Deplace hors de ce fichier
 
-### 8. Sécuriser les accès
-- [x] Tous les ports Mascarade/Tools ajoutés sont en `127.0.0.1` (local uniquement)
-- [ ] Mettre en place un reverse proxy (Caddy/nginx) pour exposer avec HTTPS
-- [x] Activer l'auth Bearer sur Mascarade (`MASCARADE_API_KEY` dans `.env`)
-- [x] Changer le mot de passe Postgres (rotation effectuée)
+- Observabilite et cockpit ops: `TODO_COCKPIT_OPS.md`
+- Backlog cockpit/release canonique: `/mascarade/opt/repos/crazy_life/plan.md`
+- Backlog MCP canonique: `/mascarade/opt/repos/kill_life/specs/mcp_tasks.md`
 
-### 9. Monitoring
-- [ ] Connecter Langfuse (une fois fixé) à Mascarade pour tracer les appels LLM
-- [ ] Grafana existant sur la VM — ajouter des dashboards pour les nouveaux services
-- [ ] Prometheus — ajouter les endpoints metrics des services
+## Fichiers de reference
 
----
-
-## Infra existante sur la VM
-
-| Service | Container | Port |
-|---------|-----------|------|
-| Ollama | zacus-ollama | 11434 |
-| Open WebUI | zacus-open-webui | 3000 |
-| Qdrant | zacus-qdrant | 6333 |
-| Redis | zacus-redis | 6379 |
-| Postgres | zacus-postgres | 5432 |
-| Grafana | zacus-grafana | 3001 |
-| Prometheus | zacus-prometheus | 9090 |
-
-**Réseau Docker** : `docker-studio-ai_default` (tous les services infra)
-
-## Fichiers clés
-
-```
-/mascarade/                  # Repo mascarade (core + api)
-/mascarade/.env              # Clés API (à remplir)
-/mascarade/docker-compose.yml
-
-~/tools/docker-compose.yml   # Stack outils (Langfuse, n8n, LiteLLM, Dify)
-~/tools/litellm-config.yaml  # Config LiteLLM (modèles + cache Redis)
-~/tools/clickhouse/config.xml # Config ClickHouse Keeper
-~/tools/.env                 # Copie des clés API
+```text
+/mascarade/docs/EXECUTION_HUB.md
+/mascarade/docs/PERSONAL_STACK_MACHINE.md
+/mascarade/docs/MULTI_MACHINE_EXECUTION.md
+/mascarade/docs/MACHINE_PROFILES.json
+/mascarade/docs/RUNBOOK_VM_OPS.md
+/mascarade/.env.example
+/mascarade/.env.machine.local.example
 ```

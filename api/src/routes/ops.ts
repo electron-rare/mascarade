@@ -1,3 +1,6 @@
+import { spawn } from "node:child_process";
+import { existsSync } from "node:fs";
+import path from "node:path";
 import { Hono } from "hono";
 import {
   coreClient,
@@ -79,6 +82,61 @@ type MonitorSnapshot = {
   };
 };
 
+type McpProbePayload = {
+  status?: string;
+  requested_runtime?: string;
+  runtime_mode?: string;
+  quick?: boolean;
+  protocol_version?: string | null;
+  server_name?: string | null;
+  tool_count?: number;
+  resource_count?: number;
+  prompt_count?: number;
+  checks?: string[];
+  secret_configured?: boolean;
+  token_configured?: boolean;
+  live_requested?: boolean;
+  live_validation?: string | null;
+  error?: string;
+};
+
+type McpRuntimeStatus = {
+  ok: boolean;
+  status: "ready" | "degraded" | "failed";
+  requested_runtime: string;
+  runtime_mode: string | null;
+  protocol_version: string | null;
+  server_name: string | null;
+  tool_count: number;
+  resource_count: number;
+  prompt_count: number;
+  latency_ms: number;
+  checks: string[];
+  secret_configured?: boolean;
+  token_configured?: boolean;
+  live_requested?: boolean;
+  live_validation?: string | null;
+  error?: string;
+};
+
+type McpSuiteStatus = McpRuntimeStatus & {
+  aggregate_status: "ready" | "degraded" | "failed";
+  primary_server: string;
+  primary: McpRuntimeStatus;
+  server_count: number;
+  servers_ok: number;
+  degraded_servers: string[];
+  servers: Record<string, McpRuntimeStatus>;
+};
+
+type McpProbeConfig = {
+  key: string;
+  command: string[];
+  cwd: string;
+  timeout_ms: number;
+  primary?: boolean;
+};
+
 async function timedJson(
   url: string,
   timeoutMs: number = 1800,
@@ -109,16 +167,18 @@ async function timedProbe(
   name: string,
   url: string,
   timeoutMs: number = 1500,
+  acceptedStatuses: number[] = [],
 ): Promise<ProbeResult> {
   const started = Date.now();
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const res = await fetch(url, { signal: controller.signal });
+    const ok = res.ok || acceptedStatuses.includes(res.status);
     return {
       name,
       url,
-      ok: res.ok,
+      ok,
       status: res.status,
       latency_ms: Date.now() - started,
     };
@@ -142,6 +202,69 @@ const APPLE_LLM_BASE_URL = (process.env.APPLE_LLM_BASE_URL || "").replace(/\/+$/
 const OPS_AGENT_URL = (process.env.OPS_AGENT_URL || "http://ops-agent:9200").replace(/\/+$/, "");
 const LOKI_URL = (process.env.LOKI_URL || "http://loki:3100").replace(/\/+$/, "");
 const CORE_URL = (process.env.CORE_URL || "http://core:8100").replace(/\/+$/, "");
+const KILL_LIFE_ROOT = path.resolve(process.env.KILL_LIFE_ROOT || "/home/clems/Kill_LIFE");
+const KILL_LIFE_MCP_SMOKE = path.join(KILL_LIFE_ROOT, "tools", "hw", "mcp_smoke.py");
+const KILL_LIFE_VALIDATE_SPECS_MCP_SMOKE = path.join(
+  KILL_LIFE_ROOT,
+  "tools",
+  "validate_specs_mcp_smoke.py",
+);
+const KILL_LIFE_NOTION_MCP_SMOKE = path.join(
+  KILL_LIFE_ROOT,
+  "tools",
+  "notion_mcp_smoke.py",
+);
+const KILL_LIFE_GITHUB_DISPATCH_MCP_SMOKE = path.join(
+  KILL_LIFE_ROOT,
+  "tools",
+  "github_dispatch_mcp_smoke.py",
+);
+const OPS_MCP_PROBE_CACHE_TTL_MS = Math.max(
+  1000,
+  Number(process.env.OPS_MCP_PROBE_CACHE_TTL_MS || "15000") || 15000,
+);
+const MCP_PROBE_CONFIGS: McpProbeConfig[] = [
+  {
+    key: "kicad",
+    command: ["python3", KILL_LIFE_MCP_SMOKE, "--json", "--quick", "--timeout", "8.0"],
+    cwd: KILL_LIFE_ROOT,
+    timeout_ms: 8000,
+    primary: true,
+  },
+  {
+    key: "validate-specs",
+    command: ["python3", KILL_LIFE_VALIDATE_SPECS_MCP_SMOKE, "--json", "--quick", "--timeout", "8.0"],
+    cwd: KILL_LIFE_ROOT,
+    timeout_ms: 8000,
+  },
+  {
+    key: "notion",
+    command: ["python3", KILL_LIFE_NOTION_MCP_SMOKE, "--json", "--quick", "--timeout", "8.0"],
+    cwd: KILL_LIFE_ROOT,
+    timeout_ms: 8000,
+  },
+  {
+    key: "github-dispatch",
+    command: [
+      "python3",
+      KILL_LIFE_GITHUB_DISPATCH_MCP_SMOKE,
+      "--json",
+      "--quick",
+      "--timeout",
+      "8.0",
+    ],
+    cwd: KILL_LIFE_ROOT,
+    timeout_ms: 8000,
+  },
+];
+
+let cachedMcpProbe:
+  | {
+      expiresAt: number;
+      value: McpSuiteStatus;
+    }
+  | null = null;
+let inflightMcpProbe: Promise<McpSuiteStatus> | null = null;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -243,6 +366,24 @@ export function lokiValueToOpsLogEntry(args: {
   if (decoded.structured) {
     const source = coerceSource(decoded.structured.source, fallbackSource);
     const message = coerceOptionalString(decoded.structured.message) || decoded.line;
+    const structuredLabels = {
+      ...labels,
+      ...(coerceOptionalString(decoded.structured.provider)
+        ? { provider: coerceOptionalString(decoded.structured.provider)! }
+        : {}),
+      ...(coerceOptionalString(decoded.structured.model)
+        ? { model: coerceOptionalString(decoded.structured.model)! }
+        : {}),
+      ...(coerceOptionalString(decoded.structured.routing_role)
+        ? { routing_role: coerceOptionalString(decoded.structured.routing_role)! }
+        : {}),
+      ...(coerceOptionalString(decoded.structured.routing_provider)
+        ? { routing_provider: coerceOptionalString(decoded.structured.routing_provider)! }
+        : {}),
+      ...(coerceOptionalString(decoded.structured.routing_model)
+        ? { routing_model: coerceOptionalString(decoded.structured.routing_model)! }
+        : {}),
+    };
     return {
       id:
         coerceOptionalString(decoded.structured.id) ||
@@ -259,7 +400,7 @@ export function lokiValueToOpsLogEntry(args: {
       from_agent: coerceOptionalString(decoded.structured.from_agent),
       to_agent: coerceOptionalString(decoded.structured.to_agent),
       event_type: coerceOptionalString(decoded.structured.event_type),
-      labels,
+      labels: structuredLabels,
     };
   }
 
@@ -295,6 +436,31 @@ function severityRank(severity: OpsLogEntry["severity"]): number {
   }
 }
 
+function labelsMatchRouting(
+  entry: OpsLogEntry,
+  filters: {
+    routing_role?: string;
+    routing_provider?: string;
+    routing_model?: string;
+  },
+): boolean {
+  const role = filters.routing_role?.trim().toLowerCase();
+  const provider = filters.routing_provider?.trim().toLowerCase();
+  const model = filters.routing_model?.trim().toLowerCase();
+  const labels = entry.labels || {};
+
+  if (role && (labels.routing_role || "").trim().toLowerCase() !== role) {
+    return false;
+  }
+  if (provider && (labels.routing_provider || "").trim().toLowerCase() !== provider) {
+    return false;
+  }
+  if (model && (labels.routing_model || "").trim().toLowerCase() !== model) {
+    return false;
+  }
+  return true;
+}
+
 function coerceSeverity(value: string | undefined): OpsLogEntry["severity"] | null {
   if (!value) return null;
   const normalized = value.trim().toLowerCase();
@@ -326,6 +492,9 @@ function traceToLogEntry(event: AgentTraceEvent): OpsLogEntry {
       mode: event.mode,
       provider: event.provider ?? "",
       model: event.model ?? "",
+      routing_role: event.routing_role ?? "",
+      routing_provider: event.routing_provider ?? "",
+      routing_model: event.routing_model ?? "",
     },
   };
 }
@@ -373,12 +542,14 @@ async function opsAgentJson(
 async function proxySseResponse(
   url: string,
   headers?: Record<string, string>,
+  signal?: AbortSignal,
 ): Promise<Response> {
   const upstream = await fetch(url, {
     headers: {
       Accept: "text/event-stream",
       ...(headers || {}),
     },
+    signal,
   });
 
   if (!upstream.ok || !upstream.body) {
@@ -400,6 +571,195 @@ async function proxySseResponse(
 async function lokiReady(timeoutMs: number = 1600): Promise<boolean> {
   const result = await timedJson(`${LOKI_URL}/ready`, timeoutMs);
   return result.ok;
+}
+
+function makeDefaultMcpStatus(overrides: Partial<McpRuntimeStatus> = {}): McpRuntimeStatus {
+  return {
+    ok: false,
+    status: "failed",
+    requested_runtime: "local",
+    runtime_mode: null,
+    protocol_version: null,
+    server_name: null,
+    tool_count: 0,
+    resource_count: 0,
+    prompt_count: 0,
+    latency_ms: 0,
+    checks: [],
+    ...overrides,
+  };
+}
+
+async function runMcpProbe(config: McpProbeConfig): Promise<McpRuntimeStatus> {
+  const started = Date.now();
+  if (!existsSync(config.cwd)) {
+    return makeDefaultMcpStatus({
+      status: "degraded",
+      latency_ms: Date.now() - started,
+      server_name: config.key,
+      error: `Probe workspace unavailable in API runtime: ${config.cwd}`,
+    });
+  }
+
+  const scriptCandidate = config.command[1];
+  if (scriptCandidate && (scriptCandidate.endsWith(".py") || scriptCandidate.endsWith(".sh")) && !existsSync(scriptCandidate)) {
+    return makeDefaultMcpStatus({
+      status: "degraded",
+      latency_ms: Date.now() - started,
+      server_name: config.key,
+      error: `Probe script unavailable in API runtime: ${scriptCandidate}`,
+    });
+  }
+
+  return await new Promise((resolve) => {
+    const child = spawn(config.command[0], config.command.slice(1), {
+      cwd: config.cwd,
+      env: process.env,
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+
+    let stdout = "";
+    let stderr = "";
+    let settled = false;
+
+    const finish = (payload: Partial<McpRuntimeStatus>) => {
+      if (settled) return;
+      settled = true;
+      resolve(
+        makeDefaultMcpStatus({
+          latency_ms: Date.now() - started,
+          ...payload,
+        }),
+      );
+    };
+
+    const timer = setTimeout(() => {
+      child.kill("SIGKILL");
+      finish({ error: `Timed out after ${(config.timeout_ms / 1000).toFixed(1)}s waiting for MCP probe` });
+    }, config.timeout_ms);
+
+    child.stdout.on("data", (chunk) => {
+      stdout += String(chunk);
+    });
+    child.stderr.on("data", (chunk) => {
+      stderr += String(chunk);
+    });
+    child.on("error", (error) => {
+      clearTimeout(timer);
+      const unavailable = /ENOENT/i.test(error.message);
+      finish({
+        status: unavailable ? "degraded" : "failed",
+        server_name: config.key,
+        error: unavailable
+          ? `Probe dependency unavailable in API runtime: ${error.message}`
+          : error.message,
+      });
+    });
+    child.on("close", (code) => {
+      clearTimeout(timer);
+      const line = stdout
+        .split(/\r?\n/)
+        .map((entry) => entry.trim())
+        .filter(Boolean)
+        .at(-1);
+
+      let json: McpProbePayload | null = null;
+      if (line) {
+        try {
+          json = JSON.parse(line) as McpProbePayload;
+        } catch {
+          json = null;
+        }
+      }
+
+      const normalizedStatus =
+        json?.status === "ready"
+          ? "ready"
+          : json?.status === "degraded"
+            ? "degraded"
+            : code === 0
+              ? "degraded"
+              : "failed";
+
+      finish({
+        ok: normalizedStatus === "ready",
+        status: normalizedStatus,
+        requested_runtime: json?.requested_runtime || "local",
+        runtime_mode: json?.runtime_mode || null,
+        protocol_version: json?.protocol_version || null,
+        server_name: json?.server_name || config.key,
+        tool_count: json?.tool_count || 0,
+        resource_count: json?.resource_count || 0,
+        prompt_count: json?.prompt_count || 0,
+        checks: Array.isArray(json?.checks) ? json.checks : [],
+        secret_configured: json?.secret_configured,
+        token_configured: json?.token_configured,
+        live_requested: json?.live_requested,
+        live_validation: json?.live_validation,
+        error:
+          json?.error ||
+          stderr.trim() ||
+          (code === 0 ? undefined : `Probe exited with code ${code}`),
+      });
+    });
+  });
+}
+
+function aggregateMcpStatus(servers: Record<string, McpRuntimeStatus>): McpSuiteStatus {
+  const entries = Object.entries(servers);
+  const primaryEntry =
+    entries.find(([key]) => key === "kicad") ||
+    entries.find(([key]) => MCP_PROBE_CONFIGS.find((config) => config.key === key)?.primary) ||
+    entries[0];
+  const [primaryServer, primary] = primaryEntry || ["unknown", makeDefaultMcpStatus()];
+  const aggregateStatus = entries.some(([, status]) => status.status === "failed")
+    ? "failed"
+    : entries.some(([, status]) => status.status === "degraded")
+      ? "degraded"
+      : "ready";
+
+  return {
+    ...primary,
+    ok: aggregateStatus === "ready",
+    status: aggregateStatus,
+    aggregate_status: aggregateStatus,
+    primary_server: primaryServer,
+    primary,
+    server_count: entries.length,
+    servers_ok: entries.filter(([, status]) => status.status === "ready").length,
+    degraded_servers: entries
+      .filter(([, status]) => status.status !== "ready")
+      .map(([key]) => key),
+    servers,
+  };
+}
+
+async function probeMcpRuntime(_timeoutMs: number = 8000): Promise<McpSuiteStatus> {
+  const now = Date.now();
+  if (cachedMcpProbe && cachedMcpProbe.expiresAt > now) {
+    return cachedMcpProbe.value;
+  }
+  if (inflightMcpProbe) {
+    return await inflightMcpProbe;
+  }
+
+  inflightMcpProbe = (async () => {
+    const statuses = await Promise.all(
+      MCP_PROBE_CONFIGS.map(async (config) => [config.key, await runMcpProbe(config)] as const),
+    );
+    const value = aggregateMcpStatus(Object.fromEntries(statuses));
+    cachedMcpProbe = {
+      value,
+      expiresAt: Date.now() + OPS_MCP_PROBE_CACHE_TTL_MS,
+    };
+    return value;
+  })();
+
+  try {
+    return await inflightMcpProbe;
+  } finally {
+    inflightMcpProbe = null;
+  }
 }
 
 async function queryLoki(params: {
@@ -513,10 +873,11 @@ function parseSinceWindow(value: string | undefined): number {
 async function collectMonitorSnapshot(): Promise<MonitorSnapshot> {
   const probes = await Promise.all([
     timedProbe("core", "http://core:8100/health"),
-    timedProbe("openwebui", "http://open-webui:8080/"),
     timedProbe("grafana", "http://grafana:3000/api/health"),
     timedProbe("n8n", "http://n8n:5678/"),
     timedProbe("langfuse", "http://langfuse-web:3000/"),
+    timedProbe("firecrawl", "http://firecrawl:3000/mcp", 1500, [400]),
+    timedProbe("mem0", "http://mem0:8765/", 1500, [404, 405]),
     timedProbe("dify-web", "http://dify-web:3000/"),
     timedProbe("dify-api", "http://dify-api:5001/health"),
   ]);
@@ -615,6 +976,12 @@ ops.get("/sources", async (c) =>
           available: !!opsAgentSources.json?.docker_logs?.available,
           kind: opsAgentSources.json?.docker_logs?.kind || "ops-agent",
         },
+        gpu: {
+          available: !!opsAgentSources.json?.gpu?.available,
+          kind: opsAgentSources.json?.gpu?.kind || "ops-agent",
+          ...(Array.isArray(opsAgentSources.json?.gpu?.gpus) ? { gpus: opsAgentSources.json.gpu.gpus } : {}),
+          ...(opsAgentSources.json?.gpu?.error ? { error: opsAgentSources.json.gpu.error } : {}),
+        },
         loki_history: { available: loki, kind: "loki" },
         otel: {
           available: (process.env.OTEL_ENABLED || "").toLowerCase() === "true",
@@ -631,12 +998,37 @@ ops.get("/sources", async (c) =>
 
 ops.get("/summary", async (c) => {
   try {
-    const [monitor, traces, opsAgent, loki] = await Promise.all([
+    const [monitor, traces, opsAgent, loki, clusterIdentity, clusterPeers] = await Promise.all([
       collectMonitorSnapshot(),
       coreClient.recentAgentTraces({ limit: 60 }),
       opsAgentJson("/summary"),
       lokiReady(),
+      coreClient.clusterIdentity().catch(() => null),
+      coreClient.clusterPeers().catch(() => null),
     ]);
+    const mcp = isRecord(opsAgent.json?.mcp)
+      ? (opsAgent.json.mcp as McpSuiteStatus)
+      : await probeMcpRuntime().catch((error) => ({
+          ok: false,
+          status: "failed" as const,
+          aggregate_status: "failed" as const,
+          requested_runtime: "auto",
+          runtime_mode: null,
+          protocol_version: null,
+          server_name: null,
+          tool_count: 0,
+          resource_count: 0,
+          prompt_count: 0,
+          latency_ms: 0,
+          checks: [],
+          primary_server: "kicad",
+          primary: makeDefaultMcpStatus({ requested_runtime: "auto" }),
+          server_count: 0,
+          servers_ok: 0,
+          degraded_servers: [],
+          servers: {},
+          error: error instanceof Error ? error.message : "MCP probe failed",
+        }));
 
     const recentRuns = Array.from(
       new Map(
@@ -692,10 +1084,20 @@ ops.get("/summary", async (c) => {
         agent_traces: true,
         machine_logs: !!opsAgent.json?.sources?.journald?.available,
         docker_events: !!opsAgent.json?.sources?.docker_events?.available,
+        gpu: !!opsAgent.json?.sources?.gpu?.available,
         loki_history: loki,
         otel: (process.env.OTEL_ENABLED || "").toLowerCase() === "true",
         agentsight: !!opsAgent.json?.sources?.agentsight?.available,
       },
+      cluster: {
+        enabled: !!clusterIdentity?.cluster_enabled,
+        node_id: clusterIdentity?.node_id || null,
+        role: clusterIdentity?.role || null,
+        peers_total: clusterPeers?.peers?.length || 0,
+        peers_ok: clusterPeers?.peers?.filter((peer) => peer.ok).length || 0,
+      },
+      gpu: opsAgent.json?.sources?.gpu ?? null,
+      mcp,
       ops_agent: opsAgent.json ?? null,
     });
   } catch (error) {
@@ -726,6 +1128,7 @@ ops.get("/agent-traces/stream", async (c) => {
     return await proxySseResponse(
       `${CORE_URL}/agent-traces/stream${search}`,
       getCoreAuthHeaders(),
+      c.req.raw.signal,
     );
   } catch (error) {
     const { status, body } = handleCoreError(error);
@@ -766,13 +1169,17 @@ ops.get("/logs/recent", async (c) => {
               String(source === "all" || source === "service"),
             )}&include_machine=${encodeURIComponent(
               String(source === "all" || source === "machine"),
-            )}${query.service ? `&services=${encodeURIComponent(query.service)}` : ""}`,
+            )}${query.service ? `&services=${encodeURIComponent(query.service)}` : ""}${
+              query.include_routine ? `&include_routine=${encodeURIComponent(query.include_routine)}` : ""
+            }`,
             3200,
           )
         : Promise.resolve({ ok: false, status: 0, latencyMs: 0, json: undefined } as TimedJsonResult),
       source === "all" || source === "docker-event"
         ? opsAgentJson(
-            `/events/recent?limit=${encodeURIComponent(String(limit))}&since_seconds=900`,
+            `/events/recent?limit=${encodeURIComponent(String(limit))}&since_seconds=900${
+              query.include_routine ? `&include_routine=${encodeURIComponent(query.include_routine)}` : ""
+            }`,
             3200,
           )
         : Promise.resolve({ ok: false, status: 0, latencyMs: 0, json: undefined } as TimedJsonResult),
@@ -823,6 +1230,13 @@ ops.get("/logs/recent", async (c) => {
 
     const filtered = sortLogs(entries)
       .filter((entry) => severityRank(entry.severity) >= severityRank(minSeverity))
+      .filter((entry) =>
+        labelsMatchRouting(entry, {
+          routing_role: query.routing_role,
+          routing_provider: query.routing_provider,
+          routing_model: query.routing_model,
+        }),
+      )
       .slice(0, limit);
 
     return c.json({
@@ -839,7 +1253,11 @@ ops.get("/logs/recent", async (c) => {
 ops.get("/logs/stream", async (c) => {
   try {
     const search = new URL(c.req.url).search;
-    return await proxySseResponse(`${OPS_AGENT_URL}/logs/stream${search}`);
+    return await proxySseResponse(
+      `${OPS_AGENT_URL}/logs/stream${search}`,
+      undefined,
+      c.req.raw.signal,
+    );
   } catch (error) {
     return c.json(
       { error: error instanceof Error ? error.message : "Ops Agent stream failed" },
@@ -862,9 +1280,16 @@ ops.get("/logs/query", async (c) => {
       severity: coerceSeverity(query.severity),
       since: query.since,
     });
+    const filtered = entries.filter((entry) =>
+      labelsMatchRouting(entry, {
+        routing_role: query.routing_role,
+        routing_provider: query.routing_provider,
+        routing_model: query.routing_model,
+      }),
+    );
     return c.json({
-      entries,
-      count: entries.length,
+      entries: filtered,
+      count: filtered.length,
       source: "loki",
       timestamp: new Date().toISOString(),
     });

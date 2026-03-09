@@ -1,7 +1,8 @@
 import { Link } from "react-router-dom";
 import { useMemo } from "react";
-import type { OpsMonitor, OpsSourceStatus, OpsSummary } from "../api/ops";
+import type { OpsMcpServerStatus, OpsMonitor, OpsSourceStatus, OpsSummary } from "../api/ops";
 import { useFetch } from "../hooks/useFetch";
+import { getDifyHealthUrl, getDifyOrigin } from "../lib/dify";
 import { Badge, Button, Card, CompactModelList, InlineNotice, LoadingPanel } from "../components/ui";
 
 function statusTone(ok: boolean): string {
@@ -39,6 +40,29 @@ function logSourceTone(source: "service" | "machine" | "agent-trace" | "docker-e
   return "muted";
 }
 
+function mcpTone(status?: string): "accent" | "warning" | "error" | "muted" {
+  if (status === "ready") return "accent";
+  if (status === "degraded") return "warning";
+  if (status === "failed") return "error";
+  return "muted";
+}
+
+function formatMcpName(name?: string | null): string {
+  if (!name) return "unknown";
+  return name.replace(/[-_]/g, " ");
+}
+
+function formatChecks(checks?: string[]): string {
+  if (!checks || checks.length === 0) return "No checks reported";
+  return checks.join(" · ");
+}
+
+function summarizeMcpServer(server: OpsMcpServerStatus): string {
+  const stats = `${server.tool_count} tools / ${server.resource_count} resources / ${server.prompt_count} prompts`;
+  if (server.error) return `${stats} · ${server.error}`;
+  return `${stats} · ${formatChecks(server.checks)}`;
+}
+
 export default function OpsHub() {
   const { data, loading, error, refetch } = useFetch<OpsMonitor>("/api/ops/monitor", {
     pollIntervalMs: 5000,
@@ -56,8 +80,11 @@ export default function OpsHub() {
     return [
       { label: "API health", href: `${origin}/health`, note: "gateway health endpoint" },
       { label: "Ops monitor", href: `${origin}/api/ops/monitor`, note: "consolidated runtime snapshot" },
-      { label: "Core health", href: `${protocol}//${hostname}:8100/health`, note: "direct core liveness" },
-      { label: "Open WebUI", href: `${protocol}//${hostname}:8080/`, note: "local chat surface" },
+      { label: "Core health", href: `${origin}/core-health`, note: "core liveness via reverse proxy" },
+      { label: "Dify web", href: `${getDifyOrigin()}/`, note: "app builder surface via reverse proxy" },
+      { label: "Dify API", href: getDifyHealthUrl(), note: "workflow api health on the main proxy" },
+      { label: "Firecrawl MCP", href: `${protocol}//${hostname}:3400/mcp`, note: "streamable MCP endpoint" },
+      { label: "Mem0 / OpenMemory", href: `${protocol}//${hostname}:3300/docs`, note: "memory api docs on qdrant + litellm" },
       { label: "Grafana", href: `${protocol}//${hostname}:3001/`, note: "dashboards and panels" },
       { label: "Prometheus", href: `${protocol}//${hostname}:9090/`, note: "raw metrics store" },
       { label: "Ollama", href: `${protocol}//${hostname}:11434/`, note: "local model runtime" },
@@ -93,10 +120,32 @@ export default function OpsHub() {
   const ollamaModels = data.ai.ollama.model_names ?? [];
   const alerts = summary.data?.alerts.slice(0, 4) ?? [];
   const recentRuns = summary.data?.traces.recent_runs.slice(0, 4) ?? [];
+  const cluster = summary.data?.cluster;
   const sourceEntries = Object.entries(sourceStatus.data ?? {});
   const historyReady = sourceStatus.data?.loki_history?.available ?? false;
   const machineReady = sourceStatus.data?.machine_logs?.available ?? false;
   const tracesReady = sourceStatus.data?.agent_traces?.available ?? true;
+  const difyWeb = services.find((service) => service.name === "dify-web");
+  const difyApi = services.find((service) => service.name === "dify-api");
+  const { protocol, hostname } = window.location;
+  const difyWebHref = `${getDifyOrigin()}/`;
+  const difyApiHref = getDifyHealthUrl();
+  const firecrawl = services.find((service) => service.name === "firecrawl");
+  const firecrawlHref = `${protocol}//${hostname}:3400/mcp`;
+  const mem0 = services.find((service) => service.name === "mem0");
+  const mem0Href = `${protocol}//${hostname}:3300/docs`;
+  const mcp = summary.data?.mcp;
+  const mcpServers = Object.entries(mcp?.servers ?? {});
+  const mcpPrimary = mcp?.primary ?? null;
+  const mcpPrimaryName = mcp?.primary_server ?? mcpPrimary?.server_name ?? mcp?.server_name ?? "unknown";
+  const mcpPrimaryStatus = mcpPrimary?.status ?? mcp?.status ?? "pending";
+  const mcpAggregateStatus = mcp?.aggregate_status ?? mcp?.status ?? "pending";
+  const mcpProtocol = mcpPrimary?.protocol_version ?? mcp?.protocol_version ?? "n/a";
+  const mcpRuntime = mcpPrimary?.runtime_mode ?? mcp?.runtime_mode ?? "n/a";
+  const mcpDegradedServers = mcp?.degraded_servers ?? [];
+  const mcpServerCount = mcp?.server_count ?? mcpServers.length;
+  const mcpServersOk = mcp?.servers_ok ?? mcpServers.filter(([, server]) => server.ok).length;
+  const mcpPrimarySurface = mcpPrimary ?? mcp;
 
   return (
     <div className="space-y-6">
@@ -129,6 +178,9 @@ export default function OpsHub() {
                 </span>
                 <span className={["status-chip", chipTone(data.gateway.core)].join(" ")}>
                   core {data.gateway.core ? "online" : "down"}
+                </span>
+                <span className="status-chip border-border/80 bg-black/30 text-muted">
+                  mcp {mcpAggregateStatus}
                 </span>
                 <span className="status-chip border-border/80 bg-black/30 text-muted">
                   ollama {data.ai.ollama.models} models
@@ -236,15 +288,202 @@ export default function OpsHub() {
       </section>
 
       <section className="grid gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(320px,0.85fr)]">
-        <Card title="Local model bus">
-          <div className="space-y-4">
-            <p className="text-sm leading-7 text-amber-100/60">
-              Liste compacte des modeles actuellement disponibles dans le runtime Ollama local. Ce bloc sert
-              d&apos;equivalent utile a l&apos;ancienne carte `Ollama (11434)` de la page ops statique.
-            </p>
-            <CompactModelList items={ollamaModels} previewCount={8} />
-          </div>
-        </Card>
+        <div className="grid gap-4">
+          <Card title="Local model bus">
+            <div className="space-y-4">
+              <p className="text-sm leading-7 text-amber-100/60">
+                Liste compacte des modeles actuellement disponibles dans le runtime Ollama local. Ce bloc sert
+                d&apos;equivalent utile a l&apos;ancienne carte `Ollama (11434)` de la page ops statique.
+              </p>
+              <CompactModelList items={ollamaModels} previewCount={8} />
+            </div>
+          </Card>
+
+          <Card title="Cluster posture">
+            <div className="space-y-4">
+              <p className="text-sm leading-7 text-amber-100/60">
+                Etat minimal du maillage prive entre noeuds Mascarade. Cette carte reste volontairement compacte:
+                elle sert a verifier que le cluster est arme et que les peers repondent.
+              </p>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="rounded-[1.4rem] border border-border/80 bg-black/25 p-4">
+                  <p className="text-[10px] uppercase tracking-[0.2em] text-muted">cluster</p>
+                  <p className={["mt-3 text-xl font-semibold uppercase tracking-[0.14em]", statusTone(cluster?.enabled ?? false)].join(" ")}>
+                    {cluster?.enabled ? "enabled" : "local-only"}
+                  </p>
+                  <p className="mt-2 text-[12px] leading-5 text-amber-100/46">
+                    node {cluster?.node_id ?? "n/a"} / role {cluster?.role ?? "n/a"}
+                  </p>
+                </div>
+                <div className="rounded-[1.4rem] border border-border/80 bg-black/25 p-4">
+                  <p className="text-[10px] uppercase tracking-[0.2em] text-muted">peers</p>
+                  <p className="mt-3 text-xl font-semibold uppercase tracking-[0.14em] text-accent">
+                    {cluster?.peers_ok ?? 0} / {cluster?.peers_total ?? 0}
+                  </p>
+                  <p className="mt-2 text-[12px] leading-5 text-amber-100/46">
+                    Peers joignables sur le reseau prive.
+                  </p>
+                </div>
+              </div>
+              <a
+                href="/api/cluster/peers"
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex rounded-2xl border border-border/80 bg-black/20 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-amber-100/74 transition hover:border-accent/35 hover:text-accent"
+              >
+                open cluster inventory
+              </a>
+            </div>
+          </Card>
+
+          <Card title="Dify lane">
+            <div className="space-y-4">
+              <p className="text-sm leading-7 text-amber-100/60">
+                Dify est deja dans la stack. Cette carte le rend visible comme surface builder, avec ses deux
+                entrees utiles et des raccourcis logs pre-filtres.
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <span className={["status-chip", chipTone(Boolean(difyWeb?.ok))].join(" ")}>
+                  dify web {difyWeb?.ok ? "online" : "watch"}
+                </span>
+                <span className={["status-chip", chipTone(Boolean(difyApi?.ok))].join(" ")}>
+                  dify api {difyApi?.ok ? "online" : "watch"}
+                </span>
+                <span className="status-chip border-border/80 bg-black/25 text-muted">
+                  redis + postgres required
+                </span>
+              </div>
+              <div className="grid gap-3 md:grid-cols-2">
+                <a
+                  href={difyWebHref}
+                  className="block rounded-[1.4rem] border border-border/80 bg-black/25 px-4 py-4 transition hover:border-accent/35 hover:bg-black/30"
+                >
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-accent">
+                    open dify web
+                  </p>
+                  <p className="mt-2 text-sm text-amber-100/72">{shortUrl(difyWebHref)}</p>
+                  <p className="mt-2 text-[12px] leading-5 text-amber-100/44">
+                    {difyWeb
+                      ? `http ${difyWeb.status || "-"} / ${formatLatency(difyWeb.latency_ms)}`
+                      : "surface builder non detectee dans le monitor"}
+                  </p>
+                </a>
+                <a
+                  href={difyApiHref}
+                  className="block rounded-[1.4rem] border border-border/80 bg-black/25 px-4 py-4 transition hover:border-accent/35 hover:bg-black/30"
+                >
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-accent">
+                    open dify api health
+                  </p>
+                  <p className="mt-2 text-sm text-amber-100/72">{shortUrl(difyApiHref)}</p>
+                  <p className="mt-2 text-[12px] leading-5 text-amber-100/44">
+                    {difyApi
+                      ? `http ${difyApi.status || "-"} / ${formatLatency(difyApi.latency_ms)}`
+                      : "endpoint api non detecte dans le monitor"}
+                  </p>
+                </a>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Link
+                  to="/logs?service=dify-web"
+                  className="rounded-2xl border border-accent/35 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-accent transition hover:bg-accent/10"
+                >
+                  dify web logs
+                </Link>
+                <Link
+                  to="/logs?service=dify-api"
+                  className="rounded-2xl border border-accent/35 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-accent transition hover:bg-accent/10"
+                >
+                  dify api logs
+                </Link>
+                <Link
+                  to="/logs?service=dify-worker"
+                  className="rounded-2xl border border-border/80 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-amber-100/72 transition hover:border-accent/35 hover:text-accent"
+                >
+                  dify worker logs
+                </Link>
+              </div>
+            </div>
+          </Card>
+
+          <Card title="Firecrawl lane">
+            <div className="space-y-4">
+              <p className="text-sm leading-7 text-amber-100/60">
+                Firecrawl est expose comme endpoint MCP streamable. Un GET brut sur <code>/mcp</code> renvoie
+                normalement <code>400 No sessionId</code>; le monitor le traite donc comme un signal runtime valide.
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <span className={["status-chip", chipTone(Boolean(firecrawl?.ok))].join(" ")}>
+                  firecrawl {firecrawl?.ok ? "online" : "watch"}
+                </span>
+                <span className="status-chip border-border/80 bg-black/25 text-muted">
+                  mcp streamable / port 3400
+                </span>
+              </div>
+              <a
+                href={firecrawlHref}
+                className="block rounded-[1.4rem] border border-border/80 bg-black/25 px-4 py-4 transition hover:border-accent/35 hover:bg-black/30"
+              >
+                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-accent">
+                  open firecrawl mcp
+                </p>
+                <p className="mt-2 text-sm text-amber-100/72">{shortUrl(firecrawlHref)}</p>
+                <p className="mt-2 text-[12px] leading-5 text-amber-100/44">
+                  {firecrawl
+                    ? `http ${firecrawl.status || "-"} / ${formatLatency(firecrawl.latency_ms)}`
+                    : "endpoint MCP non detecte dans le monitor"}
+                </p>
+              </a>
+              <div className="flex flex-wrap gap-2">
+                <Link
+                  to="/logs?service=firecrawl"
+                  className="rounded-2xl border border-accent/35 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-accent transition hover:bg-accent/10"
+                >
+                  firecrawl logs
+                </Link>
+              </div>
+            </div>
+          </Card>
+
+          <Card title="Mem0 lane">
+            <div className="space-y-4">
+              <p className="text-sm leading-7 text-amber-100/60">
+                Mem0 est expose ici via OpenMemory, branche sur Qdrant et route vers LiteLLM en mode
+                OpenAI-compatible. Cette carte sert a verifier que la surface memoire reste joignable.
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <span className={["status-chip", chipTone(Boolean(mem0?.ok))].join(" ")}>
+                  mem0 {mem0?.ok ? "online" : "watch"}
+                </span>
+                <span className="status-chip border-border/80 bg-black/25 text-muted">
+                  openmemory / qdrant / litellm
+                </span>
+              </div>
+              <a
+                href={mem0Href}
+                className="block rounded-[1.4rem] border border-border/80 bg-black/25 px-4 py-4 transition hover:border-accent/35 hover:bg-black/30"
+              >
+                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-accent">
+                  open mem0 docs
+                </p>
+                <p className="mt-2 text-sm text-amber-100/72">{shortUrl(mem0Href)}</p>
+                <p className="mt-2 text-[12px] leading-5 text-amber-100/44">
+                  {mem0
+                    ? `http ${mem0.status || "-"} / ${formatLatency(mem0.latency_ms)}`
+                    : "surface memoire non detectee dans le monitor"}
+                </p>
+              </a>
+              <div className="flex flex-wrap gap-2">
+                <Link
+                  to="/logs?service=mem0"
+                  className="rounded-2xl border border-accent/35 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-accent transition hover:bg-accent/10"
+                >
+                  mem0 logs
+                </Link>
+              </div>
+            </div>
+          </Card>
+        </div>
 
         <Card title="Service posture">
           <div className="space-y-3">
@@ -306,6 +545,89 @@ export default function OpsHub() {
         </Card>
 
         <div className="grid gap-4">
+          <Card title="MCP lane">
+            {!mcp ? (
+              <InlineNotice
+                title="mcp pending"
+                message="Le resume ops ne contient pas encore le bloc MCP."
+              />
+            ) : (
+              <div className="space-y-4">
+                <p className="text-sm leading-7 text-amber-100/60">
+                  Probe MCP synthetique execute par `ops-agent`, puis relaye dans le cockpit ops. Cette carte
+                  montre le serveur primaire, le runtime utilisé et les serveurs encore dégradés.
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  <Badge color={mcpTone(mcpAggregateStatus)}>{mcpAggregateStatus}</Badge>
+                  <Badge color={mcpTone(mcpPrimaryStatus)}>{formatMcpName(mcpPrimaryName)}</Badge>
+                  <Badge color="muted">runtime {mcpRuntime}</Badge>
+                  <Badge color="muted">protocol {mcpProtocol}</Badge>
+                </div>
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <div className="rounded-[1.4rem] border border-border/80 bg-black/25 p-4">
+                    <p className="text-[10px] uppercase tracking-[0.2em] text-muted">servers ok</p>
+                    <p className="mt-3 text-xl font-semibold uppercase tracking-[0.14em] text-accent">
+                      {mcpServersOk} / {mcpServerCount}
+                    </p>
+                    <p className="mt-2 text-[12px] leading-5 text-amber-100/46">
+                      Serveurs MCP actuellement verts dans la suite opérateur.
+                    </p>
+                  </div>
+                  <div className="rounded-[1.4rem] border border-border/80 bg-black/25 p-4">
+                    <p className="text-[10px] uppercase tracking-[0.2em] text-muted">primary surface</p>
+                    <p className="mt-3 text-xl font-semibold uppercase tracking-[0.14em] text-accent">
+                      {mcpPrimarySurface?.tool_count ?? 0} / {mcpPrimarySurface?.resource_count ?? 0} / {mcpPrimarySurface?.prompt_count ?? 0}
+                    </p>
+                    <p className="mt-2 text-[12px] leading-5 text-amber-100/46">
+                      tools / resources / prompts du serveur primaire.
+                    </p>
+                  </div>
+                  <div className="rounded-[1.4rem] border border-border/80 bg-black/25 p-4">
+                    <p className="text-[10px] uppercase tracking-[0.2em] text-muted">primary latency</p>
+                    <p className="mt-3 text-xl font-semibold uppercase tracking-[0.14em] text-accent">
+                      {formatLatency(mcpPrimarySurface?.latency_ms ?? undefined)}
+                    </p>
+                    <p className="mt-2 text-[12px] leading-5 text-amber-100/46">
+                      Temps de handshake et listing depuis la suite MCP.
+                    </p>
+                  </div>
+                </div>
+                {mcpDegradedServers.length > 0 ? (
+                  <div className="rounded-[1.4rem] border border-warning/30 bg-warning/10 p-4 text-warning">
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.18em]">degraded servers</p>
+                    <p className="mt-2 text-sm leading-6">
+                      {mcpDegradedServers.map((name) => formatMcpName(name)).join(" · ")}
+                    </p>
+                  </div>
+                ) : (
+                  <InlineNotice
+                    title="mcp ready"
+                    message="Aucun serveur MCP n'est en mode degrade dans le resume courant."
+                    tone="success"
+                  />
+                )}
+                <div className="space-y-3">
+                  {mcpServers.map(([name, server]) => (
+                    <div
+                      key={name}
+                      className="rounded-[1.4rem] border border-border/80 bg-black/25 p-4"
+                    >
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Badge color={mcpTone(server.status)}>{server.status}</Badge>
+                        <Badge color="muted">{formatMcpName(name)}</Badge>
+                        {server.runtime_mode ? <Badge color="muted">runtime {server.runtime_mode}</Badge> : null}
+                        {server.protocol_version ? <Badge color="muted">protocol {server.protocol_version}</Badge> : null}
+                      </div>
+                      <p className="mt-3 text-sm leading-6 text-amber-100/72">
+                        {summarizeMcpServer(server)}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </Card>
+
           <Card title="Recent alerts">
             {alerts.length === 0 ? (
               <InlineNotice
