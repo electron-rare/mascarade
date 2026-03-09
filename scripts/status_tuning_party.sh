@@ -5,6 +5,8 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
 # shellcheck disable=SC1091
+source "$ROOT_DIR/scripts/lib.sh"
+# shellcheck disable=SC1091
 source "$ROOT_DIR/scripts/tuning_party_common.sh"
 
 usage() {

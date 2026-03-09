@@ -1,0 +1,364 @@
+{
+  "version": 1,
+  "generated_at": "2026-03-09T12:08:26",
+  "domain": "dsp",
+  "topic": "DSP / signal processing",
+  "dataset_path": "/ai/saisail/mascarade/finetune/datasets/dsp_chat.jsonl",
+  "refresh": {
+    "domain": "dsp",
+    "generated_at": "2026-03-09T12:08:25",
+    "target_path": "/ai/saisail/mascarade/finetune/datasets/dsp_chat.jsonl",
+    "source_mode": "full_dataset_sync",
+    "source_path": "/ai/saisail/mascarade-datasets/dsp_chat.jsonl",
+    "builder": null,
+    "row_count": 3158,
+    "ids_fixed": 3160,
+    "duplicates_removed": 2,
+    "quality": {
+      "label": "dsp refreshed dataset",
+      "mode": "fail",
+      "status": "warning",
+      "metrics": {
+        "row_count": 3158,
+        "ids_fixed": 3160,
+        "ids_fixed_ratio": 1.0006333122229258,
+        "unique_system_prompts": 1,
+        "unique_user_prompts": 3000,
+        "duplicate_rows": 0,
+        "duplicate_ratio": 0.0,
+        "repeated_user_assistant_pairs": 0,
+        "repeated_pair_ratio": 0.0,
+        "assistant_len_avg": 1476.9271690943635,
+        "assistant_len_p95": 4000,
+        "assistant_len_max": 4000,
+        "short_assistant_rows": 2,
+        "short_assistant_ratio": 0.0006333122229259025
+      },
+      "thresholds": {
+        "min_rows_fail": 4,
+        "recommended_rows_warn": 8,
+        "min_unique_users_fail": 4,
+        "max_duplicate_ratio_fail": 0.1,
+        "max_repeated_pair_ratio_fail": 0.1,
+        "max_assistant_p95_fail": 6000,
+        "max_assistant_max_fail": 9000,
+        "max_assistant_avg_warn": 3500,
+        "short_assistant_threshold": 64,
+        "max_short_assistant_ratio_warn": 0.25
+      },
+      "errors": [],
+      "warnings": [
+        "source ids are synthesized for 3160/3158 rows; persist ids in source JSONL for traceability",
+        "single system prompt across the dataset; style diversity is low"
+      ],
+      "would_fail": false,
+      "duplicates_removed_during_refresh": 2,
+      "assistant_rows_trimmed_during_refresh": 0
+    },
+    "legacy_ignored_paths": [
+      "finetune/build_components_dataset.py",
+      "finetune/build_freecad_dataset.py"
+    ]
+  },
+  "authoritative_urls": [
+    {
+      "label": "CMSIS-DSP docs",
+      "url": "https://arm-software.github.io/CMSIS_5/DSP/html/index.html"
+    },
+    {
+      "label": "MathWorks signal processing docs",
+      "url": "https://www.mathworks.com/help/signal/"
+    }
+  ],
+  "github_repos": [
+    {
+      "label": "CMSIS_5",
+      "url": "https://github.com/ARM-software/CMSIS_5"
+    }
+  ],
+  "software_sources": [
+    {
+      "label": "CMSIS-DSP docs",
+      "url": "https://arm-software.github.io/CMSIS_5/DSP/html/index.html"
+    },
+    {
+      "label": "MathWorks signal processing docs",
+      "url": "https://www.mathworks.com/help/signal/"
+    }
+  ],
+  "forum_urls": [
+    {
+      "label": "DSP StackExchange",
+      "url": "https://dsp.stackexchange.com/"
+    },
+    {
+      "label": "DSPRelated Forums",
+      "url": "https://www.dsprelated.com/forums/"
+    },
+    {
+      "label": "MathWorks MATLAB Answers",
+      "url": "https://www.mathworks.com/matlabcentral/answers/"
+    },
+    {
+      "label": "GNU Radio Discuss",
+      "url": "https://forum.gnuradio.org/"
+    },
+    {
+      "label": "ARM Community Forums",
+      "url": "https://community.arm.com/support-forums/"
+    },
+    {
+      "label": "EmbeddedRelated Forum",
+      "url": "https://www.embeddedrelated.com/forum.php"
+    },
+    {
+      "label": "NI Forums",
+      "url": "https://forums.ni.com/"
+    },
+    {
+      "label": "Scientific Python Discourse",
+      "url": "https://discuss.scientific-python.org/"
+    },
+    {
+      "label": "Julia Discourse Signal Processing",
+      "url": "https://discourse.julialang.org/tag/signal-processing"
+    },
+    {
+      "label": "EEVblog Forum",
+      "url": "https://www.eevblog.com/forum/"
+    }
+  ],
+  "datasheet_roots": [
+    {
+      "label": "CMSIS-DSP docs",
+      "url": "https://arm-software.github.io/CMSIS_5/DSP/html/index.html"
+    }
+  ],
+  "hf_sources": [
+    {
+      "name": "bshada/electronics.stackexchange.com",
+      "url": "https://huggingface.co/datasets/bshada/electronics.stackexchange.com"
+    },
+    {
+      "name": "common-pile/stackexchange",
+      "url": "https://huggingface.co/datasets/common-pile/stackexchange"
+    },
+    {
+      "name": "STEM-AI-mtl/Electrical-engineering",
+      "url": "https://huggingface.co/datasets/STEM-AI-mtl/Electrical-engineering"
+    }
+  ],
+  "queries": [
+    "site:arm-software.github.io CMSIS DSP FIR FFT example",
+    "site:mathworks.com help signal filter design fixed point",
+    "site:huggingface.co/datasets dsp stackexchange dataset"
+  ],
+  "trusted_domains": [
+    "arm-software.github.io",
+    "mathworks.com",
+    "huggingface.co"
+  ],
+  "minimum_web_roots": 8,
+  "minimum_quality_score": 6,
+  "web_probe": {
+    "domain": "dsp",
+    "generated_at": "2026-03-09T12:08:26",
+    "source_file": "/ai/saisail/mascarade/finetune/research_sources/domains/dsp.json",
+    "status": "partial",
+    "reachable_count": 9,
+    "total_count": 16,
+    "reachable_ratio": 0.5625,
+    "entries": [
+      {
+        "group": "authoritative_urls",
+        "label": "CMSIS-DSP docs",
+        "url": "https://arm-software.github.io/CMSIS_5/DSP/html/index.html",
+        "ok": true,
+        "status": 200,
+        "final_url": "https://arm-software.github.io/CMSIS_5/DSP/html/index.html",
+        "method": "HEAD"
+      },
+      {
+        "group": "authoritative_urls",
+        "label": "MathWorks signal processing docs",
+        "url": "https://www.mathworks.com/help/signal/",
+        "ok": false,
+        "status": null,
+        "final_url": "https://www.mathworks.com/help/signal/",
+        "method": "GET",
+        "error": "http:403"
+      },
+      {
+        "group": "datasheet_roots",
+        "label": "CMSIS-DSP docs",
+        "url": "https://arm-software.github.io/CMSIS_5/DSP/html/index.html",
+        "ok": true,
+        "status": 200,
+        "final_url": "https://arm-software.github.io/CMSIS_5/DSP/html/index.html",
+        "method": "HEAD"
+      },
+      {
+        "group": "forum_urls",
+        "label": "ARM Community Forums",
+        "url": "https://community.arm.com/support-forums/",
+        "ok": false,
+        "status": null,
+        "final_url": "https://community.arm.com/support-forums/",
+        "method": "GET",
+        "error": "http:404"
+      },
+      {
+        "group": "forum_urls",
+        "label": "DSP StackExchange",
+        "url": "https://dsp.stackexchange.com/",
+        "ok": false,
+        "status": null,
+        "final_url": "https://dsp.stackexchange.com/",
+        "method": "GET",
+        "error": "http:403"
+      },
+      {
+        "group": "forum_urls",
+        "label": "DSPRelated Forums",
+        "url": "https://www.dsprelated.com/forums/",
+        "ok": true,
+        "status": 200,
+        "final_url": "https://www.dsprelated.com/forums/",
+        "method": "HEAD"
+      },
+      {
+        "group": "forum_urls",
+        "label": "EEVblog Forum",
+        "url": "https://www.eevblog.com/forum/",
+        "ok": true,
+        "status": 200,
+        "final_url": "https://www.eevblog.com/forum/",
+        "method": "HEAD"
+      },
+      {
+        "group": "forum_urls",
+        "label": "EmbeddedRelated Forum",
+        "url": "https://www.embeddedrelated.com/forum.php",
+        "ok": false,
+        "status": null,
+        "final_url": "https://www.embeddedrelated.com/forum.php",
+        "method": "GET",
+        "error": "http:404"
+      },
+      {
+        "group": "forum_urls",
+        "label": "GNU Radio Discuss",
+        "url": "https://forum.gnuradio.org/",
+        "ok": false,
+        "status": null,
+        "final_url": "https://forum.gnuradio.org/",
+        "method": "GET",
+        "error": "<urlopen error [Errno -2] Name or service not known>"
+      },
+      {
+        "group": "forum_urls",
+        "label": "Julia Discourse Signal Processing",
+        "url": "https://discourse.julialang.org/tag/signal-processing",
+        "ok": true,
+        "status": 200,
+        "final_url": "https://discourse.julialang.org/tag/signal-processing/1021",
+        "method": "HEAD"
+      },
+      {
+        "group": "forum_urls",
+        "label": "MathWorks MATLAB Answers",
+        "url": "https://www.mathworks.com/matlabcentral/answers/",
+        "ok": false,
+        "status": null,
+        "final_url": "https://www.mathworks.com/matlabcentral/answers/",
+        "method": "GET",
+        "error": "http:403"
+      },
+      {
+        "group": "forum_urls",
+        "label": "NI Forums",
+        "url": "https://forums.ni.com/",
+        "ok": true,
+        "status": 200,
+        "final_url": "https://forums.ni.com/",
+        "method": "HEAD"
+      },
+      {
+        "group": "forum_urls",
+        "label": "Scientific Python Discourse",
+        "url": "https://discuss.scientific-python.org/",
+        "ok": true,
+        "status": 200,
+        "final_url": "https://discuss.scientific-python.org/",
+        "method": "HEAD"
+      },
+      {
+        "group": "github_repos",
+        "label": "CMSIS_5",
+        "url": "https://github.com/ARM-software/CMSIS_5",
+        "ok": true,
+        "status": 200,
+        "final_url": "https://github.com/ARM-software/CMSIS_5",
+        "method": "HEAD"
+      },
+      {
+        "group": "software_sources",
+        "label": "CMSIS-DSP docs",
+        "url": "https://arm-software.github.io/CMSIS_5/DSP/html/index.html",
+        "ok": true,
+        "status": 200,
+        "final_url": "https://arm-software.github.io/CMSIS_5/DSP/html/index.html",
+        "method": "HEAD"
+      },
+      {
+        "group": "software_sources",
+        "label": "MathWorks signal processing docs",
+        "url": "https://www.mathworks.com/help/signal/",
+        "ok": false,
+        "status": null,
+        "final_url": "https://www.mathworks.com/help/signal/",
+        "method": "GET",
+        "error": "http:403"
+      }
+    ]
+  },
+  "legacy_ignored_paths": [
+    "finetune/build_components_dataset.py",
+    "finetune/build_freecad_dataset.py"
+  ],
+  "operator_checklist": [
+    "sample at least 20 refreshed rows and verify technical plausibility",
+    "confirm the newest web findings are represented in prompts/answers",
+    "check duplicates and over-long answers before training",
+    "record any accepted new sources in the research brief before publish"
+  ],
+  "research_validation": {
+    "valid": true,
+    "web_roots_count": 19,
+    "authoritative_count": 2,
+    "github_count": 1,
+    "software_count": 2,
+    "forum_count": 10,
+    "datasheet_count": 1,
+    "hf_count": 3,
+    "query_count": 3,
+    "trusted_domain_count": 3,
+    "minimum_web_roots": 8,
+    "quality_score": 9,
+    "minimum_quality_score": 6,
+    "quality_checks": {
+      "authoritative_sources": true,
+      "github_or_software_sources": true,
+      "forum_coverage": true,
+      "datasheet_or_vendor_roots": true,
+      "hf_or_dataset_roots": true,
+      "query_coverage": true,
+      "trusted_domains_coverage": true,
+      "web_root_depth": true,
+      "live_web_probe": true
+    },
+    "web_probe_status": "partial",
+    "web_probe_reachable_count": 9,
+    "web_probe_total_count": 16
+  }
+}

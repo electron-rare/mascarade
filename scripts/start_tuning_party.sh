@@ -257,17 +257,32 @@ PY
 
 run_auto_refresh_missing() {
   local domains_csv="$1"
-  local missing_list
+  local missing_list domain failed=0
   missing_list="$(missing_research_domains "$domains_csv")"
   if [ -z "$missing_list" ]; then
     log "dataset_research=already-present domains=$domains_csv"
     return 0
   fi
   log "dataset_research=refresh-missing domains=$missing_list"
-  (
-    cd "$ROOT_DIR"
-    python finetune/dataset_refresh.py $missing_list --with-hf
-  ) >"$AUTO_REFRESH_LOG" 2>&1
+  : >"$AUTO_REFRESH_LOG"
+  for domain in $missing_list; do
+    {
+      echo "[dataset-refresh] domain=$domain"
+      (
+        cd "$ROOT_DIR"
+        python finetune/dataset_refresh.py "$domain" --with-hf
+      )
+      echo "[dataset-refresh] domain=$domain status=ok"
+    } >>"$AUTO_REFRESH_LOG" 2>&1 || {
+      echo "[dataset-refresh] domain=$domain status=failed" >>"$AUTO_REFRESH_LOG"
+      failed=$((failed + 1))
+    }
+  done
+  if [ "$failed" -gt 0 ]; then
+    log "dataset_research=partial failures=$failed log=$AUTO_REFRESH_LOG"
+  else
+    log "dataset_research=completed log=$AUTO_REFRESH_LOG"
+  fi
 }
 
 PREPARE=1
