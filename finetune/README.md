@@ -37,6 +37,46 @@ python finetune/run_local.py kicad --device cpu --model TinyLlama/TinyLlama-1.1B
 
 # Opt-in override only when memory/swap margin has been revalidated
 MASCARADE_ALLOW_PARALLEL_CPU=1 ./finetune/train_parallel.sh --parallel 2
+MASCARADE_ALLOW_PARALLEL_CPU=1 ./finetune/train_parallel.sh --preset cpu3
+MASCARADE_ALLOW_PARALLEL_CPU=1 ./finetune/train_parallel.sh --preset cpu4
+```
+
+Presets CPU operateur :
+
+- `--preset cpu3`
+  - `3` students CPU paralleles
+  - auto-tuning avec plafond pragmatique a `6` threads par student
+- `--preset cpu4`
+  - `4` students CPU paralleles
+  - auto-tuning avec plafond pragmatique a `5` threads par student
+- override manuel :
+  - `--threads-per-student 4`
+  - `--no-auto-threads`
+
+Profil operateur `28 threads / 64 Go RAM` :
+
+- `GPU`
+  - `1` pipeline principal GPU
+- `CPU students`
+  - `4` students paralleles
+  - `4` threads par student
+  - budget total `16` threads
+- `Reviewer / consolidator`
+  - `1` worker CPU priorite basse
+  - budget cible `4` threads
+- `Doctor`
+  - `1` worker CPU diagnostic
+  - budget cible `4` threads
+- `Reserve`
+  - `4` threads pour OS / I/O / TUI / marge
+
+Commande CLI equivalente :
+
+```bash
+./scripts/start_tuning_party.sh \
+  --operator-profile 28t-64g-full \
+  --background \
+  --verbose
 ```
 
 Preset recommande pour cette machine (RTX 4090 24 Go VRAM) :

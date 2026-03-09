@@ -37,6 +37,17 @@ Options:
   --watch-label NAME       Prefixe des runs watch (default: auto-next-lots-live)
   --monitor-interval N     Intervalle de monitoring pipeline en secondes (default: 15)
   --pipeline-arg ARG       Argument transmis a finetune/batch_full_pipeline.sh (repeatable)
+  --pipeline-mode MODE     batch (default) ou cpu-parallel
+  --cpu-preset NAME        Preset CPU pour finetune/train_parallel.sh (ex: cpu3, cpu4)
+  --cpu-threads-per-student N
+                          Force le nombre de threads par student en mode cpu-parallel
+  --with-cpu-students      Lance des students CPU isoles en parallele de la session
+  --cpu-student-domains CSV
+                          Domaines des students CPU (default: PIPELINE_DOMAINS sans DOMAIN)
+  --with-reviewer          Lance reviewer/consolidator CPU
+  --with-doctor            Lance doctor CPU
+  --doctor-threads N       Budget threads pour doctor_worker.sh (default: 4)
+  --operator-profile NAME  Profil operateur (ex: 28t-64g-full)
   --domain NAME            Domaine principal de session pour metadata/TUI
   --skip-auto-refresh-missing
                           Ne pas rafraichir automatiquement les briefs dataset research manquants
@@ -170,13 +181,28 @@ write_meta() {
 LABEL=$LABEL
 DOMAIN=$DOMAIN
 PIPELINE_DOMAINS=$PIPELINE_DOMAINS
+PIPELINE_MODE=$PIPELINE_MODE
+CPU_PRESET=$CPU_PRESET
+CPU_THREADS_PER_STUDENT=$CPU_THREADS_PER_STUDENT
+CPU_STUDENTS_ENABLED=$CPU_STUDENTS_ENABLED
+CPU_STUDENT_DOMAINS=$CPU_STUDENT_DOMAINS
+REVIEWER_ENABLED=$REVIEWER_ENABLED
+DOCTOR_ENABLED=$DOCTOR_ENABLED
+DOCTOR_THREADS=$DOCTOR_THREADS
+OPERATOR_PROFILE=$OPERATOR_PROFILE
 SESSION_DIR=$SESSION_DIR
 PREPARE_LOG=$PREPARE_LOG
 WATCH_LOG=$WATCH_LOG
 PIPELINE_LOG=$PIPELINE_LOG
 AUTO_REFRESH_LOG=$AUTO_REFRESH_LOG
+CPU_STUDENTS_LOG=$CPU_STUDENTS_LOG
+REVIEWER_LOG=$REVIEWER_LOG
+DOCTOR_LOG=$DOCTOR_LOG
 WATCH_PID_FILE=$WATCH_PID_FILE
 PIPELINE_PID_FILE=$PIPELINE_PID_FILE
+CPU_STUDENTS_PID_FILE=$CPU_STUDENTS_PID_FILE
+REVIEWER_PID_FILE=$REVIEWER_PID_FILE
+DOCTOR_PID_FILE=$DOCTOR_PID_FILE
 WATCH_LABEL=$WATCH_LABEL
 PREPARE_ENABLED=$PREPARE
 WATCH_ENABLED=$WATCH
@@ -288,6 +314,15 @@ run_auto_refresh_missing() {
 PREPARE=1
 WATCH=1
 PIPELINE=1
+PIPELINE_MODE="batch"
+CPU_PRESET=""
+CPU_THREADS_PER_STUDENT=""
+CPU_STUDENTS_ENABLED=0
+CPU_STUDENT_DOMAINS=""
+REVIEWER_ENABLED=0
+DOCTOR_ENABLED=0
+DOCTOR_THREADS="4"
+OPERATOR_PROFILE=""
 BACKGROUND=0
 FOREGROUND_WATCH=0
 VERBOSE=0
@@ -392,6 +427,50 @@ while [ "$#" -gt 0 ]; do
       PIPELINE_ARGS+=("$2")
       shift 2
       ;;
+    --pipeline-mode)
+      [ "$#" -ge 2 ] || die "--pipeline-mode requires a value"
+      PIPELINE_MODE="$2"
+      shift 2
+      ;;
+    --cpu-preset)
+      [ "$#" -ge 2 ] || die "--cpu-preset requires a value"
+      CPU_PRESET="$2"
+      shift 2
+      ;;
+    --cpu-threads-per-student)
+      [ "$#" -ge 2 ] || die "--cpu-threads-per-student requires a value"
+      ensure_positive_integer "--cpu-threads-per-student" "$2"
+      CPU_THREADS_PER_STUDENT="$2"
+      shift 2
+      ;;
+    --with-cpu-students)
+      CPU_STUDENTS_ENABLED=1
+      shift
+      ;;
+    --cpu-student-domains)
+      [ "$#" -ge 2 ] || die "--cpu-student-domains requires a value"
+      CPU_STUDENT_DOMAINS="$2"
+      shift 2
+      ;;
+    --with-reviewer)
+      REVIEWER_ENABLED=1
+      shift
+      ;;
+    --with-doctor)
+      DOCTOR_ENABLED=1
+      shift
+      ;;
+    --doctor-threads)
+      [ "$#" -ge 2 ] || die "--doctor-threads requires a value"
+      ensure_positive_integer "--doctor-threads" "$2"
+      DOCTOR_THREADS="$2"
+      shift 2
+      ;;
+    --operator-profile)
+      [ "$#" -ge 2 ] || die "--operator-profile requires a value"
+      OPERATOR_PROFILE="$2"
+      shift 2
+      ;;
     --label)
       [ "$#" -ge 2 ] || die "--label requires a value"
       LABEL="$2"
@@ -433,6 +512,29 @@ if [ "$PREPARE" -eq 0 ] && [ "$WATCH" -eq 0 ] && [ "$PIPELINE" -eq 0 ]; then
   die "nothing to do; enable at least one stage"
 fi
 
+case "$PIPELINE_MODE" in
+  batch|cpu-parallel) ;;
+  *)
+    die "unsupported --pipeline-mode: $PIPELINE_MODE"
+    ;;
+esac
+
+case "$OPERATOR_PROFILE" in
+  "" ) ;;
+  28t-64g-full)
+    PIPELINE_MODE="batch"
+    CPU_STUDENTS_ENABLED=1
+    CPU_PRESET="cpu4"
+    CPU_THREADS_PER_STUDENT="4"
+    REVIEWER_ENABLED=1
+    DOCTOR_ENABLED=1
+    DOCTOR_THREADS="4"
+    ;;
+  *)
+    die "unsupported --operator-profile: $OPERATOR_PROFILE"
+    ;;
+esac
+
 activate_tui
 [ -t 1 ] && banner
 
@@ -453,12 +555,34 @@ mkdir -p "$SESSION_DIR"
 
 canonicalize_session_scope
 
+resolve_cpu_student_domains() {
+  if [ -n "${CPU_STUDENT_DOMAINS:-}" ]; then
+    printf '%s\n' "$CPU_STUDENT_DOMAINS"
+    return 0
+  fi
+  python - "$PIPELINE_DOMAINS" "$DOMAIN" <<'PY'
+import sys
+domains = [d.strip() for d in sys.argv[1].split(",") if d.strip() and d.strip() not in {"all", "unknown"}]
+primary = sys.argv[2].strip()
+selected = [d for d in domains if d != primary]
+print(",".join(selected or domains))
+PY
+}
+
+CPU_STUDENT_DOMAINS="$(resolve_cpu_student_domains)"
+
 PREPARE_LOG="$SESSION_DIR/prepare.log"
 WATCH_LOG="$SESSION_DIR/watch-loop.log"
 PIPELINE_LOG="$SESSION_DIR/pipeline.log"
 AUTO_REFRESH_LOG="$SESSION_DIR/dataset-refresh.log"
+CPU_STUDENTS_LOG="$SESSION_DIR/cpu-students.log"
+REVIEWER_LOG="$SESSION_DIR/reviewer.log"
+DOCTOR_LOG="$SESSION_DIR/doctor.log"
 WATCH_PID_FILE="$SESSION_DIR/watch-loop.pid"
 PIPELINE_PID_FILE="$SESSION_DIR/pipeline.pid"
+CPU_STUDENTS_PID_FILE="$SESSION_DIR/cpu-students.pid"
+REVIEWER_PID_FILE="$SESSION_DIR/reviewer.pid"
+DOCTOR_PID_FILE="$SESSION_DIR/doctor.pid"
 META_FILE="$(tuning_party_meta_file "$SESSION_DIR")"
 LATEST_FILE="$(tuning_party_latest_file "$LABEL")"
 
@@ -473,7 +597,16 @@ if [ "$BACKGROUND" -eq 1 ] && [ "$INTERNAL_RUN" -eq 0 ]; then
     --session-dir "$SESSION_DIR"
     --label "$LABEL"
     --domain "$DOMAIN"
+    --pipeline-mode "$PIPELINE_MODE"
   )
+  [ -n "$CPU_PRESET" ] && SESSION_CMD+=(--cpu-preset "$CPU_PRESET")
+  [ -n "$CPU_THREADS_PER_STUDENT" ] && SESSION_CMD+=(--cpu-threads-per-student "$CPU_THREADS_PER_STUDENT")
+  [ "$CPU_STUDENTS_ENABLED" -eq 1 ] && SESSION_CMD+=(--with-cpu-students)
+  [ -n "$CPU_STUDENT_DOMAINS" ] && SESSION_CMD+=(--cpu-student-domains "$CPU_STUDENT_DOMAINS")
+  [ "$REVIEWER_ENABLED" -eq 1 ] && SESSION_CMD+=(--with-reviewer)
+  [ "$DOCTOR_ENABLED" -eq 1 ] && SESSION_CMD+=(--with-doctor)
+  [ -n "$DOCTOR_THREADS" ] && SESSION_CMD+=(--doctor-threads "$DOCTOR_THREADS")
+  [ -n "$OPERATOR_PROFILE" ] && SESSION_CMD+=(--operator-profile "$OPERATOR_PROFILE")
   [ "$PREPARE" -eq 1 ] || SESSION_CMD+=(--skip-prepare)
   [ "$WATCH" -eq 1 ] || SESSION_CMD+=(--skip-watch)
   [ "$PIPELINE" -eq 1 ] || SESSION_CMD+=(--skip-pipeline)
@@ -508,6 +641,9 @@ TOTAL_STEPS=0
 [ "$AUTO_REFRESH_MISSING" -eq 1 ] && { [ "$PREPARE" -eq 1 ] || [ "$PIPELINE" -eq 1 ]; } && TOTAL_STEPS=$((TOTAL_STEPS + 1))
 [ "$PREPARE" -eq 1 ] && TOTAL_STEPS=$((TOTAL_STEPS + 1))
 [ "$WATCH" -eq 1 ] && TOTAL_STEPS=$((TOTAL_STEPS + 1))
+[ "$CPU_STUDENTS_ENABLED" -eq 1 ] && TOTAL_STEPS=$((TOTAL_STEPS + 1))
+[ "$REVIEWER_ENABLED" -eq 1 ] && TOTAL_STEPS=$((TOTAL_STEPS + 1))
+[ "$DOCTOR_ENABLED" -eq 1 ] && TOTAL_STEPS=$((TOTAL_STEPS + 1))
 [ "$PIPELINE" -eq 1 ] && TOTAL_STEPS=$((TOTAL_STEPS + 1))
 CURRENT_STEP=0
 
@@ -569,13 +705,76 @@ if [ "$WATCH" -eq 1 ]; then
   fi
 fi
 
-if [ "$PIPELINE" -eq 1 ]; then
+if [ "$CPU_STUDENTS_ENABLED" -eq 1 ]; then
   CURRENT_STEP=$((CURRENT_STEP + 1))
-  print_step "$CURRENT_STEP" "$TOTAL_STEPS" "Pipeline complet SFT -> DPO"
+  print_step "$CURRENT_STEP" "$TOTAL_STEPS" "Students CPU paralleles"
+  CPU_OUTPUT_ROOT="$SESSION_DIR/cpu-students-output"
   (
     cd "$ROOT_DIR/finetune"
-    bash ./batch_full_pipeline.sh "${PIPELINE_ARGS[@]}"
-  ) >"$PIPELINE_LOG" 2>&1 &
+    MASCARADE_ALLOW_PARALLEL_CPU=1 bash ./train_parallel.sh \
+      --domains "$CPU_STUDENT_DOMAINS" \
+      --preset "${CPU_PRESET:-cpu4}" \
+      --threads-per-student "${CPU_THREADS_PER_STUDENT:-4}" \
+      --output-root "$CPU_OUTPUT_ROOT"
+  ) >"$CPU_STUDENTS_LOG" 2>&1 &
+  CPU_STUDENTS_PID=$!
+  printf '%s\n' "$CPU_STUDENTS_PID" >"$CPU_STUDENTS_PID_FILE"
+  log "cpu_students_pid=$CPU_STUDENTS_PID"
+  log "cpu_students_log=$CPU_STUDENTS_LOG"
+fi
+
+if [ "$REVIEWER_ENABLED" -eq 1 ]; then
+  CURRENT_STEP=$((CURRENT_STEP + 1))
+  print_step "$CURRENT_STEP" "$TOTAL_STEPS" "Reviewer / consolidator"
+  (
+    cd "$ROOT_DIR"
+    nice -n 10 ionice -c2 -n7 ./scripts/reviewer_consolidator.sh \
+      --domains "$PIPELINE_DOMAINS" \
+      --probe-domain-workers 6 \
+      --refresh-missing-only
+  ) >"$REVIEWER_LOG" 2>&1 &
+  REVIEWER_PID=$!
+  printf '%s\n' "$REVIEWER_PID" >"$REVIEWER_PID_FILE"
+  log "reviewer_pid=$REVIEWER_PID"
+  log "reviewer_log=$REVIEWER_LOG"
+fi
+
+if [ "$DOCTOR_ENABLED" -eq 1 ]; then
+  CURRENT_STEP=$((CURRENT_STEP + 1))
+  print_step "$CURRENT_STEP" "$TOTAL_STEPS" "Doctor CPU"
+  (
+    cd "$ROOT_DIR"
+    nice -n 5 ionice -c2 -n7 ./scripts/doctor_worker.sh \
+      --domains "$PIPELINE_DOMAINS" \
+      --threads "$DOCTOR_THREADS"
+  ) >"$DOCTOR_LOG" 2>&1 &
+  DOCTOR_PID=$!
+  printf '%s\n' "$DOCTOR_PID" >"$DOCTOR_PID_FILE"
+  log "doctor_pid=$DOCTOR_PID"
+  log "doctor_log=$DOCTOR_LOG"
+fi
+
+if [ "$PIPELINE" -eq 1 ]; then
+  CURRENT_STEP=$((CURRENT_STEP + 1))
+  if [ "$PIPELINE_MODE" = "cpu-parallel" ]; then
+    print_step "$CURRENT_STEP" "$TOTAL_STEPS" "Pipeline CPU parallel"
+    PIPELINE_CMD=(
+      bash ./train_parallel.sh
+    )
+    [ -n "$CPU_PRESET" ] && PIPELINE_CMD+=(--preset "$CPU_PRESET")
+    [ -n "$CPU_THREADS_PER_STUDENT" ] && PIPELINE_CMD+=(--threads-per-student "$CPU_THREADS_PER_STUDENT")
+    PIPELINE_CMD+=("${PIPELINE_ARGS[@]}")
+    (
+      cd "$ROOT_DIR/finetune"
+      MASCARADE_ALLOW_PARALLEL_CPU=1 "${PIPELINE_CMD[@]}"
+    ) >"$PIPELINE_LOG" 2>&1 &
+  else
+    print_step "$CURRENT_STEP" "$TOTAL_STEPS" "Pipeline complet SFT -> DPO"
+    (
+      cd "$ROOT_DIR/finetune"
+      bash ./batch_full_pipeline.sh "${PIPELINE_ARGS[@]}"
+    ) >"$PIPELINE_LOG" 2>&1 &
+  fi
   PIPELINE_PID=$!
   printf '%s\n' "$PIPELINE_PID" >"$PIPELINE_PID_FILE"
   log "pipeline_pid=$PIPELINE_PID"
