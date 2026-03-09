@@ -1,91 +1,95 @@
 # TODO — Finalisation VM
 
-Etat relu le `8 mars 2026` sur la stack `mascarade-*` actuellement en service.
+Etat relu le `9 mars 2026` sur `photon-machine`.
 
-## Statut actuel
+Ce fichier couvre uniquement la VM et la stack runtime de `/mascarade`.
+Le pilotage central multi-repo vit dans `docs/EXECUTION_HUB.md`.
 
-| Service | Container | Port | Statut |
-|---------|-----------|------|--------|
-| Mascarade Core | `mascarade-core` | 8100 | OK (`healthy`) |
-| Mascarade API | `mascarade-api` | 3100 | OK (`healthy`) |
-| Edge Proxy | `mascarade-edge-proxy` | 80 / 443 | OK (`healthy`, bind loopback) |
-| LiteLLM | `mascarade-litellm` | 4000 | OK (`healthy`) |
-| Langfuse Web | `mascarade-langfuse` | 3200 | OK (`healthy`) |
-| Langfuse Worker | `mascarade-langfuse-worker` | — | OK |
-| Firecrawl MCP | `mascarade-firecrawl` | 3400 | OK (`healthy`) |
-| n8n | `mascarade-n8n` | 5678 | OK (`healthy`) |
-| Dify API | `mascarade-dify-api` | 5001 | OK |
-| Dify Web | `mascarade-dify-web` | 3500 | OK |
-| Dify Worker | `mascarade-dify-worker` | — | OK |
-| ClickHouse | `mascarade-clickhouse` | — | OK (`healthy`) |
-| Postgres | `mascarade-postgres` | 5432 | OK (`healthy`) |
-| Redis | `mascarade-redis` | 6379 | OK (`healthy`) |
-| Qdrant | `mascarade-qdrant` | 6333 | OK (`healthy`) |
-| Grafana | `mascarade-grafana` | 3001 | OK (`healthy`) |
-| Prometheus | `mascarade-prometheus` | 9090 | OK (`healthy`) |
+## Pilotage multi-machine
+
+- [x] Le hub d'execution sait maintenant filtrer les lots par `Portee`:
+  - `global`
+  - `machine:<hostname>`
+  - `cap:<capability>`
+- [x] Le profil local de `photon-machine` est declare dans `docs/MACHINE_PROFILES.json`.
+- [x] Declarer des profils logiques pour les prochaines machines utiles dans `docs/MACHINE_PROFILES.json`:
+  - `net-runner`
+  - `kicad-runner`
+  - `nexar-runner`
+- [x] Une matrice de dispatch multi-machine existe via `scripts/machine_lot_matrix.sh`.
+- [ ] Quand une autre machine sera prete, utiliser `scripts/current_machine_context.sh` puis `scripts/chain_next_lot.sh --machine <nom>` pour reprendre les lots delegues.
+
+## Surface runtime de reference
+
+| Surface | Compose / container | Bind retenu | Statut |
+| --- | --- | --- | --- |
+| Ops Console | main compose / `mascarade-ops-console` | LAN `:80` | OK |
+| Dify Web | `deploy/dify.machine.yml` / `mascarade-dify-web` | LAN `:3500` | OK |
+| Dify API | `deploy/dify.machine.yml` / `mascarade-dify-api` | LAN `:5001` | OK |
+| Mascarade API | main compose / `mascarade-api` | loopback `:3100` | OK |
+| Mascarade Core | main compose / `mascarade-core` | loopback `:8100` | OK |
+| Grafana | main compose / `mascarade-grafana` | loopback `:3001` | OK |
+| Prometheus | main compose / `mascarade-prometheus` | loopback `:9090` | OK |
+| Ollama | main compose / `mascarade-ollama` | loopback `:11434` | OK / optionnel |
 
 Notes:
-- L'ancien constat `tools-langfuse KO (ZodError)` ne correspond plus au runtime actuel. `langfuse-web:3000` répond `200` depuis le réseau Docker.
-- Les curls host-side vers `127.0.0.1:3200` ne sont pas conclusifs depuis l'environnement sandboxé; la vérification retenue est donc celle faite depuis le réseau Docker et via l'état Docker.
+- `ops-console` sur `:80` via le main compose est maintenant la surface standard. `edge-proxy` n'est plus le chemin principal par defaut pour cette machine.
+- `core`, `api`, `grafana`, `prometheus`, `ollama`, `qdrant`, `n8n` et `studio-ai-gateway` restent sur loopback sauf besoin explicite.
+- Dify reste sur le compose dedie `deploy/dify.machine.yml`, avec `DIFY_MACHINE_HOST` comme source unique des URLs publiees.
 
-## TODO priorisés
+## Ce qui est verrouille
 
-### Bloquant
-- [x] `Langfuse` ne crashe plus et répond sur le réseau Docker.
-- [x] Ajouter un `healthcheck` Docker explicite sur `mascarade-langfuse`.
-- [x] Recréer `langfuse-web` pour matérialiser le nouveau statut `healthy` dans `docker ps`.
-- [x] `Langfuse` retenu comme brique supportée, optionnelle hors profil standard sur VM légère.
+- [x] `./setup` ne remappe plus `ops-console` vers `edge-proxy`.
+- [x] `ops-console` main compose reprend `:80` et sert la surface operateur de la machine.
+- [x] L'overlay `photon-machine` est separe dans `.env.machine.local(.example)`.
+- [x] La page Ops Console applique un filtrage LAN et des cartes loopback basees sur verification locale.
+- [x] `./setup` / `write_env_file()` ne laissent plus sortir un `.env` runtime avec `MASCARADE_API_KEY` vide si `core` ou `api` sont selectionnes.
 
-### Sécurité
-- [x] `MASCARADE_API_KEY` est renseignée dans `/home/clems/mascarade/.env`; l'auth n'est pas désactivée en pratique.
-- [ ] Garder la règle: ne jamais régénérer un `.env` de VM avec `MASCARADE_API_KEY` vide.
-- [ ] Compléter les secrets opérateurs encore absents dans `.env` selon le besoin réel:
+## Stack personnelle legere
+
+- [x] `deploy/personal.machine.yml` est la source de verite pour la stack perso locale.
+- [x] Le cockpit perso est precharge et versionne via `deploy/personal-seed/*.json`.
+- [x] Les scripts `scripts/personal_stack_reconcile.sh`, `scripts/personal_stack_verify.sh` et `scripts/personal_stack_lots.sh` rejouent et verifient la wave 1 sans refaire le seed a la main.
+- [x] Les checks `Healthchecks` sont laisses sans cron placeholder tant qu'aucun job reel n'est cable.
+- [ ] Cabler les premiers jobs reels vers `mascarade-ops`, `mascarade-jobs`, `mascarade-watch` et les checks `Healthchecks`.
+- [ ] Preparer la phase 2 distante (`SearXNG`, `Paperless-ngx`, `Karakeep`) et l'ajouter a l'Ops Console sans alourdir `photon-machine`.
+
+## Backlog prioritaire restant
+
+### Securite / secrets operateur
+
+- [ ] Renseigner seulement les secrets reellement utiles sur cette machine:
   - `ANTHROPIC_API_KEY`
   - `OPENAI_API_KEY`
-  - `NOTION_TOKEN`
-- [x] `MISTRAL_API_KEY` est déjà configurée.
+  - `NOTION_API_KEY`
+- [ ] Garder les secrets machine hors des fichiers versionnes:
+  - `.env`
+  - `.env.machine.local`
 
-### Infra
-- [x] Source `Firecrawl` retenue: image officielle `mcp/firecrawl@sha256:e6676bd31d1806574d931b7a7b7b6fba953c031853e80adc1ec8115c17ab81ca`.
-- [x] Intégration repo `Firecrawl` prête dans la stack Mascarade.
-- [x] `FIRECRAWL_API_KEY` configurée sur la VM.
-- [x] `mascarade-firecrawl` démarré et `healthy` sur le port `3400`.
-- [x] Déployer `Mem0` avec une cible réelle.
-  - Cible retenue: `mem0/openmemory-mcp`.
-  - Runtime valide sur la VM: `mascarade-mem0` est `healthy`.
-  - Cablage actif sur `Qdrant` + `LiteLLM` (OpenAI-compatible).
-- [ ] Installer `Docling` dans le venv tools.
-- [ ] Installer `openai-whisper` dans le venv tools.
+### Tooling opt-in
 
-### Réseau
-- [x] Le reverse proxy HTTPS existe déjà via `edge-proxy`.
-- [x] Les binds HTTP/HTTPS restent limités à `127.0.0.1`.
-- [ ] Si exposition externe voulue: publier `edge-proxy` hors loopback et finaliser le chemin ACME/DNS réellement utilisé.
+- [ ] Installer `Docling` dans le venv tools uniquement si un flux local de parsing documentaire le demande.
+- [ ] Installer `openai-whisper` dans le venv tools uniquement si une transcription locale hors conteneur devient necessaire.
 
-### Monitoring
-- [ ] Connecter `Langfuse` à `Mascarade` pour tracer les appels LLM.
-- [ ] Ajouter des dashboards Grafana pour `Langfuse`, `n8n`, `Dify`, `LiteLLM`.
-- [ ] Ajouter ou documenter les endpoints Prometheus réellement scrapeables pour les services exposés.
+### Reseau / exposition
 
-### Mac local
-- [ ] Installer les serveurs MCP utiles côté Mac.
-- [ ] Installer `Playwright MCP` côté Mac.
+- [ ] Revalider la regle hote/`DOCKER-USER` pour `80/tcp`, `3500/tcp` et `5001/tcp` apres tout changement reseau.
+- [ ] Si une exposition publique TLS redevient voulue, definir un chemin explicite `edge-proxy` ou reverse proxy tiers au lieu de rouvrir des binds au hasard.
 
-## Infra existante sur la VM
+## Deplace hors de ce fichier
 
-| Service | Container | Port |
-|---------|-----------|------|
-| Ollama | `mascarade-ollama` | 11434 |
-| Qdrant | `mascarade-qdrant` | 6333 |
-| Redis | `mascarade-redis` | 6379 |
-| Postgres | `mascarade-postgres` | 5432 |
-| Grafana | `mascarade-grafana` | 3001 |
-| Prometheus | `mascarade-prometheus` | 9090 |
+- Observabilite et cockpit ops: `TODO_COCKPIT_OPS.md`
+- Backlog cockpit/release canonique: `/mascarade/opt/repos/crazy_life/plan.md`
+- Backlog MCP canonique: `/mascarade/opt/repos/kill_life/specs/mcp_tasks.md`
 
-## Fichiers clés
+## Fichiers de reference
 
 ```text
-/home/clems/mascarade/.env
-/home/clems/mascarade/docker-compose.yml
-/home/clems/mascarade/TODO_VM.md
+/mascarade/docs/EXECUTION_HUB.md
+/mascarade/docs/PERSONAL_STACK_MACHINE.md
+/mascarade/docs/MULTI_MACHINE_EXECUTION.md
+/mascarade/docs/MACHINE_PROFILES.json
+/mascarade/docs/RUNBOOK_VM_OPS.md
+/mascarade/.env.example
+/mascarade/.env.machine.local.example
 ```
