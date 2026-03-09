@@ -32,7 +32,8 @@ Utiliser au mieux la machine locale pour le pipeline de fine-tuning Mascarade:
 
 - modele producteur/consommateur
 - une distillation terminee peut partir en merge puis en training sans attendre la fin de toutes les autres
-- overlap distill/train autorise en mode `auto`, sauf teacher `local-hf`
+- overlap distill/train autorise en mode `auto`
+- avec un student CPU, ce chevauchement reste valide meme si le teacher est `local-hf`
 - budget VRAM student auto-estime pour eviter les departs GPU trop optimistes
 - si `max_parallel_gpu_trains=2`, le scheduler garde volontairement un seul slot student tant que le teacher `ollama` distille encore
 - quand la file de distillation est vide, le scheduler decharge le teacher `ollama` via son API (`keep_alive=0`) puis peut ouvrir le deuxieme slot student
@@ -40,7 +41,8 @@ Utiliser au mieux la machine locale pour le pipeline de fine-tuning Mascarade:
 ### 3. Politique GPU
 
 - teacher lourd + student lourd: non
-- teacher local-hf: exclusif GPU
+- teacher local-hf + student GPU: exclusif GPU
+- teacher local-hf + student CPU: overlap GPU/CPU valide, a condition de garder `max_parallel_distills=1`
 - teacher API/Ollama + student: overlap possible si la VRAM libre reste suffisante
 - teacher `ollama` 14B + `2 x` students 4B en meme temps: eviter pendant la phase distillation sur une seule RTX 4090
 - `2 x` students 4B redeviennent exploitables en fin de batch si le teacher est decharge

@@ -72,7 +72,7 @@ Un exemple de dataset FreeCAD a été créé dans `finetune/datasets/freecad_cha
 
 ### Script de construction
 
-Le script `finetune/build_freecad_dataset.py` permet de générer des datasets supplémentaires.
+Le script canonique `finetune/datasets/build_freecad_dataset.py` permet de générer des datasets supplémentaires.
 
 ### Processus de fine-tuning
 

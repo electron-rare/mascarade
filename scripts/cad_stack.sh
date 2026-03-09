@@ -101,10 +101,12 @@ doctor_cmd() {
     /workspace/.cad-home/kicad-headless \
     'mkdir -p "$HOME" && kicad-cli version'
 
-  run_shell_as_host_user \
+  compose exec -T \
+    -e HOME=/workspace/.cad-home/freecad-headless-root \
+    -e LANG=C.UTF-8 \
+    -e LC_ALL=C.UTF-8 \
     freecad-headless \
-    /workspace/.cad-home/freecad-headless \
-    'mkdir -p "$HOME" && FreeCADCmd -c "import FreeCAD; print(\".\".join(FreeCAD.Version()[:3]))"'
+    sh -lc 'set -e; mkdir -p "$HOME"; if command -v FreeCADCmd >/dev/null 2>&1; then FreeCADCmd -c "import FreeCAD; print(\".\".join(FreeCAD.Version()[:3]))"; else freecadcmd -c "import FreeCAD; print(\".\".join(FreeCAD.Version()[:3]))"; fi'
 
   run_shell_as_host_user \
     platformio \
@@ -124,12 +126,12 @@ kicad_cli_cmd() {
 
 freecad_cmd() {
   ensure_service_up freecad-headless
-  run_tool_as_host_user \
+  compose exec -T \
+    -e HOME=/workspace/.cad-home/freecad-headless-root \
+    -e LANG=C.UTF-8 \
+    -e LC_ALL=C.UTF-8 \
     freecad-headless \
-    /workspace/.cad-home/freecad-headless \
-    ":" \
-    FreeCADCmd \
-    "$@"
+    sh -lc 'set -e; mkdir -p "$HOME"; if command -v FreeCADCmd >/dev/null 2>&1; then exec FreeCADCmd "$@"; else exec freecadcmd "$@"; fi' sh "$@"
 }
 
 pio_cmd() {

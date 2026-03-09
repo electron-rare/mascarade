@@ -1,0 +1,615 @@
+{
+  "generated_at": "2026-03-09T08:42:32.327845+00:00",
+  "domains_dir": "/ai/saisail/mascarade/finetune/research_sources/domains",
+  "doc_path": "/ai/saisail/mascarade/docs/DATASET_DOMAIN_FORUMS.md",
+  "summary_path": "/ai/saisail/mascarade/finetune/research_sources/summary.json",
+  "status": "ok",
+  "domains": [
+    {
+      "domain": "components",
+      "topic": "Electronic components / sourcing / libraries / datasheets",
+      "file": "/ai/saisail/mascarade/finetune/research_sources/domains/components.json",
+      "forum_count": 10,
+      "web_roots_count": 37,
+      "minimum_web_roots": 10,
+      "quality_score": 8,
+      "minimum_quality_score": 6,
+      "queries_count": 7,
+      "trusted_domains_count": 12,
+      "status": "ok",
+      "forum_urls": [
+        {
+          "label": "Electronics StackExchange",
+          "url": "https://electronics.stackexchange.com/"
+        },
+        {
+          "label": "All About Circuits Forum",
+          "url": "https://forum.allaboutcircuits.com/"
+        },
+        {
+          "label": "EEVblog Forum",
+          "url": "https://www.eevblog.com/forum/"
+        },
+        {
+          "label": "DigiKey TechForum",
+          "url": "https://forum.digikey.com/"
+        },
+        {
+          "label": "element14 Community",
+          "url": "https://community.element14.com/"
+        },
+        {
+          "label": "TI E2E",
+          "url": "https://e2e.ti.com/"
+        },
+        {
+          "label": "Analog Devices EngineerZone",
+          "url": "https://ez.analog.com/"
+        },
+        {
+          "label": "Infineon Community",
+          "url": "https://community.infineon.com/"
+        },
+        {
+          "label": "NXP Community",
+          "url": "https://community.nxp.com/"
+        },
+        {
+          "label": "Arduino Forum",
+          "url": "https://forum.arduino.cc/"
+        }
+      ]
+    },
+    {
+      "domain": "dsp",
+      "topic": "DSP / signal processing",
+      "file": "/ai/saisail/mascarade/finetune/research_sources/domains/dsp.json",
+      "forum_count": 10,
+      "web_roots_count": 19,
+      "minimum_web_roots": 8,
+      "quality_score": 8,
+      "minimum_quality_score": 6,
+      "queries_count": 3,
+      "trusted_domains_count": 3,
+      "status": "ok",
+      "forum_urls": [
+        {
+          "label": "DSP StackExchange",
+          "url": "https://dsp.stackexchange.com/"
+        },
+        {
+          "label": "DSPRelated Forums",
+          "url": "https://www.dsprelated.com/forums/"
+        },
+        {
+          "label": "MathWorks MATLAB Answers",
+          "url": "https://www.mathworks.com/matlabcentral/answers/"
+        },
+        {
+          "label": "GNU Radio Discuss",
+          "url": "https://forum.gnuradio.org/"
+        },
+        {
+          "label": "ARM Community Forums",
+          "url": "https://community.arm.com/support-forums/"
+        },
+        {
+          "label": "EmbeddedRelated Forum",
+          "url": "https://www.embeddedrelated.com/forum.php"
+        },
+        {
+          "label": "NI Forums",
+          "url": "https://forums.ni.com/"
+        },
+        {
+          "label": "Scientific Python Discourse",
+          "url": "https://discuss.scientific-python.org/"
+        },
+        {
+          "label": "Julia Discourse Signal Processing",
+          "url": "https://discourse.julialang.org/tag/signal-processing"
+        },
+        {
+          "label": "EEVblog Forum",
+          "url": "https://www.eevblog.com/forum/"
+        }
+      ]
+    },
+    {
+      "domain": "embedded",
+      "topic": "Embedded systems / ARM / ESP32 / RISC-V",
+      "file": "/ai/saisail/mascarade/finetune/research_sources/domains/embedded.json",
+      "forum_count": 10,
+      "web_roots_count": 21,
+      "minimum_web_roots": 8,
+      "quality_score": 8,
+      "minimum_quality_score": 6,
+      "queries_count": 3,
+      "trusted_domains_count": 3,
+      "status": "ok",
+      "forum_urls": [
+        {
+          "label": "ST Community",
+          "url": "https://community.st.com/"
+        },
+        {
+          "label": "PlatformIO Community",
+          "url": "https://community.platformio.org/"
+        },
+        {
+          "label": "ChibiOS Forum",
+          "url": "https://forum.chibios.org/"
+        },
+        {
+          "label": "FreeRTOS Forums",
+          "url": "https://forums.freertos.org/"
+        },
+        {
+          "label": "ARM Community Forums",
+          "url": "https://community.arm.com/support-forums/"
+        },
+        {
+          "label": "Arduino Forum",
+          "url": "https://forum.arduino.cc/"
+        },
+        {
+          "label": "EmbeddedRelated Forum",
+          "url": "https://www.embeddedrelated.com/forum.php"
+        },
+        {
+          "label": "Electronics StackExchange STM32",
+          "url": "https://electronics.stackexchange.com/questions/tagged/stm32"
+        },
+        {
+          "label": "Electronics StackExchange Embedded",
+          "url": "https://electronics.stackexchange.com/questions/tagged/embedded"
+        },
+        {
+          "label": "All About Circuits Embedded Systems",
+          "url": "https://forum.allaboutcircuits.com/forums/embedded-systems-and-microcontrollers.13/"
+        }
+      ]
+    },
+    {
+      "domain": "emc",
+      "topic": "EMC / EMI / ESD",
+      "file": "/ai/saisail/mascarade/finetune/research_sources/domains/emc.json",
+      "forum_count": 10,
+      "web_roots_count": 19,
+      "minimum_web_roots": 8,
+      "quality_score": 8,
+      "minimum_quality_score": 6,
+      "queries_count": 3,
+      "trusted_domains_count": 3,
+      "status": "ok",
+      "forum_urls": [
+        {
+          "label": "Electronics StackExchange",
+          "url": "https://electronics.stackexchange.com/"
+        },
+        {
+          "label": "All About Circuits Forum",
+          "url": "https://forum.allaboutcircuits.com/"
+        },
+        {
+          "label": "EEVblog Forum",
+          "url": "https://www.eevblog.com/forum/"
+        },
+        {
+          "label": "DigiKey TechForum",
+          "url": "https://forum.digikey.com/"
+        },
+        {
+          "label": "element14 Community",
+          "url": "https://community.element14.com/"
+        },
+        {
+          "label": "TI E2E",
+          "url": "https://e2e.ti.com/"
+        },
+        {
+          "label": "Analog Devices EngineerZone",
+          "url": "https://ez.analog.com/"
+        },
+        {
+          "label": "Infineon Community",
+          "url": "https://community.infineon.com/"
+        },
+        {
+          "label": "NXP Community",
+          "url": "https://community.nxp.com/"
+        },
+        {
+          "label": "Arduino Forum",
+          "url": "https://forum.arduino.cc/"
+        }
+      ]
+    },
+    {
+      "domain": "freecad",
+      "topic": "FreeCAD / parametric CAD",
+      "file": "/ai/saisail/mascarade/finetune/research_sources/domains/freecad.json",
+      "forum_count": 10,
+      "web_roots_count": 30,
+      "minimum_web_roots": 8,
+      "quality_score": 8,
+      "minimum_quality_score": 6,
+      "queries_count": 5,
+      "trusted_domains_count": 3,
+      "status": "ok",
+      "forum_urls": [
+        {
+          "label": "FreeCAD Forum",
+          "url": "https://forum.freecad.org/"
+        },
+        {
+          "label": "CadQuery Community",
+          "url": "https://community.cadquery.org/"
+        },
+        {
+          "label": "OpenSCAD Lists",
+          "url": "https://lists.openscad.org/"
+        },
+        {
+          "label": "Autodesk Forums",
+          "url": "https://forums.autodesk.com/"
+        },
+        {
+          "label": "Onshape Forum",
+          "url": "https://forum.onshape.com/"
+        },
+        {
+          "label": "GrabCAD Questions",
+          "url": "https://grabcad.com/questions"
+        },
+        {
+          "label": "3D Printing StackExchange",
+          "url": "https://3dprinting.stackexchange.com/"
+        },
+        {
+          "label": "LibreCAD Forum",
+          "url": "https://forum.librecad.org/"
+        },
+        {
+          "label": "OpenBuilds Forum",
+          "url": "https://openbuilds.com/forums/"
+        },
+        {
+          "label": "Maker Forums",
+          "url": "https://forum.makerforums.info/"
+        }
+      ]
+    },
+    {
+      "domain": "iot",
+      "topic": "IoT / ESP-IDF / Home Assistant",
+      "file": "/ai/saisail/mascarade/finetune/research_sources/domains/iot.json",
+      "forum_count": 10,
+      "web_roots_count": 22,
+      "minimum_web_roots": 8,
+      "quality_score": 8,
+      "minimum_quality_score": 6,
+      "queries_count": 3,
+      "trusted_domains_count": 3,
+      "status": "ok",
+      "forum_urls": [
+        {
+          "label": "ST Community",
+          "url": "https://community.st.com/"
+        },
+        {
+          "label": "PlatformIO Community",
+          "url": "https://community.platformio.org/"
+        },
+        {
+          "label": "ChibiOS Forum",
+          "url": "https://forum.chibios.org/"
+        },
+        {
+          "label": "FreeRTOS Forums",
+          "url": "https://forums.freertos.org/"
+        },
+        {
+          "label": "ARM Community Forums",
+          "url": "https://community.arm.com/support-forums/"
+        },
+        {
+          "label": "Arduino Forum",
+          "url": "https://forum.arduino.cc/"
+        },
+        {
+          "label": "EmbeddedRelated Forum",
+          "url": "https://www.embeddedrelated.com/forum.php"
+        },
+        {
+          "label": "Electronics StackExchange STM32",
+          "url": "https://electronics.stackexchange.com/questions/tagged/stm32"
+        },
+        {
+          "label": "Electronics StackExchange Embedded",
+          "url": "https://electronics.stackexchange.com/questions/tagged/embedded"
+        },
+        {
+          "label": "All About Circuits Embedded Systems",
+          "url": "https://forum.allaboutcircuits.com/forums/embedded-systems-and-microcontrollers.13/"
+        }
+      ]
+    },
+    {
+      "domain": "kicad",
+      "topic": "KiCad / PCB design",
+      "file": "/ai/saisail/mascarade/finetune/research_sources/domains/kicad.json",
+      "forum_count": 10,
+      "web_roots_count": 26,
+      "minimum_web_roots": 8,
+      "quality_score": 8,
+      "minimum_quality_score": 6,
+      "queries_count": 3,
+      "trusted_domains_count": 3,
+      "status": "ok",
+      "forum_urls": [
+        {
+          "label": "KiCad.info Forums",
+          "url": "https://forum.kicad.info/"
+        },
+        {
+          "label": "KiCad Community Forums",
+          "url": "https://www.kicad.org/community/forums/"
+        },
+        {
+          "label": "EEVblog Forum",
+          "url": "https://www.eevblog.com/forum/"
+        },
+        {
+          "label": "Electronics StackExchange PCB Design",
+          "url": "https://electronics.stackexchange.com/questions/tagged/pcb-design"
+        },
+        {
+          "label": "EDAboard",
+          "url": "https://www.edaboard.com/"
+        },
+        {
+          "label": "EasyEDA Forum",
+          "url": "https://easyeda.com/forum/"
+        },
+        {
+          "label": "Altium Forum",
+          "url": "https://forum.live.altium.com/"
+        },
+        {
+          "label": "Arduino Forum",
+          "url": "https://forum.arduino.cc/"
+        },
+        {
+          "label": "All About Circuits Forum",
+          "url": "https://forum.allaboutcircuits.com/"
+        },
+        {
+          "label": "element14 Community",
+          "url": "https://community.element14.com/"
+        }
+      ]
+    },
+    {
+      "domain": "platformio",
+      "topic": "PlatformIO / Arduino / ESP32",
+      "file": "/ai/saisail/mascarade/finetune/research_sources/domains/platformio.json",
+      "forum_count": 10,
+      "web_roots_count": 23,
+      "minimum_web_roots": 8,
+      "quality_score": 8,
+      "minimum_quality_score": 6,
+      "queries_count": 3,
+      "trusted_domains_count": 3,
+      "status": "ok",
+      "forum_urls": [
+        {
+          "label": "ST Community",
+          "url": "https://community.st.com/"
+        },
+        {
+          "label": "PlatformIO Community",
+          "url": "https://community.platformio.org/"
+        },
+        {
+          "label": "ChibiOS Forum",
+          "url": "https://forum.chibios.org/"
+        },
+        {
+          "label": "FreeRTOS Forums",
+          "url": "https://forums.freertos.org/"
+        },
+        {
+          "label": "ARM Community Forums",
+          "url": "https://community.arm.com/support-forums/"
+        },
+        {
+          "label": "Arduino Forum",
+          "url": "https://forum.arduino.cc/"
+        },
+        {
+          "label": "EmbeddedRelated Forum",
+          "url": "https://www.embeddedrelated.com/forum.php"
+        },
+        {
+          "label": "Electronics StackExchange STM32",
+          "url": "https://electronics.stackexchange.com/questions/tagged/stm32"
+        },
+        {
+          "label": "Electronics StackExchange Embedded",
+          "url": "https://electronics.stackexchange.com/questions/tagged/embedded"
+        },
+        {
+          "label": "All About Circuits Embedded Systems",
+          "url": "https://forum.allaboutcircuits.com/forums/embedded-systems-and-microcontrollers.13/"
+        }
+      ]
+    },
+    {
+      "domain": "power",
+      "topic": "Power electronics / motor control",
+      "file": "/ai/saisail/mascarade/finetune/research_sources/domains/power.json",
+      "forum_count": 10,
+      "web_roots_count": 19,
+      "minimum_web_roots": 8,
+      "quality_score": 8,
+      "minimum_quality_score": 6,
+      "queries_count": 3,
+      "trusted_domains_count": 3,
+      "status": "ok",
+      "forum_urls": [
+        {
+          "label": "Electronics StackExchange",
+          "url": "https://electronics.stackexchange.com/"
+        },
+        {
+          "label": "All About Circuits Forum",
+          "url": "https://forum.allaboutcircuits.com/"
+        },
+        {
+          "label": "EEVblog Forum",
+          "url": "https://www.eevblog.com/forum/"
+        },
+        {
+          "label": "DigiKey TechForum",
+          "url": "https://forum.digikey.com/"
+        },
+        {
+          "label": "element14 Community",
+          "url": "https://community.element14.com/"
+        },
+        {
+          "label": "TI E2E",
+          "url": "https://e2e.ti.com/"
+        },
+        {
+          "label": "Analog Devices EngineerZone",
+          "url": "https://ez.analog.com/"
+        },
+        {
+          "label": "Infineon Community",
+          "url": "https://community.infineon.com/"
+        },
+        {
+          "label": "NXP Community",
+          "url": "https://community.nxp.com/"
+        },
+        {
+          "label": "Arduino Forum",
+          "url": "https://forum.arduino.cc/"
+        }
+      ]
+    },
+    {
+      "domain": "spice",
+      "topic": "SPICE / circuit simulation",
+      "file": "/ai/saisail/mascarade/finetune/research_sources/domains/spice.json",
+      "forum_count": 10,
+      "web_roots_count": 17,
+      "minimum_web_roots": 8,
+      "quality_score": 8,
+      "minimum_quality_score": 6,
+      "queries_count": 3,
+      "trusted_domains_count": 3,
+      "status": "ok",
+      "forum_urls": [
+        {
+          "label": "ngspice Discussions",
+          "url": "https://sourceforge.net/p/ngspice/discussion/"
+        },
+        {
+          "label": "LTspice Groups",
+          "url": "https://groups.io/g/LTspice"
+        },
+        {
+          "label": "Cadence Community",
+          "url": "https://community.cadence.com/"
+        },
+        {
+          "label": "Analog Devices EngineerZone",
+          "url": "https://ez.analog.com/"
+        },
+        {
+          "label": "TI E2E",
+          "url": "https://e2e.ti.com/"
+        },
+        {
+          "label": "All About Circuits Forum",
+          "url": "https://forum.allaboutcircuits.com/"
+        },
+        {
+          "label": "EEVblog Forum",
+          "url": "https://www.eevblog.com/forum/"
+        },
+        {
+          "label": "Electronics StackExchange SPICE",
+          "url": "https://electronics.stackexchange.com/questions/tagged/spice"
+        },
+        {
+          "label": "Electronics StackExchange LTspice",
+          "url": "https://electronics.stackexchange.com/questions/tagged/ltspice"
+        },
+        {
+          "label": "PSMA Technical Forums",
+          "url": "https://psma.com/technical-forums/"
+        }
+      ]
+    },
+    {
+      "domain": "stm32",
+      "topic": "STM32 / Cortex-M firmware",
+      "file": "/ai/saisail/mascarade/finetune/research_sources/domains/stm32.json",
+      "forum_count": 10,
+      "web_roots_count": 21,
+      "minimum_web_roots": 8,
+      "quality_score": 8,
+      "minimum_quality_score": 6,
+      "queries_count": 3,
+      "trusted_domains_count": 3,
+      "status": "ok",
+      "forum_urls": [
+        {
+          "label": "ST Community",
+          "url": "https://community.st.com/"
+        },
+        {
+          "label": "PlatformIO Community",
+          "url": "https://community.platformio.org/"
+        },
+        {
+          "label": "ChibiOS Forum",
+          "url": "https://forum.chibios.org/"
+        },
+        {
+          "label": "FreeRTOS Forums",
+          "url": "https://forums.freertos.org/"
+        },
+        {
+          "label": "ARM Community Forums",
+          "url": "https://community.arm.com/support-forums/"
+        },
+        {
+          "label": "Arduino Forum",
+          "url": "https://forum.arduino.cc/"
+        },
+        {
+          "label": "EmbeddedRelated Forum",
+          "url": "https://www.embeddedrelated.com/forum.php"
+        },
+        {
+          "label": "Electronics StackExchange STM32",
+          "url": "https://electronics.stackexchange.com/questions/tagged/stm32"
+        },
+        {
+          "label": "Electronics StackExchange Embedded",
+          "url": "https://electronics.stackexchange.com/questions/tagged/embedded"
+        },
+        {
+          "label": "All About Circuits Embedded Systems",
+          "url": "https://forum.allaboutcircuits.com/forums/embedded-systems-and-microcontrollers.13/"
+        }
+      ]
+    }
+  ],
+  "errors": []
+}
