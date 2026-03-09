@@ -201,6 +201,7 @@ write_env_file() {
             echo "APPLE_LLM_PORT=\"${APPLE_LLM_PORT:-8201}\""
             echo "APPLE_LLM_COMPUTE_UNITS=\"${APPLE_LLM_COMPUTE_UNITS:-cpu_and_ne}\""
             echo "APPLE_LLM_MODEL_PATH=\"${APPLE_LLM_MODEL_PATH:-}\""
+            echo "APPLE_LLM_EMBED_MODEL_PATH=\"${APPLE_LLM_EMBED_MODEL_PATH:-}\""
             echo "APPLE_LLM_TOKENIZER_PATH=\"${APPLE_LLM_TOKENIZER_PATH:-}\""
             echo "APPLE_LLM_ENABLE_THINKING=\"${APPLE_LLM_ENABLE_THINKING:-false}\""
             echo "APPLE_LLM_MAX_INPUT_TOKENS=\"${APPLE_LLM_MAX_INPUT_TOKENS:-2048}\""
