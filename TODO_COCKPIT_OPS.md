@@ -78,6 +78,8 @@ Pour reprendre le lot local actif sans requalifier tout le contexte a la main:
 ```bash
 cd /home/clems/mascarade
 bash scripts/run_next_useful_lot.sh
+  # enchaîner automatiquement (jusqu'au lot suivant) :
+  # bash scripts/run_next_useful_lot.sh --chain --max-rounds 3
 ```
 
 Le snapshot genere par le script vit dans

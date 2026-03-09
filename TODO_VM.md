@@ -137,6 +137,8 @@ Chemin canonique pour reprendre automatiquement le prochain lot utile:
 ```bash
 cd /home/clems/mascarade
 bash scripts/run_next_useful_lot.sh
+  # enchaînement automatique (3 lots maxi) :
+  # bash scripts/run_next_useful_lot.sh --chain
 ```
 
 Commandes fines:
