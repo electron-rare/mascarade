@@ -40,6 +40,7 @@ type IndustrialPlatformPayload = {
       internal_site_count?: number;
       external_partner_count?: number;
       line_count?: number;
+      handoff_contract_count?: number;
       blocked_domains?: string[];
     };
   };
@@ -424,6 +425,9 @@ export default function Infrastructure() {
                 </Badge>
                 <Badge color="accent">
                   lines {industrial.data?.topology?.summary?.line_count ?? 0}
+                </Badge>
+                <Badge color="accent">
+                  handoff contracts {industrial.data?.topology?.summary?.handoff_contract_count ?? 0}
                 </Badge>
               </div>
             </div>
