@@ -1010,3 +1010,11 @@ mascarade/
 ├── .env.example                      # Template configuration
 └── CLAUDE.md                         # Conventions dev
 ```
+
+## Etat auto-synchronise
+## Etat auto-synchronise
+<!-- AUTO-SYNC:MASCARADE-README:START -->
+- dernier cycle ANE automatise: 2026-03-09T06:53:02+00:00
+- etat de reference ANE: aucun accepted, meilleur diagnostic: apple-coreml:qwen2.5-0.5b-instruct-onnx
+- prochain lot utile cote pipeline: Analyser les runs ayant atteint gate/repair puis resserrer la reference locale autour des meilleurs candidats.
+<!-- AUTO-SYNC:MASCARADE-README:END -->
