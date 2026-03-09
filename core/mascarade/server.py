@@ -5,11 +5,14 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import time
 from contextlib import asynccontextmanager
 from typing import Any, Literal
+from dataclasses import dataclass
+from uuid import uuid4
 
 from fastapi import APIRouter, Depends, FastAPI, HTTPException, Query, Request
-from fastapi.responses import StreamingResponse
+from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel, Field
 
 from mascarade.agents import Agent, AgentRegistry
@@ -22,6 +25,7 @@ from mascarade.auth import (
 )
 from mascarade.cluster import ClusterManager, require_cluster_auth
 from mascarade.config import settings
+from mascarade.device_voice import DevicePlayerEvent, DeviceVoiceService
 from mascarade.integrations.comfyui import ComfyUIClient
 from mascarade.integrations.knowledge_base import (
     knowledge_base_auth_configured,
@@ -67,6 +71,7 @@ async def lifespan(app: FastAPI):
     app.state.trace_buffer = trace_buffer
     app.state.cluster = cluster
     app.state.mcp = McpRuntimeClient(trace_buffer=trace_buffer)
+    app.state.device_voice = DeviceVoiceService(router=router)
     app.state.comfyui = ComfyUIClient() if settings.comfyui_url else None
 
     registry.load()
@@ -96,6 +101,15 @@ class SendRequest(BaseModel):
     response_format: dict | None = Field(default=None)
     temperature: float = Field(default=0.7, ge=0.0, le=2.0)
     max_tokens: int = Field(default=4096, gt=0, le=128000)
+
+
+class OpenAIChatCompletionRequest(BaseModel):
+    model: str | None = Field(default=None, max_length=200)
+    messages: list[Message] = Field(min_length=1, max_length=200)
+    response_format: dict | None = Field(default=None)
+    temperature: float = Field(default=0.7, ge=0.0, le=2.0)
+    max_tokens: int = Field(default=4096, gt=0, le=128000)
+    stream: bool = False
 
 
 class AgentCreate(BaseModel):
@@ -221,6 +235,101 @@ class ComfyUIWorkflowRequest(BaseModel):
     workflow: dict
 
 
+@dataclass(frozen=True)
+class ChatCompletionTarget:
+    strategy: Strategy
+    provider: str | None
+    model: str | None
+
+
+def _provider_unavailable_detail(provider_name: str) -> dict[str, object]:
+    return {
+        "error": f"Provider '{provider_name}' is not configured or unavailable.",
+        "providers": app.state.router.available_providers,
+    }
+
+
+def _resolve_chat_completion_target(raw_model: str | None) -> ChatCompletionTarget:
+    model = (raw_model or "").strip()
+    available = set(app.state.router.available_providers)
+    supported = set(app.state.router.supported_provider_names)
+
+    if model:
+        provider_name, separator, model_name = model.partition(":")
+        if separator:
+            if not provider_name or not model_name:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Invalid model format. Use provider:model-id.",
+                )
+            if provider_name not in supported:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Unsupported model prefix '{provider_name}'.",
+                )
+            if provider_name not in available:
+                raise HTTPException(
+                    status_code=503,
+                    detail=_provider_unavailable_detail(provider_name),
+                )
+            return ChatCompletionTarget(
+                strategy=Strategy.SPECIFIC,
+                provider=provider_name,
+                model=model_name,
+            )
+
+    default_provider = settings.default_provider.strip()
+    default_model = settings.default_model.strip() or None
+    if default_provider:
+        if default_provider not in supported:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Unsupported default provider '{default_provider}'.",
+            )
+        if default_provider not in available:
+            raise HTTPException(
+                status_code=503,
+                detail=_provider_unavailable_detail(default_provider),
+            )
+        return ChatCompletionTarget(
+            strategy=Strategy.SPECIFIC,
+            provider=default_provider,
+            model=default_model,
+        )
+
+    return ChatCompletionTarget(
+        strategy=Strategy.BEST,
+        provider=None,
+        model=default_model or model or None,
+    )
+
+
+def _openai_usage(usage: dict[str, int] | None) -> dict[str, int]:
+    source = usage or {}
+    prompt_tokens = int(source.get("input_tokens", 0))
+    completion_tokens = int(source.get("output_tokens", 0))
+    total_tokens = int(source.get("total_tokens", prompt_tokens + completion_tokens))
+    if total_tokens < prompt_tokens + completion_tokens:
+        total_tokens = prompt_tokens + completion_tokens
+    return {
+        "prompt_tokens": prompt_tokens,
+        "completion_tokens": completion_tokens,
+        "total_tokens": total_tokens,
+    }
+
+
+def _reported_model_name(
+    request_model: str | None,
+    target: ChatCompletionTarget,
+    provider_model: str,
+) -> str:
+    if request_model:
+        prefix = f"{target.provider}:"
+        if target.provider and request_model.startswith(prefix):
+            return request_model
+    return provider_model
+
+
 # --- Route publique ---
 
 
@@ -341,6 +450,114 @@ async def send(req: SendRequest):
         "provider": response.provider,
         "usage": response.usage,
     }
+
+
+@protected.post("/v1/chat/completions")
+async def openai_chat_completions(req: OpenAIChatCompletionRequest):
+    if req.stream:
+        raise HTTPException(
+            status_code=400,
+            detail="Streaming is not supported on this endpoint.",
+        )
+
+    target = _resolve_chat_completion_target(req.model)
+    messages = [m.model_dump() for m in req.messages]
+    try:
+        response = await app.state.router.send(
+            messages,
+            strategy=target.strategy,
+            provider=target.provider,
+            model=target.model,
+            response_format=req.response_format,
+            temperature=req.temperature,
+            max_tokens=req.max_tokens,
+        )
+    except ValueError as exc:
+        logger.warning("Chat completions request rejected: %s", exc)
+        raise HTTPException(status_code=400, detail="Invalid request parameters") from exc
+    except RuntimeError as exc:
+        logger.warning("Chat completions request failed: %s", exc)
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+    return {
+        "id": f"chatcmpl-{uuid4().hex}",
+        "object": "chat.completion",
+        "created": int(time.time()),
+        "model": _reported_model_name(req.model, target, response.model),
+        "choices": [
+            {
+                "index": 0,
+                "message": {
+                    "role": "assistant",
+                    "content": response.content,
+                },
+                "finish_reason": "stop",
+            }
+        ],
+        "usage": _openai_usage(response.usage),
+    }
+
+
+@protected.post("/device/v1/player/event")
+async def device_player_event(req: DevicePlayerEvent):
+    state = app.state.device_voice.record_player_event(req)
+    return {"status": "ok", "device_id": req.device_id, "state": state.model_dump()}
+
+
+@protected.post("/device/v1/voice/session")
+async def device_voice_session(request: Request):
+    form = await request.form()
+    device_id = str(form.get("device_id") or "").strip()
+    mode = str(form.get("mode") or "idle").strip().lower()
+    current_media_raw = str(form.get("current_media") or "{}").strip()
+    upload = form.get("audio") or form.get("audio.wav")
+
+    if not device_id:
+        raise HTTPException(status_code=400, detail="device_id is required")
+    if mode not in {"idle", "mp3", "radio"}:
+        raise HTTPException(status_code=400, detail="Unsupported mode")
+    if upload is None or not hasattr(upload, "read"):
+        raise HTTPException(
+            status_code=400, detail="multipart field 'audio' or 'audio.wav' is required"
+        )
+
+    try:
+        current_media_payload = json.loads(current_media_raw)
+    except json.JSONDecodeError as exc:
+        raise HTTPException(status_code=400, detail="current_media must be valid JSON") from exc
+
+    if not isinstance(current_media_payload, dict):
+        raise HTTPException(status_code=400, detail="current_media must decode to an object")
+
+    filename = getattr(upload, "filename", None) or "audio.wav"
+    content_type = getattr(upload, "content_type", None) or "audio/wav"
+    if "wav" not in content_type and not filename.lower().endswith(".wav"):
+        raise HTTPException(status_code=415, detail="Only WAV uploads are supported")
+
+    audio_bytes = await upload.read()
+    if not audio_bytes:
+        raise HTTPException(status_code=400, detail="Audio payload is empty")
+    if len(audio_bytes) > settings.device_voice_max_audio_bytes:
+        raise HTTPException(status_code=413, detail="Audio payload is too large")
+
+    result = await app.state.device_voice.handle_session(
+        device_id=device_id,
+        mode=mode,
+        current_media_payload=current_media_payload,
+        audio_bytes=audio_bytes,
+        filename=filename,
+        content_type=content_type,
+        request_base_url=str(request.base_url),
+    )
+    return result.model_dump()
+
+
+@protected.get("/device/v1/voice/replies/{reply_id}.wav")
+async def device_voice_reply_audio(reply_id: str):
+    stored = app.state.device_voice.get_reply_audio(reply_id)
+    if stored is None:
+        raise HTTPException(status_code=404, detail="Reply audio not found")
+    return Response(content=stored.payload, media_type=stored.content_type)
 
 
 @protected.get("/providers")

@@ -53,6 +53,7 @@ class RuntimeConfig:
     backend: str
     model_id: str
     model_path: str
+    embed_model_path: str
     tokenizer_path: str
     compute_units: str
     max_input_tokens: int
@@ -64,6 +65,7 @@ _runtime_lock = Lock()
 _runtime_cache: RuntimeState | None = None
 _runtime_signature: RuntimeConfig | None = None
 InputSpec = tuple[str, str, list[Any] | None]
+StateSpec = tuple[str, str, list[Any] | None]
 
 
 def _package_version(name: str) -> str | None:
@@ -117,6 +119,7 @@ def _runtime_config() -> RuntimeConfig:
         backend=_normalize_backend(os.getenv("APPLE_LLM_BACKEND")),
         model_id=os.getenv("APPLE_LLM_MODEL_ID", "apple-local").strip() or "apple-local",
         model_path=os.getenv("APPLE_LLM_MODEL_PATH", "").strip(),
+        embed_model_path=os.getenv("APPLE_LLM_EMBED_MODEL_PATH", "").strip(),
         tokenizer_path=os.getenv("APPLE_LLM_TOKENIZER_PATH", "").strip(),
         compute_units=_normalize_compute_units(os.getenv("APPLE_LLM_COMPUTE_UNITS")),
         max_input_tokens=max(32, _env_int("APPLE_LLM_MAX_INPUT_TOKENS", 2048)),
@@ -127,6 +130,28 @@ def _runtime_config() -> RuntimeConfig:
 
 def _configured(config: RuntimeConfig) -> bool:
     return bool(config.model_path and config.tokenizer_path)
+
+
+def _is_coreml_artifact(path: str) -> bool:
+    return Path(path).suffix.lower() in {".mlpackage", ".mlmodelc"}
+
+
+def _require_model_artifact(path: str, *, backend: str, label: str) -> Path:
+    artifact = Path(path)
+    if backend == "coreml":
+        if not _is_coreml_artifact(path):
+            raise RuntimeConfigError(
+                f"{label} must point to a Core ML artifact (.mlpackage or .mlmodelc), "
+                f"got: {path}"
+            )
+    elif artifact.suffix.lower() != ".onnx":
+        raise RuntimeConfigError(
+            f"{label} must point to an ONNX model (.onnx), got: {path}"
+        )
+
+    if not artifact.exists():
+        raise RuntimeConfigError(f"{label} does not exist: {path}")
+    return artifact
 
 
 def _load_tokenizer(tokenizer_path: str, *, trust_remote_code: bool):
@@ -229,7 +254,7 @@ class _IterativeDecoderRuntime:
         return [self.config.model_id]
 
     def describe(self) -> dict[str, Any]:
-        return {
+        details = {
             "backend": self.backend_name,
             "model_id": self.config.model_id,
             "model_path": self.config.model_path,
@@ -237,12 +262,25 @@ class _IterativeDecoderRuntime:
             "compute_units": self.config.compute_units,
             "model_loaded": self._runtime_obj is not None,
         }
+        if self._input_specs:
+            details["input_specs"] = [
+                {
+                    "name": name,
+                    "dtype": dtype_name,
+                    "shape": shape_spec,
+                }
+                for name, dtype_name, shape_spec in self._input_specs
+            ]
+        return details
 
     def _embed_input_ids(self, token_ids):
         raise RuntimeConfigError(
             f"Model '{self.config.model_id}' requires embedded inputs, but "
             f"{self.backend_name} does not provide an embed_tokens runtime"
         )
+
+    def _validate_runtime_config(self) -> None:
+        return None
 
     def _load_runtime(self) -> None:
         with self._runtime_lock:
@@ -257,6 +295,7 @@ class _IterativeDecoderRuntime:
                 ) from exc
 
             self._np = np
+            self._validate_runtime_config()
             try:
                 self._tokenizer = _load_tokenizer(
                     self.config.tokenizer_path,
@@ -370,6 +409,9 @@ class _IterativeDecoderRuntime:
         return np.zeros(tuple(resolved_shape), dtype=dtype)
 
     def _cache_length(self, cache_state: dict[str, Any]) -> int:
+        sentinel_length = cache_state.get("__past_length__")
+        if isinstance(sentinel_length, int) and sentinel_length >= 0:
+            return sentinel_length
         for name, value in cache_state.items():
             if not name.startswith("past_key_values."):
                 continue
@@ -401,6 +443,39 @@ class _IterativeDecoderRuntime:
             (prefix_dim, batch_size, seq_len),
         ).copy()
 
+    def _build_causal_mask(
+        self,
+        shape_spec: list[Any] | None,
+        *,
+        past_length: int,
+        batch_size: int,
+        seq_len: int,
+        total_len: int,
+    ):
+        np = self._np
+        rank = len(shape_spec or [])
+        if rank >= 4:
+            mask = np.full((batch_size, 1, seq_len, total_len), -1e4, dtype=np.float32)
+            for row in range(seq_len):
+                allowed = min(total_len, past_length + row + 1)
+                mask[:, :, row, :allowed] = 0.0
+            return mask
+        if rank == 3:
+            mask = np.full((batch_size, seq_len, total_len), -1e4, dtype=np.float32)
+            for row in range(seq_len):
+                allowed = min(total_len, past_length + row + 1)
+                mask[:, row, :allowed] = 0.0
+            return mask
+        if rank == 2:
+            mask = np.full((seq_len, total_len), -1e4, dtype=np.float32)
+            for row in range(seq_len):
+                allowed = min(total_len, past_length + row + 1)
+                mask[row, :allowed] = 0.0
+            return mask
+        if rank == 1:
+            return np.zeros((total_len,), dtype=np.float32)
+        return np.zeros((batch_size, 1, seq_len, total_len), dtype=np.float32)
+
     def _prepare_inputs(self, token_ids, *, cache_state: dict[str, Any] | None = None):
         assert self._tokenizer is not None
         np = self._np
@@ -413,7 +488,7 @@ class _IterativeDecoderRuntime:
 
         for name, type_name, shape_spec in self._input_specs:
             lower = name.lower()
-            if lower == "input_ids" or lower.endswith(".input_ids"):
+            if lower in {"input_ids", "inputids"} or lower.endswith(".input_ids"):
                 source = token_ids
             elif lower == "inputs_embeds" or lower.endswith(".inputs_embeds"):
                 if embedded_tokens is None:
@@ -427,6 +502,14 @@ class _IterativeDecoderRuntime:
                     past_length=past_length,
                     batch_size=token_ids.shape[0],
                     seq_len=seq_len,
+                )
+            elif lower in {"causalmask", "causal_mask"} or lower.endswith(".causalmask"):
+                source = self._build_causal_mask(
+                    shape_spec,
+                    past_length=past_length,
+                    batch_size=token_ids.shape[0],
+                    seq_len=seq_len,
+                    total_len=total_len,
                 )
             elif (
                 lower.startswith("past_key_values.")
@@ -444,8 +527,9 @@ class _IterativeDecoderRuntime:
             else:
                 raise RuntimeConfigError(
                     f"Unsupported model input '{name}'. "
-                    "Supported inputs: input_ids, inputs_embeds, attention_mask, "
-                    "position_ids, past_key_values.*, past_conv.*, past_recurrent.*"
+                    "Supported inputs: input_ids/inputIds, inputs_embeds, attention_mask, "
+                    "position_ids, causalMask, past_key_values.*, past_conv.*, "
+                    "past_recurrent.*"
                 )
 
             if self.backend_name == "onnx-coreml":
@@ -467,7 +551,12 @@ class _IterativeDecoderRuntime:
                 return array
         raise RuntimeConfigError("The selected model did not return logits")
 
-    def _extract_cache_state(self, outputs: dict[str, Any]) -> dict[str, Any]:
+    def _extract_cache_state(
+        self,
+        outputs: dict[str, Any],
+        *,
+        previous_cache_state: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
         remapped: dict[str, Any] = {}
         for name, value in outputs.items():
             if name.startswith("present."):
@@ -527,8 +616,12 @@ class _IterativeDecoderRuntime:
             produced.append(next_token)
             next_token_ids = np.array([[next_token]], dtype=generated.dtype)
             generated = np.concatenate([generated, next_token_ids], axis=1)
-            next_cache_state = self._extract_cache_state(outputs)
+            next_cache_state = self._extract_cache_state(
+                outputs,
+                previous_cache_state=cache_state,
+            )
             if next_cache_state:
+                next_cache_state["__past_length__"] = max(0, generated.shape[1] - 1)
                 cache_state = next_cache_state
                 current_input_ids = next_token_ids
             else:
@@ -559,7 +652,148 @@ class CoreMLRuntime(_IterativeDecoderRuntime):
         versions["coremltools"] = _package_version("coremltools")
         return versions
 
+    def describe(self) -> dict[str, Any]:
+        details = super().describe()
+        if self._runtime_obj is not None:
+            if self._runtime_obj.get("embed_model_path"):
+                details["embed_model_path"] = self._runtime_obj["embed_model_path"]
+            details["stateful"] = bool(self._runtime_obj.get("state_specs"))
+            if self._runtime_obj.get("state_specs"):
+                details["state_specs"] = [
+                    {
+                        "name": name,
+                        "dtype": dtype_name,
+                        "shape": shape_spec,
+                    }
+                    for name, dtype_name, shape_spec in self._runtime_obj["state_specs"]
+                ]
+        return details
+
+    def _validate_runtime_config(self) -> None:
+        _require_model_artifact(
+            self.config.model_path,
+            backend="coreml",
+            label="APPLE_LLM_MODEL_PATH",
+        )
+        if self.config.embed_model_path:
+            _require_model_artifact(
+                self.config.embed_model_path,
+                backend="coreml",
+                label="APPLE_LLM_EMBED_MODEL_PATH",
+            )
+
+    @staticmethod
+    def _shape_from_coreml_array(multi_array) -> list[Any] | None:
+        shape = list(getattr(multi_array, "shape", []) or [])
+        if shape:
+            return shape
+
+        shape_range = getattr(multi_array, "shapeRange", None)
+        size_ranges = list(getattr(shape_range, "sizeRanges", []) or [])
+        if not size_ranges:
+            return None
+
+        resolved_shape: list[Any] = []
+        for index, item in enumerate(size_ranges):
+            lower = getattr(item, "lowerBound", None)
+            upper = getattr(item, "upperBound", None)
+            if isinstance(lower, int) and isinstance(upper, int) and lower == upper and lower >= 0:
+                resolved_shape.append(lower)
+            else:
+                resolved_shape.append(f"dim_{index}")
+        return resolved_shape
+
+    @classmethod
+    def _input_specs_from_spec(cls, spec) -> list[InputSpec]:
+        input_specs: list[InputSpec] = []
+        for feature in spec.description.input:
+            multi_array = getattr(feature.type, "multiArrayType", None)
+            dtype_name = "int32"
+            shape = None
+            if multi_array is not None:
+                data_type = getattr(multi_array, "dataType", None)
+                dtype_name = {
+                    65568: "int32",
+                    131104: "float32",
+                    65552: "double",
+                    65600: "float16",
+                    131072: "int64",
+                }.get(data_type, "int32")
+                shape = cls._shape_from_coreml_array(multi_array)
+            input_specs.append((feature.name, dtype_name, shape))
+        return input_specs
+
+    @classmethod
+    def _state_specs_from_spec(cls, spec) -> list[StateSpec]:
+        state_specs: list[StateSpec] = []
+        for feature in getattr(spec.description, "state", []):
+            wrapped = getattr(feature.type, "stateType", None)
+            if wrapped is None:
+                continue
+            multi_array = getattr(wrapped, "arrayType", None)
+            dtype_name = "float32"
+            shape = None
+            if multi_array is not None:
+                data_type = getattr(multi_array, "dataType", None)
+                dtype_name = {
+                    65568: "int32",
+                    131104: "float32",
+                    65552: "double",
+                    65600: "float16",
+                    131072: "int64",
+                }.get(data_type, "float32")
+                shape = cls._shape_from_coreml_array(multi_array)
+            state_specs.append((feature.name, dtype_name, shape))
+        return state_specs
+
+    def _resolve_embed_model_path(self) -> str | None:
+        if self.config.embed_model_path:
+            return str(
+                _require_model_artifact(
+                    self.config.embed_model_path,
+                    backend="coreml",
+                    label="APPLE_LLM_EMBED_MODEL_PATH",
+                )
+            )
+
+        model_path = Path(self.config.model_path)
+        candidates: list[Path] = []
+        name = model_path.name
+        suffix = model_path.suffix
+
+        if name.startswith("decoder_model_merged"):
+            candidates.append(
+                model_path.with_name(f"embed_tokens{name[len('decoder_model_merged'):]}")
+            )
+        elif name.startswith("decoder_model"):
+            candidates.append(
+                model_path.with_name(f"embed_tokens{name[len('decoder_model'):]}")
+            )
+
+        candidates.extend(
+            [
+                model_path.with_name(f"embed_tokens{suffix}"),
+                model_path.with_name("embed_tokens.mlpackage"),
+                model_path.with_name("embed_tokens.mlmodelc"),
+            ]
+        )
+
+        seen: set[str] = set()
+        for candidate in candidates:
+            resolved = str(candidate)
+            if resolved in seen:
+                continue
+            seen.add(resolved)
+            if candidate.exists():
+                return resolved
+        return None
+
     def _create_runtime(self):
+        _require_model_artifact(
+            self.config.model_path,
+            backend="coreml",
+            label="APPLE_LLM_MODEL_PATH",
+        )
         try:
             import coremltools as ct
         except Exception as exc:  # pragma: no cover
@@ -574,27 +808,102 @@ class CoreMLRuntime(_IterativeDecoderRuntime):
             "cpu_and_ne": "CPU_AND_NE",
         }[self.config.compute_units]
         compute_units = getattr(ct.ComputeUnit, compute_units_name)
-        model = ct.models.MLModel(self.config.model_path, compute_units=compute_units)
-        spec = model.get_spec()
-        input_specs: list[InputSpec] = []
-        for feature in spec.description.input:
-            multi_array = getattr(feature.type, "multiArrayType", None)
-            dtype_name = "int32"
-            if multi_array is not None:
-                data_type = getattr(multi_array, "dataType", None)
-                dtype_name = {
-                    65568: "int32",
-                    131104: "float32",
-                    65552: "double",
-                    65600: "float16",
-                    131072: "int64",
-                }.get(data_type, "int32")
-            input_specs.append((feature.name, dtype_name, None))
-        return model, input_specs
+        decoder_model = ct.models.MLModel(self.config.model_path, compute_units=compute_units)
+        input_specs = self._input_specs_from_spec(decoder_model.get_spec())
+        state_specs = self._state_specs_from_spec(decoder_model.get_spec())
+        runtime: dict[str, Any] = {
+            "decoder": decoder_model,
+            "state_specs": state_specs,
+        }
+        needs_embeds = any(
+            name.lower() == "inputs_embeds" or name.lower().endswith(".inputs_embeds")
+            for name, _, _ in input_specs
+        )
+        if needs_embeds:
+            embed_model_path = self._resolve_embed_model_path()
+            if not embed_model_path:
+                raise RuntimeConfigError(
+                    "Model requires inputs_embeds, but no Core ML embed_tokens sibling "
+                    f"was found next to {self.config.model_path}"
+                )
+            runtime["embed_model_path"] = embed_model_path
+            runtime["embed"] = ct.models.MLModel(embed_model_path, compute_units=compute_units)
+        return runtime, input_specs
 
     def _run_model(self, inputs: dict[str, Any]):
         assert self._runtime_obj is not None
-        return self._runtime_obj.predict(inputs)
+        return self._runtime_obj["decoder"].predict(inputs)
+
+    def _run_step(
+        self,
+        inputs: dict[str, Any],
+        *,
+        cache_state: dict[str, Any] | None = None,
+    ):
+        assert self._runtime_obj is not None
+        if not self._runtime_obj.get("state_specs"):
+            return self._run_model(inputs)
+
+        state = None
+        if cache_state is not None:
+            state = cache_state.get("__coreml_state__")
+        if state is None:
+            state = self._runtime_obj["decoder"].make_state()
+        outputs = self._runtime_obj["decoder"].predict(inputs, state=state)
+        return {
+            "__coreml_state__": state,
+            **outputs,
+        }
+
+    def _embed_input_ids(self, token_ids):
+        assert self._runtime_obj is not None
+        embed_model = self._runtime_obj.get("embed")
+        if embed_model is None:
+            raise RuntimeConfigError(
+                f"Model '{self.config.model_id}' requires embed_tokens, but no Core ML "
+                "embed runtime is configured"
+            )
+        embed_spec = embed_model.get_spec()
+        if not embed_spec.description.input or not embed_spec.description.output:
+            raise RuntimeConfigError(
+                f"Embed model for '{self.config.model_id}' does not expose a valid input/output spec"
+            )
+        input_feature = embed_spec.description.input[0]
+        output_feature = embed_spec.description.output[0]
+        multi_array = getattr(input_feature.type, "multiArrayType", None)
+        input_dtype = "int32"
+        if multi_array is not None:
+            data_type = getattr(multi_array, "dataType", None)
+            input_dtype = {
+                65568: "int32",
+                131072: "int64",
+            }.get(data_type, "int32")
+        values = embed_model.predict(
+            {
+                input_feature.name: token_ids.astype(
+                    self._dtype_from_coreml(input_dtype),
+                    copy=False,
+                )
+            }
+        )
+        return self._np.asarray(values[output_feature.name])
+
+    def _extract_cache_state(
+        self,
+        outputs: dict[str, Any],
+        *,
+        previous_cache_state: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        remapped = super()._extract_cache_state(
+            outputs,
+            previous_cache_state=previous_cache_state,
+        )
+        state = outputs.get("__coreml_state__")
+        if state is not None:
+            remapped["__coreml_state__"] = state
+        elif previous_cache_state and "__coreml_state__" in previous_cache_state:
+            remapped["__coreml_state__"] = previous_cache_state["__coreml_state__"]
+        return remapped
 
 
 class OnnxCoreMLRuntime(_IterativeDecoderRuntime):
@@ -611,7 +920,29 @@ class OnnxCoreMLRuntime(_IterativeDecoderRuntime):
             details["embed_model_path"] = self._runtime_obj["embed_model_path"]
         return details
 
+    def _validate_runtime_config(self) -> None:
+        _require_model_artifact(
+            self.config.model_path,
+            backend="onnx-coreml",
+            label="APPLE_LLM_MODEL_PATH",
+        )
+        if self.config.embed_model_path:
+            _require_model_artifact(
+                self.config.embed_model_path,
+                backend="onnx-coreml",
+                label="APPLE_LLM_EMBED_MODEL_PATH",
+            )
+
     def _resolve_embed_model_path(self) -> str | None:
+        if self.config.embed_model_path:
+            return str(
+                _require_model_artifact(
+                    self.config.embed_model_path,
+                    backend="onnx-coreml",
+                    label="APPLE_LLM_EMBED_MODEL_PATH",
+                )
+            )
+
         model_path = Path(self.config.model_path)
         candidates: list[Path] = []
         name = model_path.name
@@ -644,6 +975,11 @@ class OnnxCoreMLRuntime(_IterativeDecoderRuntime):
         return None
 
     def _create_runtime(self):
+        _require_model_artifact(
+            self.config.model_path,
+            backend="onnx-coreml",
+            label="APPLE_LLM_MODEL_PATH",
+        )
         try:
             import onnxruntime as ort
         except Exception as exc:  # pragma: no cover
@@ -786,6 +1122,7 @@ async def health() -> dict[str, Any]:
         "configured": configured,
         "model_id": config.model_id,
         "model_path": config.model_path or None,
+        "embed_model_path": config.embed_model_path or None,
         "tokenizer_path": config.tokenizer_path or None,
         "compute_units": config.compute_units,
         "max_input_tokens": config.max_input_tokens,

@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import asyncio
 
+import pytest
+
 from mascarade.router.providers.apple_coreml import AppleCoreMLProvider
 
 
@@ -80,6 +82,49 @@ def test_apple_provider_send(monkeypatch):
     assert response.content == "hello from ane"
     assert response.provider == "apple-coreml"
     assert response.model == "apple-local"
+
+
+def test_apple_provider_send_timeout_is_explicit(monkeypatch):
+    monkeypatch.setattr("mascarade.router.providers.apple_coreml.settings.apple_llm_enabled", True)
+    monkeypatch.setattr(
+        "mascarade.router.providers.apple_coreml.settings.apple_llm_base_url",
+        "http://host.docker.internal:8201",
+    )
+    monkeypatch.setattr(
+        "mascarade.router.providers.apple_coreml.settings.apple_llm_model_id",
+        "apple-local",
+    )
+    monkeypatch.setattr(
+        "mascarade.router.providers.apple_coreml.settings.apple_llm_timeout_seconds",
+        90.0,
+    )
+
+    class _FakeAsyncClient:
+        def __init__(self, *args, **kwargs):
+            return None
+
+        async def post(self, path, json):
+            raise __import__("httpx").ReadTimeout("timed out")
+
+    monkeypatch.setattr(
+        "mascarade.router.providers.apple_coreml.httpx.AsyncClient",
+        _FakeAsyncClient,
+    )
+
+    provider = AppleCoreMLProvider()
+
+    with pytest.raises(RuntimeError) as exc:
+        asyncio.run(
+            provider.send(
+                [{"role": "user", "content": "hello"}],
+                max_tokens=128,
+            )
+        )
+
+    message = str(exc.value)
+    assert "Apple local timeout after 90s" in message
+    assert "max_tokens=128" in message
+    assert "Increase APPLE_LLM_TIMEOUT_SECONDS" in message
 
 
 def test_apple_provider_available_models(monkeypatch):
