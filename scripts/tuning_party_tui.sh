@@ -159,9 +159,12 @@ render_dashboard() {
     return 0
   fi
 
-  local watch_pid="" pipeline_pid=""
+  local watch_pid="" pipeline_pid="" cpu_students_pid="" reviewer_pid="" doctor_pid=""
   [[ -f "$WATCH_PID_FILE" ]] && watch_pid="$(head -n 1 "$WATCH_PID_FILE" 2>/dev/null || true)"
   [[ -f "$PIPELINE_PID_FILE" ]] && pipeline_pid="$(head -n 1 "$PIPELINE_PID_FILE" 2>/dev/null || true)"
+  [[ -n "${CPU_STUDENTS_PID_FILE:-}" && -f "$CPU_STUDENTS_PID_FILE" ]] && cpu_students_pid="$(head -n 1 "$CPU_STUDENTS_PID_FILE" 2>/dev/null || true)"
+  [[ -n "${REVIEWER_PID_FILE:-}" && -f "$REVIEWER_PID_FILE" ]] && reviewer_pid="$(head -n 1 "$REVIEWER_PID_FILE" 2>/dev/null || true)"
+  [[ -n "${DOCTOR_PID_FILE:-}" && -f "$DOCTOR_PID_FILE" ]] && doctor_pid="$(head -n 1 "$DOCTOR_PID_FILE" 2>/dev/null || true)"
 
   local pipeline_phase pipeline_current pipeline_total
   IFS='|' read -r pipeline_phase pipeline_current pipeline_total < <(tuning_party_pipeline_phase "$PIPELINE_LOG")
@@ -179,9 +182,12 @@ render_dashboard() {
   fi
   local dataset_state_fmt
   dataset_state_fmt="$(tuning_party_format_dataset_research_status "$dataset_state")"
-  local watch_alive="no" pipeline_alive="no"
+  local watch_alive="no" pipeline_alive="no" cpu_students_alive="no" reviewer_alive="no" doctor_alive="no"
   [[ -n "$watch_pid" ]] && tuning_party_pid_alive "$watch_pid" && watch_alive="yes"
   [[ -n "$pipeline_pid" ]] && tuning_party_pid_alive "$pipeline_pid" && pipeline_alive="yes"
+  [[ -n "$cpu_students_pid" ]] && tuning_party_pid_alive "$cpu_students_pid" && cpu_students_alive="yes"
+  [[ -n "$reviewer_pid" ]] && tuning_party_pid_alive "$reviewer_pid" && reviewer_alive="yes"
+  [[ -n "$doctor_pid" ]] && tuning_party_pid_alive "$doctor_pid" && doctor_alive="yes"
 
   clear
   banner
@@ -199,6 +205,10 @@ render_dashboard() {
     "${dataset_state_fmt%$'\n'}" \
     "$domain_label" \
     "$research_file_label"
+  render_summary_row "$(( width - 2 ))" \
+    "CPU students=${CPU_PRESET:-off}/${CPU_THREADS_PER_STUDENT:-n/a} alive=${cpu_students_alive}" \
+    "Reviewer=${REVIEWER_ENABLED:-0} alive=${reviewer_alive}" \
+    "Doctor=${DOCTOR_ENABLED:-0} threads=${DOCTOR_THREADS:-n/a} alive=${doctor_alive}"
   dashboard_hr "$(( width - 2 ))"
   echo ""
   if [[ "$dataset_state" == *"research=partial"* || "$dataset_state" == *"research=blocked"* || "$dataset_state" == *"research=missing"* ]]; then
@@ -213,6 +223,12 @@ render_dashboard() {
   render_log_panel "Watch Loop" "$WATCH_LOG" 6 "$log_width"
   echo ""
   render_log_panel "Pipeline" "$PIPELINE_LOG" 10 "$log_width"
+  echo ""
+  render_log_panel "CPU Students" "${CPU_STUDENTS_LOG:-}" 6 "$log_width"
+  echo ""
+  render_log_panel "Reviewer" "${REVIEWER_LOG:-}" 6 "$log_width"
+  echo ""
+  render_log_panel "Doctor" "${DOCTOR_LOG:-}" 6 "$log_width"
   echo ""
   echo -e "  ${DIM}Touches: q quitter | r refresh | m menu${NC}"
 }
@@ -247,10 +263,18 @@ show_status() {
 launch_session() {
   local mode_flag="$1"
   local verbose_flag="$2"
+  local pipeline_mode_flag="${3:-}"
+  local cpu_preset_flag="${4:-}"
+  local cpu_threads_flag="${5:-}"
+  local extra_flags="${6:-}"
   section "Start Tuning Party"
   info "Label: $LABEL"
   info "Mode: ${mode_flag:---full}"
-  "$ROOT_DIR/scripts/start_tuning_party.sh" --background --label "$LABEL" $mode_flag $verbose_flag
+  [ -n "$pipeline_mode_flag" ] && info "Pipeline mode: ${pipeline_mode_flag#--pipeline-mode }"
+  [ -n "$cpu_preset_flag" ] && info "CPU preset: ${cpu_preset_flag#--cpu-preset }"
+  [ -n "$cpu_threads_flag" ] && info "CPU threads/student: ${cpu_threads_flag#--cpu-threads-per-student }"
+  [ -n "$extra_flags" ] && info "Extras: $extra_flags"
+  "$ROOT_DIR/scripts/start_tuning_party.sh" --background --label "$LABEL" $mode_flag $verbose_flag $pipeline_mode_flag $cpu_preset_flag $cpu_threads_flag $extra_flags
   live_dashboard
 }
 
@@ -268,12 +292,33 @@ start_session() {
     3) mode_flag="--pipeline-only" ;;
   esac
 
+  local pipeline_mode_flag=""
+  local cpu_preset_flag=""
+  local cpu_threads_flag=""
+  local extra_flags=""
+  if [[ -z "$mode_flag" || "$mode_flag" == "--pipeline-only" ]]; then
+    menu_select "Quel pipeline lancer ?" \
+      "Pipeline standard batch_full_pipeline" \
+      "CPU parallel cpu4 / 4 threads" \
+      "Profil 28t/64g: GPU + 4 students + reviewer + doctor"
+    case "$MENU_RESULT" in
+      1)
+        pipeline_mode_flag="--pipeline-mode cpu-parallel"
+        cpu_preset_flag="--cpu-preset cpu4"
+        cpu_threads_flag="--cpu-threads-per-student 4"
+        ;;
+      2)
+        extra_flags="--operator-profile 28t-64g-full"
+        ;;
+    esac
+  fi
+
   local verbose_flag=""
   if confirm "Activer le monitoring verbeux ?"; then
     verbose_flag="--verbose"
   fi
 
-  launch_session "$mode_flag" "$verbose_flag"
+  launch_session "$mode_flag" "$verbose_flag" "$pipeline_mode_flag" "$cpu_preset_flag" "$cpu_threads_flag" "$extra_flags"
 }
 
 stop_session() {
@@ -295,6 +340,10 @@ stop_all_sessions() {
 restart_clean_session() {
   local mode_flag=""
   local verbose_flag=""
+  local pipeline_mode_flag=""
+  local cpu_preset_flag=""
+  local cpu_threads_flag=""
+  local extra_flags=""
 
   if ! confirm "Redemarrer proprement la tuning party ?"; then
     return 0
@@ -312,6 +361,23 @@ restart_clean_session() {
     3) mode_flag="--pipeline-only" ;;
   esac
 
+  if [[ -z "$mode_flag" || "$mode_flag" == "--pipeline-only" ]]; then
+    menu_select "Quel pipeline apres restart clean ?" \
+      "Pipeline standard batch_full_pipeline" \
+      "CPU parallel cpu4 / 4 threads" \
+      "Profil 28t/64g: GPU + 4 students + reviewer + doctor"
+    case "$MENU_RESULT" in
+      1)
+        pipeline_mode_flag="--pipeline-mode cpu-parallel"
+        cpu_preset_flag="--cpu-preset cpu4"
+        cpu_threads_flag="--cpu-threads-per-student 4"
+        ;;
+      2)
+        extra_flags="--operator-profile 28t-64g-full"
+        ;;
+    esac
+  fi
+
   if confirm "Activer le monitoring verbeux apres relance ?"; then
     verbose_flag="--verbose"
   fi
@@ -319,7 +385,7 @@ restart_clean_session() {
   section "Restart Clean"
   "$ROOT_DIR/scripts/stop_tuning_party.sh" --all --force || warn "Aucune tache active detectee"
   info "Etat GPU: $(tuning_party_gpu_summary)"
-  launch_session "$mode_flag" "$verbose_flag"
+  launch_session "$mode_flag" "$verbose_flag" "$pipeline_mode_flag" "$cpu_preset_flag" "$cpu_threads_flag" "$extra_flags"
 }
 
 tail_logs() {
@@ -333,13 +399,19 @@ tail_logs() {
   menu_select "Quel log afficher ?" \
     "Pipeline" \
     "Watch loop" \
-    "Preparation"
+    "Preparation" \
+    "CPU students" \
+    "Reviewer" \
+    "Doctor"
 
   local log_file=""
   case "$MENU_RESULT" in
     0) log_file="$session_dir/pipeline.log" ;;
     1) log_file="$session_dir/watch-loop.log" ;;
     2) log_file="$session_dir/prepare.log" ;;
+    3) log_file="$session_dir/cpu-students.log" ;;
+    4) log_file="$session_dir/reviewer.log" ;;
+    5) log_file="$session_dir/doctor.log" ;;
   esac
 
   [[ -f "$log_file" ]] || {

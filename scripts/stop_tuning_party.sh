@@ -45,7 +45,8 @@ stop_pid() {
 stop_session_dir() {
   local session_dir="$1"
   local force="$2"
-  local watch_pid_file pipeline_pid_file watch_pid="" pipeline_pid=""
+  local watch_pid_file pipeline_pid_file cpu_students_pid_file reviewer_pid_file doctor_pid_file
+  local watch_pid="" pipeline_pid="" cpu_students_pid="" reviewer_pid="" doctor_pid=""
 
   if ! tuning_party_load_meta "$session_dir"; then
     printf 'session=%s skipped (missing metadata)\n' "$session_dir"
@@ -54,8 +55,14 @@ stop_session_dir() {
 
   watch_pid_file="${WATCH_PID_FILE:-}"
   pipeline_pid_file="${PIPELINE_PID_FILE:-}"
+  cpu_students_pid_file="${CPU_STUDENTS_PID_FILE:-}"
+  reviewer_pid_file="${REVIEWER_PID_FILE:-}"
+  doctor_pid_file="${DOCTOR_PID_FILE:-}"
   [[ -n "$watch_pid_file" && -f "$watch_pid_file" ]] && watch_pid="$(head -n 1 "$watch_pid_file" 2>/dev/null || true)"
   [[ -n "$pipeline_pid_file" && -f "$pipeline_pid_file" ]] && pipeline_pid="$(head -n 1 "$pipeline_pid_file" 2>/dev/null || true)"
+  [[ -n "$cpu_students_pid_file" && -f "$cpu_students_pid_file" ]] && cpu_students_pid="$(head -n 1 "$cpu_students_pid_file" 2>/dev/null || true)"
+  [[ -n "$reviewer_pid_file" && -f "$reviewer_pid_file" ]] && reviewer_pid="$(head -n 1 "$reviewer_pid_file" 2>/dev/null || true)"
+  [[ -n "$doctor_pid_file" && -f "$doctor_pid_file" ]] && doctor_pid="$(head -n 1 "$doctor_pid_file" 2>/dev/null || true)"
 
   if [[ -n "$watch_pid" ]]; then
     stop_pid "$watch_pid" "$force"
@@ -65,6 +72,21 @@ stop_session_dir() {
   if [[ -n "$pipeline_pid" ]]; then
     stop_pid "$pipeline_pid" "$force"
     printf 'pipeline pid=%s alive=%s\n' "$pipeline_pid" "$([[ -n "$pipeline_pid" ]] && tuning_party_pid_alive "$pipeline_pid" && echo yes || echo no)"
+  fi
+
+  if [[ -n "$cpu_students_pid" ]]; then
+    stop_pid "$cpu_students_pid" "$force"
+    printf 'cpu_students pid=%s alive=%s\n' "$cpu_students_pid" "$([[ -n "$cpu_students_pid" ]] && tuning_party_pid_alive "$cpu_students_pid" && echo yes || echo no)"
+  fi
+
+  if [[ -n "$reviewer_pid" ]]; then
+    stop_pid "$reviewer_pid" "$force"
+    printf 'reviewer pid=%s alive=%s\n' "$reviewer_pid" "$([[ -n "$reviewer_pid" ]] && tuning_party_pid_alive "$reviewer_pid" && echo yes || echo no)"
+  fi
+
+  if [[ -n "$doctor_pid" ]]; then
+    stop_pid "$doctor_pid" "$force"
+    printf 'doctor pid=%s alive=%s\n' "$doctor_pid" "$([[ -n "$doctor_pid" ]] && tuning_party_pid_alive "$doctor_pid" && echo yes || echo no)"
   fi
 
   printf 'session=%s stopped\n' "$session_dir"
@@ -77,7 +99,7 @@ stop_known_legacy_batches() {
     [[ -n "$pid" ]] && pids+=("$pid")
   done < <(
     ps -eo pid,cmd 2>/dev/null \
-      | grep -E '(batch_phase_a\.sh|batch_full_pipeline\.sh|python .*run_local\.py|python .*train_local\.py)' \
+      | grep -E '(batch_phase_a\.sh|batch_full_pipeline\.sh|python .*run_local\.py|python .*train_local\.py|train_parallel\.sh|reviewer_consolidator\.sh|doctor_worker\.sh)' \
       | grep -v 'grep -E' \
       | awk '{print $1}'
   )
