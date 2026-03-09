@@ -3,9 +3,8 @@
 Runbook court pour le runtime Apple local expose sur `:8201` et route par `mascarade`.
 
 ## Qualification au 8 mars 2026
-- aucun modele Apple n'est encore `accepted` sous garde-fou ANE sur cette machine
-- `qwen2.5-0.5b-instruct-onnx` : preflight OK; apres restart propre du runtime, le smoke ANE atteint `rewrite` puis timeoute a `300s`
-- `qwen3.5-4b-onnx-q4f16` : preflight OK; le smoke ANE atteint `rewrite` avec une critique exploitable puis timeoute a `300s`
+- `qwen3.5-4b-onnx-q4f16` : preflight OK puis smoke ANE `accepted` de bout en bout sous protocole courant
+- `qwen2.5-0.5b-instruct-onnx` : rerun baseline en cours; utiliser surtout comme candidat vitesse Apple
 - `stateful-mistral7b-instruct-int4-coreml` : preflight OK, mais smoke ANE bloque a `structure` pendant plus de 8 minutes avec les budgets de smoke; a traiter comme `preflight_only` sur cette machine
 - le runtime Apple local ne sert qu'un seul `model_id` a la fois sur `:8201`
 
@@ -13,6 +12,20 @@ Runbook court pour le runtime Apple local expose sur `:8201` et route par `masca
 - un modele explicite stage et configure via `APPLE_LLM_MODEL_ID`
 - `scripts/run_apple_llm_service.sh` lance sans erreur
 - le core `mascarade` repond sur `:8100`
+
+## Checkpoint semi-auto ANE
+
+Quand `ai-novel-engine` pilote un cycle via `python3 scripts/run_next_lots.py`, il ne restart ni ne switch le runtime Apple de force.
+Il prepare la commande suivante via `scripts/prepare_runtime_step.sh`, puis attend la reprise.
+
+Exemple:
+
+```bash
+bash scripts/prepare_runtime_step.sh \
+  --apple-model qwen3.5-4b-onnx-q4f16 \
+  --resume-state /chemin/vers/automation/state/next_lots_state.json \
+  --ane-script /chemin/vers/ai-novel-engine/scripts/run_next_lots.py
+```
 
 ## Checks de base
 ```bash
@@ -31,6 +44,7 @@ Attendus minimaux:
 Note:
 - pour `onnx-coreml`, `scripts/run_apple_llm_service.sh` privilegie maintenant Python 3.12 sur cette machine; c'est requis pour installer proprement `onnxruntime` et `numpy` recents
 - un fallback ANE vers un autre modele Apple ne peut pas fonctionner au milieu d'un meme smoke si `:8201` sert encore l'ancien `model_id`
+- le protocole courant ANE evite maintenant ce switch implicite; si un autre modele Apple est requis, il faut relancer `:8201` explicitement
 
 ## Warm-up long attendu
 - le premier chargement du `mlpackage` peut etre long
@@ -92,4 +106,13 @@ docker compose restart core api
 - le chemin `onnx-coreml` doit lui aussi preferer Python 3.12 sur cette machine
 - `ai-novel-engine` ne doit pas parler directement a `:8201`; il passe par `POST /v1/chat/completions` sur `:8100`
 - pour `ollama`, utiliser un runbook distinct; ce document est limite au chemin Apple local
-- sous garde-fou ANE, `qwen2.5-0.5b-instruct-onnx` est aujourd'hui le chemin Apple le plus stable pour un diagnostic complet, pas pour une promotion manuscrit
+- sous garde-fou ANE, `qwen3.5-4b-onnx-q4f16` est aujourd'hui la reference Apple locale; `qwen2.5-0.5b-instruct-onnx` reste utile comme baseline vitesse ou diagnostic rapide
+
+## Etat auto-synchronise
+## Etat auto-synchronise
+<!-- AUTO-SYNC:MASCARADE-RUNBOOK:START -->
+- dernier cycle ANE automatise: 2026-03-09T06:53:02+00:00
+- meilleurs candidats actuels: aucun
+- prochain lot utile cote ANE: Analyser les runs ayant atteint gate/repair puis resserrer la reference locale autour des meilleurs candidats.
+- checkpoint runtime manuel: Le runtime Apple sert `qwen2.5-0.5b-instruct-onnx` au lieu de `stateful-mistral7b-instruct-int4-coreml`.
+<!-- AUTO-SYNC:MASCARADE-RUNBOOK:END -->
