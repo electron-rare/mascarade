@@ -25,6 +25,14 @@ Backlog de reference:
   - perimetre clos: cockpit industriel `agent-factory-cockpit`, hostname public
     `industrial.saillant.cc`, inventaire/proxy des 7 serveurs MCP industriels
     dans `mascarade` et miroir `crazy_life`
+- Follow-up post-`RA-*`: local actif
+  - `industrial-plm-generic-rest`: implemente localement
+  - perimetre: contrat MCP `plm://health` + `plm://contract`, visibilité cockpit
+    `mascarade` / `crazy_life`, et posture `generic-rest` `api-key` avec mode
+    `live + simulated`
+  - etat reel: le pack est `live-ready` sur contrat et runtime, mais la VM ne
+    porte pas encore de sandbox PLM configuré; le statut courant reste donc
+    `simulated` sans faux vert `live`
 
 ## Detail par RA
 

@@ -664,6 +664,8 @@ export const coreClient = {
       tools: Record<string, unknown>[];
       resources: Record<string, unknown>[];
       prompts: Record<string, unknown>[];
+      health?: Record<string, unknown>;
+      contract?: Record<string, unknown>;
     }>(`/mcp/industrial/${encodeURIComponent(serverKey)}/runtime`);
   },
 
@@ -692,6 +694,8 @@ export const coreClient = {
         tool_count?: number;
         resource_count?: number;
         prompt_count?: number;
+        health?: Record<string, unknown>;
+        contract?: Record<string, unknown>;
       }>;
       summary: Record<string, unknown>;
       topology: Record<string, unknown>;

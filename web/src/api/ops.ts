@@ -77,6 +77,43 @@ export type OpsMonitor = {
       resource_count: number;
       prompt_count: number;
       error?: string;
+      health?: {
+        system?: string;
+        health?: {
+          configured?: boolean;
+          auth_mode?: string;
+          auth_configured?: boolean;
+          contract_ready?: boolean;
+          contract_status?: string;
+          operation_statuses?: Array<{
+            operation: string;
+            mode?: string;
+            configured?: boolean;
+            contract_ready?: boolean;
+            resource_configured?: boolean;
+            warnings?: string[];
+          }>;
+          ready_operation_count?: number;
+          simulated_operation_count?: number;
+          blocked_operation_count?: number;
+          warnings?: string[];
+        };
+      };
+      contract?: {
+        domain?: string;
+        status?: string;
+        pack_id?: string;
+        blockers?: string[];
+        auth_modes?: string[];
+        operations?: string[];
+        operation_items?: Array<{
+          operation: string;
+          status?: string;
+          method?: string;
+          live_ready?: boolean;
+          blockers?: string[];
+        }>;
+      };
     }>;
   };
   ai: {

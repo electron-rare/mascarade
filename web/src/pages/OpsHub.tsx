@@ -65,6 +65,42 @@ function summarizeMcpServer(server: OpsMcpServerStatus): string {
   return `${stats} · ${formatChecks(server.checks)}`;
 }
 
+function industrialServerStats(server: NonNullable<OpsMonitor["industrial"]>["servers"][number]) {
+  const health = server.health?.health;
+  return {
+    ready: Number(health?.ready_operation_count ?? 0),
+    simulated: Number(health?.simulated_operation_count ?? 0),
+    blocked: Number(health?.blocked_operation_count ?? 0),
+    contractReady: Boolean(health?.contract_ready ?? false),
+    contractStatus: String(server.contract?.status ?? health?.contract_status ?? ""),
+    warnings: Array.isArray(health?.warnings) ? health.warnings.filter(Boolean) : [],
+  };
+}
+
+function summarizeIndustrialServer(server: NonNullable<OpsMonitor["industrial"]>["servers"][number]): string {
+  const stats = industrialServerStats(server);
+  const operationCount = Array.isArray(server.health?.health?.operation_statuses)
+    ? server.health.health.operation_statuses.length
+    : 0;
+  const segments = [
+    server.description || "industrial contract surface",
+    `${server.tool_count} tools / ${server.resource_count} resources / ${server.prompt_count} prompts`,
+  ];
+  if (operationCount > 0) {
+    segments.push(`${operationCount} ops`);
+  }
+  if (stats.ready > 0 || stats.simulated > 0 || stats.blocked > 0) {
+    segments.push(`live ${stats.ready} / simulated ${stats.simulated} / blocked ${stats.blocked}`);
+  }
+  if (stats.contractStatus) {
+    segments.push(`contract ${stats.contractStatus}`);
+  }
+  if (stats.warnings.length > 0) {
+    segments.push(stats.warnings.slice(0, 2).join(" · "));
+  }
+  return segments.join(" / ");
+}
+
 function findPublicSurface(data: OpsMonitor | null | undefined, name: string) {
   return data?.public.surfaces.find((surface) => surface.name === name) ?? null;
 }
@@ -546,6 +582,10 @@ export default function OpsHub() {
                     key={server.key}
                     className="rounded-[1.4rem] border border-border/80 bg-black/25 px-4 py-4"
                   >
+                    {(() => {
+                      const stats = industrialServerStats(server);
+                      return (
+                        <>
                     <div className="flex items-start justify-between gap-3">
                       <div>
                         <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-accent">
@@ -558,8 +598,23 @@ export default function OpsHub() {
                       </Badge>
                     </div>
                     <p className="mt-2 text-[12px] leading-5 text-amber-100/44">
-                      {server.description || "industrial contract surface"} / {server.tool_count} tools / {server.resource_count} resources / {server.prompt_count} prompts
+                      {summarizeIndustrialServer(server)}
                     </p>
+                    {(stats.ready > 0 || stats.simulated > 0 || stats.blocked > 0 || stats.contractStatus) ? (
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        <Badge color={stats.ready > 0 ? "accent" : "muted"}>live {stats.ready}</Badge>
+                        <Badge color={stats.simulated > 0 ? "warning" : "muted"}>simulated {stats.simulated}</Badge>
+                        <Badge color={stats.blocked > 0 ? "error" : "accent"}>blocked {stats.blocked}</Badge>
+                        {stats.contractStatus ? (
+                          <Badge color={stats.contractReady ? "accent" : "warning"}>
+                            contract {stats.contractStatus}
+                          </Badge>
+                        ) : null}
+                      </div>
+                    ) : null}
+                        </>
+                      );
+                    })()}
                   </div>
                 ))}
               </div>

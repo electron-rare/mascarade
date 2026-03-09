@@ -21,6 +21,9 @@ Etat reel:
 - le follow-up `industrial-mcp-operator-lane` est maintenant publie aussi; il
   etend la posture operateur publique au cockpit industriel
   `agent-factory-cockpit`
+- un nouveau follow-up local `industrial-plm-generic-rest` est ouvert; il
+  etend la lane industrielle avec la posture `PLM` `generic-rest` live-ready,
+  sans encore publier le bundle
 - le repo compagnon `finetune/kicad_kic_ai` reste hors bundle `mascarade`
 
 ## Lots logiques publies
@@ -138,6 +141,39 @@ Resultat local:
 
 ## Reliquats locaux
 
+### 0. Bundle actif `industrial-plm-generic-rest`
+
+Perimetre:
+
+- `agent-factory-cockpit`: ressource MCP `plm://contract`, topologie `plm`
+  sortie du statut `blocked`, docs/runtime `PLM` recales sur la posture
+  `generic-rest` `api-key` avec fallback explicite
+- `mascarade`: enrichissement `/api/industrial/platform` et `/api/ops/summary`
+  pour faire remonter `health` + `contract` sur `plm`, plus recapitulatif
+  industriel plus riche dans `OpsHub`
+- `crazy_life`: miroir `OpsHub` aligne sur la meme carte industrielle
+
+Checks rejoues:
+
+- `cd /home/clems/agent-factory-cockpit && python3 -m unittest tests.test_topology tests.test_execution tests.test_mcp tests.test_validation -q`
+- `cd /home/clems/mascarade/api && npm run test -- src/routes/industrial.test.ts src/routes/ops.test.ts`
+- `cd /home/clems/mascarade/api && npm run build`
+- `cd /home/clems/mascarade/web && npm run build:api-public`
+- `cd /home/clems/crazy_life && npm run build`
+- `cd /home/clems/mascarade && docker compose config -q`
+- `cd /home/clems/mascarade && docker compose up -d --build core api edge-proxy agent-factory-cockpit`
+- `GET /api/industrial/platform` authentifie
+- `GET /api/ops/summary` authentifie
+- probe `Host: industrial.saillant.cc` -> `401` sans auth, `200` avec auth
+
+Etat local:
+
+- `plm` expose bien `health` + `contract` dans `/api/industrial/platform`
+- le contrat `PLM` est `live-ready` au niveau dossier/runtime, mais reste
+  `incomplete` faute d'attachement OpenAPI/Postman
+- la VM ne porte pas encore de config sandbox `PLM`, donc le runtime courant
+  remonte `simulated` et non `live`
+
 ### 1. Repo compagnon `finetune/kicad_kic_ai`
 
 - ce repo reste opere comme un companion repo independant
@@ -163,9 +199,9 @@ Les trois follow-ups operateur sont maintenant publies:
 
 Etat courant:
 
-- `mascarade`: vague locale publiee, repo-suivi ferme
+- `mascarade`: un bundle local actif `industrial-plm-generic-rest`
 - `Kill_LIFE`: repo-suivi ferme; seul `.mascarade/` reste local/exclu
-- `crazy_life`: repo-suivi ferme
+- `crazy_life`: un miroir local actif `industrial-plm-live-ready-mirror`
 
 ## Regle
 

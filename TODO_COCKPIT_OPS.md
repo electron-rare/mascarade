@@ -34,6 +34,7 @@ Le lot local est stable; ce fichier ne porte plus de blocage critique.
 - [x] Le monitor ops voit `ZeroClaw` en live, et le runtime natif a ete smoke-teste sur un appel reel via `OpenRouter`
 - [x] `Industrial Cockpit` expose comme surface operateur derriere `edge-proxy` sur `industrial.saillant.cc`, avec inventory des 7 serveurs MCP industriels visible dans `OpsHub`
 - [x] `industrial.saillant.cc/` et `industrial.saillant.cc/api/session` repondent `200` avec auth operateur; aucun port brut n'est expose pour ce cockpit
+- [x] `PLM` remonte maintenant dans la lane industrielle avec son contrat MCP explicite (`health` + `contract`) et un statut par operation `live` / `simulated` / `blocked`
 - [x] `OpsHub` distingue maintenant posture runtime, observabilite et surfaces publiques/proxifiees
 - [x] `OpsHub` n'ouvre plus les surfaces tooling sur des ports bruts; il renvoie vers les hostnames proxifies proteges
 
@@ -43,6 +44,7 @@ Le lot local est stable; ce fichier ne porte plus de blocage critique.
 - [ ] Recueillir des retours UX a froid sur `Logs` et `OpsHub`
 - [ ] Etendre les actions operateur d'`Agent Zero` uniquement si un usage concret depasse le mode copilot actuel
 - [ ] Etendre le cockpit industriel seulement si un besoin reel depasse l'inventaire/runtime/tool-proxy actuel
+- [ ] Ouvrir la vague industrielle suivante seulement si un vrai sandbox/runtime apparait pour `QMS`, `WMS` ou `DCS`
 
 ## 4. Complement optionnel
 
