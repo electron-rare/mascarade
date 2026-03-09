@@ -1,0 +1,16 @@
+services:
+  crazy-life:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        CRAZY_LIFE_BASE: ${CRAZY_LIFE_BASE:-/}
+    image: crazy-life:local
+    restart: unless-stopped
+    ports:
+      - "${CRAZY_LIFE_BIND_HOST:-127.0.0.1}:${CRAZY_LIFE_PORT:-8088}:80"
+    environment:
+      CRAZY_LIFE_API_ORIGIN: ${CRAZY_LIFE_API_ORIGIN:-http://host.docker.internal}
+      CRAZY_LIFE_PROXY_ORIGIN: ${CRAZY_LIFE_PROXY_ORIGIN:-http://host.docker.internal}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"

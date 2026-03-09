@@ -27,7 +27,7 @@ Relevant files:
 - `scripts/prereqs.sh`
 - `scripts/compose.sh`
 - `scripts/modules/ollama.sh`
-- `scripts/modules/open-webui.sh`
+- ancien module de chat UI local retire du scope actif depuis 2026-03-08
 - `core/mascarade/config.py`
 - `core/mascarade/router/providers/ollama.py`
 

@@ -5,6 +5,12 @@
 > **Date** : 2026-03-04
 > **Signature** : *L'electron rare — unstable by design*
 
+> Note:
+> ce fichier est un snapshot machine/operator, pas une source de verite pour
+> l'ownership des repos ni pour le chemin de release.
+> Le contrat multi-repo actif est fige dans
+> `/home/clems/crazy_life/docs/REPO_CARTOGRAPHY_2026-03-07.md`.
+
 ---
 
 ## 1. Zellij Sessions
@@ -98,7 +104,6 @@ Services sur `192.168.0.119` :
 |-----------|------|------|
 | zacus-ollama | 11434 | Serveur LLM local |
 | zacus-studio-ai-gateway | 8787 | AI Gateway |
-| zacus-open-webui | 3000 | Interface chat |
 | zacus-redis | 6379 | Cache & broker |
 | zacus-qdrant | 6333 | Base vectorielle |
 | zacus-postgres | 5432 | Base relationnelle + pgvector |

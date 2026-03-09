@@ -130,7 +130,7 @@ Note: cette section décrit le snapshot initial de l’audit; le statut de corre
 
 ## État Runtime et Performance (non intrusif)
 - Consommation notable:
-  - `mascarade-open-webui` ~642 MiB
+  - ancienne interface chat locale ~642 MiB
   - `mascarade-langfuse` ~479 MiB
   - `mascarade-clickhouse` CPU ~9.79%, I/O disque important
 - Preuve:

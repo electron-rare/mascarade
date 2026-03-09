@@ -15,6 +15,10 @@ module_dify_compose() {
   dify_env+="      DB_DATABASE: mascarade\n"
   dify_env+="      REDIS_HOST: redis\n"
   dify_env+="      REDIS_PORT: 6379\n"
+  dify_env+="      APP_WEB_URL: \${DIFY_PUBLIC_ORIGIN:-https://dify.localhost}\n"
+  dify_env+="      CONSOLE_WEB_URL: \${DIFY_PUBLIC_ORIGIN:-https://dify.localhost}\n"
+  dify_env+="      CONSOLE_API_URL: \${DIFY_PUBLIC_ORIGIN:-https://dify.localhost}\n"
+  dify_env+="      SERVICE_API_URL: \${DIFY_PUBLIC_ORIGIN:-https://dify.localhost}\n"
   dify_env+="      OPENDAL_SCHEME: fs\n"
   dify_env+="      OPENDAL_ROOT: /app/api/storage\n"
   dify_env+="      OPENDAL_FS_ROOT: /app/api/storage"
@@ -51,6 +55,7 @@ module_dify_compose() {
   echo "      - \"\${PUBLISH_BIND_HOST:-0.0.0.0}:\${DIFY_WEB_PORT}:3000\""
   echo "    environment:"
   echo -e "$dify_env"
+  echo "      APP_API_URL: \${DIFY_PUBLIC_ORIGIN:-https://dify.localhost}"
   if svc_selected "postgres" || svc_selected "redis"; then
     echo "    depends_on:"
     if svc_selected "postgres"; then

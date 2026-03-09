@@ -66,6 +66,9 @@ export type OpsTraceEvent = {
   content_excerpt?: string | null;
   provider?: string | null;
   model?: string | null;
+  routing_role?: string | null;
+  routing_provider?: string | null;
+  routing_model?: string | null;
   token_usage?: { input_tokens?: number; output_tokens?: number } | null;
   error?: string | null;
   message: string;
@@ -84,6 +87,35 @@ export type OpsLogEntry = {
   to_agent?: string | null;
   event_type?: string;
   labels?: Record<string, string>;
+};
+
+export type OpsMcpServerStatus = {
+  ok: boolean;
+  status: string;
+  requested_runtime?: string | null;
+  runtime_mode?: string | null;
+  protocol_version?: string | null;
+  server_name?: string | null;
+  tool_count: number;
+  resource_count: number;
+  prompt_count: number;
+  latency_ms?: number | null;
+  checks?: string[];
+  secret_configured?: boolean | null;
+  token_configured?: boolean | null;
+  live_requested?: boolean | null;
+  live_validation?: string | null;
+  error?: string | null;
+};
+
+export type OpsMcpSummary = OpsMcpServerStatus & {
+  aggregate_status?: string;
+  primary_server?: string;
+  primary?: OpsMcpServerStatus | null;
+  server_count?: number;
+  servers_ok?: number;
+  degraded_servers?: string[];
+  servers?: Record<string, OpsMcpServerStatus>;
 };
 
 export type OpsSummary = {
@@ -108,10 +140,20 @@ export type OpsSummary = {
     docker_logs?: boolean;
     machine_logs: boolean;
     docker_events: boolean;
+    gpu?: boolean;
     loki_history: boolean;
     otel: boolean;
     agentsight: boolean;
   };
+  gpu?: OpsSourceStatus | null;
+  cluster?: {
+    enabled: boolean;
+    node_id?: string | null;
+    role?: string | null;
+    peers_total: number;
+    peers_ok: number;
+  };
+  mcp?: OpsMcpSummary | null;
   ops_agent?: Record<string, unknown> | null;
 };
 
@@ -128,6 +170,9 @@ export const opsApi = {
     agent_name?: string;
     event_type?: string;
     service?: string;
+    routing_role?: string;
+    routing_provider?: string;
+    routing_model?: string;
   }) => {
     const search = new URLSearchParams();
     if (params?.limit) search.set("limit", String(params.limit));
@@ -137,6 +182,9 @@ export const opsApi = {
     if (params?.agent_name) search.set("agent_name", params.agent_name);
     if (params?.event_type) search.set("event_type", params.event_type);
     if (params?.service) search.set("service", params.service);
+    if (params?.routing_role) search.set("routing_role", params.routing_role);
+    if (params?.routing_provider) search.set("routing_provider", params.routing_provider);
+    if (params?.routing_model) search.set("routing_model", params.routing_model);
     const suffix = search.toString() ? `?${search.toString()}` : "";
     return get<{ entries: OpsLogEntry[]; count: number; timestamp: string }>(
       `/api/ops/logs/recent${suffix}`,
@@ -152,6 +200,9 @@ export const opsApi = {
     service?: string;
     q?: string;
     since?: string;
+    routing_role?: string;
+    routing_provider?: string;
+    routing_model?: string;
   }) => {
     const search = new URLSearchParams();
     if (params?.limit) search.set("limit", String(params.limit));
@@ -163,6 +214,9 @@ export const opsApi = {
     if (params?.service) search.set("service", params.service);
     if (params?.q) search.set("q", params.q);
     if (params?.since) search.set("since", params.since);
+    if (params?.routing_role) search.set("routing_role", params.routing_role);
+    if (params?.routing_provider) search.set("routing_provider", params.routing_provider);
+    if (params?.routing_model) search.set("routing_model", params.routing_model);
     const suffix = search.toString() ? `?${search.toString()}` : "";
     return get<{ entries: OpsLogEntry[]; count: number; timestamp: string; source: string }>(
       `/api/ops/logs/query${suffix}`,
@@ -208,8 +262,11 @@ export const opsApi = {
     );
     search.set(
       "include_events",
-      String(source === "all" || source === "docker-event"),
+      String(source === "docker-event"),
     );
+    search.set("backfill", source === "docker-event" ? "20" : "12");
+    search.set("live_limit", source === "docker-event" ? "24" : "18");
+    search.set("poll_interval_ms", "1500");
 
     return `/api/ops/logs/stream?${search.toString()}`;
   },

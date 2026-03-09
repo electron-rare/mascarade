@@ -5,14 +5,11 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-import time
 from contextlib import asynccontextmanager
-from dataclasses import dataclass
 from typing import Literal
-from uuid import uuid4
 
 from fastapi import APIRouter, Depends, FastAPI, HTTPException, Query, Request
-from fastapi.responses import Response, StreamingResponse
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from mascarade.agents import Agent, AgentRegistry
@@ -23,13 +20,18 @@ from mascarade.auth import (
     remove_api_key,
     require_auth,
 )
+from mascarade.cluster import ClusterManager, require_cluster_auth
 from mascarade.config import settings
-from mascarade.device_voice import DevicePlayerEvent, DeviceVoiceService
 from mascarade.integrations.comfyui import ComfyUIClient
-from mascarade.integrations.notion import NotionClient
+from mascarade.integrations.notion import NotionClient, notion_auth_configured
 from mascarade.observability import AgentTraceBuffer, iso_utc_now
 from mascarade.orchestrator import Orchestrator
 from mascarade.orchestrator.engine import ExecutionMode
+from mascarade.provider_admin import (
+    PROVIDER_REGISTRY,
+    get_providers_status,
+    update_provider_keys,
+)
 from mascarade.router import Router
 from mascarade.router.router import Strategy
 
@@ -42,18 +44,23 @@ async def lifespan(app: FastAPI):
     registry = AgentRegistry()
     register_default_skills(registry)
     trace_buffer = AgentTraceBuffer()
+    cluster = ClusterManager(
+        router=router,
+        agents_count_provider=lambda: len(registry),
+    )
     orchestrator = Orchestrator(
         router=router,
         registry=registry,
         trace_buffer=trace_buffer,
+        cluster=cluster,
     )
 
     app.state.router = router
     app.state.registry = registry
     app.state.orchestrator = orchestrator
     app.state.trace_buffer = trace_buffer
-    app.state.device_voice = DeviceVoiceService(router=router)
-    app.state.notion = NotionClient() if settings.notion_api_key else None
+    app.state.cluster = cluster
+    app.state.notion = NotionClient() if notion_auth_configured() else None
     app.state.comfyui = ComfyUIClient() if settings.comfyui_url else None
 
     registry.load()
@@ -87,30 +94,46 @@ class SendRequest(BaseModel):
     max_tokens: int = Field(default=4096, gt=0, le=128000)
 
 
-class OpenAIChatCompletionRequest(BaseModel):
-    model: str | None = Field(default=None, max_length=200)
-    messages: list[Message] = Field(min_length=1, max_length=200)
-    response_format: dict | None = Field(default=None)
-    temperature: float = Field(default=0.7, ge=0.0, le=2.0)
-    max_tokens: int = Field(default=4096, gt=0, le=128000)
-    stream: bool = False
-
-
 class AgentCreate(BaseModel):
     name: str = Field(min_length=1, max_length=100)
     description: str = Field(max_length=1000)
     system_prompt: str = Field(max_length=50_000)
     preferred_provider: str | None = Field(default=None, max_length=50)
     preferred_model: str | None = Field(default=None, max_length=100)
+    preferred_role: str | None = Field(default=None, max_length=100)
     strategy: Strategy = Strategy.BEST
     temperature: float = Field(default=0.7, ge=0.0, le=2.0)
     max_tokens: int = Field(default=4096, gt=0, le=128000)
+
+
+class AgentUpdate(BaseModel):
+    description: str = Field(max_length=1000)
+    system_prompt: str = Field(max_length=50_000)
+    preferred_provider: str | None = Field(default=None, max_length=50)
+    preferred_model: str | None = Field(default=None, max_length=100)
+    preferred_role: str | None = Field(default=None, max_length=100)
+    strategy: Strategy = Strategy.BEST
+    temperature: float = Field(default=0.7, ge=0.0, le=2.0)
+    max_tokens: int = Field(default=4096, gt=0, le=128000)
+
+
+class AgentRoutingOverride(BaseModel):
+    preferred_role: str | None = Field(default=None, max_length=100)
+    preferred_provider: str | None = Field(default=None, max_length=50)
+    preferred_model: str | None = Field(default=None, max_length=100)
 
 
 class TaskRequest(BaseModel):
     agent_names: list[str] = Field(max_length=20)
     prompt: str = Field(min_length=1, max_length=100_000)
     mode: ExecutionMode = ExecutionMode.SEQUENTIAL
+    routing_overrides: dict[str, AgentRoutingOverride] = Field(default_factory=dict)
+
+
+class ClusterForwardSendRequest(SendRequest):
+    peer_id: str | None = Field(default=None, max_length=100)
+    preferred_role: str | None = Field(default=None, max_length=100)
+    allow_local: bool = True
 
 
 class NotionAppendRequest(BaseModel):
@@ -143,101 +166,6 @@ class ComfyUIWorkflowRequest(BaseModel):
     workflow: dict
 
 
-@dataclass(frozen=True)
-class ChatCompletionTarget:
-    strategy: Strategy
-    provider: str | None
-    model: str | None
-
-
-def _provider_unavailable_detail(provider_name: str) -> dict[str, object]:
-    return {
-        "error": f"Provider '{provider_name}' is not configured or unavailable.",
-        "providers": app.state.router.available_providers,
-    }
-
-
-def _resolve_chat_completion_target(raw_model: str | None) -> ChatCompletionTarget:
-    model = (raw_model or "").strip()
-    available = set(app.state.router.available_providers)
-    supported = set(app.state.router.supported_provider_names)
-
-    if model:
-        provider_name, separator, model_name = model.partition(":")
-        if separator:
-            if not provider_name or not model_name:
-                raise HTTPException(
-                    status_code=400,
-                    detail="Invalid model format. Use provider:model-id.",
-                )
-            if provider_name not in supported:
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Unsupported model prefix '{provider_name}'.",
-                )
-            if provider_name not in available:
-                raise HTTPException(
-                    status_code=503,
-                    detail=_provider_unavailable_detail(provider_name),
-                )
-            return ChatCompletionTarget(
-                strategy=Strategy.SPECIFIC,
-                provider=provider_name,
-                model=model_name,
-            )
-
-    default_provider = settings.default_provider.strip()
-    default_model = settings.default_model.strip() or None
-    if default_provider:
-        if default_provider not in supported:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Unsupported default provider '{default_provider}'.",
-            )
-        if default_provider not in available:
-            raise HTTPException(
-                status_code=503,
-                detail=_provider_unavailable_detail(default_provider),
-            )
-        return ChatCompletionTarget(
-            strategy=Strategy.SPECIFIC,
-            provider=default_provider,
-            model=default_model,
-        )
-
-    return ChatCompletionTarget(
-        strategy=Strategy.BEST,
-        provider=None,
-        model=default_model or model or None,
-    )
-
-
-def _openai_usage(usage: dict[str, int] | None) -> dict[str, int]:
-    source = usage or {}
-    prompt_tokens = int(source.get("input_tokens", 0))
-    completion_tokens = int(source.get("output_tokens", 0))
-    total_tokens = int(source.get("total_tokens", prompt_tokens + completion_tokens))
-    if total_tokens < prompt_tokens + completion_tokens:
-        total_tokens = prompt_tokens + completion_tokens
-    return {
-        "prompt_tokens": prompt_tokens,
-        "completion_tokens": completion_tokens,
-        "total_tokens": total_tokens,
-    }
-
-
-def _reported_model_name(
-    request_model: str | None,
-    target: ChatCompletionTarget,
-    provider_model: str,
-) -> str:
-    if request_model:
-        prefix = f"{target.provider}:"
-        if target.provider and request_model.startswith(prefix):
-            return request_model
-    return provider_model
-
-
 # --- Route publique ---
 
 
@@ -258,9 +186,32 @@ async def health():
 # --- Routes protegees ---
 
 protected = APIRouter(dependencies=[Depends(require_auth)])
+cluster_protected = APIRouter(
+    prefix="/cluster/node",
+    dependencies=[Depends(require_cluster_auth)],
+)
+
+
+def _serialize_agent(agent: Agent) -> dict[str, object]:
+    return {
+        "name": agent.name,
+        "description": agent.description,
+        "system_prompt": agent.system_prompt,
+        "preferred_provider": agent.preferred_provider,
+        "preferred_model": agent.preferred_model,
+        "preferred_role": agent.preferred_role,
+        "strategy": agent.strategy.value,
+        "temperature": agent.temperature,
+        "max_tokens": agent.max_tokens,
+        "builtin": app.state.registry.is_builtin(agent.name),
+    }
 
 
 # --- Gestion des cles API ---
+
+
+class ProviderKeyUpdate(BaseModel):
+    keys: dict[str, str] = Field(description="Map ENV_VAR -> value")
 
 
 class APIKeyCreate(BaseModel):
@@ -308,9 +259,7 @@ async def send(req: SendRequest):
         )
     except ValueError as exc:
         logger.warning("Send request rejected: %s", exc)
-        raise HTTPException(
-            status_code=400, detail="Invalid request parameters"
-        ) from exc
+        raise HTTPException(status_code=400, detail="Invalid request parameters") from exc
     return {
         "content": response.content,
         "model": response.model,
@@ -319,117 +268,29 @@ async def send(req: SendRequest):
     }
 
 
-@protected.post("/v1/chat/completions")
-async def openai_chat_completions(req: OpenAIChatCompletionRequest):
-    if req.stream:
-        raise HTTPException(
-            status_code=400,
-            detail="Streaming is not supported on this endpoint.",
-        )
-
-    target = _resolve_chat_completion_target(req.model)
-    messages = [m.model_dump() for m in req.messages]
-    try:
-        response = await app.state.router.send(
-            messages,
-            strategy=target.strategy,
-            provider=target.provider,
-            model=target.model,
-            response_format=req.response_format,
-            temperature=req.temperature,
-            max_tokens=req.max_tokens,
-        )
-    except ValueError as exc:
-        logger.warning("Chat completions request rejected: %s", exc)
-        raise HTTPException(status_code=400, detail="Invalid request parameters") from exc
-    except RuntimeError as exc:
-        logger.warning("Chat completions request failed: %s", exc)
-        raise HTTPException(status_code=502, detail=str(exc)) from exc
-
-    return {
-        "id": f"chatcmpl-{uuid4().hex}",
-        "object": "chat.completion",
-        "created": int(time.time()),
-        "model": _reported_model_name(req.model, target, response.model),
-        "choices": [
-            {
-                "index": 0,
-                "message": {
-                    "role": "assistant",
-                    "content": response.content,
-                },
-                "finish_reason": "stop",
-            }
-        ],
-        "usage": _openai_usage(response.usage),
-    }
-
-
-@protected.post("/device/v1/player/event")
-async def device_player_event(req: DevicePlayerEvent):
-    state = app.state.device_voice.record_player_event(req)
-    return {"status": "ok", "device_id": req.device_id, "state": state.model_dump()}
-
-
-@protected.post("/device/v1/voice/session")
-async def device_voice_session(request: Request):
-    form = await request.form()
-    device_id = str(form.get("device_id") or "").strip()
-    mode = str(form.get("mode") or "idle").strip().lower()
-    current_media_raw = str(form.get("current_media") or "{}").strip()
-    upload = form.get("audio") or form.get("audio.wav")
-
-    if not device_id:
-        raise HTTPException(status_code=400, detail="device_id is required")
-    if mode not in {"idle", "mp3", "radio"}:
-        raise HTTPException(status_code=400, detail="Unsupported mode")
-    if upload is None or not hasattr(upload, "read"):
-        raise HTTPException(
-            status_code=400, detail="multipart field 'audio' or 'audio.wav' is required"
-        )
-
-    try:
-        current_media_payload = json.loads(current_media_raw)
-    except json.JSONDecodeError as exc:
-        raise HTTPException(status_code=400, detail="current_media must be valid JSON") from exc
-
-    if not isinstance(current_media_payload, dict):
-        raise HTTPException(status_code=400, detail="current_media must decode to an object")
-
-    filename = getattr(upload, "filename", None) or "audio.wav"
-    content_type = getattr(upload, "content_type", None) or "audio/wav"
-    if "wav" not in content_type and not filename.lower().endswith(".wav"):
-        raise HTTPException(status_code=415, detail="Only WAV uploads are supported")
-
-    audio_bytes = await upload.read()
-    if not audio_bytes:
-        raise HTTPException(status_code=400, detail="Audio payload is empty")
-    if len(audio_bytes) > settings.device_voice_max_audio_bytes:
-        raise HTTPException(status_code=413, detail="Audio payload is too large")
-
-    result = await app.state.device_voice.handle_session(
-        device_id=device_id,
-        mode=mode,
-        current_media_payload=current_media_payload,
-        audio_bytes=audio_bytes,
-        filename=filename,
-        content_type=content_type,
-        request_base_url=str(request.base_url),
-    )
-    return result.model_dump()
-
-
-@protected.get("/device/v1/voice/replies/{reply_id}.wav")
-async def device_voice_reply_audio(reply_id: str):
-    stored = app.state.device_voice.get_reply_audio(reply_id)
-    if stored is None:
-        raise HTTPException(status_code=404, detail="Reply audio not found")
-    return Response(content=stored.payload, media_type=stored.content_type)
-
-
 @protected.get("/providers")
 async def list_providers():
     return {"providers": app.state.router.available_providers}
+
+
+@protected.get("/providers/status")
+async def providers_status():
+    return {"providers": get_providers_status(app.state.router)}
+
+
+@protected.put("/providers/{name}/key")
+async def update_provider(name: str, req: ProviderKeyUpdate):
+    if name not in PROVIDER_REGISTRY:
+        raise HTTPException(status_code=404, detail=f"Unknown provider: {name}")
+    result = update_provider_keys(
+        name,
+        req.keys,
+        app.state.router,
+        persist_env=False,
+    )
+    if "error" in result:
+        raise HTTPException(status_code=400, detail=result["error"])
+    return result
 
 
 @protected.get("/providers/bedrock/models")
@@ -530,23 +391,52 @@ async def create_agent(req: AgentCreate):
         system_prompt=req.system_prompt,
         preferred_provider=req.preferred_provider,
         preferred_model=req.preferred_model,
+        preferred_role=req.preferred_role,
         strategy=req.strategy,
         temperature=req.temperature,
         max_tokens=req.max_tokens,
     )
     app.state.registry.register(agent)
     app.state.registry.save()
-    return {"name": agent.name, "description": agent.description}
+    return _serialize_agent(agent)
 
 
 @protected.get("/agents")
 async def list_agents():
-    return {
-        "agents": [
-            {"name": a.name, "description": a.description}
-            for a in app.state.registry.list()
-        ]
-    }
+    return {"agents": [_serialize_agent(agent) for agent in app.state.registry.list()]}
+
+
+@protected.get("/agents/{name}")
+async def get_agent(name: str):
+    try:
+        agent = app.state.registry.get(name)
+    except KeyError:
+        raise HTTPException(status_code=404, detail=f"Agent '{name}' not found") from None
+    return _serialize_agent(agent)
+
+
+@protected.put("/agents/{name}")
+async def update_agent(name: str, req: AgentUpdate):
+    try:
+        agent = app.state.registry.get(name)
+    except KeyError:
+        raise HTTPException(status_code=404, detail=f"Agent '{name}' not found") from None
+    if app.state.registry.is_builtin(name):
+        raise HTTPException(
+            status_code=403,
+            detail="Built-in agents are read-only; create a dynamic agent from the UI to edit routing.",
+        )
+
+    agent.description = req.description
+    agent.system_prompt = req.system_prompt
+    agent.preferred_provider = req.preferred_provider
+    agent.preferred_model = req.preferred_model
+    agent.preferred_role = req.preferred_role
+    agent.strategy = req.strategy
+    agent.temperature = req.temperature
+    agent.max_tokens = req.max_tokens
+    app.state.registry.save()
+    return _serialize_agent(agent)
 
 
 @protected.post("/agents/{name}/run")
@@ -557,9 +447,7 @@ async def run_agent(name: str, req: SendRequest):
     try:
         agent = app.state.registry.get(name)
     except KeyError:
-        raise HTTPException(
-            status_code=404, detail=f"Agent '{name}' not found"
-        ) from None
+        raise HTTPException(status_code=404, detail=f"Agent '{name}' not found") from None
 
     messages = [m.model_dump() for m in req.messages]
     prompt = messages[-1]["content"]
@@ -583,6 +471,10 @@ async def orchestrate(req: TaskRequest):
             req.agent_names,
             req.prompt,
             mode=req.mode,
+            routing_overrides={
+                agent_name: override.model_dump()
+                for agent_name, override in req.routing_overrides.items()
+            },
         )
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=f"Agent not found: {exc}") from exc
@@ -596,10 +488,75 @@ async def orchestrate(req: TaskRequest):
                 "content": r.response.content,
                 "model": r.response.model,
                 "provider": r.response.provider,
+                "remote": r.remote,
+                "selected_by": r.selected_by,
+                "peer_id": r.peer_id,
+                "node_id": r.node_id,
+                "role": r.role,
                 **({"error": r.error} if r.error else {}),
             }
             for r in run.results
-        ]
+        ],
+    }
+
+
+# --- Cluster / multi-node ---
+
+
+@protected.get("/cluster/identity")
+async def cluster_identity():
+    return app.state.cluster.local_identity().to_dict()
+
+
+@protected.get("/cluster/peers")
+async def cluster_peers():
+    peers = await app.state.cluster.probe_peers()
+    return {
+        "node": app.state.cluster.local_identity().to_dict(),
+        "peers": [peer.to_dict() for peer in peers],
+    }
+
+
+@protected.post("/cluster/forward/send")
+async def cluster_forward_send(req: ClusterForwardSendRequest):
+    payload = req.model_dump(exclude={"peer_id", "preferred_role", "allow_local"})
+    return await app.state.cluster.forward_send(
+        peer_id=req.peer_id,
+        preferred_role=req.preferred_role,
+        allow_local=req.allow_local,
+        payload=payload,
+    )
+
+
+@cluster_protected.get("/identity")
+async def cluster_node_identity():
+    return app.state.cluster.local_identity().to_dict()
+
+
+@cluster_protected.post("/send")
+async def cluster_node_send(req: SendRequest):
+    messages = [m.model_dump() for m in req.messages]
+    try:
+        response = await app.state.router.send(
+            messages,
+            strategy=req.strategy,
+            provider=req.provider,
+            model=req.model,
+            system=req.system,
+            response_format=req.response_format,
+            temperature=req.temperature,
+            max_tokens=req.max_tokens,
+        )
+    except ValueError as exc:
+        logger.warning("Cluster send request rejected: %s", exc)
+        raise HTTPException(status_code=400, detail="Invalid request parameters") from exc
+
+    return {
+        "node_id": settings.node_id,
+        "content": response.content,
+        "model": response.model,
+        "provider": response.provider,
+        "usage": response.usage,
     }
 
 
@@ -691,7 +648,10 @@ async def run_agent_traces(
 def _require_notion() -> NotionClient:
     if app.state.notion is None:
         raise HTTPException(
-            status_code=503, detail="Notion non configure (NOTION_API_KEY manquant)"
+            status_code=503,
+            detail=(
+                "Notion non configure " "(NOTION_API_KEY ou credentials OAuth Notion manquants)"
+            ),
         )
     return app.state.notion
 
@@ -699,9 +659,7 @@ def _require_notion() -> NotionClient:
 @protected.get("/notion/search")
 async def notion_search(q: str):
     if len(q) > 1000:
-        raise HTTPException(
-            status_code=400, detail="Search query too long (max 1000 chars)"
-        )
+        raise HTTPException(status_code=400, detail="Search query too long (max 1000 chars)")
     client = _require_notion()
     results = await client.search(q)
     return {"results": results}
@@ -733,9 +691,7 @@ async def run_notion_scribe_and_push(req: NotionScribeRequest):
     try:
         agent = app.state.registry.get("notion-scribe")
     except KeyError:
-        raise HTTPException(
-            status_code=404, detail="Agent 'notion-scribe' not found"
-        ) from None
+        raise HTTPException(status_code=404, detail="Agent 'notion-scribe' not found") from None
 
     messages = [m.model_dump() for m in req.messages]
     prompt = messages[-1]["content"]
@@ -764,9 +720,7 @@ async def run_notion_scribe_and_push(req: NotionScribeRequest):
 
 def _require_comfyui() -> ComfyUIClient:
     if app.state.comfyui is None:
-        raise HTTPException(
-            status_code=503, detail="ComfyUI non configure (COMFYUI_URL manquant)"
-        )
+        raise HTTPException(status_code=503, detail="ComfyUI non configure (COMFYUI_URL manquant)")
     return app.state.comfyui
 
 
@@ -808,9 +762,7 @@ async def comfyui_generate(req: ComfyUIGenerateRequest):
 @protected.post("/comfyui/workflow")
 async def comfyui_workflow(req: ComfyUIWorkflowRequest):
     if not req.workflow or not isinstance(req.workflow, dict):
-        raise HTTPException(
-            status_code=400, detail="Workflow must be a non-empty object"
-        )
+        raise HTTPException(status_code=400, detail="Workflow must be a non-empty object")
     if len(str(req.workflow)) > 500_000:
         raise HTTPException(status_code=400, detail="Workflow payload too large")
     client = _require_comfyui()
@@ -832,9 +784,7 @@ async def comfyui_image(filename: str, subfolder: str = "", type: str = "output"
     try:
         image_data = await client.get_image(filename, subfolder, type)
     except ValueError:
-        raise HTTPException(
-            status_code=400, detail="Invalid image path parameters"
-        ) from None
+        raise HTTPException(status_code=400, detail="Invalid image path parameters") from None
     return Response(content=image_data, media_type="image/png")
 
 
@@ -846,6 +796,7 @@ async def comfyui_interrupt():
 
 
 app.include_router(protected)
+app.include_router(cluster_protected)
 
 
 def start():

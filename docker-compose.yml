@@ -17,10 +17,8 @@ services:
       CORE_PORT: ${CORE_PORT}
       DEFAULT_PROVIDER: ${DEFAULT_PROVIDER}
       DEFAULT_MODEL: ${DEFAULT_MODEL}
-      OTEL_ENABLED: ${OTEL_ENABLED:-true}
-      OTEL_COLLECTOR_HTTP_ENDPOINT: ${OTEL_COLLECTOR_HTTP_ENDPOINT:-http://otel-collector:4318}
-      OPS_AGENT_URL: ${OPS_AGENT_URL:-http://ops-agent:9200}
-      LOKI_URL: ${LOKI_URL:-http://loki:3100}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       - core-data:/app/data
     networks:
@@ -39,12 +37,14 @@ services:
     environment:
       CORE_URL: ${CORE_URL}
       API_PORT: 3000
-      OTEL_ENABLED: ${OTEL_ENABLED:-true}
-      OTEL_COLLECTOR_HTTP_ENDPOINT: ${OTEL_COLLECTOR_HTTP_ENDPOINT:-http://otel-collector:4318}
-      OPS_AGENT_URL: ${OPS_AGENT_URL:-http://ops-agent:9200}
-      LOKI_URL: ${LOKI_URL:-http://loki:3100}
     depends_on:
       - core
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"fetch('http://127.0.0.1:3000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
     networks:
       - mascarade-network
 
@@ -144,6 +144,14 @@ services:
         condition: service_healthy
       minio:
         condition: service_healthy
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - IP=$$(hostname -i | awk '{print $$1}') && wget -q --spider "http://$$IP:3000/"
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
     networks:
       - mascarade-network
 
@@ -194,6 +202,58 @@ services:
     networks:
       - mascarade-network
 
+  firecrawl:
+    image: ${FIRECRAWL_IMAGE:-mcp/firecrawl@sha256:e6676bd31d1806574d931b7a7b7b6fba953c031853e80adc1ec8115c17ab81ca}
+    container_name: mascarade-firecrawl
+    restart: unless-stopped
+    ports:
+      - "${PUBLISH_BIND_HOST:-0.0.0.0}:${FIRECRAWL_PORT:-3400}:3000"
+    env_file:
+      - .env
+    environment:
+      HTTP_STREAMABLE_SERVER: "true"
+      PORT: 3000
+      HOST: ${FIRECRAWL_HOST:-0.0.0.0}
+      FIRECRAWL_API_KEY: ${FIRECRAWL_API_KEY:-}
+      FIRECRAWL_API_URL: ${FIRECRAWL_API_URL:-}
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"if (!process.env.FIRECRAWL_API_KEY && !process.env.FIRECRAWL_API_URL) process.exit(1); const net = require('net'); const socket = net.connect(3000, '127.0.0.1'); socket.on('connect', () => { socket.end(); process.exit(0); }); socket.on('error', () => process.exit(1)); setTimeout(() => process.exit(1), 3000);\""]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    networks:
+      - mascarade-network
+
+  mem0:
+    image: ${MEM0_IMAGE:-mem0/openmemory-mcp:latest}
+    container_name: mascarade-mem0
+    restart: unless-stopped
+    ports:
+      - "${PUBLISH_BIND_HOST:-0.0.0.0}:${MEM0_PORT:-3300}:8765"
+    env_file:
+      - .env
+    environment:
+      USER: ${MEM0_USER:-mascarade}
+      OPENAI_API_KEY: ${MEM0_OPENAI_API_KEY:-sk-mem0-local}
+      OPENAI_API_BASE: ${MEM0_OPENAI_BASE_URL:-http://litellm:4000}
+      OPENAI_BASE_URL: ${MEM0_OPENAI_BASE_URL:-http://litellm:4000}
+      QDRANT_HOST: ${MEM0_QDRANT_HOST:-qdrant}
+      QDRANT_PORT: ${MEM0_QDRANT_PORT:-6333}
+    depends_on:
+      litellm:
+        condition: service_healthy
+      qdrant:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import socket; sock = socket.create_connection(('127.0.0.1', 8765), 3); sock.close()\""]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 25s
+    networks:
+      - mascarade-network
+
   dify-api:
     image: ${DIFY_API_IMAGE:-langgenius/dify-api@sha256:5f622b4d0b39bdc6d3b401063cfb60962fa92dcc63f55daccec138f98b260e67}
     container_name: mascarade-dify-api
@@ -208,6 +268,10 @@ services:
       DB_DATABASE: mascarade
       REDIS_HOST: redis
       REDIS_PORT: 6379
+      APP_WEB_URL: ${DIFY_PUBLIC_ORIGIN:-https://dify.localhost}
+      CONSOLE_WEB_URL: ${DIFY_PUBLIC_ORIGIN:-https://dify.localhost}
+      CONSOLE_API_URL: ${DIFY_PUBLIC_ORIGIN:-https://dify.localhost}
+      SERVICE_API_URL: ${DIFY_PUBLIC_ORIGIN:-https://dify.localhost}
       OPENDAL_SCHEME: fs
       OPENDAL_ROOT: /app/api/storage
       OPENDAL_FS_ROOT: /app/api/storage
@@ -232,9 +296,14 @@ services:
       DB_DATABASE: mascarade
       REDIS_HOST: redis
       REDIS_PORT: 6379
+      APP_WEB_URL: ${DIFY_PUBLIC_ORIGIN:-https://dify.localhost}
+      CONSOLE_WEB_URL: ${DIFY_PUBLIC_ORIGIN:-https://dify.localhost}
+      CONSOLE_API_URL: ${DIFY_PUBLIC_ORIGIN:-https://dify.localhost}
+      SERVICE_API_URL: ${DIFY_PUBLIC_ORIGIN:-https://dify.localhost}
       OPENDAL_SCHEME: fs
       OPENDAL_ROOT: /app/api/storage
       OPENDAL_FS_ROOT: /app/api/storage
+      APP_API_URL: ${DIFY_PUBLIC_ORIGIN:-https://dify.localhost}
     depends_on:
       postgres:
         condition: service_healthy
@@ -255,6 +324,10 @@ services:
       DB_DATABASE: mascarade
       REDIS_HOST: redis
       REDIS_PORT: 6379
+      APP_WEB_URL: ${DIFY_PUBLIC_ORIGIN:-https://dify.localhost}
+      CONSOLE_WEB_URL: ${DIFY_PUBLIC_ORIGIN:-https://dify.localhost}
+      CONSOLE_API_URL: ${DIFY_PUBLIC_ORIGIN:-https://dify.localhost}
+      SERVICE_API_URL: ${DIFY_PUBLIC_ORIGIN:-https://dify.localhost}
       OPENDAL_SCHEME: fs
       OPENDAL_ROOT: /app/api/storage
       OPENDAL_FS_ROOT: /app/api/storage
@@ -305,22 +378,6 @@ services:
     networks:
       - mascarade-network
 
-  open-webui:
-    image: ${OPEN_WEBUI_IMAGE:-ghcr.io/open-webui/open-webui@sha256:bb3f0281554bf05a9d505ffb5a5f067ab53e13ac772eb4ea3077a92ddc64600e}
-    container_name: mascarade-open-webui
-    restart: unless-stopped
-    ports:
-      - "${PUBLISH_BIND_HOST:-0.0.0.0}:${OPEN_WEBUI_PORT}:8080"
-    depends_on:
-      ollama:
-        condition: service_healthy
-    environment:
-      OLLAMA_BASE_URL: http://ollama:11434
-    volumes:
-      - open-webui-data:/app/backend/data
-    networks:
-      - mascarade-network
-
   edge-proxy:
     build:
       context: .
@@ -328,8 +385,8 @@ services:
     container_name: mascarade-edge-proxy
     restart: unless-stopped
     ports:
-      - "${EDGE_PROXY_BIND_HOST:-0.0.0.0}:${EDGE_PROXY_HTTP_PORT}:80"
-      - "${EDGE_PROXY_BIND_HOST:-0.0.0.0}:${EDGE_PROXY_HTTPS_PORT}:443"
+      - "${EDGE_PROXY_BIND_HOST:-127.0.0.1}:${EDGE_PROXY_HTTP_PORT}:80"
+      - "${EDGE_PROXY_BIND_HOST:-127.0.0.1}:${EDGE_PROXY_HTTPS_PORT}:443"
     env_file:
       - .env
     volumes:
@@ -343,6 +400,33 @@ services:
       timeout: 5s
       retries: 10
       start_period: 10s
+    networks:
+      - mascarade-network
+
+  ops-agent:
+    build:
+      context: .
+      dockerfile: deploy/Dockerfile.ops-agent
+    container_name: mascarade-ops-agent
+    restart: unless-stopped
+    ports:
+      - "${PUBLISH_BIND_HOST:-0.0.0.0}:${OPS_AGENT_PORT}:9200"
+    env_file:
+      - .env
+    environment:
+      OPS_AGENT_PORT: 9200
+      AGENTSIGHT_URL: ${AGENTSIGHT_URL:-}
+      LOKI_URL: ${LOKI_URL:-http://loki:3100}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /var/log/journal:/var/log/journal:ro
+      - /run/log/journal:/run/log/journal:ro
+      - /etc/machine-id:/etc/machine-id:ro
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:9200/health')\""]
+      interval: 15s
+      timeout: 5s
+      retries: 10
     networks:
       - mascarade-network
 
@@ -398,7 +482,9 @@ services:
       timeout: 5s
       retries: 5
     networks:
-      - mascarade-network
+      mascarade-network:
+        aliases:
+          - mem0_store
 
   grafana:
     image: ${GRAFANA_IMAGE:-grafana/grafana@sha256:b0ae311af06228bcfd4a620504b653db80f5b91e94dc3dc2a5b7dab202bcde20}
@@ -408,6 +494,7 @@ services:
       - "${PUBLISH_BIND_HOST:-0.0.0.0}:${GRAFANA_PORT}:3000"
     volumes:
       - grafana-data:/var/lib/grafana
+      - ./deploy/grafana/provisioning:/etc/grafana/provisioning:ro
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://localhost:3000/api/health >/dev/null"]
       interval: 15s
@@ -432,40 +519,13 @@ services:
     networks:
       - mascarade-network
 
-  ops-agent:
-    build:
-      context: .
-      dockerfile: deploy/Dockerfile.ops-agent
-    container_name: mascarade-ops-agent
-    restart: unless-stopped
-    ports:
-      - "${PUBLISH_BIND_HOST:-0.0.0.0}:${OPS_AGENT_PORT:-9200}:9200"
-    env_file:
-      - .env
-    environment:
-      OPS_AGENT_PORT: 9200
-      AGENTSIGHT_URL: ${AGENTSIGHT_URL:-}
-      LOKI_URL: ${LOKI_URL:-http://loki:3100}
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-      - /var/log/journal:/var/log/journal:ro
-      - /run/log/journal:/run/log/journal:ro
-      - /etc/machine-id:/etc/machine-id:ro
-    healthcheck:
-      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:9200/health')\""]
-      interval: 15s
-      timeout: 5s
-      retries: 10
-    networks:
-      - mascarade-network
-
   loki:
     image: ${LOKI_IMAGE:-grafana/loki:3.5.3}
     container_name: mascarade-loki
     restart: unless-stopped
     command: ["-config.file=/etc/loki/local-config.yaml"]
     ports:
-      - "${PUBLISH_BIND_HOST:-0.0.0.0}:${LOKI_PORT:-3101}:3100"
+      - "${PUBLISH_BIND_HOST:-0.0.0.0}:${LOKI_PORT}:3100"
     volumes:
       - ./deploy/loki/loki-config.yaml:/etc/loki/local-config.yaml:ro
       - loki-data:/loki
@@ -483,7 +543,7 @@ services:
     restart: unless-stopped
     entrypoint: ["/bin/sh", "/usr/local/bin/promtail-entrypoint.sh"]
     ports:
-      - "${PUBLISH_BIND_HOST:-0.0.0.0}:${PROMTAIL_PORT:-9080}:9080"
+      - "${PUBLISH_BIND_HOST:-0.0.0.0}:${PROMTAIL_PORT}:9080"
     volumes:
       - ./deploy/promtail/promtail-config.yaml:/etc/promtail/config.yml:ro
       - ./deploy/promtail/entrypoint.sh:/usr/local/bin/promtail-entrypoint.sh:ro
@@ -509,9 +569,9 @@ services:
     restart: unless-stopped
     command: ["--config=/etc/otelcol-contrib/config.yaml"]
     ports:
-      - "${PUBLISH_BIND_HOST:-0.0.0.0}:${OTEL_COLLECTOR_GRPC_PORT:-4317}:4317"
-      - "${PUBLISH_BIND_HOST:-0.0.0.0}:${OTEL_COLLECTOR_HTTP_PORT:-4318}:4318"
-      - "${PUBLISH_BIND_HOST:-0.0.0.0}:${OTEL_COLLECTOR_HEALTH_PORT:-13133}:13133"
+      - "${PUBLISH_BIND_HOST:-0.0.0.0}:${OTEL_COLLECTOR_GRPC_PORT}:4317"
+      - "${PUBLISH_BIND_HOST:-0.0.0.0}:${OTEL_COLLECTOR_HTTP_PORT}:4318"
+      - "${PUBLISH_BIND_HOST:-0.0.0.0}:${OTEL_COLLECTOR_HEALTH_PORT}:13133"
     volumes:
       - ./deploy/otel-collector/config.yaml:/etc/otelcol-contrib/config.yaml:ro
     healthcheck:
@@ -532,7 +592,6 @@ volumes:
   langfuse-minio-data:
   clickhouse-data:
   ollama-data:
-  open-webui-data:
   edge-proxy-certs:
     name: mascarade-edge-proxy-certs
   edge-proxy-acme:

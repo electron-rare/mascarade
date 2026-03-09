@@ -1,10 +1,18 @@
 const API_KEY_COOKIE = "mascarade_key";
+const API_KEY_PERSIST_FLAG = "mascarade_key_persist";
+const PERSIST_MAX_AGE = 30 * 24 * 3600; // 30 days
 const DEFAULT_TIMEOUT_MS = 30_000;
+const VALIDATE_TIMEOUT_MS = 5_000;
 
-function setCookie(name: string, value: string) {
+function setCookie(name: string, value: string, maxAge?: number) {
   // SameSite=Strict + Secure in production — mitigates XSS/CSRF
   const secure = location.protocol === "https:" ? ";Secure" : "";
-  document.cookie = `${name}=${encodeURIComponent(value)};SameSite=Strict;Path=/${secure}`;
+  const age = maxAge !== undefined ? `;Max-Age=${maxAge}` : "";
+  document.cookie = `${name}=${encodeURIComponent(value)};SameSite=Strict;Path=/${secure}${age}`;
+}
+
+function deleteCookie(name: string) {
+  document.cookie = `${name}=;SameSite=Strict;Path=/;Max-Age=0`;
 }
 
 function getCookie(name: string): string {
@@ -12,12 +20,61 @@ function getCookie(name: string): string {
   return match ? decodeURIComponent(match[1]) : "";
 }
 
+// --- Global 401 bus ---
+type Auth401Handler = () => void;
+const _auth401Listeners = new Set<Auth401Handler>();
+
+export function onAuth401(handler: Auth401Handler): () => void {
+  _auth401Listeners.add(handler);
+  return () => { _auth401Listeners.delete(handler); };
+}
+
+function _emit401() {
+  for (const h of _auth401Listeners) {
+    try { h(); } catch { /* swallow */ }
+  }
+}
+
 export function getApiKey(): string {
   return getCookie(API_KEY_COOKIE);
 }
 
-export function setApiKey(key: string) {
-  setCookie(API_KEY_COOKIE, key);
+export function isPersisted(): boolean {
+  try {
+    return localStorage.getItem(API_KEY_PERSIST_FLAG) === "1";
+  } catch {
+    return false;
+  }
+}
+
+export function setApiKey(key: string, persist = false) {
+  if (!key) {
+    clearApiKey();
+    return;
+  }
+  setCookie(API_KEY_COOKIE, key, persist ? PERSIST_MAX_AGE : undefined);
+  try {
+    localStorage.setItem(API_KEY_PERSIST_FLAG, persist ? "1" : "0");
+  } catch { /* private browsing */ }
+}
+
+export function clearApiKey() {
+  deleteCookie(API_KEY_COOKIE);
+  try {
+    localStorage.removeItem(API_KEY_PERSIST_FLAG);
+  } catch { /* private browsing */ }
+}
+
+export async function validateApiKey(key: string): Promise<boolean> {
+  try {
+    const res = await fetch("/api/agents/providers", {
+      headers: { Authorization: `Bearer ${key}` },
+      signal: AbortSignal.timeout(VALIDATE_TIMEOUT_MS),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
 }
 
 export class ApiError extends Error {
@@ -130,6 +187,9 @@ export async function api<T>(
       const body = contentType.includes("application/json")
         ? await res.json().catch(() => null)
         : await res.text().catch(() => null);
+      if (res.status === 401) {
+        _emit401();
+      }
       throw new ApiError(
         res.status,
         getBodyError(body) ?? res.statusText ?? "Request failed",
@@ -176,6 +236,14 @@ export function post<T>(path: string, body?: unknown, options: ApiOptions = {}) 
   return api<T>(path, {
     ...options,
     method: "POST",
+    body: body !== undefined ? JSON.stringify(body) : undefined,
+  });
+}
+
+export function put<T>(path: string, body?: unknown, options: ApiOptions = {}) {
+  return api<T>(path, {
+    ...options,
+    method: "PUT",
     body: body !== undefined ? JSON.stringify(body) : undefined,
   });
 }

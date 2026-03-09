@@ -12,6 +12,10 @@ Legacy `docker-studio-ai` material is migration-only and is not part of the stan
 Machine portability notes, Docker/GPU fallbacks, and host-specific findings are
 tracked in `docs/PORTAGE_MASCARADE.md`.
 
+Execution tracking lives in `docs/EXECUTION_HUB.md`.
+Use `TODO_VM.md` for machine/runtime follow-up and `TODO_COCKPIT_OPS.md` for observability follow-up.
+Multi-machine hub routing is described in `docs/MULTI_MACHINE_EXECUTION.md`.
+
 ## Install / Bootstrap
 
 Important:
@@ -24,17 +28,23 @@ Important:
 1. Create the env file:
    - `cd /mascarade`
    - `cp .env.example .env`
+   - for `photon-machine`, also copy `cp .env.machine.local.example .env.machine.local`
 2. Fill at least:
-   - `MASCARADE_API_KEY`
    - provider keys you actually use
-   - optional `COMFYUI_URL`, `NOTION_API_KEY`
+   - optional `COMFYUI_URL`, `NOTION_API_KEY`, `KILL_LIFE_GITHUB_TOKEN`
+   - on `photon-machine`, also set `DIFY_SECRET_KEY` and shared Dify DB credentials in `.env.machine.local`
+   - if `MASCARADE_API_KEY` is not set and `core` or `api` are selected, `./setup` now generates a strong value instead of leaving the runtime public
+   - explicit `MASCARADE_API_KEY` remains preferred for operator-managed environments
 3. Start the standard stack:
    - `cd /mascarade && ./setup --with core,api,ops-console,ollama --yes`
-4. Start with AudioCraft too, if needed:
+4. Start Dify on `photon-machine` with the dedicated machine compose:
+   - `cd /mascarade && docker compose --env-file .env.machine.local -f deploy/dify.machine.yml config`
+   - `cd /mascarade && docker compose --env-file .env.machine.local -f deploy/dify.machine.yml up -d`
+5. Start with AudioCraft too, if needed:
    - `cd /mascarade && ./setup --with core,api,ops-console,generate-audio,ollama --yes`
-5. Optional real audio smoke test:
+6. Optional real audio smoke test:
    - `cd /mascarade && ./setup --with core,api,ops-console,generate-audio,ollama --smoke-generate-audio --yes`
-6. If the host already has system Ollama models under `/usr/share/ollama/.ollama`:
+7. If the host already has system Ollama models under `/usr/share/ollama/.ollama`:
    - keep `OLLAMA_PUBLISH_PORT=false`
    - set `OLLAMA_HOST_MODELS_DIR=/usr/share/ollama/.ollama`
    - this reuses the host model store without exposing `11434` on the host
@@ -50,6 +60,12 @@ API:
 
 Ops Console:
 - `curl -fsS http://127.0.0.1/`
+
+Dify Web on `photon-machine`:
+- `curl -fsS http://127.0.0.1:3500/ >/dev/null`
+
+Dify API on `photon-machine`:
+- `curl -fsS http://127.0.0.1:5001/health`
 
 Generate Audio:
 - `curl -fsS http://127.0.0.1:9000/health | python3 -m json.tool`
@@ -69,6 +85,7 @@ Notes for `generate-audio`:
    - `docker compose ps`
    - `curl -fsS http://127.0.0.1:8100/health`
    - `curl -fsS http://127.0.0.1:3100/health`
+   - if Dify is deployed on `photon-machine`: `docker compose --env-file .env.machine.local -f deploy/dify.machine.yml ps`
 
 If `generate-audio` is deployed:
 - `bash scripts/smoke_generate_audio.sh --url http://127.0.0.1:9000`
@@ -117,6 +134,30 @@ Status:
 Observability complementaire opt-in:
 - `cd /mascarade && ./setup --with core,api,ops-console,loki,promtail,otel-collector --yes`
 - Loki et Promtail sont scaffoldes pour l'historique, mais la vue cockpit actuelle s'appuie deja sur la trace native du core et le monitor gateway
+- `OBSERVABILITY_BIND_HOST=127.0.0.1` reste la posture par defaut pour `loki`, `promtail`, `otel-collector`, `prometheus`, `grafana` et `ops-agent`
+- si `otel-collector` est selectionne, `./setup` passe `OTEL_ENABLED=true` par defaut sauf override explicite
+- sur `photon-machine`, `traces` et `metrics` restent volontairement sur l'exporter `debug`; seul le pipeline `logs` est branche vers Loki par defaut
+- Validation OTLP -> Loki:
+  - `cd /mascarade && bash scripts/smoke_otel_loki.sh`
+  - `cd /mascarade && bash scripts/smoke_otel_loki.sh --json`
+- Controle de cardinalite Loki:
+  - `cd /mascarade && bash scripts/loki_cardinality_report.sh`
+  - `cd /mascarade && bash scripts/loki_cardinality_report.sh --json`
+  - le report couvre par defaut les streams Compose `mascarade` et les flux OTLP deja etiquetes avec `run_id`
+
+Pilotage auto du hub:
+- `cd /mascarade && scripts/current_machine_context.sh`
+- `cd /mascarade && scripts/current_machine_context.sh --json`
+- `cd /mascarade && scripts/next_useful_lot.sh --json`
+- `cd /mascarade && scripts/machine_lot_matrix.sh`
+- `cd /mascarade && scripts/machine_lot_matrix.sh --json`
+- `cd /mascarade && scripts/chain_next_lot.sh`
+- `cd /mascarade && scripts/chain_next_lot.sh --start --json`
+- pour viser une autre machine declaree dans `docs/MACHINE_PROFILES.json`:
+  - `cd /mascarade && scripts/next_useful_lot.sh --machine <nom> --json`
+  - `cd /mascarade && scripts/chain_next_lot.sh --machine <nom> --start --json`
+- pour voir tous les scopes sans filtrage machine:
+  - `cd /mascarade && scripts/next_useful_lot.sh --all-scopes --json`
 
 Setup backups:
 - generated setup backups now live under `./.tmp/setup-backups/`

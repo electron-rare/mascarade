@@ -11,6 +11,7 @@ import {
   Input,
   JsonView,
   LoadingPanel,
+  Select,
   Textarea,
 } from "../components/ui";
 
@@ -37,6 +38,21 @@ const orchestrationPresets = [
   },
 ];
 
+const roleOptions = [
+  { value: "", label: "Inherit agent profile" },
+  { value: "general", label: "General" },
+  { value: "gpu", label: "GPU" },
+  { value: "edge", label: "Edge" },
+  { value: "worker", label: "Worker" },
+  { value: "builder", label: "Builder" },
+];
+
+type RunRoutingOverride = {
+  preferred_role: string;
+  preferred_provider: string;
+  preferred_model: string;
+};
+
 function inferCluster(agentName: string): string {
   if (["agent-zero", "planner", "critic", "reviewer"].includes(agentName)) return "control";
   if (agentName.includes("kicad") || agentName.includes("freecad")) return "design";
@@ -51,10 +67,41 @@ export default function Orchestrate() {
   const [prompt, setPrompt] = useState("");
   const [selected, setSelected] = useState<string[]>([]);
   const [query, setQuery] = useState("");
+  const [routingForm, setRoutingForm] = useState<Record<string, RunRoutingOverride>>({});
 
   const canRun = prompt.trim().length > 0 && selected.length > 0;
   const agents = data?.agents ?? [];
   const hasAgentZero = agents.some((agent) => agent.name === "agent-zero");
+
+  const routingOverrides = useMemo(
+    () =>
+      Object.fromEntries(
+        Object.entries(routingForm)
+          .filter(([agentName, override]) => {
+            if (!selected.includes(agentName)) return false;
+            return Boolean(
+              override.preferred_role.trim() ||
+                override.preferred_provider.trim() ||
+                override.preferred_model.trim(),
+            );
+          })
+          .map(([agentName, override]) => [
+            agentName,
+            {
+              ...(override.preferred_role.trim()
+                ? { preferred_role: override.preferred_role.trim() }
+                : {}),
+              ...(override.preferred_provider.trim()
+                ? { preferred_provider: override.preferred_provider.trim() }
+                : {}),
+              ...(override.preferred_model.trim()
+                ? { preferred_model: override.preferred_model.trim() }
+                : {}),
+            },
+          ]),
+      ),
+    [routingForm, selected],
+  );
 
   const filteredAgents = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -66,8 +113,13 @@ export default function Orchestrate() {
   }, [agents, query]);
 
   const runFn = useMemo(
-    () => () => agentsApi.orchestrate({ agent_names: selected, prompt }),
-    [prompt, selected],
+    () => () =>
+      agentsApi.orchestrate({
+        agent_names: selected,
+        prompt,
+        routing_overrides: routingOverrides,
+      }),
+    [prompt, routingOverrides, selected],
   );
   const {
     execute,
@@ -89,6 +141,9 @@ export default function Orchestrate() {
       to_agent?: string | null;
       prompt_excerpt?: string | null;
       content_excerpt?: string | null;
+      routing_role?: string | null;
+      routing_provider?: string | null;
+      routing_model?: string | null;
       error?: string | null;
     }[];
   }>(
@@ -158,6 +213,9 @@ export default function Orchestrate() {
                 <span className="status-chip border-border/80 bg-black/30 text-muted">
                   prompt {prompt.trim().length} chars
                 </span>
+                <span className="status-chip border-border/80 bg-black/30 text-muted">
+                  role overrides {Object.keys(routingOverrides).length}
+                </span>
               </div>
               <div className="mt-6 flex flex-wrap gap-3">
                 <Button
@@ -175,6 +233,7 @@ export default function Orchestrate() {
                     setPrompt("");
                     setSelected([]);
                     setQuery("");
+                    setRoutingForm({});
                   }}
                 >
                   reset lane
@@ -270,13 +329,16 @@ export default function Orchestrate() {
               >
                 arm visible
               </Button>
-              <Button
-                variant="ghost"
-                className="border border-border/80"
-                onClick={() => setSelected([])}
-              >
-                clear armed
-              </Button>
+                <Button
+                  variant="ghost"
+                  className="border border-border/80"
+                  onClick={() => {
+                    setSelected([]);
+                    setRoutingForm({});
+                  }}
+                >
+                  clear armed
+                </Button>
             </div>
           </div>
         </Card>
@@ -336,6 +398,86 @@ export default function Orchestrate() {
                   <p className="mt-3 text-sm leading-6 text-amber-100/56">
                     {agent.description || "No description"}
                   </p>
+                  <div className="mt-4 grid gap-4 md:grid-cols-[minmax(0,1fr)_200px] md:items-end">
+                    <div className="space-y-2">
+                      <div className="flex flex-wrap gap-2">
+                        {agent.preferred_role ? (
+                          <Badge color="warning">profile {agent.preferred_role}</Badge>
+                        ) : (
+                          <Badge color="muted">profile inherit</Badge>
+                        )}
+                        {routingForm[agent.name]?.preferred_role?.trim() ? (
+                          <Badge color="accent">
+                            run role {routingForm[agent.name].preferred_role}
+                          </Badge>
+                        ) : null}
+                        {routingForm[agent.name]?.preferred_provider?.trim() ? (
+                          <Badge color="accent">
+                            run provider {routingForm[agent.name].preferred_provider}
+                          </Badge>
+                        ) : null}
+                        {routingForm[agent.name]?.preferred_model?.trim() ? (
+                          <Badge color="accent">
+                            run model {routingForm[agent.name].preferred_model}
+                          </Badge>
+                        ) : null}
+                      </div>
+                      <p className="text-[12px] leading-5 text-amber-100/46">
+                        Override role, provider or model for this run only. Leave a field empty to inherit the stored agent profile.
+                      </p>
+                    </div>
+                    <div className="space-y-4">
+                      <Select
+                        label="Role override"
+                        value={routingForm[agent.name]?.preferred_role ?? ""}
+                        onChange={(e) =>
+                          setRoutingForm((current) => ({
+                            ...current,
+                            [agent.name]: {
+                              preferred_role: e.target.value,
+                              preferred_provider:
+                                current[agent.name]?.preferred_provider ?? "",
+                              preferred_model:
+                                current[agent.name]?.preferred_model ?? "",
+                            },
+                          }))
+                        }
+                        options={roleOptions}
+                      />
+                      <Input
+                        label="Provider override"
+                        value={routingForm[agent.name]?.preferred_provider ?? ""}
+                        onChange={(e) =>
+                          setRoutingForm((current) => ({
+                            ...current,
+                            [agent.name]: {
+                              preferred_role: current[agent.name]?.preferred_role ?? "",
+                              preferred_provider: e.target.value,
+                              preferred_model:
+                                current[agent.name]?.preferred_model ?? "",
+                            },
+                          }))
+                        }
+                        placeholder="ollama, mistral, bedrock..."
+                      />
+                      <Input
+                        label="Model override"
+                        value={routingForm[agent.name]?.preferred_model ?? ""}
+                        onChange={(e) =>
+                          setRoutingForm((current) => ({
+                            ...current,
+                            [agent.name]: {
+                              preferred_role: current[agent.name]?.preferred_role ?? "",
+                              preferred_provider:
+                                current[agent.name]?.preferred_provider ?? "",
+                              preferred_model: e.target.value,
+                            },
+                          }))
+                        }
+                        placeholder="llama3.2:3b, mistral-large-latest..."
+                      />
+                    </div>
+                  </div>
                 </div>
               ))}
             </div>
@@ -426,11 +568,23 @@ export default function Orchestrate() {
                     <div className="flex flex-wrap gap-2">
                       <Badge color="accent">{row.agent}</Badge>
                       <Badge color="muted">step {row.step}</Badge>
+                      <Badge color={row.remote ? "warning" : "muted"}>
+                        {row.remote ? "remote" : "local"}
+                      </Badge>
+                      {row.selected_by ? (
+                        <Badge color="muted">{row.selected_by}</Badge>
+                      ) : null}
+                      {row.role ? <Badge color="muted">role {row.role}</Badge> : null}
                     </div>
                     <span>
                       {row.provider} / {row.model}
                     </span>
                   </div>
+                  {row.node_id || row.peer_id ? (
+                    <p className="mb-3 text-[12px] leading-5 text-amber-100/46">
+                      route: node {row.node_id || "local"} {row.peer_id ? `via ${row.peer_id}` : ""}
+                    </p>
+                  ) : null}
                   <pre className="whitespace-pre-wrap text-sm leading-7 text-amber-100/76">
                     {row.content}
                   </pre>
@@ -478,6 +632,19 @@ export default function Orchestrate() {
                       <p className="mt-3 text-sm leading-6 text-amber-100/74">
                         {event.message}
                       </p>
+                      {event.routing_role || event.routing_provider || event.routing_model ? (
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          {event.routing_role ? (
+                            <Badge color="warning">role {event.routing_role}</Badge>
+                          ) : null}
+                          {event.routing_provider ? (
+                            <Badge color="muted">provider {event.routing_provider}</Badge>
+                          ) : null}
+                          {event.routing_model ? (
+                            <Badge color="muted">model {event.routing_model}</Badge>
+                          ) : null}
+                        </div>
+                      ) : null}
                       {event.prompt_excerpt ? (
                         <p className="mt-2 text-[12px] leading-5 text-amber-100/46">
                           input: {event.prompt_excerpt}

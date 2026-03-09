@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import {
   type OpsLogEntry,
+  type OpsMcpServerStatus,
   type OpsLogSource,
   type OpsSourceStatus,
   type OpsSummary,
@@ -95,8 +96,103 @@ function traceTone(eventType: string | undefined): string {
   return "text-accent";
 }
 
+function nonEmptyLabel(value: string | undefined): string | null {
+  return value && value.trim() ? value.trim() : null;
+}
+
+function pickOptionValue<T extends string>(
+  value: string | null,
+  options: Array<{ value: T }>,
+  fallback: T,
+): T {
+  return options.some((option) => option.value === value) ? (value as T) : fallback;
+}
+
+function normalizeFilter(value: string): string {
+  return value.trim().toLowerCase();
+}
+
+function matchesRoutingLabels(
+  labels: Record<string, string> | undefined,
+  filters: {
+    role: string;
+    provider: string;
+    model: string;
+  },
+): boolean {
+  const role = normalizeFilter(filters.role);
+  const provider = normalizeFilter(filters.provider);
+  const model = normalizeFilter(filters.model);
+
+  if (role && normalizeFilter(labels?.routing_role ?? "") !== role) {
+    return false;
+  }
+  if (provider && normalizeFilter(labels?.routing_provider ?? "") !== provider) {
+    return false;
+  }
+  if (model && normalizeFilter(labels?.routing_model ?? "") !== model) {
+    return false;
+  }
+  return true;
+}
+
+function matchesRoutingEntry(
+  entry: OpsLogEntry,
+  filters: {
+    role: string;
+    provider: string;
+    model: string;
+  },
+): boolean {
+  return matchesRoutingLabels(entry.labels, filters);
+}
+
+function matchesRoutingTraceEvent(
+  event: OpsTraceEvent,
+  filters: {
+    role: string;
+    provider: string;
+    model: string;
+  },
+): boolean {
+  return matchesRoutingLabels(
+    {
+      routing_role: event.routing_role ?? "",
+      routing_provider: event.routing_provider ?? "",
+      routing_model: event.routing_model ?? "",
+    },
+    filters,
+  );
+}
+
 function sourceTone(available: boolean): "accent" | "error" {
   return available ? "accent" : "error";
+}
+
+function mcpTone(status?: string): "accent" | "warning" | "error" | "muted" {
+  if (status === "ready") return "accent";
+  if (status === "degraded") return "warning";
+  if (status === "failed") return "error";
+  return "muted";
+}
+
+function formatLatency(ms?: number | null): string {
+  if (!Number.isFinite(ms) || !ms || ms <= 0) return "-";
+  return `${Math.round(ms)} ms`;
+}
+
+function formatMcpName(name?: string | null): string {
+  if (!name) return "unknown";
+  return name.replace(/[-_]/g, " ");
+}
+
+function summarizeMcpServer(server: OpsMcpServerStatus): string {
+  const stats = `${server.tool_count} tools / ${server.resource_count} resources / ${server.prompt_count} prompts`;
+  if (server.error) return `${stats} / ${server.error}`;
+  if (server.checks && server.checks.length > 0) {
+    return `${stats} / ${server.checks.join(" / ")}`;
+  }
+  return stats;
 }
 
 function severityRank(severity: OpsLogEntry["severity"]): number {
@@ -130,22 +226,61 @@ function parseEventPayload<T>(event: MessageEvent): T | null {
 }
 
 export default function Logs() {
-  const [searchParams] = useSearchParams();
-  const [mode, setMode] = useState<"live" | "history">("live");
-  const [source, setSource] = useState<OpsLogSource>("all");
-  const [severity, setSeverity] = useState<"debug" | "info" | "warning" | "error" | "critical">("info");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [mode, setMode] = useState<"live" | "history">(
+    () =>
+      pickOptionValue<"live" | "history">(
+        searchParams.get("mode"),
+        modeOptions as Array<{ value: "live" | "history" }>,
+        "live",
+      ),
+  );
+  const [source, setSource] = useState<OpsLogSource>(
+    () =>
+      pickOptionValue<OpsLogSource>(
+        searchParams.get("source"),
+        sourceOptions as Array<{ value: OpsLogSource }>,
+        "all",
+      ),
+  );
+  const [severity, setSeverity] = useState<"debug" | "info" | "warning" | "error" | "critical">(
+    () =>
+      pickOptionValue<"debug" | "info" | "warning" | "error" | "critical">(
+        searchParams.get("severity"),
+        severityOptions as Array<{ value: "debug" | "info" | "warning" | "error" | "critical" }>,
+        "info",
+      ),
+  );
   const [runIdFilter, setRunIdFilter] = useState(() => searchParams.get("run_id") ?? "");
   const [agentFilter, setAgentFilter] = useState(() => searchParams.get("agent_name") ?? "");
   const [eventTypeFilter, setEventTypeFilter] = useState(() => searchParams.get("event_type") ?? "");
+  const [routingRoleFilter, setRoutingRoleFilter] = useState(() => searchParams.get("routing_role") ?? "");
+  const [routingProviderFilter, setRoutingProviderFilter] = useState(() => searchParams.get("routing_provider") ?? "");
+  const [routingModelFilter, setRoutingModelFilter] = useState(() => searchParams.get("routing_model") ?? "");
   const [serviceFilter, setServiceFilter] = useState(() => searchParams.get("service") ?? "");
   const [queryText, setQueryText] = useState(() => searchParams.get("q") ?? "");
-  const [historyWindow, setHistoryWindow] = useState("1h");
+  const [historyWindow, setHistoryWindow] = useState(
+    () =>
+      pickOptionValue<string>(
+        searchParams.get("since"),
+        historyWindowOptions as Array<{ value: string }>,
+        "1h",
+      ),
+  );
   const [paused, setPaused] = useState(false);
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
   const [liveEntries, setLiveEntries] = useState<OpsLogEntry[]>([]);
   const [liveStatus, setLiveStatus] = useState<"idle" | "connecting" | "live" | "paused">("idle");
   const [liveError, setLiveError] = useState<string | null>(null);
   const liveSeenIdsRef = useRef<Set<string>>(new Set());
+  const routingFilters = useMemo(
+    () => ({
+      role: routingRoleFilter,
+      provider: routingProviderFilter,
+      model: routingModelFilter,
+    }),
+    [routingModelFilter, routingProviderFilter, routingRoleFilter],
+  );
 
   const liveLogsPath = useMemo(() => {
     const search = new URLSearchParams({
@@ -156,9 +291,22 @@ export default function Logs() {
     if (runIdFilter.trim()) search.set("run_id", runIdFilter.trim());
     if (agentFilter.trim()) search.set("agent_name", agentFilter.trim());
     if (eventTypeFilter.trim()) search.set("event_type", eventTypeFilter.trim());
+    if (routingRoleFilter.trim()) search.set("routing_role", routingRoleFilter.trim());
+    if (routingProviderFilter.trim()) search.set("routing_provider", routingProviderFilter.trim());
+    if (routingModelFilter.trim()) search.set("routing_model", routingModelFilter.trim());
     if (serviceFilter.trim()) search.set("service", serviceFilter.trim());
     return `/api/ops/logs/recent?${search.toString()}`;
-  }, [agentFilter, eventTypeFilter, runIdFilter, serviceFilter, severity, source]);
+  }, [
+    agentFilter,
+    eventTypeFilter,
+    routingModelFilter,
+    routingProviderFilter,
+    routingRoleFilter,
+    runIdFilter,
+    serviceFilter,
+    severity,
+    source,
+  ]);
 
   const historyLogsPath = useMemo(() => {
     const search = new URLSearchParams({
@@ -170,10 +318,25 @@ export default function Logs() {
     if (runIdFilter.trim()) search.set("run_id", runIdFilter.trim());
     if (agentFilter.trim()) search.set("agent_name", agentFilter.trim());
     if (eventTypeFilter.trim()) search.set("event_type", eventTypeFilter.trim());
+    if (routingRoleFilter.trim()) search.set("routing_role", routingRoleFilter.trim());
+    if (routingProviderFilter.trim()) search.set("routing_provider", routingProviderFilter.trim());
+    if (routingModelFilter.trim()) search.set("routing_model", routingModelFilter.trim());
     if (serviceFilter.trim()) search.set("service", serviceFilter.trim());
     if (queryText.trim()) search.set("q", queryText.trim());
     return `/api/ops/logs/query?${search.toString()}`;
-  }, [agentFilter, eventTypeFilter, historyWindow, queryText, runIdFilter, serviceFilter, severity, source]);
+  }, [
+    agentFilter,
+    eventTypeFilter,
+    historyWindow,
+    queryText,
+    routingModelFilter,
+    routingProviderFilter,
+    routingRoleFilter,
+    runIdFilter,
+    serviceFilter,
+    severity,
+    source,
+  ]);
 
   const summary = useFetch<OpsSummary>("/api/ops/summary", {
     pollIntervalMs: paused ? undefined : 5000,
@@ -224,6 +387,58 @@ export default function Logs() {
       ([name, enabled]) => [name, { available: enabled, kind: "summary" }],
     );
   }, [sourceStatus.data, summary.data?.sources]);
+  const runDetailEvents = useMemo(
+    () =>
+      (runDetail.data?.events ?? []).filter((event) =>
+        matchesRoutingTraceEvent(event, routingFilters),
+      ),
+    [routingFilters, runDetail.data?.events],
+  );
+  const mcp = summary.data?.mcp;
+  const mcpServers = Object.entries(mcp?.servers ?? {});
+  const mcpPrimary = mcp?.primary ?? null;
+  const mcpAggregateStatus = mcp?.aggregate_status ?? mcp?.status ?? "pending";
+  const mcpPrimaryName = mcp?.primary_server ?? mcpPrimary?.server_name ?? mcp?.server_name ?? "unknown";
+  const mcpPrimaryStatus = mcpPrimary?.status ?? mcp?.status ?? "pending";
+  const mcpPrimarySurface = mcpPrimary ?? mcp;
+  const mcpServerCount = mcp?.server_count ?? mcpServers.length;
+  const mcpServersOk = mcp?.servers_ok ?? mcpServers.filter(([, server]) => server.ok).length;
+  const mcpDegradedServers = mcp?.degraded_servers ?? [];
+
+  useEffect(() => {
+    const next = new URLSearchParams();
+    if (mode !== "live") next.set("mode", mode);
+    if (source !== "all") next.set("source", source);
+    if (severity !== "info") next.set("severity", severity);
+    if (historyWindow !== "1h") next.set("since", historyWindow);
+    if (runIdFilter.trim()) next.set("run_id", runIdFilter.trim());
+    if (agentFilter.trim()) next.set("agent_name", agentFilter.trim());
+    if (eventTypeFilter.trim()) next.set("event_type", eventTypeFilter.trim());
+    if (routingRoleFilter.trim()) next.set("routing_role", routingRoleFilter.trim());
+    if (routingProviderFilter.trim()) next.set("routing_provider", routingProviderFilter.trim());
+    if (routingModelFilter.trim()) next.set("routing_model", routingModelFilter.trim());
+    if (serviceFilter.trim()) next.set("service", serviceFilter.trim());
+    if (queryText.trim()) next.set("q", queryText.trim());
+
+    if (next.toString() !== searchParams.toString()) {
+      setSearchParams(next, { replace: true });
+    }
+  }, [
+    agentFilter,
+    eventTypeFilter,
+    historyWindow,
+    mode,
+    queryText,
+    routingModelFilter,
+    routingProviderFilter,
+    routingRoleFilter,
+    runIdFilter,
+    searchParams,
+    serviceFilter,
+    setSearchParams,
+    severity,
+    source,
+  ]);
 
   useEffect(() => {
     if (mode !== "live") {
@@ -234,7 +449,18 @@ export default function Logs() {
     liveSeenIdsRef.current = new Set();
     setLiveEntries([]);
     setLiveError(null);
-  }, [mode, source, severity, runIdFilter, agentFilter, eventTypeFilter, serviceFilter]);
+  }, [
+    agentFilter,
+    eventTypeFilter,
+    mode,
+    routingModelFilter,
+    routingProviderFilter,
+    routingRoleFilter,
+    runIdFilter,
+    serviceFilter,
+    severity,
+    source,
+  ]);
 
   useEffect(() => {
     if (mode !== "live" || !liveSnapshot.data) {
@@ -269,7 +495,9 @@ export default function Logs() {
     };
     const pushEntries = (incoming: OpsLogEntry[]) => {
       const filtered = incoming.filter(
-        (entry) => severityRank(entry.severity) >= severityRank(severity),
+        (entry) =>
+          severityRank(entry.severity) >= severityRank(severity) &&
+          matchesRoutingEntry(entry, routingFilters),
       );
       if (filtered.length === 0) {
         return;
@@ -345,6 +573,9 @@ export default function Logs() {
               mode: entry.mode,
               provider: entry.provider ?? "",
               model: entry.model ?? "",
+              routing_role: entry.routing_role ?? "",
+              routing_provider: entry.routing_provider ?? "",
+              routing_model: entry.routing_model ?? "",
             },
           },
         ]);
@@ -368,6 +599,7 @@ export default function Logs() {
     eventTypeFilter,
     mode,
     paused,
+    routingFilters,
     runIdFilter,
     serviceFilter,
     severity,
@@ -375,7 +607,13 @@ export default function Logs() {
   ]);
 
   useEffect(() => {
-    if (!selectedRunId && uniqueRuns.length > 0) {
+    if (uniqueRuns.length === 0) {
+      if (selectedRunId) {
+        setSelectedRunId(null);
+      }
+      return;
+    }
+    if (!selectedRunId || !uniqueRuns.includes(selectedRunId)) {
       setSelectedRunId(uniqueRuns[0]);
     }
   }, [selectedRunId, uniqueRuns]);
@@ -457,6 +695,9 @@ export default function Logs() {
                 </span>
                 <span className="status-chip border-border/80 bg-black/30 text-muted">
                   mode {mode}
+                </span>
+                <span className="status-chip border-border/80 bg-black/30 text-muted">
+                  mcp {mcpAggregateStatus}
                 </span>
                 <span className={["status-chip", paused ? "border-[#7a2436] bg-[#18070d]/80 text-error" : "border-[#214e31] bg-[#0c170f]/80 text-[#8cffb7]"].join(" ")}>
                   {mode === "history"
@@ -553,92 +794,180 @@ export default function Logs() {
           </div>
         </Card>
 
-        <Card title="Feed filters">
-          <div className="space-y-4">
-            <Select
-              label="Mode"
-              value={mode}
-              onChange={(event) => setMode(event.target.value as "live" | "history")}
-              options={modeOptions}
-            />
-            <Select
-              label="Source"
-              value={source}
-              onChange={(event) => setSource(event.target.value as typeof source)}
-              options={sourceOptions}
-            />
-            <Select
-              label="Severity"
-              value={severity}
-              onChange={(event) => setSeverity(event.target.value as typeof severity)}
-              options={severityOptions}
-            />
-            <Input
-              label="Run id"
-              value={runIdFilter}
-              onChange={(event) => setRunIdFilter(event.target.value)}
-              placeholder="ab12cd34..."
-            />
-            <Input
-              label="Agent filter"
-              value={agentFilter}
-              onChange={(event) => setAgentFilter(event.target.value)}
-              placeholder="agent-zero, planner..."
-            />
-            <Input
-              label="Event type"
-              value={eventTypeFilter}
-              onChange={(event) => setEventTypeFilter(event.target.value)}
-              placeholder="handoff, run_failed..."
-            />
-            <Input
-              label="Service filter"
-              value={serviceFilter}
-              onChange={(event) => setServiceFilter(event.target.value)}
-              placeholder="core, api, postgres..."
-            />
-            {mode === "history" ? (
-              <>
-                <Select
-                  label="History window"
-                  value={historyWindow}
-                  onChange={(event) => setHistoryWindow(event.target.value)}
-                  options={historyWindowOptions}
-                />
-                <Input
-                  label="Search text"
-                  value={queryText}
-                  onChange={(event) => setQueryText(event.target.value)}
-                  placeholder="failed, exception, handoff..."
-                />
-              </>
-            ) : null}
-            <div className="flex flex-wrap gap-3">
-              <Button
-                variant="ghost"
-                className="border border-border/80"
-                onClick={() => {
-                  setSource("all");
-                  setSeverity("info");
-                  setRunIdFilter("");
-                  setAgentFilter("");
-                  setEventTypeFilter("");
-                  setServiceFilter("");
-                  setQueryText("");
-                  setHistoryWindow("1h");
-                }}
-              >
-                reset filters
-              </Button>
-              <Link
-                to="/orchestrate"
-                className="rounded-2xl border border-accent/35 px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-accent transition hover:bg-accent/10"
-              >
-                frame with agent-zero
-              </Link>
+        <div className="grid gap-4">
+          <Card title="Feed filters">
+            <div className="space-y-4">
+              <Select
+                label="Mode"
+                value={mode}
+                onChange={(event) => setMode(event.target.value as "live" | "history")}
+                options={modeOptions}
+              />
+              <Select
+                label="Source"
+                value={source}
+                onChange={(event) => setSource(event.target.value as typeof source)}
+                options={sourceOptions}
+              />
+              <Select
+                label="Severity"
+                value={severity}
+                onChange={(event) => setSeverity(event.target.value as typeof severity)}
+                options={severityOptions}
+              />
+              <Input
+                label="Run id"
+                value={runIdFilter}
+                onChange={(event) => setRunIdFilter(event.target.value)}
+                placeholder="ab12cd34..."
+              />
+              <Input
+                label="Agent filter"
+                value={agentFilter}
+                onChange={(event) => setAgentFilter(event.target.value)}
+                placeholder="agent-zero, planner..."
+              />
+              <Input
+                label="Event type"
+                value={eventTypeFilter}
+                onChange={(event) => setEventTypeFilter(event.target.value)}
+                placeholder="handoff, run_failed..."
+              />
+              <Input
+                label="Routing role"
+                value={routingRoleFilter}
+                onChange={(event) => setRoutingRoleFilter(event.target.value)}
+                placeholder="gpu, general, worker..."
+              />
+              <Input
+                label="Routing provider"
+                value={routingProviderFilter}
+                onChange={(event) => setRoutingProviderFilter(event.target.value)}
+                placeholder="ollama, mistral..."
+              />
+              <Input
+                label="Routing model"
+                value={routingModelFilter}
+                onChange={(event) => setRoutingModelFilter(event.target.value)}
+                placeholder="llama3.2:3b, mistral-large..."
+              />
+              <Input
+                label="Service filter"
+                value={serviceFilter}
+                onChange={(event) => setServiceFilter(event.target.value)}
+                placeholder="core, api, postgres..."
+              />
+              {mode === "history" ? (
+                <>
+                  <Select
+                    label="History window"
+                    value={historyWindow}
+                    onChange={(event) => setHistoryWindow(event.target.value)}
+                    options={historyWindowOptions}
+                  />
+                  <Input
+                    label="Search text"
+                    value={queryText}
+                    onChange={(event) => setQueryText(event.target.value)}
+                    placeholder="failed, exception, handoff..."
+                  />
+                </>
+              ) : null}
+              <div className="flex flex-wrap gap-3">
+                <Button
+                  variant="ghost"
+                  className="border border-border/80"
+                  onClick={() => {
+                    setSource("all");
+                    setSeverity("info");
+                    setRunIdFilter("");
+                    setAgentFilter("");
+                    setEventTypeFilter("");
+                    setRoutingRoleFilter("");
+                    setRoutingProviderFilter("");
+                    setRoutingModelFilter("");
+                    setServiceFilter("");
+                    setQueryText("");
+                    setHistoryWindow("1h");
+                  }}
+                >
+                  reset filters
+                </Button>
+                <Link
+                  to="/orchestrate"
+                  className="rounded-2xl border border-accent/35 px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-accent transition hover:bg-accent/10"
+                >
+                  frame with agent-zero
+                </Link>
+              </div>
             </div>
-          </div>
-        </Card>
+          </Card>
+
+          <Card title="MCP widget">
+            {!mcp ? (
+              <InlineNotice
+                title="mcp pending"
+                message="Le resume ops ne contient pas encore de bloc MCP."
+              />
+            ) : (
+              <div className="space-y-4">
+                <div className="flex flex-wrap gap-2">
+                  <Badge color={mcpTone(mcpAggregateStatus)}>{mcpAggregateStatus}</Badge>
+                  <Badge color={mcpTone(mcpPrimaryStatus)}>{formatMcpName(mcpPrimaryName)}</Badge>
+                  {mcpPrimarySurface?.runtime_mode ? (
+                    <Badge color="muted">runtime {mcpPrimarySurface.runtime_mode}</Badge>
+                  ) : null}
+                  {mcpPrimarySurface?.protocol_version ? (
+                    <Badge color="muted">protocol {mcpPrimarySurface.protocol_version}</Badge>
+                  ) : null}
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="rounded-[1.4rem] border border-border/80 bg-black/25 p-4">
+                    <p className="text-[10px] uppercase tracking-[0.2em] text-muted">servers ok</p>
+                    <p className="mt-3 text-xl font-semibold uppercase tracking-[0.14em] text-accent">
+                      {mcpServersOk} / {mcpServerCount}
+                    </p>
+                    <p className="mt-2 text-[12px] leading-5 text-amber-100/46">
+                      Etat global de la suite MCP surveillee.
+                    </p>
+                  </div>
+                  <div className="rounded-[1.4rem] border border-border/80 bg-black/25 p-4">
+                    <p className="text-[10px] uppercase tracking-[0.2em] text-muted">primary latency</p>
+                    <p className="mt-3 text-xl font-semibold uppercase tracking-[0.14em] text-accent">
+                      {formatLatency(mcpPrimarySurface?.latency_ms)}
+                    </p>
+                    <p className="mt-2 text-[12px] leading-5 text-amber-100/46">
+                      Handshake et listing du serveur MCP primaire.
+                    </p>
+                  </div>
+                </div>
+                {mcpDegradedServers.length > 0 ? (
+                  <InlineNotice
+                    title="degraded servers"
+                    message={mcpDegradedServers.map((name) => formatMcpName(name)).join(" / ")}
+                  />
+                ) : null}
+                <div className="space-y-3">
+                  {mcpServers.map(([name, server]) => (
+                    <div
+                      key={name}
+                      className="rounded-[1.4rem] border border-border/80 bg-black/25 p-4"
+                    >
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Badge color={mcpTone(server.status)}>{server.status}</Badge>
+                        <Badge color="muted">{formatMcpName(name)}</Badge>
+                        {server.runtime_mode ? <Badge color="muted">runtime {server.runtime_mode}</Badge> : null}
+                      </div>
+                      <p className="mt-3 text-sm leading-6 text-amber-100/72">
+                        {summarizeMcpServer(server)}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </Card>
+        </div>
       </section>
 
       <section className="grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(340px,0.8fr)]">
@@ -708,6 +1037,27 @@ export default function Logs() {
                   <p className="mt-3 font-mono text-[13px] leading-6 text-amber-100/78">
                     {entry.message}
                   </p>
+                  {entry.labels?.routing_role ||
+                  entry.labels?.routing_provider ||
+                  entry.labels?.routing_model ? (
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {nonEmptyLabel(entry.labels?.routing_role) ? (
+                        <span className="status-chip border-[#6d5c1c] bg-[#1a1507] text-[#ffd166]">
+                          role {entry.labels?.routing_role}
+                        </span>
+                      ) : null}
+                      {nonEmptyLabel(entry.labels?.routing_provider) ? (
+                        <span className="status-chip border-border/70 bg-black/35 text-amber-100/66">
+                          provider {entry.labels?.routing_provider}
+                        </span>
+                      ) : null}
+                      {nonEmptyLabel(entry.labels?.routing_model) ? (
+                        <span className="status-chip border-border/70 bg-black/35 text-amber-100/66">
+                          model {entry.labels?.routing_model}
+                        </span>
+                      ) : null}
+                    </div>
+                  ) : null}
                 </button>
               ))}
             </div>
@@ -734,7 +1084,7 @@ export default function Logs() {
                     {selectedRunId}
                   </p>
                   <p className="mt-2 text-[12px] leading-5 text-amber-100/46">
-                    {(runDetail.data?.count ?? 0).toString().padStart(2, "0")} event(s) loaded for this lane.
+                    {runDetailEvents.length.toString().padStart(2, "0")} / {(runDetail.data?.count ?? 0).toString().padStart(2, "0")} event(s) visible for this lane.
                   </p>
                   <div className="mt-4 flex flex-wrap gap-2">
                     <Link
@@ -753,7 +1103,7 @@ export default function Logs() {
                 </div>
 
                 <div className="max-h-[520px] space-y-3 overflow-y-auto pr-1">
-                  {(runDetail.data?.events ?? []).map((event) => (
+                  {runDetailEvents.map((event) => (
                     <div
                       key={event.id}
                       className="rounded-[1.4rem] border border-border/80 bg-black/30 p-4"
@@ -777,6 +1127,19 @@ export default function Logs() {
                       <p className="mt-3 font-mono text-[13px] leading-6 text-amber-100/74">
                         {event.message}
                       </p>
+                      {event.routing_role || event.routing_provider || event.routing_model ? (
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          {event.routing_role ? (
+                            <Badge color="warning">role {event.routing_role}</Badge>
+                          ) : null}
+                          {event.routing_provider ? (
+                            <Badge color="muted">provider {event.routing_provider}</Badge>
+                          ) : null}
+                          {event.routing_model ? (
+                            <Badge color="muted">model {event.routing_model}</Badge>
+                          ) : null}
+                        </div>
+                      ) : null}
                       {event.prompt_excerpt ? (
                         <p className="mt-3 text-[12px] leading-5 text-amber-100/42">
                           input: {event.prompt_excerpt}

@@ -26,6 +26,15 @@ PROFILE_EFFECTIVE=""
 OPS_CONSOLE_ONLY=false
 FORCE_CLEAN=false
 SMOKE_GENERATE_AUDIO=false
+ENABLE_CLUSTER=false
+RUN_CAD_PLUGINS=false
+RUN_CAD_DOCTOR=false
+RUN_CAD_STACK=false
+RUN_CAD_SMOKE=false
+CAD_PLUGINS_EXPLICIT=false
+CAD_DOCTOR_EXPLICIT=false
+CAD_STACK_EXPLICIT=false
+CAD_SMOKE_EXPLICIT=false
 
 # Initialisation - ORDRE CORRIGÉ
 source "$SCRIPT_DIR/scripts/lib.sh"
@@ -93,6 +102,11 @@ Options:
       --ollama-pack <name>   Pack LLM: lite|balanced|heavy (defaut: balanced)
       --ollama-models <csv>  Liste de modeles Ollama a pull (prioritaire sur --ollama-pack)
       --ops-console-only     Alias legacy: lance core+api+edge-proxy pour servir /ops puis quitte
+      --cluster              Active la configuration multi-machine privee pour le core
+      --cad-plugins         Installe les plugins KiCad configures dans le .env
+      --cad-doctor          Verifie les plugins KiCad configures apres installation
+      --cad-stack           Demarre la stack CAD/KiCad dediee apres le setup principal
+      --cad-smoke           Lance le smoke test CAD complet (doctor + MCP + plugins)
       --smoke-generate-audio  Lance un vrai POST /generate apres demarrage (opt-in)
       --force-clean          Nettoyage complet avant installation
 
@@ -105,8 +119,8 @@ Profils:
   apple-silicon  macOS Apple Silicon (M1-M5), stack legere et Ollama natif si disponible
 
 Services disponibles:
-  core, api, litellm, n8n, langfuse, dify, clickhouse, comfyui, tts, stt, generate-audio (AudioCraft CPU/GPU),
-  ollama, open-webui, edge-proxy, ops-agent, redis, postgres, qdrant, grafana, prometheus, loki, promtail, otel-collector
+  core, api, litellm, n8n, langfuse, firecrawl, mem0, dify, clickhouse, comfyui, tts, stt, generate-audio (AudioCraft CPU/GPU),
+  ollama, edge-proxy, ops-agent, redis, postgres, qdrant, grafana, prometheus, loki, promtail, otel-collector
 HELP
 }
 
@@ -220,6 +234,26 @@ parse_setup_args() {
             --ops-console-only)
                 OPS_CONSOLE_ONLY=true
                 ;;
+            --cluster)
+                ENABLE_CLUSTER=true
+                CLUSTER_ENABLED=true
+                ;;
+            --cad-plugins)
+                RUN_CAD_PLUGINS=true
+                CAD_PLUGINS_EXPLICIT=true
+                ;;
+            --cad-doctor)
+                RUN_CAD_DOCTOR=true
+                CAD_DOCTOR_EXPLICIT=true
+                ;;
+            --cad-stack)
+                RUN_CAD_STACK=true
+                CAD_STACK_EXPLICIT=true
+                ;;
+            --cad-smoke)
+                RUN_CAD_SMOKE=true
+                CAD_SMOKE_EXPLICIT=true
+                ;;
             --smoke-generate-audio)
                 SMOKE_GENERATE_AUDIO=true
                 ;;
@@ -266,6 +300,148 @@ parse_setup_args() {
             exit 2
             ;;
     esac
+}
+
+validate_cluster_config() {
+    [[ "${CLUSTER_ENABLED:-false}" == "true" ]] || return 0
+
+    if [[ "${SVC_ON[core]:-0}" != "1" ]]; then
+        err "Le mode cluster requiert le service core."
+        exit 2
+    fi
+
+    local missing=()
+    [[ -z "${NODE_ID:-}" ]] && missing+=("NODE_ID")
+    [[ -z "${NODE_ROLE:-}" ]] && missing+=("NODE_ROLE")
+    [[ -z "${MESH_BIND_HOST:-}" ]] && missing+=("MESH_BIND_HOST")
+    [[ -z "${CLUSTER_SHARED_KEY:-}" ]] && missing+=("CLUSTER_SHARED_KEY")
+
+    if [[ ${#missing[@]} -gt 0 ]]; then
+        err "Configuration cluster incomplete: ${missing[*]}"
+        info "Renseigne ces variables via ./setup --cluster ou ./config."
+        exit 2
+    fi
+
+    local peer
+    IFS=';' read -ra peer_list <<< "${CLUSTER_PEERS:-}"
+    for peer in "${peer_list[@]}"; do
+        [[ -z "${peer// }" ]] && continue
+        IFS='|' read -ra fields <<< "$peer"
+        if [[ ${#fields[@]} -ne 3 ]]; then
+            err "Entree CLUSTER_PEERS invalide: $peer"
+            info "Format attendu: peer-id|role|http://ip:8100;peer2|role|http://ip:8100"
+            exit 2
+        fi
+    done
+}
+
+cad_selected_bundles() {
+    local bundles="${CAD_INSTALL_BUNDLES:-all}"
+    case "$bundles" in
+        ""|all|fabrication-toolkit|kic-ai)
+            echo "${bundles:-all}"
+            return 0
+            ;;
+        *)
+            err "CAD_INSTALL_BUNDLES invalide: $bundles"
+            info "Valeurs attendues: all | fabrication-toolkit | kic-ai"
+            return 1
+            ;;
+    esac
+}
+
+run_cad_plugins_action() {
+    local strict="${1:-false}"
+    local bundles
+    bundles=$(cad_selected_bundles) || {
+        [[ "$strict" == true ]] && return 1
+        warn "Configuration CAD invalide, installation plugins ignoree"
+        return 1
+    }
+
+    local cmd=("$REPO_DIR/scripts/install_kicad_plugins.sh" install "$bundles" --yes)
+    [[ -n "${KICAD_PLUGIN_DIR:-}" ]] && cmd+=(--plugin-dir "$KICAD_PLUGIN_DIR")
+
+    log "Installation plugins KiCad (${bundles})..."
+    if KICAD_VERSION="${KICAD_VERSION:-9.0}" "${cmd[@]}"; then
+        ok "Plugins KiCad installes"
+        return 0
+    fi
+
+    if [[ "$strict" == true ]]; then
+        err "Installation plugins KiCad echouee"
+        return 1
+    fi
+    warn "Installation plugins KiCad echouee"
+    return 1
+}
+
+run_cad_doctor_action() {
+    local strict="${1:-false}"
+    local bundles
+    bundles=$(cad_selected_bundles) || {
+        [[ "$strict" == true ]] && return 1
+        warn "Configuration CAD invalide, doctor ignore"
+        return 1
+    }
+
+    local cmd=("$REPO_DIR/scripts/install_kicad_plugins.sh" doctor "$bundles")
+    [[ -n "${KICAD_PLUGIN_DIR:-}" ]] && cmd+=(--plugin-dir "$KICAD_PLUGIN_DIR")
+
+    log "Verification plugins KiCad (${bundles})..."
+    if KICAD_VERSION="${KICAD_VERSION:-9.0}" "${cmd[@]}"; then
+        ok "Doctor KiCad OK"
+        return 0
+    fi
+
+    if [[ "$strict" == true ]]; then
+        err "Doctor KiCad echoue"
+        return 1
+    fi
+    warn "Doctor KiCad echoue"
+    return 1
+}
+
+run_cad_stack_action() {
+    local strict="${1:-false}"
+    local cmd=("$REPO_DIR/scripts/cad_stack.sh" up)
+
+    log "Demarrage stack CAD/KiCad..."
+    if [[ -n "${CAD_WORKSPACE_DIR:-}" ]]; then
+        if CAD_WORKSPACE_DIR="$CAD_WORKSPACE_DIR" "${cmd[@]}"; then
+            ok "Stack CAD demarree"
+            return 0
+        fi
+    else
+        if "${cmd[@]}"; then
+            ok "Stack CAD demarree"
+            return 0
+        fi
+    fi
+
+    if [[ "$strict" == true ]]; then
+        err "Demarrage stack CAD echoue"
+        return 1
+    fi
+    warn "Demarrage stack CAD echoue"
+    return 1
+}
+
+run_cad_smoke_action() {
+    local strict="${1:-false}"
+
+    log "Smoke test CAD..."
+    if "$REPO_DIR/scripts/cad_stack.sh" smoke; then
+        ok "Smoke test CAD OK"
+        return 0
+    fi
+
+    if [[ "$strict" == true ]]; then
+        err "Smoke test CAD echoue"
+        return 1
+    fi
+    warn "Smoke test CAD echoue"
+    return 1
 }
 
 # Correction de confirm_or_auto pour propager le code de retour
@@ -341,16 +517,13 @@ profile_services_csv() {
             csv="core,api"
             ;;
         standard)
-            csv="core,api,edge-proxy,redis,postgres,qdrant,ollama,open-webui,grafana,prometheus,litellm"
+            csv="core,api,edge-proxy,redis,postgres,qdrant,ollama,grafana,prometheus,litellm"
             ;;
         full)
-            csv="core,api,edge-proxy,litellm,n8n,langfuse,dify,clickhouse,comfyui,tts,stt,generate-audio,ollama,open-webui,redis,postgres,qdrant,grafana,prometheus"
+            csv="core,api,edge-proxy,litellm,n8n,langfuse,firecrawl,dify,clickhouse,comfyui,tts,stt,generate-audio,ollama,redis,postgres,qdrant,grafana,prometheus"
             ;;
         apple-silicon)
             csv="core,api,edge-proxy"
-            if has_native_ollama; then
-                csv="${csv},open-webui"
-            fi
             ;;
         *)
             err "Profil inconnu: '$profile'"
@@ -635,7 +808,7 @@ dbg "=== setup demarre ==="
 dbg "  REPO_DIR=$REPO_DIR"
 dbg "  SCRIPT_DIR=$SCRIPT_DIR"
 dbg "  services definis: ${#SVC_IDS[@]} (${SVC_IDS[*]})"
-dbg "  AUTO_CONFIRM=$AUTO_CONFIRM PRESELECT_MODE=$PRESELECT_MODE NO_START=$NO_START SKIP_DEPS=$SKIP_DEPS SKIP_TESTS=$SKIP_TESTS INSTALL_REPO_SKILLS=$INSTALL_REPO_SKILLS INSTALL_REPO_LLMS=$INSTALL_REPO_LLMS INSTALL_REPO_ASSETS_ONLY=$INSTALL_REPO_ASSETS_ONLY OLLAMA_PACK=$OLLAMA_PACK SMOKE_GENERATE_AUDIO=$SMOKE_GENERATE_AUDIO"
+dbg "  AUTO_CONFIRM=$AUTO_CONFIRM PRESELECT_MODE=$PRESELECT_MODE NO_START=$NO_START SKIP_DEPS=$SKIP_DEPS SKIP_TESTS=$SKIP_TESTS INSTALL_REPO_SKILLS=$INSTALL_REPO_SKILLS INSTALL_REPO_LLMS=$INSTALL_REPO_LLMS INSTALL_REPO_ASSETS_ONLY=$INSTALL_REPO_ASSETS_ONLY OLLAMA_PACK=$OLLAMA_PACK SMOKE_GENERATE_AUDIO=$SMOKE_GENERATE_AUDIO RUN_CAD_PLUGINS=$RUN_CAD_PLUGINS RUN_CAD_DOCTOR=$RUN_CAD_DOCTOR RUN_CAD_STACK=$RUN_CAD_STACK"
 
 if [[ "$OPS_CONSOLE_ONLY" == true ]]; then
     log "Mode --ops-console-only: alias legacy vers Ops Hub React"
@@ -734,6 +907,10 @@ step_progress 4 8 "Configuration .env"
 dbg "Chargement .env existant: $REPO_DIR/.env"
 load_env "$REPO_DIR/.env" 2>/dev/null || true
 
+if [[ "$ENABLE_CLUSTER" == true ]]; then
+    CLUSTER_ENABLED=true
+fi
+
 if [[ "${PROFILE_EFFECTIVE:-}" == "apple-silicon" && "${OLLAMA_HOST_MODE:-}" == "native" ]]; then
     configure_native_ollama_defaults
 fi
@@ -750,6 +927,8 @@ else
     dbg "Pas de .env existant, lancement config modules"
     collect_module_configs
 fi
+
+validate_cluster_config
 
 # ── 5/8 : Generation docker-compose.yml ──
 step_progress 5 8 "Generation docker-compose.yml"
@@ -846,7 +1025,11 @@ else
                 py_stamp_file=".venv/.mascarade_py_deps.sha256"
                 py_sig=""
                 py_prev_sig=""
-                py_sig=$(hash_files_sha256 "pyproject.toml" || true)
+                if [[ -f "../deploy/ops_agent/requirements.txt" ]]; then
+                    py_sig=$(hash_files_sha256 "pyproject.toml" "../deploy/ops_agent/requirements.txt" || true)
+                else
+                    py_sig=$(hash_files_sha256 "pyproject.toml" || true)
+                fi
                 [[ -f "$py_stamp_file" ]] && py_prev_sig=$(cat "$py_stamp_file" 2>/dev/null || true)
 
                 if [[ -n "$py_sig" && "$py_sig" == "$py_prev_sig" ]]; then
@@ -865,8 +1048,8 @@ else
                     dbg "  exec: .venv/bin/pip install -e '.[dev]' -q"
                     pip_rc=0
                     pip_out=$(.venv/bin/pip install -e ".[dev]" -q 2>&1) || pip_rc=$?
-                    spin_stop
                     if [[ $pip_rc -ne 0 ]]; then
+                        spin_stop
                         warn "pip install -e '.[dev]' echoue (code $pip_rc)"
                         dbg "  pip install FAILED rc=$pip_rc"
                         if [[ "$VERBOSE" == true ]]; then
@@ -876,9 +1059,26 @@ else
                             done <<< "$pip_out"
                         fi
                     else
-                        ok "Dependances Python installees"
-                        dbg "  packages installes: $(.venv/bin/pip list --format=columns 2>/dev/null | wc -l) packages"
-                        [[ -n "$py_sig" ]] && echo "$py_sig" > "$py_stamp_file"
+                        if [[ -f "../deploy/ops_agent/requirements.txt" ]]; then
+                            dbg "  exec: .venv/bin/pip install -r ../deploy/ops_agent/requirements.txt -q"
+                            pip_rc=0
+                            pip_out=$(.venv/bin/pip install -r "../deploy/ops_agent/requirements.txt" -q 2>&1) || pip_rc=$?
+                        fi
+                        spin_stop
+                        if [[ $pip_rc -ne 0 ]]; then
+                            warn "pip install ops-agent echoue (code $pip_rc)"
+                            dbg "  pip install ops-agent FAILED rc=$pip_rc"
+                            if [[ "$VERBOSE" == true ]]; then
+                                dbg "  sortie pip:"
+                                while IFS= read -r pip_line; do
+                                    dbg "    | $pip_line"
+                                done <<< "$pip_out"
+                            fi
+                        else
+                            ok "Dependances Python installees"
+                            dbg "  packages installes: $(.venv/bin/pip list --format=columns 2>/dev/null | wc -l) packages"
+                            [[ -n "$py_sig" ]] && echo "$py_sig" > "$py_stamp_file"
+                        fi
                     fi
                 fi
             else
@@ -1092,6 +1292,47 @@ else
     info "Telechargement modeles Ollama ignore"
 fi
 
+echo ""
+section "Actions CAD / KiCad"
+if [[ "$AUTO_CONFIRM" != true ]]; then
+    if [[ "$RUN_CAD_PLUGINS" != true ]]; then
+        confirm "Installer les plugins KiCad configures (${CAD_INSTALL_BUNDLES:-all}) ?" && RUN_CAD_PLUGINS=true || true
+    fi
+    if [[ "$RUN_CAD_DOCTOR" != true ]]; then
+        confirm "Verifier les plugins KiCad avec doctor ?" && RUN_CAD_DOCTOR=true || true
+    fi
+    if [[ "$RUN_CAD_STACK" != true ]]; then
+        confirm "Demarrer la stack CAD/KiCad dediee ?" && RUN_CAD_STACK=true || true
+    fi
+    if [[ "$RUN_CAD_SMOKE" != true && "$RUN_CAD_STACK" == true ]]; then
+        confirm "Lancer le smoke test CAD (doctor + MCP + plugins) ?" && RUN_CAD_SMOKE=true || true
+    fi
+fi
+
+if [[ "$RUN_CAD_PLUGINS" == true ]]; then
+    run_cad_plugins_action "$CAD_PLUGINS_EXPLICIT"
+else
+    info "Installation plugins KiCad ignoree"
+fi
+
+if [[ "$RUN_CAD_DOCTOR" == true ]]; then
+    run_cad_doctor_action "$CAD_DOCTOR_EXPLICIT"
+else
+    info "Doctor KiCad ignore"
+fi
+
+if [[ "$RUN_CAD_STACK" == true ]]; then
+    run_cad_stack_action "$CAD_STACK_EXPLICIT"
+else
+    info "Stack CAD ignoree"
+fi
+
+if [[ "$RUN_CAD_SMOKE" == true ]]; then
+    run_cad_smoke_action "$CAD_SMOKE_EXPLICIT"
+else
+    info "Smoke test CAD ignore"
+fi
+
 # ── Resume ──
 echo ""
 line
@@ -1105,7 +1346,8 @@ echo -e "  ${DIM}├${NC} docker compose ps              ${DIM}# Statut${NC}"
 echo -e "  ${DIM}├${NC} docker compose logs -f          ${DIM}# Logs${NC}"
 echo -e "  ${DIM}├${NC} docker compose down             ${DIM}# Arreter${NC}"
 echo -e "  ${DIM}├${NC} ./update                        ${DIM}# Mise a jour${NC}"
-echo -e "  ${DIM}└${NC} ./config                        ${DIM}# Reconfigurer${NC}"
+echo -e "  ${DIM}├${NC} ./config                        ${DIM}# Reconfigurer${NC}"
+echo -e "  ${DIM}└${NC} ./scripts/cad_stack.sh doctor   ${DIM}# Verifier la stack CAD${NC}"
 
 if svc_selected "api" && [[ -n "${MASCARADE_API_KEY:-}" ]]; then
     echo ""
@@ -1127,6 +1369,12 @@ if svc_selected "edge-proxy"; then
     echo -e "  bash scripts/edge_proxy_cert.sh issue    ${DIM}# Let's Encrypt DNS-01 Cloudflare${NC}"
     echo -e "  bash scripts/edge_proxy_cert.sh info     ${DIM}# Infos certificat actif${NC}"
 fi
+
+echo ""
+echo -e "  ${BOLD}CAD / KiCad :${NC}"
+echo -e "  ./scripts/install_kicad_plugins.sh install ${CAD_INSTALL_BUNDLES:-all} ${DIM}# Installer les bundles choisis${NC}"
+echo -e "  ./scripts/install_kicad_plugins.sh doctor ${CAD_INSTALL_BUNDLES:-all}  ${DIM}# Verifier les plugins${NC}"
+echo -e "  ./scripts/cad_stack.sh up                  ${DIM}# Demarrer la stack CAD${NC}"
 
 echo ""
 line

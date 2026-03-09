@@ -18,7 +18,7 @@ from mascarade.router.providers.base import (
 
 logger = logging.getLogger("mascarade.providers.ollama")
 
-_retry = make_retry(httpx.ConnectError)
+_retry = make_retry(httpx.ConnectError, httpx.TimeoutException)
 
 
 class OllamaProvider(LLMProvider):
@@ -32,7 +32,7 @@ class OllamaProvider(LLMProvider):
         self._base_url = settings.ollama_base_url.rstrip("/")
         self._client = httpx.AsyncClient(
             base_url=self._base_url,
-            timeout=settings.ollama_timeout_seconds,
+            timeout=180.0,
         )
 
     @property
@@ -50,32 +50,32 @@ class OllamaProvider(LLMProvider):
         *,
         model: str | None = None,
         system: str | None = None,
+        response_format: dict | None = None,
         temperature: float = 0.7,
         max_tokens: int = 4096,
     ) -> LLMResponse:
         model = model or self.default_model
         chat_messages = build_chat_messages(messages, system)
 
-        try:
-            response = await self._client.post(
-                "/api/chat",
-                json={
-                    "model": model,
-                    "messages": chat_messages,
-                    "stream": False,
-                    "options": {
-                        "temperature": temperature,
-                        "num_predict": max_tokens,
-                    },
-                },
-            )
-        except httpx.TimeoutException as exc:
-            raise RuntimeError(
-                "Ollama local timeout after "
-                f"{settings.ollama_timeout_seconds:.0f}s for model '{model}' "
-                f"(max_tokens={max_tokens}) via {self._base_url}. "
-                "Increase OLLAMA_TIMEOUT_SECONDS or reduce ANE_MAX_TOKENS_*."
-            ) from exc
+        payload = {
+            "model": model,
+            "messages": chat_messages,
+            "stream": False,
+            "options": {
+                "temperature": temperature,
+                "num_predict": max_tokens,
+            },
+        }
+        if response_format is not None:
+            if response_format.get("type") == "json_object":
+                payload["format"] = "json"
+            else:
+                payload["format"] = response_format
+
+        response = await self._client.post(
+            "/api/chat",
+            json=payload,
+        )
         response.raise_for_status()
         data = response.json()
 

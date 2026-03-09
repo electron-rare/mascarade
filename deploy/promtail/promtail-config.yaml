@@ -38,6 +38,30 @@ scrape_configs:
       - source_labels: ['__meta_docker_container_id']
         regex: '(.+)'
         target_label: 'container_id'
+    pipeline_stages:
+      - json:
+          expressions:
+            severity: severity
+            source: source
+            run_id: run_id
+            agent_name: agent_name
+            event_type: event_type
+            mode: mode
+            provider: provider
+            model: model
+            routing_role: routing_role
+            routing_provider: routing_provider
+            routing_model: routing_model
+      - labels:
+          severity:
+          source:
+          run_id:
+          agent_name:
+          event_type:
+          mode:
+          provider:
+          routing_role:
+          routing_provider:
 
   - job_name: systemd-journal
     journal:
