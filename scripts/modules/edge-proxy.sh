@@ -23,7 +23,9 @@ module_edge_proxy_config() {
   EDGE_PROXY_MEM0_SERVER_NAME=$(input_value "Server name Mem0 via proxy" "${EDGE_PROXY_MEM0_SERVER_NAME:-mem0.saillant.cc}")
   EDGE_PROXY_FIRECRAWL_SERVER_NAME=$(input_value "Server name Firecrawl via proxy" "${EDGE_PROXY_FIRECRAWL_SERVER_NAME:-firecrawl.saillant.cc}")
   EDGE_PROXY_ZEROCLAW_SERVER_NAME=$(input_value "Server name ZeroClaw via proxy" "${EDGE_PROXY_ZEROCLAW_SERVER_NAME:-zeroclaw.saillant.cc}")
+  EDGE_PROXY_ZEROCLAW_DOCS_SERVER_NAME=$(input_value "Server name ZeroClaw docs via proxy" "${EDGE_PROXY_ZEROCLAW_DOCS_SERVER_NAME:-zeroclaw-docs.saillant.cc}")
   EDGE_PROXY_LANGGRAPH_SERVER_NAME=$(input_value "Server name LangGraph via proxy" "${EDGE_PROXY_LANGGRAPH_SERVER_NAME:-langgraph.saillant.cc}")
+  EDGE_PROXY_INDUSTRIAL_SERVER_NAME=$(input_value "Server name cockpit industriel via proxy" "${EDGE_PROXY_INDUSTRIAL_SERVER_NAME:-industrial.saillant.cc}")
   EDGE_PROXY_OPS_AUTH_USER=$(input_value "Basic auth user ops tools" "${EDGE_PROXY_OPS_AUTH_USER:-ops}")
   EDGE_PROXY_OPS_AUTH_PASSWORD=$(input_secret "Basic auth password ops tools" "${EDGE_PROXY_OPS_AUTH_PASSWORD:-$(openssl rand -hex 16)}")
   CLOUDFLARE_API_TOKEN=$(input_optional_secret "Token API Cloudflare" "${CLOUDFLARE_API_TOKEN:-}")
@@ -41,6 +43,8 @@ module_edge_proxy_compose() {
   echo "      - \"\${EDGE_PROXY_BIND_HOST:-0.0.0.0}:\${EDGE_PROXY_HTTPS_PORT}:443\""
   echo "    env_file:"
   echo "      - .env"
+  echo "    extra_hosts:"
+  echo "      - \"host.docker.internal:host-gateway\""
   echo "    volumes:"
   echo "      - edge-proxy-certs:/etc/nginx/certs"
   echo "      - edge-proxy-auth:/etc/nginx/auth"

@@ -3,6 +3,11 @@ map $http_upgrade $connection_upgrade {
     '' close;
 }
 
+map $remote_user $industrial_forwarded_user {
+    default $remote_user;
+    '' ops;
+}
+
 resolver 127.0.0.11 ipv6=off valid=10s;
 resolver_timeout 5s;
 
@@ -509,7 +514,165 @@ server {
 
 server {
     listen 80;
+    server_name ${EDGE_PROXY_INDUSTRIAL_SERVER_NAME};
+
+    set $industrial_cockpit_upstream http://mascarade-agent-factory-cockpit:4173;
+
+    location = /healthz {
+        access_log off;
+        add_header Content-Type text/plain;
+        return 200 'ok';
+    }
+
+    location / {
+        auth_basic "Mascarade operator tools";
+        auth_basic_user_file /etc/nginx/auth/ops-tools.htpasswd;
+        proxy_pass $industrial_cockpit_upstream;
+        proxy_http_version 1.1;
+        proxy_read_timeout 300s;
+        proxy_send_timeout 300s;
+        proxy_set_header Host $host;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $connection_upgrade;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-User $industrial_forwarded_user;
+        proxy_set_header X-Forwarded-Email $industrial_forwarded_user;
+        proxy_set_header X-Auth-Request-User $industrial_forwarded_user;
+        proxy_set_header X-Auth-Request-Email $industrial_forwarded_user;
+        proxy_set_header X-Forwarded-Groups "operator,approver,auditor,admin";
+    }
+}
+
+server {
+    listen 443 ssl;
+    server_name ${EDGE_PROXY_INDUSTRIAL_SERVER_NAME};
+
+    set $industrial_cockpit_upstream http://mascarade-agent-factory-cockpit:4173;
+
+    ssl_certificate /etc/nginx/certs/tls.crt;
+    ssl_certificate_key /etc/nginx/certs/tls.key;
+    ssl_session_timeout 1d;
+    ssl_session_cache shared:SSL:10m;
+    ssl_session_tickets off;
+    ssl_protocols TLSv1.2 TLSv1.3;
+
+    location = /healthz {
+        access_log off;
+        add_header Content-Type text/plain;
+        return 200 'ok';
+    }
+
+    location / {
+        auth_basic "Mascarade operator tools";
+        auth_basic_user_file /etc/nginx/auth/ops-tools.htpasswd;
+        add_header Cache-Control "no-store";
+        proxy_pass $industrial_cockpit_upstream;
+        proxy_http_version 1.1;
+        proxy_read_timeout 300s;
+        proxy_send_timeout 300s;
+        proxy_set_header Host $host;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $connection_upgrade;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-User $industrial_forwarded_user;
+        proxy_set_header X-Forwarded-Email $industrial_forwarded_user;
+        proxy_set_header X-Auth-Request-User $industrial_forwarded_user;
+        proxy_set_header X-Auth-Request-Email $industrial_forwarded_user;
+        proxy_set_header X-Forwarded-Groups "operator,approver,auditor,admin";
+    }
+}
+
+server {
+    listen 80;
     server_name ${EDGE_PROXY_ZEROCLAW_SERVER_NAME};
+
+    root /srv/kill-life/integrations/zeroclaw;
+    index index.html;
+
+    location = /healthz {
+        access_log off;
+        add_header Content-Type text/plain;
+        return 200 'ok';
+    }
+
+    error_page 502 503 504 =503 /_zeroclaw_offline.html;
+
+    location = /_zeroclaw_offline.html {
+        internal;
+        add_header Cache-Control "no-store";
+        try_files /offline.html =503;
+    }
+
+    location / {
+        auth_basic "Mascarade operator tools";
+        auth_basic_user_file /etc/nginx/auth/ops-tools.htpasswd;
+        proxy_intercept_errors on;
+        proxy_pass ${ZEROCLAW_FOLLOW_URL};
+        proxy_http_version 1.1;
+        proxy_read_timeout 300s;
+        proxy_send_timeout 300s;
+        proxy_set_header Host $host;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $connection_upgrade;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    }
+}
+
+server {
+    listen 443 ssl;
+    server_name ${EDGE_PROXY_ZEROCLAW_SERVER_NAME};
+
+    root /srv/kill-life/integrations/zeroclaw;
+    index index.html;
+
+    ssl_certificate /etc/nginx/certs/tls.crt;
+    ssl_certificate_key /etc/nginx/certs/tls.key;
+    ssl_session_timeout 1d;
+    ssl_session_cache shared:SSL:10m;
+    ssl_session_tickets off;
+    ssl_protocols TLSv1.2 TLSv1.3;
+
+    location = /healthz {
+        access_log off;
+        add_header Content-Type text/plain;
+        return 200 'ok';
+    }
+
+    error_page 502 503 504 =503 /_zeroclaw_offline.html;
+
+    location = /_zeroclaw_offline.html {
+        internal;
+        add_header Cache-Control "no-store";
+        try_files /offline.html =503;
+    }
+
+    location / {
+        auth_basic "Mascarade operator tools";
+        auth_basic_user_file /etc/nginx/auth/ops-tools.htpasswd;
+        add_header Cache-Control "no-store";
+        proxy_intercept_errors on;
+        proxy_pass ${ZEROCLAW_FOLLOW_URL};
+        proxy_http_version 1.1;
+        proxy_read_timeout 300s;
+        proxy_send_timeout 300s;
+        proxy_set_header Host $host;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $connection_upgrade;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    }
+}
+
+server {
+    listen 80;
+    server_name ${EDGE_PROXY_ZEROCLAW_DOCS_SERVER_NAME};
 
     root /srv/kill-life/integrations/zeroclaw;
     index index.html;
@@ -530,7 +693,7 @@ server {
 
 server {
     listen 443 ssl;
-    server_name ${EDGE_PROXY_ZEROCLAW_SERVER_NAME};
+    server_name ${EDGE_PROXY_ZEROCLAW_DOCS_SERVER_NAME};
 
     root /srv/kill-life/integrations/zeroclaw;
     index index.html;

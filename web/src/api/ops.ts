@@ -46,6 +46,39 @@ export type OpsMonitor = {
       error?: string;
     }>;
   };
+  industrial?: {
+    ui: {
+      host: string;
+      url: string;
+      ok: boolean;
+      status: number;
+      latency_ms: number;
+      note: string;
+      error?: string;
+    } | null;
+    summary: {
+      server_count: number;
+      runtime_ok_count: number;
+      runtime_error_count: number;
+      topology_valid: boolean;
+      vendor_contract_ready_count: number;
+      vendor_contract_blocked_count: number;
+      cockpit_service_ok: boolean;
+      cockpit_proxy_ok: boolean;
+    };
+    servers: Array<{
+      key: string;
+      label: string;
+      description: string;
+      ok: boolean;
+      runtime_ok: boolean;
+      protocol_version?: string;
+      tool_count: number;
+      resource_count: number;
+      prompt_count: number;
+      error?: string;
+    }>;
+  };
   ai: {
     ollama: {
       ok: boolean;
@@ -181,6 +214,7 @@ export type OpsSummary = {
   };
   observability?: OpsMonitor["observability"];
   public?: OpsMonitor["public"];
+  industrial?: OpsMonitor["industrial"];
   gpu?: OpsSourceStatus | null;
   cluster?: {
     enabled: boolean;

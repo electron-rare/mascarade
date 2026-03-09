@@ -17,10 +17,13 @@ services:
       CORE_PORT: ${CORE_PORT}
       DEFAULT_PROVIDER: ${DEFAULT_PROVIDER}
       DEFAULT_MODEL: ${DEFAULT_MODEL}
+      AGENT_FACTORY_COCKPIT_DIR: ${AGENT_FACTORY_COCKPIT_DIR:-/workspace/agent-factory-cockpit}
+      PYTHONPATH: ${AGENT_FACTORY_COCKPIT_DIR:-/workspace/agent-factory-cockpit}:${PYTHONPATH:-}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:
       - core-data:/app/data
+      - ../agent-factory-cockpit:${AGENT_FACTORY_COCKPIT_DIR:-/workspace/agent-factory-cockpit}:ro
     networks:
       - mascarade-network
 
@@ -50,6 +53,55 @@ services:
       timeout: 5s
       retries: 10
       start_period: 20s
+    networks:
+      - mascarade-network
+
+  agent-factory-cockpit:
+    build:
+      context: ../agent-factory-cockpit
+      dockerfile: Dockerfile
+    container_name: mascarade-agent-factory-cockpit
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      AGENT_FACTORY_STORAGE_ROOT: /data
+      AGENT_FACTORY_OPERATOR_GROUPS: ${AGENT_FACTORY_OPERATOR_GROUPS:-operator}
+      AGENT_FACTORY_APPROVER_GROUPS: ${AGENT_FACTORY_APPROVER_GROUPS:-approver}
+      AGENT_FACTORY_AUDITOR_GROUPS: ${AGENT_FACTORY_AUDITOR_GROUPS:-auditor}
+      AGENT_FACTORY_ADMIN_GROUPS: ${AGENT_FACTORY_ADMIN_GROUPS:-admin}
+    command:
+      - /bin/sh
+      - -lc
+      - >-
+        proxy_args="";
+        OLD_IFS=$$IFS;
+        IFS=',';
+        for cidr in ${AGENT_FACTORY_TRUSTED_PROXY_CIDRS:-172.16.0.0/12}; do
+          cidr=$$(printf '%s' "$$cidr" | xargs);
+          [ -n "$$cidr" ] && proxy_args="$$proxy_args --trusted-proxy-cidr $$cidr";
+        done;
+        IFS=$$OLD_IFS;
+        exec python3 serve.py --host 0.0.0.0 --port ${AGENT_FACTORY_COCKPIT_PORT:-4173} --auth-mode proxy-auth $$proxy_args
+    expose:
+      - "4173"
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    volumes:
+      - agent-factory-cockpit-data:/data
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - python3 -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:4173/api/health')"
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
     networks:
       - mascarade-network
 
@@ -395,12 +447,18 @@ services:
       - "${EDGE_PROXY_BIND_HOST:-0.0.0.0}:${EDGE_PROXY_HTTPS_PORT}:443"
     env_file:
       - .env
+    environment:
+      EDGE_PROXY_INDUSTRIAL_SERVER_NAME: ${EDGE_PROXY_INDUSTRIAL_SERVER_NAME:-industrial.saillant.cc}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       - edge-proxy-certs:/etc/nginx/certs
       - edge-proxy-auth:/etc/nginx/auth
       - ../Kill_LIFE/tools/ai/integrations:/srv/kill-life/integrations:ro
     depends_on:
       api:
+        condition: service_started
+      agent-factory-cockpit:
         condition: service_started
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/healthz >/dev/null"]
@@ -646,6 +704,8 @@ networks:
 
 volumes:
   core-data:
+  agent-factory-cockpit-data:
+    name: agent-factory-cockpit-data
   n8n-data:
   langfuse-minio-data:
   clickhouse-data:

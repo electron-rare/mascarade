@@ -14,6 +14,7 @@ Etat relu le `8 mars 2026` sur la stack `mascarade-*` actuellement en service.
 | Langfuse Worker | `mascarade-langfuse-worker` | — | OK |
 | Firecrawl MCP | `mascarade-firecrawl` | 3400 | OK (`healthy`) |
 | Mem0 / OpenMemory | `mascarade-mem0` | 8765 | OK (`healthy`) |
+| Industrial Cockpit | `mascarade-agent-factory-cockpit` | 4173 | OK (`healthy`) |
 | n8n | `mascarade-n8n` | 5678 | OK (`healthy`) |
 | Dify API | `mascarade-dify-api` | 5001 | OK |
 | Dify Web | `mascarade-dify-web` | 3500 | OK |
@@ -32,8 +33,12 @@ Notes:
 - Les curls host-side vers `127.0.0.1:3200` ne sont pas conclusifs depuis l'environnement sandboxé; la vérification retenue est donc celle faite depuis le réseau Docker et via l'état Docker.
 - `Grafana` et `Langfuse` sont maintenant publiables derrière `edge-proxy` sur `grafana.saillant.cc` et `langfuse.saillant.cc`, avec auth dédiée côté proxy.
 - `Firecrawl`, `Mem0`, `Prometheus` et `Ollama` sont aussi publiables derrière `edge-proxy` sur `firecrawl.saillant.cc`, `mem0.saillant.cc`, `prometheus.saillant.cc` et `ollama.saillant.cc`, avec la même auth opérateur.
+- `Industrial Cockpit` est maintenant publiable derrière `edge-proxy` sur `industrial.saillant.cc`, avec auth opérateur; le cockpit HTTP tourne en service dédié, et les 7 serveurs MCP industriels restent on-demand via stdio depuis `mascarade-core`.
+- la surface publique industrielle est vérifiée de bout en bout: `industrial.saillant.cc/` et `industrial.saillant.cc/api/session` répondent `200` avec auth opérateur; aucun port brut n'est publié pour ce cockpit.
 - `ZeroClaw` est maintenant installe nativement sur la VM (`zeroclaw 0.1.7`), avec un runtime operateur demarrable a la demande via `Kill_LIFE/tools/ai/zeroclaw_stack_up.sh`.
-- `ZeroClaw` / `LangGraph` restent publies derriere `edge-proxy` sur `zeroclaw.saillant.cc` et `langgraph.saillant.cc` comme surfaces operateur authentifiees; ces hostnames servent les runbooks meme quand le runtime `ZeroClaw` est arrete.
+- `zeroclaw.saillant.cc` sert maintenant la surface live `ZeroClaw` derriere `edge-proxy`, avec fallback offline propre si le runtime est arrete.
+- `zeroclaw-docs.saillant.cc` et `langgraph.saillant.cc` servent les runbooks operateur authentifies.
+- Un smoke reel `POST /webhook` repond maintenant `200` via `OpenRouter`, avec une reponse modele validee de bout en bout.
 - Le bind hôte de `edge-proxy` est maintenant `0.0.0.0`; le certificat réel Let's Encrypt est installé via DNS-01 Cloudflare avec couverture `saillant.cc` + `*.saillant.cc`.
 
 ## TODO priorisés
@@ -46,8 +51,10 @@ Notes:
 - [x] `Tempo` branché comme backend de traces nominal.
 - [x] `Grafana` et `Langfuse` sont atteignables via le proxy opérateur.
 - [x] `Firecrawl`, `Mem0`, `Prometheus` et `Ollama` sont atteignables via le proxy opérateur.
-- [x] `ZeroClaw` et `LangGraph` sont visibles comme surfaces opérateur proxifiées.
+- [x] `Industrial Cockpit` est atteignable via le proxy opérateur.
+- [x] `ZeroClaw` live, `ZeroClaw` docs et `LangGraph` sont visibles comme surfaces opérateur proxifiées.
 - [x] Le runtime `ZeroClaw` se demarre et s'arrete proprement a la demande via les scripts `Kill_LIFE`.
+- [x] Le fallback provider `OpenRouter` est configure et valide sur un appel modele reel via le gateway natif.
 
 ### Sécurité
 - [x] `MASCARADE_API_KEY` est renseignée dans `/home/clems/mascarade/.env`; l'auth n'est pas désactivée en pratique.
@@ -56,6 +63,7 @@ Notes:
   - `ANTHROPIC_API_KEY`
   - `OPENAI_API_KEY`
 - [x] `MISTRAL_API_KEY` est déjà configurée.
+- [x] `OPENROUTER_API_KEY` est configurée dans le runtime natif `ZeroClaw`.
 - [x] `Notion` est sorti du scope actif; ne plus traiter `NOTION_*` comme secrets à compléter sur cette VM.
 
 ### Infra
@@ -75,7 +83,8 @@ Notes:
 - [x] `edge-proxy` est maintenant publié sur `0.0.0.0:80/443`.
 - [x] `Grafana` et `Langfuse` ont un routage dédié derrière `edge-proxy`.
 - [x] `Firecrawl`, `Mem0`, `Prometheus` et `Ollama` ont un routage dédié derrière `edge-proxy`.
-- [x] `ZeroClaw` et `LangGraph` ont un routage dédié derrière `edge-proxy`.
+- [x] `Industrial Cockpit` a un routage dédié derrière `edge-proxy`.
+- [x] `ZeroClaw` live, `ZeroClaw` docs et `LangGraph` ont un routage dédié derrière `edge-proxy`.
 - [x] Une auth opérateur dédiée protège ces surfaces côté proxy.
 - [x] Le certificat auto-signé de fallback couvre maintenant `saillant.cc`, `grafana.saillant.cc`, `langfuse.saillant.cc` et `dify.saillant.cc`.
 - [x] Certificat réel Let's Encrypt installé via ACME DNS-01 Cloudflare.
@@ -111,6 +120,7 @@ Les restes encore ouverts ne sont plus des blocs locaux d'implementation:
 | Prometheus | `mascarade-prometheus` | 9090 |
 | Tempo | `mascarade-tempo` | 3201 |
 | Blackbox Exporter | `mascarade-blackbox-exporter` | 9115 |
+| Industrial Cockpit | `mascarade-agent-factory-cockpit` | 4173 |
 
 ## Fichiers clés
 
