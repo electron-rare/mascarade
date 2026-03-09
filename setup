@@ -50,6 +50,51 @@ setup_trap
 SETUP_SNAPSHOT_PATH=""
 SETUP_ROLLBACK_DONE=false
 
+safe_mktemp_file() {
+    local prefix="$1"
+    local template
+    template="${prefix}.tmp.XXXXXX"
+
+    local -a candidates=(
+        "${TMPDIR:-}"
+        "$REPO_DIR/.tmp"
+        "$REPO_DIR/tmp"
+        "/tmp"
+        "/var/tmp"
+        "$HOME"
+    )
+
+    local dir tmp
+    for dir in "${candidates[@]}"; do
+        [[ -z "$dir" ]] && continue
+        if mkdir -p "$dir" 2>/dev/null && [[ -w "$dir" ]]; then
+            tmp="$(mktemp "$dir/$template" 2>/dev/null || true)"
+            if [[ -n "$tmp" ]]; then
+                echo "$tmp"
+                return 0
+            fi
+        fi
+    done
+
+    return 1
+}
+
+safe_mktemp_write_target() {
+    local path
+    path=$(safe_mktemp_file "mascarade-setup")
+    if [[ -z "$path" ]]; then
+        err "Echec creation fichier temporaire: espace disque ou droits insuffisants."
+        warn "Verification: "
+        local target
+        for target in "${TMPDIR:-$HOME} /tmp /var/tmp $REPO_DIR/.tmp"; do
+            echo "  $target : $(df -h "$target" 2>/dev/null | awk 'NR==2 {print $4}')"
+        done
+        return 1
+    fi
+    echo "$path"
+    return 0
+}
+
 declare -a OLLAMA_PACK_LITE=(
     "tinyllama"
     "qwen2.5:0.5b"
@@ -1106,8 +1151,8 @@ validate_cluster_config
 # ── 5/8 : Generation docker-compose.yml ──
 step_progress 5 8 "Generation docker-compose.yml"
 dbg "Generation conditionnelle docker-compose.yml et .env..."
-tmp_compose=$(mktemp)
-tmp_env=$(mktemp)
+tmp_compose=$(safe_mktemp_write_target) || exit 1
+tmp_env=$(safe_mktemp_write_target) || exit 1
 generate_compose "$tmp_compose"
 write_env_file "$tmp_env"
 
