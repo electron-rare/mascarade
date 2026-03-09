@@ -31,6 +31,29 @@ describe("industrial routes", () => {
           resource_count: 10,
           prompt_count: 2,
         },
+        {
+          key: "plm",
+          label: "PLM MCP",
+          description: "Product lifecycle management",
+          ok: true,
+          runtime_ok: true,
+          tool_count: 3,
+          resource_count: 4,
+          prompt_count: 3,
+          health: {
+            system: "plm",
+            health: {
+              contract_status: "ready-for-pack",
+              ready_operation_count: 2,
+              simulated_operation_count: 1,
+              blocked_operation_count: 0,
+            },
+          },
+          contract: {
+            domain: "plm",
+            status: "ready-for-pack",
+          },
+        },
       ],
       topology: { valid: true },
       vendor_contracts: { summary: { ready_count: 4, blocked_count: 2 } },
@@ -48,6 +71,17 @@ describe("industrial routes", () => {
         {
           key: "cockpit-ops",
           label: "Industrial Cockpit Ops",
+        },
+        {
+          key: "plm",
+          health: {
+            health: {
+              contract_status: "ready-for-pack",
+            },
+          },
+          contract: {
+            status: "ready-for-pack",
+          },
         },
       ],
     });

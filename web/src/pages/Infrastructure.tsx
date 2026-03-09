@@ -36,6 +36,10 @@ type IndustrialPlatformPayload = {
     summary?: {
       route_count?: number;
       destination_count?: number;
+      site_count?: number;
+      internal_site_count?: number;
+      external_partner_count?: number;
+      line_count?: number;
       blocked_domains?: string[];
     };
   };
@@ -411,6 +415,15 @@ export default function Infrastructure() {
                 </Badge>
                 <Badge color="accent">
                   destinations {industrial.data?.topology?.summary?.destination_count ?? 0}
+                </Badge>
+                <Badge color="accent">
+                  sites {industrial.data?.topology?.summary?.site_count ?? 0}
+                </Badge>
+                <Badge color="accent">
+                  external partners {industrial.data?.topology?.summary?.external_partner_count ?? 0}
+                </Badge>
+                <Badge color="accent">
+                  lines {industrial.data?.topology?.summary?.line_count ?? 0}
                 </Badge>
               </div>
             </div>

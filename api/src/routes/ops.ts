@@ -106,6 +106,8 @@ type MonitorSnapshot = {
       resource_count: number;
       prompt_count: number;
       error?: string;
+      health?: Record<string, unknown>;
+      contract?: Record<string, unknown>;
     }>;
   };
   ai: {
@@ -1378,6 +1380,12 @@ async function collectMonitorSnapshot(): Promise<MonitorSnapshot> {
             tool_count: Number(server.tool_count || 0),
             resource_count: Number(server.resource_count || 0),
             prompt_count: Number(server.prompt_count || 0),
+            ...(server.health && typeof server.health === "object"
+              ? { health: server.health as Record<string, unknown> }
+              : {}),
+            ...(server.contract && typeof server.contract === "object"
+              ? { contract: server.contract as Record<string, unknown> }
+              : {}),
             ...(server.error ? { error: String(server.error) } : {}),
           }))
         : [],

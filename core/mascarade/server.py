@@ -1071,7 +1071,7 @@ async def industrial_mcp_runtime(server_key: str):
         raise HTTPException(status_code=404, detail=f"Unknown industrial MCP server '{server_key}'")
     client = _require_mcp_client()
     try:
-        payload = await client.describe_server(server_key)
+        payload = await _industrial_runtime_payload(client, server_key)
     except (McpCallError, McpServerUnavailable) as exc:
         raise _mcp_http_exception(exc) from exc
     return payload
@@ -1095,7 +1095,7 @@ async def industrial_mcp_platform():
         item for item in client.list_servers() if item.get("key") in INDUSTRIAL_MCP_SERVER_KEYS
     ]
     runtime_results = await asyncio.gather(
-        *(client.describe_server(str(item.get("key", ""))) for item in inventory),
+        *(_industrial_runtime_payload(client, str(item.get("key", ""))) for item in inventory),
         return_exceptions=True,
     )
     servers: list[dict[str, Any]] = []
@@ -1123,6 +1123,16 @@ async def industrial_mcp_platform():
                 "tool_count": int(result.get("tool_count", 0) or 0),
                 "resource_count": int(result.get("resource_count", 0) or 0),
                 "prompt_count": int(result.get("prompt_count", 0) or 0),
+                **(
+                    {"health": result.get("health")}
+                    if isinstance(result.get("health"), dict)
+                    else {}
+                ),
+                **(
+                    {"contract": result.get("contract")}
+                    if isinstance(result.get("contract"), dict)
+                    else {}
+                ),
             }
         )
 
@@ -1156,6 +1166,41 @@ async def industrial_mcp_platform():
         "topology": topology_payload,
         "vendor_contracts": vendor_contracts_payload,
     }
+
+
+def _industrial_health_uri(server_key: str) -> str:
+    if server_key == "cockpit-ops":
+        return "cockpit://health"
+    return f"{server_key}://health"
+
+
+def _industrial_contract_uri(server_key: str) -> str | None:
+    if server_key == "cockpit-ops":
+        return None
+    return f"{server_key}://contract"
+
+
+async def _industrial_runtime_payload(client: McpRuntimeClient, server_key: str) -> dict[str, Any]:
+    payload = await client.describe_server(server_key)
+    health_uri = _industrial_health_uri(server_key)
+    try:
+        health = await client.read_resource(server_key, health_uri)
+        health_payload = health.get("payload") if isinstance(health, dict) else None
+        if isinstance(health_payload, dict):
+            payload["health"] = health_payload
+    except (McpCallError, McpServerUnavailable):
+        pass
+
+    contract_uri = _industrial_contract_uri(server_key)
+    if contract_uri:
+        try:
+            contract = await client.read_resource(server_key, contract_uri)
+            contract_payload = contract.get("payload") if isinstance(contract, dict) else None
+            if isinstance(contract_payload, dict):
+                payload["contract"] = contract_payload
+        except (McpCallError, McpServerUnavailable):
+            pass
+    return payload
 
 
 @protected.post("/mcp/industrial/{server_key}/tools/{tool_name}")
