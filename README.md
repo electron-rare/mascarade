@@ -49,6 +49,20 @@ Systeme d'orchestration agentique personnel. Route intelligemment les requetes L
 - runbook Apple local: [`docs/RUNBOOK_APPLE_LLM_LOCAL.md`](./docs/RUNBOOK_APPLE_LLM_LOCAL.md)
 - l'integration `ai-novel-engine` reste limitee au runtime local et au contrat OpenAI-compatible
 
+## Helpers ANE
+
+Pour les cycles locaux `ai-novel-engine`, `mascarade` expose maintenant deux helpers operatoires:
+
+```bash
+bash scripts/ensure_apple_models.sh
+bash scripts/prepare_runtime_step.sh --apple-model qwen3.5-4b-onnx-q4f16
+```
+
+Usage:
+- `ensure_apple_models.sh` verifie ou installe les trois modeles Apple requis du cycle ANE
+- `prepare_runtime_step.sh` prepare sans l'executer le restart `core/api`, le restart Apple local ou le switch du `model_id` Apple actif
+- l'orchestrateur ANE `python3 scripts/run_next_lots.py` s'appuie sur ces helpers pour les checkpoints semi-autos
+
 **Core Python** (`core/`, port `8100`) -- Moteur d'orchestration, routeur LLM, agents, metriques
 **API TypeScript** (`api/`, port `3100`) -- Facade HTTP Hono, auth middleware, proxy vers le core
 **VM** -- Deploiement Docker sur `192.168.0.119`
@@ -201,13 +215,10 @@ export APPLE_LLM_TOKENIZER_PATH="$HOME/Models/mascarade/apple-llm/StatefulMistra
 
 Pour les smokes `ai-novel-engine`, prevoir un timeout Apple plus large que les providers cloud: le warm-up Core ML peut depasser plusieurs minutes sur le premier appel.
 
-Validation locale utile pour `ai-novel-engine` au 8 mars 2026:
-- sous protocole ANE avec garde-fou actif, aucun modele n'est encore `accepted`
-- sous protocole ANE avec boucle `repair`, aucun modele n'atteint encore `gate` en live
-- `apple-coreml:qwen2.5-0.5b-instruct-onnx` atteint `rewrite` puis timeoute a `300s`
-- `apple-coreml:qwen3.5-4b-onnx-q4f16` atteint `rewrite` avec une critique exploitable puis timeoute a `300s`
-- `ollama:qwen2.5:1.5b` timeoute en `structure` via le service Docker CPU
-- `ollama:qwen2.5:7b` atteint `rewrite` avec une critique exploitable puis timeoute a `300s`
+Validation locale utile pour `ai-novel-engine` au 9 mars 2026:
+- `apple-coreml:qwen3.5-4b-onnx-q4f16` est maintenant `accepted` sous protocole ANE avec garde-fou actif
+- `ollama:qwen2.5:7b` atteint `gate`, exerce `repair` en live, puis finit `quality_blocked` sur `outline_like`
+- `apple-coreml:qwen2.5-0.5b-instruct-onnx` et `ollama:qwen2.5:1.5b` sont en rerun baseline separe
 - `apple-coreml:stateful-mistral7b-instruct-int4-coreml` repond au preflight, mais reste preflight-only pour ANE sur cette machine
 - pour les smokes ANE qualitatifs sur le service Docker CPU, prevoir un `OLLAMA_TIMEOUT_SECONDS` plus large que `180` si les requetes de structure ou de draft depassent plusieurs minutes
 - le runtime Apple local ne sert qu'un seul `model_id` a la fois; pour comparer plusieurs modeles Apple, il faut relancer `:8201` entre deux runs
@@ -766,3 +777,11 @@ mascarade/
 ├── .env.example
 └── CLAUDE.md                         # Conventions dev
 ```
+
+## Etat auto-synchronise
+## Etat auto-synchronise
+<!-- AUTO-SYNC:MASCARADE-README:START -->
+- dernier cycle ANE automatise: 2026-03-09T06:53:02+00:00
+- etat de reference ANE: aucun accepted, meilleur diagnostic: apple-coreml:qwen2.5-0.5b-instruct-onnx
+- prochain lot utile cote pipeline: Analyser les runs ayant atteint gate/repair puis resserrer la reference locale autour des meilleurs candidats.
+<!-- AUTO-SYNC:MASCARADE-README:END -->
