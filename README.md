@@ -56,6 +56,26 @@ Mascarade fait partie d'un ecosysteme de 5 repos :
                   +------------------+
 ```
 
+## Suivi
+- backlog ANE dedie: [`TODO_AI_NOVEL_ENGINE.md`](./TODO_AI_NOVEL_ENGINE.md)
+- plan d'execution global: [`docs/EXECUTION_PLAN_2026-03-08.md`](./docs/EXECUTION_PLAN_2026-03-08.md)
+- runbook Apple local: [`docs/RUNBOOK_APPLE_LLM_LOCAL.md`](./docs/RUNBOOK_APPLE_LLM_LOCAL.md)
+- l'integration `ai-novel-engine` reste limitee au runtime local et au contrat OpenAI-compatible
+
+## Helpers ANE
+
+Pour les cycles locaux `ai-novel-engine`, `mascarade` expose maintenant deux helpers operatoires:
+
+```bash
+bash scripts/ensure_apple_models.sh
+bash scripts/prepare_runtime_step.sh --apple-model qwen3.5-4b-onnx-q4f16
+```
+
+Usage:
+- `ensure_apple_models.sh` verifie ou installe les trois modeles Apple requis du cycle ANE
+- `prepare_runtime_step.sh` prepare sans l'executer le restart `core/api`, le restart Apple local ou le switch du `model_id` Apple actif
+- l'orchestrateur ANE `python3 scripts/run_next_lots.py` s'appuie sur ces helpers pour les checkpoints semi-autos
+
 **Core Python** (`core/`, port `8100`) -- Moteur d'orchestration, routeur LLM, agents, metriques
 **API TypeScript** (`api/`, port `3100`) -- Facade HTTP Hono, auth middleware, proxy vers le core
 **VM** -- Deploiement Docker sur `192.168.0.119`
@@ -240,6 +260,7 @@ CORE_URL=http://localhost:8100          # http://core:8100 en Docker
 OLLAMA_ENABLED=true
 OLLAMA_HOST_MODE=docker
 OLLAMA_BASE_URL=http://ollama:11434    # macOS natif: http://host.docker.internal:11434
+OLLAMA_TIMEOUT_SECONDS=180             # augmenter pour les smokes ANE longs
 
 # Apple LLM natif (service hote macOS pour Core ML / ANE)
 APPLE_LLM_ENABLED=false
@@ -247,6 +268,7 @@ APPLE_LLM_BASE_URL=http://host.docker.internal:8201  # dev local hors Docker: ht
 APPLE_LLM_MODEL_ID=apple-local
 APPLE_LLM_BACKEND=coreml                              # ou onnx-coreml
 APPLE_LLM_MODEL_PATH=/chemin/model.mlpackage          # onnx-coreml: /chemin/model.onnx
+APPLE_LLM_EMBED_MODEL_PATH=/chemin/embed_tokens.mlpackage  # optionnel, requis si le modele attend inputs_embeds
 APPLE_LLM_TOKENIZER_PATH=/chemin/tokenizer
 APPLE_LLM_COMPUTE_UNITS=cpu_and_ne
 APPLE_LLM_ENABLE_THINKING=false                      # Qwen3.5: false pour une reponse directe
@@ -309,6 +331,55 @@ Ce profil est pense pour les outils locaux Apple Silicon actuels:
 Pour brancher un vrai service local Apple Silicon / Neural Engine, Mascarade expose maintenant un provider `apple-coreml` qui parle a un service hote macOS:
 
 ```bash
+./scripts/install_apple_coreml_model.sh
+
+export APPLE_LLM_ENABLED=true
+export APPLE_LLM_BASE_URL=http://host.docker.internal:8201
+export APPLE_LLM_MODEL_ID=stateful-mistral7b-instruct-int4-coreml
+export APPLE_LLM_BACKEND=coreml
+export APPLE_LLM_TIMEOUT_SECONDS=900
+export APPLE_LLM_MODEL_PATH="$HOME/Models/mascarade/apple-llm/StatefulMistral7BInstructInt4/StatefulMistral7BInstructInt4.mlpackage"
+export APPLE_LLM_TOKENIZER_PATH="$HOME/Models/mascarade/apple-llm/StatefulMistral7BInstructInt4/tokenizer"
+
+./scripts/run_apple_llm_service.sh
+```
+
+Pour les smokes `ai-novel-engine`, prevoir un timeout Apple plus large que les providers cloud: le warm-up Core ML peut depasser plusieurs minutes sur le premier appel.
+
+Validation locale utile pour `ai-novel-engine` au 9 mars 2026:
+- `apple-coreml:qwen3.5-4b-onnx-q4f16` est maintenant `accepted` sous protocole ANE avec garde-fou actif
+- `ollama:qwen2.5:7b` atteint `gate`, exerce `repair` en live, puis finit `quality_blocked` sur `outline_like`
+- `apple-coreml:qwen2.5-0.5b-instruct-onnx` et `ollama:qwen2.5:1.5b` sont en rerun baseline separe
+- `apple-coreml:stateful-mistral7b-instruct-int4-coreml` repond au preflight, mais reste preflight-only pour ANE sur cette machine
+- pour les smokes ANE qualitatifs sur le service Docker CPU, prevoir un `OLLAMA_TIMEOUT_SECONDS` plus large que `180` si les requetes de structure ou de draft depassent plusieurs minutes
+- le runtime Apple local ne sert qu'un seul `model_id` a la fois; pour comparer plusieurs modeles Apple, il faut relancer `:8201` entre deux runs
+
+Si tu as deja un export Core ML natif produit ailleurs, tu peux aussi le stage dans un layout stable pour Mascarade:
+
+```bash
+./scripts/stage_apple_coreml_model.sh \
+  --model-source ~/Exports/Qwen3.5/decoder_model_merged.mlpackage \
+  --embed-source ~/Exports/Qwen3.5/embed_tokens.mlpackage \
+  --tokenizer-source ~/Exports/Qwen3.5/tokenizer \
+  --dest ~/Models/mascarade/apple-llm/Qwen3.5-4B-CoreML \
+  --model-id qwen3.5-4b-coreml
+
+export APPLE_LLM_ENABLED=true
+export APPLE_LLM_BASE_URL=http://host.docker.internal:8201
+export APPLE_LLM_MODEL_ID=qwen3.5-4b-coreml
+export APPLE_LLM_BACKEND=coreml
+export APPLE_LLM_MODEL_PATH="$HOME/Models/mascarade/apple-llm/Qwen3.5-4B-CoreML/decoder_model_merged.mlpackage"
+export APPLE_LLM_EMBED_MODEL_PATH="$HOME/Models/mascarade/apple-llm/Qwen3.5-4B-CoreML/embed_tokens.mlpackage"
+export APPLE_LLM_TOKENIZER_PATH="$HOME/Models/mascarade/apple-llm/Qwen3.5-4B-CoreML/tokenizer"
+export APPLE_LLM_ENABLE_THINKING=false
+
+./scripts/run_apple_llm_service.sh
+./scripts/smoke_apple_llm.sh --url http://127.0.0.1:8201 --model qwen3.5-4b-coreml
+```
+
+Le chemin ONNX reste disponible comme fallback de compatibilite:
+
+```bash
 ./scripts/install_apple_llm_model.sh
 
 export APPLE_LLM_ENABLED=true
@@ -327,16 +398,21 @@ Ensuite, pour que le routeur utilise ce chemin:
 
 ```bash
 DEFAULT_PROVIDER=apple-coreml
-DEFAULT_MODEL=qwen3.5-4b-onnx-q4f16
+DEFAULT_MODEL=<meme-valeur-que-APPLE_LLM_MODEL_ID>
 ```
 
 Notes:
 
+- `scripts/stage_apple_coreml_model.sh` stage un export Core ML natif dans un layout stable pour `APPLE_LLM_BACKEND=coreml`
+- `scripts/install_apple_coreml_model.sh` telecharge un artefact Core ML natif depuis Hugging Face avec son tokenizer associe
 - `scripts/install_apple_llm_model.sh` installe par defaut `onnx-community/Qwen3.5-4B-ONNX` avec `onnx/decoder_model_merged_q4f16.onnx` et `onnx/embed_tokens_q4f16.onnx`
-- `APPLE_LLM_BACKEND=coreml` attend un modele Core ML exporte, typiquement `.mlpackage`
+- `APPLE_LLM_BACKEND=coreml` attend un modele Core ML exporte, typiquement `.mlpackage` ou `.mlmodelc`
+- `APPLE_LLM_EMBED_MODEL_PATH` est optionnel, mais devient utile des qu'un export natif attend `inputs_embeds`
+- `scripts/run_apple_llm_service.sh` prefere automatiquement `python3.12` pour `coreml`; si seule une venv `Python 3.14` existe, `coremltools` ne charge pas le runtime natif attendu
 - `APPLE_LLM_BACKEND=onnx-coreml` attend un modele `.onnx` execute via ONNX Runtime CoreML EP
 - ce service est volontairement hote natif macOS; Docker Desktop n'expose pas le Neural Engine au conteneur
 - le moteur implemente un chemin autoregressif simple, utile pour prototyper et valider le routage Mascarade vers un runtime ANE
+- le chemin `coreml` charge maintenant un vrai artefact natif, expose ses specs d'entree dans `/health`, et supporte aussi les modèles Core ML stateful
 - le chemin Qwen3.5 utilise un export ONNX moderne avec `inputs_embeds`, `embed_tokens` et cache mixte `past_key_values` / `past_conv` / `past_recurrent`
 - `APPLE_LLM_ENABLE_THINKING=false` desactive le mode thinking de `Qwen3.5` via son chat template officiel
 - `Qwen2.5-0.5B-Instruct` reste un fallback valide sur cette machine si un graphe plus simple est prefere
@@ -634,6 +710,63 @@ Strategies disponibles :
 | `fastest`  | Plus rapide (OpenAI/Mistral, speed_rank=1)      |
 | `specific` | Provider specifique (passer `"provider": "..."`) |
 
+### Utiliser l'endpoint OpenAI-compatible
+
+Le core Python expose aussi un shim local `POST /v1/chat/completions` sur `:8100`.
+Il est utile pour brancher des outils qui parlent deja l'API OpenAI, sans leur
+ajouter de logique provider Mascarade.
+
+Selection du backend local par `model` :
+
+- `apple-coreml:<model-id>`
+- `ollama:<model-id>`
+- sans prefixe, Mascarade retombe sur `DEFAULT_PROVIDER` et `DEFAULT_MODEL`
+
+Le modele doit rester explicite dans les smokes ANE. Les exemples ci-dessous sont
+des exemples connus bons, pas des defaults imposes par le repo.
+
+Exemple Apple CoreML :
+
+```bash
+curl -X POST http://localhost:8100/v1/chat/completions \
+  -H "Authorization: Bearer $KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "apple-coreml:qwen3.5-4b-onnx-q4f16",
+    "messages": [{"role": "user", "content": "Resume ce chapitre en 5 lignes"}],
+    "temperature": 0.2,
+    "max_tokens": 512
+  }'
+```
+
+Exemple Ollama :
+
+```bash
+curl -X POST http://localhost:8100/v1/chat/completions \
+  -H "Authorization: Bearer $KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "ollama:qwen2.5:1.5b",
+    "messages": [{"role": "user", "content": "Propose un plan de scene"}]
+  }'
+```
+
+Smoke minimal utile a `ai-novel-engine` :
+
+```bash
+bash scripts/smoke_openai_compat_ane.sh \
+  --url http://localhost:8100 \
+  --model "apple-coreml:qwen3.5-4b-onnx-q4f16"
+```
+
+Notes :
+
+- le endpoint est synchrone et non-streaming en v1
+- `response_format` est accepte, mais pour `apple-coreml` et `ollama` le JSON doit
+  rester impose par prompt
+- si `MASCARADE_API_KEY` est vide, la route reste ouverte en local comme les autres
+  routes protegees du core
+
 ### Lister les providers actifs
 
 ```bash
@@ -878,3 +1011,11 @@ mascarade/
 ├── .env.example                      # Template configuration
 └── CLAUDE.md                         # Conventions dev
 ```
+
+## Etat auto-synchronise
+## Etat auto-synchronise
+<!-- AUTO-SYNC:MASCARADE-README:START -->
+- dernier cycle ANE automatise: 2026-03-09T06:53:02+00:00
+- etat de reference ANE: aucun accepted, meilleur diagnostic: apple-coreml:qwen2.5-0.5b-instruct-onnx
+- prochain lot utile cote pipeline: Analyser les runs ayant atteint gate/repair puis resserrer la reference locale autour des meilleurs candidats.
+<!-- AUTO-SYNC:MASCARADE-README:END -->
