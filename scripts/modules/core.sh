@@ -30,11 +30,11 @@ module_core_config() {
     CLUSTER_REQUEST_TIMEOUT_MS=$(input_value "Timeout cluster (ms)" "${CLUSTER_REQUEST_TIMEOUT_MS:-5000}")
     CLUSTER_HEARTBEAT_SECONDS=$(input_value "Heartbeat logique peers (s)" "${CLUSTER_HEARTBEAT_SECONDS:-30}")
     if [[ "${CLUSTER_FORWARD_ENABLED:-true}" == "true" ]]; then
-      if ! confirm "Garder le forward `core -> core` actif ?"; then
+      if ! confirm "Garder le forward 'core -> core' actif ?"; then
         CLUSTER_FORWARD_ENABLED=false
       fi
     else
-      if confirm "Activer le forward `core -> core` ?"; then
+      if confirm "Activer le forward 'core -> core' ?"; then
         CLUSTER_FORWARD_ENABLED=true
       fi
     fi
