@@ -336,7 +336,7 @@ validate_cluster_config() {
 
     if [[ ${#missing[@]} -gt 0 ]]; then
         err "Configuration cluster incomplete: ${missing[*]}"
-        info "Renseigne ces variables via ./setup --cluster ou ./config."
+        info "Renseigne ces variables via ./setup --p2p/--cluster, ./config ou la TUI setup."
         exit 2
     fi
 
@@ -494,6 +494,63 @@ run_cad_smoke_action() {
     fi
     warn "Smoke test CAD echoue"
     return 1
+}
+
+prompt_p2p_setup() {
+    if [[ "${AUTO_CONFIRM}" == true ]]; then
+        return 0
+    fi
+    if [[ "${SVC_ON[core]:-0}" != "1" ]]; then
+        return 0
+    fi
+    if ! _has_input_tty; then
+        return 0
+    fi
+
+    if [[ "${CLUSTER_ENABLED:-false}" == "true" ]]; then
+        if ! confirm "P2P (cluster) actif. Conserver le mode P2P ?"; then
+            CLUSTER_ENABLED=false
+            NODE_ID="${NODE_ID:-node-1}"
+            NODE_ROLE="${NODE_ROLE:-general}"
+            NODE_LABEL="${NODE_LABEL:-Mascarade Node 1}"
+            MESH_BIND_HOST=""
+            MESH_SCHEME="${MESH_SCHEME:-http}"
+            CLUSTER_SHARED_KEY=""
+            CLUSTER_REQUEST_TIMEOUT_MS="${CLUSTER_REQUEST_TIMEOUT_MS:-5000}"
+            CLUSTER_HEARTBEAT_SECONDS="${CLUSTER_HEARTBEAT_SECONDS:-30}"
+            CLUSTER_FORWARD_ENABLED=false
+            CLUSTER_PEERS=""
+            info "Mode P2P desactive."
+            return 0
+        fi
+    else
+        if ! confirm "Activer le mode P2P (cluster multi-machine) ?"; then
+            CLUSTER_ENABLED=false
+            return 0
+        fi
+        CLUSTER_ENABLED=true
+    fi
+
+    NODE_ID=$(input_value "Node ID P2P :" "${NODE_ID:-node-1}")
+    NODE_ROLE=$(input_value "Role du noeud P2P :" "${NODE_ROLE:-general}")
+    NODE_LABEL=$(input_value "Label du noeud P2P :" "${NODE_LABEL:-Mascarade Node 1}")
+    MESH_BIND_HOST=$(input_value "IP/VPN mesh du noeud :" "${MESH_BIND_HOST:-}")
+    MESH_SCHEME=$(input_value "Schema mesh (http/https) :" "${MESH_SCHEME:-http}")
+    CLUSTER_SHARED_KEY=$(input_optional_secret "Cle Bearer inter-noeuds :" "${CLUSTER_SHARED_KEY:-}")
+    CLUSTER_REQUEST_TIMEOUT_MS=$(input_value "Timeout cluster (ms) :" "${CLUSTER_REQUEST_TIMEOUT_MS:-5000}")
+    CLUSTER_HEARTBEAT_SECONDS=$(input_value "Heartbeat logique (s) :" "${CLUSTER_HEARTBEAT_SECONDS:-30}")
+    if [[ "${CLUSTER_FORWARD_ENABLED:-true}" == "true" ]]; then
+        if ! confirm "Garder le forward `core -> core` actif ?"; then
+            CLUSTER_FORWARD_ENABLED=false
+        fi
+    else
+        if confirm "Activer le forward `core -> core` ?"; then
+            CLUSTER_FORWARD_ENABLED=true
+        fi
+    fi
+    CLUSTER_PEERS=$(input_optional_value "Peers P2P (peer|role|url;...) :" "${CLUSTER_PEERS:-}")
+
+    return 0
 }
 
 # Correction de confirm_or_auto pour propager le code de retour
@@ -1025,16 +1082,23 @@ if [[ "${PROFILE_EFFECTIVE:-}" == "apple-silicon" && "${OLLAMA_HOST_MODE:-}" == 
 fi
 
 if [[ -f "$REPO_DIR/.env" ]]; then
+    env_reconfigured=false
     dbg ".env existe deja ($(wc -l < "$REPO_DIR/.env") lignes)"
     if [[ "${MASCARADE_RECONFIGURE_ENV:-false}" == "true" ]] || confirm_or_auto "Un fichier .env existe. Le reconfigurer ?" "no"; then
         dbg "Reconfiguration .env..."
         collect_module_configs
+        env_reconfigured=true
     else
         ok ".env conserve"
     fi
 else
     dbg "Pas de .env existant, lancement config modules"
     collect_module_configs
+    env_reconfigured=true
+fi
+
+if [[ "${env_reconfigured}" != true && "${AUTO_CONFIRM}" != true ]]; then
+    prompt_p2p_setup
 fi
 
 validate_cluster_config
