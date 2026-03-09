@@ -18,6 +18,9 @@ logger = logging.getLogger("mascarade.mcp.client")
 DEFAULT_PROTOCOL_VERSION = "2025-03-26"
 DEFAULT_MASCARADE_DIR = Path(os.getenv("MASCARADE_DIR", "/home/clems/mascarade")).resolve()
 DEFAULT_KILL_LIFE_ROOT = Path(os.getenv("KILL_LIFE_ROOT", "/home/clems/Kill_LIFE")).resolve()
+DEFAULT_AGENT_FACTORY_COCKPIT_DIR = Path(
+    os.getenv("AGENT_FACTORY_COCKPIT_DIR", "/home/clems/agent-factory-cockpit")
+).resolve()
 DEFAULT_MASCARADE_ENV_FILE = Path(
     os.getenv("MASCARADE_ENV_FILE", DEFAULT_MASCARADE_DIR / ".env")
 ).resolve()
@@ -26,9 +29,13 @@ DEFAULT_MASCARADE_ENV_FILE = Path(
 @dataclass(slots=True)
 class McpServerDefinition:
     key: str
-    launcher: Path
+    launcher: Path | None = None
+    command: tuple[str, ...] | None = None
+    cwd: Path | None = None
     timeout_s: float = 45.0
     transport: str = "stdio"
+    label: str | None = None
+    description: str | None = None
 
 
 @dataclass(slots=True)
@@ -90,10 +97,15 @@ async def _read_message(
     stdout: asyncio.StreamReader,
 ) -> dict[str, Any] | None:
     headers: dict[str, str] = {}
+    first_line: bytes | None = None
     while True:
         line = await stdout.readline()
         if not line:
             return None
+        if first_line is None:
+            first_line = line
+            if line.lstrip().startswith(b"{"):
+                return json.loads(line.decode("utf-8"))
         if line in (b"\r\n", b"\n"):
             break
         key, _, value = line.decode("utf-8").partition(":")
@@ -126,11 +138,15 @@ class McpRuntimeClient:
         trace_buffer: AgentTraceBuffer | None = None,
         mascarade_dir: Path | None = None,
         kill_life_root: Path | None = None,
+        agent_factory_cockpit_dir: Path | None = None,
         mascarade_env_file: Path | None = None,
     ) -> None:
         self.trace_buffer = trace_buffer
         self.mascarade_dir = (mascarade_dir or DEFAULT_MASCARADE_DIR).resolve()
         self.kill_life_root = (kill_life_root or DEFAULT_KILL_LIFE_ROOT).resolve()
+        self.agent_factory_cockpit_dir = (
+            agent_factory_cockpit_dir or DEFAULT_AGENT_FACTORY_COCKPIT_DIR
+        ).resolve()
         self.mascarade_env_file = (mascarade_env_file or DEFAULT_MASCARADE_ENV_FILE).resolve()
         self._servers: dict[str, McpServerDefinition] = {
             "knowledge-base": McpServerDefinition(
@@ -154,6 +170,60 @@ class McpRuntimeClient:
                 timeout_s=60.0,
             ),
         }
+        self._register_industrial_servers()
+
+    def _register_industrial_servers(self) -> None:
+        if not self.agent_factory_cockpit_dir.exists():
+            return
+        industrial_metadata = {
+            "cockpit-ops": (
+                "Industrial Cockpit Ops",
+                "Operator control plane for runs, alerts, topology, vendor contracts, and governance signals.",
+            ),
+            "plm": (
+                "PLM MCP",
+                "Product lifecycle management contract surface for governed product records and release traces.",
+            ),
+            "qms": (
+                "QMS MCP",
+                "Quality management surface for validation packs, deviations, and sign-off posture.",
+            ),
+            "mes": (
+                "MES MCP",
+                "Manufacturing execution surface for build dispatch and work-order status contracts.",
+            ),
+            "erp": (
+                "ERP MCP",
+                "Enterprise release surface for release publication and governed change-order contracts.",
+            ),
+            "wms": (
+                "WMS MCP",
+                "Warehouse logistics surface for pick waves, shipment release, and inventory holds.",
+            ),
+            "dcs": (
+                "DCS MCP",
+                "Critical-boundary surface for governed read snapshots and write-request escalation paths.",
+            ),
+        }
+        for key, (label, description) in industrial_metadata.items():
+            self._servers[key] = McpServerDefinition(
+                key=key,
+                command=(
+                    "python3",
+                    "-m",
+                    "agent_factory_cockpit.cli",
+                    "mcp-stdio",
+                    key,
+                    "--actor",
+                    "mascarade-mcp",
+                    "--auth-mode",
+                    "token",
+                ),
+                cwd=self.agent_factory_cockpit_dir,
+                timeout_s=45.0,
+                label=label,
+                description=description,
+            )
 
     def _server(self, server_key: str) -> McpServerDefinition:
         try:
@@ -163,6 +233,35 @@ class McpRuntimeClient:
                 f"Unknown MCP server '{server_key}'",
                 server_key=server_key,
             ) from exc
+
+    def _server_command(self, server: McpServerDefinition) -> tuple[tuple[str, ...], Path]:
+        if server.command:
+            return tuple(server.command), (server.cwd or self.mascarade_dir)
+        launcher = server.launcher
+        if launcher is None or not launcher.exists():
+            raise McpServerUnavailable(
+                f"MCP launcher missing for {server.key}: {launcher}",
+                server_key=server.key,
+                transport=server.transport,
+            )
+        return ("bash", str(launcher)), (server.cwd or launcher.parent)
+
+    def list_servers(self) -> list[dict[str, Any]]:
+        items = []
+        for key, server in sorted(self._servers.items()):
+            items.append(
+                {
+                    "key": key,
+                    "label": server.label or key,
+                    "description": server.description or "",
+                    "transport": server.transport,
+                    "timeout_s": server.timeout_s,
+                    "cwd": str(server.cwd or ""),
+                    "command": list(server.command) if server.command else [],
+                    "launcher": str(server.launcher) if server.launcher else "",
+                }
+            )
+        return items
 
     def _trace(
         self,
@@ -213,19 +312,19 @@ class McpRuntimeClient:
         timeout_s: float | None = None,
     ) -> McpToolResult:
         server = self._server(server_key)
-        launcher = server.launcher
-        if not launcher.exists():
-            raise McpServerUnavailable(
-                f"MCP launcher missing for {server_key}: {launcher}",
-                server_key=server_key,
-                tool_name=tool_name,
-                transport=server.transport,
-            )
+        command, cwd = self._server_command(server)
 
         env = os.environ.copy()
         env["MASCARADE_DIR"] = str(self.mascarade_dir)
         env["MASCARADE_ENV_FILE"] = str(self.mascarade_env_file)
         env["KILL_LIFE_ROOT"] = str(self.kill_life_root)
+        env["AGENT_FACTORY_COCKPIT_DIR"] = str(self.agent_factory_cockpit_dir)
+        existing_pythonpath = env.get("PYTHONPATH", "").strip()
+        env["PYTHONPATH"] = (
+            f"{self.agent_factory_cockpit_dir}:{existing_pythonpath}"
+            if existing_pythonpath
+            else str(self.agent_factory_cockpit_dir)
+        )
 
         started = time.perf_counter()
         self._trace(
@@ -239,12 +338,12 @@ class McpRuntimeClient:
             status="started",
         )
         proc = await asyncio.create_subprocess_exec(
-            "bash",
-            str(launcher),
+            *command,
             stdin=asyncio.subprocess.PIPE,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
             env=env,
+            cwd=str(cwd),
         )
         protocol_version: str | None = None
         server_name: str | None = None
@@ -442,6 +541,207 @@ class McpRuntimeClient:
                 # Preserve stderr on unexpected launcher exits when the request path
                 # did not already surface an MCP-level error.
                 pass
+
+    async def describe_server(
+        self,
+        server_key: str,
+        *,
+        timeout_s: float | None = None,
+    ) -> dict[str, Any]:
+        server = self._server(server_key)
+        command, cwd = self._server_command(server)
+        env = os.environ.copy()
+        env["MASCARADE_DIR"] = str(self.mascarade_dir)
+        env["MASCARADE_ENV_FILE"] = str(self.mascarade_env_file)
+        env["KILL_LIFE_ROOT"] = str(self.kill_life_root)
+        env["AGENT_FACTORY_COCKPIT_DIR"] = str(self.agent_factory_cockpit_dir)
+        timeout = timeout_s or server.timeout_s
+        proc = await asyncio.create_subprocess_exec(
+            *command,
+            stdin=asyncio.subprocess.PIPE,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+            env=env,
+            cwd=str(cwd),
+        )
+
+        async def _request(message: dict[str, Any]) -> dict[str, Any]:
+            if proc.stdin is None or proc.stdout is None:
+                raise McpServerUnavailable(
+                    f"MCP server '{server_key}' stdin/stdout unavailable",
+                    server_key=server_key,
+                    transport=server.transport,
+                )
+            await _write_message(proc.stdin, message)
+            response = await asyncio.wait_for(_read_message(proc.stdout), timeout=timeout)
+            if response is None:
+                raise McpServerUnavailable(
+                    f"MCP server '{server_key}' returned EOF",
+                    server_key=server_key,
+                    transport=server.transport,
+                )
+            if "error" in response:
+                error = response["error"] or {}
+                raise McpServerUnavailable(
+                    str(error.get("message") or "MCP request failed"),
+                    server_key=server_key,
+                    transport=server.transport,
+                    error_code=str(error.get("code") or ""),
+                )
+            return response
+
+        try:
+            initialize = await _request(
+                {"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {}}
+            )
+            init_result = initialize.get("result") or {}
+            protocol_version = str(init_result.get("protocolVersion") or "")
+            server_info = init_result.get("serverInfo") or {}
+            if proc.stdin is not None:
+                await _write_message(
+                    proc.stdin,
+                    {"jsonrpc": "2.0", "method": "notifications/initialized", "params": {}},
+                )
+            tools = (
+                await _request({"jsonrpc": "2.0", "id": 2, "method": "tools/list", "params": {}})
+            ).get("result", {})
+            resources = (
+                await _request(
+                    {"jsonrpc": "2.0", "id": 3, "method": "resources/list", "params": {}}
+                )
+            ).get("result", {})
+            prompts = (
+                await _request({"jsonrpc": "2.0", "id": 4, "method": "prompts/list", "params": {}})
+            ).get("result", {})
+            return {
+                "ok": True,
+                "server_key": server_key,
+                "label": server.label or server_key,
+                "description": server.description or "",
+                "protocol_version": protocol_version,
+                "server_info": server_info,
+                "tool_count": len(
+                    tools.get("tools", []) if isinstance(tools.get("tools", []), list) else []
+                ),
+                "resource_count": len(
+                    resources.get("resources", [])
+                    if isinstance(resources.get("resources", []), list)
+                    else []
+                ),
+                "prompt_count": len(
+                    prompts.get("prompts", [])
+                    if isinstance(prompts.get("prompts", []), list)
+                    else []
+                ),
+                "tools": tools.get("tools", []),
+                "resources": resources.get("resources", []),
+                "prompts": prompts.get("prompts", []),
+            }
+        finally:
+            if proc.stdin is not None:
+                proc.stdin.close()
+                try:
+                    await proc.stdin.wait_closed()
+                except (OSError, RuntimeError):
+                    pass
+            try:
+                await asyncio.wait_for(proc.wait(), timeout=3.0)
+            except TimeoutError:
+                proc.kill()
+                await proc.wait()
+
+    async def read_resource(
+        self,
+        server_key: str,
+        uri: str,
+        *,
+        timeout_s: float | None = None,
+    ) -> dict[str, Any]:
+        server = self._server(server_key)
+        command, cwd = self._server_command(server)
+        env = os.environ.copy()
+        env["MASCARADE_DIR"] = str(self.mascarade_dir)
+        env["MASCARADE_ENV_FILE"] = str(self.mascarade_env_file)
+        env["KILL_LIFE_ROOT"] = str(self.kill_life_root)
+        env["AGENT_FACTORY_COCKPIT_DIR"] = str(self.agent_factory_cockpit_dir)
+        timeout = timeout_s or server.timeout_s
+        proc = await asyncio.create_subprocess_exec(
+            *command,
+            stdin=asyncio.subprocess.PIPE,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+            env=env,
+            cwd=str(cwd),
+        )
+
+        async def _request(message: dict[str, Any]) -> dict[str, Any]:
+            if proc.stdin is None or proc.stdout is None:
+                raise McpServerUnavailable(
+                    f"MCP server '{server_key}' stdin/stdout unavailable",
+                    server_key=server_key,
+                    transport=server.transport,
+                )
+            await _write_message(proc.stdin, message)
+            response = await asyncio.wait_for(_read_message(proc.stdout), timeout=timeout)
+            if response is None:
+                raise McpServerUnavailable(
+                    f"MCP server '{server_key}' returned EOF",
+                    server_key=server_key,
+                    transport=server.transport,
+                )
+            if "error" in response:
+                error = response["error"] or {}
+                raise McpServerUnavailable(
+                    str(error.get("message") or "MCP request failed"),
+                    server_key=server_key,
+                    transport=server.transport,
+                    error_code=str(error.get("code") or ""),
+                )
+            return response
+
+        try:
+            await _request({"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {}})
+            if proc.stdin is not None:
+                await _write_message(
+                    proc.stdin,
+                    {"jsonrpc": "2.0", "method": "notifications/initialized", "params": {}},
+                )
+            response = await _request(
+                {
+                    "jsonrpc": "2.0",
+                    "id": 2,
+                    "method": "resources/read",
+                    "params": {"uri": uri},
+                }
+            )
+            result = response.get("result", {})
+            contents = result.get("contents", []) if isinstance(result, dict) else []
+            if not isinstance(contents, list) or not contents:
+                return {"uri": uri, "payload": {}, "raw_text": ""}
+            first = contents[0] if isinstance(contents[0], dict) else {}
+            raw_text = str(first.get("text", "") or "")
+            try:
+                payload = json.loads(raw_text) if raw_text else {}
+            except json.JSONDecodeError:
+                payload = {}
+            return {
+                "uri": uri,
+                "payload": payload if isinstance(payload, dict) else {},
+                "raw_text": raw_text,
+                "mime_type": str(first.get("mimeType", "") or ""),
+            }
+        finally:
+            if proc.stdin is not None:
+                proc.stdin.close()
+                try:
+                    await proc.stdin.wait_closed()
+                except (OSError, RuntimeError):
+                    pass
+            try:
+                await asyncio.wait_for(proc.wait(), timeout=3.0)
+            except TimeoutError:
+                proc.kill()
+                await proc.wait()
 
     async def knowledge_base_search(
         self,

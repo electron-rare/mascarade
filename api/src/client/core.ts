@@ -638,4 +638,84 @@ export const coreClient = {
       body: JSON.stringify(body),
     });
   },
+
+  industrialMcpServers() {
+    return request<{
+      items: Array<{
+        key: string;
+        transport: string;
+        timeout_s: number;
+        cwd?: string;
+        command?: string[];
+        launcher?: string;
+      }>;
+    }>("/mcp/industrial/servers");
+  },
+
+  industrialMcpRuntime(serverKey: string) {
+    return request<{
+      ok: boolean;
+      server_key: string;
+      protocol_version: string;
+      server_info: Record<string, unknown>;
+      tool_count: number;
+      resource_count: number;
+      prompt_count: number;
+      tools: Record<string, unknown>[];
+      resources: Record<string, unknown>[];
+      prompts: Record<string, unknown>[];
+    }>(`/mcp/industrial/${encodeURIComponent(serverKey)}/runtime`);
+  },
+
+  industrialMcpResource(serverKey: string, uri: string) {
+    return request<{
+      uri: string;
+      payload: Record<string, unknown>;
+      raw_text: string;
+      mime_type?: string;
+    }>(`/mcp/industrial/${encodeURIComponent(serverKey)}/resource?uri=${encodeURIComponent(uri)}`);
+  },
+
+  industrialMcpPlatform() {
+    return request<{
+      servers: Array<{
+        key: string;
+        transport: string;
+        timeout_s: number;
+        cwd?: string;
+        command?: string[];
+        launcher?: string;
+        ok: boolean;
+        runtime_ok: boolean;
+        error?: string;
+        protocol_version?: string;
+        tool_count?: number;
+        resource_count?: number;
+        prompt_count?: number;
+      }>;
+      summary: Record<string, unknown>;
+      topology: Record<string, unknown>;
+      vendor_contracts: Record<string, unknown>;
+    }>("/mcp/industrial/platform");
+  },
+
+  industrialMcpTool(
+    serverKey: string,
+    toolName: string,
+    body: { arguments?: Record<string, unknown>; run_id?: string },
+  ) {
+    return request<{
+      ok: boolean;
+      run_id: string;
+      server_key: string;
+      tool_name: string;
+      protocol_version?: string | null;
+      server_name?: string | null;
+      message: string;
+      payload: Record<string, unknown>;
+    }>(`/mcp/industrial/${encodeURIComponent(serverKey)}/tools/${encodeURIComponent(toolName)}`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
 };

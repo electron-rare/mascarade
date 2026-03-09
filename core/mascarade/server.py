@@ -6,7 +6,7 @@ import asyncio
 import json
 import logging
 from contextlib import asynccontextmanager
-from typing import Literal
+from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, FastAPI, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
@@ -41,6 +41,7 @@ from mascarade.router import Router
 from mascarade.router.router import Strategy
 
 logger = logging.getLogger("mascarade.server")
+INDUSTRIAL_MCP_SERVER_KEYS = {"cockpit-ops", "plm", "qms", "mes", "erp", "wms", "dcs"}
 
 
 @asynccontextmanager
@@ -164,6 +165,11 @@ class GitHubDispatchRequest(BaseModel):
 
 class GitHubDispatchStatusRequest(BaseModel):
     dispatch_id: str = Field(min_length=1, max_length=200)
+    run_id: str | None = Field(default=None, max_length=64)
+
+
+class IndustrialMcpToolRequest(BaseModel):
+    arguments: dict[str, Any] = Field(default_factory=dict)
     run_id: str | None = Field(default=None, max_length=64)
 
 
@@ -1047,6 +1053,139 @@ async def openscad_export_model(req: OpenSCADRenderRequest):
     except (McpCallError, McpServerUnavailable) as exc:
         raise _mcp_http_exception(exc) from exc
     return {**payload, "run_id": trace_run_id}
+
+
+@protected.get("/mcp/industrial/servers")
+async def industrial_mcp_servers():
+    client = _require_mcp_client()
+    return {
+        "items": [
+            item for item in client.list_servers() if item.get("key") in INDUSTRIAL_MCP_SERVER_KEYS
+        ]
+    }
+
+
+@protected.get("/mcp/industrial/{server_key}/runtime")
+async def industrial_mcp_runtime(server_key: str):
+    if server_key not in INDUSTRIAL_MCP_SERVER_KEYS:
+        raise HTTPException(status_code=404, detail=f"Unknown industrial MCP server '{server_key}'")
+    client = _require_mcp_client()
+    try:
+        payload = await client.describe_server(server_key)
+    except (McpCallError, McpServerUnavailable) as exc:
+        raise _mcp_http_exception(exc) from exc
+    return payload
+
+
+@protected.get("/mcp/industrial/{server_key}/resource")
+async def industrial_mcp_resource(server_key: str, uri: str = Query(..., min_length=1)):
+    if server_key not in INDUSTRIAL_MCP_SERVER_KEYS:
+        raise HTTPException(status_code=404, detail=f"Unknown industrial MCP server '{server_key}'")
+    client = _require_mcp_client()
+    try:
+        return await client.read_resource(server_key, uri)
+    except (McpCallError, McpServerUnavailable) as exc:
+        raise _mcp_http_exception(exc) from exc
+
+
+@protected.get("/mcp/industrial/platform")
+async def industrial_mcp_platform():
+    client = _require_mcp_client()
+    inventory = [
+        item for item in client.list_servers() if item.get("key") in INDUSTRIAL_MCP_SERVER_KEYS
+    ]
+    runtime_results = await asyncio.gather(
+        *(client.describe_server(str(item.get("key", ""))) for item in inventory),
+        return_exceptions=True,
+    )
+    servers: list[dict[str, Any]] = []
+    for item, result in zip(inventory, runtime_results, strict=False):
+        if isinstance(result, Exception):
+            servers.append(
+                {
+                    **item,
+                    "ok": False,
+                    "runtime_ok": False,
+                    "error": str(result),
+                    "tool_count": 0,
+                    "resource_count": 0,
+                    "prompt_count": 0,
+                }
+            )
+            continue
+        servers.append(
+            {
+                **item,
+                "ok": bool(result.get("ok", False)),
+                "runtime_ok": bool(result.get("ok", False)),
+                "protocol_version": result.get("protocol_version", ""),
+                "server_info": result.get("server_info", {}),
+                "tool_count": int(result.get("tool_count", 0) or 0),
+                "resource_count": int(result.get("resource_count", 0) or 0),
+                "prompt_count": int(result.get("prompt_count", 0) or 0),
+            }
+        )
+
+    try:
+        topology = await client.read_resource("cockpit-ops", "cockpit://topology")
+        topology_payload = topology.get("payload", {}) if isinstance(topology, dict) else {}
+    except (McpCallError, McpServerUnavailable):
+        topology_payload = {}
+    try:
+        vendor_contracts = await client.read_resource("cockpit-ops", "cockpit://vendor-contracts")
+        vendor_contracts_payload = (
+            vendor_contracts.get("payload", {}) if isinstance(vendor_contracts, dict) else {}
+        )
+    except (McpCallError, McpServerUnavailable):
+        vendor_contracts_payload = {}
+
+    return {
+        "servers": servers,
+        "summary": {
+            "server_count": len(servers),
+            "runtime_ok_count": sum(1 for item in servers if item.get("runtime_ok")),
+            "runtime_error_count": sum(1 for item in servers if not item.get("runtime_ok")),
+            "topology_valid": bool(topology_payload.get("valid", False)),
+            "vendor_contract_ready_count": int(
+                vendor_contracts_payload.get("summary", {}).get("ready_count", 0) or 0
+            ),
+            "vendor_contract_blocked_count": int(
+                vendor_contracts_payload.get("summary", {}).get("blocked_count", 0) or 0
+            ),
+        },
+        "topology": topology_payload,
+        "vendor_contracts": vendor_contracts_payload,
+    }
+
+
+@protected.post("/mcp/industrial/{server_key}/tools/{tool_name}")
+async def industrial_mcp_tool(server_key: str, tool_name: str, req: IndustrialMcpToolRequest):
+    if server_key not in INDUSTRIAL_MCP_SERVER_KEYS:
+        raise HTTPException(status_code=404, detail=f"Unknown industrial MCP server '{server_key}'")
+    client = _require_mcp_client()
+    trace_run_id = req.run_id or new_run_id()
+    try:
+        payload = await client.call_tool(
+            server_key,
+            tool_name,
+            req.arguments,
+            run_id=trace_run_id,
+            mode="industrial-mcp",
+            step=0,
+            agent_name=server_key,
+        )
+    except (McpCallError, McpServerUnavailable) as exc:
+        raise _mcp_http_exception(exc) from exc
+    return {
+        "ok": not payload.is_error,
+        "run_id": trace_run_id,
+        "server_key": server_key,
+        "tool_name": tool_name,
+        "protocol_version": payload.protocol_version,
+        "server_name": payload.server_name,
+        "message": payload.message,
+        "payload": payload.structured_content,
+    }
 
 
 # --- ComfyUI ---
