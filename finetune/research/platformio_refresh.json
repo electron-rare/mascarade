@@ -1,0 +1,415 @@
+{
+  "version": 1,
+  "generated_at": "2026-03-09T12:09:01",
+  "domain": "platformio",
+  "topic": "PlatformIO / Arduino / ESP32",
+  "dataset_path": "/ai/saisail/mascarade/finetune/datasets/platformio_chat.jsonl",
+  "refresh": {
+    "domain": "platformio",
+    "generated_at": "2026-03-09T12:09:00",
+    "target_path": "/ai/saisail/mascarade/finetune/datasets/platformio_chat.jsonl",
+    "source_mode": "full_dataset_sync",
+    "source_path": "/ai/saisail/mascarade-datasets/platformio_chat.jsonl",
+    "builder": null,
+    "row_count": 3386,
+    "ids_fixed": 3508,
+    "duplicates_removed": 122,
+    "quality": {
+      "label": "platformio refreshed dataset",
+      "mode": "fail",
+      "status": "warning",
+      "metrics": {
+        "row_count": 3386,
+        "ids_fixed": 3508,
+        "ids_fixed_ratio": 1.0360307147076195,
+        "unique_system_prompts": 1,
+        "unique_user_prompts": 1510,
+        "duplicate_rows": 0,
+        "duplicate_ratio": 0.0,
+        "repeated_user_assistant_pairs": 0,
+        "repeated_pair_ratio": 0.0,
+        "assistant_len_avg": 956.725044300059,
+        "assistant_len_p95": 2521,
+        "assistant_len_max": 8836,
+        "short_assistant_rows": 0,
+        "short_assistant_ratio": 0.0
+      },
+      "thresholds": {
+        "min_rows_fail": 4,
+        "recommended_rows_warn": 8,
+        "min_unique_users_fail": 4,
+        "max_duplicate_ratio_fail": 0.1,
+        "max_repeated_pair_ratio_fail": 0.1,
+        "max_assistant_p95_fail": 6000,
+        "max_assistant_max_fail": 9000,
+        "max_assistant_avg_warn": 3500,
+        "short_assistant_threshold": 64,
+        "max_short_assistant_ratio_warn": 0.25
+      },
+      "errors": [],
+      "warnings": [
+        "source ids are synthesized for 3508/3386 rows; persist ids in source JSONL for traceability",
+        "single system prompt across the dataset; style diversity is low",
+        "trimmed 5 oversized assistant responses to <= 8800 chars during refresh"
+      ],
+      "would_fail": false,
+      "duplicates_removed_during_refresh": 122,
+      "assistant_rows_trimmed_during_refresh": 5
+    },
+    "legacy_ignored_paths": [
+      "finetune/build_components_dataset.py",
+      "finetune/build_freecad_dataset.py"
+    ]
+  },
+  "authoritative_urls": [
+    {
+      "label": "PlatformIO docs",
+      "url": "https://docs.platformio.org/"
+    },
+    {
+      "label": "ESP-IDF programming guide",
+      "url": "https://docs.espressif.com/projects/esp-idf/en/stable/esp32/"
+    }
+  ],
+  "github_repos": [
+    {
+      "label": "platformio-core",
+      "url": "https://github.com/platformio/platformio-core"
+    },
+    {
+      "label": "platformio docs",
+      "url": "https://github.com/platformio/platformio-docs"
+    },
+    {
+      "label": "platform-espressif32",
+      "url": "https://github.com/platformio/platform-espressif32"
+    },
+    {
+      "label": "esp-idf",
+      "url": "https://github.com/espressif/esp-idf"
+    }
+  ],
+  "software_sources": [
+    {
+      "label": "PlatformIO org",
+      "url": "https://github.com/platformio"
+    },
+    {
+      "label": "PlatformIO docs",
+      "url": "https://docs.platformio.org/"
+    },
+    {
+      "label": "PlatformIO examples",
+      "url": "https://github.com/platformio/platformio-examples"
+    }
+  ],
+  "forum_urls": [
+    {
+      "label": "ST Community",
+      "url": "https://community.st.com/"
+    },
+    {
+      "label": "PlatformIO Community",
+      "url": "https://community.platformio.org/"
+    },
+    {
+      "label": "ChibiOS Forum",
+      "url": "https://forum.chibios.org/"
+    },
+    {
+      "label": "FreeRTOS Forums",
+      "url": "https://forums.freertos.org/"
+    },
+    {
+      "label": "ARM Community Forums",
+      "url": "https://community.arm.com/support-forums/"
+    },
+    {
+      "label": "Arduino Forum",
+      "url": "https://forum.arduino.cc/"
+    },
+    {
+      "label": "EmbeddedRelated Forum",
+      "url": "https://www.embeddedrelated.com/forum.php"
+    },
+    {
+      "label": "Electronics StackExchange STM32",
+      "url": "https://electronics.stackexchange.com/questions/tagged/stm32"
+    },
+    {
+      "label": "Electronics StackExchange Embedded",
+      "url": "https://electronics.stackexchange.com/questions/tagged/embedded"
+    },
+    {
+      "label": "All About Circuits Embedded Systems",
+      "url": "https://forum.allaboutcircuits.com/forums/embedded-systems-and-microcontrollers.13/"
+    }
+  ],
+  "datasheet_roots": [
+    {
+      "label": "ESP32 hardware reference",
+      "url": "https://docs.espressif.com/projects/esp-idf/en/stable/esp32/hw-reference/index.html"
+    }
+  ],
+  "hf_sources": [
+    {
+      "name": "gavmac00/arduino-docs",
+      "url": "https://huggingface.co/datasets/gavmac00/arduino-docs"
+    },
+    {
+      "name": "gouthamsk/esp_idf_code",
+      "url": "https://huggingface.co/datasets/gouthamsk/esp_idf_code"
+    },
+    {
+      "name": "bshada/arduino.stackexchange.com",
+      "url": "https://huggingface.co/datasets/bshada/arduino.stackexchange.com"
+    }
+  ],
+  "queries": [
+    "site:docs.platformio.org monitor filters unit testing library_deps",
+    "site:docs.espressif.com esp32 ota mqtt platformio",
+    "site:huggingface.co/datasets arduino stackexchange dataset"
+  ],
+  "trusted_domains": [
+    "docs.platformio.org",
+    "docs.espressif.com",
+    "huggingface.co"
+  ],
+  "minimum_web_roots": 8,
+  "minimum_quality_score": 6,
+  "web_probe": {
+    "domain": "platformio",
+    "generated_at": "2026-03-09T12:09:01",
+    "source_file": "/ai/saisail/mascarade/finetune/research_sources/domains/platformio.json",
+    "status": "partial",
+    "reachable_count": 15,
+    "total_count": 20,
+    "reachable_ratio": 0.75,
+    "entries": [
+      {
+        "group": "authoritative_urls",
+        "label": "ESP-IDF programming guide",
+        "url": "https://docs.espressif.com/projects/esp-idf/en/stable/esp32/",
+        "ok": true,
+        "status": 200,
+        "final_url": "https://docs.espressif.com/projects/esp-idf/en/stable/esp32/",
+        "method": "HEAD"
+      },
+      {
+        "group": "authoritative_urls",
+        "label": "PlatformIO docs",
+        "url": "https://docs.platformio.org/",
+        "ok": true,
+        "status": 200,
+        "final_url": "https://docs.platformio.org/",
+        "method": "HEAD"
+      },
+      {
+        "group": "datasheet_roots",
+        "label": "ESP32 hardware reference",
+        "url": "https://docs.espressif.com/projects/esp-idf/en/stable/esp32/hw-reference/index.html",
+        "ok": true,
+        "status": 200,
+        "final_url": "https://docs.espressif.com/projects/esp-idf/en/stable/esp32/hw-reference/index.html",
+        "method": "HEAD"
+      },
+      {
+        "group": "forum_urls",
+        "label": "ARM Community Forums",
+        "url": "https://community.arm.com/support-forums/",
+        "ok": false,
+        "status": null,
+        "final_url": "https://community.arm.com/support-forums/",
+        "method": "GET",
+        "error": "http:404"
+      },
+      {
+        "group": "forum_urls",
+        "label": "All About Circuits Embedded Systems",
+        "url": "https://forum.allaboutcircuits.com/forums/embedded-systems-and-microcontrollers.13/",
+        "ok": false,
+        "status": null,
+        "final_url": "https://forum.allaboutcircuits.com/forums/embedded-systems-and-microcontrollers.13/",
+        "method": "GET",
+        "error": "http:403"
+      },
+      {
+        "group": "forum_urls",
+        "label": "Arduino Forum",
+        "url": "https://forum.arduino.cc/",
+        "ok": true,
+        "status": 200,
+        "final_url": "https://forum.arduino.cc/",
+        "method": "HEAD"
+      },
+      {
+        "group": "forum_urls",
+        "label": "ChibiOS Forum",
+        "url": "https://forum.chibios.org/",
+        "ok": true,
+        "status": 200,
+        "final_url": "https://forum.chibios.org/",
+        "method": "HEAD"
+      },
+      {
+        "group": "forum_urls",
+        "label": "Electronics StackExchange Embedded",
+        "url": "https://electronics.stackexchange.com/questions/tagged/embedded",
+        "ok": false,
+        "status": null,
+        "final_url": "https://electronics.stackexchange.com/questions/tagged/embedded",
+        "method": "GET",
+        "error": "http:403"
+      },
+      {
+        "group": "forum_urls",
+        "label": "Electronics StackExchange STM32",
+        "url": "https://electronics.stackexchange.com/questions/tagged/stm32",
+        "ok": false,
+        "status": null,
+        "final_url": "https://electronics.stackexchange.com/questions/tagged/stm32",
+        "method": "GET",
+        "error": "http:403"
+      },
+      {
+        "group": "forum_urls",
+        "label": "EmbeddedRelated Forum",
+        "url": "https://www.embeddedrelated.com/forum.php",
+        "ok": false,
+        "status": null,
+        "final_url": "https://www.embeddedrelated.com/forum.php",
+        "method": "GET",
+        "error": "http:404"
+      },
+      {
+        "group": "forum_urls",
+        "label": "FreeRTOS Forums",
+        "url": "https://forums.freertos.org/",
+        "ok": true,
+        "status": 200,
+        "final_url": "https://forums.freertos.org/",
+        "method": "HEAD"
+      },
+      {
+        "group": "forum_urls",
+        "label": "PlatformIO Community",
+        "url": "https://community.platformio.org/",
+        "ok": true,
+        "status": 200,
+        "final_url": "https://community.platformio.org/",
+        "method": "HEAD"
+      },
+      {
+        "group": "forum_urls",
+        "label": "ST Community",
+        "url": "https://community.st.com/",
+        "ok": true,
+        "status": 200,
+        "final_url": "https://community.st.com/",
+        "method": "HEAD"
+      },
+      {
+        "group": "github_repos",
+        "label": "esp-idf",
+        "url": "https://github.com/espressif/esp-idf",
+        "ok": true,
+        "status": 200,
+        "final_url": "https://github.com/espressif/esp-idf",
+        "method": "HEAD"
+      },
+      {
+        "group": "github_repos",
+        "label": "platform-espressif32",
+        "url": "https://github.com/platformio/platform-espressif32",
+        "ok": true,
+        "status": 200,
+        "final_url": "https://github.com/platformio/platform-espressif32",
+        "method": "HEAD"
+      },
+      {
+        "group": "github_repos",
+        "label": "platformio docs",
+        "url": "https://github.com/platformio/platformio-docs",
+        "ok": true,
+        "status": 200,
+        "final_url": "https://github.com/platformio/platformio-docs",
+        "method": "HEAD"
+      },
+      {
+        "group": "github_repos",
+        "label": "platformio-core",
+        "url": "https://github.com/platformio/platformio-core",
+        "ok": true,
+        "status": 200,
+        "final_url": "https://github.com/platformio/platformio-core",
+        "method": "HEAD"
+      },
+      {
+        "group": "software_sources",
+        "label": "PlatformIO docs",
+        "url": "https://docs.platformio.org/",
+        "ok": true,
+        "status": 200,
+        "final_url": "https://docs.platformio.org/",
+        "method": "HEAD"
+      },
+      {
+        "group": "software_sources",
+        "label": "PlatformIO examples",
+        "url": "https://github.com/platformio/platformio-examples",
+        "ok": true,
+        "status": 200,
+        "final_url": "https://github.com/platformio/platformio-examples",
+        "method": "HEAD"
+      },
+      {
+        "group": "software_sources",
+        "label": "PlatformIO org",
+        "url": "https://github.com/platformio",
+        "ok": true,
+        "status": 200,
+        "final_url": "https://github.com/platformio",
+        "method": "HEAD"
+      }
+    ]
+  },
+  "legacy_ignored_paths": [
+    "finetune/build_components_dataset.py",
+    "finetune/build_freecad_dataset.py"
+  ],
+  "operator_checklist": [
+    "sample at least 20 refreshed rows and verify technical plausibility",
+    "confirm the newest web findings are represented in prompts/answers",
+    "check duplicates and over-long answers before training",
+    "record any accepted new sources in the research brief before publish"
+  ],
+  "research_validation": {
+    "valid": true,
+    "web_roots_count": 23,
+    "authoritative_count": 2,
+    "github_count": 4,
+    "software_count": 3,
+    "forum_count": 10,
+    "datasheet_count": 1,
+    "hf_count": 3,
+    "query_count": 3,
+    "trusted_domain_count": 3,
+    "minimum_web_roots": 8,
+    "quality_score": 9,
+    "minimum_quality_score": 6,
+    "quality_checks": {
+      "authoritative_sources": true,
+      "github_or_software_sources": true,
+      "forum_coverage": true,
+      "datasheet_or_vendor_roots": true,
+      "hf_or_dataset_roots": true,
+      "query_coverage": true,
+      "trusted_domains_coverage": true,
+      "web_root_depth": true,
+      "live_web_probe": true
+    },
+    "web_probe_status": "partial",
+    "web_probe_reachable_count": 15,
+    "web_probe_total_count": 20
+  }
+}

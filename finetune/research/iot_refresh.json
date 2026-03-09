@@ -1,0 +1,392 @@
+{
+  "version": 1,
+  "generated_at": "2026-03-09T11:15:11",
+  "domain": "iot",
+  "topic": "IoT / ESP-IDF / Home Assistant",
+  "dataset_path": "/ai/saisail/mascarade/finetune/datasets/iot_chat.jsonl",
+  "refresh": {
+    "domain": "iot",
+    "generated_at": "2026-03-09T11:15:09",
+    "target_path": "/ai/saisail/mascarade/finetune/datasets/iot_chat.jsonl",
+    "source_mode": "full_dataset_sync",
+    "source_path": "/ai/saisail/mascarade-datasets/iot_chat.jsonl",
+    "builder": null,
+    "row_count": 5795,
+    "ids_fixed": 6005,
+    "duplicates_removed": 210,
+    "quality": {
+      "label": "iot refreshed dataset",
+      "mode": "fail",
+      "status": "warning",
+      "metrics": {
+        "row_count": 5795,
+        "ids_fixed": 6005,
+        "ids_fixed_ratio": 1.0362381363244175,
+        "unique_system_prompts": 2001,
+        "unique_user_prompts": 1405,
+        "duplicate_rows": 0,
+        "duplicate_ratio": 0.0,
+        "repeated_user_assistant_pairs": 410,
+        "repeated_pair_ratio": 0.07075064710957722,
+        "assistant_len_avg": 721.1734253666955,
+        "assistant_len_p95": 2028,
+        "assistant_len_max": 8836,
+        "short_assistant_rows": 0,
+        "short_assistant_ratio": 0.0
+      },
+      "thresholds": {
+        "min_rows_fail": 4,
+        "recommended_rows_warn": 8,
+        "min_unique_users_fail": 4,
+        "max_duplicate_ratio_fail": 0.1,
+        "max_repeated_pair_ratio_fail": 0.1,
+        "max_assistant_p95_fail": 6000,
+        "max_assistant_max_fail": 9000,
+        "max_assistant_avg_warn": 3500,
+        "short_assistant_threshold": 64,
+        "max_short_assistant_ratio_warn": 0.25
+      },
+      "errors": [],
+      "warnings": [
+        "source ids are synthesized for 6005/5795 rows; persist ids in source JSONL for traceability",
+        "trimmed 11 oversized assistant responses to <= 8800 chars during refresh"
+      ],
+      "would_fail": false,
+      "duplicates_removed_during_refresh": 210,
+      "assistant_rows_trimmed_during_refresh": 11
+    },
+    "legacy_ignored_paths": [
+      "finetune/build_components_dataset.py",
+      "finetune/build_freecad_dataset.py"
+    ]
+  },
+  "authoritative_urls": [
+    {
+      "label": "ESP-IDF programming guide",
+      "url": "https://docs.espressif.com/projects/esp-idf/en/stable/esp32/"
+    },
+    {
+      "label": "Home Assistant developer docs",
+      "url": "https://developers.home-assistant.io/"
+    }
+  ],
+  "github_repos": [
+    {
+      "label": "esp-idf",
+      "url": "https://github.com/espressif/esp-idf"
+    },
+    {
+      "label": "espressif org",
+      "url": "https://github.com/espressif"
+    },
+    {
+      "label": "home-assistant core",
+      "url": "https://github.com/home-assistant/core"
+    }
+  ],
+  "software_sources": [
+    {
+      "label": "ESP-IDF product page",
+      "url": "https://www.espressif.com/en/products/sdks/esp-idf"
+    },
+    {
+      "label": "Home Assistant developer portal",
+      "url": "https://developers.home-assistant.io/"
+    }
+  ],
+  "forum_urls": [
+    {
+      "label": "ST Community",
+      "url": "https://community.st.com/"
+    },
+    {
+      "label": "PlatformIO Community",
+      "url": "https://community.platformio.org/"
+    },
+    {
+      "label": "ChibiOS Forum",
+      "url": "https://forum.chibios.org/"
+    },
+    {
+      "label": "FreeRTOS Forums",
+      "url": "https://forums.freertos.org/"
+    },
+    {
+      "label": "ARM Community Forums",
+      "url": "https://community.arm.com/support-forums/"
+    },
+    {
+      "label": "Arduino Forum",
+      "url": "https://forum.arduino.cc/"
+    },
+    {
+      "label": "EmbeddedRelated Forum",
+      "url": "https://www.embeddedrelated.com/forum.php"
+    },
+    {
+      "label": "Electronics StackExchange STM32",
+      "url": "https://electronics.stackexchange.com/questions/tagged/stm32"
+    },
+    {
+      "label": "Electronics StackExchange Embedded",
+      "url": "https://electronics.stackexchange.com/questions/tagged/embedded"
+    },
+    {
+      "label": "All About Circuits Embedded Systems",
+      "url": "https://forum.allaboutcircuits.com/forums/embedded-systems-and-microcontrollers.13/"
+    }
+  ],
+  "datasheet_roots": [
+    {
+      "label": "ESP32 hardware reference",
+      "url": "https://docs.espressif.com/projects/esp-idf/en/stable/esp32/hw-reference/index.html"
+    }
+  ],
+  "hf_sources": [
+    {
+      "name": "gouthamsk/esp_idf_code",
+      "url": "https://huggingface.co/datasets/gouthamsk/esp_idf_code"
+    },
+    {
+      "name": "acon96/Home-Assistant-Requests",
+      "url": "https://huggingface.co/datasets/acon96/Home-Assistant-Requests"
+    },
+    {
+      "name": "gavmac00/arduino-docs",
+      "url": "https://huggingface.co/datasets/gavmac00/arduino-docs"
+    },
+    {
+      "name": "bshada/arduino.stackexchange.com",
+      "url": "https://huggingface.co/datasets/bshada/arduino.stackexchange.com"
+    }
+  ],
+  "queries": [
+    "site:docs.espressif.com esp-idf mqtt ota deep sleep",
+    "site:developers.home-assistant.io integration websocket mqtt",
+    "site:huggingface.co/datasets esp idf code dataset"
+  ],
+  "trusted_domains": [
+    "docs.espressif.com",
+    "developers.home-assistant.io",
+    "huggingface.co"
+  ],
+  "minimum_web_roots": 8,
+  "minimum_quality_score": 6,
+  "web_probe": {
+    "domain": "iot",
+    "generated_at": "2026-03-09T11:15:11",
+    "source_file": "/ai/saisail/mascarade/finetune/research_sources/domains/iot.json",
+    "status": "partial",
+    "reachable_count": 13,
+    "total_count": 18,
+    "reachable_ratio": 0.7222222222222222,
+    "entries": [
+      {
+        "group": "authoritative_urls",
+        "label": "ESP-IDF programming guide",
+        "url": "https://docs.espressif.com/projects/esp-idf/en/stable/esp32/",
+        "ok": true,
+        "status": 200,
+        "final_url": "https://docs.espressif.com/projects/esp-idf/en/stable/esp32/",
+        "method": "HEAD"
+      },
+      {
+        "group": "authoritative_urls",
+        "label": "Home Assistant developer docs",
+        "url": "https://developers.home-assistant.io/",
+        "ok": true,
+        "status": 200,
+        "final_url": "https://developers.home-assistant.io/",
+        "method": "HEAD"
+      },
+      {
+        "group": "datasheet_roots",
+        "label": "ESP32 hardware reference",
+        "url": "https://docs.espressif.com/projects/esp-idf/en/stable/esp32/hw-reference/index.html",
+        "ok": true,
+        "status": 200,
+        "final_url": "https://docs.espressif.com/projects/esp-idf/en/stable/esp32/hw-reference/index.html",
+        "method": "HEAD"
+      },
+      {
+        "group": "forum_urls",
+        "label": "ARM Community Forums",
+        "url": "https://community.arm.com/support-forums/",
+        "ok": false,
+        "status": null,
+        "final_url": "https://community.arm.com/support-forums/",
+        "method": "GET",
+        "error": "http:404"
+      },
+      {
+        "group": "forum_urls",
+        "label": "All About Circuits Embedded Systems",
+        "url": "https://forum.allaboutcircuits.com/forums/embedded-systems-and-microcontrollers.13/",
+        "ok": false,
+        "status": null,
+        "final_url": "https://forum.allaboutcircuits.com/forums/embedded-systems-and-microcontrollers.13/",
+        "method": "GET",
+        "error": "http:403"
+      },
+      {
+        "group": "forum_urls",
+        "label": "Arduino Forum",
+        "url": "https://forum.arduino.cc/",
+        "ok": true,
+        "status": 200,
+        "final_url": "https://forum.arduino.cc/",
+        "method": "HEAD"
+      },
+      {
+        "group": "forum_urls",
+        "label": "ChibiOS Forum",
+        "url": "https://forum.chibios.org/",
+        "ok": true,
+        "status": 200,
+        "final_url": "https://forum.chibios.org/",
+        "method": "HEAD"
+      },
+      {
+        "group": "forum_urls",
+        "label": "Electronics StackExchange Embedded",
+        "url": "https://electronics.stackexchange.com/questions/tagged/embedded",
+        "ok": false,
+        "status": null,
+        "final_url": "https://electronics.stackexchange.com/questions/tagged/embedded",
+        "method": "GET",
+        "error": "http:403"
+      },
+      {
+        "group": "forum_urls",
+        "label": "Electronics StackExchange STM32",
+        "url": "https://electronics.stackexchange.com/questions/tagged/stm32",
+        "ok": false,
+        "status": null,
+        "final_url": "https://electronics.stackexchange.com/questions/tagged/stm32",
+        "method": "GET",
+        "error": "http:403"
+      },
+      {
+        "group": "forum_urls",
+        "label": "EmbeddedRelated Forum",
+        "url": "https://www.embeddedrelated.com/forum.php",
+        "ok": false,
+        "status": null,
+        "final_url": "https://www.embeddedrelated.com/forum.php",
+        "method": "GET",
+        "error": "http:404"
+      },
+      {
+        "group": "forum_urls",
+        "label": "FreeRTOS Forums",
+        "url": "https://forums.freertos.org/",
+        "ok": true,
+        "status": 200,
+        "final_url": "https://forums.freertos.org/",
+        "method": "HEAD"
+      },
+      {
+        "group": "forum_urls",
+        "label": "PlatformIO Community",
+        "url": "https://community.platformio.org/",
+        "ok": true,
+        "status": 200,
+        "final_url": "https://community.platformio.org/",
+        "method": "HEAD"
+      },
+      {
+        "group": "forum_urls",
+        "label": "ST Community",
+        "url": "https://community.st.com/",
+        "ok": true,
+        "status": 200,
+        "final_url": "https://community.st.com/",
+        "method": "HEAD"
+      },
+      {
+        "group": "github_repos",
+        "label": "esp-idf",
+        "url": "https://github.com/espressif/esp-idf",
+        "ok": true,
+        "status": 200,
+        "final_url": "https://github.com/espressif/esp-idf",
+        "method": "HEAD"
+      },
+      {
+        "group": "github_repos",
+        "label": "espressif org",
+        "url": "https://github.com/espressif",
+        "ok": true,
+        "status": 200,
+        "final_url": "https://github.com/espressif",
+        "method": "HEAD"
+      },
+      {
+        "group": "github_repos",
+        "label": "home-assistant core",
+        "url": "https://github.com/home-assistant/core",
+        "ok": true,
+        "status": 200,
+        "final_url": "https://github.com/home-assistant/core",
+        "method": "HEAD"
+      },
+      {
+        "group": "software_sources",
+        "label": "ESP-IDF product page",
+        "url": "https://www.espressif.com/en/products/sdks/esp-idf",
+        "ok": true,
+        "status": 200,
+        "final_url": "https://www.espressif.com/en/products/sdks/esp-idf",
+        "method": "HEAD"
+      },
+      {
+        "group": "software_sources",
+        "label": "Home Assistant developer portal",
+        "url": "https://developers.home-assistant.io/",
+        "ok": true,
+        "status": 200,
+        "final_url": "https://developers.home-assistant.io/",
+        "method": "HEAD"
+      }
+    ]
+  },
+  "legacy_ignored_paths": [
+    "finetune/build_components_dataset.py",
+    "finetune/build_freecad_dataset.py"
+  ],
+  "operator_checklist": [
+    "sample at least 20 refreshed rows and verify technical plausibility",
+    "confirm the newest web findings are represented in prompts/answers",
+    "check duplicates and over-long answers before training",
+    "record any accepted new sources in the research brief before publish"
+  ],
+  "research_validation": {
+    "valid": true,
+    "web_roots_count": 22,
+    "authoritative_count": 2,
+    "github_count": 3,
+    "software_count": 2,
+    "forum_count": 10,
+    "datasheet_count": 1,
+    "hf_count": 4,
+    "query_count": 3,
+    "trusted_domain_count": 3,
+    "minimum_web_roots": 8,
+    "quality_score": 9,
+    "minimum_quality_score": 6,
+    "quality_checks": {
+      "authoritative_sources": true,
+      "github_or_software_sources": true,
+      "forum_coverage": true,
+      "datasheet_or_vendor_roots": true,
+      "hf_or_dataset_roots": true,
+      "query_coverage": true,
+      "trusted_domains_coverage": true,
+      "web_root_depth": true,
+      "live_web_probe": true
+    },
+    "web_probe_status": "partial",
+    "web_probe_reachable_count": 13,
+    "web_probe_total_count": 18
+  }
+}

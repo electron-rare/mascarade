@@ -1,0 +1,277 @@
+{
+  "domain": "freecad",
+  "generated_at": "2026-03-09T11:03:07",
+  "source_file": "/ai/saisail/mascarade/finetune/research_sources/domains/freecad.json",
+  "status": "partial",
+  "reachable_count": 24,
+  "total_count": 29,
+  "reachable_ratio": 0.8275862068965517,
+  "entries": [
+    {
+      "group": "authoritative_urls",
+      "label": "FreeCAD project",
+      "url": "https://www.freecad.org/",
+      "ok": true,
+      "status": 200,
+      "final_url": "https://www.freecad.org/",
+      "method": "HEAD"
+    },
+    {
+      "group": "authoritative_urls",
+      "label": "FreeCAD wiki",
+      "url": "https://wiki.freecad.org/",
+      "ok": true,
+      "status": 200,
+      "final_url": "https://wiki.freecad.org/",
+      "method": "HEAD"
+    },
+    {
+      "group": "authoritative_urls",
+      "label": "Fusion 360 API what's new",
+      "url": "https://help.autodesk.com/cloudhelp/ENU/Fusion-360-API/files/WhatsNew.htm",
+      "ok": true,
+      "status": 200,
+      "final_url": "https://help.autodesk.com/cloudhelp/ENU/Fusion-360-API/files/WhatsNew.htm",
+      "method": "HEAD"
+    },
+    {
+      "group": "authoritative_urls",
+      "label": "OpenSCAD documentation",
+      "url": "https://openscad.org/documentation.html",
+      "ok": true,
+      "status": 200,
+      "final_url": "https://openscad.org/documentation.html",
+      "method": "HEAD"
+    },
+    {
+      "group": "authoritative_urls",
+      "label": "SOLIDWORKS API Help",
+      "url": "https://help.solidworks.com/",
+      "ok": true,
+      "status": 200,
+      "final_url": "https://help.solidworks.com/",
+      "method": "HEAD"
+    },
+    {
+      "group": "datasheet_roots",
+      "label": "FreeCAD wiki",
+      "url": "https://wiki.freecad.org/",
+      "ok": true,
+      "status": 200,
+      "final_url": "https://wiki.freecad.org/",
+      "method": "HEAD"
+    },
+    {
+      "group": "datasheet_roots",
+      "label": "Fusion 360 API reference",
+      "url": "https://help.autodesk.com/cloudhelp/ENU/Fusion-360-API/",
+      "ok": false,
+      "status": null,
+      "final_url": "https://help.autodesk.com/cloudhelp/ENU/Fusion-360-API/",
+      "method": "GET",
+      "error": "http:403"
+    },
+    {
+      "group": "datasheet_roots",
+      "label": "OpenSCAD user manual",
+      "url": "https://openscad.org/documentation.html",
+      "ok": true,
+      "status": 200,
+      "final_url": "https://openscad.org/documentation.html",
+      "method": "HEAD"
+    },
+    {
+      "group": "datasheet_roots",
+      "label": "SOLIDWORKS API Help",
+      "url": "https://help.solidworks.com/2024/english/api/sldworksapiprogguide/Welcome.htm",
+      "ok": true,
+      "status": 200,
+      "final_url": "https://help.solidworks.com/2024/english/api/sldworksapiprogguide/Welcome.htm",
+      "method": "HEAD"
+    },
+    {
+      "group": "forum_urls",
+      "label": "3D Printing StackExchange",
+      "url": "https://3dprinting.stackexchange.com/",
+      "ok": false,
+      "status": null,
+      "final_url": "https://3dprinting.stackexchange.com/",
+      "method": "GET",
+      "error": "http:403"
+    },
+    {
+      "group": "forum_urls",
+      "label": "Autodesk Forums",
+      "url": "https://forums.autodesk.com/",
+      "ok": true,
+      "status": 200,
+      "final_url": "https://forums.autodesk.com/",
+      "method": "HEAD"
+    },
+    {
+      "group": "forum_urls",
+      "label": "CadQuery Community",
+      "url": "https://community.cadquery.org/",
+      "ok": false,
+      "status": null,
+      "final_url": "https://community.cadquery.org/",
+      "method": "GET",
+      "error": "<urlopen error [Errno -2] Name or service not known>"
+    },
+    {
+      "group": "forum_urls",
+      "label": "FreeCAD Forum",
+      "url": "https://forum.freecad.org/",
+      "ok": true,
+      "status": 200,
+      "final_url": "https://forum.freecad.org/",
+      "method": "HEAD"
+    },
+    {
+      "group": "forum_urls",
+      "label": "GrabCAD Questions",
+      "url": "https://grabcad.com/questions",
+      "ok": false,
+      "status": null,
+      "final_url": "https://grabcad.com/questions",
+      "method": "GET",
+      "error": "http:403"
+    },
+    {
+      "group": "forum_urls",
+      "label": "LibreCAD Forum",
+      "url": "https://forum.librecad.org/",
+      "ok": true,
+      "status": 200,
+      "final_url": "https://forum.librecad.org/",
+      "method": "HEAD"
+    },
+    {
+      "group": "forum_urls",
+      "label": "Maker Forums",
+      "url": "https://forum.makerforums.info/",
+      "ok": true,
+      "status": 200,
+      "final_url": "https://forum.makerforums.info/",
+      "method": "HEAD"
+    },
+    {
+      "group": "forum_urls",
+      "label": "Onshape Forum",
+      "url": "https://forum.onshape.com/",
+      "ok": true,
+      "status": 200,
+      "final_url": "https://forum.onshape.com/",
+      "method": "HEAD"
+    },
+    {
+      "group": "forum_urls",
+      "label": "OpenBuilds Forum",
+      "url": "https://openbuilds.com/forums/",
+      "ok": true,
+      "status": 200,
+      "final_url": "https://builds.openbuilds.com/forums/",
+      "method": "HEAD"
+    },
+    {
+      "group": "forum_urls",
+      "label": "OpenSCAD Lists",
+      "url": "https://lists.openscad.org/",
+      "ok": true,
+      "status": 200,
+      "final_url": "https://lists.openscad.org/",
+      "method": "HEAD"
+    },
+    {
+      "group": "github_repos",
+      "label": "CadQuery",
+      "url": "https://github.com/CadQuery/cadquery",
+      "ok": true,
+      "status": 200,
+      "final_url": "https://github.com/CadQuery/cadquery",
+      "method": "HEAD"
+    },
+    {
+      "group": "github_repos",
+      "label": "FreeCAD",
+      "url": "https://github.com/FreeCAD/FreeCAD",
+      "ok": true,
+      "status": 200,
+      "final_url": "https://github.com/FreeCAD/FreeCAD",
+      "method": "HEAD"
+    },
+    {
+      "group": "github_repos",
+      "label": "FreeCAD org",
+      "url": "https://github.com/freecad",
+      "ok": true,
+      "status": 200,
+      "final_url": "https://github.com/freecad",
+      "method": "HEAD"
+    },
+    {
+      "group": "github_repos",
+      "label": "OpenSCAD",
+      "url": "https://github.com/openscad/openscad",
+      "ok": true,
+      "status": 200,
+      "final_url": "https://github.com/openscad/openscad",
+      "method": "HEAD"
+    },
+    {
+      "group": "software_sources",
+      "label": "CadQuery docs",
+      "url": "https://cadquery.readthedocs.io/",
+      "ok": true,
+      "status": 200,
+      "final_url": "https://cadquery.readthedocs.io/en/latest/",
+      "method": "HEAD"
+    },
+    {
+      "group": "software_sources",
+      "label": "FreeCAD project",
+      "url": "https://www.freecad.org/",
+      "ok": true,
+      "status": 200,
+      "final_url": "https://www.freecad.org/",
+      "method": "HEAD"
+    },
+    {
+      "group": "software_sources",
+      "label": "FreeCAD wiki",
+      "url": "https://wiki.freecad.org/",
+      "ok": true,
+      "status": 200,
+      "final_url": "https://wiki.freecad.org/",
+      "method": "HEAD"
+    },
+    {
+      "group": "software_sources",
+      "label": "Fusion 360 product",
+      "url": "https://www.autodesk.com/products/fusion-360/overview",
+      "ok": false,
+      "status": null,
+      "final_url": "https://www.autodesk.com/products/fusion-360/overview",
+      "method": "GET",
+      "error": "The read operation timed out"
+    },
+    {
+      "group": "software_sources",
+      "label": "OpenSCAD project",
+      "url": "https://openscad.org/",
+      "ok": true,
+      "status": 200,
+      "final_url": "https://openscad.org/",
+      "method": "HEAD"
+    },
+    {
+      "group": "software_sources",
+      "label": "SOLIDWORKS Web Help",
+      "url": "https://help.solidworks.com/",
+      "ok": true,
+      "status": 200,
+      "final_url": "https://help.solidworks.com/",
+      "method": "HEAD"
+    }
+  ]
+}

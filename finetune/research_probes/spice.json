@@ -1,0 +1,164 @@
+{
+  "domain": "spice",
+  "generated_at": "2026-03-09T12:09:52",
+  "source_file": "/ai/saisail/mascarade/finetune/research_sources/domains/spice.json",
+  "status": "partial",
+  "reachable_count": 7,
+  "total_count": 16,
+  "reachable_ratio": 0.4375,
+  "entries": [
+    {
+      "group": "authoritative_urls",
+      "label": "LTspice overview",
+      "url": "https://www.analog.com/en/resources/design-tools-and-calculators/ltspice-simulator.html",
+      "ok": false,
+      "status": null,
+      "final_url": "https://www.analog.com/en/resources/design-tools-and-calculators/ltspice-simulator.html",
+      "method": "GET",
+      "error": "The read operation timed out"
+    },
+    {
+      "group": "authoritative_urls",
+      "label": "ngspice documentation",
+      "url": "https://ngspice.sourceforge.io/docs.html",
+      "ok": true,
+      "status": 200,
+      "final_url": "https://ngspice.sourceforge.io/docs.html",
+      "method": "HEAD"
+    },
+    {
+      "group": "datasheet_roots",
+      "label": "Analog Devices LTspice macromodels",
+      "url": "https://www.analog.com/en/resources/simulation-models/spice-models.html",
+      "ok": false,
+      "status": null,
+      "final_url": "https://www.analog.com/en/resources/simulation-models/spice-models.html",
+      "method": "GET",
+      "error": "The read operation timed out"
+    },
+    {
+      "group": "forum_urls",
+      "label": "All About Circuits Forum",
+      "url": "https://forum.allaboutcircuits.com/",
+      "ok": false,
+      "status": null,
+      "final_url": "https://forum.allaboutcircuits.com/",
+      "method": "GET",
+      "error": "http:403"
+    },
+    {
+      "group": "forum_urls",
+      "label": "Analog Devices EngineerZone",
+      "url": "https://ez.analog.com/",
+      "ok": false,
+      "status": null,
+      "final_url": "https://ez.analog.com/",
+      "method": "GET",
+      "error": "The read operation timed out"
+    },
+    {
+      "group": "forum_urls",
+      "label": "Cadence Community",
+      "url": "https://community.cadence.com/",
+      "ok": true,
+      "status": 200,
+      "final_url": "https://community.cadence.com/",
+      "method": "HEAD"
+    },
+    {
+      "group": "forum_urls",
+      "label": "EEVblog Forum",
+      "url": "https://www.eevblog.com/forum/",
+      "ok": true,
+      "status": 200,
+      "final_url": "https://www.eevblog.com/forum/",
+      "method": "HEAD"
+    },
+    {
+      "group": "forum_urls",
+      "label": "Electronics StackExchange LTspice",
+      "url": "https://electronics.stackexchange.com/questions/tagged/ltspice",
+      "ok": false,
+      "status": null,
+      "final_url": "https://electronics.stackexchange.com/questions/tagged/ltspice",
+      "method": "GET",
+      "error": "http:403"
+    },
+    {
+      "group": "forum_urls",
+      "label": "Electronics StackExchange SPICE",
+      "url": "https://electronics.stackexchange.com/questions/tagged/spice",
+      "ok": false,
+      "status": null,
+      "final_url": "https://electronics.stackexchange.com/questions/tagged/spice",
+      "method": "GET",
+      "error": "http:403"
+    },
+    {
+      "group": "forum_urls",
+      "label": "LTspice Groups",
+      "url": "https://groups.io/g/LTspice",
+      "ok": true,
+      "status": 200,
+      "final_url": "https://groups.io/g/LTspice",
+      "method": "HEAD"
+    },
+    {
+      "group": "forum_urls",
+      "label": "PSMA Technical Forums",
+      "url": "https://psma.com/technical-forums/",
+      "ok": false,
+      "status": null,
+      "final_url": "https://psma.com/technical-forums/",
+      "method": "GET",
+      "error": "http:404"
+    },
+    {
+      "group": "forum_urls",
+      "label": "TI E2E",
+      "url": "https://e2e.ti.com/",
+      "ok": false,
+      "status": null,
+      "final_url": "https://e2e.ti.com/",
+      "method": "GET",
+      "error": "http:500"
+    },
+    {
+      "group": "forum_urls",
+      "label": "ngspice Discussions",
+      "url": "https://sourceforge.net/p/ngspice/discussion/",
+      "ok": true,
+      "status": 200,
+      "final_url": "https://sourceforge.net/p/ngspice/discussion/",
+      "method": "HEAD"
+    },
+    {
+      "group": "github_repos",
+      "label": "ngspice",
+      "url": "https://github.com/ngspice/ngspice",
+      "ok": true,
+      "status": 200,
+      "final_url": "https://github.com/ngspice/ngspice",
+      "method": "HEAD"
+    },
+    {
+      "group": "software_sources",
+      "label": "LTspice download and models",
+      "url": "https://www.analog.com/en/resources/simulation-models/spice-models.html",
+      "ok": false,
+      "status": null,
+      "final_url": "https://www.analog.com/en/resources/simulation-models/spice-models.html",
+      "method": "GET",
+      "error": "The read operation timed out"
+    },
+    {
+      "group": "software_sources",
+      "label": "ngspice upstream",
+      "url": "https://ngspice.sourceforge.io/",
+      "ok": true,
+      "status": 200,
+      "final_url": "https://ngspice.sourceforge.io/",
+      "method": "HEAD"
+    }
+  ]
+}

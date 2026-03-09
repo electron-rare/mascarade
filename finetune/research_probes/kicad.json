@@ -1,0 +1,222 @@
+{
+  "domain": "kicad",
+  "generated_at": "2026-03-09T12:08:43",
+  "source_file": "/ai/saisail/mascarade/finetune/research_sources/domains/kicad.json",
+  "status": "partial",
+  "reachable_count": 19,
+  "total_count": 23,
+  "reachable_ratio": 0.8260869565217391,
+  "entries": [
+    {
+      "group": "authoritative_urls",
+      "label": "Altium documentation",
+      "url": "https://www.altium.com/documentation/",
+      "ok": true,
+      "status": 200,
+      "final_url": "https://www.altium.com/documentation/",
+      "method": "HEAD"
+    },
+    {
+      "group": "authoritative_urls",
+      "label": "EasyEDA docs",
+      "url": "https://docs.easyeda.com/en/",
+      "ok": true,
+      "status": 200,
+      "final_url": "https://docs.easyeda.com/en/",
+      "method": "HEAD"
+    },
+    {
+      "group": "authoritative_urls",
+      "label": "KiCad documentation",
+      "url": "https://docs.kicad.org/",
+      "ok": true,
+      "status": 200,
+      "final_url": "https://docs.kicad.org/",
+      "method": "HEAD"
+    },
+    {
+      "group": "authoritative_urls",
+      "label": "KiCad forum",
+      "url": "https://forum.kicad.info/",
+      "ok": true,
+      "status": 200,
+      "final_url": "https://forum.kicad.info/",
+      "method": "HEAD"
+    },
+    {
+      "group": "datasheet_roots",
+      "label": "EasyEDA libraries management",
+      "url": "https://docs.easyeda.com/en/Introduction/Libraries-Management/",
+      "ok": true,
+      "status": 200,
+      "final_url": "https://docs.easyeda.com/en/Introduction/Libraries-Management/",
+      "method": "HEAD"
+    },
+    {
+      "group": "datasheet_roots",
+      "label": "KiCad libraries",
+      "url": "https://kicad.github.io/",
+      "ok": true,
+      "status": 200,
+      "final_url": "https://kicad.github.io/",
+      "method": "HEAD"
+    },
+    {
+      "group": "datasheet_roots",
+      "label": "KiCad library conventions",
+      "url": "https://klc.kicad.org/",
+      "ok": true,
+      "status": 200,
+      "final_url": "https://klc.kicad.org/",
+      "method": "HEAD"
+    },
+    {
+      "group": "forum_urls",
+      "label": "All About Circuits Forum",
+      "url": "https://forum.allaboutcircuits.com/",
+      "ok": false,
+      "status": null,
+      "final_url": "https://forum.allaboutcircuits.com/",
+      "method": "GET",
+      "error": "http:403"
+    },
+    {
+      "group": "forum_urls",
+      "label": "Altium Forum",
+      "url": "https://forum.live.altium.com/",
+      "ok": true,
+      "status": 200,
+      "final_url": "https://forum.live.altium.com/",
+      "method": "HEAD"
+    },
+    {
+      "group": "forum_urls",
+      "label": "Arduino Forum",
+      "url": "https://forum.arduino.cc/",
+      "ok": true,
+      "status": 200,
+      "final_url": "https://forum.arduino.cc/",
+      "method": "HEAD"
+    },
+    {
+      "group": "forum_urls",
+      "label": "EDAboard",
+      "url": "https://www.edaboard.com/",
+      "ok": false,
+      "status": null,
+      "final_url": "https://www.edaboard.com/",
+      "method": "GET",
+      "error": "http:403"
+    },
+    {
+      "group": "forum_urls",
+      "label": "EEVblog Forum",
+      "url": "https://www.eevblog.com/forum/",
+      "ok": true,
+      "status": 200,
+      "final_url": "https://www.eevblog.com/forum/",
+      "method": "HEAD"
+    },
+    {
+      "group": "forum_urls",
+      "label": "EasyEDA Forum",
+      "url": "https://easyeda.com/forum/",
+      "ok": true,
+      "status": 200,
+      "final_url": "https://easyeda.com/forum/",
+      "method": "HEAD"
+    },
+    {
+      "group": "forum_urls",
+      "label": "Electronics StackExchange PCB Design",
+      "url": "https://electronics.stackexchange.com/questions/tagged/pcb-design",
+      "ok": false,
+      "status": null,
+      "final_url": "https://electronics.stackexchange.com/questions/tagged/pcb-design",
+      "method": "GET",
+      "error": "http:403"
+    },
+    {
+      "group": "forum_urls",
+      "label": "KiCad Community Forums",
+      "url": "https://www.kicad.org/community/forums/",
+      "ok": true,
+      "status": 200,
+      "final_url": "https://www.kicad.org/community/forums/",
+      "method": "HEAD"
+    },
+    {
+      "group": "forum_urls",
+      "label": "KiCad.info Forums",
+      "url": "https://forum.kicad.info/",
+      "ok": true,
+      "status": 200,
+      "final_url": "https://forum.kicad.info/",
+      "method": "HEAD"
+    },
+    {
+      "group": "forum_urls",
+      "label": "element14 Community",
+      "url": "https://community.element14.com/",
+      "ok": false,
+      "status": null,
+      "final_url": "https://community.element14.com/",
+      "method": "GET",
+      "error": "The read operation timed out"
+    },
+    {
+      "group": "github_repos",
+      "label": "KiCad GitHub org",
+      "url": "https://github.com/KiCad",
+      "ok": true,
+      "status": 200,
+      "final_url": "https://github.com/KiCad",
+      "method": "HEAD"
+    },
+    {
+      "group": "github_repos",
+      "label": "KiCad source mirror",
+      "url": "https://github.com/KiCad/kicad-source-mirror",
+      "ok": true,
+      "status": 200,
+      "final_url": "https://github.com/KiCad/kicad-source-mirror",
+      "method": "HEAD"
+    },
+    {
+      "group": "software_sources",
+      "label": "Altium Designer docs",
+      "url": "https://www.altium.com/documentation/",
+      "ok": true,
+      "status": 200,
+      "final_url": "https://www.altium.com/documentation/",
+      "method": "HEAD"
+    },
+    {
+      "group": "software_sources",
+      "label": "EasyEDA product",
+      "url": "https://www.easyeda.com/",
+      "ok": true,
+      "status": 200,
+      "final_url": "https://www.easyeda.com/",
+      "method": "HEAD"
+    },
+    {
+      "group": "software_sources",
+      "label": "KiCad developer docs",
+      "url": "https://dev-docs.kicad.org/",
+      "ok": true,
+      "status": 200,
+      "final_url": "https://dev-docs.kicad.org/",
+      "method": "HEAD"
+    },
+    {
+      "group": "software_sources",
+      "label": "KiCad source download",
+      "url": "https://www.kicad.org/download/source/",
+      "ok": true,
+      "status": 200,
+      "final_url": "https://www.kicad.org/download/source/",
+      "method": "HEAD"
+    }
+  ]
+}

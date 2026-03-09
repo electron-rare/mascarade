@@ -22,7 +22,11 @@ import time
 from pathlib import Path
 
 import torch
+from auto_policy import detect_machine_profile, resolve_default_student_model
 from dataset_bootstrap import ensure_seed_dataset
+from dataset_quality import DatasetQualityError, enforce_dataset_quality, summarize_quality_report
+from dataset_refresh import refresh_dataset
+from llm_paths import configure_hf_env, hf_cache_roots
 from llmfit_utils import (
     build_llmfit_record,
     env_flag,
@@ -32,6 +36,10 @@ from llmfit_utils import (
     write_llmfit_plan,
 )
 from run_manifest import load_json, now_ts, redact_command, write_manifest
+from sharegpt_utils import ensure_row_ids_with_stats, load_jsonl, validate_rows
+from workspace_utils import prepare_training_output_dir
+
+configure_hf_env()
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 DATASETS_DIR = SCRIPT_DIR / "datasets"
@@ -40,11 +48,18 @@ GPU_TRAINER = SCRIPT_DIR / "train_local.py"
 CPU_TRAINER = SCRIPT_DIR / "train_cpu.py"
 
 try:
-    from model_selector import resolve_model as _resolve
+    from model_selector import (
+        SELECTION_FILE as _SELECTION_FILE,
+        ensure_model_selection as _ensure_model_selection,
+        resolve_model as _resolve_selected_model,
+    )
 
-    DEFAULT_GPU_MODEL = _resolve("Qwen/Qwen2.5-Coder-1.5B-Instruct")
+    SELECTED_MODEL_FILE = _SELECTION_FILE
 except Exception:
-    DEFAULT_GPU_MODEL = "Qwen/Qwen2.5-Coder-1.5B-Instruct"
+    _ensure_model_selection = None
+    _resolve_selected_model = None
+    SELECTED_MODEL_FILE = None
+DEFAULT_GPU_MODEL = "Qwen/Qwen2.5-Coder-1.5B-Instruct"
 DEFAULT_CPU_MODEL = DEFAULT_GPU_MODEL
 DOMAINS = [
     "stm32",
@@ -57,7 +72,7 @@ DOMAINS = [
     "embedded",
     "platformio",
     "freecad",
-    "project",
+    "components",
 ]
 
 TEACHER_ONLY_STUDENT_PATTERNS = {
@@ -70,8 +85,17 @@ TEACHER_ONLY_STUDENT_PATTERNS = {
     "devstral-small-2507": (
         "teacher-only in this pipeline: Mistral coding teacher/inference model"
     ),
+    "mistralai/devstral-small-2-24b-instruct-2512": (
+        "teacher-only in this pipeline: recent Devstral local teacher/inference model"
+    ),
     "mistral-small-3.1": (
         "teacher-only in this pipeline: Mistral teacher/inference model"
+    ),
+    "mistralai/mistral-small-3.1-24b-base-2503": (
+        "teacher-only in this pipeline: recent Mistral 24B local teacher/inference model"
+    ),
+    "mistralai/mistral-small-3.2-24b-instruct-2506": (
+        "teacher-only in this pipeline: recent Mistral 24B instruct local teacher/inference model"
     ),
     "deepseek-ai/deepseek-r1": (
         "teacher-only in this pipeline: DeepSeek reasoning teacher model"
@@ -105,20 +129,62 @@ def probe_cuda() -> tuple[bool, str]:
 
 
 def has_hf_cache(model_id: str) -> bool:
-    cache_root = Path.home() / ".cache" / "huggingface" / "hub"
-    model_dir = cache_root / f"models--{model_id.replace('/', '--')}"
-    return model_dir.exists()
+    suffix = f"models--{model_id.replace('/', '--')}"
+    for cache_root in hf_cache_roots():
+        model_dir = cache_root / suffix
+        if model_dir.exists():
+            return True
+    return False
 
 
 def resolve_model(
-    requested_model: str | None, resolved_device: str, offline: bool
-) -> tuple[str, str | None]:
+    requested_model: str | None, resolved_device: str, offline: bool, seq_len: int
+) -> tuple[str, str | None, dict | None]:
     if requested_model:
-        return requested_model, None
+        return requested_model, None, None
+    selection_info = None
+    if not offline and _ensure_model_selection is not None:
+        selection_info = _ensure_model_selection(
+            fallback_model=DEFAULT_GPU_MODEL
+            if resolved_device == "gpu"
+            else DEFAULT_CPU_MODEL,
+            task="code",
+            seq_len=seq_len,
+            watch=True,
+            verbose=False,
+        )
+        selection_model = str(selection_info.get("model_id") or "").strip()
+        if selection_model and selection_info.get("source") != "fallback":
+            note = (
+                f"[INFO] student selector {selection_info.get('source')}: "
+                f"{selection_model} ({selection_info.get('reason', 'no reason')})"
+            )
+            return selection_model, note, selection_info
+    if SELECTED_MODEL_FILE is not None and SELECTED_MODEL_FILE.exists():
+        selected_model = (
+            _resolve_selected_model(DEFAULT_GPU_MODEL)
+            if _resolve_selected_model is not None
+            else DEFAULT_GPU_MODEL
+        )
+        return selected_model, None, selection_info
+    machine_profile = detect_machine_profile(requested_device=resolved_device)
+    auto_model, auto_reason = resolve_default_student_model(
+        machine_profile=machine_profile,
+        fallback_model=DEFAULT_GPU_MODEL if resolved_device == "gpu" else DEFAULT_CPU_MODEL,
+        requested_device=resolved_device,
+    )
     if resolved_device == "gpu":
-        return DEFAULT_GPU_MODEL, None
-    if not offline or has_hf_cache(DEFAULT_CPU_MODEL):
-        return DEFAULT_CPU_MODEL, None
+        return (
+            auto_model,
+            f"[INFO] hardware auto-selected student: {auto_model} ({auto_reason})",
+            selection_info,
+        )
+    if not offline or has_hf_cache(auto_model):
+        return (
+            auto_model,
+            f"[INFO] hardware auto-selected student: {auto_model} ({auto_reason})",
+            selection_info,
+        )
     if has_hf_cache(DEFAULT_GPU_MODEL):
         return (
             DEFAULT_GPU_MODEL,
@@ -126,6 +192,7 @@ def resolve_model(
                 f"[INFO] offline CPU fallback: {DEFAULT_CPU_MODEL} not cached, "
                 f"reusing cached {DEFAULT_GPU_MODEL}"
             ),
+            selection_info,
         )
     raise SystemExit(
         "Offline CPU fallback requires a cached model. "
@@ -172,11 +239,14 @@ def make_manifest(
     run_label: str | None,
     args: argparse.Namespace,
     dataset_path: Path,
+    requested_output_dir: Path,
     output_dir: Path,
     resolved_device: str,
     model_name: str,
     sample_count: int,
     effective_samples: int,
+    dataset_quality_report: dict,
+    dataset_refresh_report: dict | None,
     gpu_reason: str,
     trainer_command: list[str],
     llmfit_report_path: Path | None,
@@ -196,6 +266,7 @@ def make_manifest(
         "domain": args.domain,
         "paths": {
             "dataset_path": str(dataset_path),
+            "requested_output_dir": str(requested_output_dir),
             "output_dir": str(output_dir),
             "training_info_path": str(training_info_path),
             "llmfit_plan_path": (
@@ -206,6 +277,17 @@ def make_manifest(
             "requested_device": args.device,
             "resolved_device": resolved_device,
             "model": model_name,
+            "model_source": (
+                "explicit"
+                if args.model
+                else (
+                    "selector"
+                    if getattr(args, "model_selection", None)
+                    and args.model_selection.get("source") != "fallback"
+                    else "hardware_auto"
+                )
+            ),
+            "model_selection": getattr(args, "model_selection", None),
             "offline": args.offline,
             "eval": args.eval,
             "seq_len": args.seq_len,
@@ -214,7 +296,11 @@ def make_manifest(
             "tokenize_workers": args.tokenize_workers,
             "sample_count": sample_count,
             "effective_samples": effective_samples,
+            "dataset_quality": dataset_quality_report,
+            "dataset_refresh": dataset_refresh_report,
             "gpu_probe": gpu_reason,
+            "output_mode": args.output_workspace["mode"],
+            "output_reason": args.output_workspace["reason"],
             "llmfit_preflight": args.llmfit_preflight,
             "llmfit_context": args.llmfit_context or args.seq_len,
             "llmfit_min_fit": args.llmfit_min_fit,
@@ -303,6 +389,47 @@ def main() -> int:
         "--dataset-path", default=None, help="Override ShareGPT JSONL dataset path"
     )
     parser.add_argument(
+        "--refresh-dataset",
+        action="store_true",
+        help=(
+            "Refresh the canonical domain dataset before training. Prefer the local "
+            "mascarade-datasets repo when present, otherwise rebuild from "
+            "finetune/datasets/build_*"
+        ),
+    )
+    parser.add_argument(
+        "--refresh-with-hf",
+        action="store_true",
+        help="When dataset refresh falls back to builders, include their Hugging Face enrichment path",
+    )
+    parser.add_argument(
+        "--refresh-max-samples",
+        type=int,
+        default=None,
+        help="Max samples forwarded to builder refresh runs when --refresh-with-hf is enabled",
+    )
+    parser.add_argument(
+        "--no-prefer-full-datasets",
+        dest="prefer_full_datasets",
+        action="store_false",
+        help="Do not sync from the sibling mascarade-datasets repo during refresh",
+    )
+    parser.add_argument(
+        "--full-datasets-root",
+        default=None,
+        help="Optional path to the full mascarade-datasets repo used during refresh",
+    )
+    parser.add_argument(
+        "--research-dir",
+        default=None,
+        help="Directory where dataset refresh web-research briefs are written",
+    )
+    parser.add_argument(
+        "--skip-research-briefs",
+        action="store_true",
+        help="Refresh datasets without emitting Markdown/JSON research briefs",
+    )
+    parser.add_argument(
         "--output-dir", default=None, help="Override training output directory"
     )
     parser.add_argument(
@@ -387,13 +514,44 @@ def main() -> int:
     verbosity.add_argument(
         "--quiet", action="store_true", help="Keep launcher output minimal"
     )
+    parser.set_defaults(prefer_full_datasets=True)
     args = parser.parse_args()
+
+    if args.refresh_dataset and args.dataset_path is not None:
+        raise SystemExit("--refresh-dataset cannot be used with --dataset-path")
 
     dataset_path = resolve_cli_path(
         args.dataset_path, DATASETS_DIR / f"{args.domain}_chat.jsonl"
     )
     output_dir = resolve_cli_path(args.output_dir) if args.output_dir else None
     args.dataset_path = None if args.dataset_path is None else str(dataset_path)
+    dataset_refresh_report = None
+    if args.refresh_dataset:
+        try:
+            dataset_refresh_report = refresh_dataset(
+                args.domain,
+                dataset_dir=DATASETS_DIR,
+                with_hf=args.refresh_with_hf,
+                max_samples=args.refresh_max_samples,
+                prefer_full_datasets=args.prefer_full_datasets,
+                full_datasets_root=resolve_cli_path(args.full_datasets_root),
+                research_dir=resolve_cli_path(args.research_dir),
+                emit_research_brief=not args.skip_research_briefs,
+            )
+        except Exception as exc:  # noqa: BLE001
+            print(f"Dataset refresh failed: {exc}", file=sys.stderr)
+            return 1
+        if not args.quiet:
+            print(
+                f"[REFRESH] {args.domain}: mode={dataset_refresh_report['source_mode']} "
+                f"rows={dataset_refresh_report['row_count']} "
+                f"quality={dataset_refresh_report['quality']['status']}"
+            )
+            if dataset_refresh_report["quality"].get("warnings"):
+                print(
+                    f"[WARN] refresh-quality: "
+                    f"{summarize_quality_report(dataset_refresh_report['quality'])}"
+                )
     if args.dataset_path is None:
         builder = ensure_seed_dataset(SCRIPT_DIR, args.domain, dataset_path)
         if builder is not None and not args.quiet:
@@ -402,7 +560,32 @@ def main() -> int:
         print(f"Dataset not found: {dataset_path}", file=sys.stderr)
         return 1
 
-    sample_count = dataset_line_count(dataset_path)
+    raw_rows = load_jsonl(dataset_path)
+    normalized_rows, normalized_source_ids = ensure_row_ids_with_stats(
+        raw_rows, f"{args.domain}-dataset"
+    )
+    validation_errors = validate_rows(normalized_rows)
+    if validation_errors:
+        print(
+            f"Dataset is invalid ({len(validation_errors)} errors): {validation_errors[0]}",
+            file=sys.stderr,
+        )
+        return 1
+    try:
+        dataset_quality_report = enforce_dataset_quality(
+            normalized_rows,
+            label=f"{args.domain} dataset",
+            ids_fixed=normalized_source_ids,
+        )
+    except DatasetQualityError as exc:
+        print(f"Dataset quality gate failed: {exc}", file=sys.stderr)
+        return 1
+    if dataset_quality_report["warnings"] and not args.quiet:
+        print(
+            f"[WARN] dataset-quality: {summarize_quality_report(dataset_quality_report)}"
+        )
+
+    sample_count = len(normalized_rows)
     if sample_count < 2:
         print(f"Dataset must contain at least 2 rows: {dataset_path}", file=sys.stderr)
         return 1
@@ -426,9 +609,22 @@ def main() -> int:
     if output_dir is None and run_label is not None:
         run_dir = build_run_dir(run_label, args.domain)
         output_dir = run_dir / "train_output"
+    requested_output_dir = output_dir
+    args.output_workspace = None
+    if output_dir is not None:
+        output_workspace = prepare_training_output_dir(output_dir)
+        args.output_workspace = output_workspace
+        requested_output_dir = Path(output_workspace["requested_output_dir"])
+        output_dir = Path(output_workspace["output_dir"])
     args.output_dir = None if output_dir is None else str(output_dir)
 
-    model_name, model_note = resolve_model(args.model, resolved_device, args.offline)
+    model_name, model_note, model_selection = resolve_model(
+        args.model,
+        resolved_device,
+        args.offline,
+        args.seq_len,
+    )
+    args.model_selection = model_selection
     reject_teacher_only_student(model_name)
     llmfit_context = args.llmfit_context or args.seq_len
     llmfit_report_path = resolve_llmfit_report_path(args, output_dir, run_dir)
@@ -445,11 +641,14 @@ def main() -> int:
             run_label=run_label,
             args=args,
             dataset_path=dataset_path,
+            requested_output_dir=requested_output_dir,
             output_dir=output_dir,
             resolved_device=resolved_device,
             model_name=model_name,
             sample_count=sample_count,
             effective_samples=effective_samples,
+            dataset_quality_report=dataset_quality_report,
+            dataset_refresh_report=dataset_refresh_report,
             gpu_reason=gpu_reason,
             trainer_command=command,
             llmfit_report_path=llmfit_report_path,
@@ -521,6 +720,11 @@ def main() -> int:
         )
         if run_dir is not None:
             print(f"[RUN_DIR] {run_dir}")
+        if args.output_workspace is not None:
+            print(
+                f"[OUTPUT] mode={args.output_workspace['mode']} "
+                f"path={output_dir}"
+            )
         if llmfit_warning:
             print(f"[WARN] {llmfit_warning}")
     else:
@@ -537,6 +741,12 @@ def main() -> int:
         else:
             print(f"GPU:     {gpu_reason}")
             print(f"Model:   {model_name}")
+        if args.output_workspace is not None:
+            print(
+                "Output:  "
+                f"{output_dir} "
+                f"({args.output_workspace['mode']}: {args.output_workspace['reason']})"
+            )
         if llmfit_summary is not None:
             print(
                 "llmfit:  "
@@ -554,11 +764,15 @@ def main() -> int:
         print(f"Epochs:  {args.epochs}")
         if model_note:
             print(model_note)
+        if (
+            getattr(args, "model_selection", None)
+            and args.model_selection.get("watch_report_path")
+        ):
+            print(f"[INFO] student_watch_report: {args.model_selection['watch_report_path']}")
         if llmfit_warning:
             print(f"[WARN]  {llmfit_warning}")
         if args.verbose:
             print(f"Dataset: {dataset_path}")
-            print(f"Output:  {args.output_dir or '(trainer default)'}")
             print(
                 f"Tokenz:  {args.tokenize_workers if args.tokenize_workers else 'auto'}"
             )

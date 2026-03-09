@@ -203,16 +203,13 @@ def build_job(
     domains = resolve_domains(explicit_domains, spec.domains)
     child_label = normalize_run_label(f"{run_label}_{spec.name}_p{pass_spec.name}")
     llmfit = resolve_job_llmfit(spec, llmfit_cache)
+    local_hf_device = args.local_hf_device or getattr(spec, "local_hf_device", None)
     command = [
         sys.executable,
         str(BATCH_LOCAL_SCRIPT),
         *domains,
         "--run-label",
         child_label,
-        "--teacher-provider",
-        spec.teacher_provider,
-        "--teacher-model",
-        spec.teacher_model,
         "--max-tokens",
         str(spec.max_tokens),
         "--max-source-samples",
@@ -226,10 +223,18 @@ def build_job(
         "--tokenize-workers",
         str(args.tokenize_workers),
     ]
+    if spec.teacher_provider:
+        command.extend(["--teacher-provider", spec.teacher_provider])
+    if spec.teacher_model:
+        command.extend(["--teacher-model", spec.teacher_model])
+    if spec.teacher_objective:
+        command.extend(["--teacher-objective", spec.teacher_objective])
     for api_url in args.api_urls or []:
         command.extend(["--api-url", api_url])
     if args.teacher_system_path:
         command.extend(["--teacher-system-path", args.teacher_system_path])
+    if (spec.teacher_provider in {None, "local-hf"}) and local_hf_device:
+        command.extend(["--local-hf-device", local_hf_device])
     if args.offline:
         command.append("--offline")
     if args.verbose:
@@ -260,6 +265,8 @@ def build_job(
         "domains": domains,
         "teacher_provider": spec.teacher_provider,
         "teacher_model": spec.teacher_model,
+        "teacher_objective": spec.teacher_objective,
+        "local_hf_device": local_hf_device,
         "student_model": spec.student_model,
         "device": spec.device,
         "teacher_only": spec.teacher_only,
@@ -349,7 +356,7 @@ def main() -> int:
     parser.add_argument("--scenario", action="append", help="Specific scenario name")
     parser.add_argument(
         "--scenario-group",
-        choices=["all", "qwen", "mistral", "deepseek"],
+        choices=["all", "auto", "qwen", "mistral", "deepseek"],
         default="all",
     )
     parser.add_argument(
@@ -363,6 +370,11 @@ def main() -> int:
     parser.add_argument("--prepare-only", action="store_true")
     parser.add_argument("--api-url", action="append", dest="api_urls")
     parser.add_argument("--teacher-system-path", default=None)
+    parser.add_argument(
+        "--local-hf-device",
+        default=os.environ.get("MASCARADE_LOCAL_HF_DEVICE"),
+        help="Override local-hf teacher device target (auto, cpu, cuda:0, ...)",
+    )
     parser.add_argument("--max-parallel-distills", type=int, default=6)
     parser.add_argument("--max-parallel-gpu-trains", type=int, default=1)
     parser.add_argument("--tokenize-workers", type=int, default=4)
@@ -439,6 +451,14 @@ def main() -> int:
         if child_manifest is not None and child_manifest.get("llmfit") is not None:
             job["llmfit"] = child_manifest["llmfit"]
             job["domain_train_status"] = summarize_domain_trains(child_manifest)
+        if child_manifest is not None:
+            child_config = child_manifest.get("config") or {}
+            if child_config.get("teacher_selection") is not None:
+                job["resolved_teacher_selection"] = child_config["teacher_selection"]
+            if child_config.get("teacher_provider") is not None:
+                job["resolved_teacher_provider"] = child_config["teacher_provider"]
+            if child_config.get("teacher_model") is not None:
+                job["resolved_teacher_model"] = child_config["teacher_model"]
         job["completed_at"] = now_ts()
         job["returncode"] = returncode
         if (job.get("llmfit") or {}).get("status") == "rejected":

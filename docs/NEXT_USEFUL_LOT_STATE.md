@@ -1,41 +1,45 @@
 # Next Useful Lot State
 
-Generated: 2026-03-09 06:06:29 CET
+Generated: 2026-03-09 08:10:10 CET
 
 ## Summary
 
-- Detected lot: `kill-life-followup`
+- Detected lot: `industrial-dcs-governed-sandbox`
 - Kind: `local`
-- Primary repo: `Kill_LIFE`
-- Primary root: `/home/clems/Kill_LIFE`
-- Reason: Tracked local changes remain in Kill_LIFE and should be checked with the stable Python/spec suite.
+- Primary repo: `agent-factory-cockpit`
+- Primary root: `/home/clems/agent-factory-cockpit`
+- Reason: The DCS sandbox lane is the only active industrial lot: local tracked changes cover the DCS contract, topology, sandbox runtime, cockpit UI, tests, and companion state docs.
+- Companion repos: `mascarade,crazy_life`
 
 ## Repo Snapshot
 
-- `mascarade`: 0 tracked delta(s)
+- `mascarade`: 3 tracked delta(s)
 - `crazy_life`: 0 tracked delta(s)
-- `Kill_LIFE`: 10 tracked delta(s)
-- `agent-factory-cockpit`: 0 tracked delta(s)
+- `Kill_LIFE`: 8 tracked delta(s)
+- `agent-factory-cockpit`: 10 tracked delta(s)
 
 ## Scope Paths
 
-- `ai-agentic-embedded-base/specs/mcp_tasks.md`
-- `ai-agentic-embedded-base/specs/zeroclaw_dual_hw_todo.md`
-- `specs/mcp_tasks.md`
-- `specs/zeroclaw_dual_hw_todo.md`
-- `tools/ai/integrations/n8n/README.md`
-- `tools/ai/integrations/n8n/kill_life_smoke_workflow.json`
-- `tools/ai/zeroclaw_integrations_down.sh`
-- `tools/ai/zeroclaw_integrations_import_n8n.sh`
-- `tools/ai/zeroclaw_integrations_status.sh`
-- `tools/ai/zeroclaw_integrations_up.sh`
+- `README.md`
+- `Makefile`
+- `agent_factory_cockpit/dcs_sandbox.py`
+- `contracts/vendors/dcs/contract.yaml`
+- `contracts/vendors/dcs/openapi.yaml`
+- `docs/IMPLEMENTATION_TODO.md`
+- `examples/dcs-governed-sandbox.json`
+- `src/main.js`
+- `src/styles.css`
+- `tests/test_topology.py`
+- `topology/dcs.yaml`
 
 ## Canonical Checks
 
 ```bash
-cd /home/clems/Kill_LIFE && bash tools/test_python.sh --suite stable
-cd /home/clems/Kill_LIFE && python3 tools/validate_specs.py --json
-git -C /home/clems/Kill_LIFE diff --check
+cd /home/clems/agent-factory-cockpit && python3 -m py_compile serve.py agent_factory_cockpit/*.py scripts/lotctl.py
+cd /home/clems/agent-factory-cockpit && python3 -m unittest tests.test_topology tests.test_validation tests.test_runtime -q
+cd /home/clems/agent-factory-cockpit && python3 -m unittest tests.test_execution tests.test_mcp tests.test_dcs_sandbox tests.test_lotctl -q
+cd /home/clems/agent-factory-cockpit && make demo-dcs-sandbox
+git -C /home/clems/agent-factory-cockpit diff --check
 ```
 
 ## External Blockers After Local Lots

@@ -1,0 +1,93 @@
+{
+  "domain": "emc",
+  "topic": "EMC / EMI / ESD",
+  "minimum_web_roots": 8,
+  "forum_urls": [
+    {
+      "label": "Electronics StackExchange",
+      "url": "https://electronics.stackexchange.com/"
+    },
+    {
+      "label": "All About Circuits Forum",
+      "url": "https://forum.allaboutcircuits.com/"
+    },
+    {
+      "label": "EEVblog Forum",
+      "url": "https://www.eevblog.com/forum/"
+    },
+    {
+      "label": "DigiKey TechForum",
+      "url": "https://forum.digikey.com/"
+    },
+    {
+      "label": "element14 Community",
+      "url": "https://community.element14.com/"
+    },
+    {
+      "label": "TI E2E",
+      "url": "https://e2e.ti.com/"
+    },
+    {
+      "label": "Analog Devices EngineerZone",
+      "url": "https://ez.analog.com/"
+    },
+    {
+      "label": "Infineon Community",
+      "url": "https://community.infineon.com/"
+    },
+    {
+      "label": "NXP Community",
+      "url": "https://community.nxp.com/"
+    },
+    {
+      "label": "Arduino Forum",
+      "url": "https://forum.arduino.cc/"
+    }
+  ],
+  "authoritative_urls": [
+    {
+      "label": "TI EMC overview",
+      "url": "https://www.ti.com/interface/emc-overview.html"
+    },
+    {
+      "label": "Infineon EMC resources",
+      "url": "https://www.infineon.com/cms/en/design-support/"
+    }
+  ],
+  "github_repos": [],
+  "software_sources": [
+    {
+      "label": "TI EMC overview",
+      "url": "https://www.ti.com/interface/emc-overview.html"
+    },
+    {
+      "label": "Infineon design support",
+      "url": "https://www.infineon.com/cms/en/design-support/"
+    }
+  ],
+  "datasheet_roots": [
+    {
+      "label": "TI EMC overview",
+      "url": "https://www.ti.com/interface/emc-overview.html"
+    },
+    {
+      "label": "Infineon design support",
+      "url": "https://www.infineon.com/cms/en/design-support/"
+    }
+  ],
+  "hf_sources": [
+    "bshada/electronics.stackexchange.com",
+    "STEM-AI-mtl/Electrical-engineering",
+    "nick007x/eevblog-posts"
+  ],
+  "queries": [
+    "site:ti.com emc layout esd protection application note",
+    "site:infineon.com emi filter pcb layout note",
+    "site:huggingface.co/datasets electronics emc emi dataset"
+  ],
+  "trusted_domains": [
+    "ti.com",
+    "infineon.com",
+    "huggingface.co"
+  ]
+}

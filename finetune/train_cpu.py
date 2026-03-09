@@ -19,11 +19,18 @@ import os
 import gc
 import sys
 import warnings
+from pathlib import Path
 
 if "--quiet" in sys.argv:
     warnings.filterwarnings("ignore")
 
+from llm_paths import configure_hf_env
+
+configure_hf_env()
+
+from dataset_quality import DatasetQualityError, enforce_dataset_quality, summarize_quality_report
 from runtime_compat import disable_broken_torchvision
+from sharegpt_utils import ensure_row_ids_with_stats, load_jsonl, validate_rows
 
 _RUNTIME_COMPAT_NOTE = disable_broken_torchvision()
 
@@ -56,7 +63,7 @@ DOMAINS = [
     "embedded",
     "platformio",
     "freecad",
-    "project",
+    "components",
 ]
 
 try:
@@ -71,7 +78,32 @@ LORA_TARGETS = {
     "tinyllama": ["q_proj", "v_proj", "k_proj", "o_proj"],
     "qwen": ["q_proj", "v_proj", "k_proj", "o_proj"],
     "llama": ["q_proj", "v_proj", "k_proj", "o_proj"],
+    "mistral": ["q_proj", "v_proj", "k_proj", "o_proj"],
     "phi": ["q_proj", "v_proj", "k_proj", "dense"],
+}
+
+TEACHER_ONLY_STUDENT_PATTERNS = {
+    "qwen/qwen3.5-35b-a3b-gptq-int4": (
+        "teacher-only in this pipeline: GPTQ Int4 MoE checkpoint intended for inference/teacher use"
+    ),
+    "qwen/qwen3-next-80b-a3b-instruct-fp8": (
+        "teacher-only in this pipeline: FP8 MoE checkpoint intended for serving/teacher use"
+    ),
+    "devstral-small-2507": (
+        "teacher-only in this pipeline: Mistral coding teacher/inference model"
+    ),
+    "mistralai/devstral-small-2-24b-instruct-2512": (
+        "teacher-only in this pipeline: recent Devstral local teacher/inference model"
+    ),
+    "mistral-small-3.1": (
+        "teacher-only in this pipeline: Mistral teacher/inference model"
+    ),
+    "mistralai/mistral-small-3.1-24b-base-2503": (
+        "teacher-only in this pipeline: recent Mistral 24B local teacher/inference model"
+    ),
+    "mistralai/mistral-small-3.2-24b-instruct-2506": (
+        "teacher-only in this pipeline: recent Mistral 24B instruct local teacher/inference model"
+    ),
 }
 
 
@@ -81,6 +113,13 @@ def detect_lora_targets(model_name: str) -> list[str]:
         if key in name:
             return targets
     return ["c_attn"]
+
+
+def assert_supported_student_model(model_name: str) -> None:
+    name = model_name.lower()
+    for pattern, reason in TEACHER_ONLY_STUDENT_PATTERNS.items():
+        if pattern in name:
+            raise ValueError(f"Unsupported student model {model_name}: {reason}")
 
 
 def format_chat(convos: list[dict], model_name: str) -> str:
@@ -171,9 +210,35 @@ def train_domain(
     if not os.path.exists(dataset_path):
         emit(f"Dataset not found: {dataset_path}", important=True)
         return False
+    raw_rows = load_jsonl(Path(dataset_path))
+    normalized_rows, normalized_source_ids = ensure_row_ids_with_stats(
+        raw_rows, f"{domain}-dataset"
+    )
+    validation_errors = validate_rows(normalized_rows)
+    if validation_errors:
+        emit(
+            f"Dataset is invalid ({len(validation_errors)} errors): {validation_errors[0]}",
+            important=True,
+        )
+        return False
+    try:
+        dataset_quality = enforce_dataset_quality(
+            normalized_rows,
+            label=f"{domain} dataset",
+            ids_fixed=normalized_source_ids,
+        )
+    except DatasetQualityError as exc:
+        emit(f"Dataset quality gate failed: {exc}", important=True)
+        return False
+    if dataset_quality["warnings"]:
+        emit(
+            f"[WARN] dataset-quality: {summarize_quality_report(dataset_quality)}",
+            important=True,
+        )
 
     output_dir = output_dir or os.path.join(OUTPUT_DIR, domain)
     os.makedirs(output_dir, exist_ok=True)
+    assert_supported_student_model(model_name)
 
     if quiet:
         emit(
@@ -285,8 +350,7 @@ def train_domain(
         optim="adamw_torch",
         logging_steps=10,
         logging_strategy="no" if quiet else "steps",
-        save_steps=200,
-        save_total_limit=2,
+        save_strategy="no",
         eval_strategy="no",
         gradient_checkpointing=True,
         gradient_checkpointing_kwargs={"use_reentrant": False},

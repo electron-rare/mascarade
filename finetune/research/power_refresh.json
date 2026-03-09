@@ -1,0 +1,364 @@
+{
+  "version": 1,
+  "generated_at": "2026-03-09T12:09:35",
+  "domain": "power",
+  "topic": "Power electronics / motor control",
+  "dataset_path": "/ai/saisail/mascarade/finetune/datasets/power_chat.jsonl",
+  "refresh": {
+    "domain": "power",
+    "generated_at": "2026-03-09T12:09:19",
+    "target_path": "/ai/saisail/mascarade/finetune/datasets/power_chat.jsonl",
+    "source_mode": "full_dataset_sync",
+    "source_path": "/ai/saisail/mascarade-datasets/power_chat.jsonl",
+    "builder": null,
+    "row_count": 3260,
+    "ids_fixed": 3267,
+    "duplicates_removed": 7,
+    "quality": {
+      "label": "power refreshed dataset",
+      "mode": "fail",
+      "status": "warning",
+      "metrics": {
+        "row_count": 3260,
+        "ids_fixed": 3267,
+        "ids_fixed_ratio": 1.0021472392638038,
+        "unique_system_prompts": 1,
+        "unique_user_prompts": 3014,
+        "duplicate_rows": 0,
+        "duplicate_ratio": 0.0,
+        "repeated_user_assistant_pairs": 0,
+        "repeated_pair_ratio": 0.0,
+        "assistant_len_avg": 863.9159509202455,
+        "assistant_len_p95": 2812,
+        "assistant_len_max": 4000,
+        "short_assistant_rows": 0,
+        "short_assistant_ratio": 0.0
+      },
+      "thresholds": {
+        "min_rows_fail": 4,
+        "recommended_rows_warn": 8,
+        "min_unique_users_fail": 4,
+        "max_duplicate_ratio_fail": 0.1,
+        "max_repeated_pair_ratio_fail": 0.1,
+        "max_assistant_p95_fail": 6000,
+        "max_assistant_max_fail": 9000,
+        "max_assistant_avg_warn": 3500,
+        "short_assistant_threshold": 64,
+        "max_short_assistant_ratio_warn": 0.25
+      },
+      "errors": [],
+      "warnings": [
+        "source ids are synthesized for 3267/3260 rows; persist ids in source JSONL for traceability",
+        "single system prompt across the dataset; style diversity is low"
+      ],
+      "would_fail": false,
+      "duplicates_removed_during_refresh": 7,
+      "assistant_rows_trimmed_during_refresh": 0
+    },
+    "legacy_ignored_paths": [
+      "finetune/build_components_dataset.py",
+      "finetune/build_freecad_dataset.py"
+    ]
+  },
+  "authoritative_urls": [
+    {
+      "label": "TI power management docs",
+      "url": "https://www.ti.com/power-management/overview.html"
+    },
+    {
+      "label": "Analog Devices technical articles",
+      "url": "https://www.analog.com/en/technical-articles.html"
+    }
+  ],
+  "github_repos": [],
+  "software_sources": [
+    {
+      "label": "ADI Power Studio",
+      "url": "https://www.analog.com/en/resources/evaluation-hardware-and-software/embedded-development-software/power-studio-designer.html"
+    },
+    {
+      "label": "TI power management hub",
+      "url": "https://www.ti.com/power-management/overview.html"
+    }
+  ],
+  "forum_urls": [
+    {
+      "label": "Electronics StackExchange",
+      "url": "https://electronics.stackexchange.com/"
+    },
+    {
+      "label": "All About Circuits Forum",
+      "url": "https://forum.allaboutcircuits.com/"
+    },
+    {
+      "label": "EEVblog Forum",
+      "url": "https://www.eevblog.com/forum/"
+    },
+    {
+      "label": "DigiKey TechForum",
+      "url": "https://forum.digikey.com/"
+    },
+    {
+      "label": "element14 Community",
+      "url": "https://community.element14.com/"
+    },
+    {
+      "label": "TI E2E",
+      "url": "https://e2e.ti.com/"
+    },
+    {
+      "label": "Analog Devices EngineerZone",
+      "url": "https://ez.analog.com/"
+    },
+    {
+      "label": "Infineon Community",
+      "url": "https://community.infineon.com/"
+    },
+    {
+      "label": "NXP Community",
+      "url": "https://community.nxp.com/"
+    },
+    {
+      "label": "Arduino Forum",
+      "url": "https://forum.arduino.cc/"
+    }
+  ],
+  "datasheet_roots": [
+    {
+      "label": "Analog Devices technical articles",
+      "url": "https://www.analog.com/en/technical-articles.html"
+    },
+    {
+      "label": "TI power management documentation",
+      "url": "https://www.ti.com/power-management/overview.html"
+    }
+  ],
+  "hf_sources": [
+    {
+      "name": "ksabeh/electronics-dataset",
+      "url": "https://huggingface.co/datasets/ksabeh/electronics-dataset"
+    },
+    {
+      "name": "bshada/electronics.stackexchange.com",
+      "url": "https://huggingface.co/datasets/bshada/electronics.stackexchange.com"
+    },
+    {
+      "name": "nick007x/eevblog-posts",
+      "url": "https://huggingface.co/datasets/nick007x/eevblog-posts"
+    }
+  ],
+  "queries": [
+    "site:ti.com current mode control compensation application note",
+    "site:analog.com buck converter loop stability article",
+    "site:huggingface.co/datasets electronics power converter dataset"
+  ],
+  "trusted_domains": [
+    "ti.com",
+    "analog.com",
+    "huggingface.co"
+  ],
+  "minimum_web_roots": 8,
+  "minimum_quality_score": 6,
+  "web_probe": {
+    "domain": "power",
+    "generated_at": "2026-03-09T12:09:35",
+    "source_file": "/ai/saisail/mascarade/finetune/research_sources/domains/power.json",
+    "status": "partial",
+    "reachable_count": 8,
+    "total_count": 16,
+    "reachable_ratio": 0.5,
+    "entries": [
+      {
+        "group": "authoritative_urls",
+        "label": "Analog Devices technical articles",
+        "url": "https://www.analog.com/en/technical-articles.html",
+        "ok": false,
+        "status": null,
+        "final_url": "https://www.analog.com/en/technical-articles.html",
+        "method": "GET",
+        "error": "The read operation timed out"
+      },
+      {
+        "group": "authoritative_urls",
+        "label": "TI power management docs",
+        "url": "https://www.ti.com/power-management/overview.html",
+        "ok": true,
+        "status": 200,
+        "final_url": "https://www.ti.com/product-category/power-management/overview.html",
+        "method": "HEAD"
+      },
+      {
+        "group": "datasheet_roots",
+        "label": "Analog Devices technical articles",
+        "url": "https://www.analog.com/en/technical-articles.html",
+        "ok": false,
+        "status": null,
+        "final_url": "https://www.analog.com/en/technical-articles.html",
+        "method": "GET",
+        "error": "The read operation timed out"
+      },
+      {
+        "group": "datasheet_roots",
+        "label": "TI power management documentation",
+        "url": "https://www.ti.com/power-management/overview.html",
+        "ok": true,
+        "status": 200,
+        "final_url": "https://www.ti.com/product-category/power-management/overview.html",
+        "method": "HEAD"
+      },
+      {
+        "group": "forum_urls",
+        "label": "All About Circuits Forum",
+        "url": "https://forum.allaboutcircuits.com/",
+        "ok": false,
+        "status": null,
+        "final_url": "https://forum.allaboutcircuits.com/",
+        "method": "GET",
+        "error": "http:403"
+      },
+      {
+        "group": "forum_urls",
+        "label": "Analog Devices EngineerZone",
+        "url": "https://ez.analog.com/",
+        "ok": false,
+        "status": null,
+        "final_url": "https://ez.analog.com/",
+        "method": "GET",
+        "error": "The read operation timed out"
+      },
+      {
+        "group": "forum_urls",
+        "label": "Arduino Forum",
+        "url": "https://forum.arduino.cc/",
+        "ok": true,
+        "status": 200,
+        "final_url": "https://forum.arduino.cc/",
+        "method": "HEAD"
+      },
+      {
+        "group": "forum_urls",
+        "label": "DigiKey TechForum",
+        "url": "https://forum.digikey.com/",
+        "ok": true,
+        "status": 200,
+        "final_url": "https://forum.digikey.com/",
+        "method": "HEAD"
+      },
+      {
+        "group": "forum_urls",
+        "label": "EEVblog Forum",
+        "url": "https://www.eevblog.com/forum/",
+        "ok": true,
+        "status": 200,
+        "final_url": "https://www.eevblog.com/forum/",
+        "method": "HEAD"
+      },
+      {
+        "group": "forum_urls",
+        "label": "Electronics StackExchange",
+        "url": "https://electronics.stackexchange.com/",
+        "ok": false,
+        "status": null,
+        "final_url": "https://electronics.stackexchange.com/",
+        "method": "GET",
+        "error": "http:403"
+      },
+      {
+        "group": "forum_urls",
+        "label": "Infineon Community",
+        "url": "https://community.infineon.com/",
+        "ok": true,
+        "status": 200,
+        "final_url": "https://community.infineon.com:443/?nobounce=&profile.language=en",
+        "method": "HEAD"
+      },
+      {
+        "group": "forum_urls",
+        "label": "NXP Community",
+        "url": "https://community.nxp.com/",
+        "ok": true,
+        "status": 200,
+        "final_url": "https://community.nxp.com/",
+        "method": "HEAD"
+      },
+      {
+        "group": "forum_urls",
+        "label": "TI E2E",
+        "url": "https://e2e.ti.com/",
+        "ok": false,
+        "status": null,
+        "final_url": "https://e2e.ti.com/",
+        "method": "GET",
+        "error": "http:500"
+      },
+      {
+        "group": "forum_urls",
+        "label": "element14 Community",
+        "url": "https://community.element14.com/",
+        "ok": false,
+        "status": null,
+        "final_url": "https://community.element14.com/",
+        "method": "GET",
+        "error": "The read operation timed out"
+      },
+      {
+        "group": "software_sources",
+        "label": "ADI Power Studio",
+        "url": "https://www.analog.com/en/resources/evaluation-hardware-and-software/embedded-development-software/power-studio-designer.html",
+        "ok": false,
+        "status": null,
+        "final_url": "https://www.analog.com/en/resources/evaluation-hardware-and-software/embedded-development-software/power-studio-designer.html",
+        "method": "GET",
+        "error": "The read operation timed out"
+      },
+      {
+        "group": "software_sources",
+        "label": "TI power management hub",
+        "url": "https://www.ti.com/power-management/overview.html",
+        "ok": true,
+        "status": 200,
+        "final_url": "https://www.ti.com/product-category/power-management/overview.html",
+        "method": "HEAD"
+      }
+    ]
+  },
+  "legacy_ignored_paths": [
+    "finetune/build_components_dataset.py",
+    "finetune/build_freecad_dataset.py"
+  ],
+  "operator_checklist": [
+    "sample at least 20 refreshed rows and verify technical plausibility",
+    "confirm the newest web findings are represented in prompts/answers",
+    "check duplicates and over-long answers before training",
+    "record any accepted new sources in the research brief before publish"
+  ],
+  "research_validation": {
+    "valid": true,
+    "web_roots_count": 19,
+    "authoritative_count": 2,
+    "github_count": 0,
+    "software_count": 2,
+    "forum_count": 10,
+    "datasheet_count": 2,
+    "hf_count": 3,
+    "query_count": 3,
+    "trusted_domain_count": 3,
+    "minimum_web_roots": 8,
+    "quality_score": 9,
+    "minimum_quality_score": 6,
+    "quality_checks": {
+      "authoritative_sources": true,
+      "github_or_software_sources": true,
+      "forum_coverage": true,
+      "datasheet_or_vendor_roots": true,
+      "hf_or_dataset_roots": true,
+      "query_coverage": true,
+      "trusted_domains_coverage": true,
+      "web_root_depth": true,
+      "live_web_probe": true
+    },
+    "web_probe_status": "partial",
+    "web_probe_reachable_count": 8,
+    "web_probe_total_count": 16
+  }
+}
