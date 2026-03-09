@@ -1,6 +1,6 @@
 services:
   kicad-headless:
-    image: kicad/kicad:9.0
+    image: kicad/kicad:${KICAD_IMAGE_TAG:-10.0}
     container_name: mascarade-kicad-headless
     working_dir: /workspace
     command: ["sleep", "infinity"]

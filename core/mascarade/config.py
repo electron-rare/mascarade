@@ -126,6 +126,10 @@ class Settings(BaseSettings):
     cluster_heartbeat_seconds: int = 30
     cluster_forward_enabled: bool = True
     cluster_peers: str = ""
+    cluster_mdns_enabled: bool = False
+    cluster_mdns_service: str = "_mascarade._tcp.local."
+    cluster_mdns_discovery_ttl_seconds: int = 60
+    cluster_mdns_advertise: bool = False
 
     # Device voice sessions
     device_stt_model: str = "gpt-4o-mini-transcribe"
