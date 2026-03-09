@@ -64,7 +64,11 @@ tuning_party_pipeline_phase() {
     return 0
   }
 
-  if grep -q "FULL PIPELINE COMPLETE" "$pipeline_log"; then
+  if grep -q "Parallel Training Complete" "$pipeline_log"; then
+    printf 'cpu-complete|1|1\n'
+  elif grep -q "MASCARADE Parallel CPU Training" "$pipeline_log"; then
+    printf 'cpu-train|0|1\n'
+  elif grep -q "FULL PIPELINE COMPLETE" "$pipeline_log"; then
     printf 'complete|4|4\n'
   elif grep -q "PHASE C" "$pipeline_log"; then
     printf 'dpo|3|4\n'
