@@ -8,10 +8,10 @@ module_core_config() {
   DEFAULT_MODEL=$(input_value "Modele LLM par defaut" "${DEFAULT_MODEL:-claude-sonnet-4-6}")
 
   if [[ "${CLUSTER_ENABLED:-false}" == "true" ]]; then
-    info "Mode cluster deja active — verification des parametres multi-noeuds"
+    info "Mode P2P deja actif — verification des parametres multi-noeuds"
   elif [[ ! -t 0 || ! -t 1 ]]; then
     CLUSTER_ENABLED="${CLUSTER_ENABLED:-false}"
-  elif confirm "Activer le mode multi-machine (cluster prive) ?"; then
+  elif confirm "Activer le mode P2P (cluster prive) ?"; then
     CLUSTER_ENABLED=true
   else
     CLUSTER_ENABLED=false
