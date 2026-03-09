@@ -47,6 +47,7 @@ Note de contexte multi-repo:
 - [x] `ops-agent`, Loki, Promtail, OTel Collector, Prometheus, Grafana et Langfuse verifies
 - [x] `Tempo` comme backend traces Grafana et `blackbox-exporter` pour les surfaces sans `/metrics`
 - [x] `Grafana` et `Langfuse` accessibles via `edge-proxy` avec auth operateur dediee
+- [x] `SearXNG`, `Paperless-ngx` et `Karakeep` deploies via `deploy/phase2`, gardes en bind local-first et publies uniquement derriere `edge-proxy`
 - [x] `ZeroClaw` installe nativement sur la VM, demarrable a la demande, avec `zeroclaw.saillant.cc` en surface live et `zeroclaw-docs.saillant.cc` / `langgraph.saillant.cc` en surfaces runbook proxifiees
 - [x] Smoke reel `ZeroClaw` valide via `POST /webhook`, avec reponse modele retournee par le fallback `OpenRouter`
 

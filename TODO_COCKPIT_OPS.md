@@ -34,6 +34,7 @@ Le lot local est stable; ce fichier ne porte plus de blocage critique.
 - [x] Le monitor ops voit `ZeroClaw` en live, et le runtime natif a ete smoke-teste sur un appel reel via `OpenRouter`
 - [x] `Industrial Cockpit` expose comme surface operateur derriere `edge-proxy` sur `industrial.saillant.cc`, avec inventory des 7 serveurs MCP industriels visible dans `OpsHub`
 - [x] `industrial.saillant.cc/` et `industrial.saillant.cc/api/session` repondent `200` avec auth operateur; aucun port brut n'est expose pour ce cockpit
+- [x] `SearXNG`, `Paperless-ngx` et `Karakeep` sont exposes comme surfaces operateur derriere `edge-proxy`, avec URLs proxifiees dans `OpsHub` et verification live dans `/api/ops/monitor`
 - [x] `PLM` remonte maintenant dans la lane industrielle avec son contrat MCP explicite (`health` + `contract`) et un statut par operation `live` / `simulated` / `blocked`
 - [x] `QMS` remonte maintenant dans la lane industrielle avec son contrat MCP explicite (`health` + `contract`) et un statut par operation `live` / `simulated` / `blocked`
 - [x] `Infrastructure` expose maintenant les compteurs de topologie industrielle utiles (`sites`, `external partners`, `lines`) pour le rollout `grandris-1` / `ems-lyon`
@@ -45,6 +46,7 @@ Le lot local est stable; ce fichier ne porte plus de blocage critique.
 - [ ] Etendre Grafana seulement si un nouveau domaine le justifie
 - [ ] Recueillir des retours UX a froid sur `Logs` et `OpsHub`
 - [ ] Etendre les actions operateur d'`Agent Zero` uniquement si un usage concret depasse le mode copilot actuel
+- [ ] N'etendre la stack `phase2` (`SearXNG`, `Paperless-ngx`, `Karakeep`) que si un workflow documentaire/recherche concret le justifie
 - [ ] Etendre le cockpit industriel seulement si un besoin reel depasse l'inventaire/runtime/tool-proxy actuel
 - [ ] Ne rouvrir `DCS` qu'avec un vrai sandbox/runtime OT; `WMS` est deja qualifie en `generic-rest` live-ready et reste volontairement `simulated` sur cette VM tant que le sandbox n'est pas configure
 

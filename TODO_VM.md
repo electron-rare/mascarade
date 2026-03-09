@@ -27,6 +27,9 @@ Etat relu le `8 mars 2026` sur la stack `mascarade-*` actuellement en service.
 | Prometheus | `mascarade-prometheus` | 9090 | OK (`healthy`) |
 | Tempo | `mascarade-tempo` | 3201 | OK (`healthy`) |
 | Blackbox Exporter | `mascarade-blackbox-exporter` | 9115 | OK (`healthy`) |
+| SearXNG | `mascarade-searxng` | 8888 | OK (`healthy`) |
+| Paperless-ngx | `mascarade-paperless` | 8000 | OK (`healthy`) |
+| Karakeep | `mascarade-karakeep` | 3600 | OK (`healthy`) |
 
 Notes:
 - L'ancien constat `tools-langfuse KO (ZodError)` ne correspond plus au runtime actuel. `langfuse-web:3000` répond `200` depuis le réseau Docker.
@@ -35,6 +38,7 @@ Notes:
 - `Firecrawl`, `Mem0`, `Prometheus` et `Ollama` sont aussi publiables derrière `edge-proxy` sur `firecrawl.saillant.cc`, `mem0.saillant.cc`, `prometheus.saillant.cc` et `ollama.saillant.cc`, avec la même auth opérateur.
 - `Industrial Cockpit` est maintenant publiable derrière `edge-proxy` sur `industrial.saillant.cc`, avec auth opérateur; le cockpit HTTP tourne en service dédié, et les 7 serveurs MCP industriels restent on-demand via stdio depuis `mascarade-core`.
 - la surface publique industrielle est vérifiée de bout en bout: `industrial.saillant.cc/` et `industrial.saillant.cc/api/session` répondent `200` avec auth opérateur; aucun port brut n'est publié pour ce cockpit.
+- la stack `deploy/phase2` (`SearXNG`, `Paperless-ngx`, `Karakeep`) tourne maintenant en bind local-first sur `127.0.0.1` et remonte correctement derrière `edge-proxy` sur `search.saillant.cc`, `paperless.saillant.cc` et `karakeep.saillant.cc`
 - `PLM` expose maintenant un contrat `generic-rest` live-ready dans cette lane industrielle: `/api/industrial/platform` remonte `health` + `contract`, ainsi qu'un statut par opération `live` / `simulated` / `blocked`. Le runtime top-level publie bien la posture canonique `api-key` via `X-API-Key`. Sur cette VM, le sandbox PLM n'est pas encore configuré, donc le runtime courant reste `simulated` sans faux succès live.
 - `QMS` expose maintenant la meme posture `generic-rest` live-ready que `PLM`: `/api/industrial/platform` remonte `health` + `contract`, les 3 operations `validation-pack`, `deviation-record` et `qa-signoff`, et la posture d'auth canonique `api-key` via `X-QMS-Key`. Sur cette VM, le sandbox QMS n'est pas encore configure, donc le runtime courant reste `simulated` sans faux succes live.
 - `WMS` expose maintenant la meme posture `generic-rest` live-ready que `PLM` et `QMS`, avec auth canonique `api-key` via `X-WMS-Key`, 3 operations (`pick-wave`, `shipment-release`, `inventory-hold`) et visibilite `health` + `contract` dans `/api/industrial/platform`; sur cette VM, le runtime reste volontairement `simulated` tant que le sandbox WMS n'est pas configure
@@ -82,6 +86,10 @@ Notes:
   - Cablage actif sur `Qdrant` + `LiteLLM` (OpenAI-compatible).
 - [x] `Docling` est importable dans le venv tools.
 - [x] `openai-whisper` est importable dans le venv tools.
+- [x] La stack `deploy/phase2` est déployée sur la VM.
+  - `SearXNG` sain sur `mascarade-searxng`.
+  - `Paperless-ngx` sain sur `mascarade-paperless`.
+  - `Karakeep` sain sur `mascarade-karakeep`.
 
 ### Réseau
 - [x] Le reverse proxy HTTPS existe déjà via `edge-proxy`.
@@ -90,6 +98,7 @@ Notes:
 - [x] `Firecrawl`, `Mem0`, `Prometheus` et `Ollama` ont un routage dédié derrière `edge-proxy`.
 - [x] `Industrial Cockpit` a un routage dédié derrière `edge-proxy`.
 - [x] `ZeroClaw` live, `ZeroClaw` docs et `LangGraph` ont un routage dédié derrière `edge-proxy`.
+- [x] `SearXNG`, `Paperless-ngx` et `Karakeep` ont un routage dédié derrière `edge-proxy`.
 - [x] Une auth opérateur dédiée protège ces surfaces côté proxy.
 - [x] Le certificat auto-signé de fallback couvre maintenant `saillant.cc`, `grafana.saillant.cc`, `langfuse.saillant.cc` et `dify.saillant.cc`.
 - [x] Certificat réel Let's Encrypt installé via ACME DNS-01 Cloudflare.
@@ -133,6 +142,9 @@ Les restes encore ouverts ne sont plus des blocs locaux d'implementation:
 | Tempo | `mascarade-tempo` | 3201 |
 | Blackbox Exporter | `mascarade-blackbox-exporter` | 9115 |
 | Industrial Cockpit | `mascarade-agent-factory-cockpit` | 4173 |
+| SearXNG | `mascarade-searxng` | 8888 |
+| Paperless-ngx | `mascarade-paperless` | 8000 |
+| Karakeep | `mascarade-karakeep` | 3600 |
 
 ## Fichiers clés
 

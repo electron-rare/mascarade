@@ -60,6 +60,7 @@ observabilite/proxy operateur.
 | `Agent Zero` en mode operator copilot | FAIT |
 | Surfaces publiques/proxifiees dans `OpsHub` | FAIT |
 | `ZeroClaw` live + `zeroclaw-docs` / `LangGraph` visibles comme surfaces operateur (runtime `ZeroClaw` on-demand) | FAIT |
+| `SearXNG` / `Paperless-ngx` / `Karakeep` publies comme surfaces operateur `phase2` derriere `edge-proxy` | FAIT |
 | Lane industrielle enrichie avec posture `PLM/QMS/WMS` `generic-rest` live-ready, compteurs topo `site/partner/line`, et proxy `industrial.saillant.cc` revalide | FAIT |
 | Extensions UX ou dashboards supplementaires | DIFFERE |
 
@@ -125,6 +126,7 @@ observabilite/proxy operateur.
 | Probes Prometheus / blackbox pour services | FAIT |
 | `Grafana` / `Langfuse` publies derriere `edge-proxy` | FAIT |
 | `ZeroClaw` live + `zeroclaw-docs` / `LangGraph` publies derriere `edge-proxy` | FAIT |
+| `SearXNG` / `Paperless-ngx` / `Karakeep` deployee via `deploy/phase2` et publies derriere `edge-proxy` | FAIT |
 | TLS public `ACME/DNS` | FAIT |
 | `openai` active et validee en strict | FAIT |
 | `claude` configuree mais bloquee par credit Anthropic | EXTERNE |
@@ -136,7 +138,8 @@ observabilite/proxy operateur.
 2. `OpenAI` est maintenant validee en strict; les restes providers sont externes: billing `Anthropic` et activation de l'API Google Generative Language.
 3. `ZeroClaw` est maintenant installe nativement sur la VM, avec demarrage a la demande; `zeroclaw.saillant.cc` sert la surface live, tandis que `zeroclaw-docs.saillant.cc` et `langgraph.saillant.cc` gardent les runbooks operateur.
 4. Le chemin provider hybride n'est plus theorique: un smoke reel `POST /webhook` via le gateway natif repond `200` avec `OpenRouter`.
-5. Le setup Mac local est maintenant valide sur le poste cible: `codex --apply` a enregistre `kicad`, `validate-specs`, `knowledge-base`, `github-dispatch`, `freecad`, `openscad`, `huggingface` et `playwright`, et `Playwright MCP` repond.
+5. La stack `deploy/phase2` est en service: `SearXNG`, `Paperless-ngx` et `Karakeep` restent binds en loopback et sont exposes via `search.saillant.cc`, `paperless.saillant.cc` et `karakeep.saillant.cc`.
+6. Le setup Mac local est maintenant valide sur le poste cible: `codex --apply` a enregistre `kicad`, `validate-specs`, `knowledge-base`, `github-dispatch`, `freecad`, `openscad`, `huggingface` et `playwright`, et `Playwright MCP` repond.
 
 ---
 
