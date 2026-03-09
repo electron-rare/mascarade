@@ -1,51 +1,29 @@
 # Next Useful Lot State
 
-Generated: 2026-03-09 05:52:05 CET
+Generated: 2026-03-09 05:53:53 CET
 
 ## Summary
 
-- Detected lot: `kill-life-followup`
-- Kind: `local`
-- Primary repo: `Kill_LIFE`
-- Primary root: `/home/clems/Kill_LIFE`
-- Reason: Tracked local changes remain in Kill_LIFE and should be checked with the stable Python/spec suite.
+- Detected lot: `external-only`
+- Kind: `external`
+- Primary repo: `none`
+- Primary root: `-`
+- Reason: No tracked local implementation lot is open. Only external blockers or operator-side actions remain.
 
 ## Repo Snapshot
 
 - `mascarade`: 1 tracked delta(s)
 - `crazy_life`: 0 tracked delta(s)
-- `Kill_LIFE`: 19 tracked delta(s)
+- `Kill_LIFE`: 0 tracked delta(s)
 - `agent-factory-cockpit`: 0 tracked delta(s)
 
 ## Scope Paths
 
-- `.github/prompts/plan_wizard_bulk_edit_hw.prompt.md`
-- `Makefile`
-- `README.md`
-- `ai-agentic-embedded-base/specs/03_plan.md`
-- `ai-agentic-embedded-base/specs/04_tasks.md`
-- `ai-agentic-embedded-base/specs/README.md`
-- `ai-agentic-embedded-base/specs/constraints.yaml`
-- `docs/AI_WORKFLOWS.md`
-- `docs/plans/09_plan_bulk_edit_hardware.md`
-- `specs/03_plan.md`
-- `specs/04_tasks.md`
-- `specs/README.md`
-- `specs/constraints.yaml`
-- `tools/cockpit/README.md`
-- `tools/cockpit/cockpit.py`
-- `.github/ISSUE_TEMPLATE/`
-- `tools/cockpit/lot_chain.sh`
-- `tools/doc/readme_repo_coherence.sh`
-- `tools/specs/`
+- none (no local lot detected)
 
 ## Canonical Checks
 
-```bash
-cd /home/clems/Kill_LIFE && bash tools/test_python.sh --suite stable
-cd /home/clems/Kill_LIFE && python3 tools/validate_specs.py --json
-git -C /home/clems/Kill_LIFE diff --check
-```
+- none; only external blockers remain
 
 ## External Blockers After Local Lots
 
