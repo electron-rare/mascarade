@@ -19,7 +19,7 @@ class FreeCADAgent(Agent):
             ),
             preferred_provider="mistral",
             preferred_model="mistral-large-latest",
-            tools=["python", "freecad_api"],
+            tools=["python", "freecad_mcp"],
             temperature=0.3,
             max_tokens=2048,
         )

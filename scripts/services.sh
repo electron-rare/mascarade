@@ -24,7 +24,10 @@ define_service "api"        "Mascarade API"     "Hono — gateway HTTP, auth mid
 define_service "litellm"    "LiteLLM"           "Proxy LLM unifie + cache Redis"                  "4000"  "tools" 0 "redis"
 define_service "n8n"        "n8n"               "Automatisation workflows low-code"                "5678"  "tools" 0 "postgres"
 define_service "langfuse"   "Langfuse"          "Observabilite LLM (tracing, evals)"              "3200"  "tools" 0 "postgres,clickhouse"
+define_service "firecrawl"  "Firecrawl MCP"     "Scraping / search web via serveur MCP Firecrawl" "3400"  "tools" 0 ""
+define_service "mem0"       "Mem0 / OpenMemory" "Memoire agentique sur Qdrant via OpenMemory MCP" "3300"  "tools" 0 "litellm,qdrant"
 define_service "dify"       "Dify"              "App builder IA (API + Web + Worker)"              "3500"  "tools" 0 "postgres,redis"
+define_service "agent-factory-cockpit" "Industrial Cockpit" "Cockpit HTTP + MCP industriel live-ready" "4173" "tools" 1 ""
 define_service "clickhouse" "ClickHouse"        "Base analytique colonnaire (Langfuse)"            "—"     "tools" 0 ""
 define_service "comfyui"    "ComfyUI"           "Generation d'images (SD, Flux)"                   "8188"  "tools" 0 ""
 define_service "tts"        "TTS"               "Synthese vocale locale (Piper/Wyoming)"           "10200" "tools" 0 ""
@@ -33,14 +36,15 @@ define_service "generate-audio" "Generate Audio" "Generation audio locale (Audio
 
 # ── Infrastructure ──
 define_service "ollama"     "Ollama"            "Serveur LLM local (llama, mistral, etc.)"        "11434" "infra" 0 ""
-define_service "open-webui" "Open WebUI"        "Interface chat pour Ollama"                       "8080"  "infra" 0 "ollama"
 define_service "edge-proxy" "Edge Proxy"        "Reverse proxy HTTP/HTTPS pour l'API et le cockpit /ops" "80/443" "infra" 0 "api"
 define_service "ops-agent"  "Ops Agent"         "Collecte live Docker/journald pour le cockpit"     "9200"  "infra" 0 ""
 define_service "redis"      "Redis"             "Cache & broker (LiteLLM, Dify)"                   "6379"  "infra" 0 ""
 define_service "postgres"   "PostgreSQL"        "Base relationnelle (Langfuse, Dify, n8n)"         "5432"  "infra" 0 ""
 define_service "qdrant"     "Qdrant"            "Base vectorielle (embeddings, RAG)"               "6333"  "infra" 0 ""
 define_service "grafana"    "Grafana"           "Dashboards monitoring"                            "3001"  "infra" 0 ""
-define_service "prometheus" "Prometheus"        "Collecte metriques"                               "9090"  "infra" 0 ""
+define_service "tempo"      "Tempo"             "Backend traces Grafana / OTLP"                    "3201"  "infra" 0 ""
+define_service "prometheus" "Prometheus"        "Collecte metriques"                               "9090"  "infra" 0 "blackbox-exporter"
+define_service "blackbox-exporter" "Blackbox Exporter" "Probes HTTP pour services sans /metrics"  "9115" "infra" 0 ""
 define_service "loki"       "Loki"              "Historique des logs et traces structurees"        "3101"  "infra" 0 ""
 define_service "promtail"   "Promtail"          "Collecte Docker/journald vers Loki"               "9080"  "infra" 0 "loki"
 define_service "otel-collector" "OTel Collector" "Recepteur OTLP et point d'export observability"  "4318"  "infra" 0 ""
@@ -52,9 +56,6 @@ svc_selected() { [[ "${SVC_ON[${1}]:-0}" == "1" ]]; }
 
 svc_dep_satisfied_by_host() {
     local id="$1" dep="$2"
-    if [[ "$id" == "open-webui" && "$dep" == "ollama" && "${OLLAMA_HOST_MODE:-docker}" == "native" ]]; then
-        return 0
-    fi
     return 1
 }
 
@@ -67,20 +68,24 @@ sync_service_ports_from_env() {
             litellm) env_var="LITELLM_PORT" ;;
             n8n) env_var="N8N_PORT" ;;
             langfuse) env_var="LANGFUSE_PORT" ;;
+            firecrawl) env_var="FIRECRAWL_PORT" ;;
+            mem0) env_var="MEM0_PORT" ;;
             dify) env_var="DIFY_WEB_PORT" ;;
+            agent-factory-cockpit) env_var="AGENT_FACTORY_COCKPIT_PORT" ;;
             comfyui) env_var="COMFYUI_PORT" ;;
             tts) env_var="TTS_PORT" ;;
             stt) env_var="STT_PORT" ;;
             generate-audio) env_var="GENERATE_AUDIO_PORT" ;;
             ollama) env_var="OLLAMA_PORT" ;;
-            open-webui) env_var="OPEN_WEBUI_PORT" ;;
             edge-proxy) env_var="EDGE_PROXY_HTTP_PORT" ;;
             ops-agent) env_var="OPS_AGENT_PORT" ;;
             redis) env_var="REDIS_PORT" ;;
             postgres) env_var="POSTGRES_PORT" ;;
             qdrant) env_var="QDRANT_PORT" ;;
             grafana) env_var="GRAFANA_PORT" ;;
+            tempo) env_var="TEMPO_PORT" ;;
             prometheus) env_var="PROMETHEUS_PORT" ;;
+            blackbox-exporter) env_var="BLACKBOX_EXPORTER_PORT" ;;
             loki) env_var="LOKI_PORT" ;;
             promtail) env_var="PROMTAIL_PORT" ;;
             otel-collector) env_var="OTEL_COLLECTOR_HTTP_PORT" ;;

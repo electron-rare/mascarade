@@ -1,5 +1,7 @@
 import { useMemo, useState } from "react";
 import { agentsApi, type Agent } from "../api/agents";
+import { cadApi } from "../api/cad";
+import { getErrorMessage } from "../api/client";
 import { useApi } from "../hooks/useApi";
 import { useFetch } from "../hooks/useFetch";
 import {
@@ -16,6 +18,11 @@ import {
 } from "../components/ui";
 
 const orchestrationPresets = [
+  {
+    label: "Operator copilot",
+    prompt:
+      "Cadre cet incident operateur: resume les signaux visibles, priorise les causes probables et propose la prochaine action manuelle la plus sure.",
+  },
   {
     label: "Zero intake",
     prompt:
@@ -53,6 +60,12 @@ type RunRoutingOverride = {
   preferred_model: string;
 };
 
+type CadActionResult = {
+  kind: "freecad-create" | "openscad-render";
+  run_id: string;
+  payload: unknown;
+};
+
 function inferCluster(agentName: string): string {
   if (["agent-zero", "planner", "critic", "reviewer"].includes(agentName)) return "control";
   if (agentName.includes("kicad") || agentName.includes("freecad")) return "design";
@@ -68,6 +81,21 @@ export default function Orchestrate() {
   const [selected, setSelected] = useState<string[]>([]);
   const [query, setQuery] = useState("");
   const [routingForm, setRoutingForm] = useState<Record<string, RunRoutingOverride>>({});
+  const [mcpServerFilter, setMcpServerFilter] = useState("");
+  const [mcpToolFilter, setMcpToolFilter] = useState("");
+  const [mcpStatusFilter, setMcpStatusFilter] = useState("");
+  const [activeRunId, setActiveRunId] = useState<string | null>(null);
+  const [cadBusy, setCadBusy] = useState<"freecad" | "openscad" | null>(null);
+  const [cadError, setCadError] = useState<string | null>(null);
+  const [cadResult, setCadResult] = useState<CadActionResult | null>(null);
+  const [freecadDocumentPath, setFreecadDocumentPath] = useState(
+    ".cad-home/freecad-orchestrate/trace-run.FCStd",
+  );
+  const [freecadDocumentName, setFreecadDocumentName] = useState("TraceDoc");
+  const [openscadOutputPath, setOpenscadOutputPath] = useState(
+    ".cad-home/openscad-orchestrate/trace-run.stl",
+  );
+  const [openscadSource, setOpenscadSource] = useState("cube([10, 8, 6]);");
 
   const canRun = prompt.trim().length > 0 && selected.length > 0;
   const agents = data?.agents ?? [];
@@ -131,36 +159,108 @@ export default function Orchestrate() {
   const runTrace = useFetch<{
     run_id: string;
     count: number;
-    events: {
-      id: string;
-      ts: string;
-      event_type: string;
-      message: string;
+      events: {
+        id: string;
+        ts: string;
+        event_type: string;
+        message: string;
       agent_name?: string | null;
       from_agent?: string | null;
       to_agent?: string | null;
       prompt_excerpt?: string | null;
       content_excerpt?: string | null;
-      routing_role?: string | null;
-      routing_provider?: string | null;
-      routing_model?: string | null;
-      error?: string | null;
-    }[];
+        routing_role?: string | null;
+        routing_provider?: string | null;
+        routing_model?: string | null;
+        mcp_server?: string | null;
+        mcp_tool?: string | null;
+        mcp_status?: string | null;
+        mcp_transport?: string | null;
+        mcp_latency_ms?: number | null;
+        mcp_protocol_version?: string | null;
+        error?: string | null;
+      }[];
   }>(
-    result?.run_id
-      ? `/api/ops/agent-traces/${encodeURIComponent(result.run_id)}?limit=120`
+    activeRunId
+      ? `/api/ops/agent-traces/${encodeURIComponent(activeRunId)}?limit=120`
       : null,
-    { pollIntervalMs: result?.run_id ? 1400 : undefined, timeoutMs: 20000 },
+    { pollIntervalMs: activeRunId ? 1400 : undefined, timeoutMs: 20000 },
   );
 
   const selectedAgents = useMemo(
     () => agents.filter((agent) => selected.includes(agent.name)),
     [agents, selected],
   );
+  const traceEvents = runTrace.data?.events ?? [];
+  const mcpEvents = useMemo(
+    () => traceEvents.filter((event) => Boolean(event.mcp_server)),
+    [traceEvents],
+  );
+  const mcpServers = useMemo(
+    () =>
+      Array.from(new Set(mcpEvents.map((event) => event.mcp_server).filter(Boolean))) as string[],
+    [mcpEvents],
+  );
+  const mcpTools = useMemo(
+    () =>
+      Array.from(new Set(mcpEvents.map((event) => event.mcp_tool).filter(Boolean))) as string[],
+    [mcpEvents],
+  );
+  const mcpStatuses = useMemo(
+    () =>
+      Array.from(new Set(mcpEvents.map((event) => event.mcp_status).filter(Boolean))) as string[],
+    [mcpEvents],
+  );
+  const filteredTraceEvents = useMemo(
+    () =>
+      traceEvents.filter((event) => {
+        if (mcpServerFilter && event.mcp_server !== mcpServerFilter) return false;
+        if (mcpToolFilter && event.mcp_tool !== mcpToolFilter) return false;
+        if (mcpStatusFilter && event.mcp_status !== mcpStatusFilter) return false;
+        return true;
+      }),
+    [mcpServerFilter, mcpStatusFilter, mcpToolFilter, traceEvents],
+  );
 
-  const handleRun = () => {
+  const handleRun = async () => {
     if (!canRun) return;
-    void execute(undefined);
+    const payload = await execute(undefined);
+    if (payload?.run_id) {
+      setActiveRunId(payload.run_id);
+      setCadResult(null);
+      setCadError(null);
+    }
+  };
+
+  const handleCadAction = async (kind: "freecad" | "openscad") => {
+    const runId =
+      globalThis.crypto?.randomUUID?.() ?? `cad-run-${Date.now().toString(36)}`;
+    setCadBusy(kind);
+    setCadError(null);
+    try {
+      const payload =
+        kind === "freecad"
+          ? await cadApi.freecadCreateDocument({
+              output_path: freecadDocumentPath,
+              name: freecadDocumentName,
+              run_id: runId,
+            })
+          : await cadApi.openscadRenderModel({
+              source: openscadSource,
+              output_path: openscadOutputPath,
+              run_id: runId,
+            });
+      setCadResult({
+        kind: kind === "freecad" ? "freecad-create" : "openscad-render",
+        run_id: payload.run_id,
+        payload,
+      });
+      setActiveRunId(payload.run_id);
+    } catch (error) {
+      setCadError(getErrorMessage(error));
+    } finally {
+      setCadBusy(null);
+    }
   };
 
   const toggleAgent = (name: string) => {
@@ -234,6 +334,9 @@ export default function Orchestrate() {
                     setSelected([]);
                     setQuery("");
                     setRoutingForm({});
+                    setCadError(null);
+                    setCadResult(null);
+                    setActiveRunId(null);
                   }}
                 >
                   reset lane
@@ -345,6 +448,100 @@ export default function Orchestrate() {
       </section>
 
       <section className="grid gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(320px,0.85fr)]">
+        <Card title="CAD MCP actions">
+          <div className="grid gap-4 lg:grid-cols-2">
+            <div className="rounded-[1.5rem] border border-border/80 bg-black/25 p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="screen-label">freecad</p>
+                  <p className="mt-2 text-sm font-semibold uppercase tracking-[0.14em] text-accent">
+                    create traced document
+                  </p>
+                </div>
+                <Badge color="accent">mcp</Badge>
+              </div>
+              <p className="mt-3 text-sm leading-6 text-amber-100/56">
+                Cree un document headless minimal via la façade MCP core, puis suit les événements corrélés dans la timeline avec le même run ID.
+              </p>
+              <div className="mt-4 space-y-3">
+                <Input
+                  label="Document path"
+                  value={freecadDocumentPath}
+                  onChange={(e) => setFreecadDocumentPath(e.target.value)}
+                  placeholder=".cad-home/freecad-orchestrate/trace-run.FCStd"
+                />
+                <Input
+                  label="Document name"
+                  value={freecadDocumentName}
+                  onChange={(e) => setFreecadDocumentName(e.target.value)}
+                  placeholder="TraceDoc"
+                />
+                <Button
+                  className="rounded-2xl px-4 py-2 text-xs uppercase tracking-[0.18em]"
+                  loading={cadBusy === "freecad"}
+                  onClick={() => void handleCadAction("freecad")}
+                >
+                  run freecad mcp
+                </Button>
+              </div>
+            </div>
+            <div className="rounded-[1.5rem] border border-border/80 bg-black/25 p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="screen-label">openscad</p>
+                  <p className="mt-2 text-sm font-semibold uppercase tracking-[0.14em] text-accent">
+                    render traced model
+                  </p>
+                </div>
+                <Badge color="accent">mcp</Badge>
+              </div>
+              <p className="mt-3 text-sm leading-6 text-amber-100/56">
+                Rend un modèle minimal via OpenSCAD headless et remonte le run corrélé dans la même timeline que les autres appels MCP.
+              </p>
+              <div className="mt-4 space-y-3">
+                <Input
+                  label="Output path"
+                  value={openscadOutputPath}
+                  onChange={(e) => setOpenscadOutputPath(e.target.value)}
+                  placeholder=".cad-home/openscad-orchestrate/trace-run.stl"
+                />
+                <Textarea
+                  label="Source"
+                  rows={5}
+                  value={openscadSource}
+                  onChange={(e) => setOpenscadSource(e.target.value)}
+                  placeholder="cube([10, 8, 6]);"
+                />
+                <Button
+                  className="rounded-2xl px-4 py-2 text-xs uppercase tracking-[0.18em]"
+                  loading={cadBusy === "openscad"}
+                  onClick={() => void handleCadAction("openscad")}
+                >
+                  run openscad mcp
+                </Button>
+              </div>
+            </div>
+          </div>
+          {cadError ? (
+            <InlineNotice
+              title="cad action error"
+              message={cadError}
+              tone="error"
+              className="mt-4"
+            />
+          ) : null}
+          {cadResult ? (
+            <div className="mt-4 space-y-3">
+              <InlineNotice
+                title="cad action complete"
+                message={`${cadResult.kind} finished with run_id=${cadResult.run_id}`}
+                tone="success"
+              />
+              <JsonView data={cadResult.payload} />
+            </div>
+          ) : null}
+        </Card>
+
         <Card title="Compose orchestration">
           <div className="space-y-4">
             <Textarea
@@ -548,54 +745,67 @@ export default function Orchestrate() {
         />
       ) : null}
 
-      {result ? (
+      {result || cadResult || activeRunId ? (
         <section className="grid gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(320px,0.85fr)]">
-          <Card title="Execution steps">
-            <div className="space-y-3">
-              {runStatus === "success" ? (
+          <Card title={result ? "Execution steps" : "CAD MCP action"}>
+            {result ? (
+              <div className="space-y-3">
+                {runStatus === "success" ? (
+                  <InlineNotice
+                    title="dispatch complete"
+                    message={`${result.results?.length ?? 0} step(s) returned by the current orchestration run. run_id=${result.run_id}`}
+                    tone="success"
+                  />
+                ) : null}
+                {result.results?.map((row) => (
+                  <div
+                    key={`${row.agent}-${row.step}`}
+                    className="rounded-[1.5rem] border border-border/80 bg-black/25 p-4"
+                  >
+                    <div className="mb-3 flex flex-wrap items-center justify-between gap-2 text-xs text-muted">
+                      <div className="flex flex-wrap gap-2">
+                        <Badge color="accent">{row.agent}</Badge>
+                        <Badge color="muted">step {row.step}</Badge>
+                        <Badge color={row.remote ? "warning" : "muted"}>
+                          {row.remote ? "remote" : "local"}
+                        </Badge>
+                        {row.selected_by ? (
+                          <Badge color="muted">{row.selected_by}</Badge>
+                        ) : null}
+                        {row.role ? <Badge color="muted">role {row.role}</Badge> : null}
+                      </div>
+                      <span>
+                        {row.provider} / {row.model}
+                      </span>
+                    </div>
+                    {row.node_id || row.peer_id ? (
+                      <p className="mb-3 text-[12px] leading-5 text-amber-100/46">
+                        route: node {row.node_id || "local"} {row.peer_id ? `via ${row.peer_id}` : ""}
+                      </p>
+                    ) : null}
+                    <pre className="whitespace-pre-wrap text-sm leading-7 text-amber-100/76">
+                      {row.content}
+                    </pre>
+                    {row.error ? (
+                      <p className="mt-3 text-sm leading-6 text-error">
+                        error: {row.error}
+                      </p>
+                    ) : null}
+                  </div>
+                ))}
+              </div>
+            ) : cadResult ? (
+              <div className="space-y-3">
                 <InlineNotice
-                  title="dispatch complete"
-                  message={`${result.results?.length ?? 0} step(s) returned by the current orchestration run. run_id=${result.run_id}`}
+                  title="cad action complete"
+                  message={`${cadResult.kind} finished with run_id=${cadResult.run_id}`}
                   tone="success"
                 />
-              ) : null}
-              {result.results?.map((row) => (
-                <div
-                  key={`${row.agent}-${row.step}`}
-                  className="rounded-[1.5rem] border border-border/80 bg-black/25 p-4"
-                >
-                  <div className="mb-3 flex flex-wrap items-center justify-between gap-2 text-xs text-muted">
-                    <div className="flex flex-wrap gap-2">
-                      <Badge color="accent">{row.agent}</Badge>
-                      <Badge color="muted">step {row.step}</Badge>
-                      <Badge color={row.remote ? "warning" : "muted"}>
-                        {row.remote ? "remote" : "local"}
-                      </Badge>
-                      {row.selected_by ? (
-                        <Badge color="muted">{row.selected_by}</Badge>
-                      ) : null}
-                      {row.role ? <Badge color="muted">role {row.role}</Badge> : null}
-                    </div>
-                    <span>
-                      {row.provider} / {row.model}
-                    </span>
-                  </div>
-                  {row.node_id || row.peer_id ? (
-                    <p className="mb-3 text-[12px] leading-5 text-amber-100/46">
-                      route: node {row.node_id || "local"} {row.peer_id ? `via ${row.peer_id}` : ""}
-                    </p>
-                  ) : null}
-                  <pre className="whitespace-pre-wrap text-sm leading-7 text-amber-100/76">
-                    {row.content}
-                  </pre>
-                  {row.error ? (
-                    <p className="mt-3 text-sm leading-6 text-error">
-                      error: {row.error}
-                    </p>
-                  ) : null}
-                </div>
-              ))}
-            </div>
+                <JsonView data={cadResult.payload} />
+              </div>
+            ) : (
+              <EmptyState message="No orchestration payload or CAD action selected yet." />
+            )}
           </Card>
 
           <div className="space-y-4">
@@ -611,8 +821,48 @@ export default function Orchestrate() {
               ) : !runTrace.data || runTrace.data.events.length === 0 ? (
                 <EmptyState message="No trace event recorded yet for this run." />
               ) : (
-                <div className="max-h-[520px] space-y-3 overflow-y-auto pr-1">
-                  {runTrace.data.events.map((event) => (
+                <div className="space-y-4">
+                  <div className="rounded-[1.5rem] border border-border/80 bg-black/25 p-4">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Badge color="accent">run {activeRunId}</Badge>
+                      <Badge color="muted">events {traceEvents.length}</Badge>
+                      <Badge color="accent">mcp {mcpEvents.length}</Badge>
+                      <Badge color="muted">
+                        visible {filteredTraceEvents.length}
+                      </Badge>
+                    </div>
+                    <div className="mt-4 grid gap-3 md:grid-cols-3">
+                      <Select
+                        label="MCP server"
+                        value={mcpServerFilter}
+                        onChange={(e) => setMcpServerFilter(e.target.value)}
+                        options={[
+                          { value: "", label: "All servers" },
+                          ...mcpServers.map((value) => ({ value, label: value })),
+                        ]}
+                      />
+                      <Select
+                        label="MCP tool"
+                        value={mcpToolFilter}
+                        onChange={(e) => setMcpToolFilter(e.target.value)}
+                        options={[
+                          { value: "", label: "All tools" },
+                          ...mcpTools.map((value) => ({ value, label: value })),
+                        ]}
+                      />
+                      <Select
+                        label="MCP status"
+                        value={mcpStatusFilter}
+                        onChange={(e) => setMcpStatusFilter(e.target.value)}
+                        options={[
+                          { value: "", label: "All statuses" },
+                          ...mcpStatuses.map((value) => ({ value, label: value })),
+                        ]}
+                      />
+                    </div>
+                  </div>
+                  <div className="max-h-[520px] space-y-3 overflow-y-auto pr-1">
+                    {filteredTraceEvents.map((event) => (
                     <div
                       key={event.id}
                       className="rounded-[1.5rem] border border-border/80 bg-black/25 p-4"
@@ -628,10 +878,36 @@ export default function Orchestrate() {
                             {event.from_agent} → {event.to_agent}
                           </span>
                         ) : null}
+                        {event.mcp_server ? (
+                          <Badge color="accent">{event.mcp_server}</Badge>
+                        ) : null}
+                        {event.mcp_tool ? (
+                          <Badge color="muted">{event.mcp_tool}</Badge>
+                        ) : null}
+                        {event.mcp_status ? (
+                          <Badge color={event.mcp_status === "error" || event.mcp_status === "timeout" ? "error" : "warning"}>
+                            {event.mcp_status}
+                          </Badge>
+                        ) : null}
                       </div>
                       <p className="mt-3 text-sm leading-6 text-amber-100/74">
                         {event.message}
                       </p>
+                      {event.mcp_server || event.mcp_tool || event.mcp_transport || event.mcp_protocol_version ? (
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          {event.mcp_transport ? (
+                            <Badge color="muted">transport {event.mcp_transport}</Badge>
+                          ) : null}
+                          {event.mcp_protocol_version ? (
+                            <Badge color="muted">protocol {event.mcp_protocol_version}</Badge>
+                          ) : null}
+                          {event.mcp_latency_ms !== undefined && event.mcp_latency_ms !== null ? (
+                            <Badge color="warning">
+                              {event.mcp_latency_ms.toFixed(1)} ms
+                            </Badge>
+                          ) : null}
+                        </div>
+                      ) : null}
                       {event.routing_role || event.routing_provider || event.routing_model ? (
                         <div className="mt-3 flex flex-wrap gap-2">
                           {event.routing_role ? (
@@ -661,13 +937,14 @@ export default function Orchestrate() {
                         </p>
                       ) : null}
                     </div>
-                  ))}
+                    ))}
+                  </div>
                 </div>
               )}
             </Card>
 
-            <Card title="Raw orchestration payload">
-              <JsonView data={result} />
+            <Card title={result ? "Raw orchestration payload" : "Raw CAD payload"}>
+              <JsonView data={result ?? cadResult?.payload ?? { run_id: activeRunId }} />
             </Card>
           </div>
         </section>

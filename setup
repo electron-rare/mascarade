@@ -30,9 +30,11 @@ ENABLE_CLUSTER=false
 RUN_CAD_PLUGINS=false
 RUN_CAD_DOCTOR=false
 RUN_CAD_STACK=false
+RUN_CAD_SMOKE=false
 CAD_PLUGINS_EXPLICIT=false
 CAD_DOCTOR_EXPLICIT=false
 CAD_STACK_EXPLICIT=false
+CAD_SMOKE_EXPLICIT=false
 
 # Initialisation - ORDRE CORRIGÉ
 source "$SCRIPT_DIR/scripts/lib.sh"
@@ -104,6 +106,7 @@ Options:
       --cad-plugins         Installe les plugins KiCad configures dans le .env
       --cad-doctor          Verifie les plugins KiCad configures apres installation
       --cad-stack           Demarre la stack CAD/KiCad dediee apres le setup principal
+      --cad-smoke           Lance le smoke test CAD complet (doctor + MCP + plugins)
       --smoke-generate-audio  Lance un vrai POST /generate apres demarrage (opt-in)
       --force-clean          Nettoyage complet avant installation
 
@@ -116,8 +119,8 @@ Profils:
   apple-silicon  macOS Apple Silicon (M1-M5), stack legere et Ollama natif si disponible
 
 Services disponibles:
-  core, api, litellm, n8n, langfuse, dify, clickhouse, comfyui, tts, stt, generate-audio (AudioCraft CPU/GPU),
-  ollama, open-webui, edge-proxy, ops-agent, redis, postgres, qdrant, grafana, prometheus, loki, promtail, otel-collector
+  core, api, litellm, n8n, langfuse, firecrawl, mem0, dify, clickhouse, comfyui, tts, stt, generate-audio (AudioCraft CPU/GPU),
+  ollama, edge-proxy, ops-agent, redis, postgres, qdrant, grafana, prometheus, loki, promtail, otel-collector
 HELP
 }
 
@@ -246,6 +249,10 @@ parse_setup_args() {
             --cad-stack)
                 RUN_CAD_STACK=true
                 CAD_STACK_EXPLICIT=true
+                ;;
+            --cad-smoke)
+                RUN_CAD_SMOKE=true
+                CAD_SMOKE_EXPLICIT=true
                 ;;
             --smoke-generate-audio)
                 SMOKE_GENERATE_AUDIO=true
@@ -420,6 +427,23 @@ run_cad_stack_action() {
     return 1
 }
 
+run_cad_smoke_action() {
+    local strict="${1:-false}"
+
+    log "Smoke test CAD..."
+    if "$REPO_DIR/scripts/cad_stack.sh" smoke; then
+        ok "Smoke test CAD OK"
+        return 0
+    fi
+
+    if [[ "$strict" == true ]]; then
+        err "Smoke test CAD echoue"
+        return 1
+    fi
+    warn "Smoke test CAD echoue"
+    return 1
+}
+
 # Correction de confirm_or_auto pour propager le code de retour
 confirm_or_auto() {
     local prompt="$1"
@@ -493,16 +517,13 @@ profile_services_csv() {
             csv="core,api"
             ;;
         standard)
-            csv="core,api,edge-proxy,redis,postgres,qdrant,ollama,open-webui,grafana,prometheus,litellm"
+            csv="core,api,edge-proxy,redis,postgres,qdrant,ollama,grafana,prometheus,litellm"
             ;;
         full)
-            csv="core,api,edge-proxy,litellm,n8n,langfuse,dify,clickhouse,comfyui,tts,stt,generate-audio,ollama,open-webui,redis,postgres,qdrant,grafana,prometheus"
+            csv="core,api,edge-proxy,litellm,n8n,langfuse,firecrawl,dify,clickhouse,comfyui,tts,stt,generate-audio,ollama,redis,postgres,qdrant,grafana,prometheus"
             ;;
         apple-silicon)
             csv="core,api,edge-proxy"
-            if has_native_ollama; then
-                csv="${csv},open-webui"
-            fi
             ;;
         *)
             err "Profil inconnu: '$profile'"
@@ -1004,7 +1025,11 @@ else
                 py_stamp_file=".venv/.mascarade_py_deps.sha256"
                 py_sig=""
                 py_prev_sig=""
-                py_sig=$(hash_files_sha256 "pyproject.toml" || true)
+                if [[ -f "../deploy/ops_agent/requirements.txt" ]]; then
+                    py_sig=$(hash_files_sha256 "pyproject.toml" "../deploy/ops_agent/requirements.txt" || true)
+                else
+                    py_sig=$(hash_files_sha256 "pyproject.toml" || true)
+                fi
                 [[ -f "$py_stamp_file" ]] && py_prev_sig=$(cat "$py_stamp_file" 2>/dev/null || true)
 
                 if [[ -n "$py_sig" && "$py_sig" == "$py_prev_sig" ]]; then
@@ -1023,8 +1048,8 @@ else
                     dbg "  exec: .venv/bin/pip install -e '.[dev]' -q"
                     pip_rc=0
                     pip_out=$(.venv/bin/pip install -e ".[dev]" -q 2>&1) || pip_rc=$?
-                    spin_stop
                     if [[ $pip_rc -ne 0 ]]; then
+                        spin_stop
                         warn "pip install -e '.[dev]' echoue (code $pip_rc)"
                         dbg "  pip install FAILED rc=$pip_rc"
                         if [[ "$VERBOSE" == true ]]; then
@@ -1034,9 +1059,26 @@ else
                             done <<< "$pip_out"
                         fi
                     else
-                        ok "Dependances Python installees"
-                        dbg "  packages installes: $(.venv/bin/pip list --format=columns 2>/dev/null | wc -l) packages"
-                        [[ -n "$py_sig" ]] && echo "$py_sig" > "$py_stamp_file"
+                        if [[ -f "../deploy/ops_agent/requirements.txt" ]]; then
+                            dbg "  exec: .venv/bin/pip install -r ../deploy/ops_agent/requirements.txt -q"
+                            pip_rc=0
+                            pip_out=$(.venv/bin/pip install -r "../deploy/ops_agent/requirements.txt" -q 2>&1) || pip_rc=$?
+                        fi
+                        spin_stop
+                        if [[ $pip_rc -ne 0 ]]; then
+                            warn "pip install ops-agent echoue (code $pip_rc)"
+                            dbg "  pip install ops-agent FAILED rc=$pip_rc"
+                            if [[ "$VERBOSE" == true ]]; then
+                                dbg "  sortie pip:"
+                                while IFS= read -r pip_line; do
+                                    dbg "    | $pip_line"
+                                done <<< "$pip_out"
+                            fi
+                        else
+                            ok "Dependances Python installees"
+                            dbg "  packages installes: $(.venv/bin/pip list --format=columns 2>/dev/null | wc -l) packages"
+                            [[ -n "$py_sig" ]] && echo "$py_sig" > "$py_stamp_file"
+                        fi
                     fi
                 fi
             else
@@ -1262,6 +1304,9 @@ if [[ "$AUTO_CONFIRM" != true ]]; then
     if [[ "$RUN_CAD_STACK" != true ]]; then
         confirm "Demarrer la stack CAD/KiCad dediee ?" && RUN_CAD_STACK=true || true
     fi
+    if [[ "$RUN_CAD_SMOKE" != true && "$RUN_CAD_STACK" == true ]]; then
+        confirm "Lancer le smoke test CAD (doctor + MCP + plugins) ?" && RUN_CAD_SMOKE=true || true
+    fi
 fi
 
 if [[ "$RUN_CAD_PLUGINS" == true ]]; then
@@ -1280,6 +1325,12 @@ if [[ "$RUN_CAD_STACK" == true ]]; then
     run_cad_stack_action "$CAD_STACK_EXPLICIT"
 else
     info "Stack CAD ignoree"
+fi
+
+if [[ "$RUN_CAD_SMOKE" == true ]]; then
+    run_cad_smoke_action "$CAD_SMOKE_EXPLICIT"
+else
+    info "Smoke test CAD ignore"
 fi
 
 # ── Resume ──

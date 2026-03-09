@@ -8,7 +8,8 @@ module_langfuse_config() {
   ENCRYPTION_KEY=$(input_secret "Encryption key" "${ENCRYPTION_KEY:-$(openssl rand -hex 32)}")
   NEXTAUTH_SECRET=$(input_secret "NextAuth secret" "${NEXTAUTH_SECRET:-$(openssl rand -hex 32)}")
   SALT=$(input_secret "Salt" "${SALT:-$(openssl rand -hex 32)}")
-  NEXTAUTH_URL=$(input_value "NextAuth URL" "${NEXTAUTH_URL:-http://localhost:${LANGFUSE_PORT}}")
+  LANGFUSE_PUBLIC_ORIGIN=$(input_value "Langfuse public origin" "${LANGFUSE_PUBLIC_ORIGIN:-https://langfuse.localhost}")
+  NEXTAUTH_URL=$(input_value "NextAuth URL" "${NEXTAUTH_URL:-${LANGFUSE_PUBLIC_ORIGIN}}")
   MINIO_ROOT_USER=$(input_value "MinIO root user" "${MINIO_ROOT_USER:-minio}")
   MINIO_ROOT_PASSWORD=$(input_secret "MinIO root password" "${MINIO_ROOT_PASSWORD:-$(openssl rand -hex 24)}")
   CLICKHOUSE_PASSWORD=$(input_secret "ClickHouse password" "${CLICKHOUSE_PASSWORD:-$(openssl rand -hex 24)}")
@@ -63,6 +64,14 @@ module_langfuse_compose() {
   fi
   echo "      minio:"
   echo "        condition: service_healthy"
+  echo "    healthcheck:"
+  echo "      test:"
+  echo "        - CMD-SHELL"
+  echo '        - IP=$$(hostname -i | awk '\''{print $$1}'\'') && wget -q --spider "http://$$IP:3030/"'
+  echo "      interval: 15s"
+  echo "      timeout: 5s"
+  echo "      retries: 10"
+  echo "      start_period: 20s"
   echo "    networks:"
   echo "      - mascarade-network"
   echo ""
@@ -77,6 +86,7 @@ module_langfuse_compose() {
   echo "      <<: *langfuse-worker-env"
   echo "      LANGFUSE_INIT_PROJECT_PUBLIC_KEY: \${LANGFUSE_INIT_PROJECT_PUBLIC_KEY:-}"
   echo "      LANGFUSE_INIT_PROJECT_SECRET_KEY: \${LANGFUSE_INIT_PROJECT_SECRET_KEY:-}"
+  echo "      LANGFUSE_PUBLIC_ORIGIN: \${LANGFUSE_PUBLIC_ORIGIN:-http://langfuse-web:3000}"
   echo "    depends_on:"
   echo "      langfuse-worker:"
   echo "        condition: service_started"

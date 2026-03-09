@@ -13,6 +13,109 @@ export type OpsMonitor = {
     api: { ok: boolean; status: number };
     core: boolean;
   };
+  observability: {
+    traces_backend: "tempo";
+    logs_backend: "loki";
+    metrics_backend: "prometheus";
+    tempo: {
+      name: string;
+      url: string;
+      ok: boolean;
+      status: number;
+      latency_ms: number;
+      error?: string;
+    } | null;
+    grafana_proxy_url: string;
+    langfuse_proxy_url: string;
+  };
+  public: {
+    proxy_enabled: boolean;
+    bind_host: string;
+    public_bind: boolean;
+    server_name: string;
+    auth_configured: boolean;
+    surfaces: Array<{
+      name: string;
+      host: string;
+      url: string;
+      protected: boolean;
+      ok: boolean;
+      status: number;
+      latency_ms: number;
+      note: string;
+      error?: string;
+    }>;
+  };
+  industrial?: {
+    ui: {
+      host: string;
+      url: string;
+      ok: boolean;
+      status: number;
+      latency_ms: number;
+      note: string;
+      error?: string;
+    } | null;
+    summary: {
+      server_count: number;
+      runtime_ok_count: number;
+      runtime_error_count: number;
+      topology_valid: boolean;
+      vendor_contract_ready_count: number;
+      vendor_contract_blocked_count: number;
+      cockpit_service_ok: boolean;
+      cockpit_proxy_ok: boolean;
+    };
+    servers: Array<{
+      key: string;
+      label: string;
+      description: string;
+      ok: boolean;
+      runtime_ok: boolean;
+      protocol_version?: string;
+      tool_count: number;
+      resource_count: number;
+      prompt_count: number;
+      error?: string;
+      health?: {
+        system?: string;
+        health?: {
+          configured?: boolean;
+          auth_mode?: string;
+          auth_configured?: boolean;
+          contract_ready?: boolean;
+          contract_status?: string;
+          operation_statuses?: Array<{
+            operation: string;
+            mode?: string;
+            configured?: boolean;
+            contract_ready?: boolean;
+            resource_configured?: boolean;
+            warnings?: string[];
+          }>;
+          ready_operation_count?: number;
+          simulated_operation_count?: number;
+          blocked_operation_count?: number;
+          warnings?: string[];
+        };
+      };
+      contract?: {
+        domain?: string;
+        status?: string;
+        pack_id?: string;
+        blockers?: string[];
+        auth_modes?: string[];
+        operations?: string[];
+        operation_items?: Array<{
+          operation: string;
+          status?: string;
+          method?: string;
+          live_ready?: boolean;
+          blockers?: string[];
+        }>;
+      };
+    }>;
+  };
   ai: {
     ollama: {
       ok: boolean;
@@ -142,9 +245,13 @@ export type OpsSummary = {
     docker_events: boolean;
     gpu?: boolean;
     loki_history: boolean;
+    tempo_traces?: boolean;
     otel: boolean;
     agentsight: boolean;
   };
+  observability?: OpsMonitor["observability"];
+  public?: OpsMonitor["public"];
+  industrial?: OpsMonitor["industrial"];
   gpu?: OpsSourceStatus | null;
   cluster?: {
     enabled: boolean;

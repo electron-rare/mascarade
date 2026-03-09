@@ -65,6 +65,12 @@ export interface AgentTraceEvent {
   routing_role?: string | null;
   routing_provider?: string | null;
   routing_model?: string | null;
+  mcp_server?: string | null;
+  mcp_tool?: string | null;
+  mcp_status?: string | null;
+  mcp_transport?: string | null;
+  mcp_latency_ms?: number | null;
+  mcp_protocol_version?: string | null;
   token_usage?: { input_tokens?: number; output_tokens?: number } | null;
   error?: string | null;
   message: string;
@@ -103,12 +109,18 @@ export interface ProviderFieldStatus {
   configured: boolean;
   hint: string;
   secret: boolean;
+  classification?: string;
+  criticality?: string;
   auth_modes?: string[];
 }
 
 export interface ProviderStatus {
   name: string;
   label: string;
+  classification?: string;
+  criticality?: string;
+  required_when?: string;
+  used_by?: string[];
   configured: boolean;
   active: boolean;
   fields: ProviderFieldStatus[];
@@ -372,29 +384,29 @@ export const coreClient = {
     });
   },
 
-  // --- Notion ---
+  // --- Knowledge Base ---
 
-  notionSearch(query: string) {
+  knowledgeBaseSearch(query: string) {
     return request<{ results: { id: string; title: string; url: string }[] }>(
-      `/notion/search?q=${encodeURIComponent(query)}`,
+      `/knowledge-base/search?q=${encodeURIComponent(query)}`,
     );
   },
 
-  notionReadPage(pageId: string) {
+  knowledgeBaseReadPage(pageId: string) {
     return request<{ page_id: string; content: string }>(
-      `/notion/pages/${encodeURIComponent(pageId)}`,
+      `/knowledge-base/pages/${encodeURIComponent(pageId)}`,
     );
   },
 
-  notionAppend(pageId: string, content: string) {
+  knowledgeBaseAppend(pageId: string, content: string) {
     return request<{ status: string; page_id: string }>(
-      `/notion/pages/${encodeURIComponent(pageId)}/append`,
+      `/knowledge-base/pages/${encodeURIComponent(pageId)}/append`,
       { method: "POST", body: JSON.stringify({ content }) },
     );
   },
 
-  notionCreatePage(body: { parent_id: string; title: string; content?: string }) {
-    return request<{ page_id: string }>("/notion/pages", {
+  knowledgeBaseCreatePage(body: { parent_id: string; title: string; content?: string }) {
+    return request<{ page_id: string }>("/knowledge-base/pages", {
       method: "POST",
       body: JSON.stringify(body),
     });
@@ -463,13 +475,251 @@ export const coreClient = {
     });
   },
 
-  notionScribeRunAndPush(body: {
+  knowledgeScribeRunAndPush(body: {
     messages: { role: string; content: string }[];
     push_to?: string;
+    run_id?: string;
   }) {
-    return request<LLMResponse & { pushed_to_notion: boolean; notion_page_id?: string }>(
-      "/agents/notion-scribe/run-and-push",
+    return request<
+      LLMResponse & {
+        pushed_to_knowledge_base: boolean;
+        knowledge_base_page_id?: string;
+        knowledge_base_provider?: string;
+        knowledge_base_provider_label?: string;
+        run_id?: string;
+      }
+    >(
+      "/agents/knowledge-scribe/run-and-push",
       { method: "POST", body: JSON.stringify(body) },
     );
+  },
+
+  githubDispatchListWorkflows() {
+    return request<{
+      ok: boolean;
+      repo?: string;
+      workflows?: { file: string; label: string; description: string }[];
+    }>("/mcp/github-dispatch/workflows");
+  },
+
+  githubDispatchDispatch(body: {
+    workflow_file: string;
+    ref?: string;
+    inputs?: Record<string, string | number | boolean>;
+    run_id?: string;
+  }) {
+    return request<{
+      ok: boolean;
+      workflow_file: string;
+      dispatch_id: string;
+      status: string;
+      auth_mode?: string;
+    }>("/mcp/github-dispatch/dispatch", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+
+  githubDispatchStatus(body: { dispatch_id: string; run_id?: string }) {
+    return request<{
+      ok: boolean;
+      dispatch_id: string;
+      status: string;
+      conclusion?: string | null;
+    }>("/mcp/github-dispatch/status", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+
+  freecadRuntimeInfo(run_id?: string) {
+    const search = run_id ? `?run_id=${encodeURIComponent(run_id)}` : "";
+    return request<{
+      ok: boolean;
+      runtime: string;
+      version: string;
+      workspace_root?: string;
+      run_id: string;
+    }>(`/mcp/freecad/runtime${search}`);
+  },
+
+  freecadCreateDocument(body: {
+    output_path: string;
+    name?: string;
+    primitive?: "box";
+    length?: number;
+    width?: number;
+    height?: number;
+    run_id?: string;
+  }) {
+    return request<{
+      ok: boolean;
+      document_path: string;
+      document_name?: string;
+      object_count?: number;
+      size_bytes?: number;
+      run_id: string;
+    }>("/mcp/freecad/documents", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+
+  freecadExportDocument(body: {
+    document_path: string;
+    output_path: string;
+    run_id?: string;
+  }) {
+    return request<{
+      ok: boolean;
+      output_path: string;
+      size_bytes?: number;
+      run_id: string;
+    }>("/mcp/freecad/export", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+
+  freecadRunScript(body: { script: string; output_path?: string; run_id?: string }) {
+    return request<{
+      ok: boolean;
+      output_path?: string;
+      result?: Record<string, unknown>;
+      run_id: string;
+    }>("/mcp/freecad/script", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+
+  openscadRuntimeInfo(run_id?: string) {
+    const search = run_id ? `?run_id=${encodeURIComponent(run_id)}` : "";
+    return request<{
+      ok: boolean;
+      runtime: string;
+      version: string;
+      workspace_root?: string;
+      run_id: string;
+    }>(`/mcp/openscad/runtime${search}`);
+  },
+
+  openscadValidateModel(body: { source: string; run_id?: string }) {
+    return request<{
+      ok: boolean;
+      artifact_size_bytes?: number;
+      run_id: string;
+    }>("/mcp/openscad/validate", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+
+  openscadRenderModel(body: { source: string; output_path: string; run_id?: string }) {
+    return request<{
+      ok: boolean;
+      output_path: string;
+      size_bytes?: number;
+      run_id: string;
+    }>("/mcp/openscad/render", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+
+  openscadExportModel(body: { source: string; output_path: string; run_id?: string }) {
+    return request<{
+      ok: boolean;
+      output_path: string;
+      size_bytes?: number;
+      run_id: string;
+    }>("/mcp/openscad/export", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+
+  industrialMcpServers() {
+    return request<{
+      items: Array<{
+        key: string;
+        transport: string;
+        timeout_s: number;
+        cwd?: string;
+        command?: string[];
+        launcher?: string;
+      }>;
+    }>("/mcp/industrial/servers");
+  },
+
+  industrialMcpRuntime(serverKey: string) {
+    return request<{
+      ok: boolean;
+      server_key: string;
+      protocol_version: string;
+      server_info: Record<string, unknown>;
+      tool_count: number;
+      resource_count: number;
+      prompt_count: number;
+      tools: Record<string, unknown>[];
+      resources: Record<string, unknown>[];
+      prompts: Record<string, unknown>[];
+      health?: Record<string, unknown>;
+      contract?: Record<string, unknown>;
+    }>(`/mcp/industrial/${encodeURIComponent(serverKey)}/runtime`);
+  },
+
+  industrialMcpResource(serverKey: string, uri: string) {
+    return request<{
+      uri: string;
+      payload: Record<string, unknown>;
+      raw_text: string;
+      mime_type?: string;
+    }>(`/mcp/industrial/${encodeURIComponent(serverKey)}/resource?uri=${encodeURIComponent(uri)}`);
+  },
+
+  industrialMcpPlatform() {
+    return request<{
+      servers: Array<{
+        key: string;
+        transport: string;
+        timeout_s: number;
+        cwd?: string;
+        command?: string[];
+        launcher?: string;
+        ok: boolean;
+        runtime_ok: boolean;
+        error?: string;
+        protocol_version?: string;
+        tool_count?: number;
+        resource_count?: number;
+        prompt_count?: number;
+        health?: Record<string, unknown>;
+        contract?: Record<string, unknown>;
+      }>;
+      summary: Record<string, unknown>;
+      topology: Record<string, unknown>;
+      vendor_contracts: Record<string, unknown>;
+    }>("/mcp/industrial/platform");
+  },
+
+  industrialMcpTool(
+    serverKey: string,
+    toolName: string,
+    body: { arguments?: Record<string, unknown>; run_id?: string },
+  ) {
+    return request<{
+      ok: boolean;
+      run_id: string;
+      server_key: string;
+      tool_name: string;
+      protocol_version?: string | null;
+      server_name?: string | null;
+      message: string;
+      payload: Record<string, unknown>;
+    }>(`/mcp/industrial/${encodeURIComponent(serverKey)}/tools/${encodeURIComponent(toolName)}`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
   },
 };

@@ -1,5 +1,5 @@
 from mascarade.integrations.comfyui import ComfyUIClient
 from mascarade.integrations.github_dispatch import GitHubDispatchClient
-from mascarade.integrations.notion import NotionClient
+from mascarade.integrations.knowledge_base import KnowledgeBaseClient
 
-__all__ = ["NotionClient", "ComfyUIClient", "GitHubDispatchClient"]
+__all__ = ["KnowledgeBaseClient", "ComfyUIClient", "GitHubDispatchClient"]

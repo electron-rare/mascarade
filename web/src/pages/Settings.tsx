@@ -8,12 +8,18 @@ interface FieldStatus {
   configured: boolean;
   hint: string;
   secret: boolean;
+  classification?: string;
+  criticality?: string;
   auth_modes?: string[];
 }
 
 interface ProviderStatus {
   name: string;
   label: string;
+  classification?: string;
+  criticality?: string;
+  required_when?: string;
+  used_by?: string[];
   configured: boolean;
   active: boolean;
   fields: FieldStatus[];
@@ -42,8 +48,11 @@ interface RuntimeSecretFieldStatus {
   configured: boolean;
   hint: string;
   secret: boolean;
+  classification?: string;
+  criticality?: string;
   restart_services: string[];
   auth_modes?: string[];
+  providers?: string[];
   active?: boolean;
 }
 
@@ -51,12 +60,19 @@ interface RuntimeSecretGroupStatus {
   name: string;
   label: string;
   description: string;
+  classification?: string;
+  criticality?: string;
+  required_when?: string;
+  used_by?: string[];
   configured: boolean;
   configured_count: number;
   field_count: number;
   generate_supported: boolean;
   restart_services: string[];
   fields: RuntimeSecretFieldStatus[];
+  provider?: string;
+  provider_env?: string;
+  providers?: string[];
   auth_mode?: string;
   auth_mode_env?: string;
   auth_modes?: string[];
@@ -71,9 +87,105 @@ interface RuntimeSecretMutationResponse {
   restarted_services?: string[];
   client_token?: string;
   generated_value?: string;
+  extra_info?: string;
 }
 
 type SaveState = "idle" | "saving" | "ok" | "error";
+
+function criticalityMeta(level?: string) {
+  switch (level) {
+    case "required-security":
+      return {
+        label: "required security",
+        className: "border-red-700/60 bg-red-900/20 text-red-300",
+      };
+    case "feature-required":
+      return {
+        label: "feature required",
+        className: "border-amber-600/40 bg-amber-900/20 text-amber-300",
+      };
+    case "live-validation-optional":
+      return {
+        label: "live optional",
+        className: "border-sky-700/40 bg-sky-900/20 text-sky-300",
+      };
+    case "local-operator-context":
+      return {
+        label: "operator context",
+        className: "border-border/80 bg-black/25 text-muted",
+      };
+    default:
+      return {
+        label: level || "unclassified",
+        className: "border-border/80 bg-black/25 text-muted",
+      };
+  }
+}
+
+function classificationLabel(kind?: string) {
+  switch (kind) {
+    case "runtime-auth":
+      return "runtime auth";
+    case "provider-credential":
+      return "provider credential";
+    case "integration-credential":
+      return "integration credential";
+    case "oauth-config":
+      return "oauth config";
+    case "live-validation-target":
+      return "live validation target";
+    case "operator-context":
+      return "operator context";
+    default:
+      return kind || "";
+  }
+}
+
+function CriticalityChip({ level }: { level?: string }) {
+  const meta = criticalityMeta(level);
+  return (
+    <span className={`status-chip ${meta.className}`}>
+      {meta.label}
+    </span>
+  );
+}
+
+function MetaLine({
+  criticality,
+  classification,
+  requiredWhen,
+  usedBy,
+}: {
+  criticality?: string;
+  classification?: string;
+  requiredWhen?: string;
+  usedBy?: string[];
+}) {
+  const classificationText = classificationLabel(classification);
+  const usedByText = usedBy?.length ? usedBy.join(", ") : "";
+  return (
+    <div className="mt-2 space-y-1">
+      <div className="flex flex-wrap items-center gap-2">
+        <CriticalityChip level={criticality} />
+        {classificationText && (
+          <span className="status-chip border-border/80 bg-black/25 text-muted">
+            {classificationText}
+          </span>
+        )}
+      </div>
+      {requiredWhen && (
+        <p className="text-[11px] leading-5 text-amber-100/45">
+          {requiredWhen}
+        </p>
+      )}
+      {usedByText && (
+        <p className="text-[11px] leading-5 text-amber-100/32">
+          used by: {usedByText}
+        </p>
+      )}
+    </div>
+  );
+}
 
 function StatusBadge({ active, configured }: { active: boolean; configured: boolean }) {
   if (active) {
@@ -333,6 +445,12 @@ function ProviderCard({
           <p className="text-[13px] font-semibold uppercase tracking-[0.18em] text-accent">
             {provider.label}
           </p>
+          <MetaLine
+            criticality={provider.criticality}
+            classification={provider.classification}
+            requiredWhen={provider.required_when}
+            usedBy={provider.used_by}
+          />
           {provider.default_model && (
             <p className="mt-1 text-[11px] text-amber-100/45">
               {provider.default_model}
@@ -370,6 +488,9 @@ function ProviderCard({
             <label className="mb-1.5 flex items-center justify-between text-[11px] uppercase tracking-[0.16em] text-muted">
               <span>{field.label}</span>
               <span className="flex items-center gap-2">
+                {field.criticality && field.criticality !== provider.criticality && (
+                  <CriticalityChip level={field.criticality} />
+                )}
                 <span className="normal-case tracking-normal text-amber-100/35">
                   {field.env}
                 </span>
@@ -480,6 +601,10 @@ function RuntimeSecretCard({
   const [generatedValue, setGeneratedValue] = useState("");
   const [extraInfo, setExtraInfo] = useState("");
   const timerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const selectedProvider =
+    group.provider_env && drafts[group.provider_env] !== undefined
+      ? drafts[group.provider_env]
+      : group.provider;
   const selectedAuthMode =
     group.auth_mode_env && drafts[group.auth_mode_env] !== undefined
       ? drafts[group.auth_mode_env]
@@ -493,36 +618,6 @@ function RuntimeSecretCard({
   };
 
   useEffect(() => () => { if (timerRef.current) clearTimeout(timerRef.current); }, []);
-
-  useEffect(() => {
-    if (group.name !== "notion") {
-      return;
-    }
-    const handleMessage = (event: MessageEvent) => {
-      const payload = event.data;
-      if (!payload || typeof payload !== "object") {
-        return;
-      }
-      if ((payload as { type?: string }).type !== "mascarade-oauth-result") {
-        return;
-      }
-      const provider = (payload as { provider?: string }).provider;
-      if (provider !== "notion") {
-        return;
-      }
-      const ok = (payload as { ok?: boolean }).ok === true;
-      const nextMessage =
-        typeof (payload as { message?: string }).message === "string"
-          ? (payload as { message?: string }).message!
-          : ok
-            ? "OAuth linked"
-            : "OAuth failed";
-      void onSaved();
-      settle(ok ? "ok" : "error", nextMessage);
-    };
-    window.addEventListener("message", handleMessage);
-    return () => window.removeEventListener("message", handleMessage);
-  }, [group.name, onSaved]);
 
   const settle = (nextState: SaveState, nextMessage: string) => {
     setSaveState(nextState);
@@ -551,6 +646,11 @@ function RuntimeSecretCard({
   const save = async () => {
     const values: Record<string, string> = {};
     const visibleFields = group.fields.filter((field) => {
+      if (field.providers?.length) {
+        if (!selectedProvider || !field.providers.includes(selectedProvider)) {
+          return false;
+        }
+      }
       if (!field.auth_modes?.length) {
         return true;
       }
@@ -561,6 +661,9 @@ function RuntimeSecretCard({
       if (value !== undefined && value !== "") {
         values[field.env] = value;
       }
+    }
+    if (group.provider_env && drafts[group.provider_env] !== undefined) {
+      values[group.provider_env] = drafts[group.provider_env];
     }
     if (group.auth_mode_env && drafts[group.auth_mode_env] !== undefined) {
       values[group.auth_mode_env] = drafts[group.auth_mode_env];
@@ -641,19 +744,6 @@ function RuntimeSecretCard({
     }
   };
 
-  const connectNotionOAuth = () => {
-    const popup = window.open(
-      "/api/settings/runtime-secrets/notion/oauth/start",
-      "mascarade-notion-oauth",
-      "popup=yes,width=720,height=820",
-    );
-    if (!popup) {
-      settle("error", "Popup bloquee");
-      return;
-    }
-    settle("ok", "OAuth Notion en cours...");
-  };
-
   const validateGitHubApp = async () => {
     setSaveState("saving");
     try {
@@ -667,7 +757,32 @@ function RuntimeSecretCard({
     }
   };
 
+  const bootstrapLocalMemos = async () => {
+    setSaveState("saving");
+    try {
+      const response = await post<RuntimeSecretMutationResponse>(
+        "/api/settings/runtime-secrets/knowledge-base/bootstrap-memos",
+      );
+      setGeneratedValue(response.generated_value || "");
+      setExtraInfo(response.extra_info || "");
+      await onSaved();
+      settle(
+        "ok",
+        response.restarted_services?.length
+          ? `Bootstrap Memos termine, restart: ${response.restarted_services.join(", ")}`
+          : response.message || "Bootstrap Memos termine",
+      );
+    } catch (error) {
+      settle("error", error instanceof Error ? error.message : "Erreur");
+    }
+  };
+
   const visibleFields = group.fields.filter((field) => {
+    if (field.providers?.length) {
+      if (!selectedProvider || !field.providers.includes(selectedProvider)) {
+        return false;
+      }
+    }
     if (!field.auth_modes?.length) {
       return true;
     }
@@ -676,6 +791,7 @@ function RuntimeSecretCard({
 
   const hasDraft =
     visibleFields.some((field) => (drafts[field.env] || "").trim().length > 0) ||
+    (!!group.provider_env && drafts[group.provider_env] !== undefined) ||
     (!!group.auth_mode_env && drafts[group.auth_mode_env] !== undefined);
 
   return (
@@ -688,6 +804,12 @@ function RuntimeSecretCard({
           <p className="mt-1 text-[12px] leading-5 text-amber-100/48">
             {group.description}
           </p>
+          <MetaLine
+            criticality={group.criticality}
+            classification={group.classification}
+            requiredWhen={group.required_when}
+            usedBy={group.used_by}
+          />
         </div>
         <RuntimeBadge
           configured={group.configured}
@@ -697,6 +819,27 @@ function RuntimeSecretCard({
       </div>
 
       <div className="space-y-3">
+        {group.provider_env && group.providers && group.providers.length > 1 && (
+          <div>
+            <label className="mb-1.5 flex items-center justify-between text-[11px] uppercase tracking-[0.16em] text-muted">
+              <span>Provider</span>
+              <span className="normal-case tracking-normal text-amber-100/35">
+                {group.provider_env}
+              </span>
+            </label>
+            <select
+              value={selectedProvider ?? group.providers[0]}
+              onChange={(e) => setField(group.provider_env!, e.target.value)}
+              className="w-full rounded-2xl border border-border/80 bg-black/35 px-3 py-2.5 text-sm text-amber-100 outline-none transition focus:border-accent/50"
+            >
+              {group.providers.map((provider) => (
+                <option key={provider} value={provider} className="bg-[#0a0a0a]">
+                  {provider}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
         {group.auth_mode_env && group.auth_modes && group.auth_modes.length > 1 && (
           <div>
             <label className="mb-1.5 flex items-center justify-between text-[11px] uppercase tracking-[0.16em] text-muted">
@@ -723,8 +866,13 @@ function RuntimeSecretCard({
           <div key={field.env}>
             <label className="mb-1.5 flex items-center justify-between text-[11px] uppercase tracking-[0.16em] text-muted">
               <span>{field.label}</span>
-              <span className="normal-case tracking-normal text-amber-100/35">
-                {field.env}
+              <span className="flex items-center gap-2">
+                {field.criticality && field.criticality !== group.criticality && (
+                  <CriticalityChip level={field.criticality} />
+                )}
+                <span className="normal-case tracking-normal text-amber-100/35">
+                  {field.env}
+                </span>
               </span>
             </label>
             <input
@@ -778,14 +926,14 @@ function RuntimeSecretCard({
           )}
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {group.name === "notion" && selectedAuthMode === "oauth_oidc" && (
+          {group.name === "knowledge-base" && selectedProvider === "memos" && (
             <button
               type="button"
               disabled={saveState === "saving"}
-              onClick={connectNotionOAuth}
+              onClick={bootstrapLocalMemos}
               className="rounded-2xl border border-[#214e31] bg-[#0c170f]/80 px-4 py-2 text-[11px] uppercase tracking-[0.16em] text-[#8cffb7] transition hover:border-[#2d6942] hover:bg-[#0f2116] disabled:cursor-not-allowed disabled:opacity-40"
             >
-              connect
+              bootstrap local memos
             </button>
           )}
           {group.name === "github-dispatch" && selectedAuthMode === "app" && (
@@ -860,6 +1008,8 @@ export default function Settings() {
   const inactive = providers.filter((p) => !p.active);
   const runtimeReady = runtimeGroups.filter((group) => group.configured);
   const runtimeMissing = runtimeGroups.filter((group) => !group.configured);
+  const runtimeSecurityGroups = runtimeGroups.filter((group) => group.criticality === "required-security");
+  const runtimeIntegrationGroups = runtimeGroups.filter((group) => group.criticality !== "required-security");
 
   return (
     <div className="mx-auto max-w-5xl space-y-8">
@@ -882,11 +1032,11 @@ export default function Settings() {
         </div>
 
         <div className="rounded-[1.4rem] border border-accent/18 bg-accent/5 p-5">
-          <p className="screen-label">integrations / auth</p>
+          <p className="screen-label">runtime security + integrations</p>
           <p className="mt-2 text-[12px] leading-5 text-amber-100/58">
-            Edition directe des secrets runtime utilises par les MCP et l'auth locale.
-            Les changements ecrivent le `.env`, mettent a jour le runtime et
-            redemarrent le `core` seulement quand c'est necessaire.
+            `MASCARADE_API_KEY` reste une exigence de securite runtime distincte des
+            integrations optionnelles. Les changements ecrivent le `.env`, mettent a
+            jour le runtime et redemarrent le `core` seulement quand c'est necessaire.
           </p>
           <div className="mt-3 flex flex-wrap gap-2">
             <span className="status-chip border-[#214e31] bg-[#0c170f]/80 text-[#8cffb7]">
@@ -896,6 +1046,20 @@ export default function Settings() {
               {runtimeMissing.length} incomplet{runtimeMissing.length > 1 ? "s" : ""}
             </span>
           </div>
+        </div>
+      </div>
+
+      <div className="rounded-[1.4rem] border border-border/80 bg-black/25 p-5">
+        <p className="screen-label">secret matrix</p>
+        <p className="mt-2 text-[12px] leading-5 text-amber-100/52">
+          Les secrets sont qualifies par criticite: securite runtime obligatoire,
+          prerequis de feature, aides de validation live, ou simple contexte operateur.
+        </p>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <CriticalityChip level="required-security" />
+          <CriticalityChip level="feature-required" />
+          <CriticalityChip level="live-validation-optional" />
+          <CriticalityChip level="local-operator-context" />
         </div>
       </div>
 
@@ -909,13 +1073,26 @@ export default function Settings() {
         </div>
       )}
 
-      {runtimeGroups.length > 0 && (
+      {runtimeSecurityGroups.length > 0 && (
         <section>
           <h2 className="mb-4 text-[11px] font-semibold uppercase tracking-[0.24em] text-muted">
-            Integrations et auth runtime
+            Security runtime
           </h2>
           <div className="grid gap-4 lg:grid-cols-2">
-            {runtimeGroups.map((group) => (
+            {runtimeSecurityGroups.map((group) => (
+              <RuntimeSecretCard key={group.name} group={group} onSaved={fetchStatus} />
+            ))}
+          </div>
+        </section>
+      )}
+
+      {runtimeIntegrationGroups.length > 0 && (
+        <section>
+          <h2 className="mb-4 text-[11px] font-semibold uppercase tracking-[0.24em] text-muted">
+            Integrations runtime
+          </h2>
+          <div className="grid gap-4 lg:grid-cols-2">
+            {runtimeIntegrationGroups.map((group) => (
               <RuntimeSecretCard key={group.name} group={group} onSaved={fetchStatus} />
             ))}
           </div>

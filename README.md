@@ -1,6 +1,6 @@
 # Mascarade
 
-Systeme d'orchestration agentique personnel. Route intelligemment les requetes LLM entre Claude, GPT, Mistral, AWS Bedrock, Google Gemini et Hugging Face, avec agents specialises, orchestration multi-agents, cache, fallback automatique et integration Notion.
+Systeme d'orchestration agentique personnel. Route intelligemment les requetes LLM entre Claude, GPT, Mistral, AWS Bedrock, Google Gemini et Hugging Face, avec agents specialises, orchestration multi-agents, cache, fallback automatique et surfaces runtime `knowledge-base` / `cad`.
 
 ## Ecosysteme
 
@@ -8,10 +8,10 @@ Mascarade fait partie d'un ecosysteme de 5 repos :
 
 | Repo | Role |
 |------|------|
-| **[mascarade](https://github.com/electron-rare/mascarade)** | Orchestrateur agentique, LLM routing, fine-tuning |
+| **[mascarade](https://github.com/electron-rare/mascarade)** | Repo compagnon runtime/ops, orchestration agentique, fine-tuning et bridge historique |
 | **[mascarade-datasets](https://github.com/electron-rare/mascarade-datasets)** | Datasets de fine-tuning (13 domaines, ~74k exemples) |
 | **[mascarade-cockpit](https://github.com/electron-rare/mascarade-cockpit)** | Console ops SvelteKit (monitoring Docker, metriques, energie) |
-| **[crazy_life](https://github.com/electron-rare/crazy_life)** | Frontend React du cockpit Mascarade (agents, orchestration, logs) |
+| **[crazy_life](https://github.com/electron-rare/crazy_life)** | Repo canonique web/devops du cockpit et de la surface `Crazy Lane` |
 | **[Kill_LIFE](https://github.com/electron-rare/Kill_LIFE)** | Template agentique pour projets embarques IA (spec-first, gates, evidence packs) |
 
 ## Architecture
@@ -50,9 +50,10 @@ Mascarade fait partie d'un ecosysteme de 5 repos :
 |Claude |  | OpenAI |  | Mistral  |
 +-------+  +--------+  +----------+
 
-                  +--------+
-                  | Notion |  (KB + dashboard)
-                  +--------+
+                  +------------------+
+                  | Knowledge Base / |
+                  | MCP integrations |
+                  +------------------+
 ```
 
 **Core Python** (`core/`, port `8100`) -- Moteur d'orchestration, routeur LLM, agents, metriques
@@ -63,15 +64,45 @@ Mascarade fait partie d'un ecosysteme de 5 repos :
 
 ## Crazy Life (frontend)
 
+`mascarade` pilote l'operateur local et le runtime Docker de cette machine.
 `mascarade/web/` est un subtree bridge vers le repo canonique [crazy_life](https://github.com/electron-rare/crazy_life).
+
+Contrat courant:
+- `crazy_life` = repo canonique web/devops et release du shell cockpit
+- `Kill_LIFE` = source de verite runtime, workflows JSON, evidence, firmware, CAD et compliance
+- `mascarade` = repo compagnon/orchestration + bridge historique optionnel
 
 ```bash
 scripts/sync_crazy_life.sh status          # Etat de sync
-scripts/sync_crazy_life.sh push            # web/ -> crazy_life
+scripts/sync_crazy_life.sh push            # export bridge web/ -> crazy_life
 scripts/sync_crazy_life.sh pull            # crazy_life/main -> web/
 npm --prefix web run build                 # build local dans web/dist
 npm --prefix web run build:api-public      # refresh explicite du snapshot api/public
 ```
+
+Rappel operatoire:
+- `scripts/sync_crazy_life.sh` ne publie pas une release canonique
+- la readiness de release vit dans `crazy_life`, via `scripts/publish_preflight.sh`
+
+### Boucle "next useful lot"
+
+Les scripts canoniques pour enchainer automatiquement sur le prochain lot utile
+local sont:
+
+```bash
+bash scripts/next_useful_lot.sh detect
+bash scripts/next_useful_lot.sh checks
+bash scripts/run_next_useful_lot.sh
+```
+
+Contrat:
+- `detect` choisit le lot local le plus utile encore ouvert
+- `checks` rejoue ses validations canoniques
+- `run_next_useful_lot.sh` fait `detect + checks + refresh` de
+  `docs/NEXT_USEFUL_LOT_STATE.md`
+
+Le fichier versionne [NEXT_USEFUL_LOT_STATE.md](/home/clems/mascarade/docs/NEXT_USEFUL_LOT_STATE.md)
+devient la note de handoff court terme pour le lot actif.
 
 ---
 
@@ -118,7 +149,8 @@ venv_tuning/bin/python finetune/run_local.py stm32
 - **Docker** et **Docker Compose** (deploiement)
 - **Python 3.11+** (dev local core)
 - **Node.js 22+** (dev local API)
-- Au moins une cle API LLM (Anthropic, OpenAI, Mistral, AWS Bedrock ou Google)
+- `MASCARADE_API_KEY` pour un runtime protege
+- Au moins un provider LLM configure, ou `OLLAMA_ENABLED=true` avec un runtime Ollama joignable
 
 Le setup installe aussi un `htop` repo-local epingle en `3.4.0` sous `tools/.local/` et l'expose via `./tools/htop`.
 Pourquoi: Ubuntu 24.04 livre `htop 3.3.0`, qui n'inclut pas le meter `GPU usage`. La `3.4.0` ajoute ce meter, utile pour suivre les services GPU du repo sans ecraser le `htop` systeme.
@@ -142,8 +174,16 @@ cp .env.example .env
 
 Editer `.env` et remplir les cles :
 
+- `required-security`: `MASCARADE_API_KEY` protege l'API, le core et l'ops-agent.
+- `feature-required`: providers LLM et integrations que vous activez reellement.
+- `live-validation-optional`: cibles de smoke/runtime live seulement.
+- `local-operator-context`: endpoints OAuth, chemins et overrides locaux.
+
 ```bash
-# LLM — au moins une cle requise
+# Runtime security — toujours requis pour un runtime protege
+MASCARADE_API_KEY=un-token-secret
+
+# Providers LLM — configurer seulement ce que vous utilisez
 ANTHROPIC_API_KEY=sk-ant-xxxxx          # Claude (best quality)
 OPENAI_API_KEY=sk-xxxxx                 # GPT (fastest)
 MISTRAL_API_KEY=xxxxx                   # Mistral (cheapest)
@@ -178,21 +218,7 @@ GOOGLE_CLOUD_LOCATION=europe-west1
 GOOGLE_APPLICATION_CREDENTIALS=/chemin/key.json
 GOOGLE_MODEL=gemini-2.5-flash
 
-# Notion — optionnel, pour la KB et les dashboards
-NOTION_AUTH_MODE=api_key              # or oauth_oidc
-NOTION_API_KEY=ntn_xxxxx
-NOTION_OAUTH_ACCESS_TOKEN=
-NOTION_OAUTH_REFRESH_TOKEN=
-NOTION_OAUTH_CLIENT_ID=
-NOTION_OAUTH_CLIENT_SECRET=
-NOTION_OAUTH_AUTHORIZATION_ENDPOINT=https://api.notion.com/v1/oauth/authorize
-NOTION_OAUTH_TOKEN_ENDPOINT=https://api.notion.com/v1/oauth/token
-NOTION_OAUTH_REDIRECT_URI=
-NOTION_OAUTH_EXPIRES_AT=
-NOTION_OAUTH_WORKSPACE_NAME=
-NOTION_MCP_SMOKE_PAGE_ID=
-
-# GitHub dispatch — optionnel, pour les workflows Kill_LIFE / crazy_life
+# GitHub dispatch — integration optionnelle
 GITHUB_DISPATCH_AUTH_MODE=token       # or app
 KILL_LIFE_GITHUB_TOKEN=ghp_xxxxx
 GITHUB_TOKEN=
@@ -200,8 +226,17 @@ GITHUB_APP_ID=
 GITHUB_APP_PRIVATE_KEY=
 GITHUB_APP_INSTALLATION_ID=
 
-# Auth — si vide, toutes les routes sont ouvertes (mode dev)
-MASCARADE_API_KEY=un-token-secret
+# Firecrawl MCP — integration optionnelle
+FIRECRAWL_HOST=0.0.0.0
+FIRECRAWL_API_KEY=fc_xxxxx
+FIRECRAWL_API_URL=                     # optionnel, seulement si vous ciblez une API Firecrawl self-hosted
+
+# Mem0 / OpenMemory — integration optionnelle
+MEM0_USER=mascarade
+MEM0_OPENAI_API_KEY=sk-mem0-local    # si LiteLLM a une master key, reprendre la meme ici
+MEM0_OPENAI_BASE_URL=http://litellm:4000
+MEM0_QDRANT_HOST=qdrant
+MEM0_QDRANT_PORT=6333
 
 # Core
 CORE_HOST=0.0.0.0
@@ -232,6 +267,11 @@ DEFAULT_MODEL=claude-sonnet-4-6
 ```
 
 Le routeur active automatiquement les providers dont la cle est presente. Pas de cle = provider ignore.
+
+Note:
+- `Notion` n'est plus dans le scope operateur actif de `mascarade`.
+- Les variables `NOTION_*` ne doivent plus etre traitees comme prerequis courants.
+- Les chemins `Notion` encore presents dans le repo relevent de la compatibilite legacy uniquement.
 
 ## CAD / EDA
 
@@ -375,6 +415,36 @@ Observability complementaire opt-in:
 ```
 
 Ce lot ajoute le stockage/relais observability, mais le cockpit utilise deja aujourd'hui la trace native du core pour afficher les echanges inter-agent dans `Logs`.
+Pour la pile observability complete, ajouter aussi `prometheus,grafana,tempo,blackbox-exporter,langfuse`.
+
+`Tempo` est maintenant le backend de traces nominal pour Grafana. `Loki` reste la source de logs et `Prometheus` la source de metriques; `blackbox-exporter` complete la couverture des services qui n'exposent pas `/metrics`.
+
+Surfaces operateur proxifiees:
+
+```bash
+EDGE_PROXY_GRAFANA_SERVER_NAME=grafana.saillant.cc
+EDGE_PROXY_LANGFUSE_SERVER_NAME=langfuse.saillant.cc
+GRAFANA_PUBLIC_ORIGIN=https://grafana.saillant.cc
+LANGFUSE_PUBLIC_ORIGIN=https://langfuse.saillant.cc
+EDGE_PROXY_OPS_AUTH_USER=ops
+EDGE_PROXY_OPS_AUTH_PASSWORD=...
+```
+
+Avec ces variables, `Grafana` et `Langfuse` passent derriere `edge-proxy` avec une auth dediee au proxy. Par defaut, ce routage reste seulement sur loopback tant que `EDGE_PROXY_BIND_HOST=127.0.0.1`.
+
+Smoke test OTLP -> Loki:
+
+```bash
+bash scripts/smoke_otel_loki.sh
+bash scripts/smoke_otel_loki.sh --json
+```
+
+Report de cardinalite Loki:
+
+```bash
+bash scripts/loki_cardinality_report.sh
+bash scripts/loki_cardinality_report.sh --json
+```
 
 Certificat Let's Encrypt par DNS-01 Cloudflare:
 
@@ -382,14 +452,31 @@ Certificat Let's Encrypt par DNS-01 Cloudflare:
 # Variables minimales dans .env
 EDGE_PROXY_SERVER_NAME=saillant.cc
 EDGE_PROXY_ACME_EMAIL=toi@example.com
-EDGE_PROXY_ACME_DOMAINS=saillant.cc,www.saillant.cc
-CLOUDFLARE_API_TOKEN=...
+EDGE_PROXY_ACME_DOMAINS=saillant.cc,grafana.saillant.cc,langfuse.saillant.cc,dify.saillant.cc
+CLOUDFLARE_API_TOKEN=...              # API token Cloudflare
+# ou, si tu utilises une Global API Key:
+CLOUDFLARE_API_EMAIL=toi@example.com
+CLOUDFLARE_API_KEY=...
 
 # Emission du certificat
 bash scripts/edge_proxy_cert.sh issue
 ```
 
 Le proxy continue a generer un certificat auto-signe tant qu'aucun certificat reel n'est installe. Une fois le certificat emis, `edge-proxy` recharge Nginx automatiquement.
+
+Sur la machine de reference, le certificat reel en place couvre maintenant
+`saillant.cc` et `*.saillant.cc`, ce qui absorbe `grafana.saillant.cc`,
+`langfuse.saillant.cc` et `dify.saillant.cc`.
+
+Si tu restes en provider `manual`, le flux devient:
+
+```bash
+bash scripts/edge_proxy_cert.sh issue --provider manual
+# ajouter les TXT ACME demandes par le script
+bash scripts/edge_proxy_cert.sh renew --provider manual
+```
+
+Sur la machine de reference, `edge-proxy` est maintenant publie sur `0.0.0.0:80/443`, avec les hostnames `saillant.cc`, `grafana.saillant.cc`, `langfuse.saillant.cc` et `dify.saillant.cc`.
 
 Les agents dynamiques sont persistes dans un volume Docker (`core-data:/app/data`).
 
@@ -413,16 +500,24 @@ bash scripts/smoke_generate_audio.sh --url http://localhost:9000
 
 ```bash
 # Core Python
+bash scripts/bootstrap_python_env.sh
 cd core
-python -m venv .venv
 source .venv/bin/activate
-pip install -e ".[dev]"
 python -m uvicorn mascarade.server:app --host 0.0.0.0 --port 8100 --reload
 
 # API TypeScript (autre terminal)
 cd api
 npm install
 npm run dev
+```
+
+Validation repo-locale recommandee avant tout tri de delta:
+
+```bash
+bash scripts/test_python.sh
+curl -fsS http://127.0.0.1:8100/health
+curl -fsS http://127.0.0.1:3100/health
+curl -fsS http://127.0.0.1:9200/health
 ```
 
 ---
@@ -492,6 +587,9 @@ docker compose -f docker-compose.yml -f docker-compose.ai.yml --profile heavy up
 ```
 
 Sur VM legere, garder ces services arretes par defaut (profil `heavy`).
+
+`Langfuse` reste une brique supportee du repo, mais optionnelle hors profil standard. `Firecrawl` est supporte comme service MCP optionnel via l'image officielle `mcp/firecrawl`; il exige `FIRECRAWL_API_KEY` ou `FIRECRAWL_API_URL` pour demarrer. `Mem0` est supporte via `mem0/openmemory-mcp`, adosse a `Qdrant` et route par defaut ses appels OpenAI-compatibles vers `LiteLLM`.
+`Tempo` est supporte comme backend traces de reference de la stack observability locale, et les surfaces operateur `Grafana` / `Langfuse` peuvent etre publiees derriere `edge-proxy` sans exposer `Prometheus` ni les services internes.
 
 ### Interagir avec la VM depuis le Mac
 
@@ -616,9 +714,10 @@ Modes d'execution :
 | `parallel`   | Tous les agents traitent le prompt en parallele       |
 | `pipeline`   | La sortie d'un agent devient l'entree du suivant      |
 
-### Notion
+### Compat legacy Notion
 
-Si `NOTION_API_KEY` est configure :
+Hors scope operateur actif. Ce chemin reste seulement pour compatibilite legacy si
+vous devez relire un ancien flux `Notion` :
 
 ```bash
 # Rechercher dans la KB Notion
@@ -721,6 +820,7 @@ bash scripts/test_python.sh
 ```
 
 Le chemin supporte pour les tests Python du repo est `core/.venv`. Ne lance pas `python3 -m pytest` depuis l'hote sans passer par ce venv.
+Le bootstrap couvre aussi les dependances du `deploy/ops_agent`, afin que le meme venv suffise pour les tests `core/tests/` qui importent l'ops-agent.
 Pour une verification type "machine fraiche" sans toucher au venv principal:
 
 ```bash
