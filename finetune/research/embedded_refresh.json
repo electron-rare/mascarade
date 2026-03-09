@@ -1,0 +1,389 @@
+{
+  "version": 1,
+  "generated_at": "2026-03-09T12:09:19",
+  "domain": "embedded",
+  "topic": "Embedded systems / ARM / ESP32 / RISC-V",
+  "dataset_path": "/ai/saisail/mascarade/finetune/datasets/embedded_chat.jsonl",
+  "refresh": {
+    "domain": "embedded",
+    "generated_at": "2026-03-09T12:09:02",
+    "target_path": "/ai/saisail/mascarade/finetune/datasets/embedded_chat.jsonl",
+    "source_mode": "full_dataset_sync",
+    "source_path": "/ai/saisail/mascarade-datasets/embedded_chat.jsonl",
+    "builder": null,
+    "row_count": 7014,
+    "ids_fixed": 8344,
+    "duplicates_removed": 1330,
+    "quality": {
+      "label": "embedded refreshed dataset",
+      "mode": "fail",
+      "status": "warning",
+      "metrics": {
+        "row_count": 7014,
+        "ids_fixed": 8344,
+        "ids_fixed_ratio": 1.1896207584830338,
+        "unique_system_prompts": 1,
+        "unique_user_prompts": 4999,
+        "duplicate_rows": 0,
+        "duplicate_ratio": 0.0,
+        "repeated_user_assistant_pairs": 0,
+        "repeated_pair_ratio": 0.0,
+        "assistant_len_avg": 1241.8119475335045,
+        "assistant_len_p95": 3846,
+        "assistant_len_max": 4708,
+        "short_assistant_rows": 0,
+        "short_assistant_ratio": 0.0
+      },
+      "thresholds": {
+        "min_rows_fail": 4,
+        "recommended_rows_warn": 8,
+        "min_unique_users_fail": 4,
+        "max_duplicate_ratio_fail": 0.1,
+        "max_repeated_pair_ratio_fail": 0.1,
+        "max_assistant_p95_fail": 6000,
+        "max_assistant_max_fail": 9000,
+        "max_assistant_avg_warn": 3500,
+        "short_assistant_threshold": 64,
+        "max_short_assistant_ratio_warn": 0.25
+      },
+      "errors": [],
+      "warnings": [
+        "source ids are synthesized for 8344/7014 rows; persist ids in source JSONL for traceability",
+        "single system prompt across the dataset; style diversity is low"
+      ],
+      "would_fail": false,
+      "duplicates_removed_during_refresh": 1330,
+      "assistant_rows_trimmed_during_refresh": 0
+    },
+    "legacy_ignored_paths": [
+      "finetune/build_components_dataset.py",
+      "finetune/build_freecad_dataset.py"
+    ]
+  },
+  "authoritative_urls": [
+    {
+      "label": "ESP-IDF programming guide",
+      "url": "https://docs.espressif.com/projects/esp-idf/en/stable/esp32/"
+    },
+    {
+      "label": "ST STM32Cube docs",
+      "url": "https://dev.st.com/stm32cube-docs/"
+    }
+  ],
+  "github_repos": [
+    {
+      "label": "esp-idf",
+      "url": "https://github.com/espressif/esp-idf"
+    },
+    {
+      "label": "STMicroelectronics org",
+      "url": "https://github.com/STMicroelectronics"
+    }
+  ],
+  "software_sources": [
+    {
+      "label": "ESP-IDF product page",
+      "url": "https://www.espressif.com/en/products/sdks/esp-idf"
+    },
+    {
+      "label": "STM32Cube docs",
+      "url": "https://dev.st.com/stm32cube-docs/"
+    }
+  ],
+  "forum_urls": [
+    {
+      "label": "ST Community",
+      "url": "https://community.st.com/"
+    },
+    {
+      "label": "PlatformIO Community",
+      "url": "https://community.platformio.org/"
+    },
+    {
+      "label": "ChibiOS Forum",
+      "url": "https://forum.chibios.org/"
+    },
+    {
+      "label": "FreeRTOS Forums",
+      "url": "https://forums.freertos.org/"
+    },
+    {
+      "label": "ARM Community Forums",
+      "url": "https://community.arm.com/support-forums/"
+    },
+    {
+      "label": "Arduino Forum",
+      "url": "https://forum.arduino.cc/"
+    },
+    {
+      "label": "EmbeddedRelated Forum",
+      "url": "https://www.embeddedrelated.com/forum.php"
+    },
+    {
+      "label": "Electronics StackExchange STM32",
+      "url": "https://electronics.stackexchange.com/questions/tagged/stm32"
+    },
+    {
+      "label": "Electronics StackExchange Embedded",
+      "url": "https://electronics.stackexchange.com/questions/tagged/embedded"
+    },
+    {
+      "label": "All About Circuits Embedded Systems",
+      "url": "https://forum.allaboutcircuits.com/forums/embedded-systems-and-microcontrollers.13/"
+    }
+  ],
+  "datasheet_roots": [
+    {
+      "label": "ESP32 hardware reference",
+      "url": "https://docs.espressif.com/projects/esp-idf/en/stable/esp32/hw-reference/index.html"
+    },
+    {
+      "label": "STM32 MCU documentation",
+      "url": "https://www.st.com/en/microcontrollers-microprocessors/stm32-mainstream-mcus/documentation.html"
+    }
+  ],
+  "hf_sources": [
+    {
+      "name": "gouthamsk/esp_idf_code",
+      "url": "https://huggingface.co/datasets/gouthamsk/esp_idf_code"
+    },
+    {
+      "name": "gavmac00/arduino-docs",
+      "url": "https://huggingface.co/datasets/gavmac00/arduino-docs"
+    },
+    {
+      "name": "bshada/arduino.stackexchange.com",
+      "url": "https://huggingface.co/datasets/bshada/arduino.stackexchange.com"
+    }
+  ],
+  "queries": [
+    "site:docs.espressif.com esp-idf spi dma cache alignment",
+    "site:dev.st.com cortex-m startup linker script dma application note",
+    "site:huggingface.co/datasets embedded firmware dataset"
+  ],
+  "trusted_domains": [
+    "docs.espressif.com",
+    "dev.st.com",
+    "huggingface.co"
+  ],
+  "minimum_web_roots": 8,
+  "minimum_quality_score": 6,
+  "web_probe": {
+    "domain": "embedded",
+    "generated_at": "2026-03-09T12:09:19",
+    "source_file": "/ai/saisail/mascarade/finetune/research_sources/domains/embedded.json",
+    "status": "partial",
+    "reachable_count": 12,
+    "total_count": 18,
+    "reachable_ratio": 0.6666666666666666,
+    "entries": [
+      {
+        "group": "authoritative_urls",
+        "label": "ESP-IDF programming guide",
+        "url": "https://docs.espressif.com/projects/esp-idf/en/stable/esp32/",
+        "ok": true,
+        "status": 200,
+        "final_url": "https://docs.espressif.com/projects/esp-idf/en/stable/esp32/",
+        "method": "HEAD"
+      },
+      {
+        "group": "authoritative_urls",
+        "label": "ST STM32Cube docs",
+        "url": "https://dev.st.com/stm32cube-docs/",
+        "ok": true,
+        "status": 200,
+        "final_url": "https://dev.st.com/stm32cube-docs/",
+        "method": "HEAD"
+      },
+      {
+        "group": "datasheet_roots",
+        "label": "ESP32 hardware reference",
+        "url": "https://docs.espressif.com/projects/esp-idf/en/stable/esp32/hw-reference/index.html",
+        "ok": true,
+        "status": 200,
+        "final_url": "https://docs.espressif.com/projects/esp-idf/en/stable/esp32/hw-reference/index.html",
+        "method": "HEAD"
+      },
+      {
+        "group": "datasheet_roots",
+        "label": "STM32 MCU documentation",
+        "url": "https://www.st.com/en/microcontrollers-microprocessors/stm32-mainstream-mcus/documentation.html",
+        "ok": false,
+        "status": null,
+        "final_url": "https://www.st.com/en/microcontrollers-microprocessors/stm32-mainstream-mcus/documentation.html",
+        "method": "GET",
+        "error": "The read operation timed out"
+      },
+      {
+        "group": "forum_urls",
+        "label": "ARM Community Forums",
+        "url": "https://community.arm.com/support-forums/",
+        "ok": false,
+        "status": null,
+        "final_url": "https://community.arm.com/support-forums/",
+        "method": "GET",
+        "error": "http:404"
+      },
+      {
+        "group": "forum_urls",
+        "label": "All About Circuits Embedded Systems",
+        "url": "https://forum.allaboutcircuits.com/forums/embedded-systems-and-microcontrollers.13/",
+        "ok": false,
+        "status": null,
+        "final_url": "https://forum.allaboutcircuits.com/forums/embedded-systems-and-microcontrollers.13/",
+        "method": "GET",
+        "error": "http:403"
+      },
+      {
+        "group": "forum_urls",
+        "label": "Arduino Forum",
+        "url": "https://forum.arduino.cc/",
+        "ok": true,
+        "status": 200,
+        "final_url": "https://forum.arduino.cc/",
+        "method": "HEAD"
+      },
+      {
+        "group": "forum_urls",
+        "label": "ChibiOS Forum",
+        "url": "https://forum.chibios.org/",
+        "ok": true,
+        "status": 200,
+        "final_url": "https://forum.chibios.org/",
+        "method": "HEAD"
+      },
+      {
+        "group": "forum_urls",
+        "label": "Electronics StackExchange Embedded",
+        "url": "https://electronics.stackexchange.com/questions/tagged/embedded",
+        "ok": false,
+        "status": null,
+        "final_url": "https://electronics.stackexchange.com/questions/tagged/embedded",
+        "method": "GET",
+        "error": "http:403"
+      },
+      {
+        "group": "forum_urls",
+        "label": "Electronics StackExchange STM32",
+        "url": "https://electronics.stackexchange.com/questions/tagged/stm32",
+        "ok": false,
+        "status": null,
+        "final_url": "https://electronics.stackexchange.com/questions/tagged/stm32",
+        "method": "GET",
+        "error": "http:403"
+      },
+      {
+        "group": "forum_urls",
+        "label": "EmbeddedRelated Forum",
+        "url": "https://www.embeddedrelated.com/forum.php",
+        "ok": false,
+        "status": null,
+        "final_url": "https://www.embeddedrelated.com/forum.php",
+        "method": "GET",
+        "error": "http:404"
+      },
+      {
+        "group": "forum_urls",
+        "label": "FreeRTOS Forums",
+        "url": "https://forums.freertos.org/",
+        "ok": true,
+        "status": 200,
+        "final_url": "https://forums.freertos.org/",
+        "method": "HEAD"
+      },
+      {
+        "group": "forum_urls",
+        "label": "PlatformIO Community",
+        "url": "https://community.platformio.org/",
+        "ok": true,
+        "status": 200,
+        "final_url": "https://community.platformio.org/",
+        "method": "HEAD"
+      },
+      {
+        "group": "forum_urls",
+        "label": "ST Community",
+        "url": "https://community.st.com/",
+        "ok": true,
+        "status": 200,
+        "final_url": "https://community.st.com/",
+        "method": "HEAD"
+      },
+      {
+        "group": "github_repos",
+        "label": "STMicroelectronics org",
+        "url": "https://github.com/STMicroelectronics",
+        "ok": true,
+        "status": 200,
+        "final_url": "https://github.com/STMicroelectronics",
+        "method": "HEAD"
+      },
+      {
+        "group": "github_repos",
+        "label": "esp-idf",
+        "url": "https://github.com/espressif/esp-idf",
+        "ok": true,
+        "status": 200,
+        "final_url": "https://github.com/espressif/esp-idf",
+        "method": "HEAD"
+      },
+      {
+        "group": "software_sources",
+        "label": "ESP-IDF product page",
+        "url": "https://www.espressif.com/en/products/sdks/esp-idf",
+        "ok": true,
+        "status": 200,
+        "final_url": "https://www.espressif.com/en/products/sdks/esp-idf",
+        "method": "HEAD"
+      },
+      {
+        "group": "software_sources",
+        "label": "STM32Cube docs",
+        "url": "https://dev.st.com/stm32cube-docs/",
+        "ok": true,
+        "status": 200,
+        "final_url": "https://dev.st.com/stm32cube-docs/",
+        "method": "HEAD"
+      }
+    ]
+  },
+  "legacy_ignored_paths": [
+    "finetune/build_components_dataset.py",
+    "finetune/build_freecad_dataset.py"
+  ],
+  "operator_checklist": [
+    "sample at least 20 refreshed rows and verify technical plausibility",
+    "confirm the newest web findings are represented in prompts/answers",
+    "check duplicates and over-long answers before training",
+    "record any accepted new sources in the research brief before publish"
+  ],
+  "research_validation": {
+    "valid": true,
+    "web_roots_count": 21,
+    "authoritative_count": 2,
+    "github_count": 2,
+    "software_count": 2,
+    "forum_count": 10,
+    "datasheet_count": 2,
+    "hf_count": 3,
+    "query_count": 3,
+    "trusted_domain_count": 3,
+    "minimum_web_roots": 8,
+    "quality_score": 9,
+    "minimum_quality_score": 6,
+    "quality_checks": {
+      "authoritative_sources": true,
+      "github_or_software_sources": true,
+      "forum_coverage": true,
+      "datasheet_or_vendor_roots": true,
+      "hf_or_dataset_roots": true,
+      "query_coverage": true,
+      "trusted_domains_coverage": true,
+      "web_root_depth": true,
+      "live_web_probe": true
+    },
+    "web_probe_status": "partial",
+    "web_probe_reachable_count": 12,
+    "web_probe_total_count": 18
+  }
+}

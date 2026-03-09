@@ -1,0 +1,162 @@
+{
+  "domain": "dsp",
+  "generated_at": "2026-03-09T12:08:26",
+  "source_file": "/ai/saisail/mascarade/finetune/research_sources/domains/dsp.json",
+  "status": "partial",
+  "reachable_count": 9,
+  "total_count": 16,
+  "reachable_ratio": 0.5625,
+  "entries": [
+    {
+      "group": "authoritative_urls",
+      "label": "CMSIS-DSP docs",
+      "url": "https://arm-software.github.io/CMSIS_5/DSP/html/index.html",
+      "ok": true,
+      "status": 200,
+      "final_url": "https://arm-software.github.io/CMSIS_5/DSP/html/index.html",
+      "method": "HEAD"
+    },
+    {
+      "group": "authoritative_urls",
+      "label": "MathWorks signal processing docs",
+      "url": "https://www.mathworks.com/help/signal/",
+      "ok": false,
+      "status": null,
+      "final_url": "https://www.mathworks.com/help/signal/",
+      "method": "GET",
+      "error": "http:403"
+    },
+    {
+      "group": "datasheet_roots",
+      "label": "CMSIS-DSP docs",
+      "url": "https://arm-software.github.io/CMSIS_5/DSP/html/index.html",
+      "ok": true,
+      "status": 200,
+      "final_url": "https://arm-software.github.io/CMSIS_5/DSP/html/index.html",
+      "method": "HEAD"
+    },
+    {
+      "group": "forum_urls",
+      "label": "ARM Community Forums",
+      "url": "https://community.arm.com/support-forums/",
+      "ok": false,
+      "status": null,
+      "final_url": "https://community.arm.com/support-forums/",
+      "method": "GET",
+      "error": "http:404"
+    },
+    {
+      "group": "forum_urls",
+      "label": "DSP StackExchange",
+      "url": "https://dsp.stackexchange.com/",
+      "ok": false,
+      "status": null,
+      "final_url": "https://dsp.stackexchange.com/",
+      "method": "GET",
+      "error": "http:403"
+    },
+    {
+      "group": "forum_urls",
+      "label": "DSPRelated Forums",
+      "url": "https://www.dsprelated.com/forums/",
+      "ok": true,
+      "status": 200,
+      "final_url": "https://www.dsprelated.com/forums/",
+      "method": "HEAD"
+    },
+    {
+      "group": "forum_urls",
+      "label": "EEVblog Forum",
+      "url": "https://www.eevblog.com/forum/",
+      "ok": true,
+      "status": 200,
+      "final_url": "https://www.eevblog.com/forum/",
+      "method": "HEAD"
+    },
+    {
+      "group": "forum_urls",
+      "label": "EmbeddedRelated Forum",
+      "url": "https://www.embeddedrelated.com/forum.php",
+      "ok": false,
+      "status": null,
+      "final_url": "https://www.embeddedrelated.com/forum.php",
+      "method": "GET",
+      "error": "http:404"
+    },
+    {
+      "group": "forum_urls",
+      "label": "GNU Radio Discuss",
+      "url": "https://forum.gnuradio.org/",
+      "ok": false,
+      "status": null,
+      "final_url": "https://forum.gnuradio.org/",
+      "method": "GET",
+      "error": "<urlopen error [Errno -2] Name or service not known>"
+    },
+    {
+      "group": "forum_urls",
+      "label": "Julia Discourse Signal Processing",
+      "url": "https://discourse.julialang.org/tag/signal-processing",
+      "ok": true,
+      "status": 200,
+      "final_url": "https://discourse.julialang.org/tag/signal-processing/1021",
+      "method": "HEAD"
+    },
+    {
+      "group": "forum_urls",
+      "label": "MathWorks MATLAB Answers",
+      "url": "https://www.mathworks.com/matlabcentral/answers/",
+      "ok": false,
+      "status": null,
+      "final_url": "https://www.mathworks.com/matlabcentral/answers/",
+      "method": "GET",
+      "error": "http:403"
+    },
+    {
+      "group": "forum_urls",
+      "label": "NI Forums",
+      "url": "https://forums.ni.com/",
+      "ok": true,
+      "status": 200,
+      "final_url": "https://forums.ni.com/",
+      "method": "HEAD"
+    },
+    {
+      "group": "forum_urls",
+      "label": "Scientific Python Discourse",
+      "url": "https://discuss.scientific-python.org/",
+      "ok": true,
+      "status": 200,
+      "final_url": "https://discuss.scientific-python.org/",
+      "method": "HEAD"
+    },
+    {
+      "group": "github_repos",
+      "label": "CMSIS_5",
+      "url": "https://github.com/ARM-software/CMSIS_5",
+      "ok": true,
+      "status": 200,
+      "final_url": "https://github.com/ARM-software/CMSIS_5",
+      "method": "HEAD"
+    },
+    {
+      "group": "software_sources",
+      "label": "CMSIS-DSP docs",
+      "url": "https://arm-software.github.io/CMSIS_5/DSP/html/index.html",
+      "ok": true,
+      "status": 200,
+      "final_url": "https://arm-software.github.io/CMSIS_5/DSP/html/index.html",
+      "method": "HEAD"
+    },
+    {
+      "group": "software_sources",
+      "label": "MathWorks signal processing docs",
+      "url": "https://www.mathworks.com/help/signal/",
+      "ok": false,
+      "status": null,
+      "final_url": "https://www.mathworks.com/help/signal/",
+      "method": "GET",
+      "error": "http:403"
+    }
+  ]
+}

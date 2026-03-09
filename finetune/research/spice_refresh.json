@@ -1,0 +1,357 @@
+{
+  "version": 1,
+  "generated_at": "2026-03-09T12:09:52",
+  "domain": "spice",
+  "topic": "SPICE / circuit simulation",
+  "dataset_path": "/ai/saisail/mascarade/finetune/datasets/spice_chat.jsonl",
+  "refresh": {
+    "domain": "spice",
+    "generated_at": "2026-03-09T12:09:36",
+    "target_path": "/ai/saisail/mascarade/finetune/datasets/spice_chat.jsonl",
+    "source_mode": "full_dataset_sync",
+    "source_path": "/ai/saisail/mascarade-datasets/spice_chat.jsonl",
+    "builder": null,
+    "row_count": 8421,
+    "ids_fixed": 8421,
+    "duplicates_removed": 0,
+    "quality": {
+      "label": "spice refreshed dataset",
+      "mode": "fail",
+      "status": "warning",
+      "metrics": {
+        "row_count": 8421,
+        "ids_fixed": 8421,
+        "ids_fixed_ratio": 1.0,
+        "unique_system_prompts": 3,
+        "unique_user_prompts": 8417,
+        "duplicate_rows": 0,
+        "duplicate_ratio": 0.0,
+        "repeated_user_assistant_pairs": 0,
+        "repeated_pair_ratio": 0.0,
+        "assistant_len_avg": 797.546965918537,
+        "assistant_len_p95": 1908,
+        "assistant_len_max": 8301,
+        "short_assistant_rows": 22,
+        "short_assistant_ratio": 0.0026125163282270515
+      },
+      "thresholds": {
+        "min_rows_fail": 4,
+        "recommended_rows_warn": 8,
+        "min_unique_users_fail": 4,
+        "max_duplicate_ratio_fail": 0.1,
+        "max_repeated_pair_ratio_fail": 0.1,
+        "max_assistant_p95_fail": 6000,
+        "max_assistant_max_fail": 9000,
+        "max_assistant_avg_warn": 3500,
+        "short_assistant_threshold": 64,
+        "max_short_assistant_ratio_warn": 0.25
+      },
+      "errors": [],
+      "warnings": [
+        "source ids are synthesized for 8421/8421 rows; persist ids in source JSONL for traceability"
+      ],
+      "would_fail": false,
+      "duplicates_removed_during_refresh": 0,
+      "assistant_rows_trimmed_during_refresh": 0
+    },
+    "legacy_ignored_paths": [
+      "finetune/build_components_dataset.py",
+      "finetune/build_freecad_dataset.py"
+    ]
+  },
+  "authoritative_urls": [
+    {
+      "label": "ngspice documentation",
+      "url": "https://ngspice.sourceforge.io/docs.html"
+    },
+    {
+      "label": "LTspice overview",
+      "url": "https://www.analog.com/en/resources/design-tools-and-calculators/ltspice-simulator.html"
+    }
+  ],
+  "github_repos": [
+    {
+      "label": "ngspice",
+      "url": "https://github.com/ngspice/ngspice"
+    }
+  ],
+  "software_sources": [
+    {
+      "label": "ngspice upstream",
+      "url": "https://ngspice.sourceforge.io/"
+    },
+    {
+      "label": "LTspice download and models",
+      "url": "https://www.analog.com/en/resources/simulation-models/spice-models.html"
+    }
+  ],
+  "forum_urls": [
+    {
+      "label": "ngspice Discussions",
+      "url": "https://sourceforge.net/p/ngspice/discussion/"
+    },
+    {
+      "label": "LTspice Groups",
+      "url": "https://groups.io/g/LTspice"
+    },
+    {
+      "label": "Cadence Community",
+      "url": "https://community.cadence.com/"
+    },
+    {
+      "label": "Analog Devices EngineerZone",
+      "url": "https://ez.analog.com/"
+    },
+    {
+      "label": "TI E2E",
+      "url": "https://e2e.ti.com/"
+    },
+    {
+      "label": "All About Circuits Forum",
+      "url": "https://forum.allaboutcircuits.com/"
+    },
+    {
+      "label": "EEVblog Forum",
+      "url": "https://www.eevblog.com/forum/"
+    },
+    {
+      "label": "Electronics StackExchange SPICE",
+      "url": "https://electronics.stackexchange.com/questions/tagged/spice"
+    },
+    {
+      "label": "Electronics StackExchange LTspice",
+      "url": "https://electronics.stackexchange.com/questions/tagged/ltspice"
+    },
+    {
+      "label": "PSMA Technical Forums",
+      "url": "https://psma.com/technical-forums/"
+    }
+  ],
+  "datasheet_roots": [
+    {
+      "label": "Analog Devices LTspice macromodels",
+      "url": "https://www.analog.com/en/resources/simulation-models/spice-models.html"
+    }
+  ],
+  "hf_sources": [
+    {
+      "name": "STEM-AI-mtl/Electrical-engineering",
+      "url": "https://huggingface.co/datasets/STEM-AI-mtl/Electrical-engineering"
+    }
+  ],
+  "queries": [
+    "site:ngspice.sourceforge.io ngspice convergence transient noise",
+    "site:analog.com ltspice switch-mode power simulation",
+    "site:huggingface.co/datasets electrical engineering spice dataset"
+  ],
+  "trusted_domains": [
+    "ngspice.sourceforge.io",
+    "analog.com",
+    "huggingface.co"
+  ],
+  "minimum_web_roots": 8,
+  "minimum_quality_score": 6,
+  "web_probe": {
+    "domain": "spice",
+    "generated_at": "2026-03-09T12:09:52",
+    "source_file": "/ai/saisail/mascarade/finetune/research_sources/domains/spice.json",
+    "status": "partial",
+    "reachable_count": 7,
+    "total_count": 16,
+    "reachable_ratio": 0.4375,
+    "entries": [
+      {
+        "group": "authoritative_urls",
+        "label": "LTspice overview",
+        "url": "https://www.analog.com/en/resources/design-tools-and-calculators/ltspice-simulator.html",
+        "ok": false,
+        "status": null,
+        "final_url": "https://www.analog.com/en/resources/design-tools-and-calculators/ltspice-simulator.html",
+        "method": "GET",
+        "error": "The read operation timed out"
+      },
+      {
+        "group": "authoritative_urls",
+        "label": "ngspice documentation",
+        "url": "https://ngspice.sourceforge.io/docs.html",
+        "ok": true,
+        "status": 200,
+        "final_url": "https://ngspice.sourceforge.io/docs.html",
+        "method": "HEAD"
+      },
+      {
+        "group": "datasheet_roots",
+        "label": "Analog Devices LTspice macromodels",
+        "url": "https://www.analog.com/en/resources/simulation-models/spice-models.html",
+        "ok": false,
+        "status": null,
+        "final_url": "https://www.analog.com/en/resources/simulation-models/spice-models.html",
+        "method": "GET",
+        "error": "The read operation timed out"
+      },
+      {
+        "group": "forum_urls",
+        "label": "All About Circuits Forum",
+        "url": "https://forum.allaboutcircuits.com/",
+        "ok": false,
+        "status": null,
+        "final_url": "https://forum.allaboutcircuits.com/",
+        "method": "GET",
+        "error": "http:403"
+      },
+      {
+        "group": "forum_urls",
+        "label": "Analog Devices EngineerZone",
+        "url": "https://ez.analog.com/",
+        "ok": false,
+        "status": null,
+        "final_url": "https://ez.analog.com/",
+        "method": "GET",
+        "error": "The read operation timed out"
+      },
+      {
+        "group": "forum_urls",
+        "label": "Cadence Community",
+        "url": "https://community.cadence.com/",
+        "ok": true,
+        "status": 200,
+        "final_url": "https://community.cadence.com/",
+        "method": "HEAD"
+      },
+      {
+        "group": "forum_urls",
+        "label": "EEVblog Forum",
+        "url": "https://www.eevblog.com/forum/",
+        "ok": true,
+        "status": 200,
+        "final_url": "https://www.eevblog.com/forum/",
+        "method": "HEAD"
+      },
+      {
+        "group": "forum_urls",
+        "label": "Electronics StackExchange LTspice",
+        "url": "https://electronics.stackexchange.com/questions/tagged/ltspice",
+        "ok": false,
+        "status": null,
+        "final_url": "https://electronics.stackexchange.com/questions/tagged/ltspice",
+        "method": "GET",
+        "error": "http:403"
+      },
+      {
+        "group": "forum_urls",
+        "label": "Electronics StackExchange SPICE",
+        "url": "https://electronics.stackexchange.com/questions/tagged/spice",
+        "ok": false,
+        "status": null,
+        "final_url": "https://electronics.stackexchange.com/questions/tagged/spice",
+        "method": "GET",
+        "error": "http:403"
+      },
+      {
+        "group": "forum_urls",
+        "label": "LTspice Groups",
+        "url": "https://groups.io/g/LTspice",
+        "ok": true,
+        "status": 200,
+        "final_url": "https://groups.io/g/LTspice",
+        "method": "HEAD"
+      },
+      {
+        "group": "forum_urls",
+        "label": "PSMA Technical Forums",
+        "url": "https://psma.com/technical-forums/",
+        "ok": false,
+        "status": null,
+        "final_url": "https://psma.com/technical-forums/",
+        "method": "GET",
+        "error": "http:404"
+      },
+      {
+        "group": "forum_urls",
+        "label": "TI E2E",
+        "url": "https://e2e.ti.com/",
+        "ok": false,
+        "status": null,
+        "final_url": "https://e2e.ti.com/",
+        "method": "GET",
+        "error": "http:500"
+      },
+      {
+        "group": "forum_urls",
+        "label": "ngspice Discussions",
+        "url": "https://sourceforge.net/p/ngspice/discussion/",
+        "ok": true,
+        "status": 200,
+        "final_url": "https://sourceforge.net/p/ngspice/discussion/",
+        "method": "HEAD"
+      },
+      {
+        "group": "github_repos",
+        "label": "ngspice",
+        "url": "https://github.com/ngspice/ngspice",
+        "ok": true,
+        "status": 200,
+        "final_url": "https://github.com/ngspice/ngspice",
+        "method": "HEAD"
+      },
+      {
+        "group": "software_sources",
+        "label": "LTspice download and models",
+        "url": "https://www.analog.com/en/resources/simulation-models/spice-models.html",
+        "ok": false,
+        "status": null,
+        "final_url": "https://www.analog.com/en/resources/simulation-models/spice-models.html",
+        "method": "GET",
+        "error": "The read operation timed out"
+      },
+      {
+        "group": "software_sources",
+        "label": "ngspice upstream",
+        "url": "https://ngspice.sourceforge.io/",
+        "ok": true,
+        "status": 200,
+        "final_url": "https://ngspice.sourceforge.io/",
+        "method": "HEAD"
+      }
+    ]
+  },
+  "legacy_ignored_paths": [
+    "finetune/build_components_dataset.py",
+    "finetune/build_freecad_dataset.py"
+  ],
+  "operator_checklist": [
+    "sample at least 20 refreshed rows and verify technical plausibility",
+    "confirm the newest web findings are represented in prompts/answers",
+    "check duplicates and over-long answers before training",
+    "record any accepted new sources in the research brief before publish"
+  ],
+  "research_validation": {
+    "valid": true,
+    "web_roots_count": 17,
+    "authoritative_count": 2,
+    "github_count": 1,
+    "software_count": 2,
+    "forum_count": 10,
+    "datasheet_count": 1,
+    "hf_count": 1,
+    "query_count": 3,
+    "trusted_domain_count": 3,
+    "minimum_web_roots": 8,
+    "quality_score": 9,
+    "minimum_quality_score": 6,
+    "quality_checks": {
+      "authoritative_sources": true,
+      "github_or_software_sources": true,
+      "forum_coverage": true,
+      "datasheet_or_vendor_roots": true,
+      "hf_or_dataset_roots": true,
+      "query_coverage": true,
+      "trusted_domains_coverage": true,
+      "web_root_depth": true,
+      "live_web_probe": true
+    },
+    "web_probe_status": "partial",
+    "web_probe_reachable_count": 7,
+    "web_probe_total_count": 16
+  }
+}

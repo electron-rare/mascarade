@@ -37,9 +37,19 @@ import subprocess
 import sys
 from pathlib import Path
 
+from dataset_quality import DatasetQualityError, enforce_dataset_quality, summarize_quality_report
+from llm_paths import configure_hf_env, hf_cache_roots, shared_model_cache_dir
 from runtime_compat import disable_broken_torchvision
+from sharegpt_utils import ensure_row_ids_with_stats, load_jsonl, validate_rows
+
+try:
+    from .ollama_runtime import OllamaRuntimeError, create_model, resolve_ollama_runtime, run_model
+except ImportError:  # pragma: no cover - script execution path
+    from ollama_runtime import OllamaRuntimeError, create_model, resolve_ollama_runtime, run_model
 
 _RUNTIME_COMPAT_NOTE = disable_broken_torchvision()
+
+configure_hf_env()
 
 import torch
 from datasets import Dataset
@@ -54,8 +64,11 @@ from transformers import (
 from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training, PeftModel
 
 SCRIPT_DIR = Path(__file__).parent.resolve()
+REPO_ROOT = SCRIPT_DIR.parent.resolve()
 DATASETS_DIR = SCRIPT_DIR / "datasets"
-MODELS_DIR = SCRIPT_DIR / "models_local"
+MODELS_DIR = Path(
+    os.environ.get("MASCARADE_FINETUNE_MODELS_DIR", str(SCRIPT_DIR / "models_local"))
+).resolve()
 MODELFILES_DIR = SCRIPT_DIR / "modelfiles"
 
 DOMAINS = [
@@ -69,19 +82,23 @@ DOMAINS = [
     "embedded",
     "platformio",
     "freecad",
+    "components",
 ]
+
+LOCAL_SHARED_MODEL_CACHE = shared_model_cache_dir()
+LOCAL_QWEN25_7B = LOCAL_SHARED_MODEL_CACHE / "qwen2.5-7b"
 
 # Base models ranked by quality (pick first that fits in VRAM)
 # Local cache paths take priority
 BASE_MODELS = {
-    "qwen2.5-coder-7b": "finetune/models_cache/qwen2.5-7b",  # Local cache
+    "qwen2.5-coder-7b": str(LOCAL_QWEN25_7B) if LOCAL_QWEN25_7B.exists() else "Qwen/Qwen2.5-Coder-7B-Instruct",
     "qwen3-8b": "Qwen/Qwen3-8B",
     "qwen3-1.7b": "Qwen/Qwen3-1.7B",
     "deepseek-coder": "deepseek-ai/DeepSeek-Coder-V2-Lite-Instruct",
     "tinyllama": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
 }
 
-DEFAULT_BASE = "finetune/models_cache/qwen2.5-7b"  # Use local cache by default
+DEFAULT_BASE = BASE_MODELS["qwen2.5-coder-7b"]
 GGUF_QUANTS = ["q4_k_m", "q4_k_s", "q5_k_m", "q8_0"]
 TRAIN_QUANT_MODES = ["4bit", "none"]
 
@@ -103,6 +120,42 @@ CHAT_TEMPLATES = {
         "asst": "Assistant: {}<|end▁of▁sentence|>",
     },
 }
+
+def resolve_local_hf_model_path(model_name: str) -> str:
+    suffix = f"models--{model_name.replace('/', '--')}"
+    for root in hf_cache_roots():
+        snapshots_dir = root / suffix / "snapshots"
+        if not snapshots_dir.exists():
+            continue
+        snapshots = sorted(
+            (path for path in snapshots_dir.iterdir() if path.is_dir()),
+            key=lambda path: path.stat().st_mtime,
+            reverse=True,
+        )
+        for snapshot in snapshots:
+            if (snapshot / "config.json").exists():
+                return str(snapshot.resolve())
+    return model_name
+
+
+def resolve_model_source(model_ref: str) -> str:
+    """Resolve a local model path to an absolute filesystem path when possible."""
+    candidate = Path(model_ref)
+    search_paths = []
+    if candidate.is_absolute():
+        search_paths.append(candidate)
+    else:
+        search_paths.extend(
+            [
+                candidate,
+                REPO_ROOT / candidate,
+                SCRIPT_DIR / candidate,
+            ]
+        )
+    for path in search_paths:
+        if path.exists():
+            return str(path.resolve())
+    return resolve_local_hf_model_path(model_ref)
 
 
 def detect_family(model_name: str) -> str:
@@ -157,9 +210,29 @@ def step_train(
     max_samples: int | None = None,
     train_quant: str = "4bit",
 ):
+    base_model = resolve_model_source(base_model)
     dataset_path = DATASETS_DIR / f"{domain}_chat.jsonl"
     if not dataset_path.exists():
         print(f"[!] Dataset not found: {dataset_path}")
+        return False
+    raw_rows = load_jsonl(dataset_path)
+    normalized_rows, normalized_source_ids = ensure_row_ids_with_stats(
+        raw_rows, f"{domain}-dataset"
+    )
+    validation_errors = validate_rows(normalized_rows)
+    if validation_errors:
+        for error in validation_errors[:10]:
+            print(f"[ERROR] {error}")
+        print(f"[!] Dataset is invalid ({len(validation_errors)} errors)")
+        return False
+    try:
+        dataset_quality = enforce_dataset_quality(
+            normalized_rows,
+            label=f"{domain} dataset",
+            ids_fixed=normalized_source_ids,
+        )
+    except DatasetQualityError as exc:
+        print(f"[!] Dataset quality gate failed: {exc}")
         return False
 
     output_dir = MODELS_DIR / domain
@@ -173,6 +246,8 @@ def step_train(
     print(f"  Chat:  {family}")
     print(f"  Seq:   {max_seq_len}, Epochs: {epochs}")
     print(f"{'='*60}")
+    if dataset_quality["warnings"]:
+        print(f"  [WARN] quality: {summarize_quality_report(dataset_quality)}")
 
     gc.collect()
     torch.cuda.empty_cache()
@@ -184,7 +259,11 @@ def step_train(
 
     # Tokenizer
     print("\n[2/5] Tokenizer...")
-    tokenizer = AutoTokenizer.from_pretrained(base_model, trust_remote_code=True)
+    tokenizer = AutoTokenizer.from_pretrained(
+        base_model,
+        trust_remote_code=True,
+        local_files_only=Path(base_model).exists(),
+    )
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
     tokenizer.padding_side = "right"
@@ -238,6 +317,7 @@ def step_train(
     model = AutoModelForCausalLM.from_pretrained(
         base_model,
         **model_kwargs,
+        local_files_only=Path(base_model).exists(),
     )
     if train_quant != "none":
         model = prepare_model_for_kbit_training(model)
@@ -351,6 +431,7 @@ def step_merge(domain: str, base_model: str | None = None):
     if base_model is None:
         info = json.loads((output_dir / "training_info.json").read_text())
         base_model = info.get("base_model") or info.get("model")
+    base_model = resolve_model_source(base_model)
 
     print(f"\n{'='*60}")
     print(f"  MERGE: {domain}")
@@ -365,6 +446,7 @@ def step_merge(domain: str, base_model: str | None = None):
         torch_dtype=torch.float16,
         device_map="cpu",
         trust_remote_code=True,
+        local_files_only=Path(base_model).exists(),
     )
 
     # Load and merge adapter
@@ -378,7 +460,7 @@ def step_merge(domain: str, base_model: str | None = None):
     merged_path.mkdir(parents=True, exist_ok=True)
     model.save_pretrained(str(merged_path), safe_serialization=True)
 
-    tokenizer = AutoTokenizer.from_pretrained(str(adapter_path))
+    tokenizer = AutoTokenizer.from_pretrained(str(adapter_path), local_files_only=True)
     tokenizer.save_pretrained(str(merged_path))
 
     size_gb = (
@@ -512,7 +594,7 @@ def step_gguf(domain: str, quant: str = "q4_k_m"):
 # ──────────────────────────────────────────────────────────────
 # STEP 4: Deploy to Ollama
 # ──────────────────────────────────────────────────────────────
-def step_deploy(domain: str):
+def step_deploy(domain: str, deploy_alias: str | None = None):
     output_dir = MODELS_DIR / domain
     gguf_files = list(output_dir.glob("*.gguf"))
     if not gguf_files:
@@ -520,7 +602,7 @@ def step_deploy(domain: str):
         return False
 
     gguf_path = gguf_files[0]
-    model_name = f"mascarade-{domain}"
+    model_name = (deploy_alias or f"mascarade-{domain}").strip()
 
     # Use existing Modelfile or generate one
     modelfile_src = MODELFILES_DIR / f"Modelfile.{domain}"
@@ -555,51 +637,24 @@ def step_deploy(domain: str):
         content = "\n".join(lines)
     tmp_modelfile.write_text(content)
 
-    # Deploy via docker exec (Ollama runs in Docker)
-    # First copy GGUF into Ollama container
-    container = "mascarade-ollama"
+    try:
+        runtime = resolve_ollama_runtime()
+    except OllamaRuntimeError as exc:
+        print(f"  [!] Unable to resolve an Ollama deploy target: {exc}")
+        tmp_modelfile.unlink(missing_ok=True)
+        return False
 
-    print("\n  Copying GGUF to Ollama container...")
-    subprocess.run(
-        ["docker", "cp", str(gguf_path), f"{container}:/tmp/{gguf_path.name}"],
-        check=True,
-    )
-    subprocess.run(
-        ["docker", "cp", str(tmp_modelfile), f"{container}:/tmp/Modelfile"],
-        check=True,
-    )
-
-    # Update FROM path in container
-    subprocess.run(
-        [
-            "docker",
-            "exec",
-            container,
-            "sed",
-            "-i",
-            f"s|FROM .*|FROM /tmp/{gguf_path.name}|",
-            "/tmp/Modelfile",
-        ],
-        check=True,
-    )
-
+    print(f"\n  Ollama runtime: {runtime['mode']} ({runtime['reason']})")
     print(f"  Creating Ollama model '{model_name}'...")
-    result = subprocess.run(
-        [
-            "docker",
-            "exec",
-            container,
-            "ollama",
-            "create",
-            model_name,
-            "-f",
-            "/tmp/Modelfile",
-        ],
-        capture_output=True,
-        text=True,
+    result = create_model(
+        runtime,
+        model_name=model_name,
+        modelfile_path=tmp_modelfile,
+        gguf_path=gguf_path,
     )
     if result.returncode != 0:
-        print(f"  [!] ollama create failed: {result.stderr}")
+        print(f"  [!] ollama create failed: {result.stderr or result.stdout}")
+        tmp_modelfile.unlink(missing_ok=True)
         return False
 
     print("  Model created!")
@@ -615,14 +670,12 @@ def step_deploy(domain: str):
         "dsp": "Implement a moving average filter in C",
         "emc": "Decoupling capacitor values for 100MHz IC?",
         "embedded": "Write bare-metal SysTick timer init for Cortex-M4",
+        "platformio": "Write a minimal PlatformIO pio.ini for ESP32 with OTA enabled",
+        "freecad": "Write a short FreeCAD Python macro for a parametric enclosure box",
+        "components": "Suggest two good alternatives to LM317 and explain when each is better",
     }
     prompt = test_prompts.get(domain, "Hello, describe your specialty.")
-    result = subprocess.run(
-        ["docker", "exec", container, "ollama", "run", model_name, prompt],
-        capture_output=True,
-        text=True,
-        timeout=120,
-    )
+    result = run_model(runtime, model_name=model_name, prompt=prompt, timeout=120)
     if result.returncode == 0:
         print("  Response (first 300 chars):")
         print(f"  {result.stdout[:300]}")
@@ -664,7 +717,7 @@ def run_pipeline(domain: str, base_model: str, step: str | None, **kwargs):
         elif s == "gguf":
             ok = step_gguf(domain, gguf_quant)
         elif s == "deploy":
-            ok = step_deploy(domain)
+            ok = step_deploy(domain, deploy_alias=kwargs.get("deploy_alias"))
         else:
             print(f"[!] Unknown step: {s}")
             ok = False
@@ -723,6 +776,11 @@ Available base models:
         choices=TRAIN_QUANT_MODES,
         help="Training load mode: `4bit` for QLoRA, `none` for full FP16 load",
     )
+    parser.add_argument(
+        "--deploy-alias",
+        default=None,
+        help="Override the Ollama model alias used during the deploy step",
+    )
     args = parser.parse_args()
     train_quant = args.train_quant or "4bit"
     gguf_quant = args.quant
@@ -748,6 +806,7 @@ Available base models:
             max_samples=args.max_samples,
             quant=gguf_quant,
             train_quant=train_quant,
+            deploy_alias=args.deploy_alias,
         )
 
 

@@ -1,0 +1,103 @@
+{
+  "domain": "iot",
+  "topic": "IoT / ESP-IDF / Home Assistant",
+  "minimum_web_roots": 8,
+  "forum_urls": [
+    {
+      "label": "ST Community",
+      "url": "https://community.st.com/"
+    },
+    {
+      "label": "PlatformIO Community",
+      "url": "https://community.platformio.org/"
+    },
+    {
+      "label": "ChibiOS Forum",
+      "url": "https://forum.chibios.org/"
+    },
+    {
+      "label": "FreeRTOS Forums",
+      "url": "https://forums.freertos.org/"
+    },
+    {
+      "label": "ARM Community Forums",
+      "url": "https://community.arm.com/support-forums/"
+    },
+    {
+      "label": "Arduino Forum",
+      "url": "https://forum.arduino.cc/"
+    },
+    {
+      "label": "EmbeddedRelated Forum",
+      "url": "https://www.embeddedrelated.com/forum.php"
+    },
+    {
+      "label": "Electronics StackExchange STM32",
+      "url": "https://electronics.stackexchange.com/questions/tagged/stm32"
+    },
+    {
+      "label": "Electronics StackExchange Embedded",
+      "url": "https://electronics.stackexchange.com/questions/tagged/embedded"
+    },
+    {
+      "label": "All About Circuits Embedded Systems",
+      "url": "https://forum.allaboutcircuits.com/forums/embedded-systems-and-microcontrollers.13/"
+    }
+  ],
+  "authoritative_urls": [
+    {
+      "label": "ESP-IDF programming guide",
+      "url": "https://docs.espressif.com/projects/esp-idf/en/stable/esp32/"
+    },
+    {
+      "label": "Home Assistant developer docs",
+      "url": "https://developers.home-assistant.io/"
+    }
+  ],
+  "github_repos": [
+    {
+      "label": "esp-idf",
+      "url": "https://github.com/espressif/esp-idf"
+    },
+    {
+      "label": "espressif org",
+      "url": "https://github.com/espressif"
+    },
+    {
+      "label": "home-assistant core",
+      "url": "https://github.com/home-assistant/core"
+    }
+  ],
+  "software_sources": [
+    {
+      "label": "ESP-IDF product page",
+      "url": "https://www.espressif.com/en/products/sdks/esp-idf"
+    },
+    {
+      "label": "Home Assistant developer portal",
+      "url": "https://developers.home-assistant.io/"
+    }
+  ],
+  "datasheet_roots": [
+    {
+      "label": "ESP32 hardware reference",
+      "url": "https://docs.espressif.com/projects/esp-idf/en/stable/esp32/hw-reference/index.html"
+    }
+  ],
+  "hf_sources": [
+    "gouthamsk/esp_idf_code",
+    "acon96/Home-Assistant-Requests",
+    "gavmac00/arduino-docs",
+    "bshada/arduino.stackexchange.com"
+  ],
+  "queries": [
+    "site:docs.espressif.com esp-idf mqtt ota deep sleep",
+    "site:developers.home-assistant.io integration websocket mqtt",
+    "site:huggingface.co/datasets esp idf code dataset"
+  ],
+  "trusted_domains": [
+    "docs.espressif.com",
+    "developers.home-assistant.io",
+    "huggingface.co"
+  ]
+}

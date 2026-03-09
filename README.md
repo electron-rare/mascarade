@@ -62,20 +62,6 @@ Mascarade fait partie d'un ecosysteme de 5 repos :
 - runbook Apple local: [`docs/RUNBOOK_APPLE_LLM_LOCAL.md`](./docs/RUNBOOK_APPLE_LLM_LOCAL.md)
 - l'integration `ai-novel-engine` reste limitee au runtime local et au contrat OpenAI-compatible
 
-## Helpers ANE
-
-Pour les cycles locaux `ai-novel-engine`, `mascarade` expose maintenant deux helpers operatoires:
-
-```bash
-bash scripts/ensure_apple_models.sh
-bash scripts/prepare_runtime_step.sh --apple-model qwen3.5-4b-onnx-q4f16
-```
-
-Usage:
-- `ensure_apple_models.sh` verifie ou installe les trois modeles Apple requis du cycle ANE
-- `prepare_runtime_step.sh` prepare sans l'executer le restart `core/api`, le restart Apple local ou le switch du `model_id` Apple actif
-- l'orchestrateur ANE `python3 scripts/run_next_lots.py` s'appuie sur ces helpers pour les checkpoints semi-autos
-
 **Core Python** (`core/`, port `8100`) -- Moteur d'orchestration, routeur LLM, agents, metriques
 **API TypeScript** (`api/`, port `3100`) -- Facade HTTP Hono, auth middleware, proxy vers le core
 **VM** -- Deploiement Docker sur `192.168.0.119`
@@ -130,26 +116,36 @@ devient la note de handoff court terme pour le lot actif.
 
 Pipeline de fine-tuning QLoRA pour modeles code specialises electronique embarquee.
 
-- **GPU cible** : Quadro P2000 (5 GB VRAM, CUDA 6.1) avec PyTorch 2.3.1+cu121
-- **Modele par defaut** : `Qwen/Qwen2.5-Coder-1.5B-Instruct`
+- **Profil operateur** : derive du materiel detecte
+- **Machine validee ici** : RTX 4090 24 Go
+- **Student auto courant** : `Qwen/Qwen3.5-9B-Base`
 - **10 domaines** : stm32, spice, iot, power, dsp, emc, kicad, embedded, platformio, freecad
 - **Datasets** : ~74k exemples au format ShareGPT (repo [mascarade-datasets](https://github.com/electron-rare/mascarade-datasets))
+- **Racine canonique des modeles** : `/ai/llm`
+
+Runbook detaille:
+
+- [docs/FINETUNING_OPERATOR_RUNBOOK.md](/ai/saisail/mascarade/docs/FINETUNING_OPERATOR_RUNBOOK.md)
 
 ```bash
-# Selection automatique du modele optimal
-.venv/bin/python finetune/model_selector.py --vram 5 --auto --download
+cd /ai/saisail/mascarade
+. ./scripts/llm_env.sh
 
-# Entrainement GPU (QLoRA 4-bit)
-.venv/bin/python finetune/train_local.py stm32
+# Selection/veille du student
+venv_tuning/bin/python finetune/model_selector.py --watch --refresh --task code --top 6 --auto
 
-# Entrainement CPU (fallback)
-.venv/bin/python finetune/train_cpu.py kicad
+# Entrainement local auto
+venv_tuning/bin/python finetune/run_local.py stm32
 
-# Batch sur tous les domaines
-bash finetune/train_all.sh
+# Prochain lot utile
+./scripts/next_finetune_lots.sh --skip-cad-smoke --skip-components-review
+./scripts/bench_watch_candidate.sh
+./scripts/bench_watch_candidate.sh --execute
+./scripts/auto_chain_next_lots_loop.sh --iterations 1 --sleep-seconds 600 --max-blocked-streak 12 --max-cycles 0
 
-# Pipeline complet : train -> merge -> GGUF -> deploy Ollama
-.venv/bin/python finetune/pipeline.py stm32 --step all
+# Consolidation des caches/modeles
+./scripts/migrate_models_to_llm.sh
+./scripts/migrate_models_to_llm.sh --execute --cleanup --link-home-cache
 ```
 
 ---
@@ -346,10 +342,13 @@ export APPLE_LLM_TOKENIZER_PATH="$HOME/Models/mascarade/apple-llm/StatefulMistra
 
 Pour les smokes `ai-novel-engine`, prevoir un timeout Apple plus large que les providers cloud: le warm-up Core ML peut depasser plusieurs minutes sur le premier appel.
 
-Validation locale utile pour `ai-novel-engine` au 9 mars 2026:
-- `apple-coreml:qwen3.5-4b-onnx-q4f16` est maintenant `accepted` sous protocole ANE avec garde-fou actif
-- `ollama:qwen2.5:7b` atteint `gate`, exerce `repair` en live, puis finit `quality_blocked` sur `outline_like`
-- `apple-coreml:qwen2.5-0.5b-instruct-onnx` et `ollama:qwen2.5:1.5b` sont en rerun baseline separe
+Validation locale utile pour `ai-novel-engine` au 8 mars 2026:
+- sous protocole ANE avec garde-fou actif, aucun modele n'est encore `accepted`
+- sous protocole ANE avec boucle `repair`, aucun modele n'atteint encore `gate` en live
+- `apple-coreml:qwen2.5-0.5b-instruct-onnx` atteint `rewrite` puis timeoute a `300s`
+- `apple-coreml:qwen3.5-4b-onnx-q4f16` atteint `rewrite` avec une critique exploitable puis timeoute a `300s`
+- `ollama:qwen2.5:1.5b` timeoute en `structure` via le service Docker CPU
+- `ollama:qwen2.5:7b` atteint `rewrite` avec une critique exploitable puis timeoute a `300s`
 - `apple-coreml:stateful-mistral7b-instruct-int4-coreml` repond au preflight, mais reste preflight-only pour ANE sur cette machine
 - pour les smokes ANE qualitatifs sur le service Docker CPU, prevoir un `OLLAMA_TIMEOUT_SECONDS` plus large que `180` si les requetes de structure ou de draft depassent plusieurs minutes
 - le runtime Apple local ne sert qu'un seul `model_id` a la fois; pour comparer plusieurs modeles Apple, il faut relancer `:8201` entre deux runs
@@ -386,8 +385,8 @@ export APPLE_LLM_ENABLED=true
 export APPLE_LLM_BASE_URL=http://host.docker.internal:8201
 export APPLE_LLM_MODEL_ID=qwen3.5-4b-onnx-q4f16
 export APPLE_LLM_BACKEND=onnx-coreml
-export APPLE_LLM_MODEL_PATH="$HOME/Models/mascarade/apple-llm/Qwen3.5-4B-ONNX-q4f16/onnx/decoder_model_merged_q4f16.onnx"
-export APPLE_LLM_TOKENIZER_PATH="$HOME/Models/mascarade/apple-llm/Qwen3.5-4B-ONNX-q4f16"
+export APPLE_LLM_MODEL_PATH="/ai/llm/apple-llm/Qwen3.5-4B-ONNX-q4f16/onnx/decoder_model_merged_q4f16.onnx"
+export APPLE_LLM_TOKENIZER_PATH="/ai/llm/apple-llm/Qwen3.5-4B-ONNX-q4f16"
 export APPLE_LLM_ENABLE_THINKING=false
 
 ./scripts/run_apple_llm_service.sh
@@ -1019,3 +1018,16 @@ mascarade/
 - etat de reference ANE: aucun accepted, meilleur diagnostic: apple-coreml:qwen2.5-0.5b-instruct-onnx
 - prochain lot utile cote pipeline: Analyser les runs ayant atteint gate/repair puis resserrer la reference locale autour des meilleurs candidats.
 <!-- AUTO-SYNC:MASCARADE-README:END -->
+
+## P2P Secure Sync
+
+For secure peer-to-peer synchronization of environment files and API keys:
+
+- [P2P Sync Documentation](P2P_SYNC_README.md)
+- [Deployment Guide](P2P_NETWORK_README.md#deployment-scenarios)
+
+Features:
+- 8-character public key authentication
+- 32-character auth tokens
+- AES-256 encryption for secrets
+- Rsync-based efficient transfers

@@ -17,26 +17,38 @@ from urllib import error, request
 
 import torch
 
+from auto_policy import (
+    detect_machine_profile,
+    resolve_autotune_plan,
+    resolve_default_student_model,
+    resolve_requested_device,
+    resolve_teacher_objective,
+    resolve_teacher_selection,
+)
 from dataset_bootstrap import ensure_seed_dataset
+from dataset_quality import DatasetQualityError, enforce_dataset_quality, summarize_quality_report
+from dataset_refresh import refresh_domains
 from llmfit_utils import (
     build_llmfit_record,
     env_flag,
     plan_model_with_llmfit,
     write_llmfit_plan,
 )
-from run_local import (
-    probe_cuda as probe_run_local_cuda,
-    reject_teacher_only_student,
-    resolve_model as resolve_run_local_model,
+from model_selector import (
+    FALLBACK_MODEL as DEFAULT_STUDENT_MODEL,
+    ensure_model_selection,
+    resolve_model,
 )
+from promotion_utils import DEFAULT_PROMOTION_QUANT, promote_domain_run
 from sharegpt_utils import (
-    count_missing_row_ids,
-    dedupe_rows,
+    dedupe_rows_with_stats,
     ensure_row_ids,
+    ensure_row_ids_with_stats,
     load_jsonl,
     validate_rows,
     write_jsonl,
 )
+from workspace_utils import prepare_training_output_dir
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 DISTILL_SCRIPT = SCRIPT_DIR / "distill_dataset.py"
@@ -48,7 +60,7 @@ DEFAULT_API_URLS = ["http://127.0.0.1:8100"]
 LOCAL_HF_PROVIDER = "local-hf"
 DEFAULT_OLLAMA_API_URL = "http://127.0.0.1:11434"
 
-DEFAULT_DOMAINS = ["esp32", "spice", "pio"]
+DEFAULT_DOMAINS = ["iot", "spice", "platformio"]
 ALIAS_MAP = {
     "esp32": "iot",
     "pio": "platformio",
@@ -64,7 +76,7 @@ SUPPORTED_DOMAINS = [
     "embedded",
     "platformio",
     "freecad",
-    "project",
+    "components",
 ]
 
 
@@ -80,7 +92,10 @@ class DomainJob:
     retry_out: Path
     retry_report_path: Path
     retry_failures_out: Path
+    requested_train_output_dir: Path
     train_output_dir: Path
+    train_output_mode: str
+    train_output_reason: str
     train_run_manifest: Path
     train_llmfit_plan: Path
     distill_log: Path
@@ -89,6 +104,40 @@ class DomainJob:
 
 def canonical_domain(raw_domain: str) -> str:
     return ALIAS_MAP.get(raw_domain, raw_domain)
+
+
+def resolve_student_model_selection(
+    explicit_model: str | None,
+    machine_profile: dict,
+    requested_device: str,
+    *,
+    seq_len: int,
+    offline: bool,
+) -> tuple[str, str, dict | None]:
+    if explicit_model and explicit_model.strip():
+        return explicit_model.strip(), "explicit", None
+    if not offline:
+        selection_info = ensure_model_selection(
+            fallback_model=DEFAULT_STUDENT_MODEL,
+            task="code",
+            seq_len=seq_len,
+            watch=True,
+            verbose=False,
+        )
+        selection_model = str(selection_info.get("model_id") or "").strip()
+        if selection_model and selection_info.get("source") != "fallback":
+            return selection_model, str(selection_info.get("source")), selection_info
+    resolved = resolve_model(DEFAULT_STUDENT_MODEL)
+    if resolved != DEFAULT_STUDENT_MODEL:
+        return resolved, "selected_model", None
+    resolved, _reason = resolve_default_student_model(
+        machine_profile=machine_profile,
+        fallback_model=DEFAULT_STUDENT_MODEL,
+        requested_device=requested_device,
+    )
+    if resolved != DEFAULT_STUDENT_MODEL:
+        return resolved, "hardware_auto", None
+    return DEFAULT_STUDENT_MODEL, "default", None
 
 
 def now_ts() -> str:
@@ -102,26 +151,6 @@ def resolve_path(raw_path: str | None) -> Path | None:
     if not path.is_absolute():
         path = (Path.cwd() / path).resolve()
     return path
-
-
-def resolve_batch_student_model(config: dict) -> tuple[str, str | None, str]:
-    requested_model = config.get("student_model")
-    gpu_ready, _gpu_reason = probe_run_local_cuda()
-    resolved_device = (
-        "gpu"
-        if (
-            config.get("device") == "gpu"
-            or (config.get("device") == "auto" and gpu_ready)
-        )
-        else "cpu"
-    )
-    model_name, model_note = resolve_run_local_model(
-        requested_model,
-        resolved_device,
-        bool(config.get("offline")),
-    )
-    reject_teacher_only_student(model_name)
-    return model_name, model_note, resolved_device
 
 
 def load_env_var_from_dotenv(name: str) -> str | None:
@@ -157,33 +186,129 @@ def write_manifest(path: Path, payload: dict) -> None:
     )
 
 
+def summarize_validation_errors(errors: list[str], *, limit: int = 5) -> str:
+    snippet = errors[:limit]
+    return "; ".join(snippet)
+
+
+def prevalidate_source_dataset(
+    *, label: str, canonical: str, source_dataset: Path
+) -> dict[str, object]:
+    try:
+        raw_rows = load_jsonl(source_dataset)
+    except json.JSONDecodeError as exc:
+        raise SystemExit(
+            f"Invalid JSONL in source dataset for {label}: {source_dataset} ({exc})"
+        ) from exc
+
+    normalized_rows, normalized_source_ids = ensure_row_ids_with_stats(
+        raw_rows, f"{canonical}-source"
+    )
+    validation_errors = validate_rows(normalized_rows)
+    if validation_errors:
+        detail = summarize_validation_errors(validation_errors)
+        raise SystemExit(
+            f"Source dataset invalid for {label}: {source_dataset} "
+            f"({len(validation_errors)} errors; {detail})"
+        )
+
+    try:
+        quality_report = enforce_dataset_quality(
+            normalized_rows,
+            label=f"{label} source dataset",
+            ids_fixed=normalized_source_ids,
+        )
+    except DatasetQualityError as exc:
+        raise SystemExit(f"Source dataset quality gate failed for {label}: {exc}") from exc
+
+    if normalized_source_ids:
+        print(
+            f"[INFO] source-prevalidation {label}: "
+            f"normalized_ids={normalized_source_ids} source_rows={len(normalized_rows)}"
+        )
+    if quality_report["warnings"]:
+        print(
+            f"[WARN] source-quality {label}: {summarize_quality_report(quality_report)}"
+        )
+
+    return {
+        "source_rows": len(normalized_rows),
+        "normalized_source_ids": normalized_source_ids,
+        "quality_gate": quality_report,
+    }
+
+
+def final_failed_source_rows(distill_payload: dict) -> int:
+    if "failed_source_rows" in distill_payload:
+        return int(distill_payload.get("failed_source_rows") or 0)
+    retry_failures = distill_payload.get("retry_failures")
+    if retry_failures is not None:
+        return int(retry_failures or 0)
+    return int(distill_payload.get("initial_failures") or 0)
+
+
+def update_batch_summary(manifest: dict) -> None:
+    domains = manifest.get("domains", {})
+    distill_payloads = [
+        payload.get("distill", {})
+        for payload in domains.values()
+        if payload.get("distill", {}).get("status") == "completed"
+    ]
+    manifest["summary"] = {
+        "domains_total": len(domains),
+        "distills_completed": len(distill_payloads),
+        "trains_completed": sum(
+            1
+            for payload in domains.values()
+            if payload.get("train", {}).get("status") == "completed"
+        ),
+        "source_rows": sum(int(item.get("source_rows") or 0) for item in distill_payloads),
+        "distilled_rows": sum(
+            int(item.get("distilled_rows") or 0) for item in distill_payloads
+        ),
+        "merged_rows": sum(int(item.get("merged_rows") or 0) for item in distill_payloads),
+        "duplicates_removed": sum(
+            int(item.get("duplicates_removed") or 0) for item in distill_payloads
+        ),
+        "failed_source_rows": sum(final_failed_source_rows(item) for item in distill_payloads),
+        "promotions_completed": sum(
+            1
+            for payload in domains.values()
+            if payload.get("promotion", {}).get("status") == "completed"
+        ),
+        "promotions_pending_manual_review": sum(
+            1
+            for payload in domains.values()
+            if payload.get("promotion", {}).get("status") == "pending_manual_review"
+        ),
+    }
+
+
 def build_jobs(
     *,
     labels: list[str],
     run_dir: Path,
     run_label: str,
     stamp: str,
-    source_dataset_override: Path | None = None,
 ) -> dict[str, DomainJob]:
     jobs: dict[str, DomainJob] = {}
     log_dir = run_dir / "logs"
-    if source_dataset_override is not None and len(labels) != 1:
-        raise SystemExit("--source-dataset only supports a single domain label")
     for label in labels:
         canonical = canonical_domain(label)
         if canonical not in SUPPORTED_DOMAINS:
             raise SystemExit(f"Unsupported domain: {label} -> {canonical}")
-        source_dataset = (
-            source_dataset_override
-            if source_dataset_override is not None
-            else DATASETS_DIR / f"{canonical}_chat.jsonl"
-        )
+        source_dataset = DATASETS_DIR / f"{canonical}_chat.jsonl"
         if not source_dataset.exists():
             builder = ensure_seed_dataset(SCRIPT_DIR, canonical, source_dataset)
             if builder is not None:
                 print(f"[BOOTSTRAP] built seed dataset for {label} via {builder.name}")
         if not source_dataset.exists():
             raise SystemExit(f"Source dataset not found: {source_dataset}")
+        requested_train_output_dir = (
+            SCRIPT_DIR / "models_local" / f"{label}_{run_label}_{stamp}"
+        )
+        train_output_workspace = prepare_training_output_dir(requested_train_output_dir)
+        train_output_dir = Path(train_output_workspace["output_dir"])
         jobs[label] = DomainJob(
             label=label,
             canonical=canonical,
@@ -196,39 +321,71 @@ def build_jobs(
             retry_report_path=run_dir / f"{label}_teacher_retry_{stamp}.report.json",
             retry_failures_out=run_dir
             / f"{label}_teacher_retry_{stamp}.failures.jsonl",
-            train_output_dir=SCRIPT_DIR
-            / "models_local"
-            / f"{label}_{run_label}_{stamp}",
-            train_run_manifest=SCRIPT_DIR
-            / "models_local"
-            / f"{label}_{run_label}_{stamp}"
-            / "run.json",
-            train_llmfit_plan=SCRIPT_DIR
-            / "models_local"
-            / f"{label}_{run_label}_{stamp}"
-            / "llmfit_plan.json",
+            requested_train_output_dir=requested_train_output_dir,
+            train_output_dir=train_output_dir,
+            train_output_mode=str(train_output_workspace["mode"]),
+            train_output_reason=str(train_output_workspace["reason"]),
+            train_run_manifest=train_output_dir / "run.json",
+            train_llmfit_plan=train_output_dir / "llmfit_plan.json",
             distill_log=log_dir / f"{label}_distill.log",
             train_log=log_dir / f"{label}_train.log",
         )
     return jobs
 
 
+def maybe_refresh_source_datasets(
+    args: argparse.Namespace, labels: list[str]
+) -> dict[str, dict]:
+    if not args.refresh_datasets:
+        return {}
+    canonical_labels = sorted({canonical_domain(label) for label in labels})
+    reports = refresh_domains(
+        canonical_labels,
+        dataset_dir=DATASETS_DIR,
+        with_hf=args.refresh_with_hf,
+        max_samples=args.refresh_max_samples,
+        prefer_full_datasets=args.prefer_full_datasets,
+        full_datasets_root=resolve_path(args.full_datasets_root),
+        research_dir=resolve_path(args.research_dir),
+        emit_research_brief=not args.skip_research_briefs,
+    )
+    for canonical, report in reports.items():
+        print(
+            f"[REFRESH] {canonical}: mode={report['source_mode']} "
+            f"rows={report['row_count']} quality={report['quality']['status']}"
+        )
+        if report["quality"].get("warnings"):
+            print(
+                f"[WARN] refresh-quality {canonical}: "
+                f"{summarize_quality_report(report['quality'])}"
+            )
+    return reports
+
+
 def build_new_manifest(
-    args: argparse.Namespace, run_dir: Path, labels: list[str], stamp: str
+    args: argparse.Namespace,
+    run_dir: Path,
+    labels: list[str],
+    stamp: str,
+    refresh_reports: dict[str, dict] | None = None,
 ) -> dict:
     jobs = build_jobs(
-        labels=labels,
-        run_dir=run_dir,
-        run_label=args.run_label,
-        stamp=stamp,
-        source_dataset_override=resolve_path(args.source_dataset),
+        labels=labels, run_dir=run_dir, run_label=args.run_label, stamp=stamp
     )
+    refresh_reports = refresh_reports or {}
     domains: dict[str, dict] = {}
     for label, job in jobs.items():
+        source_prevalidation = prevalidate_source_dataset(
+            label=label,
+            canonical=job.canonical,
+            source_dataset=job.source_dataset,
+        )
         domains[label] = {
             "label": label,
             "canonical": job.canonical,
             "source_dataset": str(job.source_dataset),
+            "dataset_refresh": refresh_reports.get(job.canonical),
+            "source_prevalidation": source_prevalidation,
             "distilled_out": str(job.distilled_out),
             "merged_out": str(job.merged_out),
             "report_path": str(job.report_path),
@@ -236,12 +393,14 @@ def build_new_manifest(
             "retry_out": str(job.retry_out),
             "retry_report_path": str(job.retry_report_path),
             "retry_failures_out": str(job.retry_failures_out),
+            "requested_train_output_dir": str(job.requested_train_output_dir),
             "train_output_dir": str(job.train_output_dir),
+            "train_output_mode": job.train_output_mode,
+            "train_output_reason": job.train_output_reason,
             "train_run_manifest": str(job.train_run_manifest),
             "train_llmfit_plan": str(job.train_llmfit_plan),
             "distill_log": str(job.distill_log),
             "train_log": str(job.train_log),
-            "source_validation": {"status": "pending"},
             "distill": {"status": "pending"},
             "train": {
                 "status": "skipped" if args.skip_train else "pending",
@@ -257,6 +416,8 @@ def build_new_manifest(
         "config": {
             "teacher_provider": args.teacher_provider,
             "teacher_model": args.teacher_model,
+            "teacher_objective": args.teacher_objective,
+            "teacher_selection": args.teacher_selection,
             "api_urls": args.api_urls or DEFAULT_API_URLS,
             "teacher_only": args.teacher_only,
             "strategy": args.strategy,
@@ -269,30 +430,41 @@ def build_new_manifest(
             "json_retries": args.json_retries,
             "seed": args.seed,
             "sleep_ms": args.sleep_ms,
-            "source_dataset_override": args.source_dataset,
             "teacher_system_path": args.teacher_system_path,
+            "local_hf_device": args.local_hf_device,
             "overlap_teacher_train": args.overlap_teacher_train,
             "device": args.device,
+            "machine_profile": args.machine_profile,
             "student_model": args.student_model,
+            "student_model_source": args.student_model_source,
+            "student_model_selection": args.student_model_selection,
             "student_max_samples": args.student_max_samples,
             "seq_len": args.seq_len,
+            "autotune": args.autotune,
             "epochs": args.epochs,
             "tokenize_workers": args.tokenize_workers,
             "skip_train": args.skip_train,
             "offline": args.offline,
             "eval": args.eval,
+            "refresh_datasets": args.refresh_datasets,
+            "refresh_with_hf": args.refresh_with_hf,
+            "refresh_max_samples": args.refresh_max_samples,
+            "prefer_full_datasets": args.prefer_full_datasets,
+            "full_datasets_root": args.full_datasets_root,
+            "research_dir": args.research_dir,
+            "skip_research_briefs": args.skip_research_briefs,
             "max_parallel_gpu_trains": args.max_parallel_gpu_trains,
             "gpu_job_vram_mb": args.gpu_job_vram_mb,
             "gpu_buffer_mb": args.gpu_buffer_mb,
+            "auto_promote": args.auto_promote,
+            "promotion_quant": args.promotion_quant,
+            "promotion_registry_path": args.promotion_registry_path,
             "llmfit_preflight": env_flag("LLMFIT_PREFLIGHT", True),
             "llmfit_min_fit": os.environ.get("LLMFIT_MIN_FIT", "marginal"),
             "llmfit_memory": os.environ.get("LLMFIT_MEMORY"),
             "llmfit_bin": os.environ.get("LLMFIT_BIN"),
             "llmfit_root": os.environ.get("LLMFIT_ROOT"),
             "llmfit_allow_cargo_run": env_flag("LLMFIT_ALLOW_CARGO_RUN", False),
-        },
-        "reports": {
-            "dataset_report": str(run_dir / "dataset_report.json"),
         },
         "domains": domains,
     }
@@ -305,58 +477,6 @@ def load_resume_manifest(resume_path: Path) -> dict:
     if not manifest_path.exists():
         raise SystemExit(f"Resume manifest not found: {manifest_path}")
     return json.loads(manifest_path.read_text(encoding="utf-8"))
-
-
-def pid_is_running(pid: int | None) -> bool:
-    if pid is None or pid <= 0:
-        return False
-    try:
-        os.kill(pid, 0)
-    except ProcessLookupError:
-        return False
-    except PermissionError:
-        return True
-    return True
-
-
-def reconcile_resume_manifest(manifest: dict, jobs: dict[str, DomainJob]) -> bool:
-    changed = False
-    for label, payload in manifest["domains"].items():
-        train = payload.get("train", {})
-        if train.get("status") != "running":
-            continue
-
-        job = jobs[label]
-        child_run = load_json_if_exists(job.train_run_manifest) or {}
-        child_status = child_run.get("status")
-        child_llmfit = child_run.get("llmfit")
-
-        if child_status == "completed":
-            payload["train"] = {
-                "status": "completed",
-                "completed_at": child_run.get("updated_at") or now_ts(),
-                "returncode": (child_run.get("result") or {}).get("returncode", 0),
-                "run_manifest_path": str(job.train_run_manifest),
-            }
-            if child_llmfit is not None:
-                payload["train"]["llmfit"] = child_llmfit
-            training_info = (child_run.get("artifacts", {}) or {}).get("training_info")
-            if training_info is not None:
-                payload["train"]["training_info"] = training_info
-            changed = True
-            continue
-
-        pid = train.get("pid")
-        pid_int = int(pid) if isinstance(pid, int) or str(pid).isdigit() else None
-        if pid_is_running(pid_int):
-            continue
-
-        payload["train"] = {
-            "status": "pending",
-            "llmfit": train.get("llmfit"),
-        }
-        changed = True
-    return changed
 
 
 def jobs_from_manifest(manifest: dict) -> dict[str, DomainJob]:
@@ -373,7 +493,18 @@ def jobs_from_manifest(manifest: dict) -> dict[str, DomainJob]:
             retry_out=Path(payload["retry_out"]),
             retry_report_path=Path(payload["retry_report_path"]),
             retry_failures_out=Path(payload["retry_failures_out"]),
+            requested_train_output_dir=Path(
+                payload.get("requested_train_output_dir", payload["train_output_dir"])
+            ),
             train_output_dir=Path(payload["train_output_dir"]),
+            train_output_mode=str(payload.get("train_output_mode", "requested")),
+            train_output_reason=str(
+                payload.get(
+                    "train_output_reason",
+                    f"using requested training output directory under "
+                    f"{Path(payload['train_output_dir']).parent}",
+                )
+            ),
             train_run_manifest=Path(payload["train_run_manifest"]),
             train_llmfit_plan=Path(payload["train_llmfit_plan"]),
             distill_log=Path(payload["distill_log"]),
@@ -392,60 +523,47 @@ def load_json_if_exists(path: Path) -> dict | None:
     return read_json(path)
 
 
+def maybe_promote_completed_train(job: DomainJob, config: dict) -> dict | None:
+    if not config.get("auto_promote"):
+        return None
+    training_info_path = job.train_output_dir / "training_info.json"
+    if not training_info_path.exists():
+        return {
+            "status": "skipped",
+            "reason": f"training_info.json missing in {job.train_output_dir}",
+        }
+    registry_path = config.get("promotion_registry_path")
+    return promote_domain_run(
+        domain=job.label,
+        canonical_domain=job.canonical,
+        run_output_dir=job.train_output_dir,
+        student_model=str(config["student_model"]),
+        training_info=read_json(training_info_path),
+        run_manifest_path=job.train_run_manifest,
+        promotion_quant=str(config.get("promotion_quant") or DEFAULT_PROMOTION_QUANT),
+        registry_path=Path(registry_path) if registry_path else None,
+    )
+
+
 def load_jsonl_if_exists(path: Path) -> list[dict]:
     if not path.exists():
         return []
     return load_jsonl(path)
 
 
-def load_normalized_rows(path: Path, prefix: str) -> tuple[list[dict], int]:
-    raw_rows = load_jsonl(path)
-    missing_ids_fixed = count_missing_row_ids(raw_rows)
-    normalized_rows = ensure_row_ids(raw_rows, prefix)
-    return normalized_rows, missing_ids_fixed
-
-
-def prevalidate_source_dataset(job: DomainJob) -> dict:
-    source_rows, missing_ids_fixed = load_normalized_rows(
-        job.source_dataset, f"{job.canonical}-source"
+def merge_source_and_distilled(job: DomainJob) -> tuple[int, int, int, int]:
+    source_rows = ensure_row_ids(load_jsonl(job.source_dataset), f"{job.canonical}-source")
+    distilled_rows = ensure_row_ids(
+        load_jsonl_if_exists(job.distilled_out), f"{job.canonical}-distill"
     )
-    if not source_rows:
-        raise RuntimeError(f"Source dataset is empty: {job.source_dataset}")
-    validation_errors = validate_rows(source_rows)
-    if validation_errors:
-        sample = "; ".join(validation_errors[:3])
-        raise RuntimeError(
-            f"Source dataset invalid ({len(validation_errors)} errors): {sample}"
-        )
-    return {
-        "status": "completed",
-        "validated_at": now_ts(),
-        "source_rows": len(source_rows),
-        "missing_ids_fixed": missing_ids_fixed,
-    }
-
-
-def merge_source_and_distilled(job: DomainJob) -> dict[str, int]:
-    source_rows, source_missing_ids_fixed = load_normalized_rows(
-        job.source_dataset, f"{job.canonical}-source"
-    )
-    distilled_payload = load_jsonl_if_exists(job.distilled_out)
-    distilled_missing_ids_fixed = count_missing_row_ids(distilled_payload)
-    distilled_rows = ensure_row_ids(distilled_payload, f"{job.canonical}-distill")
-    merged_rows = dedupe_rows(source_rows + distilled_rows)
+    merged_rows, duplicates_removed = dedupe_rows_with_stats(source_rows + distilled_rows)
     validation_errors = validate_rows(merged_rows)
     if validation_errors:
         raise RuntimeError(
             f"Merged dataset is invalid ({len(validation_errors)} errors)"
         )
     write_jsonl(job.merged_out, merged_rows)
-    return {
-        "source_rows": len(source_rows),
-        "source_missing_ids_fixed": source_missing_ids_fixed,
-        "distilled_rows": len(distilled_rows),
-        "distilled_missing_ids_fixed": distilled_missing_ids_fixed,
-        "merged_rows": len(merged_rows),
-    }
+    return len(source_rows), len(distilled_rows), len(merged_rows), duplicates_removed
 
 
 def append_command_header(handle, command: list[str]) -> None:
@@ -504,6 +622,11 @@ def run_distill_pass(
     ]
     if config["teacher_system_path"]:
         command.extend(["--teacher-system-path", config["teacher_system_path"]])
+    if (
+        config["teacher_provider"] == LOCAL_HF_PROVIDER
+        and config.get("local_hf_device")
+    ):
+        command.extend(["--local-hf-device", config["local_hf_device"]])
     for api_url in config["api_urls"]:
         command.extend(["--api-url", api_url])
     append_command_header(log_handle, command)
@@ -533,12 +656,14 @@ def run_distill_job(job: DomainJob, config: dict, concurrency: int) -> dict:
         initial_failures = len(report.get("failures", []))
         retry_failures = 0
         retry_rows = 0
+        retry_attempted = False
 
         if (
             initial_failures
             and job.failures_out.exists()
             and job.failures_out.stat().st_size > 0
         ):
+            retry_attempted = True
             log_handle.write("\n[RETRY] rerunning failures with concurrency=1\n")
             log_handle.flush()
             run_distill_pass(
@@ -556,25 +681,48 @@ def run_distill_job(job: DomainJob, config: dict, concurrency: int) -> dict:
             base_rows = load_jsonl_if_exists(job.distilled_out)
             retry_rows_payload = load_jsonl_if_exists(job.retry_out)
             retry_rows = len(retry_rows_payload)
-            combined_rows = dedupe_rows(base_rows + retry_rows_payload)
+            combined_rows, retry_duplicates_removed = dedupe_rows_with_stats(
+                base_rows + retry_rows_payload
+            )
             write_jsonl(job.distilled_out, combined_rows)
             report["retry_report_path"] = str(job.retry_report_path)
             report["retry_failures_out"] = str(job.retry_failures_out)
             report["retry_generated_rows"] = retry_rows
             report["retry_remaining_failures"] = retry_failures
             report["generated_rows"] = len(combined_rows)
+            report["retry_duplicates_removed"] = retry_duplicates_removed
             report_path = job.report_path
             report_path.write_text(
                 json.dumps(report, indent=2, ensure_ascii=False) + "\n",
                 encoding="utf-8",
             )
 
-    merge_stats = merge_source_and_distilled(job)
+    source_count, distilled_count, merged_count, merged_duplicates_removed = (
+        merge_source_and_distilled(job)
+    )
+    final_failed_rows = retry_failures if retry_attempted else initial_failures
+    report["source_rows"] = source_count
+    report["distilled_rows"] = distilled_count
+    report["merged_rows"] = merged_count
+    report["duplicates_removed"] = (
+        int(report.get("duplicates_removed") or 0)
+        + int(report.get("retry_duplicates_removed") or 0)
+        + merged_duplicates_removed
+    )
+    report["failed_source_rows"] = final_failed_rows
+    job.report_path.write_text(
+        json.dumps(report, indent=2, ensure_ascii=False) + "\n",
+        encoding="utf-8",
+    )
     return {
         "initial_failures": initial_failures,
         "retry_failures": retry_failures,
         "retry_rows": retry_rows,
-        **merge_stats,
+        "source_rows": source_count,
+        "distilled_rows": distilled_count,
+        "merged_rows": merged_count,
+        "duplicates_removed": int(report.get("duplicates_removed") or 0),
+        "failed_source_rows": final_failed_rows,
     }
 
 
@@ -582,8 +730,11 @@ def resolve_overlap_teacher_train(config: dict) -> bool:
     requested = config.get("overlap_teacher_train")
     if requested is not None:
         return bool(requested)
+    if str(config.get("device") or "").lower() == "cpu":
+        # CPU students can train while the local GPU teacher keeps distilling.
+        return True
     if config.get("teacher_provider") == LOCAL_HF_PROVIDER:
-        return False
+        return str(config.get("local_hf_device") or "").strip().lower() == "cpu"
     return True
 
 
@@ -758,9 +909,7 @@ def start_train_process(
     return process, log_handle
 
 
-def stop_active_trains(
-    active_trains: dict[str, tuple[subprocess.Popen, object]]
-) -> None:
+def stop_active_trains(active_trains: dict[str, tuple[subprocess.Popen, object]]) -> None:
     for process, log_handle in active_trains.values():
         try:
             process.terminate()
@@ -772,50 +921,19 @@ def stop_active_trains(
             pass
 
 
-def write_dataset_report(path: Path, manifest: dict) -> None:
-    domains_report: dict[str, dict] = {}
-    for label, payload in manifest.get("domains", {}).items():
-        source_validation = payload.get("source_validation", {})
-        distill = payload.get("distill", {})
-        train = payload.get("train", {})
-        domains_report[label] = {
-            "canonical": payload.get("canonical"),
-            "source_status": source_validation.get("status"),
-            "source_rows": source_validation.get("source_rows"),
-            "source_missing_ids_fixed": source_validation.get("missing_ids_fixed"),
-            "distill_status": distill.get("status"),
-            "distilled_rows": distill.get("distilled_rows"),
-            "distilled_missing_ids_fixed": distill.get("distilled_missing_ids_fixed"),
-            "merged_rows": distill.get("merged_rows"),
-            "train_status": train.get("status"),
-        }
-    write_manifest(
-        path,
-        {
-            "generated_at": now_ts(),
-            "run_dir": manifest["run_dir"],
-            "run_label": manifest.get("run_label"),
-            "domains": domains_report,
-        },
-    )
-
-
 def save_updated_manifest(manifest_path: Path, manifest: dict) -> None:
     manifest["updated_at"] = now_ts()
+    update_batch_summary(manifest)
     write_manifest(manifest_path, manifest)
-    dataset_report_path = (
-        Path(manifest.get("reports", {}).get("dataset_report"))
-        if manifest.get("reports", {}).get("dataset_report")
-        else Path(manifest["run_dir"]) / "dataset_report.json"
-    )
-    write_dataset_report(dataset_report_path, manifest)
 
 
 def domain_done(payload: dict, phase: str) -> bool:
     return payload[phase]["status"] == "completed"
 
 
-def resolve_batch_llmfit(config: dict, run_dir: Path) -> dict:
+def resolve_batch_llmfit(
+    config: dict, run_dir: Path
+) -> dict:
     enabled = bool(config.get("llmfit_preflight", True))
     requested_device = str(config.get("device") or "gpu")
     model_name = str(config.get("student_model") or "")
@@ -902,8 +1020,14 @@ def main() -> int:
         dest="api_urls",
         help="Mascarade base URL, repeatable",
     )
-    parser.add_argument("--teacher-provider", default="ollama")
-    parser.add_argument("--teacher-model", default="qwen2.5:14b")
+    parser.add_argument("--teacher-provider", default=None)
+    parser.add_argument("--teacher-model", default=None)
+    parser.add_argument(
+        "--teacher-objective",
+        choices=["fast", "balanced", "quality"],
+        default=os.environ.get("MASCARADE_TEACHER_OBJECTIVE", "balanced"),
+        help="Auto teacher policy: fast=true GPU 4B/7B first, quality=35B/24B offload first",
+    )
     parser.add_argument("--strategy", default="best")
     parser.add_argument("--temperature", type=float, default=0.4)
     parser.add_argument("--max-tokens", type=int, default=2048)
@@ -914,11 +1038,52 @@ def main() -> int:
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--sleep-ms", type=int, default=0)
     parser.add_argument(
-        "--source-dataset",
+        "--refresh-datasets",
+        action="store_true",
+        help=(
+            "Refresh canonical datasets before prevalidation. Prefer the local "
+            "mascarade-datasets repo when present, otherwise rebuild from "
+            "finetune/datasets/build_*"
+        ),
+    )
+    parser.add_argument(
+        "--refresh-with-hf",
+        action="store_true",
+        help="When refresh falls back to builders, include their Hugging Face enrichment path",
+    )
+    parser.add_argument(
+        "--refresh-max-samples",
+        type=int,
         default=None,
-        help="Override source ShareGPT JSONL path for a single-domain run",
+        help="Max samples forwarded to builder refresh runs when --refresh-with-hf is enabled",
+    )
+    parser.add_argument(
+        "--no-prefer-full-datasets",
+        dest="prefer_full_datasets",
+        action="store_false",
+        help="Do not sync from the sibling mascarade-datasets repo during refresh",
+    )
+    parser.add_argument(
+        "--full-datasets-root",
+        default=None,
+        help="Optional path to the full mascarade-datasets repo used during refresh",
+    )
+    parser.add_argument(
+        "--research-dir",
+        default=None,
+        help="Directory where dataset refresh web-research briefs are written",
+    )
+    parser.add_argument(
+        "--skip-research-briefs",
+        action="store_true",
+        help="Refresh datasets without emitting Markdown/JSON research briefs",
     )
     parser.add_argument("--teacher-system-path", default=None)
+    parser.add_argument(
+        "--local-hf-device",
+        default=os.environ.get("MASCARADE_LOCAL_HF_DEVICE"),
+        help="Explicit device target for local-hf teachers (auto, cpu, cuda:0, ...)",
+    )
     parser.add_argument(
         "--max-parallel-distills",
         type=int,
@@ -928,7 +1093,7 @@ def main() -> int:
     parser.add_argument(
         "--max-parallel-gpu-trains",
         type=int,
-        default=1,
+        default=None,
         help="GPU training slots (1 or 2)",
     )
     parser.add_argument("--gpu-job-vram-mb", type=int, default=0)
@@ -946,12 +1111,34 @@ def main() -> int:
         action="store_false",
         help="Force the old two-phase behavior: all distills, then all trainings",
     )
-    parser.add_argument("--device", choices=["gpu", "cpu", "auto"], default="gpu")
-    parser.add_argument("--student-model", default=None)
+    parser.add_argument("--device", choices=["gpu", "cpu", "auto"], default="auto")
+    parser.add_argument(
+        "--student-model",
+        default=None,
+        help=(
+            "Override student model. Defaults to selected_model.json when present, "
+            f"otherwise {DEFAULT_STUDENT_MODEL}."
+        ),
+    )
     parser.add_argument("--student-max-samples", type=int, default=None)
-    parser.add_argument("--seq-len", type=int, default=256)
+    parser.add_argument("--seq-len", type=int, default=None)
     parser.add_argument("--epochs", type=int, default=2)
     parser.add_argument("--tokenize-workers", type=int, default=4)
+    parser.add_argument(
+        "--auto-promote",
+        action="store_true",
+        help="After a successful train, replace the live domain alias when merge/GGUF/deploy/smoke all pass",
+    )
+    parser.add_argument(
+        "--promotion-quant",
+        default=DEFAULT_PROMOTION_QUANT,
+        help="GGUF quant used for auto-promotion",
+    )
+    parser.add_argument(
+        "--promotion-registry-path",
+        default=None,
+        help="Optional JSON registry path for live promotions",
+    )
     parser.add_argument(
         "--teacher-only",
         action="store_true",
@@ -961,12 +1148,64 @@ def main() -> int:
     parser.add_argument("--offline", action="store_true")
     parser.add_argument("--eval", action="store_true")
     parser.add_argument("--verbose", action="store_true")
+    parser.set_defaults(prefer_full_datasets=True)
     args = parser.parse_args()
+    args.teacher_objective = resolve_teacher_objective(args.teacher_objective)
     if args.teacher_only:
         args.skip_train = True
     ensure_local_api_key_env()
+    if not args.resume:
+        args.machine_profile = detect_machine_profile(requested_device=args.device)
+        args.device = resolve_requested_device(args.device, args.machine_profile)
+        (
+            args.student_model,
+            args.student_model_source,
+            args.student_model_selection,
+        ) = resolve_student_model_selection(
+            args.student_model,
+            args.machine_profile,
+            args.device,
+            seq_len=args.seq_len,
+            offline=args.offline,
+        )
+        args.teacher_selection = resolve_teacher_selection(
+            machine_profile=args.machine_profile,
+            explicit_provider=args.teacher_provider,
+            explicit_model=args.teacher_model,
+            ollama_api_url=os.environ.get("OLLAMA_API_URL"),
+            domains=[canonical_domain(label) for label in (args.domains or DEFAULT_DOMAINS)],
+            objective=args.teacher_objective,
+        )
+        args.teacher_provider = args.teacher_selection["provider"]
+        args.teacher_model = args.teacher_selection["model"]
+        if not args.local_hf_device:
+            args.local_hf_device = args.teacher_selection.get("local_hf_device")
+        elif args.teacher_provider == LOCAL_HF_PROVIDER:
+            args.teacher_selection["local_hf_device"] = args.local_hf_device
+            args.teacher_selection["gpu_active"] = (
+                str(args.local_hf_device).strip().lower() != "cpu"
+            )
+        args.autotune = resolve_autotune_plan(
+            machine_profile=args.machine_profile,
+            student_model=args.student_model,
+            requested_device=args.device,
+            teacher_selection=args.teacher_selection,
+            requested_gpu_slots=args.max_parallel_gpu_trains,
+            requested_seq_len=args.seq_len,
+            requested_student_max_samples=args.student_max_samples,
+        )
+        args.max_parallel_gpu_trains = args.autotune["resolved_gpu_slots"]
+        args.seq_len = args.autotune["resolved_seq_len"]
+        args.student_max_samples = args.autotune["resolved_student_max_samples"]
+    else:
+        args.machine_profile = None
+        args.teacher_selection = None
+        args.autotune = None
+        args.student_model_selection = None
 
-    if args.max_parallel_gpu_trains < 1 or args.max_parallel_gpu_trains > 2:
+    if args.max_parallel_gpu_trains is not None and (
+        args.max_parallel_gpu_trains < 1 or args.max_parallel_gpu_trains > 2
+    ):
         raise SystemExit("--max-parallel-gpu-trains must be 1 or 2")
 
     if args.resume:
@@ -976,47 +1215,79 @@ def main() -> int:
         raw_labels = args.domains or DEFAULT_DOMAINS
         stamp = time.strftime("%Y%m%d_%H%M%S")
         run_dir = RUNS_DIR / f"{args.run_label}_{stamp}"
-        manifest = build_new_manifest(args, run_dir, raw_labels, stamp)
+        refresh_reports = maybe_refresh_source_datasets(args, raw_labels)
+        manifest = build_new_manifest(
+            args,
+            run_dir,
+            raw_labels,
+            stamp,
+            refresh_reports=refresh_reports,
+        )
         manifest_path = run_dir / "manifest.json"
         save_updated_manifest(manifest_path, manifest)
 
     run_dir = Path(manifest["run_dir"])
     jobs = jobs_from_manifest(manifest)
-    if args.resume and reconcile_resume_manifest(manifest, jobs):
-        save_updated_manifest(manifest_path, manifest)
     config = manifest["config"]
     config["api_urls"] = config.get("api_urls") or DEFAULT_API_URLS
+    config["teacher_objective"] = resolve_teacher_objective(
+        config.get(
+            "teacher_objective",
+            os.environ.get("MASCARADE_TEACHER_OBJECTIVE", "balanced"),
+        )
+    )
     config["teacher_system_path"] = config.get("teacher_system_path")
+    config["local_hf_device"] = config.get("local_hf_device") or os.environ.get(
+        "MASCARADE_LOCAL_HF_DEVICE"
+    )
+    if config.get("machine_profile") is None:
+        config["machine_profile"] = detect_machine_profile(
+            requested_device=str(config.get("device") or "auto")
+        )
+    if config.get("teacher_selection") is None:
+        config["teacher_selection"] = {
+            "mode": "legacy",
+            "objective": config.get("teacher_objective", "legacy"),
+            "provider": config.get("teacher_provider"),
+            "model": config.get("teacher_model"),
+            "local_hf_device": config.get("local_hf_device"),
+            "gpu_active": config.get("teacher_provider") == LOCAL_HF_PROVIDER,
+            "reason": "legacy manifest without teacher auto-selection metadata",
+            "candidates_considered": [],
+        }
+    else:
+        config["teacher_selection"]["objective"] = config["teacher_selection"].get(
+            "objective",
+            config.get("teacher_objective", "balanced"),
+        )
+    if config.get("autotune") is None:
+        config["autotune"] = {
+            "objective": "legacy",
+            "reason": "legacy manifest without hardware-adaptive autotune metadata",
+            "gpu_slots_source": "legacy",
+            "seq_len_source": "legacy",
+            "student_max_samples_source": "legacy",
+            "resolved_gpu_slots": config.get("max_parallel_gpu_trains"),
+            "resolved_seq_len": config.get("seq_len"),
+            "resolved_student_max_samples": config.get("student_max_samples"),
+        }
     config["student_max_samples"] = config.get("student_max_samples")
     config["teacher_only"] = config.get("teacher_only", False)
     config["skip_train"] = config.get("skip_train", False)
-    config["llmfit_preflight"] = config.get(
-        "llmfit_preflight", env_flag("LLMFIT_PREFLIGHT", True)
-    )
-    config["llmfit_min_fit"] = config.get(
-        "llmfit_min_fit", os.environ.get("LLMFIT_MIN_FIT", "marginal")
-    )
-    config["llmfit_memory"] = config.get(
-        "llmfit_memory", os.environ.get("LLMFIT_MEMORY")
-    )
+    config["student_model_source"] = config.get("student_model_source", "legacy")
+    config["student_model_selection"] = config.get("student_model_selection")
+    config["auto_promote"] = config.get("auto_promote", False)
+    config["promotion_quant"] = config.get("promotion_quant", DEFAULT_PROMOTION_QUANT)
+    config["promotion_registry_path"] = config.get("promotion_registry_path")
+    config["llmfit_preflight"] = config.get("llmfit_preflight", env_flag("LLMFIT_PREFLIGHT", True))
+    config["llmfit_min_fit"] = config.get("llmfit_min_fit", os.environ.get("LLMFIT_MIN_FIT", "marginal"))
+    config["llmfit_memory"] = config.get("llmfit_memory", os.environ.get("LLMFIT_MEMORY"))
     config["llmfit_bin"] = config.get("llmfit_bin", os.environ.get("LLMFIT_BIN"))
     config["llmfit_root"] = config.get("llmfit_root", os.environ.get("LLMFIT_ROOT"))
     config["llmfit_allow_cargo_run"] = config.get(
         "llmfit_allow_cargo_run",
         env_flag("LLMFIT_ALLOW_CARGO_RUN", False),
     )
-    requested_student_model = config.get("student_model")
-    resolved_student_model, student_model_note, resolved_student_device = (
-        resolve_batch_student_model(config)
-    )
-    config["requested_student_model"] = requested_student_model
-    config["student_model"] = resolved_student_model
-    config["resolved_student_device"] = resolved_student_device
-    manifest["config"]["requested_student_model"] = requested_student_model
-    manifest["config"]["student_model"] = resolved_student_model
-    manifest["config"]["resolved_student_device"] = resolved_student_device
-    if student_model_note:
-        manifest["config"]["student_model_note"] = student_model_note
     config["teacher_ollama_api_url"] = resolve_ollama_api_url(config)
     config["resolved_overlap_teacher_train"] = resolve_overlap_teacher_train(config)
     batch_llmfit = resolve_batch_llmfit(config, run_dir)
@@ -1035,43 +1306,72 @@ def main() -> int:
             }
     save_updated_manifest(manifest_path, manifest)
 
-    for label, payload in manifest["domains"].items():
-        if payload["distill"]["status"] == "completed":
-            continue
-        try:
-            source_validation = prevalidate_source_dataset(jobs[label])
-        except Exception as exc:  # noqa: BLE001
-            manifest["domains"][label]["source_validation"] = {
-                "status": "failed",
-                "validated_at": now_ts(),
-                "error": str(exc),
-            }
-            save_updated_manifest(manifest_path, manifest)
-            raise
-        manifest["domains"][label]["source_validation"] = source_validation
-        save_updated_manifest(manifest_path, manifest)
-        print(f"[OK] source {label}: rows={source_validation['source_rows']}")
-        if source_validation["missing_ids_fixed"]:
-            print(
-                f"[INFO] normalize {label}/source: "
-                f"inserted_ids={source_validation['missing_ids_fixed']}"
-            )
-
     print(f"[INFO] run_dir={run_dir}")
     print(f"[INFO] domains={' '.join(jobs.keys())}")
+    machine_profile = config.get("machine_profile") or {}
+    if machine_profile.get("cuda_available"):
+        print(
+            "[INFO] machine="
+            f"{machine_profile.get('gpu_name')} "
+            f"vram_mb={machine_profile.get('total_vram_mb')} "
+            f"class={machine_profile.get('hardware_class')}"
+        )
+    else:
+        print(
+            "[INFO] machine=cpu-only "
+            f"class={machine_profile.get('hardware_class')}"
+        )
     print(f"[INFO] teacher={config['teacher_provider']}/{config['teacher_model']}")
+    teacher_selection = config.get("teacher_selection") or {}
+    print(
+        "[INFO] teacher_mode="
+        f"{teacher_selection.get('mode', 'legacy')} "
+        f"objective={teacher_selection.get('objective', config.get('teacher_objective', '-'))} "
+        f"reason={teacher_selection.get('reason', '-')}"
+    )
+    if config["teacher_provider"] == LOCAL_HF_PROVIDER and config.get("local_hf_device"):
+        print(f"[INFO] local_hf_device={config['local_hf_device']}")
     print(
         f"[INFO] student={config['student_model']} "
-        f"(requested={config.get('requested_student_model') or 'auto'})"
+        f"(source={config['student_model_source']})"
     )
-    print(f"[INFO] gpu_slots={config['max_parallel_gpu_trains']}")
+    student_model_selection = config.get("student_model_selection") or {}
+    if student_model_selection:
+        print(
+            "[INFO] student_selection_reason="
+            f"{student_model_selection.get('reason', '-')}"
+        )
+        if student_model_selection.get("watch_report_path"):
+            print(
+                "[INFO] student_watch_report="
+                f"{student_model_selection['watch_report_path']}"
+            )
+    autotune = config.get("autotune") or {}
+    print(
+        "[INFO] gpu_slots="
+        f"{config['max_parallel_gpu_trains']} "
+        f"(source={autotune.get('gpu_slots_source', 'legacy')})"
+    )
     print(
         "[INFO] overlap_teacher_train="
         f"{config['resolved_overlap_teacher_train']} "
         f"gpu_job_vram_mb={config['resolved_gpu_job_vram_mb']}"
     )
-    if student_model_note:
-        print(student_model_note)
+    print(
+        "[INFO] seq_len="
+        f"{config['seq_len']} "
+        f"(source={autotune.get('seq_len_source', 'legacy')}) "
+        "student_max_samples="
+        f"{config['student_max_samples']} "
+        f"(source={autotune.get('student_max_samples_source', 'legacy')})"
+    )
+    sample_job = next(iter(jobs.values()), None)
+    if sample_job is not None:
+        print(
+            "[INFO] train_output_mode="
+            f"{sample_job.train_output_mode} "
+            f"reason={sample_job.train_output_reason}"
+        )
     if config["device"] == "gpu" and not config["skip_train"]:
         print(
             "[INFO] llmfit="
@@ -1134,19 +1434,6 @@ def main() -> int:
 
     with ThreadPoolExecutor(max_workers=max(1, distill_workers or 1)) as executor:
         while pending_distills or active_distills or pending_trains or active_trains:
-            while pending_distills and len(active_distills) < max(1, distill_workers):
-                label = pending_distills.popleft()
-                manifest["domains"][label]["distill"] = {
-                    "status": "running",
-                    "started_at": now_ts(),
-                    "per_domain_concurrency": per_domain_concurrency,
-                }
-                save_updated_manifest(manifest_path, manifest)
-                future = executor.submit(
-                    run_distill_job, jobs[label], config, per_domain_concurrency
-                )
-                active_distills[future] = label
-
             for future, label in list(active_distills.items()):
                 if not future.done():
                     continue
@@ -1170,17 +1457,10 @@ def main() -> int:
                 }
                 save_updated_manifest(manifest_path, manifest)
                 print(
-                    f"[OK] distill {label}: "
-                    f"source={result['source_rows']} "
-                    f"distilled={result['distilled_rows']} "
-                    f"merged={result['merged_rows']} "
-                    f"retry_failures={result['retry_failures']}"
+                    f"[OK] distill {label}: source={result['source_rows']} "
+                    f"distilled={result['distilled_rows']} merged={result['merged_rows']} "
+                    f"failed={result['failed_source_rows']}"
                 )
-                if result["distilled_missing_ids_fixed"]:
-                    print(
-                        f"[INFO] normalize {label}/distilled: "
-                        f"inserted_ids={result['distilled_missing_ids_fixed']}"
-                    )
                 if (
                     not config["skip_train"]
                     and not train_blocked_by_llmfit
@@ -1206,19 +1486,24 @@ def main() -> int:
                     if child_llmfit is not None:
                         manifest["domains"][label]["train"]["llmfit"] = child_llmfit
                     if child_run is not None:
-                        training_info = (child_run.get("artifacts", {}) or {}).get(
-                            "training_info"
-                        )
+                        training_info = (
+                            child_run.get("artifacts", {}) or {}
+                        ).get("training_info")
                         if training_info is not None:
-                            manifest["domains"][label]["train"][
-                                "training_info"
-                            ] = training_info
+                            manifest["domains"][label]["train"]["training_info"] = (
+                                training_info
+                            )
+                    promotion_result = maybe_promote_completed_train(jobs[label], config)
+                    if promotion_result is not None:
+                        manifest["domains"][label]["promotion"] = promotion_result
+                        print(
+                            f"[PROMOTE] {label}: "
+                            f"{promotion_result.get('status')} "
+                            f"{promotion_result.get('reason', '-')}"
+                        )
                     print(f"[OK] train {label}")
                 else:
-                    if (
-                        child_llmfit is not None
-                        and child_llmfit.get("status") == "rejected"
-                    ):
+                    if child_llmfit is not None and child_llmfit.get("status") == "rejected":
                         train_blocked_by_llmfit = True
                         manifest["llmfit"] = child_llmfit
                         pending_trains.clear()
@@ -1288,6 +1573,26 @@ def main() -> int:
                 active_trains[label] = (process, log_handle)
                 print(f"[RUN] train {label} pid={process.pid}")
 
+            can_launch_distills = overlap_allowed or (
+                not pending_trains and not active_trains
+            )
+            while (
+                pending_distills
+                and len(active_distills) < max(1, distill_workers)
+                and can_launch_distills
+            ):
+                label = pending_distills.popleft()
+                manifest["domains"][label]["distill"] = {
+                    "status": "running",
+                    "started_at": now_ts(),
+                    "per_domain_concurrency": per_domain_concurrency,
+                }
+                save_updated_manifest(manifest_path, manifest)
+                future = executor.submit(
+                    run_distill_job, jobs[label], config, per_domain_concurrency
+                )
+                active_distills[future] = label
+
             if pending_distills or active_distills or pending_trains or active_trains:
                 time.sleep(2)
 
@@ -1300,9 +1605,7 @@ def main() -> int:
                 payload["train"] = {
                     "status": "blocked" if train_blocked_by_llmfit else "skipped",
                     "completed_at": now_ts(),
-                    "reason": (
-                        batch_llmfit.get("reason") if train_blocked_by_llmfit else None
-                    ),
+                    "reason": batch_llmfit.get("reason") if train_blocked_by_llmfit else None,
                     "llmfit": {
                         "status": batch_llmfit["status"],
                         "reason": batch_llmfit.get("reason"),

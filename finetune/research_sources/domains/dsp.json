@@ -1,0 +1,94 @@
+{
+  "domain": "dsp",
+  "topic": "DSP / signal processing",
+  "minimum_web_roots": 8,
+  "forum_urls": [
+    {
+      "label": "DSP StackExchange",
+      "url": "https://dsp.stackexchange.com/"
+    },
+    {
+      "label": "DSPRelated Forums",
+      "url": "https://www.dsprelated.com/forums/"
+    },
+    {
+      "label": "MathWorks MATLAB Answers",
+      "url": "https://www.mathworks.com/matlabcentral/answers/"
+    },
+    {
+      "label": "GNU Radio Discuss",
+      "url": "https://forum.gnuradio.org/"
+    },
+    {
+      "label": "ARM Community Forums",
+      "url": "https://community.arm.com/support-forums/"
+    },
+    {
+      "label": "EmbeddedRelated Forum",
+      "url": "https://www.embeddedrelated.com/forum.php"
+    },
+    {
+      "label": "NI Forums",
+      "url": "https://forums.ni.com/"
+    },
+    {
+      "label": "Scientific Python Discourse",
+      "url": "https://discuss.scientific-python.org/"
+    },
+    {
+      "label": "Julia Discourse Signal Processing",
+      "url": "https://discourse.julialang.org/tag/signal-processing"
+    },
+    {
+      "label": "EEVblog Forum",
+      "url": "https://www.eevblog.com/forum/"
+    }
+  ],
+  "authoritative_urls": [
+    {
+      "label": "CMSIS-DSP docs",
+      "url": "https://arm-software.github.io/CMSIS_5/DSP/html/index.html"
+    },
+    {
+      "label": "MathWorks signal processing docs",
+      "url": "https://www.mathworks.com/help/signal/"
+    }
+  ],
+  "github_repos": [
+    {
+      "label": "CMSIS_5",
+      "url": "https://github.com/ARM-software/CMSIS_5"
+    }
+  ],
+  "software_sources": [
+    {
+      "label": "CMSIS-DSP docs",
+      "url": "https://arm-software.github.io/CMSIS_5/DSP/html/index.html"
+    },
+    {
+      "label": "MathWorks signal processing docs",
+      "url": "https://www.mathworks.com/help/signal/"
+    }
+  ],
+  "datasheet_roots": [
+    {
+      "label": "CMSIS-DSP docs",
+      "url": "https://arm-software.github.io/CMSIS_5/DSP/html/index.html"
+    }
+  ],
+  "hf_sources": [
+    "bshada/electronics.stackexchange.com",
+    "common-pile/stackexchange",
+    "STEM-AI-mtl/Electrical-engineering"
+  ],
+  "queries": [
+    "site:arm-software.github.io CMSIS DSP FIR FFT example",
+    "site:mathworks.com help signal filter design fixed point",
+    "site:huggingface.co/datasets dsp stackexchange dataset"
+  ],
+  "trusted_domains": [
+    "arm-software.github.io",
+    "mathworks.com",
+    "huggingface.co"
+  ]
+}
