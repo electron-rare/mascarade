@@ -1,0 +1,178 @@
+{
+  "domain": "iot",
+  "generated_at": "2026-03-09T11:15:11",
+  "source_file": "/ai/saisail/mascarade/finetune/research_sources/domains/iot.json",
+  "status": "partial",
+  "reachable_count": 13,
+  "total_count": 18,
+  "reachable_ratio": 0.7222222222222222,
+  "entries": [
+    {
+      "group": "authoritative_urls",
+      "label": "ESP-IDF programming guide",
+      "url": "https://docs.espressif.com/projects/esp-idf/en/stable/esp32/",
+      "ok": true,
+      "status": 200,
+      "final_url": "https://docs.espressif.com/projects/esp-idf/en/stable/esp32/",
+      "method": "HEAD"
+    },
+    {
+      "group": "authoritative_urls",
+      "label": "Home Assistant developer docs",
+      "url": "https://developers.home-assistant.io/",
+      "ok": true,
+      "status": 200,
+      "final_url": "https://developers.home-assistant.io/",
+      "method": "HEAD"
+    },
+    {
+      "group": "datasheet_roots",
+      "label": "ESP32 hardware reference",
+      "url": "https://docs.espressif.com/projects/esp-idf/en/stable/esp32/hw-reference/index.html",
+      "ok": true,
+      "status": 200,
+      "final_url": "https://docs.espressif.com/projects/esp-idf/en/stable/esp32/hw-reference/index.html",
+      "method": "HEAD"
+    },
+    {
+      "group": "forum_urls",
+      "label": "ARM Community Forums",
+      "url": "https://community.arm.com/support-forums/",
+      "ok": false,
+      "status": null,
+      "final_url": "https://community.arm.com/support-forums/",
+      "method": "GET",
+      "error": "http:404"
+    },
+    {
+      "group": "forum_urls",
+      "label": "All About Circuits Embedded Systems",
+      "url": "https://forum.allaboutcircuits.com/forums/embedded-systems-and-microcontrollers.13/",
+      "ok": false,
+      "status": null,
+      "final_url": "https://forum.allaboutcircuits.com/forums/embedded-systems-and-microcontrollers.13/",
+      "method": "GET",
+      "error": "http:403"
+    },
+    {
+      "group": "forum_urls",
+      "label": "Arduino Forum",
+      "url": "https://forum.arduino.cc/",
+      "ok": true,
+      "status": 200,
+      "final_url": "https://forum.arduino.cc/",
+      "method": "HEAD"
+    },
+    {
+      "group": "forum_urls",
+      "label": "ChibiOS Forum",
+      "url": "https://forum.chibios.org/",
+      "ok": true,
+      "status": 200,
+      "final_url": "https://forum.chibios.org/",
+      "method": "HEAD"
+    },
+    {
+      "group": "forum_urls",
+      "label": "Electronics StackExchange Embedded",
+      "url": "https://electronics.stackexchange.com/questions/tagged/embedded",
+      "ok": false,
+      "status": null,
+      "final_url": "https://electronics.stackexchange.com/questions/tagged/embedded",
+      "method": "GET",
+      "error": "http:403"
+    },
+    {
+      "group": "forum_urls",
+      "label": "Electronics StackExchange STM32",
+      "url": "https://electronics.stackexchange.com/questions/tagged/stm32",
+      "ok": false,
+      "status": null,
+      "final_url": "https://electronics.stackexchange.com/questions/tagged/stm32",
+      "method": "GET",
+      "error": "http:403"
+    },
+    {
+      "group": "forum_urls",
+      "label": "EmbeddedRelated Forum",
+      "url": "https://www.embeddedrelated.com/forum.php",
+      "ok": false,
+      "status": null,
+      "final_url": "https://www.embeddedrelated.com/forum.php",
+      "method": "GET",
+      "error": "http:404"
+    },
+    {
+      "group": "forum_urls",
+      "label": "FreeRTOS Forums",
+      "url": "https://forums.freertos.org/",
+      "ok": true,
+      "status": 200,
+      "final_url": "https://forums.freertos.org/",
+      "method": "HEAD"
+    },
+    {
+      "group": "forum_urls",
+      "label": "PlatformIO Community",
+      "url": "https://community.platformio.org/",
+      "ok": true,
+      "status": 200,
+      "final_url": "https://community.platformio.org/",
+      "method": "HEAD"
+    },
+    {
+      "group": "forum_urls",
+      "label": "ST Community",
+      "url": "https://community.st.com/",
+      "ok": true,
+      "status": 200,
+      "final_url": "https://community.st.com/",
+      "method": "HEAD"
+    },
+    {
+      "group": "github_repos",
+      "label": "esp-idf",
+      "url": "https://github.com/espressif/esp-idf",
+      "ok": true,
+      "status": 200,
+      "final_url": "https://github.com/espressif/esp-idf",
+      "method": "HEAD"
+    },
+    {
+      "group": "github_repos",
+      "label": "espressif org",
+      "url": "https://github.com/espressif",
+      "ok": true,
+      "status": 200,
+      "final_url": "https://github.com/espressif",
+      "method": "HEAD"
+    },
+    {
+      "group": "github_repos",
+      "label": "home-assistant core",
+      "url": "https://github.com/home-assistant/core",
+      "ok": true,
+      "status": 200,
+      "final_url": "https://github.com/home-assistant/core",
+      "method": "HEAD"
+    },
+    {
+      "group": "software_sources",
+      "label": "ESP-IDF product page",
+      "url": "https://www.espressif.com/en/products/sdks/esp-idf",
+      "ok": true,
+      "status": 200,
+      "final_url": "https://www.espressif.com/en/products/sdks/esp-idf",
+      "method": "HEAD"
+    },
+    {
+      "group": "software_sources",
+      "label": "Home Assistant developer portal",
+      "url": "https://developers.home-assistant.io/",
+      "ok": true,
+      "status": 200,
+      "final_url": "https://developers.home-assistant.io/",
+      "method": "HEAD"
+    }
+  ]
+}

@@ -16,16 +16,25 @@ import argparse
 import json
 import os
 import gc
+import subprocess
 import sys
+import re
 import warnings
 from itertools import chain
 from importlib.util import find_spec
+from pathlib import Path
 
 if "--quiet" in sys.argv:
     warnings.filterwarnings("ignore")
 
+from llm_paths import configure_hf_env
+
+configure_hf_env()
+
 import transformers
+from dataset_quality import DatasetQualityError, enforce_dataset_quality, summarize_quality_report
 from runtime_compat import disable_broken_torchvision
+from sharegpt_utils import ensure_row_ids_with_stats, load_jsonl, validate_rows
 
 _RUNTIME_COMPAT_NOTE = disable_broken_torchvision()
 
@@ -60,7 +69,7 @@ DOMAINS = [
     "embedded",
     "platformio",
     "freecad",
-    "project",
+    "components",
 ]
 
 try:
@@ -75,6 +84,7 @@ LORA_TARGETS = {
     "tinyllama": ["q_proj", "v_proj", "k_proj", "o_proj"],
     "qwen": ["q_proj", "v_proj", "k_proj", "o_proj"],
     "llama": ["q_proj", "v_proj", "k_proj", "o_proj"],
+    "mistral": ["q_proj", "v_proj", "k_proj", "o_proj"],
     "gpt2": ["c_attn"],
     "phi": ["q_proj", "v_proj", "k_proj", "dense"],
 }
@@ -89,8 +99,17 @@ TEACHER_ONLY_STUDENT_PATTERNS = {
     "devstral-small-2507": (
         "teacher-only in this pipeline: Mistral coding teacher/inference model"
     ),
+    "mistralai/devstral-small-2-24b-instruct-2512": (
+        "teacher-only in this pipeline: recent Devstral local teacher/inference model"
+    ),
     "mistral-small-3.1": (
         "teacher-only in this pipeline: Mistral teacher/inference model"
+    ),
+    "mistralai/mistral-small-3.1-24b-base-2503": (
+        "teacher-only in this pipeline: recent Mistral 24B local teacher/inference model"
+    ),
+    "mistralai/mistral-small-3.2-24b-instruct-2506": (
+        "teacher-only in this pipeline: recent Mistral 24B instruct local teacher/inference model"
     ),
     "deepseek-ai/deepseek-r1": (
         "teacher-only in this pipeline: DeepSeek reasoning teacher model"
@@ -102,6 +121,8 @@ TEACHER_ONLY_STUDENT_PATTERNS = {
         "teacher-only in this pipeline: DeepSeek coder teacher model for code-domain distillation"
     ),
 }
+
+_PARAM_HINT_RE = re.compile(r"(\d+(?:\.\d+)?)b", re.IGNORECASE)
 
 
 def detect_lora_targets(model_name: str) -> list[str]:
@@ -127,6 +148,143 @@ def assert_supported_student_model(model_name: str) -> None:
             raise ValueError(f"Unsupported student model {model_name}: {reason}")
 
 
+def parse_param_hint_b(model_name: str) -> float | None:
+    match = _PARAM_HINT_RE.search(model_name)
+    if match is None:
+        return None
+    try:
+        return float(match.group(1))
+    except ValueError:
+        return None
+
+
+def prefer_full_gpu_quantized_load(model_name: str) -> bool:
+    requested = os.environ.get("MASCARADE_FORCE_FULL_GPU_Q4BIT", "").strip().lower()
+    if requested in {"1", "true", "yes", "on"}:
+        return True
+    if requested in {"0", "false", "no", "off"}:
+        return False
+    if not torch.cuda.is_available():
+        return False
+    try:
+        total_vram_gb = torch.cuda.get_device_properties(0).total_memory / 1024**3
+    except Exception:
+        return False
+    param_hint = parse_param_hint_b(Path(model_name).name.lower())
+    if param_hint is None:
+        param_hint = parse_param_hint_b(model_name.lower())
+    return bool(param_hint is not None and param_hint <= 9.5 and total_vram_gb >= 23.0)
+
+
+def current_free_vram_gb() -> float | None:
+    nvidia_free_gb = current_free_vram_gb_nvidia_smi()
+    if nvidia_free_gb is not None:
+        return nvidia_free_gb
+    return current_free_vram_gb_torch()
+
+
+def current_free_vram_gb_nvidia_smi() -> float | None:
+    try:
+        result = subprocess.run(
+            [
+                "nvidia-smi",
+                "--query-gpu=memory.free",
+                "--format=csv,noheader,nounits",
+            ],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+    except Exception:
+        return None
+    lines = [line.strip() for line in result.stdout.splitlines() if line.strip()]
+    if not lines:
+        return None
+    try:
+        free_mib = float(lines[0])
+    except ValueError:
+        return None
+    return free_mib / 1024.0
+
+
+def current_free_vram_gb_torch() -> float | None:
+    if not torch.cuda.is_available():
+        return None
+    try:
+        free_bytes, _total_bytes = torch.cuda.mem_get_info()
+    except Exception:
+        return None
+    return free_bytes / 1024**3
+
+
+def required_free_vram_gb(model_name: str) -> float:
+    override = os.environ.get("MASCARADE_Q4BIT_MIN_FREE_VRAM_GB", "").strip()
+    if override:
+        try:
+            return float(override)
+        except ValueError:
+            pass
+    param_hint = parse_param_hint_b(Path(model_name).name.lower())
+    if param_hint is None:
+        param_hint = parse_param_hint_b(model_name.lower())
+    if param_hint is None:
+        param_hint = 7.0
+    if param_hint <= 2.0:
+        return 8.0
+    if param_hint <= 4.5:
+        return 14.0
+    if param_hint <= 9.5:
+        # Real 24 GiB desktop cards often keep ~0.5-1.0 GiB busy for display/compositor.
+        return 21.5
+    return 26.0
+
+
+def validate_quantized_gpu_preflight(model_name: str) -> None:
+    free_vram_gb = current_free_vram_gb()
+    if free_vram_gb is None:
+        return
+    required_vram_gb = required_free_vram_gb(model_name)
+    if free_vram_gb >= required_vram_gb:
+        return
+    sources: list[str] = []
+    free_vram_nvidia_gb = current_free_vram_gb_nvidia_smi()
+    free_vram_torch_gb = current_free_vram_gb_torch()
+    if free_vram_nvidia_gb is not None:
+        sources.append(f"nvidia-smi={free_vram_nvidia_gb:.1f} GiB")
+    if free_vram_torch_gb is not None:
+        sources.append(f"torch={free_vram_torch_gb:.1f} GiB")
+    source_suffix = f" Sources: {', '.join(sources)}." if sources else ""
+    raise RuntimeError(
+        "GPU preflight blocked quantized load for "
+        f"{model_name}. Free VRAM {free_vram_gb:.1f} GiB < required {required_vram_gb:.1f} GiB. "
+        "Free GPU memory, stop concurrent runs, or use a smaller student model."
+        f"{source_suffix}"
+    )
+
+
+def explain_quantized_dispatch_failure(model_name: str) -> str:
+    parts = [
+        f"Quantized load could not stay on GPU for {model_name}.",
+        "Accelerate tried to dispatch some modules to CPU/disk, which this QLoRA path does not allow.",
+    ]
+    free_vram_gb = current_free_vram_gb()
+    if free_vram_gb is not None:
+        parts.append(f"Current free VRAM: {free_vram_gb:.1f} GiB.")
+    free_vram_torch_gb = current_free_vram_gb_torch()
+    free_vram_nvidia_gb = current_free_vram_gb_nvidia_smi()
+    if free_vram_nvidia_gb is not None or free_vram_torch_gb is not None:
+        details: list[str] = []
+        if free_vram_nvidia_gb is not None:
+            details.append(f"nvidia-smi={free_vram_nvidia_gb:.1f} GiB")
+        if free_vram_torch_gb is not None:
+            details.append(f"torch={free_vram_torch_gb:.1f} GiB")
+        parts.append(f"VRAM sources: {', '.join(details)}.")
+    parts.append(
+        "Free GPU memory, stop concurrent runs, or use a smaller student model."
+    )
+    return " ".join(parts)
+
+
 def load_quantized_model(
     model_name: str,
     bnb_config: BitsAndBytesConfig,
@@ -134,9 +292,10 @@ def load_quantized_model(
     attn_implementation: str | None = None,
 ):
     model_type = resolve_model_type(model_name)
+    device_map = {"": 0} if prefer_full_gpu_quantized_load(model_name) else "auto"
     common_kwargs = {
         "quantization_config": bnb_config,
-        "device_map": "auto",
+        "device_map": device_map,
         "trust_remote_code": True,
     }
     if attn_implementation is not None:
@@ -150,15 +309,25 @@ def load_quantized_model(
                 "Qwen3.5 models require a transformers build with qwen3_5 support. "
                 f"Current transformers version: {transformers.__version__}"
             ) from exc
-        return Qwen3_5ForConditionalGeneration.from_pretrained(
+        try:
+            return Qwen3_5ForConditionalGeneration.from_pretrained(
+                model_name,
+                **common_kwargs,
+            )
+        except ValueError as exc:
+            if "dispatched on the cpu or the disk" not in str(exc).lower():
+                raise
+            raise RuntimeError(explain_quantized_dispatch_failure(model_name)) from exc
+
+    try:
+        return AutoModelForCausalLM.from_pretrained(
             model_name,
             **common_kwargs,
         )
-
-    return AutoModelForCausalLM.from_pretrained(
-        model_name,
-        **common_kwargs,
-    )
+    except ValueError as exc:
+        if "dispatched on the cpu or the disk" not in str(exc).lower():
+            raise
+        raise RuntimeError(explain_quantized_dispatch_failure(model_name)) from exc
 
 
 def format_chat(convos: list[dict], model_name: str) -> str:
@@ -230,35 +399,6 @@ def resolve_tokenize_workers(requested: int | None, sample_count: int) -> int:
 
 def supports_bf16() -> bool:
     return bool(torch.cuda.is_available() and torch.cuda.is_bf16_supported())
-
-
-def supports_tf32() -> bool:
-    if not torch.cuda.is_available():
-        return False
-    major, _minor = torch.cuda.get_device_capability(0)
-    return major >= 8
-
-
-def resolve_tf32_enabled() -> bool:
-    requested = os.environ.get("MASCARADE_TF32", "auto").strip().lower()
-    if requested in {"0", "false", "off", "disabled"}:
-        return False
-
-    candidate = supports_tf32() if requested in {"", "auto"} else True
-    if not candidate:
-        return False
-
-    # TrainingArguments performs its own runtime validation and is stricter
-    # than a plain compute-capability check on some mixed/legacy CUDA setups.
-    try:
-        TrainingArguments(
-            output_dir=os.path.join(SCRIPT_DIR, ".tf32_probe"),
-            tf32=True,
-            report_to="none",
-        )
-    except Exception:
-        return False
-    return True
 
 
 def resolve_compute_dtype() -> torch.dtype:
@@ -390,6 +530,31 @@ def train_domain(
     if not os.path.exists(dataset_path):
         emit(f"Dataset not found: {dataset_path}", important=True)
         return False
+    raw_rows = load_jsonl(Path(dataset_path))
+    normalized_rows, normalized_source_ids = ensure_row_ids_with_stats(
+        raw_rows, f"{domain}-dataset"
+    )
+    validation_errors = validate_rows(normalized_rows)
+    if validation_errors:
+        emit(
+            f"Dataset is invalid ({len(validation_errors)} errors): {validation_errors[0]}",
+            important=True,
+        )
+        return False
+    try:
+        dataset_quality = enforce_dataset_quality(
+            normalized_rows,
+            label=f"{domain} dataset",
+            ids_fixed=normalized_source_ids,
+        )
+    except DatasetQualityError as exc:
+        emit(f"Dataset quality gate failed: {exc}", important=True)
+        return False
+    if dataset_quality["warnings"]:
+        emit(
+            f"[WARN] dataset-quality: {summarize_quality_report(dataset_quality)}",
+            important=True,
+        )
 
     if not torch.cuda.is_available():
         emit(
@@ -483,11 +648,10 @@ def train_domain(
     # 3. Load model with 4-bit quantization
     emit("\n[3/5] Loading model (4-bit quantized)...")
     os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
-    tf32_enabled = resolve_tf32_enabled()
-    torch.backends.cuda.matmul.allow_tf32 = tf32_enabled
-    torch.backends.cudnn.allow_tf32 = tf32_enabled
+    torch.backends.cuda.matmul.allow_tf32 = True
+    torch.backends.cudnn.allow_tf32 = True
     if hasattr(torch, "set_float32_matmul_precision"):
-        torch.set_float32_matmul_precision("high" if tf32_enabled else "highest")
+        torch.set_float32_matmul_precision("high")
 
     compute_dtype = resolve_compute_dtype()
     attn_implementation = resolve_attention_implementation()
@@ -498,6 +662,8 @@ def train_domain(
         bnb_4bit_quant_type="nf4",
         bnb_4bit_use_double_quant=True,
     )
+
+    validate_quantized_gpu_preflight(model_name)
 
     model, resolved_attn_implementation = load_quantized_model_with_fallback(
         model_name,
@@ -517,7 +683,6 @@ def train_domain(
         f"  Attention: {resolved_attn_implementation or 'default'}",
         important=verbose,
     )
-    emit(f"  TF32: {'on' if tf32_enabled else 'off'}", important=verbose)
 
     # 4. Configure LoRA
     emit("\n[4/5] Configuring LoRA...")
@@ -549,7 +714,7 @@ def train_domain(
         warmup_steps=50,
         fp16=compute_dtype == torch.float16,
         bf16=compute_dtype == torch.bfloat16,
-        tf32=tf32_enabled,
+        tf32=True,
         optim="paged_adamw_8bit",
         logging_steps=25,
         logging_strategy="no" if quiet else "steps",
@@ -601,7 +766,6 @@ def train_domain(
         "tokenize_workers": resolved_tokenize_workers,
         "packing": used_packing,
         "compute_dtype": "bf16" if compute_dtype == torch.bfloat16 else "fp16",
-        "tf32": tf32_enabled,
         "attention_implementation": resolved_attn_implementation or "default",
     }
     with open(os.path.join(output_dir, "training_info.json"), "w") as f:
@@ -634,6 +798,7 @@ def evaluate(
         "embedded": "Write bare-metal SysTick timer init for ARM Cortex-M4.",
         "platformio": "Write a platformio.ini for ESP32 with WiFiManager and MQTT libraries.",
         "freecad": "Write a FreeCAD Python script for a parametric mounting bracket.",
+        "components": "Choose a logic-level MOSFET for a 24 V 2.5 A solenoid from a 3.3 V GPIO.",
     }
     prompt = prompts.get(domain, prompts["stm32"])
 

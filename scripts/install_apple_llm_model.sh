@@ -3,12 +3,13 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
+. "${REPO_DIR}/scripts/llm_env.sh"
 TOOLS_VENV="${APPLE_LLM_HF_VENV_DIR:-${REPO_DIR}/.venv-hf-tools}"
 PYTHON_BIN="${PYTHON_BIN:-python3}"
 MODEL_REPO="${APPLE_LLM_MODEL_REPO:-onnx-community/Qwen3.5-4B-ONNX}"
 MODEL_REVISION="${APPLE_LLM_MODEL_REVISION:-main}"
 ONNX_FILE="${APPLE_LLM_ONNX_FILE:-decoder_model_merged_q4f16.onnx}"
-DEST_DIR="${APPLE_LLM_MODEL_DEST:-${HOME}/Models/mascarade/apple-llm/Qwen3.5-4B-ONNX-q4f16}"
+DEST_DIR="${APPLE_LLM_MODEL_DEST:-${APPLE_LLM_MODEL_ROOT}/Qwen3.5-4B-ONNX-q4f16}"
 EMBED_ONNX_FILE=""
 
 usage() {
@@ -25,7 +26,7 @@ Defaults:
   repo:      onnx-community/Qwen3.5-4B-ONNX
   revision:  main
   onnx-file: decoder_model_merged_q4f16.onnx
-  dest:      ~/Models/mascarade/apple-llm/Qwen3.5-4B-ONNX-q4f16
+  dest:      /ai/llm/apple-llm/Qwen3.5-4B-ONNX-q4f16
 EOF
 }
 
@@ -113,6 +114,7 @@ snapshot_download(
 
 print(f"repo={repo_id}")
 print(f"dest={dest_dir}")
+print(f"llm_root={os.environ.get('MASCARADE_LLM_DIR', '')}")
 print(f"model_path={os.path.join(dest_dir, 'onnx', onnx_file)}")
 if embed_onnx_file:
     print(f"embed_model_path={os.path.join(dest_dir, 'onnx', embed_onnx_file)}")

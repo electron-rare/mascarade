@@ -1,0 +1,205 @@
+{
+  "version": 1,
+  "generated_at": "2026-03-09T09:42:22",
+  "domain": "stm32",
+  "topic": "STM32 / Cortex-M firmware",
+  "dataset_path": "/ai/saisail/mascarade/finetune/datasets/stm32_chat.jsonl",
+  "refresh": {
+    "domain": "stm32",
+    "generated_at": "2026-03-09T09:42:22",
+    "target_path": "/ai/saisail/mascarade/finetune/datasets/stm32_chat.jsonl",
+    "source_mode": "full_dataset_sync",
+    "source_path": "/ai/saisail/mascarade-datasets/stm32_chat.jsonl",
+    "builder": null,
+    "row_count": 594,
+    "ids_fixed": 2012,
+    "duplicates_removed": 1418,
+    "quality": {
+      "label": "stm32 refreshed dataset",
+      "mode": "fail",
+      "status": "warning",
+      "metrics": {
+        "row_count": 594,
+        "ids_fixed": 2012,
+        "ids_fixed_ratio": 3.387205387205387,
+        "unique_system_prompts": 1,
+        "unique_user_prompts": 313,
+        "duplicate_rows": 0,
+        "duplicate_ratio": 0.0,
+        "repeated_user_assistant_pairs": 0,
+        "repeated_pair_ratio": 0.0,
+        "assistant_len_avg": 1399.8468013468014,
+        "assistant_len_p95": 3101,
+        "assistant_len_max": 3752,
+        "short_assistant_rows": 0,
+        "short_assistant_ratio": 0.0
+      },
+      "thresholds": {
+        "min_rows_fail": 4,
+        "recommended_rows_warn": 8,
+        "min_unique_users_fail": 4,
+        "max_duplicate_ratio_fail": 0.1,
+        "max_repeated_pair_ratio_fail": 0.1,
+        "max_assistant_p95_fail": 6000,
+        "max_assistant_max_fail": 9000,
+        "max_assistant_avg_warn": 3500,
+        "short_assistant_threshold": 64,
+        "max_short_assistant_ratio_warn": 0.25
+      },
+      "errors": [],
+      "warnings": [
+        "source ids are synthesized for 2012/594 rows; persist ids in source JSONL for traceability",
+        "single system prompt across the dataset; style diversity is low"
+      ],
+      "would_fail": false,
+      "duplicates_removed_during_refresh": 1418
+    },
+    "legacy_ignored_paths": [
+      "finetune/build_components_dataset.py",
+      "finetune/build_freecad_dataset.py"
+    ]
+  },
+  "authoritative_urls": [
+    {
+      "label": "ST STM32Cube docs",
+      "url": "https://dev.st.com/stm32cube-docs/"
+    },
+    {
+      "label": "ST Community",
+      "url": "https://community.st.com/"
+    }
+  ],
+  "github_repos": [
+    {
+      "label": "STMicroelectronics org",
+      "url": "https://github.com/STMicroelectronics"
+    },
+    {
+      "label": "STM32CubeF4",
+      "url": "https://github.com/STMicroelectronics/STM32CubeF4"
+    },
+    {
+      "label": "STM32CubeH7",
+      "url": "https://github.com/STMicroelectronics/STM32CubeH7"
+    },
+    {
+      "label": "STM32CubeG4",
+      "url": "https://github.com/STMicroelectronics/STM32CubeG4"
+    }
+  ],
+  "software_sources": [
+    {
+      "label": "STM32Cube firmware hub",
+      "url": "https://github.com/STMicroelectronics"
+    },
+    {
+      "label": "STM32Cube docs",
+      "url": "https://dev.st.com/stm32cube-docs/"
+    }
+  ],
+  "forum_urls": [
+    {
+      "label": "ST Community",
+      "url": "https://community.st.com/"
+    },
+    {
+      "label": "PlatformIO Community",
+      "url": "https://community.platformio.org/"
+    },
+    {
+      "label": "ChibiOS Forum",
+      "url": "https://forum.chibios.org/"
+    },
+    {
+      "label": "FreeRTOS Forums",
+      "url": "https://forums.freertos.org/"
+    },
+    {
+      "label": "ARM Community Forums",
+      "url": "https://community.arm.com/support-forums/"
+    },
+    {
+      "label": "Arduino Forum",
+      "url": "https://forum.arduino.cc/"
+    },
+    {
+      "label": "EmbeddedRelated Forum",
+      "url": "https://www.embeddedrelated.com/forum.php"
+    },
+    {
+      "label": "Electronics StackExchange STM32",
+      "url": "https://electronics.stackexchange.com/questions/tagged/stm32"
+    },
+    {
+      "label": "Electronics StackExchange Embedded",
+      "url": "https://electronics.stackexchange.com/questions/tagged/embedded"
+    },
+    {
+      "label": "All About Circuits Embedded Systems",
+      "url": "https://forum.allaboutcircuits.com/forums/embedded-systems-and-microcontrollers.13/"
+    }
+  ],
+  "datasheet_roots": [
+    {
+      "label": "STM32 mainstream MCU documentation hub",
+      "url": "https://www.st.com/en/microcontrollers-microprocessors/stm32-mainstream-mcus/documentation.html"
+    },
+    {
+      "label": "STM32 family documentation portal",
+      "url": "https://www.st.com/en/microcontrollers-microprocessors.html"
+    }
+  ],
+  "hf_sources": [
+    {
+      "name": "MuratKomurcu/stm32-hal-dataset",
+      "url": "https://huggingface.co/datasets/MuratKomurcu/stm32-hal-dataset"
+    }
+  ],
+  "queries": [
+    "site:dev.st.com stm32 dma uart application note",
+    "site:community.st.com stm32 freertos low power",
+    "site:huggingface.co/datasets stm32 hal dataset"
+  ],
+  "trusted_domains": [
+    "dev.st.com",
+    "community.st.com",
+    "huggingface.co"
+  ],
+  "minimum_web_roots": 8,
+  "minimum_quality_score": 6,
+  "legacy_ignored_paths": [
+    "finetune/build_components_dataset.py",
+    "finetune/build_freecad_dataset.py"
+  ],
+  "operator_checklist": [
+    "sample at least 20 refreshed rows and verify technical plausibility",
+    "confirm the newest web findings are represented in prompts/answers",
+    "check duplicates and over-long answers before training",
+    "record any accepted new sources in the research brief before publish"
+  ],
+  "research_validation": {
+    "valid": true,
+    "web_roots_count": 21,
+    "authoritative_count": 2,
+    "github_count": 4,
+    "software_count": 2,
+    "forum_count": 10,
+    "datasheet_count": 2,
+    "hf_count": 1,
+    "query_count": 3,
+    "trusted_domain_count": 3,
+    "minimum_web_roots": 8,
+    "quality_score": 8,
+    "minimum_quality_score": 6,
+    "quality_checks": {
+      "authoritative_sources": true,
+      "github_or_software_sources": true,
+      "forum_coverage": true,
+      "datasheet_or_vendor_roots": true,
+      "hf_or_dataset_roots": true,
+      "query_coverage": true,
+      "trusted_domains_coverage": true,
+      "web_root_depth": true
+    }
+  }
+}

@@ -1,0 +1,146 @@
+{
+  "domain": "freecad",
+  "topic": "FreeCAD / parametric CAD",
+  "minimum_web_roots": 8,
+  "forum_urls": [
+    {
+      "label": "FreeCAD Forum",
+      "url": "https://forum.freecad.org/"
+    },
+    {
+      "label": "CadQuery Community",
+      "url": "https://community.cadquery.org/"
+    },
+    {
+      "label": "OpenSCAD Lists",
+      "url": "https://lists.openscad.org/"
+    },
+    {
+      "label": "Autodesk Forums",
+      "url": "https://forums.autodesk.com/"
+    },
+    {
+      "label": "Onshape Forum",
+      "url": "https://forum.onshape.com/"
+    },
+    {
+      "label": "GrabCAD Questions",
+      "url": "https://grabcad.com/questions"
+    },
+    {
+      "label": "3D Printing StackExchange",
+      "url": "https://3dprinting.stackexchange.com/"
+    },
+    {
+      "label": "LibreCAD Forum",
+      "url": "https://forum.librecad.org/"
+    },
+    {
+      "label": "OpenBuilds Forum",
+      "url": "https://openbuilds.com/forums/"
+    },
+    {
+      "label": "Maker Forums",
+      "url": "https://forum.makerforums.info/"
+    }
+  ],
+  "authoritative_urls": [
+    {
+      "label": "FreeCAD wiki",
+      "url": "https://wiki.freecad.org/"
+    },
+    {
+      "label": "FreeCAD project",
+      "url": "https://www.freecad.org/"
+    },
+    {
+      "label": "OpenSCAD documentation",
+      "url": "https://openscad.org/documentation.html"
+    },
+    {
+      "label": "SOLIDWORKS API Help",
+      "url": "https://help.solidworks.com/"
+    },
+    {
+      "label": "Fusion 360 API what's new",
+      "url": "https://help.autodesk.com/cloudhelp/ENU/Fusion-360-API/files/WhatsNew.htm"
+    }
+  ],
+  "github_repos": [
+    {
+      "label": "FreeCAD",
+      "url": "https://github.com/FreeCAD/FreeCAD"
+    },
+    {
+      "label": "FreeCAD org",
+      "url": "https://github.com/freecad"
+    },
+    {
+      "label": "OpenSCAD",
+      "url": "https://github.com/openscad/openscad"
+    },
+    {
+      "label": "CadQuery",
+      "url": "https://github.com/CadQuery/cadquery"
+    }
+  ],
+  "software_sources": [
+    {
+      "label": "FreeCAD project",
+      "url": "https://www.freecad.org/"
+    },
+    {
+      "label": "FreeCAD wiki",
+      "url": "https://wiki.freecad.org/"
+    },
+    {
+      "label": "OpenSCAD project",
+      "url": "https://openscad.org/"
+    },
+    {
+      "label": "CadQuery docs",
+      "url": "https://cadquery.readthedocs.io/"
+    },
+    {
+      "label": "Fusion 360 product",
+      "url": "https://www.autodesk.com/products/fusion-360/overview"
+    },
+    {
+      "label": "SOLIDWORKS Web Help",
+      "url": "https://help.solidworks.com/"
+    }
+  ],
+  "datasheet_roots": [
+    {
+      "label": "FreeCAD wiki",
+      "url": "https://wiki.freecad.org/"
+    },
+    {
+      "label": "OpenSCAD user manual",
+      "url": "https://openscad.org/documentation.html"
+    },
+    {
+      "label": "Fusion 360 API reference",
+      "url": "https://help.autodesk.com/cloudhelp/ENU/Fusion-360-API/"
+    },
+    {
+      "label": "SOLIDWORKS API Help",
+      "url": "https://help.solidworks.com/2024/english/api/sldworksapiprogguide/Welcome.htm"
+    }
+  ],
+  "hf_sources": [
+    "STEM-AI-mtl/Electrical-engineering"
+  ],
+  "queries": [
+    "site:wiki.freecad.org PartDesign scripting macro",
+    "site:www.freecad.org assembly workbench parametric scripting",
+    "site:huggingface.co/datasets freecad cad dataset",
+    "site:openscad.org documentation parametric cad",
+    "site:cadquery.readthedocs.io cadquery workplane examples"
+  ],
+  "trusted_domains": [
+    "wiki.freecad.org",
+    "freecad.org",
+    "huggingface.co"
+  ]
+}
