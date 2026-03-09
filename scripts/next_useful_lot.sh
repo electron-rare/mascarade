@@ -42,6 +42,7 @@ Options:
 
 Known lot ids:
   industrial-dcs-governed-sandbox
+  industrial-minimal-contract-intake
   agent-factory-cockpit-followup
   mascarade-followup
   crazy-life-followup
@@ -147,6 +148,20 @@ load_lot_definition() {
         "git -C $AGENT_FACTORY_ROOT diff --check"
       )
       ;;
+    industrial-minimal-contract-intake)
+      set_lot \
+        "industrial-minimal-contract-intake" \
+        "local" \
+        "agent-factory-cockpit" \
+        "$AGENT_FACTORY_ROOT" \
+        "A new industrial contract-intake lot is active locally: minimal vendor contract YAMLs, topology dossier wiring, and vendor-intake automation now span PLM/QMS/MES/ERP/WMS/DCS."
+      DETECTED_CHECKS=(
+        "cd $AGENT_FACTORY_ROOT && python3 -m py_compile serve.py agent_factory_cockpit/*.py scripts/lotctl.py scripts/vendor_contract_intake.py"
+        "cd $AGENT_FACTORY_ROOT && bash -n scripts/vendor_contract.sh scripts/industrial_lot.sh scripts/lotctl.sh"
+        "cd $AGENT_FACTORY_ROOT && python3 -m unittest tests.test_topology tests.test_validation tests.test_lotctl -q"
+        "git -C $AGENT_FACTORY_ROOT diff --check"
+      )
+      ;;
     agent-factory-cockpit-followup)
       set_lot \
         "agent-factory-cockpit-followup" \
@@ -214,9 +229,30 @@ load_lot_definition() {
   esac
 }
 
+populate_scope_paths_for_current_lot() {
+  case "$DETECTED_LOT_ID" in
+    agent-factory-cockpit-followup)
+      mapfile -t DETECTED_SCOPE_PATHS < <(repo_paths "$AGENT_FACTORY_ROOT")
+      ;;
+    mascarade-followup)
+      mapfile -t DETECTED_SCOPE_PATHS < <(repo_paths "$MASCARADE_ROOT")
+      ;;
+    crazy-life-followup)
+      mapfile -t DETECTED_SCOPE_PATHS < <(repo_paths "$CRAZY_LIFE_ROOT")
+      ;;
+    kill-life-followup)
+      mapfile -t DETECTED_SCOPE_PATHS < <(repo_paths "$KILL_LIFE_ROOT")
+      ;;
+    industrial-minimal-contract-intake)
+      mapfile -t DETECTED_SCOPE_PATHS < <(repo_paths "$AGENT_FACTORY_ROOT")
+      ;;
+  esac
+}
+
 detect_next_lot() {
   if [[ -n "$TARGET_LOT" ]]; then
     load_lot_definition "$TARGET_LOT"
+    populate_scope_paths_for_current_lot
     return 0
   fi
 
@@ -224,6 +260,12 @@ detect_next_lot() {
   mapfile -t masc_paths < <(repo_paths "$MASCARADE_ROOT")
   mapfile -t crazy_paths < <(repo_paths "$CRAZY_LIFE_ROOT")
   mapfile -t kill_paths < <(repo_paths "$KILL_LIFE_ROOT")
+
+  if [[ "${#afc_paths[@]}" -gt 0 ]] && matches_any_regex '(^agent_factory_cockpit/vendor_contracts\.py$|^contracts/vendors/.+/minimal-contract\.yaml$|^scripts/vendor_contract\.sh$|^scripts/vendor_contract_intake\.py$|^topology/(plm|qms|mes|erp|wms|dcs)\.yaml$)' "${afc_paths[@]}"; then
+    load_lot_definition "industrial-minimal-contract-intake"
+    DETECTED_SCOPE_PATHS=("${afc_paths[@]}")
+    return 0
+  fi
 
   if [[ "${#afc_paths[@]}" -gt 0 ]] && matches_any_regex '(^agent_factory_cockpit/dcs_sandbox\.py$|^contracts/vendors/dcs/|^topology/dcs\.yaml$|^examples/dcs-governed-sandbox\.json$|^src/main\.js$|^src/styles\.css$|^tests/test_topology\.py$|^README\.md$|^docs/IMPLEMENTATION_TODO\.md$|^Makefile$)' "${afc_paths[@]}"; then
     load_lot_definition "industrial-dcs-governed-sandbox"
