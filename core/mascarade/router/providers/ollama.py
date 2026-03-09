@@ -18,7 +18,7 @@ from mascarade.router.providers.base import (
 
 logger = logging.getLogger("mascarade.providers.ollama")
 
-_retry = make_retry(httpx.ConnectError, httpx.TimeoutException)
+_retry = make_retry(httpx.ConnectError)
 
 
 class OllamaProvider(LLMProvider):
@@ -32,7 +32,7 @@ class OllamaProvider(LLMProvider):
         self._base_url = settings.ollama_base_url.rstrip("/")
         self._client = httpx.AsyncClient(
             base_url=self._base_url,
-            timeout=180.0,
+            timeout=settings.ollama_timeout_seconds,
         )
 
     @property
@@ -72,10 +72,18 @@ class OllamaProvider(LLMProvider):
             else:
                 payload["format"] = response_format
 
-        response = await self._client.post(
-            "/api/chat",
-            json=payload,
-        )
+        try:
+            response = await self._client.post(
+                "/api/chat",
+                json=payload,
+            )
+        except httpx.TimeoutException as exc:
+            raise RuntimeError(
+                "Ollama local timeout after "
+                f"{settings.ollama_timeout_seconds:.0f}s for model '{model}' "
+                f"(max_tokens={max_tokens}) via {self._base_url}. "
+                "Increase OLLAMA_TIMEOUT_SECONDS or reduce ANE_MAX_TOKENS_*."
+            ) from exc
         response.raise_for_status()
         data = response.json()
 

@@ -314,3 +314,23 @@ Operational note:
 
 - `Qwen3.5-4B` is the most modern validated local model on this machine as of `2026-03-06`
 - `Qwen2.5-0.5B-Instruct` remains documented as a smaller fallback, but it is no longer the preferred default
+
+## 2026-03-07: Native Core ML runtime hardening
+
+The host Apple LLM service was extended so `APPLE_LLM_BACKEND=coreml` is no longer just a config placeholder.
+
+What changed:
+
+- `APPLE_LLM_EMBED_MODEL_PATH` was added for models that require a separate `embed_tokens` Core ML artifact
+- the service now rejects `.onnx` paths early when `APPLE_LLM_BACKEND=coreml`
+- `/health` now surfaces the runtime input specs so native Core ML models can be inspected without opening the package manually
+- the native `coreml` runtime can auto-discover sibling `embed_tokens*.mlpackage` / `embed_tokens*.mlmodelc` artifacts
+- a staging helper was added: `scripts/stage_apple_coreml_model.sh`
+- the native `coreml` runtime now supports stateful Core ML models via `MLModel.make_state()`
+- an acquisition helper was added for official Core ML packages: `scripts/install_apple_coreml_model.sh`
+- the first real run against `apple/mistral-coreml` exposed a Python runtime constraint: `coremltools` installed under Python 3.14 but failed to load `libmodelpackage`, so the launcher now prefers Python 3.12 for `APPLE_LLM_BACKEND=coreml`
+
+Practical effect:
+
+- `onnx-coreml` remains the current validated fallback on this machine
+- `coreml` is now a real first-class runtime path for future `.mlpackage` exports, with a stable config/env contract already wired into Mascarade

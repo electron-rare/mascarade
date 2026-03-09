@@ -12,7 +12,7 @@ from mascarade.router.providers.base import LLMProvider, LLMResponse, make_retry
 
 logger = logging.getLogger("mascarade.providers.apple_coreml")
 
-_retry = make_retry(httpx.ConnectError, httpx.TimeoutException)
+_retry = make_retry(httpx.ConnectError)
 
 
 class AppleCoreMLProvider(LLMProvider):
@@ -50,18 +50,34 @@ class AppleCoreMLProvider(LLMProvider):
     ) -> LLMResponse:
         model = model or self.default_model
 
-        response = await self._client.post(
-            "/generate",
-            json={
-                "messages": messages,
-                "system": system,
-                "model": model,
-                "temperature": temperature,
-                "max_tokens": max_tokens,
-            },
-        )
-        response.raise_for_status()
-        data = response.json()
+        payload = {
+            "messages": messages,
+            "system": system,
+            "model": model,
+            "temperature": temperature,
+            "max_tokens": max_tokens,
+        }
+        try:
+            response = await self._client.post("/generate", json=payload)
+            response.raise_for_status()
+            data = response.json()
+        except httpx.TimeoutException as exc:
+            raise RuntimeError(
+                "Apple local timeout after "
+                f"{settings.apple_llm_timeout_seconds:.0f}s for model '{model}' "
+                f"(max_tokens={max_tokens}). "
+                "Increase APPLE_LLM_TIMEOUT_SECONDS or lower max_tokens. "
+                "A cold-start Core ML warm-up can take several minutes."
+            ) from exc
+        except httpx.HTTPStatusError as exc:
+            detail = exc.response.text.strip()
+            raise RuntimeError(
+                f"Apple local HTTP {exc.response.status_code} for model '{model}': {detail}"
+            ) from exc
+        except httpx.HTTPError as exc:
+            raise RuntimeError(
+                f"Apple local request failed for model '{model}': {exc}"
+            ) from exc
 
         return LLMResponse(
             content=data.get("content", ""),
