@@ -1,29 +1,42 @@
 # Next Useful Lot State
 
-Generated: 2026-03-09 05:54:55 CET
+Generated: 2026-03-09 06:06:29 CET
 
 ## Summary
 
-- Detected lot: `external-only`
-- Kind: `external`
-- Primary repo: `none`
-- Primary root: `-`
-- Reason: No tracked local implementation lot is open. Only external blockers or operator-side actions remain.
+- Detected lot: `kill-life-followup`
+- Kind: `local`
+- Primary repo: `Kill_LIFE`
+- Primary root: `/home/clems/Kill_LIFE`
+- Reason: Tracked local changes remain in Kill_LIFE and should be checked with the stable Python/spec suite.
 
 ## Repo Snapshot
 
 - `mascarade`: 0 tracked delta(s)
 - `crazy_life`: 0 tracked delta(s)
-- `Kill_LIFE`: 0 tracked delta(s)
+- `Kill_LIFE`: 10 tracked delta(s)
 - `agent-factory-cockpit`: 0 tracked delta(s)
 
 ## Scope Paths
 
-- none (no local lot detected)
+- `ai-agentic-embedded-base/specs/mcp_tasks.md`
+- `ai-agentic-embedded-base/specs/zeroclaw_dual_hw_todo.md`
+- `specs/mcp_tasks.md`
+- `specs/zeroclaw_dual_hw_todo.md`
+- `tools/ai/integrations/n8n/README.md`
+- `tools/ai/integrations/n8n/kill_life_smoke_workflow.json`
+- `tools/ai/zeroclaw_integrations_down.sh`
+- `tools/ai/zeroclaw_integrations_import_n8n.sh`
+- `tools/ai/zeroclaw_integrations_status.sh`
+- `tools/ai/zeroclaw_integrations_up.sh`
 
 ## Canonical Checks
 
-- none; only external blockers remain
+```bash
+cd /home/clems/Kill_LIFE && bash tools/test_python.sh --suite stable
+cd /home/clems/Kill_LIFE && python3 tools/validate_specs.py --json
+git -C /home/clems/Kill_LIFE diff --check
+```
 
 ## External Blockers After Local Lots
 
