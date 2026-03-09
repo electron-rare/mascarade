@@ -18,6 +18,15 @@ services:
       DEFAULT_PROVIDER: ${DEFAULT_PROVIDER}
       DEFAULT_MODEL: ${DEFAULT_MODEL}
       AGENT_FACTORY_COCKPIT_DIR: ${AGENT_FACTORY_COCKPIT_DIR:-/workspace/agent-factory-cockpit}
+      AGENT_FACTORY_DCS_PACK: ${AGENT_FACTORY_DCS_PACK:-generic-rest}
+      AGENT_FACTORY_DCS_BASE_URL: ${AGENT_FACTORY_DCS_BASE_URL:-http://agent-factory-dcs-sandbox:4184/api}
+      AGENT_FACTORY_DCS_AUTH_MODE: ${AGENT_FACTORY_DCS_AUTH_MODE:-api-key}
+      AGENT_FACTORY_DCS_API_KEY: ${AGENT_FACTORY_DCS_API_KEY:-demo-dcs-key}
+      AGENT_FACTORY_DCS_AUTH_HEADER: ${AGENT_FACTORY_DCS_AUTH_HEADER:-X-DCS-Key}
+      AGENT_FACTORY_DCS_AUTH_SCHEME: ${AGENT_FACTORY_DCS_AUTH_SCHEME:-}
+      AGENT_FACTORY_DCS_RESOURCE_READ_SNAPSHOT: ${AGENT_FACTORY_DCS_RESOURCE_READ_SNAPSHOT:-read-snapshot}
+      AGENT_FACTORY_DCS_METHOD_READ_SNAPSHOT: ${AGENT_FACTORY_DCS_METHOD_READ_SNAPSHOT:-GET}
+      AGENT_FACTORY_DCS_RESOURCE_WRITE_REQUEST: ${AGENT_FACTORY_DCS_RESOURCE_WRITE_REQUEST:-write-request}
       PYTHONPATH: ${AGENT_FACTORY_COCKPIT_DIR:-/workspace/agent-factory-cockpit}:${PYTHONPATH:-}
     extra_hosts:
       - "host.docker.internal:host-gateway"
@@ -70,6 +79,15 @@ services:
       AGENT_FACTORY_APPROVER_GROUPS: ${AGENT_FACTORY_APPROVER_GROUPS:-approver}
       AGENT_FACTORY_AUDITOR_GROUPS: ${AGENT_FACTORY_AUDITOR_GROUPS:-auditor}
       AGENT_FACTORY_ADMIN_GROUPS: ${AGENT_FACTORY_ADMIN_GROUPS:-admin}
+      AGENT_FACTORY_DCS_PACK: ${AGENT_FACTORY_DCS_PACK:-generic-rest}
+      AGENT_FACTORY_DCS_BASE_URL: ${AGENT_FACTORY_DCS_BASE_URL:-http://agent-factory-dcs-sandbox:4184/api}
+      AGENT_FACTORY_DCS_AUTH_MODE: ${AGENT_FACTORY_DCS_AUTH_MODE:-api-key}
+      AGENT_FACTORY_DCS_API_KEY: ${AGENT_FACTORY_DCS_API_KEY:-demo-dcs-key}
+      AGENT_FACTORY_DCS_AUTH_HEADER: ${AGENT_FACTORY_DCS_AUTH_HEADER:-X-DCS-Key}
+      AGENT_FACTORY_DCS_AUTH_SCHEME: ${AGENT_FACTORY_DCS_AUTH_SCHEME:-}
+      AGENT_FACTORY_DCS_RESOURCE_READ_SNAPSHOT: ${AGENT_FACTORY_DCS_RESOURCE_READ_SNAPSHOT:-read-snapshot}
+      AGENT_FACTORY_DCS_METHOD_READ_SNAPSHOT: ${AGENT_FACTORY_DCS_METHOD_READ_SNAPSHOT:-GET}
+      AGENT_FACTORY_DCS_RESOURCE_WRITE_REQUEST: ${AGENT_FACTORY_DCS_RESOURCE_WRITE_REQUEST:-write-request}
     command:
       - /bin/sh
       - -lc
@@ -102,6 +120,49 @@ services:
       timeout: 5s
       retries: 10
       start_period: 15s
+    networks:
+      - mascarade-network
+
+  agent-factory-dcs-sandbox:
+    build:
+      context: ../agent-factory-cockpit
+      dockerfile: Dockerfile
+    container_name: mascarade-agent-factory-dcs-sandbox
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      AGENT_FACTORY_DCS_API_KEY: ${AGENT_FACTORY_DCS_API_KEY:-demo-dcs-key}
+      AGENT_FACTORY_DCS_AUTH_HEADER: ${AGENT_FACTORY_DCS_AUTH_HEADER:-X-DCS-Key}
+    command:
+      - python3
+      - -m
+      - agent_factory_cockpit.dcs_sandbox
+      - --host
+      - 0.0.0.0
+      - --port
+      - "${AGENT_FACTORY_DCS_SANDBOX_PORT:-4184}"
+      - --api-key
+      - "${AGENT_FACTORY_DCS_API_KEY:-demo-dcs-key}"
+      - --auth-header
+      - "${AGENT_FACTORY_DCS_AUTH_HEADER:-X-DCS-Key}"
+    expose:
+      - "4184"
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - python3 -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:4184/health')"
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
     networks:
       - mascarade-network
 

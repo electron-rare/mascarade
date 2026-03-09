@@ -42,6 +42,7 @@ Notes:
 - `PLM` expose maintenant un contrat `generic-rest` live-ready dans cette lane industrielle: `/api/industrial/platform` remonte `health` + `contract`, ainsi qu'un statut par opération `live` / `simulated` / `blocked`. Le runtime top-level publie bien la posture canonique `api-key` via `X-API-Key`. Sur cette VM, le sandbox PLM n'est pas encore configuré, donc le runtime courant reste `simulated` sans faux succès live.
 - `QMS` expose maintenant la meme posture `generic-rest` live-ready que `PLM`: `/api/industrial/platform` remonte `health` + `contract`, les 3 operations `validation-pack`, `deviation-record` et `qa-signoff`, et la posture d'auth canonique `api-key` via `X-QMS-Key`. Sur cette VM, le sandbox QMS n'est pas encore configure, donc le runtime courant reste `simulated` sans faux succes live.
 - `WMS` expose maintenant la meme posture `generic-rest` live-ready que `PLM` et `QMS`, avec auth canonique `api-key` via `X-WMS-Key`, 3 operations (`pick-wave`, `shipment-release`, `inventory-hold`) et visibilite `health` + `contract` dans `/api/industrial/platform`; sur cette VM, le runtime reste volontairement `simulated` tant que le sandbox WMS n'est pas configure
+- `DCS` dispose maintenant d'un sandbox OT gouverne local, raccorde a la lane industrielle, avec un flux de demo explicite sans faux write direct
 - `ZeroClaw` est maintenant installe nativement sur la VM (`zeroclaw 0.1.7`), avec un runtime operateur demarrable a la demande via `Kill_LIFE/tools/ai/zeroclaw_stack_up.sh`.
 - `zeroclaw.saillant.cc` sert maintenant la surface live `ZeroClaw` derriere `edge-proxy`, avec fallback offline propre si le runtime est arrete.
 - `zeroclaw-docs.saillant.cc` et `langgraph.saillant.cc` servent les runbooks operateur authentifies.
@@ -127,7 +128,24 @@ Les restes encore ouverts ne sont plus des blocs locaux d'implementation:
 - si le sandbox `PLM` doit passer en live, il faut encore renseigner `AGENT_FACTORY_PLM_BASE_URL`, `AGENT_FACTORY_PLM_API_KEY` et les `AGENT_FACTORY_PLM_RESOURCE_*` sur la VM
 - si le sandbox `QMS` doit passer en live, il faut encore renseigner `AGENT_FACTORY_QMS_BASE_URL`, `AGENT_FACTORY_QMS_API_KEY` et les `AGENT_FACTORY_QMS_RESOURCE_*` sur la VM
 - si le sandbox `WMS` doit passer en live, il faut encore renseigner `AGENT_FACTORY_WMS_BASE_URL`, `AGENT_FACTORY_WMS_API_KEY` et les `AGENT_FACTORY_WMS_RESOURCE_*` sur la VM
-- ne rouvrir `DCS` qu'avec un vrai sandbox/runtime OT et un contrat gouverne complet
+- `DCS` est ferme localement sur un sandbox/runtime OT gouverne et un flux de demo executable; ne rouvrir un vrai DCS live qu'avec un runtime/contrat OT externe
+
+## Automation locale
+
+Chemin canonique pour reprendre automatiquement le prochain lot utile:
+
+```bash
+cd /home/clems/mascarade
+bash scripts/run_next_useful_lot.sh
+```
+
+Commandes fines:
+
+```bash
+bash scripts/next_useful_lot.sh detect
+bash scripts/next_useful_lot.sh checks
+bash scripts/next_useful_lot.sh state --write
+```
 
 ## Infra existante sur la VM
 

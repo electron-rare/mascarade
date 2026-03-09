@@ -84,6 +84,26 @@ Rappel operatoire:
 - `scripts/sync_crazy_life.sh` ne publie pas une release canonique
 - la readiness de release vit dans `crazy_life`, via `scripts/publish_preflight.sh`
 
+### Boucle "next useful lot"
+
+Les scripts canoniques pour enchainer automatiquement sur le prochain lot utile
+local sont:
+
+```bash
+bash scripts/next_useful_lot.sh detect
+bash scripts/next_useful_lot.sh checks
+bash scripts/run_next_useful_lot.sh
+```
+
+Contrat:
+- `detect` choisit le lot local le plus utile encore ouvert
+- `checks` rejoue ses validations canoniques
+- `run_next_useful_lot.sh` fait `detect + checks + refresh` de
+  `docs/NEXT_USEFUL_LOT_STATE.md`
+
+Le fichier versionne [NEXT_USEFUL_LOT_STATE.md](/home/clems/mascarade/docs/NEXT_USEFUL_LOT_STATE.md)
+devient la note de handoff court terme pour le lot actif.
+
 ---
 
 ## Fine-Tuning
