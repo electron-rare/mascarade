@@ -331,6 +331,15 @@ const EDGE_PROXY_MEM0_SERVER_NAME = (
 const EDGE_PROXY_FIRECRAWL_SERVER_NAME = (
   process.env.EDGE_PROXY_FIRECRAWL_SERVER_NAME || `firecrawl.${EDGE_PROXY_SERVER_NAME}`
 ).trim();
+const EDGE_PROXY_SEARCH_SERVER_NAME = (
+  process.env.EDGE_PROXY_SEARCH_SERVER_NAME || `search.${EDGE_PROXY_SERVER_NAME}`
+).trim();
+const EDGE_PROXY_PAPERLESS_SERVER_NAME = (
+  process.env.EDGE_PROXY_PAPERLESS_SERVER_NAME || `paperless.${EDGE_PROXY_SERVER_NAME}`
+).trim();
+const EDGE_PROXY_KARAKEEP_SERVER_NAME = (
+  process.env.EDGE_PROXY_KARAKEEP_SERVER_NAME || `karakeep.${EDGE_PROXY_SERVER_NAME}`
+).trim();
 const EDGE_PROXY_ZEROCLAW_SERVER_NAME = (
   process.env.EDGE_PROXY_ZEROCLAW_SERVER_NAME || `zeroclaw.${EDGE_PROXY_SERVER_NAME}`
 ).trim();
@@ -1087,6 +1096,9 @@ async function collectMonitorSnapshot(): Promise<MonitorSnapshot> {
     timedProbe("langfuse", "http://langfuse-web:3000/"),
     timedProbe("firecrawl", "http://firecrawl:3000/mcp", 1500, [400]),
     timedProbe("mem0", "http://mem0:8765/", 1500, [404, 405]),
+    timedProbe("searxng", "http://mascarade-searxng:8080/", 1800, [200]),
+    timedProbe("paperless", "http://mascarade-paperless:8000/api/", 1800, [200, 301, 302, 403]),
+    timedProbe("karakeep", "http://mascarade-karakeep:3000/", 1800, [200, 301, 302, 307]),
     timedProbe("tempo", "http://tempo:3200/ready"),
     timedProbe("dify-web", "http://dify-web:3000/"),
     timedProbe("dify-api", "http://dify-api:5001/health"),
@@ -1141,6 +1153,27 @@ async function collectMonitorSnapshot(): Promise<MonitorSnapshot> {
       1800,
       [400],
       proxyAuthHeaders(EDGE_PROXY_FIRECRAWL_SERVER_NAME),
+    ),
+    timedProbe(
+      "search-proxy",
+      "http://edge-proxy/",
+      1800,
+      [200],
+      proxyAuthHeaders(EDGE_PROXY_SEARCH_SERVER_NAME),
+    ),
+    timedProbe(
+      "paperless-proxy",
+      "http://edge-proxy/api/",
+      1800,
+      [200, 301, 302, 403],
+      proxyAuthHeaders(EDGE_PROXY_PAPERLESS_SERVER_NAME),
+    ),
+    timedProbe(
+      "karakeep-proxy",
+      "http://edge-proxy/",
+      1800,
+      [200, 301, 302, 307],
+      proxyAuthHeaders(EDGE_PROXY_KARAKEEP_SERVER_NAME),
     ),
     timedProbe(
       "industrial-proxy",
@@ -1199,6 +1232,9 @@ async function collectMonitorSnapshot(): Promise<MonitorSnapshot> {
   const prometheusProxyProbe = probes.find((probe) => probe.name === "prometheus-proxy");
   const mem0ProxyProbe = probes.find((probe) => probe.name === "mem0-proxy");
   const firecrawlProxyProbe = probes.find((probe) => probe.name === "firecrawl-proxy");
+  const searchProxyProbe = probes.find((probe) => probe.name === "search-proxy");
+  const paperlessProxyProbe = probes.find((probe) => probe.name === "paperless-proxy");
+  const karakeepProxyProbe = probes.find((probe) => probe.name === "karakeep-proxy");
   const industrialCockpitProbe = probes.find((probe) => probe.name === "agent-factory-cockpit");
   const industrialProxyProbe = probes.find((probe) => probe.name === "industrial-proxy");
   const zeroclawProxyProbe = probes.find((probe) => probe.name === "zeroclaw-proxy");
@@ -1302,6 +1338,39 @@ async function collectMonitorSnapshot(): Promise<MonitorSnapshot> {
           latency_ms: firecrawlProxyProbe?.latency_ms ?? 0,
           note: "streamable MCP endpoint behind edge-proxy basic auth",
           ...(firecrawlProxyProbe?.error ? { error: firecrawlProxyProbe.error } : {}),
+        },
+        {
+          name: "search",
+          host: EDGE_PROXY_SEARCH_SERVER_NAME,
+          url: `https://${EDGE_PROXY_SEARCH_SERVER_NAME}/`,
+          protected: true,
+          ok: searchProxyProbe?.ok ?? false,
+          status: searchProxyProbe?.status ?? 0,
+          latency_ms: searchProxyProbe?.latency_ms ?? 0,
+          note: "SearXNG search behind edge-proxy basic auth",
+          ...(searchProxyProbe?.error ? { error: searchProxyProbe.error } : {}),
+        },
+        {
+          name: "paperless",
+          host: EDGE_PROXY_PAPERLESS_SERVER_NAME,
+          url: `https://${EDGE_PROXY_PAPERLESS_SERVER_NAME}/`,
+          protected: true,
+          ok: paperlessProxyProbe?.ok ?? false,
+          status: paperlessProxyProbe?.status ?? 0,
+          latency_ms: paperlessProxyProbe?.latency_ms ?? 0,
+          note: "Paperless-ngx documents behind edge-proxy basic auth",
+          ...(paperlessProxyProbe?.error ? { error: paperlessProxyProbe.error } : {}),
+        },
+        {
+          name: "karakeep",
+          host: EDGE_PROXY_KARAKEEP_SERVER_NAME,
+          url: `https://${EDGE_PROXY_KARAKEEP_SERVER_NAME}/`,
+          protected: true,
+          ok: karakeepProxyProbe?.ok ?? false,
+          status: karakeepProxyProbe?.status ?? 0,
+          latency_ms: karakeepProxyProbe?.latency_ms ?? 0,
+          note: "Karakeep bookmarks behind edge-proxy basic auth",
+          ...(karakeepProxyProbe?.error ? { error: karakeepProxyProbe.error } : {}),
         },
         {
           name: "industrial",

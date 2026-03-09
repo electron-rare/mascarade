@@ -124,6 +124,9 @@ export default function OpsHub() {
     const ollamaSurface = findPublicSurface(data, "ollama");
     const firecrawlSurface = findPublicSurface(data, "firecrawl");
     const mem0Surface = findPublicSurface(data, "mem0");
+    const searchSurface = findPublicSurface(data, "search");
+    const paperlessSurface = findPublicSurface(data, "paperless");
+    const karakeepSurface = findPublicSurface(data, "karakeep");
     const industrialSurface = findPublicSurface(data, "industrial");
     const zeroclawSurface = findPublicSurface(data, "zeroclaw");
     const zeroclawDocsSurface = findPublicSurface(data, "zeroclaw-docs");
@@ -163,6 +166,21 @@ export default function OpsHub() {
         label: "Mem0 proxy",
         href: mem0Surface.url,
         note: "openmemory docs behind edge-proxy",
+      } : null,
+      searchSurface?.url ? {
+        label: "Search proxy",
+        href: searchSurface.url,
+        note: "SearXNG behind edge-proxy",
+      } : null,
+      paperlessSurface?.url ? {
+        label: "Paperless proxy",
+        href: paperlessSurface.url,
+        note: "document inbox behind edge-proxy",
+      } : null,
+      karakeepSurface?.url ? {
+        label: "Karakeep proxy",
+        href: karakeepSurface.url,
+        note: "bookmark capture behind edge-proxy",
       } : null,
       industrialSurface?.url ? {
         label: "Industrial cockpit",

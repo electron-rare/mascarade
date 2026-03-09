@@ -29,6 +29,10 @@ Etat reel:
 - le follow-up `industrial-wms-generic-rest` est maintenant publie; il aligne
   `WMS` sur la meme posture `generic-rest` live-ready que `PLM` et `QMS`,
   sans faux vert `live` tant que la VM ne porte pas le sandbox WMS
+- le follow-up `phase2-operator-stack` est maintenant publie; il ajoute la
+  stack documentaire/recherche `SearXNG` / `Paperless-ngx` / `Karakeep` en
+  bind local-first, plus les surfaces publiques protegees
+  `search.saillant.cc`, `paperless.saillant.cc` et `karakeep.saillant.cc`
 - le repo compagnon `finetune/kicad_kic_ai` reste hors bundle `mascarade`
 
 ## Lots logiques publies
@@ -144,6 +148,40 @@ Resultat local:
   `cockpit_proxy_ok=true`
 - `OpsHub` n'utilise plus aucun port brut pour ce cockpit
 
+### `phase2-operator-stack`
+
+Perimetre:
+
+- ajout de `deploy/phase2` avec `SearXNG`, `Paperless-ngx` et `Karakeep`
+- bind local-first sur `127.0.0.1` et raccord au reseau
+  `mascarade_mascarade-network`
+- vhosts publics proteges `search.saillant.cc`, `paperless.saillant.cc` et
+  `karakeep.saillant.cc` derriere `edge-proxy`
+- surfaces publiques `search`, `paperless` et `karakeep` ajoutees dans
+  `/api/ops/monitor`, `/api/ops/summary`, `OpsHub` et `ops-console`
+- miroir `crazy_life` aligne sur les memes liens proxifies
+
+Checks rejoues pour fermer ce bundle:
+
+- `cd /home/clems/mascarade/deploy/phase2 && docker compose --env-file .env -f docker-compose.yml config -q`
+- `cd /home/clems/mascarade/deploy/phase2 && docker compose --env-file .env -f docker-compose.yml up -d`
+- `cd /home/clems/mascarade && docker compose up -d --build api edge-proxy`
+- `cd /home/clems/mascarade && npm --prefix api run build`
+- `cd /home/clems/mascarade && npm --prefix web run build:api-public`
+- `cd /home/clems/crazy_life && npm run build`
+- `GET /api/ops/monitor` authentifie
+
+Resultat local:
+
+- `mascarade-searxng`, `mascarade-paperless` et `mascarade-karakeep` sont
+  `healthy`
+- `/api/ops/monitor` -> `search.ok=true`, `paperless.ok=true`,
+  `karakeep.ok=true`
+- `search.saillant.cc` -> `200` avec auth
+- `paperless.saillant.cc` -> `302` avec auth attendu
+- `karakeep.saillant.cc` -> `307` avec auth attendu
+- `deploy/phase2/.env` reste hors Git; seule `.env.example` est versionnee
+
 ## Reliquats locaux
 
 ### 0. Follow-ups publies `industrial-plm-generic-rest` / `industrial-qms-generic-rest`
@@ -238,6 +276,7 @@ Les follow-ups operateur deja publies restent:
 - `industrial-mcp-operator-lane`
 - `industrial-plm-generic-rest`
 - `industrial-qms-generic-rest`
+- `phase2-operator-stack`
 
 Le seul bundle repo-suivi actif de cette ligne est maintenant: aucun.
 
