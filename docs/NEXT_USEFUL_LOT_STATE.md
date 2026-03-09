@@ -1,45 +1,50 @@
 # Next Useful Lot State
 
-Generated: 2026-03-09 05:38:46 CET
+Generated: 2026-03-09 05:52:05 CET
 
 ## Summary
 
-- Detected lot: `industrial-dcs-governed-sandbox`
+- Detected lot: `kill-life-followup`
 - Kind: `local`
-- Primary repo: `agent-factory-cockpit`
-- Primary root: `/home/clems/agent-factory-cockpit`
-- Reason: The DCS sandbox lane is the only active industrial lot: local tracked changes cover the DCS contract, topology, sandbox runtime, cockpit UI, tests, and companion state docs.
-- Companion repos: `mascarade,crazy_life`
+- Primary repo: `Kill_LIFE`
+- Primary root: `/home/clems/Kill_LIFE`
+- Reason: Tracked local changes remain in Kill_LIFE and should be checked with the stable Python/spec suite.
 
 ## Repo Snapshot
 
-- `mascarade`: 15 tracked delta(s)
-- `crazy_life`: 1 tracked delta(s)
-- `Kill_LIFE`: 9 tracked delta(s)
-- `agent-factory-cockpit`: 21 tracked delta(s)
+- `mascarade`: 1 tracked delta(s)
+- `crazy_life`: 0 tracked delta(s)
+- `Kill_LIFE`: 19 tracked delta(s)
+- `agent-factory-cockpit`: 0 tracked delta(s)
 
 ## Scope Paths
 
-- `README.md`
+- `.github/prompts/plan_wizard_bulk_edit_hw.prompt.md`
 - `Makefile`
-- `agent_factory_cockpit/dcs_sandbox.py`
-- `contracts/vendors/dcs/contract.yaml`
-- `contracts/vendors/dcs/openapi.yaml`
-- `docs/IMPLEMENTATION_TODO.md`
-- `examples/dcs-governed-sandbox.json`
-- `src/main.js`
-- `src/styles.css`
-- `tests/test_topology.py`
-- `topology/dcs.yaml`
+- `README.md`
+- `ai-agentic-embedded-base/specs/03_plan.md`
+- `ai-agentic-embedded-base/specs/04_tasks.md`
+- `ai-agentic-embedded-base/specs/README.md`
+- `ai-agentic-embedded-base/specs/constraints.yaml`
+- `docs/AI_WORKFLOWS.md`
+- `docs/plans/09_plan_bulk_edit_hardware.md`
+- `specs/03_plan.md`
+- `specs/04_tasks.md`
+- `specs/README.md`
+- `specs/constraints.yaml`
+- `tools/cockpit/README.md`
+- `tools/cockpit/cockpit.py`
+- `.github/ISSUE_TEMPLATE/`
+- `tools/cockpit/lot_chain.sh`
+- `tools/doc/readme_repo_coherence.sh`
+- `tools/specs/`
 
 ## Canonical Checks
 
 ```bash
-cd /home/clems/agent-factory-cockpit && python3 -m py_compile serve.py agent_factory_cockpit/*.py scripts/lotctl.py
-cd /home/clems/agent-factory-cockpit && python3 -m unittest tests.test_topology tests.test_validation tests.test_runtime -q
-cd /home/clems/agent-factory-cockpit && python3 -m unittest tests.test_execution tests.test_mcp tests.test_dcs_sandbox tests.test_lotctl -q
-cd /home/clems/agent-factory-cockpit && make demo-dcs-sandbox
-git -C /home/clems/agent-factory-cockpit diff --check
+cd /home/clems/Kill_LIFE && bash tools/test_python.sh --suite stable
+cd /home/clems/Kill_LIFE && python3 tools/validate_specs.py --json
+git -C /home/clems/Kill_LIFE diff --check
 ```
 
 ## External Blockers After Local Lots
@@ -50,4 +55,4 @@ git -C /home/clems/agent-factory-cockpit diff --check
 - si le sandbox `PLM` doit passer en live, il faut encore renseigner `AGENT_FACTORY_PLM_BASE_URL`, `AGENT_FACTORY_PLM_API_KEY` et les `AGENT_FACTORY_PLM_RESOURCE_*` sur la VM
 - si le sandbox `QMS` doit passer en live, il faut encore renseigner `AGENT_FACTORY_QMS_BASE_URL`, `AGENT_FACTORY_QMS_API_KEY` et les `AGENT_FACTORY_QMS_RESOURCE_*` sur la VM
 - si le sandbox `WMS` doit passer en live, il faut encore renseigner `AGENT_FACTORY_WMS_BASE_URL`, `AGENT_FACTORY_WMS_API_KEY` et les `AGENT_FACTORY_WMS_RESOURCE_*` sur la VM
-- lot actif: fabriquer un sandbox/runtime OT gouverne local pour `DCS`, l'integrer a la lane industrielle, puis ne rouvrir un vrai DCS live qu'avec un runtime/contrat OT externe
+- `DCS` est ferme localement sur un sandbox/runtime OT gouverne et un flux de demo executable; ne rouvrir un vrai DCS live qu'avec un runtime/contrat OT externe
