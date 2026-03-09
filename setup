@@ -103,6 +103,7 @@ Options:
       --ollama-models <csv>  Liste de modeles Ollama a pull (prioritaire sur --ollama-pack)
       --ops-console-only     Alias legacy: lance core+api+edge-proxy pour servir /ops puis quitte
       --cluster              Active la configuration multi-machine privee pour le core
+      --p2p                  Alias de --cluster (mode P2P multi-machine)
       --cad-plugins         Installe les plugins KiCad configures dans le .env
       --cad-doctor          Verifie les plugins KiCad configures apres installation
       --cad-stack           Demarre la stack CAD/KiCad dediee apres le setup principal
@@ -238,6 +239,10 @@ parse_setup_args() {
                 ENABLE_CLUSTER=true
                 CLUSTER_ENABLED=true
                 ;;
+            --p2p)
+                ENABLE_CLUSTER=true
+                CLUSTER_ENABLED=true
+                ;;
             --cad-plugins)
                 RUN_CAD_PLUGINS=true
                 CAD_PLUGINS_EXPLICIT=true
@@ -315,6 +320,11 @@ validate_cluster_config() {
     [[ -z "${NODE_ROLE:-}" ]] && missing+=("NODE_ROLE")
     [[ -z "${MESH_BIND_HOST:-}" ]] && missing+=("MESH_BIND_HOST")
     [[ -z "${CLUSTER_SHARED_KEY:-}" ]] && missing+=("CLUSTER_SHARED_KEY")
+
+    local mdns_ttl="${CLUSTER_MDNS_DISCOVERY_TTL_SECONDS:-60}"
+    if ! [[ "$mdns_ttl" =~ ^[0-9]+$ ]] || [[ "$mdns_ttl" -lt 5 ]]; then
+        missing+=("CLUSTER_MDNS_DISCOVERY_TTL_SECONDS")
+    fi
 
     if [[ ${#missing[@]} -gt 0 ]]; then
         err "Configuration cluster incomplete: ${missing[*]}"
@@ -442,6 +452,89 @@ run_cad_smoke_action() {
     fi
     warn "Smoke test CAD echoue"
     return 1
+}
+
+prompt_p2p_setup() {
+    if [[ "${AUTO_CONFIRM}" == true ]]; then
+        return 0
+    fi
+    if [[ "${SVC_ON[core]:-0}" != "1" ]]; then
+        return 0
+    fi
+    if ! _has_input_tty; then
+        return 0
+    fi
+
+    if [[ "${CLUSTER_ENABLED:-false}" == "true" ]]; then
+        if ! confirm "P2P (cluster) actif. Conserver le mode P2P ?"; then
+            CLUSTER_ENABLED=false
+            NODE_ID="${NODE_ID:-node-1}"
+            NODE_ROLE="${NODE_ROLE:-general}"
+            NODE_LABEL="${NODE_LABEL:-Mascarade Node 1}"
+            MESH_BIND_HOST=""
+            MESH_SCHEME="${MESH_SCHEME:-http}"
+            CLUSTER_SHARED_KEY=""
+            CLUSTER_REQUEST_TIMEOUT_MS="${CLUSTER_REQUEST_TIMEOUT_MS:-5000}"
+            CLUSTER_HEARTBEAT_SECONDS="${CLUSTER_HEARTBEAT_SECONDS:-30}"
+            CLUSTER_FORWARD_ENABLED=false
+            CLUSTER_PEERS=""
+            info "Mode P2P desactive."
+            return 0
+        fi
+    else
+        if ! confirm "Activer le mode P2P (cluster multi-machine) ?"; then
+            CLUSTER_ENABLED=false
+            return 0
+        fi
+        CLUSTER_ENABLED=true
+    fi
+
+    NODE_ID=$(input_value "Node ID P2P :" "${NODE_ID:-node-1}")
+    NODE_ROLE=$(input_value "Role du noeud P2P :" "${NODE_ROLE:-general}")
+    NODE_LABEL=$(input_value "Label du noeud P2P :" "${NODE_LABEL:-Mascarade Node 1}")
+    MESH_BIND_HOST=$(input_value "IP/VPN mesh du noeud :" "${MESH_BIND_HOST:-}")
+    MESH_SCHEME=$(input_value "Schema mesh (http/https) :" "${MESH_SCHEME:-http}")
+    CLUSTER_SHARED_KEY=$(input_optional_secret "Cle Bearer inter-noeuds :" "${CLUSTER_SHARED_KEY:-}")
+    CLUSTER_REQUEST_TIMEOUT_MS=$(input_value "Timeout cluster (ms) :" "${CLUSTER_REQUEST_TIMEOUT_MS:-5000}")
+    CLUSTER_HEARTBEAT_SECONDS=$(input_value "Heartbeat logique (s) :" "${CLUSTER_HEARTBEAT_SECONDS:-30}")
+    if [[ "${CLUSTER_MDNS_ENABLED:-false}" == "true" ]]; then
+        if ! confirm "Activer la découverte Bonjour/mDNS ?"; then
+            CLUSTER_MDNS_ENABLED=false
+        fi
+    else
+        if confirm "Activer la découverte Bonjour/mDNS ?"; then
+            CLUSTER_MDNS_ENABLED=true
+        fi
+    fi
+    if [[ "${CLUSTER_MDNS_ENABLED:-false}" == "true" ]]; then
+        CLUSTER_MDNS_SERVICE=$(input_value "Nom service mDNS :" "${CLUSTER_MDNS_SERVICE:-_mascarade._tcp.local.}")
+        CLUSTER_MDNS_DISCOVERY_TTL_SECONDS=$(input_value "TTL découverte mDNS (secondes) :" "${CLUSTER_MDNS_DISCOVERY_TTL_SECONDS:-60}")
+        if [[ "${CLUSTER_MDNS_ADVERTISE:-false}" == "true" ]]; then
+            if ! confirm "Publier ce noeud en mDNS (Bonjour) ?"; then
+                CLUSTER_MDNS_ADVERTISE=false
+            fi
+        else
+            if confirm "Publier ce noeud en mDNS (Bonjour) ?"; then
+                CLUSTER_MDNS_ADVERTISE=true
+            fi
+        fi
+    else
+        CLUSTER_MDNS_SERVICE="${CLUSTER_MDNS_SERVICE:-_mascarade._tcp.local.}"
+        CLUSTER_MDNS_DISCOVERY_TTL_SECONDS="${CLUSTER_MDNS_DISCOVERY_TTL_SECONDS:-60}"
+        CLUSTER_MDNS_ADVERTISE="${CLUSTER_MDNS_ADVERTISE:-false}"
+    fi
+    if [[ "${CLUSTER_FORWARD_ENABLED:-true}" == "true" ]]; then
+        if ! confirm "Garder le forward `core -> core` actif ?"; then
+            CLUSTER_FORWARD_ENABLED=false
+        fi
+    else
+        if confirm "Activer le forward `core -> core` ?"; then
+            CLUSTER_FORWARD_ENABLED=true
+        fi
+    fi
+    CLUSTER_PEERS=$(input_optional_value "Peers P2P (peer|role|url;...) :" "${CLUSTER_PEERS:-}")
+
+    return 0
 }
 
 # Correction de confirm_or_auto pour propager le code de retour
@@ -917,15 +1010,22 @@ fi
 
 if [[ -f "$REPO_DIR/.env" ]]; then
     dbg ".env existe deja ($(wc -l < "$REPO_DIR/.env") lignes)"
+    env_reconfigured=false
     if [[ "${MASCARADE_RECONFIGURE_ENV:-false}" == "true" ]] || confirm_or_auto "Un fichier .env existe. Le reconfigurer ?" "no"; then
         dbg "Reconfiguration .env..."
         collect_module_configs
+        env_reconfigured=true
     else
         ok ".env conserve"
     fi
 else
     dbg "Pas de .env existant, lancement config modules"
     collect_module_configs
+    env_reconfigured=true
+fi
+
+if [[ "${AUTO_CONFIRM}" != true && "${env_reconfigured}" != true ]]; then
+    prompt_p2p_setup
 fi
 
 validate_cluster_config

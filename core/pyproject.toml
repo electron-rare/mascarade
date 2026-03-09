@@ -25,6 +25,7 @@ dependencies = [
     "google-auth>=2.41,<3",
     "google-genai>=1.0,<2",
     "python-multipart>=0.0.22,<1",
+    "zeroconf>=0.145.0,<1",
 ]
 
 [project.optional-dependencies]
