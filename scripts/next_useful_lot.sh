@@ -62,16 +62,24 @@ repo_label() {
 
 repo_paths() {
   local repo_root="$1"
+  local state_rel=""
+  if [[ "$repo_root" == "$MASCARADE_ROOT" ]]; then
+    state_rel="${STATE_DOC#${repo_root}/}"
+  fi
+
   git -C "$repo_root" status --porcelain=1 | while IFS= read -r line; do
     local path="${line#???}"
     path="${path##* -> }"
+    if [[ -n "${state_rel}" && "${path}" == "${state_rel}" ]]; then
+      continue
+    fi
     printf '%s\n' "$path"
   done
 }
 
 repo_dirty_count() {
   local repo_root="$1"
-  git -C "$repo_root" status --porcelain=1 | wc -l | tr -d ' '
+  repo_paths "$repo_root" | wc -l | tr -d ' '
 }
 
 list_external_blockers() {
