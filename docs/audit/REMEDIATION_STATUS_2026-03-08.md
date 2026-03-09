@@ -25,14 +25,23 @@ Backlog de reference:
   - perimetre clos: cockpit industriel `agent-factory-cockpit`, hostname public
     `industrial.saillant.cc`, inventaire/proxy des 7 serveurs MCP industriels
     dans `mascarade` et miroir `crazy_life`
-- Follow-up post-`RA-*`: local actif
-  - `industrial-plm-generic-rest`: implemente localement
+- Follow-up post-`RA-*`: ferme
+  - `industrial-plm-generic-rest`: publie
   - perimetre: contrat MCP `plm://health` + `plm://contract`, visibilité cockpit
     `mascarade` / `crazy_life`, et posture `generic-rest` `api-key` avec mode
     `live + simulated`
   - etat reel: le pack est `live-ready` sur contrat et runtime, mais la VM ne
     porte pas encore de sandbox PLM configuré; le statut courant reste donc
     `simulated` sans faux vert `live`
+- Follow-up post-`RA-*`: ferme
+  - `industrial-qms-generic-rest`: publie
+  - perimetre: qualification `QMS` en `generic-rest` live-ready sur le meme
+    modele que `PLM`, avec contrat MCP explicite, posture par operation et
+    exposition cockpit `mascarade` / `crazy_life`
+  - etat reel: le pack est `live-ready` sur contrat et runtime, avec posture
+    top-level `api-key` via `X-QMS-Key`, mais la VM ne porte pas encore de
+    sandbox QMS configure; le statut courant reste donc `simulated` sans faux
+    vert `live`
 
 ## Detail par RA
 
@@ -140,7 +149,7 @@ Condition de reouverture:
 2. Aucun chantier repo-suivi local n'est actif sur la ligne `MCP/agentics`.
 3. Aucun follow-up repo-suivi local actif ne reste sur cette ligne.
 4. Garder les sujets encore ouverts hors audit:
-   - secrets providers optionnels si un provider supplementaire doit etre actif;
-   - setup Mac local (`MCP`, `Playwright MCP`) si ce poste doit redevenir un environnement operateur.
+   - billing `Anthropic`, activation API Google et quota/token Nexar si un besoin live reparait;
+   - consolidation du worktree `/Users/electron/mascarade` sur le Mac operateur avant tout `pull`.
 5. N'ouvrir un chantier Nexar supplementaire que si le sourcing live requiert un token/plan avec quota de parts non nul.
 6. Ne rejouer `K-012` que si le host-native KiCad devient une exigence runtime.

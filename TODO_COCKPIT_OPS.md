@@ -35,6 +35,8 @@ Le lot local est stable; ce fichier ne porte plus de blocage critique.
 - [x] `Industrial Cockpit` expose comme surface operateur derriere `edge-proxy` sur `industrial.saillant.cc`, avec inventory des 7 serveurs MCP industriels visible dans `OpsHub`
 - [x] `industrial.saillant.cc/` et `industrial.saillant.cc/api/session` repondent `200` avec auth operateur; aucun port brut n'est expose pour ce cockpit
 - [x] `PLM` remonte maintenant dans la lane industrielle avec son contrat MCP explicite (`health` + `contract`) et un statut par operation `live` / `simulated` / `blocked`
+- [x] `QMS` remonte maintenant dans la lane industrielle avec son contrat MCP explicite (`health` + `contract`) et un statut par operation `live` / `simulated` / `blocked`
+- [x] `Infrastructure` expose maintenant les compteurs de topologie industrielle utiles (`sites`, `external partners`, `lines`) pour le rollout `grandris-1` / `ems-lyon`
 - [x] `OpsHub` distingue maintenant posture runtime, observabilite et surfaces publiques/proxifiees
 - [x] `OpsHub` n'ouvre plus les surfaces tooling sur des ports bruts; il renvoie vers les hostnames proxifies proteges
 
@@ -44,7 +46,7 @@ Le lot local est stable; ce fichier ne porte plus de blocage critique.
 - [ ] Recueillir des retours UX a froid sur `Logs` et `OpsHub`
 - [ ] Etendre les actions operateur d'`Agent Zero` uniquement si un usage concret depasse le mode copilot actuel
 - [ ] Etendre le cockpit industriel seulement si un besoin reel depasse l'inventaire/runtime/tool-proxy actuel
-- [ ] Ouvrir la vague industrielle suivante seulement si un vrai sandbox/runtime apparait pour `QMS`, `WMS` ou `DCS`
+- [ ] Ouvrir `WMS` ou `DCS` seulement si un vrai sandbox/runtime apparait apres la vague `QMS`
 
 ## 4. Complement optionnel
 
@@ -53,8 +55,8 @@ Le lot local est stable; ce fichier ne porte plus de blocage critique.
 ## 5. Hors perimetre de ce lot
 
 - [x] TLS / certificat public et DNS `*.saillant.cc`
-- [ ] Secrets operateur optionnels (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `NEXAR_TOKEN`)
-- [ ] Setup Mac local (`MCP`, `Playwright MCP`)
+- [ ] Sujets externes providers/secrets: billing `Anthropic`, activation API Google, quota/token `NEXAR` si un sourcing live repart
+- [x] Setup Mac local (`MCP`, `Playwright MCP`) valide sur le poste operateur cible
 - [ ] Si le sourcing Nexar live devient critique, prevoir un token/plan avec quota de parts non nul
 - [ ] `K-012` uniquement si le host-native KiCad redevient requis
 
@@ -63,5 +65,5 @@ Le lot local est stable; ce fichier ne porte plus de blocage critique.
 1. Ne pas rouvrir ce lot sans besoin concret.
 2. Considerer le lot cockpit/ops comme livre apres rejeu vert des checks canoniques du `2026-03-08`.
 3. Garder la ligne `MCP/agentics` sur le backlog specialise `Kill_LIFE/specs/mcp_tasks.md`.
-4. Traiter separement les sujets externes: secrets providers, setup Mac local.
+4. Traiter separement les sujets externes: billing `Anthropic`, activation API Google, quota `NEXAR` si besoin live.
 5. Ne pas traiter le repo compagnon `finetune/kicad_kic_ai` comme un delta `mascarade`; il suit sa propre publication.

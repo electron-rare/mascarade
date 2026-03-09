@@ -60,11 +60,13 @@ observabilite/proxy operateur.
 | `Agent Zero` en mode operator copilot | FAIT |
 | Surfaces publiques/proxifiees dans `OpsHub` | FAIT |
 | `ZeroClaw` live + `zeroclaw-docs` / `LangGraph` visibles comme surfaces operateur (runtime `ZeroClaw` on-demand) | FAIT |
+| Lane industrielle enrichie avec posture `PLM/QMS` `generic-rest` live-ready, compteurs topo `site/partner/line`, et proxy `industrial.saillant.cc` revalide | FAIT |
 | Extensions UX ou dashboards supplementaires | DIFFERE |
 
 ### Prochain lot
 1. Ne pas rouvrir sans besoin concret.
 2. Traiter seulement les retours UX a froid si necessaire.
+3. N'ouvrir la vague industrielle suivante que si un vrai sandbox/runtime apparait pour `WMS` ou `DCS`.
 
 ---
 
@@ -153,8 +155,8 @@ observabilite/proxy operateur.
 | Push des lots precedents | FAIT |
 
 ### Prochain lot
-1. Aucun reliquat repo critique restant apres fermeture du follow-up `mascarade`.
-2. Garder les reliquats externes (`K-014`, TLS public, setup Mac) hors de cette phase.
+1. Aucun reliquat repo critique restant apres fermeture du follow-up industriel `PLM/QMS` dans `agent-factory-cockpit` et `mascarade`.
+2. Garder les reliquats externes (`K-014`, billing `Anthropic`, activation API Google) hors de cette phase.
 3. Ne pas rouvrir de nouvelle consolidation inter-repo sans besoin concret.
 
 ---
@@ -173,5 +175,5 @@ observabilite/proxy operateur.
 
 ### Priorite immediate recommandee
 1. Ne pas rouvrir de nouveau chantier local sans besoin concret.
-2. Traiter seulement les sujets externes ou optionnels: billing `Anthropic`, activation API Google, et consolidation du worktree `/Users/electron/mascarade` sur le Mac operateur avant tout `pull`.
+2. Traiter seulement les sujets externes ou optionnels: billing `Anthropic`, activation API Google, quota/token `NEXAR` si le sourcing live repart, et consolidation du worktree `/Users/electron/mascarade` sur le Mac operateur avant tout `pull`.
 3. Si une nouvelle vague repo s'ouvre, repartir d'un lot neuf au lieu de reutiliser un reliquat historique.

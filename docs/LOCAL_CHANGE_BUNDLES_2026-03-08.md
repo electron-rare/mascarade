@@ -21,9 +21,11 @@ Etat reel:
 - le follow-up `industrial-mcp-operator-lane` est maintenant publie aussi; il
   etend la posture operateur publique au cockpit industriel
   `agent-factory-cockpit`
-- un nouveau follow-up local `industrial-plm-generic-rest` est ouvert; il
-  etend la lane industrielle avec la posture `PLM` `generic-rest` live-ready,
-  sans encore publier le bundle
+- les follow-ups `industrial-plm-generic-rest` et
+  `industrial-qms-generic-rest` sont maintenant publies; ils etendent la lane
+  industrielle avec la posture `generic-rest` live-ready sur `PLM` et `QMS`,
+  sans faux vert `live` tant que la VM ne porte pas les sandboxes
+  correspondantes
 - le repo compagnon `finetune/kicad_kic_ai` reste hors bundle `mascarade`
 
 ## Lots logiques publies
@@ -141,17 +143,19 @@ Resultat local:
 
 ## Reliquats locaux
 
-### 0. Bundle actif `industrial-plm-generic-rest`
+### 0. Follow-ups publies `industrial-plm-generic-rest` / `industrial-qms-generic-rest`
 
 Perimetre:
 
-- `agent-factory-cockpit`: ressource MCP `plm://contract`, topologie `plm`
-  sortie du statut `blocked`, docs/runtime `PLM` recales sur la posture
-  `generic-rest` `api-key` avec fallback explicite
+- `agent-factory-cockpit`: ressources MCP `plm://contract` et
+  `qms://contract`, topologies `plm` / `qms` sorties du statut `blocked`,
+  docs/runtime recales sur la posture `generic-rest` `api-key` avec fallback
+  explicite
 - `mascarade`: enrichissement `/api/industrial/platform` et `/api/ops/summary`
-  pour faire remonter `health` + `contract` sur `plm`, plus recapitulatif
-  industriel plus riche dans `OpsHub`
-- `crazy_life`: miroir `OpsHub` aligne sur la meme carte industrielle
+  pour faire remonter `health` + `contract` sur les serveurs industriels, plus
+  recapitulatif industriel plus riche dans `OpsHub` et `Infrastructure`
+- `crazy_life`: aucun miroir code additionnel requis; le rendu existant couvre
+  deja la posture enrichie via le payload proxifie canonique
 
 Checks rejoues:
 
@@ -169,10 +173,13 @@ Checks rejoues:
 Etat local:
 
 - `plm` expose bien `health` + `contract` dans `/api/industrial/platform`
-- le contrat `PLM` est `live-ready` au niveau dossier/runtime, mais reste
-  `incomplete` faute d'attachement OpenAPI/Postman
-- la VM ne porte pas encore de config sandbox `PLM`, donc le runtime courant
-  remonte `simulated` et non `live`
+- `qms` expose bien `health` + `contract` sur le meme modele
+- les contrats `PLM` et `QMS` sont `live-ready` au niveau dossier/runtime, mais
+  restent `incomplete` faute d'attachement OpenAPI/Postman
+- la VM ne porte pas encore de config sandbox `PLM` / `QMS`, donc le runtime
+  courant remonte `simulated` et non `live`
+- `industrial.saillant.cc` repond `401` sans auth et `200` avec auth; le
+  recapitulatif industriel publie bien `7` serveurs `runtime_ok`
 
 ### 1. Repo compagnon `finetune/kicad_kic_ai`
 
@@ -199,9 +206,9 @@ Les trois follow-ups operateur sont maintenant publies:
 
 Etat courant:
 
-- `mascarade`: un bundle local actif `industrial-plm-generic-rest`
+- `mascarade`: repo-suivi ferme; les follow-ups industriels `PLM/QMS` sont publies
 - `Kill_LIFE`: repo-suivi ferme; seul `.mascarade/` reste local/exclu
-- `crazy_life`: un miroir local actif `industrial-plm-live-ready-mirror`
+- `crazy_life`: aucun miroir local actif; le rendu industriel actuel reste generique
 
 ## Regle
 
