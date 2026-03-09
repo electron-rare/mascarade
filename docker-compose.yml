@@ -361,20 +361,61 @@ services:
     networks:
       - mascarade-network
 
-  ollama:
-    image: ${OLLAMA_IMAGE:-ollama/ollama@sha256:719122581b6932e1240ae70d788859089cb80d17e23cd4f98ba960b0290f70cb}
-    container_name: mascarade-ollama
+  tts:
+    container_name: mascarade-tts
     restart: unless-stopped
     ports:
-      - "${PUBLISH_BIND_HOST:-0.0.0.0}:${OLLAMA_PORT}:11434"
+      - "${PUBLISH_BIND_HOST:-0.0.0.0}:${TTS_PORT}:10200"
+    image: ${TTS_PIPER_IMAGE:-rhasspy/wyoming-piper:latest}
+    environment:
+      TTS_ENGINE: ${TTS_ENGINE:-piper}
+      TTS_VOICE: ${TTS_VOICE:-}
     volumes:
-      - ollama-data:/root/.ollama
-    healthcheck:
-      test: ["CMD-SHELL", "ollama list >/dev/null 2>&1"]
-      interval: 20s
-      timeout: 10s
-      retries: 15
-      start_period: 40s
+      - tts-data:/data
+    networks:
+      - mascarade-network
+
+  stt:
+    image: ${STT_IMAGE:-onerahmet/openai-whisper-asr-webservice:latest}
+    container_name: mascarade-stt
+    restart: unless-stopped
+    ports:
+      - "${PUBLISH_BIND_HOST:-0.0.0.0}:${STT_PORT}:9000"
+    environment:
+      ASR_ENGINE: faster_whisper
+      STT_ENGINE: ${STT_ENGINE:-faster_whisper}
+      ASR_MODEL: ${STT_MODEL:-small}
+    volumes:
+      - stt-cache:/root/.cache
+    networks:
+      - mascarade-network
+
+  generate-audio:
+    build:
+      context: .
+      dockerfile: deploy/Dockerfile.generate-audio
+      args:
+        TORCH_INDEX_URL: https://download.pytorch.org/whl/cpu
+        TORCH_VERSION: 2.1.0
+        TORCHAUDIO_VERSION: 2.1.0
+        TORCHVISION_VERSION: 0.16.0
+        TORCHTEXT_VERSION: 0.16.0
+        XFORMERS_VERSION: 0.0.22.post7
+        AUDIOCRAFT_VERSION: 1.3.0
+    container_name: mascarade-generate-audio
+    restart: unless-stopped
+    ports:
+      - "${PUBLISH_BIND_HOST:-0.0.0.0}:${GENERATE_AUDIO_PORT}:9000"
+    environment:
+      GENERATE_AUDIO_ENGINE: audiogen
+      GENERATE_AUDIO_MODEL: ${GENERATE_AUDIO_MODEL:-facebook/audiogen-medium}
+      GENERATE_AUDIO_RUNTIME: cpu
+      GENERATE_AUDIO_TORCH_VARIANT: cpu
+      GENERATE_AUDIO_KEEP_LOADED: ${GENERATE_AUDIO_KEEP_LOADED:-false}
+      GENERATE_AUDIO_IDLE_UNLOAD_SECONDS: ${GENERATE_AUDIO_IDLE_UNLOAD_SECONDS:-0}
+      HF_HOME: /root/.cache/huggingface
+    volumes:
+      - generate-audio-cache:/root/.cache/huggingface
     networks:
       - mascarade-network
 
@@ -486,39 +527,6 @@ services:
         aliases:
           - mem0_store
 
-  grafana:
-    image: ${GRAFANA_IMAGE:-grafana/grafana@sha256:b0ae311af06228bcfd4a620504b653db80f5b91e94dc3dc2a5b7dab202bcde20}
-    container_name: mascarade-grafana
-    restart: unless-stopped
-    ports:
-      - "${PUBLISH_BIND_HOST:-0.0.0.0}:${GRAFANA_PORT}:3000"
-    volumes:
-      - grafana-data:/var/lib/grafana
-      - ./deploy/grafana/provisioning:/etc/grafana/provisioning:ro
-    healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://localhost:3000/api/health >/dev/null"]
-      interval: 15s
-      timeout: 5s
-      retries: 5
-    networks:
-      - mascarade-network
-
-  prometheus:
-    image: ${PROMETHEUS_IMAGE:-prom/prometheus@sha256:4a61322ac1103a0e3aea2a61ef1718422a48fa046441f299d71e660a3bc71ae9}
-    container_name: mascarade-prometheus
-    restart: unless-stopped
-    ports:
-      - "${PUBLISH_BIND_HOST:-0.0.0.0}:${PROMETHEUS_PORT}:9090"
-    volumes:
-      - prometheus-data:/prometheus
-    healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:9090/-/healthy >/dev/null"]
-      interval: 15s
-      timeout: 5s
-      retries: 5
-    networks:
-      - mascarade-network
-
   loki:
     image: ${LOKI_IMAGE:-grafana/loki:3.5.3}
     container_name: mascarade-loki
@@ -591,7 +599,9 @@ volumes:
   n8n-data:
   langfuse-minio-data:
   clickhouse-data:
-  ollama-data:
+  tts-data:
+  stt-cache:
+  generate-audio-cache:
   edge-proxy-certs:
     name: mascarade-edge-proxy-certs
   edge-proxy-acme:
@@ -599,7 +609,5 @@ volumes:
   redis-data:
   postgres-data:
   qdrant-data:
-  grafana-data:
-  prometheus-data:
   loki-data:
   promtail-data:

@@ -9,6 +9,9 @@ module_core_config() {
 
   if [[ "${CLUSTER_ENABLED:-false}" == "true" ]]; then
     info "Mode P2P deja actif — verification des parametres multi-noeuds"
+    if [[ "${CLUSTER_MDNS_ENABLED:-false}" == "true" ]]; then
+      info "Mode mDNS actif: ${CLUSTER_MDNS_SERVICE:-_mascarade._tcp.local.}"
+    fi
   elif [[ ! -t 0 || ! -t 1 ]]; then
     CLUSTER_ENABLED="${CLUSTER_ENABLED:-false}"
   elif confirm "Activer le mode P2P (cluster prive) ?"; then
@@ -35,6 +38,34 @@ module_core_config() {
         CLUSTER_FORWARD_ENABLED=true
       fi
     fi
+    if [[ "${CLUSTER_MDNS_ENABLED:-false}" == "true" ]]; then
+      if confirm "Activer la découverte Bonjour/mDNS P2P ?"; then
+        CLUSTER_MDNS_ENABLED=true
+      else
+        CLUSTER_MDNS_ENABLED=false
+      fi
+    else
+      if confirm "Activer la découverte Bonjour/mDNS P2P ?"; then
+        CLUSTER_MDNS_ENABLED=true
+      fi
+    fi
+    if [[ "${CLUSTER_MDNS_ENABLED:-false}" == "true" ]]; then
+      CLUSTER_MDNS_SERVICE=$(input_value "Nom service mDNS" "${CLUSTER_MDNS_SERVICE:-_mascarade._tcp.local.}")
+      CLUSTER_MDNS_DISCOVERY_TTL_SECONDS=$(input_value "TTL découverte mDNS (s)" "${CLUSTER_MDNS_DISCOVERY_TTL_SECONDS:-60}")
+      if [[ "${CLUSTER_MDNS_ADVERTISE:-false}" == "true" ]]; then
+        if ! confirm "Publier ce noeud en mDNS (bonjour) ?"; then
+          CLUSTER_MDNS_ADVERTISE=false
+        fi
+      else
+        if confirm "Publier ce noeud en mDNS (bonjour) ?"; then
+          CLUSTER_MDNS_ADVERTISE=true
+        fi
+      fi
+    else
+      CLUSTER_MDNS_SERVICE="${CLUSTER_MDNS_SERVICE:-_mascarade._tcp.local.}"
+      CLUSTER_MDNS_DISCOVERY_TTL_SECONDS="${CLUSTER_MDNS_DISCOVERY_TTL_SECONDS:-60}"
+      CLUSTER_MDNS_ADVERTISE="${CLUSTER_MDNS_ADVERTISE:-false}"
+    fi
     CLUSTER_PEERS=$(input_optional_value "Peers cluster (peer|role|url;...)" "${CLUSTER_PEERS:-}")
   else
     NODE_ID="${NODE_ID:-node-1}"
@@ -46,6 +77,10 @@ module_core_config() {
     CLUSTER_REQUEST_TIMEOUT_MS="${CLUSTER_REQUEST_TIMEOUT_MS:-5000}"
     CLUSTER_HEARTBEAT_SECONDS="${CLUSTER_HEARTBEAT_SECONDS:-30}"
     CLUSTER_FORWARD_ENABLED=false
+    CLUSTER_MDNS_ENABLED="${CLUSTER_MDNS_ENABLED:-false}"
+    CLUSTER_MDNS_SERVICE="${CLUSTER_MDNS_SERVICE:-_mascarade._tcp.local.}"
+    CLUSTER_MDNS_DISCOVERY_TTL_SECONDS="${CLUSTER_MDNS_DISCOVERY_TTL_SECONDS:-60}"
+    CLUSTER_MDNS_ADVERTISE="${CLUSTER_MDNS_ADVERTISE:-false}"
     CLUSTER_PEERS=""
   fi
 }
