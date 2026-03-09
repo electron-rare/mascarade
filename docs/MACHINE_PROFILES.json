@@ -1,0 +1,39 @@
+{
+  "machines": {
+    "photon-machine": {
+      "aliases": [
+        "photon-machine"
+      ],
+      "capabilities": [
+        "docker-runtime",
+        "lan-ops",
+        "dify-machine",
+        "observability-local"
+      ]
+    },
+    "net-runner": {
+      "aliases": [
+        "net-runner"
+      ],
+      "capabilities": [
+        "network-online"
+      ]
+    },
+    "kicad-runner": {
+      "aliases": [
+        "kicad-runner"
+      ],
+      "capabilities": [
+        "kicad-host"
+      ]
+    },
+    "nexar-runner": {
+      "aliases": [
+        "nexar-runner"
+      ],
+      "capabilities": [
+        "nexar-live"
+      ]
+    }
+  }
+}
