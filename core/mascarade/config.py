@@ -135,6 +135,14 @@ class Settings(BaseSettings):
     device_voice_max_audio_bytes: int = 2_000_000
     device_reply_ttl_seconds: int = 900
 
+    # Device voice sessions
+    device_stt_model: str = "gpt-4o-mini-transcribe"
+    device_stt_language: str = "fr"
+    device_tts_model: str = "gpt-4o-mini-tts"
+    device_tts_voice: str = "sage"
+    device_voice_max_audio_bytes: int = 2_000_000
+    device_reply_ttl_seconds: int = 900
+
     # Observability
     otel_enabled: bool = False
     otel_collector_http_endpoint: str = "http://otel-collector:4318"
