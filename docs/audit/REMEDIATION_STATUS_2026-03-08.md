@@ -20,6 +20,11 @@ Backlog de reference:
   - `operator-surfaces-public-proxy`: publie
   - `zeroclaw-langgraph-operator-lane`: publie
   - perimetre clos: surfaces operateur publiques avec auth via `edge-proxy`, `api` runtime `Kill_LIFE` en `rw`, `OpsHub` recale sur les URLs proxifiees, `ZeroClaw` on-demand avec runbooks `ZeroClaw` / `LangGraph`
+- Follow-up post-`RA-*`: ferme
+  - `industrial-mcp-operator-lane`: publie
+  - perimetre clos: cockpit industriel `agent-factory-cockpit`, hostname public
+    `industrial.saillant.cc`, inventaire/proxy des 7 serveurs MCP industriels
+    dans `mascarade` et miroir `crazy_life`
 
 ## Detail par RA
 
@@ -125,8 +130,9 @@ Condition de reouverture:
 ## Next step
 1. Le backlog `RA-*` reste clos; ne pas le rouvrir sans signal reel de regression.
 2. Aucun chantier repo-suivi local n'est actif sur la ligne `MCP/agentics`.
-3. Garder les sujets encore ouverts hors audit:
+3. Aucun follow-up repo-suivi local actif ne reste sur cette ligne.
+4. Garder les sujets encore ouverts hors audit:
    - secrets providers optionnels si un provider supplementaire doit etre actif;
    - setup Mac local (`MCP`, `Playwright MCP`) si ce poste doit redevenir un environnement operateur.
-4. N'ouvrir un chantier Nexar supplementaire que si le sourcing live requiert un token/plan avec quota de parts non nul.
-5. Ne rejouer `K-012` que si le host-native KiCad devient une exigence runtime.
+5. N'ouvrir un chantier Nexar supplementaire que si le sourcing live requiert un token/plan avec quota de parts non nul.
+6. Ne rejouer `K-012` que si le host-native KiCad devient une exigence runtime.

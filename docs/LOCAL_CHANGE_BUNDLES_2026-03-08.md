@@ -18,6 +18,9 @@ Etat reel:
 - la ligne `MCP/agentics` reste fermee localement
 - les follow-ups `operator-surfaces-public-proxy` puis
   `zeroclaw-langgraph-operator-lane` sont publies
+- le follow-up `industrial-mcp-operator-lane` est maintenant publie aussi; il
+  etend la posture operateur publique au cockpit industriel
+  `agent-factory-cockpit`
 - le repo compagnon `finetune/kicad_kic_ai` reste hors bundle `mascarade`
 
 ## Lots logiques publies
@@ -97,6 +100,42 @@ Resultat local:
   serveurs `ready`
 - `zeroclaw` / `langgraph` remontent comme surfaces publiques `ok=true`
 
+### `industrial-mcp-operator-lane`
+
+Perimetre:
+
+- service `agent-factory-cockpit` ajoute a la stack `mascarade`
+- montage `../agent-factory-cockpit` en lecture seule dans `mascarade-core` pour
+  permettre la decouverte et les appels stdio des 7 serveurs MCP industriels
+- hostname public protege `industrial.saillant.cc` derriere `edge-proxy`
+- surfaces `/api/industrial/*`, `monitor.public.surfaces`, `/api/ops/summary`
+  et `OpsHub` etendues au cockpit industriel et a l'inventaire serveur
+- miroir cockpit `crazy_life` aligne sur la meme posture
+
+Checks rejoues pour fermer ce bundle:
+
+- `docker compose config -q`
+- `cd api && npm run test -- src/routes/industrial.test.ts src/routes/ops.test.ts`
+- `cd api && npm run build`
+- `cd web && npm run build:api-public`
+- `cd ../crazy_life && npm run build`
+- `docker compose up -d --build core api edge-proxy agent-factory-cockpit`
+- `GET /api/industrial/platform` authentifie
+- `GET /api/ops/summary` authentifie
+- probe HTTPS `industrial.saillant.cc` sans auth puis avec auth
+
+Resultat local:
+
+- `Host: industrial.saillant.cc` sur le proxy local -> `401` sans auth, `200` avec auth
+- `Host: industrial.saillant.cc` sur `/api/session` -> `200` avec auth
+- `/api/industrial/platform` -> inventaire `cockpit-ops`, `plm`, `qms`, `mes`,
+  `erp`, `wms`, `dcs`
+- `/api/ops/summary` -> surface publique `industrial` visible, avec resume
+  runtime des 7 serveurs
+- `/api/ops/summary` -> `industrial.ui.ok=true`, `cockpit_service_ok=true`,
+  `cockpit_proxy_ok=true`
+- `OpsHub` n'utilise plus aucun port brut pour ce cockpit
+
 ## Reliquats locaux
 
 ### 1. Repo compagnon `finetune/kicad_kic_ai`
@@ -114,8 +153,11 @@ Ce que cela signifie:
 
 ### 2. Aucun bundle repo-suivi actif
 
-Les deux follow-ups operateur ont ete publies. Il n'y a plus de delta
-repo-suivi `mascarade` actif sur cette ligne.
+Les trois follow-ups operateur sont maintenant publies:
+
+- `operator-surfaces-public-proxy`
+- `zeroclaw-langgraph-operator-lane`
+- `industrial-mcp-operator-lane`
 
 ## Etat inter-repo
 

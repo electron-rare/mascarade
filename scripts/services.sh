@@ -27,6 +27,7 @@ define_service "langfuse"   "Langfuse"          "Observabilite LLM (tracing, eva
 define_service "firecrawl"  "Firecrawl MCP"     "Scraping / search web via serveur MCP Firecrawl" "3400"  "tools" 0 ""
 define_service "mem0"       "Mem0 / OpenMemory" "Memoire agentique sur Qdrant via OpenMemory MCP" "3300"  "tools" 0 "litellm,qdrant"
 define_service "dify"       "Dify"              "App builder IA (API + Web + Worker)"              "3500"  "tools" 0 "postgres,redis"
+define_service "agent-factory-cockpit" "Industrial Cockpit" "Cockpit HTTP + MCP industriel live-ready" "4173" "tools" 1 ""
 define_service "clickhouse" "ClickHouse"        "Base analytique colonnaire (Langfuse)"            "—"     "tools" 0 ""
 define_service "comfyui"    "ComfyUI"           "Generation d'images (SD, Flux)"                   "8188"  "tools" 0 ""
 define_service "tts"        "TTS"               "Synthese vocale locale (Piper/Wyoming)"           "10200" "tools" 0 ""
@@ -70,6 +71,7 @@ sync_service_ports_from_env() {
             firecrawl) env_var="FIRECRAWL_PORT" ;;
             mem0) env_var="MEM0_PORT" ;;
             dify) env_var="DIFY_WEB_PORT" ;;
+            agent-factory-cockpit) env_var="AGENT_FACTORY_COCKPIT_PORT" ;;
             comfyui) env_var="COMFYUI_PORT" ;;
             tts) env_var="TTS_PORT" ;;
             stt) env_var="STT_PORT" ;;
