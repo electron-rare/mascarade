@@ -95,6 +95,7 @@ class Settings(BaseSettings):
     # Ollama
     ollama_enabled: bool = False
     ollama_base_url: str = "http://ollama:11434"
+    ollama_timeout_seconds: float = 180.0
 
     # Apple Silicon local LLM service
     apple_llm_enabled: bool = False
@@ -125,6 +126,14 @@ class Settings(BaseSettings):
     cluster_heartbeat_seconds: int = 30
     cluster_forward_enabled: bool = True
     cluster_peers: str = ""
+
+    # Device voice sessions
+    device_stt_model: str = "gpt-4o-mini-transcribe"
+    device_stt_language: str = "fr"
+    device_tts_model: str = "gpt-4o-mini-tts"
+    device_tts_voice: str = "sage"
+    device_voice_max_audio_bytes: int = 2_000_000
+    device_reply_ttl_seconds: int = 900
 
     # Observability
     otel_enabled: bool = False

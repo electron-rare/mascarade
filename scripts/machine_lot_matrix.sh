@@ -7,17 +7,17 @@ COMMAND_ARGS=()
 
 usage() {
   cat <<'EOF'
-Usage: scripts/next_useful_lot.sh [options]
+Usage: scripts/machine_lot_matrix.sh [options]
 
-Resolve the next runnable lot for the current machine profile.
+Show the next useful lot for each known machine profile.
 
 Options:
   --machine <name>
-              Resolve runnable lots for a specific machine profile
+              Ensure a given machine profile is present in the output
   --machine-profiles <path>
               Use a specific machine profiles JSON file
   --all-scopes
-              Ignore machine filtering and inspect all lots
+              Ignore machine filtering inside each profile
   --json
               Return machine-readable output
   -h, --help  Show this help and exit
@@ -52,4 +52,4 @@ while [[ $# -gt 0 ]]; do
   shift
 done
 
-exec python3 "$ROOT_DIR/scripts/execution_hub.py" "${GLOBAL_ARGS[@]}" next "${COMMAND_ARGS[@]}"
+exec python3 "$ROOT_DIR/scripts/execution_hub.py" "${GLOBAL_ARGS[@]}" matrix "${COMMAND_ARGS[@]}"
