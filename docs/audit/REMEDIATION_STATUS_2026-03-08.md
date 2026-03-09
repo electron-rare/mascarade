@@ -42,6 +42,16 @@ Backlog de reference:
     top-level `api-key` via `X-QMS-Key`, mais la VM ne porte pas encore de
     sandbox QMS configure; le statut courant reste donc `simulated` sans faux
     vert `live`
+- Follow-up post-`RA-*`: ferme
+  - `industrial-wms-generic-rest`: publie
+  - perimetre: qualification `WMS` en `generic-rest` live-ready sur la meme
+    lane industrielle, avec contrat MCP explicite, trois operations
+    `pick-wave` / `shipment-release` / `inventory-hold`, et exposition cockpit
+    `mascarade` / `crazy_life`
+  - etat reel: le pack est `live-ready` sur contrat et runtime, avec posture
+    top-level `api-key` via `X-WMS-Key`, mais la VM ne porte pas encore de
+    sandbox WMS configure; le statut courant reste donc `simulated` sans faux
+    vert `live`
 
 ## Detail par RA
 
@@ -147,7 +157,7 @@ Condition de reouverture:
 ## Next step
 1. Le backlog `RA-*` reste clos; ne pas le rouvrir sans signal reel de regression.
 2. Aucun chantier repo-suivi local n'est actif sur la ligne `MCP/agentics`.
-3. Aucun follow-up repo-suivi local actif ne reste sur cette ligne.
+3. Aucun follow-up repo-suivi local actif ne reste sur la ligne industrielle.
 4. Garder les sujets encore ouverts hors audit:
    - billing `Anthropic`, activation API Google et quota/token Nexar si un besoin live reparait;
    - consolidation du worktree `/Users/electron/mascarade` sur le Mac operateur avant tout `pull`.

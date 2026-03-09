@@ -26,6 +26,9 @@ Etat reel:
   industrielle avec la posture `generic-rest` live-ready sur `PLM` et `QMS`,
   sans faux vert `live` tant que la VM ne porte pas les sandboxes
   correspondantes
+- le follow-up `industrial-wms-generic-rest` est maintenant publie; il aligne
+  `WMS` sur la meme posture `generic-rest` live-ready que `PLM` et `QMS`,
+  sans faux vert `live` tant que la VM ne porte pas le sandbox WMS
 - le repo compagnon `finetune/kicad_kic_ai` reste hors bundle `mascarade`
 
 ## Lots logiques publies
@@ -181,6 +184,39 @@ Etat local:
 - `industrial.saillant.cc` repond `401` sans auth et `200` avec auth; le
   recapitulatif industriel publie bien `7` serveurs `runtime_ok`
 
+### 0c. Follow-up publie `industrial-wms-generic-rest`
+
+Perimetre:
+
+- `agent-factory-cockpit`: contrat `wms-generic-enterprise` a remplir avec auth
+  `api-key`, header canonique `X-WMS-Key`, ressources `pick-wave`,
+  `shipment-release` et `inventory-hold`, et posture runtime live-ready
+- `mascarade`: verification du rendu `wms` dans `/api/industrial/platform` et
+  `/api/ops/summary`, sans nouvelle logique dediee si la lane industrielle
+  existante suffit
+- `crazy_life`: pas de nouveau code prevu tant que le miroir industriel generic
+  absorbe deja le statut enrichi
+
+Checks rejoues:
+
+- `cd /home/clems/agent-factory-cockpit && python3 -m unittest tests.test_topology tests.test_execution tests.test_mcp tests.test_validation -q`
+- `cd /home/clems/mascarade/api && npm run test -- src/routes/industrial.test.ts src/routes/ops.test.ts`
+- `cd /home/clems/mascarade/api && npm run build`
+- `cd /home/clems/mascarade/web && npm run build:api-public`
+- `cd /home/clems/crazy_life && npm run build`
+- `GET /api/industrial/platform` authentifie
+
+Etat local:
+
+- `wms` expose `health` + `contract` dans `/api/industrial/platform`
+- `wms` remonte `ok=true` et `runtime_ok=true` dans l'inventaire industriel et
+  dans `/api/ops/summary`
+- le pack `WMS` est `live-ready` au niveau contrat/runtime, avec auth
+  canonique `api-key` via `X-WMS-Key`
+- le dossier `WMS` reste `incomplete` faute d'attachement OpenAPI/Postman,
+  comme `PLM` et `QMS`
+- la VM reste `simulated` tant que la sandbox WMS n'est pas configuree
+
 ### 1. Repo compagnon `finetune/kicad_kic_ai`
 
 - ce repo reste opere comme un companion repo independant
@@ -194,19 +230,22 @@ Ce que cela signifie:
   repo compagnon
 - il ne doit pas rouvrir artificiellement un chantier dans `mascarade`
 
-### 2. Aucun bundle repo-suivi actif
-
-Les trois follow-ups operateur sont maintenant publies:
+### 2. Bundles repo-suivis restants
+Les follow-ups operateur deja publies restent:
 
 - `operator-surfaces-public-proxy`
 - `zeroclaw-langgraph-operator-lane`
 - `industrial-mcp-operator-lane`
+- `industrial-plm-generic-rest`
+- `industrial-qms-generic-rest`
+
+Le seul bundle repo-suivi actif de cette ligne est maintenant: aucun.
 
 ## Etat inter-repo
 
 Etat courant:
 
-- `mascarade`: repo-suivi ferme; les follow-ups industriels `PLM/QMS` sont publies
+- `mascarade`: repo-suivi ferme; les follow-ups industriels `PLM/QMS/WMS` sont publies
 - `Kill_LIFE`: repo-suivi ferme; seul `.mascarade/` reste local/exclu
 - `crazy_life`: aucun miroir local actif; le rendu industriel actuel reste generique
 

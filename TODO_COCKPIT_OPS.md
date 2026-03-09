@@ -46,7 +46,7 @@ Le lot local est stable; ce fichier ne porte plus de blocage critique.
 - [ ] Recueillir des retours UX a froid sur `Logs` et `OpsHub`
 - [ ] Etendre les actions operateur d'`Agent Zero` uniquement si un usage concret depasse le mode copilot actuel
 - [ ] Etendre le cockpit industriel seulement si un besoin reel depasse l'inventaire/runtime/tool-proxy actuel
-- [ ] Ouvrir `WMS` ou `DCS` seulement si un vrai sandbox/runtime apparait apres la vague `QMS`
+- [ ] Ne rouvrir `DCS` qu'avec un vrai sandbox/runtime OT; `WMS` est deja qualifie en `generic-rest` live-ready et reste volontairement `simulated` sur cette VM tant que le sandbox n'est pas configure
 
 ## 4. Complement optionnel
 
