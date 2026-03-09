@@ -368,6 +368,16 @@ parse_setup_args() {
 validate_cluster_config() {
     [[ "${CLUSTER_ENABLED:-false}" == "true" ]] || return 0
 
+    local cluster_mesh_host cluster_shared_key
+    cluster_mesh_host="${MESH_BIND_HOST:-}"
+    cluster_shared_key="${CLUSTER_SHARED_KEY:-}"
+
+    cluster_mesh_host="$(printf '%s' "$cluster_mesh_host" | sed -E 's/^[[:space:]]+|[[:space:]]+$//g')"
+    cluster_shared_key="$(printf '%s' "$cluster_shared_key" | sed -E 's/^[[:space:]]+|[[:space:]]+$//g')"
+
+    MESH_BIND_HOST="$cluster_mesh_host"
+    CLUSTER_SHARED_KEY="$cluster_shared_key"
+
     if [[ "${SVC_ON[core]:-0}" != "1" ]]; then
         err "Le mode cluster requiert le service core."
         exit 2
@@ -376,11 +386,19 @@ validate_cluster_config() {
     local missing=()
     [[ -z "${NODE_ID:-}" ]] && missing+=("NODE_ID")
     [[ -z "${NODE_ROLE:-}" ]] && missing+=("NODE_ROLE")
-    [[ -z "${MESH_BIND_HOST:-}" ]] && missing+=("MESH_BIND_HOST")
-    [[ -z "${CLUSTER_SHARED_KEY:-}" ]] && missing+=("CLUSTER_SHARED_KEY")
+    [[ -z "${MESH_BIND_HOST}" ]] && missing+=("MESH_BIND_HOST")
+    [[ -z "${CLUSTER_SHARED_KEY}" ]] && missing+=("CLUSTER_SHARED_KEY")
 
     if [[ ${#missing[@]} -gt 0 ]]; then
         err "Configuration cluster incomplete: ${missing[*]}"
+        if [[ "${AUTO_CONFIRM}" != true ]] && _has_input_tty && [[ "${SVC_ON[core]:-0}" == "1" ]]; then
+            info "Je relance l'assistant P2P pour remplir les champs manquants."
+            if prompt_p2p_setup; then
+                if [[ -n "${MESH_BIND_HOST}" && -n "${CLUSTER_SHARED_KEY}" ]]; then
+                    return 0
+                fi
+            fi
+        fi
         info "Renseigne ces variables via ./setup --p2p/--cluster, ./config ou la TUI setup."
         exit 2
     fi
