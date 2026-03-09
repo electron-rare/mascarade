@@ -1,7 +1,9 @@
 import { Link } from "react-router-dom";
 import { useMemo } from "react";
+import { agentsApi } from "../api/agents";
 import type { OpsMcpServerStatus, OpsMonitor, OpsSourceStatus, OpsSummary } from "../api/ops";
 import { useFetch } from "../hooks/useFetch";
+import { useApi } from "../hooks/useApi";
 import { getDifyHealthUrl, getDifyOrigin } from "../lib/dify";
 import { Badge, Button, Card, CompactModelList, InlineNotice, LoadingPanel } from "../components/ui";
 
@@ -63,6 +65,46 @@ function summarizeMcpServer(server: OpsMcpServerStatus): string {
   return `${stats} · ${formatChecks(server.checks)}`;
 }
 
+function industrialServerStats(server: NonNullable<OpsMonitor["industrial"]>["servers"][number]) {
+  const health = server.health?.health;
+  return {
+    ready: Number(health?.ready_operation_count ?? 0),
+    simulated: Number(health?.simulated_operation_count ?? 0),
+    blocked: Number(health?.blocked_operation_count ?? 0),
+    contractReady: Boolean(health?.contract_ready ?? false),
+    contractStatus: String(server.contract?.status ?? health?.contract_status ?? ""),
+    warnings: Array.isArray(health?.warnings) ? health.warnings.filter(Boolean) : [],
+  };
+}
+
+function summarizeIndustrialServer(server: NonNullable<OpsMonitor["industrial"]>["servers"][number]): string {
+  const stats = industrialServerStats(server);
+  const operationCount = Array.isArray(server.health?.health?.operation_statuses)
+    ? server.health.health.operation_statuses.length
+    : 0;
+  const segments = [
+    server.description || "industrial contract surface",
+    `${server.tool_count} tools / ${server.resource_count} resources / ${server.prompt_count} prompts`,
+  ];
+  if (operationCount > 0) {
+    segments.push(`${operationCount} ops`);
+  }
+  if (stats.ready > 0 || stats.simulated > 0 || stats.blocked > 0) {
+    segments.push(`live ${stats.ready} / simulated ${stats.simulated} / blocked ${stats.blocked}`);
+  }
+  if (stats.contractStatus) {
+    segments.push(`contract ${stats.contractStatus}`);
+  }
+  if (stats.warnings.length > 0) {
+    segments.push(stats.warnings.slice(0, 2).join(" · "));
+  }
+  return segments.join(" / ");
+}
+
+function findPublicSurface(data: OpsMonitor | null | undefined, name: string) {
+  return data?.public.surfaces.find((surface) => surface.name === name) ?? null;
+}
+
 export default function OpsHub() {
   const { data, loading, error, refetch } = useFetch<OpsMonitor>("/api/ops/monitor", {
     pollIntervalMs: 5000,
@@ -76,19 +118,131 @@ export default function OpsHub() {
 
   const links = useMemo(() => {
     const origin = window.location.origin;
-    const { protocol, hostname } = window.location;
+    const grafanaSurface = findPublicSurface(data, "grafana");
+    const langfuseSurface = findPublicSurface(data, "langfuse");
+    const prometheusSurface = findPublicSurface(data, "prometheus");
+    const ollamaSurface = findPublicSurface(data, "ollama");
+    const firecrawlSurface = findPublicSurface(data, "firecrawl");
+    const mem0Surface = findPublicSurface(data, "mem0");
+    const searchSurface = findPublicSurface(data, "search");
+    const paperlessSurface = findPublicSurface(data, "paperless");
+    const karakeepSurface = findPublicSurface(data, "karakeep");
+    const industrialSurface = findPublicSurface(data, "industrial");
+    const zeroclawSurface = findPublicSurface(data, "zeroclaw");
+    const zeroclawDocsSurface = findPublicSurface(data, "zeroclaw-docs");
+    const langgraphSurface = findPublicSurface(data, "langgraph");
     return [
       { label: "API health", href: `${origin}/health`, note: "gateway health endpoint" },
       { label: "Ops monitor", href: `${origin}/api/ops/monitor`, note: "consolidated runtime snapshot" },
       { label: "Core health", href: `${origin}/core-health`, note: "core liveness via reverse proxy" },
       { label: "Dify web", href: `${getDifyOrigin()}/`, note: "app builder surface via reverse proxy" },
       { label: "Dify API", href: getDifyHealthUrl(), note: "workflow api health on the main proxy" },
-      { label: "Open WebUI", href: `${protocol}//${hostname}:8080/`, note: "local chat surface" },
-      { label: "Grafana", href: `${protocol}//${hostname}:3001/`, note: "dashboards and panels" },
-      { label: "Prometheus", href: `${protocol}//${hostname}:9090/`, note: "raw metrics store" },
-      { label: "Ollama", href: `${protocol}//${hostname}:11434/`, note: "local model runtime" },
-    ];
-  }, []);
+      grafanaSurface?.url ? {
+        label: "Grafana proxy",
+        href: grafanaSurface.url,
+        note: "public operator dashboards via edge-proxy",
+      } : null,
+      langfuseSurface?.url ? {
+        label: "Langfuse proxy",
+        href: langfuseSurface.url,
+        note: "llm traces and evals behind edge-proxy",
+      } : null,
+      grafanaSurface?.url ? {
+        label: "Tempo traces",
+        href: grafanaSurface.url,
+        note: "trace search via the Tempo datasource in Grafana",
+      } : null,
+      prometheusSurface?.url ? {
+        label: "Prometheus proxy",
+        href: prometheusSurface.url,
+        note: "raw metrics store behind edge-proxy",
+      } : null,
+      ollamaSurface?.url ? {
+        label: "Ollama proxy",
+        href: ollamaSurface.url,
+        note: "local model runtime behind edge-proxy",
+      } : null,
+      mem0Surface?.url ? {
+        label: "Mem0 proxy",
+        href: mem0Surface.url,
+        note: "openmemory docs behind edge-proxy",
+      } : null,
+      searchSurface?.url ? {
+        label: "Search proxy",
+        href: searchSurface.url,
+        note: "SearXNG behind edge-proxy",
+      } : null,
+      paperlessSurface?.url ? {
+        label: "Paperless proxy",
+        href: paperlessSurface.url,
+        note: "document inbox behind edge-proxy",
+      } : null,
+      karakeepSurface?.url ? {
+        label: "Karakeep proxy",
+        href: karakeepSurface.url,
+        note: "bookmark capture behind edge-proxy",
+      } : null,
+      industrialSurface?.url ? {
+        label: "Industrial cockpit",
+        href: industrialSurface.url,
+        note: "industrial operator cockpit behind edge-proxy; MCP servers stay on-demand over stdio",
+      } : null,
+      firecrawlSurface?.url ? {
+        label: "Firecrawl proxy",
+        href: firecrawlSurface.url,
+        note: "streamable MCP endpoint behind edge-proxy",
+      } : null,
+      zeroclawSurface?.url ? {
+        label: "ZeroClaw live",
+        href: zeroclawSurface.url,
+        note: "live follow UI behind edge-proxy; native runtime stays on-demand",
+      } : null,
+      zeroclawDocsSurface?.url ? {
+        label: "ZeroClaw docs",
+        href: zeroclawDocsSurface.url,
+        note: "static operator runbook behind edge-proxy; always reachable",
+      } : null,
+      langgraphSurface?.url ? {
+        label: "LangGraph docs",
+        href: langgraphSurface.url,
+        note: "graph orchestration runbook behind edge-proxy; no always-on runtime",
+      } : null,
+    ].filter((link): link is { label: string; href: string; note: string } => Boolean(link));
+  }, [data]);
+
+  const opsCopilotPayload = useMemo(
+    () => ({
+      mode: "ops-hub",
+      prompt:
+        "Cadre la posture operateur actuelle de la stack, priorise les incidents visibles et propose la prochaine action manuelle la plus utile.",
+      run_id: summary.data?.traces.recent_runs[0]?.run_id,
+      service: summary.data?.alerts.find((entry) => entry.service)?.service,
+      severity: summary.data?.alerts[0]?.severity,
+      mcp_server: summary.data?.mcp?.degraded_servers?.[0],
+      logs: (summary.data?.alerts ?? []).slice(0, 8).map((entry) => ({
+        ts: entry.ts,
+        source: entry.source,
+        service: entry.service,
+        severity: entry.severity,
+        message: entry.message,
+        run_id: entry.run_id,
+        agent_name: entry.agent_name,
+        event_type: entry.event_type,
+      })),
+      traces: [],
+    }),
+    [summary.data],
+  );
+  const copilotFn = useMemo(
+    () => () => agentsApi.operatorCopilot(opsCopilotPayload),
+    [opsCopilotPayload],
+  );
+  const {
+    execute: runOpsCopilot,
+    data: opsCopilotResult,
+    loading: opsCopilotLoading,
+    error: opsCopilotError,
+  } = useApi(copilotFn);
 
   if (loading && !data) {
     return (
@@ -124,10 +278,26 @@ export default function OpsHub() {
   const historyReady = sourceStatus.data?.loki_history?.available ?? false;
   const machineReady = sourceStatus.data?.machine_logs?.available ?? false;
   const tracesReady = sourceStatus.data?.agent_traces?.available ?? true;
+  const tempoReady = sourceStatus.data?.tempo_traces?.available ?? data.observability.tempo?.ok ?? false;
   const difyWeb = services.find((service) => service.name === "dify-web");
   const difyApi = services.find((service) => service.name === "dify-api");
   const difyWebHref = `${getDifyOrigin()}/`;
   const difyApiHref = getDifyHealthUrl();
+  const firecrawl = services.find((service) => service.name === "firecrawl");
+  const firecrawlSurface = findPublicSurface(data, "firecrawl");
+  const mem0 = services.find((service) => service.name === "mem0");
+  const mem0Surface = findPublicSurface(data, "mem0");
+  const industrialSurface = findPublicSurface(data, "industrial");
+  const ollamaSurface = findPublicSurface(data, "ollama");
+  const zeroclawSurface = findPublicSurface(data, "zeroclaw");
+  const zeroclawDocsSurface = findPublicSurface(data, "zeroclaw-docs");
+  const langgraphSurface = findPublicSurface(data, "langgraph");
+  const industrial = data.industrial;
+  const industrialServers = industrial?.servers ?? [];
+  const industrialRuntimeReady = industrial?.summary.runtime_ok_count ?? 0;
+  const industrialServerCount = industrial?.summary.server_count ?? industrialServers.length;
+  const proxyPublic = data.public.public_bind;
+  const proxyAuthReady = data.public.auth_configured;
   const mcp = summary.data?.mcp;
   const mcpServers = Object.entries(mcp?.servers ?? {});
   const mcpPrimary = mcp?.primary ?? null;
@@ -160,8 +330,8 @@ export default function OpsHub() {
               </h2>
               <p className="mt-4 max-w-2xl text-sm leading-7 text-amber-100/60 md:text-[15px]">
                 Cette vue remplace l&apos;ancienne page ops statique. Elle sert de point d&apos;entree operateur
-                pour lire l&apos;etat de la stack, ouvrir les outils utiles et verifier les modeles locaux exposes
-                par Ollama.
+                pour lire l&apos;etat de la stack, distinguer les surfaces internes des surfaces proxifiees,
+                ouvrir les outils utiles et verifier les modeles locaux exposes par Ollama.
               </p>
               <div className="mt-5 flex flex-wrap gap-2">
                 <span className={["status-chip", chipTone(postureOk)].join(" ")}>
@@ -187,6 +357,18 @@ export default function OpsHub() {
                 </span>
                 <span className={["status-chip", tracesReady ? chipTone(true) : chipTone(false)].join(" ")}>
                   traces {tracesReady ? "wired" : "pending"}
+                </span>
+                <span className={["status-chip", tempoReady ? chipTone(true) : chipTone(false)].join(" ")}>
+                  tempo {tempoReady ? "ready" : "pending"}
+                </span>
+                <span className={["status-chip", proxyPublic ? chipTone(true) : "border-border/80 bg-black/30 text-muted"].join(" ")}>
+                  proxy {proxyPublic ? "public" : "loopback"}
+                </span>
+                <span className={["status-chip", proxyAuthReady ? chipTone(true) : chipTone(false)].join(" ")}>
+                  ops auth {proxyAuthReady ? "armed" : "missing"}
+                </span>
+                <span className={["status-chip", industrialSurface?.ok ? chipTone(true) : chipTone(false)].join(" ")}>
+                  industrial {industrialRuntimeReady}/{industrialServerCount || 0}
                 </span>
               </div>
               <div className="mt-6 flex flex-wrap gap-3">
@@ -257,28 +439,206 @@ export default function OpsHub() {
           </div>
         </Card>
 
-        <Card title="Quick links" className="bg-[linear-gradient(180deg,rgba(10,12,11,0.92),rgba(7,7,7,0.96))]">
-          <div className="space-y-3">
-            <p className="text-sm leading-7 text-amber-100/60">
-              Raccourcis ops utiles quand tu arrives sur la stack depuis le proxy.
-            </p>
-            {links.map((link) => (
-              <a
-                key={link.href}
-                href={link.href}
-                target={link.href.startsWith(window.location.origin) ? undefined : "_blank"}
-                rel={link.href.startsWith(window.location.origin) ? undefined : "noreferrer"}
-                className="block rounded-[1.4rem] border border-border/80 bg-black/25 px-4 py-4 transition hover:border-accent/35 hover:bg-black/30"
-              >
-                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-accent">
-                  {link.label}
+        <div className="grid gap-4">
+          <Card title="Quick links" className="bg-[linear-gradient(180deg,rgba(10,12,11,0.92),rgba(7,7,7,0.96))]">
+            <div className="space-y-3">
+              <p className="text-sm leading-7 text-amber-100/60">
+                Raccourcis ops utiles quand tu arrives sur la stack depuis le proxy. Les surfaces
+                operator tooling passent maintenant par des hôtes dedies derriere `edge-proxy`, avec
+                auth operateur plutot que des ports bruts exposes.
+              </p>
+              {links.map((link) => (
+                <a
+                  key={link.href}
+                  href={link.href}
+                  target={link.href.startsWith(window.location.origin) ? undefined : "_blank"}
+                  rel={link.href.startsWith(window.location.origin) ? undefined : "noreferrer"}
+                  className="block rounded-[1.4rem] border border-border/80 bg-black/25 px-4 py-4 transition hover:border-accent/35 hover:bg-black/30"
+                >
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-accent">
+                    {link.label}
+                  </p>
+                  <p className="mt-2 text-sm text-amber-100/72">{shortUrl(link.href)}</p>
+                  <p className="mt-2 text-[12px] leading-5 text-amber-100/44">{link.note}</p>
+                </a>
+              ))}
+            </div>
+          </Card>
+
+          <Card title="Operator lane">
+            <div className="space-y-4">
+              <p className="text-sm leading-7 text-amber-100/60">
+                Posture publique actuelle: {proxyPublic ? "exposition publique via edge-proxy" : "proxy encore borne au loopback"}.
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <Badge color={proxyPublic ? "accent" : "muted"}>
+                  proxy {proxyPublic ? "public" : "loopback"}
+                </Badge>
+                <Badge color={proxyAuthReady ? "accent" : "error"}>
+                  auth {proxyAuthReady ? "configured" : "missing"}
+                </Badge>
+                <Badge color={tempoReady ? "accent" : "warning"}>
+                  tempo {tempoReady ? "ready" : "watch"}
+                </Badge>
+                <Badge color={industrialSurface?.ok ? "accent" : "warning"}>
+                  industrial {industrialSurface?.ok ? "ready" : "watch"}
+                </Badge>
+                <Badge color={zeroclawSurface?.ok ? "accent" : "warning"}>
+                  zeroclaw live {zeroclawSurface?.ok ? "ready" : "stopped"}
+                </Badge>
+                <Badge color={zeroclawDocsSurface?.ok ? "accent" : "warning"}>
+                  zeroclaw docs {zeroclawDocsSurface?.ok ? "ready" : "watch"}
+                </Badge>
+                <Badge color={langgraphSurface?.ok ? "accent" : "warning"}>
+                  langgraph docs {langgraphSurface?.ok ? "ready" : "watch"}
+                </Badge>
+              </div>
+              <div className="space-y-3">
+                {data.public.surfaces.map((surface) => (
+                  <a
+                    key={surface.name}
+                    href={surface.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="block rounded-[1.4rem] border border-border/80 bg-black/25 px-4 py-4 transition hover:border-accent/35 hover:bg-black/30"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-accent">
+                          {surface.name}
+                        </p>
+                        <p className="mt-2 text-sm text-amber-100/72">{surface.host}</p>
+                      </div>
+                      <Badge color={surface.ok ? "accent" : "warning"}>
+                        {surface.ok ? "ready" : "watch"}
+                      </Badge>
+                    </div>
+                    <p className="mt-2 text-[12px] leading-5 text-amber-100/44">
+                      {surface.note} / http {surface.status || "-"} / {formatLatency(surface.latency_ms)}
+                    </p>
+                  </a>
+                ))}
+              </div>
+              <div className="rounded-[1.4rem] border border-border/80 bg-black/25 p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-accent">
+                    agent-zero operator copilot
+                  </p>
+                  <Button
+                    variant="ghost"
+                    className="border border-accent/35"
+                    loading={opsCopilotLoading}
+                    onClick={() => {
+                      void runOpsCopilot(undefined);
+                    }}
+                  >
+                    frame stack
+                  </Button>
+                </div>
+                <p className="mt-2 text-[12px] leading-5 text-amber-100/44">
+                  Utilise les alertes courantes, le run recent et l&apos;etat MCP pour proposer la prochaine action operateur.
                 </p>
-                <p className="mt-2 text-sm text-amber-100/72">{shortUrl(link.href)}</p>
-                <p className="mt-2 text-[12px] leading-5 text-amber-100/44">{link.note}</p>
-              </a>
-            ))}
-          </div>
-        </Card>
+                {opsCopilotError ? (
+                  <InlineNotice title="copilot degraded" message={opsCopilotError} tone="error" className="mt-4" />
+                ) : null}
+                {opsCopilotResult ? (
+                  <div className="mt-4 whitespace-pre-wrap rounded-[1.4rem] border border-border/80 bg-black/35 p-4 text-sm leading-7 text-amber-100/74">
+                    {opsCopilotResult.content}
+                  </div>
+                ) : null}
+              </div>
+            </div>
+          </Card>
+
+          <Card title="Industrial lane">
+            <div className="space-y-4">
+              <p className="text-sm leading-7 text-amber-100/60">
+                Surface operateur dediee au cockpit industriel. L&apos;UI est servie derriere
+                `edge-proxy`, et les 7 serveurs MCP industriels restent lances a la demande via
+                stdio depuis le core.
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <Badge color={industrialSurface?.ok ? "accent" : "warning"}>
+                  cockpit {industrialSurface?.ok ? "ready" : "watch"}
+                </Badge>
+                <Badge color={(industrial?.summary.cockpit_service_ok ?? false) ? "accent" : "warning"}>
+                  service {(industrial?.summary.cockpit_service_ok ?? false) ? "ready" : "watch"}
+                </Badge>
+                <Badge color={(industrial?.summary.topology_valid ?? false) ? "accent" : "warning"}>
+                  topology {(industrial?.summary.topology_valid ?? false) ? "valid" : "watch"}
+                </Badge>
+                <Badge color={(industrial?.summary.vendor_contract_blocked_count ?? 0) === 0 ? "accent" : "warning"}>
+                  vendor blocked {industrial?.summary.vendor_contract_blocked_count ?? 0}
+                </Badge>
+              </div>
+              {industrialSurface ? (
+                <a
+                  href={industrialSurface.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="block rounded-[1.4rem] border border-border/80 bg-black/25 px-4 py-4 transition hover:border-accent/35 hover:bg-black/30"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-accent">
+                        industrial cockpit
+                      </p>
+                      <p className="mt-2 text-sm text-amber-100/72">{industrialSurface.host}</p>
+                    </div>
+                    <Badge color={industrialSurface.ok ? "accent" : "warning"}>
+                      {industrialSurface.ok ? "ready" : "watch"}
+                    </Badge>
+                  </div>
+                  <p className="mt-2 text-[12px] leading-5 text-amber-100/44">
+                    {industrialSurface.note} / http {industrialSurface.status || "-"} / {formatLatency(industrialSurface.latency_ms)}
+                  </p>
+                </a>
+              ) : null}
+              <div className="space-y-3">
+                {industrialServers.map((server) => (
+                  <div
+                    key={server.key}
+                    className="rounded-[1.4rem] border border-border/80 bg-black/25 px-4 py-4"
+                  >
+                    {(() => {
+                      const stats = industrialServerStats(server);
+                      return (
+                        <>
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-accent">
+                          {server.label || formatMcpName(server.key)}
+                        </p>
+                        <p className="mt-2 text-sm text-amber-100/72">{server.key}</p>
+                      </div>
+                      <Badge color={server.runtime_ok ? "accent" : "warning"}>
+                        {server.runtime_ok ? "ready" : "watch"}
+                      </Badge>
+                    </div>
+                    <p className="mt-2 text-[12px] leading-5 text-amber-100/44">
+                      {summarizeIndustrialServer(server)}
+                    </p>
+                    {(stats.ready > 0 || stats.simulated > 0 || stats.blocked > 0 || stats.contractStatus) ? (
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        <Badge color={stats.ready > 0 ? "accent" : "muted"}>live {stats.ready}</Badge>
+                        <Badge color={stats.simulated > 0 ? "warning" : "muted"}>simulated {stats.simulated}</Badge>
+                        <Badge color={stats.blocked > 0 ? "error" : "accent"}>blocked {stats.blocked}</Badge>
+                        {stats.contractStatus ? (
+                          <Badge color={stats.contractReady ? "accent" : "warning"}>
+                            contract {stats.contractStatus}
+                          </Badge>
+                        ) : null}
+                      </div>
+                    ) : null}
+                        </>
+                      );
+                    })()}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </Card>
+        </div>
       </section>
 
       <section className="grid gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(320px,0.85fr)]">
@@ -290,6 +650,16 @@ export default function OpsHub() {
                 d&apos;equivalent utile a l&apos;ancienne carte `Ollama (11434)` de la page ops statique.
               </p>
               <CompactModelList items={ollamaModels} previewCount={8} />
+              {ollamaSurface ? (
+                <a
+                  href={ollamaSurface.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex rounded-2xl border border-accent/35 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-accent transition hover:bg-accent/10"
+                >
+                  open ollama proxy
+                </a>
+              ) : null}
             </div>
           </Card>
 
@@ -395,6 +765,98 @@ export default function OpsHub() {
                   className="rounded-2xl border border-border/80 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-amber-100/72 transition hover:border-accent/35 hover:text-accent"
                 >
                   dify worker logs
+                </Link>
+              </div>
+            </div>
+          </Card>
+
+          <Card title="Firecrawl lane">
+            <div className="space-y-4">
+              <p className="text-sm leading-7 text-amber-100/60">
+                Firecrawl est expose comme endpoint MCP streamable. Un GET brut sur <code>/mcp</code> renvoie
+                normalement <code>400 No sessionId</code>; le monitor le traite donc comme un signal runtime valide.
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <span className={["status-chip", chipTone(Boolean(firecrawl?.ok))].join(" ")}>
+                  firecrawl {firecrawl?.ok ? "online" : "watch"}
+                </span>
+                <span className="status-chip border-border/80 bg-black/25 text-muted">
+                  mcp streamable / proxifie
+                </span>
+              </div>
+              <a
+                href={firecrawlSurface?.url ?? "#"}
+                target="_blank"
+                rel="noreferrer"
+                className="block rounded-[1.4rem] border border-border/80 bg-black/25 px-4 py-4 transition hover:border-accent/35 hover:bg-black/30"
+              >
+                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-accent">
+                  open firecrawl proxy
+                </p>
+                <p className="mt-2 text-sm text-amber-100/72">
+                  {firecrawlSurface ? shortUrl(firecrawlSurface.url) : "proxy pending"}
+                </p>
+                <p className="mt-2 text-[12px] leading-5 text-amber-100/44">
+                  {firecrawl
+                    ? `http ${firecrawl.status || "-"} / ${formatLatency(firecrawl.latency_ms)}`
+                    : "endpoint MCP non detecte dans le monitor"}
+                </p>
+                <p className="mt-2 text-[12px] leading-5 text-amber-100/44">
+                  Le endpoint MCP passe maintenant par un hostname dedie protege par auth operateur.
+                </p>
+              </a>
+              <div className="flex flex-wrap gap-2">
+                <Link
+                  to="/logs?service=firecrawl"
+                  className="rounded-2xl border border-accent/35 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-accent transition hover:bg-accent/10"
+                >
+                  firecrawl logs
+                </Link>
+              </div>
+            </div>
+          </Card>
+
+          <Card title="Mem0 lane">
+            <div className="space-y-4">
+              <p className="text-sm leading-7 text-amber-100/60">
+                Mem0 est expose ici via OpenMemory, branche sur Qdrant et route vers LiteLLM en mode
+                OpenAI-compatible. Cette carte sert a verifier que la surface memoire reste joignable.
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <span className={["status-chip", chipTone(Boolean(mem0?.ok))].join(" ")}>
+                  mem0 {mem0?.ok ? "online" : "watch"}
+                </span>
+                <span className="status-chip border-border/80 bg-black/25 text-muted">
+                  openmemory / qdrant / litellm / proxifie
+                </span>
+              </div>
+              <a
+                href={mem0Surface?.url ?? "#"}
+                target="_blank"
+                rel="noreferrer"
+                className="block rounded-[1.4rem] border border-border/80 bg-black/25 px-4 py-4 transition hover:border-accent/35 hover:bg-black/30"
+              >
+                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-accent">
+                  open mem0 proxy
+                </p>
+                <p className="mt-2 text-sm text-amber-100/72">
+                  {mem0Surface ? shortUrl(mem0Surface.url) : "proxy pending"}
+                </p>
+                <p className="mt-2 text-[12px] leading-5 text-amber-100/44">
+                  {mem0
+                    ? `http ${mem0.status || "-"} / ${formatLatency(mem0.latency_ms)}`
+                    : "surface memoire non detectee dans le monitor"}
+                </p>
+                <p className="mt-2 text-[12px] leading-5 text-amber-100/44">
+                  La doc OpenMemory est maintenant servie par un hostname dedie protege par auth operateur.
+                </p>
+              </a>
+              <div className="flex flex-wrap gap-2">
+                <Link
+                  to="/logs?service=mem0"
+                  className="rounded-2xl border border-accent/35 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-accent transition hover:bg-accent/10"
+                >
+                  mem0 logs
                 </Link>
               </div>
             </div>

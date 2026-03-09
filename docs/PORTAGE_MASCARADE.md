@@ -185,7 +185,7 @@ Etat atteint ensuite:
   - `X-Audio-Model: facebook/audiogen-medium`
   - `X-Audio-Device: cuda`
   - réponse binaire reçue: `32078` octets
-- intégration `ollama` finalisée sans `open-webui`:
+- intégration `ollama` finalisée sans interface chat dédiée:
   - service `ollama` gardé dans le compose
   - pas de publication du port hôte `11434`
   - réutilisation en lecture des modèles système via

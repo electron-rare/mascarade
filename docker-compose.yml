@@ -17,21 +17,22 @@ services:
       CORE_PORT: ${CORE_PORT}
       DEFAULT_PROVIDER: ${DEFAULT_PROVIDER}
       DEFAULT_MODEL: ${DEFAULT_MODEL}
-      NOTION_API_KEY: ${NOTION_API_KEY:-}
-      KILL_LIFE_GITHUB_TOKEN: ${KILL_LIFE_GITHUB_TOKEN:-}
-      GITHUB_TOKEN: ${GITHUB_TOKEN:-}
-      OTEL_ENABLED: ${OTEL_ENABLED:-true}
-      OTEL_COLLECTOR_HTTP_ENDPOINT: ${OTEL_COLLECTOR_HTTP_ENDPOINT:-http://otel-collector:4318}
-      OPS_AGENT_URL: ${OPS_AGENT_URL:-http://ops-agent:9200}
-      LOKI_URL: ${LOKI_URL:-http://loki:3100}
+      AGENT_FACTORY_COCKPIT_DIR: ${AGENT_FACTORY_COCKPIT_DIR:-/workspace/agent-factory-cockpit}
+      AGENT_FACTORY_DCS_PACK: ${AGENT_FACTORY_DCS_PACK:-generic-rest}
+      AGENT_FACTORY_DCS_BASE_URL: ${AGENT_FACTORY_DCS_BASE_URL:-http://agent-factory-dcs-sandbox:4184/api}
+      AGENT_FACTORY_DCS_AUTH_MODE: ${AGENT_FACTORY_DCS_AUTH_MODE:-api-key}
+      AGENT_FACTORY_DCS_API_KEY: ${AGENT_FACTORY_DCS_API_KEY:-demo-dcs-key}
+      AGENT_FACTORY_DCS_AUTH_HEADER: ${AGENT_FACTORY_DCS_AUTH_HEADER:-X-DCS-Key}
+      AGENT_FACTORY_DCS_AUTH_SCHEME: ${AGENT_FACTORY_DCS_AUTH_SCHEME:-}
+      AGENT_FACTORY_DCS_RESOURCE_READ_SNAPSHOT: ${AGENT_FACTORY_DCS_RESOURCE_READ_SNAPSHOT:-read-snapshot}
+      AGENT_FACTORY_DCS_METHOD_READ_SNAPSHOT: ${AGENT_FACTORY_DCS_METHOD_READ_SNAPSHOT:-GET}
+      AGENT_FACTORY_DCS_RESOURCE_WRITE_REQUEST: ${AGENT_FACTORY_DCS_RESOURCE_WRITE_REQUEST:-write-request}
+      PYTHONPATH: ${AGENT_FACTORY_COCKPIT_DIR:-/workspace/agent-factory-cockpit}:${PYTHONPATH:-}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       - core-data:/app/data
-    healthcheck:
-      test: ["CMD-SHELL", "python -c 'import urllib.request; urllib.request.urlopen(\"http://127.0.0.1:8100/health\", timeout=3)' >/dev/null"]
-      interval: 15s
-      timeout: 5s
-      retries: 10
-      start_period: 30s
+      - ../agent-factory-cockpit:${AGENT_FACTORY_COCKPIT_DIR:-/workspace/agent-factory-cockpit}:ro
     networks:
       - mascarade-network
 
@@ -41,6 +42,7 @@ services:
       dockerfile: deploy/Dockerfile.api
     container_name: mascarade-api
     restart: unless-stopped
+    user: "${API_RUNTIME_UID:-1000}:${API_RUNTIME_GID:-1000}"
     ports:
       - "${PUBLISH_BIND_HOST:-0.0.0.0}:${API_PORT}:3000"
     env_file:
@@ -48,13 +50,10 @@ services:
     environment:
       CORE_URL: ${CORE_URL}
       API_PORT: 3000
-      NOTION_API_KEY: ${NOTION_API_KEY:-}
-      KILL_LIFE_GITHUB_TOKEN: ${KILL_LIFE_GITHUB_TOKEN:-}
-      GITHUB_TOKEN: ${GITHUB_TOKEN:-}
-      OTEL_ENABLED: ${OTEL_ENABLED:-true}
-      OTEL_COLLECTOR_HTTP_ENDPOINT: ${OTEL_COLLECTOR_HTTP_ENDPOINT:-http://otel-collector:4318}
-      OPS_AGENT_URL: ${OPS_AGENT_URL:-http://ops-agent:9200}
-      LOKI_URL: ${LOKI_URL:-http://loki:3100}
+      HOME: /tmp
+      KILL_LIFE_ROOT: ${KILL_LIFE_ROOT:-/workspace/Kill_LIFE}
+    volumes:
+      - ../Kill_LIFE:${KILL_LIFE_ROOT:-/workspace/Kill_LIFE}:rw
     depends_on:
       - core
     healthcheck:
@@ -63,6 +62,107 @@ services:
       timeout: 5s
       retries: 10
       start_period: 20s
+    networks:
+      - mascarade-network
+
+  agent-factory-cockpit:
+    build:
+      context: ../agent-factory-cockpit
+      dockerfile: Dockerfile
+    container_name: mascarade-agent-factory-cockpit
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      AGENT_FACTORY_STORAGE_ROOT: /data
+      AGENT_FACTORY_OPERATOR_GROUPS: ${AGENT_FACTORY_OPERATOR_GROUPS:-operator}
+      AGENT_FACTORY_APPROVER_GROUPS: ${AGENT_FACTORY_APPROVER_GROUPS:-approver}
+      AGENT_FACTORY_AUDITOR_GROUPS: ${AGENT_FACTORY_AUDITOR_GROUPS:-auditor}
+      AGENT_FACTORY_ADMIN_GROUPS: ${AGENT_FACTORY_ADMIN_GROUPS:-admin}
+      AGENT_FACTORY_DCS_PACK: ${AGENT_FACTORY_DCS_PACK:-generic-rest}
+      AGENT_FACTORY_DCS_BASE_URL: ${AGENT_FACTORY_DCS_BASE_URL:-http://agent-factory-dcs-sandbox:4184/api}
+      AGENT_FACTORY_DCS_AUTH_MODE: ${AGENT_FACTORY_DCS_AUTH_MODE:-api-key}
+      AGENT_FACTORY_DCS_API_KEY: ${AGENT_FACTORY_DCS_API_KEY:-demo-dcs-key}
+      AGENT_FACTORY_DCS_AUTH_HEADER: ${AGENT_FACTORY_DCS_AUTH_HEADER:-X-DCS-Key}
+      AGENT_FACTORY_DCS_AUTH_SCHEME: ${AGENT_FACTORY_DCS_AUTH_SCHEME:-}
+      AGENT_FACTORY_DCS_RESOURCE_READ_SNAPSHOT: ${AGENT_FACTORY_DCS_RESOURCE_READ_SNAPSHOT:-read-snapshot}
+      AGENT_FACTORY_DCS_METHOD_READ_SNAPSHOT: ${AGENT_FACTORY_DCS_METHOD_READ_SNAPSHOT:-GET}
+      AGENT_FACTORY_DCS_RESOURCE_WRITE_REQUEST: ${AGENT_FACTORY_DCS_RESOURCE_WRITE_REQUEST:-write-request}
+    command:
+      - /bin/sh
+      - -lc
+      - >-
+        proxy_args="";
+        OLD_IFS=$$IFS;
+        IFS=',';
+        for cidr in ${AGENT_FACTORY_TRUSTED_PROXY_CIDRS:-172.16.0.0/12}; do
+          cidr=$$(printf '%s' "$$cidr" | xargs);
+          [ -n "$$cidr" ] && proxy_args="$$proxy_args --trusted-proxy-cidr $$cidr";
+        done;
+        IFS=$$OLD_IFS;
+        exec python3 serve.py --host 0.0.0.0 --port ${AGENT_FACTORY_COCKPIT_PORT:-4173} --auth-mode proxy-auth $$proxy_args
+    expose:
+      - "4173"
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    volumes:
+      - agent-factory-cockpit-data:/data
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - python3 -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:4173/api/health')"
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+    networks:
+      - mascarade-network
+
+  agent-factory-dcs-sandbox:
+    build:
+      context: ../agent-factory-cockpit
+      dockerfile: Dockerfile
+    container_name: mascarade-agent-factory-dcs-sandbox
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      AGENT_FACTORY_DCS_API_KEY: ${AGENT_FACTORY_DCS_API_KEY:-demo-dcs-key}
+      AGENT_FACTORY_DCS_AUTH_HEADER: ${AGENT_FACTORY_DCS_AUTH_HEADER:-X-DCS-Key}
+    command:
+      - python3
+      - -m
+      - agent_factory_cockpit.dcs_sandbox
+      - --host
+      - 0.0.0.0
+      - --port
+      - "${AGENT_FACTORY_DCS_SANDBOX_PORT:-4184}"
+      - --api-key
+      - "${AGENT_FACTORY_DCS_API_KEY:-demo-dcs-key}"
+      - --auth-header
+      - "${AGENT_FACTORY_DCS_AUTH_HEADER:-X-DCS-Key}"
+    expose:
+      - "4184"
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - python3 -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:4184/health')"
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
     networks:
       - mascarade-network
 
@@ -162,6 +262,14 @@ services:
         condition: service_healthy
       minio:
         condition: service_healthy
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - IP=$$(hostname -i | awk '{print $$1}') && wget -q --spider "http://$$IP:3030/"
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
     networks:
       - mascarade-network
 
@@ -173,6 +281,7 @@ services:
       - "${PUBLISH_BIND_HOST:-0.0.0.0}:${LANGFUSE_PORT}:3000"
     environment:
       <<: *langfuse-worker-env
+      LANGFUSE_PUBLIC_ORIGIN: ${LANGFUSE_PUBLIC_ORIGIN:-http://langfuse-web:3000}
       LANGFUSE_INIT_PROJECT_PUBLIC_KEY: ${LANGFUSE_INIT_PROJECT_PUBLIC_KEY:-}
       LANGFUSE_INIT_PROJECT_SECRET_KEY: ${LANGFUSE_INIT_PROJECT_SECRET_KEY:-}
     depends_on:
@@ -209,6 +318,58 @@ services:
       timeout: 5s
       retries: 10
       start_period: 15s
+    networks:
+      - mascarade-network
+
+  firecrawl:
+    image: ${FIRECRAWL_IMAGE:-mcp/firecrawl@sha256:e6676bd31d1806574d931b7a7b7b6fba953c031853e80adc1ec8115c17ab81ca}
+    container_name: mascarade-firecrawl
+    restart: unless-stopped
+    ports:
+      - "${PUBLISH_BIND_HOST:-0.0.0.0}:${FIRECRAWL_PORT:-3400}:3000"
+    env_file:
+      - .env
+    environment:
+      HTTP_STREAMABLE_SERVER: "true"
+      PORT: 3000
+      HOST: ${FIRECRAWL_HOST:-0.0.0.0}
+      FIRECRAWL_API_KEY: ${FIRECRAWL_API_KEY:-}
+      FIRECRAWL_API_URL: ${FIRECRAWL_API_URL:-}
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"if (!process.env.FIRECRAWL_API_KEY && !process.env.FIRECRAWL_API_URL) process.exit(1); const net = require('net'); const socket = net.connect(3000, '127.0.0.1'); socket.on('connect', () => { socket.end(); process.exit(0); }); socket.on('error', () => process.exit(1)); setTimeout(() => process.exit(1), 3000);\""]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    networks:
+      - mascarade-network
+
+  mem0:
+    image: ${MEM0_IMAGE:-mem0/openmemory-mcp:latest}
+    container_name: mascarade-mem0
+    restart: unless-stopped
+    ports:
+      - "${PUBLISH_BIND_HOST:-0.0.0.0}:${MEM0_PORT:-3300}:8765"
+    env_file:
+      - .env
+    environment:
+      USER: ${MEM0_USER:-mascarade}
+      OPENAI_API_KEY: ${MEM0_OPENAI_API_KEY:-sk-mem0-local}
+      OPENAI_API_BASE: ${MEM0_OPENAI_BASE_URL:-http://litellm:4000}
+      OPENAI_BASE_URL: ${MEM0_OPENAI_BASE_URL:-http://litellm:4000}
+      QDRANT_HOST: ${MEM0_QDRANT_HOST:-qdrant}
+      QDRANT_PORT: ${MEM0_QDRANT_PORT:-6333}
+    depends_on:
+      litellm:
+        condition: service_healthy
+      qdrant:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import socket; sock = socket.create_connection(('127.0.0.1', 8765), 3); sock.close()\""]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 25s
     networks:
       - mascarade-network
 
@@ -254,11 +415,14 @@ services:
       DB_DATABASE: mascarade
       REDIS_HOST: redis
       REDIS_PORT: 6379
-      APP_API_URL: ${DIFY_PUBLIC_ORIGIN:-https://dify.localhost}
+      APP_WEB_URL: ${DIFY_PUBLIC_ORIGIN:-https://dify.localhost}
+      CONSOLE_WEB_URL: ${DIFY_PUBLIC_ORIGIN:-https://dify.localhost}
       CONSOLE_API_URL: ${DIFY_PUBLIC_ORIGIN:-https://dify.localhost}
+      SERVICE_API_URL: ${DIFY_PUBLIC_ORIGIN:-https://dify.localhost}
       OPENDAL_SCHEME: fs
       OPENDAL_ROOT: /app/api/storage
       OPENDAL_FS_ROOT: /app/api/storage
+      APP_API_URL: ${DIFY_PUBLIC_ORIGIN:-https://dify.localhost}
     depends_on:
       postgres:
         condition: service_healthy
@@ -320,19 +484,8 @@ services:
     image: ${OLLAMA_IMAGE:-ollama/ollama@sha256:719122581b6932e1240ae70d788859089cb80d17e23cd4f98ba960b0290f70cb}
     container_name: mascarade-ollama
     restart: unless-stopped
-    gpus: all
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [gpu]
     ports:
       - "${PUBLISH_BIND_HOST:-0.0.0.0}:${OLLAMA_PORT}:11434"
-    environment:
-      NVIDIA_VISIBLE_DEVICES: all
-      NVIDIA_DRIVER_CAPABILITIES: compute,utility
     volumes:
       - ollama-data:/root/.ollama
     healthcheck:
@@ -341,22 +494,6 @@ services:
       timeout: 10s
       retries: 15
       start_period: 40s
-    networks:
-      - mascarade-network
-
-  open-webui:
-    image: ${OPEN_WEBUI_IMAGE:-ghcr.io/open-webui/open-webui@sha256:bb3f0281554bf05a9d505ffb5a5f067ab53e13ac772eb4ea3077a92ddc64600e}
-    container_name: mascarade-open-webui
-    restart: unless-stopped
-    ports:
-      - "${PUBLISH_BIND_HOST:-0.0.0.0}:${OPEN_WEBUI_PORT}:8080"
-    depends_on:
-      ollama:
-        condition: service_healthy
-    environment:
-      OLLAMA_BASE_URL: http://ollama:11434
-    volumes:
-      - open-webui-data:/app/backend/data
     networks:
       - mascarade-network
 
@@ -371,10 +508,18 @@ services:
       - "${EDGE_PROXY_BIND_HOST:-0.0.0.0}:${EDGE_PROXY_HTTPS_PORT}:443"
     env_file:
       - .env
+    environment:
+      EDGE_PROXY_INDUSTRIAL_SERVER_NAME: ${EDGE_PROXY_INDUSTRIAL_SERVER_NAME:-industrial.saillant.cc}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       - edge-proxy-certs:/etc/nginx/certs
+      - edge-proxy-auth:/etc/nginx/auth
+      - ../Kill_LIFE/tools/ai/integrations:/srv/kill-life/integrations:ro
     depends_on:
       api:
+        condition: service_started
+      agent-factory-cockpit:
         condition: service_started
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/healthz >/dev/null"]
@@ -382,6 +527,33 @@ services:
       timeout: 5s
       retries: 10
       start_period: 10s
+    networks:
+      - mascarade-network
+
+  ops-agent:
+    build:
+      context: .
+      dockerfile: deploy/Dockerfile.ops-agent
+    container_name: mascarade-ops-agent
+    restart: unless-stopped
+    ports:
+      - "${PUBLISH_BIND_HOST:-0.0.0.0}:${OPS_AGENT_PORT}:9200"
+    env_file:
+      - .env
+    environment:
+      OPS_AGENT_PORT: 9200
+      AGENTSIGHT_URL: ${AGENTSIGHT_URL:-}
+      LOKI_URL: ${LOKI_URL:-http://loki:3100}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /var/log/journal:/var/log/journal:ro
+      - /run/log/journal:/run/log/journal:ro
+      - /etc/machine-id:/etc/machine-id:ro
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:9200/health')\""]
+      interval: 15s
+      timeout: 5s
+      retries: 10
     networks:
       - mascarade-network
 
@@ -437,7 +609,9 @@ services:
       timeout: 5s
       retries: 5
     networks:
-      - mascarade-network
+      mascarade-network:
+        aliases:
+          - mem0_store
 
   grafana:
     image: ${GRAFANA_IMAGE:-grafana/grafana@sha256:b0ae311af06228bcfd4a620504b653db80f5b91e94dc3dc2a5b7dab202bcde20}
@@ -448,6 +622,9 @@ services:
     volumes:
       - grafana-data:/var/lib/grafana
       - ./deploy/grafana/provisioning:/etc/grafana/provisioning:ro
+    environment:
+      GF_SERVER_ROOT_URL: ${GRAFANA_PUBLIC_ORIGIN:-http://grafana.localhost}
+      GF_SERVER_DOMAIN: ${EDGE_PROXY_GRAFANA_SERVER_NAME:-grafana.localhost}
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://localhost:3000/api/health >/dev/null"]
       interval: 15s
@@ -456,71 +633,62 @@ services:
     networks:
       - mascarade-network
 
+  tempo:
+    image: ${TEMPO_IMAGE:-grafana/tempo:latest}
+    container_name: mascarade-tempo
+    restart: unless-stopped
+    command: ["-config.file=/etc/tempo/tempo.yaml"]
+    ports:
+      - "${PUBLISH_BIND_HOST:-0.0.0.0}:${TEMPO_PORT}:3200"
+    volumes:
+      - ./deploy/tempo/tempo.yaml:/etc/tempo/tempo.yaml:ro
+      - tempo-data:/var/tempo
+    healthcheck:
+      test: ["CMD", "/tempo", "-version"]
+      interval: 15s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+    networks:
+      - mascarade-network
+
+  blackbox-exporter:
+    image: ${BLACKBOX_EXPORTER_IMAGE:-prom/blackbox-exporter:latest}
+    container_name: mascarade-blackbox-exporter
+    restart: unless-stopped
+    ports:
+      - "${PUBLISH_BIND_HOST:-0.0.0.0}:${BLACKBOX_EXPORTER_PORT}:9115"
+    command: ["--config.file=/etc/blackbox/blackbox.yml"]
+    volumes:
+      - ./deploy/prometheus/blackbox.yml:/etc/blackbox/blackbox.yml:ro
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:9115/-/healthy >/dev/null"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    networks:
+      - mascarade-network
+
   prometheus:
     image: ${PROMETHEUS_IMAGE:-prom/prometheus@sha256:4a61322ac1103a0e3aea2a61ef1718422a48fa046441f299d71e660a3bc71ae9}
     container_name: mascarade-prometheus
     restart: unless-stopped
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
     ports:
       - "${PUBLISH_BIND_HOST:-0.0.0.0}:${PROMETHEUS_PORT}:9090"
     volumes:
-      - prometheus-data:/prometheus
       - ./deploy/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    depends_on:
+      blackbox-exporter:
+        condition: service_started
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:9090/-/healthy >/dev/null"]
       interval: 15s
       timeout: 5s
       retries: 5
-    networks:
-      - mascarade-network
-
-  ops-agent:
-    build:
-      context: .
-      dockerfile: deploy/Dockerfile.ops-agent
-    container_name: mascarade-ops-agent
-    restart: unless-stopped
-    gpus: all
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [gpu]
-    ports:
-      - "${PUBLISH_BIND_HOST:-0.0.0.0}:${OPS_AGENT_PORT:-9200}:9200"
-    env_file:
-      - .env
-    environment:
-      OPS_AGENT_PORT: 9200
-      AGENTSIGHT_URL: ${AGENTSIGHT_URL:-}
-      LOKI_URL: ${LOKI_URL:-http://loki:3100}
-      KILL_LIFE_ROOT: ${KILL_LIFE_ROOT:-/home/clems/Kill_LIFE}
-      MASCARADE_DIR: ${MASCARADE_DIR:-/home/clems/mascarade}
-      MASCARADE_API_BASE_URL: ${MASCARADE_API_BASE_URL:-http://api:3000}
-      OPS_MCP_PROBE_CACHE_TTL_MS: ${OPS_MCP_PROBE_CACHE_TTL_MS:-15000}
-      NVIDIA_VISIBLE_DEVICES: all
-      NVIDIA_DRIVER_CAPABILITIES: utility
-      NOTION_API_KEY: ${NOTION_API_KEY:-}
-      KILL_LIFE_GITHUB_TOKEN: ${KILL_LIFE_GITHUB_TOKEN:-}
-      GITHUB_TOKEN: ${GITHUB_TOKEN:-}
-      NOTION_MCP_SMOKE_PAGE_ID: ${NOTION_MCP_SMOKE_PAGE_ID:-}
-      HUGGINGFACE_API_KEY: ${HUGGINGFACE_API_KEY:-}
-    volumes:
-      - /usr/bin/docker:/usr/bin/docker:ro
-      - /usr/libexec/docker/cli-plugins:/usr/libexec/docker/cli-plugins:ro
-      - /var/run/docker.sock:/var/run/docker.sock
-      - /var/log/journal:/var/log/journal:ro
-      - /run/log/journal:/run/log/journal:ro
-      - /etc/machine-id:/etc/machine-id:ro
-      - .:/home/clems/mascarade:ro
-      - ./.env:/home/clems/mascarade/.env
-      - ${KILL_LIFE_ROOT:-/home/clems/Kill_LIFE}:${KILL_LIFE_ROOT:-/home/clems/Kill_LIFE}
-    healthcheck:
-      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:9200/health')\""]
-      interval: 15s
-      timeout: 5s
-      retries: 10
     networks:
       - mascarade-network
 
@@ -530,7 +698,7 @@ services:
     restart: unless-stopped
     command: ["-config.file=/etc/loki/local-config.yaml"]
     ports:
-      - "${PUBLISH_BIND_HOST:-0.0.0.0}:${LOKI_PORT:-3101}:3100"
+      - "${PUBLISH_BIND_HOST:-0.0.0.0}:${LOKI_PORT}:3100"
     volumes:
       - ./deploy/loki/loki-config.yaml:/etc/loki/local-config.yaml:ro
       - loki-data:/loki
@@ -548,7 +716,7 @@ services:
     restart: unless-stopped
     entrypoint: ["/bin/sh", "/usr/local/bin/promtail-entrypoint.sh"]
     ports:
-      - "${PUBLISH_BIND_HOST:-0.0.0.0}:${PROMTAIL_PORT:-9080}:9080"
+      - "${PUBLISH_BIND_HOST:-0.0.0.0}:${PROMTAIL_PORT}:9080"
     volumes:
       - ./deploy/promtail/promtail-config.yaml:/etc/promtail/config.yml:ro
       - ./deploy/promtail/entrypoint.sh:/usr/local/bin/promtail-entrypoint.sh:ro
@@ -572,13 +740,17 @@ services:
     image: ${OTEL_COLLECTOR_IMAGE:-otel/opentelemetry-collector-contrib:0.116.1}
     container_name: mascarade-otel-collector
     restart: unless-stopped
+    user: "0:0"
     command: ["--config=/etc/otelcol-contrib/config.yaml"]
     ports:
-      - "${PUBLISH_BIND_HOST:-0.0.0.0}:${OTEL_COLLECTOR_GRPC_PORT:-4317}:4317"
-      - "${PUBLISH_BIND_HOST:-0.0.0.0}:${OTEL_COLLECTOR_HTTP_PORT:-4318}:4318"
-      - "${PUBLISH_BIND_HOST:-0.0.0.0}:${OTEL_COLLECTOR_HEALTH_PORT:-13133}:13133"
+      - "${PUBLISH_BIND_HOST:-0.0.0.0}:${OTEL_COLLECTOR_GRPC_PORT}:4317"
+      - "${PUBLISH_BIND_HOST:-0.0.0.0}:${OTEL_COLLECTOR_HTTP_PORT}:4318"
+      - "${PUBLISH_BIND_HOST:-0.0.0.0}:${OTEL_COLLECTOR_HEALTH_PORT}:13133"
     volumes:
       - ./deploy/otel-collector/config.yaml:/etc/otelcol-contrib/config.yaml:ro
+    depends_on:
+      tempo:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "/otelcol-contrib", "--version"]
       interval: 15s
@@ -593,11 +765,12 @@ networks:
 
 volumes:
   core-data:
+  agent-factory-cockpit-data:
+    name: agent-factory-cockpit-data
   n8n-data:
   langfuse-minio-data:
   clickhouse-data:
   ollama-data:
-  open-webui-data:
   edge-proxy-certs:
     name: mascarade-edge-proxy-certs
   edge-proxy-acme:
@@ -606,6 +779,9 @@ volumes:
   postgres-data:
   qdrant-data:
   grafana-data:
+  tempo-data:
   prometheus-data:
   loki-data:
   promtail-data:
+  edge-proxy-auth:
+    name: mascarade-edge-proxy-auth

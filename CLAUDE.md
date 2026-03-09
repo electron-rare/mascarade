@@ -24,4 +24,4 @@
 - All LLM providers implement `LLMProvider` (core/mascarade/router/providers/base.py)
 - Agents are registered in the `AgentRegistry`
 - Router dispatches to providers based on strategy (cheapest/fastest/best/specific)
-- Notion integration for KB reads and dashboard writes
+- Knowledge-base / CAD surfaces replace the old Notion-first operator path; remaining Notion code is legacy compatibility only

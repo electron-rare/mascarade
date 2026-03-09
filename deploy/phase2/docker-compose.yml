@@ -1,0 +1,176 @@
+################################################################
+# Phase 2 — SearXNG · Paperless-ngx · Karakeep
+# deploy/phase2/docker-compose.yml
+################################################################
+
+services:
+
+  # ──────────────── SearXNG ────────────────
+  searxng:
+    image: searxng/searxng:latest
+    container_name: mascarade-searxng
+    restart: unless-stopped
+    ports:
+      - "${PUBLISH_BIND_HOST:-127.0.0.1}:${SEARXNG_PORT:-8888}:8080"
+    volumes:
+      - ./searxng/settings.yml:/etc/searxng/settings.yml:ro
+      - searxng_data:/etc/searxng
+    environment:
+      - SEARXNG_SECRET=${SEARXNG_SECRET}
+    cap_drop: [ALL]
+    cap_add: [CHOWN, SETGID, SETUID]
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/ >/dev/null"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    networks:
+      - default
+
+  # ──────────────── Paperless-ngx ────────────────
+  paperless-redis:
+    image: redis:7-alpine
+    container_name: mascarade-paperless-redis
+    restart: unless-stopped
+    volumes:
+      - paperless_redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+    networks:
+      - default
+
+  paperless-db:
+    image: postgres:16-alpine
+    container_name: mascarade-paperless-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: paperless
+      POSTGRES_USER: paperless
+      POSTGRES_PASSWORD: ${PAPERLESS_DB_PASS}
+    volumes:
+      - paperless_pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U paperless"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+    networks:
+      - default
+
+  paperless:
+    image: ghcr.io/paperless-ngx/paperless-ngx:latest
+    container_name: mascarade-paperless
+    restart: unless-stopped
+    depends_on:
+      paperless-db:
+        condition: service_healthy
+      paperless-redis:
+        condition: service_healthy
+    ports:
+      - "${PUBLISH_BIND_HOST:-127.0.0.1}:${PAPERLESS_PORT:-8000}:8000"
+    volumes:
+      - paperless_data:/usr/src/paperless/data
+      - paperless_media:/usr/src/paperless/media
+      - paperless_export:/usr/src/paperless/export
+      - paperless_consume:/usr/src/paperless/consume
+    environment:
+      PAPERLESS_REDIS: redis://paperless-redis:6379
+      PAPERLESS_DBHOST: paperless-db
+      PAPERLESS_DBNAME: paperless
+      PAPERLESS_DBUSER: paperless
+      PAPERLESS_DBPASS: ${PAPERLESS_DB_PASS}
+      PAPERLESS_SECRET_KEY: ${PAPERLESS_SECRET}
+      PAPERLESS_ADMIN_USER: ${PAPERLESS_ADMIN_USER:-clems}
+      PAPERLESS_ADMIN_PASSWORD: ${PAPERLESS_ADMIN_PASSWORD:-changeme}
+      PAPERLESS_OCR_LANGUAGE: fra+eng
+      PAPERLESS_TIME_ZONE: Europe/Paris
+      PAPERLESS_URL: ${PAPERLESS_PUBLIC_URL:-https://paperless.saillant.cc}
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs http://127.0.0.1:8000/api/ >/dev/null"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    networks:
+      - default
+
+  # ──────────────── Karakeep ────────────────
+  karakeep:
+    image: ghcr.io/karakeep-app/karakeep:release
+    container_name: mascarade-karakeep
+    restart: unless-stopped
+    depends_on:
+      karakeep-meilisearch:
+        condition: service_healthy
+      karakeep-chrome:
+        condition: service_started
+    ports:
+      - "${PUBLISH_BIND_HOST:-127.0.0.1}:${KARAKEEP_PORT:-3600}:3000"
+    volumes:
+      - karakeep_data:/data
+    environment:
+      NEXTAUTH_SECRET: ${KARAKEEP_NEXTAUTH_SECRET}
+      NEXTAUTH_URL: ${KARAKEEP_PUBLIC_URL:-https://karakeep.saillant.cc}
+      MEILI_ADDR: http://karakeep-meilisearch:7700
+      BROWSER_WEB_URL: http://karakeep-chrome:9222
+      DATA_DIR: /data
+      DISABLE_SIGNUPS: "true"
+      NEXTAUTH_URL_INTERNAL: http://localhost:3000
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/ >/dev/null"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - default
+
+  karakeep-chrome:
+    image: gcr.io/zenika-hub/alpine-chrome:124
+    container_name: mascarade-karakeep-chrome
+    restart: unless-stopped
+    command:
+      - --no-sandbox
+      - --disable-gpu
+      - --disable-dev-shm-usage
+      - --remote-debugging-address=0.0.0.0
+      - --remote-debugging-port=9222
+      - --hide-scrollbars
+    networks:
+      - default
+
+  karakeep-meilisearch:
+    image: getmeili/meilisearch:v1.11.3
+    container_name: mascarade-karakeep-meilisearch
+    restart: unless-stopped
+    environment:
+      MEILI_NO_ANALYTICS: "true"
+      MEILI_MASTER_KEY: ${MEILI_MASTER_KEY}
+    volumes:
+      - karakeep_meili_data:/meili_data
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:7700/health >/dev/null"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+    networks:
+      - default
+
+volumes:
+  searxng_data:
+  paperless_redis_data:
+  paperless_pg_data:
+  paperless_data:
+  paperless_media:
+  paperless_export:
+  paperless_consume:
+  karakeep_data:
+  karakeep_meili_data:
+
+networks:
+  default:
+    external: true
+    name: mascarade_mascarade-network

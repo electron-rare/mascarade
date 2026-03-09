@@ -108,7 +108,7 @@ scripts/sync_crazy_life.sh pull
 Rules:
 
 - run the canonical release preflight in the extracted `crazy_life` repo before any publish attempt
-- `push` publishes the committed `web/` subtree to `crazy_life`
+- `push` exports the committed `web/` subtree to `crazy_life`; release readiness is still decided in the extracted repo
 - `pull` fetches `crazy_life/main`, replaces `web/` from that tree and creates a local sync commit
 - `pull` requires a clean worktree
 - `push --allow-dirty` is safe for local unrelated changes because only `HEAD:web` is exported

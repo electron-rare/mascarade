@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import tempfile
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -21,6 +22,7 @@ DEFAULT_MASCARADE_API_BASE_URL = os.getenv(
     "MASCARADE_API_BASE_URL",
     f"http://127.0.0.1:{os.getenv('API_PORT', '3100')}",
 ).rstrip("/")
+DEFAULT_GITHUB_DISPATCH_STATE_DIR = os.getenv("GITHUB_DISPATCH_STATE_DIR", "").strip()
 GITHUB_API_BASE_URL = "https://api.github.com"
 SAFE_INPUT_KEY_RE = re.compile(r"^[a-zA-Z0-9_.-]{1,64}$")
 ALLOWED_GITHUB_WORKFLOWS = (
@@ -130,9 +132,7 @@ class GitHubDispatchClient:
         self.api_base_url = DEFAULT_MASCARADE_API_BASE_URL
         self.repo = repo
         self.default_ref = default_ref
-        self.state_dir = state_dir or (
-            DEFAULT_KILL_LIFE_ROOT / ".mascarade" / "mcp" / "github-dispatch"
-        )
+        self.state_dir = state_dir or self._resolve_state_dir()
         self._http_client = http_client or httpx.AsyncClient(
             base_url=GITHUB_API_BASE_URL,
             timeout=20.0,
@@ -151,6 +151,38 @@ class GitHubDispatchClient:
     async def close(self) -> None:
         if self._owns_http_client:
             await self._http_client.aclose()
+
+    def _resolve_state_dir(self) -> Path:
+        candidates: list[Path] = []
+        if DEFAULT_GITHUB_DISPATCH_STATE_DIR:
+            candidates.append(Path(DEFAULT_GITHUB_DISPATCH_STATE_DIR).expanduser())
+        candidates.append(DEFAULT_KILL_LIFE_ROOT / ".mascarade" / "mcp" / "github-dispatch")
+
+        xdg_state_home = os.getenv("XDG_STATE_HOME", "").strip()
+        if xdg_state_home:
+            candidates.append(Path(xdg_state_home) / "mascarade" / "github-dispatch")
+
+        home = os.getenv("HOME", "").strip()
+        if home:
+            candidates.append(
+                Path(home).expanduser() / ".local" / "state" / "mascarade" / "github-dispatch"
+            )
+
+        candidates.append(Path(tempfile.gettempdir()) / "mascarade" / "github-dispatch")
+
+        for candidate in candidates:
+            try:
+                candidate.mkdir(parents=True, exist_ok=True)
+                probe = candidate / ".write-test"
+                probe.write_text("ok\n", encoding="utf-8")
+                probe.unlink(missing_ok=True)
+                return candidate
+            except OSError:
+                continue
+
+        fallback = Path(tempfile.gettempdir()) / "mascarade" / "github-dispatch"
+        fallback.mkdir(parents=True, exist_ok=True)
+        return fallback
 
     def _auth_configured(self) -> bool:
         if self.auth_mode == "app":

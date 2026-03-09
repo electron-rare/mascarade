@@ -4,5 +4,6 @@ RUN apk add --no-cache openssl
 
 COPY deploy/edge-proxy/default.conf.template /etc/nginx/templates/default.conf.template
 COPY deploy/edge-proxy/10-generate-cert.sh /docker-entrypoint.d/10-generate-cert.sh
+COPY deploy/edge-proxy/20-generate-ops-auth.sh /docker-entrypoint.d/20-generate-ops-auth.sh
 
-RUN chmod +x /docker-entrypoint.d/10-generate-cert.sh
+RUN chmod +x /docker-entrypoint.d/10-generate-cert.sh /docker-entrypoint.d/20-generate-ops-auth.sh

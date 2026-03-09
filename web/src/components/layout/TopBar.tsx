@@ -1,6 +1,6 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { getApiKey, isPersisted, api } from "../../api/client";
+import { getApiKey, isPersisted, api, post, put } from "../../api/client";
 import { useAuth } from "../../auth/AuthContext";
 import { getDifyHealthUrl } from "../../lib/dify";
 import Button from "../ui/Button";
@@ -9,6 +9,34 @@ interface HealthData {
   status: string;
   auth_required?: boolean;
   core?: { status: string };
+}
+
+interface QuickProviderFieldStatus {
+  env: string;
+  label: string;
+  configured: boolean;
+  hint: string;
+  secret: boolean;
+  active?: boolean;
+}
+
+interface QuickProviderStatus {
+  name: string;
+  label: string;
+  configured: boolean;
+  active: boolean;
+  fields: QuickProviderFieldStatus[];
+  auth_mode?: string;
+  auth_mode_env?: string;
+  toggle_env?: string;
+}
+
+interface QuickProviderMutationResponse {
+  status: string;
+  active: boolean;
+  configured: boolean;
+  message?: string;
+  restarted_services?: string[];
 }
 
 type TopBarProps = {
@@ -25,6 +53,218 @@ function statusTone(ok: boolean) {
   return ok
     ? "border-[#214e31] bg-[#0c170f]/80 text-[#8cffb7]"
     : "border-[#5d2332] bg-[#18070d]/80 text-error";
+}
+
+function resolveQuickProviderField(provider: QuickProviderStatus) {
+  if (provider.toggle_env) {
+    return null;
+  }
+
+  if (provider.auth_mode_env && provider.auth_mode !== "api_key") {
+    return null;
+  }
+
+  const visibleFields = provider.fields.filter((field) => field.active !== false);
+  if (visibleFields.length !== 1) {
+    return null;
+  }
+
+  const [field] = visibleFields;
+  return field.secret ? field : null;
+}
+
+function sortQuickProviders(providers: QuickProviderStatus[]) {
+  const order = ["claude", "openai", "mistral", "google", "huggingface"];
+  return [...providers].sort((left, right) => {
+    const leftIndex = order.indexOf(left.name);
+    const rightIndex = order.indexOf(right.name);
+    if (leftIndex === -1 && rightIndex === -1) {
+      return left.label.localeCompare(right.label);
+    }
+    if (leftIndex === -1) {
+      return 1;
+    }
+    if (rightIndex === -1) {
+      return -1;
+    }
+    return leftIndex - rightIndex;
+  });
+}
+
+function quickProviderTone(provider: QuickProviderStatus) {
+  if (provider.active) {
+    return "border-[#214e31] bg-[#0c170f]/80 text-[#8cffb7]";
+  }
+  if (provider.configured) {
+    return "border-amber-600/40 bg-amber-900/20 text-amber-300";
+  }
+  return "border-border/80 bg-black/25 text-muted";
+}
+
+function QuickProviderKeyCard({
+  provider,
+  onSaved,
+}: {
+  provider: QuickProviderStatus;
+  onSaved: () => Promise<void>;
+}) {
+  const field = resolveQuickProviderField(provider);
+  const [draft, setDraft] = useState("");
+  const [showValue, setShowValue] = useState(false);
+  const [saveState, setSaveState] = useState<"idle" | "saving" | "ok" | "error">("idle");
+  const [message, setMessage] = useState("");
+  const timerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+
+  useEffect(() => () => {
+    if (timerRef.current) {
+      clearTimeout(timerRef.current);
+    }
+  }, []);
+
+  if (!field) {
+    return null;
+  }
+
+  const settle = (nextState: "idle" | "saving" | "ok" | "error", nextMessage: string) => {
+    setSaveState(nextState);
+    setMessage(nextMessage);
+    if (timerRef.current) {
+      clearTimeout(timerRef.current);
+    }
+    if (nextState === "ok" || nextState === "error") {
+      timerRef.current = setTimeout(() => {
+        setSaveState("idle");
+        setMessage("");
+      }, 4000);
+    }
+  };
+
+  const save = async () => {
+    const value = draft.trim();
+    if (!value) {
+      settle("error", "Colle une cle avant de sauvegarder.");
+      return;
+    }
+
+    setSaveState("saving");
+    try {
+      const result = await put<QuickProviderMutationResponse>(
+        `/api/agents/providers/${provider.name}/key`,
+        { keys: { [field.env]: value } },
+      );
+      setDraft("");
+      await onSaved();
+      settle(
+        "ok",
+        result.restarted_services?.length
+          ? `${provider.label} mis a jour, restart: ${result.restarted_services.join(", ")}`
+          : result.active
+            ? `${provider.label} actif`
+            : result.message || `${provider.label} configure`,
+      );
+    } catch (error) {
+      settle("error", error instanceof Error ? error.message : "Erreur");
+    }
+  };
+
+  const clearValue = async () => {
+    if (!provider.configured && !draft.trim()) {
+      return;
+    }
+
+    if (!provider.configured && draft.trim()) {
+      setDraft("");
+      settle("ok", "Brouillon efface");
+      return;
+    }
+
+    setSaveState("saving");
+    try {
+      const result = await post<QuickProviderMutationResponse>(
+        `/api/agents/providers/${provider.name}/clear`,
+        { fields: [field.env] },
+      );
+      setDraft("");
+      await onSaved();
+      settle(
+        "ok",
+        result.restarted_services?.length
+          ? `${provider.label} efface, restart: ${result.restarted_services.join(", ")}`
+          : result.message || `${provider.label} efface`,
+      );
+    } catch (error) {
+      settle("error", error instanceof Error ? error.message : "Erreur");
+    }
+  };
+
+  return (
+    <div className="rounded-[1.2rem] border border-border/80 bg-black/30 p-3">
+      <div className="mb-2 flex items-start justify-between gap-3">
+        <div>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-accent">
+            {provider.label}
+          </p>
+          <p className="mt-1 text-[11px] text-amber-100/35">
+            {field.env}
+          </p>
+        </div>
+        <span className={["status-chip min-h-0 px-3 py-2", quickProviderTone(provider)].join(" ")}>
+          {provider.active ? "active" : provider.configured ? "configured" : "missing"}
+        </span>
+      </div>
+
+      <div className="flex gap-2">
+        <input
+          type={showValue ? "text" : "password"}
+          value={draft}
+          onChange={(event) => {
+            setDraft(event.target.value);
+            if (saveState !== "idle") {
+              setSaveState("idle");
+              setMessage("");
+            }
+          }}
+          placeholder={field.configured ? field.hint || "Configured" : "Paste API key"}
+          className="min-w-0 flex-1 rounded-2xl border border-border/80 bg-black/35 px-3 py-2.5 text-sm text-amber-100 outline-none transition placeholder:text-amber-100/25 focus:border-accent/50"
+        />
+        <Button
+          variant="ghost"
+          type="button"
+          className="px-3"
+          onClick={() => setShowValue((current) => !current)}
+        >
+          {showValue ? "hide" : "show"}
+        </Button>
+      </div>
+
+      <div className="mt-3 flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          {message ? (
+            <p className={["text-[11px]", saveState === "ok" ? "text-emerald-400" : "text-red-400"].join(" ")}>
+              {message}
+            </p>
+          ) : (
+            <p className="text-[11px] text-amber-100/35">
+              {provider.configured ? "Cle deja presente, colle une nouvelle valeur pour la remplacer." : "Ajout rapide sans passer par Settings."}
+            </p>
+          )}
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            variant="ghost"
+            type="button"
+            onClick={clearValue}
+            disabled={saveState === "saving" || (!provider.configured && !draft.trim())}
+          >
+            clear
+          </Button>
+          <Button type="button" onClick={save} disabled={saveState === "saving" || !draft.trim()}>
+            {saveState === "saving" ? "save..." : "save"}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 export default function TopBar({
@@ -47,6 +287,9 @@ export default function TopBar({
   const [savedAt, setSavedAt] = useState<string | null>(null);
   const [keyStatus, setKeyStatus] = useState<"idle" | "checking" | "valid" | "invalid">("idle");
   const [health, setHealth] = useState<HealthData | null>(null);
+  const [quickProviders, setQuickProviders] = useState<QuickProviderStatus[]>([]);
+  const [quickProvidersLoading, setQuickProvidersLoading] = useState(false);
+  const [quickProvidersError, setQuickProvidersError] = useState("");
   const [clockLabel, setClockLabel] = useState(() =>
     new Intl.DateTimeFormat("fr-FR", {
       hour: "2-digit",
@@ -122,6 +365,50 @@ export default function TopBar({
       window.clearInterval(t);
     };
   }, []);
+
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+
+    if (!storedKey.trim()) {
+      setQuickProviders([]);
+      setQuickProvidersError("Charge d'abord la cle gateway pour administrer les providers.");
+      setQuickProvidersLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    const loadQuickProviders = async () => {
+      setQuickProvidersLoading(true);
+      try {
+        const response = await api<{ providers: QuickProviderStatus[] }>("/api/agents/providers/status");
+        if (cancelled) {
+          return;
+        }
+        const nextProviders = sortQuickProviders(
+          response.providers.filter((provider) => !!resolveQuickProviderField(provider)),
+        );
+        setQuickProviders(nextProviders);
+        setQuickProvidersError("");
+      } catch (error) {
+        if (cancelled) {
+          return;
+        }
+        setQuickProviders([]);
+        setQuickProvidersError(error instanceof Error ? error.message : "Impossible de charger les providers.");
+      } finally {
+        if (!cancelled) {
+          setQuickProvidersLoading(false);
+        }
+      }
+    };
+
+    void loadQuickProviders();
+    return () => {
+      cancelled = true;
+    };
+  }, [open, storedKey]);
 
   const save = async () => {
     const nextKey = draftKey.trim();
@@ -374,6 +661,60 @@ export default function TopBar({
                         </Button>
                       </div>
                     </div>
+                  </div>
+
+                  <div className="rounded-[1.4rem] border border-border/80 bg-black/25 p-4">
+                    <div className="mb-3 flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-[10px] uppercase tracking-[0.2em] text-muted">provider quick keys</p>
+                        <p className="mt-1 text-[12px] leading-5 text-amber-100/60">
+                          Ajoute ou remplace les cles simples sans quitter le menu session. Les cas OAuth ou multi-champs restent dans Settings.
+                        </p>
+                      </div>
+                      <Link
+                        to="/settings"
+                        onClick={() => setOpen(false)}
+                        className="rounded-full border border-accent/28 bg-accent/8 px-3 py-1.5 text-[10px] uppercase tracking-[0.16em] text-accent transition hover:border-accent/45 hover:bg-accent/14"
+                      >
+                        settings
+                      </Link>
+                    </div>
+
+                    {!authReady ? (
+                      <p className="text-[12px] text-amber-100/45">
+                        Charge d'abord la cle gateway ci-dessus, puis les providers editables apparaissent ici.
+                      </p>
+                    ) : quickProvidersLoading ? (
+                      <p className="text-[12px] text-amber-100/45">
+                        Sync providers...
+                      </p>
+                    ) : quickProvidersError ? (
+                      <p className="text-[12px] text-red-400">
+                        {quickProvidersError}
+                      </p>
+                    ) : quickProviders.length > 0 ? (
+                      <div className="grid gap-3">
+                        {quickProviders.map((provider) => (
+                          <QuickProviderKeyCard
+                            key={provider.name}
+                            provider={provider}
+                            onSaved={async () => {
+                              const response = await api<{ providers: QuickProviderStatus[] }>("/api/agents/providers/status");
+                              setQuickProviders(
+                                sortQuickProviders(
+                                  response.providers.filter((entry) => !!resolveQuickProviderField(entry)),
+                                ),
+                              );
+                              setQuickProvidersError("");
+                            }}
+                          />
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-[12px] text-amber-100/45">
+                        Aucun provider a cle simple disponible ici. Utilise Settings pour les integrations OAuth ou multi-secrets.
+                      </p>
+                    )}
                   </div>
 
                   <div className="rounded-[1.4rem] border border-border/80 bg-black/25 p-4">

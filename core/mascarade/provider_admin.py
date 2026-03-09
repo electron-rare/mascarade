@@ -13,6 +13,10 @@ logger = logging.getLogger("mascarade.provider_admin")
 PROVIDER_REGISTRY: dict[str, dict] = {
     "claude": {
         "label": "Anthropic / Claude",
+        "classification": "provider-credential",
+        "criticality": "feature-required",
+        "required_when": "Requis seulement si Claude est active comme provider.",
+        "used_by": ["core", "playground", "orchestrate"],
         "module": "mascarade.router.providers.claude",
         "class": "ClaudeProvider",
         "fields": [
@@ -21,19 +25,34 @@ PROVIDER_REGISTRY: dict[str, dict] = {
                 "attr": "anthropic_api_key",
                 "label": "API Key",
                 "secret": True,
+                "classification": "provider-credential",
             },
         ],
     },
     "openai": {
         "label": "OpenAI",
+        "classification": "provider-credential",
+        "criticality": "feature-required",
+        "required_when": "Requis seulement si OpenAI est active comme provider.",
+        "used_by": ["core", "playground", "orchestrate"],
         "module": "mascarade.router.providers.openai",
         "class": "OpenAIProvider",
         "fields": [
-            {"env": "OPENAI_API_KEY", "attr": "openai_api_key", "label": "API Key", "secret": True},
+            {
+                "env": "OPENAI_API_KEY",
+                "attr": "openai_api_key",
+                "label": "API Key",
+                "secret": True,
+                "classification": "provider-credential",
+            },
         ],
     },
     "mistral": {
         "label": "Mistral AI",
+        "classification": "provider-credential",
+        "criticality": "feature-required",
+        "required_when": "Requis seulement si Mistral est active comme provider.",
+        "used_by": ["core", "playground", "orchestrate"],
         "module": "mascarade.router.providers.mistral",
         "class": "MistralProvider",
         "fields": [
@@ -42,11 +61,16 @@ PROVIDER_REGISTRY: dict[str, dict] = {
                 "attr": "mistral_api_key",
                 "label": "API Key",
                 "secret": True,
+                "classification": "provider-credential",
             },
         ],
     },
     "google": {
         "label": "Google Gemini",
+        "classification": "provider-credential",
+        "criticality": "feature-required",
+        "required_when": "Requis seulement si Google Gemini est active comme provider.",
+        "used_by": ["core", "playground", "orchestrate"],
         "module": "mascarade.router.providers.google",
         "class": "GoogleProvider",
         "auth_mode": {
@@ -62,6 +86,7 @@ PROVIDER_REGISTRY: dict[str, dict] = {
                 "label": "API Key",
                 "secret": True,
                 "auth_modes": ["api_key"],
+                "classification": "provider-credential",
             },
             {
                 "env": "GOOGLE_OAUTH_ACCESS_TOKEN",
@@ -69,6 +94,7 @@ PROVIDER_REGISTRY: dict[str, dict] = {
                 "label": "OAuth access token",
                 "secret": True,
                 "auth_modes": ["oauth_oidc"],
+                "classification": "provider-credential",
             },
             {
                 "env": "GOOGLE_OAUTH_REFRESH_TOKEN",
@@ -76,6 +102,7 @@ PROVIDER_REGISTRY: dict[str, dict] = {
                 "label": "OAuth refresh token",
                 "secret": True,
                 "auth_modes": ["oauth_oidc"],
+                "classification": "provider-credential",
             },
             {
                 "env": "GOOGLE_OAUTH_CLIENT_ID",
@@ -83,6 +110,7 @@ PROVIDER_REGISTRY: dict[str, dict] = {
                 "label": "OAuth client ID",
                 "secret": False,
                 "auth_modes": ["oauth_oidc"],
+                "classification": "oauth-config",
             },
             {
                 "env": "GOOGLE_OAUTH_CLIENT_SECRET",
@@ -90,6 +118,7 @@ PROVIDER_REGISTRY: dict[str, dict] = {
                 "label": "OAuth client secret",
                 "secret": True,
                 "auth_modes": ["oauth_oidc"],
+                "classification": "provider-credential",
             },
             {
                 "env": "GOOGLE_OAUTH_TOKEN_ENDPOINT",
@@ -97,6 +126,8 @@ PROVIDER_REGISTRY: dict[str, dict] = {
                 "label": "OAuth token endpoint",
                 "secret": False,
                 "auth_modes": ["oauth_oidc"],
+                "classification": "oauth-config",
+                "criticality": "local-operator-context",
             },
             {
                 "env": "GOOGLE_OAUTH_EXPIRES_AT",
@@ -104,6 +135,8 @@ PROVIDER_REGISTRY: dict[str, dict] = {
                 "label": "OAuth expires at",
                 "secret": False,
                 "auth_modes": ["oauth_oidc"],
+                "classification": "oauth-config",
+                "criticality": "local-operator-context",
             },
             {
                 "env": "GOOGLE_CLOUD_PROJECT",
@@ -111,6 +144,7 @@ PROVIDER_REGISTRY: dict[str, dict] = {
                 "label": "Google Cloud project",
                 "secret": False,
                 "auth_modes": ["oauth_oidc", "adc"],
+                "classification": "operator-context",
             },
             {
                 "env": "GOOGLE_CLOUD_LOCATION",
@@ -118,6 +152,7 @@ PROVIDER_REGISTRY: dict[str, dict] = {
                 "label": "Google Cloud location",
                 "secret": False,
                 "auth_modes": ["oauth_oidc", "adc"],
+                "classification": "operator-context",
             },
             {
                 "env": "GOOGLE_APPLICATION_CREDENTIALS",
@@ -125,11 +160,16 @@ PROVIDER_REGISTRY: dict[str, dict] = {
                 "label": "Application credentials path",
                 "secret": False,
                 "auth_modes": ["adc"],
+                "classification": "operator-context",
             },
         ],
     },
     "bedrock": {
         "label": "AWS Bedrock",
+        "classification": "provider-credential",
+        "criticality": "feature-required",
+        "required_when": "Requis seulement si AWS Bedrock est active comme provider.",
+        "used_by": ["core", "playground", "orchestrate"],
         "module": "mascarade.router.providers.bedrock",
         "class": "BedrockProvider",
         "fields": [
@@ -138,17 +178,23 @@ PROVIDER_REGISTRY: dict[str, dict] = {
                 "attr": "aws_access_key_id",
                 "label": "Access Key ID",
                 "secret": True,
+                "classification": "provider-credential",
             },
             {
                 "env": "AWS_SECRET_ACCESS_KEY",
                 "attr": "aws_secret_access_key",
                 "label": "Secret Access Key",
                 "secret": True,
+                "classification": "provider-credential",
             },
         ],
     },
     "huggingface": {
         "label": "HuggingFace",
+        "classification": "provider-credential",
+        "criticality": "feature-required",
+        "required_when": "Requis seulement si HuggingFace est active comme provider.",
+        "used_by": ["core", "playground", "orchestrate", "ops-agent"],
         "module": "mascarade.router.providers.huggingface",
         "class": "HuggingFaceProvider",
         "auth_mode": {
@@ -164,6 +210,7 @@ PROVIDER_REGISTRY: dict[str, dict] = {
                 "label": "API Key",
                 "secret": True,
                 "auth_modes": ["api_key"],
+                "classification": "provider-credential",
             },
             {
                 "env": "HUGGINGFACE_OAUTH_ACCESS_TOKEN",
@@ -171,6 +218,7 @@ PROVIDER_REGISTRY: dict[str, dict] = {
                 "label": "OAuth access token",
                 "secret": True,
                 "auth_modes": ["oauth_oidc"],
+                "classification": "provider-credential",
             },
             {
                 "env": "HUGGINGFACE_OAUTH_REFRESH_TOKEN",
@@ -178,6 +226,7 @@ PROVIDER_REGISTRY: dict[str, dict] = {
                 "label": "OAuth refresh token",
                 "secret": True,
                 "auth_modes": ["oauth_oidc"],
+                "classification": "provider-credential",
             },
             {
                 "env": "HUGGINGFACE_OAUTH_CLIENT_ID",
@@ -185,6 +234,7 @@ PROVIDER_REGISTRY: dict[str, dict] = {
                 "label": "OAuth client ID",
                 "secret": False,
                 "auth_modes": ["oauth_oidc"],
+                "classification": "oauth-config",
             },
             {
                 "env": "HUGGINGFACE_OAUTH_CLIENT_SECRET",
@@ -192,6 +242,7 @@ PROVIDER_REGISTRY: dict[str, dict] = {
                 "label": "OAuth client secret",
                 "secret": True,
                 "auth_modes": ["oauth_oidc"],
+                "classification": "provider-credential",
             },
             {
                 "env": "HUGGINGFACE_OAUTH_TOKEN_ENDPOINT",
@@ -199,6 +250,8 @@ PROVIDER_REGISTRY: dict[str, dict] = {
                 "label": "OAuth token endpoint",
                 "secret": False,
                 "auth_modes": ["oauth_oidc"],
+                "classification": "oauth-config",
+                "criticality": "local-operator-context",
             },
             {
                 "env": "HUGGINGFACE_OAUTH_EXPIRES_AT",
@@ -206,11 +259,17 @@ PROVIDER_REGISTRY: dict[str, dict] = {
                 "label": "OAuth expires at",
                 "secret": False,
                 "auth_modes": ["oauth_oidc"],
+                "classification": "oauth-config",
+                "criticality": "local-operator-context",
             },
         ],
     },
     "ollama": {
         "label": "Ollama (local)",
+        "classification": "provider-credential",
+        "criticality": "feature-required",
+        "required_when": "Requis seulement si le provider local Ollama est active.",
+        "used_by": ["core", "playground", "orchestrate"],
         "module": "mascarade.router.providers.ollama",
         "class": "OllamaProvider",
         "fields": [
@@ -219,6 +278,8 @@ PROVIDER_REGISTRY: dict[str, dict] = {
                 "attr": "ollama_base_url",
                 "label": "Base URL",
                 "secret": False,
+                "classification": "operator-context",
+                "criticality": "local-operator-context",
             },
         ],
         "toggle": {"env": "OLLAMA_ENABLED", "attr": "ollama_enabled"},
@@ -265,9 +326,16 @@ def _field_is_active(field: dict, auth_mode: str | None) -> bool:
     return not auth_modes or auth_mode is None or auth_mode in auth_modes
 
 
-def _field_status(field: dict, auth_mode: str | None) -> dict:
+def _field_status(
+    field: dict,
+    auth_mode: str | None,
+    default_criticality: str,
+    default_classification: str,
+) -> dict:
     value = str(getattr(settings, field["attr"], ""))
-    configured = is_secret_configured(value) if field.get("secret") else bool(value.strip())
+    configured = (
+        is_secret_configured(value) if field.get("secret") else bool(value.strip())
+    )
     return {
         "env": field["env"],
         "label": field["label"],
@@ -278,6 +346,8 @@ def _field_status(field: dict, auth_mode: str | None) -> dict:
             else value.strip() if configured else ""
         ),
         "secret": field.get("secret", False),
+        "classification": str(field.get("classification", default_classification)),
+        "criticality": str(field.get("criticality", default_criticality)),
         "auth_modes": [str(mode) for mode in field.get("auth_modes", [])],
         "active": _field_is_active(field, auth_mode),
     }
@@ -332,7 +402,12 @@ def get_providers_status(router) -> list[dict]:
     for name, meta in PROVIDER_REGISTRY.items():
         auth_mode_meta = meta.get("auth_mode")
         auth_mode = _provider_auth_mode(meta)
-        fields_status = [_field_status(field, auth_mode) for field in meta["fields"]]
+        default_criticality = str(meta.get("criticality", "feature-required"))
+        default_classification = str(meta.get("classification", "provider-credential"))
+        fields_status = [
+            _field_status(field, auth_mode, default_criticality, default_classification)
+            for field in meta["fields"]
+        ]
         all_configured = _provider_is_configured(name, meta, auth_mode, fields_status)
 
         toggle = meta.get("toggle")
@@ -346,6 +421,10 @@ def get_providers_status(router) -> list[dict]:
         entry: dict = {
             "name": name,
             "label": meta["label"],
+            "classification": default_classification,
+            "criticality": default_criticality,
+            "required_when": str(meta.get("required_when", "")),
+            "used_by": [str(item) for item in meta.get("used_by", [])],
             "configured": all_configured and (enabled if toggle else True),
             "active": active,
             "fields": fields_status,
@@ -435,7 +514,11 @@ def update_provider_keys(
         return result
     except Exception as exc:
         logger.warning("Failed to re-initialize %s: %s", name, exc)
-        return {"status": "ok", "active": False, "message": f"Saved but init failed: {exc}"}
+        return {
+            "status": "ok",
+            "active": False,
+            "message": f"Saved but init failed: {exc}",
+        }
 
 
 def _persist_env(updates: dict[str, str]) -> None:

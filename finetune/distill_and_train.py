@@ -47,6 +47,32 @@ DOMAINS = [
 ]
 
 
+def load_env_var_from_dotenv(name: str) -> str | None:
+    env_path = Path(__file__).resolve().parents[1] / ".env"
+    if not env_path.exists():
+        return None
+    for raw_line in env_path.read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        if key != name:
+            continue
+        value = value.strip()
+        if len(value) >= 2 and value[0] == value[-1] and value[0] in {"'", '"'}:
+            value = value[1:-1]
+        return value
+    return None
+
+
+def ensure_local_api_key_env() -> None:
+    if os.environ.get("MASCARADE_API_KEY"):
+        return
+    api_key = load_env_var_from_dotenv("MASCARADE_API_KEY")
+    if api_key:
+        os.environ["MASCARADE_API_KEY"] = api_key
+
+
 def default_path(kind: str, domain: str) -> Path:
     stamp = time.strftime("%Y%m%d_%H%M%S")
     base = SCRIPT_DIR / "datasets" / "distilled"
@@ -107,7 +133,9 @@ def make_manifest(
             "distilled_out": str(distilled_out),
             "merged_out": str(merged_out),
             "report_path": str(report_path),
-            "train_output_dir": None if train_output_dir is None else str(train_output_dir),
+            "train_output_dir": (
+                None if train_output_dir is None else str(train_output_dir)
+            ),
             "train_run_manifest": (
                 None if train_output_dir is None else str(train_output_dir / "run.json")
             ),
@@ -178,6 +206,7 @@ def run_command(
 
 
 def main() -> int:
+    ensure_local_api_key_env()
     parser = argparse.ArgumentParser(
         description="Distill with a teacher model then fine-tune locally"
     )

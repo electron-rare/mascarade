@@ -30,8 +30,8 @@ Legende:
 ### Firecrawl
 | Item | TODO | Etat reel |
 |------|------|-----------|
-| Deploiement | OUVERT | Absent du docker-compose et de .env |
-| Image alternative | OUVERT | Pas de resolution |
+| Deploiement | FAIT | Service deploie dans la stack Mascarade et runtime `healthy` |
+| Image alternative | FAIT | Image officielle retenue: `mcp/firecrawl` |
 
 ### Mem0
 | Item | TODO | Etat reel |

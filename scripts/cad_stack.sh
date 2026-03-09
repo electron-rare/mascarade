@@ -15,6 +15,8 @@ Commands:
   ps                     Show CAD container status
   build [services...]    Build local CAD images
   doctor                 Print tool versions from the containers
+  doctor-mcp             Verify the KiCad MCP server loads and lists tools
+  smoke                  Quick end-to-end health check (doctor + doctor-mcp)
   kicad-cli <args...>    Run kicad-cli in the headless container
   freecad-cmd <args...>  Run FreeCADCmd in the headless container
   pio <args...>          Run PlatformIO in the container
@@ -152,6 +154,100 @@ mcp_cmd() {
     sh -lc 'set -e; mkdir -p "$HOME"; cd /opt/kicad-mcp; exec node dist/index.js "$@"' sh "$@"
 }
 
+doctor_mcp_cmd() {
+  local status=0
+
+  # Check that the kicad-mcp image builds / exists
+  if ! compose build kicad-mcp >/dev/null 2>&1; then
+    printf 'FAIL  kicad-mcp  image build failed\n'
+    return 1
+  fi
+
+  # Check that node + dist/index.js exist in the image
+  local version
+  version=$(compose run --rm --no-deps -T \
+    -e HOME=/tmp \
+    kicad-mcp \
+    sh -c 'node --version 2>/dev/null && test -f /opt/kicad-mcp/dist/index.js && echo "entrypoint:ok"' 2>&1) || true
+
+  if echo "$version" | grep -q "entrypoint:ok"; then
+    local node_ver
+    node_ver=$(echo "$version" | head -1)
+    printf 'OK    kicad-mcp  node %s, entrypoint present\n' "$node_ver"
+  else
+    printf 'FAIL  kicad-mcp  node or dist/index.js missing\n'
+    status=1
+  fi
+
+  # Check that the MCP server responds to an initialize handshake (JSON-RPC over stdin)
+  local init_response
+  init_response=$(printf '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"smoke","version":"0.1"}}}\n' | \
+    compose run --rm --no-deps -T \
+      -e HOME=/tmp \
+      kicad-mcp \
+      sh -c 'cd /opt/kicad-mcp && timeout 10 node dist/index.js --stdio 2>/dev/null || true' 2>&1) || true
+
+  if echo "$init_response" | grep -q '"serverInfo"'; then
+    local server_name
+    server_name=$(echo "$init_response" | grep -o '"name":"[^"]*"' | head -1 | cut -d'"' -f4)
+    printf 'OK    kicad-mcp  MCP server responds (%s)\n' "${server_name:-unknown}"
+  else
+    printf 'FAIL  kicad-mcp  MCP server did not respond to initialize\n'
+    debug "Response: $init_response"
+    status=1
+  fi
+
+  return "$status"
+}
+
+smoke_cmd() {
+  local status=0
+  local failures=""
+
+  log "Running CAD smoke test..."
+  echo ""
+
+  # 1. Doctor: tool versions
+  log "Checking container tools..."
+  if doctor_cmd; then
+    printf 'OK    doctor     all container tools available\n'
+  else
+    printf 'FAIL  doctor     one or more container tools missing\n'
+    failures="${failures}doctor "
+    status=1
+  fi
+  echo ""
+
+  # 2. Doctor MCP
+  log "Checking MCP server..."
+  if doctor_mcp_cmd; then
+    : # status already printed
+  else
+    failures="${failures}mcp "
+    status=1
+  fi
+  echo ""
+
+  # 3. KiCad plugin doctor (host-side)
+  log "Checking KiCad plugins (host)..."
+  if "$ROOT_DIR/scripts/install_kicad_plugins.sh" doctor all 2>/dev/null; then
+    : # status already printed
+  else
+    printf 'WARN  plugins    host KiCad plugins not installed (non-blocking)\n'
+    # Not a hard failure — plugins may not be installed on this host
+  fi
+  echo ""
+
+  # Summary
+  if [ "$status" -eq 0 ]; then
+    log "Smoke test PASSED"
+  else
+    log "Smoke test FAILED: ${failures}"
+  fi
+
+  return "$status"
+}
+
 while [ "$#" -gt 0 ]; do
   case "$1" in
     -v|--verbose)
@@ -188,6 +284,12 @@ case "$cmd" in
     ;;
   doctor)
     doctor_cmd
+    ;;
+  doctor-mcp)
+    doctor_mcp_cmd
+    ;;
+  smoke)
+    smoke_cmd
     ;;
   kicad-cli)
     if [ "$#" -eq 0 ]; then

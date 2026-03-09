@@ -117,6 +117,12 @@ Status:
 Observability complementaire opt-in:
 - `cd /mascarade && ./setup --with core,api,ops-console,loki,promtail,otel-collector --yes`
 - Loki et Promtail sont scaffoldes pour l'historique, mais la vue cockpit actuelle s'appuie deja sur la trace native du core et le monitor gateway
+- Validation OTLP -> Loki:
+  - `cd /mascarade && bash scripts/smoke_otel_loki.sh`
+  - `cd /mascarade && bash scripts/smoke_otel_loki.sh --json`
+- Controle de cardinalite Loki:
+  - `cd /mascarade && bash scripts/loki_cardinality_report.sh`
+  - `cd /mascarade && bash scripts/loki_cardinality_report.sh --json`
 
 Setup backups:
 - generated setup backups now live under `./.tmp/setup-backups/`
