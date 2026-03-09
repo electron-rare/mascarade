@@ -38,6 +38,8 @@ DEFAULT_RESEARCH_DIR = SCRIPT_DIR / "research"
 RESEARCH_SOURCES_DIR = SCRIPT_DIR / "research_sources" / "domains"
 DEFAULT_RESEARCH_PROBES_DIR = SCRIPT_DIR / "research_probes"
 RESEARCH_PROBE_MAX_AGE_SECONDS = 7 * 24 * 3600
+ASSISTANT_MAX_LEN_HARD = 9000
+ASSISTANT_TRIM_TARGET = 8800
 SUPPORTED_DOMAINS = [
     "stm32",
     "spice",
@@ -732,8 +734,9 @@ def _refresh_from_full_dataset(domain: str, *, target_path: Path, full_datasets_
 def _quality_report_for(path: Path, *, domain: str) -> tuple[dict, int, int]:
     raw_rows = load_jsonl(path)
     normalized_rows, ids_fixed = ensure_row_ids_with_stats(raw_rows, f"{domain}-refresh")
-    deduped_rows, duplicates_removed = dedupe_rows_with_stats(normalized_rows)
-    if duplicates_removed:
+    trimmed_rows, trimmed_assistant_rows = _trim_oversized_assistant_messages(normalized_rows)
+    deduped_rows, duplicates_removed = dedupe_rows_with_stats(trimmed_rows)
+    if duplicates_removed or trimmed_assistant_rows:
         write_jsonl(path, deduped_rows)
     validation_errors = validate_rows(deduped_rows)
     if validation_errors:
@@ -747,7 +750,36 @@ def _quality_report_for(path: Path, *, domain: str) -> tuple[dict, int, int]:
         ids_fixed=ids_fixed,
     )
     report["duplicates_removed_during_refresh"] = duplicates_removed
+    report["assistant_rows_trimmed_during_refresh"] = trimmed_assistant_rows
+    if trimmed_assistant_rows:
+        report.setdefault("warnings", []).append(
+            f"trimmed {trimmed_assistant_rows} oversized assistant responses to <= {ASSISTANT_TRIM_TARGET} chars during refresh"
+        )
     return report, len(deduped_rows), ids_fixed
+
+
+def _trim_oversized_assistant_messages(
+    rows: list[dict],
+    *,
+    hard_limit: int = ASSISTANT_MAX_LEN_HARD,
+    trim_target: int = ASSISTANT_TRIM_TARGET,
+) -> tuple[list[dict], int]:
+    trimmed_rows: list[dict] = []
+    trimmed_count = 0
+    for row in rows:
+        current = dict(row)
+        conversations = []
+        for message in current.get("conversations", []):
+            msg = dict(message)
+            role = str(msg.get("from") or "").strip().lower()
+            value = msg.get("value")
+            if role in {"gpt", "assistant"} and isinstance(value, str) and len(value) > hard_limit:
+                msg["value"] = value[:trim_target].rstrip() + "\n\n[truncated during dataset refresh]"
+                trimmed_count += 1
+            conversations.append(msg)
+        current["conversations"] = conversations
+        trimmed_rows.append(current)
+    return trimmed_rows, trimmed_count
 
 
 def _research_payload(domain: str, *, dataset_path: Path, refresh_report: dict) -> dict:
