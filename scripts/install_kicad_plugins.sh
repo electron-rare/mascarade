@@ -109,6 +109,32 @@ bundle_entries() {
   esac
 }
 
+ensure_bundle_source() {
+  local bundle="$1"
+  local source_dir
+  local submodule_path
+
+  source_dir="$(bundle_source_dir "$bundle")"
+  submodule_path="${source_dir#${ROOT_DIR}/}"
+
+  if [ ! -d "$source_dir" ]; then
+    die "Missing source directory: $source_dir"
+  fi
+
+  if [ -n "$(find "$source_dir" -mindepth 1 -maxdepth 1 | head -n 1)" ]; then
+    return 0
+  fi
+
+  if [ ! -d "$ROOT_DIR/.git" ] && [ ! -d "$ROOT_DIR/.git/modules" ]; then
+    die "Submodule source for $bundle is empty and repository metadata is unavailable: $source_dir"
+  fi
+
+  log "Bundle source '$bundle' is empty, running git submodule update for $submodule_path"
+  if ! git -C "$ROOT_DIR" submodule update --init "$submodule_path" >/dev/null; then
+    die "Unable to initialize submodule '$bundle' at $submodule_path. Run 'git submodule update --init --recursive' and retry."
+  fi
+}
+
 bundle_identifier() {
   case "$1" in
     fabrication-toolkit)
@@ -173,7 +199,9 @@ install_bundle() {
   target_name="$(bundle_target_name "$bundle")" || die "Unknown bundle: $bundle"
   target_dir="${plugin_dir%/}/$target_name"
 
+  ensure_bundle_source "$bundle"
   [ -d "$source_dir" ] || die "Missing source directory: $source_dir"
+
   confirm_overwrite "$target_dir"
 
   log "Installing $bundle -> $target_dir"
