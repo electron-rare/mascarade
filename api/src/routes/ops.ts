@@ -952,7 +952,7 @@ function aggregateMcpStatus(servers: Record<string, McpRuntimeStatus>): McpSuite
   };
 }
 
-async function probeMcpRuntime(_timeoutMs: number = 8000): Promise<McpSuiteStatus> {
+async function probeMcpRuntime(timeoutMs: number = 8000): Promise<McpSuiteStatus> {
   const now = Date.now();
   if (cachedMcpProbe && cachedMcpProbe.expiresAt > now) {
     return cachedMcpProbe.value;
@@ -962,9 +962,46 @@ async function probeMcpRuntime(_timeoutMs: number = 8000): Promise<McpSuiteStatu
   }
 
   inflightMcpProbe = (async () => {
-    const statuses = await Promise.all(
+    const hardTimeoutMs = Math.max(1000, timeoutMs);
+    let timeoutHandle: NodeJS.Timeout | null = null;
+    const timeoutResult = new Promise<readonly (readonly [string, McpRuntimeStatus])[]>((resolve) => {
+      timeoutHandle = setTimeout(() => {
+        resolve(
+          MCP_PROBE_CONFIGS.map((config) => [
+            config.key,
+            makeDefaultMcpStatus({
+              status: "degraded",
+              server_name: config.key,
+              error: `Global MCP probe timeout after ${(hardTimeoutMs / 1000).toFixed(1)}s`,
+            }),
+          ] as const),
+        );
+      }, hardTimeoutMs);
+      timeoutHandle.unref?.();
+    });
+
+    const probeResult = Promise.allSettled(
       MCP_PROBE_CONFIGS.map(async (config) => [config.key, await runMcpProbe(config)] as const),
+    ).then((results) =>
+      results.map((result, idx) => {
+        if (result.status === "fulfilled") {
+          return result.value;
+        }
+        const failedConfig = MCP_PROBE_CONFIGS[idx];
+        return [
+          failedConfig.key,
+          makeDefaultMcpStatus({
+            status: "degraded",
+            server_name: failedConfig.key,
+            error: `Probe error: ${String(result.reason || "unknown")}`,
+          }),
+        ] as const;
+      }),
     );
+    const statuses = await Promise.race([probeResult, timeoutResult]);
+    if (timeoutHandle) {
+      clearTimeout(timeoutHandle);
+    }
     const value = aggregateMcpStatus(Object.fromEntries(statuses));
     cachedMcpProbe = {
       value,
