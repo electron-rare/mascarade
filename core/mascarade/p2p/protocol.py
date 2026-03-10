@@ -1,0 +1,78 @@
+"""Wire protocol for P2P TCP connections — length-prefixed JSON frames."""
+
+from __future__ import annotations
+
+import asyncio
+import json
+import logging
+import struct
+import time
+from dataclasses import dataclass, field
+from typing import Any
+
+logger = logging.getLogger("mascarade.p2p.protocol")
+
+_HEADER_FMT = "!I"  # 4-byte big-endian unsigned int
+_HEADER_SIZE = struct.calcsize(_HEADER_FMT)
+_MAX_FRAME_SIZE = 16 * 1024 * 1024  # 16 MiB
+
+
+@dataclass(slots=True)
+class P2PMessage:
+    type: str
+    sender: str
+    payload: dict[str, Any] = field(default_factory=dict)
+    ts: float = field(default_factory=time.time)
+    nonce: str = ""
+
+    def encode(self) -> bytes:
+        raw = json.dumps(
+            {
+                "type": self.type,
+                "sender": self.sender,
+                "payload": self.payload,
+                "ts": self.ts,
+                "nonce": self.nonce,
+            },
+            separators=(",", ":"),
+        ).encode("utf-8")
+        return struct.pack(_HEADER_FMT, len(raw)) + raw
+
+    @classmethod
+    def decode(cls, data: bytes) -> P2PMessage:
+        obj = json.loads(data)
+        return cls(
+            type=obj["type"],
+            sender=obj["sender"],
+            payload=obj.get("payload", {}),
+            ts=obj.get("ts", 0),
+            nonce=obj.get("nonce", ""),
+        )
+
+
+async def read_message(reader: asyncio.StreamReader) -> P2PMessage | None:
+    try:
+        header = await reader.readexactly(_HEADER_SIZE)
+    except (asyncio.IncompleteReadError, ConnectionError):
+        return None
+
+    (length,) = struct.unpack(_HEADER_FMT, header)
+    if length > _MAX_FRAME_SIZE:
+        logger.warning("Frame too large: %d bytes", length)
+        return None
+
+    try:
+        data = await reader.readexactly(length)
+    except (asyncio.IncompleteReadError, ConnectionError):
+        return None
+
+    return P2PMessage.decode(data)
+
+
+async def write_message(writer: asyncio.StreamWriter, msg: P2PMessage) -> bool:
+    try:
+        writer.write(msg.encode())
+        await writer.drain()
+        return True
+    except (ConnectionError, OSError):
+        return False

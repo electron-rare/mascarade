@@ -131,16 +131,18 @@ class Settings(BaseSettings):
     cluster_mdns_discovery_ttl_seconds: int = 60
     cluster_mdns_advertise: bool = False
 
-    # P2P / libp2p
+    # P2P network
     p2p_enabled: bool = False
+    p2p_listen_host: str = "0.0.0.0"
     p2p_listen_port: int = 4001
-    p2p_bootstrap_peers: str = ""
+    p2p_bootstrap_peers: str = ""  # libp2p: multiaddr; asyncio: "peer_id|host|port"
+    p2p_key_dir: str = ""
     p2p_identity_key_path: str = ""
     p2p_heartbeat_interval_seconds: int = 15
+    p2p_heartbeat_seconds: int = 30
     p2p_discovery_interval_seconds: int = 30
     p2p_peer_ttl_seconds: int = 90
     p2p_pubsub_enabled: bool = False
-
     # Device voice sessions
     device_stt_model: str = "gpt-4o-mini-transcribe"
     device_stt_language: str = "fr"
