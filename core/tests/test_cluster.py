@@ -5,7 +5,7 @@ from contextlib import asynccontextmanager
 import httpx
 import pytest
 
-from mascarade.cluster import ClusterManager, _mdns_peer_matches_local_fingerprint, parse_cluster_peers
+from mascarade.cluster import ClusterManager, ClusterPeer, _mdns_peer_matches_local_fingerprint, parse_cluster_peers
 from mascarade.config import settings
 from mascarade.auth import add_api_key, get_active_api_keys, remove_api_key
 from mascarade.server import app
@@ -259,30 +259,28 @@ async def test_cluster_manager_auto_selects_peer_by_role_and_model(monkeypatch):
 
     manager = ClusterManager(router=_RouterLike(), agents_count_provider=lambda: 1)
 
-    async def fake_probe():
-        return [
-            type(
-                "PeerStatusLike",
-                (),
-                {
-                    "peer_id": "node-gpu",
-                    "role": "gpu",
-                    "base_url": "http://100.64.0.20:8100",
-                    "ok": True,
-                    "status": 200,
-                    "latency_ms": 12,
-                    "error": None,
-                    "remote_node_id": "node-gpu",
-                    "remote_label": "GPU Node",
-                    "providers": ["ollama"],
-                    "provider_models": {"ollama": ["llama3.2:3b", "qwen2.5:7b"]},
-                    "agents": 16,
-                    "last_seen": "2026-03-07T12:00:00Z",
-                },
-            )()
-        ]
+    async def fake_probe(_peer):
+        return type(
+            "PeerStatusLike",
+            (),
+            {
+                "peer_id": "node-gpu",
+                "role": "gpu",
+                "base_url": "http://100.64.0.20:8100",
+                "ok": True,
+                "status": 200,
+                "latency_ms": 12,
+                "error": None,
+                "remote_node_id": "node-gpu",
+                "remote_label": "GPU Node",
+                "providers": ["ollama"],
+                "provider_models": {"ollama": ["llama3.2:3b", "qwen2.5:7b"]},
+                "agents": 16,
+                "last_seen": "2026-03-07T12:00:00Z",
+            },
+        )()
 
-    monkeypatch.setattr(manager, "probe_peers", fake_probe)
+    monkeypatch.setattr(manager, "_probe_peer", fake_probe)
 
     selection = await manager.select_route(
         peer_id=None,
@@ -314,9 +312,11 @@ async def test_cluster_manager_merges_mdns_peers(monkeypatch):
     manager = ClusterManager(router=_RouterLike(), agents_count_provider=lambda: 1)
 
     async def fake_discover_mdns():
-        return [
+        peers = [
             ClusterPeer(peer_id="node-mdns", role="edge", base_url="http://100.64.0.22:8100"),
         ]
+        manager._mdns_peers = {peer.peer_id: peer for peer in peers}
+        return peers
 
     async def fake_request_json(peer, method, path, *, json=None):
         if path == "/cluster/node/identity":
@@ -355,9 +355,11 @@ async def test_cluster_manager_explicit_send_can_target_discovered_mdns_peer(mon
     manager = ClusterManager(router=_RouterLike(), agents_count_provider=lambda: 1)
 
     async def fake_discover_mdns():
-        return [
+        peers = [
             ClusterPeer(peer_id="node-mdns", role="edge", base_url="http://100.64.0.22:8100"),
         ]
+        manager._mdns_peers = {peer.peer_id: peer for peer in peers}
+        return peers
 
     async def fake_request_json(peer, method, path, *, json=None):
         assert peer.peer_id == "node-mdns"
