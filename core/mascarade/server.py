@@ -71,14 +71,12 @@ async def lifespan(app: FastAPI):
 
     registry.load()
 
-    # Start P2P node if enabled
+    # Start P2P node (auto-selects backend)
     await cluster.start_p2p()
 
     yield
 
-    # Stop P2P node
     await cluster.stop_p2p()
-
     if app.state.comfyui is not None:
         await app.state.comfyui.close()
 
@@ -608,11 +606,6 @@ async def cluster_forward_send(req: ClusterForwardSendRequest):
         allow_local=req.allow_local,
         payload=payload,
     )
-
-
-@protected.get("/cluster/p2p/status")
-async def cluster_p2p_status():
-    return app.state.cluster.p2p_status()
 
 
 @cluster_protected.get("/identity")
@@ -1323,6 +1316,14 @@ async def comfyui_interrupt():
     client = _require_comfyui()
     await client.interrupt()
     return {"status": "ok"}
+
+
+# --- P2P network ---
+
+
+@protected.get("/cluster/p2p/status")
+async def cluster_p2p_status():
+    return app.state.cluster.p2p_status()
 
 
 app.include_router(protected)

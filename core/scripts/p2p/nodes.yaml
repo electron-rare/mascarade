@@ -1,0 +1,66 @@
+# P2P Network Node Configuration
+# Each node in the mascarade P2P mesh
+
+bootstrap:
+  name: "Photon VM"
+  host: "192.168.0.119"
+  user: "root"
+  port: 4001
+  role: "gpu"
+  capabilities: ["llm-inference", "gpu"]
+  providers: ["claude", "ollama"]
+  http_base_url: "http://192.168.0.119:8100"
+  pythonpath: "/mascarade/core"
+  python: "python3"
+  note: "VMware Photon OS, main GPU/LLM node"
+
+nodes:
+  cils:
+    name: "CILS MacBook"
+    host: "192.168.0.210"
+    user: "cils"
+    port: 4001
+    role: "worker"
+    capabilities: ["mcp-host", "kicad-validation", "firmware-build"]
+    http_base_url: "http://192.168.0.210:8100"
+    pythonpath: ""  # uses venv
+    python: "python"
+    venv: "~/mascarade/core/.venv/bin/activate"
+    note: "MacBook Intel, worker node"
+
+  electron:
+    name: "Electron Mac"
+    host: "192.168.0.159"
+    user: "electron"
+    port: 4002
+    role: "orchestrator"
+    capabilities: ["orchestration", "gateway"]
+    http_base_url: "http://192.168.0.159:8100"
+    pythonpath: "/Users/electron/mascarade/core"
+    python: "python3"
+    note: "MacBook M4, orchestrator"
+
+  kxkm:
+    name: "KXKM AI"
+    host: "kxkm-ai"
+    tailscale_ip: "100.87.54.119"
+    user: "kxkm"
+    port: 4001
+    role: "compute"
+    capabilities: ["compute", "training"]
+    http_base_url: "http://kxkm-ai:8100"
+    pythonpath: "~/mascarade/core"
+    python: "python3"
+    note: "Ubuntu GPU server via Tailscale"
+
+  tower:
+    name: "Tower"
+    host: "192.168.0.120"
+    user: "clems"
+    port: 4001
+    role: "worker"
+    capabilities: ["compute", "storage"]
+    http_base_url: "http://192.168.0.120:8100"
+    pythonpath: "~/mascarade/core"
+    python: "python3"
+    note: "Ubuntu Tower, local compute node"

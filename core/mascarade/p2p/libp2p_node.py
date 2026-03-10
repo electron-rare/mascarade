@@ -43,7 +43,7 @@ except Exception:  # pragma: no cover
 
 import multiaddr as ma
 
-from mascarade.p2p.protocols import (
+from mascarade.p2p.libp2p_protocols import (
     IDENTITY_PROTOCOL,
     SEND_PROTOCOL,
     read_msg,
