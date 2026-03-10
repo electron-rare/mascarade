@@ -29,6 +29,12 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from mascarade.config import settings
 from mascarade.router import Router
 
+try:
+    from mascarade.p2p.node import P2PNode, P2PPeer
+except Exception:  # pragma: no cover - optional dependency
+    P2PNode = None  # type: ignore[assignment, misc]
+    P2PPeer = None  # type: ignore[assignment, misc]
+
 logger = logging.getLogger("mascarade.cluster")
 
 _cluster_bearer = HTTPBearer(auto_error=False)
@@ -314,6 +320,7 @@ class ClusterManager:
         self._mdns_discovery_expiry = 0.0
         self._mdns_advertiser: Zeroconf | None = None
         self._mdns_service_info: ServiceInfo | None = None
+        self._p2p_node: P2PNode | None = None  # type: ignore[valid-type]
 
         if _cluster_mdns_enabled() and settings.cluster_mdns_advertise:
             self._register_mdns_service()
@@ -325,6 +332,50 @@ class ClusterManager:
     @property
     def peers(self) -> list[ClusterPeer]:
         return list(self._collect_known_peers())
+
+    # ── P2P lifecycle (called from server lifespan) ───────────────────
+
+    def _p2p_enabled(self) -> bool:
+        return bool(settings.p2p_enabled and P2PNode is not None)
+
+    async def start_p2p(self) -> None:
+        """Start the libp2p P2P node if enabled."""
+        if not self._p2p_enabled():
+            return
+        try:
+            self._p2p_node = P2PNode(settings)
+            await self._p2p_node.start(
+                identity_provider=lambda: self.local_identity().to_dict(),
+                send_handler=self._p2p_local_send,
+            )
+            logger.info(
+                "P2P node started — peer_id=%s", self._p2p_node.peer_id
+            )
+        except Exception as exc:
+            logger.warning("P2P node failed to start: %s", exc)
+            self._p2p_node = None
+
+    async def stop_p2p(self) -> None:
+        """Stop the libp2p P2P node."""
+        if self._p2p_node:
+            await self._p2p_node.stop()
+            self._p2p_node = None
+
+    def _p2p_local_send(self, payload: dict) -> dict:
+        """Synchronous wrapper for local send, called from trio thread."""
+        import asyncio as _asyncio
+
+        loop = _asyncio.new_event_loop()
+        try:
+            return loop.run_until_complete(self._send_local(payload))
+        finally:
+            loop.close()
+
+    def p2p_status(self) -> dict:
+        """Return P2P diagnostic info."""
+        if self._p2p_node:
+            return self._p2p_node.status()
+        return {"running": False, "reason": "disabled" if not self._p2p_enabled() else "not started"}
 
     def local_identity(self) -> NodeIdentity:
         provider_models = (
@@ -351,6 +402,16 @@ class ClusterManager:
         for peer in self._mdns_peers.values():
             if peer.peer_id not in peers_by_id and peer.peer_id != settings.node_id:
                 peers_by_id[peer.peer_id] = peer
+
+        # Merge libp2p-discovered peers
+        if self._p2p_node:
+            for p2p_peer in self._p2p_node.discovered_peers():
+                if p2p_peer.peer_id not in peers_by_id and p2p_peer.peer_id != settings.node_id:
+                    peers_by_id[p2p_peer.peer_id] = ClusterPeer(
+                        peer_id=p2p_peer.peer_id,
+                        role=p2p_peer.role,
+                        base_url=p2p_peer.base_url,
+                    )
 
         return list(peers_by_id.values())
 
