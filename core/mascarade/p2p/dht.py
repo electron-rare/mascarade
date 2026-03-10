@@ -76,9 +76,11 @@ class P2PDHT:
         local_peer_id: str,
         transport: P2PTransport,
         bootstrap_peers: list[tuple[str, str, int]] | None = None,
+        public_key: str = "",
     ) -> None:
         self._local_peer_id = local_peer_id
         self._transport = transport
+        self._public_key = public_key
         self._table = DHTRoutingTable(local_peer_id)
         self._bootstrap_peers = bootstrap_peers or []
 
@@ -139,6 +141,7 @@ class P2PDHT:
                 "port": self._transport.listen_port,
                 "capabilities": capabilities or [],
                 "metadata": metadata or {},
+                "public_key": self._public_key,
             },
         )
         return await self._transport.broadcast(msg)
@@ -193,6 +196,9 @@ class P2PDHT:
         port = msg.payload.get("port", conn.port)
         capabilities = msg.payload.get("capabilities", [])
         metadata = msg.payload.get("metadata", {})
+        public_key = msg.payload.get("public_key", "")
+        if public_key:
+            metadata["public_key"] = public_key
 
         self._table.upsert(DHTEntry(
             peer_id=msg.sender,

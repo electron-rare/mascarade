@@ -89,7 +89,7 @@ class P2PTaskDistribution:
         )
         self._tasks[task_id] = task
 
-        future: asyncio.Future = asyncio.get_event_loop().create_future()
+        future: asyncio.Future = asyncio.get_running_loop().create_future()
         self._result_futures[task_id] = future
 
         # If targeting a specific peer, check capabilities
@@ -119,6 +119,10 @@ class P2PTaskDistribution:
             task.status = TaskStatus.TIMEOUT
             task.error = f"Task timed out after {timeout}s"
             logger.warning("Task %s timed out", task_id)
+        except RuntimeError as exc:
+            task.status = TaskStatus.FAILED
+            task.error = str(exc)
+            task.completed_at = time.time()
         finally:
             self._result_futures.pop(task_id, None)
 

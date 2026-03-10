@@ -24,6 +24,8 @@ class P2PMessage:
     payload: dict[str, Any] = field(default_factory=dict)
     ts: float = field(default_factory=time.time)
     nonce: str = ""
+    signature: str = ""
+    public_key: str = ""
 
     def encode(self) -> bytes:
         raw = json.dumps(
@@ -33,10 +35,26 @@ class P2PMessage:
                 "payload": self.payload,
                 "ts": self.ts,
                 "nonce": self.nonce,
+                "signature": self.signature,
+                "public_key": self.public_key,
             },
             separators=(",", ":"),
         ).encode("utf-8")
         return struct.pack(_HEADER_FMT, len(raw)) + raw
+
+    def signing_payload(self) -> bytes:
+        """Return the canonical bytes used for signing (excludes signature/public_key)."""
+        return json.dumps(
+            {
+                "type": self.type,
+                "sender": self.sender,
+                "payload": self.payload,
+                "ts": self.ts,
+                "nonce": self.nonce,
+            },
+            separators=(",", ":"),
+            sort_keys=True,
+        ).encode("utf-8")
 
     @classmethod
     def decode(cls, data: bytes) -> P2PMessage:
@@ -47,6 +65,8 @@ class P2PMessage:
             payload=obj.get("payload", {}),
             ts=obj.get("ts", 0),
             nonce=obj.get("nonce", ""),
+            signature=obj.get("signature", ""),
+            public_key=obj.get("public_key", ""),
         )
 
 

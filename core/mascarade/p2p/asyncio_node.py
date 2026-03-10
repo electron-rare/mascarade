@@ -10,6 +10,16 @@ from typing import Any
 from mascarade.p2p.capabilities import P2PCapabilityExchange
 from mascarade.p2p.dht import P2PDHT
 from mascarade.p2p.discovery import P2PDiscovery
+from mascarade.p2p.events import (
+    EVENT_CAPABILITY_UPDATE,
+    EVENT_HEARTBEAT,
+    EVENT_PEER_JOINED,
+    EVENT_PEER_LEFT,
+    EVENT_TASK_COMPLETED,
+    EVENT_TASK_SUBMITTED,
+    P2PEvent,
+    P2PEventBus,
+)
 from mascarade.p2p.identity import PeerIdentity
 from mascarade.p2p.metrics import P2PMetricsCollector, P2PNodeMetrics
 from mascarade.p2p.pubsub import P2PPubSub
@@ -65,8 +75,10 @@ class MascaradeP2PNode:
             transport=self._transport,
         )
         self._metrics = P2PMetricsCollector(self._identity.peer_id)
+        self._event_bus = P2PEventBus()
         self._heartbeat_task: asyncio.Task | None = None
         self._running = False
+        self._known_peers: set[str] = set()
 
     # --- Properties ---
 
@@ -114,6 +126,10 @@ class MascaradeP2PNode:
     def running(self) -> bool:
         return self._running
 
+    @property
+    def events(self) -> P2PEventBus:
+        return self._event_bus
+
     # --- Lifecycle ---
 
     async def start(self) -> None:
@@ -154,7 +170,7 @@ class MascaradeP2PNode:
         label: str = "",
         http_base_url: str | None = None,
     ) -> int:
-        return await self._capabilities.advertise_capabilities(
+        result = await self._capabilities.advertise_capabilities(
             capabilities=capabilities,
             providers=providers,
             provider_models=provider_models,
@@ -162,6 +178,16 @@ class MascaradeP2PNode:
             label=label,
             http_base_url=http_base_url,
         )
+        self._event_bus.emit(P2PEvent(
+            type=EVENT_CAPABILITY_UPDATE,
+            data={
+                "peer_id": self.peer_id,
+                "capabilities": capabilities,
+                "role": role,
+                "label": label,
+            },
+        ))
+        return result
 
     async def discover_peers(self) -> list:
         return await self._discovery.discover()
@@ -178,13 +204,30 @@ class MascaradeP2PNode:
         timeout: float = 300.0,
         target_peer: str | None = None,
     ):
-        return await self._tasks.distribute_task(
+        self._event_bus.emit(P2PEvent(
+            type=EVENT_TASK_SUBMITTED,
+            data={
+                "task_id": task_id,
+                "capability": capability,
+                "target_peer": target_peer,
+            },
+        ))
+        result = await self._tasks.distribute_task(
             task_id=task_id,
             payload=payload,
             capability=capability,
             timeout=timeout,
             target_peer=target_peer,
         )
+        self._event_bus.emit(P2PEvent(
+            type=EVENT_TASK_COMPLETED,
+            data={
+                "task_id": task_id,
+                "capability": capability,
+                "target_peer": target_peer,
+            },
+        ))
+        return result
 
     def set_stream_handler(self, protocol: str, handler: Any) -> None:
         self._transport.on_message(protocol, handler)
@@ -197,6 +240,13 @@ class MascaradeP2PNode:
             payload={"data": data.decode("utf-8", errors="replace")},
         )
         await self._transport.send_to(peer_id, msg)
+
+    def set_task_handler(self, handler: Any) -> None:
+        """Set the handler for incoming distributed tasks.
+
+        Handler signature: async def handler(payload: dict, capability: str) -> dict
+        """
+        self._tasks.set_task_handler(handler)
 
     def add_peer(self, peer_id: str, host: str, port: int) -> None:
         self._transport.add_peer(peer_id, host, port)
@@ -254,6 +304,26 @@ class MascaradeP2PNode:
                     dht_entries=len(self._dht.routing_table),
                     capabilities_known=len(self._capabilities.all_capabilities()),
                 )
+                # Detect peer joins/leaves and emit events
+                current_peers = {
+                    pid for pid, c in self._transport.peers.items() if c.connected
+                }
+                for pid in current_peers - self._known_peers:
+                    self._event_bus.emit(P2PEvent(
+                        type=EVENT_PEER_JOINED,
+                        data={"peer_id": pid},
+                    ))
+                for pid in self._known_peers - current_peers:
+                    self._event_bus.emit(P2PEvent(
+                        type=EVENT_PEER_LEFT,
+                        data={"peer_id": pid},
+                    ))
+                self._known_peers = current_peers
+                # Heartbeat event for SSE keep-alive
+                self._event_bus.emit(P2PEvent(
+                    type=EVENT_HEARTBEAT,
+                    data={"connected_peers": connected},
+                ))
             except asyncio.CancelledError:
                 break
             except Exception:
