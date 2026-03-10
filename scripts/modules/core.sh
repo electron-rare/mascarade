@@ -14,7 +14,7 @@ module_core_config() {
     fi
   elif [[ ! -t 0 || ! -t 1 ]]; then
     CLUSTER_ENABLED="${CLUSTER_ENABLED:-false}"
-  elif confirm "Activer le mode multi-machine (cluster prive) ?"; then
+  elif confirm "Activer le mode P2P (cluster prive) ?"; then
     CLUSTER_ENABLED=true
   else
     CLUSTER_ENABLED=false

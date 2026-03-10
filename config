@@ -208,7 +208,7 @@ show_active_stack_overview() {
 }
 
 config_default_kicad_plugin_dir() {
-    local version="${KICAD_VERSION:-9.0}"
+    local version="${KICAD_VERSION:-10.0}"
     if is_macos; then
         printf '%s/Library/Application Support/kicad/%s/scripting/plugins\n' "$HOME" "$version"
     else
@@ -325,7 +325,7 @@ configure_cad_section() {
     info "Entree = conserver, '-' = vider une valeur optionnelle."
     echo ""
 
-    KICAD_VERSION=$(input_value "Version KiCad :" "${KICAD_VERSION:-9.0}")
+    KICAD_VERSION=$(input_value "Version KiCad :" "${KICAD_VERSION:-10.0}")
     KICAD_PLUGIN_DIR=$(input_optional_value "Repertoire plugins KiCad (optionnel) :" "${KICAD_PLUGIN_DIR:-}")
     CAD_WORKSPACE_DIR=$(input_optional_value "Workspace CAD (optionnel) :" "${CAD_WORKSPACE_DIR:-}")
 
@@ -351,8 +351,8 @@ configure_cad_section() {
 
 configure_cluster_section() {
     config_mark_scope "cluster"
-    section "Cluster multi-machine"
-    info "Le cluster v1 utilise un VPN prive et un Bearer dedie inter-noeuds."
+    section "P2P (cluster multi-machine)"
+    info "Le mode P2P utilise un VPN prive et un Bearer dedie inter-noeuds."
     echo ""
 
     if [[ "${CLUSTER_ENABLED:-false}" == "true" ]]; then
@@ -426,7 +426,7 @@ run_guided_config() {
     configure_api_keys_section
     step_progress 2 5 "Integrations externes"
     configure_integrations_section
-    step_progress 3 5 "Cluster multi-machine"
+    step_progress 3 5 "P2P (cluster multi-machine)"
     configure_cluster_section
     step_progress 4 5 "CAD / KiCad"
     configure_cad_section
@@ -495,7 +495,7 @@ show_integrations_summary() {
 }
 
 show_cluster_summary() {
-    echo -e "  ${BOLD}Cluster${NC}"
+    echo -e "  ${BOLD}P2P${NC}"
     if [[ "${CLUSTER_ENABLED:-false}" != "true" ]]; then
         echo -e "    ${DIM}Mode local uniquement${NC}"
         return 0
@@ -528,7 +528,7 @@ show_cad_summary() {
         workspace_dir+=" ${DIM}(repo root)${NC}"
     fi
 
-    echo -e "    KiCad : ${KICAD_VERSION:-9.0}"
+    echo -e "    KiCad : ${KICAD_VERSION:-10.0}"
     echo -e "    Plugin dir : ${plugin_dir}${plugin_note}"
     echo -e "    Bundles : ${CAD_INSTALL_BUNDLES:-all}"
     echo -e "    Workspace CAD : ${workspace_dir}"
@@ -695,10 +695,10 @@ show_active_stack_overview
 # ── Menu principal ──
 echo ""
 menu_select "Que voulez-vous reconfigurer ?" \
-    "Assistant guide — cles API, integrations, cluster, CAD, ports" \
+    "Assistant guide — cles API, integrations, P2P, CAD, ports" \
     "Cles API LLM + defaut" \
     "Integrations (Notion, ComfyUI)" \
-    "Cluster multi-machine" \
+    "P2P (cluster multi-machine)" \
     "CAD / KiCad" \
     "Ports des services actifs" \
     "Tout reconfigurer"
@@ -721,7 +721,7 @@ case $config_choice in
         configure_integrations_section
         ;;
     3)
-        CONFIG_SCOPE_LABEL="Cluster multi-machine"
+        CONFIG_SCOPE_LABEL="P2P (cluster multi-machine)"
         configure_cluster_section
         ;;
     4)

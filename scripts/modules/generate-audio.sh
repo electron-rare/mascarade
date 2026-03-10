@@ -54,7 +54,20 @@ module_generate_audio_preflight() {
 
   check_path="${docker_root:-$REPO_DIR}"
   if [[ -n "$check_path" ]] && [[ -e "$check_path" ]]; then
-    free_gb="$(df -BG "$check_path" 2>/dev/null | awk 'NR==2 {gsub(/G/, "", $4); print $4}')"
+    # BSD/macOS `df` does not support `-B`, so use POSIX `-P` and convert blocks -> GB.
+    local available_kb
+    available_kb="$(df -P "$check_path" 2>/dev/null | awk 'NR==2 {print $4}')"
+    if [[ -n "${available_kb:-}" ]] && [[ "$available_kb" =~ ^[0-9]+$ ]]; then
+      free_gb="$((available_kb / 1024 / 1024))"
+    else
+      free_gb=""
+    fi
+    if [[ -z "$free_gb" ]]; then
+      free_gb="$(df -P "$check_path" 2>/dev/null | awk 'NR==2 {sub(/G$/,"", $4); print $4}' | tr -d '[:space:]')"
+      if ! [[ "$free_gb" =~ ^[0-9]+$ ]]; then
+        free_gb=""
+      fi
+    fi
     if [[ -n "$free_gb" ]] && [[ "$free_gb" =~ ^[0-9]+$ ]]; then
       if [[ "$build_variant" == "cuda" && "$free_gb" -lt 25 ]]; then
         warn "Generate Audio CUDA: espace libre faible (${free_gb}G) sur ${check_path}."
