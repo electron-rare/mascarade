@@ -29,14 +29,14 @@ En interactif, `./setup` propose aussi ces actions en post-setup sans les active
 
 - `KiCad headless`: usage de `kicad-cli` dans l'image officielle `kicad/kicad:9.0`.
 - `KiCad MCP`: le serveur du repo reste en `stdio`, ce qui colle au transport local recommandé par MCP aujourd'hui.
-- `FreeCAD headless`: usage de `FreeCADCmd` pour l'exécution CLI/headless.
+- `FreeCAD headless`: usage de `freecadcmd`/`FreeCADCmd` pour l'exécution CLI/headless selon le runtime de l'image.
 - `PlatformIO`: exécution CLI dans un conteneur Python minimal avec `platformio` installé via `pip`.
 
 ## Services
 
 - `kicad-headless`: shell headless pour `kicad-cli`.
-- `kicad-mcp`: image prête pour lancer le serveur MCP du repo en `stdio`.
-- `freecad-headless`: shell headless pour `FreeCADCmd`.
+- `kicad-mcp`: image prête pour lancer le serveur MCP du repo en `stdio` quand `finetune/kicad_mcp_server/` est peuplé.
+- `freecad-headless`: shell headless pour `freecadcmd`/`FreeCADCmd`.
 - `platformio`: shell CLI pour `pio`.
 
 ## Usage rapide
@@ -113,7 +113,7 @@ La spec MCP actuelle recommande:
 - `stdio` pour une communication locale entre processus.
 - `Streamable HTTP` pour un serveur distant.
 
-Le `kicad_mcp_server` présent dans le repo est encore `stdio-only`, donc cette stack le lance proprement comme processus conteneurisé. Si tu veux une exposition réseau MCP plus tard, il faudra ajouter un vrai transport `Streamable HTTP` au serveur, pas juste le mettre derrière un proxy.
+Le `kicad_mcp_server` du repo reste `stdio-only`, donc cette stack le lance comme processus conteneurisé. Sur ce checkout, `finetune/kicad_mcp_server/` peut etre vide: dans ce cas le smoke operateur marque `kicad_mcp=unavailable` au lieu de faire tomber tout le lot. Si tu veux une exposition réseau MCP plus tard, il faudra ajouter un vrai transport `Streamable HTTP` au serveur, pas juste le mettre derrière un proxy.
 
 ## Sources
 

@@ -52,6 +52,7 @@ interface RuntimeSecretFieldStatus {
   criticality?: string;
   restart_services: string[];
   auth_modes?: string[];
+  providers?: string[];
   active?: boolean;
 }
 
@@ -69,6 +70,9 @@ interface RuntimeSecretGroupStatus {
   generate_supported: boolean;
   restart_services: string[];
   fields: RuntimeSecretFieldStatus[];
+  provider?: string;
+  provider_env?: string;
+  providers?: string[];
   auth_mode?: string;
   auth_mode_env?: string;
   auth_modes?: string[];
@@ -83,6 +87,7 @@ interface RuntimeSecretMutationResponse {
   restarted_services?: string[];
   client_token?: string;
   generated_value?: string;
+  extra_info?: string;
 }
 
 type SaveState = "idle" | "saving" | "ok" | "error";
@@ -596,6 +601,10 @@ function RuntimeSecretCard({
   const [generatedValue, setGeneratedValue] = useState("");
   const [extraInfo, setExtraInfo] = useState("");
   const timerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const selectedProvider =
+    group.provider_env && drafts[group.provider_env] !== undefined
+      ? drafts[group.provider_env]
+      : group.provider;
   const selectedAuthMode =
     group.auth_mode_env && drafts[group.auth_mode_env] !== undefined
       ? drafts[group.auth_mode_env]
@@ -609,36 +618,6 @@ function RuntimeSecretCard({
   };
 
   useEffect(() => () => { if (timerRef.current) clearTimeout(timerRef.current); }, []);
-
-  useEffect(() => {
-    if (group.name !== "notion") {
-      return;
-    }
-    const handleMessage = (event: MessageEvent) => {
-      const payload = event.data;
-      if (!payload || typeof payload !== "object") {
-        return;
-      }
-      if ((payload as { type?: string }).type !== "mascarade-oauth-result") {
-        return;
-      }
-      const provider = (payload as { provider?: string }).provider;
-      if (provider !== "notion") {
-        return;
-      }
-      const ok = (payload as { ok?: boolean }).ok === true;
-      const nextMessage =
-        typeof (payload as { message?: string }).message === "string"
-          ? (payload as { message?: string }).message!
-          : ok
-            ? "OAuth linked"
-            : "OAuth failed";
-      void onSaved();
-      settle(ok ? "ok" : "error", nextMessage);
-    };
-    window.addEventListener("message", handleMessage);
-    return () => window.removeEventListener("message", handleMessage);
-  }, [group.name, onSaved]);
 
   const settle = (nextState: SaveState, nextMessage: string) => {
     setSaveState(nextState);
@@ -667,6 +646,11 @@ function RuntimeSecretCard({
   const save = async () => {
     const values: Record<string, string> = {};
     const visibleFields = group.fields.filter((field) => {
+      if (field.providers?.length) {
+        if (!selectedProvider || !field.providers.includes(selectedProvider)) {
+          return false;
+        }
+      }
       if (!field.auth_modes?.length) {
         return true;
       }
@@ -677,6 +661,9 @@ function RuntimeSecretCard({
       if (value !== undefined && value !== "") {
         values[field.env] = value;
       }
+    }
+    if (group.provider_env && drafts[group.provider_env] !== undefined) {
+      values[group.provider_env] = drafts[group.provider_env];
     }
     if (group.auth_mode_env && drafts[group.auth_mode_env] !== undefined) {
       values[group.auth_mode_env] = drafts[group.auth_mode_env];
@@ -757,19 +744,6 @@ function RuntimeSecretCard({
     }
   };
 
-  const connectNotionOAuth = () => {
-    const popup = window.open(
-      "/api/settings/runtime-secrets/notion/oauth/start",
-      "mascarade-notion-oauth",
-      "popup=yes,width=720,height=820",
-    );
-    if (!popup) {
-      settle("error", "Popup bloquee");
-      return;
-    }
-    settle("ok", "OAuth Notion en cours...");
-  };
-
   const validateGitHubApp = async () => {
     setSaveState("saving");
     try {
@@ -783,7 +757,32 @@ function RuntimeSecretCard({
     }
   };
 
+  const bootstrapLocalMemos = async () => {
+    setSaveState("saving");
+    try {
+      const response = await post<RuntimeSecretMutationResponse>(
+        "/api/settings/runtime-secrets/knowledge-base/bootstrap-memos",
+      );
+      setGeneratedValue(response.generated_value || "");
+      setExtraInfo(response.extra_info || "");
+      await onSaved();
+      settle(
+        "ok",
+        response.restarted_services?.length
+          ? `Bootstrap Memos termine, restart: ${response.restarted_services.join(", ")}`
+          : response.message || "Bootstrap Memos termine",
+      );
+    } catch (error) {
+      settle("error", error instanceof Error ? error.message : "Erreur");
+    }
+  };
+
   const visibleFields = group.fields.filter((field) => {
+    if (field.providers?.length) {
+      if (!selectedProvider || !field.providers.includes(selectedProvider)) {
+        return false;
+      }
+    }
     if (!field.auth_modes?.length) {
       return true;
     }
@@ -792,6 +791,7 @@ function RuntimeSecretCard({
 
   const hasDraft =
     visibleFields.some((field) => (drafts[field.env] || "").trim().length > 0) ||
+    (!!group.provider_env && drafts[group.provider_env] !== undefined) ||
     (!!group.auth_mode_env && drafts[group.auth_mode_env] !== undefined);
 
   return (
@@ -819,6 +819,27 @@ function RuntimeSecretCard({
       </div>
 
       <div className="space-y-3">
+        {group.provider_env && group.providers && group.providers.length > 1 && (
+          <div>
+            <label className="mb-1.5 flex items-center justify-between text-[11px] uppercase tracking-[0.16em] text-muted">
+              <span>Provider</span>
+              <span className="normal-case tracking-normal text-amber-100/35">
+                {group.provider_env}
+              </span>
+            </label>
+            <select
+              value={selectedProvider ?? group.providers[0]}
+              onChange={(e) => setField(group.provider_env!, e.target.value)}
+              className="w-full rounded-2xl border border-border/80 bg-black/35 px-3 py-2.5 text-sm text-amber-100 outline-none transition focus:border-accent/50"
+            >
+              {group.providers.map((provider) => (
+                <option key={provider} value={provider} className="bg-[#0a0a0a]">
+                  {provider}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
         {group.auth_mode_env && group.auth_modes && group.auth_modes.length > 1 && (
           <div>
             <label className="mb-1.5 flex items-center justify-between text-[11px] uppercase tracking-[0.16em] text-muted">
@@ -905,14 +926,14 @@ function RuntimeSecretCard({
           )}
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {group.name === "notion" && selectedAuthMode === "oauth_oidc" && (
+          {group.name === "knowledge-base" && selectedProvider === "memos" && (
             <button
               type="button"
               disabled={saveState === "saving"}
-              onClick={connectNotionOAuth}
+              onClick={bootstrapLocalMemos}
               className="rounded-2xl border border-[#214e31] bg-[#0c170f]/80 px-4 py-2 text-[11px] uppercase tracking-[0.16em] text-[#8cffb7] transition hover:border-[#2d6942] hover:bg-[#0f2116] disabled:cursor-not-allowed disabled:opacity-40"
             >
-              connect
+              bootstrap local memos
             </button>
           )}
           {group.name === "github-dispatch" && selectedAuthMode === "app" && (

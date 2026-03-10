@@ -1,0 +1,108 @@
+{
+  "domain": "stm32",
+  "topic": "STM32 / Cortex-M firmware",
+  "minimum_web_roots": 8,
+  "forum_urls": [
+    {
+      "label": "ST Community",
+      "url": "https://community.st.com/"
+    },
+    {
+      "label": "PlatformIO Community",
+      "url": "https://community.platformio.org/"
+    },
+    {
+      "label": "ChibiOS Forum",
+      "url": "https://forum.chibios.org/"
+    },
+    {
+      "label": "FreeRTOS Forums",
+      "url": "https://forums.freertos.org/"
+    },
+    {
+      "label": "ARM Community Forums",
+      "url": "https://community.arm.com/support-forums/"
+    },
+    {
+      "label": "Arduino Forum",
+      "url": "https://forum.arduino.cc/"
+    },
+    {
+      "label": "EmbeddedRelated Forum",
+      "url": "https://www.embeddedrelated.com/forum.php"
+    },
+    {
+      "label": "Electronics StackExchange STM32",
+      "url": "https://electronics.stackexchange.com/questions/tagged/stm32"
+    },
+    {
+      "label": "Electronics StackExchange Embedded",
+      "url": "https://electronics.stackexchange.com/questions/tagged/embedded"
+    },
+    {
+      "label": "All About Circuits Embedded Systems",
+      "url": "https://forum.allaboutcircuits.com/forums/embedded-systems-and-microcontrollers.13/"
+    }
+  ],
+  "authoritative_urls": [
+    {
+      "label": "ST STM32Cube docs",
+      "url": "https://dev.st.com/stm32cube-docs/"
+    },
+    {
+      "label": "ST Community",
+      "url": "https://community.st.com/"
+    }
+  ],
+  "github_repos": [
+    {
+      "label": "STMicroelectronics org",
+      "url": "https://github.com/STMicroelectronics"
+    },
+    {
+      "label": "STM32CubeF4",
+      "url": "https://github.com/STMicroelectronics/STM32CubeF4"
+    },
+    {
+      "label": "STM32CubeH7",
+      "url": "https://github.com/STMicroelectronics/STM32CubeH7"
+    },
+    {
+      "label": "STM32CubeG4",
+      "url": "https://github.com/STMicroelectronics/STM32CubeG4"
+    }
+  ],
+  "software_sources": [
+    {
+      "label": "STM32Cube firmware hub",
+      "url": "https://github.com/STMicroelectronics"
+    },
+    {
+      "label": "STM32Cube docs",
+      "url": "https://dev.st.com/stm32cube-docs/"
+    }
+  ],
+  "datasheet_roots": [
+    {
+      "label": "STM32 mainstream MCU documentation hub",
+      "url": "https://www.st.com/en/microcontrollers-microprocessors/stm32-mainstream-mcus/documentation.html"
+    },
+    {
+      "label": "STM32 family documentation portal",
+      "url": "https://www.st.com/en/microcontrollers-microprocessors.html"
+    }
+  ],
+  "hf_sources": [
+    "MuratKomurcu/stm32-hal-dataset"
+  ],
+  "queries": [
+    "site:dev.st.com stm32 dma uart application note",
+    "site:community.st.com stm32 freertos low power",
+    "site:huggingface.co/datasets stm32 hal dataset"
+  ],
+  "trusted_domains": [
+    "dev.st.com",
+    "community.st.com",
+    "huggingface.co"
+  ]
+}

@@ -19,6 +19,8 @@ Options:
   --email <email>       Override EDGE_PROXY_ACME_EMAIL
   --domains <csv>       Override EDGE_PROXY_ACME_DOMAINS
   --token <token>       Override CLOUDFLARE_API_TOKEN
+  --cf-email <email>    Override CLOUDFLARE_API_EMAIL
+  --cf-key <key>        Override CLOUDFLARE_API_KEY
   --server <ca>         Override EDGE_PROXY_ACME_CA (default: letsencrypt)
   --keylength <value>   Override EDGE_PROXY_ACME_KEY_LENGTH (default: ec-256)
   --dnssleep <seconds>  Override EDGE_PROXY_ACME_DNS_SLEEP (default: 30)
@@ -93,9 +95,16 @@ acme_run() {
     require_cmd docker
     docker run --rm \
         -e "CF_Token=${CLOUDFLARE_API_TOKEN:-}" \
+        -e "CF_Email=${CLOUDFLARE_API_EMAIL:-}" \
+        -e "CF_Key=${CLOUDFLARE_API_KEY:-}" \
         -v "${ACME_HOME_VOLUME}:/acme.sh" \
         -v "${CERTS_VOLUME}:/certs" \
         "$ACME_IMAGE" acme.sh "$@"
+}
+
+has_cloudflare_credentials() {
+    [[ -n "${CLOUDFLARE_API_TOKEN:-}" ]] && return 0
+    [[ -n "${CLOUDFLARE_API_EMAIL:-}" && -n "${CLOUDFLARE_API_KEY:-}" ]]
 }
 
 reload_edge_proxy() {
@@ -126,7 +135,7 @@ issue_cert() {
     if is_manual_provider; then
         issue_args+=(--dns --yes-I-know-dns-manual-mode-enough-go-ahead-please)
     else
-        [[ -n "${CLOUDFLARE_API_TOKEN:-}" ]] || die "CLOUDFLARE_API_TOKEN is empty"
+        has_cloudflare_credentials || die "Cloudflare credentials are empty (provide CLOUDFLARE_API_TOKEN or CLOUDFLARE_API_EMAIL + CLOUDFLARE_API_KEY)"
         issue_args+=(--dns dns_cf)
     fi
     issue_args+=("${DOMAIN_ARGS[@]}")
@@ -170,7 +179,7 @@ renew_cert() {
     if is_manual_provider; then
         renew_args+=(--yes-I-know-dns-manual-mode-enough-go-ahead-please)
     else
-        [[ -n "${CLOUDFLARE_API_TOKEN:-}" ]] || die "CLOUDFLARE_API_TOKEN is empty"
+        has_cloudflare_credentials || die "Cloudflare credentials are empty (provide CLOUDFLARE_API_TOKEN or CLOUDFLARE_API_EMAIL + CLOUDFLARE_API_KEY)"
     fi
     info "Renew certificate for: ${PRIMARY_DOMAIN}"
     acme_run "${renew_args[@]}"
@@ -213,6 +222,14 @@ while [[ $# -gt 0 ]]; do
             ;;
         --token)
             CLOUDFLARE_API_TOKEN="${2:-}"
+            shift 2
+            ;;
+        --cf-email)
+            CLOUDFLARE_API_EMAIL="${2:-}"
+            shift 2
+            ;;
+        --cf-key)
+            CLOUDFLARE_API_KEY="${2:-}"
             shift 2
             ;;
         --server)

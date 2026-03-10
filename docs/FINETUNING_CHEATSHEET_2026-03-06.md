@@ -95,6 +95,12 @@ Preset solo `Qwen3.5-9B-Base` sur RTX 4090 :
 ./scripts/finetune_qwen35_base_4090.sh
 ```
 
+Telechargement cible des modeles recents retenus par la politique auto :
+
+```bash
+./scripts/download_latest_finetune_models.sh
+```
+
 Profil multi-run RTX 4090 :
 
 ```bash
@@ -129,17 +135,51 @@ Pipeline complet teacher -> student:
   --epochs 1
 ```
 
+Reprise batch canonique:
+
+```bash
+python finetune/batch_status.py finetune/runs/<run_label>_<timestamp>/
+python finetune/batch_local.py --resume finetune/runs/<run_label>_<timestamp>/
+```
+
+Refresh / packaging `components`:
+
+```bash
+python finetune/dataset_refresh.py components --with-hf
+python finetune/prepare_hf_dataset.py components --username YOUR_USERNAME
+python finetune/promotion_utils.py status components
+```
+
+Benchmark `gpu_slots` sur un run deja distille:
+
+```bash
+./scripts/benchmark_gpu_slots.sh \
+  --source-manifest finetune/runs/sessions-4090-parallel-750x2_20260307_040828/manifest.json \
+  --domains stm32,spice,kicad,platformio \
+  --slots 1,2 \
+  --label qwen4b-slots-compare \
+  --offline
+```
+
 ## 6. Reglage de depart recommande
 
 Teacher:
 
-- provider `ollama`
-- teacher recommande local : `qwen2.5:14b`
-- pour de la vraie distillation GPU ici, utiliser le core hote de tuning sur `127.0.0.1:18100`, pas l `ollama` Docker CPU
+- le `teacher` n est plus fige
+- mode auto par defaut: `--teacher-objective balanced`
+- `balanced`: `Qwen/Qwen2.5-7B-Instruct` puis `Qwen/Qwen3-4B-Instruct-2507`
+- `quality`: `Qwen/Qwen3.5-35B-A3B-GPTQ-Int4` puis `Devstral 24B`, puis `Mistral 24B`
+- `fast`: `Qwen/Qwen3-4B-Instruct-2507` puis `Qwen/Qwen2.5-7B-Instruct`
+- fallback stable si rien ne passe: `ollama/qwen2.5:14b`
+- les teachers `local-hf` lourds du mode `quality` partent en `local_hf_device=auto`, pas en `cuda:0` force
+- pour de la vraie distillation GPU locale sur cette 4090, les teachers `local-hf` valides aujourd hui sont `Qwen/Qwen2.5-7B-Instruct` et `Qwen/Qwen3-4B-Instruct-2507`
+- pour ces teachers, forcer `--local-hf-device cuda:0` ou exporter `MASCARADE_LOCAL_HF_DEVICE=cuda:0`
+- `Qwen/Qwen3.5-35B-A3B-GPTQ-Int4`, `Devstral-Small-2-24B-Instruct-2512` et `Mistral-Small-3.1-24B-Base-2503` restent des teachers `auto`/offload utiles, mais pas des vrais teachers plein GPU sur une seule RTX 4090 24 Go
 
 Student:
 
-- recommande pour ce repo: `Qwen/Qwen2.5-Coder-7B-Instruct`
+- recommande auto sur cette machine: `Qwen/Qwen3.5-9B-Base`
+- recommande historique pour ce repo: `Qwen/Qwen2.5-Coder-7B-Instruct`
 - alternative generaliste recente et plus legere: `Qwen/Qwen3-4B-Instruct-2507`
 - alternative plus recente pour fine-tuning solo: `Qwen/Qwen3.5-9B-Base`
 - ne pas prendre `Qwen3-Coder-Next` comme premier student local: c est un gros modele hybride/MoE surtout pense pour serving agentic
@@ -160,7 +200,73 @@ Charge validee sur cette machine:
 - si `llmfit` n est pas present, le pipeline continue sans bloquer et logue un warning
 - `batch_local.py` peut maintenant monter a `2` students, mais seulement en fin de batch quand la file teacher est vide
 - avec un teacher `ollama` lourd, le scheduler garde `1` seul student pendant les distills puis decharge le modele teacher pour recuperer la VRAM avant d ouvrir le deuxieme slot
+- benchmark training-only valide au 8 mars 2026 sur `gpu_24gb_plus`:
+  - `Qwen/Qwen3-4B-Instruct-2507 @ seq-len=1024`
+  - `slots=1`: `78.01s`, pic VRAM `9532 MiB`
+  - `slots=2`: `42.01s`, pic VRAM `17119 MiB`
+  - speedup observe: `1.857x`
 - `OLLAMA_API_URL` permet de cibler un endpoint Ollama different pour ce dechargement automatique
+- `batch_local.py` choisit maintenant le student selon `--student-model` explicite, puis `finetune/selected_model.json`, puis le fallback repo
+- si `selected_model.json` est absent, `batch_local.py` et `run_local.py` choisissent maintenant le student selon le materiel detecte
+- `model_selector.py` garde maintenant son cache et `selected_model.json` dans un state runtime dedie (`/tmp/mascarade-finetune-state` en sandbox, `/dev/shm/mascarade-finetune-state` hors sandbox) pour ne pas casser quand le repo FS est plein
+- `model_selector.py --watch --refresh --task code` ajoute une veille web recente sur les sorties des auteurs de confiance et ecrit `model_watch_report.json` dans ce meme state runtime
+- `run_local.py` et `batch_local.py` reutilisent aussi ce workflow: sans `--model` / `--student-model` explicite et hors `--offline`, ils rafraichissent la veille/selection quand le cache TTL est stale puis tracent le `model_watch_report.json` retenu
+- benchmark selector vs manuel valide au 8 mars 2026:
+  - artefact: `finetune/runs/model-selector-benchmark-live_20260308_213050/summary.json`
+  - verdict: alignement sur `Qwen/Qwen3.5-9B-Base`
+- `batch_local.py` choisit maintenant aussi automatiquement le `teacher`, `gpu_slots`, `seq_len` et `student_max_samples` quand ces flags ne sont pas forces
+- `--teacher-objective balanced` est le defaut pratique
+- `--teacher-objective fast` privilegie un teacher `local-hf` 4B/7B en vrai GPU
+- `--teacher-objective quality` privilegie un gros teacher `local-hf` 35B/24B en offload
+- sur des domaines tres code-heavy, `Devstral 24B` peut remonter plus haut dans l ordre auto
+- la politique hardware-adaptive garde maintenant le chemin GPU si le GPU NVIDIA est detecte/profilé, meme quand `torch.cuda.is_available()` est bruité dans certains shells; le trainer garde ses propres garde-fous runtime
+- `--auto-promote` remplace l alias live uniquement quand `merge -> gguf -> deploy -> smoke` passent tous
+- le deploy Ollama choisit automatiquement `host` ou `container`; sur cette machine, le chemin live valide utilise l Ollama hote car le conteneur a un store read-only
+- si le filesystem du repo est sature, la promotion stage automatiquement sous `/dev/shm/mascarade-promotion`
+- si le filesystem du repo est sature, `run_local.py` et `batch_local.py` reroutent maintenant aussi les outputs de training sous `/dev/shm/mascarade-train` ou `MASCARADE_TRAIN_WORKDIR`
+- nuance: ces outputs ne vont pas toujours en tmpfs; le basculement vers `/dev/shm` se fait seulement quand le repo FS n a plus assez d espace
+- le smoke post-promotion actuel valide l alias Ollama et une reponse texte domaine-specifique
+- il ne couvre pas encore automatiquement un vrai workflow outille/MCP `pio` / `kicad-cli` / `FreeCADCmd` / `OpenSCAD`
+- l outillage operateur existe maintenant via:
+  - `scripts/cad_tool_smoke_tmpfs.sh`
+  - `scripts/next_finetune_lots.sh --continue-on-error`
+- couverture outillee validee au 9 mars 2026:
+  - `doctor=ok`
+  - `kicad=ok`
+  - `freecad=ok`
+  - `platformio=ok`
+  - `kicad_mcp=unavailable` tant que `finetune/kicad_mcp_server/package.json` manque
+  - rapport vert de reference: `finetune/runs/next-lots_20260309_063107/summary.json`
+- `OpenSCAD` reste hors couverture automatique sur cette stack
+- quality gate dataset actif par defaut:
+  - bloque les datasets `<4` rows, avec trop peu de prompts utilisateur uniques, ou avec des reponses trop verbeuses au `p95`
+  - variables: `MASCARADE_DATASET_QUALITY_MODE`, `MASCARADE_DATASET_QUALITY_MIN_ROWS`, `MASCARADE_DATASET_QUALITY_MIN_UNIQUE_USERS`, `MASCARADE_DATASET_QUALITY_MAX_ASSISTANT_P95`
+- refresh dataset canonique disponible:
+  - `python finetune/dataset_refresh.py stm32 platformio components --with-hf`
+  - `run_local.py --refresh-dataset` et `batch_local.py --refresh-datasets` le branchent directement dans le workflow
+  - le refresh prefere `mascarade-datasets/` si present, sinon `finetune/datasets/build_*`
+  - un brief de recherche web associe est ecrit dans `finetune/research/`
+  - les anciens builders `finetune/build_components_dataset.py` et `finetune/build_freecad_dataset.py` sont retires
+  - le refresh dedupe maintenant le dataset final et trace `duplicates_removed`
+- la consolidation distill/train et le packaging HF dedupent aussi les rows finales et tracent `duplicates_removed`
+- le profil operateur n est plus fige sur P2000; il est derive de la machine presente
+- alias live valide actuel:
+  - `mascarade-platformio`
+  - `mascarade-stm32`
+  - `mascarade-spice`
+  - `mascarade-iot`
+  - `mascarade-kicad`
+  - `mascarade-freecad`
+  - `mascarade-dsp`
+  - `mascarade-embedded`
+  - `mascarade-power`
+  - `mascarade-emc`
+  - registre: `finetune/models_local/promotion_registry.json`
+  - `mascarade-components-review` est review-ready, la promotion live `mascarade-components` reste sous revue manuelle
+  - `mascarade-iot` est aussi valide via `POST /api/agents/send`
+  - `mascarade-kicad` est aussi valide via `POST /api/agents/send`
+  - `mascarade-freecad`, `mascarade-dsp` et `mascarade-embedded` sont aussi valides via `POST /api/agents/send`
+  - `mascarade-power` et `mascarade-emc` sont aussi valides via `POST /api/agents/send`
 
 Hyperparametres de depart:
 

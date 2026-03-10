@@ -15,6 +15,7 @@ ALL_DOMAINS = (
     "embedded",
     "platformio",
     "freecad",
+    "components",
 )
 
 CODE_ONLY_DOMAINS = (
@@ -43,6 +44,8 @@ GPU_STUDENT_MODELS = {
 
 TEACHER_ONLY_MODELS = {
     "Qwen/Qwen3.5-35B-A3B-GPTQ-Int4",
+    "mistralai/Devstral-Small-2-24B-Instruct-2512",
+    "mistralai/Mistral-Small-3.1-24B-Base-2503",
     "devstral-small-2507",
     "mistral-small-3.1",
     "deepseek-ai/DeepSeek-Coder-V2-Lite-Instruct",
@@ -62,14 +65,16 @@ class PassSpec:
 class ScenarioSpec:
     name: str
     group: str
-    teacher_provider: str
-    teacher_model: str
+    teacher_provider: str | None
+    teacher_model: str | None
     student_model: str | None
     device: str
+    teacher_objective: str | None = None
     teacher_only: bool = False
     domains: tuple[str, ...] = ALL_DOMAINS
     max_tokens: int = 2048
     seq_len: int | None = 1024
+    local_hf_device: str | None = None
 
 
 PASS_SPECS = {
@@ -98,6 +103,37 @@ PASS_SPECS = {
 
 
 SCENARIO_SPECS = {
+    "auto_teacher_fast_to_tinyllama_cpu": ScenarioSpec(
+        name="auto_teacher_fast_to_tinyllama_cpu",
+        group="auto",
+        teacher_provider=None,
+        teacher_model=None,
+        teacher_objective="fast",
+        student_model="TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+        device="cpu",
+        seq_len=512,
+    ),
+    "auto_teacher_balanced_to_tinyllama_cpu": ScenarioSpec(
+        name="auto_teacher_balanced_to_tinyllama_cpu",
+        group="auto",
+        teacher_provider=None,
+        teacher_model=None,
+        teacher_objective="balanced",
+        student_model="TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+        device="cpu",
+        seq_len=512,
+    ),
+    "auto_teacher_quality_teacher_only": ScenarioSpec(
+        name="auto_teacher_quality_teacher_only",
+        group="auto",
+        teacher_provider=None,
+        teacher_model=None,
+        teacher_objective="quality",
+        student_model=None,
+        device="gpu",
+        teacher_only=True,
+        seq_len=None,
+    ),
     "ollama_qwen25_14b_to_tinyllama_cpu": ScenarioSpec(
         name="ollama_qwen25_14b_to_tinyllama_cpu",
         group="qwen",
@@ -106,6 +142,26 @@ SCENARIO_SPECS = {
         student_model="TinyLlama/TinyLlama-1.1B-Chat-v1.0",
         device="cpu",
         seq_len=256,
+    ),
+    "qwen25_7b_instruct_to_tinyllama_cpu": ScenarioSpec(
+        name="qwen25_7b_instruct_to_tinyllama_cpu",
+        group="qwen",
+        teacher_provider="local-hf",
+        teacher_model="Qwen/Qwen2.5-7B-Instruct",
+        student_model="TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+        device="cpu",
+        seq_len=512,
+        local_hf_device="cuda:0",
+    ),
+    "qwen3_4b_instruct_2507_to_tinyllama_cpu": ScenarioSpec(
+        name="qwen3_4b_instruct_2507_to_tinyllama_cpu",
+        group="qwen",
+        teacher_provider="local-hf",
+        teacher_model="Qwen/Qwen3-4B-Instruct-2507",
+        student_model="TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+        device="cpu",
+        seq_len=512,
+        local_hf_device="cuda:0",
     ),
     "qwen35_35b_teacher_only_2048": ScenarioSpec(
         name="qwen35_35b_teacher_only_2048",
@@ -117,6 +173,7 @@ SCENARIO_SPECS = {
         teacher_only=True,
         max_tokens=2048,
         seq_len=None,
+        local_hf_device="auto",
     ),
     "qwen35_35b_to_tinyllama_cpu": ScenarioSpec(
         name="qwen35_35b_to_tinyllama_cpu",
@@ -126,6 +183,7 @@ SCENARIO_SPECS = {
         student_model="TinyLlama/TinyLlama-1.1B-Chat-v1.0",
         device="cpu",
         seq_len=512,
+        local_hf_device="auto",
     ),
     "qwen35_35b_to_qwen3_8b_gpu": ScenarioSpec(
         name="qwen35_35b_to_qwen3_8b_gpu",
@@ -134,6 +192,7 @@ SCENARIO_SPECS = {
         teacher_model="Qwen/Qwen3.5-35B-A3B-GPTQ-Int4",
         student_model="Qwen/Qwen3-8B",
         device="gpu",
+        local_hf_device="auto",
     ),
     "qwen35_35b_to_qwen35_9b_base_gpu": ScenarioSpec(
         name="qwen35_35b_to_qwen35_9b_base_gpu",
@@ -142,6 +201,7 @@ SCENARIO_SPECS = {
         teacher_model="Qwen/Qwen3.5-35B-A3B-GPTQ-Int4",
         student_model="Qwen/Qwen3.5-9B-Base",
         device="gpu",
+        local_hf_device="auto",
     ),
     "devstral_small_2507_teacher_only": ScenarioSpec(
         name="devstral_small_2507_teacher_only",
@@ -169,6 +229,28 @@ SCENARIO_SPECS = {
         teacher_model="devstral-small-2507",
         student_model="Qwen/Qwen3-8B",
         device="gpu",
+    ),
+    "devstral_small_2_24b_teacher_only": ScenarioSpec(
+        name="devstral_small_2_24b_teacher_only",
+        group="mistral",
+        teacher_provider="local-hf",
+        teacher_model="mistralai/Devstral-Small-2-24B-Instruct-2512",
+        student_model=None,
+        device="gpu",
+        teacher_only=True,
+        seq_len=None,
+        local_hf_device="auto",
+    ),
+    "mistral_small_3_1_24b_base_teacher_only": ScenarioSpec(
+        name="mistral_small_3_1_24b_base_teacher_only",
+        group="mistral",
+        teacher_provider="local-hf",
+        teacher_model="mistralai/Mistral-Small-3.1-24B-Base-2503",
+        student_model=None,
+        device="gpu",
+        teacher_only=True,
+        seq_len=None,
+        local_hf_device="auto",
     ),
     "mistral_small_3_1_teacher_only": ScenarioSpec(
         name="mistral_small_3_1_teacher_only",
@@ -205,6 +287,7 @@ SCENARIO_SPECS = {
         student_model="deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B",
         device="cpu",
         seq_len=512,
+        local_hf_device="auto",
     ),
     "qwen35_35b_to_deepseek_r1_distill_qwen_7b_gpu": ScenarioSpec(
         name="qwen35_35b_to_deepseek_r1_distill_qwen_7b_gpu",
@@ -213,6 +296,7 @@ SCENARIO_SPECS = {
         teacher_model="Qwen/Qwen3.5-35B-A3B-GPTQ-Int4",
         student_model="deepseek-ai/DeepSeek-R1-Distill-Qwen-7B",
         device="gpu",
+        local_hf_device="auto",
     ),
     "devstral_small_2507_to_deepseek_r1_distill_qwen_7b_gpu": ScenarioSpec(
         name="devstral_small_2507_to_deepseek_r1_distill_qwen_7b_gpu",
@@ -232,6 +316,7 @@ SCENARIO_SPECS = {
         teacher_only=True,
         domains=CODE_ONLY_DOMAINS,
         seq_len=None,
+        local_hf_device="auto",
     ),
     "deepseek_coder_v2_lite_to_qwen3_8b_gpu_code_domains": ScenarioSpec(
         name="deepseek_coder_v2_lite_to_qwen3_8b_gpu_code_domains",
@@ -241,6 +326,7 @@ SCENARIO_SPECS = {
         student_model="Qwen/Qwen3-8B",
         device="gpu",
         domains=CODE_ONLY_DOMAINS,
+        local_hf_device="auto",
     ),
 }
 

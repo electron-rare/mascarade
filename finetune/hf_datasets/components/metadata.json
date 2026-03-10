@@ -1,0 +1,254 @@
+{
+  "version": 1,
+  "domain": "components",
+  "repo_id": "clemsail/mascarade-components-dataset",
+  "dataset_file": "components_chat.jsonl",
+  "row_count": 30,
+  "ids_fixed_during_packaging": 0,
+  "duplicates_removed_during_packaging": 0,
+  "quality": {
+    "label": "components hf dataset",
+    "mode": "fail",
+    "status": "passed",
+    "metrics": {
+      "row_count": 30,
+      "ids_fixed": 0,
+      "ids_fixed_ratio": 0.0,
+      "unique_system_prompts": 3,
+      "unique_user_prompts": 26,
+      "duplicate_rows": 0,
+      "duplicate_ratio": 0.0,
+      "repeated_user_assistant_pairs": 0,
+      "repeated_pair_ratio": 0.0,
+      "assistant_len_avg": 754.5333333333333,
+      "assistant_len_p95": 1609,
+      "assistant_len_max": 3240,
+      "short_assistant_rows": 0,
+      "short_assistant_ratio": 0.0
+    },
+    "thresholds": {
+      "min_rows_fail": 4,
+      "recommended_rows_warn": 8,
+      "min_unique_users_fail": 4,
+      "max_duplicate_ratio_fail": 0.1,
+      "max_repeated_pair_ratio_fail": 0.1,
+      "max_assistant_p95_fail": 6000,
+      "max_assistant_max_fail": 9000,
+      "max_assistant_avg_warn": 3500,
+      "short_assistant_threshold": 64,
+      "max_short_assistant_ratio_warn": 0.25
+    },
+    "errors": [],
+    "warnings": [],
+    "would_fail": false
+  },
+  "research": {
+    "version": 1,
+    "generated_at": "2026-03-09T03:53:03",
+    "domain": "components",
+    "topic": "Electronic components / sourcing / libraries / datasheets",
+    "dataset_path": "/ai/saisail/mascarade/finetune/datasets/components_chat.jsonl",
+    "refresh": {
+      "domain": "components",
+      "generated_at": "2026-03-09T03:53:03",
+      "target_path": "/ai/saisail/mascarade/finetune/datasets/components_chat.jsonl",
+      "source_mode": "builder_hf",
+      "source_path": "/ai/saisail/mascarade/finetune/datasets/build_components_dataset.py",
+      "builder": "build_components_dataset.py",
+      "row_count": 30,
+      "ids_fixed": 0,
+      "duplicates_removed": 0,
+      "quality": {
+        "label": "components refreshed dataset",
+        "mode": "fail",
+        "status": "passed",
+        "metrics": {
+          "row_count": 30,
+          "ids_fixed": 0,
+          "ids_fixed_ratio": 0.0,
+          "unique_system_prompts": 3,
+          "unique_user_prompts": 26,
+          "duplicate_rows": 0,
+          "duplicate_ratio": 0.0,
+          "repeated_user_assistant_pairs": 0,
+          "repeated_pair_ratio": 0.0,
+          "assistant_len_avg": 754.5333333333333,
+          "assistant_len_p95": 1609,
+          "assistant_len_max": 3240,
+          "short_assistant_rows": 0,
+          "short_assistant_ratio": 0.0
+        },
+        "thresholds": {
+          "min_rows_fail": 4,
+          "recommended_rows_warn": 8,
+          "min_unique_users_fail": 4,
+          "max_duplicate_ratio_fail": 0.1,
+          "max_repeated_pair_ratio_fail": 0.1,
+          "max_assistant_p95_fail": 6000,
+          "max_assistant_max_fail": 9000,
+          "max_assistant_avg_warn": 3500,
+          "short_assistant_threshold": 64,
+          "max_short_assistant_ratio_warn": 0.25
+        },
+        "errors": [],
+        "warnings": [],
+        "would_fail": false,
+        "duplicates_removed_during_refresh": 0
+      },
+      "legacy_ignored_paths": [
+        "finetune/build_components_dataset.py",
+        "finetune/build_freecad_dataset.py"
+      ]
+    },
+    "authoritative_urls": [
+      {
+        "label": "Mouser search help",
+        "url": "https://www.mouser.com/help/search/how-to-search-for-products/"
+      },
+      {
+        "label": "Farnell global",
+        "url": "https://www.farnell.com/"
+      },
+      {
+        "label": "element14 product search help",
+        "url": "https://in.element14.com/help-searching-for-products"
+      },
+      {
+        "label": "DigiKey help",
+        "url": "https://www.digikey.com/en/resources/help"
+      },
+      {
+        "label": "Altium documentation",
+        "url": "https://www.altium.com/documentation/"
+      },
+      {
+        "label": "EasyEDA libraries management",
+        "url": "https://docs.easyeda.com/en/Introduction/Libraries-Management/"
+      }
+    ],
+    "github_repos": [],
+    "software_sources": [
+      {
+        "label": "Mouser search tools",
+        "url": "https://www.mouser.com/searchtools/"
+      },
+      {
+        "label": "Farnell datasheets",
+        "url": "https://www.farnell.com/italy/datasheets.html"
+      },
+      {
+        "label": "element14",
+        "url": "https://www.element14.com/"
+      },
+      {
+        "label": "DigiKey",
+        "url": "https://www.digikey.com/"
+      },
+      {
+        "label": "Altium",
+        "url": "https://www.altium.com/documentation/"
+      },
+      {
+        "label": "EasyEDA",
+        "url": "https://www.easyeda.com/"
+      },
+      {
+        "label": "Octopart",
+        "url": "https://octopart.com/"
+      },
+      {
+        "label": "SnapEDA",
+        "url": "https://www.snapeda.com/"
+      },
+      {
+        "label": "Ultra Librarian",
+        "url": "https://www.ultralibrarian.com/"
+      },
+      {
+        "label": "SamacSys",
+        "url": "https://componentsearchengine.com/"
+      },
+      {
+        "label": "LCSC",
+        "url": "https://www.lcsc.com/"
+      },
+      {
+        "label": "JLCPCB parts and assembly",
+        "url": "https://jlcpcb.com/parts"
+      }
+    ],
+    "datasheet_roots": [
+      {
+        "label": "Mouser datasheet-oriented search",
+        "url": "https://www.mouser.com/help/search/"
+      },
+      {
+        "label": "Farnell datasheets",
+        "url": "https://www.farnell.com/italy/datasheets.html"
+      },
+      {
+        "label": "element14 product info and datasheet search",
+        "url": "https://in.element14.com/help-searching-for-products"
+      },
+      {
+        "label": "DigiKey datasheets and technical resources",
+        "url": "https://www.digikey.com/en/resources/"
+      },
+      {
+        "label": "SnapEDA search",
+        "url": "https://www.snapeda.com/"
+      },
+      {
+        "label": "Ultra Librarian search",
+        "url": "https://www.ultralibrarian.com/"
+      }
+    ],
+    "hf_sources": [
+      {
+        "name": "bshada/electronics.stackexchange.com",
+        "url": "https://huggingface.co/datasets/bshada/electronics.stackexchange.com"
+      },
+      {
+        "name": "STEM-AI-mtl/Electrical-engineering",
+        "url": "https://huggingface.co/datasets/STEM-AI-mtl/Electrical-engineering"
+      },
+      {
+        "name": "nick007x/eevblog-posts",
+        "url": "https://huggingface.co/datasets/nick007x/eevblog-posts"
+      }
+    ],
+    "queries": [
+      "site:mouser.com part number datasheet parametric search",
+      "site:farnell.com datasheets electronic components",
+      "site:element14.com component search datasheet availability",
+      "site:digikey.com parametric search datasheet availability",
+      "site:altium.com documentation component libraries alternates",
+      "site:easyeda.com component library lcsc footprint",
+      "site:octopart.com parametric component search alternatives"
+    ],
+    "trusted_domains": [
+      "mouser.com",
+      "farnell.com",
+      "element14.com",
+      "digikey.com",
+      "altium.com",
+      "easyeda.com",
+      "octopart.com",
+      "snapeda.com",
+      "ultralibrarian.com",
+      "componentsearchengine.com",
+      "lcsc.com",
+      "jlcpcb.com"
+    ],
+    "legacy_ignored_paths": [
+      "finetune/build_components_dataset.py",
+      "finetune/build_freecad_dataset.py"
+    ],
+    "operator_checklist": [
+      "sample at least 20 refreshed rows and verify technical plausibility",
+      "confirm the newest web findings are represented in prompts/answers",
+      "check duplicates and over-long answers before training",
+      "record any accepted new sources in the research brief before publish"
+    ]
+  }
+}

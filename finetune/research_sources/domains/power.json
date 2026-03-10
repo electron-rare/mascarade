@@ -1,0 +1,93 @@
+{
+  "domain": "power",
+  "topic": "Power electronics / motor control",
+  "minimum_web_roots": 8,
+  "forum_urls": [
+    {
+      "label": "Electronics StackExchange",
+      "url": "https://electronics.stackexchange.com/"
+    },
+    {
+      "label": "All About Circuits Forum",
+      "url": "https://forum.allaboutcircuits.com/"
+    },
+    {
+      "label": "EEVblog Forum",
+      "url": "https://www.eevblog.com/forum/"
+    },
+    {
+      "label": "DigiKey TechForum",
+      "url": "https://forum.digikey.com/"
+    },
+    {
+      "label": "element14 Community",
+      "url": "https://community.element14.com/"
+    },
+    {
+      "label": "TI E2E",
+      "url": "https://e2e.ti.com/"
+    },
+    {
+      "label": "Analog Devices EngineerZone",
+      "url": "https://ez.analog.com/"
+    },
+    {
+      "label": "Infineon Community",
+      "url": "https://community.infineon.com/"
+    },
+    {
+      "label": "NXP Community",
+      "url": "https://community.nxp.com/"
+    },
+    {
+      "label": "Arduino Forum",
+      "url": "https://forum.arduino.cc/"
+    }
+  ],
+  "authoritative_urls": [
+    {
+      "label": "TI power management docs",
+      "url": "https://www.ti.com/power-management/overview.html"
+    },
+    {
+      "label": "Analog Devices technical articles",
+      "url": "https://www.analog.com/en/technical-articles.html"
+    }
+  ],
+  "github_repos": [],
+  "software_sources": [
+    {
+      "label": "ADI Power Studio",
+      "url": "https://www.analog.com/en/resources/evaluation-hardware-and-software/embedded-development-software/power-studio-designer.html"
+    },
+    {
+      "label": "TI power management hub",
+      "url": "https://www.ti.com/power-management/overview.html"
+    }
+  ],
+  "datasheet_roots": [
+    {
+      "label": "Analog Devices technical articles",
+      "url": "https://www.analog.com/en/technical-articles.html"
+    },
+    {
+      "label": "TI power management documentation",
+      "url": "https://www.ti.com/power-management/overview.html"
+    }
+  ],
+  "hf_sources": [
+    "ksabeh/electronics-dataset",
+    "bshada/electronics.stackexchange.com",
+    "nick007x/eevblog-posts"
+  ],
+  "queries": [
+    "site:ti.com current mode control compensation application note",
+    "site:analog.com buck converter loop stability article",
+    "site:huggingface.co/datasets electronics power converter dataset"
+  ],
+  "trusted_domains": [
+    "ti.com",
+    "analog.com",
+    "huggingface.co"
+  ]
+}

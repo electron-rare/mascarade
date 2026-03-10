@@ -394,6 +394,11 @@ validate_cluster_config() {
         missing+=("CLUSTER_MDNS_DISCOVERY_TTL_SECONDS")
     fi
 
+    local mdns_ttl="${CLUSTER_MDNS_DISCOVERY_TTL_SECONDS:-60}"
+    if ! [[ "$mdns_ttl" =~ ^[0-9]+$ ]] || [[ "$mdns_ttl" -lt 5 ]]; then
+        missing+=("CLUSTER_MDNS_DISCOVERY_TTL_SECONDS")
+    fi
+
     if [[ ${#missing[@]} -gt 0 ]]; then
         err "Configuration cluster incomplete: ${missing[*]}"
         if [[ "${AUTO_CONFIRM}" != true ]] && _has_input_tty && [[ "${SVC_ON[core]:-0}" == "1" ]]; then
@@ -1178,6 +1183,7 @@ fi
 if [[ -f "$REPO_DIR/.env" ]]; then
     env_reconfigured=false
     dbg ".env existe deja ($(wc -l < "$REPO_DIR/.env") lignes)"
+    env_reconfigured=false
     if [[ "${MASCARADE_RECONFIGURE_ENV:-false}" == "true" ]] || confirm_or_auto "Un fichier .env existe. Le reconfigurer ?" "no"; then
         dbg "Reconfiguration .env..."
         collect_module_configs
@@ -1191,7 +1197,7 @@ else
     env_reconfigured=true
 fi
 
-if [[ "${env_reconfigured}" != true && "${AUTO_CONFIRM}" != true ]]; then
+if [[ "${AUTO_CONFIRM}" != true && "${env_reconfigured}" != true ]]; then
     prompt_p2p_setup
 fi
 

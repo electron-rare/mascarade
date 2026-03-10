@@ -196,7 +196,7 @@ export default function AgentDetail() {
       {isAgentZero ? (
         <InlineNotice
           title="agent-zero posture"
-          message="Utilise cet agent pour cadrer une demande floue, identifier l'objectif reel, proposer un plan court et prioriser la prochaine action avant de basculer vers des agents plus specialises."
+          message="Utilise cet agent pour cadrer une demande floue ou un incident operateur, identifier l'objectif reel, proposer un plan court et prioriser la prochaine action manuelle avant de basculer vers des agents plus specialises."
           tone="success"
         />
       ) : null}

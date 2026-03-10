@@ -38,13 +38,13 @@ Routes and order:
 5. `/logs` Logs
 6. `/metrics` Metrics
 7. `/infra` Infrastructure
-8. `/notion` Notion Browser
+8. `/knowledge-base` Knowledge Browser
 9. `/comfyui` ComfyUI
 
 Groups:
 - Core: Dashboard, Playground, Agents, Orchestrate
 - Operations: Logs, Metrics, Infrastructure
-- Integrations: Notion, ComfyUI
+- Integrations: Knowledge Base, ComfyUI
 
 Mobile dock:
 - Home
@@ -165,9 +165,9 @@ Must show:
 - observed service grid
 - direct path to Logs
 
-### Notion Browser
+### Knowledge Browser
 Purpose:
-- browse and update Notion-backed content
+- browse and update knowledge-base-backed content
 
 ### ComfyUI
 Purpose:
