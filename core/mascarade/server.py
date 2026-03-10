@@ -404,12 +404,12 @@ async def bedrock_finetune_jobs():
 # --- Metrics ---
 
 
-@protected.get("/metrics")
+@protected.get("/router/metrics")
 async def metrics_summary():
     return app.state.router.metrics_summary()
 
 
-@protected.get("/metrics/{provider}")
+@protected.get("/router/metrics/{provider}")
 async def metrics_provider(provider: str):
     stats = app.state.router.provider_metrics(provider)
     if not stats:
@@ -417,10 +417,29 @@ async def metrics_provider(provider: str):
     return stats
 
 
-@protected.post("/metrics/reset")
+@protected.post("/router/metrics/reset")
 async def metrics_reset():
     app.state.router.reset_metrics()
     return {"status": "ok"}
+
+
+# --- Prometheus scrape endpoint (public) ---
+
+
+@app.get("/metrics")
+async def prometheus_metrics():
+    """Expose Prometheus metrics for scraping — no auth required."""
+    try:
+        from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
+
+        from starlette.responses import Response
+
+        return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
+    except ImportError:
+        raise HTTPException(
+            status_code=501,
+            detail="prometheus_client is not installed",
+        )
 
 
 # --- Cache ---
