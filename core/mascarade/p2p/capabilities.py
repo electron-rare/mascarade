@@ -16,7 +16,7 @@ _TOPIC_CAPABILITIES = "mascarade:capabilities"
 _TOPIC_CAPABILITY_REQUEST = "mascarade:capability_request"
 
 
-@dataclass(slots=True)
+@dataclass
 class PeerCapabilities:
     peer_id: str
     capabilities: list[str] = field(default_factory=list)

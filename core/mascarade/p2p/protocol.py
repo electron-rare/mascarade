@@ -17,7 +17,7 @@ _HEADER_SIZE = struct.calcsize(_HEADER_FMT)
 _MAX_FRAME_SIZE = 16 * 1024 * 1024  # 16 MiB
 
 
-@dataclass(slots=True)
+@dataclass
 class P2PMessage:
     type: str
     sender: str

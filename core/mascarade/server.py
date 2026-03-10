@@ -37,6 +37,10 @@ from mascarade.provider_admin import (
     get_providers_status,
     update_provider_keys,
 )
+from mascarade.device_voice import (
+    DevicePlayerEvent,
+    DeviceVoiceService,
+)
 from mascarade.router import Router
 from mascarade.router.router import Strategy
 
@@ -68,6 +72,7 @@ async def lifespan(app: FastAPI):
     app.state.cluster = cluster
     app.state.mcp = McpRuntimeClient(trace_buffer=trace_buffer)
     app.state.comfyui = ComfyUIClient() if settings.comfyui_url else None
+    app.state.device_voice = DeviceVoiceService(router=router)
 
     registry.load()
 
@@ -1424,6 +1429,145 @@ async def cluster_p2p_task(req: dict):
         timeout=req.get("timeout", 120.0),
         target_peer=req.get("target_peer"),
     )
+
+
+# --- OpenAI-compatible chat completions shim ---
+
+
+class _OAIChatMessage(BaseModel):
+    role: str
+    content: str
+
+
+class _OAIChatRequest(BaseModel):
+    model: str | None = None
+    messages: list[_OAIChatMessage]
+    temperature: float = 0.7
+    max_tokens: int = 4096
+
+
+@app.post("/v1/chat/completions")
+async def openai_chat_completions(body: _OAIChatRequest, request: Request):
+    import time as _time
+    import uuid as _uuid
+
+    router = request.app.state.router
+
+    raw_model = body.model or ""
+    provider_name: str | None = None
+    model_name: str | None = None
+
+    if ":" in raw_model:
+        prefix, rest = raw_model.split(":", 1)
+        if prefix in getattr(router, "supported_provider_names", []):
+            provider_name = prefix
+            model_name = rest
+        else:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Unsupported model prefix '{prefix}'.",
+            )
+    else:
+        provider_name = settings.default_provider
+        model_name = raw_model or settings.default_model
+
+    if provider_name and provider_name not in router.available_providers:
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "error": f"Provider '{provider_name}' is not configured or unavailable.",
+                "providers": router.available_providers,
+            },
+        )
+
+    strategy = Strategy.SPECIFIC if provider_name else Strategy.BEST
+    messages = [{"role": m.role, "content": m.content} for m in body.messages]
+
+    result = await router.send(
+        messages,
+        strategy=strategy,
+        provider=provider_name,
+        model=model_name,
+        system=None,
+        response_format=None,
+        temperature=body.temperature,
+        max_tokens=body.max_tokens,
+    )
+
+    usage = result.usage or {}
+    display_model = f"{provider_name}:{result.model}" if provider_name and provider_name != settings.default_provider else result.model
+
+    return {
+        "id": f"chatcmpl-{_uuid.uuid4().hex[:24]}",
+        "object": "chat.completion",
+        "created": int(_time.time()),
+        "model": display_model,
+        "choices": [
+            {
+                "index": 0,
+                "message": {"role": "assistant", "content": result.content},
+                "finish_reason": "stop",
+            }
+        ],
+        "usage": {
+            "prompt_tokens": usage.get("input_tokens", 0),
+            "completion_tokens": usage.get("output_tokens", 0),
+            "total_tokens": usage.get("total_tokens", usage.get("input_tokens", 0) + usage.get("output_tokens", 0)),
+        },
+    }
+
+
+# --- Device voice routes ---
+
+
+@protected.post("/device/v1/voice/session")
+async def device_voice_session(request: Request):
+    form = await request.form()
+    device_id = form.get("device_id", "")
+    mode = form.get("mode", "idle")
+    current_media_raw = form.get("current_media", "{}")
+    try:
+        current_media_payload = json.loads(current_media_raw)
+    except (json.JSONDecodeError, TypeError):
+        current_media_payload = {}
+
+    audio_file = form.get("audio") or form.get("audio.wav")
+    if audio_file is None:
+        raise HTTPException(status_code=400, detail="Missing audio file")
+
+    audio_bytes = await audio_file.read()
+    filename = getattr(audio_file, "filename", "audio.wav")
+    content_type = getattr(audio_file, "content_type", "audio/wav")
+
+    service: DeviceVoiceService = request.app.state.device_voice
+    result = await service.handle_session(
+        device_id=device_id,
+        mode=mode,
+        current_media_payload=current_media_payload,
+        audio_bytes=audio_bytes,
+        filename=filename,
+        content_type=content_type,
+        request_base_url=str(request.base_url),
+    )
+    return result.model_dump()
+
+
+@protected.post("/device/v1/player/event")
+async def device_player_event(event: DevicePlayerEvent, request: Request):
+    service: DeviceVoiceService = request.app.state.device_voice
+    state = service.record_player_event(event)
+    return {"ok": True, "state": state.model_dump()}
+
+
+@protected.get("/device/v1/voice/replies/{reply_id}.wav")
+async def device_voice_reply_audio(reply_id: str, request: Request):
+    from fastapi.responses import Response as _Response
+
+    service: DeviceVoiceService = request.app.state.device_voice
+    audio = service.get_reply_audio(reply_id)
+    if audio is None:
+        raise HTTPException(status_code=404, detail="Reply audio not found or expired")
+    return _Response(content=audio.payload, media_type=audio.content_type)
 
 
 app.include_router(protected)

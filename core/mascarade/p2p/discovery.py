@@ -13,7 +13,7 @@ from mascarade.p2p.dht import DHTEntry, P2PDHT
 logger = logging.getLogger("mascarade.p2p.discovery")
 
 
-@dataclass(slots=True)
+@dataclass
 class DiscoveredPeer:
     peer_id: str
     host: str
