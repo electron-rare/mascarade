@@ -35,7 +35,7 @@ ALL_EVENT_TYPES = frozenset({
 _RING_BUFFER_SIZE = 200
 
 
-@dataclass(slots=True)
+@dataclass
 class P2PEvent:
     """A single P2P event."""
 

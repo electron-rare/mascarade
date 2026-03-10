@@ -18,7 +18,7 @@ _K = 20  # Kademlia bucket size
 _ALPHA = 3  # Parallel lookups
 
 
-@dataclass(slots=True)
+@dataclass
 class DHTEntry:
     peer_id: str
     host: str

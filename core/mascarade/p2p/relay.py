@@ -29,7 +29,7 @@ RELAY_CAPABILITY = "p2p-relay"
 # Data structures
 # ---------------------------------------------------------------------------
 
-@dataclass(slots=True)
+@dataclass
 class RelayCircuit:
     """A virtual circuit between two peers through this relay."""
     peer_a: str

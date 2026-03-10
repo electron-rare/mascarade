@@ -57,7 +57,7 @@ _HEARTBEAT_TOPIC = "mascarade/heartbeat"
 _CAPABILITIES_TOPIC = "mascarade/capabilities"
 
 
-@dataclass(slots=True)
+@dataclass
 class P2PPeer:
     """A peer discovered via libp2p."""
 

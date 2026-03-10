@@ -29,7 +29,7 @@ MSG_SEND_RESPONSE = "send:response"
 MSG_SEND_ERROR = "send:error"
 
 
-@dataclass(slots=True)
+@dataclass
 class PendingRequest:
     request_id: str
     peer_id: str

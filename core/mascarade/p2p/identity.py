@@ -33,7 +33,7 @@ def _peer_id_from_public_key(pub: Ed25519PublicKey) -> str:
     return "Qm" + base64.b32encode(digest).decode("ascii").rstrip("=")
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class PeerIdentity:
     peer_id: str
     private_key: Ed25519PrivateKey

@@ -21,7 +21,7 @@ _SEEN_TTL = 300.0  # Deduplicate messages for 5 minutes
 _MAX_SEEN = 10_000
 
 
-@dataclass(slots=True)
+@dataclass
 class _SeenEntry:
     ts: float
 
