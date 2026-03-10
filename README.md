@@ -1031,3 +1031,51 @@ Features:
 - 32-character auth tokens
 - AES-256 encryption for secrets
 - Rsync-based efficient transfers
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!-- CHANTIER:AUDIT START -->
+## Audit & Execution Plan (2026-03-10)
+
+### Snapshot
+- Priority: `P2`
+- Tech profile: `other`
+- Workflows: `yes`
+- Tests: `yes`
+- Debt markers: `7`
+- Source files: `444`
+
+### Corrections Prioritaires
+- [ ] Optimisation ciblée perf/maintenabilité
+- [ ] Ajouter/fiabiliser les commandes de vérification automatiques.
+- [ ] Clore les points bloquants avant optimisation avancée.
+
+### Optimisation
+- [ ] Identifier le hotspot principal et mesurer avant/après.
+- [ ] Réduire la complexité des modules les plus touchés.
+
+### Mémoire chantier
+- Control plane: `/Users/electron/.codex/memories/electron_rare_chantier`
+- Repo card: `/Users/electron/.codex/memories/electron_rare_chantier/REPOS/mascarade.md`
+
+<!-- CHANTIER:AUDIT END -->
