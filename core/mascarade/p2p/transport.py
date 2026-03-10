@@ -82,6 +82,7 @@ class P2PTransport:
         self._peers: dict[str, PeerConnection] = {}
         self._handlers: dict[str, MessageHandler] = {}
         self._default_handler: MessageHandler | None = None
+        self._relay_client: Any | None = None  # Optional RelayClient
         self._inbound_tasks: set[asyncio.Task] = set()
         self._outbound_read_tasks: dict[str, asyncio.Task] = {}
 
@@ -92,6 +93,10 @@ class P2PTransport:
     @property
     def peers(self) -> dict[str, PeerConnection]:
         return dict(self._peers)
+
+    def set_relay_client(self, client: Any) -> None:
+        """Attach a :class:`RelayClient` for automatic relay fallback."""
+        self._relay_client = client
 
     def on_message(self, msg_type: str, handler: MessageHandler) -> None:
         self._handlers[msg_type] = handler
@@ -161,11 +166,44 @@ class P2PTransport:
     async def send_to(self, peer_id: str, msg: P2PMessage) -> bool:
         conn = self._peers.get(peer_id)
         if not conn:
+            # Try relay fallback if available
+            if self._relay_client is not None:
+                return await self._relay_client.send_via_relay(
+                    peer_id,
+                    inner_type=msg.type,
+                    inner_payload=msg.payload,
+                )
             return False
         result = await conn.send(msg)
         if result:
             self._ensure_outbound_reader(peer_id, conn)
-        return result
+            return True
+        # Direct send failed — try relay fallback
+        if self._relay_client is not None:
+            logger.debug("Direct send to %s failed, trying relay", peer_id)
+            return await self._relay_client.send_via_relay(
+                peer_id,
+                inner_type=msg.type,
+                inner_payload=msg.payload,
+            )
+        return False
+
+    async def send_to_via_relay(
+        self,
+        peer_id: str,
+        msg: P2PMessage,
+        relay_peer_id: str,
+    ) -> bool:
+        """Send a message to *peer_id* explicitly through *relay_peer_id*."""
+        if self._relay_client is None:
+            logger.warning("No relay client configured")
+            return False
+        return await self._relay_client.send_via_relay(
+            peer_id,
+            inner_type=msg.type,
+            inner_payload=msg.payload,
+            relay_peer_id=relay_peer_id,
+        )
 
     def _ensure_outbound_reader(self, peer_id: str, conn: PeerConnection) -> None:
         """Start a read loop for an outbound connection if not already running."""

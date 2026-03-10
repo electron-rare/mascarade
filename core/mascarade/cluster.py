@@ -363,6 +363,10 @@ class ClusterManager:
                     label=identity.label,
                     http_base_url=advertised_base_url(),
                 )
+                # Wire task handler: incoming tasks are executed via local router
+                node.set_task_handler(self._p2p_task_handler)
+                # Wire stream forward handler: incoming LLM requests via P2P
+                node.forwarder.set_request_handler(self._p2p_send_handler)
                 self._p2p_node = node
 
             logger.info("P2P started (backend=%s)", BACKEND)
@@ -403,6 +407,30 @@ class ClusterManager:
         info["backend"] = BACKEND
         return info
 
+    async def p2p_distribute_task(
+        self,
+        capability: str,
+        payload: dict,
+        timeout: float = 120.0,
+        target_peer: str | None = None,
+    ) -> dict:
+        """Distribute a task via P2P to a capable peer."""
+        if not self._p2p_node:
+            raise HTTPException(status_code=503, detail="P2P node not running")
+        task = await self._p2p_node.distribute_task(
+            payload=payload,
+            capability=capability,
+            timeout=timeout,
+            target_peer=target_peer,
+        )
+        return {
+            "task_id": task.task_id,
+            "status": task.status.value,
+            "claimed_by": task.claimed_by,
+            "result": task.result,
+            "error": task.error,
+        }
+
     def _merge_p2p_peers(self, peers_by_id: dict[str, ClusterPeer]) -> None:
         """Merge peers from whichever P2P backend is active."""
         node = self._p2p_node
@@ -432,9 +460,18 @@ class ClusterManager:
 
     @staticmethod
     def _parse_asyncio_bootstrap(raw: str) -> list[tuple[str, str, int]]:
-        """Parse 'peer_id|host|port;...' format for asyncio backend."""
+        """Parse 'peer_id|host|port' entries separated by ';' or ','.
+
+        Accepts both semicolon-separated (legacy) and comma-separated
+        (Docker env var friendly) formats:
+          - "peer_id|host|port;peer_id2|host2|port2"
+          - "peer_id|host|port,peer_id2|host2|port2"
+        """
+        import re
+
         peers: list[tuple[str, str, int]] = []
-        for entry in raw.split(";"):
+        # Split on semicolons or commas (but not commas inside multiaddr)
+        for entry in re.split(r"[;,]", raw):
             entry = entry.strip()
             if not entry or entry.startswith("/"):
                 continue  # Skip multiaddr format (for libp2p)
@@ -925,6 +962,15 @@ class ClusterManager:
                 return model in peer_models.get(provider, [])
             return any(model in models for models in peer_models.values())
         return True
+
+    async def _p2p_task_handler(self, payload: dict, capability: str) -> dict:
+        """Handle an incoming distributed task by executing it via the local router."""
+        response = await self._send_local(payload)
+        return response
+
+    async def _p2p_send_handler(self, request_data: dict) -> dict:
+        """Handle an incoming P2P stream forward request via the local router."""
+        return await self._send_local(request_data)
 
     async def _try_p2p_forward(
         self, peer_id: str, payload: dict[str, object],

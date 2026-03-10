@@ -1326,6 +1326,106 @@ async def cluster_p2p_status():
     return app.state.cluster.p2p_status()
 
 
+@protected.get("/cluster/p2p/stream")
+async def cluster_p2p_stream(
+    request: Request,
+    limit: int = Query(default=20, ge=0, le=200),
+):
+    """SSE stream of real-time P2P events."""
+
+    async def event_stream():
+        node = getattr(app.state.cluster, "_p2p_node", None)
+        if node is None or not hasattr(node, "events"):
+            yield f"event: error\ndata: {json.dumps({'error': 'P2P node not available'})}\n\n"
+            return
+
+        bus = node.events
+        queue = bus.subscribe()
+        try:
+            # Replay recent events
+            if limit > 0:
+                for event in bus.recent(limit=limit):
+                    yield f"event: p2p\ndata: {json.dumps(event.to_dict())}\n\n"
+
+            while True:
+                if await request.is_disconnected():
+                    break
+                try:
+                    event = await asyncio.wait_for(queue.get(), timeout=15)
+                except TimeoutError:
+                    yield f"event: heartbeat\ndata: {json.dumps({'ts': iso_utc_now()})}\n\n"
+                    continue
+                yield f"event: p2p\ndata: {json.dumps(event.to_dict())}\n\n"
+        finally:
+            bus.unsubscribe(queue)
+
+    return StreamingResponse(
+        event_stream(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
+@protected.get("/cluster/p2p/topology")
+async def cluster_p2p_topology():
+    """JSON snapshot of the P2P network topology."""
+    node = getattr(app.state.cluster, "_p2p_node", None)
+    if node is None or not hasattr(node, "capabilities"):
+        raise HTTPException(status_code=503, detail="P2P node not available")
+
+    nodes = []
+    edges = []
+    all_caps = node.capabilities.all_capabilities()
+
+    # Add local node
+    local_caps = node.capabilities._local_caps
+    local_entry = {
+        "peer_id": node.peer_id,
+        "label": local_caps.label if local_caps else "",
+        "role": local_caps.role if local_caps else "general",
+        "capabilities": local_caps.capabilities if local_caps else [],
+        "http_base_url": local_caps.http_base_url if local_caps else None,
+        "is_local": True,
+    }
+    nodes.append(local_entry)
+
+    # Add remote peers
+    for pid, caps in all_caps.items():
+        nodes.append({
+            "peer_id": pid,
+            "label": caps.label,
+            "role": caps.role,
+            "capabilities": caps.capabilities,
+            "http_base_url": caps.http_base_url,
+            "is_local": False,
+        })
+        edges.append({
+            "from": node.peer_id,
+            "to": pid,
+            "connected": pid in node.transport.peers and node.transport.peers[pid].connected,
+        })
+
+    return {"nodes": nodes, "edges": edges}
+
+
+@protected.post("/cluster/p2p/task")
+async def cluster_p2p_task(req: dict):
+    """Distribute a task via P2P to a capable peer.
+
+    Body: {"capability": "llm-inference", "payload": {...}, "timeout": 30, "target_peer": null}
+    """
+    return await app.state.cluster.p2p_distribute_task(
+        capability=req.get("capability", ""),
+        payload=req.get("payload", {}),
+        timeout=req.get("timeout", 120.0),
+        target_peer=req.get("target_peer"),
+    )
+
+
 app.include_router(protected)
 app.include_router(cluster_protected)
 
