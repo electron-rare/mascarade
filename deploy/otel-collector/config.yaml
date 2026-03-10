@@ -24,8 +24,10 @@ processors:
 exporters:
   loki:
     endpoint: http://loki:3100/loki/api/v1/push
-  debug:
-    verbosity: basic
+  otlphttp/tempo:
+    endpoint: http://tempo:4318
+    tls:
+      insecure: true
 
 service:
   telemetry:
@@ -41,12 +43,8 @@ service:
     logs:
       receivers: [otlp]
       processors: [batch, attributes/loki]
-      exporters: [loki, debug]
+      exporters: [loki]
     traces:
       receivers: [otlp]
       processors: [batch]
-      exporters: [debug]
-    metrics:
-      receivers: [otlp]
-      processors: [batch]
-      exporters: [debug]
+      exporters: [otlphttp/tempo]

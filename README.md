@@ -1,6 +1,6 @@
 # Mascarade
 
-Systeme d'orchestration agentique personnel. Route intelligemment les requetes LLM entre Claude, GPT, Mistral, AWS Bedrock, Google Gemini et Hugging Face, avec agents specialises, orchestration multi-agents, cache, fallback automatique et integration Notion.
+Systeme d'orchestration agentique personnel. Route intelligemment les requetes LLM entre Claude, GPT, Mistral, AWS Bedrock, Google Gemini et Hugging Face, avec agents specialises, orchestration multi-agents, cache, fallback automatique et surfaces runtime `knowledge-base` / `cad`.
 
 ## Ecosysteme
 
@@ -50,9 +50,10 @@ Mascarade fait partie d'un ecosysteme de 5 repos :
 |Claude |  | OpenAI |  | Mistral  |
 +-------+  +--------+  +----------+
 
-                  +--------+
-                  | Notion |  (KB + dashboard)
-                  +--------+
+                  +------------------+
+                  | Knowledge Base / |
+                  | MCP integrations |
+                  +------------------+
 ```
 
 ## Suivi
@@ -60,20 +61,6 @@ Mascarade fait partie d'un ecosysteme de 5 repos :
 - plan d'execution global: [`docs/EXECUTION_PLAN_2026-03-08.md`](./docs/EXECUTION_PLAN_2026-03-08.md)
 - runbook Apple local: [`docs/RUNBOOK_APPLE_LLM_LOCAL.md`](./docs/RUNBOOK_APPLE_LLM_LOCAL.md)
 - l'integration `ai-novel-engine` reste limitee au runtime local et au contrat OpenAI-compatible
-
-## Helpers ANE
-
-Pour les cycles locaux `ai-novel-engine`, `mascarade` expose maintenant deux helpers operatoires:
-
-```bash
-bash scripts/ensure_apple_models.sh
-bash scripts/prepare_runtime_step.sh --apple-model qwen3.5-4b-onnx-q4f16
-```
-
-Usage:
-- `ensure_apple_models.sh` verifie ou installe les trois modeles Apple requis du cycle ANE
-- `prepare_runtime_step.sh` prepare sans l'executer le restart `core/api`, le restart Apple local ou le switch du `model_id` Apple actif
-- l'orchestrateur ANE `python3 scripts/run_next_lots.py` s'appuie sur ces helpers pour les checkpoints semi-autos
 
 **Core Python** (`core/`, port `8100`) -- Moteur d'orchestration, routeur LLM, agents, metriques
 **API TypeScript** (`api/`, port `3100`) -- Facade HTTP Hono, auth middleware, proxy vers le core
@@ -103,32 +90,62 @@ Rappel operatoire:
 - `scripts/sync_crazy_life.sh` ne publie pas une release canonique
 - la readiness de release vit dans `crazy_life`, via `scripts/publish_preflight.sh`
 
+### Boucle "next useful lot"
+
+Les scripts canoniques pour enchainer automatiquement sur le prochain lot utile
+local sont:
+
+```bash
+bash scripts/next_useful_lot.sh detect
+bash scripts/next_useful_lot.sh checks
+bash scripts/run_next_useful_lot.sh
+```
+
+Contrat:
+- `detect` choisit le lot local le plus utile encore ouvert
+- `checks` rejoue ses validations canoniques
+- `run_next_useful_lot.sh` fait `detect + checks + refresh` de
+  `docs/NEXT_USEFUL_LOT_STATE.md`
+
+Le fichier versionne [NEXT_USEFUL_LOT_STATE.md](/home/clems/mascarade/docs/NEXT_USEFUL_LOT_STATE.md)
+devient la note de handoff court terme pour le lot actif.
+
 ---
 
 ## Fine-Tuning
 
 Pipeline de fine-tuning QLoRA pour modeles code specialises electronique embarquee.
 
-- **GPU cible** : Quadro P2000 (5 GB VRAM, CUDA 6.1) avec PyTorch 2.3.1+cu121
-- **Modele par defaut** : `Qwen/Qwen2.5-Coder-1.5B-Instruct`
+- **Profil operateur** : derive du materiel detecte
+- **Machine validee ici** : RTX 4090 24 Go
+- **Student auto courant** : `Qwen/Qwen3.5-9B-Base`
 - **10 domaines** : stm32, spice, iot, power, dsp, emc, kicad, embedded, platformio, freecad
 - **Datasets** : ~74k exemples au format ShareGPT (repo [mascarade-datasets](https://github.com/electron-rare/mascarade-datasets))
+- **Racine canonique des modeles** : `/ai/llm`
+
+Runbook detaille:
+
+- [docs/FINETUNING_OPERATOR_RUNBOOK.md](/ai/saisail/mascarade/docs/FINETUNING_OPERATOR_RUNBOOK.md)
 
 ```bash
-# Selection automatique du modele optimal
-.venv/bin/python finetune/model_selector.py --vram 5 --auto --download
+cd /ai/saisail/mascarade
+. ./scripts/llm_env.sh
 
-# Entrainement GPU (QLoRA 4-bit)
-.venv/bin/python finetune/train_local.py stm32
+# Selection/veille du student
+venv_tuning/bin/python finetune/model_selector.py --watch --refresh --task code --top 6 --auto
 
-# Entrainement CPU (fallback)
-.venv/bin/python finetune/train_cpu.py kicad
+# Entrainement local auto
+venv_tuning/bin/python finetune/run_local.py stm32
 
-# Batch sur tous les domaines
-bash finetune/train_all.sh
+# Prochain lot utile
+./scripts/next_finetune_lots.sh --skip-cad-smoke --skip-components-review
+./scripts/bench_watch_candidate.sh
+./scripts/bench_watch_candidate.sh --execute
+./scripts/auto_chain_next_lots_loop.sh --iterations 1 --sleep-seconds 600 --max-blocked-streak 12 --max-cycles 0
 
-# Pipeline complet : train -> merge -> GGUF -> deploy Ollama
-.venv/bin/python finetune/pipeline.py stm32 --step all
+# Consolidation des caches/modeles
+./scripts/migrate_models_to_llm.sh
+./scripts/migrate_models_to_llm.sh --execute --cleanup --link-home-cache
 ```
 
 ---
@@ -207,20 +224,6 @@ GOOGLE_CLOUD_LOCATION=europe-west1
 GOOGLE_APPLICATION_CREDENTIALS=/chemin/key.json
 GOOGLE_MODEL=gemini-2.5-flash
 
-# Notion — integration optionnelle
-NOTION_AUTH_MODE=api_key              # or oauth_oidc
-NOTION_API_KEY=ntn_xxxxx
-NOTION_OAUTH_ACCESS_TOKEN=
-NOTION_OAUTH_REFRESH_TOKEN=
-NOTION_OAUTH_CLIENT_ID=
-NOTION_OAUTH_CLIENT_SECRET=
-NOTION_OAUTH_AUTHORIZATION_ENDPOINT=https://api.notion.com/v1/oauth/authorize
-NOTION_OAUTH_TOKEN_ENDPOINT=https://api.notion.com/v1/oauth/token
-NOTION_OAUTH_REDIRECT_URI=
-NOTION_OAUTH_EXPIRES_AT=
-NOTION_OAUTH_WORKSPACE_NAME=
-NOTION_MCP_SMOKE_PAGE_ID=
-
 # GitHub dispatch — integration optionnelle
 GITHUB_DISPATCH_AUTH_MODE=token       # or app
 KILL_LIFE_GITHUB_TOKEN=ghp_xxxxx
@@ -272,6 +275,11 @@ DEFAULT_MODEL=claude-sonnet-4-6
 ```
 
 Le routeur active automatiquement les providers dont la cle est presente. Pas de cle = provider ignore.
+
+Note:
+- `Notion` n'est plus dans le scope operateur actif de `mascarade`.
+- Les variables `NOTION_*` ne doivent plus etre traitees comme prerequis courants.
+- Les chemins `Notion` encore presents dans le repo relevent de la compatibilite legacy uniquement.
 
 ## CAD / EDA
 
@@ -334,10 +342,13 @@ export APPLE_LLM_TOKENIZER_PATH="$HOME/Models/mascarade/apple-llm/StatefulMistra
 
 Pour les smokes `ai-novel-engine`, prevoir un timeout Apple plus large que les providers cloud: le warm-up Core ML peut depasser plusieurs minutes sur le premier appel.
 
-Validation locale utile pour `ai-novel-engine` au 9 mars 2026:
-- `apple-coreml:qwen3.5-4b-onnx-q4f16` est maintenant `accepted` sous protocole ANE avec garde-fou actif
-- `ollama:qwen2.5:7b` atteint `gate`, exerce `repair` en live, puis finit `quality_blocked` sur `outline_like`
-- `apple-coreml:qwen2.5-0.5b-instruct-onnx` et `ollama:qwen2.5:1.5b` sont en rerun baseline separe
+Validation locale utile pour `ai-novel-engine` au 8 mars 2026:
+- sous protocole ANE avec garde-fou actif, aucun modele n'est encore `accepted`
+- sous protocole ANE avec boucle `repair`, aucun modele n'atteint encore `gate` en live
+- `apple-coreml:qwen2.5-0.5b-instruct-onnx` atteint `rewrite` puis timeoute a `300s`
+- `apple-coreml:qwen3.5-4b-onnx-q4f16` atteint `rewrite` avec une critique exploitable puis timeoute a `300s`
+- `ollama:qwen2.5:1.5b` timeoute en `structure` via le service Docker CPU
+- `ollama:qwen2.5:7b` atteint `rewrite` avec une critique exploitable puis timeoute a `300s`
 - `apple-coreml:stateful-mistral7b-instruct-int4-coreml` repond au preflight, mais reste preflight-only pour ANE sur cette machine
 - pour les smokes ANE qualitatifs sur le service Docker CPU, prevoir un `OLLAMA_TIMEOUT_SECONDS` plus large que `180` si les requetes de structure ou de draft depassent plusieurs minutes
 - le runtime Apple local ne sert qu'un seul `model_id` a la fois; pour comparer plusieurs modeles Apple, il faut relancer `:8201` entre deux runs
@@ -374,8 +385,8 @@ export APPLE_LLM_ENABLED=true
 export APPLE_LLM_BASE_URL=http://host.docker.internal:8201
 export APPLE_LLM_MODEL_ID=qwen3.5-4b-onnx-q4f16
 export APPLE_LLM_BACKEND=onnx-coreml
-export APPLE_LLM_MODEL_PATH="$HOME/Models/mascarade/apple-llm/Qwen3.5-4B-ONNX-q4f16/onnx/decoder_model_merged_q4f16.onnx"
-export APPLE_LLM_TOKENIZER_PATH="$HOME/Models/mascarade/apple-llm/Qwen3.5-4B-ONNX-q4f16"
+export APPLE_LLM_MODEL_PATH="/ai/llm/apple-llm/Qwen3.5-4B-ONNX-q4f16/onnx/decoder_model_merged_q4f16.onnx"
+export APPLE_LLM_TOKENIZER_PATH="/ai/llm/apple-llm/Qwen3.5-4B-ONNX-q4f16"
 export APPLE_LLM_ENABLE_THINKING=false
 
 ./scripts/run_apple_llm_service.sh
@@ -469,6 +480,22 @@ Observability complementaire opt-in:
 ```
 
 Ce lot ajoute le stockage/relais observability, mais le cockpit utilise deja aujourd'hui la trace native du core pour afficher les echanges inter-agent dans `Logs`.
+Pour la pile observability complete, ajouter aussi `prometheus,grafana,tempo,blackbox-exporter,langfuse`.
+
+`Tempo` est maintenant le backend de traces nominal pour Grafana. `Loki` reste la source de logs et `Prometheus` la source de metriques; `blackbox-exporter` complete la couverture des services qui n'exposent pas `/metrics`.
+
+Surfaces operateur proxifiees:
+
+```bash
+EDGE_PROXY_GRAFANA_SERVER_NAME=grafana.saillant.cc
+EDGE_PROXY_LANGFUSE_SERVER_NAME=langfuse.saillant.cc
+GRAFANA_PUBLIC_ORIGIN=https://grafana.saillant.cc
+LANGFUSE_PUBLIC_ORIGIN=https://langfuse.saillant.cc
+EDGE_PROXY_OPS_AUTH_USER=ops
+EDGE_PROXY_OPS_AUTH_PASSWORD=...
+```
+
+Avec ces variables, `Grafana` et `Langfuse` passent derriere `edge-proxy` avec une auth dediee au proxy. Par defaut, ce routage reste seulement sur loopback tant que `EDGE_PROXY_BIND_HOST=127.0.0.1`.
 
 Smoke test OTLP -> Loki:
 
@@ -490,14 +517,31 @@ Certificat Let's Encrypt par DNS-01 Cloudflare:
 # Variables minimales dans .env
 EDGE_PROXY_SERVER_NAME=saillant.cc
 EDGE_PROXY_ACME_EMAIL=toi@example.com
-EDGE_PROXY_ACME_DOMAINS=saillant.cc,www.saillant.cc
-CLOUDFLARE_API_TOKEN=...
+EDGE_PROXY_ACME_DOMAINS=saillant.cc,grafana.saillant.cc,langfuse.saillant.cc,dify.saillant.cc
+CLOUDFLARE_API_TOKEN=...              # API token Cloudflare
+# ou, si tu utilises une Global API Key:
+CLOUDFLARE_API_EMAIL=toi@example.com
+CLOUDFLARE_API_KEY=...
 
 # Emission du certificat
 bash scripts/edge_proxy_cert.sh issue
 ```
 
 Le proxy continue a generer un certificat auto-signe tant qu'aucun certificat reel n'est installe. Une fois le certificat emis, `edge-proxy` recharge Nginx automatiquement.
+
+Sur la machine de reference, le certificat reel en place couvre maintenant
+`saillant.cc` et `*.saillant.cc`, ce qui absorbe `grafana.saillant.cc`,
+`langfuse.saillant.cc` et `dify.saillant.cc`.
+
+Si tu restes en provider `manual`, le flux devient:
+
+```bash
+bash scripts/edge_proxy_cert.sh issue --provider manual
+# ajouter les TXT ACME demandes par le script
+bash scripts/edge_proxy_cert.sh renew --provider manual
+```
+
+Sur la machine de reference, `edge-proxy` est maintenant publie sur `0.0.0.0:80/443`, avec les hostnames `saillant.cc`, `grafana.saillant.cc`, `langfuse.saillant.cc` et `dify.saillant.cc`.
 
 Les agents dynamiques sont persistes dans un volume Docker (`core-data:/app/data`).
 
@@ -610,6 +654,7 @@ docker compose -f docker-compose.yml -f docker-compose.ai.yml --profile heavy up
 Sur VM legere, garder ces services arretes par defaut (profil `heavy`).
 
 `Langfuse` reste une brique supportee du repo, mais optionnelle hors profil standard. `Firecrawl` est supporte comme service MCP optionnel via l'image officielle `mcp/firecrawl`; il exige `FIRECRAWL_API_KEY` ou `FIRECRAWL_API_URL` pour demarrer. `Mem0` est supporte via `mem0/openmemory-mcp`, adosse a `Qdrant` et route par defaut ses appels OpenAI-compatibles vers `LiteLLM`.
+`Tempo` est supporte comme backend traces de reference de la stack observability locale, et les surfaces operateur `Grafana` / `Langfuse` peuvent etre publiees derriere `edge-proxy` sans exposer `Prometheus` ni les services internes.
 
 ### Interagir avec la VM depuis le Mac
 
@@ -791,9 +836,10 @@ Modes d'execution :
 | `parallel`   | Tous les agents traitent le prompt en parallele       |
 | `pipeline`   | La sortie d'un agent devient l'entree du suivant      |
 
-### Notion
+### Compat legacy Notion
 
-Si `NOTION_API_KEY` est configure :
+Hors scope operateur actif. Ce chemin reste seulement pour compatibilite legacy si
+vous devez relire un ancien flux `Notion` :
 
 ```bash
 # Rechercher dans la KB Notion
@@ -972,3 +1018,16 @@ mascarade/
 - etat de reference ANE: aucun accepted, meilleur diagnostic: apple-coreml:qwen2.5-0.5b-instruct-onnx
 - prochain lot utile cote pipeline: Analyser les runs ayant atteint gate/repair puis resserrer la reference locale autour des meilleurs candidats.
 <!-- AUTO-SYNC:MASCARADE-README:END -->
+
+## P2P Secure Sync
+
+For secure peer-to-peer synchronization of environment files and API keys:
+
+- [P2P Sync Documentation](P2P_SYNC_README.md)
+- [Deployment Guide](P2P_NETWORK_README.md#deployment-scenarios)
+
+Features:
+- 8-character public key authentication
+- 32-character auth tokens
+- AES-256 encryption for secrets
+- Rsync-based efficient transfers

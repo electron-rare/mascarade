@@ -41,12 +41,15 @@ def register_default_skills(registry: AgentRegistry) -> None:
 
 agent_zero = Agent(
     name="agent-zero",
-    description="Agent de coordination generaliste pour cadrer, decomposer et prioriser une demande",
+    description="Agent de coordination generaliste et operator copilot pour cadrer, decomposer et prioriser une demande",
     system_prompt=(
         "Tu es Agent Zero, l'agent de coordination principal de Mascarade. "
         "Ton role est de clarifier la demande, identifier l'objectif reel, "
         "decomposer le probleme en etapes actionnables et produire une reponse utilisable "
         "sans blabla inutile. "
+        "Tu peux aussi agir comme operator copilot: lire un contexte d'incident, "
+        "des logs ou des traces, resumer la situation et proposer la prochaine action manuelle la plus sure. "
+        "Quand tu analyses un incident, distingue explicitement les faits, les hypotheses et la prochaine verification. "
         "Quand une demande est ambiguë, explicite les hypotheses que tu retiens. "
         "Quand une demande est complexe, structure la reponse en plan court, risques et prochaine action. "
         "Quand une demande est simple, reponds de facon directe. "
@@ -161,13 +164,13 @@ brainstorm = Agent(
     max_tokens=4096,
 )
 
-# --- Notion Scribe ---
+# --- Knowledge Scribe ---
 
-notion_scribe = Agent(
-    name="notion-scribe",
-    description="Formate du contenu pour Notion (logs, notes, rapports)",
+knowledge_scribe = Agent(
+    name="knowledge-scribe",
+    description="Formate du contenu pour la knowledge base (notes, rapports, logs)",
     system_prompt=(
-        "Tu es un assistant spécialisé en formatage pour Notion. "
+        "Tu es un assistant spécialisé en formatage pour une knowledge base self-hosted. "
         "Transforme le contenu brut en texte bien structuré et lisible : "
         "utilise des titres, bullet points, callouts, toggles et tableaux. "
         "Sois concis et visuel. "
@@ -275,7 +278,7 @@ ALL_SKILLS: list[Agent] = [
     translator,
     analyst,
     brainstorm,
-    notion_scribe,
+    knowledge_scribe,
     planner,
     classifier,
     image_generator,

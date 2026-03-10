@@ -195,8 +195,14 @@ def dedupe_rows(rows: list[dict]) -> list[dict]:
     return deduped
 
 
-def ensure_row_ids(rows: list[dict], prefix: str) -> list[dict]:
+def dedupe_rows_with_stats(rows: list[dict]) -> tuple[list[dict], int]:
+    deduped = dedupe_rows(rows)
+    return deduped, max(0, len(rows) - len(deduped))
+
+
+def ensure_row_ids_with_stats(rows: list[dict], prefix: str) -> tuple[list[dict], int]:
     normalized: list[dict] = []
+    fixed_ids = 0
     for index, row in enumerate(rows, start=1):
         current = dict(row)
         current["conversations"] = normalize_conversations(
@@ -205,5 +211,11 @@ def ensure_row_ids(rows: list[dict], prefix: str) -> list[dict]:
         row_id = current.get("id")
         if not isinstance(row_id, str) or not row_id.strip():
             current["id"] = f"{prefix}-{index:05d}-{fingerprint_row(current)[:10]}"
+            fixed_ids += 1
         normalized.append(current)
+    return normalized, fixed_ids
+
+
+def ensure_row_ids(rows: list[dict], prefix: str) -> list[dict]:
+    normalized, _fixed_ids = ensure_row_ids_with_stats(rows, prefix)
     return normalized

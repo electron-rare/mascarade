@@ -137,14 +137,14 @@ export const navigationGroups: NavGroup[] = [
     label: "Integrations",
     items: [
       {
-        to: "/notion",
+        to: "/knowledge-base",
         icon: "▤",
-        label: "Notion",
-        shortLabel: "Notion",
+        label: "Knowledge",
+        shortLabel: "KB",
         hint: "knowledge bus",
         eyebrow: "knowledge bus",
-        title: "Notion Browser",
-        description: "Navigation des ressources Notion branchees sur la gateway Mascarade.",
+        title: "Knowledge Browser",
+        description: "Navigation des ressources knowledge base branchees sur la gateway Mascarade.",
         section: "Integrations",
       },
       {

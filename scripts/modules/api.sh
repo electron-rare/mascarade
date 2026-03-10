@@ -14,6 +14,7 @@ module_api_compose() {
   echo "      dockerfile: deploy/Dockerfile.api"
   echo "    container_name: mascarade-api"
   echo "    restart: unless-stopped"
+  echo "    user: \"\${API_RUNTIME_UID:-1000}:\${API_RUNTIME_GID:-1000}\""
   echo "    ports:"
   echo "      - \"\${PUBLISH_BIND_HOST:-0.0.0.0}:\${API_PORT}:3000\""
   echo "    env_file:"
@@ -21,6 +22,10 @@ module_api_compose() {
   echo "    environment:"
   echo "      CORE_URL: \${CORE_URL}"
   echo "      API_PORT: 3000"
+  echo "      HOME: /tmp"
+  echo "      KILL_LIFE_ROOT: \${KILL_LIFE_ROOT:-/workspace/Kill_LIFE}"
+  echo "    volumes:"
+  echo "      - ../Kill_LIFE:\${KILL_LIFE_ROOT:-/workspace/Kill_LIFE}:rw"
   if svc_selected "core"; then
     echo "    depends_on:"
     echo "      - core"

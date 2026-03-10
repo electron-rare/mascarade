@@ -3,7 +3,7 @@ import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import { copyFile, mkdir, readdir, readFile, rename, stat, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { getGitHubDispatchAccessToken } from "./githubDispatchAuth.js";
+import { coreClient } from "../client/core.js";
 
 const DEFAULT_KILL_LIFE_ROOT = process.env.KILL_LIFE_ROOT || "/home/clems/Kill_LIFE";
 const DEFAULT_GITHUB_REPO = process.env.KILL_LIFE_GITHUB_REPO || "electron-rare/Kill_LIFE";
@@ -669,9 +669,11 @@ function sanitizeGitHubInputs(inputs: Record<string, unknown>): Record<string, s
   return cleaned;
 }
 
-async function runGithubDispatch(node: KillLifeWorkflowNode, runtimeInputs: Record<string, unknown>): Promise<Omit<KillLifeRunStep, "node_id" | "label" | "type" | "mode" | "runner_kind" | "started_at" | "finished_at" | "duration_ms">> {
-  const { token, authMode, expiresAt } = await getGitHubDispatchAccessToken();
-
+async function runGithubDispatch(
+  node: KillLifeWorkflowNode,
+  runtimeInputs: Record<string, unknown>,
+  runId?: string,
+): Promise<Omit<KillLifeRunStep, "node_id" | "label" | "type" | "mode" | "runner_kind" | "started_at" | "finished_at" | "duration_ms">> {
   const workflowFile = node.runner?.workflow_file || "";
   if (!ALLOWED_GITHUB_WORKFLOWS.has(workflowFile)) {
     throw new Error(`Workflow '${workflowFile}' is not allowlisted`);
@@ -685,31 +687,19 @@ async function runGithubDispatch(node: KillLifeWorkflowNode, runtimeInputs: Reco
     }),
   };
 
-  const response = await fetch(
-    `https://api.github.com/repos/${DEFAULT_GITHUB_REPO}/actions/workflows/${encodeURIComponent(workflowFile)}/dispatches`,
-    {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        Accept: "application/vnd.github+json",
-        "Content-Type": "application/json",
-        "User-Agent": "mascarade-kill-life-editor",
-      },
-      body: JSON.stringify(payload),
-    },
-  );
-
-  if (!response.ok) {
-    const errorBody = await response.text();
-    throw new Error(`GitHub dispatch failed (${response.status}): ${trimExcerpt(errorBody, 400)}`);
-  }
+  const dispatch = await coreClient.githubDispatchDispatch({
+    workflow_file: workflowFile,
+    ref: payload.ref,
+    inputs: payload.inputs,
+    run_id: runId,
+  });
 
   return {
     status: "success",
     workflow_file: workflowFile,
     ref: payload.ref,
     evidence_refs: [],
-    stdout_excerpt: `workflow_dispatch accepted for ${workflowFile} via ${authMode}${expiresAt ? ` (expires ${expiresAt})` : ""}`,
+    stdout_excerpt: `workflow_dispatch accepted for ${workflowFile} via MCP${dispatch.auth_mode ? ` (${dispatch.auth_mode})` : ""}`,
     stderr_excerpt: "",
     message: "GitHub workflow dispatch accepted",
   };
@@ -852,7 +842,7 @@ export async function runWorkflow(workflowId: string, options: KillLifeRunOption
       const result =
         mode === "local"
           ? await runLocalAction(node)
-          : await runGithubDispatch(node, runtimeInputs);
+          : await runGithubDispatch(node, runtimeInputs, runId);
       const finishedAt = nowIso();
       const durationMs = Date.now() - stepStarted;
       steps.push({

@@ -1,5 +1,5 @@
 #!/bin/bash
-# Upload all datasets to HuggingFace Hub for use in Colab notebooks.
+# Upload canonical datasets to Hugging Face Hub after local packaging.
 #
 # Prerequisites:
 #   pip install huggingface_hub[cli]
@@ -12,16 +12,22 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-DATASETS_DIR="${SCRIPT_DIR}/datasets"
+PREPARE_SCRIPT="${SCRIPT_DIR}/prepare_hf_dataset.py"
+HF_DATASETS_DIR="${SCRIPT_DIR}/hf_datasets"
 HF_USER="${HF_USER:-clemsail}"
 
-DOMAINS="stm32 spice iot power dsp emc kicad embedded"
+DOMAINS="stm32 spice iot power dsp emc kicad embedded platformio freecad components"
 
 echo "Uploading datasets to HuggingFace Hub (user: ${HF_USER})"
 echo ""
 
 for domain in ${DOMAINS}; do
-    file="${DATASETS_DIR}/${domain}_chat.jsonl"
+    python3 "${PREPARE_SCRIPT}" "${domain}" --username "${HF_USER}" >/dev/null
+
+    package_dir="${HF_DATASETS_DIR}/${domain}"
+    file="${package_dir}/${domain}_chat.jsonl"
+    readme="${package_dir}/README.md"
+    metadata="${package_dir}/metadata.json"
     repo="${HF_USER}/mascarade-${domain}-dataset"
 
     if [[ ! -f "${file}" ]]; then
@@ -33,8 +39,12 @@ for domain in ${DOMAINS}; do
     size=$(du -h "${file}" | cut -f1)
     echo "  ${domain}: ${lines} examples (${size}) -> ${repo}"
 
+    huggingface-cli upload "${repo}" "${readme}" "README.md" --repo-type dataset 2>/dev/null || \
+        echo "    WARN: README upload failed for ${domain} (check huggingface-cli login)"
     huggingface-cli upload "${repo}" "${file}" "${domain}_chat.jsonl" --repo-type dataset 2>/dev/null || \
-        echo "    WARN: upload failed for ${domain} (check huggingface-cli login)"
+        echo "    WARN: dataset upload failed for ${domain} (check huggingface-cli login)"
+    huggingface-cli upload "${repo}" "${metadata}" "metadata.json" --repo-type dataset 2>/dev/null || \
+        echo "    WARN: metadata upload failed for ${domain} (check huggingface-cli login)"
 done
 
 echo ""

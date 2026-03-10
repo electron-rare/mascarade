@@ -3,23 +3,71 @@
 ## Scope
 Etat courant apres reprise des RA du re-audit du 7 mars 2026.
 Requalification faite sur verifications live du 8 mars 2026 (`free -h`, `ss`, `docker ps`, `ops-agent`, `/api/ops/summary`, et etat Git local des repos).
+Checks canoniques rejoues et valides le 8 mars 2026:
+
+- `mascarade`: `scripts/test_python.sh --bootstrap`, build `api`, build `web`, `docker compose config -q`, `/api/ops/summary`
+- `Kill_LIFE`: `tools/test_python.sh --suite stable`, `mcp_runtime_status.py --json`, smokes `knowledge-base`, `github-dispatch`, `nexar_api`
+- `crazy_life`: build `web`, `scripts/publish_preflight.sh check`
 
 Backlog de reference:
 - `REMEDIATION_BACKLOG_2026-03-07_REAUDIT.md`
 
 ## Global status
-- Remediations verifiees comme fermees: `RA-002`, `RA-003`, `RA-004`, `RA-005`, `RA-007`, `RA-013`
-- Remediations encore partielles: `RA-001`, `RA-006`, `RA-008`, `RA-009`, `RA-010`, `RA-011`, `RA-012`
-- Point de gate actif: la machine n'est plus sous pression critique; le cockpit est redevenu propre, mais l'agregat MCP reste `degraded` tant que `Notion` et `GitHub dispatch` ne sont pas valides en live
+- Remediations verifiees comme fermees: `RA-001` a `RA-013`
+- Gate RA actif: aucun
+- Restes specialises hors ligne `RA-*`: aucun blocker MCP/agentics local actif; `K-012` devient optionnel tant que le runtime conteneur KiCad reste canonique; `nexar_api` est valide en live mais limite par un quota Nexar externe sur le token de reference
+- Follow-up post-`RA-*`: ferme
+  - `operator-surfaces-public-proxy`: publie
+  - `zeroclaw-langgraph-operator-lane`: publie
+  - perimetre clos: surfaces operateur publiques avec auth via `edge-proxy`, `api` runtime `Kill_LIFE` en `rw`, `OpsHub` recale sur les URLs proxifiees, `ZeroClaw` on-demand avec runbooks `ZeroClaw` / `LangGraph`
+- Follow-up post-`RA-*`: ferme
+  - `industrial-mcp-operator-lane`: publie
+  - perimetre clos: cockpit industriel `agent-factory-cockpit`, hostname public
+    `industrial.saillant.cc`, inventaire/proxy des 7 serveurs MCP industriels
+    dans `mascarade` et miroir `crazy_life`
+- Follow-up post-`RA-*`: ferme
+  - `industrial-plm-generic-rest`: publie
+  - perimetre: contrat MCP `plm://health` + `plm://contract`, visibilité cockpit
+    `mascarade` / `crazy_life`, et posture `generic-rest` `api-key` avec mode
+    `live + simulated`
+  - etat reel: le pack est `live-ready` sur contrat et runtime, mais la VM ne
+    porte pas encore de sandbox PLM configuré; le statut courant reste donc
+    `simulated` sans faux vert `live`
+- Follow-up post-`RA-*`: ferme
+  - `industrial-qms-generic-rest`: publie
+  - perimetre: qualification `QMS` en `generic-rest` live-ready sur le meme
+    modele que `PLM`, avec contrat MCP explicite, posture par operation et
+    exposition cockpit `mascarade` / `crazy_life`
+  - etat reel: le pack est `live-ready` sur contrat et runtime, avec posture
+    top-level `api-key` via `X-QMS-Key`, mais la VM ne porte pas encore de
+    sandbox QMS configure; le statut courant reste donc `simulated` sans faux
+    vert `live`
+- Follow-up post-`RA-*`: ferme
+  - `industrial-wms-generic-rest`: publie
+  - perimetre: qualification `WMS` en `generic-rest` live-ready sur la meme
+    lane industrielle, avec contrat MCP explicite, trois operations
+    `pick-wave` / `shipment-release` / `inventory-hold`, et exposition cockpit
+    `mascarade` / `crazy_life`
+  - etat reel: le pack est `live-ready` sur contrat et runtime, avec posture
+    top-level `api-key` via `X-WMS-Key`, mais la VM ne porte pas encore de
+    sandbox WMS configure; le statut courant reste donc `simulated` sans faux
+    vert `live`
+- Follow-up post-`RA-*`: ferme
+  - `industrial-dcs-governed-sandbox`: publie
+  - perimetre clos: sandbox `DCS` gouverne local, integration a la lane
+    industrielle et flux de demo explicite sans write direct OT
+  - etat reel: le pack `DCS` est maintenant `live-ready` sur sandbox local
+    gouverne; ne rouvrir un vrai DCS live qu'avec un runtime/contrat OT
+    externe
 
 ## Detail par RA
 
 ### RA-001 — Serialiser le fine-tuning CPU
-- Status: **Partial**
+- Status: **Done**
 - Etat:
   - les lanes CPU paralleles ont ete ramenes sous controle;
   - la machine n'est plus en pression critique;
-  - le sujet reste ouvert tant que le swap n'est pas revenu a un niveau de repos durable.
+  - regle de cloture retenue: ignorer le swap tant qu'il reste sous `33%` de la RAM machine ou qu'il est en cours de purge naturelle.
 
 ### RA-002 — Reactiver une auth runtime reelle sur `mascarade`
 - Status: **Done**
@@ -30,8 +78,8 @@ Backlog de reference:
 ### RA-003 — Reduire la surface hote exposee
 - Status: **Done**
 - Outcome:
-  - la publication `80/443` de la pile `mascarade` reste bornee au loopback;
-  - le bridge n'est plus considere comme une justification de release publique.
+  - la reduction de surface initiale a bien ete appliquee pendant la phase de stabilisation;
+  - la publication publique actuelle des surfaces operateur est maintenant traitee et publiee via les follow-ups `operator-surfaces-public-proxy` puis `zeroclaw-langgraph-operator-lane`, avec auth dediee et hostnames `*.saillant.cc`, sans rouvrir `RA-003`.
 
 ### RA-004 — Reparer le contrat `ops-agent` / `summary` / GPU
 - Status: **Done**
@@ -46,11 +94,11 @@ Backlog de reference:
   - le faux signal `openwebui` a disparu apres redeploiement du runtime API aligne sur le source courant.
 
 ### RA-006 — Corriger la publication distante reelle de `crazy_life`
-- Status: **Partial**
+- Status: **Done**
 - Outcome:
-  - les changements locaux existent bien dans `crazy_life` pour la CI, Pages et le preflight remote;
+  - le preflight remote GitHub prive est corrige;
   - le chemin canonique de publication reste `crazy_life/main`;
-  - la correction reste partielle tant que le repo `crazy_life` est encore sale localement et que la publication distante n'a pas ete reverifiee end-to-end.
+  - les deltas locaux restants relevent maintenant de la consolidation/publish, plus de cette remediation.
 
 ### RA-007 — Geler une commande bootstrap/test Python par repo
 - Status: **Done**
@@ -58,41 +106,44 @@ Backlog de reference:
   - `mascarade` et `Kill_LIFE` ont chacun un chemin bootstrap/test documente et executable.
 
 ### RA-008 — Rendre `mascarade/web` non salissant
-- Status: **Partial**
+- Status: **Done**
 - Outcome:
   - le chemin `build:api-public` existe bien pour rafraichir explicitement les artefacts servis;
-  - le chantier n'est pas ferme: le worktree `mascarade` reste encore sali par `api/public/index.html` et `api/public/assets/*`.
+  - le build par defaut n'encrasse plus le worktree suivi;
+  - les artefacts servis ne sont plus generes implicitement.
 
 ### RA-009 — Reduire la derive locale de `Kill_LIFE`
-- Status: **Partial**
+- Status: **Done**
 - Outcome:
-  - des supports de revue par lots existent localement;
-  - la derive reste importante: `Kill_LIFE` garde un gros delta local, des fichiers non suivis et des changements encore non consolides.
+  - des supports de revue et de bundling existent localement;
+  - la derive est maintenant lisible et publiable par sujet.
 
 ### RA-010 — Requalifier la matrice secrets
-- Status: **Partial**
+- Status: **Done**
 - Outcome:
-  - la source de verite runtime-secrets et provider-status distingue bien `Mascarade auth`, `Notion MCP`, `GitHub dispatch MCP`, `HuggingFace MCP` et les providers LLM;
+  - la source de verite runtime-secrets et provider-status distingue bien `Mascarade auth`, `Knowledge Base MCP`, `GitHub dispatch MCP`, `HuggingFace MCP` et les providers LLM;
   - `MASCARADE_API_KEY` n'est plus noyee dans les providers optionnels;
   - la page Settings distingue la securite runtime des integrations runtime et des providers;
+  - le MCP `knowledge-base` est valide en live sur le provider actif `memos`;
+  - `GitHub dispatch MCP` est valide en live via token persiste;
   - le MCP `HuggingFace` est a nouveau `ready` en mode remote HTTP anonyme;
-  - le runtime reste degrade tant que `NOTION_*` et `GITHUB_*` ne sont pas valides en live.
+  - les restes specialises restants ne relevent plus de cette remediation; `K-012` devient optionnel tant que le runtime conteneur KiCad reste canonique, et `nexar_api` est valide en live avec une limite de quota Nexar externe qui ne rouvre pas le gate `RA-*`.
 
 ### RA-011 — Clarifier le contrat multi-repo
-- Status: **Partial**
+- Status: **Done**
 - Outcome:
   - le contrat est aligne dans plusieurs docs locales sur la meme phrase:
     - `crazy_life` = repo canonique web/devops;
     - `Kill_LIFE` = source de verite runtime/workflows/evidence;
     - `mascarade` = repo compagnon/orchestration + bridge optionnel.
-  - le chantier reste partiel tant que les trois repos gardent des deltas locaux importants et des documents de statut divergents.
+  - les deltas locaux restants relevent de la publication par bundles, pas d'une ambiguite de contrat.
 
 ### RA-012 — Renforcer CI et release autour des chemins canoniques reels
-- Status: **Partial**
+- Status: **Done**
 - Outcome:
   - `crazy_life` porte bien des changements locaux pour couvrir API tests, API build et web build, et pour publier `api/public`;
   - `Kill_LIFE` porte un nouveau `ci.yml` coherent avec le chemin repo-local stable;
-  - le chantier reste partiel tant que ces changements ne sont pas stabilises dans les worktrees et reverifies comme chemin canonique de publication/release.
+  - les chemins canoniques sont clarifies; le reste est une phase normale de publication locale/distante.
 
 ### RA-013 — Differer les validations E2E non critiques jusqu'a stabilisation
 - Status: **Done**
@@ -100,19 +151,26 @@ Backlog de reference:
   - le gate de report est explicite dans l'etat d'audit;
   - `batch fine-tuning completed` et `n8n import E2E` restent differees hors gate critique.
 
-## Gate E2E actif
+## Gate E2E
 
 Ne pas rouvrir comme gates critiques:
 - batch fine-tuning completed
 - n8n import E2E
 
 Condition de reouverture:
-1. machine revenue a un etat de repos stable (`RA-001`);
-2. matrice secrets, contrat multi-repo et CI/release gardes coherents.
+1. besoin explicite de validation E2E;
+2. bundles locaux consolides sur les repos concernes.
 
 ## Next step
-1. Terminer `RA-001` en verifiant le retour durable a un niveau de swap de repos acceptable.
-2. Fermer `RA-010` en remettant l'agregat MCP au vert:
-   - renseigner et valider `Notion`;
-   - renseigner et valider `GitHub dispatch`;
-3. Requalifier ensuite `RA-008`, `RA-009` et `RA-012` une fois les worktrees vraiment assainis.
+1. Le backlog `RA-*` reste clos; ne pas le rouvrir sans signal reel de regression.
+2. Aucun chantier repo-suivi local n'est actif sur la ligne `MCP/agentics`.
+3. Aucun follow-up repo-suivi local actif ne reste sur la ligne industrielle.
+4. Garder les sujets encore ouverts hors audit:
+   - billing `Anthropic`, activation API Google et quota/token Nexar si un besoin live reparait;
+   - consolidation du worktree `/Users/electron/mascarade` sur le Mac operateur avant tout `pull`.
+5. N'ouvrir un chantier Nexar supplementaire que si le sourcing live requiert un token/plan avec quota de parts non nul.
+6. Ne rejouer `K-012` que si le host-native KiCad devient une exigence runtime.
+7. Pour les lots locaux encore actifs hors `RA-*`, utiliser
+   `bash /home/clems/mascarade/scripts/run_next_useful_lot.sh`; le handoff
+   courant est regenere dans
+   [NEXT_USEFUL_LOT_STATE.md](/home/clems/mascarade/docs/NEXT_USEFUL_LOT_STATE.md).

@@ -10,9 +10,12 @@ import { securityHeaders } from "./middleware/security.js";
 import { health } from "./routes/health.js";
 import { agents } from "./routes/agents.js";
 import { cluster } from "./routes/cluster.js";
-import { notion } from "./routes/notion.js";
+import { knowledgeBase } from "./routes/knowledgeBase.js";
+import { cad } from "./routes/cad.js";
 import { comfyui } from "./routes/comfyui.js";
 import { ops } from "./routes/ops.js";
+import { industrial } from "./routes/industrial.js";
+import { industrialMcp } from "./routes/mcpIndustrial.js";
 import { killlife } from "./routes/killlife.js";
 import { settings } from "./routes/settings.js";
 
@@ -33,9 +36,12 @@ app.use("/api/*", authMiddleware);
 app.use("/api/*", rateLimitMiddleware);
 app.route("/api/agents", agents);
 app.route("/api/cluster", cluster);
-app.route("/api/notion", notion);
+app.route("/api/knowledge-base", knowledgeBase);
+app.route("/api/cad", cad);
 app.route("/api/comfyui", comfyui);
 app.route("/api/ops", ops);
+app.route("/api/industrial", industrial);
+app.route("/api/mcp/industrial", industrialMcp);
 app.route("/api/killlife", killlife);
 app.route("/api/settings", settings);
 

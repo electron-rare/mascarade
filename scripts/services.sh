@@ -27,6 +27,7 @@ define_service "langfuse"   "Langfuse"          "Observabilite LLM (tracing, eva
 define_service "firecrawl"  "Firecrawl MCP"     "Scraping / search web via serveur MCP Firecrawl" "3400"  "tools" 0 ""
 define_service "mem0"       "Mem0 / OpenMemory" "Memoire agentique sur Qdrant via OpenMemory MCP" "3300"  "tools" 0 "litellm,qdrant"
 define_service "dify"       "Dify"              "App builder IA (API + Web + Worker)"              "3500"  "tools" 0 "postgres,redis"
+define_service "agent-factory-cockpit" "Industrial Cockpit" "Cockpit HTTP + MCP industriel live-ready" "4173" "tools" 1 ""
 define_service "clickhouse" "ClickHouse"        "Base analytique colonnaire (Langfuse)"            "—"     "tools" 0 ""
 define_service "comfyui"    "ComfyUI"           "Generation d'images (SD, Flux)"                   "8188"  "tools" 0 ""
 define_service "tts"        "TTS"               "Synthese vocale locale (Piper/Wyoming)"           "10200" "tools" 0 ""
@@ -41,7 +42,9 @@ define_service "redis"      "Redis"             "Cache & broker (LiteLLM, Dify)"
 define_service "postgres"   "PostgreSQL"        "Base relationnelle (Langfuse, Dify, n8n)"         "5432"  "infra" 0 ""
 define_service "qdrant"     "Qdrant"            "Base vectorielle (embeddings, RAG)"               "6333"  "infra" 0 ""
 define_service "grafana"    "Grafana"           "Dashboards monitoring"                            "3001"  "infra" 0 ""
-define_service "prometheus" "Prometheus"        "Collecte metriques"                               "9090"  "infra" 0 ""
+define_service "tempo"      "Tempo"             "Backend traces Grafana / OTLP"                    "3201"  "infra" 0 ""
+define_service "prometheus" "Prometheus"        "Collecte metriques"                               "9090"  "infra" 0 "blackbox-exporter"
+define_service "blackbox-exporter" "Blackbox Exporter" "Probes HTTP pour services sans /metrics"  "9115" "infra" 0 ""
 define_service "loki"       "Loki"              "Historique des logs et traces structurees"        "3101"  "infra" 0 ""
 define_service "promtail"   "Promtail"          "Collecte Docker/journald vers Loki"               "9080"  "infra" 0 "loki"
 define_service "otel-collector" "OTel Collector" "Recepteur OTLP et point d'export observability"  "4318"  "infra" 0 ""
@@ -68,6 +71,7 @@ sync_service_ports_from_env() {
             firecrawl) env_var="FIRECRAWL_PORT" ;;
             mem0) env_var="MEM0_PORT" ;;
             dify) env_var="DIFY_WEB_PORT" ;;
+            agent-factory-cockpit) env_var="AGENT_FACTORY_COCKPIT_PORT" ;;
             comfyui) env_var="COMFYUI_PORT" ;;
             tts) env_var="TTS_PORT" ;;
             stt) env_var="STT_PORT" ;;
@@ -79,7 +83,9 @@ sync_service_ports_from_env() {
             postgres) env_var="POSTGRES_PORT" ;;
             qdrant) env_var="QDRANT_PORT" ;;
             grafana) env_var="GRAFANA_PORT" ;;
+            tempo) env_var="TEMPO_PORT" ;;
             prometheus) env_var="PROMETHEUS_PORT" ;;
+            blackbox-exporter) env_var="BLACKBOX_EXPORTER_PORT" ;;
             loki) env_var="LOKI_PORT" ;;
             promtail) env_var="PROMTAIL_PORT" ;;
             otel-collector) env_var="OTEL_COLLECTOR_HTTP_PORT" ;;
@@ -170,5 +176,67 @@ load_running_services() {
             fi
         done
     done <<< "$services"
+    return 0
+}
+
+# ── Sélection automatique des services basée sur les pairs P2P ──
+auto_select_services_based_on_peers() {
+    local peers="${CLUSTER_PEERS:-}"
+    
+    if [[ -z "$peers" ]]; then
+        dbg "auto_select_services_based_on_peers: aucun pair configuré"
+        return 0
+    fi
+
+    dbg "auto_select_services_based_on_peers: analyse des pairs"
+    
+    # Désactiver tous les services par défaut
+    for id in "${SVC_IDS[@]}"; do
+        SVC_ON[$id]="0"
+    done
+
+    # Activer les services de base (core et api)
+    SVC_ON["core"]="1"
+    SVC_ON["api"]="1"
+
+    # Analyser les pairs pour déterminer les services nécessaires
+    IFS=';' read -ra peer_list <<< "$peers"
+    for peer_entry in "${peer_list[@]}"; do
+        IFS='|' read -ra peer_parts <<< "$peer_entry"
+        if [[ ${#peer_parts[@]} -eq 3 ]]; then
+            local peer_id="${peer_parts[0]}"
+            local peer_role="${peer_parts[1]}"
+            local peer_url="${peer_parts[2]}"
+            
+            dbg "  Analyse du pair $peer_id (role: $peer_role, url: $peer_url)"
+            
+            # Activer les services en fonction du rôle du pair
+            case "$peer_role" in
+                gpu)
+                    # Pour un pair GPU, activer les services liés au GPU et à l'IA
+                    SVC_ON["litellm"]="1"
+                    SVC_ON["ollama"]="1"
+                    SVC_ON["redis"]="1"
+                    ;;
+                edge)
+                    # Pour un pair edge, activer les services légers
+                    SVC_ON["agent-factory-cockpit"]="1"
+                    SVC_ON["ops-agent"]="1"
+                    ;;
+                general)
+                    # Pour un pair général, activer un ensemble standard de services
+                    SVC_ON["litellm"]="1"
+                    SVC_ON["n8n"]="1"
+                    SVC_ON["postgres"]="1"
+                    SVC_ON["redis"]="1"
+                    ;;
+            esac
+        fi
+    done
+
+    # Résoudre les dépendances après la sélection automatique
+    resolve_dependencies
+
+    dbg "auto_select_services_based_on_peers: terminé"
     return 0
 }

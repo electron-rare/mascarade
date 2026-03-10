@@ -1,99 +1,86 @@
 # TODO - Cockpit / Ops / Observability
 
-Etat de reference au 7 mars 2026.
-Mis a jour apres audit croise code/docs le 7 mars 2026.
-Recale sur le runtime reel le 8 mars 2026.
+Etat de reference recale au 8 mars 2026.
+Le lot local est stable; ce fichier ne porte plus de blocage critique.
 
-## 1. Ce qui est deja livre
+## 1. Ce qui est livre et verifie
 
-- [x] Cockpit React unifie avec shell, navigation, responsive et accessibilite clavier
-- [x] Refonte des pages operations (`Dashboard`, `Metrics`, `Infrastructure`, `Logs`)
-- [x] `agent-zero` visible comme lane lead dans le cockpit
-- [x] Trace inter-agent native dans le core avec `run_id`
-- [x] Lane `Logs` branchee sur les traces natives et les incidents services
-- [x] Routes API de facade pour `summary`, `sources`, `logs/recent`, `agent-traces/*`
-- [x] Scaffolding Docker pour `loki`, `promtail`, `otel-collector`
+- [x] Cockpit React unifie (`Dashboard`, `Metrics`, `Infrastructure`, `Logs`, `OpsHub`, `Orchestrate`)
+- [x] `ops-agent` finalise: `/health`, `/sources`, `/summary`, `/logs/recent`, `/logs/stream`
+- [x] Facade API ops complete: merge `ops-agent + traces natives + Loki + probes MCP`
+- [x] Auth obligatoire sur les routes `/api/*`
+- [x] Logs frontend en mode `live` et `history`, avec filtres persistants dans l'URL
+- [x] Traces natives `run_id` dans le core et timeline operateur dans le cockpit
+- [x] Probes MCP synthetiques visibles dans `summary`, `Logs`, `OpsHub` et Grafana
+- [x] GPU coherent dans `ops-agent`, `sources` et `summary`
 
-## 2. Implemente depuis le dernier TODO (verifie par audit)
+## 2. Observabilite en place
 
-### Ops Agent (`deploy/ops_agent/app.py`)
-- [x] `ops-agent` finalise: /health, /sources, /summary, /logs/recent, /logs/stream (SSE)
-- [x] Collecte Docker via socket Unix `/var/run/docker.sock`
-- [x] Fallback propre quand `journald` n'est pas disponible
-- [x] Inference de severite via regex, parsing de logs structures
-
-### Facade API ops (`api/src/routes/ops.ts`)
-- [x] Merge `ops-agent + traces natives + Loki` termine
-- [x] `/api/ops/logs/recent` stable (merge traces + probes + ops-agent + docker events)
-- [x] `/api/ops/logs/query` implemente: query_range Loki, filtres source/q/run_id/agent_name/severity/since/service
-- [x] `/api/ops/logs/stream` proxy SSE vers ops-agent
-- [x] Auth obligatoire sur toutes les routes /api/* (middleware timing-safe)
-- [x] MCP probe synthetique (`probeMcpRuntime()`) avec cache TTL dans `/summary`
-
-### Frontend Logs (`web/src/pages/Logs.tsx`)
-- [x] Toggle `live` (SSE streams) vs `history` (requete Loki)
-- [x] Filtres: source, severity, run_id, agent_name, event_type, service, routing_role/provider/model
-- [x] Recherche texte en mode history (parametre `q` vers Loki)
-- [x] Fenetres temporelles history: 15m, 1h, 6h, 24h
-- [x] CTAs `agent-zero` conserves
-- [x] Panneau detail run avec timeline evenements
-- [x] Posture sources affichee
-
-### Exporteurs OTel
-- [x] Export OTLP custom dans le core (`core/mascarade/observability/otel.py`): schedule_otlp_log(), OTEL_ENABLED
-- [x] Export OTLP custom dans l'API (`api/src/lib/otel.ts`): emitStructuredLog(), fire-and-forget
-- [x] Mapping severite OTLP: debug(5), info(9), warning(13), error(17), critical(21)
-- [x] Appele depuis agent_trace.py (core) et agents.ts (API)
-
-### OTel / Loki / Prometheus / Grafana (verifie en live)
-- [x] OTel Collector ecoute reellement sur `0.0.0.0:4317`, `0.0.0.0:4318` et `/health` sur `0.0.0.0:13133`
-- [x] Logs OTLP routes vers Loki via `deploy/otel-collector/config.yaml`
-- [x] Smoke OTLP -> Loki valide avec labels `source`, `run_id`, `agent_name`, `event_type`, `mode`, `provider`, `routing_role`, `routing_provider`
-- [x] Telemetrie interne du collector exposee sur `:8888` et scrapee par Prometheus
-- [x] `ops-agent` expose `/metrics` pour Prometheus
-- [x] Grafana datasources provisionnees en code (`Loki`, `Prometheus`) et chargees au demarrage
-- [x] Dashboard Grafana provisionne en code: `Mascarade Ops Overview`
-- [x] Dashboard Grafana provisionne en code: `Mascarade Service Logs`
-- [x] Smoke OTLP versionne: `scripts/smoke_otel_loki.sh`
-
-### Promtail
-- [x] Parsing JSON structure enrichi: `severity`, `source`, `run_id`, `agent_name`, `event_type`, `mode`, `provider`, `model`, `routing_role`, `routing_provider`, `routing_model`
-- [x] Report versionne de cardinalite Loki: `scripts/loki_cardinality_report.sh`
-
-### Frontend Logs (verifie dans le code)
-- [x] Filtres history persistants dans l'URL
-- [x] Handling de base des erreurs Loki/timeout avec notices explicites
+- [x] OTel Collector sain avec OTLP HTTP/gRPC, `/health`, `/metrics` et export traces vers `Tempo`
+- [x] Loki, Promtail, Prometheus et Grafana provisionnes en code et verifies en live
+- [x] `blackbox-exporter` en place pour les services sans `/metrics`
+- [x] Dashboards provisionnes:
+  - `Mascarade Ops Overview`
+  - `Mascarade Service Logs`
+  - `Mascarade AI Runtime`
+  - `Mascarade Tooling Observability`
+- [x] Smoke OTLP versionne et valide sur trafic reel
+- [x] Rapport de cardinalite Loki versionne et exploitation reelle des labels enrichis
+- [x] Langfuse raccorde au chemin LLM commun avec traces runtime visibles
+- [x] `Tempo` branche comme backend traces Grafana
+- [x] `Grafana` et `Langfuse` exposes comme surfaces operateur derriere `edge-proxy`
+- [x] `Firecrawl`, `Mem0`, `Prometheus` et `Ollama` exposes comme surfaces operateur derriere `edge-proxy`
+- [x] `ZeroClaw` expose comme surface live on-demand derriere `edge-proxy`, avec `zeroclaw-docs` et `LangGraph` gardes comme surfaces runbook
+- [x] Le monitor ops voit `ZeroClaw` en live, et le runtime natif a ete smoke-teste sur un appel reel via `OpenRouter`
+- [x] `Industrial Cockpit` expose comme surface operateur derriere `edge-proxy` sur `industrial.saillant.cc`, avec inventory des 7 serveurs MCP industriels visible dans `OpsHub`
+- [x] `industrial.saillant.cc/` et `industrial.saillant.cc/api/session` repondent `200` avec auth operateur; aucun port brut n'est expose pour ce cockpit
+- [x] `SearXNG`, `Paperless-ngx` et `Karakeep` sont exposes comme surfaces operateur derriere `edge-proxy`, avec URLs proxifiees dans `OpsHub` et verification live dans `/api/ops/monitor`
+- [x] `PLM` remonte maintenant dans la lane industrielle avec son contrat MCP explicite (`health` + `contract`) et un statut par operation `live` / `simulated` / `blocked`
+- [x] `QMS` remonte maintenant dans la lane industrielle avec son contrat MCP explicite (`health` + `contract`) et un statut par operation `live` / `simulated` / `blocked`
+- [x] Integrer un sandbox `DCS` gouverne local a la lane industrielle pour disposer d'un flux live-ready de demo sans write direct OT
+- [x] `Infrastructure` expose maintenant les compteurs de topologie industrielle utiles (`sites`, `external partners`, `lines`) pour le rollout `grandris-1` / `ems-lyon`
+- [x] `OpsHub` distingue maintenant posture runtime, observabilite et surfaces publiques/proxifiees
+- [x] `OpsHub` n'ouvre plus les surfaces tooling sur des ports bruts; il renvoie vers les hostnames proxifies proteges
 
 ## 3. Ce qui reste reellement
 
-### OTel Collector
-- [ ] Sortir `traces` et `metrics` du mode `debug` vers un backend reel si l'on veut les conserver
-- [ ] Decider si le warning de securite `0.0.0.0` doit etre accepte tel quel (bind hote deja borne en `127.0.0.1`) ou davantage restreint
-
-### Grafana
-- [ ] Etendre encore au-dela des dashboards de base deja poses (`Ops Overview`, `Service Logs`) si un domaine le justifie
-
-### Promtail
-- [ ] Verifier sur trafic reel la cardinalite des labels enrichis (`run_id`, `provider`, `routing_*`) a l'aide de `scripts/loki_cardinality_report.sh`
-- [ ] Ajuster la matrice `labels` vs `structured metadata` si Loki commence a grossir trop vite
-
-### Frontend Logs (ajustements mineurs)
-- [ ] Rien de bloquant dans ce lot; garder seulement les retours UX a froid apres usage
+- [ ] Etendre Grafana seulement si un nouveau domaine le justifie
+- [ ] Recueillir des retours UX a froid sur `Logs` et `OpsHub`
+- [ ] Etendre les actions operateur d'`Agent Zero` uniquement si un usage concret depasse le mode copilot actuel
+- [ ] N'etendre la stack `phase2` (`SearXNG`, `Paperless-ngx`, `Karakeep`) que si un workflow documentaire/recherche concret le justifie
+- [ ] Etendre le cockpit industriel seulement si un besoin reel depasse l'inventaire/runtime/tool-proxy actuel
+- [ ] Ne rouvrir `DCS` live externe qu'avec un vrai runtime/contrat OT; `WMS` est deja qualifie en `generic-rest` live-ready et reste volontairement `simulated` sur cette VM tant que le sandbox n'est pas configure
 
 ## 4. Complement optionnel
 
-- [ ] Statut `AgentSight` dans `/api/ops/sources`
-- [ ] Lien/documentation d'usage AgentSight si installe
+- [ ] Rebrancher `AgentSight` uniquement si un vrai besoin operateur reapparait
 
 ## 5. Hors perimetre de ce lot
 
-- [ ] Tuning ClickHouse agressif
-- [ ] TLS / certificat public
-- [ ] Lot CAD / KiCad local
-- [ ] Stabilisation batch fine-tuning end-to-end
+- [x] TLS / certificat public et DNS `*.saillant.cc`
+- [ ] Sujets externes providers/secrets: billing `Anthropic`, activation API Google, quota/token `NEXAR` si un sourcing live repart
+- [x] Setup Mac local (`MCP`, `Playwright MCP`) valide sur le poste operateur cible
+- [ ] Si le sourcing Nexar live devient critique, prevoir un token/plan avec quota de parts non nul
+- [ ] `K-012` uniquement si le host-native KiCad redevient requis
 
 ## 6. Ordre recommande
 
-1. Configurer le vrai exporter OTel Collector (remplacer le stub debug).
-2. Verifier la cardinalite Loki sur trafic reel et ajuster si besoin.
-3. Garder `AgentSight` en complement optionnel, en dernier.
+1. Ne pas rouvrir ce lot sans besoin concret.
+2. Considerer le lot cockpit/ops comme livre apres rejeu vert des checks canoniques du `2026-03-08`.
+3. Garder la ligne `MCP/agentics` sur le backlog specialise `Kill_LIFE/specs/mcp_tasks.md`.
+4. Traiter separement les sujets externes: billing `Anthropic`, activation API Google, quota `NEXAR` si besoin live.
+5. Ne pas traiter le repo compagnon `finetune/kicad_kic_ai` comme un delta `mascarade`; il suit sa propre publication.
+
+## 7. Automation
+
+Pour reprendre le lot local actif sans requalifier tout le contexte a la main:
+
+```bash
+cd /home/clems/mascarade
+bash scripts/run_next_useful_lot.sh
+  # enchaîner automatiquement (jusqu'au lot suivant) :
+  # bash scripts/run_next_useful_lot.sh --chain --max-rounds 3
+```
+
+Le snapshot genere par le script vit dans
+[NEXT_USEFUL_LOT_STATE.md](/home/clems/mascarade/docs/NEXT_USEFUL_LOT_STATE.md).

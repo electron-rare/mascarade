@@ -1,0 +1,452 @@
+{
+  "version": 1,
+  "generated_at": "2026-03-09T12:08:43",
+  "domain": "kicad",
+  "topic": "KiCad / PCB design",
+  "dataset_path": "/ai/saisail/mascarade/finetune/datasets/kicad_chat.jsonl",
+  "refresh": {
+    "domain": "kicad",
+    "generated_at": "2026-03-09T12:08:26",
+    "target_path": "/ai/saisail/mascarade/finetune/datasets/kicad_chat.jsonl",
+    "source_mode": "full_dataset_sync",
+    "source_path": "/ai/saisail/mascarade-datasets/kicad_chat.jsonl",
+    "builder": null,
+    "row_count": 2644,
+    "ids_fixed": 2645,
+    "duplicates_removed": 1,
+    "quality": {
+      "label": "kicad refreshed dataset",
+      "mode": "fail",
+      "status": "warning",
+      "metrics": {
+        "row_count": 2644,
+        "ids_fixed": 2645,
+        "ids_fixed_ratio": 1.0003782148260212,
+        "unique_system_prompts": 1,
+        "unique_user_prompts": 2024,
+        "duplicate_rows": 0,
+        "duplicate_ratio": 0.0,
+        "repeated_user_assistant_pairs": 0,
+        "repeated_pair_ratio": 0.0,
+        "assistant_len_avg": 931.1267019667171,
+        "assistant_len_p95": 3172,
+        "assistant_len_max": 4235,
+        "short_assistant_rows": 0,
+        "short_assistant_ratio": 0.0
+      },
+      "thresholds": {
+        "min_rows_fail": 4,
+        "recommended_rows_warn": 8,
+        "min_unique_users_fail": 4,
+        "max_duplicate_ratio_fail": 0.1,
+        "max_repeated_pair_ratio_fail": 0.1,
+        "max_assistant_p95_fail": 6000,
+        "max_assistant_max_fail": 9000,
+        "max_assistant_avg_warn": 3500,
+        "short_assistant_threshold": 64,
+        "max_short_assistant_ratio_warn": 0.25
+      },
+      "errors": [],
+      "warnings": [
+        "source ids are synthesized for 2645/2644 rows; persist ids in source JSONL for traceability",
+        "single system prompt across the dataset; style diversity is low"
+      ],
+      "would_fail": false,
+      "duplicates_removed_during_refresh": 1,
+      "assistant_rows_trimmed_during_refresh": 0
+    },
+    "legacy_ignored_paths": [
+      "finetune/build_components_dataset.py",
+      "finetune/build_freecad_dataset.py"
+    ]
+  },
+  "authoritative_urls": [
+    {
+      "label": "KiCad documentation",
+      "url": "https://docs.kicad.org/"
+    },
+    {
+      "label": "KiCad forum",
+      "url": "https://forum.kicad.info/"
+    },
+    {
+      "label": "Altium documentation",
+      "url": "https://www.altium.com/documentation/"
+    },
+    {
+      "label": "EasyEDA docs",
+      "url": "https://docs.easyeda.com/en/"
+    }
+  ],
+  "github_repos": [
+    {
+      "label": "KiCad GitHub org",
+      "url": "https://github.com/KiCad"
+    },
+    {
+      "label": "KiCad source mirror",
+      "url": "https://github.com/KiCad/kicad-source-mirror"
+    }
+  ],
+  "software_sources": [
+    {
+      "label": "KiCad source download",
+      "url": "https://www.kicad.org/download/source/"
+    },
+    {
+      "label": "KiCad developer docs",
+      "url": "https://dev-docs.kicad.org/"
+    },
+    {
+      "label": "Altium Designer docs",
+      "url": "https://www.altium.com/documentation/"
+    },
+    {
+      "label": "EasyEDA product",
+      "url": "https://www.easyeda.com/"
+    }
+  ],
+  "forum_urls": [
+    {
+      "label": "KiCad.info Forums",
+      "url": "https://forum.kicad.info/"
+    },
+    {
+      "label": "KiCad Community Forums",
+      "url": "https://www.kicad.org/community/forums/"
+    },
+    {
+      "label": "EEVblog Forum",
+      "url": "https://www.eevblog.com/forum/"
+    },
+    {
+      "label": "Electronics StackExchange PCB Design",
+      "url": "https://electronics.stackexchange.com/questions/tagged/pcb-design"
+    },
+    {
+      "label": "EDAboard",
+      "url": "https://www.edaboard.com/"
+    },
+    {
+      "label": "EasyEDA Forum",
+      "url": "https://easyeda.com/forum/"
+    },
+    {
+      "label": "Altium Forum",
+      "url": "https://forum.live.altium.com/"
+    },
+    {
+      "label": "Arduino Forum",
+      "url": "https://forum.arduino.cc/"
+    },
+    {
+      "label": "All About Circuits Forum",
+      "url": "https://forum.allaboutcircuits.com/"
+    },
+    {
+      "label": "element14 Community",
+      "url": "https://community.element14.com/"
+    }
+  ],
+  "datasheet_roots": [
+    {
+      "label": "KiCad library conventions",
+      "url": "https://klc.kicad.org/"
+    },
+    {
+      "label": "KiCad libraries",
+      "url": "https://kicad.github.io/"
+    },
+    {
+      "label": "EasyEDA libraries management",
+      "url": "https://docs.easyeda.com/en/Introduction/Libraries-Management/"
+    }
+  ],
+  "hf_sources": [
+    {
+      "name": "STEM-AI-mtl/Electrical-engineering",
+      "url": "https://huggingface.co/datasets/STEM-AI-mtl/Electrical-engineering"
+    },
+    {
+      "name": "bshada/electronics.stackexchange.com",
+      "url": "https://huggingface.co/datasets/bshada/electronics.stackexchange.com"
+    },
+    {
+      "name": "ksabeh/electronics-dataset",
+      "url": "https://huggingface.co/datasets/ksabeh/electronics-dataset"
+    }
+  ],
+  "queries": [
+    "site:docs.kicad.org differential pair design rules",
+    "site:forum.kicad.info footprint courtyard ipc",
+    "site:huggingface.co/datasets kicad pcb dataset"
+  ],
+  "trusted_domains": [
+    "docs.kicad.org",
+    "forum.kicad.info",
+    "huggingface.co"
+  ],
+  "minimum_web_roots": 8,
+  "minimum_quality_score": 6,
+  "web_probe": {
+    "domain": "kicad",
+    "generated_at": "2026-03-09T12:08:43",
+    "source_file": "/ai/saisail/mascarade/finetune/research_sources/domains/kicad.json",
+    "status": "partial",
+    "reachable_count": 19,
+    "total_count": 23,
+    "reachable_ratio": 0.8260869565217391,
+    "entries": [
+      {
+        "group": "authoritative_urls",
+        "label": "Altium documentation",
+        "url": "https://www.altium.com/documentation/",
+        "ok": true,
+        "status": 200,
+        "final_url": "https://www.altium.com/documentation/",
+        "method": "HEAD"
+      },
+      {
+        "group": "authoritative_urls",
+        "label": "EasyEDA docs",
+        "url": "https://docs.easyeda.com/en/",
+        "ok": true,
+        "status": 200,
+        "final_url": "https://docs.easyeda.com/en/",
+        "method": "HEAD"
+      },
+      {
+        "group": "authoritative_urls",
+        "label": "KiCad documentation",
+        "url": "https://docs.kicad.org/",
+        "ok": true,
+        "status": 200,
+        "final_url": "https://docs.kicad.org/",
+        "method": "HEAD"
+      },
+      {
+        "group": "authoritative_urls",
+        "label": "KiCad forum",
+        "url": "https://forum.kicad.info/",
+        "ok": true,
+        "status": 200,
+        "final_url": "https://forum.kicad.info/",
+        "method": "HEAD"
+      },
+      {
+        "group": "datasheet_roots",
+        "label": "EasyEDA libraries management",
+        "url": "https://docs.easyeda.com/en/Introduction/Libraries-Management/",
+        "ok": true,
+        "status": 200,
+        "final_url": "https://docs.easyeda.com/en/Introduction/Libraries-Management/",
+        "method": "HEAD"
+      },
+      {
+        "group": "datasheet_roots",
+        "label": "KiCad libraries",
+        "url": "https://kicad.github.io/",
+        "ok": true,
+        "status": 200,
+        "final_url": "https://kicad.github.io/",
+        "method": "HEAD"
+      },
+      {
+        "group": "datasheet_roots",
+        "label": "KiCad library conventions",
+        "url": "https://klc.kicad.org/",
+        "ok": true,
+        "status": 200,
+        "final_url": "https://klc.kicad.org/",
+        "method": "HEAD"
+      },
+      {
+        "group": "forum_urls",
+        "label": "All About Circuits Forum",
+        "url": "https://forum.allaboutcircuits.com/",
+        "ok": false,
+        "status": null,
+        "final_url": "https://forum.allaboutcircuits.com/",
+        "method": "GET",
+        "error": "http:403"
+      },
+      {
+        "group": "forum_urls",
+        "label": "Altium Forum",
+        "url": "https://forum.live.altium.com/",
+        "ok": true,
+        "status": 200,
+        "final_url": "https://forum.live.altium.com/",
+        "method": "HEAD"
+      },
+      {
+        "group": "forum_urls",
+        "label": "Arduino Forum",
+        "url": "https://forum.arduino.cc/",
+        "ok": true,
+        "status": 200,
+        "final_url": "https://forum.arduino.cc/",
+        "method": "HEAD"
+      },
+      {
+        "group": "forum_urls",
+        "label": "EDAboard",
+        "url": "https://www.edaboard.com/",
+        "ok": false,
+        "status": null,
+        "final_url": "https://www.edaboard.com/",
+        "method": "GET",
+        "error": "http:403"
+      },
+      {
+        "group": "forum_urls",
+        "label": "EEVblog Forum",
+        "url": "https://www.eevblog.com/forum/",
+        "ok": true,
+        "status": 200,
+        "final_url": "https://www.eevblog.com/forum/",
+        "method": "HEAD"
+      },
+      {
+        "group": "forum_urls",
+        "label": "EasyEDA Forum",
+        "url": "https://easyeda.com/forum/",
+        "ok": true,
+        "status": 200,
+        "final_url": "https://easyeda.com/forum/",
+        "method": "HEAD"
+      },
+      {
+        "group": "forum_urls",
+        "label": "Electronics StackExchange PCB Design",
+        "url": "https://electronics.stackexchange.com/questions/tagged/pcb-design",
+        "ok": false,
+        "status": null,
+        "final_url": "https://electronics.stackexchange.com/questions/tagged/pcb-design",
+        "method": "GET",
+        "error": "http:403"
+      },
+      {
+        "group": "forum_urls",
+        "label": "KiCad Community Forums",
+        "url": "https://www.kicad.org/community/forums/",
+        "ok": true,
+        "status": 200,
+        "final_url": "https://www.kicad.org/community/forums/",
+        "method": "HEAD"
+      },
+      {
+        "group": "forum_urls",
+        "label": "KiCad.info Forums",
+        "url": "https://forum.kicad.info/",
+        "ok": true,
+        "status": 200,
+        "final_url": "https://forum.kicad.info/",
+        "method": "HEAD"
+      },
+      {
+        "group": "forum_urls",
+        "label": "element14 Community",
+        "url": "https://community.element14.com/",
+        "ok": false,
+        "status": null,
+        "final_url": "https://community.element14.com/",
+        "method": "GET",
+        "error": "The read operation timed out"
+      },
+      {
+        "group": "github_repos",
+        "label": "KiCad GitHub org",
+        "url": "https://github.com/KiCad",
+        "ok": true,
+        "status": 200,
+        "final_url": "https://github.com/KiCad",
+        "method": "HEAD"
+      },
+      {
+        "group": "github_repos",
+        "label": "KiCad source mirror",
+        "url": "https://github.com/KiCad/kicad-source-mirror",
+        "ok": true,
+        "status": 200,
+        "final_url": "https://github.com/KiCad/kicad-source-mirror",
+        "method": "HEAD"
+      },
+      {
+        "group": "software_sources",
+        "label": "Altium Designer docs",
+        "url": "https://www.altium.com/documentation/",
+        "ok": true,
+        "status": 200,
+        "final_url": "https://www.altium.com/documentation/",
+        "method": "HEAD"
+      },
+      {
+        "group": "software_sources",
+        "label": "EasyEDA product",
+        "url": "https://www.easyeda.com/",
+        "ok": true,
+        "status": 200,
+        "final_url": "https://www.easyeda.com/",
+        "method": "HEAD"
+      },
+      {
+        "group": "software_sources",
+        "label": "KiCad developer docs",
+        "url": "https://dev-docs.kicad.org/",
+        "ok": true,
+        "status": 200,
+        "final_url": "https://dev-docs.kicad.org/",
+        "method": "HEAD"
+      },
+      {
+        "group": "software_sources",
+        "label": "KiCad source download",
+        "url": "https://www.kicad.org/download/source/",
+        "ok": true,
+        "status": 200,
+        "final_url": "https://www.kicad.org/download/source/",
+        "method": "HEAD"
+      }
+    ]
+  },
+  "legacy_ignored_paths": [
+    "finetune/build_components_dataset.py",
+    "finetune/build_freecad_dataset.py"
+  ],
+  "operator_checklist": [
+    "sample at least 20 refreshed rows and verify technical plausibility",
+    "confirm the newest web findings are represented in prompts/answers",
+    "check duplicates and over-long answers before training",
+    "record any accepted new sources in the research brief before publish"
+  ],
+  "research_validation": {
+    "valid": true,
+    "web_roots_count": 26,
+    "authoritative_count": 4,
+    "github_count": 2,
+    "software_count": 4,
+    "forum_count": 10,
+    "datasheet_count": 3,
+    "hf_count": 3,
+    "query_count": 3,
+    "trusted_domain_count": 3,
+    "minimum_web_roots": 8,
+    "quality_score": 9,
+    "minimum_quality_score": 6,
+    "quality_checks": {
+      "authoritative_sources": true,
+      "github_or_software_sources": true,
+      "forum_coverage": true,
+      "datasheet_or_vendor_roots": true,
+      "hf_or_dataset_roots": true,
+      "query_coverage": true,
+      "trusted_domains_coverage": true,
+      "web_root_depth": true,
+      "live_web_probe": true
+    },
+    "web_probe_status": "partial",
+    "web_probe_reachable_count": 19,
+    "web_probe_total_count": 23
+  }
+}

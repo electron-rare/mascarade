@@ -7,6 +7,7 @@
 #   ./train_parallel.sh                           # Train remaining domains (serial by default)
 #   ./train_parallel.sh --domains power,dsp,emc  # Specific domains
 #   MASCARADE_ALLOW_PARALLEL_CPU=1 ./train_parallel.sh --parallel 3
+#   MASCARADE_ALLOW_PARALLEL_CPU=1 ./train_parallel.sh --preset cpu4
 #
 
 set -euo pipefail
@@ -28,6 +29,10 @@ SEQ_LEN=512
 EPOCHS=2
 MAX_SAMPLES=500
 MAX_PARALLEL=1
+THREADS_PER_STUDENT=0
+AUTO_THREADS=1
+PRESET=""
+OUTPUT_ROOT="${SCRIPT_DIR}/models_local"
 SELECTED_DOMAINS=""
 
 RED='\033[0;31m'
@@ -46,14 +51,36 @@ while [[ $# -gt 0 ]]; do
         --epochs) EPOCHS="$2"; shift 2 ;;
         --max-samples) MAX_SAMPLES="$2"; shift 2 ;;
         --parallel) MAX_PARALLEL="$2"; shift 2 ;;
+        --threads-per-student) THREADS_PER_STUDENT="$2"; shift 2 ;;
+        --preset) PRESET="$2"; shift 2 ;;
+        --output-root) OUTPUT_ROOT="$2"; shift 2 ;;
+        --auto-threads) AUTO_THREADS=1; shift ;;
+        --no-auto-threads) AUTO_THREADS=0; shift ;;
         -h|--help)
             echo "Usage: $0 [--domains d1,d2] [--parallel N] [--max-samples N]"
             echo "By default CPU training is serialized on this machine."
             echo "Set MASCARADE_ALLOW_PARALLEL_CPU=1 to allow --parallel > 1."
+            echo "Presets: --preset cpu3 | --preset cpu4"
             exit 0 ;;
         *) echo "Unknown: $1"; exit 1 ;;
     esac
 done
+
+case "$PRESET" in
+    "" ) ;;
+    cpu3)
+        MAX_PARALLEL=3
+        AUTO_THREADS=1
+        ;;
+    cpu4)
+        MAX_PARALLEL=4
+        AUTO_THREADS=1
+        ;;
+    *)
+        echo "Unknown preset: $PRESET" >&2
+        exit 1
+        ;;
+esac
 
 if [[ "$MAX_PARALLEL" -gt 1 && "${MASCARADE_ALLOW_PARALLEL_CPU:-0}" != "1" ]]; then
     echo "Parallel CPU training above 1 is disabled by default on this machine." >&2
@@ -82,7 +109,7 @@ DOMAINS=()
 SKIPPED=()
 for d in $DOMAINS_TO_CHECK; do
     dataset="${DATASETS_DIR}/${d}_chat.jsonl"
-    adapter="${SCRIPT_DIR}/models_local/${d}/adapter"
+    adapter="${OUTPUT_ROOT}/${d}/adapter"
     if [[ ! -f "$dataset" ]]; then
         SKIPPED+=("$d (no dataset)")
     elif [[ -d "$adapter" ]]; then
@@ -104,6 +131,7 @@ echo -e "  ${BOLD}Seq len:${NC}    $SEQ_LEN"
 echo -e "  ${BOLD}Epochs:${NC}     $EPOCHS"
 echo -e "  ${BOLD}Samples:${NC}    $MAX_SAMPLES"
 echo -e "  ${BOLD}Parallel:${NC}   $MAX_PARALLEL"
+echo -e "  ${BOLD}Preset:${NC}     ${PRESET:-manual}"
 echo -e "  ${BOLD}To train:${NC}   $TOTAL"
 
 if [[ ${#SKIPPED[@]} -gt 0 ]]; then
@@ -123,20 +151,37 @@ train_one() {
 
     echo -e "  ${CYAN}START${NC} ${domain} → ${DIM}${log_file}${NC}"
 
-    # Limit threads per process to share CPU fairly
-    local threads=$(( $(nproc) / MAX_PARALLEL ))
-    [[ $threads -lt 1 ]] && threads=1
+    local cpu_count reserve_threads threads
+    cpu_count="$(nproc)"
+    reserve_threads=2
+    if [[ "$THREADS_PER_STUDENT" -gt 0 ]]; then
+        threads="$THREADS_PER_STUDENT"
+    elif [[ "$AUTO_THREADS" -eq 1 ]]; then
+        threads=$(( (cpu_count - reserve_threads) / MAX_PARALLEL ))
+        [[ $threads -lt 1 ]] && threads=1
+        if [[ "$MAX_PARALLEL" -ge 4 && "$threads" -gt 5 ]]; then
+            threads=5
+        elif [[ "$MAX_PARALLEL" -eq 3 && "$threads" -gt 6 ]]; then
+            threads=6
+        fi
+    else
+        threads=$(( cpu_count / MAX_PARALLEL ))
+        [[ $threads -lt 1 ]] && threads=1
+    fi
+    echo -e "  ${DIM}THREADS${NC} ${domain} → ${threads}" | tee -a "$log_file"
 
     CUDA_VISIBLE_DEVICES="" \
     OMP_NUM_THREADS=$threads \
     MKL_NUM_THREADS=$threads \
     OPENBLAS_NUM_THREADS=$threads \
+    NUMEXPR_NUM_THREADS=$threads \
     python "${SCRIPT_DIR}/train_cpu.py" \
         "$domain" \
         --model "$MODEL" \
         --seq-len "$SEQ_LEN" \
         --epochs "$EPOCHS" \
         --max-samples "$MAX_SAMPLES" \
+        --output-dir "${OUTPUT_ROOT}/${domain}" \
         --eval \
         > "$log_file" 2>&1
 
@@ -151,7 +196,7 @@ train_one() {
 }
 
 export -f train_one
-export SCRIPT_DIR LOG_DIR MAX_PARALLEL MODEL SEQ_LEN EPOCHS MAX_SAMPLES
+export SCRIPT_DIR LOG_DIR MAX_PARALLEL MODEL SEQ_LEN EPOCHS MAX_SAMPLES OUTPUT_ROOT
 export RED GREEN YELLOW CYAN BOLD DIM NC
 
 # Run in waves
@@ -228,7 +273,7 @@ echo ""
 # Show results
 echo -e "  ${BOLD}Adapters:${NC}"
 for d in "${DOMAINS[@]}"; do
-    adapter="${SCRIPT_DIR}/models_local/${d}/adapter"
+    adapter="${OUTPUT_ROOT}/${d}/adapter"
     if [[ -d "$adapter" ]]; then
         size=$(du -sh "$adapter" 2>/dev/null | cut -f1)
         log=$(ls -t "${LOG_DIR}/${d}_parallel_"*.log 2>/dev/null | head -1)
