@@ -524,11 +524,11 @@ prompt_p2p_setup() {
         CLUSTER_MDNS_ADVERTISE="${CLUSTER_MDNS_ADVERTISE:-false}"
     fi
     if [[ "${CLUSTER_FORWARD_ENABLED:-true}" == "true" ]]; then
-        if ! confirm "Garder le forward `core -> core` actif ?"; then
+        if ! confirm "Garder le forward 'core -> core' actif ?"; then
             CLUSTER_FORWARD_ENABLED=false
         fi
     else
-        if confirm "Activer le forward `core -> core` ?"; then
+        if confirm "Activer le forward 'core -> core' ?"; then
             CLUSTER_FORWARD_ENABLED=true
         fi
     fi
