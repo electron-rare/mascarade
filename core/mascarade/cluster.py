@@ -333,7 +333,8 @@ class ClusterManager:
         self._router = router
         self._agents_count_provider = agents_count_provider
         self._timeout_s = max(settings.cluster_request_timeout_ms, 500) / 1000
-        self._http_client: httpx.AsyncClient | None = httpx.AsyncClient(timeout=self._timeout_s)
+        self._http_client: httpx.AsyncClient | None = None
+        self._http_limits = httpx.Limits(max_connections=64, max_keepalive_connections=16)
         self._peers = parse_cluster_peers(settings.cluster_peers, node_id=settings.node_id)
         self._mdns_peers: dict[str, ClusterPeer] = {}
         self._mdns_discovery_expiry = 0.0
@@ -411,6 +412,15 @@ class ClusterManager:
         if self._http_client is not None:
             await self._http_client.aclose()
             self._http_client = None
+
+    def _ensure_http_client(self) -> httpx.AsyncClient:
+        if self._http_client is None or self._http_client.is_closed:
+            self._http_client = httpx.AsyncClient(
+                timeout=self._timeout_s,
+                limits=self._http_limits,
+                follow_redirects=False,
+            )
+        return self._http_client
 
     def _p2p_local_send(self, payload: dict) -> dict:
         """Sync wrapper for local send (used by libp2p backend from trio thread)."""
@@ -1007,6 +1017,27 @@ class ClusterManager:
         """Handle an incoming P2P stream forward request via the local router."""
         return await self._send_local(request_data)
 
+    def _resolve_p2p_forward_target(self, peer_id: str) -> str:
+        """Resolve the transport-specific peer identifier for opportunistic P2P forwarding."""
+        if self._p2p_node is None:
+            return peer_id
+
+        discovered_peers = getattr(self._p2p_node, "discovered_peers", None)
+        if not callable(discovered_peers):
+            return peer_id
+
+        try:
+            for p2p_peer in discovered_peers():
+                if getattr(p2p_peer, "peer_id", None) != peer_id:
+                    continue
+                libp2p_peer_id = getattr(p2p_peer, "libp2p_peer_id", None)
+                if isinstance(libp2p_peer_id, str) and libp2p_peer_id.strip():
+                    return libp2p_peer_id.strip()
+                return peer_id
+        except Exception as exc:  # pragma: no cover - defensive
+            logger.debug("P2P peer target resolution failed for %s: %s", peer_id, exc)
+        return peer_id
+
     async def _try_p2p_forward(
         self, peer_id: str, payload: dict[str, object],
     ) -> dict[str, object] | None:
@@ -1014,13 +1045,22 @@ class ClusterManager:
         if self._p2p_node is None:
             return None
         forwarder = getattr(self._p2p_node, "forwarder", None)
-        if forwarder is None or not forwarder.can_forward(peer_id):
+        if forwarder is not None and forwarder.can_forward(peer_id):
+            try:
+                result = await forwarder.forward_request(peer_id, dict(payload))
+                return result
+            except (TimeoutError, ConnectionError, RuntimeError):
+                logger.debug("P2P forward to %s failed, falling back to HTTP", peer_id)
+        forward_send = getattr(self._p2p_node, "forward_send", None)
+        if not callable(forward_send):
             return None
+
+        target_peer = self._resolve_p2p_forward_target(peer_id)
         try:
-            result = await forwarder.forward_request(peer_id, dict(payload))
+            result = await forward_send(target_peer, dict(payload))
             return result
-        except (TimeoutError, ConnectionError, RuntimeError):
-            logger.debug("P2P forward to %s failed, falling back to HTTP", peer_id)
+        except (TimeoutError, ConnectionError, RuntimeError, ValueError):
+            logger.debug("libp2p forward to %s failed, falling back to HTTP", peer_id)
             return None
 
     async def _request_json(
@@ -1039,10 +1079,9 @@ class ClusterManager:
             "Authorization": f"Bearer {settings.cluster_shared_key.strip()}",
             "X-Mascarade-Node-ID": settings.node_id,
         }
-        if self._http_client is None:
-            self._http_client = httpx.AsyncClient(timeout=self._timeout_s)
+        client = self._ensure_http_client()
         try:
-            response = await self._http_client.request(method, url, json=json, headers=headers)
+            response = await client.request(method, url, json=json, headers=headers)
         except httpx.TimeoutException as exc:
             raise HTTPException(status_code=502, detail=f"Cluster peer timed out: {peer.peer_id}") from exc
         except httpx.HTTPError as exc:

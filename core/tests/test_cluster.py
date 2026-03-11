@@ -28,10 +28,14 @@ def _restore_cluster_settings():
         "cluster_mdns_service": settings.cluster_mdns_service,
         "cluster_mdns_discovery_ttl_seconds": settings.cluster_mdns_discovery_ttl_seconds,
         "cluster_mdns_advertise": settings.cluster_mdns_advertise,
+        "cluster_require_tls": settings.cluster_require_tls,
+        "cluster_allow_insecure_loopback": settings.cluster_allow_insecure_loopback,
         "mascarade_api_key": settings.mascarade_api_key,
     }
     for key in get_active_api_keys():
         remove_api_key(key)
+    settings.cluster_require_tls = False
+    settings.cluster_allow_insecure_loopback = True
     yield
     for key, value in snapshot.items():
         setattr(settings, key, value)
@@ -220,6 +224,83 @@ async def test_cluster_manager_forward_send_returns_remote_payload(monkeypatch):
     assert result["peer_id"] == "node-gpu"
     assert result["node_id"] == "node-gpu"
     assert result["content"] == "remote hello"
+
+
+@pytest.mark.asyncio
+async def test_cluster_manager_forward_send_uses_libp2p_when_available(monkeypatch):
+    settings.cluster_enabled = True
+    settings.cluster_shared_key = "cluster-key-123456"
+    settings.node_id = "node-1"
+    settings.node_role = "general"
+    settings.node_label = "Node One"
+    settings.cluster_request_timeout_ms = 5000
+    settings.cluster_peers = ""
+
+    manager = ClusterManager(router=_RouterLike(), agents_count_provider=lambda: 1)
+
+    class _Libp2PPeer:
+        peer_id = "node-gpu"
+        role = "gpu"
+        base_url = "http://100.64.0.20:8100"
+        libp2p_peer_id = "12D3KooWRemotePeer"
+
+    class _FakeLibp2PNode:
+        def __init__(self):
+            self.forward_calls = []
+
+        def discovered_peers(self):
+            return [_Libp2PPeer()]
+
+        async def forward_send(self, libp2p_peer_id, payload):
+            self.forward_calls.append((libp2p_peer_id, payload))
+            return {
+                "node_id": "node-gpu",
+                "content": "remote hello over p2p",
+                "model": "llama3.2:3b",
+                "provider": "ollama",
+                "usage": {"input_tokens": 2, "output_tokens": 3},
+            }
+
+    fake_node = _FakeLibp2PNode()
+    manager.set_p2p_node(fake_node)
+
+    async def fail_http(*args, **kwargs):
+        raise AssertionError("HTTP fallback should not be used when libp2p forwarding succeeds")
+
+    monkeypatch.setattr(manager, "_request_json", fail_http)
+
+    result = await manager.forward_send(
+        peer_id="node-gpu",
+        payload={
+            "messages": [{"role": "user", "content": "hello"}],
+            "strategy": "best",
+            "provider": "ollama",
+            "model": "llama3.2:3b",
+            "system": None,
+            "temperature": 0.7,
+            "max_tokens": 2048,
+        },
+    )
+
+    assert fake_node.forward_calls == [
+        (
+            "12D3KooWRemotePeer",
+            {
+                "messages": [{"role": "user", "content": "hello"}],
+                "strategy": "best",
+                "provider": "ollama",
+                "model": "llama3.2:3b",
+                "system": None,
+                "temperature": 0.7,
+                "max_tokens": 2048,
+            },
+        )
+    ]
+    assert result["remote"] is True
+    assert result["transport"] == "p2p"
+    assert result["peer_id"] == "node-gpu"
+    assert result["node_id"] == "node-gpu"
+    assert result["content"] == "remote hello over p2p"
 
 
 @pytest.mark.asyncio
