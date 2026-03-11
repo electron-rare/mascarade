@@ -1,23 +1,25 @@
-const API_KEY_COOKIE = "mascarade_key";
 const API_KEY_PERSIST_FLAG = "mascarade_key_persist";
-const PERSIST_MAX_AGE = 30 * 24 * 3600; // 30 days
 const DEFAULT_TIMEOUT_MS = 30_000;
 const VALIDATE_TIMEOUT_MS = 5_000;
+const AUTH_SESSION_PATH = "/api/auth/session";
 
-function setCookie(name: string, value: string, maxAge?: number) {
-  // SameSite=Strict + Secure in production — mitigates XSS/CSRF
-  const secure = location.protocol === "https:" ? ";Secure" : "";
-  const age = maxAge !== undefined ? `;Max-Age=${maxAge}` : "";
-  document.cookie = `${name}=${encodeURIComponent(value)};SameSite=Strict;Path=/${secure}${age}`;
-}
-
-function deleteCookie(name: string) {
-  document.cookie = `${name}=;SameSite=Strict;Path=/;Max-Age=0`;
-}
-
-function getCookie(name: string): string {
-  const match = document.cookie.match(new RegExp(`(?:^|; )${name}=([^;]*)`));
-  return match ? decodeURIComponent(match[1]) : "";
+async function upsertSessionCookie(key: string, persist: boolean): Promise<boolean> {
+  const headers = new Headers();
+  headers.set("Authorization", `Bearer ${key}`);
+  headers.set("Content-Type", "application/json");
+  headers.set("X-Mascarade-Session-Persist", persist ? "1" : "0");
+  try {
+    const res = await fetch(AUTH_SESSION_PATH, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ persist }),
+      credentials: "include",
+      signal: AbortSignal.timeout(VALIDATE_TIMEOUT_MS),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
 }
 
 // --- Global 401 bus ---
@@ -36,7 +38,7 @@ function _emit401() {
 }
 
 export function getApiKey(): string {
-  return getCookie(API_KEY_COOKIE);
+  return "";
 }
 
 export function isPersisted(): boolean {
@@ -47,28 +49,43 @@ export function isPersisted(): boolean {
   }
 }
 
-export function setApiKey(key: string, persist = false) {
+export async function setApiKey(key: string, persist = false): Promise<boolean> {
   if (!key) {
-    clearApiKey();
-    return;
+    await clearApiKey();
+    return false;
   }
-  setCookie(API_KEY_COOKIE, key, persist ? PERSIST_MAX_AGE : undefined);
+  const ok = await upsertSessionCookie(key, persist);
+  if (!ok) {
+    await clearApiKey();
+    return false;
+  }
   try {
     localStorage.setItem(API_KEY_PERSIST_FLAG, persist ? "1" : "0");
   } catch { /* private browsing */ }
+  return true;
 }
 
-export function clearApiKey() {
-  deleteCookie(API_KEY_COOKIE);
+export async function clearApiKey(): Promise<void> {
+  try {
+    await fetch(AUTH_SESSION_PATH, {
+      method: "DELETE",
+      credentials: "include",
+      signal: AbortSignal.timeout(VALIDATE_TIMEOUT_MS),
+    });
+  } catch { /* ignore */ }
   try {
     localStorage.removeItem(API_KEY_PERSIST_FLAG);
   } catch { /* private browsing */ }
 }
 
-export async function validateApiKey(key: string): Promise<boolean> {
+export async function validateApiKey(key?: string): Promise<boolean> {
+  const candidate = (key || "").trim();
+  if (candidate) {
+    return upsertSessionCookie(candidate, isPersisted());
+  }
   try {
     const res = await fetch("/api/agents/providers", {
-      headers: { Authorization: `Bearer ${key}` },
+      credentials: "include",
       signal: AbortSignal.timeout(VALIDATE_TIMEOUT_MS),
     });
     return res.ok;
@@ -156,13 +173,9 @@ export async function api<T>(
     timeoutMs = DEFAULT_TIMEOUT_MS,
     ...requestOptions
   } = options;
-  const key = getApiKey();
   const headers = new Headers(initHeaders);
   if (requestOptions.body !== undefined && requestOptions.body !== null && !headers.has("Content-Type")) {
     headers.set("Content-Type", "application/json");
-  }
-  if (key && !headers.has("Authorization")) {
-    headers.set("Authorization", `Bearer ${key}`);
   }
 
   const controller = new AbortController();
@@ -180,6 +193,7 @@ export async function api<T>(
       ...requestOptions,
       headers,
       signal: controller.signal,
+      credentials: "include",
     });
 
     const contentType = res.headers.get("content-type") ?? "";
