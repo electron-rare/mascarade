@@ -97,6 +97,11 @@ class Settings(BaseSettings):
     ollama_base_url: str = "http://ollama:11434"
     ollama_timeout_seconds: float = 180.0
 
+    # llama.cpp (OpenAI-compatible local server)
+    llama_cpp_enabled: bool = False
+    llama_cpp_base_url: str = "http://localhost:8081/v1"
+    llama_cpp_timeout_seconds: float = 120.0
+
     # Apple Silicon local LLM service
     apple_llm_enabled: bool = False
     apple_llm_base_url: str = "http://apple-llm:8201"
