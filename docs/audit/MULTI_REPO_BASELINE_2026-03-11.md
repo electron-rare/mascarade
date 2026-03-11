@@ -8,7 +8,7 @@
 
 - Root: `/Users/electron/mascarade`
 - Branch: `feat/apple-coreml-runtime-lot`
-- Dirty entries: `69`
+- Dirty entries: `6`
 - Primary README: `README.md`
 - Primary plan anchor: `plan.md`
 - First TODO anchor: `TODO_AI_NOVEL_ENGINE.md`
@@ -25,7 +25,7 @@
 | Test files | 58 |
 | Shell scripts | 139 |
 | Python files | 256 |
-| TS/TSX files | 119 |
+| TS/TSX files | 120 |
 
 ### Gaps
 - Baseline documentation anchors exist; refresh and alignment remain required.
@@ -34,7 +34,7 @@
 
 - Root: `/Users/electron/crazy_life`
 - Branch: `main`
-- Dirty entries: `5`
+- Dirty entries: `11`
 - Primary README: `README.md`
 - Primary plan anchor: `plan.md`
 - First TODO anchor: `docs/TODO_2026-03-10.md`
@@ -60,7 +60,7 @@
 
 - Root: `/Users/electron/Kill_LIFE`
 - Branch: `main`
-- Dirty entries: `6`
+- Dirty entries: `7`
 - Primary README: `README.md`
 - Primary plan anchor: `docs/plans/README.md`
 - First TODO anchor: `ai-agentic-embedded-base/specs/04_tasks.md`
@@ -71,14 +71,14 @@
 | MANIFEST files | 0 |
 | Plan files | 26 |
 | TODO/task files | 3 |
-| Diagram files | 5 |
-| Sequence diagram files | 1 |
-| Feature-map-like files | 0 |
+| Diagram files | 6 |
+| Sequence diagram files | 2 |
+| Feature-map-like files | 1 |
 | Test files | 17 |
 | Shell scripts | 52 |
 | Python files | 98 |
 | TS/TSX files | 0 |
 
 ### Gaps
-- Missing explicit feature map or functional cartography.
+- Baseline documentation anchors exist; refresh and alignment remain required.
 
