@@ -5,7 +5,7 @@ const industrialMcp = new Hono();
 const COCKPIT_BASE_URL = (process.env.AGENT_FACTORY_COCKPIT_URL || "http://agent-factory-cockpit:4173").replace(/\/$/, "");
 const COCKPIT_MCP_PATH = process.env.AGENT_FACTORY_COCKPIT_MCP_PATH || "/mcp/industrial";
 const REQUEST_TIMEOUT_MS = parseInt(process.env.AGENT_FACTORY_COCKPIT_MCP_TIMEOUT_MS || "30000", 10);
-const DEFAULT_GROUPS = process.env.AGENT_FACTORY_COCKPIT_PROXY_GROUPS || "operator,approver,auditor,admin";
+const STATIC_PROXY_GROUPS = String(process.env.AGENT_FACTORY_COCKPIT_PROXY_GROUPS || "").trim();
 
 function cockpitMcpUrl(pathSuffix = ""): string {
   return `${COCKPIT_BASE_URL}${COCKPIT_MCP_PATH}${pathSuffix}`;
@@ -25,12 +25,15 @@ function forwardedIdentityHeaders(headers: Headers): Record<string, string> {
   const forwardedGroups =
     headers.get("X-Forwarded-Groups") ||
     headers.get("X-Auth-Request-Groups") ||
-    DEFAULT_GROUPS;
-  return {
+    STATIC_PROXY_GROUPS;
+  const forwarded: Record<string, string> = {
     "X-Forwarded-User": forwardedUser,
     "X-Forwarded-Email": forwardedEmail || forwardedUser,
-    "X-Forwarded-Groups": forwardedGroups,
   };
+  if (forwardedGroups) {
+    forwarded["X-Forwarded-Groups"] = forwardedGroups;
+  }
+  return forwarded;
 }
 
 async function proxyCockpitMcp(request: Request, pathSuffix = ""): Promise<Response> {

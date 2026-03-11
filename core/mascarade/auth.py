@@ -18,6 +18,7 @@ _api_keys: set[str] = set()
 _last_key_rotation = 0
 _KEY_ROTATION_INTERVAL = 3600
 _keys_lock = threading.Lock()
+_MIN_API_KEY_LENGTH = 16
 
 
 def _load_api_keys() -> None:
@@ -29,7 +30,7 @@ def _load_api_keys() -> None:
             new_keys = {
                 key.strip()
                 for key in settings.mascarade_api_key.split(",")
-                if key.strip() and len(key.strip()) >= 8
+                if key.strip() and len(key.strip()) >= _MIN_API_KEY_LENGTH
             }
             if new_keys != _api_keys:
                 logger.info("Loading API keys: %d keys configured", len(new_keys))
@@ -62,7 +63,7 @@ def _timing_safe_compare(a: str, b: str) -> bool:
 
 def is_valid_api_key(key: str) -> bool:
     """Check if an API key is valid (thread-safe, timing-safe)."""
-    if not key or len(key.strip()) < 8:
+    if not key or len(key.strip()) < _MIN_API_KEY_LENGTH:
         return False
 
     _rotate_keys_if_needed()
@@ -93,14 +94,14 @@ async def require_auth(
 
 def add_api_key(key: str) -> None:
     """Add a new API key (for rotation) - thread-safe."""
-    if not key or len(key.strip()) < 8:
-        logger.warning(f"Attempt to add invalid API key (too short): {key[:10]}...")
+    if not key or len(key.strip()) < _MIN_API_KEY_LENGTH:
+        logger.warning("Attempt to add invalid API key (too short)")
         return
 
     with _keys_lock:
         if key.strip() not in _api_keys:
             _api_keys.add(key.strip())
-            logger.info(f"API key added: {key[:5]}...{key[-3:]}")
+            logger.info("API key added")
 
 
 def remove_api_key(key: str) -> None:
@@ -111,7 +112,7 @@ def remove_api_key(key: str) -> None:
     with _keys_lock:
         if key.strip() in _api_keys:
             _api_keys.discard(key.strip())
-            logger.info(f"API key removed: {key[:5]}...{key[-3:]}")
+            logger.info("API key removed")
 
 
 def get_active_api_keys() -> list[str]:
