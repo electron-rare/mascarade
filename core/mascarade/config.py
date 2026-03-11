@@ -130,6 +130,8 @@ class Settings(BaseSettings):
     cluster_request_timeout_ms: int = 5000
     cluster_heartbeat_seconds: int = 30
     cluster_forward_enabled: bool = True
+    cluster_require_tls: bool = True
+    cluster_allow_insecure_loopback: bool = True
     cluster_peers: str = ""
     cluster_mdns_enabled: bool = False
     cluster_mdns_service: str = "_mascarade._tcp.local."
@@ -148,6 +150,7 @@ class Settings(BaseSettings):
     p2p_discovery_interval_seconds: int = 30
     p2p_peer_ttl_seconds: int = 90
     p2p_pubsub_enabled: bool = False
+    p2p_require_signatures: bool = True
     # Device voice sessions
     device_stt_model: str = "gpt-4o-mini-transcribe"
     device_stt_language: str = "fr"

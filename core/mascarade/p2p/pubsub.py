@@ -3,13 +3,15 @@
 from __future__ import annotations
 
 import asyncio
-import hashlib
 import logging
 import time
+import uuid
 from collections import defaultdict
 from dataclasses import dataclass
 from typing import Any, Callable, Coroutine
 
+from mascarade.p2p.auth import MessageAuthenticator
+from mascarade.p2p.identity import PeerIdentity
 from mascarade.p2p.protocol import P2PMessage
 from mascarade.p2p.transport import P2PTransport, PeerConnection
 
@@ -34,9 +36,19 @@ class P2PPubSub:
         self._transport = transport
         self._subscriptions: dict[str, list[TopicHandler]] = defaultdict(list)
         self._seen: dict[str, _SeenEntry] = {}
+        self._seen_lock = asyncio.Lock()
+        self._authenticator: MessageAuthenticator | None = None
 
         transport.on_message("pubsub:publish", self._handle_publish)
         transport.on_message("pubsub:subscribe", self._handle_subscribe)
+
+    def enable_authentication(
+        self,
+        identity: PeerIdentity,
+        *,
+        reject_unsigned: bool = True,
+    ) -> None:
+        self._authenticator = MessageAuthenticator(identity, reject_unsigned=reject_unsigned)
 
     def subscribe(self, topic: str, handler: TopicHandler) -> None:
         self._subscriptions[topic].append(handler)
@@ -44,7 +56,8 @@ class P2PPubSub:
 
     async def publish(self, topic: str, data: dict[str, Any]) -> int:
         nonce = self._make_nonce(topic, data)
-        self._mark_seen(nonce)
+        async with self._seen_lock:
+            self._mark_seen(nonce)
 
         msg = P2PMessage(
             type="pubsub:publish",
@@ -52,16 +65,23 @@ class P2PPubSub:
             payload={"topic": topic, "data": data},
             nonce=nonce,
         )
+        if self._authenticator is not None:
+            msg = self._authenticator.sign(msg)
         return await self._transport.broadcast(msg)
 
     async def _handle_publish(self, msg: P2PMessage, conn: PeerConnection) -> None:
+        if self._authenticator is not None and not self._authenticator.verify(msg):
+            logger.warning("Dropping unsigned/invalid pubsub message topic=%s from=%s", msg.payload.get("topic", ""), msg.sender)
+            return
+
         nonce = msg.nonce or self._make_nonce(
             msg.payload.get("topic", ""), msg.payload.get("data", {}),
         )
 
-        if self._is_seen(nonce):
-            return
-        self._mark_seen(nonce)
+        async with self._seen_lock:
+            if self._is_seen(nonce):
+                return
+            self._mark_seen(nonce)
 
         topic = msg.payload.get("topic", "")
         data = msg.payload.get("data", {})
@@ -74,25 +94,29 @@ class P2PPubSub:
             except Exception:
                 logger.exception("PubSub handler error on topic %s", topic)
 
-        # Re-gossip to other peers (excluding sender)
+        # Re-gossip to other peers in parallel (excluding sender)
         relay = P2PMessage(
             type="pubsub:publish",
             sender=msg.sender,
             payload=msg.payload,
             ts=msg.ts,
             nonce=nonce,
+            signature=msg.signature,
+            public_key=msg.public_key,
         )
+        sends = []
         for peer_id, peer_conn in self._transport.peers.items():
             if peer_id != msg.sender and peer_id != self._local_peer_id:
-                await peer_conn.send(relay)
+                sends.append(peer_conn.send(relay))
+        if sends:
+            await asyncio.gather(*sends, return_exceptions=True)
 
     async def _handle_subscribe(self, msg: P2PMessage, conn: PeerConnection) -> None:
         # Remote peer declares interest in a topic — we track it for targeted gossip
         pass
 
     def _make_nonce(self, topic: str, data: dict[str, Any]) -> str:
-        raw = f"{self._local_peer_id}:{topic}:{time.time()}:{id(data)}"
-        return hashlib.sha256(raw.encode()).hexdigest()[:16]
+        return uuid.uuid4().hex[:16]
 
     def _is_seen(self, nonce: str) -> bool:
         entry = self._seen.get(nonce)

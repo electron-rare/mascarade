@@ -247,10 +247,31 @@ def _normalized_url(value: str) -> str:
     return value.strip().rstrip("/")
 
 
+def _is_loopback_host(host: str) -> bool:
+    normalized = (host or "").strip().lower()
+    return normalized in {"localhost", "127.0.0.1", "::1"}
+
+
+def _cluster_url_allowed_when_insecure(parsed) -> bool:
+    if parsed.scheme == "https":
+        return True
+    if not settings.cluster_require_tls:
+        return True
+    if settings.cluster_allow_insecure_loopback and _is_loopback_host(parsed.hostname or ""):
+        return True
+    return False
+
+
 def advertised_base_url() -> str | None:
     if not settings.cluster_enabled or not settings.mesh_bind_host.strip():
         return None
-    return f"{settings.mesh_scheme}://{settings.mesh_bind_host.strip()}:{settings.core_port}"
+    scheme = settings.mesh_scheme.strip() or "http"
+    host = settings.mesh_bind_host.strip()
+    parsed = urlparse(f"{scheme}://{host}:{settings.core_port}")
+    if not _cluster_url_allowed_when_insecure(parsed):
+        logger.warning("Cluster TLS required: refusing non-HTTPS advertised_base_url for host=%s", host)
+        return None
+    return f"{scheme}://{host}:{settings.core_port}"
 
 
 def parse_cluster_peers(raw: str, *, node_id: str) -> list[ClusterPeer]:
@@ -277,6 +298,9 @@ def parse_cluster_peers(raw: str, *, node_id: str) -> list[ClusterPeer]:
         parsed = urlparse(normalized_url)
         if parsed.scheme not in {"http", "https"} or not parsed.netloc:
             logger.warning("Ignoring invalid peer URL for %s: %s", peer_id, base_url)
+            continue
+        if not _cluster_url_allowed_when_insecure(parsed):
+            logger.warning("Ignoring insecure peer URL for %s while TLS is required: %s", peer_id, base_url)
             continue
 
         peers.append(ClusterPeer(peer_id=peer_id, role=role, base_url=normalized_url))
@@ -691,6 +715,9 @@ class ClusterManager:
         parsed = urlparse(base_url)
         if parsed.scheme not in {"http", "https"} or not parsed.netloc:
             return None
+        if not _cluster_url_allowed_when_insecure(parsed):
+            logger.warning("mDNS peer rejected: insecure URL while TLS required (%s)", base_url)
+            return None
         return ClusterPeer(peer_id=peer_id, role=role, base_url=base_url)
 
     async def probe_peers(self) -> list[PeerStatus]:
@@ -1005,6 +1032,9 @@ class ClusterManager:
         json: dict[str, object] | None = None,
     ) -> dict[str, object]:
         url = f"{peer.base_url}{path}"
+        parsed_url = urlparse(url)
+        if not _cluster_url_allowed_when_insecure(parsed_url):
+            raise HTTPException(status_code=502, detail=f"Cluster peer requires HTTPS: {peer.peer_id}")
         headers = {
             "Authorization": f"Bearer {settings.cluster_shared_key.strip()}",
             "X-Mascarade-Node-ID": settings.node_id,

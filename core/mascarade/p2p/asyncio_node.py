@@ -7,6 +7,7 @@ import logging
 from pathlib import Path
 from typing import Any
 
+from mascarade.config import settings
 from mascarade.p2p.capabilities import P2PCapabilityExchange
 from mascarade.p2p.dht import P2PDHT
 from mascarade.p2p.discovery import P2PDiscovery
@@ -55,6 +56,10 @@ class MascaradeP2PNode:
         self._pubsub = P2PPubSub(
             local_peer_id=self._identity.peer_id,
             transport=self._transport,
+        )
+        self._pubsub.enable_authentication(
+            self._identity,
+            reject_unsigned=settings.p2p_require_signatures,
         )
         self._discovery = P2PDiscovery(
             dht=self._dht,

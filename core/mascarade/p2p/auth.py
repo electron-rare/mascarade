@@ -24,20 +24,43 @@ def sign_message(identity: PeerIdentity, msg: P2PMessage) -> P2PMessage:
     return msg
 
 
-def verify_message(msg: P2PMessage) -> bool:
+def verify_message(msg: P2PMessage, *, reject_unsigned: bool = True) -> bool:
     """Verify the signature on a message.
 
-    Returns True if the signature is valid, or if the message is unsigned
-    (backwards compatibility — unsigned messages are accepted).
+    When reject_unsigned is False (default), unsigned messages are accepted
+    for backwards compatibility. When True, unsigned messages are rejected.
+    Also verifies that the sender field matches the public key.
     """
     if not msg.signature or not msg.public_key:
-        return True  # unsigned messages pass (backwards compat)
+        if reject_unsigned:
+            logger.warning("Rejecting unsigned message type=%s from %s", msg.type, msg.sender)
+            return False
+        logger.debug("Accepting unsigned message type=%s from %s (backwards compat)", msg.type, msg.sender)
+        return True
 
     try:
         sig = base64.b64decode(msg.signature)
         pub_bytes = base64.b64decode(msg.public_key)
         data = msg.signing_payload()
-        return PeerIdentity.verify(pub_bytes, sig, data)
+        if not PeerIdentity.verify(pub_bytes, sig, data):
+            logger.warning("Invalid signature on message type=%s from %s", msg.type, msg.sender)
+            return False
+
+        # Verify sender matches the public key (prevent impersonation)
+        from mascarade.p2p.identity import _peer_id_from_public_key
+        from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
+
+        expected_peer_id = _peer_id_from_public_key(
+            Ed25519PublicKey.from_public_bytes(pub_bytes)
+        )
+        if msg.sender and expected_peer_id != msg.sender:
+            logger.warning(
+                "Sender mismatch: claimed %s but key derives %s",
+                msg.sender, expected_peer_id,
+            )
+            return False
+
+        return True
     except Exception:
         logger.warning("Failed to verify message from %s", msg.sender)
         return False
@@ -67,7 +90,7 @@ class MessageAuthenticator:
         self,
         identity: PeerIdentity,
         *,
-        reject_unsigned: bool = False,
+        reject_unsigned: bool = True,
     ) -> None:
         self._identity = identity
         self._reject_unsigned = reject_unsigned
@@ -81,9 +104,7 @@ class MessageAuthenticator:
 
         When reject_unsigned is True, unsigned messages are rejected.
         """
-        if not msg.signature and not msg.public_key:
-            return not self._reject_unsigned
-        return verify_message(msg)
+        return verify_message(msg, reject_unsigned=self._reject_unsigned)
 
     def verified(self, handler: MessageHandler) -> MessageHandler:
         """Decorator that drops messages with invalid signatures."""
