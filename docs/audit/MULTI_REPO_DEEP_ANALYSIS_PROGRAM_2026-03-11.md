@@ -77,7 +77,7 @@ Documents d'ancrage:
 
 | ID | Tache | Owner |
 | --- | --- | --- |
-| `K-DA-007` | Stabiliser la production d'artefacts firmware `esp` dans la lane CI evidence pack | `embedded-systems-auditor` |
+| `K-DA-008` | Accelerer la lane evidence GitHub avec cache `pip` / `PlatformIO` | `embedded-systems-auditor` |
 
 ## Actions documentees dans ce tour
 
@@ -109,10 +109,14 @@ Documents d'ancrage:
 - fermeture de `K-DA-006` via l'alignement de `.github/workflows/evidence_pack.yml` sur `tools/auto_check_ci_cd.py` et `docs/evidence/*`
 - ajout de la note d'audit `Kill_LIFE/docs/EVIDENCE_ALIGNMENT_2026-03-11.md`
 - verification locale de la chaine evidence `Kill_LIFE`: `./.venv/bin/python tools/auto_check_ci_cd.py` avec sortie `linux` exploitable et `esp` partielle mais tracee
+- fermeture de `K-DA-007` via la detection `native-pio` dans le venv repo-local et le durcissement anti-artefacts obsoletes dans `tools/collect_evidence.py`
+- ajout du test cible `Kill_LIFE/test/test_firmware_evidence.py`
+- revalidation locale `Kill_LIFE`: `KILL_LIFE_PIO_MODE=native ./.venv/bin/python tools/auto_check_ci_cd.py` vert sur `esp` + `linux`
 
 ## Test status snapshot
 
 - `mascarade/api`: un echec local initial observe dans `src/routes/mcpIndustrial.test.ts` avant correctif
 - `mascarade/core`: suite non verte dans l'etat actuel du worktree; plusieurs echecs relevent soit de regressions locales P2P/cluster, soit de limites sandbox sur le bind reseau
 - `mascarade/core/tests/test_cluster.py` et `mascarade/core/tests/test_orchestrator.py`: verts sur le lot courant
+- `Kill_LIFE`: evidence lane locale verte en mode `native-pio`; la suite `bash tools/test_python.sh --suite stable` reste bloquee par un delta local hors lot dans `tools/mcp_runtime_status.py`
 - aucune pretention de "suite verte globale" n'est faite sans reprise lot-par-lot
