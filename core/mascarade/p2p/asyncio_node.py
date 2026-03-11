@@ -48,6 +48,10 @@ class MascaradeP2PNode:
             listen_host=listen_host,
             listen_port=listen_port,
         )
+        self._transport.enable_authentication(
+            self._identity,
+            reject_unsigned=settings.p2p_require_signatures,
+        )
         self._dht = P2PDHT(
             local_peer_id=self._identity.peer_id,
             transport=self._transport,

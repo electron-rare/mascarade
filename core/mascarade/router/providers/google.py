@@ -277,10 +277,25 @@ class GoogleProvider(LLMProvider):
             )
 
         stream = await asyncio.wait_for(asyncio.to_thread(_call), timeout=_TIMEOUT_S)
-        for chunk in stream:
-            text = getattr(chunk, "text", None)
-            if text:
-                yield text
+
+        queue: asyncio.Queue[str | None] = asyncio.Queue()
+
+        async def _drain():
+            def _run():
+                for chunk in stream:
+                    text = getattr(chunk, "text", None)
+                    if text:
+                        queue.put_nowait(text)
+                queue.put_nowait(None)
+            await asyncio.to_thread(_run)
+
+        drain_task = asyncio.create_task(_drain())
+        while True:
+            item = await queue.get()
+            if item is None:
+                break
+            yield item
+        await drain_task
 
     def available_models(self) -> list[str]:
         return [settings.google_model]

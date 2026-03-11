@@ -33,12 +33,17 @@ def test_tampered_message_rejected():
     assert verify_message(msg) is False
 
 
-def test_unsigned_message_accepted():
-    """Unsigned messages should be accepted for backwards compatibility."""
+def test_unsigned_message_rejected_by_default():
+    """Unsigned messages are rejected when signature enforcement is on."""
     msg = _make_msg()
     assert msg.signature == ""
     assert msg.public_key == ""
-    assert verify_message(msg) is True
+    assert verify_message(msg) is False
+
+
+def test_unsigned_message_can_be_accepted_in_compat_mode():
+    msg = _make_msg()
+    assert verify_message(msg, reject_unsigned=False) is True
 
 
 def test_wrong_key_rejected():

@@ -61,6 +61,7 @@ class P2PTaskDistribution:
         self._tasks: dict[str, DistributedTask] = {}
         self._result_futures: dict[str, asyncio.Future] = {}
         self._task_handler = task_handler
+        self._max_task_age = 3600.0  # 1 hour
 
         pubsub.subscribe(_TOPIC_TASK_SUBMIT, self._handle_task_submit)
         pubsub.subscribe(_TOPIC_TASK_RESULT, self._handle_task_result)
@@ -68,6 +69,22 @@ class P2PTaskDistribution:
 
     def set_task_handler(self, handler: Any) -> None:
         self._task_handler = handler
+
+    def prune_old_tasks(self) -> int:
+        """Remove completed/failed tasks older than max_task_age. Call from heartbeat."""
+        import time as _time
+        cutoff = _time.time() - self._max_task_age
+        to_remove = [
+            tid for tid, t in self._tasks.items()
+            if t.status in (TaskStatus.COMPLETED, TaskStatus.FAILED, TaskStatus.TIMEOUT)
+            and (t.completed_at or t.submitted_at) < cutoff
+        ]
+        for tid in to_remove:
+            del self._tasks[tid]
+            self._result_futures.pop(tid, None)
+        if to_remove:
+            logger.info("Pruned %d old tasks", len(to_remove))
+        return len(to_remove)
 
     async def distribute_task(
         self,

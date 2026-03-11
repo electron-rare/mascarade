@@ -8,11 +8,14 @@ import time
 from dataclasses import dataclass, field
 from typing import Any, Callable, Coroutine
 
+from mascarade.p2p.auth import MessageAuthenticator
+from mascarade.p2p.identity import PeerIdentity
 from mascarade.p2p.protocol import P2PMessage, read_message, write_message
 
 logger = logging.getLogger("mascarade.p2p.transport")
 
 MessageHandler = Callable[[P2PMessage, "PeerConnection"], Coroutine[Any, Any, None]]
+MessageTransform = Callable[[P2PMessage], P2PMessage]
 
 
 @dataclass
@@ -25,6 +28,7 @@ class PeerConnection:
     connected: bool = False
     last_seen: float = 0.0
     _reconnect_backoff: float = 1.0
+    message_transform: MessageTransform | None = None
 
     async def connect(self) -> bool:
         if self.connected:
@@ -48,7 +52,8 @@ class PeerConnection:
         if not self.connected or self.writer is None:
             if not await self.connect():
                 return False
-        ok = await write_message(self.writer, msg)
+        outgoing = self.message_transform(msg) if self.message_transform else msg
+        ok = await write_message(self.writer, outgoing)
         if not ok:
             await self.disconnect()
         return ok
@@ -85,6 +90,7 @@ class P2PTransport:
         self._relay_client: Any | None = None  # Optional RelayClient
         self._inbound_tasks: set[asyncio.Task] = set()
         self._outbound_read_tasks: dict[str, asyncio.Task] = {}
+        self._authenticator: MessageAuthenticator | None = None
 
     @property
     def listen_port(self) -> int:
@@ -104,13 +110,28 @@ class P2PTransport:
     def on_default(self, handler: MessageHandler) -> None:
         self._default_handler = handler
 
+    def enable_authentication(
+        self,
+        identity: PeerIdentity,
+        *,
+        reject_unsigned: bool = True,
+    ) -> None:
+        self._authenticator = MessageAuthenticator(identity, reject_unsigned=reject_unsigned)
+        for conn in self._peers.values():
+            conn.message_transform = self._prepare_outgoing
+
     def add_peer(self, peer_id: str, host: str, port: int) -> PeerConnection:
         if peer_id in self._peers:
             existing = self._peers[peer_id]
             existing.host = host
             existing.port = port
             return existing
-        conn = PeerConnection(peer_id=peer_id, host=host, port=port)
+        conn = PeerConnection(
+            peer_id=peer_id,
+            host=host,
+            port=port,
+            message_transform=self._prepare_outgoing,
+        )
         self._peers[peer_id] = conn
         return conn
 
@@ -164,17 +185,22 @@ class P2PTransport:
         return sent
 
     async def send_to(self, peer_id: str, msg: P2PMessage) -> bool:
+        outgoing = self._prepare_outgoing(msg)
         conn = self._peers.get(peer_id)
         if not conn:
             # Try relay fallback if available
             if self._relay_client is not None:
                 return await self._relay_client.send_via_relay(
                     peer_id,
-                    inner_type=msg.type,
-                    inner_payload=msg.payload,
+                    inner_type=outgoing.type,
+                    inner_payload=outgoing.payload,
+                    inner_ts=outgoing.ts,
+                    inner_nonce=outgoing.nonce,
+                    inner_signature=outgoing.signature,
+                    inner_public_key=outgoing.public_key,
                 )
             return False
-        result = await conn.send(msg)
+        result = await conn.send(outgoing)
         if result:
             self._ensure_outbound_reader(peer_id, conn)
             return True
@@ -183,8 +209,12 @@ class P2PTransport:
             logger.debug("Direct send to %s failed, trying relay", peer_id)
             return await self._relay_client.send_via_relay(
                 peer_id,
-                inner_type=msg.type,
-                inner_payload=msg.payload,
+                inner_type=outgoing.type,
+                inner_payload=outgoing.payload,
+                inner_ts=outgoing.ts,
+                inner_nonce=outgoing.nonce,
+                inner_signature=outgoing.signature,
+                inner_public_key=outgoing.public_key,
             )
         return False
 
@@ -202,8 +232,19 @@ class P2PTransport:
             peer_id,
             inner_type=msg.type,
             inner_payload=msg.payload,
+            inner_ts=msg.ts,
+            inner_nonce=msg.nonce,
+            inner_signature=msg.signature,
+            inner_public_key=msg.public_key,
             relay_peer_id=relay_peer_id,
         )
+
+    def _prepare_outgoing(self, msg: P2PMessage) -> P2PMessage:
+        if self._authenticator is None:
+            return msg
+        if msg.signature and msg.public_key:
+            return msg
+        return self._authenticator.sign(msg)
 
     def _ensure_outbound_reader(self, peer_id: str, conn: PeerConnection) -> None:
         """Start a read loop for an outbound connection if not already running."""
@@ -226,6 +267,14 @@ class P2PTransport:
                     continue
                 if msg is None:
                     break
+
+                if self._authenticator is not None and not self._authenticator.verify(msg):
+                    logger.warning(
+                        "Dropping unsigned/invalid outbound message type=%s from=%s",
+                        msg.type,
+                        msg.sender,
+                    )
+                    continue
 
                 handler = self._handlers.get(msg.type) or self._default_handler
                 if handler:
@@ -262,6 +311,7 @@ class P2PTransport:
             writer=writer,
             connected=True,
             last_seen=time.monotonic(),
+            message_transform=self._prepare_outgoing,
         )
         try:
             while True:
@@ -271,6 +321,14 @@ class P2PTransport:
                     continue
                 if msg is None:
                     break
+
+                if self._authenticator is not None and not self._authenticator.verify(msg):
+                    logger.warning(
+                        "Dropping unsigned/invalid inbound message type=%s from=%s",
+                        msg.type,
+                        msg.sender,
+                    )
+                    continue
 
                 sender_id = msg.sender
                 if sender_id and sender_id != self._local_peer_id:

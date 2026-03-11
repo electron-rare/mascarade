@@ -24,6 +24,18 @@ DEFAULT_AGENT_FACTORY_COCKPIT_DIR = Path(
 DEFAULT_MASCARADE_ENV_FILE = Path(
     os.getenv("MASCARADE_ENV_FILE", DEFAULT_MASCARADE_DIR / ".env")
 ).resolve()
+_FREECAD_BLOCKED_SNIPPETS = (
+    "import os",
+    "from os",
+    "import subprocess",
+    "from subprocess",
+    "import socket",
+    "from socket",
+    "__import__",
+    "eval(",
+    "exec(",
+    "open(",
+)
 
 
 @dataclass(slots=True)
@@ -129,6 +141,13 @@ async def _write_message(
     await stdin.drain()
 
 
+def _validate_freecad_script(script: str) -> None:
+    lowered = script.lower()
+    for snippet in _FREECAD_BLOCKED_SNIPPETS:
+        if snippet in lowered:
+            raise ValueError(f"FreeCAD script contains blocked pattern: {snippet}")
+
+
 class McpRuntimeClient:
     """Thin async stdio client for local MCP launchers."""
 
@@ -167,6 +186,11 @@ class McpRuntimeClient:
             "openscad": McpServerDefinition(
                 key="openscad",
                 launcher=self.kill_life_root / "tools" / "run_openscad_mcp.sh",
+                timeout_s=60.0,
+            ),
+            "kicad": McpServerDefinition(
+                key="kicad",
+                launcher=self.kill_life_root / "tools" / "hw" / "run_kicad_mcp.sh",
                 timeout_s=60.0,
             ),
         }
@@ -981,6 +1005,7 @@ class McpRuntimeClient:
         step: int = 0,
         agent_name: str | None = None,
     ) -> dict[str, Any]:
+        _validate_freecad_script(script)
         arguments: dict[str, Any] = {"script": script}
         if output_path:
             arguments["output_path"] = output_path

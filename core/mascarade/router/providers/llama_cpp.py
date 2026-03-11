@@ -68,7 +68,8 @@ class LlamaCppProvider(LLMProvider):
         response.raise_for_status()
         data = response.json()
 
-        choice = data.get("choices", [{}])[0]
+        choices = data.get("choices", [{}])
+        choice = choices[0] if choices else {}
         usage = data.get("usage", {})
 
         return LLMResponse(

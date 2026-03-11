@@ -115,10 +115,11 @@ class P2PStreamForwarder:
             result = await asyncio.wait_for(future, timeout=timeout)
             return result
         except asyncio.TimeoutError:
-            self._pending.pop(request_id, None)
             raise TimeoutError(
                 f"P2P request {request_id} to {peer_id} timed out after {timeout}s"
             )
+        finally:
+            self._pending.pop(request_id, None)
 
     def can_forward(self, peer_id: str) -> bool:
         """Check if a peer is reachable via P2P transport."""
