@@ -8,7 +8,7 @@
 
 - Root: `/Users/electron/mascarade`
 - Branch: `feat/apple-coreml-runtime-lot`
-- Dirty entries: `6`
+- Dirty entries: `13`
 - Primary README: `README.md`
 - Primary plan anchor: `plan.md`
 - First TODO anchor: `TODO_AI_NOVEL_ENGINE.md`
@@ -25,7 +25,7 @@
 | Test files | 58 |
 | Shell scripts | 139 |
 | Python files | 256 |
-| TS/TSX files | 120 |
+| TS/TSX files | 121 |
 
 ### Gaps
 - Baseline documentation anchors exist; refresh and alignment remain required.
@@ -34,7 +34,7 @@
 
 - Root: `/Users/electron/crazy_life`
 - Branch: `main`
-- Dirty entries: `11`
+- Dirty entries: `12`
 - Primary README: `README.md`
 - Primary plan anchor: `plan.md`
 - First TODO anchor: `docs/TODO_2026-03-10.md`
@@ -71,8 +71,8 @@
 | MANIFEST files | 0 |
 | Plan files | 26 |
 | TODO/task files | 3 |
-| Diagram files | 6 |
-| Sequence diagram files | 2 |
+| Diagram files | 7 |
+| Sequence diagram files | 3 |
 | Feature-map-like files | 1 |
 | Test files | 17 |
 | Shell scripts | 52 |
