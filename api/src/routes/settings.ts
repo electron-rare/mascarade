@@ -38,6 +38,7 @@ type RuntimeSecretMutationResponse = {
   cleared_env?: string[];
 };
 const SENSITIVE_KEY_RE = /(token|secret|api[_-]?key|password|authorization)/i;
+const GENERATED_VALUE_KEY_RE = /^(generated[_-]?value|generatedValue)$/i;
 
 function escapeHtml(value: string): string {
   return value
@@ -83,7 +84,7 @@ function sanitizeSensitivePayload(value: unknown): unknown {
   const input = value as Record<string, unknown>;
   const output: Record<string, unknown> = {};
   for (const [key, raw] of Object.entries(input)) {
-    if (key === "generated_value") {
+    if (GENERATED_VALUE_KEY_RE.test(key)) {
       if (typeof raw === "string" && raw.trim()) {
         output.generated_value_masked = maskSecret(raw);
       }
@@ -209,7 +210,8 @@ function requestHeaders(c: Context, body?: unknown): Headers {
 }
 
 function jsonWithStatus(c: Context, body: Record<string, unknown>, status: number) {
-  return c.newResponse(JSON.stringify(body), status as any, {
+  const sanitized = (sanitizeSensitivePayload(body) as Record<string, unknown>) || {};
+  return c.newResponse(JSON.stringify(sanitized), status as any, {
     "Content-Type": "application/json",
   });
 }

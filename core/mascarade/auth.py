@@ -4,10 +4,12 @@ from __future__ import annotations
 
 import hmac
 import logging
+import os
 import threading
 import time
+from typing import Literal
 
-from fastapi import Depends, HTTPException
+from fastapi import Depends, HTTPException, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from mascarade.config import settings
@@ -19,6 +21,8 @@ _last_key_rotation = 0
 _KEY_ROTATION_INTERVAL = 3600
 _keys_lock = threading.Lock()
 _MIN_API_KEY_LENGTH = 16
+AuthRole = Literal["viewer", "operator", "admin"]
+_ROLE_RANK: dict[AuthRole, int] = {"viewer": 1, "operator": 2, "admin": 3}
 
 
 def _load_api_keys() -> None:
@@ -72,12 +76,58 @@ def is_valid_api_key(key: str) -> bool:
         return any(_timing_safe_compare(candidate, k) for k in _api_keys)
 
 
+def _configured_role_keys(env_name: str) -> list[str]:
+    return [
+        key.strip()
+        for key in str(os.getenv(env_name, "")).split(",")
+        if key.strip() and len(key.strip()) >= _MIN_API_KEY_LENGTH
+    ]
+
+
+def _resolve_role(token: str) -> AuthRole | None:
+    admin_keys = _configured_role_keys("MASCARADE_RBAC_ADMIN_KEYS")
+    operator_keys = _configured_role_keys("MASCARADE_RBAC_OPERATOR_KEYS")
+    viewer_keys = _configured_role_keys("MASCARADE_RBAC_VIEWER_KEYS")
+    rbac_enabled = (
+        str(os.getenv("MASCARADE_RBAC_ENABLED", "")).strip().lower() in {"1", "true", "yes"}
+        or bool(admin_keys or operator_keys or viewer_keys)
+    )
+
+    if not rbac_enabled:
+        return "admin"
+    if any(_timing_safe_compare(token, key) for key in admin_keys):
+        return "admin"
+    if any(_timing_safe_compare(token, key) for key in operator_keys):
+        return "operator"
+    if any(_timing_safe_compare(token, key) for key in viewer_keys):
+        return "viewer"
+    return None
+
+
+def _required_role_for_request(method: str, path: str) -> AuthRole:
+    normalized_path = (path or "").lower()
+
+    if normalized_path.startswith("/api-keys"):
+        return "admin"
+    if normalized_path.startswith("/providers") and method != "GET":
+        return "admin"
+    if normalized_path.startswith("/mcp/industrial"):
+        return "admin"
+    if normalized_path.startswith("/cluster/forward/send"):
+        return "admin"
+
+    if method in {"GET", "HEAD", "OPTIONS"}:
+        return "viewer"
+    return "operator"
+
+
 _load_api_keys()
 
 _bearer_scheme = HTTPBearer(auto_error=False)
 
 
 async def require_auth(
+    request: Request,
     credentials: HTTPAuthorizationCredentials | None = Depends(_bearer_scheme),
 ) -> None:
     """Verify Bearer token if MASCARADE_API_KEY is configured."""
@@ -90,6 +140,14 @@ async def require_auth(
     if not is_valid_api_key(credentials.credentials):
         logger.warning("Invalid API key attempt")
         raise HTTPException(status_code=401, detail="Invalid token")
+
+    role = _resolve_role(credentials.credentials.strip())
+    if role is None:
+        raise HTTPException(status_code=403, detail="Role non assigne pour ce token")
+
+    required_role = _required_role_for_request(request.method.upper(), request.url.path)
+    if _ROLE_RANK[role] < _ROLE_RANK[required_role]:
+        raise HTTPException(status_code=403, detail="Permissions insuffisantes")
 
 
 def add_api_key(key: str) -> None:
