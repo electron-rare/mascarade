@@ -60,7 +60,7 @@
 
 - Root: `/Users/electron/Kill_LIFE`
 - Branch: `main`
-- Dirty entries: `11`
+- Dirty entries: `16`
 - Primary README: `README.md`
 - Primary plan anchor: `docs/plans/README.md`
 - First TODO anchor: `ai-agentic-embedded-base/specs/04_tasks.md`
@@ -74,9 +74,9 @@
 | Diagram files | 8 |
 | Sequence diagram files | 3 |
 | Feature-map-like files | 1 |
-| Test files | 17 |
+| Test files | 18 |
 | Shell scripts | 52 |
-| Python files | 98 |
+| Python files | 99 |
 | TS/TSX files | 0 |
 
 ### Gaps
