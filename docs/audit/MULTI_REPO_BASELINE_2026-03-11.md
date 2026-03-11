@@ -34,7 +34,7 @@
 
 - Root: `/Users/electron/crazy_life`
 - Branch: `main`
-- Dirty entries: `12`
+- Dirty entries: `11`
 - Primary README: `README.md`
 - Primary plan anchor: `plan.md`
 - First TODO anchor: `docs/TODO_2026-03-10.md`
@@ -60,7 +60,7 @@
 
 - Root: `/Users/electron/Kill_LIFE`
 - Branch: `main`
-- Dirty entries: `7`
+- Dirty entries: `11`
 - Primary README: `README.md`
 - Primary plan anchor: `docs/plans/README.md`
 - First TODO anchor: `ai-agentic-embedded-base/specs/04_tasks.md`
