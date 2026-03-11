@@ -37,6 +37,7 @@ type RuntimeSecretMutationResponse = {
   updated_env?: string[];
   cleared_env?: string[];
 };
+const SENSITIVE_KEY_RE = /(token|secret|api[_-]?key|password|authorization)/i;
 
 function escapeHtml(value: string): string {
   return value
@@ -59,6 +60,42 @@ function parseJsonBody(text: string): JsonBody {
   } catch {
     return null;
   }
+}
+
+function maskSecret(value: string): string {
+  const token = String(value || "").trim();
+  if (!token) {
+    return "";
+  }
+  if (token.length <= 8) {
+    return "***";
+  }
+  return `${token.slice(0, 4)}***${token.slice(-4)}`;
+}
+
+function sanitizeSensitivePayload(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map((item) => sanitizeSensitivePayload(item));
+  }
+  if (!value || typeof value !== "object") {
+    return value;
+  }
+  const input = value as Record<string, unknown>;
+  const output: Record<string, unknown> = {};
+  for (const [key, raw] of Object.entries(input)) {
+    if (key === "generated_value") {
+      if (typeof raw === "string" && raw.trim()) {
+        output.generated_value_masked = maskSecret(raw);
+      }
+      continue;
+    }
+    if (typeof raw === "string" && SENSITIVE_KEY_RE.test(key)) {
+      output[key] = maskSecret(raw);
+      continue;
+    }
+    output[key] = sanitizeSensitivePayload(raw);
+  }
+  return output;
 }
 
 function cookieValue(cookieHeader: string | undefined, name: string): string {
@@ -254,7 +291,7 @@ settings.get("/runtime-secrets", async (c) => {
     if (!upstream.ok) {
       return jsonWithStatus(c, json || { error: text || "Ops Agent request failed" }, upstream.status);
     }
-    return c.json(json || { groups: [] });
+    return c.json((sanitizeSensitivePayload(json || { groups: [] }) as Record<string, unknown>) || { groups: [] });
   } catch (error) {
     return c.json(
       { error: error instanceof Error ? error.message : "Ops Agent request failed" },
@@ -280,7 +317,7 @@ settings.put("/runtime-secrets/:groupName", async (c) => {
       return jsonWithStatus(c, json || { error: text || "Ops Agent request failed" }, upstream.status);
     }
     syncRuntimeEnvFromUpdate(values);
-    return c.json(json || { status: "ok" });
+    return c.json((sanitizeSensitivePayload(json || { status: "ok" }) as Record<string, unknown>) || { status: "ok" });
   } catch (error) {
     return c.json(
       { error: error instanceof Error ? error.message : "Ops Agent request failed" },
@@ -307,7 +344,7 @@ settings.post("/runtime-secrets/:groupName/clear", async (c) => {
     }
     const response = (json || { status: "ok" }) as RuntimeSecretMutationResponse;
     syncRuntimeEnvFromClear(response.cleared_env || fields || []);
-    return c.json(response);
+    return c.json((sanitizeSensitivePayload(response) as Record<string, unknown>) || { status: "ok" });
   } catch (error) {
     return c.json(
       { error: error instanceof Error ? error.message : "Ops Agent request failed" },
@@ -331,7 +368,7 @@ settings.post("/runtime-secrets/:groupName/generate", async (c) => {
     if (response.generated_value) {
       process.env.MASCARADE_API_KEY = response.generated_value;
     }
-    return c.json(response);
+    return c.json((sanitizeSensitivePayload(response) as Record<string, unknown>) || { status: "ok" });
   } catch (error) {
     return c.json(
       { error: error instanceof Error ? error.message : "Ops Agent request failed" },
@@ -351,7 +388,7 @@ settings.post("/runtime-secrets/knowledge-base/bootstrap-memos", async (c) => {
       return jsonWithStatus(c, json || { error: text || "Ops Agent request failed" }, upstream.status);
     }
     const response = (json || {}) as RuntimeSecretMutationResponse;
-    return c.json(response);
+    return c.json((sanitizeSensitivePayload(response) as Record<string, unknown>) || { status: "ok" });
   } catch (error) {
     return c.json(
       { error: error instanceof Error ? error.message : "Ops Agent request failed" },
@@ -531,7 +568,8 @@ settings.post("/runtime-secrets/github-dispatch/app-token", async (c) => {
     return c.json({
       status: "ok",
       auth_mode: auth.authMode,
-      token: auth.token,
+      token_masked: maskSecret(auth.token),
+      token_present: Boolean(String(auth.token || "").trim()),
       expires_at: auth.expiresAt,
     });
   } catch (error) {

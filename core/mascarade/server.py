@@ -81,7 +81,7 @@ async def lifespan(app: FastAPI):
 
     yield
 
-    await cluster.stop_p2p()
+    await cluster.close()
     if app.state.comfyui is not None:
         await app.state.comfyui.close()
 

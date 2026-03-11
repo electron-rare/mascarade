@@ -309,6 +309,7 @@ class ClusterManager:
         self._router = router
         self._agents_count_provider = agents_count_provider
         self._timeout_s = max(settings.cluster_request_timeout_ms, 500) / 1000
+        self._http_client: httpx.AsyncClient | None = httpx.AsyncClient(timeout=self._timeout_s)
         self._peers = parse_cluster_peers(settings.cluster_peers, node_id=settings.node_id)
         self._mdns_peers: dict[str, ClusterPeer] = {}
         self._mdns_discovery_expiry = 0.0
@@ -379,6 +380,13 @@ class ClusterManager:
         if self._p2p_node:
             await self._p2p_node.stop()
             self._p2p_node = None
+
+    async def close(self) -> None:
+        """Close cluster resources."""
+        await self.stop_p2p()
+        if self._http_client is not None:
+            await self._http_client.aclose()
+            self._http_client = None
 
     def _p2p_local_send(self, payload: dict) -> dict:
         """Sync wrapper for local send (used by libp2p backend from trio thread)."""
@@ -1001,9 +1009,10 @@ class ClusterManager:
             "Authorization": f"Bearer {settings.cluster_shared_key.strip()}",
             "X-Mascarade-Node-ID": settings.node_id,
         }
+        if self._http_client is None:
+            self._http_client = httpx.AsyncClient(timeout=self._timeout_s)
         try:
-            async with httpx.AsyncClient(timeout=self._timeout_s) as client:
-                response = await client.request(method, url, json=json, headers=headers)
+            response = await self._http_client.request(method, url, json=json, headers=headers)
         except httpx.TimeoutException as exc:
             raise HTTPException(status_code=502, detail=f"Cluster peer timed out: {peer.peer_id}") from exc
         except httpx.HTTPError as exc:
