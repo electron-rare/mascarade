@@ -77,8 +77,6 @@ Documents d'ancrage:
 
 | ID | Tache | Owner |
 | --- | --- | --- |
-| `K-DA-004` | Rafraichir le README et `docs/plans` pour pointer vers le plan d'analyse actif | `readme-curator` |
-| `K-DA-005` | Synchroniser la doc operateur avec la carte fonctionnelle canonique | `readme-curator` |
 | `K-DA-006` | Verifier l'alignement entre evidence packs CI et preuves documentaires locales | `embedded-systems-auditor` |
 
 ## Actions documentees dans ce tour
@@ -107,6 +105,7 @@ Documents d'ancrage:
 - reliaison du `README` et du plan `Kill_LIFE` vers le diagramme `workflow local`
 - production du diagramme `Kill_LIFE/docs/KILL_LIFE_WORKFLOW_GITHUB_SEQUENCE_2026-03-11.md`
 - reliaison du `README` et du plan `Kill_LIFE` vers le diagramme `workflow github`
+- synchronisation de la doc operateur `Kill_LIFE` (`docs/RUNBOOK.md`, `docs/index.md`, `docs/workflows/README.md`, `docs/AI_WORKFLOWS.md`, `docs/evidence/evidence_pack.md`) autour des sequences `local` et `github`
 
 ## Test status snapshot
 
