@@ -7,7 +7,6 @@ import { timingSafeEqual } from "node:crypto";
 import type { MiddlewareHandler } from "hono";
 
 const API_KEY_COOKIE = "mascarade_key";
-const API_KEY_PERSIST_HEADER = "x-mascarade-session-persist";
 const MIN_KEY_LEN = 16;
 const PERSIST_MAX_AGE = 30 * 24 * 3600; // 30 days
 
@@ -41,18 +40,6 @@ if (configuredApiKeys().length === 0) {
 function safeEqual(a: string, b: string): boolean {
   if (a.length !== b.length) return false;
   return timingSafeEqual(Buffer.from(a), Buffer.from(b));
-}
-
-function isSecureRequest(url: string): boolean {
-  try {
-    return new URL(url).protocol === "https:";
-  } catch {
-    return false;
-  }
-}
-
-function shouldPersistSession(headerValue?: string): boolean {
-  return /^(1|true|yes)$/i.test(String(headerValue || "").trim());
 }
 
 export function makeSessionCookie(token: string, persist: boolean, secure: boolean): string {
@@ -106,6 +93,8 @@ function requiredRoleForRequest(method: string, path: string): AuthRole {
   const normalizedPath = path.toLowerCase();
   if (
     normalizedPath.startsWith("/api/settings/runtime-secrets") ||
+    normalizedPath.startsWith("/api/settings/providers") ||
+    normalizedPath.startsWith("/api/settings/oauth") ||
     normalizedPath.startsWith("/api/mcp/industrial") ||
     normalizedPath.startsWith("/api/ops")
   ) {
@@ -172,12 +161,6 @@ export const authMiddleware: MiddlewareHandler = async (c, next) => {
   const requiredRole = requiredRoleForRequest(c.req.method.toUpperCase(), c.req.path);
   if (ROLE_RANK[role] < ROLE_RANK[requiredRole]) {
     return c.json({ error: "Permissions insuffisantes" }, 403);
-  }
-
-  if (headerToken) {
-    const secure = isSecureRequest(c.req.url);
-    const persist = shouldPersistSession(c.req.header(API_KEY_PERSIST_HEADER));
-    c.header("Set-Cookie", makeSessionCookie(token, persist, secure));
   }
 
   return next();

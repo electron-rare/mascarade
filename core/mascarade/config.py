@@ -131,7 +131,7 @@ class Settings(BaseSettings):
     cluster_heartbeat_seconds: int = 30
     cluster_forward_enabled: bool = True
     cluster_require_tls: bool = True
-    cluster_allow_insecure_loopback: bool = True
+    cluster_allow_insecure_loopback: bool = False
     cluster_peers: str = ""
     cluster_mdns_enabled: bool = False
     cluster_mdns_service: str = "_mascarade._tcp.local."
@@ -172,6 +172,15 @@ class Settings(BaseSettings):
     litellm_proxy_enabled: bool = False
     litellm_base_url: str = "http://litellm:4000"
     litellm_master_key: str = ""
+    routellm_enabled: bool = False
+    routellm_threshold: float = 0.58
+    routellm_cheap_provider: str = "openai"
+    routellm_cheap_model: str = "gpt-4o-mini"
+    routellm_strong_provider: str = "openai"
+    routellm_strong_model: str = "gpt-4.1"
+    orchestrator_ray_enabled: bool = False
+    orchestrator_ray_address: str = "auto"
+    orchestrator_ray_namespace: str = "mascarade"
 
     # Defaults
     default_provider: str = "claude"

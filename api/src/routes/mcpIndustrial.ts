@@ -6,7 +6,7 @@ const COCKPIT_BASE_URL = (process.env.AGENT_FACTORY_COCKPIT_URL || "http://agent
 const COCKPIT_MCP_PATH = process.env.AGENT_FACTORY_COCKPIT_MCP_PATH || "/mcp/industrial";
 const REQUEST_TIMEOUT_MS = parseInt(process.env.AGENT_FACTORY_COCKPIT_MCP_TIMEOUT_MS || "30000", 10);
 const STATIC_PROXY_GROUPS = String(
-  process.env.AGENT_FACTORY_COCKPIT_PROXY_GROUPS || "",
+  process.env.AGENT_FACTORY_COCKPIT_PROXY_GROUPS || "operator",
 ).trim();
 
 function cockpitMcpUrl(pathSuffix = ""): string {
