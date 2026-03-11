@@ -8,7 +8,7 @@ function configuredCoreApiKeys(): string[] {
   return (process.env.MASCARADE_API_KEY || "")
     .split(",")
     .map((key) => key.trim())
-    .filter((key) => key.length >= 8);
+    .filter((key) => key.length >= 16);
 }
 
 export function getCoreAuthHeaders(): Record<string, string> {
