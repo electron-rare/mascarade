@@ -59,6 +59,13 @@ class P2PMessage:
     @classmethod
     def decode(cls, data: bytes) -> P2PMessage:
         obj = json.loads(data)
+        # Validate required field types
+        if not isinstance(obj.get("type"), str):
+            raise ValueError(f"Invalid message: 'type' must be str, got {type(obj.get('type')).__name__}")
+        if not isinstance(obj.get("sender"), str):
+            raise ValueError(f"Invalid message: 'sender' must be str, got {type(obj.get('sender')).__name__}")
+        if "payload" in obj and not isinstance(obj["payload"], dict):
+            raise ValueError(f"Invalid message: 'payload' must be dict, got {type(obj['payload']).__name__}")
         return cls(
             type=obj["type"],
             sender=obj["sender"],
@@ -79,6 +86,11 @@ async def read_message(reader: asyncio.StreamReader) -> P2PMessage | None:
     (length,) = struct.unpack(_HEADER_FMT, header)
     if length > _MAX_FRAME_SIZE:
         logger.warning("Frame too large: %d bytes", length)
+        # Drain the oversized frame to keep the stream in sync
+        try:
+            await reader.readexactly(length)
+        except (asyncio.IncompleteReadError, ConnectionError):
+            pass
         return None
 
     try:

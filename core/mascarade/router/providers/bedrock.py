@@ -203,10 +203,29 @@ class BedrockProvider(LLMProvider):
             return client.converse_stream(**kwargs)
 
         response = await asyncio.wait_for(asyncio.to_thread(_call), timeout=_TIMEOUT_S)
-        for event in response.get("stream", []):
-            text = event.get("contentBlockDelta", {}).get("delta", {}).get("text")
-            if text:
-                yield text
+
+        def _iter_stream():
+            for event in response.get("stream", []):
+                text = event.get("contentBlockDelta", {}).get("delta", {}).get("text")
+                if text:
+                    yield text
+
+        queue: asyncio.Queue[str | None] = asyncio.Queue()
+
+        async def _drain():
+            def _run():
+                for text in _iter_stream():
+                    queue.put_nowait(text)
+                queue.put_nowait(None)
+            await asyncio.to_thread(_run)
+
+        drain_task = asyncio.create_task(_drain())
+        while True:
+            item = await queue.get()
+            if item is None:
+                break
+            yield item
+        await drain_task
 
     def available_models(self) -> list[str]:
         self._discover_custom_models()

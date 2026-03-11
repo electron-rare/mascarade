@@ -27,8 +27,8 @@ def sign_message(identity: PeerIdentity, msg: P2PMessage) -> P2PMessage:
 def verify_message(msg: P2PMessage, *, reject_unsigned: bool = True) -> bool:
     """Verify the signature on a message.
 
-    When reject_unsigned is False (default), unsigned messages are accepted
-    for backwards compatibility. When True, unsigned messages are rejected.
+    When reject_unsigned is False, unsigned messages are accepted for
+    backwards compatibility. When True, unsigned messages are rejected.
     Also verifies that the sender field matches the public key.
     """
     if not msg.signature or not msg.public_key:

@@ -5,14 +5,13 @@ bootstrap:
   name: "Photon VM"
   host: "192.168.0.119"
   user: "root"
-  port: 4001
-  role: "gpu"
-  capabilities: ["llm-inference", "gpu"]
-  providers: ["claude", "ollama"]
+  port: 4002
+  role: "infra"
+  capabilities: ["docker", "p2p-relay", "compute"]
   http_base_url: "http://192.168.0.119:8100"
   pythonpath: "/mascarade/core"
   python: "python3"
-  note: "VMware Photon OS, main GPU/LLM node"
+  note: "VMware Photon OS, bootstrap node, 6.8GB RAM, 4 CPU, NO GPU"
 
 nodes:
   cils:
@@ -21,24 +20,25 @@ nodes:
     user: "cils"
     port: 4001
     role: "worker"
-    capabilities: ["mcp-host", "kicad-validation", "firmware-build"]
+    capabilities: ["compute", "ft-validation"]
     http_base_url: "http://192.168.0.210:8100"
     pythonpath: ""  # uses venv
-    python: "python"
+    python: "python3"
     venv: "~/mascarade/core/.venv/bin/activate"
-    note: "MacBook Intel, worker node"
+    note: "MacBook Intel, independent validator node"
 
-  electron:
-    name: "Electron Mac"
-    host: "192.168.0.159"
+  grosmac:
+    name: "GrosMac (bridge)"
+    host: "localhost"
     user: "electron"
-    port: 4002
-    role: "orchestrator"
-    capabilities: ["orchestration", "gateway"]
-    http_base_url: "http://192.168.0.159:8100"
+    port: 4001
+    role: "bridge"
+    capabilities: ["p2p-relay", "p2p-bridge", "llm-inference", "ft-research", "ft-dataset", "ft-teacher", "ft-archive"]
+    http_base_url: "http://localhost:8100"
     pythonpath: "/Users/electron/mascarade/core"
     python: "python3"
-    note: "MacBook M4, orchestrator"
+    tailscale_ip: "100.80.178.42"
+    note: "MacBook M4, bridge LAN↔Tailscale, orchestrator, API keys"
 
   kxkm:
     name: "KXKM AI"
@@ -47,11 +47,12 @@ nodes:
     user: "kxkm"
     port: 4001
     role: "compute"
-    capabilities: ["compute", "training"]
+    capabilities: ["llm-inference", "gpu", "compute", "ft-student", "ft-analysis", "ft-reinforcement"]
     http_base_url: "http://kxkm-ai:8100"
     pythonpath: "~/mascarade/core"
     python: "python3"
-    note: "Ubuntu GPU server via Tailscale"
+    venv: "~/mascarade/core/.venv/bin/python"
+    note: "Ubuntu, RTX 4090 24GB, 62GB RAM, 28 CPU, via Tailscale relay"
 
   tower:
     name: "Tower"
@@ -59,8 +60,8 @@ nodes:
     user: "clems"
     port: 4001
     role: "worker"
-    capabilities: ["compute", "storage"]
+    capabilities: ["compute", "storage", "ft-archive"]
     http_base_url: "http://192.168.0.120:8100"
     pythonpath: "~/mascarade/core"
     python: "python3"
-    note: "Ubuntu Tower, local compute node"
+    note: "Ubuntu Tower, storage + compute"

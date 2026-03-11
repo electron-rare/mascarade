@@ -16,6 +16,8 @@ import time
 from dataclasses import dataclass, field
 from typing import Any
 
+from mascarade.config import settings
+from mascarade.p2p.auth import verify_message
 from mascarade.p2p.dht import P2PDHT, DHTEntry
 from mascarade.p2p.protocol import P2PMessage
 from mascarade.p2p.transport import P2PTransport, PeerConnection
@@ -117,10 +119,11 @@ class P2PRelay:
         key = frozenset({msg.sender, target})
         circuit = self._circuits.get(key)
         if not circuit:
-            # Auto-create circuit on first data if we know both peers
-            circuit = RelayCircuit(peer_a=msg.sender, peer_b=target)
-            self._circuits[key] = circuit
-            logger.debug("Auto-created relay circuit %s <-> %s", msg.sender, target)
+            logger.warning(
+                "No relay circuit for %s <-> %s — send relay:connect first",
+                msg.sender, target,
+            )
+            return
 
         circuit.last_active = time.monotonic()
 
@@ -133,6 +136,10 @@ class P2PRelay:
                 "target": target,
                 "inner_type": msg.payload.get("inner_type", ""),
                 "inner_payload": msg.payload.get("inner_payload", {}),
+                "inner_ts": msg.payload.get("inner_ts", 0),
+                "inner_nonce": msg.payload.get("inner_nonce", ""),
+                "inner_signature": msg.payload.get("inner_signature", ""),
+                "inner_public_key": msg.payload.get("inner_public_key", ""),
             },
         )
 
@@ -246,6 +253,10 @@ class RelayClient:
         target_peer_id: str,
         inner_type: str,
         inner_payload: dict[str, Any],
+        inner_ts: float | None = None,
+        inner_nonce: str = "",
+        inner_signature: str = "",
+        inner_public_key: str = "",
         relay_peer_id: str | None = None,
     ) -> bool:
         """Send a message to *target_peer_id* through the relay."""
@@ -257,13 +268,29 @@ class RelayClient:
             logger.warning("No relay route to %s", target_peer_id)
             return False
 
+        inner_msg = P2PMessage(
+            type=inner_type,
+            sender=self._local_peer_id,
+            payload=inner_payload,
+            ts=inner_ts or time.time(),
+            nonce=inner_nonce,
+            signature=inner_signature,
+            public_key=inner_public_key,
+        )
+        if (not inner_msg.signature or not inner_msg.public_key) and hasattr(self._transport, "_prepare_outgoing"):
+            inner_msg = self._transport._prepare_outgoing(inner_msg)
+
         msg = P2PMessage(
             type="relay:data",
             sender=self._local_peer_id,
             payload={
                 "target": target_peer_id,
-                "inner_type": inner_type,
-                "inner_payload": inner_payload,
+                "inner_type": inner_msg.type,
+                "inner_payload": inner_msg.payload,
+                "inner_ts": inner_msg.ts,
+                "inner_nonce": inner_msg.nonce,
+                "inner_signature": inner_msg.signature,
+                "inner_public_key": inner_msg.public_key,
             },
         )
         ok = await self._transport.send_to(relay_peer_id, msg)
@@ -306,7 +333,19 @@ class RelayClient:
                 type=inner_type,
                 sender=origin,
                 payload=inner_payload,
+                ts=float(msg.payload.get("inner_ts") or time.time()),
+                nonce=str(msg.payload.get("inner_nonce") or ""),
+                signature=str(msg.payload.get("inner_signature") or ""),
+                public_key=str(msg.payload.get("inner_public_key") or ""),
             )
+            if not verify_message(inner_msg, reject_unsigned=settings.p2p_require_signatures):
+                logger.warning(
+                    "Dropping relayed unsigned/invalid inner message type=%s origin=%s via=%s",
+                    inner_type,
+                    origin,
+                    msg.sender,
+                )
+                return
             result = handler(inner_msg, conn)
             if asyncio.iscoroutine(result) or asyncio.isfuture(result):
                 await result

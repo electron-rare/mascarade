@@ -162,6 +162,8 @@ class HuggingFaceProvider(LLMProvider):
             max_tokens=max_tokens,
             temperature=temperature,
         )
+        if not response.choices:
+            raise RuntimeError(f"HuggingFace returned empty choices for model {model}")
         choice = response.choices[0]
         return LLMResponse(
             content=choice.message.content or "",

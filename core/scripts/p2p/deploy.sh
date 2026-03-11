@@ -41,6 +41,13 @@ for remote in "${!NODES[@]}"; do
         scp -q -r "$P2P_SRC"/*.py "$remote:$dest/mascarade/p2p/"
     }
 
+    # Also sync finetune module
+    if [ -d "$CORE_DIR/mascarade/finetune" ]; then
+        ssh "$remote" "mkdir -p $dest/mascarade/finetune/agents $dest/mascarade/finetune/p2p" 2>/dev/null || true
+        rsync -az --delete --exclude='__pycache__' "$CORE_DIR/mascarade/finetune/" "$remote:$dest/mascarade/finetune/" 2>/dev/null || \
+            echo "  WARN: finetune sync failed (rsync)"
+    fi
+
     # Verify import
     ssh -o ConnectTimeout=5 "$remote" "cd $dest && PYTHONPATH=$dest python3 -c 'from mascarade.p2p import BACKEND; print(f\"  OK backend={BACKEND}\")'" 2>/dev/null || {
         # Try with venv (CILS)
