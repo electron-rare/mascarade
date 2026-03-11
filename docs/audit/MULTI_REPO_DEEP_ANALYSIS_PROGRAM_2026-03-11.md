@@ -77,7 +77,7 @@ Documents d'ancrage:
 
 | ID | Tache | Owner |
 | --- | --- | --- |
-| `K-DA-006` | Verifier l'alignement entre evidence packs CI et preuves documentaires locales | `embedded-systems-auditor` |
+| `K-DA-007` | Stabiliser la production d'artefacts firmware `esp` dans la lane CI evidence pack | `embedded-systems-auditor` |
 
 ## Actions documentees dans ce tour
 
@@ -106,6 +106,9 @@ Documents d'ancrage:
 - production du diagramme `Kill_LIFE/docs/KILL_LIFE_WORKFLOW_GITHUB_SEQUENCE_2026-03-11.md`
 - reliaison du `README` et du plan `Kill_LIFE` vers le diagramme `workflow github`
 - synchronisation de la doc operateur `Kill_LIFE` (`docs/RUNBOOK.md`, `docs/index.md`, `docs/workflows/README.md`, `docs/AI_WORKFLOWS.md`, `docs/evidence/evidence_pack.md`) autour des sequences `local` et `github`
+- fermeture de `K-DA-006` via l'alignement de `.github/workflows/evidence_pack.yml` sur `tools/auto_check_ci_cd.py` et `docs/evidence/*`
+- ajout de la note d'audit `Kill_LIFE/docs/EVIDENCE_ALIGNMENT_2026-03-11.md`
+- verification locale de la chaine evidence `Kill_LIFE`: `./.venv/bin/python tools/auto_check_ci_cd.py` avec sortie `linux` exploitable et `esp` partielle mais tracee
 
 ## Test status snapshot
 
