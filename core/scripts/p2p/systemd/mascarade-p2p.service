@@ -6,7 +6,7 @@ Wants=network-online.target
 [Service]
 Type=simple
 WorkingDirectory=/mascarade/core
-ExecStart=/usr/bin/python3 /mascarade/core/scripts/p2p/node_start.py
+ExecStart=/usr/bin/python3 /mascarade/core/scripts/p2p/node_start_bootstrap.py
 Restart=always
 RestartSec=5
 Environment=PYTHONPATH=/mascarade/core
