@@ -77,9 +77,9 @@ Documents d'ancrage:
 
 | ID | Tache | Owner |
 | --- | --- | --- |
-| `K-DA-002` | Ajouter les diagrammes de sequence `workflow local` et `workflow github` | `mcp-runtime-analyst` |
-| `K-DA-003` | Rafraichir le README et `docs/plans` pour pointer vers le plan d'analyse actif | `readme-curator` |
-| `K-DA-004` | Synchroniser la doc operateur avec la carte fonctionnelle canonique | `readme-curator` |
+| `K-DA-003` | Ajouter le diagramme de sequence `workflow github` | `mcp-runtime-analyst` |
+| `K-DA-004` | Rafraichir le README et `docs/plans` pour pointer vers le plan d'analyse actif | `readme-curator` |
+| `K-DA-005` | Synchroniser la doc operateur avec la carte fonctionnelle canonique | `readme-curator` |
 
 ## Actions documentees dans ce tour
 
@@ -103,6 +103,8 @@ Documents d'ancrage:
 - revalidation ciblee: `cd core && ./.venv/bin/python -m pytest -q tests/test_orchestrator.py`
 - production de la carte fonctionnelle `Kill_LIFE/docs/KILL_LIFE_FEATURE_MAP_2026-03-11.md`
 - reliaison du `README` et du plan `Kill_LIFE` vers la nouvelle carte
+- production du diagramme `Kill_LIFE/docs/KILL_LIFE_WORKFLOW_LOCAL_SEQUENCE_2026-03-11.md`
+- reliaison du `README` et du plan `Kill_LIFE` vers le diagramme `workflow local`
 
 ## Test status snapshot
 
