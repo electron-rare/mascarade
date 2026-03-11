@@ -77,9 +77,9 @@ Documents d'ancrage:
 
 | ID | Tache | Owner |
 | --- | --- | --- |
-| `K-DA-001` | Ecrire la carte fonctionnelle canonique des surfaces runtime et spec-first | `workflow-map-curator` |
 | `K-DA-002` | Ajouter les diagrammes de sequence `workflow local` et `workflow github` | `mcp-runtime-analyst` |
 | `K-DA-003` | Rafraichir le README et `docs/plans` pour pointer vers le plan d'analyse actif | `readme-curator` |
+| `K-DA-004` | Synchroniser la doc operateur avec la carte fonctionnelle canonique | `readme-curator` |
 
 ## Actions documentees dans ce tour
 
@@ -101,6 +101,8 @@ Documents d'ancrage:
 - production de la carte fonctionnelle `crazy_life/docs/CRAZY_LIFE_FEATURE_MAP_2026-03-11.md`
 - reliaison du `README` et du plan `crazy_life` vers la nouvelle carte
 - revalidation ciblee: `cd core && ./.venv/bin/python -m pytest -q tests/test_orchestrator.py`
+- production de la carte fonctionnelle `Kill_LIFE/docs/KILL_LIFE_FEATURE_MAP_2026-03-11.md`
+- reliaison du `README` et du plan `Kill_LIFE` vers la nouvelle carte
 
 ## Test status snapshot
 
