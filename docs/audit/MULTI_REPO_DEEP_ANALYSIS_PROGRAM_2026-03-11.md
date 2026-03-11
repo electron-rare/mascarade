@@ -1,0 +1,110 @@
+# Multi-Repo Deep Analysis Program — 2026-03-11
+
+## Scope
+
+Repos pilotes:
+
+| Repo | Role courant | Statut dans ce programme |
+| --- | --- | --- |
+| `mascarade` | Hub runtime/ops, orchestration agentique, bridge historique | hub central, outillage et baseline |
+| `crazy_life` | Repo canonique web/devops du cockpit et de `Crazy Lane` | analyse doc + cartographie UI/API a produire |
+| `Kill_LIFE` | Source de verite runtime, workflows, evidence, firmware, CAD, compliance | analyse fonctionnelle et diagrammes d'execution a produire |
+| `kicad` | depot upstream de reference, pas repo produit du chantier | reference externe, hors campagne de refacto profonde |
+
+Documents d'ancrage:
+
+- `README.md`
+- `docs/EXECUTION_HUB.md`
+- `docs/audit/MULTI_REPO_BASELINE_2026-03-11.md`
+- `../crazy_life/docs/REPO_CARTOGRAPHY_2026-03-07.md`
+
+## Operating rules
+
+- Travailler de facon chirurgicale: petits deltas, pas de re-ecriture large sans preuve.
+- Utiliser des scripts TUI/logues quand l'action est recurrente ou operateur-facing.
+- Ecrire les logs dans des fichiers temporaires, les lire, les resumer, puis les supprimer sauf demande explicite.
+- Ne pas dupliquer les contrats de role: la cartographie repo reste la reference.
+- Chaque repo doit finir avec un trio minimal: README a jour, diagrammes de sequence, carte fonctionnelle.
+
+## Agents, sous-agents et competences
+
+| Repo | Lead agent | Sous-agents | Competences / skills |
+| --- | --- | --- | --- |
+| `mascarade` | `runtime-architect` | `sequence-mapper`, `feature-cartographer`, `readme-curator`, `code-surgeon`, `test-auditor`, `open-source-scout` | `bash-cli-tui`, `playwright` |
+| `crazy_life` | `cockpit-cartographer` | `ui-sequence-mapper`, `workflow-surface-analyst`, `release-readme-curator`, `api-contract-auditor` | `bash-cli-tui`, `playwright` |
+| `Kill_LIFE` | `embedded-systems-auditor` | `mcp-runtime-analyst`, `firmware-doctor`, `compliance-cartographer`, `workflow-map-curator`, `readme-curator` | `bash-cli-tui`, `platformio-firmware-bootstrap`, `esp32-freenove-audit`, `esp32-runtime-debug` |
+
+## Deliverables expected per repo
+
+### `mascarade`
+
+- diagramme de sequence `API -> core -> providers -> observability`
+- carte fonctionnelle des surfaces `api`, `core`, `deploy`, `scripts`, `finetune`, `web`
+- README aligne sur le manifeste et sur le contrat multi-repo
+- correction des regressions rapides detectables par tests locaux
+
+### `crazy_life`
+
+- diagrammes de sequence pour `UI -> Hono API -> Kill_LIFE workflows`
+- carte fonctionnelle des pages, lanes, modules de release et integration `api/public`
+- README qui renvoie explicitement vers la cartographie repo et le plan actif
+
+### `Kill_LIFE`
+
+- diagrammes de sequence pour `spec -> workflow -> local action/github dispatch -> evidence pack`
+- carte fonctionnelle des surfaces `agents`, `specs`, `workflows`, `tools`, `hardware`, `firmware`, `compliance`, `openclaw`
+- README + docs/plans synchronises avec le contrat repo courant
+
+## Plans actifs et prochaines taches
+
+### `mascarade`
+
+| ID | Tache | Owner |
+| --- | --- | --- |
+| `M-DA-001` | Maintenir le baseline multi-repo via `scripts/repo_deep_analysis_tui.sh` | `runtime-architect` |
+| `M-DA-004` | Continuer la reduction des regressions `api` puis `core` par lots verifies | `code-surgeon` |
+| `M-DA-008` | Consolider une lecture operateur plus synthétique des traces cluster/P2P | `sequence-mapper` |
+
+### `crazy_life`
+
+| ID | Tache | Owner |
+| --- | --- | --- |
+| `C-DA-002` | Ajouter un diagramme de sequence pour la lane workflow `Crazy Lane` | `ui-sequence-mapper` |
+| `C-DA-003` | Rafraichir le README pour relier plan, publication et cartographie | `release-readme-curator` |
+| `C-DA-004` | Verifier la couverture `api/public` et les limites du proxy upstream | `api-contract-auditor` |
+
+### `Kill_LIFE`
+
+| ID | Tache | Owner |
+| --- | --- | --- |
+| `K-DA-001` | Ecrire la carte fonctionnelle canonique des surfaces runtime et spec-first | `workflow-map-curator` |
+| `K-DA-002` | Ajouter les diagrammes de sequence `workflow local` et `workflow github` | `mcp-runtime-analyst` |
+| `K-DA-003` | Rafraichir le README et `docs/plans` pour pointer vers le plan d'analyse actif | `readme-curator` |
+
+## Actions documentees dans ce tour
+
+- inventaire des repos Git locaux et des ancres README/plan/TODO/diagrammes
+- creation du script TUI `scripts/repo_deep_analysis_tui.sh`
+- creation du baseline `docs/audit/MULTI_REPO_BASELINE_2026-03-11.md`
+- ajout de plans repo-locaux pour `crazy_life` et `Kill_LIFE`
+- ajout des liens README vers les plans actifs
+- correction ciblee d'une regression API dans `api/src/routes/mcpIndustrial.ts`
+- production du diagramme de sequence `docs/API_CORE_PROVIDER_SEQUENCE_2026-03-11.md`
+- production du diagramme `docs/CLUSTER_P2P_REMOTE_SEND_SEQUENCE_2026-03-11.md`
+- production de la carte fonctionnelle `docs/MASCARADE_FEATURE_MAP_2026-03-11.md`
+- correction ciblee du forwarding P2P `libp2p` dans `core/mascarade/cluster.py`
+- ajout d'un test cible dans `core/tests/test_cluster.py`
+- revalidation ciblee: `cd core && ./.venv/bin/python -m pytest -q tests/test_cluster.py`
+- exposition de `routing_transport` et `routing_latency_ms` dans `AgentTraceBuffer` et l'orchestrateur
+- revalidation ciblee: `cd core && ./.venv/bin/python -m pytest -q tests/test_orchestrator.py tests/test_cluster.py`
+- exposition de `routing_selected_by` dans `AgentTraceBuffer` et l'orchestrateur
+- production de la carte fonctionnelle `crazy_life/docs/CRAZY_LIFE_FEATURE_MAP_2026-03-11.md`
+- reliaison du `README` et du plan `crazy_life` vers la nouvelle carte
+- revalidation ciblee: `cd core && ./.venv/bin/python -m pytest -q tests/test_orchestrator.py`
+
+## Test status snapshot
+
+- `mascarade/api`: un echec local initial observe dans `src/routes/mcpIndustrial.test.ts` avant correctif
+- `mascarade/core`: suite non verte dans l'etat actuel du worktree; plusieurs echecs relevent soit de regressions locales P2P/cluster, soit de limites sandbox sur le bind reseau
+- `mascarade/core/tests/test_cluster.py` et `mascarade/core/tests/test_orchestrator.py`: verts sur le lot courant
+- aucune pretention de "suite verte globale" n'est faite sans reprise lot-par-lot

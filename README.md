@@ -60,6 +60,11 @@ Mascarade fait partie d'un ecosysteme de 5 repos :
 - backlog ANE dedie: [`TODO_AI_NOVEL_ENGINE.md`](./TODO_AI_NOVEL_ENGINE.md)
 - plan d'execution global: [`docs/EXECUTION_PLAN_2026-03-08.md`](./docs/EXECUTION_PLAN_2026-03-08.md)
 - runbook Apple local: [`docs/RUNBOOK_APPLE_LLM_LOCAL.md`](./docs/RUNBOOK_APPLE_LLM_LOCAL.md)
+- programme d'analyse multi-repo: [`docs/audit/MULTI_REPO_DEEP_ANALYSIS_PROGRAM_2026-03-11.md`](./docs/audit/MULTI_REPO_DEEP_ANALYSIS_PROGRAM_2026-03-11.md)
+- baseline multi-repo regenere: [`docs/audit/MULTI_REPO_BASELINE_2026-03-11.md`](./docs/audit/MULTI_REPO_BASELINE_2026-03-11.md)
+- diagramme de sequence runtime: [`docs/API_CORE_PROVIDER_SEQUENCE_2026-03-11.md`](./docs/API_CORE_PROVIDER_SEQUENCE_2026-03-11.md)
+- diagramme cluster/p2p/runtime distant: [`docs/CLUSTER_P2P_REMOTE_SEND_SEQUENCE_2026-03-11.md`](./docs/CLUSTER_P2P_REMOTE_SEND_SEQUENCE_2026-03-11.md)
+- feature map repo: [`docs/MASCARADE_FEATURE_MAP_2026-03-11.md`](./docs/MASCARADE_FEATURE_MAP_2026-03-11.md)
 - l'integration `ai-novel-engine` reste limitee au runtime local et au contrat OpenAI-compatible
 
 **Core Python** (`core/`, port `8100`) -- Moteur d'orchestration, routeur LLM, agents, metriques

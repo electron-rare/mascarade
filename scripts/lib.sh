@@ -230,6 +230,11 @@ _TAGLINES=(
     "Vous avez la frequence — KEEP THE BEAT"
     "Orchestration LLM agentic — groove edition"
     "Si un enfant demande 'c'est quoi un ion ?', c'est un electron qui a trop fait la fete !"
+    "Bienvenue au carnaval mutant de photon-machine"
+    "Le portail opalin s'ouvre a 125 BPM"
+    "Les gobelins du build dansent sous le plasma violet"
+    "Douglas Adams a la passerelle, Pratchett dans le moteur"
+    "Haraway au cockpit, Mhalla sur le radar"
     "MoldBot → MoltBot → ClawdBot → OpenClaw → Mascarade"
 )
 

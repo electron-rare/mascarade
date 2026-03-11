@@ -6,14 +6,41 @@ import asyncio
 import logging
 from dataclasses import dataclass, field
 from enum import StrEnum
+from typing import Any
 
 from mascarade.agents.registry import AgentRegistry
 from mascarade.cluster import ClusterManager
+from mascarade.config import settings
 from mascarade.observability import AgentTraceBuffer, new_run_id
 from mascarade.router import Router
 from mascarade.router.providers.base import LLMResponse
 
 logger = logging.getLogger("mascarade.orchestrator")
+
+
+def _ray_router_send(payload: dict[str, Any]) -> dict[str, Any]:
+    """Worker Ray: exécute un appel Router.send isolé."""
+    from mascarade.router import Router as WorkerRouter
+    from mascarade.router.router import Strategy
+
+    strategy = Strategy(str(payload["strategy"]))
+    response = asyncio.run(
+        WorkerRouter().send(
+            payload["messages"],
+            strategy=strategy,
+            provider=payload.get("provider"),
+            model=payload.get("model"),
+            system=payload.get("system"),
+            temperature=payload.get("temperature"),
+            max_tokens=payload.get("max_tokens"),
+        )
+    )
+    return {
+        "content": response.content,
+        "model": response.model,
+        "provider": response.provider,
+        "usage": dict(response.usage or {}),
+    }
 
 
 class ExecutionMode(StrEnum):
@@ -33,6 +60,8 @@ class TaskResult:
     peer_id: str | None = None
     node_id: str | None = None
     role: str | None = None
+    transport: str | None = None
+    latency_ms: int | None = None
 
 
 @dataclass
@@ -50,6 +79,9 @@ class Orchestrator:
     registry: AgentRegistry = field(default_factory=AgentRegistry)
     trace_buffer: AgentTraceBuffer | None = None
     cluster: ClusterManager | None = None
+    _ray_client: Any = field(default=None, init=False, repr=False)
+    _ray_send_remote: Any = field(default=None, init=False, repr=False)
+    _ray_disabled: bool = field(default=False, init=False, repr=False)
 
     def _trace(
         self,
@@ -69,6 +101,9 @@ class Orchestrator:
         routing_role: str | None = None,
         routing_provider: str | None = None,
         routing_model: str | None = None,
+        routing_selected_by: str | None = None,
+        routing_transport: str | None = None,
+        routing_latency_ms: float | None = None,
         token_usage: dict[str, int] | None = None,
         error: str | None = None,
     ) -> None:
@@ -91,8 +126,96 @@ class Orchestrator:
             routing_role=routing_role,
             routing_provider=routing_provider,
             routing_model=routing_model,
+            routing_selected_by=routing_selected_by,
+            routing_transport=routing_transport,
+            routing_latency_ms=routing_latency_ms,
             token_usage=token_usage,
             error=error,
+        )
+
+    async def _ensure_ray(self) -> Any | None:
+        if not settings.orchestrator_ray_enabled or self._ray_disabled:
+            return None
+        if self._ray_client is not None:
+            return self._ray_client
+        try:
+            import ray
+        except Exception as exc:  # pragma: no cover - dépend de l'env runtime
+            logger.warning("Ray indisponible, fallback local: %s", exc)
+            self._ray_disabled = True
+            return None
+
+        def _init_ray() -> Any:
+            if not ray.is_initialized():
+                ray.init(
+                    address=settings.orchestrator_ray_address,
+                    namespace=settings.orchestrator_ray_namespace,
+                    ignore_reinit_error=True,
+                    log_to_driver=False,
+                )
+            return ray
+
+        try:
+            self._ray_client = await asyncio.to_thread(_init_ray)
+            self._ray_send_remote = self._ray_client.remote(_ray_router_send)
+            logger.info(
+                "Ray orchestrator activé (address=%s, namespace=%s)",
+                settings.orchestrator_ray_address,
+                settings.orchestrator_ray_namespace,
+            )
+            return self._ray_client
+        except Exception as exc:
+            logger.warning("Init Ray échouée, fallback local: %s", exc)
+            self._ray_disabled = True
+            return None
+
+    async def _execute_agent_via_ray(
+        self,
+        *,
+        agent_name: str,
+        payload: dict[str, Any],
+        step: int,
+    ) -> TaskResult | None:
+        ray_client = await self._ensure_ray()
+        if ray_client is None or self._ray_send_remote is None:
+            return None
+
+        loop = asyncio.get_running_loop()
+        start = loop.time()
+        ray_payload = {
+            "messages": payload["messages"],
+            "strategy": str(payload["strategy"]),
+            "provider": payload.get("provider"),
+            "model": payload.get("model"),
+            "system": payload.get("system"),
+            "temperature": payload.get("temperature"),
+            "max_tokens": payload.get("max_tokens"),
+        }
+        try:
+            routed = await asyncio.to_thread(
+                ray_client.get, self._ray_send_remote.remote(ray_payload)
+            )
+        except Exception as exc:
+            logger.warning("Exécution Ray échouée pour %s, fallback local: %s", agent_name, exc)
+            return None
+
+        response = LLMResponse(
+            content=str(routed["content"]),
+            model=str(routed["model"]),
+            provider=str(routed["provider"]),
+            usage=dict(routed.get("usage") or {}),
+        )
+        latency_ms = int((loop.time() - start) * 1000)
+        return TaskResult(
+            agent_name=agent_name,
+            response=response,
+            step=step,
+            remote=True,
+            selected_by="orchestrator-ray",
+            node_id=None,
+            role=None,
+            transport="ray",
+            latency_ms=latency_ms,
         )
 
     async def run_sequential(
@@ -145,6 +268,9 @@ class Orchestrator:
                 content_excerpt=result.response.content,
                 provider=result.response.provider,
                 model=result.response.model,
+                routing_selected_by=result.selected_by,
+                routing_transport=result.transport,
+                routing_latency_ms=result.latency_ms,
                 token_usage=result.response.usage,
             )
             results.append(result)
@@ -201,6 +327,9 @@ class Orchestrator:
                 content_excerpt=result.response.content,
                 provider=result.response.provider,
                 model=result.response.model,
+                routing_selected_by=result.selected_by,
+                routing_transport=result.transport,
+                routing_latency_ms=result.latency_ms,
                 token_usage=result.response.usage,
             )
             return result
@@ -298,6 +427,9 @@ class Orchestrator:
                 content_excerpt=result.response.content,
                 provider=result.response.provider,
                 model=result.response.model,
+                routing_selected_by=result.selected_by,
+                routing_transport=result.transport,
+                routing_latency_ms=result.latency_ms,
                 token_usage=result.response.usage,
             )
             results.append(result)
@@ -329,6 +461,10 @@ class Orchestrator:
                 payload["provider"] = routing_override["preferred_provider"]
             if routing_override.get("preferred_model"):
                 payload["model"] = routing_override["preferred_model"]
+        if settings.routellm_enabled and not payload.get("provider"):
+            strategy_raw = str(payload.get("strategy") or "")
+            if strategy_raw in {"best", "cheapest", "fastest", "routellm"}:
+                payload["strategy"] = "routellm"
 
         preferred_role = (routing_override or {}).get("preferred_role") or getattr(
             agent, "preferred_role", None
@@ -356,7 +492,21 @@ class Orchestrator:
                 peer_id=routed.get("peer_id"),
                 node_id=str(routed.get("node_id") or "") or None,
                 role=str(routed.get("role") or "") or None,
+                transport=str(routed.get("transport") or ("local" if not routed.get("remote") else "")) or None,
+                latency_ms=(
+                    int(routed["latency_ms"])
+                    if isinstance(routed.get("latency_ms"), (int, float))
+                    else None
+                ),
             )
+
+        ray_result = await self._execute_agent_via_ray(
+            agent_name=agent.name,
+            payload=payload,
+            step=step,
+        )
+        if ray_result is not None:
+            return ray_result
 
         response = await self.router.send(
             payload["messages"],
@@ -375,6 +525,8 @@ class Orchestrator:
             selected_by="local-direct",
             node_id=None,
             role=None,
+            transport="local",
+            latency_ms=0,
         )
 
     async def run(
