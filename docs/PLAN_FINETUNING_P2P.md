@@ -230,19 +230,22 @@ FT_CAPABILITIES = {
 
 ---
 
-## Priorités
+## Priorités (mise à jour 11/03)
 
-| # | Action | Effort | Dépend de |
-|---|--------|--------|-----------|
-| 1 | Agent Chercheur (HF search) | 2h | HuggingFace MCP |
-| 2 | Agent Documentaliste (dataset search) | 2h | HuggingFace MCP |
-| 3 | Agent Doctor (teacher data gen) | 3h | mascarade Router |
-| 4 | Agent Archiviste (HF push) | 2h | HuggingFace token |
-| 5 | Agent Student (LoRA fine-tune) | 4h | llama.cpp + trl |
-| 6 | P2P task handlers | 2h | mesh P2P actif |
-| 7 | Agent Analyste | 3h | Student output |
-| 8 | Agent Renforceur (DPO) | 4h | Analyste + Doctor |
-| 9 | Agent Validateur | 3h | Student output |
-| 10 | Orchestrateur pipeline | 3h | Tous les agents |
-| 11 | Auto-registration provider | 2h | llama-server |
-| 12 | Cycle continu | 2h | Orchestrateur |
+| # | Action | Effort | Dépend de | Status |
+|---|--------|--------|-----------|--------|
+| 1 | Agent Chercheur (HF search) | 2h | HuggingFace MCP | ✅ Testé |
+| 2 | Agent Documentaliste (dataset search) | 2h | HuggingFace MCP | ✅ Testé |
+| 3 | Agent Doctor (teacher data gen) | 3h | mascarade Router | ✅ Créé |
+| 4 | Agent Archiviste (HF push) | 2h | HuggingFace token | ✅ Créé |
+| 5 | Agent Student (LoRA fine-tune) | 4h | llama.cpp + trl | ✅ Créé |
+| 6 | P2P task handlers | 2h | mesh P2P actif | ✅ Créé |
+| 7 | Agent Analyste | 3h | Student output | ✅ Créé |
+| 8 | Agent Renforceur (DPO) | 4h | Analyste + Doctor | ✅ Créé |
+| 9 | Agent Validateur | 3h | Student output | ✅ Créé |
+| 10 | Orchestrateur pipeline | 3h | Tous les agents | ✅ Créé |
+| 11 | Installer trl/peft sur KXKM-AI | 30min | SSH KXKM | ⏳ À faire |
+| 12 | Connecter Teacher au Router | 30min | Router instance | ⏳ À faire |
+| 13 | Premier fine-tune e2e | 2h | #11 + #12 | ⏳ À faire |
+| 14 | Auto-registration provider | 2h | llama-server | ⏳ À faire |
+| 15 | Cycle continu | 2h | Orchestrateur | ⏳ À faire |

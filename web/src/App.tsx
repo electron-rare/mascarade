@@ -15,6 +15,8 @@ import ComfyUI from "./pages/ComfyUI";
 import KillLifeWorkflows from "./pages/KillLifeWorkflows";
 import KillLifeWorkflowEditor from "./pages/KillLifeWorkflowEditor";
 import Settings from "./pages/Settings";
+import P2PMesh from "./pages/P2PMesh";
+import FineTuning from "./pages/FineTuning";
 
 export default function App() {
   return (
@@ -35,6 +37,8 @@ export default function App() {
           <Route path="kill-life" element={<KillLifeWorkflows />} />
           <Route path="kill-life/:workflowId" element={<KillLifeWorkflowEditor />} />
           <Route path="settings" element={<Settings />} />
+          <Route path="p2p" element={<P2PMesh />} />
+          <Route path="finetune" element={<FineTuning />} />
           <Route path="*" element={<p className="text-error text-sm text-center mt-20">404 — page not found</p>} />
         </Route>
       </Routes>
