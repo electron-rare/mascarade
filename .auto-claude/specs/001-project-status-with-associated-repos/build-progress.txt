@@ -40,7 +40,66 @@ cea025a 2026-03-10 Merge pull request #9 from electron-rare/feat/apple-coreml-ru
 - `feat/apple-silicon-runtime` remote tracking branch is gone
 - `feat/frontend-pr1-stability` remote tracking branch is gone
 
+## 2. SIBLING WORKTREES
+
+### mascarade (bare/main clone)
+Path:     /Users/electron/mascarade
+Branch:   feat/apple-coreml-runtime-lot
+Dirty:    YES (1 modified)
+  M core/scripts/p2p/task_handler_worker.py
+Last:     43e970f 2026-03-12 fix(p2p): PeerConnection write lock, relay auth, protocol validation, stream_forward leak
+Note:     This is the main working clone; all worktrees branch from here.
+
+### mascarade-api-deps
+Path:     /Users/electron/mascarade-api-deps
+Branch:   chore/api-deps-pristine
+Dirty:    CLEAN
+Last:     0107c5f 2026-03-09 chore(api): refresh server dependencies
+
+### mascarade-apple-coreml
+Path:     /Users/electron/mascarade-apple-coreml
+Branch:   feat/apple-coreml-runtime-pristine
+Dirty:    YES (1 modified)
+  M scripts/lib.sh
+Last:     64b8727 2026-03-09 feat: add apple coreml local runtime
+
+### mascarade-frontend-pr
+Path:     /Users/electron/mascarade-frontend-pr
+Branch:   feat/frontend-pr1-stability
+Dirty:    YES (1 modified)
+  M MANIFEST.md
+Last:     6b33289 2026-03-06 build: refresh frontend assets after rebase
+Note:     Remote tracking branch is GONE (deleted upstream)
+
+## 3. DOCKER-MOUNTED COMPANION REPOS
+
+### Kill_LIFE (mounted RW into api service)
+Path:     /Users/electron/Kill_LIFE
+Branch:   main
+Dirty:    YES (5 modified)
+  M README.md
+  M tools/cad_runtime.py
+  M tools/freecad_mcp.py
+  M tools/mcp_runtime_status.py
+  M tools/validate_specs.py
+Last:     3e3cb06 2026-03-11 feat: harden native evidence lane for esp builds
+Branches: 1 (main only)
+
+### agent-factory-cockpit (mounted RO into core service)
+Status:   NOT FOUND — directory does not exist locally
+
+## 4. GIT SUBMODULES (all 4 NOT initialized)
+
+| Submodule                         | Expected Commit | Status          |
+|-----------------------------------|-----------------|-----------------|
+| vendors/kicadrouterai             | 8a649b0         | Not initialized |
+| finetune/kicad_fabrication_toolkit| 51fe5fc         | Not initialized |
+| finetune/kicad_kic_ai            | 764df5d         | Not initialized |
+| finetune/kicad_mcp_server        | 8d2f467         | Not initialized |
+
+Run `git submodule update --init` to clone them.
+
 ================================================================================
-SUBTASK 1-1 COMPLETE — Main repo status gathered successfully.
-Next: subtask-1-2 (sibling worktrees, docker-mounted repos, submodules)
+SUBTASK 1-2 COMPLETE — All sibling worktrees, docker-mounted repos, and
+submodules inspected. Report sections 2-4 added above.
 ================================================================================
