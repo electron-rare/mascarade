@@ -5,14 +5,12 @@ const AUTH_SESSION_PATH = "/api/auth/session";
 
 async function upsertSessionCookie(key: string, persist: boolean): Promise<boolean> {
   const headers = new Headers();
-  headers.set("Authorization", `Bearer ${key}`);
   headers.set("Content-Type", "application/json");
-  headers.set("X-Mascarade-Session-Persist", persist ? "1" : "0");
   try {
     const res = await fetch(AUTH_SESSION_PATH, {
       method: "POST",
       headers,
-      body: JSON.stringify({ persist }),
+      body: JSON.stringify({ api_key: key, persist }),
       credentials: "include",
       signal: AbortSignal.timeout(VALIDATE_TIMEOUT_MS),
     });

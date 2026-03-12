@@ -338,7 +338,7 @@ class RelayClient:
                 signature=str(msg.payload.get("inner_signature") or ""),
                 public_key=str(msg.payload.get("inner_public_key") or ""),
             )
-            if not verify_message(inner_msg, reject_unsigned=settings.p2p_require_signatures):
+            if not verify_message(inner_msg, reject_unsigned=True):
                 logger.warning(
                     "Dropping relayed unsigned/invalid inner message type=%s origin=%s via=%s",
                     inner_type,

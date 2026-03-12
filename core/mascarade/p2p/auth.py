@@ -24,7 +24,7 @@ def sign_message(identity: PeerIdentity, msg: P2PMessage) -> P2PMessage:
     return msg
 
 
-def verify_message(msg: P2PMessage, *, reject_unsigned: bool = True) -> bool:
+def verify_message(msg: P2PMessage, *, reject_unsigned: bool = False) -> bool:
     """Verify the signature on a message.
 
     When reject_unsigned is False, unsigned messages are accepted for

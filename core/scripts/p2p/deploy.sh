@@ -41,12 +41,21 @@ for remote in "${!NODES[@]}"; do
         scp -q -r "$P2P_SRC"/*.py "$remote:$dest/mascarade/p2p/"
     }
 
-    # Also sync finetune module
-    if [ -d "$CORE_DIR/mascarade/finetune" ]; then
-        ssh "$remote" "mkdir -p $dest/mascarade/finetune/agents $dest/mascarade/finetune/p2p" 2>/dev/null || true
-        rsync -az --delete --exclude='__pycache__' "$CORE_DIR/mascarade/finetune/" "$remote:$dest/mascarade/finetune/" 2>/dev/null || \
-            echo "  WARN: finetune sync failed (rsync)"
-    fi
+    # Sync additional modules
+    for mod in finetune router tools; do
+        if [ -d "$CORE_DIR/mascarade/$mod" ]; then
+            ssh "$remote" "mkdir -p $dest/mascarade/$mod" 2>/dev/null || true
+            rsync -az --delete --exclude='__pycache__' "$CORE_DIR/mascarade/$mod/" "$remote:$dest/mascarade/$mod/" 2>/dev/null || \
+                echo "  WARN: $mod sync failed (rsync)"
+        fi
+    done
+
+    # Sync top-level modules (config, auth, server)
+    for f in config.py auth.py server.py; do
+        if [ -f "$CORE_DIR/mascarade/$f" ]; then
+            rsync -az "$CORE_DIR/mascarade/$f" "$remote:$dest/mascarade/$f" 2>/dev/null || true
+        fi
+    done
 
     # Verify import
     ssh -o ConnectTimeout=5 "$remote" "cd $dest && PYTHONPATH=$dest python3 -c 'from mascarade.p2p import BACKEND; print(f\"  OK backend={BACKEND}\")'" 2>/dev/null || {
