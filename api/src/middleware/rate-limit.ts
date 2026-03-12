@@ -20,6 +20,21 @@ function firstForwardedFor(value: string | undefined): string {
   return value.split(",")[0]?.trim() || "";
 }
 
+function pickForwardedClientIp(c: Context): string {
+  const candidates = [
+    c.req.header("cf-connecting-ip"),
+    c.req.header("x-real-ip"),
+    firstForwardedFor(c.req.header("x-forwarded-for")),
+  ];
+  for (const candidate of candidates) {
+    const normalized = normalizeIp(candidate || "");
+    if (normalized && !/[\s,]/.test(normalized)) {
+      return normalized;
+    }
+  }
+  return "";
+}
+
 function normalizeIp(value: string): string {
   const trimmed = String(value || "").trim();
   const withoutMappedPrefix = trimmed.replace(/^::ffff:/i, "");
@@ -71,18 +86,14 @@ function shouldTrustProxy(directRemote: string): boolean {
 function getClientKey(c: Context): string {
   const env = c.env as Record<string, unknown>;
   const incoming = env["incoming"] as { remote?: { address?: string } } | undefined;
-  const directRemote =
+  const directRemote = normalizeIp(
     incoming?.remote?.address ||
-    (typeof env["remoteAddr"] === "string" ? (env["remoteAddr"] as string) : "");
+      (typeof env["remoteAddr"] === "string" ? (env["remoteAddr"] as string) : ""),
+  );
 
   if (shouldTrustProxy(directRemote)) {
-    return (
-      c.req.header("cf-connecting-ip") ||
-      c.req.header("x-real-ip") ||
-      firstForwardedFor(c.req.header("x-forwarded-for")) ||
-      directRemote ||
-      "proxy-unknown"
-    );
+    const forwardedIp = pickForwardedClientIp(c);
+    return forwardedIp || directRemote || "proxy-unknown";
   }
 
   return directRemote || "direct";

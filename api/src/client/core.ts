@@ -703,6 +703,25 @@ export const coreClient = {
     }>("/mcp/industrial/platform");
   },
 
+  // --- Fine-tuning ---
+
+  finetunePipeline(body: { task: string; domain?: string; max_model_size_gb?: number }) {
+    return request<{ status: string; task_id?: string }>("/finetune/pipeline", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+
+  finetuneStack() {
+    return request<{ stack: string[]; recommended: string }>("/finetune/stack");
+  },
+
+  deleteFinetuneLog(name: string) {
+    return request<{ status: string }>(`/finetune/logs/${encodeURIComponent(name)}`, {
+      method: "DELETE",
+    });
+  },
+
   industrialMcpTool(
     serverKey: string,
     toolName: string,

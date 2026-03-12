@@ -6,6 +6,7 @@ import {
   getGitHubDispatchAccessToken,
   normalizeGitHubDispatchAuthMode,
 } from "../lib/githubDispatchAuth.js";
+import { isSecureRequest, noStoreHeaders } from "../lib/request-security.js";
 
 const settings = new Hono();
 const OPS_AGENT_URL = (process.env.OPS_AGENT_URL || "http://ops-agent:9200").replace(/\/+$/, "");
@@ -40,6 +41,13 @@ type RuntimeSecretMutationResponse = {
 const SENSITIVE_KEY_RE = /(token|secret|api[_-]?key|password|authorization)/i;
 const GENERATED_VALUE_KEY_RE = /^(generated[_-]?value|generatedValue)$/i;
 
+settings.use("*", async (c, next) => {
+  await next();
+  for (const [header, value] of Object.entries(noStoreHeaders())) {
+    c.header(header, value);
+  }
+});
+
 function escapeHtml(value: string): string {
   return value
     .replaceAll("&", "&amp;")
@@ -72,6 +80,22 @@ function maskSecret(value: string): string {
     return "***";
   }
   return `${token.slice(0, 4)}***${token.slice(-4)}`;
+}
+
+function sanitizeErrorMessage(value: string): string {
+  const message = String(value || "").trim();
+  if (!message) {
+    return "";
+  }
+  return message
+    .replace(
+      /\b(Bearer\s+)([A-Za-z0-9._~\-]{8,})\b/gi,
+      (_match, prefix: string, token: string) => `${prefix}${maskSecret(token)}`,
+    )
+    .replace(
+      /\b(token|secret|api[_-]?key|password|authorization)\b\s*[:=]\s*([^\s,;]+)/gi,
+      (_match, key: string, token: string) => `${key}=${maskSecret(token)}`,
+    );
 }
 
 function sanitizeSensitivePayload(value: unknown): unknown {
@@ -188,6 +212,7 @@ function popupResponse(
     status: ok ? 200 : 400,
     headers: {
       "Content-Type": "text/html; charset=utf-8",
+      ...noStoreHeaders(),
       ...(extraHeaders || {}),
     },
   });
@@ -196,12 +221,8 @@ function popupResponse(
 function requestHeaders(c: Context, body?: unknown): Headers {
   const headers = new Headers();
   const authHeader = c.req.header("Authorization");
-  const cookieHeader = c.req.header("Cookie");
   if (authHeader) {
     headers.set("Authorization", authHeader);
-  }
-  if (cookieHeader) {
-    headers.set("Cookie", cookieHeader);
   }
   if (body !== undefined) {
     headers.set("Content-Type", "application/json");
@@ -213,6 +234,7 @@ function jsonWithStatus(c: Context, body: Record<string, unknown>, status: numbe
   const sanitized = (sanitizeSensitivePayload(body) as Record<string, unknown>) || {};
   return c.newResponse(JSON.stringify(sanitized), status as any, {
     "Content-Type": "application/json",
+    ...noStoreHeaders(),
   });
 }
 
@@ -267,7 +289,7 @@ async function persistProviderValues(
   providerName: string,
   keys: Record<string, string>,
 ): Promise<{ error?: string }> {
-  const { upstream, text, json } = await proxyOpsAgentJson(
+  const { upstream, json } = await proxyOpsAgentJson(
     c,
     `/providers/${encodeURIComponent(providerName)}`,
     {
@@ -276,11 +298,10 @@ async function persistProviderValues(
     },
   );
   if (!upstream.ok) {
+    const upstreamError =
+      (json && typeof json.error === "string" && sanitizeErrorMessage(json.error)) || "";
     return {
-      error:
-        (json && typeof json.error === "string" && json.error) ||
-        text ||
-        `Ops Agent request failed (${upstream.status})`,
+      error: upstreamError || `Ops Agent request failed (${upstream.status})`,
     };
   }
   syncProviderEnvFromUpdate(keys);
@@ -370,7 +391,8 @@ settings.post("/runtime-secrets/:groupName/generate", async (c) => {
     if (response.generated_value) {
       process.env.MASCARADE_API_KEY = response.generated_value;
     }
-    return c.json((sanitizeSensitivePayload(response) as Record<string, unknown>) || { status: "ok" });
+    const { generated_value: _generatedValue, ...publicResponse } = response;
+    return c.json((sanitizeSensitivePayload(publicResponse) as Record<string, unknown>) || { status: "ok" });
   } catch (error) {
     return c.json(
       { error: error instanceof Error ? error.message : "Ops Agent request failed" },
@@ -410,7 +432,7 @@ settings.get("/providers/huggingface/oauth/start", async (c) => {
       scope: "openid profile inference-api",
       state,
     });
-    const secure = new URL(c.req.url).protocol === "https:" ? "; Secure" : "";
+    const secure = isSecureRequest(c.req) ? "; Secure" : "";
     return c.newResponse(null, 302 as any, {
       Location: authorizationUrl.href,
       "Set-Cookie": `${HUGGINGFACE_OAUTH_STATE_COOKIE}=${encodeURIComponent(state)}; HttpOnly; SameSite=Lax; Path=/api/settings/oauth/huggingface/callback; Max-Age=${PROVIDER_OAUTH_STATE_MAX_AGE}${secure}`,
@@ -424,7 +446,7 @@ settings.get("/providers/huggingface/oauth/start", async (c) => {
 });
 
 settings.get("/oauth/huggingface/callback", async (c) => {
-  const secure = new URL(c.req.url).protocol === "https:" ? "; Secure" : "";
+  const secure = isSecureRequest(c.req) ? "; Secure" : "";
   const clearCookie = `${HUGGINGFACE_OAUTH_STATE_COOKIE}=; HttpOnly; SameSite=Lax; Path=/api/settings/oauth/huggingface/callback; Max-Age=0${secure}`;
   try {
     const expectedState = cookieValue(c.req.header("Cookie"), HUGGINGFACE_OAUTH_STATE_COOKIE);
@@ -492,7 +514,7 @@ settings.get("/providers/google/oauth/start", async (c) => {
       scope: GOOGLE_OAUTH_SCOPES,
       state,
     });
-    const secure = new URL(c.req.url).protocol === "https:" ? "; Secure" : "";
+    const secure = isSecureRequest(c.req) ? "; Secure" : "";
     return c.newResponse(null, 302 as any, {
       Location: authorizationUrl,
       "Set-Cookie": `${GOOGLE_OAUTH_STATE_COOKIE}=${encodeURIComponent(state)}; HttpOnly; SameSite=Lax; Path=/api/settings/oauth/google/callback; Max-Age=${PROVIDER_OAUTH_STATE_MAX_AGE}${secure}`,
@@ -506,7 +528,7 @@ settings.get("/providers/google/oauth/start", async (c) => {
 });
 
 settings.get("/oauth/google/callback", async (c) => {
-  const secure = new URL(c.req.url).protocol === "https:" ? "; Secure" : "";
+  const secure = isSecureRequest(c.req) ? "; Secure" : "";
   const clearCookie = `${GOOGLE_OAUTH_STATE_COOKIE}=; HttpOnly; SameSite=Lax; Path=/api/settings/oauth/google/callback; Max-Age=0${secure}`;
   try {
     const expectedState = cookieValue(c.req.header("Cookie"), GOOGLE_OAUTH_STATE_COOKIE);

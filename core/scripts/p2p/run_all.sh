@@ -35,7 +35,7 @@ cmd_start() {
     echo "2. Workers"
     for spec in "cils@$CILS_HOST:CILS MacBook:kicad-validation,firmware-build,compute" "clems@$TOWER_HOST:Tower:compute,storage"; do
         IFS=: read -r ssh_target label caps <<< "$spec"
-        ssh "$ssh_target" "lsof -ti:4001 2>/dev/null | xargs kill 2>/dev/null; sleep 1; cd ~/mascarade/core && P2P_CAPABILITIES=$caps P2P_LABEL='$label' nohup python3 scripts/p2p/task_handler_worker.py </dev/null >/tmp/p2p_node.log 2>&1 &" 2>/dev/null && ok "$label started" || fail "$label start failed"
+        ssh "$ssh_target" "lsof -ti:4001 2>/dev/null | xargs kill 2>/dev/null; sleep 1; cd ~/mascarade/core && P2P_CAPABILITIES=$caps P2P_LABEL='$label' nohup .venv/bin/python scripts/p2p/task_handler_worker.py </dev/null >/tmp/p2p_node.log 2>&1 &" 2>/dev/null && ok "$label started" || fail "$label start failed"
     done
     sleep 4
 
@@ -85,13 +85,13 @@ cmd_stop() {
 # ───────────────────────────────────────────
 cmd_status() {
     echo "=== P2P Mesh Status ==="
-    for spec in "root@$VM_HOST:VM" "cils@$CILS_HOST:CILS" "clems@$TOWER_HOST:Tower" "kxkm@$KXKM_HOST:KXKM"; do
-        IFS=: read -r ssh_target label <<< "$spec"
-        PID=$(ssh "$ssh_target" "lsof -ti:4001 2>/dev/null" 2>/dev/null)
-        if [ -n "$PID" ]; then
-            ok "$label: running (PID $PID)"
+    for spec in "root@$VM_HOST:VM:4002" "cils@$CILS_HOST:CILS:4001" "clems@$TOWER_HOST:Tower:4001" "kxkm@$KXKM_HOST:KXKM:4001"; do
+        IFS=: read -r ssh_target label port <<< "$spec"
+        LISTENING=$(ssh -o ConnectTimeout=5 "$ssh_target" "lsof -ti:$port 2>/dev/null || ss -tlnp 2>/dev/null | grep -o ':${port}[[:space:]]' | head -1" 2>/dev/null)
+        if [ -n "$LISTENING" ]; then
+            ok "$label: listening on :$port"
         else
-            fail "$label: not running"
+            fail "$label: not running on :$port"
         fi
     done
 }

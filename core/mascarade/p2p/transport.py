@@ -28,6 +28,7 @@ class PeerConnection:
     connected: bool = False
     last_seen: float = 0.0
     _reconnect_backoff: float = 1.0
+    _write_lock: asyncio.Lock = field(default_factory=asyncio.Lock)
     message_transform: MessageTransform | None = None
 
     async def connect(self) -> bool:
@@ -49,14 +50,15 @@ class PeerConnection:
             return False
 
     async def send(self, msg: P2PMessage) -> bool:
-        if not self.connected or self.writer is None:
-            if not await self.connect():
-                return False
-        outgoing = self.message_transform(msg) if self.message_transform else msg
-        ok = await write_message(self.writer, outgoing)
-        if not ok:
-            await self.disconnect()
-        return ok
+        async with self._write_lock:
+            if not self.connected or self.writer is None:
+                if not await self.connect():
+                    return False
+            outgoing = self.message_transform(msg) if self.message_transform else msg
+            ok = await write_message(self.writer, outgoing)
+            if not ok:
+                await self.disconnect()
+            return ok
 
     async def disconnect(self) -> None:
         self.connected = False
