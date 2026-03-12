@@ -1,0 +1,62 @@
+{
+  "feature": "Project Status with Associated Repos",
+  "spec_name": "001-project-status-with-associated-repos",
+  "workflow_type": "simple",
+  "total_phases": 1,
+  "recommended_workers": 1,
+  "phases": [
+    {
+      "phase": 1,
+      "name": "Gather & Report Status",
+      "description": "Inspect all associated repos and produce a unified project status snapshot",
+      "depends_on": [],
+      "subtasks": [
+        {
+          "id": "subtask-1-1",
+          "description": "Run git status/log/branch on main repo (mascarade-main) and collect branch info, dirty state, last 5 commits, local branches, modified files",
+          "service": "main",
+          "status": "completed",
+          "files_to_create": [],
+          "files_to_modify": [],
+          "patterns_from": [],
+          "verification": {
+            "type": "manual",
+            "run": "git status && git log --oneline -5"
+          },
+          "notes": "Collected: current branch, dirty state (1 modified, 5 untracked), last 5 commits, 7 local branches with tracking info, remote sync state. Report written to build-progress.txt.",
+          "updated_at": "2026-03-12T08:25:05.525241+00:00"
+        },
+        {
+          "id": "subtask-1-2",
+          "description": "Inspect sibling worktrees (../mascarade, ../mascarade-api-deps, ../mascarade-apple-coreml, ../mascarade-frontend-pr), docker-mounted repos (../Kill_LIFE, ../agent-factory-cockpit), and all 4 git submodules - collect branch, last commit, dirty state for each",
+          "service": "main",
+          "status": "pending",
+          "files_to_create": [],
+          "files_to_modify": [],
+          "patterns_from": [],
+          "verification": {
+            "type": "manual",
+            "run": "Verify each repo section appears in the output report"
+          }
+        }
+      ]
+    }
+  ],
+  "metadata": {
+    "created_at": "2026-03-12T09:20:00Z",
+    "complexity": "simple",
+    "estimated_sessions": 1
+  },
+  "status": "in_progress",
+  "planStatus": "in_progress",
+  "xstateState": "coding",
+  "executionPhase": "coding",
+  "updated_at": "2026-03-12T08:24:27.984Z",
+  "lastEvent": {
+    "eventId": "978e4918-23b6-4c7e-9ee5-db30095a4e3d",
+    "sequence": 0,
+    "type": "PLANNING_COMPLETE",
+    "timestamp": "2026-03-12T08:22:17.296614+00:00"
+  },
+  "last_updated": "2026-03-12T08:25:05.525250+00:00"
+}
