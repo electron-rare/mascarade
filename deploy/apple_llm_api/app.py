@@ -6,6 +6,7 @@ from __future__ import annotations
 import importlib.metadata
 import json
 import os
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from threading import Lock
@@ -74,6 +75,8 @@ class ModelManager:
         self.loaded_models: dict[str, RuntimeState] = {}
         self.model_configs: dict[str, RuntimeConfig] = {}
         self.model_priorities: dict[str, int] = {}
+        self.request_count: dict[str, int] = {}
+        self.last_used: dict[str, float] = {}
         self.max_concurrent_models: int = max_concurrent_models
         self.current_model_id: str | None = None
         self.model_load_lock: Lock = Lock()
@@ -87,7 +90,12 @@ class ModelManager:
         Returns:
             The runtime state if loaded, None otherwise
         """
-        return self.loaded_models.get(model_id)
+        model = self.loaded_models.get(model_id)
+        if model is not None:
+            # Track usage
+            self.request_count[model_id] = self.request_count.get(model_id, 0) + 1
+            self.last_used[model_id] = time.time()
+        return model
 
     def is_loaded(self, model_id: str) -> bool:
         """Check if a model is currently loaded.
@@ -239,6 +247,9 @@ class ModelManager:
                 runtime.check_ready()
                 self.loaded_models[model_id] = runtime
                 self.current_model_id = model_id
+                # Initialize usage tracking
+                self.request_count[model_id] = self.request_count.get(model_id, 0) + 1
+                self.last_used[model_id] = time.time()
                 return runtime
             except Exception as exc:
                 raise RuntimeConfigError(
@@ -294,6 +305,63 @@ class ModelManager:
             runtime = self.loaded_models.pop(model_id)
             self.loaded_models[model_id] = runtime
 
+    def get_usage_stats(self, model_id: str) -> dict[str, Any]:
+        """Get usage statistics for a model.
+
+        Args:
+            model_id: The model identifier
+
+        Returns:
+            Dictionary containing request_count and last_used timestamp.
+            Returns zeros/None if the model has never been used.
+        """
+        return {
+            "request_count": self.request_count.get(model_id, 0),
+            "last_used": self.last_used.get(model_id),
+        }
+
+    def get_all_usage_stats(self) -> dict[str, dict[str, Any]]:
+        """Get usage statistics for all configured models.
+
+        Returns:
+            Dictionary mapping model_id to usage statistics
+        """
+        stats = {}
+        for model_id in self.model_configs:
+            stats[model_id] = self.get_usage_stats(model_id)
+        return stats
+
+    def predict_next_model(self) -> str | None:
+        """Predict the next model likely to be used based on usage patterns.
+
+        Uses a simple heuristic: the model with the highest request count
+        that was used recently (within the last hour) or the most recently used model.
+
+        Returns:
+            The model_id of the predicted next model, or None if no usage history
+        """
+        if not self.request_count:
+            return None
+
+        current_time = time.time()
+        one_hour_ago = current_time - 3600
+
+        # Find models used in the last hour
+        recent_models = {
+            model_id: count
+            for model_id, count in self.request_count.items()
+            if self.last_used.get(model_id, 0) > one_hour_ago
+        }
+
+        if recent_models:
+            # Return the most frequently used model from recent models
+            return max(recent_models, key=recent_models.get)
+        else:
+            # Return the most recently used model overall
+            if self.last_used:
+                return max(self.last_used, key=self.last_used.get)
+            return None
+
     def swap_model(self, new_model_id: str) -> RuntimeState:
         """Swap to a different model, implementing priority-based eviction if needed.
 
@@ -320,6 +388,9 @@ class ModelManager:
             if new_model_id in self.loaded_models:
                 self._mark_model_used(new_model_id)
                 self.current_model_id = new_model_id
+                # Track usage
+                self.request_count[new_model_id] = self.request_count.get(new_model_id, 0) + 1
+                self.last_used[new_model_id] = time.time()
                 return self.loaded_models[new_model_id]
 
             # Get the model configuration
@@ -343,6 +414,9 @@ class ModelManager:
                 runtime.check_ready()
                 self.loaded_models[new_model_id] = runtime
                 self.current_model_id = new_model_id
+                # Track usage
+                self.request_count[new_model_id] = self.request_count.get(new_model_id, 0) + 1
+                self.last_used[new_model_id] = time.time()
                 return runtime
             except Exception as exc:
                 raise RuntimeConfigError(
