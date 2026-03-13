@@ -33,6 +33,11 @@ scrape_configs:
     static_configs:
       - targets: ['litellm:4000']
 
+  - job_name: finetune-metrics-exporter
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['finetune-metrics-exporter:9101']
+
   - job_name: blackbox-http
     metrics_path: /probe
     params:
