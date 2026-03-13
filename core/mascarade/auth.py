@@ -2,15 +2,19 @@
 
 from __future__ import annotations
 
+import hashlib
 import hmac
 import logging
 import threading
 import time
+from datetime import datetime
 
 from fastapi import Depends, HTTPException
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from mascarade.config import settings
+from mascarade.db.connection import get_db_pool
+from mascarade.db.models import ApiKeyRecord, RoleRecord, User, UserRecord
 
 logger = logging.getLogger("mascarade.auth")
 
@@ -118,3 +122,135 @@ def get_active_api_keys() -> list[str]:
     """Get list of active API keys - thread-safe."""
     with _keys_lock:
         return list(_api_keys)
+
+
+# --- Database-backed authentication ---
+
+
+def hash_api_key(key: str) -> str:
+    """Hash an API key using SHA-256.
+
+    Args:
+        key: The API key to hash
+
+    Returns:
+        Hex-encoded SHA-256 hash of the key
+    """
+    return hashlib.sha256(key.encode()).hexdigest()
+
+
+async def authenticate_user(api_key: str) -> User | None:
+    """Authenticate a user via their API key from the database.
+
+    Validates the API key against the database, checks expiration and active status,
+    and returns the associated user if valid.
+
+    Args:
+        api_key: The API key to authenticate
+
+    Returns:
+        User object if authentication succeeds, None otherwise
+
+    Note:
+        This function also updates the last_used_at timestamp for the API key.
+    """
+    if not api_key or len(api_key.strip()) < 8:
+        logger.warning("API key authentication failed: key too short")
+        return None
+
+    pool = get_db_pool()
+    if pool is None:
+        logger.error("Database pool not initialized")
+        return None
+
+    try:
+        key_hash = hash_api_key(api_key.strip())
+
+        async with pool.acquire() as conn:
+            # Query for the API key and associated user/role in a single query
+            row = await conn.fetchrow(
+                """
+                SELECT
+                    ak.id as api_key_id,
+                    ak.user_id,
+                    ak.key_hash,
+                    ak.key_prefix,
+                    ak.name as api_key_name,
+                    ak.is_active as api_key_active,
+                    ak.created_at as api_key_created_at,
+                    ak.expires_at,
+                    ak.last_used_at,
+                    u.id,
+                    u.username,
+                    u.email,
+                    u.role_id,
+                    u.is_active,
+                    u.created_at,
+                    u.updated_at
+                FROM api_keys ak
+                JOIN users u ON ak.user_id = u.id
+                WHERE ak.key_hash = $1
+                """,
+                key_hash,
+            )
+
+            if row is None:
+                logger.warning("API key authentication failed: key not found")
+                return None
+
+            # Check if API key is active
+            if not row["api_key_active"]:
+                logger.warning(
+                    "API key authentication failed: key is inactive (user_id=%d)",
+                    row["user_id"],
+                )
+                return None
+
+            # Check if API key is expired
+            if row["expires_at"] is not None and row["expires_at"] < datetime.now():
+                logger.warning(
+                    "API key authentication failed: key expired (user_id=%d)",
+                    row["user_id"],
+                )
+                return None
+
+            # Check if user is active
+            if not row["is_active"]:
+                logger.warning(
+                    "API key authentication failed: user is inactive (user_id=%d)",
+                    row["user_id"],
+                )
+                return None
+
+            # Update last_used_at timestamp (fire and forget)
+            await conn.execute(
+                """
+                UPDATE api_keys
+                SET last_used_at = NOW()
+                WHERE id = $1
+                """,
+                row["api_key_id"],
+            )
+
+            # Create User object from the row
+            user_record: UserRecord = {
+                "id": row["id"],
+                "username": row["username"],
+                "email": row["email"],
+                "role_id": row["role_id"],
+                "is_active": row["is_active"],
+                "created_at": row["created_at"],
+                "updated_at": row["updated_at"],
+            }
+
+            user = User.from_record(user_record)
+            logger.info(
+                "User authenticated successfully: user_id=%d, username=%s",
+                user.id,
+                user.username,
+            )
+            return user
+
+    except Exception as e:
+        logger.error("Error authenticating user: %s", str(e), exc_info=True)
+        return None
