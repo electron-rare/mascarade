@@ -77,7 +77,7 @@ Documents d'ancrage:
 
 | ID | Tache | Owner |
 | --- | --- | --- |
-| `K-DA-012` | Reduire les chemins absolus dans le rendu Markdown evidence | `embedded-systems-auditor` |
+| `K-DA-013` | Reduire les signaux trop verbeux dans le rendu Markdown evidence | `embedded-systems-auditor` |
 
 ## Actions documentees dans ce tour
 
@@ -121,6 +121,8 @@ Documents d'ancrage:
 - fermeture de `K-DA-010` via le sidecar Markdown `Kill_LIFE/docs/evidence/ci_cd_audit_summary.md`
 - revalidation locale `Kill_LIFE`: sidecar Markdown et Step Summary identiques apres `tools/auto_check_ci_cd.py`
 - fermeture de `K-DA-011` via la section automatique `Focus failures` dans `Kill_LIFE/tools/auto_check_ci_cd.py`
+- fermeture de `K-DA-012` via la compaction des chemins absolus dans `Kill_LIFE/tools/auto_check_ci_cd.py`
+- revalidation locale `Kill_LIFE`: rendu Markdown evidence avec chemins repo-relatifs apres `tools/auto_check_ci_cd.py`
 - revalidation locale `Kill_LIFE`: rendu rouge verifie via `render_markdown_summary(report)` et rendu vert revalide via `tools/auto_check_ci_cd.py`
 
 ## Test status snapshot
