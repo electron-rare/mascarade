@@ -12,6 +12,7 @@ from mascarade.load_balancer.balancer import LoadBalancer
 from mascarade.metrics.tracker import MetricsTracker
 from mascarade.router.fallback import FallbackState
 from mascarade.router.providers.base import LLMProvider, LLMResponse
+from mascarade.usage_tracking import track_usage
 
 logger = logging.getLogger("mascarade.router")
 
@@ -163,6 +164,7 @@ class Router:
         response_format: dict | None = None,
         temperature: float = 0.7,
         max_tokens: int = 4096,
+        user_id: int | None = None,
     ) -> LLMResponse:
         strategy = Strategy(strategy)
         strict_provider = strategy == Strategy.SPECIFIC and provider is not None
@@ -286,6 +288,17 @@ class Router:
                     temperature=temperature,
                     max_tokens=max_tokens,
                 )
+
+            # Track usage for user if user_id provided
+            if user_id is not None:
+                await track_usage(
+                    user_id=user_id,
+                    provider=selected.name,
+                    model=response.model,
+                    usage=response.usage or {},
+                    cost=self._calculate_cost(selected, response.usage or {}),
+                )
+
             return response
 
         raise RuntimeError(
@@ -304,6 +317,7 @@ class Router:
         system: str | None = None,
         temperature: float = 0.7,
         max_tokens: int = 4096,
+        user_id: int | None = None,
     ) -> AsyncIterator[str]:
         strategy = Strategy(strategy)
         strict_provider = strategy == Strategy.SPECIFIC and provider is not None
@@ -363,6 +377,18 @@ class Router:
                 response_time=elapsed,
                 success=True,
             )
+
+            # Track usage for user if user_id provided
+            # Note: streaming doesn't provide token counts, so we track 0 tokens
+            if user_id is not None:
+                await track_usage(
+                    user_id=user_id,
+                    provider=selected.name,
+                    model=model or selected.default_model,
+                    usage={},
+                    cost=0.0,
+                )
+
             return
 
         raise RuntimeError(
