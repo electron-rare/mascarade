@@ -61,7 +61,6 @@ Notes:
 - [ ] Renseigner seulement les secrets reellement utiles sur cette machine:
   - `ANTHROPIC_API_KEY`
   - `OPENAI_API_KEY`
-  - `NOTION_API_KEY`
 - [ ] Garder les secrets machine hors des fichiers versionnes:
   - `.env`
   - `.env.machine.local`
