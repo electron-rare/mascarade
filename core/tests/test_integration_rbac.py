@@ -914,3 +914,521 @@ async def test_complete_admin_workflow():
                 )
                 assert response.status_code == 200
                 assert response.json()["rate_limits"]["requests_per_minute"] == 30
+
+
+# --- Regular User Tests ---
+
+
+@pytest.mark.asyncio
+async def test_regular_user_can_make_llm_requests():
+    """Test that regular users can make LLM requests via /send endpoint."""
+    mock_pool, mock_conn = _mock_db_pool()
+
+    # Mock database queries for regular user authentication
+    async def mock_fetchrow(query, *args):
+        if "SELECT * FROM api_keys" in query:
+            # Return valid API key for regular user
+            return {
+                "id": 1,
+                "user_id": 2,
+                "key_hash": hash_api_key("user-key"),
+                "key_prefix": "mk_test",
+                "name": "User API Key",
+                "expires_at": None,
+                "is_active": True,
+                "last_used_at": None,
+                "created_at": datetime.now(),
+            }
+        elif "SELECT * FROM users WHERE id" in query:
+            # Return regular user
+            return {
+                "id": 2,
+                "username": "regular_user",
+                "email": "user@example.com",
+                "role_id": 2,  # User role
+                "is_active": True,
+                "rate_limits": None,
+                "created_at": datetime.now(),
+                "updated_at": datetime.now(),
+            }
+        return None
+
+    mock_conn.fetchrow.side_effect = mock_fetchrow
+    mock_conn.execute = AsyncMock()
+
+    # Create a regular user
+    regular_user = User(
+        id=2,
+        username="regular_user",
+        email="user@example.com",
+        role_id=2,
+        is_active=True,
+        rate_limits=None,
+        created_at=datetime.now(),
+        updated_at=datetime.now(),
+    )
+
+    with patch("mascarade.auth.get_db_pool", return_value=mock_pool):
+        with patch("mascarade.auth.authenticate_user", return_value=regular_user):
+            with patch("mascarade.router.Router.send") as mock_send:
+                # Mock router send to return a successful response
+                mock_send.return_value = {
+                    "role": "assistant",
+                    "content": "Hello! How can I help you today?",
+                    "model": "gpt-4",
+                    "provider": "openai",
+                    "usage": {"input_tokens": 10, "output_tokens": 8, "total_tokens": 18},
+                }
+
+                async with _client() as client:
+                    response = await client.post(
+                        "/send",
+                        json={
+                            "messages": [{"role": "user", "content": "Hello"}],
+                            "strategy": "best",
+                        },
+                        headers={"Authorization": "Bearer user-key"},
+                    )
+                    assert response.status_code == 200
+                    assert "content" in response.json()
+                    assert response.json()["role"] == "assistant"
+
+
+@pytest.mark.asyncio
+async def test_regular_user_cannot_access_admin_endpoints():
+    """Test that regular users cannot access admin-only endpoints."""
+    mock_pool, mock_conn = _mock_db_pool()
+
+    # Mock database queries for regular user authentication
+    async def mock_fetchrow(query, *args):
+        if "SELECT * FROM api_keys" in query:
+            # Return valid API key for regular user
+            return {
+                "id": 1,
+                "user_id": 2,
+                "key_hash": hash_api_key("user-key"),
+                "key_prefix": "mk_test",
+                "name": "User API Key",
+                "expires_at": None,
+                "is_active": True,
+                "last_used_at": None,
+                "created_at": datetime.now(),
+            }
+        elif "SELECT * FROM users WHERE id" in query:
+            # Return regular user
+            return {
+                "id": 2,
+                "username": "regular_user",
+                "email": "user@example.com",
+                "role_id": 2,  # User role
+                "is_active": True,
+                "rate_limits": None,
+                "created_at": datetime.now(),
+                "updated_at": datetime.now(),
+            }
+        elif "SELECT name FROM roles WHERE id" in query:
+            # Return "user" role (not admin)
+            return {"name": "user"}
+        return None
+
+    mock_conn.fetchrow.side_effect = mock_fetchrow
+
+    # Create a regular user
+    regular_user = User(
+        id=2,
+        username="regular_user",
+        email="user@example.com",
+        role_id=2,
+        is_active=True,
+        rate_limits=None,
+        created_at=datetime.now(),
+        updated_at=datetime.now(),
+    )
+
+    with patch("mascarade.auth.get_db_pool", return_value=mock_pool):
+        with patch("mascarade.auth.authenticate_user", return_value=regular_user):
+            async with _client() as client:
+                # Test 1: Cannot list users (admin-only)
+                response = await client.get(
+                    "/users",
+                    headers={"Authorization": "Bearer user-key"},
+                )
+                assert response.status_code == 403
+                assert "admin" in response.json()["detail"].lower()
+
+                # Test 2: Cannot create users (admin-only)
+                response = await client.post(
+                    "/users",
+                    json={
+                        "username": "another_user",
+                        "email": "another@example.com",
+                        "role_id": 2,
+                        "is_active": True,
+                    },
+                    headers={"Authorization": "Bearer user-key"},
+                )
+                assert response.status_code == 403
+                assert "admin" in response.json()["detail"].lower()
+
+                # Test 3: Cannot access usage stats (admin-only)
+                response = await client.get(
+                    "/admin/usage/stats",
+                    headers={"Authorization": "Bearer user-key"},
+                )
+                assert response.status_code == 403
+                assert "admin" in response.json()["detail"].lower()
+
+                # Test 4: Cannot update user info (admin-only)
+                response = await client.put(
+                    "/users/1",
+                    json={"is_active": False},
+                    headers={"Authorization": "Bearer user-key"},
+                )
+                assert response.status_code == 403
+
+                # Test 5: Cannot delete users (admin-only)
+                response = await client.delete(
+                    "/users/1",
+                    headers={"Authorization": "Bearer user-key"},
+                )
+                assert response.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_regular_user_cannot_modify_system_config():
+    """Test that regular users cannot modify system configuration."""
+    mock_pool, mock_conn = _mock_db_pool()
+
+    # Mock database queries for regular user authentication
+    async def mock_fetchrow(query, *args):
+        if "SELECT * FROM api_keys" in query:
+            # Return valid API key for regular user
+            return {
+                "id": 1,
+                "user_id": 2,
+                "key_hash": hash_api_key("user-key"),
+                "key_prefix": "mk_test",
+                "name": "User API Key",
+                "expires_at": None,
+                "is_active": True,
+                "last_used_at": None,
+                "created_at": datetime.now(),
+            }
+        elif "SELECT * FROM users WHERE id" in query:
+            # Return regular user
+            return {
+                "id": 2,
+                "username": "regular_user",
+                "email": "user@example.com",
+                "role_id": 2,  # User role
+                "is_active": True,
+                "rate_limits": None,
+                "created_at": datetime.now(),
+                "updated_at": datetime.now(),
+            }
+        elif "SELECT name FROM roles WHERE id" in query:
+            # Return "user" role (not admin)
+            return {"name": "user"}
+        return None
+
+    mock_conn.fetchrow.side_effect = mock_fetchrow
+
+    # Create a regular user
+    regular_user = User(
+        id=2,
+        username="regular_user",
+        email="user@example.com",
+        role_id=2,
+        is_active=True,
+        rate_limits=None,
+        created_at=datetime.now(),
+        updated_at=datetime.now(),
+    )
+
+    with patch("mascarade.auth.get_db_pool", return_value=mock_pool):
+        with patch("mascarade.auth.authenticate_user", return_value=regular_user):
+            async with _client() as client:
+                # Test: Cannot update provider keys (admin-only)
+                response = await client.put(
+                    "/providers/openai/key",
+                    json={"key": "new-api-key"},
+                    headers={"Authorization": "Bearer user-key"},
+                )
+                assert response.status_code == 403
+                assert "admin" in response.json()["detail"].lower()
+
+
+@pytest.mark.asyncio
+async def test_regular_user_can_view_providers():
+    """Test that regular users can view provider information (read-only)."""
+    mock_pool, mock_conn = _mock_db_pool()
+
+    # Mock database queries for regular user authentication
+    async def mock_fetchrow(query, *args):
+        if "SELECT * FROM api_keys" in query:
+            # Return valid API key for regular user
+            return {
+                "id": 1,
+                "user_id": 2,
+                "key_hash": hash_api_key("user-key"),
+                "key_prefix": "mk_test",
+                "name": "User API Key",
+                "expires_at": None,
+                "is_active": True,
+                "last_used_at": None,
+                "created_at": datetime.now(),
+            }
+        elif "SELECT * FROM users WHERE id" in query:
+            # Return regular user
+            return {
+                "id": 2,
+                "username": "regular_user",
+                "email": "user@example.com",
+                "role_id": 2,  # User role
+                "is_active": True,
+                "rate_limits": None,
+                "created_at": datetime.now(),
+                "updated_at": datetime.now(),
+            }
+        return None
+
+    mock_conn.fetchrow.side_effect = mock_fetchrow
+
+    # Create a regular user
+    regular_user = User(
+        id=2,
+        username="regular_user",
+        email="user@example.com",
+        role_id=2,
+        is_active=True,
+        rate_limits=None,
+        created_at=datetime.now(),
+        updated_at=datetime.now(),
+    )
+
+    with patch("mascarade.auth.get_db_pool", return_value=mock_pool):
+        with patch("mascarade.auth.authenticate_user", return_value=regular_user):
+            async with _client() as client:
+                # Regular users can view providers
+                response = await client.get(
+                    "/providers",
+                    headers={"Authorization": "Bearer user-key"},
+                )
+                assert response.status_code == 200
+                assert isinstance(response.json(), list)
+
+
+@pytest.mark.asyncio
+async def test_complete_regular_user_workflow():
+    """Test complete workflow for regular user with limited access."""
+    mock_pool, mock_conn = _mock_db_pool()
+
+    # Stateful mock to track user creation and authentication
+    state = {
+        "users": [
+            {
+                "id": 1,
+                "username": "admin",
+                "email": "admin@example.com",
+                "role_id": 1,
+                "is_active": True,
+                "rate_limits": None,
+                "created_at": datetime.now(),
+                "updated_at": datetime.now(),
+            }
+        ],
+        "api_keys": [],
+    }
+
+    async def mock_fetchrow(query, *args):
+        if "SELECT id FROM roles WHERE name = 'admin'" in query:
+            return {"id": 1}
+        elif "SELECT id FROM roles WHERE name = 'user'" in query:
+            return {"id": 2}
+        elif "SELECT name FROM roles WHERE id = 1" in query:
+            return {"name": "admin"}
+        elif "SELECT name FROM roles WHERE id = 2" in query:
+            return {"name": "user"}
+        elif "SELECT id FROM users WHERE username" in query:
+            # Check for existing username
+            for u in state["users"]:
+                if u["username"] == args[0]:
+                    return {"id": u["id"]}
+            return None
+        elif "SELECT id FROM users WHERE email" in query:
+            # Check for existing email
+            for u in state["users"]:
+                if u["email"] == args[0]:
+                    return {"id": u["id"]}
+            return None
+        elif "SELECT id FROM roles WHERE id" in query:
+            # Role exists
+            if args[0] in [1, 2]:
+                return {"id": args[0]}
+            return None
+        elif "INSERT INTO users" in query:
+            # Create new user
+            new_user = {
+                "id": len(state["users"]) + 1,
+                "username": args[0],
+                "email": args[1],
+                "role_id": args[2],
+                "is_active": args[3] if len(args) > 3 else True,
+                "rate_limits": None,
+                "created_at": datetime.now(),
+                "updated_at": datetime.now(),
+            }
+            state["users"].append(new_user)
+            return new_user
+        elif "SELECT * FROM users WHERE id" in query:
+            # Find user by ID
+            for u in state["users"]:
+                if u["id"] == args[0]:
+                    return u
+            return None
+        elif "INSERT INTO api_keys" in query:
+            # Create API key
+            new_key = {
+                "id": len(state["api_keys"]) + 1,
+                "user_id": args[0],
+                "key_hash": args[1],
+                "key_prefix": args[2],
+                "name": args[3],
+                "expires_at": args[4] if len(args) > 4 else None,
+                "is_active": True,
+                "last_used_at": None,
+                "created_at": datetime.now(),
+            }
+            state["api_keys"].append(new_key)
+            return new_key
+        elif "SELECT * FROM api_keys WHERE key_hash" in query:
+            # Find API key by hash
+            for k in state["api_keys"]:
+                if k["key_hash"] == args[0]:
+                    return k
+            return None
+        return None
+
+    async def mock_fetch(query, *args):
+        if "SELECT * FROM users ORDER BY" in query:
+            return state["users"]
+        return []
+
+    mock_conn.fetchrow.side_effect = mock_fetchrow
+    mock_conn.fetch.side_effect = mock_fetch
+    mock_conn.execute = AsyncMock()
+
+    # Create admin user for authentication
+    admin_user = User(
+        id=1,
+        username="admin",
+        email="admin@example.com",
+        role_id=1,
+        is_active=True,
+        rate_limits=None,
+        created_at=datetime.now(),
+        updated_at=datetime.now(),
+    )
+
+    with patch("mascarade.auth.get_db_pool", return_value=mock_pool):
+        # First, authenticate as admin to create regular user
+        with patch("mascarade.auth.authenticate_user", return_value=admin_user):
+            async with _client() as client:
+                # Step 1: Admin creates a regular user
+                response = await client.post(
+                    "/users",
+                    json={
+                        "username": "regular_user",
+                        "email": "user@example.com",
+                        "role_id": 2,
+                        "is_active": True,
+                    },
+                    headers={"Authorization": "Bearer admin-key"},
+                )
+                assert response.status_code == 200
+                user_id = response.json()["id"]
+                assert user_id == 2
+
+                # Step 2: Admin creates API key for regular user
+                response = await client.post(
+                    f"/users/{user_id}/api-keys",
+                    json={
+                        "name": "User API Key",
+                        "expires_at": None,
+                    },
+                    headers={"Authorization": "Bearer admin-key"},
+                )
+                assert response.status_code == 201
+                user_api_key = response.json()["key"]
+                assert user_api_key is not None
+
+        # Now authenticate as regular user
+        regular_user = User(
+            id=2,
+            username="regular_user",
+            email="user@example.com",
+            role_id=2,
+            is_active=True,
+            rate_limits=None,
+            created_at=datetime.now(),
+            updated_at=datetime.now(),
+        )
+
+        with patch("mascarade.auth.authenticate_user", return_value=regular_user):
+            with patch("mascarade.router.Router.send") as mock_send:
+                # Mock router send to return a successful response
+                mock_send.return_value = {
+                    "role": "assistant",
+                    "content": "Hello from regular user!",
+                    "model": "gpt-4",
+                    "provider": "openai",
+                    "usage": {"input_tokens": 10, "output_tokens": 6, "total_tokens": 16},
+                }
+
+                async with _client() as client:
+                    # Step 3: Regular user can make LLM requests
+                    response = await client.post(
+                        "/send",
+                        json={
+                            "messages": [{"role": "user", "content": "Hello"}],
+                            "strategy": "best",
+                        },
+                        headers={"Authorization": f"Bearer {user_api_key}"},
+                    )
+                    assert response.status_code == 200
+                    assert response.json()["role"] == "assistant"
+
+                    # Step 4: Regular user can view providers
+                    response = await client.get(
+                        "/providers",
+                        headers={"Authorization": f"Bearer {user_api_key}"},
+                    )
+                    assert response.status_code == 200
+
+                    # Step 5: Regular user CANNOT access admin endpoints
+                    response = await client.get(
+                        "/users",
+                        headers={"Authorization": f"Bearer {user_api_key}"},
+                    )
+                    assert response.status_code == 403
+
+                    # Step 6: Regular user CANNOT modify system config
+                    response = await client.put(
+                        "/providers/openai/key",
+                        json={"key": "new-key"},
+                        headers={"Authorization": f"Bearer {user_api_key}"},
+                    )
+                    assert response.status_code == 403
+
+                    # Step 7: Regular user CANNOT create other users
+                    response = await client.post(
+                        "/users",
+                        json={
+                            "username": "another_user",
+                            "email": "another@example.com",
+                            "role_id": 2,
+                            "is_active": True,
+                        },
+                        headers={"Authorization": f"Bearer {user_api_key}"},
+                    )
+                    assert response.status_code == 403
