@@ -77,7 +77,7 @@ Documents d'ancrage:
 
 | ID | Tache | Owner |
 | --- | --- | --- |
-| `K-DA-009` | Exposer un resume evidence lisible dans le GitHub Step Summary | `embedded-systems-auditor` |
+| `K-DA-010` | Ajouter un sidecar Markdown `docs/evidence/ci_cd_audit_summary.md` pour revue locale et artifact | `embedded-systems-auditor` |
 
 ## Actions documentees dans ce tour
 
@@ -115,6 +115,9 @@ Documents d'ancrage:
 - fermeture de `K-DA-008` via la mise en cache `pip` et `PlatformIO` dans `.github/workflows/evidence_pack.yml`
 - ajout du verrou de version `Kill_LIFE/tools/compliance/requirements-platformio.txt`
 - revalidation locale `Kill_LIFE`: `bash tools/bootstrap_python_env.sh --with-platformio` puis `KILL_LIFE_PIO_MODE=native ./.venv/bin/python tools/auto_check_ci_cd.py`
+- fermeture de `K-DA-009` via la generation du GitHub Step Summary depuis `Kill_LIFE/tools/auto_check_ci_cd.py`
+- ajout du test cible `Kill_LIFE/test/test_auto_check_ci_cd.py`
+- revalidation locale `Kill_LIFE`: `GITHUB_STEP_SUMMARY=<tmp> KILL_LIFE_PIO_MODE=native ./.venv/bin/python tools/auto_check_ci_cd.py`
 
 ## Test status snapshot
 

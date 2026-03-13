@@ -8,7 +8,7 @@
 
 - Root: `/Users/electron/mascarade`
 - Branch: `feat/apple-coreml-runtime-lot`
-- Dirty entries: `7`
+- Dirty entries: `13`
 - Primary README: `README.md`
 - Primary plan anchor: `plan.md`
 - First TODO anchor: `TODO_AI_NOVEL_ENGINE.md`
@@ -74,9 +74,9 @@
 | Diagram files | 8 |
 | Sequence diagram files | 3 |
 | Feature-map-like files | 1 |
-| Test files | 18 |
+| Test files | 19 |
 | Shell scripts | 52 |
-| Python files | 99 |
+| Python files | 100 |
 | TS/TSX files | 0 |
 
 ### Gaps
