@@ -7,7 +7,7 @@ const ORIGINAL_FETCH = global.fetch;
 
 function makeApp() {
   const app = new Hono();
-  app.route("/api/agents", agents);
+  app.route("/v1/api/agents", agents);
   return app;
 }
 
@@ -41,7 +41,7 @@ describe("agents provider mutations", () => {
       providers: [{ name: "ollama", active: true, configured: true }] as any,
     });
 
-    const res = await makeApp().request("/api/agents/providers/ollama/key", {
+    const res = await makeApp().request("/v1/api/agents/providers/ollama/key", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ keys: { OLLAMA_ENABLED: "true" } }),
@@ -79,7 +79,7 @@ describe("agents provider mutations", () => {
       providers: [{ name: "ollama", active: false, configured: false }] as any,
     });
 
-    const res = await makeApp().request("/api/agents/providers/ollama/clear", {
+    const res = await makeApp().request("/v1/api/agents/providers/ollama/clear", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({}),
@@ -117,7 +117,7 @@ describe("agents provider mutations", () => {
       providers: [{ name: "ollama", active: true, configured: true }] as any,
     });
 
-    const res = await makeApp().request("/api/agents/providers/ollama/clear", {
+    const res = await makeApp().request("/v1/api/agents/providers/ollama/clear", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ fields: ["OLLAMA_BASE_URL"] }),
