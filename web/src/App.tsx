@@ -11,6 +11,7 @@ import Logs from "./pages/Logs";
 import Metrics from "./pages/Metrics";
 import Infrastructure from "./pages/Infrastructure";
 import KnowledgeBrowser from "./pages/KnowledgeBrowser";
+import QdrantKnowledge from "./pages/QdrantKnowledge";
 import ComfyUI from "./pages/ComfyUI";
 import KillLifeWorkflows from "./pages/KillLifeWorkflows";
 import KillLifeWorkflowEditor from "./pages/KillLifeWorkflowEditor";
@@ -31,6 +32,7 @@ export default function App() {
           <Route path="metrics" element={<Metrics />} />
           <Route path="infra" element={<Infrastructure />} />
           <Route path="knowledge-base" element={<KnowledgeBrowser />} />
+          <Route path="qdrant-knowledge" element={<QdrantKnowledge />} />
           <Route path="comfyui" element={<ComfyUI />} />
           <Route path="kill-life" element={<KillLifeWorkflows />} />
           <Route path="kill-life/:workflowId" element={<KillLifeWorkflowEditor />} />

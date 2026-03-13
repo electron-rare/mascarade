@@ -1,6 +1,7 @@
 """Agent KiCad — Expert en conception de circuits imprimés."""
 
 from mascarade.agents.base import Agent
+from mascarade.router.router import Strategy
 
 
 class KiCadAgent(Agent):
@@ -20,6 +21,7 @@ class KiCadAgent(Agent):
             ),
             preferred_provider="mistral",
             preferred_model="mistral-large-latest",
+            strategy=Strategy.DOMAIN,
             tools=["kicad_api", "python"],
             temperature=0.2,
             max_tokens=2048,
