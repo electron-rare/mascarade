@@ -214,6 +214,77 @@ class ModelManager:
 
             return True
 
+    def _mark_model_used(self, model_id: str) -> None:
+        """Mark a model as recently used by moving it to the end of the dict.
+
+        Args:
+            model_id: The model identifier
+
+        Note:
+            This method assumes the caller holds model_load_lock.
+            Python 3.7+ dicts maintain insertion order, so we move the model
+            to the end to mark it as most recently used.
+        """
+        if model_id in self.loaded_models:
+            # Move to end by removing and re-inserting
+            runtime = self.loaded_models.pop(model_id)
+            self.loaded_models[model_id] = runtime
+
+    def swap_model(self, new_model_id: str) -> RuntimeState:
+        """Swap to a different model, implementing LRU eviction if needed.
+
+        This method loads the requested model if it's not already loaded.
+        If the model is already loaded, it updates its access time.
+        When the maximum number of concurrent models is reached, the least
+        recently used model is evicted.
+
+        Args:
+            new_model_id: The model identifier to swap to
+
+        Returns:
+            The runtime state for the requested model
+
+        Raises:
+            ValueError: If new_model_id is empty or if the model is not configured
+            RuntimeConfigError: If the model cannot be loaded
+        """
+        if not new_model_id or not new_model_id.strip():
+            raise ValueError("model_id cannot be empty")
+
+        with self.model_load_lock:
+            # If already loaded, mark as recently used and return
+            if new_model_id in self.loaded_models:
+                self._mark_model_used(new_model_id)
+                self.current_model_id = new_model_id
+                return self.loaded_models[new_model_id]
+
+            # Get the model configuration
+            config = self.model_configs.get(new_model_id)
+            if config is None:
+                raise ValueError(
+                    f"Model '{new_model_id}' is not configured. "
+                    f"Available models: {list(self.model_configs.keys())}"
+                )
+
+            # Check if we need to unload a model first (LRU eviction)
+            if len(self.loaded_models) >= self.max_concurrent_models:
+                if self.loaded_models:
+                    # Evict the least recently used model (first in dict)
+                    lru_model_id = next(iter(self.loaded_models))
+                    self.unload_model(lru_model_id)
+
+            # Load the new model
+            try:
+                runtime = _build_runtime(config)
+                runtime.check_ready()
+                self.loaded_models[new_model_id] = runtime
+                self.current_model_id = new_model_id
+                return runtime
+            except Exception as exc:
+                raise RuntimeConfigError(
+                    f"Failed to load model '{new_model_id}': {exc}"
+                ) from exc
+
 
 _runtime_lock = Lock()
 _runtime_cache: RuntimeState | None = None
