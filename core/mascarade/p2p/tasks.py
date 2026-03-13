@@ -164,15 +164,56 @@ class P2PTaskDistribution:
         if not local_caps or capability not in local_caps.capabilities:
             return
 
-        # Claim the task
+        # Fix 3: task claim race — record this peer as an interested executor so
+        # that concurrent claims from other peers are tracked locally.  We create
+        # a lightweight entry if one does not already exist.
+        if task_id not in self._tasks:
+            self._tasks[task_id] = DistributedTask(
+                task_id=task_id,
+                capability=capability,
+                payload=data.get("payload", {}),
+                submitter=submitter,
+                timeout_seconds=data.get("timeout", 300.0),
+            )
+
+        task = self._tasks[task_id]
+
+        # If another peer already claimed this task, skip it.
+        if task.status == TaskStatus.CLAIMED and task.claimed_by != self._local_peer_id:
+            logger.debug(
+                "Task %s already claimed by %s, skipping", task_id, task.claimed_by
+            )
+            return
+
+        # Mark ourselves as the tentative claimer before broadcasting so that
+        # our own _handle_task_claim callback sees a consistent state.
+        task.status = TaskStatus.CLAIMED
+        task.claimed_by = self._local_peer_id
+
+        # Broadcast the claim so the submitter (and other workers) know.
         await self._pubsub.publish(_TOPIC_TASK_CLAIM, {
             "task_id": task_id,
             "claimer": self._local_peer_id,
         })
 
+        # Give network a brief moment to deliver competing claims that were sent
+        # at nearly the same time.  If a claim from a peer with a lexicographically
+        # lower peer_id arrives during this window, defer to them.
+        await asyncio.sleep(0.05)
+
+        task = self._tasks.get(task_id)
+        if task is None or task.claimed_by != self._local_peer_id:
+            logger.debug(
+                "Task %s: lost claim race, deferring to %s",
+                task_id, task.claimed_by if task else "unknown",
+            )
+            return
+
         if not self._task_handler:
             logger.warning("No task handler registered, cannot process task %s", task_id)
             return
+
+        task.status = TaskStatus.RUNNING
 
         # Execute
         try:
@@ -215,10 +256,24 @@ class P2PTaskDistribution:
         self, topic: str, data: dict[str, Any], origin: str,
     ) -> None:
         task_id = data.get("task_id", "")
+        claimer = data.get("claimer", "")
         task = self._tasks.get(task_id)
-        if task and task.status == TaskStatus.PENDING:
+        if task is None:
+            return
+
+        if task.status == TaskStatus.PENDING:
+            # First claim seen — accept unconditionally.
             task.status = TaskStatus.CLAIMED
-            task.claimed_by = data.get("claimer")
+            task.claimed_by = claimer
+        elif task.status == TaskStatus.CLAIMED and task.claimed_by != claimer:
+            # Fix 3: tie-break using lexicographic order of peer_id so every node
+            # converges to the same winner deterministically.
+            if claimer < task.claimed_by:
+                logger.debug(
+                    "Task %s: claim superseded by %s (was %s)",
+                    task_id, claimer, task.claimed_by,
+                )
+                task.claimed_by = claimer
 
     def get_task(self, task_id: str) -> DistributedTask | None:
         return self._tasks.get(task_id)

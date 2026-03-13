@@ -46,9 +46,21 @@ class DHTRoutingTable:
             return
         entry.last_seen = time.monotonic()
         self._entries[entry.peer_id] = entry
+        # Fix 2: prune stale entries on every upsert to prevent unbounded growth
+        self.prune_stale()
 
     def remove(self, peer_id: str) -> None:
         self._entries.pop(peer_id, None)
+
+    def prune_stale(self, max_age: float = 300.0) -> int:
+        """Remove entries not seen for longer than *max_age* seconds."""
+        cutoff = time.monotonic() - max_age
+        stale = [pid for pid, e in self._entries.items() if e.last_seen < cutoff]
+        for pid in stale:
+            del self._entries[pid]
+        if stale:
+            logger.debug("DHT: pruned %d stale routing-table entries", len(stale))
+        return len(stale)
 
     def closest(self, target_id: str, count: int = _K) -> list[DHTEntry]:
         entries = sorted(
@@ -192,7 +204,26 @@ class P2PDHT:
                     self._transport.add_peer(pid, host, port)
 
     async def _handle_announce(self, msg: P2PMessage, conn: PeerConnection) -> None:
-        host = self._resolve_host(msg.payload.get("host", conn.host), conn.host)
+        announced_host = msg.payload.get("host", "")
+        resolved_host = self._resolve_host(announced_host, conn.host)
+
+        # Fix 1: DHT poisoning — reject announcements where the announced host is
+        # a routable address that does not match the actual connection source IP.
+        # Unroutable/wildcard values (0.0.0.0, localhost, etc.) are allowed because
+        # _resolve_host already replaces them with conn.host.
+        if (
+            announced_host
+            and announced_host not in ("0.0.0.0", "::", "::0", "", "localhost")
+            and announced_host != conn.host
+        ):
+            logger.warning(
+                "DHT: rejected announce from %s — announced host %s does not match "
+                "connection source %s",
+                msg.sender, announced_host, conn.host,
+            )
+            return
+
+        host = resolved_host
         port = msg.payload.get("port", conn.port)
         capabilities = msg.payload.get("capabilities", [])
         metadata = msg.payload.get("metadata", {})

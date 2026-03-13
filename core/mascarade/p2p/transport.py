@@ -87,6 +87,7 @@ class P2PTransport:
         self._listen_port = listen_port
         self._server: asyncio.Server | None = None
         self._peers: dict[str, PeerConnection] = {}
+        self._inbound_peers: dict[str, PeerConnection] = {}  # inbound conns for gossip
         self._handlers: dict[str, MessageHandler] = {}
         self._default_handler: MessageHandler | None = None
         self._relay_client: Any | None = None  # Optional RelayClient
@@ -100,7 +101,9 @@ class P2PTransport:
 
     @property
     def peers(self) -> dict[str, PeerConnection]:
-        return dict(self._peers)
+        merged = dict(self._inbound_peers)
+        merged.update(self._peers)  # outbound takes precedence
+        return merged
 
     def set_relay_client(self, client: Any) -> None:
         """Attach a :class:`RelayClient` for automatic relay fallback."""
@@ -173,17 +176,22 @@ class P2PTransport:
         if self._server:
             self._server.close()
             await self._server.wait_closed()
-        # Disconnect all peers
+        # Disconnect all outbound peers (inbound conns are closed by cancelled tasks)
         for conn in list(self._peers.values()):
             await conn.disconnect()
         self._peers.clear()
+        self._inbound_peers.clear()
 
     async def broadcast(self, msg: P2PMessage) -> int:
         sent = 0
-        for peer_id, conn in list(self._peers.items()):
+        # Merge outbound + inbound peers (outbound wins on overlap)
+        all_peers: dict[str, PeerConnection] = dict(self._inbound_peers)
+        all_peers.update(self._peers)
+        for peer_id, conn in list(all_peers.items()):
             if await conn.send(msg):
                 sent += 1
-                self._ensure_outbound_reader(peer_id, conn)
+                if peer_id in self._peers:
+                    self._ensure_outbound_reader(peer_id, conn)
         return sent
 
     async def send_to(self, peer_id: str, msg: P2PMessage) -> bool:
@@ -336,6 +344,11 @@ class P2PTransport:
                 if sender_id and sender_id != self._local_peer_id:
                     inbound_conn.peer_id = sender_id
                     inbound_conn.last_seen = time.monotonic()
+                    # Track inbound peer for gossip (separate from outbound pool)
+                    if sender_id not in self._peers:
+                        self._inbound_peers[sender_id] = inbound_conn
+                    else:
+                        self._peers[sender_id].last_seen = time.monotonic()
 
                 conn = inbound_conn
 
@@ -352,6 +365,10 @@ class P2PTransport:
         except Exception:
             logger.debug("Inbound connection closed from %s", addr)
         finally:
+            # Remove from inbound peer map
+            peer_id = inbound_conn.peer_id
+            if peer_id != "unknown":
+                self._inbound_peers.pop(peer_id, None)
             try:
                 writer.close()
                 await writer.wait_closed()

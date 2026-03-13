@@ -38,7 +38,7 @@ def test_unsigned_message_rejected_by_default():
     msg = _make_msg()
     assert msg.signature == ""
     assert msg.public_key == ""
-    assert verify_message(msg) is False
+    assert verify_message(msg, reject_unsigned=True) is False
 
 
 def test_unsigned_message_can_be_accepted_in_compat_mode():

@@ -953,7 +953,8 @@ class ClusterManager:
         try:
             response = await self._router.send(
                 messages,
-                strategy=payload.get("strategy", "best"),
+                strategy=payload.get("strategy", "routellm"),
+                routing_policy=self._coerce_optional_string(payload.get("routing_policy")),
                 provider=self._coerce_optional_string(payload.get("provider")),
                 model=self._coerce_optional_string(payload.get("model")),
                 system=self._coerce_optional_string(payload.get("system")),
@@ -1015,7 +1016,15 @@ class ClusterManager:
 
     async def _p2p_send_handler(self, request_data: dict) -> dict:
         """Handle an incoming P2P stream forward request via the local router."""
-        return await self._send_local(request_data)
+        payload = dict(request_data)
+        provided_token = str(payload.pop("__cluster_token", "")).strip()
+        expected_token = settings.cluster_shared_key.strip()
+        if expected_token:
+            if not provided_token or not hmac.compare_digest(
+                provided_token.encode(), expected_token.encode(),
+            ):
+                raise HTTPException(status_code=401, detail="Invalid P2P cluster token")
+        return await self._send_local(payload)
 
     def _resolve_p2p_forward_target(self, peer_id: str) -> str:
         """Resolve the transport-specific peer identifier for opportunistic P2P forwarding."""
@@ -1044,10 +1053,14 @@ class ClusterManager:
         """Try to forward via P2P transport. Returns None if P2P is unavailable."""
         if self._p2p_node is None:
             return None
+        p2p_payload = dict(payload)
+        shared_key = settings.cluster_shared_key.strip()
+        if shared_key:
+            p2p_payload["__cluster_token"] = shared_key
         forwarder = getattr(self._p2p_node, "forwarder", None)
         if forwarder is not None and forwarder.can_forward(peer_id):
             try:
-                result = await forwarder.forward_request(peer_id, dict(payload))
+                result = await forwarder.forward_request(peer_id, p2p_payload)
                 return result
             except (TimeoutError, ConnectionError, RuntimeError):
                 logger.debug("P2P forward to %s failed, falling back to HTTP", peer_id)
@@ -1057,7 +1070,7 @@ class ClusterManager:
 
         target_peer = self._resolve_p2p_forward_target(peer_id)
         try:
-            result = await forward_send(target_peer, dict(payload))
+            result = await forward_send(target_peer, p2p_payload)
             return result
         except (TimeoutError, ConnectionError, RuntimeError, ValueError):
             logger.debug("libp2p forward to %s failed, falling back to HTTP", peer_id)

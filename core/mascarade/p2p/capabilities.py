@@ -139,6 +139,23 @@ class P2PCapabilityExchange:
     def all_capabilities(self) -> dict[str, PeerCapabilities]:
         return dict(self._peer_caps)
 
+    def prune_stale(self, max_age: float = 300.0) -> int:
+        """Remove peer capability entries not updated for longer than *max_age* seconds.
+
+        Fix 2: prevent unbounded growth of _peer_caps for peers that have left
+        the network without sending an explicit departure message.
+        """
+        cutoff = time.monotonic() - max_age
+        stale = [
+            pid for pid, caps in self._peer_caps.items()
+            if caps.last_updated < cutoff
+        ]
+        for pid in stale:
+            del self._peer_caps[pid]
+        if stale:
+            logger.debug("Capabilities: pruned %d stale peer entries", len(stale))
+        return len(stale)
+
     def peers_with_provider(self, provider: str) -> list[PeerCapabilities]:
         return [c for c in self._peer_caps.values() if provider in c.providers]
 
@@ -154,6 +171,9 @@ class P2PCapabilityExchange:
         peer_id = data.get("peer_id", origin)
         if peer_id == self._local_peer_id:
             return
+
+        # Fix 2: prune stale entries on every incoming update
+        self.prune_stale()
 
         self._peer_caps[peer_id] = PeerCapabilities(
             peer_id=peer_id,
