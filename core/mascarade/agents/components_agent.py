@@ -1,6 +1,7 @@
 """Agent Composants — Expert en sélection de composants électroniques et intégration JLCPCB."""
 
 from mascarade.agents.base import Agent
+from mascarade.router.router import Strategy
 
 
 class ComponentsAgent(Agent):
@@ -21,6 +22,7 @@ class ComponentsAgent(Agent):
             ),
             preferred_provider="mistral",
             preferred_model="mistral-large-latest",
+            strategy=Strategy.DOMAIN,
             tools=["jlcpcb_api", "lcsc_database", "python"],
             temperature=0.1,
             max_tokens=2048,
