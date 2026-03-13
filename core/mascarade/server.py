@@ -27,6 +27,7 @@ from mascarade.integrations.knowledge_base import (
     knowledge_base_auth_configured,
     knowledge_base_status_detail,
 )
+from mascarade.integrations.qdrant_client import QdrantClient
 from mascarade.mcp import McpCallError, McpRuntimeClient, McpServerUnavailable
 from mascarade.mcp.client import McpError
 from mascarade.observability import AgentTraceBuffer, iso_utc_now, new_run_id
@@ -68,6 +69,7 @@ async def lifespan(app: FastAPI):
     app.state.cluster = cluster
     app.state.mcp = McpRuntimeClient(trace_buffer=trace_buffer)
     app.state.comfyui = ComfyUIClient() if settings.comfyui_url else None
+    app.state.qdrant = QdrantClient() if settings.qdrant_url else None
 
     registry.load()
 
@@ -81,6 +83,9 @@ async def lifespan(app: FastAPI):
 
     if app.state.comfyui is not None:
         await app.state.comfyui.close()
+
+    if app.state.qdrant is not None:
+        await app.state.qdrant.close()
 
 
 app = FastAPI(title="Mascarade Core", version="0.1.0", lifespan=lifespan)
@@ -226,6 +231,36 @@ class ComfyUIGenerateRequest(BaseModel):
 
 class ComfyUIWorkflowRequest(BaseModel):
     workflow: dict
+
+
+class QdrantCreateCollectionRequest(BaseModel):
+    vector_size: int = Field(gt=0, le=65536)
+    distance: Literal["Cosine", "Euclid", "Dot"] = "Cosine"
+    on_disk_payload: bool = False
+
+
+class QdrantUpsertPointsRequest(BaseModel):
+    points: list[dict[str, Any]] = Field(max_length=1000)
+    wait: bool = True
+
+
+class QdrantSearchRequest(BaseModel):
+    query_vector: list[float] = Field(max_length=65536)
+    limit: int = Field(default=10, gt=0, le=100)
+    score_threshold: float | None = Field(default=None, ge=0.0, le=1.0)
+    with_payload: bool = True
+    with_vector: bool = False
+    filter_conditions: dict[str, Any] | None = None
+
+
+class QdrantRecommendRequest(BaseModel):
+    positive: list[str | int] = Field(min_length=1, max_length=100)
+    negative: list[str | int] | None = Field(default=None, max_length=100)
+    limit: int = Field(default=10, gt=0, le=100)
+    score_threshold: float | None = Field(default=None, ge=0.0, le=1.0)
+    with_payload: bool = True
+    with_vector: bool = False
+    filter_conditions: dict[str, Any] | None = None
 
 
 # --- Route publique ---
@@ -1323,6 +1358,116 @@ async def comfyui_interrupt():
     client = _require_comfyui()
     await client.interrupt()
     return {"status": "ok"}
+
+
+# --- Qdrant ---
+
+
+def _require_qdrant() -> QdrantClient:
+    if app.state.qdrant is None:
+        raise HTTPException(status_code=503, detail="Qdrant non configure (QDRANT_URL manquant)")
+    return app.state.qdrant
+
+
+@protected.get("/qdrant/health")
+async def qdrant_health():
+    client = _require_qdrant()
+    return await client.health_check()
+
+
+@protected.get("/qdrant/collections")
+async def qdrant_list_collections():
+    client = _require_qdrant()
+    return await client.list_collections()
+
+
+@protected.get("/qdrant/collections/{collection_name}")
+async def qdrant_get_collection(collection_name: str):
+    client = _require_qdrant()
+    try:
+        return await client.get_collection(collection_name)
+    except Exception as e:
+        if "404" in str(e):
+            raise HTTPException(status_code=404, detail=f"Collection '{collection_name}' not found") from e
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+@protected.put("/qdrant/collections/{collection_name}")
+async def qdrant_create_collection(collection_name: str, req: QdrantCreateCollectionRequest):
+    client = _require_qdrant()
+    try:
+        result = await client.create_collection(
+            collection_name,
+            vector_size=req.vector_size,
+            distance=req.distance,
+            on_disk_payload=req.on_disk_payload,
+        )
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+@protected.delete("/qdrant/collections/{collection_name}")
+async def qdrant_delete_collection(collection_name: str):
+    client = _require_qdrant()
+    try:
+        result = await client.delete_collection(collection_name)
+        return result
+    except Exception as e:
+        if "404" in str(e):
+            raise HTTPException(status_code=404, detail=f"Collection '{collection_name}' not found") from e
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+@protected.post("/qdrant/collections/{collection_name}/points")
+async def qdrant_upsert_points(collection_name: str, req: QdrantUpsertPointsRequest):
+    client = _require_qdrant()
+    try:
+        result = await client.upsert_points(
+            collection_name,
+            points=req.points,
+            wait=req.wait,
+        )
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+@protected.post("/qdrant/collections/{collection_name}/search")
+async def qdrant_search(collection_name: str, req: QdrantSearchRequest):
+    client = _require_qdrant()
+    try:
+        result = await client.search(
+            collection_name,
+            query_vector=req.query_vector,
+            limit=req.limit,
+            score_threshold=req.score_threshold,
+            with_payload=req.with_payload,
+            with_vector=req.with_vector,
+            filter_conditions=req.filter_conditions,
+        )
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+@protected.post("/qdrant/collections/{collection_name}/recommend")
+async def qdrant_recommend(collection_name: str, req: QdrantRecommendRequest):
+    client = _require_qdrant()
+    try:
+        result = await client.recommend(
+            collection_name,
+            positive=req.positive,
+            negative=req.negative,
+            limit=req.limit,
+            score_threshold=req.score_threshold,
+            with_payload=req.with_payload,
+            with_vector=req.with_vector,
+            filter_conditions=req.filter_conditions,
+        )
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 app.include_router(protected)
