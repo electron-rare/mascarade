@@ -10,6 +10,10 @@ from enum import StrEnum
 from mascarade.cache.cache import ResponseCache
 from mascarade.load_balancer.balancer import LoadBalancer
 from mascarade.metrics.tracker import MetricsTracker
+from mascarade.observability.langfuse import (
+    start_langfuse_generation,
+    update_langfuse_generation,
+)
 from mascarade.router.fallback import FallbackState
 from mascarade.router.providers.base import LLMProvider, LLMResponse
 
@@ -223,7 +227,43 @@ class Router:
                 }
                 if response_format is not None and selected.name in {"mistral", "ollama"}:
                     send_kwargs["response_format"] = response_format
-                response = await selected.send(messages, **send_kwargs)
+
+                # Prepare Langfuse trace metadata
+                trace_metadata = {
+                    "strategy": strategy.value,
+                    "provider": selected.name,
+                    "domain": domain,
+                    "temperature": temperature,
+                    "max_tokens": max_tokens,
+                }
+                if domain and strategy == Strategy.DOMAIN:
+                    trace_metadata["domain_routing"] = True
+                    trace_metadata["domain_detected"] = domain
+
+                trace_model = model or "default"
+                trace_input = {
+                    "messages": messages,
+                    "system": system,
+                    **send_kwargs,
+                }
+
+                # Wrap provider call with Langfuse tracing
+                with start_langfuse_generation(
+                    name="router.send",
+                    model=trace_model,
+                    input=trace_input,
+                    metadata=trace_metadata,
+                ) as generation:
+                    response = await selected.send(messages, **send_kwargs)
+
+                    # Update trace with response data
+                    if generation is not None:
+                        update_langfuse_generation(
+                            generation,
+                            output=response.content,
+                            model=response.model,
+                            usage=response.usage,
+                        )
             except Exception as exc:
                 elapsed = time.perf_counter() - started_at
                 logger.warning(
