@@ -723,6 +723,45 @@ export const coreClient = {
     });
   },
 
+  // --- Authentication ---
+
+  verifyToken(token: string) {
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    };
+    return fetch(`${CORE_URL}/auth/me`, {
+      headers,
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    }).then(async (res) => {
+      if (!res.ok) {
+        const text = await res.text();
+        let parsedBody: unknown = text;
+        if (text) {
+          try {
+            parsedBody = JSON.parse(text);
+          } catch {
+            parsedBody = text;
+          }
+        }
+        const message =
+          typeof parsedBody === "object" && parsedBody !== null
+            ? ((parsedBody as Record<string, unknown>).error as string | undefined) ||
+              ((parsedBody as Record<string, unknown>).detail as string | undefined) ||
+              `Core API error ${res.status}`
+            : text || `Core API error ${res.status}`;
+        throw new CoreApiError(message, res.status, parsedBody);
+      }
+      return res.json() as Promise<{
+        id: number;
+        username: string;
+        email: string;
+        role_id: number;
+        is_active: boolean;
+      }>;
+    });
+  },
+
   // --- User Management ---
 
   listUsers() {
