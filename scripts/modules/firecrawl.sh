@@ -11,6 +11,8 @@ module_firecrawl_config() {
 module_firecrawl_compose() {
   cat <<'EOF'
   firecrawl:
+    profiles:
+      - personal
     image: ${FIRECRAWL_IMAGE:-mcp/firecrawl@sha256:e6676bd31d1806574d931b7a7b7b6fba953c031853e80adc1ec8115c17ab81ca}
     container_name: mascarade-firecrawl
     restart: unless-stopped
