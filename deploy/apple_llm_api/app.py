@@ -747,6 +747,22 @@ def _get_model_priority(model_id: str) -> int:
     return 0
 
 
+def _get_model_config_by_id(model_id: str) -> RuntimeConfig | None:
+    """Get runtime config for a specific model_id from all configured models.
+
+    Args:
+        model_id: The model identifier to look up
+
+    Returns:
+        RuntimeConfig if found, None otherwise
+    """
+    all_configs = _get_all_model_configs()
+    for config in all_configs:
+        if config.model_id == model_id:
+            return config
+    return None
+
+
 def _runtime_config() -> RuntimeConfig:
     """Get the primary runtime configuration.
 
@@ -1930,19 +1946,29 @@ async def status() -> dict[str, Any]:
 
 @app.post("/generate")
 async def generate(req: GenerateRequest):
-    config = _runtime_config()
-    if not _configured(config):
+    # Get default config for validation
+    default_config = _runtime_config()
+    if not _configured(default_config):
         raise HTTPException(
             status_code=503,
             detail="APPLE_LLM_MODEL_PATH and APPLE_LLM_TOKENIZER_PATH must be configured",
         )
 
     try:
-        # Use model_id from request or fall back to config default
-        model_id = req.model or config.model_id
-        # Get the priority for this model from the config
+        # Use model_id from request or fall back to default
+        model_id = req.model or default_config.model_id
+
+        # Look up the model-specific config
+        model_config = _get_model_config_by_id(model_id)
+        if model_config is None:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Model '{model_id}' not found in configured models. Available models: {[c.model_id for c in _get_all_model_configs()]}",
+            )
+
+        # Get priority and load with correct config
         priority = _get_model_priority(model_id)
-        runtime = _model_manager.load_model(model_id, config, priority=priority)
+        runtime = _model_manager.load_model(model_id, model_config, priority=priority)
         return runtime.generate(req)
     except HTTPException:
         raise
