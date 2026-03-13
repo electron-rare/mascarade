@@ -12,6 +12,7 @@ from pathlib import Path
 from threading import Lock, Thread
 from typing import Any, Protocol
 
+import psutil
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
@@ -1741,6 +1742,61 @@ async def models() -> dict[str, Any]:
         "backend": backend,
         "loaded_count": len(loaded_model_ids),
         "max_concurrent": _model_manager.max_concurrent_models,
+    }
+
+
+@app.get("/status")
+async def status() -> dict[str, Any]:
+    """Get system status including loaded models and memory usage.
+
+    Returns:
+        Dictionary with:
+        - loaded_models: list of loaded model info (model_id, priority, request_count, last_used)
+        - memory: system and process memory usage statistics
+        - max_concurrent_models: maximum concurrent models allowed
+    """
+    # Get loaded models with detailed stats
+    loaded_model_ids = _model_manager.list_loaded_models()
+    loaded_models_info = []
+
+    for model_id in loaded_model_ids:
+        try:
+            priority = _model_manager.get_model_priority(model_id)
+        except ValueError:
+            priority = 0
+
+        request_count = _model_manager.request_count.get(model_id, 0)
+        last_used = _model_manager.last_used.get(model_id)
+
+        loaded_models_info.append({
+            "model_id": model_id,
+            "priority": priority,
+            "request_count": request_count,
+            "last_used": last_used,
+        })
+
+    # Get system memory info
+    memory = psutil.virtual_memory()
+    process = psutil.Process()
+    process_memory = process.memory_info()
+
+    memory_info = {
+        "system": {
+            "total_bytes": memory.total,
+            "available_bytes": memory.available,
+            "used_bytes": memory.used,
+            "percent": memory.percent,
+        },
+        "process": {
+            "rss_bytes": process_memory.rss,
+            "vms_bytes": process_memory.vms,
+        },
+    }
+
+    return {
+        "loaded_models": loaded_models_info,
+        "memory": memory_info,
+        "max_concurrent_models": _model_manager.max_concurrent_models,
     }
 
 
