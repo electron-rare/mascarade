@@ -18,6 +18,7 @@ from mascarade.agents.skills import register_default_skills
 from mascarade.auth import (
     add_api_key,
     get_active_api_keys,
+    get_current_user,
     hash_api_key,
     remove_api_key,
     require_admin,
@@ -345,6 +346,18 @@ async def delete_api_key(req: APIKeyRemove):
 async def list_api_keys():
     keys = get_active_api_keys()
     return {"api_keys": [{"key": k[:4] + "***" + k[-4:], "active": True} for k in keys]}
+
+
+@protected.get("/auth/me")
+async def get_me(current_user: User = Depends(get_current_user)):
+    """Get current authenticated user information."""
+    return {
+        "id": current_user.id,
+        "username": current_user.username,
+        "email": current_user.email,
+        "role_id": current_user.role_id,
+        "is_active": current_user.is_active,
+    }
 
 
 # --- User Management ---
