@@ -1,6 +1,7 @@
 """Agent FreeCAD — spécialisé dans la conception 3D et l'ingénierie avec FreeCAD."""
 
 from mascarade.agents.base import Agent
+from mascarade.router.router import Strategy
 
 
 class FreeCADAgent(Agent):
@@ -19,6 +20,7 @@ class FreeCADAgent(Agent):
             ),
             preferred_provider="mistral",
             preferred_model="mistral-large-latest",
+            strategy=Strategy.DOMAIN,
             tools=["python", "freecad_mcp"],
             temperature=0.3,
             max_tokens=2048,
