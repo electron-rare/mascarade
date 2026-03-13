@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import time
 from contextlib import asynccontextmanager
 from typing import Any, Literal
 
@@ -104,6 +105,71 @@ app = FastAPI(title="Mascarade Core", version="0.1.0", lifespan=lifespan)
 class Message(BaseModel):
     role: Literal["system", "user", "assistant", "tool"]
     content: str = Field(min_length=1, max_length=100_000)
+
+
+# --- OpenAI-Compatible Models ---
+
+
+class ChatCompletionMessage(BaseModel):
+    role: Literal["system", "user", "assistant", "tool"]
+    content: str | None = None
+    tool_calls: list[dict[str, Any]] | None = None
+    tool_call_id: str | None = Field(default=None, max_length=100)
+
+
+class ChatCompletionRequest(BaseModel):
+    model: str | None = Field(default=None, min_length=1, max_length=100)
+    messages: list[ChatCompletionMessage] = Field(max_length=200)
+    stream: bool = False
+    temperature: float = Field(default=0.7, ge=0.0, le=2.0)
+    max_tokens: int | None = Field(default=None, gt=0, le=128000)
+    top_p: float | None = Field(default=None, ge=0.0, le=1.0)
+    frequency_penalty: float | None = Field(default=None, ge=-2.0, le=2.0)
+    presence_penalty: float | None = Field(default=None, ge=-2.0, le=2.0)
+    stop: str | list[str] | None = None
+    n: int = Field(default=1, ge=1, le=10)
+    user: str | None = Field(default=None, max_length=200)
+
+
+class ChatCompletionUsage(BaseModel):
+    prompt_tokens: int = Field(ge=0)
+    completion_tokens: int = Field(ge=0)
+    total_tokens: int = Field(ge=0)
+
+
+class ChatCompletionChoice(BaseModel):
+    index: int = Field(ge=0)
+    message: ChatCompletionMessage
+    finish_reason: Literal["stop", "length", "tool_calls", "content_filter"] | None = None
+
+
+class ChatCompletionResponse(BaseModel):
+    id: str = Field(min_length=1, max_length=100)
+    object: Literal["chat.completion"] = "chat.completion"
+    created: int = Field(ge=0)
+    model: str = Field(min_length=1, max_length=100)
+    choices: list[ChatCompletionChoice]
+    usage: ChatCompletionUsage | None = None
+
+
+class ChatCompletionChunkDelta(BaseModel):
+    role: Literal["system", "user", "assistant", "tool"] | None = None
+    content: str | None = None
+    tool_calls: list[dict[str, Any]] | None = None
+
+
+class ChatCompletionChunkChoice(BaseModel):
+    index: int = Field(ge=0)
+    delta: ChatCompletionChunkDelta
+    finish_reason: Literal["stop", "length", "tool_calls", "content_filter"] | None = None
+
+
+class ChatCompletionChunk(BaseModel):
+    id: str = Field(min_length=1, max_length=100)
+    object: Literal["chat.completion.chunk"] = "chat.completion.chunk"
+    created: int = Field(ge=0)
+    model: str = Field(min_length=1, max_length=100)
+    choices: list[ChatCompletionChunkChoice]
 
 
 class SendRequest(BaseModel):
@@ -298,6 +364,109 @@ async def health():
         health_data["agents"] = len(app.state.registry)
 
     return health_data
+
+
+@app.post("/v1/chat/completions")
+async def chat_completions(req: ChatCompletionRequest):
+    """OpenAI-compatible chat completions endpoint."""
+    # Determine model and provider
+    model_str = req.model if req.model else settings.default_model
+    provider = None
+    model = model_str
+
+    # Parse model string for provider prefix (e.g., "apple-coreml:model")
+    if ":" in model_str:
+        parts = model_str.split(":", 1)
+        provider_prefix = parts[0]
+        model = parts[1]
+
+        # Get supported provider names (these are the known provider types)
+        supported_providers = [
+            "apple-coreml",
+            "ollama",
+            "openai",
+            "claude",
+            "anthropic",
+            "mistral",
+            "bedrock",
+            "gemini",
+        ]
+
+        # Validate provider prefix
+        if provider_prefix not in supported_providers:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Unsupported model prefix '{provider_prefix}'.",
+            )
+
+        provider = provider_prefix
+
+        # Check if provider is available
+        if provider not in app.state.router.available_providers:
+            raise HTTPException(
+                status_code=503,
+                detail={
+                    "error": f"Provider '{provider}' is not configured or unavailable.",
+                    "providers": app.state.router.available_providers,
+                },
+            )
+    else:
+        # Use default provider if no prefix
+        provider = settings.default_provider
+        model = model_str or settings.default_model
+
+    # Convert messages to router format
+    messages = [{"role": m.role, "content": m.content} for m in req.messages]
+
+    # Call router
+    try:
+        response = await app.state.router.send(
+            messages,
+            strategy=Strategy.SPECIFIC,
+            provider=provider,
+            model=model,
+            system=None,
+            response_format=None,
+            temperature=req.temperature,
+            max_tokens=req.max_tokens or 4096,
+        )
+    except ValueError as exc:
+        logger.warning("Chat completions request rejected: %s", exc)
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    # Build OpenAI-compatible response
+    chat_id = f"chatcmpl-{new_run_id()}"
+    created = int(time.time())
+
+    # Extract usage info
+    usage_dict = response.usage or {}
+    prompt_tokens = usage_dict.get("input_tokens", 0)
+    completion_tokens = usage_dict.get("output_tokens", 0)
+    total_tokens = usage_dict.get("total_tokens", prompt_tokens + completion_tokens)
+
+    usage = ChatCompletionUsage(
+        prompt_tokens=prompt_tokens,
+        completion_tokens=completion_tokens,
+        total_tokens=total_tokens,
+    )
+
+    choice = ChatCompletionChoice(
+        index=0,
+        message=ChatCompletionMessage(
+            role="assistant",
+            content=response.content,
+        ),
+        finish_reason="stop",
+    )
+
+    return ChatCompletionResponse(
+        id=chat_id,
+        object="chat.completion",
+        created=created,
+        model=model_str,
+        choices=[choice],
+        usage=usage,
+    )
 
 
 # --- Routes protegees ---

@@ -7,6 +7,8 @@ module_tempo_config() {
 
 module_tempo_compose() {
   echo "  tempo:"
+  echo "    profiles:"
+  echo "      - observability"
   echo "    image: \${TEMPO_IMAGE:-grafana/tempo:latest}"
   echo "    container_name: mascarade-tempo"
   echo "    restart: unless-stopped"

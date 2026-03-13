@@ -10,6 +10,8 @@ module_agent_factory_cockpit_config() {
 
 module_agent_factory_cockpit_compose() {
   echo "  agent-factory-cockpit:"
+  echo "    profiles:"
+  echo "      - industrial"
   echo "    build:"
   echo "      context: ../agent-factory-cockpit"
   echo "      dockerfile: Dockerfile"
@@ -68,6 +70,8 @@ module_agent_factory_cockpit_compose() {
   echo "      - mascarade-network"
   echo ""
   echo "  agent-factory-dcs-sandbox:"
+  echo "    profiles:"
+  echo "      - industrial"
   echo "    build:"
   echo "      context: ../agent-factory-cockpit"
   echo "      dockerfile: Dockerfile"

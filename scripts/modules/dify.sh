@@ -25,6 +25,8 @@ module_dify_compose() {
 
   # dify-api
   echo "  dify-api:"
+  echo "    profiles:"
+  echo "      - personal"
   echo "    image: \${DIFY_API_IMAGE:-langgenius/dify-api@sha256:5f622b4d0b39bdc6d3b401063cfb60962fa92dcc63f55daccec138f98b260e67}"
   echo "    container_name: mascarade-dify-api"
   echo "    restart: unless-stopped"
@@ -48,6 +50,8 @@ module_dify_compose() {
 
   # dify-web
   echo "  dify-web:"
+  echo "    profiles:"
+  echo "      - personal"
   echo "    image: \${DIFY_WEB_IMAGE:-langgenius/dify-web@sha256:30339b4d5060488fac147ddc6fb40438ef71cd5f5dfdeb26c886768302bf7197}"
   echo "    container_name: mascarade-dify-web"
   echo "    restart: unless-stopped"
@@ -72,6 +76,8 @@ module_dify_compose() {
 
   # dify-worker
   echo "  dify-worker:"
+  echo "    profiles:"
+  echo "      - personal"
   echo "    image: \${DIFY_API_IMAGE:-langgenius/dify-api@sha256:5f622b4d0b39bdc6d3b401063cfb60962fa92dcc63f55daccec138f98b260e67}"
   echo "    container_name: mascarade-dify-worker"
   echo "    restart: unless-stopped"
