@@ -99,6 +99,25 @@ export interface UploadDocumentsResponse {
   collection: string;
 }
 
+export interface SemanticSearchParams {
+  query: string;
+  limit?: number;
+  score_threshold?: number;
+}
+
+export interface SemanticSearchResult {
+  id: string | number;
+  score: number;
+  text?: string;
+  metadata?: Record<string, unknown>;
+}
+
+export interface SemanticSearchResponse {
+  results: SemanticSearchResult[];
+  query: string;
+  collection: string;
+}
+
 export const qdrantKnowledgeApi = {
   health: () => get<QdrantHealthResponse>("/api/qdrant-knowledge/health"),
 
@@ -147,5 +166,11 @@ export const qdrantKnowledgeApi = {
         method: "POST",
         body: formData,
       },
+    ),
+
+  semanticSearch: (collectionName: string, params: SemanticSearchParams) =>
+    post<SemanticSearchResponse>(
+      `/api/qdrant-knowledge/collections/${encodeURIComponent(collectionName)}/semantic-search`,
+      params,
     ),
 };
