@@ -1575,13 +1575,49 @@ async def health() -> dict[str, Any]:
 
 @app.get("/models")
 async def models() -> dict[str, Any]:
-    config = _runtime_config()
-    if not _configured(config):
-        return {"models": []}
-    runtime = _resolve_runtime()
+    """List all configured models and their status.
+
+    Returns:
+        Dictionary with:
+        - models: list of model info (model_id, loaded, priority, backend)
+        - backend: backend name
+        - loaded_count: number of currently loaded models
+        - max_concurrent: max concurrent models allowed
+    """
+    all_configs = _get_all_model_configs()
+    if not all_configs:
+        return {
+            "models": [],
+            "backend": "none",
+            "loaded_count": 0,
+            "max_concurrent": _model_manager.max_concurrent_models,
+        }
+
+    loaded_model_ids = _model_manager.list_loaded_models()
+    backend = all_configs[0].backend if all_configs else "none"
+
+    models_info = []
+    for config in all_configs:
+        is_loaded = config.model_id in loaded_model_ids
+
+        # Try to get priority from model_manager if registered, otherwise use 0
+        try:
+            priority = _model_manager.get_model_priority(config.model_id)
+        except ValueError:
+            priority = 0
+
+        models_info.append({
+            "model_id": config.model_id,
+            "loaded": is_loaded,
+            "priority": priority,
+            "backend": config.backend,
+        })
+
     return {
-        "models": runtime.available_models(),
-        "backend": runtime.backend_name,
+        "models": models_info,
+        "backend": backend,
+        "loaded_count": len(loaded_model_ids),
+        "max_concurrent": _model_manager.max_concurrent_models,
     }
 
 

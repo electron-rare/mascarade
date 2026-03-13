@@ -102,10 +102,14 @@ async def test_models_and_generate_use_fake_runtime(monkeypatch, service_module)
         )
 
     assert models_response.status_code == 200
-    assert models_response.json() == {
-        "models": ["phi-3-mini-coreml"],
-        "backend": "coreml",
-    }
+    models_data = models_response.json()
+    assert models_data["backend"] == "coreml"
+    assert models_data["max_concurrent"] == 1
+    assert len(models_data["models"]) == 1
+    assert models_data["models"][0]["model_id"] == "phi-3-mini-coreml"
+    assert models_data["models"][0]["backend"] == "coreml"
+    assert "loaded" in models_data["models"][0]
+    assert "priority" in models_data["models"][0]
     assert generate_response.status_code == 200
     assert generate_response.json()["content"] == "apple runtime ok"
 
