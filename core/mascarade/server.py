@@ -481,7 +481,7 @@ async def chat_completions(req: ChatCompletionRequest):
 
 # --- Routes protegees ---
 
-protected = APIRouter(dependencies=[Depends(require_auth)])
+protected = APIRouter(prefix="/v1", dependencies=[Depends(require_auth)])
 cluster_protected = APIRouter(
     prefix="/cluster/node",
     dependencies=[Depends(require_cluster_auth)],
