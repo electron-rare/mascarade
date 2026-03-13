@@ -77,6 +77,17 @@ class MultiTierCache:
             f"L3={'enabled' if self.l3_available else 'disabled'}"
         )
 
+    @property
+    def tiers(self) -> dict[str, CacheBackend | None]:
+        """
+        Get dictionary of all cache tiers.
+
+        Returns:
+            Dictionary mapping tier names to cache backend instances:
+            {"L1": InMemoryCache, "L2": RedisCache | None, "L3": SemanticCache | None}
+        """
+        return {"L1": self.l1, "L2": self.l2, "L3": self.l3}
+
     async def store(
         self,
         messages: list[dict],
