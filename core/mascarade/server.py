@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import time
 from contextlib import asynccontextmanager
 from typing import Any, Literal
 
@@ -105,7 +106,7 @@ class ChatCompletionMessage(BaseModel):
 
 
 class ChatCompletionRequest(BaseModel):
-    model: str = Field(min_length=1, max_length=100)
+    model: str | None = Field(default=None, min_length=1, max_length=100)
     messages: list[ChatCompletionMessage] = Field(max_length=200)
     stream: bool = False
     temperature: float = Field(default=0.7, ge=0.0, le=2.0)
@@ -308,6 +309,109 @@ async def health():
         health_data["agents"] = len(app.state.registry)
 
     return health_data
+
+
+@app.post("/v1/chat/completions")
+async def chat_completions(req: ChatCompletionRequest):
+    """OpenAI-compatible chat completions endpoint."""
+    # Determine model and provider
+    model_str = req.model if req.model else settings.default_model
+    provider = None
+    model = model_str
+
+    # Parse model string for provider prefix (e.g., "apple-coreml:model")
+    if ":" in model_str:
+        parts = model_str.split(":", 1)
+        provider_prefix = parts[0]
+        model = parts[1]
+
+        # Get supported provider names (these are the known provider types)
+        supported_providers = [
+            "apple-coreml",
+            "ollama",
+            "openai",
+            "claude",
+            "anthropic",
+            "mistral",
+            "bedrock",
+            "gemini",
+        ]
+
+        # Validate provider prefix
+        if provider_prefix not in supported_providers:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Unsupported model prefix '{provider_prefix}'.",
+            )
+
+        provider = provider_prefix
+
+        # Check if provider is available
+        if provider not in app.state.router.available_providers:
+            raise HTTPException(
+                status_code=503,
+                detail={
+                    "error": f"Provider '{provider}' is not configured or unavailable.",
+                    "providers": app.state.router.available_providers,
+                },
+            )
+    else:
+        # Use default provider if no prefix
+        provider = settings.default_provider
+        model = model_str or settings.default_model
+
+    # Convert messages to router format
+    messages = [{"role": m.role, "content": m.content} for m in req.messages]
+
+    # Call router
+    try:
+        response = await app.state.router.send(
+            messages,
+            strategy=Strategy.SPECIFIC,
+            provider=provider,
+            model=model,
+            system=None,
+            response_format=None,
+            temperature=req.temperature,
+            max_tokens=req.max_tokens or 4096,
+        )
+    except ValueError as exc:
+        logger.warning("Chat completions request rejected: %s", exc)
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    # Build OpenAI-compatible response
+    chat_id = f"chatcmpl-{new_run_id()}"
+    created = int(time.time())
+
+    # Extract usage info
+    usage_dict = response.usage or {}
+    prompt_tokens = usage_dict.get("input_tokens", 0)
+    completion_tokens = usage_dict.get("output_tokens", 0)
+    total_tokens = usage_dict.get("total_tokens", prompt_tokens + completion_tokens)
+
+    usage = ChatCompletionUsage(
+        prompt_tokens=prompt_tokens,
+        completion_tokens=completion_tokens,
+        total_tokens=total_tokens,
+    )
+
+    choice = ChatCompletionChoice(
+        index=0,
+        message=ChatCompletionMessage(
+            role="assistant",
+            content=response.content,
+        ),
+        finish_reason="stop",
+    )
+
+    return ChatCompletionResponse(
+        id=chat_id,
+        object="chat.completion",
+        created=created,
+        model=model_str,
+        choices=[choice],
+        usage=usage,
+    )
 
 
 # --- Routes protegees ---
