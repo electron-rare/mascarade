@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import secrets
 from contextlib import asynccontextmanager
 from typing import Any, Literal
 
@@ -17,6 +18,7 @@ from mascarade.agents.skills import register_default_skills
 from mascarade.auth import (
     add_api_key,
     get_active_api_keys,
+    hash_api_key,
     remove_api_key,
     require_admin,
     require_auth,
@@ -24,7 +26,14 @@ from mascarade.auth import (
 from mascarade.cluster import ClusterManager, require_cluster_auth
 from mascarade.config import settings
 from mascarade.db.connection import close_db_pool, get_db_pool, init_db_pool
-from mascarade.db.models import User, UserCreate, UserUpdate
+from mascarade.db.models import (
+    ApiKey,
+    ApiKeyCreate,
+    ApiKeyCreateResponse,
+    User,
+    UserCreate,
+    UserUpdate,
+)
 from mascarade.integrations.comfyui import ComfyUIClient
 from mascarade.integrations.knowledge_base import (
     knowledge_base_auth_configured,
@@ -608,6 +617,172 @@ async def delete_user(user_id: int, _: None = Depends(require_admin)):
     except Exception as e:
         logger.error("Error deleting user: %s", str(e), exc_info=True)
         raise HTTPException(status_code=500, detail="Error deleting user")
+
+
+# --- API Key Management ---
+
+
+@protected.post("/users/{user_id}/api-keys", status_code=201)
+async def create_user_api_key(
+    user_id: int,
+    req: ApiKeyCreate,
+    _: None = Depends(require_admin),
+):
+    """Create a new API key for a user (admin only)."""
+    pool = get_db_pool()
+    if pool is None:
+        raise HTTPException(status_code=500, detail="Database unavailable")
+
+    try:
+        async with pool.acquire() as conn:
+            # Check if user exists
+            user_row = await conn.fetchrow(
+                "SELECT id FROM users WHERE id = $1",
+                user_id,
+            )
+            if not user_row:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"User with ID {user_id} not found",
+                )
+
+            # Generate a secure random API key (32 bytes = 64 hex chars)
+            api_key = secrets.token_hex(32)
+            key_hash = hash_api_key(api_key)
+            key_prefix = api_key[:8]
+
+            # Insert the API key into the database
+            row = await conn.fetchrow(
+                """
+                INSERT INTO api_keys (user_id, key_hash, key_prefix, name, is_active, expires_at)
+                VALUES ($1, $2, $3, $4, $5, $6)
+                RETURNING id, user_id, key_hash, key_prefix, name, is_active, created_at, expires_at, last_used_at
+                """,
+                user_id,
+                key_hash,
+                key_prefix,
+                req.name,
+                True,  # is_active
+                req.expires_at,
+            )
+
+            api_key_obj = ApiKey.from_record(dict(row))
+            logger.info(
+                "API key created: id=%d, user_id=%d, name=%s",
+                api_key_obj.id,
+                user_id,
+                req.name,
+            )
+
+            # Return the API key object with the actual key (shown only once)
+            return ApiKeyCreateResponse(
+                api_key=api_key_obj,
+                key=api_key,
+            ).model_dump()
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("Error creating API key: %s", str(e), exc_info=True)
+        raise HTTPException(status_code=500, detail="Error creating API key")
+
+
+@protected.get("/users/{user_id}/api-keys")
+async def list_user_api_keys(
+    user_id: int,
+    _: None = Depends(require_admin),
+):
+    """List all API keys for a user (admin only)."""
+    pool = get_db_pool()
+    if pool is None:
+        raise HTTPException(status_code=500, detail="Database unavailable")
+
+    try:
+        async with pool.acquire() as conn:
+            # Check if user exists
+            user_row = await conn.fetchrow(
+                "SELECT id FROM users WHERE id = $1",
+                user_id,
+            )
+            if not user_row:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"User with ID {user_id} not found",
+                )
+
+            # Fetch all API keys for the user
+            rows = await conn.fetch(
+                """
+                SELECT id, user_id, key_hash, key_prefix, name, is_active, created_at, expires_at, last_used_at
+                FROM api_keys
+                WHERE user_id = $1
+                ORDER BY created_at DESC
+                """,
+                user_id,
+            )
+
+            api_keys = [ApiKey.from_record(dict(row)) for row in rows]
+            return {"api_keys": [key.model_dump() for key in api_keys]}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("Error listing API keys: %s", str(e), exc_info=True)
+        raise HTTPException(status_code=500, detail="Error listing API keys")
+
+
+@protected.delete("/users/{user_id}/api-keys/{key_id}")
+async def revoke_user_api_key(
+    user_id: int,
+    key_id: int,
+    _: None = Depends(require_admin),
+):
+    """Revoke (delete) an API key for a user (admin only)."""
+    pool = get_db_pool()
+    if pool is None:
+        raise HTTPException(status_code=500, detail="Database unavailable")
+
+    try:
+        async with pool.acquire() as conn:
+            # Check if API key exists and belongs to the user
+            key_row = await conn.fetchrow(
+                """
+                SELECT id, user_id, name
+                FROM api_keys
+                WHERE id = $1 AND user_id = $2
+                """,
+                key_id,
+                user_id,
+            )
+
+            if not key_row:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"API key with ID {key_id} not found for user {user_id}",
+                )
+
+            # Delete the API key
+            await conn.execute(
+                "DELETE FROM api_keys WHERE id = $1",
+                key_id,
+            )
+
+            logger.info(
+                "API key revoked: id=%d, user_id=%d, name=%s",
+                key_id,
+                user_id,
+                key_row["name"],
+            )
+            return {
+                "status": "ok",
+                "message": f"API key {key_id} revoked successfully",
+            }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("Error revoking API key: %s", str(e), exc_info=True)
+        raise HTTPException(status_code=500, detail="Error revoking API key")
 
 
 # --- LLM ---
