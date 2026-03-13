@@ -173,4 +173,17 @@ export const qdrantKnowledgeApi = {
       `/api/qdrant-knowledge/collections/${encodeURIComponent(collectionName)}/semantic-search`,
       params,
     ),
+
+  ragQuery: (collectionName: string, params: { query: string; limit?: number; model?: string; temperature?: number }) =>
+    post<{
+      answer: string;
+      chunks: Array<{ text: string; score: number; source: string }>;
+      query: string;
+      collection: string;
+      model: string;
+      provider: string;
+    }>(
+      `/api/qdrant-knowledge/collections/${encodeURIComponent(collectionName)}/rag-query`,
+      params,
+    ),
 };
