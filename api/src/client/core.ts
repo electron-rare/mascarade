@@ -722,4 +722,107 @@ export const coreClient = {
       body: JSON.stringify(body),
     });
   },
+
+  // --- Qdrant ---
+
+  qdrantHealth() {
+    return request<Record<string, unknown>>("/qdrant/health");
+  },
+
+  qdrantListCollections() {
+    return request<{ collections: Array<{ name: string }> }>("/qdrant/collections");
+  },
+
+  qdrantGetCollection(collectionName: string) {
+    return request<Record<string, unknown>>(
+      `/qdrant/collections/${encodeURIComponent(collectionName)}`,
+    );
+  },
+
+  qdrantCreateCollection(
+    collectionName: string,
+    body: {
+      vector_size: number;
+      distance?: string;
+      on_disk_payload?: boolean;
+    },
+  ) {
+    return request<Record<string, unknown>>(
+      `/qdrant/collections/${encodeURIComponent(collectionName)}`,
+      { method: "PUT", body: JSON.stringify(body) },
+    );
+  },
+
+  qdrantDeleteCollection(collectionName: string) {
+    return request<Record<string, unknown>>(
+      `/qdrant/collections/${encodeURIComponent(collectionName)}`,
+      { method: "DELETE" },
+    );
+  },
+
+  qdrantUpsertPoints(
+    collectionName: string,
+    body: {
+      points: Array<{
+        id: string | number;
+        vector: number[];
+        payload?: Record<string, unknown>;
+      }>;
+      wait?: boolean;
+    },
+  ) {
+    return request<Record<string, unknown>>(
+      `/qdrant/collections/${encodeURIComponent(collectionName)}/points`,
+      { method: "POST", body: JSON.stringify(body) },
+    );
+  },
+
+  qdrantSearch(
+    collectionName: string,
+    body: {
+      query_vector: number[];
+      limit?: number;
+      score_threshold?: number;
+      with_payload?: boolean;
+      with_vector?: boolean;
+      filter_conditions?: Record<string, unknown>;
+    },
+  ) {
+    return request<{
+      points: Array<{
+        id: string | number;
+        score: number;
+        payload?: Record<string, unknown>;
+        vector?: number[];
+      }>;
+    }>(`/qdrant/collections/${encodeURIComponent(collectionName)}/search`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+
+  qdrantRecommend(
+    collectionName: string,
+    body: {
+      positive: Array<string | number>;
+      negative?: Array<string | number>;
+      limit?: number;
+      score_threshold?: number;
+      with_payload?: boolean;
+      with_vector?: boolean;
+      filter_conditions?: Record<string, unknown>;
+    },
+  ) {
+    return request<{
+      points: Array<{
+        id: string | number;
+        score: number;
+        payload?: Record<string, unknown>;
+        vector?: number[];
+      }>;
+    }>(`/qdrant/collections/${encodeURIComponent(collectionName)}/recommend`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
 };
