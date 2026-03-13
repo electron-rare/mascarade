@@ -1,6 +1,14 @@
 #!/usr/bin/env bash
 # scripts/compose.sh — Generation du docker-compose.yml
 
+# Source dependencies if not already loaded
+if [[ -z "${REPO_DIR:-}" ]]; then
+    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+    source "$REPO_DIR/scripts/lib.sh"
+    source "$REPO_DIR/scripts/services.sh"
+fi
+
 generate_compose() {
     local output="${1:-$REPO_DIR/docker-compose.yml}"
     local volumes_output=""
