@@ -289,6 +289,7 @@ class ModelManager:
 _runtime_lock = Lock()
 _runtime_cache: RuntimeState | None = None
 _runtime_signature: RuntimeConfig | None = None
+_model_manager = ModelManager(max_concurrent_models=1)
 InputSpec = tuple[str, str, list[Any] | None]
 StateSpec = tuple[str, str, list[Any] | None]
 
@@ -1408,7 +1409,9 @@ async def generate(req: GenerateRequest):
         )
 
     try:
-        runtime = _resolve_runtime()
+        # Use model_id from request or fall back to config default
+        model_id = req.model or config.model_id
+        runtime = _model_manager.load_model(model_id, config)
         return runtime.generate(req)
     except HTTPException:
         raise
