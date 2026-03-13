@@ -133,9 +133,13 @@ export async function rateLimitMiddleware(c: Context, next: Next) {
 }
 
 // Periodic cleanup of expired entries
-setInterval(() => {
+const cleanupInterval = setInterval(() => {
   const now = Date.now();
   for (const [key, entry] of store) {
     if (now >= entry.resetAt) store.delete(key);
   }
 }, WINDOW_MS);
+
+if (typeof (cleanupInterval as any).unref === "function") {
+  (cleanupInterval as any).unref();
+}

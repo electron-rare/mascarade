@@ -569,6 +569,9 @@ export function lokiValueToOpsLogEntry(args: {
       ...(coerceOptionalString(decoded.structured.routing_model)
         ? { routing_model: coerceOptionalString(decoded.structured.routing_model)! }
         : {}),
+      ...(coerceOptionalString(decoded.structured.routing_policy)
+        ? { routing_policy: coerceOptionalString(decoded.structured.routing_policy)! }
+        : {}),
     };
     return {
       id:
@@ -628,11 +631,13 @@ function labelsMatchRouting(
     routing_role?: string;
     routing_provider?: string;
     routing_model?: string;
+    routing_policy?: string;
   },
 ): boolean {
   const role = filters.routing_role?.trim().toLowerCase();
   const provider = filters.routing_provider?.trim().toLowerCase();
   const model = filters.routing_model?.trim().toLowerCase();
+  const policy = filters.routing_policy?.trim().toLowerCase();
   const labels = entry.labels || {};
 
   if (role && (labels.routing_role || "").trim().toLowerCase() !== role) {
@@ -642,6 +647,9 @@ function labelsMatchRouting(
     return false;
   }
   if (model && (labels.routing_model || "").trim().toLowerCase() !== model) {
+    return false;
+  }
+  if (policy && (labels.routing_policy || "").trim().toLowerCase() !== policy) {
     return false;
   }
   return true;
@@ -681,6 +689,7 @@ function traceToLogEntry(event: AgentTraceEvent): OpsLogEntry {
       routing_role: event.routing_role ?? "",
       routing_provider: event.routing_provider ?? "",
       routing_model: event.routing_model ?? "",
+      routing_policy: event.routing_policy ?? "",
     },
   };
 }
@@ -1840,6 +1849,7 @@ ops.get("/logs/recent", async (c) => {
           routing_role: query.routing_role,
           routing_provider: query.routing_provider,
           routing_model: query.routing_model,
+          routing_policy: query.routing_policy,
         }),
       )
       .slice(0, limit);
@@ -1890,6 +1900,7 @@ ops.get("/logs/query", async (c) => {
         routing_role: query.routing_role,
         routing_provider: query.routing_provider,
         routing_model: query.routing_model,
+        routing_policy: query.routing_policy,
       }),
     );
     return c.json({

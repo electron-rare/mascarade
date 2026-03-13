@@ -22,7 +22,7 @@ class TeacherConfig:
 class TeacherAgent:
     """Generates teacher data using Claude/GPT via the mascarade Router.
 
-    Uses strategy=BEST to get highest quality responses.
+    Uses RouteLLM with strong policy to favor higher quality responses.
     Outputs JSONL compatible with trl/axolotl.
 
     P2P capability: ft-teacher
@@ -58,7 +58,8 @@ class TeacherAgent:
                     response = await self.router.send(
                         messages=messages,
                         system=system,
-                        strategy="best",
+                        strategy="routellm",
+                        routing_policy="strong",
                         temperature=config.temperature,
                         max_tokens=config.max_tokens,
                     )
@@ -109,7 +110,8 @@ class TeacherAgent:
                     )
                     response = await self.router.send(
                         messages=[{"role": "user", "content": prompt}],
-                        strategy="best",
+                        strategy="routellm",
+                        routing_policy="strong",
                         temperature=0.3,
                         max_tokens=config.max_tokens,
                     )

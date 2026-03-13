@@ -58,6 +58,7 @@ class AgentTraceEvent:
     routing_role: str | None = None
     routing_provider: str | None = None
     routing_model: str | None = None
+    routing_policy: str | None = None
     routing_selected_by: str | None = None
     routing_transport: str | None = None
     routing_latency_ms: float | None = None
@@ -84,6 +85,8 @@ def build_routing_suffix(event: AgentTraceEvent) -> str:
         parts.append(f"provider={event.routing_provider}")
     if event.routing_model:
         parts.append(f"model={event.routing_model}")
+    if event.routing_policy:
+        parts.append(f"policy={event.routing_policy}")
     return f" [{', '.join(parts)}]" if parts else ""
 
 
@@ -190,6 +193,7 @@ class AgentTraceBuffer:
             "routing_role": event.routing_role,
             "routing_provider": event.routing_provider,
             "routing_model": event.routing_model,
+            "routing_policy": event.routing_policy,
             "routing_selected_by": event.routing_selected_by,
             "routing_transport": event.routing_transport,
             "routing_latency_ms": event.routing_latency_ms,
@@ -217,6 +221,7 @@ class AgentTraceBuffer:
                 "routing_role": event.routing_role or "",
                 "routing_provider": event.routing_provider or "",
                 "routing_model": event.routing_model or "",
+                "routing_policy": event.routing_policy or "",
                 "routing_selected_by": event.routing_selected_by or "",
                 "routing_transport": event.routing_transport or "",
                 "routing_latency_ms": (
@@ -271,6 +276,7 @@ class AgentTraceBuffer:
         routing_role: str | None = None,
         routing_provider: str | None = None,
         routing_model: str | None = None,
+        routing_policy: str | None = None,
         routing_selected_by: str | None = None,
         routing_transport: str | None = None,
         routing_latency_ms: float | None = None,
@@ -301,6 +307,7 @@ class AgentTraceBuffer:
             routing_role=excerpt_text(routing_role, limit=120),
             routing_provider=excerpt_text(routing_provider, limit=120),
             routing_model=excerpt_text(routing_model, limit=160),
+            routing_policy=excerpt_text(routing_policy, limit=80),
             routing_selected_by=excerpt_text(routing_selected_by, limit=80),
             routing_transport=excerpt_text(routing_transport, limit=80),
             routing_latency_ms=routing_latency_ms,

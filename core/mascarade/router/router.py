@@ -162,32 +162,72 @@ class Router:
         system: str | None,
         provider: str | None,
         model: str | None,
+        routing_policy: str | None,
     ) -> tuple[Strategy, str | None, str | None]:
+        policy = (routing_policy or "auto").strip().lower()
+        if policy not in {"auto", "strong", "cheap", "fast"}:
+            policy = "auto"
+
         if provider:
             return Strategy.SPECIFIC, provider, model
+
+        def _strong_target() -> tuple[Strategy, str | None, str | None]:
+            chosen_provider = settings.routellm_strong_provider.strip() or None
+            chosen_model = settings.routellm_strong_model.strip() or None
+            strategy = Strategy.SPECIFIC if chosen_provider else Strategy.BEST
+            return strategy, chosen_provider, (model or chosen_model)
+
+        def _cheap_target() -> tuple[Strategy, str | None, str | None]:
+            chosen_provider = settings.routellm_cheap_provider.strip() or None
+            chosen_model = settings.routellm_cheap_model.strip() or None
+            strategy = Strategy.SPECIFIC if chosen_provider else Strategy.CHEAPEST
+            return strategy, chosen_provider, (model or chosen_model)
+
         if not settings.routellm_enabled:
-            return Strategy.BEST, provider, model
+            if policy == "cheap":
+                return Strategy.CHEAPEST, None, model
+            if policy == "fast":
+                return Strategy.FASTEST, None, model
+            return Strategy.BEST, None, model
+
+        if policy == "strong":
+            strategy, chosen_provider, chosen_model = _strong_target()
+            logger.debug(
+                "RouteLLM policy strong selected provider=%s model=%s",
+                chosen_provider,
+                chosen_model,
+            )
+            return strategy, chosen_provider, chosen_model
+
+        if policy == "cheap":
+            strategy, chosen_provider, chosen_model = _cheap_target()
+            logger.debug(
+                "RouteLLM policy cheap selected provider=%s model=%s",
+                chosen_provider,
+                chosen_model,
+            )
+            return strategy, chosen_provider, chosen_model
+
+        if policy == "fast":
+            logger.debug("RouteLLM policy fast selected")
+            return Strategy.FASTEST, None, model
 
         threshold = max(0.0, min(float(settings.routellm_threshold), 1.0))
         score = self._complexity_score(messages, system)
         if score >= threshold:
-            chosen_provider = settings.routellm_strong_provider.strip() or None
-            chosen_model = settings.routellm_strong_model.strip() or None
-            strategy = Strategy.SPECIFIC if chosen_provider else Strategy.BEST
+            strategy, chosen_provider, chosen_model = _strong_target()
             logger.debug(
                 "RouteLLM strong route selected score=%.3f threshold=%.3f provider=%s model=%s",
                 score, threshold, chosen_provider, chosen_model,
             )
-            return strategy, chosen_provider, (model or chosen_model)
+            return strategy, chosen_provider, chosen_model
 
-        chosen_provider = settings.routellm_cheap_provider.strip() or None
-        chosen_model = settings.routellm_cheap_model.strip() or None
-        strategy = Strategy.SPECIFIC if chosen_provider else Strategy.CHEAPEST
+        strategy, chosen_provider, chosen_model = _cheap_target()
         logger.debug(
             "RouteLLM cheap route selected score=%.3f threshold=%.3f provider=%s model=%s",
             score, threshold, chosen_provider, chosen_model,
         )
-        return strategy, chosen_provider, (model or chosen_model)
+        return strategy, chosen_provider, chosen_model
 
     @staticmethod
     def _usage_tokens(usage: dict[str, int]) -> int:
@@ -222,6 +262,7 @@ class Router:
         messages: list[dict],
         *,
         strategy: Strategy | str = Strategy.BEST,
+        routing_policy: str | None = None,
         provider: str | None = None,
         model: str | None = None,
         system: str | None = None,
@@ -230,6 +271,14 @@ class Router:
         max_tokens: int = 4096,
     ) -> LLMResponse:
         requested_strategy = Strategy(strategy)
+        policy = (routing_policy or "auto").strip().lower() or "auto"
+        if policy not in {"auto", "strong", "cheap", "fast"}:
+            policy = "auto"
+        cache_strategy = (
+            f"{requested_strategy.value}:{policy}"
+            if requested_strategy == Strategy.ROUTELLM
+            else requested_strategy.value
+        )
         effective_strategy = requested_strategy
         effective_provider = provider
         effective_model = model
@@ -243,12 +292,13 @@ class Router:
                 system=system,
                 provider=provider,
                 model=model,
+                routing_policy=policy,
             )
         strict_provider = effective_strategy == Strategy.SPECIFIC and effective_provider is not None
 
         cached = self.cache.retrieve(
             messages,
-            strategy=requested_strategy.value,
+            strategy=cache_strategy,
             provider=effective_provider,
             model=effective_model,
             system=system,
@@ -348,8 +398,6 @@ class Router:
             # Store in cache with original strategy to enable cache hits
             # even after fallback to different provider
             # But store the actual provider that was used for accurate response metadata
-            cache_strategy = requested_strategy.value
-
             if not strict_provider:
                 self.cache.store(
                     messages,
@@ -378,6 +426,7 @@ class Router:
         messages: list[dict],
         *,
         strategy: Strategy | str = Strategy.BEST,
+        routing_policy: str | None = None,
         provider: str | None = None,
         model: str | None = None,
         system: str | None = None,
@@ -398,6 +447,7 @@ class Router:
                 system=system,
                 provider=provider,
                 model=model,
+                routing_policy=routing_policy,
             )
         strict_provider = effective_strategy == Strategy.SPECIFIC and effective_provider is not None
 

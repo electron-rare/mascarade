@@ -21,6 +21,13 @@ const allowedOrigins = allowAnyOrigin
 const allowedOriginSet = new Set(allowedOrigins);
 const credentialsEnabled = !allowAnyOrigin && allowedOrigins.length > 0;
 
+if (allowAnyOrigin && rawOrigins.some((origin) => origin !== "*")) {
+  console.warn("[cors] CORS_ORIGINS contient '*' et des origines explicites: seules les regles '*' seront appliquees.");
+}
+if (!allowAnyOrigin && rawOrigins.length > 0 && allowedOrigins.length === 0) {
+  console.warn("[cors] CORS_ORIGINS est configure mais aucune origine valide n'a ete retenue (fail-closed).");
+}
+
 // Fail-closed: if CORS_ORIGINS is not set, only same-origin requests are allowed.
 // Set CORS_ORIGINS=* explicitly to allow all origins (dev only).
 export const corsMiddleware = cors({
