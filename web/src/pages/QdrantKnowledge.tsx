@@ -167,8 +167,17 @@ export default function QdrantKnowledge() {
         formData.append("files", file);
       });
 
-      setUploadProgress(`Uploaded ${uploadFiles.length} file(s) successfully`);
+      const result = await qdrantKnowledgeApi.uploadDocuments(selected.name, formData);
+
+      setUploadProgress(
+        `Uploaded ${result.documents_processed} document(s), created ${result.chunks_created} chunks`
+      );
       setUploadFiles([]);
+
+      await collectionsApi.execute(undefined);
+      if (selected) {
+        await detailsApi.execute(selected.name);
+      }
 
       setTimeout(() => {
         setUploadProgress(null);
@@ -177,7 +186,7 @@ export default function QdrantKnowledge() {
       setUploadError(err instanceof Error ? err.message : "Upload failed");
       setUploadProgress(null);
     }
-  }, [uploadFiles, selected]);
+  }, [uploadFiles, selected, collectionsApi, detailsApi]);
 
   const handleClearFiles = useCallback(() => {
     setUploadFiles([]);
