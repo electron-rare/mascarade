@@ -45,6 +45,8 @@ module_comfyui_compose() {
     comfyui_gpu=true
   fi
   echo "  comfyui:"
+  echo "    profiles:"
+  echo "      - fine-tuning"
   echo "    image: \${COMFYUI_IMAGE:-comfyanonymous/comfyui:latest}"
   echo "    container_name: mascarade-comfyui"
   echo "    restart: unless-stopped"

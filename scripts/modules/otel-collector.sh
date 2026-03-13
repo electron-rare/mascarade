@@ -9,6 +9,8 @@ module_otel_collector_config() {
 
 module_otel_collector_compose() {
   echo "  otel-collector:"
+  echo "    profiles:"
+  echo "      - observability"
   echo "    image: \${OTEL_COLLECTOR_IMAGE:-otel/opentelemetry-collector-contrib:0.116.1}"
   echo "    container_name: mascarade-otel-collector"
   echo "    restart: unless-stopped"
