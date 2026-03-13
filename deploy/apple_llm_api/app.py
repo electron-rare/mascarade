@@ -73,6 +73,7 @@ class ModelManager:
         """
         self.loaded_models: dict[str, RuntimeState] = {}
         self.model_configs: dict[str, RuntimeConfig] = {}
+        self.model_priorities: dict[str, int] = {}
         self.max_concurrent_models: int = max_concurrent_models
         self.current_model_id: str | None = None
         self.model_load_lock: Lock = Lock()
@@ -99,14 +100,19 @@ class ModelManager:
         """
         return model_id in self.loaded_models
 
-    def register_model_config(self, model_id: str, config: RuntimeConfig) -> None:
+    def register_model_config(
+        self, model_id: str, config: RuntimeConfig, priority: int = 0
+    ) -> None:
         """Register a model configuration.
 
         Args:
             model_id: The model identifier
             config: The runtime configuration for the model
+            priority: Priority for this model (higher = more important, kept longer).
+                     Default is 0.
         """
         self.model_configs[model_id] = config
+        self.model_priorities[model_id] = priority
 
     def get_model_config(self, model_id: str) -> RuntimeConfig | None:
         """Get a registered model configuration.
@@ -135,12 +141,70 @@ class ModelManager:
         """
         return list(self.model_configs.keys())
 
-    def load_model(self, model_id: str, config: RuntimeConfig) -> RuntimeState:
+    def set_model_priority(self, model_id: str, priority: int) -> None:
+        """Set the priority for a model.
+
+        Args:
+            model_id: The model identifier
+            priority: Priority value (higher = more important, kept longer in memory)
+
+        Raises:
+            ValueError: If the model_id is not configured
+        """
+        if model_id not in self.model_configs:
+            raise ValueError(f"Model '{model_id}' is not configured")
+        self.model_priorities[model_id] = priority
+
+    def get_model_priority(self, model_id: str) -> int:
+        """Get the priority for a model.
+
+        Args:
+            model_id: The model identifier
+
+        Returns:
+            The priority value, or 0 if not set
+
+        Raises:
+            ValueError: If the model_id is not configured
+        """
+        if model_id not in self.model_configs:
+            raise ValueError(f"Model '{model_id}' is not configured")
+        return self.model_priorities.get(model_id, 0)
+
+    def _find_lowest_priority_model(self) -> str | None:
+        """Find the loaded model with the lowest priority.
+
+        Returns:
+            The model_id of the lowest priority loaded model, or None if no models loaded
+
+        Note:
+            This method assumes the caller holds model_load_lock.
+            If multiple models have the same lowest priority, returns the first one found.
+        """
+        if not self.loaded_models:
+            return None
+
+        lowest_priority_model = None
+        lowest_priority = float("inf")
+
+        for model_id in self.loaded_models:
+            priority = self.model_priorities.get(model_id, 0)
+            if priority < lowest_priority:
+                lowest_priority = priority
+                lowest_priority_model = model_id
+
+        return lowest_priority_model
+
+    def load_model(
+        self, model_id: str, config: RuntimeConfig, priority: int = 0
+    ) -> RuntimeState:
         """Load a model into memory.
 
         Args:
             model_id: The model identifier
             config: The runtime configuration for the model
+            priority: Priority for this model (higher = more important, kept longer).
+                     Default is 0.
 
         Returns:
             The loaded runtime state
@@ -159,15 +223,15 @@ class ModelManager:
 
             # Check if we need to unload a model first
             if len(self.loaded_models) >= self.max_concurrent_models:
-                # Unload the least recently used model (first in dict)
-                # In Python 3.7+ dicts maintain insertion order
-                if self.loaded_models:
-                    lru_model_id = next(iter(self.loaded_models))
-                    self.unload_model(lru_model_id)
+                # Unload the model with the lowest priority
+                lowest_priority_model = self._find_lowest_priority_model()
+                if lowest_priority_model:
+                    self.unload_model(lowest_priority_model)
 
             # Register the config if not already registered
             if model_id not in self.model_configs:
                 self.model_configs[model_id] = config
+                self.model_priorities[model_id] = priority
 
             # Build the runtime
             try:
@@ -231,12 +295,12 @@ class ModelManager:
             self.loaded_models[model_id] = runtime
 
     def swap_model(self, new_model_id: str) -> RuntimeState:
-        """Swap to a different model, implementing LRU eviction if needed.
+        """Swap to a different model, implementing priority-based eviction if needed.
 
         This method loads the requested model if it's not already loaded.
         If the model is already loaded, it updates its access time.
-        When the maximum number of concurrent models is reached, the least
-        recently used model is evicted.
+        When the maximum number of concurrent models is reached, the model
+        with the lowest priority is evicted.
 
         Args:
             new_model_id: The model identifier to swap to
@@ -266,12 +330,12 @@ class ModelManager:
                     f"Available models: {list(self.model_configs.keys())}"
                 )
 
-            # Check if we need to unload a model first (LRU eviction)
+            # Check if we need to unload a model first (priority-based eviction)
             if len(self.loaded_models) >= self.max_concurrent_models:
-                if self.loaded_models:
-                    # Evict the least recently used model (first in dict)
-                    lru_model_id = next(iter(self.loaded_models))
-                    self.unload_model(lru_model_id)
+                # Evict the model with the lowest priority
+                lowest_priority_model = self._find_lowest_priority_model()
+                if lowest_priority_model:
+                    self.unload_model(lowest_priority_model)
 
             # Load the new model
             try:
