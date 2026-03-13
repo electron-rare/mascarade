@@ -29,6 +29,7 @@ dependencies = [
     "libp2p>=0.6.0,<1",
     "trio>=0.29,<1",
     "multiaddr>=0.0.9,<1",
+    "asyncpg>=0.30,<1",
 ]
 
 [project.optional-dependencies]

@@ -107,6 +107,9 @@ class Settings(BaseSettings):
     # ComfyUI
     comfyui_url: str = ""
 
+    # Database
+    database_url: str = "postgresql://mascarade:mascarade@postgres:5432/mascarade"
+
     # Core API server
     core_host: str = "0.0.0.0"
     core_port: int = 8100
