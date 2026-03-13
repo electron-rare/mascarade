@@ -256,6 +256,15 @@ class ComfyUIWorkflowRequest(BaseModel):
     workflow: dict
 
 
+class RateLimitUpdate(BaseModel):
+    """Request model for updating user rate limits."""
+
+    requests_per_minute: int | None = Field(default=None, ge=0)
+    requests_per_hour: int | None = Field(default=None, ge=0)
+    requests_per_day: int | None = Field(default=None, ge=0)
+    tokens_per_day: int | None = Field(default=None, ge=0)
+
+
 # --- Route publique ---
 
 
@@ -633,6 +642,67 @@ async def delete_user(user_id: int, _: None = Depends(require_admin)):
     except Exception as e:
         logger.error("Error deleting user: %s", str(e), exc_info=True)
         raise HTTPException(status_code=500, detail="Error deleting user")
+
+
+@protected.put("/users/{user_id}/rate-limit")
+async def update_user_rate_limit(
+    user_id: int,
+    req: RateLimitUpdate,
+    _: None = Depends(require_admin),
+):
+    """Update rate limit for a user (admin only)."""
+    pool = get_db_pool()
+    if pool is None:
+        raise HTTPException(status_code=500, detail="Database unavailable")
+
+    try:
+        async with pool.acquire() as conn:
+            # Check if user exists
+            existing = await conn.fetchrow(
+                "SELECT id, username FROM users WHERE id = $1",
+                user_id,
+            )
+            if not existing:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"User with ID {user_id} not found",
+                )
+
+            # Build rate limits JSON
+            rate_limits = {
+                "requests_per_minute": req.requests_per_minute,
+                "requests_per_hour": req.requests_per_hour,
+                "requests_per_day": req.requests_per_day,
+                "tokens_per_day": req.tokens_per_day,
+            }
+
+            # Update user's rate limits
+            await conn.execute(
+                """
+                UPDATE users
+                SET rate_limits = $1::jsonb, updated_at = NOW()
+                WHERE id = $2
+                """,
+                json.dumps(rate_limits),
+                user_id,
+            )
+
+            logger.info(
+                "Rate limits updated for user: id=%d, username=%s",
+                user_id,
+                existing["username"],
+            )
+            return {
+                "status": "ok",
+                "message": f"Rate limits updated for user {user_id}",
+                "rate_limits": rate_limits,
+            }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("Error updating rate limits: %s", str(e), exc_info=True)
+        raise HTTPException(status_code=500, detail="Error updating rate limits")
 
 
 # --- API Key Management ---
