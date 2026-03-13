@@ -35,19 +35,19 @@ app.onError((err, c) => {
 app.route("/health", health);
 app.route("/v1/version", version);
 // Auth first — reject unauthenticated before consuming rate-limit quota
-app.use("/api/*", authMiddleware);
-app.use("/api/*", rateLimitMiddleware);
-app.route("/api/agents", agents);
-app.route("/api/cluster", cluster);
-app.route("/api/knowledge-base", knowledgeBase);
-app.route("/api/qdrant-knowledge", qdrantKnowledge);
-app.route("/api/cad", cad);
-app.route("/api/comfyui", comfyui);
-app.route("/api/ops", ops);
-app.route("/api/industrial", industrial);
-app.route("/api/mcp/industrial", industrialMcp);
-app.route("/api/killlife", killlife);
-app.route("/api/settings", settings);
+app.use("/v1/api/*", authMiddleware);
+app.use("/v1/api/*", rateLimitMiddleware);
+app.route("/v1/api/agents", agents);
+app.route("/v1/api/cluster", cluster);
+app.route("/v1/api/knowledge-base", knowledgeBase);
+app.route("/v1/api/qdrant-knowledge", qdrantKnowledge);
+app.route("/v1/api/cad", cad);
+app.route("/v1/api/comfyui", comfyui);
+app.route("/v1/api/ops", ops);
+app.route("/v1/api/industrial", industrial);
+app.route("/v1/api/mcp/industrial", industrialMcp);
+app.route("/v1/api/killlife", killlife);
+app.route("/v1/api/settings", settings);
 
 if (hasFrontend) {
   app.use("/assets/*", serveStatic({ root: "./public" }));
