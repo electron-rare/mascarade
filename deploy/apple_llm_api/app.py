@@ -318,6 +318,103 @@ def _env_int(name: str, default: int) -> int:
         return default
 
 
+@dataclass(frozen=True)
+class ModelConfigEntry:
+    """Model configuration entry from APPLE_LLM_MODELS_JSON."""
+    model_id: str
+    model_path: str
+    tokenizer_path: str
+    priority: int = 0
+    embed_model_path: str = ""
+
+
+def _parse_models_json() -> list[ModelConfigEntry] | None:
+    """Parse APPLE_LLM_MODELS_JSON environment variable.
+
+    Returns:
+        List of model configuration entries, or None if env var is not set or invalid.
+    """
+    models_json = os.getenv("APPLE_LLM_MODELS_JSON", "").strip()
+    if not models_json:
+        return None
+
+    try:
+        models_data = json.loads(models_json)
+        if not isinstance(models_data, list):
+            return None
+
+        entries = []
+        for item in models_data:
+            if not isinstance(item, dict):
+                continue
+
+            model_id = item.get("model_id", "").strip()
+            model_path = item.get("model_path", "").strip()
+            tokenizer_path = item.get("tokenizer_path", "").strip()
+
+            if not model_id or not model_path or not tokenizer_path:
+                continue
+
+            entry = ModelConfigEntry(
+                model_id=model_id,
+                model_path=model_path,
+                tokenizer_path=tokenizer_path,
+                priority=item.get("priority", 0),
+                embed_model_path=item.get("embed_model_path", "").strip(),
+            )
+            entries.append(entry)
+
+        return entries if entries else None
+    except (json.JSONDecodeError, Exception):
+        return None
+
+
+def _get_all_model_configs() -> list[RuntimeConfig]:
+    """Get all configured models, either from APPLE_LLM_MODELS_JSON or legacy single-model env vars.
+
+    Returns:
+        List of RuntimeConfig objects for all configured models.
+    """
+    backend = _normalize_backend(os.getenv("APPLE_LLM_BACKEND"))
+    compute_units = _normalize_compute_units(os.getenv("APPLE_LLM_COMPUTE_UNITS"))
+    max_input_tokens = max(32, _env_int("APPLE_LLM_MAX_INPUT_TOKENS", 2048))
+    max_new_tokens = max(1, _env_int("APPLE_LLM_MAX_NEW_TOKENS", 256))
+    trust_remote_code = _env_flag("APPLE_LLM_TRUST_REMOTE_CODE", False)
+
+    # Try multi-model JSON config first
+    model_entries = _parse_models_json()
+    if model_entries:
+        configs = []
+        for entry in model_entries:
+            config = RuntimeConfig(
+                backend=backend,
+                model_id=entry.model_id,
+                model_path=entry.model_path,
+                embed_model_path=entry.embed_model_path,
+                tokenizer_path=entry.tokenizer_path,
+                compute_units=compute_units,
+                max_input_tokens=max_input_tokens,
+                max_new_tokens=max_new_tokens,
+                trust_remote_code=trust_remote_code,
+            )
+            configs.append(config)
+        return configs
+
+    # Fall back to legacy single-model env vars
+    single_config = RuntimeConfig(
+        backend=backend,
+        model_id=os.getenv("APPLE_LLM_MODEL_ID", "apple-local").strip() or "apple-local",
+        model_path=os.getenv("APPLE_LLM_MODEL_PATH", "").strip(),
+        embed_model_path=os.getenv("APPLE_LLM_EMBED_MODEL_PATH", "").strip(),
+        tokenizer_path=os.getenv("APPLE_LLM_TOKENIZER_PATH", "").strip(),
+        compute_units=compute_units,
+        max_input_tokens=max_input_tokens,
+        max_new_tokens=max_new_tokens,
+        trust_remote_code=trust_remote_code,
+    )
+    return [single_config]
+
+
 def _normalize_backend(raw: str | None) -> str:
     value = (raw or "coreml").strip().lower()
     aliases = {
@@ -341,6 +438,31 @@ def _normalize_compute_units(raw: str | None) -> str:
 
 
 def _runtime_config() -> RuntimeConfig:
+    """Get the primary runtime configuration.
+
+    Supports both multi-model config (APPLE_LLM_MODELS_JSON) and legacy single-model env vars.
+    When multi-model config is present, returns the highest priority model as the default.
+    """
+    # Try multi-model JSON config first
+    model_entries = _parse_models_json()
+    if model_entries:
+        # Sort by priority (descending) to get highest priority model
+        sorted_entries = sorted(model_entries, key=lambda x: x.priority, reverse=True)
+        primary_entry = sorted_entries[0]
+
+        return RuntimeConfig(
+            backend=_normalize_backend(os.getenv("APPLE_LLM_BACKEND")),
+            model_id=primary_entry.model_id,
+            model_path=primary_entry.model_path,
+            embed_model_path=primary_entry.embed_model_path,
+            tokenizer_path=primary_entry.tokenizer_path,
+            compute_units=_normalize_compute_units(os.getenv("APPLE_LLM_COMPUTE_UNITS")),
+            max_input_tokens=max(32, _env_int("APPLE_LLM_MAX_INPUT_TOKENS", 2048)),
+            max_new_tokens=max(1, _env_int("APPLE_LLM_MAX_NEW_TOKENS", 256)),
+            trust_remote_code=_env_flag("APPLE_LLM_TRUST_REMOTE_CODE", False),
+        )
+
+    # Fall back to legacy single-model env vars
     return RuntimeConfig(
         backend=_normalize_backend(os.getenv("APPLE_LLM_BACKEND")),
         model_id=os.getenv("APPLE_LLM_MODEL_ID", "apple-local").strip() or "apple-local",
