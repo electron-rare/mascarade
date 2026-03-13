@@ -62,6 +62,10 @@ async def test_models_and_generate_use_fake_runtime(monkeypatch, service_module)
     class _FakeRuntime:
         backend_name = "coreml"
 
+        def check_ready(self):
+            """Check if runtime is ready - required by RuntimeState protocol."""
+            pass
+
         def dependency_versions(self):
             return {"numpy": "test", "transformers": "test", "coremltools": "test"}
 

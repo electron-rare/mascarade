@@ -47,6 +47,10 @@ class FakeMultiModelRuntime:
         self._load_time = time.time()
         self._generate_count = 0
 
+    def check_ready(self) -> None:
+        """Check if runtime is ready - required by RuntimeState protocol."""
+        pass
+
     def dependency_versions(self) -> dict[str, str]:
         return {"numpy": "test", "transformers": "test", "coremltools": "test"}
 
@@ -95,18 +99,21 @@ async def test_pre_warming_loads_next_likely_model(monkeypatch, service_module):
         {
             "model_id": "model-a",
             "model_path": "/tmp/a.mlpackage",
+                "tokenizer_path": "/tmp/tokenizer",
             "backend": "coreml",
             "priority": 10,
         },
         {
             "model_id": "model-b",
             "model_path": "/tmp/b.mlpackage",
+                "tokenizer_path": "/tmp/tokenizer",
             "backend": "coreml",
             "priority": 5,
         },
         {
             "model_id": "model-c",
             "model_path": "/tmp/c.mlpackage",
+                "tokenizer_path": "/tmp/tokenizer",
             "backend": "coreml",
             "priority": 1,
         },
@@ -195,18 +202,21 @@ async def test_priority_queue_keeps_high_priority_models(monkeypatch, service_mo
         {
             "model_id": "high-priority",
             "model_path": "/tmp/high.mlpackage",
+                "tokenizer_path": "/tmp/tokenizer",
             "backend": "coreml",
             "priority": 100,
         },
         {
             "model_id": "medium-priority",
             "model_path": "/tmp/medium.mlpackage",
+                "tokenizer_path": "/tmp/tokenizer",
             "backend": "coreml",
             "priority": 50,
         },
         {
             "model_id": "low-priority",
             "model_path": "/tmp/low.mlpackage",
+                "tokenizer_path": "/tmp/tokenizer",
             "backend": "coreml",
             "priority": 10,
         },
@@ -290,18 +300,21 @@ async def test_request_pattern_prediction(monkeypatch, service_module):
         {
             "model_id": "model-a",
             "model_path": "/tmp/a.mlpackage",
+                "tokenizer_path": "/tmp/tokenizer",
             "backend": "coreml",
             "priority": 10,
         },
         {
             "model_id": "model-b",
             "model_path": "/tmp/b.mlpackage",
+                "tokenizer_path": "/tmp/tokenizer",
             "backend": "coreml",
             "priority": 10,
         },
         {
             "model_id": "model-c",
             "model_path": "/tmp/c.mlpackage",
+                "tokenizer_path": "/tmp/tokenizer",
             "backend": "coreml",
             "priority": 10,
         },
@@ -366,12 +379,14 @@ async def test_pre_warming_background_thread(monkeypatch, service_module):
         {
             "model_id": "primary",
             "model_path": "/tmp/primary.mlpackage",
+                "tokenizer_path": "/tmp/tokenizer",
             "backend": "coreml",
             "priority": 10,
         },
         {
             "model_id": "secondary",
             "model_path": "/tmp/secondary.mlpackage",
+                "tokenizer_path": "/tmp/tokenizer",
             "backend": "coreml",
             "priority": 5,
         },
@@ -432,12 +447,14 @@ async def test_status_shows_pre_warm_candidate(monkeypatch, service_module):
         {
             "model_id": "model-x",
             "model_path": "/tmp/x.mlpackage",
+                "tokenizer_path": "/tmp/tokenizer",
             "backend": "coreml",
             "priority": 1,
         },
         {
             "model_id": "model-y",
             "model_path": "/tmp/y.mlpackage",
+                "tokenizer_path": "/tmp/tokenizer",
             "backend": "coreml",
             "priority": 1,
         },
@@ -494,12 +511,14 @@ async def test_memory_constrained_pre_warming(monkeypatch, service_module):
         {
             "model_id": "main-model",
             "model_path": "/tmp/main.mlpackage",
+                "tokenizer_path": "/tmp/tokenizer",
             "backend": "coreml",
             "priority": 10,
         },
         {
             "model_id": "backup-model",
             "model_path": "/tmp/backup.mlpackage",
+                "tokenizer_path": "/tmp/tokenizer",
             "backend": "coreml",
             "priority": 5,
         },
