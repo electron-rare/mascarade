@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Any
@@ -18,6 +19,35 @@ from mascarade.router.providers.base import LLMResponse
 logger = logging.getLogger("mascarade.orchestrator")
 
 
+def _env_float(name: str, default: float, *, min_value: float, max_value: float) -> float:
+    raw = str(os.getenv(name, str(default))).strip()
+    try:
+        value = float(raw)
+    except ValueError:
+        value = default
+    return max(min_value, min(value, max_value))
+
+
+def _env_int(name: str, default: int, *, min_value: int, max_value: int) -> int:
+    raw = str(os.getenv(name, str(default))).strip()
+    try:
+        value = int(raw)
+    except ValueError:
+        value = default
+    return max(min_value, min(value, max_value))
+
+
+_RAY_EXEC_TIMEOUT_S = _env_float(
+    "ORCHESTRATOR_RAY_EXEC_TIMEOUT_S", 45.0, min_value=5.0, max_value=300.0,
+)
+_RAY_CIRCUIT_FAILURE_THRESHOLD = _env_int(
+    "ORCHESTRATOR_RAY_CIRCUIT_FAILURE_THRESHOLD", 3, min_value=1, max_value=20,
+)
+_RAY_CIRCUIT_COOLDOWN_S = _env_float(
+    "ORCHESTRATOR_RAY_CIRCUIT_COOLDOWN_S", 60.0, min_value=5.0, max_value=3600.0,
+)
+
+
 def _ray_router_send(payload: dict[str, Any]) -> dict[str, Any]:
     """Worker Ray: exécute un appel Router.send isolé."""
     from mascarade.router import Router as WorkerRouter
@@ -28,6 +58,7 @@ def _ray_router_send(payload: dict[str, Any]) -> dict[str, Any]:
         WorkerRouter().send(
             payload["messages"],
             strategy=strategy,
+            routing_policy=payload.get("routing_policy"),
             provider=payload.get("provider"),
             model=payload.get("model"),
             system=payload.get("system"),
@@ -82,6 +113,8 @@ class Orchestrator:
     _ray_client: Any = field(default=None, init=False, repr=False)
     _ray_send_remote: Any = field(default=None, init=False, repr=False)
     _ray_disabled: bool = field(default=False, init=False, repr=False)
+    _ray_failures: dict[str, int] = field(default_factory=dict, init=False, repr=False)
+    _ray_circuit_open_until: dict[str, float] = field(default_factory=dict, init=False, repr=False)
 
     def _trace(
         self,
@@ -101,6 +134,7 @@ class Orchestrator:
         routing_role: str | None = None,
         routing_provider: str | None = None,
         routing_model: str | None = None,
+        routing_policy: str | None = None,
         routing_selected_by: str | None = None,
         routing_transport: str | None = None,
         routing_latency_ms: float | None = None,
@@ -126,6 +160,7 @@ class Orchestrator:
             routing_role=routing_role,
             routing_provider=routing_provider,
             routing_model=routing_model,
+            routing_policy=routing_policy,
             routing_selected_by=routing_selected_by,
             routing_transport=routing_transport,
             routing_latency_ms=routing_latency_ms,
@@ -176,15 +211,30 @@ class Orchestrator:
         payload: dict[str, Any],
         step: int,
     ) -> TaskResult | None:
+        loop = asyncio.get_running_loop()
+        now = loop.time()
+        open_until = self._ray_circuit_open_until.get(agent_name, 0.0)
+        if open_until > now:
+            remaining = max(0.0, open_until - now)
+            logger.warning(
+                "Circuit Ray ouvert pour %s (cooldown %.1fs restant), fallback local",
+                agent_name,
+                remaining,
+            )
+            return None
+        if open_until and open_until <= now:
+            self._ray_circuit_open_until.pop(agent_name, None)
+            self._ray_failures.pop(agent_name, None)
+
         ray_client = await self._ensure_ray()
         if ray_client is None or self._ray_send_remote is None:
             return None
 
-        loop = asyncio.get_running_loop()
         start = loop.time()
         ray_payload = {
             "messages": payload["messages"],
             "strategy": str(payload["strategy"]),
+            "routing_policy": payload.get("routing_policy"),
             "provider": payload.get("provider"),
             "model": payload.get("model"),
             "system": payload.get("system"),
@@ -192,13 +242,31 @@ class Orchestrator:
             "max_tokens": payload.get("max_tokens"),
         }
         try:
-            routed = await asyncio.to_thread(
-                ray_client.get, self._ray_send_remote.remote(ray_payload)
+            routed = await asyncio.wait_for(
+                asyncio.to_thread(
+                    lambda: ray_client.get(
+                        self._ray_send_remote.remote(ray_payload),
+                        timeout=_RAY_EXEC_TIMEOUT_S,
+                    )
+                ),
+                timeout=_RAY_EXEC_TIMEOUT_S + 2.0,
             )
         except Exception as exc:
             logger.warning("Exécution Ray échouée pour %s, fallback local: %s", agent_name, exc)
+            failure_count = int(self._ray_failures.get(agent_name, 0)) + 1
+            self._ray_failures[agent_name] = failure_count
+            if failure_count >= _RAY_CIRCUIT_FAILURE_THRESHOLD:
+                self._ray_circuit_open_until[agent_name] = now + _RAY_CIRCUIT_COOLDOWN_S
+                logger.warning(
+                    "Circuit Ray ouvert pour %s après %d échecs (cooldown %.1fs)",
+                    agent_name,
+                    failure_count,
+                    _RAY_CIRCUIT_COOLDOWN_S,
+                )
             return None
 
+        self._ray_failures.pop(agent_name, None)
+        self._ray_circuit_open_until.pop(agent_name, None)
         response = LLMResponse(
             content=str(routed["content"]),
             model=str(routed["model"]),
@@ -232,6 +300,9 @@ class Orchestrator:
         for i, name in enumerate(agent_names):
             agent = self.registry.get(name)
             override = (routing_overrides or {}).get(name) or {}
+            routing_policy = override.get("routing_policy") or getattr(
+                agent, "routing_policy", None
+            )
             self._trace(
                 run_id=run_id,
                 mode=mode,
@@ -241,6 +312,7 @@ class Orchestrator:
                 routing_role=override.get("preferred_role"),
                 routing_provider=override.get("preferred_provider"),
                 routing_model=override.get("preferred_model"),
+                routing_policy=routing_policy,
             )
             self._trace(
                 run_id=run_id,
@@ -252,6 +324,7 @@ class Orchestrator:
                 routing_role=override.get("preferred_role"),
                 routing_provider=override.get("preferred_provider"),
                 routing_model=override.get("preferred_model"),
+                routing_policy=routing_policy,
             )
             result = await self._execute_agent(
                 agent,
@@ -268,6 +341,7 @@ class Orchestrator:
                 content_excerpt=result.response.content,
                 provider=result.response.provider,
                 model=result.response.model,
+                routing_policy=routing_policy,
                 routing_selected_by=result.selected_by,
                 routing_transport=result.transport,
                 routing_latency_ms=result.latency_ms,
@@ -291,6 +365,9 @@ class Orchestrator:
         async def _run_one(name: str, step: int) -> TaskResult:
             agent = self.registry.get(name)
             override = (routing_overrides or {}).get(name) or {}
+            routing_policy = override.get("routing_policy") or getattr(
+                agent, "routing_policy", None
+            )
             self._trace(
                 run_id=run_id,
                 mode=mode,
@@ -300,6 +377,7 @@ class Orchestrator:
                 routing_role=override.get("preferred_role"),
                 routing_provider=override.get("preferred_provider"),
                 routing_model=override.get("preferred_model"),
+                routing_policy=routing_policy,
             )
             self._trace(
                 run_id=run_id,
@@ -311,6 +389,7 @@ class Orchestrator:
                 routing_role=override.get("preferred_role"),
                 routing_provider=override.get("preferred_provider"),
                 routing_model=override.get("preferred_model"),
+                routing_policy=routing_policy,
             )
             result = await self._execute_agent(
                 agent,
@@ -327,6 +406,7 @@ class Orchestrator:
                 content_excerpt=result.response.content,
                 provider=result.response.provider,
                 model=result.response.model,
+                routing_policy=routing_policy,
                 routing_selected_by=result.selected_by,
                 routing_transport=result.transport,
                 routing_latency_ms=result.latency_ms,
@@ -377,6 +457,9 @@ class Orchestrator:
         for i, name in enumerate(agent_names):
             agent = self.registry.get(name)
             override = (routing_overrides or {}).get(name) or {}
+            routing_policy = override.get("routing_policy") or getattr(
+                agent, "routing_policy", None
+            )
             self._trace(
                 run_id=run_id,
                 mode=mode,
@@ -386,6 +469,7 @@ class Orchestrator:
                 routing_role=override.get("preferred_role"),
                 routing_provider=override.get("preferred_provider"),
                 routing_model=override.get("preferred_model"),
+                routing_policy=routing_policy,
             )
             self._trace(
                 run_id=run_id,
@@ -397,6 +481,7 @@ class Orchestrator:
                 routing_role=override.get("preferred_role"),
                 routing_provider=override.get("preferred_provider"),
                 routing_model=override.get("preferred_model"),
+                routing_policy=routing_policy,
             )
             try:
                 result = await self._execute_agent(
@@ -427,6 +512,7 @@ class Orchestrator:
                 content_excerpt=result.response.content,
                 provider=result.response.provider,
                 model=result.response.model,
+                routing_policy=routing_policy,
                 routing_selected_by=result.selected_by,
                 routing_transport=result.transport,
                 routing_latency_ms=result.latency_ms,
@@ -461,10 +547,22 @@ class Orchestrator:
                 payload["provider"] = routing_override["preferred_provider"]
             if routing_override.get("preferred_model"):
                 payload["model"] = routing_override["preferred_model"]
+            if routing_override.get("routing_policy"):
+                payload["routing_policy"] = routing_override["routing_policy"]
         if settings.routellm_enabled and not payload.get("provider"):
-            strategy_raw = str(payload.get("strategy") or "")
+            strategy_raw = str(payload.get("strategy") or "").strip().lower()
+            policy_raw = str(payload.get("routing_policy") or "").strip().lower()
             if strategy_raw in {"best", "cheapest", "fastest", "routellm"}:
                 payload["strategy"] = "routellm"
+                if policy_raw not in {"auto", "strong", "cheap", "fast"}:
+                    if strategy_raw == "cheapest":
+                        payload["routing_policy"] = "cheap"
+                    elif strategy_raw == "fastest":
+                        payload["routing_policy"] = "fast"
+                    elif strategy_raw == "best":
+                        payload["routing_policy"] = "strong"
+                    else:
+                        payload["routing_policy"] = "auto"
 
         preferred_role = (routing_override or {}).get("preferred_role") or getattr(
             agent, "preferred_role", None
@@ -511,6 +609,7 @@ class Orchestrator:
         response = await self.router.send(
             payload["messages"],
             strategy=payload["strategy"],
+            routing_policy=payload.get("routing_policy"),
             provider=payload["provider"],
             model=payload["model"],
             system=payload["system"],

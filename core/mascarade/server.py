@@ -97,9 +97,13 @@ class Message(BaseModel):
     content: str = Field(min_length=1, max_length=100_000)
 
 
+RoutingPolicy = Literal["auto", "strong", "cheap", "fast"]
+
+
 class SendRequest(BaseModel):
     messages: list[Message] = Field(max_length=200)
     strategy: Strategy = Strategy.BEST
+    routing_policy: RoutingPolicy = "auto"
     provider: str | None = Field(default=None, max_length=50)
     model: str | None = Field(default=None, max_length=100)
     system: str | None = Field(default=None, max_length=10_000)
@@ -115,7 +119,8 @@ class AgentCreate(BaseModel):
     preferred_provider: str | None = Field(default=None, max_length=50)
     preferred_model: str | None = Field(default=None, max_length=100)
     preferred_role: str | None = Field(default=None, max_length=100)
-    strategy: Strategy = Strategy.BEST
+    strategy: Strategy = Strategy.ROUTELLM
+    routing_policy: RoutingPolicy = "auto"
     temperature: float = Field(default=0.7, ge=0.0, le=2.0)
     max_tokens: int = Field(default=4096, gt=0, le=128000)
 
@@ -126,7 +131,8 @@ class AgentUpdate(BaseModel):
     preferred_provider: str | None = Field(default=None, max_length=50)
     preferred_model: str | None = Field(default=None, max_length=100)
     preferred_role: str | None = Field(default=None, max_length=100)
-    strategy: Strategy = Strategy.BEST
+    strategy: Strategy = Strategy.ROUTELLM
+    routing_policy: RoutingPolicy = "auto"
     temperature: float = Field(default=0.7, ge=0.0, le=2.0)
     max_tokens: int = Field(default=4096, gt=0, le=128000)
 
@@ -135,6 +141,7 @@ class AgentRoutingOverride(BaseModel):
     preferred_role: str | None = Field(default=None, max_length=100)
     preferred_provider: str | None = Field(default=None, max_length=50)
     preferred_model: str | None = Field(default=None, max_length=100)
+    routing_policy: RoutingPolicy | None = None
 
 
 class TaskRequest(BaseModel):
@@ -266,6 +273,7 @@ def _serialize_agent(agent: Agent) -> dict[str, object]:
         "preferred_model": agent.preferred_model,
         "preferred_role": agent.preferred_role,
         "strategy": agent.strategy.value,
+        "routing_policy": agent.routing_policy,
         "temperature": agent.temperature,
         "max_tokens": agent.max_tokens,
         "builtin": app.state.registry.is_builtin(agent.name),
@@ -335,6 +343,7 @@ async def send(req: SendRequest):
         response = await app.state.router.send(
             messages,
             strategy=req.strategy,
+            routing_policy=req.routing_policy,
             provider=req.provider,
             model=req.model,
             system=req.system,
@@ -497,6 +506,7 @@ async def create_agent(req: AgentCreate):
         preferred_model=req.preferred_model,
         preferred_role=req.preferred_role,
         strategy=req.strategy,
+        routing_policy=req.routing_policy,
         temperature=req.temperature,
         max_tokens=req.max_tokens,
     )
@@ -537,6 +547,7 @@ async def update_agent(name: str, req: AgentUpdate):
     agent.preferred_model = req.preferred_model
     agent.preferred_role = req.preferred_role
     agent.strategy = req.strategy
+    agent.routing_policy = req.routing_policy
     agent.temperature = req.temperature
     agent.max_tokens = req.max_tokens
     app.state.registry.save()
@@ -644,6 +655,7 @@ async def cluster_node_send(req: SendRequest):
         response = await app.state.router.send(
             messages,
             strategy=req.strategy,
+            routing_policy=req.routing_policy,
             provider=req.provider,
             model=req.model,
             system=req.system,

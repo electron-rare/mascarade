@@ -120,11 +120,13 @@ function matchesRoutingLabels(
     role: string;
     provider: string;
     model: string;
+    policy: string;
   },
 ): boolean {
   const role = normalizeFilter(filters.role);
   const provider = normalizeFilter(filters.provider);
   const model = normalizeFilter(filters.model);
+  const policy = normalizeFilter(filters.policy);
 
   if (role && normalizeFilter(labels?.routing_role ?? "") !== role) {
     return false;
@@ -133,6 +135,9 @@ function matchesRoutingLabels(
     return false;
   }
   if (model && normalizeFilter(labels?.routing_model ?? "") !== model) {
+    return false;
+  }
+  if (policy && normalizeFilter(labels?.routing_policy ?? "") !== policy) {
     return false;
   }
   return true;
@@ -259,6 +264,7 @@ export default function Logs() {
   const [routingRoleFilter, setRoutingRoleFilter] = useState(() => searchParams.get("routing_role") ?? "");
   const [routingProviderFilter, setRoutingProviderFilter] = useState(() => searchParams.get("routing_provider") ?? "");
   const [routingModelFilter, setRoutingModelFilter] = useState(() => searchParams.get("routing_model") ?? "");
+  const [routingPolicyFilter, setRoutingPolicyFilter] = useState(() => searchParams.get("routing_policy") ?? "");
   const [serviceFilter, setServiceFilter] = useState(() => searchParams.get("service") ?? "");
   const [queryText, setQueryText] = useState(() => searchParams.get("q") ?? "");
   const [historyWindow, setHistoryWindow] = useState(
@@ -280,8 +286,9 @@ export default function Logs() {
       role: routingRoleFilter,
       provider: routingProviderFilter,
       model: routingModelFilter,
+      policy: routingPolicyFilter,
     }),
-    [routingModelFilter, routingProviderFilter, routingRoleFilter],
+    [routingModelFilter, routingPolicyFilter, routingProviderFilter, routingRoleFilter],
   );
 
   const liveLogsPath = useMemo(() => {
@@ -296,6 +303,7 @@ export default function Logs() {
     if (routingRoleFilter.trim()) search.set("routing_role", routingRoleFilter.trim());
     if (routingProviderFilter.trim()) search.set("routing_provider", routingProviderFilter.trim());
     if (routingModelFilter.trim()) search.set("routing_model", routingModelFilter.trim());
+    if (routingPolicyFilter.trim()) search.set("routing_policy", routingPolicyFilter.trim());
     if (serviceFilter.trim()) search.set("service", serviceFilter.trim());
     return `/api/ops/logs/recent?${search.toString()}`;
   }, [
@@ -304,6 +312,7 @@ export default function Logs() {
     routingModelFilter,
     routingProviderFilter,
     routingRoleFilter,
+    routingPolicyFilter,
     runIdFilter,
     serviceFilter,
     severity,
@@ -323,6 +332,7 @@ export default function Logs() {
     if (routingRoleFilter.trim()) search.set("routing_role", routingRoleFilter.trim());
     if (routingProviderFilter.trim()) search.set("routing_provider", routingProviderFilter.trim());
     if (routingModelFilter.trim()) search.set("routing_model", routingModelFilter.trim());
+    if (routingPolicyFilter.trim()) search.set("routing_policy", routingPolicyFilter.trim());
     if (serviceFilter.trim()) search.set("service", serviceFilter.trim());
     if (queryText.trim()) search.set("q", queryText.trim());
     return `/api/ops/logs/query?${search.toString()}`;
@@ -334,6 +344,7 @@ export default function Logs() {
     routingModelFilter,
     routingProviderFilter,
     routingRoleFilter,
+    routingPolicyFilter,
     runIdFilter,
     serviceFilter,
     severity,
@@ -437,6 +448,7 @@ export default function Logs() {
         routing_role: event.routing_role,
         routing_provider: event.routing_provider,
         routing_model: event.routing_model,
+        routing_policy: event.routing_policy,
         error: event.error,
       })),
     }),
@@ -475,6 +487,7 @@ export default function Logs() {
     if (routingRoleFilter.trim()) next.set("routing_role", routingRoleFilter.trim());
     if (routingProviderFilter.trim()) next.set("routing_provider", routingProviderFilter.trim());
     if (routingModelFilter.trim()) next.set("routing_model", routingModelFilter.trim());
+    if (routingPolicyFilter.trim()) next.set("routing_policy", routingPolicyFilter.trim());
     if (serviceFilter.trim()) next.set("service", serviceFilter.trim());
     if (queryText.trim()) next.set("q", queryText.trim());
 
@@ -490,6 +503,7 @@ export default function Logs() {
     routingModelFilter,
     routingProviderFilter,
     routingRoleFilter,
+    routingPolicyFilter,
     runIdFilter,
     searchParams,
     serviceFilter,
@@ -514,6 +528,7 @@ export default function Logs() {
     routingModelFilter,
     routingProviderFilter,
     routingRoleFilter,
+    routingPolicyFilter,
     runIdFilter,
     serviceFilter,
     severity,
@@ -634,6 +649,7 @@ export default function Logs() {
               routing_role: entry.routing_role ?? "",
               routing_provider: entry.routing_provider ?? "",
               routing_model: entry.routing_model ?? "",
+              routing_policy: entry.routing_policy ?? "",
             },
           },
         ]);
@@ -929,6 +945,12 @@ export default function Logs() {
                 placeholder="llama3.2:3b, mistral-large..."
               />
               <Input
+                label="Routing policy"
+                value={routingPolicyFilter}
+                onChange={(event) => setRoutingPolicyFilter(event.target.value)}
+                placeholder="auto, strong, cheap, fast..."
+              />
+              <Input
                 label="Service filter"
                 value={serviceFilter}
                 onChange={(event) => setServiceFilter(event.target.value)}
@@ -963,6 +985,7 @@ export default function Logs() {
                     setRoutingRoleFilter("");
                     setRoutingProviderFilter("");
                     setRoutingModelFilter("");
+                    setRoutingPolicyFilter("");
                     setServiceFilter("");
                     setQueryText("");
                     setHistoryWindow("1h");

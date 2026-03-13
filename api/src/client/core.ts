@@ -42,6 +42,7 @@ export interface AgentInfo {
   preferred_model?: string | null;
   preferred_role?: string | null;
   strategy?: string;
+  routing_policy?: string | null;
   temperature?: number;
   max_tokens?: number;
   builtin?: boolean;
@@ -65,6 +66,7 @@ export interface AgentTraceEvent {
   routing_role?: string | null;
   routing_provider?: string | null;
   routing_model?: string | null;
+  routing_policy?: string | null;
   mcp_server?: string | null;
   mcp_tool?: string | null;
   mcp_status?: string | null;
@@ -176,6 +178,7 @@ export const coreClient = {
   send(body: {
     messages: { role: string; content: string }[];
     strategy?: string;
+    routing_policy?: string;
     provider?: string;
     model?: string;
     system?: string;
@@ -247,6 +250,7 @@ export const coreClient = {
     preferred_model?: string;
     preferred_role?: string;
     strategy?: string;
+    routing_policy?: string;
     temperature?: number;
     max_tokens?: number;
   }) {
@@ -273,6 +277,7 @@ export const coreClient = {
       preferred_model?: string | null;
       preferred_role?: string | null;
       strategy?: string;
+      routing_policy?: string;
       temperature?: number;
       max_tokens?: number;
     },
@@ -300,6 +305,7 @@ export const coreClient = {
         preferred_role?: string | null;
         preferred_provider?: string | null;
         preferred_model?: string | null;
+        routing_policy?: string | null;
       }
     >;
   }) {
@@ -361,6 +367,7 @@ export const coreClient = {
     allow_local?: boolean;
     messages: { role: string; content: string }[];
     strategy?: string;
+    routing_policy?: string;
     provider?: string;
     model?: string;
     system?: string | null;

@@ -90,17 +90,33 @@ export function isValidConfiguredApiKey(rawToken: string): boolean {
 }
 
 function requiredRoleForRequest(method: string, path: string): AuthRole {
+  const normalizedMethod = method.toUpperCase();
   const normalizedPath = path.toLowerCase();
+  const readOnly =
+    normalizedMethod === "GET" ||
+    normalizedMethod === "HEAD" ||
+    normalizedMethod === "OPTIONS";
+
   if (
     normalizedPath.startsWith("/api/settings/runtime-secrets") ||
     normalizedPath.startsWith("/api/settings/providers") ||
     normalizedPath.startsWith("/api/settings/oauth") ||
     normalizedPath.startsWith("/api/mcp/industrial") ||
-    normalizedPath.startsWith("/api/ops")
+    normalizedPath.startsWith("/api/ops") ||
+    normalizedPath.startsWith("/api/cluster/forward")
   ) {
     return "admin";
   }
-  if (method === "GET" || method === "HEAD" || method === "OPTIONS") {
+
+  if (
+    normalizedPath.startsWith("/api/cluster") ||
+    normalizedPath.startsWith("/api/p2p") ||
+    normalizedPath.startsWith("/api/killlife")
+  ) {
+    return readOnly ? "viewer" : "operator";
+  }
+
+  if (readOnly) {
     return "viewer";
   }
   return "operator";
