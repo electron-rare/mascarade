@@ -174,6 +174,7 @@ class Router:
         response_format: dict | None = None,
         temperature: float = 0.7,
         max_tokens: int = 4096,
+        domain: str | None = None,
     ) -> LLMResponse:
         strategy = Strategy(strategy)
         strict_provider = strategy == Strategy.SPECIFIC and provider is not None
@@ -187,6 +188,7 @@ class Router:
             response_format=response_format,
             temperature=temperature,
             max_tokens=max_tokens,
+            domain=domain,
         )
         if cached and (not strict_provider or cached.provider == provider):
             return LLMResponse(
@@ -296,6 +298,7 @@ class Router:
                     response_format=response_format,
                     temperature=temperature,
                     max_tokens=max_tokens,
+                    domain=domain,
                 )
             return response
 
@@ -315,6 +318,7 @@ class Router:
         system: str | None = None,
         temperature: float = 0.7,
         max_tokens: int = 4096,
+        domain: str | None = None,
     ) -> AsyncIterator[str]:
         strategy = Strategy(strategy)
         strict_provider = strategy == Strategy.SPECIFIC and provider is not None
