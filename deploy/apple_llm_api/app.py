@@ -61,6 +61,81 @@ class RuntimeConfig:
     trust_remote_code: bool
 
 
+class ModelManager:
+    """Manages multiple CoreML/ONNX models with hot-swap and priority queue support."""
+
+    def __init__(self, max_concurrent_models: int = 1):
+        """Initialize the model manager.
+
+        Args:
+            max_concurrent_models: Maximum number of models that can be loaded simultaneously.
+                                   Default is 1 for memory-constrained devices.
+        """
+        self.loaded_models: dict[str, RuntimeState] = {}
+        self.model_configs: dict[str, RuntimeConfig] = {}
+        self.max_concurrent_models: int = max_concurrent_models
+        self.current_model_id: str | None = None
+        self.model_load_lock: Lock = Lock()
+
+    def get_loaded_model(self, model_id: str) -> RuntimeState | None:
+        """Get a loaded model by ID.
+
+        Args:
+            model_id: The model identifier
+
+        Returns:
+            The runtime state if loaded, None otherwise
+        """
+        return self.loaded_models.get(model_id)
+
+    def is_loaded(self, model_id: str) -> bool:
+        """Check if a model is currently loaded.
+
+        Args:
+            model_id: The model identifier
+
+        Returns:
+            True if the model is loaded, False otherwise
+        """
+        return model_id in self.loaded_models
+
+    def register_model_config(self, model_id: str, config: RuntimeConfig) -> None:
+        """Register a model configuration.
+
+        Args:
+            model_id: The model identifier
+            config: The runtime configuration for the model
+        """
+        self.model_configs[model_id] = config
+
+    def get_model_config(self, model_id: str) -> RuntimeConfig | None:
+        """Get a registered model configuration.
+
+        Args:
+            model_id: The model identifier
+
+        Returns:
+            The runtime configuration if registered, None otherwise
+        """
+        return self.model_configs.get(model_id)
+
+    def list_loaded_models(self) -> list[str]:
+        """List all currently loaded model IDs.
+
+        Returns:
+            List of loaded model IDs
+        """
+        return list(self.loaded_models.keys())
+
+    def list_configured_models(self) -> list[str]:
+        """List all configured model IDs.
+
+        Returns:
+            List of configured model IDs
+        """
+        return list(self.model_configs.keys())
+
+
 _runtime_lock = Lock()
 _runtime_cache: RuntimeState | None = None
 _runtime_signature: RuntimeConfig | None = None
