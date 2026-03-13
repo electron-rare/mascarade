@@ -8,6 +8,7 @@ import { corsMiddleware } from "./middleware/cors.js";
 import { rateLimitMiddleware } from "./middleware/rate-limit.js";
 import { securityHeaders } from "./middleware/security.js";
 import { health } from "./routes/health.js";
+import { version } from "./routes/version.js";
 import { agents } from "./routes/agents.js";
 import { cluster } from "./routes/cluster.js";
 import { knowledgeBase } from "./routes/knowledgeBase.js";
@@ -32,6 +33,7 @@ app.onError((err, c) => {
 });
 
 app.route("/health", health);
+app.route("/v1/version", version);
 // Auth first — reject unauthenticated before consuming rate-limit quota
 app.use("/api/*", authMiddleware);
 app.use("/api/*", rateLimitMiddleware);
