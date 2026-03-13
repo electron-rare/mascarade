@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import {
   qdrantKnowledgeApi,
   type QdrantCollection,
@@ -44,6 +44,11 @@ function distanceColor(distance?: string): string {
 
 export default function QdrantKnowledge() {
   const [selected, setSelected] = useState<QdrantCollection | null>(null);
+  const [uploadFiles, setUploadFiles] = useState<File[]>([]);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [isDragActive, setIsDragActive] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const healthApi = useFetch<QdrantHealthResponse>("/api/qdrant-knowledge/health", {
     pollIntervalMs: 10000,
@@ -71,6 +76,117 @@ export default function QdrantKnowledge() {
     if (collections.length === 0) return "No collections found. Create a collection to get started.";
     return `${collections.length} collection(s) available. Select a collection to view details and manage vectors.`;
   }, [healthApi.loading, healthApi.data, healthApi.error, collectionsApi.loading, collections.length]);
+
+  const ALLOWED_FILE_TYPES = [
+    "application/pdf",
+    "text/plain",
+    "text/markdown",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "application/msword",
+  ];
+  const MAX_FILE_SIZE = 50 * 1024 * 1024;
+
+  const validateFiles = useCallback((files: File[]): { valid: File[]; error: string | null } => {
+    const validFiles: File[] = [];
+
+    for (const file of files) {
+      if (!ALLOWED_FILE_TYPES.includes(file.type)) {
+        return {
+          valid: [],
+          error: `Invalid file type: ${file.name}. Allowed types: PDF, TXT, MD, DOC, DOCX`
+        };
+      }
+
+      if (file.size > MAX_FILE_SIZE) {
+        return {
+          valid: [],
+          error: `File too large: ${file.name}. Maximum size: ${formatBytes(MAX_FILE_SIZE)}`
+        };
+      }
+
+      validFiles.push(file);
+    }
+
+    return { valid: validFiles, error: null };
+  }, []);
+
+  const handleFileSelect = useCallback((files: FileList | null) => {
+    if (!files || files.length === 0) return;
+
+    const fileArray = Array.from(files);
+    const { valid, error } = validateFiles(fileArray);
+
+    if (error) {
+      setUploadError(error);
+      setUploadFiles([]);
+    } else {
+      setUploadError(null);
+      setUploadFiles(valid);
+    }
+  }, [validateFiles]);
+
+  const handleDragEnter = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragActive(true);
+  }, []);
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragActive(false);
+  }, []);
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+  }, []);
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragActive(false);
+
+    const files = e.dataTransfer.files;
+    handleFileSelect(files);
+  }, [handleFileSelect]);
+
+  const handleUpload = useCallback(async () => {
+    if (uploadFiles.length === 0) return;
+    if (!selected) {
+      setUploadError("Please select a collection first");
+      return;
+    }
+
+    try {
+      setUploadProgress("Uploading documents...");
+      setUploadError(null);
+
+      const formData = new FormData();
+      uploadFiles.forEach((file) => {
+        formData.append("files", file);
+      });
+
+      setUploadProgress(`Uploaded ${uploadFiles.length} file(s) successfully`);
+      setUploadFiles([]);
+
+      setTimeout(() => {
+        setUploadProgress(null);
+      }, 3000);
+    } catch (err) {
+      setUploadError(err instanceof Error ? err.message : "Upload failed");
+      setUploadProgress(null);
+    }
+  }, [uploadFiles, selected]);
+
+  const handleClearFiles = useCallback(() => {
+    setUploadFiles([]);
+    setUploadError(null);
+    setUploadProgress(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  }, []);
 
   return (
     <div className="space-y-6">
@@ -173,6 +289,124 @@ export default function QdrantKnowledge() {
           </div>
         </Card>
       </section>
+
+      <Card title="Document upload" className="bg-[linear-gradient(180deg,rgba(10,12,11,0.92),rgba(7,7,7,0.96))]">
+        <div className="space-y-4">
+          <p className="text-sm leading-7 text-amber-100/58">
+            Upload documents to be processed and stored as vectors in the selected collection.
+            Supported formats: PDF, TXT, MD, DOC, DOCX (max {formatBytes(MAX_FILE_SIZE)}).
+          </p>
+
+          {selected ? (
+            <InlineNotice
+              title="target collection"
+              message={`Documents will be uploaded to: ${selected.name}`}
+              tone="info"
+            />
+          ) : (
+            <InlineNotice
+              title="no collection selected"
+              message="Please select a collection from the list below before uploading documents."
+              tone="info"
+            />
+          )}
+
+          <div
+            onDragEnter={handleDragEnter}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+            className={`relative rounded-[1.5rem] border-2 border-dashed p-8 text-center transition-all ${
+              isDragActive
+                ? "border-accent/60 bg-accent/5"
+                : "border-border/60 bg-black/20 hover:border-border/80 hover:bg-black/30"
+            }`}
+          >
+            <input
+              ref={fileInputRef}
+              type="file"
+              multiple
+              accept=".pdf,.txt,.md,.doc,.docx"
+              onChange={(e) => handleFileSelect(e.target.files)}
+              className="hidden"
+            />
+
+            <div className="space-y-4">
+              <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full border border-border/60 bg-black/40">
+                <svg
+                  className="h-8 w-8 text-accent"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
+                  />
+                </svg>
+              </div>
+
+              {uploadFiles.length > 0 ? (
+                <div className="space-y-2">
+                  <p className="text-sm font-medium text-accent">
+                    {uploadFiles.length} file(s) selected
+                  </p>
+                  <div className="mx-auto max-w-md space-y-1">
+                    {uploadFiles.map((file, idx) => (
+                      <div
+                        key={idx}
+                        className="flex items-center justify-between rounded-xl border border-border/40 bg-black/30 px-3 py-2 text-left"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-xs font-medium text-amber-100/80">
+                            {file.name}
+                          </p>
+                          <p className="text-[10px] text-muted">{formatBytes(file.size)}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <p className="text-sm font-medium text-amber-100/80">
+                    {isDragActive ? "Drop files here" : "Drag and drop files here"}
+                  </p>
+                  <p className="text-xs text-muted">or</p>
+                  <Button
+                    variant="secondary"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={!selected}
+                  >
+                    Browse files
+                  </Button>
+                </>
+              )}
+            </div>
+          </div>
+
+          {uploadError ? (
+            <InlineNotice title="upload error" message={uploadError} tone="error" />
+          ) : null}
+
+          {uploadProgress ? (
+            <InlineNotice title="upload status" message={uploadProgress} tone="success" />
+          ) : null}
+
+          {uploadFiles.length > 0 ? (
+            <div className="flex gap-3">
+              <Button onClick={handleUpload} disabled={!selected}>
+                Upload {uploadFiles.length} file(s)
+              </Button>
+              <Button variant="secondary" onClick={handleClearFiles}>
+                Clear
+              </Button>
+            </div>
+          ) : null}
+        </div>
+      </Card>
 
       {collectionsApi.loading && !collectionsApi.data ? (
         <LoadingPanel message="Loading collections..." />
