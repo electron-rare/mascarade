@@ -730,6 +730,25 @@ services:
     networks:
       - mascarade-network
 
+  finetune-metrics-exporter:
+    build:
+      context: ./deploy/finetune-metrics-exporter
+      dockerfile: Dockerfile
+    container_name: mascarade-finetune-metrics-exporter
+    restart: unless-stopped
+    ports:
+      - "${PUBLISH_BIND_HOST:-0.0.0.0}:${FINETUNE_METRICS_EXPORTER_PORT:-9101}:9101"
+    volumes:
+      - ./finetune/runs:/workspace/finetune/runs:ro
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:9101/metrics >/dev/null"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    networks:
+      - mascarade-network
+
   prometheus:
     image: ${PROMETHEUS_IMAGE:-prom/prometheus@sha256:4a61322ac1103a0e3aea2a61ef1718422a48fa046441f299d71e660a3bc71ae9}
     container_name: mascarade-prometheus
