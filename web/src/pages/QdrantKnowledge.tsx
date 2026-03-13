@@ -507,9 +507,27 @@ export default function QdrantKnowledge() {
                           score: {result.score.toFixed(4)}
                         </Badge>
                       </div>
-                      <p className="mt-2 text-xs text-muted">
-                        ID: {String(result.id)}
-                      </p>
+                      <div className="mt-2 flex flex-wrap gap-3 text-xs text-muted">
+                        <span>ID: {String(result.id)}</span>
+                        {selected ? (
+                          <>
+                            <span>•</span>
+                            <span>Collection: {selected.name}</span>
+                          </>
+                        ) : null}
+                        {result.metadata?.source ? (
+                          <>
+                            <span>•</span>
+                            <span>Source: {String(result.metadata.source)}</span>
+                          </>
+                        ) : null}
+                        {result.metadata?.chunk_id !== undefined ? (
+                          <>
+                            <span>•</span>
+                            <span>Chunk: {String(result.metadata.chunk_id)}</span>
+                          </>
+                        ) : null}
+                      </div>
                     </div>
                   </div>
                   {result.text ? (
