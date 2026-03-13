@@ -366,6 +366,16 @@ async def health():
     return health_data
 
 
+@app.get("/v1/version")
+async def version():
+    """Version endpoint - returns API version and service information."""
+    return {
+        "version": "v1",
+        "service": "mascarade-core",
+        "api_version": "0.1.0"
+    }
+
+
 @app.post("/v1/chat/completions")
 async def chat_completions(req: ChatCompletionRequest):
     """OpenAI-compatible chat completions endpoint."""
