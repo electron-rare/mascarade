@@ -170,5 +170,8 @@ class Settings(BaseSettings):
     default_provider: str = "claude"
     default_model: str = "claude-sonnet-4-6"
 
+    # Domain-aware routing
+    domain_model_mappings: str = ""
+
 
 settings = Settings()
