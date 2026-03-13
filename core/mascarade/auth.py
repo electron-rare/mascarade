@@ -359,3 +359,213 @@ async def require_admin(
     except Exception as e:
         logger.error("Error checking admin privileges: %s", str(e), exc_info=True)
         raise HTTPException(status_code=500, detail="Error checking permissions")
+
+
+# --- Legacy API Key Migration ---
+
+
+async def migrate_legacy_keys() -> dict:
+    """Migrate legacy MASCARADE_API_KEY values to database as admin users.
+
+    This function reads API keys from the MASCARADE_API_KEY environment variable
+    (comma-separated) and creates admin users with API keys in the database.
+    It tracks which keys have been migrated to prevent duplicates.
+
+    Returns:
+        Dictionary with migration results:
+        - migrated: Number of keys successfully migrated
+        - skipped: Number of keys already migrated
+        - failed: Number of keys that failed to migrate
+        - details: List of migration details per key
+
+    Raises:
+        RuntimeError: If database pool is not initialized
+    """
+    pool = get_db_pool()
+    if pool is None:
+        raise RuntimeError("Database pool not initialized. Call init_db_pool() first.")
+
+    if not settings.mascarade_api_key:
+        logger.info("No legacy API keys configured (MASCARADE_API_KEY is empty)")
+        return {
+            "migrated": 0,
+            "skipped": 0,
+            "failed": 0,
+            "details": [],
+        }
+
+    # Parse legacy API keys
+    legacy_keys = [
+        key.strip()
+        for key in settings.mascarade_api_key.split(",")
+        if key.strip() and len(key.strip()) >= 8
+    ]
+
+    if not legacy_keys:
+        logger.info("No valid legacy API keys found")
+        return {
+            "migrated": 0,
+            "skipped": 0,
+            "failed": 0,
+            "details": [],
+        }
+
+    logger.info(f"Starting migration of {len(legacy_keys)} legacy API key(s)")
+
+    results = {
+        "migrated": 0,
+        "skipped": 0,
+        "failed": 0,
+        "details": [],
+    }
+
+    async with pool.acquire() as conn:
+        # Get admin role ID
+        admin_role = await conn.fetchrow(
+            """
+            SELECT id FROM roles WHERE name = 'admin'
+            """
+        )
+
+        if admin_role is None:
+            logger.error("Admin role not found in database")
+            raise RuntimeError("Admin role not found. Run migrations first.")
+
+        admin_role_id = admin_role["id"]
+
+        # Process each legacy key
+        for idx, key in enumerate(legacy_keys, 1):
+            key_prefix = key[:8] if len(key) >= 8 else key
+            key_hash = hash_api_key(key)
+
+            try:
+                # Check if this key has already been migrated
+                existing_migration = await conn.fetchrow(
+                    """
+                    SELECT id FROM legacy_migrations
+                    WHERE migration_type = 'api_key' AND key_prefix = $1
+                    """,
+                    key_prefix,
+                )
+
+                if existing_migration is not None:
+                    logger.info(
+                        f"Legacy key {idx}/{len(legacy_keys)} already migrated (prefix: {key_prefix})"
+                    )
+                    results["skipped"] += 1
+                    results["details"].append({
+                        "key_prefix": key_prefix,
+                        "status": "skipped",
+                        "reason": "already_migrated",
+                    })
+                    continue
+
+                # Check if this key already exists in api_keys table
+                existing_key = await conn.fetchrow(
+                    """
+                    SELECT id, user_id FROM api_keys WHERE key_hash = $1
+                    """,
+                    key_hash,
+                )
+
+                if existing_key is not None:
+                    logger.info(
+                        f"Legacy key {idx}/{len(legacy_keys)} already exists in database (prefix: {key_prefix})"
+                    )
+                    results["skipped"] += 1
+                    results["details"].append({
+                        "key_prefix": key_prefix,
+                        "status": "skipped",
+                        "reason": "key_exists",
+                    })
+                    continue
+
+                # Create migration transaction
+                async with conn.transaction():
+                    # Create a system admin user for this legacy key
+                    username = f"legacy_admin_{idx}"
+                    email = f"legacy_admin_{idx}@mascarade.local"
+
+                    # Check if user already exists
+                    existing_user = await conn.fetchrow(
+                        """
+                        SELECT id FROM users WHERE username = $1
+                        """,
+                        username,
+                    )
+
+                    if existing_user is not None:
+                        user_id = existing_user["id"]
+                        logger.info(
+                            f"Using existing user {username} (id: {user_id}) for legacy key {idx}"
+                        )
+                    else:
+                        # Create new user
+                        user = await conn.fetchrow(
+                            """
+                            INSERT INTO users (username, email, role_id, is_active)
+                            VALUES ($1, $2, $3, true)
+                            RETURNING id
+                            """,
+                            username,
+                            email,
+                            admin_role_id,
+                        )
+                        user_id = user["id"]
+                        logger.info(
+                            f"Created user {username} (id: {user_id}) for legacy key {idx}"
+                        )
+
+                    # Create API key entry
+                    await conn.execute(
+                        """
+                        INSERT INTO api_keys (user_id, key_hash, key_prefix, name, is_active)
+                        VALUES ($1, $2, $3, $4, true)
+                        """,
+                        user_id,
+                        key_hash,
+                        key_prefix,
+                        f"Legacy API Key {idx}",
+                    )
+
+                    # Track the migration
+                    await conn.execute(
+                        """
+                        INSERT INTO legacy_migrations (migration_type, key_prefix, user_id, notes)
+                        VALUES ($1, $2, $3, $4)
+                        """,
+                        "api_key",
+                        key_prefix,
+                        user_id,
+                        f"Migrated from MASCARADE_API_KEY environment variable",
+                    )
+
+                    logger.info(
+                        f"Successfully migrated legacy key {idx}/{len(legacy_keys)} (prefix: {key_prefix})"
+                    )
+                    results["migrated"] += 1
+                    results["details"].append({
+                        "key_prefix": key_prefix,
+                        "status": "migrated",
+                        "user_id": user_id,
+                        "username": username,
+                    })
+
+            except Exception as e:
+                logger.error(
+                    f"Failed to migrate legacy key {idx}/{len(legacy_keys)} (prefix: {key_prefix}): {str(e)}",
+                    exc_info=True,
+                )
+                results["failed"] += 1
+                results["details"].append({
+                    "key_prefix": key_prefix,
+                    "status": "failed",
+                    "error": str(e),
+                })
+
+    logger.info(
+        f"Legacy key migration complete: {results['migrated']} migrated, "
+        f"{results['skipped']} skipped, {results['failed']} failed"
+    )
+
+    return results
