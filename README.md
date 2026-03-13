@@ -277,9 +277,9 @@ DEFAULT_MODEL=claude-sonnet-4-6
 Le routeur active automatiquement les providers dont la cle est presente. Pas de cle = provider ignore.
 
 Note:
-- `Notion` n'est plus dans le scope operateur actif de `mascarade`.
-- Les variables `NOTION_*` ne doivent plus etre traitees comme prerequis courants.
-- Les chemins `Notion` encore presents dans le repo relevent de la compatibilite legacy uniquement.
+- `Notion` a ete retire du scope operateur de `mascarade` (mars 2026).
+- Les surfaces `knowledge-base` et `cad` remplacent le chemin Notion historique.
+- Les variables `NOTION_*` ne sont plus supportees.
 
 ## CAD / EDA
 
@@ -776,17 +776,17 @@ curl -H "Authorization: Bearer $KEY" http://localhost:3100/api/agents/providers
 
 9 agents built-in sont charges au demarrage :
 
-| Agent          | Role                                     | Strategie  | Temp |
-|----------------|------------------------------------------|------------|------|
-| `summarizer`   | Resume en bullet points                  | cheapest   | 0.3  |
-| `writer`       | Redaction et reformulation               | best       | 0.8  |
-| `coder`        | Code review, debug, generation           | best       | 0.2  |
-| `translator`   | Traduction naturelle                     | fastest    | 0.3  |
-| `analyst`      | Analyse de donnees et situations         | best       | 0.4  |
-| `brainstorm`   | Generation d'idees creatives             | best       | 0.95 |
-| `notion-scribe`| Formatage pour Notion                    | cheapest   | 0.4  |
-| `planner`      | Planification et decomposition de taches | best       | 0.4  |
-| `classifier`   | Classification en JSON (intent, sentiment)| fastest   | 0.1  |
+| Agent            | Role                                     | Strategie  | Temp |
+|------------------|------------------------------------------|------------|------|
+| `summarizer`     | Resume en bullet points                  | cheapest   | 0.3  |
+| `writer`         | Redaction et reformulation               | best       | 0.8  |
+| `coder`          | Code review, debug, generation           | best       | 0.2  |
+| `translator`     | Traduction naturelle                     | fastest    | 0.3  |
+| `analyst`        | Analyse de donnees et situations         | best       | 0.4  |
+| `brainstorm`     | Generation d'idees creatives             | best       | 0.95 |
+| `knowledge-scribe`| Formatage pour knowledge base           | cheapest   | 0.4  |
+| `planner`        | Planification et decomposition de taches | best       | 0.4  |
+| `classifier`     | Classification en JSON (intent, sentiment)| fastest   | 0.1  |
 
 ```bash
 # Lister les agents
@@ -835,46 +835,6 @@ Modes d'execution :
 | `sequential` | Chaque agent traite le prompt original, un par un     |
 | `parallel`   | Tous les agents traitent le prompt en parallele       |
 | `pipeline`   | La sortie d'un agent devient l'entree du suivant      |
-
-### Compat legacy Notion
-
-Hors scope operateur actif. Ce chemin reste seulement pour compatibilite legacy si
-vous devez relire un ancien flux `Notion` :
-
-```bash
-# Rechercher dans la KB Notion
-curl -H "Authorization: Bearer $KEY" \
-  "http://localhost:3100/api/notion/search?q=architecture"
-
-# Lire une page
-curl -H "Authorization: Bearer $KEY" \
-  http://localhost:3100/api/notion/pages/<page-id>
-
-# Ajouter du contenu a une page
-curl -X POST http://localhost:3100/api/notion/pages/<page-id>/append \
-  -H "Authorization: Bearer $KEY" \
-  -H "Content-Type: application/json" \
-  -d '{"content": "Nouveau contenu a ajouter"}'
-
-# Creer une page
-curl -X POST http://localhost:3100/api/notion/pages \
-  -H "Authorization: Bearer $KEY" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "parent_id": "<parent-page-id>",
-    "title": "Ma nouvelle page",
-    "content": "Contenu initial"
-  }'
-
-# Executer notion-scribe et pousser le resultat dans Notion
-curl -X POST http://localhost:3100/api/agents/notion-scribe/run-and-push \
-  -H "Authorization: Bearer $KEY" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "messages": [{"role": "user", "content": "Formate ce rapport : ..."}],
-    "push_to": "<page-id>"
-  }'
-```
 
 ### GitHub dispatch
 
@@ -973,7 +933,6 @@ mascarade/
 │   │   │       └── ...               #   Google, HF, Ollama, Apple CoreML
 │   │   ├── orchestrator/engine.py    # Sequential / parallel / pipeline
 │   │   ├── integrations/
-│   │   │   ├── notion.py             # Client Notion async
 │   │   │   └── comfyui.py            # Generation d'images ComfyUI
 │   │   ├── observability/            # OpenTelemetry, traces agents
 │   │   ├── cache/                    # Cache reponses (TTL 1h)
