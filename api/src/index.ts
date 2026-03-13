@@ -38,7 +38,7 @@ app.use("/api/*", rateLimitMiddleware);
 app.route("/api/agents", agents);
 app.route("/api/cluster", cluster);
 app.route("/api/knowledge-base", knowledgeBase);
-app.route("/api/qdrant", qdrantKnowledge);
+app.route("/api/qdrant-knowledge", qdrantKnowledge);
 app.route("/api/cad", cad);
 app.route("/api/comfyui", comfyui);
 app.route("/api/ops", ops);

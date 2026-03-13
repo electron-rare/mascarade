@@ -76,3 +76,6 @@ datasets/
 # Node dependency checksums (local)
 api/.mascarade_node_deps.sha256
 vendors/kicadrouterai/
+
+# Auto Claude data directory
+.auto-claude/
