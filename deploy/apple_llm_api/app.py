@@ -15,9 +15,22 @@ from typing import Any, Protocol
 
 import psutil
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import Response
+from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_latest
 from pydantic import BaseModel, Field
 
 app = FastAPI(title="Mascarade Apple LLM", version="0.1.0")
+
+HTTP_REQUESTS_TOTAL = Counter(
+    "apple_llm_http_requests_total",
+    "Total HTTP requests served by the apple-llm-api.",
+    ["method", "path", "status"],
+)
+HTTP_REQUEST_DURATION_SECONDS = Histogram(
+    "apple_llm_http_request_duration_seconds",
+    "HTTP request latency for the apple-llm-api.",
+    ["method", "path"],
+)
 
 
 class Message(BaseModel):
@@ -1778,6 +1791,11 @@ async def health() -> dict[str, Any]:
         "runtime_error": runtime_error,
         **details,
     }
+
+
+@app.get("/metrics")
+async def metrics():
+    return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
 
 @app.get("/models")
