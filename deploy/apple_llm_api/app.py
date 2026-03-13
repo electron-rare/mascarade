@@ -135,6 +135,85 @@ class ModelManager:
         """
         return list(self.model_configs.keys())
 
+    def load_model(self, model_id: str, config: RuntimeConfig) -> RuntimeState:
+        """Load a model into memory.
+
+        Args:
+            model_id: The model identifier
+            config: The runtime configuration for the model
+
+        Returns:
+            The loaded runtime state
+
+        Raises:
+            RuntimeConfigError: If the model cannot be loaded
+            ValueError: If the model_id is empty
+        """
+        if not model_id or not model_id.strip():
+            raise ValueError("model_id cannot be empty")
+
+        with self.model_load_lock:
+            # Check if already loaded
+            if model_id in self.loaded_models:
+                return self.loaded_models[model_id]
+
+            # Check if we need to unload a model first
+            if len(self.loaded_models) >= self.max_concurrent_models:
+                # Unload the least recently used model (first in dict)
+                # In Python 3.7+ dicts maintain insertion order
+                if self.loaded_models:
+                    lru_model_id = next(iter(self.loaded_models))
+                    self.unload_model(lru_model_id)
+
+            # Register the config if not already registered
+            if model_id not in self.model_configs:
+                self.model_configs[model_id] = config
+
+            # Build the runtime
+            try:
+                runtime = _build_runtime(config)
+                runtime.check_ready()
+                self.loaded_models[model_id] = runtime
+                self.current_model_id = model_id
+                return runtime
+            except Exception as exc:
+                raise RuntimeConfigError(
+                    f"Failed to load model '{model_id}': {exc}"
+                ) from exc
+
+    def unload_model(self, model_id: str) -> bool:
+        """Unload a model from memory.
+
+        Args:
+            model_id: The model identifier
+
+        Returns:
+            True if the model was unloaded, False if it wasn't loaded
+
+        Raises:
+            ValueError: If the model_id is empty
+        """
+        if not model_id or not model_id.strip():
+            raise ValueError("model_id cannot be empty")
+
+        with self.model_load_lock:
+            if model_id not in self.loaded_models:
+                return False
+
+            # Remove the model
+            del self.loaded_models[model_id]
+
+            # Update current_model_id if needed
+            if self.current_model_id == model_id:
+                # Set to the most recently loaded model, or None if no models loaded
+                self.current_model_id = (
+                    list(self.loaded_models.keys())[-1]
+                    if self.loaded_models
+                    else None
+                )
+
+            return True
+
 
 _runtime_lock = Lock()
 _runtime_cache: RuntimeState | None = None
