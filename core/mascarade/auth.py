@@ -168,6 +168,7 @@ async def authenticate_user(api_key: str) -> User | None:
 
         async with pool.acquire() as conn:
             # Query for the API key and associated user/role in a single query
+            # Include rate_limits from user (if set) and role (as fallback)
             row = await conn.fetchrow(
                 """
                 SELECT
@@ -185,10 +186,13 @@ async def authenticate_user(api_key: str) -> User | None:
                     u.email,
                     u.role_id,
                     u.is_active,
+                    u.rate_limits,
                     u.created_at,
-                    u.updated_at
+                    u.updated_at,
+                    r.rate_limits as role_rate_limits
                 FROM api_keys ak
                 JOIN users u ON ak.user_id = u.id
+                JOIN roles r ON u.role_id = r.id
                 WHERE ak.key_hash = $1
                 """,
                 key_hash,
@@ -233,12 +237,16 @@ async def authenticate_user(api_key: str) -> User | None:
             )
 
             # Create User object from the row
+            # Use user-specific rate_limits if set, otherwise fallback to role rate_limits
+            effective_rate_limits = row["rate_limits"] or row["role_rate_limits"]
+
             user_record: UserRecord = {
                 "id": row["id"],
                 "username": row["username"],
                 "email": row["email"],
                 "role_id": row["role_id"],
                 "is_active": row["is_active"],
+                "rate_limits": effective_rate_limits,
                 "created_at": row["created_at"],
                 "updated_at": row["updated_at"],
             }

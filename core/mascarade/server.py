@@ -359,6 +359,7 @@ async def get_me(current_user: User = Depends(get_current_user)):
         "email": current_user.email,
         "role_id": current_user.role_id,
         "is_active": current_user.is_active,
+        "rate_limits": current_user.rate_limits,
     }
 
 
