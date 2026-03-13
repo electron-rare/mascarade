@@ -92,6 +92,13 @@ export interface DeleteCollectionResponse {
   status: string;
 }
 
+export interface UploadDocumentsResponse {
+  status: string;
+  documents_processed: number;
+  chunks_created: number;
+  collection: string;
+}
+
 export const qdrantKnowledgeApi = {
   health: () => get<QdrantHealthResponse>("/api/qdrant-knowledge/health"),
 
@@ -131,5 +138,14 @@ export const qdrantKnowledgeApi = {
     post<RecommendResponse>(
       `/api/qdrant-knowledge/collections/${encodeURIComponent(collectionName)}/recommend`,
       params,
+    ),
+
+  uploadDocuments: (collectionName: string, formData: FormData) =>
+    api<UploadDocumentsResponse>(
+      `/api/qdrant-knowledge/collections/${encodeURIComponent(collectionName)}/upload`,
+      {
+        method: "POST",
+        body: formData,
+      },
     ),
 };
