@@ -58,6 +58,8 @@ export default function QdrantKnowledge() {
   const [ragQuery, setRagQuery] = useState("");
   const [ragModel, setRagModel] = useState("");
   const [ragTopK, setRagTopK] = useState(5);
+  const [ragAnswer, setRagAnswer] = useState<string | null>(null);
+  const [ragChunks, setRagChunks] = useState<Array<{ text: string; score: number; source: string }>>([]);
 
   const healthApi = useFetch<QdrantHealthResponse>("/api/qdrant-knowledge/health", {
     pollIntervalMs: 10000,
@@ -74,6 +76,35 @@ export default function QdrantKnowledge() {
   const semanticSearchApi = useApi<{ results: SemanticSearchResult[]; query: string; collection: string }, void>(() =>
     qdrantKnowledgeApi.semanticSearch(selected!.name, { query: searchQuery, limit: topK }),
   );
+
+  const ragApi = useApi<{
+    answer: string;
+    chunks: Array<{ text: string; score: number; source: string }>;
+    query: string;
+    collection: string;
+    model: string;
+    provider: string;
+  }, void>(() =>
+    qdrantKnowledgeApi.ragQuery(selected!.name, {
+      query: ragQuery,
+      limit: ragTopK,
+      model: ragModel || undefined,
+      temperature: 0.7,
+    }),
+  );
+
+  const handleRAGQuery = useCallback(async () => {
+    if (!selected || !ragQuery.trim()) return;
+
+    setRagAnswer(null);
+    setRagChunks([]);
+
+    const result = await ragApi.execute(undefined);
+    if (result) {
+      setRagAnswer(result.answer);
+      setRagChunks(result.chunks);
+    }
+  }, [selected, ragQuery, ragApi]);
 
   const collections = collectionsApi.data?.collections ?? [];
   const searchResults = semanticSearchApi.data?.results ?? [];
@@ -362,7 +393,7 @@ export default function QdrantKnowledge() {
               <div className="rounded-3xl border border-border/80 bg-black/30 p-4">
                 <p className="text-[10px] uppercase tracking-[0.2em] text-muted">response</p>
                 <p className="mt-3 text-2xl font-semibold uppercase tracking-[0.12em] text-accent">
-                  pending
+                  {ragApi.loading ? "generating" : ragAnswer ? "ready" : "pending"}
                 </p>
               </div>
             </div>
@@ -418,32 +449,85 @@ export default function QdrantKnowledge() {
             />
             <div className="flex flex-wrap gap-3">
               <Button
-                onClick={() => {}}
+                onClick={() => void handleRAGQuery()}
+                loading={ragApi.loading}
                 disabled={!selected || !ragQuery.trim()}
               >
                 generate response
               </Button>
               <Button
                 variant="secondary"
-                onClick={() => setRagQuery("")}
+                onClick={() => {
+                  setRagQuery("");
+                  setRagAnswer(null);
+                  setRagChunks([]);
+                }}
                 disabled={!ragQuery}
               >
                 clear query
               </Button>
             </div>
+            {ragApi.error ? (
+              <InlineNotice title="RAG query error" message={ragApi.error} tone="error" />
+            ) : null}
           </div>
         </Card>
 
         <Card title="Response Lane">
-          <p className="text-sm leading-7 text-amber-100/54">
-            No response yet. Enter a query to retrieve relevant vectors and generate a contextual answer.
-          </p>
+          {ragApi.loading ? (
+            <LoadingPanel compact title="Generating answer" message="Retrieving context and generating response..." />
+          ) : ragAnswer ? (
+            <div className="space-y-4">
+              <div className="rounded-[1.5rem] border border-accent/40 bg-accent/5 p-4">
+                <p className="text-sm leading-7 text-amber-100/90">{ragAnswer}</p>
+              </div>
+              {ragApi.data ? (
+                <div className="flex flex-wrap gap-2 text-xs text-muted">
+                  <span>Model: {ragApi.data.model}</span>
+                  <span>•</span>
+                  <span>Provider: {ragApi.data.provider}</span>
+                  <span>•</span>
+                  <span>Retrieved: {ragChunks.length} chunks</span>
+                </div>
+              ) : null}
+            </div>
+          ) : (
+            <p className="text-sm leading-7 text-amber-100/54">
+              No response yet. Enter a query to retrieve relevant vectors and generate a contextual answer.
+            </p>
+          )}
         </Card>
 
         <Card title="Retrieved Context">
-          <p className="text-sm leading-7 text-amber-100/54">
-            The retrieved vectors and their content will appear here before generation.
-          </p>
+          {ragChunks.length > 0 ? (
+            <div className="space-y-3">
+              {ragChunks.map((chunk, idx) => (
+                <div
+                  key={idx}
+                  className="rounded-[1.5rem] border border-border/80 bg-black/25 p-4"
+                >
+                  <div className="flex items-center justify-between gap-3 mb-3">
+                    <p className="screen-label">chunk {idx + 1}</p>
+                    <div className="flex items-center gap-2">
+                      <Badge color="accent">
+                        score: {chunk.score.toFixed(4)}
+                      </Badge>
+                      <span className="text-xs text-muted">{chunk.source}</span>
+                    </div>
+                  </div>
+                  <div className="rounded-xl border border-border/60 bg-black/20 p-3">
+                    <p className="text-sm leading-6 text-amber-100/80">
+                      {chunk.text}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm leading-7 text-amber-100/54">
+              The retrieved vectors and their content will appear here before generation.
+            </p>
+          )}
         </Card>
       </section>
 

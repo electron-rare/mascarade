@@ -825,4 +825,77 @@ export const coreClient = {
       body: JSON.stringify(body),
     });
   },
+
+  async qdrantUploadDocuments(collectionName: string, formData: FormData) {
+    const headers = getCoreAuthHeaders();
+    const res = await fetch(`${CORE_URL}/qdrant/collections/${encodeURIComponent(collectionName)}/upload`, {
+      method: "POST",
+      headers,
+      body: formData,
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    });
+    if (!res.ok) {
+      const text = await res.text();
+      let msg = `Core API error ${res.status}`;
+      try {
+        const json = JSON.parse(text);
+        if (json.detail) msg = json.detail;
+        else if (json.error) msg = json.error;
+        else if (json.message) msg = json.message;
+      } catch {
+        // keep default message
+      }
+      throw new CoreApiError(msg, res.status, text);
+    }
+    return res.json();
+  },
+
+  qdrantSemanticSearch(
+    collectionName: string,
+    body: {
+      query: string;
+      limit?: number;
+      score_threshold?: number;
+    },
+  ) {
+    return request<{
+      results: Array<{
+        id: string | number;
+        score: number;
+        text?: string;
+        metadata?: Record<string, unknown>;
+      }>;
+      query: string;
+      collection: string;
+    }>(`/qdrant/collections/${encodeURIComponent(collectionName)}/semantic-search`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+
+  qdrantRAGQuery(
+    collectionName: string,
+    body: {
+      query: string;
+      limit?: number;
+      model?: string;
+      temperature?: number;
+    },
+  ) {
+    return request<{
+      answer: string;
+      chunks: Array<{
+        text: string;
+        score: number;
+        source: string;
+      }>;
+      query: string;
+      collection: string;
+      model: string;
+      provider: string;
+    }>(`/qdrant/collections/${encodeURIComponent(collectionName)}/rag-query`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
 };

@@ -120,4 +120,52 @@ qdrantKnowledge.post("/collections/:collectionName/recommend", async (c) => {
   }
 });
 
+/** Upload documents to collection */
+qdrantKnowledge.post("/collections/:collectionName/upload", async (c) => {
+  try {
+    const collectionName = c.req.param("collectionName");
+    if (!collectionName || collectionName.length > 256) {
+      return c.json({ error: "Invalid collection name" }, 400);
+    }
+    const formData = await c.req.formData();
+    const result = await coreClient.qdrantUploadDocuments(collectionName, formData);
+    return c.json(result);
+  } catch (error) {
+    const { status, body } = handleCoreError(error);
+    return c.json(body, status);
+  }
+});
+
+/** Semantic search in collection */
+qdrantKnowledge.post("/collections/:collectionName/semantic-search", async (c) => {
+  try {
+    const collectionName = c.req.param("collectionName");
+    if (!collectionName || collectionName.length > 256) {
+      return c.json({ error: "Invalid collection name" }, 400);
+    }
+    const body = await c.req.json();
+    const result = await coreClient.qdrantSemanticSearch(collectionName, body);
+    return c.json(result);
+  } catch (error) {
+    const { status, body } = handleCoreError(error);
+    return c.json(body, status);
+  }
+});
+
+/** RAG query */
+qdrantKnowledge.post("/collections/:collectionName/rag-query", async (c) => {
+  try {
+    const collectionName = c.req.param("collectionName");
+    if (!collectionName || collectionName.length > 256) {
+      return c.json({ error: "Invalid collection name" }, 400);
+    }
+    const body = await c.req.json();
+    const result = await coreClient.qdrantRAGQuery(collectionName, body);
+    return c.json(result);
+  } catch (error) {
+    const { status, body } = handleCoreError(error);
+    return c.json(body, status);
+  }
+});
+
 export { qdrantKnowledge };

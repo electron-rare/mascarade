@@ -71,6 +71,13 @@ async def lifespan(app: FastAPI):
     app.state.comfyui = ComfyUIClient() if settings.comfyui_url else None
     app.state.qdrant = QdrantClient() if settings.qdrant_url else None
 
+    # Initialize document processor if Qdrant is configured
+    if app.state.qdrant is not None:
+        from mascarade.integrations.document_processor import DocumentProcessor
+        app.state.document_processor = DocumentProcessor()
+    else:
+        app.state.document_processor = None
+
     registry.load()
 
     # Start P2P node if enabled
@@ -261,6 +268,19 @@ class QdrantRecommendRequest(BaseModel):
     with_payload: bool = True
     with_vector: bool = False
     filter_conditions: dict[str, Any] | None = None
+
+
+class QdrantSemanticSearchRequest(BaseModel):
+    query: str = Field(min_length=1, max_length=10000)
+    limit: int = Field(default=10, gt=0, le=100)
+    score_threshold: float | None = Field(default=None, ge=0.0, le=1.0)
+
+
+class QdrantRAGRequest(BaseModel):
+    query: str = Field(min_length=1, max_length=10000)
+    limit: int = Field(default=5, gt=0, le=20)
+    model: str | None = None
+    temperature: float = Field(default=0.7, ge=0.0, le=2.0)
 
 
 # --- Route publique ---
@@ -1467,6 +1487,174 @@ async def qdrant_recommend(collection_name: str, req: QdrantRecommendRequest):
         )
         return result
     except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+@protected.post("/qdrant/collections/{collection_name}/semantic-search")
+async def qdrant_semantic_search(collection_name: str, req: QdrantSemanticSearchRequest):
+    client = _require_qdrant()
+    doc_processor = app.state.document_processor
+    if doc_processor is None:
+        raise HTTPException(status_code=503, detail="Document processor not configured")
+
+    try:
+        query_embedding = await doc_processor.generate_embeddings([req.query])
+        if not query_embedding or len(query_embedding) == 0:
+            raise HTTPException(status_code=500, detail="Failed to generate query embedding")
+
+        results = await client.search(
+            collection_name,
+            query_vector=query_embedding[0],
+            limit=req.limit,
+            score_threshold=req.score_threshold,
+            with_payload=True,
+            with_vector=False,
+        )
+
+        formatted_results = []
+        for r in results.get("result", []):
+            formatted_results.append({
+                "id": r.get("id"),
+                "score": r.get("score"),
+                "text": r.get("payload", {}).get("text"),
+                "metadata": r.get("payload", {}),
+            })
+
+        return {
+            "results": formatted_results,
+            "query": req.query,
+            "collection": collection_name,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+@protected.post("/qdrant/collections/{collection_name}/upload")
+async def qdrant_upload_documents(collection_name: str, request: Request):
+    client = _require_qdrant()
+    doc_processor = app.state.document_processor
+    if doc_processor is None:
+        raise HTTPException(status_code=503, detail="Document processor not configured")
+
+    try:
+        form = await request.form()
+        files = form.getlist("files")
+
+        if not files:
+            raise HTTPException(status_code=400, detail="No files provided")
+
+        total_chunks = 0
+        total_docs = 0
+
+        for file in files:
+            if hasattr(file, "read"):
+                content = await file.read()
+                if isinstance(content, bytes):
+                    text = content.decode("utf-8", errors="ignore")
+                else:
+                    text = str(content)
+
+                filename = getattr(file, "filename", "unknown")
+                chunks_data = await doc_processor.process_document(
+                    text,
+                    metadata={"source": filename, "collection": collection_name}
+                )
+
+                points = []
+                for i, chunk in enumerate(chunks_data):
+                    points.append({
+                        "id": f"{filename}_{i}_{hash(chunk['text']) % 10000000}",
+                        "vector": chunk["embedding"],
+                        "payload": {
+                            "text": chunk["text"],
+                            "source": filename,
+                            "chunk_id": i,
+                            **chunk.get("metadata", {}),
+                        },
+                    })
+
+                if points:
+                    await client.upsert_points(collection_name, points)
+                    total_chunks += len(points)
+                    total_docs += 1
+
+        return {
+            "status": "success",
+            "documents_processed": total_docs,
+            "chunks_created": total_chunks,
+            "collection": collection_name,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("Document upload failed")
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+@protected.post("/qdrant/collections/{collection_name}/rag-query")
+async def qdrant_rag_query(collection_name: str, req: QdrantRAGRequest):
+    client = _require_qdrant()
+    doc_processor = app.state.document_processor
+    if doc_processor is None:
+        raise HTTPException(status_code=503, detail="Document processor not configured")
+
+    router_instance = app.state.router
+    if router_instance is None:
+        raise HTTPException(status_code=503, detail="Router not configured")
+
+    try:
+        query_embedding = await doc_processor.generate_embeddings([req.query])
+        if not query_embedding or len(query_embedding) == 0:
+            raise HTTPException(status_code=500, detail="Failed to generate query embedding")
+
+        search_results = await client.search(
+            collection_name,
+            query_vector=query_embedding[0],
+            limit=req.limit,
+            with_payload=True,
+            with_vector=False,
+        )
+
+        chunks = []
+        for r in search_results.get("result", []):
+            payload = r.get("payload", {})
+            if "text" in payload:
+                chunks.append({
+                    "text": payload["text"],
+                    "score": r.get("score"),
+                    "source": payload.get("source", "unknown"),
+                })
+
+        context = "\n\n".join([f"[Score: {c['score']:.4f}, Source: {c['source']}]\n{c['text']}" for c in chunks])
+
+        system_prompt = (
+            "You are a helpful assistant. Answer the user's question based on the provided context. "
+            "If the context doesn't contain relevant information, say so clearly."
+        )
+
+        prompt = f"Context:\n{context}\n\nQuestion: {req.query}\n\nAnswer:"
+
+        response = await router_instance.route(
+            messages=[{"role": "user", "content": prompt}],
+            system=system_prompt,
+            model=req.model,
+            temperature=req.temperature,
+        )
+
+        return {
+            "answer": response.content,
+            "chunks": chunks,
+            "query": req.query,
+            "collection": collection_name,
+            "model": response.model,
+            "provider": response.provider,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("RAG query failed")
         raise HTTPException(status_code=500, detail=str(e)) from e
 
 
