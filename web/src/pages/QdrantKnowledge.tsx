@@ -3,6 +3,7 @@ import {
   qdrantKnowledgeApi,
   type QdrantCollection,
   type QdrantHealthResponse,
+  type SemanticSearchResult,
 } from "../api/qdrantKnowledge";
 import { useFetch } from "../hooks/useFetch";
 import { useApi } from "../hooks/useApi";
@@ -12,6 +13,7 @@ import {
   Card,
   EmptyState,
   InlineNotice,
+  Input,
   JsonView,
   LoadingPanel,
 } from "../components/ui";
@@ -49,6 +51,8 @@ export default function QdrantKnowledge() {
   const [isDragActive, setIsDragActive] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [topK, setTopK] = useState(10);
 
   const healthApi = useFetch<QdrantHealthResponse>("/api/qdrant-knowledge/health", {
     pollIntervalMs: 10000,
@@ -62,7 +66,12 @@ export default function QdrantKnowledge() {
     qdrantKnowledgeApi.getCollection(collectionName),
   );
 
+  const semanticSearchApi = useApi<{ results: SemanticSearchResult[]; query: string; collection: string }, void>(() =>
+    qdrantKnowledgeApi.semanticSearch(selected!.name, { query: searchQuery, limit: topK }),
+  );
+
   const collections = collectionsApi.data?.collections ?? [];
+  const searchResults = semanticSearchApi.data?.results ?? [];
   const totalPoints = collections.reduce((sum, c) => sum + (c.points_count ?? 0), 0);
   const totalVectors = collections.reduce((sum, c) => sum + (c.vectors_count ?? 0), 0);
   const totalDiskSize = collections.reduce((sum, c) => sum + (c.disk_data_size ?? 0), 0);
@@ -76,6 +85,14 @@ export default function QdrantKnowledge() {
     if (collections.length === 0) return "No collections found. Create a collection to get started.";
     return `${collections.length} collection(s) available. Select a collection to view details and manage vectors.`;
   }, [healthApi.loading, healthApi.data, healthApi.error, collectionsApi.loading, collections.length]);
+
+  const searchNarrative = useMemo(() => {
+    if (!selected) return "Select a collection to enable semantic search.";
+    if (!searchQuery.trim()) return "Enter a search query to find similar vectors in the collection.";
+    if (searchResults.length === 0 && !semanticSearchApi.loading) return "No results found for the current query.";
+    if (searchResults.length > 0) return `Found ${searchResults.length} result(s) matching your query.`;
+    return "Ready to search.";
+  }, [selected, searchQuery, searchResults.length, semanticSearchApi.loading]);
 
   const ALLOWED_FILE_TYPES = [
     "application/pdf",
@@ -416,6 +433,105 @@ export default function QdrantKnowledge() {
           ) : null}
         </div>
       </Card>
+
+      <Card title="Semantic Search" className="bg-[linear-gradient(180deg,rgba(10,12,11,0.92),rgba(7,7,7,0.96))]">
+        <div className="space-y-4">
+          <p className="text-sm leading-7 text-amber-100/58">{searchNarrative}</p>
+
+          {!selected ? (
+            <InlineNotice
+              title="no collection selected"
+              message="Please select a collection from the list below to enable semantic search."
+              tone="info"
+            />
+          ) : null}
+
+          <div className="grid gap-4 sm:grid-cols-[1fr_auto]">
+            <Input
+              label="Search Query"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Enter text to search for similar vectors..."
+              disabled={!selected}
+            />
+            <Input
+              label="Top K Results"
+              type="number"
+              value={topK.toString()}
+              onChange={(e) => setTopK(Math.max(1, Math.min(100, parseInt(e.target.value) || 10)))}
+              placeholder="10"
+              disabled={!selected}
+              min={1}
+              max={100}
+            />
+          </div>
+
+          <div className="flex gap-3">
+            <Button
+              onClick={() => void semanticSearchApi.execute(undefined)}
+              loading={semanticSearchApi.loading}
+              disabled={!selected || !searchQuery.trim()}
+            >
+              Search
+            </Button>
+            {searchResults.length > 0 ? (
+              <Button
+                variant="secondary"
+                onClick={() => setSearchQuery("")}
+              >
+                Clear Results
+              </Button>
+            ) : null}
+          </div>
+
+          {semanticSearchApi.error ? (
+            <InlineNotice title="search error" message={semanticSearchApi.error} tone="error" />
+          ) : null}
+        </div>
+      </Card>
+
+      {searchResults.length > 0 ? (
+        <Card title="Search Results">
+          <div className="space-y-3">
+            {searchResults.map((result, idx) => (
+              <div
+                key={result.id}
+                className="rounded-[1.5rem] border border-border/80 bg-black/25 p-4"
+              >
+                <div className="flex flex-col gap-3">
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-3">
+                        <p className="screen-label">result {idx + 1}</p>
+                        <Badge color="accent">
+                          score: {result.score.toFixed(4)}
+                        </Badge>
+                      </div>
+                      <p className="mt-2 text-xs text-muted">
+                        ID: {String(result.id)}
+                      </p>
+                    </div>
+                  </div>
+                  {result.text ? (
+                    <div className="rounded-xl border border-border/60 bg-black/20 p-3">
+                      <p className="text-[10px] uppercase tracking-[0.2em] text-muted mb-2">text</p>
+                      <p className="text-sm leading-6 text-amber-100/80">
+                        {result.text}
+                      </p>
+                    </div>
+                  ) : null}
+                  {result.metadata && Object.keys(result.metadata).length > 0 ? (
+                    <div>
+                      <p className="mb-2 text-[10px] uppercase tracking-[0.2em] text-muted">metadata</p>
+                      <JsonView data={result.metadata} />
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+            ))}
+          </div>
+        </Card>
+      ) : null}
 
       {collectionsApi.loading && !collectionsApi.data ? (
         <LoadingPanel message="Loading collections..." />
