@@ -9,7 +9,7 @@ import os
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from threading import Lock
+from threading import Lock, Thread
 from typing import Any, Protocol
 
 from fastapi import FastAPI, HTTPException
@@ -430,6 +430,55 @@ _runtime_signature: RuntimeConfig | None = None
 _model_manager = ModelManager(max_concurrent_models=1)
 InputSpec = tuple[str, str, list[Any] | None]
 StateSpec = tuple[str, str, list[Any] | None]
+
+
+def pre_warm_next_model() -> None:
+    """Pre-warm the next likely model in a background thread.
+
+    This function predicts which model is likely to be used next based on usage patterns,
+    and loads it proactively in the background if memory is available.
+    The actual loading happens in a separate thread to avoid blocking the main application.
+    """
+    def _load_predicted_model() -> None:
+        """Background task to load the predicted next model."""
+        try:
+            # Predict which model will be used next
+            next_model_id = _model_manager.predict_next_model()
+            if not next_model_id:
+                return
+
+            # Check if the model is already loaded
+            if _model_manager.is_loaded(next_model_id):
+                return
+
+            # Check if we have memory available (room for another model)
+            loaded_count = len(_model_manager.list_loaded_models())
+            if loaded_count >= _model_manager.max_concurrent_models:
+                return
+
+            # Get the model configuration
+            model_config = _model_manager.get_model_config(next_model_id)
+            if not model_config:
+                # Try to get it from all configs
+                all_configs = _get_all_model_configs()
+                for config in all_configs:
+                    if config.model_id == next_model_id:
+                        model_config = config
+                        break
+
+            if not model_config:
+                return
+
+            # Load the model (this will respect priority and memory constraints)
+            _model_manager.load_model(next_model_id, model_config)
+        except Exception:
+            # Silently ignore errors in background pre-warming
+            # We don't want pre-warming failures to affect the main application
+            pass
+
+    # Start the background thread
+    thread = Thread(target=_load_predicted_model, daemon=True)
+    thread.start()
 
 
 def _package_version(name: str) -> str | None:
