@@ -166,9 +166,11 @@ class DocumentProcessor:
                 chunks.append(chunk)
 
             # Avancer avec chevauchement
-            current_pos = end_pos - self._chunk_overlap
-            if current_pos <= current_pos:
+            next_pos = end_pos - self._chunk_overlap
+            if next_pos >= end_pos:  # Overlap too large or invalid, skip overlap
                 current_pos = end_pos
+            else:
+                current_pos = next_pos
 
         return chunks
 
