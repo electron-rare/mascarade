@@ -19,6 +19,7 @@ logger = logging.getLogger("mascarade.router")
 class Strategy(StrEnum):
     BEST = "best"
     CHEAPEST = "cheapest"
+    DOMAIN = "domain"
     FASTEST = "fastest"
     SPECIFIC = "specific"
 
