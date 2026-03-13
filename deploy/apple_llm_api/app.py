@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import importlib.metadata
 import json
+import logging
 import os
 import time
 from dataclasses import dataclass
@@ -81,6 +82,16 @@ class ModelManager:
         self.max_concurrent_models: int = max_concurrent_models
         self.current_model_id: str | None = None
         self.model_load_lock: Lock = Lock()
+        self.logger = logging.getLogger(f"{__name__}.ModelManager")
+
+    def _get_memory_usage_mb(self) -> float:
+        """Get current memory usage in MB.
+
+        Returns:
+            Current memory usage in megabytes
+        """
+        process = psutil.Process()
+        return process.memory_info().rss / 1024 / 1024
 
     def get_loaded_model(self, model_id: str) -> RuntimeState | None:
         """Get a loaded model by ID.
@@ -244,6 +255,7 @@ class ModelManager:
 
             # Build the runtime
             try:
+                load_start_time = time.time()
                 runtime = _build_runtime(config)
                 runtime.check_ready()
                 self.loaded_models[model_id] = runtime
@@ -251,6 +263,20 @@ class ModelManager:
                 # Initialize usage tracking
                 self.request_count[model_id] = self.request_count.get(model_id, 0) + 1
                 self.last_used[model_id] = time.time()
+
+                # Log successful model load
+                load_duration = time.time() - load_start_time
+                memory_usage = self._get_memory_usage_mb()
+                self.logger.info(
+                    "model_loaded",
+                    extra={
+                        "event": "model_loaded",
+                        "model_id": model_id,
+                        "duration": load_duration,
+                        "memory_usage": memory_usage,
+                    }
+                )
+
                 return runtime
             except Exception as exc:
                 raise RuntimeConfigError(
@@ -276,6 +302,8 @@ class ModelManager:
             if model_id not in self.loaded_models:
                 return False
 
+            unload_start_time = time.time()
+
             # Remove the model
             del self.loaded_models[model_id]
 
@@ -287,6 +315,19 @@ class ModelManager:
                     if self.loaded_models
                     else None
                 )
+
+            # Log successful model unload
+            unload_duration = time.time() - unload_start_time
+            memory_usage = self._get_memory_usage_mb()
+            self.logger.info(
+                "model_unloaded",
+                extra={
+                    "event": "model_unloaded",
+                    "model_id": model_id,
+                    "duration": unload_duration,
+                    "memory_usage": memory_usage,
+                }
+            )
 
             return True
 
@@ -384,6 +425,20 @@ class ModelManager:
         if not new_model_id or not new_model_id.strip():
             raise ValueError("model_id cannot be empty")
 
+        swap_start_time = time.time()
+        memory_usage_start = self._get_memory_usage_mb()
+
+        # Log model swap started
+        self.logger.info(
+            "model_swap_started",
+            extra={
+                "event": "model_swap_started",
+                "model_id": new_model_id,
+                "duration": 0,
+                "memory_usage": memory_usage_start,
+            }
+        )
+
         with self.model_load_lock:
             # If already loaded, mark as recently used and return
             if new_model_id in self.loaded_models:
@@ -392,6 +447,20 @@ class ModelManager:
                 # Track usage
                 self.request_count[new_model_id] = self.request_count.get(new_model_id, 0) + 1
                 self.last_used[new_model_id] = time.time()
+
+                # Log successful model swap (already loaded)
+                swap_duration = time.time() - swap_start_time
+                memory_usage = self._get_memory_usage_mb()
+                self.logger.info(
+                    "model_swap_completed",
+                    extra={
+                        "event": "model_swap_completed",
+                        "model_id": new_model_id,
+                        "duration": swap_duration,
+                        "memory_usage": memory_usage,
+                    }
+                )
+
                 return self.loaded_models[new_model_id]
 
             # Get the model configuration
@@ -418,6 +487,20 @@ class ModelManager:
                 # Track usage
                 self.request_count[new_model_id] = self.request_count.get(new_model_id, 0) + 1
                 self.last_used[new_model_id] = time.time()
+
+                # Log successful model swap (newly loaded)
+                swap_duration = time.time() - swap_start_time
+                memory_usage = self._get_memory_usage_mb()
+                self.logger.info(
+                    "model_swap_completed",
+                    extra={
+                        "event": "model_swap_completed",
+                        "model_id": new_model_id,
+                        "duration": swap_duration,
+                        "memory_usage": memory_usage,
+                    }
+                )
+
                 return runtime
             except Exception as exc:
                 raise RuntimeConfigError(
