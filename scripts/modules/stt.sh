@@ -12,6 +12,8 @@ module_stt_compose() {
   engine="$(echo "${STT_ENGINE:-faster_whisper}" | tr '[:upper:]' '[:lower:]')"
 
   echo "  stt:"
+  echo "    profiles:"
+  echo "      - personal"
   echo "    image: \${STT_IMAGE:-onerahmet/openai-whisper-asr-webservice:latest}"
   echo "    container_name: mascarade-stt"
   echo "    restart: unless-stopped"

@@ -7,6 +7,8 @@ module_blackbox_exporter_config() {
 
 module_blackbox_exporter_compose() {
   echo "  blackbox-exporter:"
+  echo "    profiles:"
+  echo "      - observability"
   echo "    image: \${BLACKBOX_EXPORTER_IMAGE:-prom/blackbox-exporter:latest}"
   echo "    container_name: mascarade-blackbox-exporter"
   echo "    restart: unless-stopped"

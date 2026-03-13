@@ -7,6 +7,8 @@ module_promtail_config() {
 
 module_promtail_compose() {
   echo "  promtail:"
+  echo "    profiles:"
+  echo "      - observability"
   echo "    image: \${PROMTAIL_IMAGE:-grafana/promtail:3.5.3}"
   echo "    container_name: mascarade-promtail"
   echo "    restart: unless-stopped"

@@ -87,6 +87,8 @@ module_core_config() {
 
 module_core_compose() {
   echo "  core:"
+  echo "    profiles:"
+  echo "      - core"
   echo "    build:"
   echo "      context: ."
   echo "      dockerfile: deploy/Dockerfile.core"
