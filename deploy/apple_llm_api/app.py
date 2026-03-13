@@ -1894,10 +1894,14 @@ async def status() -> dict[str, Any]:
         },
     }
 
+    # Get predicted pre-warm candidate
+    pre_warm_candidate = _model_manager.predict_next_model()
+
     return {
         "loaded_models": loaded_models_info,
         "memory": memory_info,
         "max_concurrent_models": _model_manager.max_concurrent_models,
+        "pre_warm_candidate": pre_warm_candidate,
     }
 
 
