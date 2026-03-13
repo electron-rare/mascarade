@@ -7,6 +7,8 @@ module_prometheus_config() {
 
 module_prometheus_compose() {
   echo "  prometheus:"
+  echo "    profiles:"
+  echo "      - observability"
   echo "    image: \${PROMETHEUS_IMAGE:-prom/prometheus@sha256:4a61322ac1103a0e3aea2a61ef1718422a48fa046441f299d71e660a3bc71ae9}"
   echo "    container_name: mascarade-prometheus"
   echo "    restart: unless-stopped"

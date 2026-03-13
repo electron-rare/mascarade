@@ -7,6 +7,8 @@ module_redis_config() {
 
 module_redis_compose() {
   echo "  redis:"
+  echo "    profiles:"
+  echo "      - core"
   echo "    image: \${REDIS_IMAGE:-redis@sha256:8b81dd37ff027bec4e516d41acfbe9fe2460070dc6d4a4570a2ac5b9d59df065}"
   echo "    container_name: mascarade-redis"
   echo "    restart: unless-stopped"
