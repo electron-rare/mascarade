@@ -47,17 +47,16 @@
     "complexity": "simple",
     "estimated_sessions": 1
   },
-  "status": "human_review",
-  "planStatus": "review",
-  "xstateState": "human_review",
+  "status": "done",
+  "planStatus": "completed",
+  "xstateState": "done",
   "executionPhase": "complete",
-  "updated_at": "2026-03-12T08:27:38.847Z",
+  "updated_at": "2026-03-13T00:46:55.095Z",
   "lastEvent": {
     "eventId": "978e4918-23b6-4c7e-9ee5-db30095a4e3d",
     "sequence": 0,
     "type": "PLANNING_COMPLETE",
     "timestamp": "2026-03-12T08:22:17.296614+00:00"
   },
-  "last_updated": "2026-03-12T08:25:05.525250+00:00",
-  "reviewReason": "completed"
+  "last_updated": "2026-03-12T08:25:05.525250+00:00"
 }
