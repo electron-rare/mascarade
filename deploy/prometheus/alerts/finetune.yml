@@ -3,58 +3,46 @@ groups:
     interval: 30s
     rules:
       - alert: FineTuneJobFailed
-        expr: finetune_job_status{status="failed"} == 1
+        expr: finetune_run_status == 3
         for: 1m
         labels:
           severity: critical
           component: finetune
         annotations:
-          summary: "Fine-tuning job {{ $labels.job_id }} failed"
-          description: "Fine-tuning job {{ $labels.job_id }} has failed. Check logs for details."
+          summary: "Fine-tuning run {{ $labels.run_label }} failed"
+          description: "Fine-tuning run {{ $labels.run_label }} has failed. Check logs for details."
 
       - alert: FineTuneJobStalled
         expr: |
-          (time() - finetune_job_last_update_timestamp) > 600
-          and finetune_job_status{status="running"} == 1
+          (time() - finetune_run_updated_timestamp) > 600
+          and finetune_run_status == 1
         for: 5m
         labels:
           severity: warning
           component: finetune
         annotations:
-          summary: "Fine-tuning job {{ $labels.job_id }} may be stalled"
-          description: "Fine-tuning job {{ $labels.job_id }} has not updated in over 10 minutes."
+          summary: "Fine-tuning run {{ $labels.run_label }} may be stalled"
+          description: "Fine-tuning run {{ $labels.run_label }} has not updated in over 10 minutes."
 
       - alert: FineTuneGPUMemoryHigh
-        expr: finetune_gpu_memory_used_bytes / finetune_gpu_memory_total_bytes > 0.95
+        expr: nvidia_gpu_memory_used_bytes / nvidia_gpu_memory_total_bytes > 0.95
         for: 5m
         labels:
           severity: warning
           component: finetune
         annotations:
-          summary: "GPU memory usage high on {{ $labels.gpu_id }}"
-          description: "GPU {{ $labels.gpu_id }} memory usage is above 95% for job {{ $labels.job_id }}."
+          summary: "GPU memory usage high on {{ $labels.gpu }}"
+          description: "GPU {{ $labels.gpu }} memory usage is above 95%."
 
       - alert: FineTuneGPUMemoryCritical
-        expr: finetune_gpu_memory_used_bytes / finetune_gpu_memory_total_bytes > 0.98
+        expr: nvidia_gpu_memory_used_bytes / nvidia_gpu_memory_total_bytes > 0.98
         for: 2m
         labels:
           severity: critical
           component: finetune
         annotations:
-          summary: "GPU memory critically high on {{ $labels.gpu_id }}"
-          description: "GPU {{ $labels.gpu_id }} memory usage is above 98% for job {{ $labels.job_id }}. Risk of OOM."
-
-      - alert: FineTuneJobLongRunning
-        expr: |
-          (time() - finetune_job_start_timestamp) > 86400
-          and finetune_job_status{status="running"} == 1
-        for: 10m
-        labels:
-          severity: info
-          component: finetune
-        annotations:
-          summary: "Fine-tuning job {{ $labels.job_id }} running for over 24 hours"
-          description: "Fine-tuning job {{ $labels.job_id }} has been running for more than 24 hours. This may be normal for large models."
+          summary: "GPU memory critically high on {{ $labels.gpu }}"
+          description: "GPU {{ $labels.gpu }} memory usage is above 98%. Risk of OOM."
 
       - alert: FineTuneMetricsExporterDown
         expr: up{job="finetune-metrics-exporter"} == 0
@@ -65,27 +53,3 @@ groups:
         annotations:
           summary: "Fine-tune metrics exporter is down"
           description: "The fine-tune metrics exporter has been down for more than 2 minutes. Metrics collection unavailable."
-
-      - alert: FineTuneHighLossVariance
-        expr: |
-          stddev_over_time(finetune_loss[10m]) > 0.5
-          and finetune_job_status{status="running"} == 1
-        for: 10m
-        labels:
-          severity: warning
-          component: finetune
-        annotations:
-          summary: "High loss variance detected for job {{ $labels.job_id }}"
-          description: "Fine-tuning job {{ $labels.job_id }} shows high loss variance over the last 10 minutes. Training may be unstable."
-
-      - alert: FineTuneNoProgressUpdates
-        expr: |
-          rate(finetune_training_steps_total[5m]) == 0
-          and finetune_job_status{status="running"} == 1
-        for: 10m
-        labels:
-          severity: warning
-          component: finetune
-        annotations:
-          summary: "No training progress for job {{ $labels.job_id }}"
-          description: "Fine-tuning job {{ $labels.job_id }} has not progressed any training steps in the last 10 minutes."

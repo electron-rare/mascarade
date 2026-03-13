@@ -44,6 +44,11 @@ finetune_run_info = Info(
     "Fine-tuning run metadata",
 )
 
+finetune_active_jobs = Gauge(
+    "finetune_active_jobs",
+    "Number of currently running fine-tuning jobs",
+)
+
 
 def load_manifest(path: Path) -> dict[str, Any] | None:
     """Load manifest JSON file."""
@@ -97,8 +102,9 @@ def update_metrics(runs_dir: Path) -> None:
     """Update Prometheus metrics from manifest files."""
     manifests = find_manifests(runs_dir)
 
-    # Track which runs we've seen
+    # Track which runs we've seen and count active jobs
     seen_runs = set()
+    active_jobs_count = 0
 
     for manifest_path in manifests:
         manifest = load_manifest(manifest_path)
@@ -149,6 +155,10 @@ def update_metrics(runs_dir: Path) -> None:
 
             finetune_run_status.labels(run_label=run_label).set(run_status)
 
+            # Count active jobs
+            if run_status == 1.0:
+                active_jobs_count += 1
+
         # Domain-level metrics
         for domain_label, domain_data in domains.items():
             # Row counts
@@ -182,6 +192,9 @@ def update_metrics(runs_dir: Path) -> None:
                 domain=domain_label,
                 phase="train",
             ).set(status_to_value(train_status))
+
+    # Update active jobs count
+    finetune_active_jobs.set(active_jobs_count)
 
 
 def main() -> int:
