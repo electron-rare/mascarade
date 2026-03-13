@@ -102,6 +102,16 @@ class Router:
             best_value = min(sum(p.cost_per_million) for p in providers)
             return [p for p in providers if sum(p.cost_per_million) == best_value]
 
+        if strategy == Strategy.DOMAIN:
+            # Prefer Ollama provider for domain-specific mascarade-* models
+            # If Ollama not available, fallback to BEST strategy
+            ollama_providers = [p for p in providers if p.name == "ollama"]
+            if ollama_providers:
+                return ollama_providers
+            # Fallback to BEST strategy
+            best_value = max(p.quality_rank for p in providers)
+            return [p for p in providers if p.quality_rank == best_value]
+
         if strategy == Strategy.FASTEST:
             best_value = min(p.speed_rank for p in providers)
             return [p for p in providers if p.speed_rank == best_value]
