@@ -1395,6 +1395,12 @@ async def qdrant_health():
     return await client.health_check()
 
 
+@protected.get("/qdrant/status")
+async def qdrant_status():
+    client = _require_qdrant()
+    return await client.get_cluster_status()
+
+
 @protected.get("/qdrant/collections")
 async def qdrant_list_collections():
     client = _require_qdrant()
