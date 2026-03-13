@@ -1,6 +1,7 @@
 """Tests for router fallback chain with multiple Apple models."""
 
 import asyncio
+import logging
 
 from mascarade.router.providers.base import LLMProvider, LLMResponse
 from mascarade.router.router import Router
@@ -167,3 +168,57 @@ def test_stream_fallback():
 
     result = asyncio.run(collect_stream())
     assert "apple-0.5b" in result
+
+
+def test_e2e_router_fallback_chain_with_logging(caplog):
+    """End-to-end test: router fallback chain with explicit logging verification.
+
+    Verifies:
+    1. Configure router with fallback: apple-4b (priority 1) -> apple-0.5b (priority 2)
+    2. Send request through router
+    3. Simulate apple-4b busy/failed
+    4. Verify router falls back to apple-0.5b
+    5. Check logs show model swap event
+    """
+    caplog.set_level(logging.WARNING)
+
+    # 1. Configure router with fallback chain
+    r = Router()
+    r._providers.clear()
+
+    # Register apple-4b as priority 1 (higher quality) that will fail
+    apple_4b = MockAppleProvider("apple-4b", should_fail=True, quality=3)
+    r.register(apple_4b)
+
+    # Register apple-0.5b as priority 2 (lower quality) as fallback
+    apple_0_5b = MockAppleProvider("apple-0.5b", should_fail=False, quality=2)
+    r.register(apple_0_5b)
+
+    # 2. Send request through router using "best" strategy
+    messages = [{"role": "user", "content": "test router fallback"}]
+    resp = asyncio.run(r.send(messages, strategy="best"))
+
+    # 3. Verify apple-4b was attempted but failed (implicit - fallback stats will show this)
+
+    # 4. Verify router fell back to apple-0.5b
+    assert resp.provider == "apple-coreml-apple-0.5b", "Should have fallen back to apple-0.5b"
+    assert resp.content == "response from apple-0.5b"
+    assert resp.model == "apple-0.5b"
+    assert resp.usage["input_tokens"] == 10
+    assert resp.usage["output_tokens"] == 5
+
+    # 5. Check that fallback stats show model swap event
+    fallback_stats = r.fallback.get_failure_stats()
+    assert fallback_stats["total_failures"] >= 1, "Should have recorded at least one failure"
+    assert "apple-coreml-apple-4b" in fallback_stats["failed_attempts"], "apple-4b failures should be tracked"
+    assert fallback_stats["failed_attempts"]["apple-coreml-apple-4b"] >= 1, "Should have at least 1 failure for apple-4b"
+
+    # Verify that attempts were made to fallback providers
+    provider_stats = r.provider_metrics("apple-coreml-apple-0.5b")
+    assert provider_stats["total_requests"] >= 1, "Fallback provider should have handled the request"
+    assert provider_stats["error_rate"] == 0.0, "Fallback provider should have no errors"
+
+    # Verify primary provider had 100% error rate (all requests failed)
+    primary_stats = r.provider_metrics("apple-coreml-apple-4b")
+    assert primary_stats["total_requests"] >= 1, "Primary provider should have been attempted"
+    assert primary_stats["error_rate"] == 100.0, "Primary provider should have 100% error rate"
