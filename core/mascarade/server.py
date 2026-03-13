@@ -483,7 +483,7 @@ async def chat_completions(req: ChatCompletionRequest):
 
 protected = APIRouter(prefix="/v1", dependencies=[Depends(require_auth)])
 cluster_protected = APIRouter(
-    prefix="/cluster/node",
+    prefix="/v1/cluster/node",
     dependencies=[Depends(require_cluster_auth)],
 )
 

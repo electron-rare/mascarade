@@ -57,13 +57,13 @@ async def test_protected_routes_require_valid_bearer_token():
     add_api_key("test-key-001")
 
     async with _client() as client:
-        missing = await client.get("/api-keys")
+        missing = await client.get("/v1/api-keys")
         invalid = await client.get(
-            "/api-keys",
+            "/v1/api-keys",
             headers={"Authorization": "Bearer wrong-key-999"},
         )
         valid = await client.get(
-            "/api-keys",
+            "/v1/api-keys",
             headers={"Authorization": "Bearer test-key-001"},
         )
 
