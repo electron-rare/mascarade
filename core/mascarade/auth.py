@@ -254,3 +254,100 @@ async def authenticate_user(api_key: str) -> User | None:
     except Exception as e:
         logger.error("Error authenticating user: %s", str(e), exc_info=True)
         return None
+
+
+# --- FastAPI Dependencies for User Context & Permissions ---
+
+
+async def get_current_user(
+    credentials: HTTPAuthorizationCredentials | None = Depends(_bearer_scheme),
+) -> User:
+    """FastAPI dependency to get the current authenticated user.
+
+    Extracts the Bearer token from the request, authenticates the user
+    via the database, and returns the User object.
+
+    Args:
+        credentials: HTTP Authorization credentials from the request
+
+    Returns:
+        User object for the authenticated user
+
+    Raises:
+        HTTPException: 401 if token is missing or authentication fails
+    """
+    if credentials is None:
+        raise HTTPException(status_code=401, detail="Missing authentication token")
+
+    user = await authenticate_user(credentials.credentials)
+    if user is None:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+
+    return user
+
+
+async def require_admin(
+    current_user: User = Depends(get_current_user),
+) -> User:
+    """FastAPI dependency to require admin privileges.
+
+    Checks if the current user has the admin role. Returns the user
+    if they are an admin, otherwise raises a 403 Forbidden exception.
+
+    Args:
+        current_user: The authenticated user (from get_current_user dependency)
+
+    Returns:
+        User object if the user is an admin
+
+    Raises:
+        HTTPException: 403 if the user does not have admin privileges
+    """
+    pool = get_db_pool()
+    if pool is None:
+        logger.error("Database pool not initialized")
+        raise HTTPException(status_code=500, detail="Database unavailable")
+
+    try:
+        async with pool.acquire() as conn:
+            # Fetch the role name for the user's role_id
+            role_row = await conn.fetchrow(
+                """
+                SELECT name
+                FROM roles
+                WHERE id = $1
+                """,
+                current_user.role_id,
+            )
+
+            if role_row is None:
+                logger.error(
+                    "Role not found for user_id=%d, role_id=%d",
+                    current_user.id,
+                    current_user.role_id,
+                )
+                raise HTTPException(status_code=403, detail="User role not found")
+
+            # Check if the role is admin
+            if role_row["name"] != "admin":
+                logger.warning(
+                    "Access denied: user_id=%d (role=%s) attempted admin-only operation",
+                    current_user.id,
+                    role_row["name"],
+                )
+                raise HTTPException(
+                    status_code=403, detail="Admin privileges required"
+                )
+
+            logger.info(
+                "Admin access granted: user_id=%d, username=%s",
+                current_user.id,
+                current_user.username,
+            )
+            return current_user
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("Error checking admin privileges: %s", str(e), exc_info=True)
+        raise HTTPException(status_code=500, detail="Error checking permissions")
