@@ -8,7 +8,7 @@
 
 - Root: `/Users/electron/mascarade`
 - Branch: `feat/apple-coreml-runtime-lot`
-- Dirty entries: `21`
+- Dirty entries: `42`
 - Primary README: `README.md`
 - Primary plan anchor: `plan.md`
 - First TODO anchor: `TODO_AI_NOVEL_ENGINE.md`
@@ -23,7 +23,7 @@
 | Sequence diagram files | 5 |
 | Feature-map-like files | 2 |
 | Test files | 58 |
-| Shell scripts | 139 |
+| Shell scripts | 140 |
 | Python files | 256 |
 | TS/TSX files | 121 |
 
@@ -60,7 +60,7 @@
 
 - Root: `/Users/electron/Kill_LIFE`
 - Branch: `main`
-- Dirty entries: `12`
+- Dirty entries: `11`
 - Primary README: `README.md`
 - Primary plan anchor: `docs/plans/README.md`
 - First TODO anchor: `ai-agentic-embedded-base/specs/04_tasks.md`
