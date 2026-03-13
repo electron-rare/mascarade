@@ -16,6 +16,8 @@ import {
   Input,
   JsonView,
   LoadingPanel,
+  Select,
+  Textarea,
 } from "../components/ui";
 
 function formatBytes(bytes?: number): string {
@@ -53,6 +55,9 @@ export default function QdrantKnowledge() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [topK, setTopK] = useState(10);
+  const [ragQuery, setRagQuery] = useState("");
+  const [ragModel, setRagModel] = useState("");
+  const [ragTopK, setRagTopK] = useState(5);
 
   const healthApi = useFetch<QdrantHealthResponse>("/api/qdrant-knowledge/health", {
     pollIntervalMs: 10000,
@@ -313,6 +318,132 @@ export default function QdrantKnowledge() {
               <InlineNotice title="health check error" message={healthApi.error} tone="error" />
             ) : null}
           </div>
+        </Card>
+      </section>
+
+      <section className="grid gap-4 xl:grid-cols-[minmax(0,1.3fr)_minmax(320px,0.7fr)]">
+        <Card className="overflow-hidden border-accent/20 bg-[linear-gradient(135deg,rgba(255,209,102,0.08),rgba(9,14,11,0.9)_26%,rgba(7,7,7,0.95))]">
+          <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+            <div className="max-w-3xl">
+              <p className="screen-label">rag playground</p>
+              <h2 className="mt-3 text-3xl font-semibold uppercase tracking-[0.12em] text-accent glow-text md:text-5xl">
+                Retrieval-Augmented Generation
+              </h2>
+              <p className="mt-4 max-w-2xl text-sm leading-7 text-amber-100/60 md:text-[15px]">
+                Cette surface permet de tester rapidement une requete RAG: chercher dans la collection vectorielle,
+                puis combiner les resultats avec un modele LLM pour generer une reponse contextuelle.
+              </p>
+              <div className="mt-5 flex flex-wrap gap-2">
+                <span className="status-chip border-accent/35 bg-accent/10 text-accent">
+                  collection {selected?.name || "none"}
+                </span>
+                <span className="status-chip border-border/80 bg-black/25 text-muted">
+                  model {ragModel || "auto"}
+                </span>
+                <span className="status-chip border-border/80 bg-black/25 text-muted">
+                  top-k {ragTopK}
+                </span>
+              </div>
+            </div>
+
+            <div className="grid min-w-0 gap-3 sm:grid-cols-3 lg:min-w-[340px]">
+              <div className="rounded-3xl border border-border/80 bg-black/30 p-4">
+                <p className="text-[10px] uppercase tracking-[0.2em] text-muted">query</p>
+                <p className="mt-3 text-2xl font-semibold uppercase tracking-[0.12em] text-accent">
+                  {ragQuery.trim() ? "armed" : "idle"}
+                </p>
+              </div>
+              <div className="rounded-3xl border border-border/80 bg-black/30 p-4">
+                <p className="text-[10px] uppercase tracking-[0.2em] text-muted">collection</p>
+                <p className="mt-3 text-2xl font-semibold uppercase tracking-[0.12em] text-accent">
+                  {selected ? "ready" : "waiting"}
+                </p>
+              </div>
+              <div className="rounded-3xl border border-border/80 bg-black/30 p-4">
+                <p className="text-[10px] uppercase tracking-[0.2em] text-muted">response</p>
+                <p className="mt-3 text-2xl font-semibold uppercase tracking-[0.12em] text-accent">
+                  pending
+                </p>
+              </div>
+            </div>
+          </div>
+        </Card>
+
+        <Card title="RAG Settings">
+          <div className="space-y-4">
+            <p className="text-sm leading-7 text-amber-100/58">
+              Configurer le modele LLM et le nombre de vecteurs a recuperer pour la generation augmentee.
+            </p>
+            {!selected ? (
+              <InlineNotice
+                title="no collection selected"
+                message="Please select a collection from the list below to enable RAG queries."
+                tone="info"
+              />
+            ) : null}
+            <Select
+              label="Model"
+              options={[
+                { value: "", label: "Auto" },
+                { value: "gpt-4", label: "GPT-4" },
+                { value: "gpt-3.5-turbo", label: "GPT-3.5 Turbo" },
+                { value: "claude-3-opus", label: "Claude 3 Opus" },
+                { value: "claude-3-sonnet", label: "Claude 3 Sonnet" },
+              ]}
+              value={ragModel}
+              onChange={(e) => setRagModel(e.target.value)}
+            />
+            <Input
+              label="Top-K Results"
+              type="number"
+              step="1"
+              min="1"
+              max="20"
+              value={ragTopK.toString()}
+              onChange={(e) => setRagTopK(Math.max(1, Math.min(20, parseInt(e.target.value) || 5)))}
+            />
+          </div>
+        </Card>
+      </section>
+
+      <section className="grid gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(320px,0.85fr)]">
+        <Card title="Query Composer">
+          <div className="space-y-4">
+            <Textarea
+              label="RAG Query"
+              value={ragQuery}
+              onChange={(e) => setRagQuery(e.target.value)}
+              placeholder="Enter your question. The system will search the knowledge base and generate a contextual response."
+              rows={6}
+            />
+            <div className="flex flex-wrap gap-3">
+              <Button
+                onClick={() => {}}
+                disabled={!selected || !ragQuery.trim()}
+              >
+                generate response
+              </Button>
+              <Button
+                variant="secondary"
+                onClick={() => setRagQuery("")}
+                disabled={!ragQuery}
+              >
+                clear query
+              </Button>
+            </div>
+          </div>
+        </Card>
+
+        <Card title="Response Lane">
+          <p className="text-sm leading-7 text-amber-100/54">
+            No response yet. Enter a query to retrieve relevant vectors and generate a contextual answer.
+          </p>
+        </Card>
+
+        <Card title="Retrieved Context">
+          <p className="text-sm leading-7 text-amber-100/54">
+            The retrieved vectors and their content will appear here before generation.
+          </p>
         </Card>
       </section>
 
