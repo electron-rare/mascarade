@@ -354,7 +354,7 @@ class Orchestrator:
                 remote=bool(routed.get("remote")),
                 selected_by=str(routed.get("selected_by") or "cluster"),
                 peer_id=routed.get("peer_id"),
-                node_id=str(routed.get("node_id") or "") or None,
+                node_id=routed.get("node_id") or None,
                 role=str(routed.get("role") or "") or None,
             )
 
