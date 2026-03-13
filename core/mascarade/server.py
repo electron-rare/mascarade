@@ -7,6 +7,7 @@ import json
 import logging
 import secrets
 from contextlib import asynccontextmanager
+from datetime import datetime
 from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, FastAPI, HTTPException, Query, Request
@@ -52,6 +53,7 @@ from mascarade.provider_admin import (
 )
 from mascarade.router import Router
 from mascarade.router.router import Strategy
+from mascarade.usage_tracking import get_all_usage_stats
 
 logger = logging.getLogger("mascarade.server")
 INDUSTRIAL_MCP_SERVER_KEYS = {"cockpit-ops", "plm", "qms", "mes", "erp", "wms", "dcs"}
@@ -796,6 +798,26 @@ async def revoke_user_api_key(
     except Exception as e:
         logger.error("Error revoking API key: %s", str(e), exc_info=True)
         raise HTTPException(status_code=500, detail="Error revoking API key")
+
+
+# --- Usage Statistics ---
+
+
+@protected.get("/admin/usage/stats")
+async def get_usage_statistics(
+    start_date: datetime | None = Query(default=None, description="Start date for filtering (ISO format)"),
+    end_date: datetime | None = Query(default=None, description="End date for filtering (ISO format)"),
+    _: None = Depends(require_admin),
+):
+    """Get aggregated usage statistics for all users (admin only)."""
+    try:
+        stats = await get_all_usage_stats(start_date=start_date, end_date=end_date)
+        return {"stats": [stat.model_dump() for stat in stats]}
+    except RuntimeError as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    except Exception as e:
+        logger.error("Error fetching usage statistics: %s", str(e), exc_info=True)
+        raise HTTPException(status_code=500, detail="Error fetching usage statistics")
 
 
 # --- LLM ---
