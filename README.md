@@ -943,7 +943,7 @@ mascarade/
 ├── api/                              # TypeScript Hono (port 3100)
 │   ├── src/
 │   │   ├── index.ts                  # App + middleware (CORS, auth, rate-limit)
-│   │   └── routes/                   # health, agents, cluster, notion, comfyui,
+│   │   └── routes/                   # health, agents, cluster, comfyui,
 │   │       └── ...                   #   ops, killlife
 │   └── package.json
 ├── web/                              # Frontend React (subtree -> crazy_life)
