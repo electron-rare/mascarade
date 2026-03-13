@@ -31,6 +31,7 @@ class UserRecord(TypedDict):
     email: str
     role_id: int
     is_active: bool
+    rate_limits: dict | None
     created_at: datetime
     updated_at: datetime
 
@@ -42,6 +43,7 @@ class RoleRecord(TypedDict):
     name: str
     description: str
     permissions: dict
+    rate_limits: dict
     created_at: datetime
 
 
@@ -69,6 +71,7 @@ class Role(BaseModel):
     name: str = Field(min_length=1, max_length=50)
     description: str = Field(max_length=500)
     permissions: dict = Field(default_factory=dict)
+    rate_limits: dict = Field(default_factory=dict)
     created_at: datetime
 
     @classmethod
@@ -79,6 +82,7 @@ class Role(BaseModel):
             name=record["name"],
             description=record["description"],
             permissions=record["permissions"],
+            rate_limits=record["rate_limits"],
             created_at=record["created_at"],
         )
 
@@ -91,6 +95,7 @@ class User(BaseModel):
     email: str = Field(min_length=1, max_length=255)
     role_id: int
     is_active: bool = True
+    rate_limits: dict | None = None
     created_at: datetime
     updated_at: datetime
 
@@ -103,6 +108,7 @@ class User(BaseModel):
             email=record["email"],
             role_id=record["role_id"],
             is_active=record["is_active"],
+            rate_limits=record["rate_limits"],
             created_at=record["created_at"],
             updated_at=record["updated_at"],
         )
@@ -145,6 +151,7 @@ class UserCreate(BaseModel):
     email: str = Field(min_length=1, max_length=255)
     role_id: int
     is_active: bool = True
+    rate_limits: dict | None = None
 
 
 class UserUpdate(BaseModel):
@@ -154,6 +161,7 @@ class UserUpdate(BaseModel):
     email: str | None = Field(default=None, min_length=1, max_length=255)
     role_id: int | None = None
     is_active: bool | None = None
+    rate_limits: dict | None = None
 
 
 class ApiKeyCreate(BaseModel):
