@@ -6,6 +6,7 @@ import logging
 from abc import ABC, abstractmethod
 from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
 
 from tenacity import (
     before_sleep_log,
@@ -14,6 +15,9 @@ from tenacity import (
     stop_after_attempt,
     wait_exponential,
 )
+
+if TYPE_CHECKING:
+    from aiobreaker import CircuitBreaker
 
 logger = logging.getLogger("mascarade.providers")
 
@@ -52,7 +56,21 @@ class LLMResponse:
 
 
 class LLMProvider(ABC):
-    """Interface commune pour tous les providers LLM."""
+    """
+    Interface commune pour tous les providers LLM.
+
+    Circuit Breaker Support:
+        Les méthodes send() et stream() doivent être protégées par un circuit breaker
+        pour prévenir les pannes en cascade. Le circuit breaker est automatiquement
+        appliqué par le Router lors des appels aux providers.
+
+        États du circuit breaker:
+        - CLOSED: Fonctionnement normal
+        - OPEN: Échecs répétés, appels rejetés immédiatement
+        - HALF_OPEN: Test de récupération
+
+        Configuration par défaut: fail_max=5, timeout=60s
+    """
 
     name: str
     default_model: str
@@ -66,6 +84,9 @@ class LLMProvider(ABC):
     # Relative quality ranking (higher = better)
     quality_rank: int = 0
 
+    # Circuit breaker instance (set by Router or CircuitBreakerManager)
+    circuit_breaker: "CircuitBreaker | None" = None
+
     @abstractmethod
     async def send(
         self,
@@ -76,7 +97,28 @@ class LLMProvider(ABC):
         temperature: float = 0.7,
         max_tokens: int = 4096,
     ) -> LLMResponse:
-        """Envoyer un message et recevoir une réponse complète."""
+        """
+        Envoyer un message et recevoir une réponse complète.
+
+        Note: Cette méthode est protégée par un circuit breaker au niveau du Router
+        pour prévenir les pannes en cascade. Le circuit s'ouvre après 5 échecs
+        consécutifs et rejette les appels pendant 60s avant de tester la récupération.
+
+        Args:
+            messages: Liste des messages de conversation
+            model: Modèle spécifique à utiliser (optionnel)
+            system: Message système (optionnel)
+            temperature: Température de génération (0.0-1.0)
+            max_tokens: Nombre maximum de tokens à générer
+
+        Returns:
+            LLMResponse avec le contenu et les métadonnées
+
+        Raises:
+            CircuitBreakerError: Si le circuit breaker est ouvert
+            ConnectionError: Erreur de connexion au provider
+            TimeoutError: Timeout de la requête
+        """
         ...
 
     @abstractmethod
@@ -89,7 +131,28 @@ class LLMProvider(ABC):
         temperature: float = 0.7,
         max_tokens: int = 4096,
     ) -> AsyncIterator[str]:
-        """Streamer la réponse token par token."""
+        """
+        Streamer la réponse token par token.
+
+        Note: Cette méthode est protégée par un circuit breaker au niveau du Router
+        pour prévenir les pannes en cascade. Le circuit s'ouvre après 5 échecs
+        consécutifs et rejette les appels pendant 60s avant de tester la récupération.
+
+        Args:
+            messages: Liste des messages de conversation
+            model: Modèle spécifique à utiliser (optionnel)
+            system: Message système (optionnel)
+            temperature: Température de génération (0.0-1.0)
+            max_tokens: Nombre maximum de tokens à générer
+
+        Yields:
+            Chunks de texte au fur et à mesure de la génération
+
+        Raises:
+            CircuitBreakerError: Si le circuit breaker est ouvert
+            ConnectionError: Erreur de connexion au provider
+            TimeoutError: Timeout de la requête
+        """
         ...
 
     @abstractmethod
