@@ -722,4 +722,53 @@ export const coreClient = {
       body: JSON.stringify(body),
     });
   },
+
+  // --- User Management ---
+
+  listUsers() {
+    return request<{ users: Array<{ id: number; username: string; email: string; role_id: number; is_active: boolean; created_at: string; updated_at: string }> }>("/users");
+  },
+
+  createUser(body: { username: string; email: string; role_id: number }) {
+    return request<{ id: number; username: string; email: string; role_id: number; is_active: boolean; created_at: string; updated_at: string }>("/users", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+
+  getUser(userId: number) {
+    return request<{ id: number; username: string; email: string; role_id: number; is_active: boolean; created_at: string; updated_at: string }>(`/users/${userId}`);
+  },
+
+  updateUser(userId: number, body: { username?: string; email?: string; role_id?: number; is_active?: boolean }) {
+    return request<{ id: number; username: string; email: string; role_id: number; is_active: boolean; created_at: string; updated_at: string }>(`/users/${userId}`, {
+      method: "PUT",
+      body: JSON.stringify(body),
+    });
+  },
+
+  deleteUser(userId: number) {
+    return request<{ status: string }>(`/users/${userId}`, {
+      method: "DELETE",
+    });
+  },
+
+  // --- API Key Management ---
+
+  createApiKey(userId: number, body: { name: string; expires_at?: string }) {
+    return request<{ id: number; key: string; key_prefix: string; name: string; created_at: string; expires_at: string | null }>(`/users/${userId}/api-keys`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+
+  listApiKeys(userId: number) {
+    return request<{ api_keys: Array<{ id: number; key_prefix: string; name: string; created_at: string; expires_at: string | null; last_used_at: string | null }> }>(`/users/${userId}/api-keys`);
+  },
+
+  revokeApiKey(userId: number, keyId: number) {
+    return request<{ status: string }>(`/users/${userId}/api-keys/${keyId}`, {
+      method: "DELETE",
+    });
+  },
 };
