@@ -11,7 +11,7 @@ INIT_SRC="$CORE_DIR/mascarade/__init__.py"
 # Remote nodes
 declare -A NODES=(
     ["root@192.168.0.119"]="/mascarade/core"
-    ["cils@10.0.0.84"]="~/mascarade/core"
+    ["cils@192.168.0.210"]="~/mascarade/core"
     ["kxkm@kxkm-ai"]="~/mascarade/core"
     ["clems@192.168.0.120"]="~/mascarade/core"
 )
