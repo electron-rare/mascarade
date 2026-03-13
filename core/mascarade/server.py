@@ -94,6 +94,71 @@ class Message(BaseModel):
     content: str = Field(min_length=1, max_length=100_000)
 
 
+# --- OpenAI-Compatible Models ---
+
+
+class ChatCompletionMessage(BaseModel):
+    role: Literal["system", "user", "assistant", "tool"]
+    content: str | None = None
+    tool_calls: list[dict[str, Any]] | None = None
+    tool_call_id: str | None = Field(default=None, max_length=100)
+
+
+class ChatCompletionRequest(BaseModel):
+    model: str = Field(min_length=1, max_length=100)
+    messages: list[ChatCompletionMessage] = Field(max_length=200)
+    stream: bool = False
+    temperature: float = Field(default=0.7, ge=0.0, le=2.0)
+    max_tokens: int | None = Field(default=None, gt=0, le=128000)
+    top_p: float | None = Field(default=None, ge=0.0, le=1.0)
+    frequency_penalty: float | None = Field(default=None, ge=-2.0, le=2.0)
+    presence_penalty: float | None = Field(default=None, ge=-2.0, le=2.0)
+    stop: str | list[str] | None = None
+    n: int = Field(default=1, ge=1, le=10)
+    user: str | None = Field(default=None, max_length=200)
+
+
+class ChatCompletionUsage(BaseModel):
+    prompt_tokens: int = Field(ge=0)
+    completion_tokens: int = Field(ge=0)
+    total_tokens: int = Field(ge=0)
+
+
+class ChatCompletionChoice(BaseModel):
+    index: int = Field(ge=0)
+    message: ChatCompletionMessage
+    finish_reason: Literal["stop", "length", "tool_calls", "content_filter"] | None = None
+
+
+class ChatCompletionResponse(BaseModel):
+    id: str = Field(min_length=1, max_length=100)
+    object: Literal["chat.completion"] = "chat.completion"
+    created: int = Field(ge=0)
+    model: str = Field(min_length=1, max_length=100)
+    choices: list[ChatCompletionChoice]
+    usage: ChatCompletionUsage | None = None
+
+
+class ChatCompletionChunkDelta(BaseModel):
+    role: Literal["system", "user", "assistant", "tool"] | None = None
+    content: str | None = None
+    tool_calls: list[dict[str, Any]] | None = None
+
+
+class ChatCompletionChunkChoice(BaseModel):
+    index: int = Field(ge=0)
+    delta: ChatCompletionChunkDelta
+    finish_reason: Literal["stop", "length", "tool_calls", "content_filter"] | None = None
+
+
+class ChatCompletionChunk(BaseModel):
+    id: str = Field(min_length=1, max_length=100)
+    object: Literal["chat.completion.chunk"] = "chat.completion.chunk"
+    created: int = Field(ge=0)
+    model: str = Field(min_length=1, max_length=100)
+    choices: list[ChatCompletionChunkChoice]
+
+
 class SendRequest(BaseModel):
     messages: list[Message] = Field(max_length=200)
     strategy: Strategy = Strategy.BEST
