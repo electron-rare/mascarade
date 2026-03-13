@@ -21,16 +21,23 @@ from pydantic import BaseModel, Field
 
 app = FastAPI(title="Mascarade Apple LLM", version="0.1.0")
 
-HTTP_REQUESTS_TOTAL = Counter(
-    "apple_llm_http_requests_total",
-    "Total HTTP requests served by the apple-llm-api.",
-    ["method", "path", "status"],
-)
-HTTP_REQUEST_DURATION_SECONDS = Histogram(
-    "apple_llm_http_request_duration_seconds",
-    "HTTP request latency for the apple-llm-api.",
-    ["method", "path"],
-)
+# Prometheus metrics - use try/except to handle duplicate registration in tests
+try:
+    HTTP_REQUESTS_TOTAL = Counter(
+        "apple_llm_http_requests_total",
+        "Total HTTP requests served by the apple-llm-api.",
+        ["method", "path", "status"],
+    )
+    HTTP_REQUEST_DURATION_SECONDS = Histogram(
+        "apple_llm_http_request_duration_seconds",
+        "HTTP request latency for the apple-llm-api.",
+        ["method", "path"],
+    )
+except ValueError:
+    # Metrics already registered (happens in tests with multiple imports)
+    from prometheus_client import REGISTRY
+    HTTP_REQUESTS_TOTAL = REGISTRY._names_to_collectors.get("apple_llm_http_requests_total")
+    HTTP_REQUEST_DURATION_SECONDS = REGISTRY._names_to_collectors.get("apple_llm_http_request_duration_seconds")
 
 
 class Message(BaseModel):
@@ -608,6 +615,7 @@ class ModelConfigEntry:
     model_id: str
     model_path: str
     tokenizer_path: str
+    backend: str = "coreml"
     priority: int = 0
     embed_model_path: str = ""
 
@@ -643,6 +651,7 @@ def _parse_models_json() -> list[ModelConfigEntry] | None:
                 model_id=model_id,
                 model_path=model_path,
                 tokenizer_path=tokenizer_path,
+                backend=item.get("backend", "coreml").strip(),
                 priority=item.get("priority", 0),
                 embed_model_path=item.get("embed_model_path", "").strip(),
             )
@@ -671,7 +680,7 @@ def _get_all_model_configs() -> list[RuntimeConfig]:
         configs = []
         for entry in model_entries:
             config = RuntimeConfig(
-                backend=backend,
+                backend=_normalize_backend(entry.backend),
                 model_id=entry.model_id,
                 model_path=entry.model_path,
                 embed_model_path=entry.embed_model_path,
@@ -721,6 +730,23 @@ def _normalize_compute_units(raw: str | None) -> str:
     return aliases.get(value, "cpu_and_ne")
 
 
+def _get_model_priority(model_id: str) -> int:
+    """Get the priority for a specific model_id from the models config.
+
+    Args:
+        model_id: The model identifier
+
+    Returns:
+        The priority (int) for the model, or 0 if not found in config
+    """
+    model_entries = _parse_models_json()
+    if model_entries:
+        for entry in model_entries:
+            if entry.model_id == model_id:
+                return entry.priority
+    return 0
+
+
 def _runtime_config() -> RuntimeConfig:
     """Get the primary runtime configuration.
 
@@ -735,7 +761,7 @@ def _runtime_config() -> RuntimeConfig:
         primary_entry = sorted_entries[0]
 
         return RuntimeConfig(
-            backend=_normalize_backend(os.getenv("APPLE_LLM_BACKEND")),
+            backend=_normalize_backend(primary_entry.backend),
             model_id=primary_entry.model_id,
             model_path=primary_entry.model_path,
             embed_model_path=primary_entry.embed_model_path,
@@ -1825,11 +1851,8 @@ async def models() -> dict[str, Any]:
     for config in all_configs:
         is_loaded = config.model_id in loaded_model_ids
 
-        # Try to get priority from model_manager if registered, otherwise use 0
-        try:
-            priority = _model_manager.get_model_priority(config.model_id)
-        except ValueError:
-            priority = 0
+        # Get priority from config (falls back to 0 if not in models JSON)
+        priority = _get_model_priority(config.model_id)
 
         models_info.append({
             "model_id": config.model_id,
@@ -1917,7 +1940,9 @@ async def generate(req: GenerateRequest):
     try:
         # Use model_id from request or fall back to config default
         model_id = req.model or config.model_id
-        runtime = _model_manager.load_model(model_id, config)
+        # Get the priority for this model from the config
+        priority = _get_model_priority(model_id)
+        runtime = _model_manager.load_model(model_id, config, priority=priority)
         return runtime.generate(req)
     except HTTPException:
         raise

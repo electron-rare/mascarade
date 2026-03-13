@@ -47,6 +47,10 @@ class FakeMultiModelRuntime:
         self._load_time = time.time()
         self._generate_count = 0
 
+    def check_ready(self) -> None:
+        """Check if runtime is ready - required by RuntimeState protocol."""
+        pass
+
     def dependency_versions(self) -> dict[str, str]:
         return {"numpy": "test", "transformers": "test", "coremltools": "test"}
 
@@ -96,12 +100,14 @@ async def test_concurrent_model_serving(monkeypatch, service_module):
         {
             "model_id": "apple-4b",
             "model_path": "/tmp/model-4b.mlpackage",
+                "tokenizer_path": "/tmp/tokenizer",
             "backend": "coreml",
             "priority": 1,
         },
         {
             "model_id": "apple-0.5b",
             "model_path": "/tmp/model-0.5b.mlpackage",
+                "tokenizer_path": "/tmp/tokenizer",
             "backend": "coreml",
             "priority": 2,
         },
@@ -187,12 +193,14 @@ async def test_hot_swap_when_memory_constrained(monkeypatch, service_module):
         {
             "model_id": "apple-large",
             "model_path": "/tmp/model-large.mlpackage",
+                "tokenizer_path": "/tmp/tokenizer",
             "backend": "coreml",
             "priority": 1,
         },
         {
             "model_id": "apple-small",
             "model_path": "/tmp/model-small.mlpackage",
+                "tokenizer_path": "/tmp/tokenizer",
             "backend": "coreml",
             "priority": 2,
         },
@@ -280,18 +288,21 @@ async def test_priority_based_eviction(monkeypatch, service_module):
         {
             "model_id": "apple-high-priority",
             "model_path": "/tmp/high.mlpackage",
+                "tokenizer_path": "/tmp/tokenizer",
             "backend": "coreml",
             "priority": 10,
         },
         {
             "model_id": "apple-medium-priority",
             "model_path": "/tmp/medium.mlpackage",
+                "tokenizer_path": "/tmp/tokenizer",
             "backend": "coreml",
             "priority": 5,
         },
         {
             "model_id": "apple-low-priority",
             "model_path": "/tmp/low.mlpackage",
+                "tokenizer_path": "/tmp/tokenizer",
             "backend": "coreml",
             "priority": 1,
         },
@@ -357,12 +368,14 @@ async def test_model_list_endpoint(monkeypatch, service_module):
         {
             "model_id": "model-a",
             "model_path": "/tmp/a.mlpackage",
+                "tokenizer_path": "/tmp/tokenizer",
             "backend": "coreml",
             "priority": 1,
         },
         {
             "model_id": "model-b",
             "model_path": "/tmp/b.mlpackage",
+                "tokenizer_path": "/tmp/tokenizer",
             "backend": "mlx",
             "priority": 2,
         },
@@ -425,6 +438,7 @@ async def test_usage_tracking_across_requests(monkeypatch, service_module):
         {
             "model_id": "tracked-model",
             "model_path": "/tmp/tracked.mlpackage",
+                "tokenizer_path": "/tmp/tokenizer",
             "backend": "coreml",
             "priority": 1,
         },
@@ -470,8 +484,10 @@ async def test_swap_performance_benchmark(monkeypatch, service_module):
     - Multiple swaps maintain acceptable performance
     """
     models_config = [
-        {"model_id": "model-1", "model_path": "/tmp/1.mlpackage", "backend": "coreml", "priority": 1},
-        {"model_id": "model-2", "model_path": "/tmp/2.mlpackage", "backend": "coreml", "priority": 2},
+        {"model_id": "model-1", "model_path": "/tmp/1.mlpackage",
+                "tokenizer_path": "/tmp/tokenizer", "backend": "coreml", "priority": 1},
+        {"model_id": "model-2", "model_path": "/tmp/2.mlpackage",
+                "tokenizer_path": "/tmp/tokenizer", "backend": "coreml", "priority": 2},
     ]
     monkeypatch.setenv("APPLE_LLM_MODELS_JSON", str(models_config).replace("'", '"'))
     monkeypatch.setenv("APPLE_LLM_MAX_CONCURRENT_MODELS", "1")
