@@ -758,6 +758,12 @@ export const coreClient = {
         email: string;
         role_id: number;
         is_active: boolean;
+        rate_limits?: {
+          requests_per_minute?: number | null;
+          requests_per_hour?: number | null;
+          requests_per_day?: number | null;
+          tokens_per_day?: number | null;
+        } | null;
       }>;
     });
   },

@@ -5,12 +5,20 @@
 
 import { coreClient } from "../client/core.js";
 
+export interface RateLimits {
+  requests_per_minute?: number | null;
+  requests_per_hour?: number | null;
+  requests_per_day?: number | null;
+  tokens_per_day?: number | null;
+}
+
 export interface AuthUser {
   id: number;
   username: string;
   email: string;
   role_id: number;
   is_active: boolean;
+  rate_limits?: RateLimits | null;
 }
 
 /**
