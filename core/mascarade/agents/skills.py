@@ -261,7 +261,7 @@ pcb_routing_kicad = Agent(
         "Tu connais les formats KiCad 8/9 (.kicad_sch, .kicad_pcb, .kicad_mod). "
         "Tu peux générer des footprints, des symboles et des netlists."
     ),
-    strategy=Strategy.BEST,
+    strategy=Strategy.DOMAIN,
     preferred_provider="ollama",
     preferred_model="mascarade-kicad",
     temperature=0.2,

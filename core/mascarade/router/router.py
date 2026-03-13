@@ -10,6 +10,10 @@ from enum import StrEnum
 from mascarade.cache.cache import ResponseCache
 from mascarade.load_balancer.balancer import LoadBalancer
 from mascarade.metrics.tracker import MetricsTracker
+from mascarade.observability.langfuse import (
+    start_langfuse_generation,
+    update_langfuse_generation,
+)
 from mascarade.router.fallback import FallbackState
 from mascarade.router.providers.base import LLMProvider, LLMResponse
 
@@ -19,6 +23,7 @@ logger = logging.getLogger("mascarade.router")
 class Strategy(StrEnum):
     BEST = "best"
     CHEAPEST = "cheapest"
+    DOMAIN = "domain"
     FASTEST = "fastest"
     SPECIFIC = "specific"
 
@@ -101,6 +106,16 @@ class Router:
             best_value = min(sum(p.cost_per_million) for p in providers)
             return [p for p in providers if sum(p.cost_per_million) == best_value]
 
+        if strategy == Strategy.DOMAIN:
+            # Prefer Ollama provider for domain-specific mascarade-* models
+            # If Ollama not available, fallback to BEST strategy
+            ollama_providers = [p for p in providers if p.name == "ollama"]
+            if ollama_providers:
+                return ollama_providers
+            # Fallback to BEST strategy
+            best_value = max(p.quality_rank for p in providers)
+            return [p for p in providers if p.quality_rank == best_value]
+
         if strategy == Strategy.FASTEST:
             best_value = min(p.speed_rank for p in providers)
             return [p for p in providers if p.speed_rank == best_value]
@@ -163,6 +178,7 @@ class Router:
         response_format: dict | None = None,
         temperature: float = 0.7,
         max_tokens: int = 4096,
+        domain: str | None = None,
     ) -> LLMResponse:
         strategy = Strategy(strategy)
         strict_provider = strategy == Strategy.SPECIFIC and provider is not None
@@ -176,6 +192,7 @@ class Router:
             response_format=response_format,
             temperature=temperature,
             max_tokens=max_tokens,
+            domain=domain,
         )
         if cached and (not strict_provider or cached.provider == provider):
             return LLMResponse(
@@ -210,7 +227,43 @@ class Router:
                 }
                 if response_format is not None and selected.name in {"mistral", "ollama"}:
                     send_kwargs["response_format"] = response_format
-                response = await selected.send(messages, **send_kwargs)
+
+                # Prepare Langfuse trace metadata
+                trace_metadata = {
+                    "strategy": strategy.value,
+                    "provider": selected.name,
+                    "domain": domain,
+                    "temperature": temperature,
+                    "max_tokens": max_tokens,
+                }
+                if domain and strategy == Strategy.DOMAIN:
+                    trace_metadata["domain_routing"] = True
+                    trace_metadata["domain_detected"] = domain
+
+                trace_model = model or "default"
+                trace_input = {
+                    "messages": messages,
+                    "system": system,
+                    **send_kwargs,
+                }
+
+                # Wrap provider call with Langfuse tracing
+                with start_langfuse_generation(
+                    name="router.send",
+                    model=trace_model,
+                    input=trace_input,
+                    metadata=trace_metadata,
+                ) as generation:
+                    response = await selected.send(messages, **send_kwargs)
+
+                    # Update trace with response data
+                    if generation is not None:
+                        update_langfuse_generation(
+                            generation,
+                            output=response.content,
+                            model=response.model,
+                            usage=response.usage,
+                        )
             except Exception as exc:
                 elapsed = time.perf_counter() - started_at
                 logger.warning(
@@ -285,6 +338,7 @@ class Router:
                     response_format=response_format,
                     temperature=temperature,
                     max_tokens=max_tokens,
+                    domain=domain,
                 )
             return response
 
@@ -304,6 +358,7 @@ class Router:
         system: str | None = None,
         temperature: float = 0.7,
         max_tokens: int = 4096,
+        domain: str | None = None,
     ) -> AsyncIterator[str]:
         strategy = Strategy(strategy)
         strict_provider = strategy == Strategy.SPECIFIC and provider is not None

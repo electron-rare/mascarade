@@ -1,6 +1,7 @@
 """Agent SPICE — Expert en simulation de circuits électroniques."""
 
 from mascarade.agents.base import Agent
+from mascarade.router.router import Strategy
 
 
 class SpiceAgent(Agent):
@@ -19,6 +20,7 @@ class SpiceAgent(Agent):
             ),
             preferred_provider="mistral",
             preferred_model="mistral-large-latest",
+            strategy=Strategy.DOMAIN,
             tools=["python", "spice_simulator"],
             temperature=0.1,
             max_tokens=3072,
