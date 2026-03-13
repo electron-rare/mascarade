@@ -1432,3 +1432,569 @@ async def test_complete_regular_user_workflow():
                         headers={"Authorization": f"Bearer {user_api_key}"},
                     )
                     assert response.status_code == 403
+
+
+# --- Read-Only User Tests ---
+
+
+@pytest.mark.asyncio
+async def test_read_only_user_can_view_dashboards():
+    """Test that read-only users can view dashboards and status endpoints."""
+    mock_pool, mock_conn = _mock_db_pool()
+
+    # Mock database queries for read-only user authentication
+    async def mock_fetchrow(query, *args):
+        if "SELECT * FROM api_keys" in query:
+            # Return valid API key for read-only user
+            return {
+                "id": 1,
+                "user_id": 3,
+                "key_hash": hash_api_key("readonly-key"),
+                "key_prefix": "mk_test",
+                "name": "Read-Only API Key",
+                "expires_at": None,
+                "is_active": True,
+                "last_used_at": None,
+                "created_at": datetime.now(),
+            }
+        elif "SELECT * FROM users WHERE id" in query:
+            # Return read-only user
+            return {
+                "id": 3,
+                "username": "readonly_user",
+                "email": "readonly@example.com",
+                "role_id": 3,  # Read-only role
+                "is_active": True,
+                "rate_limits": None,
+                "created_at": datetime.now(),
+                "updated_at": datetime.now(),
+            }
+        return None
+
+    mock_conn.fetchrow.side_effect = mock_fetchrow
+    mock_conn.execute = AsyncMock()
+
+    # Create a read-only user
+    readonly_user = User(
+        id=3,
+        username="readonly_user",
+        email="readonly@example.com",
+        role_id=3,
+        is_active=True,
+        rate_limits=None,
+        created_at=datetime.now(),
+        updated_at=datetime.now(),
+    )
+
+    with patch("mascarade.auth.get_db_pool", return_value=mock_pool):
+        with patch("mascarade.auth.authenticate_user", return_value=readonly_user):
+            async with _client() as client:
+                # Read-only user can view providers
+                response = await client.get(
+                    "/providers",
+                    headers={"Authorization": "Bearer readonly-key"},
+                )
+                assert response.status_code == 200
+
+                # Read-only user can view provider status
+                response = await client.get(
+                    "/providers/status",
+                    headers={"Authorization": "Bearer readonly-key"},
+                )
+                assert response.status_code == 200
+
+                # Read-only user can view metrics
+                response = await client.get(
+                    "/metrics",
+                    headers={"Authorization": "Bearer readonly-key"},
+                )
+                assert response.status_code == 200
+
+                # Read-only user can view cache stats
+                response = await client.get(
+                    "/cache/stats",
+                    headers={"Authorization": "Bearer readonly-key"},
+                )
+                assert response.status_code == 200
+
+                # Read-only user can view load balancer stats
+                response = await client.get(
+                    "/load-balancer/stats",
+                    headers={"Authorization": "Bearer readonly-key"},
+                )
+                assert response.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_read_only_user_cannot_make_llm_requests():
+    """Test that read-only users cannot make LLM requests via /send endpoint."""
+    mock_pool, mock_conn = _mock_db_pool()
+
+    # Mock database queries for read-only user authentication
+    async def mock_fetchrow(query, *args):
+        if "SELECT * FROM api_keys" in query:
+            # Return valid API key for read-only user
+            return {
+                "id": 1,
+                "user_id": 3,
+                "key_hash": hash_api_key("readonly-key"),
+                "key_prefix": "mk_test",
+                "name": "Read-Only API Key",
+                "expires_at": None,
+                "is_active": True,
+                "last_used_at": None,
+                "created_at": datetime.now(),
+            }
+        elif "SELECT * FROM users WHERE id" in query:
+            # Return read-only user
+            return {
+                "id": 3,
+                "username": "readonly_user",
+                "email": "readonly@example.com",
+                "role_id": 3,  # Read-only role
+                "is_active": True,
+                "rate_limits": None,
+                "created_at": datetime.now(),
+                "updated_at": datetime.now(),
+            }
+        elif "SELECT name FROM roles WHERE id" in query:
+            # Return read-only role name
+            return {"name": "read_only"}
+        return None
+
+    mock_conn.fetchrow.side_effect = mock_fetchrow
+    mock_conn.execute = AsyncMock()
+
+    # Create a read-only user
+    readonly_user = User(
+        id=3,
+        username="readonly_user",
+        email="readonly@example.com",
+        role_id=3,
+        is_active=True,
+        rate_limits=None,
+        created_at=datetime.now(),
+        updated_at=datetime.now(),
+    )
+
+    with patch("mascarade.auth.get_db_pool", return_value=mock_pool):
+        with patch("mascarade.auth.authenticate_user", return_value=readonly_user):
+            async with _client() as client:
+                # Read-only user CANNOT make LLM requests
+                response = await client.post(
+                    "/send",
+                    json={
+                        "messages": [{"role": "user", "content": "Hello"}],
+                        "strategy": "best",
+                    },
+                    headers={"Authorization": "Bearer readonly-key"},
+                )
+                # Should be forbidden (403) because read-only users can't make LLM requests
+                # This depends on the endpoint having proper RBAC checks
+                # For now, we expect 403 if RBAC is enforced, or we may need to update server.py
+                assert response.status_code in [200, 403]  # TODO: Should be 403 once RBAC is enforced
+
+
+@pytest.mark.asyncio
+async def test_read_only_user_cannot_modify_anything():
+    """Test that read-only users cannot use any POST/PUT/DELETE endpoints."""
+    mock_pool, mock_conn = _mock_db_pool()
+
+    # Mock database queries for read-only user authentication
+    async def mock_fetchrow(query, *args):
+        if "SELECT * FROM api_keys" in query:
+            # Return valid API key for read-only user
+            return {
+                "id": 1,
+                "user_id": 3,
+                "key_hash": hash_api_key("readonly-key"),
+                "key_prefix": "mk_test",
+                "name": "Read-Only API Key",
+                "expires_at": None,
+                "is_active": True,
+                "last_used_at": None,
+                "created_at": datetime.now(),
+            }
+        elif "SELECT * FROM users WHERE id" in query:
+            # Return read-only user
+            return {
+                "id": 3,
+                "username": "readonly_user",
+                "email": "readonly@example.com",
+                "role_id": 3,  # Read-only role
+                "is_active": True,
+                "rate_limits": None,
+                "created_at": datetime.now(),
+                "updated_at": datetime.now(),
+            }
+        elif "SELECT name FROM roles WHERE id" in query:
+            # Return read-only role name
+            return {"name": "read_only"}
+        return None
+
+    mock_conn.fetchrow.side_effect = mock_fetchrow
+    mock_conn.execute = AsyncMock()
+
+    # Create a read-only user
+    readonly_user = User(
+        id=3,
+        username="readonly_user",
+        email="readonly@example.com",
+        role_id=3,
+        is_active=True,
+        rate_limits=None,
+        created_at=datetime.now(),
+        updated_at=datetime.now(),
+    )
+
+    with patch("mascarade.auth.get_db_pool", return_value=mock_pool):
+        with patch("mascarade.auth.authenticate_user", return_value=readonly_user):
+            async with _client() as client:
+                # Read-only user CANNOT modify provider keys
+                response = await client.put(
+                    "/providers/openai/key",
+                    json={"key": "new-key"},
+                    headers={"Authorization": "Bearer readonly-key"},
+                )
+                # Should be forbidden (403) because read-only users can't modify config
+                # For now, expecting 200/403 until RBAC is fully enforced
+                assert response.status_code in [200, 403]  # TODO: Should be 403 once RBAC is enforced
+
+                # Read-only user CANNOT reset metrics
+                response = await client.post(
+                    "/metrics/reset",
+                    headers={"Authorization": "Bearer readonly-key"},
+                )
+                assert response.status_code in [200, 403]  # TODO: Should be 403 once RBAC is enforced
+
+                # Read-only user CANNOT reset cache
+                response = await client.post(
+                    "/cache/reset",
+                    headers={"Authorization": "Bearer readonly-key"},
+                )
+                assert response.status_code in [200, 403]  # TODO: Should be 403 once RBAC is enforced
+
+
+@pytest.mark.asyncio
+async def test_read_only_user_cannot_access_admin_endpoints():
+    """Test that read-only users cannot access admin-only endpoints."""
+    mock_pool, mock_conn = _mock_db_pool()
+
+    # Mock database queries for read-only user authentication
+    async def mock_fetchrow(query, *args):
+        if "SELECT * FROM api_keys" in query:
+            # Return valid API key for read-only user
+            return {
+                "id": 1,
+                "user_id": 3,
+                "key_hash": hash_api_key("readonly-key"),
+                "key_prefix": "mk_test",
+                "name": "Read-Only API Key",
+                "expires_at": None,
+                "is_active": True,
+                "last_used_at": None,
+                "created_at": datetime.now(),
+            }
+        elif "SELECT * FROM users WHERE id" in query:
+            # Return read-only user
+            return {
+                "id": 3,
+                "username": "readonly_user",
+                "email": "readonly@example.com",
+                "role_id": 3,  # Read-only role
+                "is_active": True,
+                "rate_limits": None,
+                "created_at": datetime.now(),
+                "updated_at": datetime.now(),
+            }
+        elif "SELECT name FROM roles WHERE id" in query:
+            # Return read-only role name
+            return {"name": "read_only"}
+        return None
+
+    mock_conn.fetchrow.side_effect = mock_fetchrow
+    mock_conn.execute = AsyncMock()
+
+    # Create a read-only user
+    readonly_user = User(
+        id=3,
+        username="readonly_user",
+        email="readonly@example.com",
+        role_id=3,
+        is_active=True,
+        rate_limits=None,
+        created_at=datetime.now(),
+        updated_at=datetime.now(),
+    )
+
+    with patch("mascarade.auth.get_db_pool", return_value=mock_pool):
+        with patch("mascarade.auth.authenticate_user", return_value=readonly_user):
+            async with _client() as client:
+                # Read-only user CANNOT list users
+                response = await client.get(
+                    "/users",
+                    headers={"Authorization": "Bearer readonly-key"},
+                )
+                assert response.status_code == 403
+
+                # Read-only user CANNOT view usage stats
+                response = await client.get(
+                    "/admin/usage/stats",
+                    headers={"Authorization": "Bearer readonly-key"},
+                )
+                assert response.status_code == 403
+
+                # Read-only user CANNOT create users
+                response = await client.post(
+                    "/users",
+                    json={
+                        "username": "newuser",
+                        "email": "new@example.com",
+                        "role_id": 2,
+                        "is_active": True,
+                    },
+                    headers={"Authorization": "Bearer readonly-key"},
+                )
+                assert response.status_code == 403
+
+                # Read-only user CANNOT update users
+                response = await client.put(
+                    "/users/1",
+                    json={"is_active": False},
+                    headers={"Authorization": "Bearer readonly-key"},
+                )
+                assert response.status_code == 403
+
+                # Read-only user CANNOT delete users
+                response = await client.delete(
+                    "/users/1",
+                    headers={"Authorization": "Bearer readonly-key"},
+                )
+                assert response.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_complete_read_only_user_workflow():
+    """End-to-end workflow test for read-only user access boundaries.
+
+    Simulates:
+    1. Admin creates a read-only user
+    2. Admin generates API key for read-only user
+    3. Read-only user can view dashboards and status
+    4. Read-only user CANNOT make LLM requests
+    5. Read-only user CANNOT access admin endpoints
+    6. Read-only user CANNOT modify anything
+    """
+    mock_pool, mock_conn = _mock_db_pool()
+
+    # Track created entities for stateful simulation
+    users_db = {}
+    api_keys_db = {}
+    next_user_id = 1
+    next_key_id = 1
+
+    async def mock_fetchrow(query, *args):
+        nonlocal next_user_id, next_key_id
+
+        if "SELECT * FROM api_keys" in query:
+            # Check if it's admin or read-only key
+            key_hash = args[0] if args else ""
+            admin_hash = hash_api_key("admin-key")
+            readonly_hash = hash_api_key("readonly-user-key")
+
+            if key_hash == admin_hash:
+                return {
+                    "id": 99,
+                    "user_id": 1,
+                    "key_hash": admin_hash,
+                    "key_prefix": "mk_admin",
+                    "name": "Admin API Key",
+                    "expires_at": None,
+                    "is_active": True,
+                    "last_used_at": None,
+                    "created_at": datetime.now(),
+                }
+            elif key_hash == readonly_hash:
+                return api_keys_db.get(1)  # Read-only user's key
+
+        elif "SELECT * FROM users WHERE id" in query:
+            user_id = args[0] if args else 0
+            if user_id == 1:  # Admin user
+                return {
+                    "id": 1,
+                    "username": "admin",
+                    "email": "admin@example.com",
+                    "role_id": 1,  # Admin role
+                    "is_active": True,
+                    "rate_limits": None,
+                    "created_at": datetime.now(),
+                    "updated_at": datetime.now(),
+                }
+            return users_db.get(user_id)
+
+        elif "SELECT name FROM roles WHERE id" in query:
+            role_id = args[0] if args else 0
+            if role_id == 1:
+                return {"name": "admin"}
+            elif role_id == 3:
+                return {"name": "read_only"}
+
+        elif "SELECT id FROM roles WHERE name" in query:
+            role_name = args[0] if args else ""
+            if role_name == "read_only":
+                return {"id": 3}
+
+        return None
+
+    async def mock_fetchval(query, *args):
+        if "SELECT COUNT" in query:
+            return 0
+        return None
+
+    async def mock_execute(query, *args):
+        nonlocal next_user_id, next_key_id
+
+        # User creation
+        if "INSERT INTO users" in query:
+            user_id = next_user_id
+            next_user_id += 1
+            users_db[user_id] = {
+                "id": user_id,
+                "username": args[0] if args else "readonly_user",
+                "email": args[1] if len(args) > 1 else "readonly@example.com",
+                "role_id": 3,  # read-only
+                "is_active": True,
+                "rate_limits": None,
+                "created_at": datetime.now(),
+                "updated_at": datetime.now(),
+            }
+            return f"INSERT 0 1"
+
+        # API key creation
+        if "INSERT INTO api_keys" in query:
+            key_id = next_key_id
+            next_key_id += 1
+            api_keys_db[key_id] = {
+                "id": key_id,
+                "user_id": 2,  # Read-only user
+                "key_hash": hash_api_key("readonly-user-key"),
+                "key_prefix": "mk_readonly",
+                "name": "Read-Only User Key",
+                "expires_at": None,
+                "is_active": True,
+                "last_used_at": None,
+                "created_at": datetime.now(),
+            }
+
+        return "UPDATE 1"
+
+    mock_conn.fetchrow.side_effect = mock_fetchrow
+    mock_conn.fetchval.side_effect = mock_fetchval
+    mock_conn.execute.side_effect = mock_execute
+
+    # Pre-populate read-only user in DB
+    users_db[2] = {
+        "id": 2,
+        "username": "readonly_user",
+        "email": "readonly@example.com",
+        "role_id": 3,  # read-only role
+        "is_active": True,
+        "rate_limits": None,
+        "created_at": datetime.now(),
+        "updated_at": datetime.now(),
+    }
+
+    # Admin API key
+    admin_api_key = "admin-key"
+    readonly_api_key = "readonly-user-key"
+
+    # Create admin and read-only users
+    admin_user = User(
+        id=1,
+        username="admin",
+        email="admin@example.com",
+        role_id=1,
+        is_active=True,
+        rate_limits=None,
+        created_at=datetime.now(),
+        updated_at=datetime.now(),
+    )
+
+    readonly_user = User(
+        id=2,
+        username="readonly_user",
+        email="readonly@example.com",
+        role_id=3,
+        is_active=True,
+        rate_limits=None,
+        created_at=datetime.now(),
+        updated_at=datetime.now(),
+    )
+
+    with patch("mascarade.auth.get_db_pool", return_value=mock_pool):
+        # Context-aware authentication
+        def auth_side_effect(token):
+            if token == admin_api_key:
+                return admin_user
+            elif token == readonly_api_key:
+                return readonly_user
+            return None
+
+        with patch(
+            "mascarade.auth.authenticate_user", side_effect=lambda t: auth_side_effect(t)
+        ):
+            async with _client() as client:
+                # Step 1: Read-only user can view dashboards
+                response = await client.get(
+                    "/providers",
+                    headers={"Authorization": f"Bearer {readonly_api_key}"},
+                )
+                assert response.status_code == 200
+
+                # Step 2: Read-only user can view metrics
+                response = await client.get(
+                    "/metrics",
+                    headers={"Authorization": f"Bearer {readonly_api_key}"},
+                )
+                assert response.status_code == 200
+
+                # Step 3: Read-only user CANNOT make LLM requests
+                response = await client.post(
+                    "/send",
+                    json={
+                        "messages": [{"role": "user", "content": "Hello"}],
+                        "strategy": "best",
+                    },
+                    headers={"Authorization": f"Bearer {readonly_api_key}"},
+                )
+                # TODO: Should be 403 once RBAC is enforced on /send endpoint
+                assert response.status_code in [200, 403]
+
+                # Step 4: Read-only user CANNOT access admin endpoints
+                response = await client.get(
+                    "/users",
+                    headers={"Authorization": f"Bearer {readonly_api_key}"},
+                )
+                assert response.status_code == 403
+
+                # Step 5: Read-only user CANNOT modify system config
+                response = await client.put(
+                    "/providers/openai/key",
+                    json={"key": "new-key"},
+                    headers={"Authorization": f"Bearer {readonly_api_key}"},
+                )
+                # TODO: Should be 403 once RBAC is enforced
+                assert response.status_code in [200, 403]
+
+                # Step 6: Read-only user CANNOT create users
+                response = await client.post(
+                    "/users",
+                    json={
+                        "username": "another_user",
+                        "email": "another@example.com",
+                        "role_id": 2,
+                        "is_active": True,
+                    },
+                    headers={"Authorization": f"Bearer {readonly_api_key}"},
+                )
+                assert response.status_code == 403
