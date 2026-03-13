@@ -105,18 +105,23 @@ def _resolve_role(token: str) -> AuthRole | None:
 
 
 def _required_role_for_request(method: str, path: str) -> AuthRole:
+    normalized_method = (method or "").upper()
     normalized_path = (path or "").lower()
 
     if normalized_path.startswith("/api-keys"):
         return "admin"
-    if normalized_path.startswith("/providers") and method != "GET":
+    if normalized_path.startswith("/providers") and normalized_method not in {"GET", "HEAD", "OPTIONS"}:
+        return "admin"
+    if normalized_path.startswith("/runtime-secrets"):
         return "admin"
     if normalized_path.startswith("/mcp/industrial"):
         return "admin"
-    if normalized_path.startswith("/cluster/forward/send"):
+    if normalized_path.startswith("/cluster/forward"):
         return "admin"
+    if normalized_path.startswith("/cluster") or normalized_path.startswith("/p2p"):
+        return "viewer" if normalized_method in {"GET", "HEAD", "OPTIONS"} else "operator"
 
-    if method in {"GET", "HEAD", "OPTIONS"}:
+    if normalized_method in {"GET", "HEAD", "OPTIONS"}:
         return "viewer"
     return "operator"
 

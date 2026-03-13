@@ -190,7 +190,8 @@ async def test_cluster_manager_forward_send_returns_remote_payload(monkeypatch):
         assert path == "/cluster/node/send"
         assert json == {
             "messages": [{"role": "user", "content": "hello"}],
-            "strategy": "best",
+            "strategy": "routellm",
+            "routing_policy": "strong",
             "provider": "ollama",
             "model": "llama3.2:3b",
             "system": None,
@@ -211,7 +212,8 @@ async def test_cluster_manager_forward_send_returns_remote_payload(monkeypatch):
         peer_id="node-gpu",
         payload={
             "messages": [{"role": "user", "content": "hello"}],
-            "strategy": "best",
+            "strategy": "routellm",
+            "routing_policy": "strong",
             "provider": "ollama",
             "model": "llama3.2:3b",
             "system": None,
@@ -273,7 +275,8 @@ async def test_cluster_manager_forward_send_uses_libp2p_when_available(monkeypat
         peer_id="node-gpu",
         payload={
             "messages": [{"role": "user", "content": "hello"}],
-            "strategy": "best",
+            "strategy": "routellm",
+            "routing_policy": "strong",
             "provider": "ollama",
             "model": "llama3.2:3b",
             "system": None,
@@ -287,12 +290,14 @@ async def test_cluster_manager_forward_send_uses_libp2p_when_available(monkeypat
             "12D3KooWRemotePeer",
             {
                 "messages": [{"role": "user", "content": "hello"}],
-                "strategy": "best",
+                "strategy": "routellm",
+                "routing_policy": "strong",
                 "provider": "ollama",
                 "model": "llama3.2:3b",
                 "system": None,
                 "temperature": 0.7,
                 "max_tokens": 2048,
+                "__cluster_token": "cluster-key-123456",
             },
         )
     ]
@@ -461,7 +466,8 @@ async def test_cluster_manager_explicit_send_can_target_discovered_mdns_peer(mon
         peer_id="node-mdns",
         payload={
             "messages": [{"role": "user", "content": "hello"}],
-            "strategy": "best",
+            "strategy": "routellm",
+            "routing_policy": "strong",
             "provider": "ollama",
             "model": "llama3.2:3b",
             "system": None,

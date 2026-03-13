@@ -6,7 +6,9 @@ import os
 import sys
 import signal
 
-sys.path.insert(0, os.environ.get('PYTHONPATH', os.path.expanduser('~/mascarade/core')))
+_core_dir = os.environ.get('PYTHONPATH', os.path.expanduser('~/mascarade/core'))
+if _core_dir not in sys.path:
+    sys.path.append(_core_dir)  # append, not insert, to let venv packages take priority
 
 from mascarade.p2p.asyncio_node import MascaradeP2PNode
 
@@ -15,7 +17,7 @@ LISTEN_PORT = int(os.environ.get('P2P_LISTEN_PORT', '4001'))
 KEY_DIR = os.path.expanduser(os.environ.get('P2P_KEY_DIR', '~/.mascarade/p2p'))
 BOOTSTRAP_ID = os.environ.get('P2P_BOOTSTRAP_ID', 'QmTO5AYG6ZT3EU3UWVLNWU2FFFHWKUJR7S')
 BOOTSTRAP_HOST = os.environ.get('P2P_BOOTSTRAP_HOST', '192.168.0.119')
-BOOTSTRAP_PORT = int(os.environ.get('P2P_BOOTSTRAP_PORT', '4001'))
+BOOTSTRAP_PORT = int(os.environ.get('P2P_BOOTSTRAP_PORT', '4002'))
 CAPABILITIES = os.environ.get('P2P_CAPABILITIES', 'compute').split(',')
 ROLE = os.environ.get('P2P_ROLE', 'worker')
 LABEL = os.environ.get('P2P_LABEL', 'Worker')
