@@ -699,7 +699,9 @@ _category_ids_from_list() {
     local category="$1"; shift
     local id
     for id in "$@"; do
-        [[ "${SVC_CAT[$id]:-}" == "$category" ]] && printf '%s\n' "$id"
+        if [[ "${SVC_CAT[$id]:-}" == "$category" ]]; then
+            printf '%s\n' "$id"
+        fi
     done
 }
 
@@ -713,7 +715,10 @@ show_service_selection_summary() {
     echo ""
     echo -e "  ${BOLD}Selection courante :${NC}"
     for category in mascarade tools infra; do
-        mapfile -t category_ids < <(_category_ids_from_list "$category" "${target_ids[@]}")
+        category_ids=()
+        while IFS= read -r category_id; do
+            [[ -n "$category_id" ]] && category_ids+=("$category_id")
+        done < <(_category_ids_from_list "$category" "${target_ids[@]}")
         [[ ${#category_ids[@]} -eq 0 ]] && continue
 
         local category_selected=0
@@ -875,7 +880,10 @@ checkbox_select_ids() {
 
     local category
     for category in mascarade tools infra; do
-        mapfile -t category_ids < <(_category_ids_from_list "$category" "${target_ids[@]}")
+        category_ids=()
+        while IFS= read -r category_id; do
+            [[ -n "$category_id" ]] && category_ids+=("$category_id")
+        done < <(_category_ids_from_list "$category" "${target_ids[@]}")
         [[ ${#category_ids[@]} -eq 0 ]] && continue
 
         if _has_gum; then
@@ -1130,6 +1138,96 @@ backup_file() {
     else
         dbg "backup_file: $file n'existe pas, skip"
     fi
+}
+
+# ── Snapshot/restore setup config files ──
+setup_snapshot_root() {
+    echo "${REPO_DIR:-$(pwd)}/.tmp/setup-backups/setup-snapshots"
+}
+
+_setup_snapshot_name() {
+    echo "setup-$(date +%Y%m%d_%H%M%S)-${RANDOM}"
+}
+
+list_setup_snapshots() {
+    local root
+    root="$(setup_snapshot_root)"
+    if [[ ! -d "$root" ]]; then
+        return 1
+    fi
+    # shellcheck disable=SC2012
+    ls -1dt "$root"/setup-* 2>/dev/null
+}
+
+latest_setup_snapshot() {
+    local latest
+    latest="$(list_setup_snapshots | head -1 || true)"
+    if [[ -n "$latest" ]]; then
+        echo "$latest"
+        return 0
+    fi
+    return 1
+}
+
+create_setup_snapshot() {
+    local snapshot_dir="$1"
+    mkdir -p "$snapshot_dir"
+    local created_any=false
+
+    if [[ -f "$REPO_DIR/.env" ]]; then
+        cp "$REPO_DIR/.env" "$snapshot_dir/.env"
+        created_any=true
+    fi
+    if [[ -f "$REPO_DIR/docker-compose.yml" ]]; then
+        cp "$REPO_DIR/docker-compose.yml" "$snapshot_dir/docker-compose.yml"
+        created_any=true
+    fi
+
+    if [[ "$created_any" == true ]]; then
+        echo "$snapshot_dir"
+        return 0
+    fi
+    warn "Aucune configuration a sauvegarder dans le snapshot ($snapshot_dir vide)"
+    return 1
+}
+
+create_setup_snapshot_if_needed() {
+    local snapshot_root
+    snapshot_root="$(setup_snapshot_root)"
+    mkdir -p "$snapshot_root"
+    local snapshot_id
+    snapshot_id="$(_setup_snapshot_name)"
+    local snapshot_dir="$snapshot_root/$snapshot_id"
+
+    if created_path="$(create_setup_snapshot "$snapshot_dir")"; then
+        ok "Snapshot config cree: $created_path"
+        echo "$created_path"
+        return 0
+    fi
+    return 1
+}
+
+restore_setup_snapshot() {
+    local snapshot_dir="${1:-}"
+    if [[ -z "$snapshot_dir" ]]; then
+        snapshot_dir="$(latest_setup_snapshot || true)"
+    fi
+
+    if [[ -z "$snapshot_dir" || ! -d "$snapshot_dir" ]]; then
+        err "Aucun snapshot setup valide trouve."
+        return 1
+    fi
+
+    if [[ -f "$snapshot_dir/.env" ]]; then
+        cp "$snapshot_dir/.env" "$REPO_DIR/.env"
+        chmod 600 "$REPO_DIR/.env"
+    fi
+    if [[ -f "$snapshot_dir/docker-compose.yml" ]]; then
+        cp "$snapshot_dir/docker-compose.yml" "$REPO_DIR/docker-compose.yml"
+    fi
+
+    ok "Snapshot restaure: $snapshot_dir"
+    return 0
 }
 
 # ── Service status table ──

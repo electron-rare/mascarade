@@ -178,3 +178,65 @@ load_running_services() {
     done <<< "$services"
     return 0
 }
+
+# ── Sélection automatique des services basée sur les pairs P2P ──
+auto_select_services_based_on_peers() {
+    local peers="${CLUSTER_PEERS:-}"
+    
+    if [[ -z "$peers" ]]; then
+        dbg "auto_select_services_based_on_peers: aucun pair configuré"
+        return 0
+    fi
+
+    dbg "auto_select_services_based_on_peers: analyse des pairs"
+    
+    # Désactiver tous les services par défaut
+    for id in "${SVC_IDS[@]}"; do
+        SVC_ON[$id]="0"
+    done
+
+    # Activer les services de base (core et api)
+    SVC_ON["core"]="1"
+    SVC_ON["api"]="1"
+
+    # Analyser les pairs pour déterminer les services nécessaires
+    IFS=';' read -ra peer_list <<< "$peers"
+    for peer_entry in "${peer_list[@]}"; do
+        IFS='|' read -ra peer_parts <<< "$peer_entry"
+        if [[ ${#peer_parts[@]} -eq 3 ]]; then
+            local peer_id="${peer_parts[0]}"
+            local peer_role="${peer_parts[1]}"
+            local peer_url="${peer_parts[2]}"
+            
+            dbg "  Analyse du pair $peer_id (role: $peer_role, url: $peer_url)"
+            
+            # Activer les services en fonction du rôle du pair
+            case "$peer_role" in
+                gpu)
+                    # Pour un pair GPU, activer les services liés au GPU et à l'IA
+                    SVC_ON["litellm"]="1"
+                    SVC_ON["ollama"]="1"
+                    SVC_ON["redis"]="1"
+                    ;;
+                edge)
+                    # Pour un pair edge, activer les services légers
+                    SVC_ON["agent-factory-cockpit"]="1"
+                    SVC_ON["ops-agent"]="1"
+                    ;;
+                general)
+                    # Pour un pair général, activer un ensemble standard de services
+                    SVC_ON["litellm"]="1"
+                    SVC_ON["n8n"]="1"
+                    SVC_ON["postgres"]="1"
+                    SVC_ON["redis"]="1"
+                    ;;
+            esac
+        fi
+    done
+
+    # Résoudre les dépendances après la sélection automatique
+    resolve_dependencies
+
+    dbg "auto_select_services_based_on_peers: terminé"
+    return 0
+}

@@ -2,11 +2,25 @@
 
 from __future__ import annotations
 
+import asyncio
+import hashlib
 import hmac
 import logging
 import time
 from dataclasses import dataclass
+from socket import AF_INET, AF_INET6, inet_aton, inet_ntop
 from urllib.parse import urlparse
+from typing import Any
+
+import socket
+
+try:
+    from zeroconf import ServiceBrowser, ServiceInfo, ServiceListener, Zeroconf
+except ImportError:  # pragma: no cover - optional dependency
+    ServiceBrowser = None
+    ServiceInfo = None
+    ServiceListener = object
+    Zeroconf = None
 
 import httpx
 from fastapi import Depends, HTTPException
@@ -15,9 +29,149 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from mascarade.config import settings
 from mascarade.router import Router
 
+try:
+    from mascarade.p2p.node import P2PNode, P2PPeer
+except ImportError:  # pragma: no cover - optional dependency
+    P2PNode = None  # type: ignore[assignment, misc]
+    P2PPeer = None  # type: ignore[assignment, misc]
+
 logger = logging.getLogger("mascarade.cluster")
 
 _cluster_bearer = HTTPBearer(auto_error=False)
+
+_DEFAULT_MDNS_SERVICE = "_mascarade._tcp.local."
+_DEFAULT_MDNS_DISCOVERY_TTL_SECONDS = 60
+
+
+def _mdns_service_type(raw: str) -> str:
+    service = (raw or _DEFAULT_MDNS_SERVICE).strip()
+    if not service:
+        return _DEFAULT_MDNS_SERVICE
+
+    if not service.endswith("."):
+        service = f"{service}."
+
+    if ".local." not in service:
+        service = f"{service.rstrip('.')}._tcp.local."
+    return service
+
+
+class _ClusterMdnsDiscoveryListener(ServiceListener):
+    def __init__(self) -> None:
+        self._services: set[str] = set()
+
+    def add_service(self, zc: Zeroconf, service_type: str, name: str) -> None:  # noqa: ARG002
+        self._services.add(name)
+
+    def remove_service(self, zc: Zeroconf, service_type: str, name: str) -> None:  # noqa: ARG002
+        self._services.discard(name)
+
+    def update_service(self, zc: Zeroconf, service_type: str, name: str) -> None:  # noqa: ARG002
+        self._services.add(name)
+
+    @property
+    def services(self) -> set[str]:
+        return set(self._services)
+
+
+def _cluster_mdns_enabled() -> bool:
+    return bool(
+        settings.cluster_enabled
+        and settings.cluster_mdns_enabled
+        and ServiceBrowser
+        and ServiceInfo
+        and Zeroconf
+    )
+
+
+def _safe_listen_host() -> str:
+    host = settings.mesh_bind_host.strip()
+    return host
+
+
+def _mdns_key_fingerprint() -> str:
+    key = settings.cluster_shared_key.strip().encode("utf-8")
+    if not key:
+        return ""
+    return hashlib.sha256(key).hexdigest()
+
+
+def _mdns_peer_matches_local_fingerprint(peer_fingerprint: str | None) -> bool:
+    local_fingerprint = _mdns_key_fingerprint()
+    if not local_fingerprint:
+        return True
+    if not peer_fingerprint:
+        logger.warning("mDNS peer rejected: missing cluster key fingerprint in TXT")
+        return False
+    if peer_fingerprint != local_fingerprint:
+        logger.warning("mDNS peer rejected: cluster key fingerprint mismatch")
+        return False
+    return True
+
+
+def _normalize_txt_records(raw_props: Any) -> dict[str, str]:
+    props: dict[str, str] = {}
+    if raw_props is None:
+        return props
+
+    if isinstance(raw_props, dict):
+        for key, value in raw_props.items():
+            if key is None:
+                continue
+            if isinstance(value, bytes):
+                try:
+                    decoded = value.decode("utf-8")
+                except UnicodeDecodeError:
+                    decoded = value.decode("utf-8", errors="ignore")
+            else:
+                decoded = str(value)
+            props[str(key).strip()] = decoded.strip()
+        return props
+
+    return props
+
+
+def _ip_from_host(host: str) -> tuple[bytes, int] | tuple[None, None]:
+    """Return packed binary IP and family for zeroconf."""
+    host = host.strip()
+    if not host:
+        return None, None
+
+    try:
+        return inet_aton(host), AF_INET
+    except OSError:
+        pass
+
+    try:
+        return socket.inet_pton(AF_INET6, host), AF_INET6
+    except OSError:
+        return None, None
+
+
+def _parsed_addresses(info: Any) -> list[str]:
+    addresses: list[str] = []
+    if info is None:
+        return addresses
+
+    try:
+        parsed = list(info.parsed_addresses())
+        if parsed:
+            return parsed
+    except ImportError:  # pragma: no cover - optional zeroconf layout
+        pass
+
+    try:
+        for raw in info.addresses:
+            if isinstance(raw, bytes):
+                if len(raw) == 4:
+                    addresses.append(inet_ntop(AF_INET, raw))
+                elif len(raw) == 16:
+                    addresses.append(inet_ntop(AF_INET6, raw))
+            elif isinstance(raw, str):
+                addresses.append(raw)
+    except ImportError:  # pragma: no cover - optional zeroconf layout
+        pass
+    return addresses
 
 
 @dataclass(slots=True)
@@ -155,13 +309,21 @@ async def require_cluster_auth(
 
 
 class ClusterManager:
-    """Static peer inventory and first-hop core-to-core forwarding."""
+    """Cluster manager with optional mDNS peer discovery."""
 
     def __init__(self, *, router: Router, agents_count_provider) -> None:
         self._router = router
         self._agents_count_provider = agents_count_provider
         self._timeout_s = max(settings.cluster_request_timeout_ms, 500) / 1000
         self._peers = parse_cluster_peers(settings.cluster_peers, node_id=settings.node_id)
+        self._mdns_peers: dict[str, ClusterPeer] = {}
+        self._mdns_discovery_expiry = 0.0
+        self._mdns_advertiser: Zeroconf | None = None
+        self._mdns_service_info: ServiceInfo | None = None
+        self._p2p_node: P2PNode | None = None  # type: ignore[valid-type]
+
+        if _cluster_mdns_enabled() and settings.cluster_mdns_advertise:
+            self._register_mdns_service()
 
     @property
     def enabled(self) -> bool:
@@ -169,7 +331,51 @@ class ClusterManager:
 
     @property
     def peers(self) -> list[ClusterPeer]:
-        return list(self._peers)
+        return list(self._collect_known_peers())
+
+    # ── P2P lifecycle (called from server lifespan) ───────────────────
+
+    def _p2p_enabled(self) -> bool:
+        return bool(settings.p2p_enabled and P2PNode is not None)
+
+    async def start_p2p(self) -> None:
+        """Start the libp2p P2P node if enabled."""
+        if not self._p2p_enabled():
+            return
+        try:
+            self._p2p_node = P2PNode(settings)
+            await self._p2p_node.start(
+                identity_provider=lambda: self.local_identity().to_dict(),
+                send_handler=self._p2p_local_send,
+            )
+            logger.info(
+                "P2P node started — peer_id=%s", self._p2p_node.peer_id
+            )
+        except Exception as exc:
+            logger.warning("P2P node failed to start: %s", exc)
+            self._p2p_node = None
+
+    async def stop_p2p(self) -> None:
+        """Stop the libp2p P2P node."""
+        if self._p2p_node:
+            await self._p2p_node.stop()
+            self._p2p_node = None
+
+    def _p2p_local_send(self, payload: dict) -> dict:
+        """Synchronous wrapper for local send, called from trio thread."""
+        import asyncio as _asyncio
+
+        loop = _asyncio.new_event_loop()
+        try:
+            return loop.run_until_complete(self._send_local(payload))
+        finally:
+            loop.close()
+
+    def p2p_status(self) -> dict:
+        """Return P2P diagnostic info."""
+        if self._p2p_node:
+            return self._p2p_node.status()
+        return {"running": False, "reason": "disabled" if not self._p2p_enabled() else "not started"}
 
     def local_identity(self) -> NodeIdentity:
         provider_models = (
@@ -188,7 +394,191 @@ class ClusterManager:
             cluster_enabled=self.enabled,
         )
 
+    def _collect_known_peers(self) -> list[ClusterPeer]:
+        peers_by_id: dict[str, ClusterPeer] = {}
+        for peer in parse_cluster_peers(settings.cluster_peers, node_id=settings.node_id):
+            peers_by_id[peer.peer_id] = peer
+
+        for peer in self._mdns_peers.values():
+            if peer.peer_id not in peers_by_id and peer.peer_id != settings.node_id:
+                peers_by_id[peer.peer_id] = peer
+
+        # Merge libp2p-discovered peers
+        if self._p2p_node:
+            for p2p_peer in self._p2p_node.discovered_peers():
+                if p2p_peer.peer_id not in peers_by_id and p2p_peer.peer_id != settings.node_id:
+                    peers_by_id[p2p_peer.peer_id] = ClusterPeer(
+                        peer_id=p2p_peer.peer_id,
+                        role=p2p_peer.role,
+                        base_url=p2p_peer.base_url,
+                    )
+
+        return list(peers_by_id.values())
+
+    def _mdns_discovery_ttl(self) -> float:
+        try:
+            ttl = int(settings.cluster_mdns_discovery_ttl_seconds)
+        except (TypeError, ValueError):
+            ttl = 60
+
+        if ttl < 5:
+            return 5.0
+        if ttl > 300:
+            return 300.0
+        return float(ttl)
+
+    def _mdns_discovery_scan_timeout(self) -> float:
+        timeout = self._mdns_discovery_ttl() / 6
+        if timeout < 0.5:
+            return 0.5
+        if timeout > 2.5:
+            return 2.5
+        return timeout
+
+    async def _discover_mdns_peers(self) -> list[ClusterPeer]:
+        now = time.monotonic()
+        if now < self._mdns_discovery_expiry:
+            return self._collect_mdns_peers_cached()
+
+        return await asyncio.to_thread(self._discover_mdns_peers_sync)
+
+    def _collect_mdns_peers_cached(self) -> list[ClusterPeer]:
+        return list(self._mdns_peers.values())
+
+    def _mdns_service_name(self) -> str:
+        return f"{settings.node_id}.{_mdns_service_type(settings.cluster_mdns_service)}"
+
+    def _mdns_txt(self) -> dict[str, str]:
+        records = {
+            "node_id": settings.node_id,
+            "role": settings.node_role,
+            "label": settings.node_label,
+            "scheme": settings.mesh_scheme,
+            "core_port": str(settings.core_port),
+            "mesh_bind_host": settings.mesh_bind_host,
+        }
+        fingerprint = _mdns_key_fingerprint()
+        if fingerprint:
+            records["cluster_key_fingerprint"] = fingerprint
+        return records
+
+    def _register_mdns_service(self) -> None:
+        if not _cluster_mdns_enabled() or not settings.cluster_mdns_advertise:
+            return
+
+        host = _safe_listen_host()
+        if not host:
+            logger.warning("Cannot register mDNS service: MESH_BIND_HOST missing")
+            return
+
+        service_type = _mdns_service_type(settings.cluster_mdns_service)
+        service_name = self._mdns_service_name()
+        ip_bytes, _ = _ip_from_host(host)
+        if ip_bytes is None:
+            logger.warning("Cannot register mDNS service: invalid MESH_BIND_HOST=%s", host)
+            return
+
+        properties = {
+            key: value.encode("utf-8") for key, value in self._mdns_txt().items()
+        }
+
+        try:
+            addresses: list[bytes] = [ip_bytes]
+            self._mdns_service_info = ServiceInfo(
+                type_=service_type,
+                name=service_name,
+                addresses=addresses,
+                port=settings.core_port,
+                properties=properties,
+                server=f"{settings.node_id}.local.",
+            )
+            self._mdns_advertiser = Zeroconf()
+            assert self._mdns_advertiser is not None
+            assert self._mdns_service_info is not None
+            self._mdns_advertiser.register_service(self._mdns_service_info)
+            logger.info("mDNS service advertised: name=%s type=%s", service_name, service_type)
+        except Exception as exc:
+            self._mdns_advertiser = None
+            self._mdns_service_info = None
+            logger.warning("mDNS service registration failed: %s", exc)
+
+    def _discover_mdns_peers_sync(self) -> list[ClusterPeer]:
+        if not _cluster_mdns_enabled():
+            self._mdns_discovery_expiry = time.monotonic() + 1.0
+            self._mdns_peers = {}
+            return []
+
+        service_type = _mdns_service_type(settings.cluster_mdns_service)
+        listener = _ClusterMdnsDiscoveryListener()
+        zc = Zeroconf()
+        browser = ServiceBrowser(zc, service_type, listener)
+        deadline = time.monotonic() + self._mdns_discovery_scan_timeout()
+        try:
+            while time.monotonic() < deadline:
+                time.sleep(0.1)
+            discovered: list[ClusterPeer] = []
+            for name in sorted(listener.services):
+                info = zc.get_service_info(service_type, name)
+                peer = self._parse_mdns_peer(name, info)
+                if peer is not None:
+                    discovered.append(peer)
+            self._mdns_peers = {peer.peer_id: peer for peer in discovered}
+            self._mdns_discovery_expiry = time.monotonic() + self._mdns_discovery_ttl()
+            return discovered
+        except Exception as exc:  # pragma: no cover - optional dependency/OS discovery failures
+            logger.warning("mDNS peer discovery failed: %s", exc)
+            self._mdns_peers = {}
+            return []
+        finally:
+            try:
+                browser.cancel()
+            except ImportError:  # pragma: no cover
+                pass
+            try:
+                zc.close()
+            except ImportError:  # pragma: no cover
+                pass
+
+    @staticmethod
+    def _parse_mdns_peer(service_name: str, info: Any) -> ClusterPeer | None:
+        txt = _normalize_txt_records(getattr(info, "properties", {}))
+        peer_id = txt.get("node_id") or service_name.split(".")[0].strip()
+        if not peer_id or peer_id == settings.node_id:
+            return None
+
+        peer_fingerprint = txt.get("cluster_key_fingerprint")
+        if not _mdns_peer_matches_local_fingerprint(peer_fingerprint):
+            return None
+
+        role = txt.get("role") or "general"
+        scheme = (txt.get("scheme") or settings.mesh_scheme).strip()
+        if scheme not in {"http", "https"}:
+            scheme = settings.mesh_scheme.strip() or "http"
+
+        port = txt.get("core_port") or txt.get("port") or str(settings.core_port)
+        try:
+            parsed_port = int(port)
+        except (TypeError, ValueError):
+            parsed_port = settings.core_port
+
+        host = txt.get("mesh_bind_host")
+        if not host:
+            addresses = _parsed_addresses(info)
+            if addresses:
+                host = addresses[0]
+        if not host:
+            host = "127.0.0.1"
+
+        base_url = _normalized_url(f"{scheme}://{host}:{parsed_port}")
+        parsed = urlparse(base_url)
+        if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+            return None
+        return ClusterPeer(peer_id=peer_id, role=role, base_url=base_url)
+
     async def probe_peers(self) -> list[PeerStatus]:
+        await self._discover_mdns_peers()
+        self._peers = self._collect_known_peers()
+
         statuses: list[PeerStatus] = []
         for peer in self._peers:
             statuses.append(await self._probe_peer(peer))
@@ -228,7 +618,8 @@ class ClusterManager:
         if selection.peer_id is None:
             raise HTTPException(status_code=500, detail="Cluster route selection failed")
 
-        peer = next((candidate for candidate in self._peers if candidate.peer_id == selection.peer_id), None)
+        peers = self._collect_known_peers()
+        peer = next((candidate for candidate in peers if candidate.peer_id == selection.peer_id), None)
         if peer is None:
             raise HTTPException(status_code=404, detail=f"Unknown cluster peer: {selection.peer_id}")
 
@@ -255,8 +646,10 @@ class ClusterManager:
         model: str | None,
         allow_local: bool,
     ) -> ClusterRouteSelection:
+        await self._discover_mdns_peers()
+        peers = self._collect_known_peers()
         if peer_id:
-            peer = next((candidate for candidate in self._peers if candidate.peer_id == peer_id), None)
+            peer = next((candidate for candidate in peers if candidate.peer_id == peer_id), None)
             if peer is None:
                 raise HTTPException(status_code=404, detail=f"Unknown cluster peer: {peer_id}")
             return ClusterRouteSelection(
@@ -269,7 +662,9 @@ class ClusterManager:
             )
 
         local = self.local_identity()
-        peer_statuses = await self.probe_peers()
+        peer_statuses = []
+        for peer in peers:
+            peer_statuses.append(await self._probe_peer(peer))
         remote_candidates = [peer for peer in peer_statuses if peer.ok]
 
         if preferred_role:
