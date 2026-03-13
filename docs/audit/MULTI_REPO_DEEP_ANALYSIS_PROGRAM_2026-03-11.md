@@ -77,7 +77,7 @@ Documents d'ancrage:
 
 | ID | Tache | Owner |
 | --- | --- | --- |
-| `K-DA-008` | Accelerer la lane evidence GitHub avec cache `pip` / `PlatformIO` | `embedded-systems-auditor` |
+| `K-DA-009` | Exposer un resume evidence lisible dans le GitHub Step Summary | `embedded-systems-auditor` |
 
 ## Actions documentees dans ce tour
 
@@ -112,6 +112,9 @@ Documents d'ancrage:
 - fermeture de `K-DA-007` via la detection `native-pio` dans le venv repo-local et le durcissement anti-artefacts obsoletes dans `tools/collect_evidence.py`
 - ajout du test cible `Kill_LIFE/test/test_firmware_evidence.py`
 - revalidation locale `Kill_LIFE`: `KILL_LIFE_PIO_MODE=native ./.venv/bin/python tools/auto_check_ci_cd.py` vert sur `esp` + `linux`
+- fermeture de `K-DA-008` via la mise en cache `pip` et `PlatformIO` dans `.github/workflows/evidence_pack.yml`
+- ajout du verrou de version `Kill_LIFE/tools/compliance/requirements-platformio.txt`
+- revalidation locale `Kill_LIFE`: `bash tools/bootstrap_python_env.sh --with-platformio` puis `KILL_LIFE_PIO_MODE=native ./.venv/bin/python tools/auto_check_ci_cd.py`
 
 ## Test status snapshot
 
