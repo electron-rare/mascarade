@@ -627,7 +627,7 @@ async def bedrock_finetune_jobs():
 
 @protected.get("/metrics")
 async def metrics_summary():
-    return app.state.router.metrics_summary()
+    return await app.state.router.metrics_summary()
 
 
 @protected.get("/metrics/{provider}")
@@ -640,7 +640,7 @@ async def metrics_provider(provider: str):
 
 @protected.post("/metrics/reset")
 async def metrics_reset():
-    app.state.router.reset_metrics()
+    await app.state.router.reset_metrics()
     return {"status": "ok"}
 
 
