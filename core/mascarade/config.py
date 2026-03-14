@@ -8,7 +8,6 @@ _PLACEHOLDER_SECRETS = {
     "",
     "sk-...",
     "sk-ant-...",
-    "ntn_...",
 }
 
 
@@ -63,7 +62,7 @@ class Settings(BaseSettings):
     google_application_credentials: str = ""
     google_model: str = "gemini-2.5-flash"
 
-    # Knowledge base provider (legacy Notion settings kept for compatibility)
+    # Knowledge base provider
     knowledge_base_provider: str = "memos"
     knowledge_base_smoke_page_id: str = ""
     memos_base_url: str = ""
@@ -74,17 +73,6 @@ class Settings(BaseSettings):
     docmost_email: str = ""
     docmost_password: str = ""
     docmost_space_id: str = ""
-    notion_auth_mode: str = "api_key"
-    notion_api_key: str = ""
-    notion_oauth_access_token: str = ""
-    notion_oauth_refresh_token: str = ""
-    notion_oauth_client_id: str = ""
-    notion_oauth_client_secret: str = ""
-    notion_oauth_authorization_endpoint: str = "https://api.notion.com/v1/oauth/authorize"
-    notion_oauth_token_endpoint: str = "https://api.notion.com/v1/oauth/token"
-    notion_oauth_redirect_uri: str = ""
-    notion_oauth_expires_at: str = ""
-    notion_oauth_workspace_name: str = ""
 
     # GitHub dispatch
     github_dispatch_auth_mode: str = "token"
