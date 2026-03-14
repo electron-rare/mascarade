@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { agentsApi, type Agent } from "../api/agents";
 import { useApi } from "../hooks/useApi";
 import { useFetch } from "../hooks/useFetch";
@@ -10,6 +10,7 @@ import {
   InlineNotice,
   Input,
   LoadingPanel,
+  Modal,
   Select,
   Textarea,
 } from "../components/ui";
@@ -39,7 +40,9 @@ function normalizeOptional(value: string): string | null {
 
 export default function AgentDetail() {
   const { name } = useParams<{ name: string }>();
+  const navigate = useNavigate();
   const [input, setInput] = useState("");
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
   const isAgentZero = name === "agent-zero";
 
   const detail = useFetch<Agent>(name ? `/api/agents/${encodeURIComponent(name)}` : null);
@@ -103,6 +106,14 @@ export default function AgentDetail() {
     status: saveStatus,
   } = useApi(updateFn);
 
+  const deleteFn = useMemo(() => () => agentsApi.delete(name!), [name]);
+
+  const {
+    execute: deleteAgent,
+    loading: deleting,
+    error: deleteError,
+  } = useApi(deleteFn);
+
   const handleRun = () => {
     if (!input.trim()) return;
     void execute(undefined);
@@ -113,6 +124,14 @@ export default function AgentDetail() {
     const updated = await saveProfile(undefined);
     if (updated) {
       void detail.refetch();
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!name || detail.data?.builtin) return;
+    const result = await deleteAgent(undefined);
+    if (result) {
+      navigate("/agents");
     }
   };
 
@@ -308,17 +327,30 @@ export default function AgentDetail() {
             {saveError ? (
               <InlineNotice title="save failed" message={saveError} tone="error" />
             ) : null}
-            <div className="flex justify-end gap-3 pt-2">
-              <Button variant="secondary" onClick={() => void detail.refetch()}>
-                reload profile
-              </Button>
-              <Button
-                onClick={handleSave}
-                loading={saving}
-                disabled={!form.system_prompt.trim() || detail.data?.builtin}
-              >
-                save profile
-              </Button>
+            <div className="flex justify-between gap-3 pt-2">
+              <div>
+                {!detail.data?.builtin ? (
+                  <Button
+                    variant="secondary"
+                    onClick={() => setShowDeleteModal(true)}
+                    disabled={deleting}
+                  >
+                    delete agent
+                  </Button>
+                ) : null}
+              </div>
+              <div className="flex gap-3">
+                <Button variant="secondary" onClick={() => void detail.refetch()}>
+                  reload profile
+                </Button>
+                <Button
+                  onClick={handleSave}
+                  loading={saving}
+                  disabled={!form.system_prompt.trim() || detail.data?.builtin}
+                >
+                  save profile
+                </Button>
+              </div>
             </div>
           </div>
         </Card>
@@ -376,6 +408,33 @@ export default function AgentDetail() {
           ) : null}
         </div>
       </section>
+
+      <Modal
+        open={showDeleteModal}
+        onClose={() => setShowDeleteModal(false)}
+        title="Delete Agent"
+      >
+        <div className="space-y-4">
+          <p className="text-sm leading-7 text-amber-100/78">
+            Are you sure you want to delete the agent <strong className="text-accent">{name}</strong>? This action cannot be undone.
+          </p>
+          {deleteError ? (
+            <InlineNotice title="delete failed" message={deleteError} tone="error" />
+          ) : null}
+          <div className="flex justify-end gap-3 pt-2">
+            <Button
+              variant="secondary"
+              onClick={() => setShowDeleteModal(false)}
+              disabled={deleting}
+            >
+              cancel
+            </Button>
+            <Button onClick={handleDelete} loading={deleting}>
+              delete agent
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }
