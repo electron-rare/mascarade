@@ -10,6 +10,7 @@ from dataclasses import asdict
 from pathlib import Path
 
 from mascarade.agents.base import Agent
+from mascarade.metrics.tracker import MetricsTracker
 from mascarade.router.router import Strategy
 
 logger = logging.getLogger("mascarade.agents")
@@ -24,6 +25,7 @@ class AgentRegistry:
         self._agents: dict[str, Agent] = {}
         self._builtin_names: set[str] = set()
         self._storage_path = storage_path
+        self.metrics = MetricsTracker()
 
     def register(self, agent: Agent, *, builtin: bool = False) -> None:
         self._agents[agent.name] = agent
@@ -52,6 +54,37 @@ class AgentRegistry:
 
     def is_builtin(self, name: str) -> bool:
         return name in self._builtin_names
+
+    # --- Métriques ---
+
+    def track_agent_usage(
+        self,
+        agent_name: str,
+        tokens: int,
+        cost: float,
+        response_time: float,
+        success: bool,
+    ) -> None:
+        """Suivre l'utilisation d'un agent."""
+        self.metrics.track_request(
+            provider_name=agent_name,
+            tokens=tokens,
+            cost=cost,
+            response_time=response_time,
+            success=success,
+        )
+
+    def agent_metrics(self, agent_name: str) -> dict:
+        """Obtenir les métriques pour un agent spécifique."""
+        return self.metrics.get_provider_stats(agent_name)
+
+    def metrics_summary(self) -> dict:
+        """Obtenir un résumé de toutes les métriques des agents."""
+        return self.metrics.get_summary()
+
+    def reset_metrics(self) -> None:
+        """Réinitialiser toutes les métriques."""
+        self.metrics.reset()
 
     # --- Persistance ---
 

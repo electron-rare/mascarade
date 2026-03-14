@@ -745,6 +745,23 @@ async def update_agent(name: str, req: AgentUpdate):
     return _serialize_agent(agent)
 
 
+@protected.delete("/agents/{name}")
+async def delete_agent(name: str):
+    try:
+        agent = app.state.registry.get(name)
+    except KeyError:
+        raise HTTPException(status_code=404, detail=f"Agent '{name}' not found") from None
+    if app.state.registry.is_builtin(name):
+        raise HTTPException(
+            status_code=403,
+            detail="Built-in agents are read-only and cannot be deleted.",
+        )
+
+    app.state.registry.remove(name)
+    app.state.registry.save()
+    return {"message": f"Agent '{name}' deleted successfully"}
+
+
 @protected.post("/agents/{name}/run")
 async def run_agent(name: str, req: SendRequest):
     if not req.messages:
@@ -765,6 +782,15 @@ async def run_agent(name: str, req: SendRequest):
         "provider": response.provider,
         "usage": response.usage,
     }
+
+
+@protected.get("/agents/{name}/metrics")
+async def get_agent_metrics(name: str):
+    try:
+        agent = app.state.registry.get(name)
+    except KeyError:
+        raise HTTPException(status_code=404, detail=f"Agent '{name}' not found") from None
+    return app.state.registry.agent_metrics(name)
 
 
 # --- Orchestration ---

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { agentsApi, Agent } from "../api/agents";
 import { useApi } from "../hooks/useApi";
@@ -16,6 +16,15 @@ import {
   Textarea,
 } from "../components/ui";
 
+interface AgentMetrics {
+  total_requests: number;
+  total_tokens?: number;
+  total_cost?: number;
+  avg_response_time?: number;
+  error_rate?: number;
+  last_used: string | null;
+}
+
 const strategyOptions = [
   { value: "best", label: "Best" },
   { value: "fastest", label: "Fastest" },
@@ -28,10 +37,31 @@ function normalizeOptional(value: string): string | undefined {
   return trimmed ? trimmed : undefined;
 }
 
+function formatLastUsed(isoString: string | null): string {
+  if (!isoString) return "never used";
+  try {
+    const date = new Date(isoString);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+
+    if (diffMins < 1) return "just now";
+    if (diffMins < 60) return `${diffMins}m ago`;
+    if (diffHours < 24) return `${diffHours}h ago`;
+    if (diffDays < 7) return `${diffDays}d ago`;
+    return date.toLocaleDateString();
+  } catch {
+    return "unknown";
+  }
+}
+
 export default function Agents() {
   const { data, loading, error, refetch } = useFetch<{ agents: Agent[] }>("/api/agents");
   const [showCreate, setShowCreate] = useState(false);
   const [createdName, setCreatedName] = useState("");
+  const [metricsMap, setMetricsMap] = useState<Record<string, AgentMetrics>>({});
   const [form, setForm] = useState({
     name: "",
     description: "",
@@ -62,6 +92,34 @@ export default function Agents() {
       max_tokens: form.max_tokens,
     }),
   );
+
+  useEffect(() => {
+    if (data?.agents) {
+      Promise.all(
+        data.agents.map(async (agent) => {
+          try {
+            const metrics = (await agentsApi.metrics(agent.name)) as unknown as AgentMetrics;
+            return { name: agent.name, metrics };
+          } catch {
+            return {
+              name: agent.name,
+              metrics: { total_requests: 0, last_used: null } as AgentMetrics,
+            };
+          }
+        }),
+      )
+        .then((results) => {
+          const map: Record<string, AgentMetrics> = {};
+          for (const result of results) {
+            map[result.name] = result.metrics;
+          }
+          setMetricsMap(map);
+        })
+        .catch(() => {
+          // Silently ignore metrics fetch errors
+        });
+    }
+  }, [data]);
 
   const handleCreate = async () => {
     if (!form.name || !form.system_prompt) return;
@@ -220,55 +278,74 @@ export default function Agents() {
         />
       ) : (
         <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          {sortedAgents.map((a) => (
-            <Link key={a.name} to={`/agents/${a.name}`}>
-              <Card className="h-full cursor-pointer transition-colors hover:border-accent/35">
-                <div className="space-y-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="screen-label">agent</p>
-                      <h3 className="mt-3 text-lg font-semibold uppercase tracking-[0.12em] text-accent">
-                        {a.name}
-                      </h3>
+          {sortedAgents.map((a) => {
+            const metrics = metricsMap[a.name];
+            return (
+              <Link key={a.name} to={`/agents/${a.name}`}>
+                <Card className="h-full cursor-pointer transition-colors hover:border-accent/35">
+                  <div className="space-y-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="screen-label">agent</p>
+                        <h3 className="mt-3 text-lg font-semibold uppercase tracking-[0.12em] text-accent">
+                          {a.name}
+                        </h3>
+                      </div>
+                      <Badge color={a.name === "agent-zero" ? "accent" : "accent"}>
+                        {a.name === "agent-zero" ? "lead" : "ready"}
+                      </Badge>
                     </div>
-                    <Badge color={a.name === "agent-zero" ? "accent" : "accent"}>
-                      {a.name === "agent-zero" ? "lead" : "ready"}
-                    </Badge>
-                  </div>
-                  {a.builtin ? (
+                    {a.builtin ? (
+                      <p className="text-[11px] uppercase tracking-[0.18em] text-amber-100/34">
+                        built-in registry entry
+                      </p>
+                    ) : (
+                      <p className="text-[11px] uppercase tracking-[0.18em] text-[#82ffc1]">
+                        dynamic editable agent
+                      </p>
+                    )}
+                    <p className="text-sm leading-7 text-amber-100/56">
+                      {a.description || "No description provided for this registry entry."}
+                    </p>
+                    {metrics ? (
+                      <div className="flex gap-3 rounded-2xl border border-border/60 bg-black/25 p-3">
+                        <div className="flex-1">
+                          <p className="text-[10px] uppercase tracking-[0.2em] text-muted">requests</p>
+                          <p className="mt-1 text-lg font-semibold text-accent">
+                            {metrics.total_requests || 0}
+                          </p>
+                        </div>
+                        <div className="flex-1">
+                          <p className="text-[10px] uppercase tracking-[0.2em] text-muted">last used</p>
+                          <p className="mt-1 text-xs text-amber-100/70">
+                            {formatLastUsed(metrics.last_used)}
+                          </p>
+                        </div>
+                      </div>
+                    ) : null}
+                    <div className="flex flex-wrap gap-2">
+                      {a.preferred_role ? <Badge color="warning">role {a.preferred_role}</Badge> : null}
+                      {a.preferred_provider ? (
+                        <Badge color="muted">{a.preferred_provider}</Badge>
+                      ) : null}
+                      {a.preferred_model ? (
+                        <Badge color="muted">{a.preferred_model}</Badge>
+                      ) : null}
+                      {a.strategy ? <Badge color="muted">{a.strategy}</Badge> : null}
+                    </div>
+                    {a.name === "agent-zero" ? (
+                      <p className="text-[11px] uppercase tracking-[0.18em] text-accent">
+                        primary intake lane
+                      </p>
+                    ) : null}
                     <p className="text-[11px] uppercase tracking-[0.18em] text-amber-100/34">
-                      built-in registry entry
+                      open detail
                     </p>
-                  ) : (
-                    <p className="text-[11px] uppercase tracking-[0.18em] text-[#82ffc1]">
-                      dynamic editable agent
-                    </p>
-                  )}
-                  <p className="text-sm leading-7 text-amber-100/56">
-                    {a.description || "No description provided for this registry entry."}
-                  </p>
-                  <div className="flex flex-wrap gap-2">
-                    {a.preferred_role ? <Badge color="warning">role {a.preferred_role}</Badge> : null}
-                    {a.preferred_provider ? (
-                      <Badge color="muted">{a.preferred_provider}</Badge>
-                    ) : null}
-                    {a.preferred_model ? (
-                      <Badge color="muted">{a.preferred_model}</Badge>
-                    ) : null}
-                    {a.strategy ? <Badge color="muted">{a.strategy}</Badge> : null}
                   </div>
-                  {a.name === "agent-zero" ? (
-                    <p className="text-[11px] uppercase tracking-[0.18em] text-accent">
-                      primary intake lane
-                    </p>
-                  ) : null}
-                  <p className="text-[11px] uppercase tracking-[0.18em] text-amber-100/34">
-                    open detail
-                  </p>
-                </div>
-              </Card>
-            </Link>
-          ))}
+                </Card>
+              </Link>
+            );
+          })}
         </section>
       )}
 
