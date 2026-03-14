@@ -21,6 +21,7 @@ class FakeRouter:
         supported_provider_names: list[str] | None = None,
         response: LLMResponse | None = None,
         error: Exception | None = None,
+        stream_tokens: list[str] | None = None,
     ) -> None:
         self.available_providers = available_providers
         self.supported_provider_names = (
@@ -35,7 +36,9 @@ class FakeRouter:
             usage={"input_tokens": 5, "output_tokens": 2},
         )
         self._error = error
+        self._stream_tokens = stream_tokens or ["Hello", " ", "world", "!"]
         self.calls: list[dict[str, object]] = []
+        self.stream_calls: list[dict[str, object]] = []
 
     async def send(
         self,
@@ -64,6 +67,33 @@ class FakeRouter:
         if self._error is not None:
             raise self._error
         return self._response
+
+    async def stream(
+        self,
+        messages: list[dict],
+        *,
+        strategy: Strategy | str,
+        provider: str | None = None,
+        model: str | None = None,
+        system: str | None = None,
+        temperature: float = 0.7,
+        max_tokens: int = 4096,
+    ):
+        self.stream_calls.append(
+            {
+                "messages": messages,
+                "strategy": strategy,
+                "provider": provider,
+                "model": model,
+                "system": system,
+                "temperature": temperature,
+                "max_tokens": max_tokens,
+            }
+        )
+        if self._error is not None:
+            raise self._error
+        for token in self._stream_tokens:
+            yield token
 
 
 @pytest.fixture(autouse=True)
@@ -281,3 +311,58 @@ async def test_chat_completions_rejects_invalid_prefix():
 
     assert response.status_code == 400
     assert response.json()["detail"] == "Unsupported model prefix 'banana'."
+
+
+@pytest.mark.asyncio
+async def test_chat_completions_streaming():
+    import json as json_module
+
+    fake_router = FakeRouter(
+        available_providers=["ollama"],
+        stream_tokens=["1", " 2", " 3", " 4", " 5"],
+    )
+
+    async with _client(fake_router) as client:
+        async with client.stream(
+            "POST",
+            "/v1/chat/completions",
+            json={
+                "model": "ollama:qwen3.5:9b",
+                "messages": [{"role": "user", "content": "Count to 5"}],
+                "stream": True,
+            },
+        ) as response:
+            assert response.status_code == 200
+            assert response.headers["content-type"] == "text/event-stream; charset=utf-8"
+
+            chunks = []
+            async for line in response.aiter_lines():
+                if line.startswith("data: "):
+                    data_str = line[6:]  # Remove "data: " prefix
+                    if data_str == "[DONE]":
+                        break
+                    chunk = json_module.loads(data_str)
+                    chunks.append(chunk)
+
+    # Verify we got the expected chunks
+    assert len(chunks) > 0
+
+    # First chunk should have role
+    assert chunks[0]["object"] == "chat.completion.chunk"
+    assert chunks[0]["choices"][0]["delta"].get("role") == "assistant"
+
+    # Middle chunks should have content
+    content_chunks = [
+        c["choices"][0]["delta"].get("content", "")
+        for c in chunks
+        if c["choices"][0]["delta"].get("content") is not None
+    ]
+    assert "".join(content_chunks) == "1 2 3 4 5"
+
+    # Last chunk should have finish_reason
+    assert chunks[-1]["choices"][0]["finish_reason"] == "stop"
+
+    # Verify stream was called with correct parameters
+    assert len(fake_router.stream_calls) == 1
+    assert fake_router.stream_calls[0]["provider"] == "ollama"
+    assert fake_router.stream_calls[0]["model"] == "qwen3.5:9b"
