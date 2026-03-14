@@ -86,6 +86,7 @@ class Router:
         self,
         strategy: Strategy = Strategy.BEST,
         provider_name: str | None = None,
+        domain: str | None = None,
     ) -> list[LLMProvider]:
         if not self._providers:
             raise RuntimeError("Aucun provider LLM configuré. Vérifiez vos clés API.")
@@ -99,6 +100,30 @@ class Router:
             return [self._providers[provider_name]]
 
         providers = list(self._providers.values())
+
+        # Filter by domain if specified
+        if domain:
+            domain_models = [
+                m for m in self.model_registry.get_models()
+                if m.domain == domain and m.health_status == "healthy"
+            ]
+            if domain_models:
+                domain_providers = {m.provider for m in domain_models}
+                providers = [
+                    p for p in providers
+                    if p.name in domain_providers
+                ]
+                logger.info(
+                    "Filtered to %d provider(s) for domain '%s': %s",
+                    len(providers),
+                    domain,
+                    [p.name for p in providers],
+                )
+            else:
+                logger.warning(
+                    "No healthy models found for domain '%s', using all providers",
+                    domain,
+                )
 
         if strategy == Strategy.CHEAPEST:
             best_value = min(sum(p.cost_per_million) for p in providers)
@@ -115,9 +140,10 @@ class Router:
         self,
         strategy: Strategy = Strategy.BEST,
         provider_name: str | None = None,
+        domain: str | None = None,
     ) -> LLMProvider:
         candidates = self._select_candidates(
-            strategy=strategy, provider_name=provider_name
+            strategy=strategy, provider_name=provider_name, domain=domain
         )
         if len(candidates) == 1:
             return candidates[0]
@@ -202,6 +228,7 @@ class Router:
         response_format: dict | None = None,
         temperature: float = 0.7,
         max_tokens: int = 4096,
+        domain: str | None = None,
     ) -> LLMResponse:
         strategy = Strategy(strategy)
         strict_provider = strategy == Strategy.SPECIFIC and provider is not None
@@ -236,7 +263,7 @@ class Router:
 
         for attempt_strategy, attempt_provider in sequence:
             attempt_enum = Strategy(attempt_strategy)
-            selected = self._select_provider(attempt_enum, attempt_provider)
+            selected = self._select_provider(attempt_enum, attempt_provider, domain)
             started_at = time.perf_counter()
             self.load_balancer.request_started(selected.name)
 
@@ -343,6 +370,7 @@ class Router:
         system: str | None = None,
         temperature: float = 0.7,
         max_tokens: int = 4096,
+        domain: str | None = None,
     ) -> AsyncIterator[str]:
         strategy = Strategy(strategy)
         strict_provider = strategy == Strategy.SPECIFIC and provider is not None
@@ -359,7 +387,7 @@ class Router:
         last_error: Exception | None = None
         for attempt_strategy, attempt_provider in sequence:
             attempt_enum = Strategy(attempt_strategy)
-            selected = self._select_provider(attempt_enum, attempt_provider)
+            selected = self._select_provider(attempt_enum, attempt_provider, domain)
             started_at = time.perf_counter()
             self.load_balancer.request_started(selected.name)
 
