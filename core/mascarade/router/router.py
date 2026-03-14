@@ -7,7 +7,7 @@ import time
 from collections.abc import AsyncIterator
 from enum import StrEnum
 
-from mascarade.cache.cache import ResponseCache
+from mascarade.cache.multi_tier_cache import MultiTierCache
 from mascarade.load_balancer.balancer import LoadBalancer
 from mascarade.metrics.tracker import MetricsTracker
 from mascarade.observability.langfuse import (
@@ -33,7 +33,7 @@ class Router:
 
     def __init__(self) -> None:
         self._providers: dict[str, LLMProvider] = {}
-        self.cache = ResponseCache()
+        self.cache = MultiTierCache()
         self.metrics = MetricsTracker()
         self.load_balancer = LoadBalancer()
         self.fallback = FallbackState(max_attempts=3)
@@ -150,10 +150,10 @@ class Router:
         in_cost, out_cost = provider.cost_per_million
         return ((input_tokens * in_cost) + (output_tokens * out_cost)) / 1_000_000
 
-    def metrics_summary(self) -> dict:
+    async def metrics_summary(self) -> dict:
         return {
             "providers": self.metrics.get_summary(),
-            "cache": self.cache.get_stats(),
+            "cache": await self.cache.get_stats(),
             "load_balancer": self.load_balancer.get_load_stats(),
             "fallback": self.fallback.get_failure_stats(),
         }
@@ -161,9 +161,9 @@ class Router:
     def provider_metrics(self, provider_name: str) -> dict:
         return self.metrics.get_provider_stats(provider_name)
 
-    def reset_metrics(self) -> None:
+    async def reset_metrics(self) -> None:
         self.metrics.reset()
-        self.cache.clear()
+        await self.cache.clear()
         self.load_balancer.reset_stats()
         self.fallback.reset()
 
@@ -183,7 +183,7 @@ class Router:
         strategy = Strategy(strategy)
         strict_provider = strategy == Strategy.SPECIFIC and provider is not None
 
-        cached = self.cache.retrieve(
+        cached = await self.cache.retrieve(
             messages,
             strategy=strategy.value,
             provider=provider,
@@ -325,7 +325,7 @@ class Router:
             cache_strategy = strategy.value
 
             if not strict_provider:
-                self.cache.store(
+                await self.cache.store(
                     messages,
                     response.content,
                     tokens=self._usage_tokens(response.usage),
