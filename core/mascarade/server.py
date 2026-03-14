@@ -1833,6 +1833,59 @@ async def qdrant_rag_query(collection_name: str, req: QdrantRAGRequest):
         raise HTTPException(status_code=500, detail=str(e)) from e
 
 
+# --- Benchmark Analytics ---
+
+
+@protected.get("/v1/analytics/benchmarks")
+async def get_benchmark_results(
+    domain: str | None = Query(default=None, max_length=50),
+    limit: int = Query(default=10, ge=1, le=100),
+    order_by: str = Query(default="quality_score", max_length=50),
+):
+    """
+    Get benchmark results leaderboard.
+
+    Query parameters:
+    - domain: Filter by domain (optional)
+    - limit: Maximum number of results (default: 10, max: 100)
+    - order_by: Column to order by (default: quality_score, options: quality_score, latency_p50, cost)
+
+    Returns:
+        List of benchmark results with provider, model, domain, and performance metrics
+    """
+    from mascarade.benchmarks.storage import BenchmarkStorage
+
+    # Validate order_by parameter
+    valid_order_by = {"quality_score", "latency_p50", "latency_p95", "cost"}
+    if order_by not in valid_order_by:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid order_by parameter. Must be one of: {', '.join(valid_order_by)}"
+        )
+
+    storage = BenchmarkStorage()
+
+    try:
+        results = storage.query_leaderboard(
+            domain=domain,
+            limit=limit,
+            order_by=order_by,
+        )
+
+        return {
+            "results": results,
+            "count": len(results),
+            "filters": {
+                "domain": domain,
+                "limit": limit,
+                "order_by": order_by,
+            }
+        }
+    except Exception as e:
+        logger.exception("Failed to query benchmark results")
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
 app.include_router(protected)
 app.include_router(cluster_protected)
 
