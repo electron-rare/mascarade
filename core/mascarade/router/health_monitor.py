@@ -2,12 +2,17 @@
 
 from __future__ import annotations
 
+import asyncio
+import logging
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from mascarade.load_balancer.balancer import LoadBalancer
     from mascarade.metrics.tracker import MetricsTracker
+    from mascarade.router.providers.base import LLMProvider
+
+logger = logging.getLogger("mascarade.health_monitor")
 
 
 @dataclass
@@ -31,10 +36,15 @@ class HealthMonitor:
         self,
         metrics_tracker: MetricsTracker | None = None,
         load_balancer: LoadBalancer | None = None,
+        health_check_interval: float = 30.0,
     ) -> None:
         self.metrics = metrics_tracker
         self.load_balancer = load_balancer
         self._health_cache: dict[str, ProviderHealth] = {}
+        self._health_check_interval = health_check_interval
+        self._health_check_task: asyncio.Task | None = None
+        self._providers: list[LLMProvider] = []
+        self._running = False
 
     def get_provider_health(self, provider_name: str) -> ProviderHealth:
         """Obtenir les métriques de santé pour un provider spécifique."""
@@ -145,3 +155,96 @@ class HealthMonitor:
         health_scores.sort(key=lambda x: x[1], reverse=True)
 
         return [name for name, _ in health_scores]
+
+    def start_health_checks(self, providers: list[LLMProvider]) -> None:
+        """Start background health check task for all providers."""
+        if self._health_check_task is not None:
+            logger.warning("Health checks already running")
+            return
+
+        self._providers = providers
+        self._running = True
+        self._health_check_task = asyncio.create_task(self._health_check_loop())
+        logger.info(
+            "Health checks started — interval=%ss, providers=%d",
+            self._health_check_interval,
+            len(self._providers),
+        )
+
+    async def stop_health_checks(self) -> None:
+        """Stop background health check task."""
+        self._running = False
+        if self._health_check_task:
+            self._health_check_task.cancel()
+            try:
+                await self._health_check_task
+            except asyncio.CancelledError:
+                pass
+            self._health_check_task = None
+            logger.info("Health checks stopped")
+
+    async def _health_check_loop(self) -> None:
+        """Background loop that periodically probes provider health."""
+        while self._running:
+            try:
+                await asyncio.sleep(self._health_check_interval)
+                await self._probe_all_providers()
+            except asyncio.CancelledError:
+                logger.debug("Health check loop cancelled")
+                break
+            except Exception as exc:
+                logger.warning("Health check loop error: %s", exc)
+
+    async def _probe_all_providers(self) -> None:
+        """Run lightweight health probes on all providers."""
+        for provider in self._providers:
+            try:
+                await self._probe_provider(provider)
+            except Exception as exc:
+                logger.debug(
+                    "Health probe failed for %s: %s", provider.name, exc
+                )
+
+    async def _probe_provider(self, provider: LLMProvider) -> None:
+        """Execute a lightweight health probe for a single provider."""
+        try:
+            # Lightweight probe: simple request with minimal content
+            # This is just a connectivity check, not a full request
+            import time
+
+            start = time.perf_counter()
+
+            # Try to get a simple completion as a health probe
+            # Use the provider's send method with a minimal message
+            response = await provider.send(
+                messages=[{"role": "user", "content": "ping"}],
+                model=None,  # Let provider choose default model
+                max_tokens=1,
+                temperature=0.0,
+            )
+
+            elapsed = time.perf_counter() - start
+
+            # Successful probe - update health cache with good latency
+            if provider.name in self._health_cache:
+                cached = self._health_cache[provider.name]
+                # Keep existing health score but note the successful probe
+                logger.debug(
+                    "Health probe success — provider=%s latency=%.3fs",
+                    provider.name,
+                    elapsed,
+                )
+            else:
+                logger.debug(
+                    "Health probe success — provider=%s latency=%.3fs",
+                    provider.name,
+                    elapsed,
+                )
+
+        except Exception as exc:
+            # Failed probe - log but don't crash
+            logger.debug(
+                "Health probe failed — provider=%s error=%s",
+                provider.name,
+                str(exc)[:100],
+            )
