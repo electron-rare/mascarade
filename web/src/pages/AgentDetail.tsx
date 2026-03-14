@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { agentsApi, type Agent } from "../api/agents";
+import { agentsApi, type Agent, type AgentMetrics } from "../api/agents";
 import { useApi } from "../hooks/useApi";
 import { useFetch } from "../hooks/useFetch";
 import {
@@ -39,6 +39,28 @@ function normalizeOptional(value: string): string | null {
   return trimmed ? trimmed : null;
 }
 
+function formatStamp(value: string | null): string {
+  if (!value) return "-";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return new Intl.DateTimeFormat("fr-FR", {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  }).format(date);
+}
+
+function healthStatusText(errorRate: number): string {
+  if (errorRate === 0) return "healthy";
+  if (errorRate < 5) return "nominal";
+  if (errorRate < 20) return "watch";
+  return "degraded";
+}
+
+function healthStatusOk(errorRate: number): boolean {
+  return errorRate < 5;
+}
+
 export default function AgentDetail() {
   const { name } = useParams<{ name: string }>();
   const navigate = useNavigate();
@@ -47,6 +69,10 @@ export default function AgentDetail() {
   const isAgentZero = name === "agent-zero";
 
   const detail = useFetch<Agent>(name ? `/api/agents/${encodeURIComponent(name)}` : null);
+  const metrics = useFetch<AgentMetrics>(
+    name ? `/api/agents/${encodeURIComponent(name)}/metrics` : null,
+    { pollIntervalMs: 5000 },
+  );
   const [form, setForm] = useState<AgentProfileForm>({
     description: "",
     system_prompt: "",
@@ -235,6 +261,78 @@ export default function AgentDetail() {
           message={`The routing profile for ${name} was saved to the registry.`}
           tone="success"
         />
+      ) : null}
+
+      {metrics.data && Object.keys(metrics.data).length > 0 ? (
+        <Card title="Agent metrics" className="bg-[linear-gradient(180deg,rgba(10,12,11,0.92),rgba(6,7,7,0.98))]">
+          <div className="space-y-4">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="screen-label">performance track</p>
+                <p className="mt-3 text-sm leading-6 text-amber-100/54">
+                  Metriques de sante et d&apos;activite pour {name}. Les compteurs remontent depuis le core tracker du registry.
+                </p>
+              </div>
+              <span
+                className={[
+                  "status-chip",
+                  healthStatusOk(metrics.data.error_rate)
+                    ? "border-[#214e31] bg-[#0c170f]/80 text-[#8cffb7]"
+                    : "border-[#5d2332] bg-[#18070d]/80 text-error",
+                ].join(" ")}
+              >
+                {healthStatusText(metrics.data.error_rate)}
+              </span>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-3">
+              <div className="rounded-3xl border border-border/80 bg-black/25 p-4">
+                <p className="text-[10px] uppercase tracking-[0.18em] text-muted">requests</p>
+                <p className="mt-3 text-xl font-semibold uppercase tracking-[0.14em] text-accent">
+                  {metrics.data.total_requests.toString().padStart(2, "0")}
+                </p>
+              </div>
+              <div className="rounded-3xl border border-border/80 bg-black/25 p-4">
+                <p className="text-[10px] uppercase tracking-[0.18em] text-muted">error rate</p>
+                <p
+                  className={[
+                    "mt-3 text-xl font-semibold uppercase tracking-[0.14em]",
+                    healthStatusOk(metrics.data.error_rate) ? "text-[#8cffb7]" : "text-error",
+                  ].join(" ")}
+                >
+                  {metrics.data.error_rate.toFixed(1)}%
+                </p>
+              </div>
+              <div className="rounded-3xl border border-border/80 bg-black/25 p-4">
+                <p className="text-[10px] uppercase tracking-[0.18em] text-muted">latency</p>
+                <p className="mt-3 text-xl font-semibold uppercase tracking-[0.14em] text-accent">
+                  {metrics.data.avg_response_time > 0
+                    ? `${Math.round(metrics.data.avg_response_time)} ms`
+                    : "-"}
+                </p>
+              </div>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-3">
+              <div className="rounded-3xl border border-border/80 bg-black/25 p-4">
+                <p className="text-[10px] uppercase tracking-[0.18em] text-muted">tokens</p>
+                <p className="mt-3 text-xl font-semibold uppercase tracking-[0.14em] text-accent">
+                  {metrics.data.total_tokens.toLocaleString()}
+                </p>
+              </div>
+              <div className="rounded-3xl border border-border/80 bg-black/25 p-4">
+                <p className="text-[10px] uppercase tracking-[0.18em] text-muted">cost</p>
+                <p className="mt-3 text-xl font-semibold uppercase tracking-[0.14em] text-accent">
+                  ${metrics.data.total_cost.toFixed(4)}
+                </p>
+              </div>
+              <div className="rounded-3xl border border-border/80 bg-black/25 p-4">
+                <p className="text-[10px] uppercase tracking-[0.18em] text-muted">last used</p>
+                <p className="mt-3 text-xl font-semibold uppercase tracking-[0.14em] text-accent">
+                  {formatStamp(metrics.data.last_used)}
+                </p>
+              </div>
+            </div>
+          </div>
+        </Card>
       ) : null}
 
       <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
