@@ -13,6 +13,7 @@ Usage:
 """
 
 import json
+import logging
 import os
 import sys
 import time
@@ -22,6 +23,8 @@ from pathlib import Path
 from typing import Literal, Any, Callable
 from urllib.request import Request, urlopen
 from urllib.error import URLError
+
+logger = logging.getLogger(__name__)
 
 # Lazy imports for pipeline functions to avoid initialization side effects
 _pipeline_module = None
@@ -56,7 +59,7 @@ DOMAINS = [
 ]
 
 
-StepName = Literal["train", "merge", "gguf", "deploy"]
+StepName = Literal["train", "merge", "gguf", "deploy", "register", "verify"]
 EventType = Literal["pipeline_start", "step_start", "step_complete", "step_failed", "pipeline_complete", "pipeline_failed"]
 Severity = Literal["debug", "info", "warning", "error", "critical"]
 
@@ -292,7 +295,7 @@ class PipelineRunner:
 
         self.domain = domain
         self.base_model = base_model
-        self.steps = steps or ["train", "merge", "gguf", "deploy"]
+        self.steps = steps or ["train", "merge", "gguf", "deploy", "register", "verify"]
         self.epochs = epochs
         self.max_seq_len = max_seq_len
         self.max_samples = max_samples
@@ -333,6 +336,95 @@ class PipelineRunner:
     def _get_state_path(self) -> Path:
         """Get path to state file"""
         return Path(self.state_file)
+
+    def _step_register(self) -> bool:
+        """Register deployed model in the router's model registry.
+
+        Returns:
+            True if registration succeeded, False otherwise
+        """
+        try:
+            # Lazy import to avoid circular dependencies
+            import sys
+            from pathlib import Path
+
+            # Add core directory to path for import
+            core_path = Path(__file__).parent.parent / "core"
+            if str(core_path) not in sys.path:
+                sys.path.insert(0, str(core_path))
+
+            from mascarade.router.router import Router
+
+            # Initialize router (which includes model_registry)
+            router = Router()
+
+            # Model ID is either custom alias or default format
+            model_id = self.deploy_alias or f"mascarade-{self.domain}"
+
+            # Register the model with metadata
+            router.register_finetuned_model(
+                model_id=model_id,
+                domain=self.domain,
+                provider="ollama",
+                deployment_url="http://192.168.0.119:11434",
+                verify_health=False,  # We'll verify in separate step
+                metadata={
+                    "base_model": self.base_model,
+                    "epochs": self.epochs,
+                    "train_quant": self.train_quant,
+                    "gguf_quant": self.gguf_quant,
+                }
+            )
+
+            logger.info(f"Successfully registered model: {model_id}")
+            print(f"  ✓ Registered model '{model_id}' in router registry")
+            return True
+
+        except Exception as e:
+            logger.error(f"Failed to register model: {e}")
+            print(f"  ✗ Registration failed: {e}")
+            return False
+
+    def _step_verify(self) -> bool:
+        """Verify deployed model health.
+
+        Returns:
+            True if model is healthy, False otherwise
+        """
+        try:
+            # Lazy import to avoid circular dependencies
+            import sys
+            from pathlib import Path
+
+            # Add core directory to path for import
+            core_path = Path(__file__).parent.parent / "core"
+            if str(core_path) not in sys.path:
+                sys.path.insert(0, str(core_path))
+
+            from mascarade.router.model_registry import ModelRegistry
+
+            # Initialize model registry
+            registry = ModelRegistry()
+
+            # Model ID is either custom alias or default format
+            model_id = self.deploy_alias or f"mascarade-{self.domain}"
+
+            # Verify health
+            health_status = registry.verify_health(model_id)
+
+            if health_status == "healthy":
+                logger.info(f"Model {model_id} is healthy")
+                print(f"  ✓ Model '{model_id}' is healthy and ready to serve")
+                return True
+            else:
+                logger.warning(f"Model {model_id} health check failed: {health_status}")
+                print(f"  ⚠ Model '{model_id}' health status: {health_status}")
+                return False
+
+        except Exception as e:
+            logger.error(f"Failed to verify model health: {e}")
+            print(f"  ✗ Health verification failed: {e}")
+            return False
 
     def _load_state(self) -> dict[str, Any]:
         """
@@ -416,6 +508,13 @@ class PipelineRunner:
                 print(f"  GGUF quant: {self.gguf_quant}")
             elif step == "deploy":
                 print(f"  Deploy alias: {self.deploy_alias or f'mascarade-{self.domain}'}")
+            elif step == "register":
+                print(f"  Model ID: {self.deploy_alias or f'mascarade-{self.domain}'}")
+                print(f"  Domain: {self.domain}")
+                print(f"  Provider: ollama")
+            elif step == "verify":
+                print(f"  Model ID: {self.deploy_alias or f'mascarade-{self.domain}'}")
+                print(f"  Health check URL: http://192.168.0.119:11434")
             print(f"  Would save state to: {self.state_file}")
 
             success = True
@@ -439,6 +538,10 @@ class PipelineRunner:
                     success = pipeline.step_gguf(self.domain, self.gguf_quant)
                 elif step == "deploy":
                     success = pipeline.step_deploy(self.domain, deploy_alias=self.deploy_alias)
+                elif step == "register":
+                    success = self._step_register()
+                elif step == "verify":
+                    success = self._step_verify()
                 else:
                     raise ValueError(f"Unknown step: {step}")
             except Exception as exc:
