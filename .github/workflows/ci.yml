@@ -28,11 +28,19 @@ env:
   CORE_IMAGE: ghcr.io/${{ github.repository }}/core
   API_IMAGE: ghcr.io/${{ github.repository }}/api
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   # ── Tests ──
   api:
     name: API (test + build)
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     defaults:
       run:
         working-directory: api
@@ -50,6 +58,7 @@ jobs:
   web:
     name: Web (build)
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     defaults:
       run:
         working-directory: web
@@ -66,6 +75,7 @@ jobs:
   core:
     name: Core (pytest)
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     defaults:
       run:
         working-directory: core
@@ -85,6 +95,7 @@ jobs:
   lint:
     name: Lint (ruff + black)
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     defaults:
       run:
         working-directory: core
@@ -100,6 +111,7 @@ jobs:
   compose:
     name: Compose config
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - run: docker compose --env-file .env.example config >/dev/null
@@ -110,6 +122,7 @@ jobs:
     needs: [api, web, core, lint]
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     strategy:
       matrix:
         include:
@@ -176,6 +189,7 @@ jobs:
     needs: docker
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     environment: production
     steps:
       - uses: actions/checkout@v4
@@ -209,6 +223,7 @@ jobs:
     needs: [api, web, core, lint, compose, docker, deploy]
     if: always() && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - name: Build status summary
         env:

@@ -9,6 +9,9 @@ Latest audit pack:
 - `MCP_RUNTIME_PLAN_2026-03-07.md`: plan runtime MCP.
 - `MCP_RUNTIME_TODO_2026-03-07.md`: TODO runtime MCP.
 - `AUDIT_EVIDENCE_2026-03-07/`: bundle de preuves brutes utilise par le rapport.
+- `MULTI_REPO_DEEP_ANALYSIS_PROGRAM_2026-03-11.md`: operating model multi-repo avec agents, plans et prochaines taches.
+- `MULTI_REPO_BASELINE_2026-03-11.md`: baseline documentaire/structurel regenere via script TUI.
+- `MULTI_REPO_OPEN_SOURCE_SURVEY_2026-03-11.md`: veille projets/librairies comparables et reutilisables.
 
 Previous pack:
 

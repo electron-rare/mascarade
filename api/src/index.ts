@@ -7,6 +7,7 @@ import { authMiddleware } from "./middleware/auth.js";
 import { corsMiddleware } from "./middleware/cors.js";
 import { rateLimitMiddleware } from "./middleware/rate-limit.js";
 import { securityHeaders } from "./middleware/security.js";
+import { auth } from "./routes/auth.js";
 import { health } from "./routes/health.js";
 import { agents } from "./routes/agents.js";
 import { cluster } from "./routes/cluster.js";
@@ -19,6 +20,8 @@ import { industrial } from "./routes/industrial.js";
 import { industrialMcp } from "./routes/mcpIndustrial.js";
 import { killlife } from "./routes/killlife.js";
 import { settings } from "./routes/settings.js";
+import { p2p } from "./routes/p2p.js";
+import { finetune } from "./routes/finetune.js";
 
 const app = new Hono();
 const hasFrontend = existsSync("./public/index.html");
@@ -32,6 +35,8 @@ app.onError((err, c) => {
 });
 
 app.route("/health", health);
+app.use("/api/auth/*", rateLimitMiddleware);
+app.route("/api/auth", auth);
 // Auth first — reject unauthenticated before consuming rate-limit quota
 app.use("/api/*", authMiddleware);
 app.use("/api/*", rateLimitMiddleware);
@@ -46,6 +51,8 @@ app.route("/api/industrial", industrial);
 app.route("/api/mcp/industrial", industrialMcp);
 app.route("/api/killlife", killlife);
 app.route("/api/settings", settings);
+app.route("/api/p2p", p2p);
+app.route("/api/finetune", finetune);
 
 if (hasFrontend) {
   app.use("/assets/*", serveStatic({ root: "./public" }));
