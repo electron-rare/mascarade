@@ -10,6 +10,7 @@ from enum import StrEnum
 from mascarade.cache.cache import ResponseCache
 from mascarade.load_balancer.balancer import LoadBalancer
 from mascarade.metrics.tracker import MetricsTracker
+from mascarade.router.circuit_breaker import CircuitBreaker
 from mascarade.router.fallback import FallbackState
 from mascarade.router.health_monitor import HealthMonitor
 from mascarade.router.providers.base import LLMProvider, LLMResponse
@@ -33,6 +34,7 @@ class Router:
         self.metrics = MetricsTracker()
         self.load_balancer = LoadBalancer()
         self.fallback = FallbackState(max_attempts=3)
+        self.circuit_breaker = CircuitBreaker()
         self.health_monitor = HealthMonitor(
             metrics_tracker=self.metrics,
             load_balancer=self.load_balancer,
@@ -147,6 +149,7 @@ class Router:
             "load_balancer": self.load_balancer.get_load_stats(),
             "fallback": self.fallback.get_failure_stats(),
             "health": self.health_monitor.get_all_health(),
+            "circuit_breaker": self.circuit_breaker.get_stats(),
         }
 
     def provider_metrics(self, provider_name: str) -> dict:
@@ -157,6 +160,7 @@ class Router:
         self.cache.clear()
         self.load_balancer.reset_stats()
         self.fallback.reset()
+        self.circuit_breaker.reset()
         self.health_monitor._health_cache.clear()
 
     async def send(
@@ -205,6 +209,15 @@ class Router:
         for attempt_strategy, attempt_provider in sequence:
             attempt_enum = Strategy(attempt_strategy)
             selected = self._select_provider(attempt_enum, attempt_provider)
+
+            # Check circuit breaker
+            if not self.circuit_breaker.can_execute():
+                logger.warning(
+                    "Circuit breaker is open, skipping provider %s", selected.name
+                )
+                last_error = RuntimeError("Circuit breaker is open")
+                continue
+
             started_at = time.perf_counter()
             self.load_balancer.request_started(selected.name)
 
@@ -234,6 +247,7 @@ class Router:
                     success=False,
                 )
                 self.fallback.record_failure(selected.name)
+                self.circuit_breaker.record_failure()
                 last_error = exc
                 continue
 
@@ -254,6 +268,7 @@ class Router:
                     response_time=elapsed,
                     success=False,
                 )
+                self.circuit_breaker.record_failure()
                 last_error = RuntimeError(
                     f"Strict provider mismatch: requested {provider}, got {response.provider}"
                 )
@@ -263,6 +278,7 @@ class Router:
             self.load_balancer.request_completed(
                 selected.name, response_time=elapsed, success=True
             )
+            self.circuit_breaker.record_success()
 
             usage = response.usage or {}
             self.metrics.track_request(
@@ -328,6 +344,15 @@ class Router:
         for attempt_strategy, attempt_provider in sequence:
             attempt_enum = Strategy(attempt_strategy)
             selected = self._select_provider(attempt_enum, attempt_provider)
+
+            # Check circuit breaker
+            if not self.circuit_breaker.can_execute():
+                logger.warning(
+                    "Circuit breaker is open, skipping provider %s", selected.name
+                )
+                last_error = RuntimeError("Circuit breaker is open")
+                continue
+
             started_at = time.perf_counter()
             self.load_balancer.request_started(selected.name)
 
@@ -356,6 +381,7 @@ class Router:
                     success=False,
                 )
                 self.fallback.record_failure(selected.name)
+                self.circuit_breaker.record_failure()
                 last_error = exc
                 continue
 
@@ -363,6 +389,7 @@ class Router:
             self.load_balancer.request_completed(
                 selected.name, response_time=elapsed, success=True
             )
+            self.circuit_breaker.record_success()
             self.metrics.track_request(
                 provider_name=selected.name,
                 tokens=0,
