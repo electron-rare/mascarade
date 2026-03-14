@@ -79,6 +79,10 @@ async def lifespan(app: FastAPI):
     else:
         app.state.document_processor = None
 
+    # Initialize benchmark trigger
+    from mascarade.benchmarks.triggers import ModelDeploymentTrigger
+    app.state.benchmark_trigger = ModelDeploymentTrigger(router=router)
+
     registry.load()
 
     # Start P2P node if enabled
@@ -88,6 +92,10 @@ async def lifespan(app: FastAPI):
 
     # Stop P2P node
     await cluster.stop_p2p()
+
+    # Clean up benchmark trigger
+    if hasattr(app.state, "benchmark_trigger"):
+        await app.state.benchmark_trigger.close()
 
     if app.state.comfyui is not None:
         await app.state.comfyui.close()
@@ -354,6 +362,16 @@ class BenchmarkRunRequest(BaseModel):
     providers: list[str] | None = Field(default=None, max_length=10)
     difficulty: str | None = Field(default=None, max_length=20)
     limit: int | None = Field(default=None, gt=0, le=100)
+
+
+class ModelDeploymentWebhook(BaseModel):
+    provider: str = Field(min_length=1, max_length=50)
+    model: str = Field(min_length=1, max_length=100)
+    event_type: str = Field(default="deployment", max_length=50)
+    domain: str | None = Field(default=None, max_length=50)
+    limit: int | None = Field(default=None, gt=0, le=100)
+    background: bool = Field(default=True)
+    metadata: dict[str, Any] = Field(default_factory=dict)
 
 
 # --- Route publique ---
@@ -1984,6 +2002,62 @@ async def trigger_benchmark_run(req: BenchmarkRunRequest):
             "limit": req.limit,
         },
     }
+
+
+@protected.post("/v1/benchmarks/webhook/deployment", status_code=200)
+async def handle_model_deployment_webhook(webhook: ModelDeploymentWebhook):
+    """
+    Handle model deployment webhook to trigger automatic benchmarks.
+
+    This endpoint is triggered when a new fine-tuned model is deployed
+    and automatically runs benchmarks to evaluate its performance.
+
+    Request body:
+    - provider: Provider name (required)
+    - model: Model identifier (required)
+    - event_type: Type of deployment event (default: "deployment")
+    - domain: Domain to benchmark (optional)
+    - limit: Maximum number of prompts to test (optional)
+    - background: Run benchmark in background (default: true)
+    - metadata: Additional event metadata (optional)
+
+    Returns:
+        Webhook processing result with trigger status
+    """
+    from mascarade.benchmarks.triggers import BenchmarkTriggerError
+
+    try:
+        # Get trigger instance from app state
+        trigger = app.state.benchmark_trigger
+
+        # Process webhook
+        result = await trigger.handle_webhook(
+            payload={
+                "provider": webhook.provider,
+                "model": webhook.model,
+                "event_type": webhook.event_type,
+                "domain": webhook.domain,
+                "limit": webhook.limit,
+                "background": webhook.background,
+                "metadata": webhook.metadata,
+            }
+        )
+
+        logger.info(
+            "Model deployment webhook processed: %s/%s (status=%s)",
+            webhook.provider,
+            webhook.model,
+            result.get("trigger_result", {}).get("status", "unknown"),
+        )
+
+        return result
+
+    except BenchmarkTriggerError as exc:
+        logger.error("Webhook processing failed: %s", exc)
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        logger.exception("Unexpected error processing webhook")
+        raise HTTPException(status_code=500, detail="Internal server error") from exc
 
 
 app.include_router(protected)
