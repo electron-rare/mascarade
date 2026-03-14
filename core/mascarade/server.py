@@ -10,7 +10,7 @@ from contextlib import asynccontextmanager
 from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, FastAPI, HTTPException, Query, Request
-from fastapi.responses import StreamingResponse
+from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel, Field
 
 from mascarade.agents import Agent, AgentRegistry
@@ -38,6 +38,10 @@ from mascarade.provider_admin import (
     PROVIDER_REGISTRY,
     get_providers_status,
     update_provider_keys,
+)
+from mascarade.device_voice import (
+    DevicePlayerEvent,
+    DeviceVoiceService,
 )
 from mascarade.router import Router
 from mascarade.router.router import Strategy
@@ -70,6 +74,7 @@ async def lifespan(app: FastAPI):
     app.state.cluster = cluster
     app.state.mcp = McpRuntimeClient(trace_buffer=trace_buffer)
     app.state.comfyui = ComfyUIClient() if settings.comfyui_url else None
+    app.state.device_voice = DeviceVoiceService(router=router)
     app.state.qdrant = QdrantClient() if settings.qdrant_url else None
 
     # Initialize document processor if Qdrant is configured
@@ -81,7 +86,7 @@ async def lifespan(app: FastAPI):
 
     registry.load()
 
-    # Start P2P node if enabled
+    # Start P2P node (auto-selects backend)
     await cluster.start_p2p()
 
     # Start health checks for all registered providers
@@ -95,6 +100,7 @@ async def lifespan(app: FastAPI):
     # Stop P2P node
     await cluster.stop_p2p()
 
+    await cluster.close()
     if app.state.comfyui is not None:
         await app.state.comfyui.close()
 
@@ -113,6 +119,7 @@ class Message(BaseModel):
     content: str = Field(min_length=1, max_length=100_000)
 
 
+RoutingPolicy = Literal["auto", "strong", "cheap", "fast"]
 # --- OpenAI-Compatible Models ---
 
 
@@ -181,6 +188,7 @@ class ChatCompletionChunk(BaseModel):
 class SendRequest(BaseModel):
     messages: list[Message] = Field(max_length=200)
     strategy: Strategy = Strategy.BEST
+    routing_policy: RoutingPolicy = "auto"
     provider: str | None = Field(default=None, max_length=50)
     model: str | None = Field(default=None, max_length=100)
     system: str | None = Field(default=None, max_length=10_000)
@@ -196,7 +204,8 @@ class AgentCreate(BaseModel):
     preferred_provider: str | None = Field(default=None, max_length=50)
     preferred_model: str | None = Field(default=None, max_length=100)
     preferred_role: str | None = Field(default=None, max_length=100)
-    strategy: Strategy = Strategy.BEST
+    strategy: Strategy = Strategy.ROUTELLM
+    routing_policy: RoutingPolicy = "auto"
     temperature: float = Field(default=0.7, ge=0.0, le=2.0)
     max_tokens: int = Field(default=4096, gt=0, le=128000)
 
@@ -207,7 +216,8 @@ class AgentUpdate(BaseModel):
     preferred_provider: str | None = Field(default=None, max_length=50)
     preferred_model: str | None = Field(default=None, max_length=100)
     preferred_role: str | None = Field(default=None, max_length=100)
-    strategy: Strategy = Strategy.BEST
+    strategy: Strategy = Strategy.ROUTELLM
+    routing_policy: RoutingPolicy = "auto"
     temperature: float = Field(default=0.7, ge=0.0, le=2.0)
     max_tokens: int = Field(default=4096, gt=0, le=128000)
 
@@ -216,6 +226,7 @@ class AgentRoutingOverride(BaseModel):
     preferred_role: str | None = Field(default=None, max_length=100)
     preferred_provider: str | None = Field(default=None, max_length=50)
     preferred_model: str | None = Field(default=None, max_length=100)
+    routing_policy: RoutingPolicy | None = None
 
 
 class TaskRequest(BaseModel):
@@ -522,6 +533,7 @@ def _serialize_agent(agent: Agent) -> dict[str, object]:
         "preferred_model": agent.preferred_model,
         "preferred_role": agent.preferred_role,
         "strategy": agent.strategy.value,
+        "routing_policy": agent.routing_policy,
         "temperature": agent.temperature,
         "max_tokens": agent.max_tokens,
         "builtin": app.state.registry.is_builtin(agent.name),
@@ -591,6 +603,7 @@ async def send(req: SendRequest):
         response = await app.state.router.send(
             messages,
             strategy=req.strategy,
+            routing_policy=req.routing_policy,
             provider=req.provider,
             model=req.model,
             system=req.system,
@@ -660,12 +673,12 @@ async def bedrock_finetune_jobs():
 # --- Metrics ---
 
 
-@protected.get("/metrics")
+@protected.get("/router/metrics")
 async def metrics_summary():
     return app.state.router.metrics_summary()
 
 
-@protected.get("/metrics/{provider}")
+@protected.get("/router/metrics/{provider}")
 async def metrics_provider(provider: str):
     stats = app.state.router.provider_metrics(provider)
     if not stats:
@@ -673,10 +686,29 @@ async def metrics_provider(provider: str):
     return stats
 
 
-@protected.post("/metrics/reset")
+@protected.post("/router/metrics/reset")
 async def metrics_reset():
     app.state.router.reset_metrics()
     return {"status": "ok"}
+
+
+# --- Prometheus scrape endpoint (public) ---
+
+
+@app.get("/metrics")
+async def prometheus_metrics():
+    """Expose Prometheus metrics for scraping — no auth required."""
+    try:
+        from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
+
+        from starlette.responses import Response
+
+        return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
+    except ImportError:
+        raise HTTPException(
+            status_code=501,
+            detail="prometheus_client is not installed",
+        )
 
 
 # --- Cache ---
@@ -734,6 +766,7 @@ async def create_agent(req: AgentCreate):
         preferred_model=req.preferred_model,
         preferred_role=req.preferred_role,
         strategy=req.strategy,
+        routing_policy=req.routing_policy,
         temperature=req.temperature,
         max_tokens=req.max_tokens,
     )
@@ -774,6 +807,7 @@ async def update_agent(name: str, req: AgentUpdate):
     agent.preferred_model = req.preferred_model
     agent.preferred_role = req.preferred_role
     agent.strategy = req.strategy
+    agent.routing_policy = req.routing_policy
     agent.temperature = req.temperature
     agent.max_tokens = req.max_tokens
     app.state.registry.save()
@@ -869,11 +903,6 @@ async def cluster_forward_send(req: ClusterForwardSendRequest):
     )
 
 
-@protected.get("/cluster/p2p/status")
-async def cluster_p2p_status():
-    return app.state.cluster.p2p_status()
-
-
 @cluster_protected.get("/identity")
 async def cluster_node_identity():
     return app.state.cluster.local_identity().to_dict()
@@ -886,6 +915,7 @@ async def cluster_node_send(req: SendRequest):
         response = await app.state.router.send(
             messages,
             strategy=req.strategy,
+            routing_policy=req.routing_policy,
             provider=req.provider,
             model=req.model,
             system=req.system,
@@ -904,6 +934,105 @@ async def cluster_node_send(req: SendRequest):
         "provider": response.provider,
         "usage": response.usage,
     }
+
+
+# --- Analytics ---
+
+
+class ProviderCostSummary(BaseModel):
+    provider: str
+    model: str
+    total_cost: float = Field(ge=0.0)
+    input_tokens: int = Field(ge=0)
+    output_tokens: int = Field(ge=0)
+    request_count: int = Field(ge=0)
+
+
+class CostAnalyticsResponse(BaseModel):
+    total_cost: float = Field(ge=0.0)
+    total_requests: int = Field(ge=0)
+    total_input_tokens: int = Field(ge=0)
+    total_output_tokens: int = Field(ge=0)
+    by_provider: list[ProviderCostSummary]
+
+
+@protected.get("/v1/analytics/cost")
+async def get_cost_analytics(
+    limit: int = Query(default=1000, ge=1, le=5000),
+    run_id: str | None = Query(default=None, max_length=64),
+):
+    """
+    Get cost analytics aggregated from trace events.
+
+    Args:
+        limit: Maximum number of events to analyze (default: 1000)
+        run_id: Optional run ID to filter by
+
+    Returns:
+        Cost analytics with totals and breakdowns by provider/model
+    """
+    from mascarade.analytics import get_cost_calculator
+
+    # Get recent trace events with token usage
+    events = app.state.trace_buffer.recent(
+        limit=limit,
+        run_id=run_id,
+    )
+
+    # Filter events that have token usage
+    events_with_usage = [e for e in events if e.token_usage]
+
+    # Aggregate by (provider, model)
+    aggregates: dict[tuple[str, str], dict] = {}
+    cost_calc = get_cost_calculator()
+
+    for event in events_with_usage:
+        if not event.provider or not event.model:
+            continue
+
+        key = (event.provider, event.model)
+        if key not in aggregates:
+            aggregates[key] = {
+                "provider": event.provider,
+                "model": event.model,
+                "total_cost": 0.0,
+                "input_tokens": 0,
+                "output_tokens": 0,
+                "request_count": 0,
+            }
+
+        input_tokens = event.token_usage.get("input_tokens", 0) or event.token_usage.get("prompt_tokens", 0)
+        output_tokens = event.token_usage.get("output_tokens", 0) or event.token_usage.get("completion_tokens", 0)
+
+        # Calculate cost for this event
+        cost = cost_calc.calculate_cost(
+            provider=event.provider,
+            model=event.model,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+        )
+
+        aggregates[key]["total_cost"] += cost
+        aggregates[key]["input_tokens"] += input_tokens
+        aggregates[key]["output_tokens"] += output_tokens
+        aggregates[key]["request_count"] += 1
+
+    # Calculate totals
+    total_cost = sum(agg["total_cost"] for agg in aggregates.values())
+    total_requests = sum(agg["request_count"] for agg in aggregates.values())
+    total_input_tokens = sum(agg["input_tokens"] for agg in aggregates.values())
+    total_output_tokens = sum(agg["output_tokens"] for agg in aggregates.values())
+
+    # Convert to response models
+    by_provider = [ProviderCostSummary(**agg) for agg in aggregates.values()]
+
+    return CostAnalyticsResponse(
+        total_cost=total_cost,
+        total_requests=total_requests,
+        total_input_tokens=total_input_tokens,
+        total_output_tokens=total_output_tokens,
+        by_provider=by_provider,
+    )
 
 
 # --- Orchestration traces ---
@@ -1584,6 +1713,251 @@ async def comfyui_interrupt():
     return {"status": "ok"}
 
 
+# --- P2P network ---
+
+
+@protected.get("/cluster/p2p/status")
+async def cluster_p2p_status():
+    return app.state.cluster.p2p_status()
+
+
+@protected.get("/cluster/p2p/stream")
+async def cluster_p2p_stream(
+    request: Request,
+    limit: int = Query(default=20, ge=0, le=200),
+):
+    """SSE stream of real-time P2P events."""
+
+    async def event_stream():
+        node = getattr(app.state.cluster, "_p2p_node", None)
+        if node is None or not hasattr(node, "events"):
+            yield f"event: error\ndata: {json.dumps({'error': 'P2P node not available'})}\n\n"
+            return
+
+        bus = node.events
+        queue = bus.subscribe()
+        try:
+            # Replay recent events
+            if limit > 0:
+                for event in bus.recent(limit=limit):
+                    yield f"event: p2p\ndata: {json.dumps(event.to_dict())}\n\n"
+
+            while True:
+                if await request.is_disconnected():
+                    break
+                try:
+                    event = await asyncio.wait_for(queue.get(), timeout=15)
+                except TimeoutError:
+                    yield f"event: heartbeat\ndata: {json.dumps({'ts': iso_utc_now()})}\n\n"
+                    continue
+                yield f"event: p2p\ndata: {json.dumps(event.to_dict())}\n\n"
+        finally:
+            bus.unsubscribe(queue)
+
+    return StreamingResponse(
+        event_stream(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
+@protected.get("/cluster/p2p/topology")
+async def cluster_p2p_topology():
+    """JSON snapshot of the P2P network topology."""
+    node = getattr(app.state.cluster, "_p2p_node", None)
+    if node is None or not hasattr(node, "capabilities"):
+        raise HTTPException(status_code=503, detail="P2P node not available")
+
+    nodes = []
+    edges = []
+    all_caps = node.capabilities.all_capabilities()
+
+    # Add local node
+    local_caps = node.capabilities._local_caps
+    local_entry = {
+        "peer_id": node.peer_id,
+        "label": local_caps.label if local_caps else "",
+        "role": local_caps.role if local_caps else "general",
+        "capabilities": local_caps.capabilities if local_caps else [],
+        "http_base_url": local_caps.http_base_url if local_caps else None,
+        "is_local": True,
+    }
+    nodes.append(local_entry)
+
+    # Add remote peers
+    for pid, caps in all_caps.items():
+        nodes.append({
+            "peer_id": pid,
+            "label": caps.label,
+            "role": caps.role,
+            "capabilities": caps.capabilities,
+            "http_base_url": caps.http_base_url,
+            "is_local": False,
+        })
+        edges.append({
+            "from": node.peer_id,
+            "to": pid,
+            "connected": pid in node.transport.peers and node.transport.peers[pid].connected,
+        })
+
+    return {"nodes": nodes, "edges": edges}
+
+
+@protected.post("/cluster/p2p/task")
+async def cluster_p2p_task(req: dict):
+    """Distribute a task via P2P to a capable peer.
+
+    Body: {"capability": "llm-inference", "payload": {...}, "timeout": 30, "target_peer": null}
+    """
+    return await app.state.cluster.p2p_distribute_task(
+        capability=req.get("capability", ""),
+        payload=req.get("payload", {}),
+        timeout=req.get("timeout", 120.0),
+        target_peer=req.get("target_peer"),
+    )
+
+
+# --- OpenAI-compatible chat completions shim ---
+
+
+class _OAIChatMessage(BaseModel):
+    role: str
+    content: str
+
+
+class _OAIChatRequest(BaseModel):
+    model: str | None = None
+    messages: list[_OAIChatMessage]
+    temperature: float = 0.7
+    max_tokens: int = 4096
+
+
+@app.post("/v1/chat/completions")
+async def openai_chat_completions(body: _OAIChatRequest, request: Request):
+    import time as _time
+    import uuid as _uuid
+
+    router = request.app.state.router
+
+    raw_model = body.model or ""
+    provider_name: str | None = None
+    model_name: str | None = None
+
+    if ":" in raw_model:
+        prefix, rest = raw_model.split(":", 1)
+        if prefix in getattr(router, "supported_provider_names", []):
+            provider_name = prefix
+            model_name = rest
+        else:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Unsupported model prefix '{prefix}'.",
+            )
+    else:
+        provider_name = settings.default_provider
+        model_name = raw_model or settings.default_model
+
+    if provider_name and provider_name not in router.available_providers:
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "error": f"Provider '{provider_name}' is not configured or unavailable.",
+                "providers": router.available_providers,
+            },
+        )
+
+    strategy = Strategy.SPECIFIC if provider_name else Strategy.BEST
+    messages = [{"role": m.role, "content": m.content} for m in body.messages]
+
+    result = await router.send(
+        messages,
+        strategy=strategy,
+        provider=provider_name,
+        model=model_name,
+        system=None,
+        response_format=None,
+        temperature=body.temperature,
+        max_tokens=body.max_tokens,
+    )
+
+    usage = result.usage or {}
+    display_model = f"{provider_name}:{result.model}" if provider_name and provider_name != settings.default_provider else result.model
+
+    return {
+        "id": f"chatcmpl-{_uuid.uuid4().hex[:24]}",
+        "object": "chat.completion",
+        "created": int(_time.time()),
+        "model": display_model,
+        "choices": [
+            {
+                "index": 0,
+                "message": {"role": "assistant", "content": result.content},
+                "finish_reason": "stop",
+            }
+        ],
+        "usage": {
+            "prompt_tokens": usage.get("input_tokens", 0),
+            "completion_tokens": usage.get("output_tokens", 0),
+            "total_tokens": usage.get("total_tokens", usage.get("input_tokens", 0) + usage.get("output_tokens", 0)),
+        },
+    }
+
+
+# --- Device voice routes ---
+
+
+@protected.post("/device/v1/voice/session")
+async def device_voice_session(request: Request):
+    form = await request.form()
+    device_id = form.get("device_id", "")
+    mode = form.get("mode", "idle")
+    current_media_raw = form.get("current_media", "{}")
+    try:
+        current_media_payload = json.loads(current_media_raw)
+    except (json.JSONDecodeError, TypeError):
+        current_media_payload = {}
+
+    audio_file = form.get("audio") or form.get("audio.wav")
+    if audio_file is None:
+        raise HTTPException(status_code=400, detail="Missing audio file")
+
+    audio_bytes = await audio_file.read()
+    filename = getattr(audio_file, "filename", "audio.wav")
+    content_type = getattr(audio_file, "content_type", "audio/wav")
+
+    service: DeviceVoiceService = request.app.state.device_voice
+    result = await service.handle_session(
+        device_id=device_id,
+        mode=mode,
+        current_media_payload=current_media_payload,
+        audio_bytes=audio_bytes,
+        filename=filename,
+        content_type=content_type,
+        request_base_url=str(request.base_url),
+    )
+    return result.model_dump()
+
+
+@protected.post("/device/v1/player/event")
+async def device_player_event(event: DevicePlayerEvent, request: Request):
+    service: DeviceVoiceService = request.app.state.device_voice
+    state = service.record_player_event(event)
+    return {"ok": True, "state": state.model_dump()}
+
+
+@protected.get("/device/v1/voice/replies/{reply_id}.wav")
+async def device_voice_reply_audio(reply_id: str, request: Request):
+    from fastapi.responses import Response as _Response
+
+    service: DeviceVoiceService = request.app.state.device_voice
+    audio = service.get_reply_audio(reply_id)
+    if audio is None:
+        raise HTTPException(status_code=404, detail="Reply audio not found or expired")
+    return _Response(content=audio.payload, media_type=audio.content_type)
 # --- Qdrant ---
 
 
@@ -1866,6 +2240,27 @@ async def qdrant_rag_query(collection_name: str, req: QdrantRAGRequest):
     except Exception as e:
         logger.exception("RAG query failed")
         raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+@app.get("/metrics")
+async def metrics():
+    """Expose Prometheus metrics for scraping."""
+    try:
+        from prometheus_client import REGISTRY, generate_latest
+
+        # Generate metrics in Prometheus text format
+        metrics_output = generate_latest(REGISTRY)
+        return Response(
+            content=metrics_output,
+            media_type="text/plain; version=0.0.4; charset=utf-8"
+        )
+    except ImportError:
+        # If prometheus_client is not installed, return empty metrics
+        return Response(
+            content="# Prometheus client not installed\n",
+            media_type="text/plain; version=0.0.4; charset=utf-8",
+            status_code=503
+        )
 
 
 app.include_router(protected)

@@ -57,6 +57,8 @@ class FakeCluster:
             "peer_id": "node-gpu",
             "node_id": "node-gpu",
             "role": preferred_role or "gpu",
+            "transport": "p2p",
+            "latency_ms": 18,
         }
 
 
@@ -192,9 +194,19 @@ def test_orchestrator_uses_cluster_auto_routing_when_enabled():
     assert result.peer_id == "node-gpu"
     assert result.node_id == "node-gpu"
     assert result.role == "gpu"
+    assert result.transport == "p2p"
+    assert result.latency_ms == 18
     assert result.response.provider == "ollama"
     assert result.response.model == "llama3.2:3b"
     assert result.response.content == "[remote:gpu] cluster test"
+    agent_output = next(
+        event
+        for event in orch.trace_buffer.run_events(run.run_id)
+        if event.event_type == "agent_output"
+    )
+    assert agent_output.routing_selected_by == "auto-peer"
+    assert agent_output.routing_transport == "p2p"
+    assert agent_output.routing_latency_ms == 18
 
 
 def test_orchestrator_routing_override_takes_precedence_over_agent_profile():
@@ -245,9 +257,13 @@ def test_orchestrator_routing_override_takes_precedence_over_agent_profile():
     assert run.results[0].response.content == "[remote:gpu] override test"
     events = orch.trace_buffer.run_events(run.run_id)
     agent_input = next(event for event in events if event.event_type == "agent_input")
+    agent_output = next(event for event in events if event.event_type == "agent_output")
     assert agent_input.routing_role == "gpu"
     assert agent_input.routing_provider == "mistral"
     assert agent_input.routing_model == "mistral-large-latest"
+    assert agent_output.routing_selected_by == "auto-peer"
+    assert agent_output.routing_transport == "p2p"
+    assert agent_output.routing_latency_ms == 18
 
 
 def test_orchestrator_applies_provider_model_override_locally_when_cluster_disabled():
