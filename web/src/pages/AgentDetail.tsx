@@ -14,6 +14,7 @@ import {
   Select,
   Textarea,
 } from "../components/ui";
+import PromptEditor from "../components/PromptEditor";
 
 const strategyOptions = [
   { value: "best", label: "Best" },
@@ -246,12 +247,12 @@ export default function AgentDetail() {
               disabled={detail.data?.builtin}
               onChange={(e) => setForm({ ...form, description: e.target.value })}
             />
-            <Textarea
+            <PromptEditor
               label="System Prompt"
-              rows={8}
               value={form.system_prompt}
               disabled={detail.data?.builtin}
-              onChange={(e) => setForm({ ...form, system_prompt: e.target.value })}
+              onChange={(value) => setForm({ ...form, system_prompt: value })}
+              placeholder="Enter the system prompt for this agent..."
             />
             <div className="grid gap-4 md:grid-cols-2">
               <Input
