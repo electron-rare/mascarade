@@ -68,13 +68,13 @@ Documents d'ancrage:
 
 | ID | Tache | Owner |
 | --- | --- | --- |
-| `C-DA-006` | Prioriser les surfaces proxy amont encore en mode `plain proxy` selon le risque operateur | `api-contract-auditor` |
+| `C-DA-007` | Durcir `/api/ops` en premier lot `plain proxy` | `api-contract-auditor` |
 
 ### `Kill_LIFE`
 
 | ID | Tache | Owner |
 | --- | --- | --- |
-| `K-DA-016` | Rendre visible l'ecart `summary ok / artefacts reels manquants` quand `verify_evidence` casse apres collecte | `embedded-systems-auditor` |
+| `K-DA-017` | Montrer plus explicitement les artefacts encore presents quand `Drift` est detecte | `embedded-systems-auditor` |
 
 ## Actions documentees dans ce tour
 
@@ -131,18 +131,20 @@ Documents d'ancrage:
 - revalidation locale `Kill_LIFE`: rendu rouge verifie via `render_markdown_summary(report)` et rendu vert revalide via `tools/auto_check_ci_cd.py`
 - fermeture de `K-DA-015` via l'exposition `required_files` / `missing` dans `Kill_LIFE/tools/auto_check_ci_cd.py`
 - revalidation locale `Kill_LIFE`: `./.venv/bin/python -m unittest discover -s test -p test_auto_check_ci_cd.py` puis `KILL_LIFE_PIO_MODE=native ./.venv/bin/python tools/auto_check_ci_cd.py`
+- fermeture de `K-DA-016` via la colonne `Drift` dans `Kill_LIFE/tools/auto_check_ci_cd.py`
 - fermeture de `M-DA-008` via l'exposition UI de `routing_selected_by`, `routing_transport` et `routing_latency_ms` dans `web/src/pages/Logs.tsx` et `web/src/pages/Orchestrate.tsx`
 - revalidation locale `mascarade`: `npm --prefix web run build` et `npm --prefix api run build`
 - fermeture de `C-DA-005` via `crazy_life/docs/UPSTREAM_DEPENDENCY_LEDGER_2026-03-14.md`
 - revalidation operateur `crazy_life`: `bash scripts/tui/gateway_audit.sh audit --strict`, lecture du report, puis purge `.ops/gateway-audit`
+- fermeture de `C-DA-006` via `crazy_life/docs/PLAIN_PROXY_PRIORITY_2026-03-14.md`
 - reduction de regression `M-DA-004` cote `mascarade/api`: fallback `X-Forwarded-Groups` retabli dans `api/src/routes/mcpIndustrial.ts`
 - revalidation locale `mascarade/api`: `npm --prefix api run build` puis `npm --prefix api test`
+- revalidation locale `mascarade/core`: `cd core && ./.venv/bin/python -m pytest -q`
 
 ## Test status snapshot
 
 - `mascarade/api`: `npm --prefix api run build` vert et `npm --prefix api test` vert (`62/62`) apres correction `mcpIndustrial`
-- `mascarade/core`: suite non verte dans l'etat actuel du worktree; plusieurs echecs relevent soit de regressions locales P2P/cluster, soit de limites sandbox sur le bind reseau
-- `mascarade/core/tests/test_cluster.py` et `mascarade/core/tests/test_orchestrator.py`: verts sur le lot courant
+- `mascarade/core`: `./.venv/bin/python -m pytest -q` vert dans l'etat courant du worktree; les suites cibles `test_cluster.py` et `test_orchestrator.py` restent vertes
 - `crazy_life`: `npm --prefix api test` vert (`34/34`), `npm run build` vert avec seul warning de chunk Vite > 500 kB
 - `Kill_LIFE`: evidence lane locale verte en mode `native-pio`; la suite `bash tools/test_python.sh --suite stable` reste bloquee par un delta local hors lot dans `tools/mcp_runtime_status.py`
 - aucune pretention de "suite verte globale" n'est faite sans reprise lot-par-lot
