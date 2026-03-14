@@ -917,13 +917,34 @@ export const coreClient = {
   // --- Templates ---
 
   listTemplates() {
-    return request<{ templates: AgentTemplate[] }>("/templates");
+    return request<{ templates: unknown[] }>("/orchestrate/templates");
   },
 
-  deployTemplate(templateId: string, body?: { name?: string }) {
-    return request<AgentInfo>(`/templates/${encodeURIComponent(templateId)}/deploy`, {
+  getTemplate(templateId: string) {
+    return request<unknown>(`/orchestrate/templates/${encodeURIComponent(templateId)}`);
+  },
+
+  deployTemplate(templateId: string, body: { input: string; routing_overrides?: Record<string, unknown> }) {
+    return request<{
+      run_id: string;
+      template_id: string;
+      mode: string;
+      results: {
+        agent: string;
+        step: number;
+        content: string;
+        model: string;
+        provider: string;
+        error?: string;
+        remote?: boolean;
+        selected_by?: string;
+        peer_id?: string | null;
+        node_id?: string | null;
+        role?: string | null;
+      }[];
+    }>(`/orchestrate/templates/${encodeURIComponent(templateId)}/deploy`, {
       method: "POST",
-      body: JSON.stringify(body || {}),
+      body: JSON.stringify(body),
     });
   },
 };
