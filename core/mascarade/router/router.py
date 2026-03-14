@@ -8,6 +8,7 @@ from collections.abc import AsyncIterator
 from enum import StrEnum
 
 from mascarade.analytics.clickhouse_logger import get_cost_logger
+from mascarade.analytics.cost_calculator import get_cost_calculator
 from mascarade.analytics.prometheus_metrics import COST_METRICS
 from mascarade.cache.cache import ResponseCache
 from mascarade.load_balancer.balancer import LoadBalancer
@@ -35,6 +36,7 @@ class Router:
         self.load_balancer = LoadBalancer()
         self.fallback = FallbackState(max_attempts=3)
         self.cost_logger = get_cost_logger()
+        self.cost_calculator = get_cost_calculator()
         self._register_defaults()
 
     def _register_defaults(self) -> None:
@@ -82,6 +84,45 @@ class Router:
             for name, provider in self._providers.items()
         }
 
+    def _get_effective_cost(self, provider: LLMProvider) -> float:
+        """
+        Get effective cost for a provider.
+
+        Uses actual measured cost per request if sufficient data is available,
+        otherwise falls back to static cost_per_million.
+
+        Args:
+            provider: LLMProvider instance
+
+        Returns:
+            Effective cost metric for comparison
+        """
+        MIN_REQUESTS_FOR_MEASURED_COST = 5
+
+        # Try to get measured cost data
+        stats = self.metrics.get_provider_stats(provider.name)
+        if stats and stats.get("total_requests", 0) >= MIN_REQUESTS_FOR_MEASURED_COST:
+            total_cost = stats.get("total_cost", 0.0)
+            total_requests = stats.get("total_requests", 1)
+            avg_cost_per_request = total_cost / total_requests
+            logger.debug(
+                "Using measured cost for %s: $%.6f per request (based on %d requests)",
+                provider.name,
+                avg_cost_per_request,
+                total_requests,
+            )
+            return avg_cost_per_request
+
+        # Fallback to static cost_per_million
+        # Use sum as a proxy for comparison (input + output cost per million)
+        static_cost = sum(provider.cost_per_million)
+        logger.debug(
+            "Using static cost for %s: $%.2f per 1M tokens (insufficient measured data)",
+            provider.name,
+            static_cost,
+        )
+        return static_cost
+
     def _select_candidates(
         self,
         strategy: Strategy = Strategy.BEST,
@@ -101,8 +142,9 @@ class Router:
         providers = list(self._providers.values())
 
         if strategy == Strategy.CHEAPEST:
-            best_value = min(sum(p.cost_per_million) for p in providers)
-            return [p for p in providers if sum(p.cost_per_million) == best_value]
+            # Use actual measured cost when available, fall back to static cost
+            best_value = min(self._get_effective_cost(p) for p in providers)
+            return [p for p in providers if self._get_effective_cost(p) == best_value]
 
         if strategy == Strategy.FASTEST:
             best_value = min(p.speed_rank for p in providers)
