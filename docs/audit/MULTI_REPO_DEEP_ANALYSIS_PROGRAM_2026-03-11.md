@@ -68,7 +68,7 @@ Documents d'ancrage:
 
 | ID | Tache | Owner |
 | --- | --- | --- |
-| `C-DA-012` | Fermer la smoke runtime locale (`dev:all`, `curl`, lane workflow) ou documenter precisement le blocage | `api-contract-auditor` |
+| `C-DA-013` | Fiabiliser la smoke locale face aux collisions de port et rendre la dependance upstream plus explicite | `api-contract-auditor` |
 
 ### `Kill_LIFE`
 
@@ -147,6 +147,8 @@ Documents d'ancrage:
 - revalidation operateur `crazy_life`: `bash scripts/tui/gateway_audit.sh audit --strict`, lecture du report, puis purge `.ops/gateway-audit`
 - fermeture de `C-DA-011` via `crazy_life/docs/NON_PROXY_DEBT_CLASSIFICATION_2026-03-14.md` et `scripts/tui/non_proxy_debt_audit.sh`
 - revalidation operateur `crazy_life`: `bash scripts/tui/non_proxy_debt_audit.sh audit --strict`, lecture du report, puis purge `.ops/non-proxy-debt-audit`
+- fermeture de `C-DA-012` via `crazy_life/docs/RUNTIME_SMOKE_2026-03-14.md` et la smoke live `KILL_LIFE_ROOT=/Users/electron/Kill_LIFE bash scripts/dev.sh up`
+- revalidation operateur `crazy_life`: `curl http://localhost:3100/api/killlife/workflows` vert, `curl http://localhost:3100/health` en `502` bloque precisement par upstream `:3000`, `127.0.0.1:3100` invalide a cause d'un conflit local `com.docker`
 - reduction de regression `M-DA-004` cote `mascarade/api`: fallback `X-Forwarded-Groups` retabli dans `api/src/routes/mcpIndustrial.ts`
 - revalidation locale `mascarade/api`: `npm --prefix api run build` puis `npm --prefix api test`
 - revalidation locale `mascarade/core`: `cd core && ./.venv/bin/python -m pytest -q`
