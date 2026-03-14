@@ -34,6 +34,10 @@ from mascarade.mcp.client import McpError
 from mascarade.observability import AgentTraceBuffer, iso_utc_now, new_run_id
 from mascarade.orchestrator import Orchestrator
 from mascarade.orchestrator.engine import ExecutionMode
+from mascarade.orchestrator.templates import (
+    TemplateRegistry,
+    register_builtin_templates,
+)
 from mascarade.provider_admin import (
     PROVIDER_REGISTRY,
     get_providers_status,
@@ -62,12 +66,15 @@ async def lifespan(app: FastAPI):
         trace_buffer=trace_buffer,
         cluster=cluster,
     )
+    template_registry = TemplateRegistry()
+    register_builtin_templates(template_registry)
 
     app.state.router = router
     app.state.registry = registry
     app.state.orchestrator = orchestrator
     app.state.trace_buffer = trace_buffer
     app.state.cluster = cluster
+    app.state.template_registry = template_registry
     app.state.mcp = McpRuntimeClient(trace_buffer=trace_buffer)
     app.state.comfyui = ComfyUIClient() if settings.comfyui_url else None
     app.state.qdrant = QdrantClient() if settings.qdrant_url else None
@@ -216,6 +223,11 @@ class TaskRequest(BaseModel):
     agent_names: list[str] = Field(max_length=20)
     prompt: str = Field(min_length=1, max_length=100_000)
     mode: ExecutionMode = ExecutionMode.SEQUENTIAL
+    routing_overrides: dict[str, AgentRoutingOverride] = Field(default_factory=dict)
+
+
+class TemplateDeployRequest(BaseModel):
+    input: str = Field(min_length=1, max_length=100_000)
     routing_overrides: dict[str, AgentRoutingOverride] = Field(default_factory=dict)
 
 
@@ -786,6 +798,100 @@ async def orchestrate(req: TaskRequest):
         raise HTTPException(status_code=404, detail=f"Agent not found: {exc}") from exc
     return {
         "run_id": run.run_id,
+        "mode": run.mode.value,
+        "results": [
+            {
+                "agent": r.agent_name,
+                "step": r.step,
+                "content": r.response.content,
+                "model": r.response.model,
+                "provider": r.response.provider,
+                "remote": r.remote,
+                "selected_by": r.selected_by,
+                "peer_id": r.peer_id,
+                "node_id": r.node_id,
+                "role": r.role,
+                **({"error": r.error} if r.error else {}),
+            }
+            for r in run.results
+        ],
+    }
+
+
+@protected.get("/orchestrate/templates")
+async def list_templates():
+    """List all available workflow templates."""
+    templates = app.state.template_registry.list()
+    return [
+        {
+            "id": t.id,
+            "name": t.name,
+            "description": t.description,
+            "agent_names": t.agent_names,
+            "mode": t.mode.value,
+            "documentation": t.documentation,
+            "builtin": app.state.template_registry.is_builtin(t.id),
+        }
+        for t in templates
+    ]
+
+
+@protected.get("/orchestrate/templates/{template_id}")
+async def get_template(template_id: str):
+    """Get a specific workflow template by ID."""
+    try:
+        template = app.state.template_registry.get(template_id)
+    except KeyError as exc:
+        raise HTTPException(
+            status_code=404, detail=f"Template not found: {template_id}"
+        ) from exc
+    return {
+        "id": template.id,
+        "name": template.name,
+        "description": template.description,
+        "agent_names": template.agent_names,
+        "mode": template.mode.value,
+        "routing_overrides": template.routing_overrides,
+        "documentation": template.documentation,
+        "builtin": app.state.template_registry.is_builtin(template.id),
+    }
+
+
+@protected.post("/orchestrate/templates/{template_id}/deploy")
+async def deploy_template(template_id: str, req: TemplateDeployRequest):
+    """Deploy a workflow template with user input."""
+    try:
+        template = app.state.template_registry.get(template_id)
+    except KeyError as exc:
+        raise HTTPException(
+            status_code=404, detail=f"Template not found: {template_id}"
+        ) from exc
+
+    # Merge template routing_overrides with request overrides (request takes precedence)
+    routing_overrides = {}
+    if template.routing_overrides:
+        routing_overrides.update(template.routing_overrides)
+    if req.routing_overrides:
+        routing_overrides.update(
+            {
+                agent_name: override.model_dump()
+                for agent_name, override in req.routing_overrides.items()
+            }
+        )
+
+    try:
+        run = await app.state.orchestrator.run(
+            template.agent_names,
+            req.input,
+            mode=template.mode,
+            routing_overrides=routing_overrides,
+        )
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=f"Agent not found: {exc}") from exc
+
+    return {
+        "run_id": run.run_id,
+        "template_id": template_id,
         "mode": run.mode.value,
         "results": [
             {
