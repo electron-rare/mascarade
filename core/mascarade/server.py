@@ -349,6 +349,13 @@ class QdrantRAGRequest(BaseModel):
     temperature: float = Field(default=0.7, ge=0.0, le=2.0)
 
 
+class BenchmarkRunRequest(BaseModel):
+    domain: str | None = Field(default=None, max_length=50)
+    providers: list[str] | None = Field(default=None, max_length=10)
+    difficulty: str | None = Field(default=None, max_length=20)
+    limit: int | None = Field(default=None, gt=0, le=100)
+
+
 # --- Route publique ---
 
 
@@ -1884,6 +1891,99 @@ async def get_benchmark_results(
     except Exception as e:
         logger.exception("Failed to query benchmark results")
         raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+@protected.post("/v1/benchmarks/run", status_code=202)
+async def trigger_benchmark_run(req: BenchmarkRunRequest):
+    """
+    Trigger an on-demand benchmark run.
+
+    Request body:
+    - domain: Domain to benchmark (optional, runs all domains if not specified)
+    - providers: List of providers to test (optional, tests all providers if not specified)
+    - difficulty: Difficulty level to test (optional)
+    - limit: Maximum number of prompts per provider (optional)
+
+    Returns:
+        202 Accepted with run_id for tracking the benchmark execution
+    """
+    from mascarade.benchmarks.suite import BenchmarkSuite
+
+    # Initialize benchmark suite with router from app state
+    suite = BenchmarkSuite(router=app.state.router)
+
+    # Generate run_id for tracking
+    run_id = suite._generate_run_id()
+
+    # Define the background benchmark task
+    async def run_benchmark_task():
+        """Background task to execute the benchmark."""
+        try:
+            if req.domain:
+                # Run domain-specific benchmark
+                logger.info(
+                    "Starting domain-specific benchmark (domain=%s, run_id=%s)",
+                    req.domain,
+                    run_id,
+                )
+                run = await suite.run_domain_benchmark(
+                    domain=req.domain,
+                    providers=req.providers,
+                    difficulty=req.difficulty,
+                    limit=req.limit,
+                )
+            else:
+                # Run full suite benchmark
+                logger.info(
+                    "Starting full suite benchmark (run_id=%s)",
+                    run_id,
+                )
+                run = await suite.run_full_suite(
+                    providers=req.providers,
+                    difficulty=req.difficulty,
+                    limit=req.limit,
+                )
+
+            logger.info(
+                "Benchmark completed (run_id=%s, total=%d, successful=%d, failed=%d)",
+                run.run_id,
+                run.total_benchmarks,
+                run.successful_benchmarks,
+                run.failed_benchmarks,
+            )
+
+            # Store results in ClickHouse
+            from mascarade.benchmarks.storage import BenchmarkStorage
+
+            storage = BenchmarkStorage()
+            for result in run.results:
+                try:
+                    storage.write_result(result)
+                except Exception as e:
+                    logger.warning(
+                        "Failed to store benchmark result for %s/%s: %s",
+                        result.provider,
+                        result.model,
+                        e,
+                    )
+
+        except Exception as e:
+            logger.exception("Benchmark run failed (run_id=%s): %s", run_id, e)
+
+    # Create background task (fire and forget)
+    asyncio.create_task(run_benchmark_task())
+
+    return {
+        "status": "accepted",
+        "run_id": run_id,
+        "message": "Benchmark run started in background",
+        "filters": {
+            "domain": req.domain,
+            "providers": req.providers,
+            "difficulty": req.difficulty,
+            "limit": req.limit,
+        },
+    }
 
 
 app.include_router(protected)
