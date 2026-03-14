@@ -211,6 +211,10 @@ export const coreClient = {
     return request<Record<string, unknown>>(`/metrics/${encodeURIComponent(provider)}`);
   },
 
+  getAgentMetrics(name: string) {
+    return request<Record<string, unknown>>(`/agents/${encodeURIComponent(name)}/metrics`);
+  },
+
   resetMetrics() {
     return request<{ status: string }>("/metrics/reset", { method: "POST" });
   },
@@ -280,6 +284,12 @@ export const coreClient = {
     return request<AgentInfo>(`/agents/${encodeURIComponent(name)}`, {
       method: "PUT",
       body: JSON.stringify(body),
+    });
+  },
+
+  deleteAgent(name: string) {
+    return request<{ status: string; message?: string }>(`/agents/${encodeURIComponent(name)}`, {
+      method: "DELETE",
     });
   },
 

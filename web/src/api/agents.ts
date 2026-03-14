@@ -1,4 +1,4 @@
-import { get, post, put } from "./client";
+import { del, get, post, put } from "./client";
 
 export interface Agent {
   name: string;
@@ -16,6 +16,15 @@ export interface Agent {
 export interface Message {
   role: string;
   content: string;
+}
+
+export interface AgentMetrics {
+  total_requests: number;
+  total_tokens: number;
+  total_cost: number;
+  avg_response_time: number;
+  error_rate: number;
+  last_used: string | null;
 }
 
 export interface LLMResponse {
@@ -144,4 +153,10 @@ export const agentsApi = {
     ),
 
   providers: () => get<{ providers: string[] }>("/api/agents/providers"),
+
+  delete: (name: string) =>
+    del<{ status: string; message?: string }>(`/api/agents/${encodeURIComponent(name)}`),
+
+  metrics: (name: string) =>
+    get<AgentMetrics>(`/api/agents/${encodeURIComponent(name)}/metrics`),
 };
