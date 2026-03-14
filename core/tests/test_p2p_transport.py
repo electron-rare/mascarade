@@ -77,3 +77,27 @@ async def test_broadcast():
         await node_a.stop()
         await node_b.stop()
         await node_c.stop()
+
+
+async def test_broadcast_skips_hung_peer():
+    """Broadcast should return even if one peer send path stalls."""
+
+    class SlowInboundPeer:
+        async def send(self, msg):
+            await asyncio.sleep(10)
+            return True
+
+    class FastInboundPeer:
+        async def send(self, msg):
+            return True
+
+    node = P2PTransport(local_peer_id="QmA", listen_host="127.0.0.1", listen_port=0)
+    node._inbound_peers = {
+        "QmSlow": SlowInboundPeer(),
+        "QmFast": FastInboundPeer(),
+    }
+
+    msg = P2PMessage(type="announce", sender="QmA", payload={"caps": ["llm"]})
+    sent = await asyncio.wait_for(node.broadcast(msg), timeout=8.0)
+
+    assert sent == 1

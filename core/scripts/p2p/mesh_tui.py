@@ -32,7 +32,7 @@ NODES = {
         "ssh": None,  # local
         "port": 4001,
         "role": "bridge",
-        "caps": ["p2p-relay", "p2p-bridge", "llm-inference", "ft-research", "ft-teacher"],
+        "caps": ["p2p-relay", "p2p-bridge", "llm-inference", "ft-research", "ft-dataset", "ft-teacher", "ft-archive"],
     },
     "CILS": {
         "ssh": "cils@192.168.0.210",

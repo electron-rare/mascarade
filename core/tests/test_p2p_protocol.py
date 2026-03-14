@@ -49,3 +49,21 @@ async def test_read_message_eof():
     reader.feed_eof()
     result = await read_message(reader)
     assert result is None
+
+
+async def test_write_message_times_out_on_stalled_drain():
+    class SlowWriter:
+        def __init__(self) -> None:
+            self.buffer = []
+
+        def write(self, data):
+            self.buffer.append(data)
+
+        async def drain(self):
+            await asyncio.sleep(10)
+
+    msg = P2PMessage(type="hello", sender="QmPeer1", payload={"greeting": "hi"})
+
+    ok = await write_message(SlowWriter(), msg)
+
+    assert ok is False

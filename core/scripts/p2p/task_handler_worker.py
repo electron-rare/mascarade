@@ -92,12 +92,45 @@ print(json.dumps(info))
         return {'status': 'error', 'from': LABEL, 'error': stderr.decode()[-500:]}
 
     # Parse the last JSON line from stdout
+    result = None
     for line in reversed(stdout.decode().strip().split('\n')):
         try:
-            return {'status': 'completed', 'from': LABEL, **json.loads(line)}
+            result = {'status': 'completed', 'from': LABEL, **json.loads(line)}
+            break
         except json.JSONDecodeError:
             continue
-    return {'status': 'completed', 'from': LABEL, 'output': stdout.decode()[-500:]}
+    if result is None:
+        result = {'status': 'completed', 'from': LABEL, 'output': stdout.decode()[-500:]}
+
+    # Auto-register into Ollama if a GGUF file is available
+    adapter_dir = result.get('adapter', '')
+    if adapter_dir and result.get('status') == 'completed':
+        await _try_register_ollama(adapter_dir, payload.get('run_name', 'p2p-finetune'))
+
+    return result
+
+
+async def _try_register_ollama(adapter_dir: str, run_name: str) -> None:
+    """Best-effort auto-registration of a GGUF into Ollama after fine-tune."""
+    import glob as _glob
+    # Look for GGUF files in the adapter dir and parent
+    search_dirs = [adapter_dir, os.path.dirname(adapter_dir)]
+    gguf_path = None
+    for d in search_dirs:
+        matches = _glob.glob(os.path.join(d, '*.gguf'))
+        if matches:
+            gguf_path = matches[0]
+            break
+    if not gguf_path:
+        print(f'[publish] No GGUF found near {adapter_dir}, skipping Ollama registration', flush=True)
+        return
+    try:
+        from mascarade.finetune.publish import register_ollama_model
+        model_name = f'mascarade-{run_name}'
+        result = await register_ollama_model(gguf_path, model_name)
+        print(f'[publish] Ollama registration: {result}', flush=True)
+    except Exception as exc:
+        print(f'[publish] Ollama registration failed (best-effort): {exc}', flush=True)
 
 
 async def handle_task(payload: dict, capability: str) -> dict:
@@ -109,6 +142,13 @@ async def handle_task(payload: dict, capability: str) -> dict:
         return {'status': 'echoed', 'from': LABEL, 'message': payload.get('message', '')}
     elif action == 'finetune':
         return await _run_finetune(payload)
+    elif capability.startswith('ft-'):
+        from mascarade.finetune.p2p.task_handlers import handle_ft_task
+
+        result = await handle_ft_task(payload, capability)
+        if isinstance(result, dict) and 'from' not in result:
+            result = {'from': LABEL, **result}
+        return result
     else:
         return {'status': 'handled', 'from': LABEL, 'action': action, 'capability': capability}
 
