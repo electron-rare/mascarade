@@ -133,6 +133,21 @@ export interface ProviderStatus {
   auth_modes?: string[];
 }
 
+export interface AgentTemplate {
+  id: string;
+  name: string;
+  description: string;
+  system_prompt: string;
+  preferred_provider?: string | null;
+  preferred_model?: string | null;
+  preferred_role?: string | null;
+  strategy?: string;
+  temperature?: number;
+  max_tokens?: number;
+  category?: string;
+  tags?: string[];
+}
+
 const REQUEST_TIMEOUT_MS = parseInt(process.env.CORE_TIMEOUT_MS || "30000", 10);
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
@@ -896,6 +911,19 @@ export const coreClient = {
     }>(`/qdrant/collections/${encodeURIComponent(collectionName)}/rag-query`, {
       method: "POST",
       body: JSON.stringify(body),
+    });
+  },
+
+  // --- Templates ---
+
+  listTemplates() {
+    return request<{ templates: AgentTemplate[] }>("/templates");
+  },
+
+  deployTemplate(templateId: string, body?: { name?: string }) {
+    return request<AgentInfo>(`/templates/${encodeURIComponent(templateId)}/deploy`, {
+      method: "POST",
+      body: JSON.stringify(body || {}),
     });
   },
 };
