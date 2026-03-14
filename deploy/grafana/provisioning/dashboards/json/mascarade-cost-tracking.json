@@ -678,12 +678,12 @@
       },
       "targets": [
         {
-          "expr": "sum by (provider) (rate(mascarade_llm_tokens_input_total[5m]))",
+          "expr": "sum by (provider) (rate(mascarade_llm_tokens_total{token_type=\"input\"}[5m]))",
           "legendFormat": "{{provider}} input",
           "refId": "A"
         },
         {
-          "expr": "sum by (provider) (rate(mascarade_llm_tokens_output_total[5m]))",
+          "expr": "sum by (provider) (rate(mascarade_llm_tokens_total{token_type=\"output\"}[5m]))",
           "legendFormat": "{{provider}} output",
           "refId": "B"
         }
