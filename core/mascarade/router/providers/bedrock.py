@@ -59,9 +59,15 @@ class BedrockProvider(LLMProvider):
         self._ft_management = None
         self._custom_models: dict[str, str] = {}
         self._custom_models_loaded = False
+        self._init_lock = asyncio.Lock()
 
     def _ensure_clients(self) -> None:
-        """Create AWS clients lazily to keep startup fast."""
+        """Create AWS clients lazily to keep startup fast.
+
+        Thread-safe: callers must hold ``_init_lock`` (or call via
+        ``_ensure_clients_async``) to avoid a TOCTOU race where two
+        coroutines enter the None-check concurrently.
+        """
         if (
             self._client is not None
             and self._ft_runtime is not None
@@ -85,6 +91,13 @@ class BedrockProvider(LLMProvider):
         )
         self._ft_runtime = ft_session.client("bedrock-runtime", config=_BOTO_CFG)
         self._ft_management = ft_session.client("bedrock")
+
+    async def _ensure_clients_async(self) -> None:
+        """Async-safe wrapper around _ensure_clients."""
+        if self._client is not None:
+            return  # fast path, no lock needed
+        async with self._init_lock:
+            self._ensure_clients()
 
     def _discover_custom_models(self) -> None:
         """Auto-discover mascarade-* custom models on Bedrock."""
@@ -147,6 +160,7 @@ class BedrockProvider(LLMProvider):
         temperature: float = 0.7,
         max_tokens: int = 4096,
     ) -> LLMResponse:
+        await self._ensure_clients_async()
         model_id = self.resolve_model(model)
         client = self._runtime_for(model_id)
 
@@ -186,6 +200,7 @@ class BedrockProvider(LLMProvider):
         temperature: float = 0.7,
         max_tokens: int = 4096,
     ) -> AsyncIterator[str]:
+        await self._ensure_clients_async()
         model_id = self.resolve_model(model)
         client = self._runtime_for(model_id)
 
@@ -203,10 +218,29 @@ class BedrockProvider(LLMProvider):
             return client.converse_stream(**kwargs)
 
         response = await asyncio.wait_for(asyncio.to_thread(_call), timeout=_TIMEOUT_S)
-        for event in response.get("stream", []):
-            text = event.get("contentBlockDelta", {}).get("delta", {}).get("text")
-            if text:
-                yield text
+
+        def _iter_stream():
+            for event in response.get("stream", []):
+                text = event.get("contentBlockDelta", {}).get("delta", {}).get("text")
+                if text:
+                    yield text
+
+        queue: asyncio.Queue[str | None] = asyncio.Queue()
+
+        async def _drain():
+            def _run():
+                for text in _iter_stream():
+                    queue.put_nowait(text)
+                queue.put_nowait(None)
+            await asyncio.to_thread(_run)
+
+        drain_task = asyncio.create_task(_drain())
+        while True:
+            item = await queue.get()
+            if item is None:
+                break
+            yield item
+        await drain_task
 
     def available_models(self) -> list[str]:
         self._discover_custom_models()
@@ -221,7 +255,7 @@ class BedrockProvider(LLMProvider):
 
     async def finetune_jobs(self) -> list[dict]:
         """List fine-tuning job statuses."""
-        self._ensure_clients()
+        await self._ensure_clients_async()
 
         def _call():
             return self._ft_management.list_model_customization_jobs(maxResults=20)

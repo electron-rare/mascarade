@@ -43,7 +43,7 @@ except Exception:  # pragma: no cover
 
 import multiaddr as ma
 
-from mascarade.p2p.protocols import (
+from mascarade.p2p.libp2p_protocols import (
     IDENTITY_PROTOCOL,
     SEND_PROTOCOL,
     read_msg,
@@ -57,7 +57,7 @@ _HEARTBEAT_TOPIC = "mascarade/heartbeat"
 _CAPABILITIES_TOPIC = "mascarade/capabilities"
 
 
-@dataclass(slots=True)
+@dataclass
 class P2PPeer:
     """A peer discovered via libp2p."""
 

@@ -75,9 +75,11 @@ class MistralProvider(LLMProvider):
                 max_tokens=max_tokens,
                 temperature=temperature,
             )
+            if not response.choices:
+                raise RuntimeError(f"Mistral returned empty choices for model {model}")
             choice = response.choices[0]
             return LLMResponse(
-                content=choice.message.content,
+                content=choice.message.content or "",
                 model=model,
                 provider=self.name,
                 usage={
@@ -93,9 +95,11 @@ class MistralProvider(LLMProvider):
             max_tokens=max_tokens,
             temperature=temperature,
         )
+        if not response.choices:
+            raise RuntimeError(f"Mistral returned empty choices for model {model}")
         choice = response.choices[0]
         return LLMResponse(
-            content=choice.message.content,
+            content=choice.message.content or "",
             model=model,
             provider=self.name,
             usage={

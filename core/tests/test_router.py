@@ -80,7 +80,8 @@ def test_send():
     resp = asyncio.run(
         r.send(
             [{"role": "user", "content": "hello"}],
-            strategy="cheapest",
+            strategy="routellm",
+            routing_policy="cheap",
         )
     )
     assert resp.provider == "cheap"
@@ -190,7 +191,13 @@ def test_send_fallback_on_error():
     r.register(FailProvider())
     r.register(OkProvider())
 
-    resp = asyncio.run(r.send([{"role": "user", "content": "hello"}], strategy="best"))
+    resp = asyncio.run(
+        r.send(
+            [{"role": "user", "content": "hello"}],
+            strategy="routellm",
+            routing_policy="strong",
+        )
+    )
     assert resp.provider == "ok"
     assert r.fallback.get_failure_stats()["total_failures"] >= 1
 
@@ -226,7 +233,9 @@ def test_send_cache_hit():
     r.register(CountProvider())
 
     payload = [{"role": "user", "content": "cache-me"}]
-    first = asyncio.run(r.send(payload, strategy="best"))
+    first = asyncio.run(
+        r.send(payload, strategy="routellm", routing_policy="strong")
+    )
     # Force same provider selection for cache hit
     second = asyncio.run(r.send(payload, strategy="specific", provider="count"))
     assert first.content == second.content == "cached-response"
