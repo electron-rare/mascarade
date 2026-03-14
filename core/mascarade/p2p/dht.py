@@ -225,6 +225,22 @@ class P2PDHT:
 
         host = resolved_host
         port = msg.payload.get("port", conn.port)
+
+        # Validate port range
+        if not isinstance(port, int) or port < 1 or port > 65535:
+            logger.warning(
+                "DHT: rejected announce from %s — invalid port %s",
+                msg.sender, port,
+            )
+            return
+
+        # Validate host format (must be non-empty after resolution)
+        if not host or not isinstance(host, str):
+            logger.warning(
+                "DHT: rejected announce from %s — empty or invalid host",
+                msg.sender,
+            )
+            return
         capabilities = msg.payload.get("capabilities", [])
         metadata = msg.payload.get("metadata", {})
         public_key = msg.payload.get("public_key", "")

@@ -43,10 +43,12 @@ class MascaradeP2PNode:
         bootstrap_peers: list[tuple[str, str, int]] | None = None,
     ) -> None:
         self._identity = PeerIdentity.load_or_generate(key_dir)
+        self._metrics = P2PMetricsCollector(self._identity.peer_id)
         self._transport = P2PTransport(
             local_peer_id=self._identity.peer_id,
             listen_host=listen_host,
             listen_port=listen_port,
+            metrics=self._metrics,
         )
         self._transport.enable_authentication(
             self._identity,
@@ -83,7 +85,6 @@ class MascaradeP2PNode:
             local_peer_id=self._identity.peer_id,
             transport=self._transport,
         )
-        self._metrics = P2PMetricsCollector(self._identity.peer_id)
         self._event_bus = P2PEventBus()
         self._heartbeat_task: asyncio.Task | None = None
         self._running = False

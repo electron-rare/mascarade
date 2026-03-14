@@ -81,6 +81,7 @@ class P2PTransport:
         local_peer_id: str,
         listen_host: str = "0.0.0.0",
         listen_port: int = 4001,
+        metrics: Any | None = None,
     ) -> None:
         self._local_peer_id = local_peer_id
         self._listen_host = listen_host
@@ -94,6 +95,7 @@ class P2PTransport:
         self._inbound_tasks: set[asyncio.Task] = set()
         self._outbound_read_tasks: dict[str, asyncio.Task] = {}
         self._authenticator: MessageAuthenticator | None = None
+        self._metrics = metrics  # Optional P2PMetricsCollector
 
     @property
     def listen_port(self) -> int:
@@ -190,12 +192,16 @@ class P2PTransport:
         for peer_id, conn in list(all_peers.items()):
             if await conn.send(msg):
                 sent += 1
+                if self._metrics:
+                    self._metrics.record_message_sent(msg.type)
                 if peer_id in self._peers:
                     self._ensure_outbound_reader(peer_id, conn)
         return sent
 
     async def send_to(self, peer_id: str, msg: P2PMessage) -> bool:
         outgoing = self._prepare_outgoing(msg)
+        if self._metrics:
+            self._metrics.record_message_sent(outgoing.type)
         conn = self._peers.get(peer_id)
         if not conn:
             # Try relay fallback if available
@@ -286,6 +292,9 @@ class P2PTransport:
                     )
                     continue
 
+                if self._metrics:
+                    self._metrics.record_message_received(msg.type)
+
                 handler = self._handlers.get(msg.type) or self._default_handler
                 if handler:
                     try:
@@ -339,6 +348,9 @@ class P2PTransport:
                         msg.sender,
                     )
                     continue
+
+                if self._metrics:
+                    self._metrics.record_message_received(msg.type)
 
                 sender_id = msg.sender
                 if sender_id and sender_id != self._local_peer_id:
