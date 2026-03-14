@@ -6,6 +6,7 @@ import logging
 import time
 from collections.abc import AsyncIterator
 from enum import StrEnum
+from typing import Any
 
 from mascarade.cache.cache import ResponseCache
 from mascarade.load_balancer.balancer import LoadBalancer
@@ -153,6 +154,42 @@ class Router:
         self.cache.clear()
         self.load_balancer.reset_stats()
         self.fallback.reset()
+
+    def register_finetuned_model(
+        self,
+        model_id: str,
+        *,
+        domain: str | None = None,
+        provider: str = "ollama",
+        deployment_url: str | None = None,
+        verify_health: bool = True,
+        metadata: dict[str, Any] | None = None,
+    ) -> None:
+        """Enregistrer un modèle fine-tuné avec métadonnées et vérification de santé.
+
+        Args:
+            model_id: Identifiant unique du modèle (ex: 'mascarade-spice:latest')
+            domain: Domaine métier du modèle (ex: 'spice', 'electronics')
+            provider: Provider de déploiement (défaut: 'ollama')
+            deployment_url: URL du service de déploiement
+            verify_health: Vérifier la santé du modèle après enregistrement
+            metadata: Métadonnées additionnelles
+        """
+        reg_metadata: dict[str, Any] = metadata.copy() if metadata else {}
+
+        if domain is not None:
+            reg_metadata["domain"] = domain
+        if provider is not None:
+            reg_metadata["provider"] = provider
+        if deployment_url is not None:
+            reg_metadata["deployment_url"] = deployment_url
+
+        self.model_registry.register_model(model_id, reg_metadata)
+        logger.info("Registered finetuned model: %s (domain=%s)", model_id, domain)
+
+        if verify_health:
+            health_status = self.model_registry.verify_health(model_id)
+            logger.info("Health check for %s: %s", model_id, health_status)
 
     async def send(
         self,
