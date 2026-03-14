@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { Hono, type Context } from "hono";
 import { emitStructuredLog } from "../lib/otel.js";
@@ -90,10 +91,68 @@ pipeline.post("/run", async (c: Context) => {
 
 /**
  * GET /status - Check pipeline state
- * TODO: Implementation in subtask-4-3
+ * Returns: { ok: boolean, status: string, data?: object, error?: string }
  */
 pipeline.get("/status", async (c: Context) => {
-  return c.json({ status: "not_implemented" }, 501);
+  try {
+    // Determine state file path (relative to api/ directory)
+    const statePath = path.resolve(process.cwd(), "../finetune/state.json");
+
+    // Check if state file exists
+    if (!existsSync(statePath)) {
+      emitStructuredLog({
+        severity: "info",
+        source: "api",
+        service: "pipeline",
+        message: "No pipeline state file found",
+      });
+      return c.json(
+        {
+          ok: true,
+          status: "idle",
+          message: "No pipeline has been run yet",
+        },
+        200,
+      );
+    }
+
+    // Read and parse state file
+    const stateContent = readFileSync(statePath, "utf-8");
+    const stateData = JSON.parse(stateContent);
+
+    emitStructuredLog({
+      severity: "debug",
+      source: "api",
+      service: "pipeline",
+      message: `Pipeline status retrieved for domain ${stateData.domain || "unknown"}`,
+    });
+
+    return c.json(
+      {
+        ok: true,
+        status: "active",
+        data: stateData,
+      },
+      200,
+    );
+  } catch (error) {
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    emitStructuredLog({
+      severity: "error",
+      source: "api",
+      service: "pipeline",
+      message: `Failed to retrieve pipeline status: ${errorMsg}`,
+    });
+    return c.json(
+      {
+        ok: false,
+        status: "error",
+        error: "Failed to retrieve pipeline status",
+        details: errorMsg,
+      },
+      500,
+    );
+  }
 });
 
 /**
