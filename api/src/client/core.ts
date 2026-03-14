@@ -138,6 +138,18 @@ export interface ProviderStatus {
   auth_modes?: string[];
 }
 
+export interface ProviderHealthMetrics {
+  provider_name: string;
+  health_score: number;
+  circuit_state: string;
+  latency_p50: number | null;
+  latency_p95: number | null;
+  latency_p99: number | null;
+  error_rate: number;
+  availability: number;
+  total_requests: number;
+}
+
 const REQUEST_TIMEOUT_MS = parseInt(process.env.CORE_TIMEOUT_MS || "30000", 10);
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
@@ -200,6 +212,10 @@ export const coreClient = {
 
   providersStatus() {
     return request<{ providers: ProviderStatus[] }>("/providers/status");
+  },
+
+  providerHealth() {
+    return request<Record<string, ProviderHealthMetrics>>("/health/providers");
   },
 
   updateProviderKey(name: string, keys: Record<string, string>) {
