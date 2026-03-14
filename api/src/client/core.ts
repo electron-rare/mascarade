@@ -133,6 +133,21 @@ export interface ProviderStatus {
   auth_modes?: string[];
 }
 
+export interface AgentTemplate {
+  id: string;
+  name: string;
+  description: string;
+  system_prompt: string;
+  preferred_provider?: string | null;
+  preferred_model?: string | null;
+  preferred_role?: string | null;
+  strategy?: string;
+  temperature?: number;
+  max_tokens?: number;
+  category?: string;
+  tags?: string[];
+}
+
 const REQUEST_TIMEOUT_MS = parseInt(process.env.CORE_TIMEOUT_MS || "30000", 10);
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
@@ -904,6 +919,40 @@ export const coreClient = {
       model: string;
       provider: string;
     }>(`/qdrant/collections/${encodeURIComponent(collectionName)}/rag-query`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+
+  // --- Templates ---
+
+  listTemplates() {
+    return request<{ templates: unknown[] }>("/orchestrate/templates");
+  },
+
+  getTemplate(templateId: string) {
+    return request<unknown>(`/orchestrate/templates/${encodeURIComponent(templateId)}`);
+  },
+
+  deployTemplate(templateId: string, body: { input: string; routing_overrides?: Record<string, unknown> }) {
+    return request<{
+      run_id: string;
+      template_id: string;
+      mode: string;
+      results: {
+        agent: string;
+        step: number;
+        content: string;
+        model: string;
+        provider: string;
+        error?: string;
+        remote?: boolean;
+        selected_by?: string;
+        peer_id?: string | null;
+        node_id?: string | null;
+        role?: string | null;
+      }[];
+    }>(`/orchestrate/templates/${encodeURIComponent(templateId)}/deploy`, {
       method: "POST",
       body: JSON.stringify(body),
     });
