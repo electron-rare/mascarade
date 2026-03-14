@@ -17,9 +17,11 @@ import os
 import sys
 import time
 from dataclasses import dataclass, asdict
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Literal, Any, Callable
+from urllib.request import Request, urlopen
+from urllib.error import URLError
 
 # Lazy imports for pipeline functions to avoid initialization side effects
 _pipeline_module = None
@@ -56,9 +58,148 @@ DOMAINS = [
 
 StepName = Literal["train", "merge", "gguf", "deploy"]
 EventType = Literal["pipeline_start", "step_start", "step_complete", "step_failed", "pipeline_complete", "pipeline_failed"]
+Severity = Literal["debug", "info", "warning", "error", "critical"]
 
 # Default base model (matches pipeline.py)
 DEFAULT_BASE = "Qwen/Qwen2.5-Coder-7B-Instruct"
+
+
+def _severity_number(severity: Severity) -> int:
+    """Map severity level to OpenTelemetry severity number"""
+    mapping = {
+        "debug": 5,
+        "info": 9,
+        "warning": 13,
+        "error": 17,
+        "critical": 21,
+    }
+    return mapping.get(severity, 9)
+
+
+def _otel_enabled() -> bool:
+    """Check if OpenTelemetry emission is enabled"""
+    return os.environ.get("OTEL_ENABLED", "").lower() == "true"
+
+
+def _collector_endpoint() -> str:
+    """Get OpenTelemetry collector HTTP endpoint"""
+    endpoint = os.environ.get("OTEL_COLLECTOR_HTTP_ENDPOINT", "http://otel-collector:4318")
+    return endpoint.rstrip("/")
+
+
+def emit_structured_log(
+    source: str,
+    service: str,
+    severity: Severity,
+    message: str,
+    run_id: str | None = None,
+    domain: str | None = None,
+    event_type: str | None = None,
+    step: str | None = None,
+    duration_seconds: float | None = None,
+    **extra_attrs: Any
+) -> None:
+    """
+    Emit structured log for Grafana/Langfuse observability.
+
+    Emits to stdout and optionally sends to OpenTelemetry collector if OTEL_ENABLED=true.
+
+    Args:
+        source: Log source identifier (e.g., "pipeline_runner")
+        service: Service name (e.g., "finetune")
+        severity: Log severity level
+        message: Human-readable log message
+        run_id: Optional run identifier for correlation
+        domain: Optional domain being processed
+        event_type: Optional event type classifier
+        step: Optional pipeline step name
+        duration_seconds: Optional duration metric
+        **extra_attrs: Additional attributes to include
+    """
+    # Build structured log entry
+    entry = {
+        "source": source,
+        "service": service,
+        "severity": severity,
+        "message": message,
+    }
+
+    # Add optional fields
+    if run_id is not None:
+        entry["run_id"] = run_id
+    if domain is not None:
+        entry["domain"] = domain
+    if event_type is not None:
+        entry["event_type"] = event_type
+    if step is not None:
+        entry["step"] = step
+    if duration_seconds is not None:
+        entry["duration_seconds"] = duration_seconds
+
+    # Add extra attributes
+    for key, value in extra_attrs.items():
+        if value is not None:
+            entry[key] = value
+
+    # Emit to stdout
+    print(json.dumps(entry), flush=True)
+
+    # Send to OpenTelemetry collector if enabled
+    if not _otel_enabled():
+        return
+
+    try:
+        # Build OTLP log payload
+        attributes = []
+        for key, value in entry.items():
+            if key not in ("message", "severity", "service") and value is not None:
+                attributes.append({
+                    "key": key,
+                    "value": {"stringValue": str(value)}
+                })
+
+        payload = {
+            "resourceLogs": [
+                {
+                    "resource": {
+                        "attributes": [
+                            {
+                                "key": "service.name",
+                                "value": {"stringValue": service}
+                            }
+                        ]
+                    },
+                    "scopeLogs": [
+                        {
+                            "scope": {"name": "mascarade-finetune"},
+                            "logRecords": [
+                                {
+                                    "timeUnixNano": f"{int(time.time() * 1e9)}",
+                                    "severityText": severity.upper(),
+                                    "severityNumber": _severity_number(severity),
+                                    "body": {"stringValue": message},
+                                    "attributes": attributes,
+                                }
+                            ],
+                        }
+                    ],
+                }
+            ]
+        }
+
+        # Send to collector (non-blocking, fire-and-forget)
+        endpoint = f"{_collector_endpoint()}/v1/logs"
+        req = Request(
+            endpoint,
+            data=json.dumps(payload).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+        )
+
+        # Use 1.2 second timeout (matching TypeScript pattern)
+        urlopen(req, timeout=1.2)
+    except (URLError, OSError, Exception):
+        # Silently ignore OTEL emission failures (fire-and-forget)
+        pass
 
 
 @dataclass
@@ -67,6 +208,7 @@ class PipelineEvent:
     event_type: EventType
     timestamp: str
     domain: str
+    severity: Severity = "info"
     step: str | None = None
     status: str | None = None
     duration_seconds: float | None = None
@@ -76,6 +218,22 @@ class PipelineEvent:
     def to_json(self) -> str:
         """Serialize event to JSON"""
         return json.dumps(asdict(self), default=str)
+
+    def to_message(self) -> str:
+        """Generate human-readable message from event"""
+        if self.event_type == "pipeline_start":
+            return f"Pipeline started for domain: {self.domain}"
+        elif self.event_type == "step_start":
+            return f"Step '{self.step}' started for domain: {self.domain}"
+        elif self.event_type == "step_complete":
+            return f"Step '{self.step}' completed in {self.duration_seconds:.1f}s"
+        elif self.event_type == "step_failed":
+            return f"Step '{self.step}' failed: {self.error}"
+        elif self.event_type == "pipeline_complete":
+            return f"Pipeline completed for domain: {self.domain} in {self.duration_seconds:.1f}s"
+        elif self.event_type == "pipeline_failed":
+            return f"Pipeline failed for domain: {self.domain}: {self.error}"
+        return f"Event: {self.event_type}"
 
 
 class PipelineRunner:
@@ -151,9 +309,26 @@ class PipelineRunner:
         self._completed_steps: list[str] = []
 
     def _emit_event(self, event: PipelineEvent) -> None:
-        """Emit structured JSON event to stdout"""
-        if self.emit_events:
-            print(event.to_json(), file=sys.stdout, flush=True)
+        """Emit structured JSON event to stdout and OTEL collector"""
+        if not self.emit_events:
+            return
+
+        # Emit using structured log function
+        metadata_attrs = event.metadata or {}
+        emit_structured_log(
+            source="pipeline_runner",
+            service="finetune",
+            severity=event.severity,
+            message=event.to_message(),
+            domain=event.domain,
+            event_type=event.event_type,
+            step=event.step,
+            duration_seconds=event.duration_seconds,
+            status=event.status,
+            error=event.error,
+            timestamp=event.timestamp,
+            **metadata_attrs
+        )
 
     def _get_state_path(self) -> Path:
         """Get path to state file"""
@@ -191,7 +366,7 @@ class PipelineRunner:
             "domain": self.domain,
             "base_model": self.base_model,
             "completed_steps": self._completed_steps,
-            "last_updated": datetime.utcnow().isoformat(),
+            "last_updated": datetime.now(timezone.utc).isoformat(),
             "epochs": self.epochs,
             "train_quant": self.train_quant,
             "gguf_quant": self.gguf_quant,
@@ -219,8 +394,9 @@ class PipelineRunner:
 
         self._emit_event(PipelineEvent(
             event_type="step_start",
-            timestamp=datetime.utcnow().isoformat(),
+            timestamp=datetime.now(timezone.utc).isoformat(),
             domain=self.domain,
+            severity="info",
             step=step,
             status="running",
             metadata={
@@ -269,8 +445,9 @@ class PipelineRunner:
                 duration = time.time() - self._step_start_time
                 self._emit_event(PipelineEvent(
                     event_type="step_failed",
-                    timestamp=datetime.utcnow().isoformat(),
+                    timestamp=datetime.now(timezone.utc).isoformat(),
                     domain=self.domain,
+                    severity="error",
                     step=step,
                     status="failed",
                     duration_seconds=duration,
@@ -283,8 +460,9 @@ class PipelineRunner:
         if success:
             self._emit_event(PipelineEvent(
                 event_type="step_complete",
-                timestamp=datetime.utcnow().isoformat(),
+                timestamp=datetime.now(timezone.utc).isoformat(),
                 domain=self.domain,
+                severity="info",
                 step=step,
                 status="completed",
                 duration_seconds=duration,
@@ -292,8 +470,9 @@ class PipelineRunner:
         else:
             self._emit_event(PipelineEvent(
                 event_type="step_failed",
-                timestamp=datetime.utcnow().isoformat(),
+                timestamp=datetime.now(timezone.utc).isoformat(),
                 domain=self.domain,
+                severity="error",
                 step=step,
                 status="failed",
                 duration_seconds=duration,
@@ -318,8 +497,9 @@ class PipelineRunner:
 
         self._emit_event(PipelineEvent(
             event_type="pipeline_start",
-            timestamp=datetime.utcnow().isoformat(),
+            timestamp=datetime.now(timezone.utc).isoformat(),
             domain=self.domain,
+            severity="info",
             status="running",
             metadata={
                 "steps": self.steps,
@@ -364,8 +544,9 @@ class PipelineRunner:
                     total_duration = time.time() - self._start_time
                     self._emit_event(PipelineEvent(
                         event_type="pipeline_failed",
-                        timestamp=datetime.utcnow().isoformat(),
+                        timestamp=datetime.now(timezone.utc).isoformat(),
                         domain=self.domain,
+                        severity="error",
                         status="failed",
                         duration_seconds=total_duration,
                         error=f"Step {step} failed",
@@ -379,8 +560,9 @@ class PipelineRunner:
             total_duration = time.time() - self._start_time
             self._emit_event(PipelineEvent(
                 event_type="pipeline_complete",
-                timestamp=datetime.utcnow().isoformat(),
+                timestamp=datetime.now(timezone.utc).isoformat(),
                 domain=self.domain,
+                severity="info",
                 status="completed",
                 duration_seconds=total_duration,
                 metadata={"steps_completed": len(self.steps)}
@@ -397,8 +579,9 @@ class PipelineRunner:
             total_duration = time.time() - self._start_time
             self._emit_event(PipelineEvent(
                 event_type="pipeline_failed",
-                timestamp=datetime.utcnow().isoformat(),
+                timestamp=datetime.now(timezone.utc).isoformat(),
                 domain=self.domain,
+                severity="error",
                 status="failed",
                 duration_seconds=total_duration,
                 error=str(exc),
