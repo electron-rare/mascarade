@@ -8,6 +8,7 @@ from collections.abc import AsyncIterator
 from enum import StrEnum
 
 from mascarade.analytics.clickhouse_logger import get_cost_logger
+from mascarade.analytics.prometheus_metrics import COST_METRICS
 from mascarade.cache.cache import ResponseCache
 from mascarade.load_balancer.balancer import LoadBalancer
 from mascarade.metrics.tracker import MetricsTracker
@@ -228,6 +229,16 @@ class Router:
                     response_time=elapsed,
                     success=False,
                 )
+                COST_METRICS.track_request(
+                    provider=selected.name,
+                    model=model or "unknown",
+                    input_tokens=0,
+                    output_tokens=0,
+                    cost=0.0,
+                    duration=elapsed,
+                    strategy=attempt_strategy,
+                    success=False,
+                )
                 self.fallback.record_failure(selected.name)
                 last_error = exc
                 continue
@@ -249,6 +260,16 @@ class Router:
                     response_time=elapsed,
                     success=False,
                 )
+                COST_METRICS.track_request(
+                    provider=selected.name,
+                    model=model or "unknown",
+                    input_tokens=0,
+                    output_tokens=0,
+                    cost=0.0,
+                    duration=elapsed,
+                    strategy=attempt_strategy,
+                    success=False,
+                )
                 last_error = RuntimeError(
                     f"Strict provider mismatch: requested {provider}, got {response.provider}"
                 )
@@ -260,11 +281,22 @@ class Router:
             )
 
             usage = response.usage or {}
+            cost = self._calculate_cost(selected, usage)
             self.metrics.track_request(
                 provider_name=selected.name,
                 tokens=self._usage_tokens(usage),
-                cost=self._calculate_cost(selected, usage),
+                cost=cost,
                 response_time=elapsed,
+                success=True,
+            )
+            COST_METRICS.track_request(
+                provider=selected.name,
+                model=response.model,
+                input_tokens=usage.get("input_tokens", 0),
+                output_tokens=usage.get("output_tokens", 0),
+                cost=cost,
+                duration=elapsed,
+                strategy=attempt_strategy,
                 success=True,
             )
 
@@ -350,6 +382,16 @@ class Router:
                     response_time=elapsed,
                     success=False,
                 )
+                COST_METRICS.track_request(
+                    provider=selected.name,
+                    model=model or "unknown",
+                    input_tokens=0,
+                    output_tokens=0,
+                    cost=0.0,
+                    duration=elapsed,
+                    strategy=attempt_strategy,
+                    success=False,
+                )
                 self.fallback.record_failure(selected.name)
                 last_error = exc
                 continue
@@ -363,6 +405,16 @@ class Router:
                 tokens=0,
                 cost=0.0,
                 response_time=elapsed,
+                success=True,
+            )
+            COST_METRICS.track_request(
+                provider=selected.name,
+                model=model or selected.available_models()[0] if selected.available_models() else "unknown",
+                input_tokens=0,
+                output_tokens=0,
+                cost=0.0,
+                duration=elapsed,
+                strategy=attempt_strategy,
                 success=True,
             )
             return
