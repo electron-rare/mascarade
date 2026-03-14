@@ -217,6 +217,20 @@ class AgentUpdate(BaseModel):
     version_note: str | None = Field(default=None, max_length=500)
 
 
+class PromptVersionResponse(BaseModel):
+    version_number: int = Field(ge=1)
+    timestamp: str = Field(min_length=1, max_length=100)
+    content: str = Field(max_length=500_000)
+    author_hash: str = Field(max_length=64)
+    diff: str | None = None
+    note: str | None = Field(default=None, max_length=1000)
+
+
+class PromptHistoryResponse(BaseModel):
+    versions: list[PromptVersionResponse]
+    total: int = Field(ge=0)
+
+
 class AgentRoutingOverride(BaseModel):
     preferred_role: str | None = Field(default=None, max_length=100)
     preferred_provider: str | None = Field(default=None, max_length=50)
