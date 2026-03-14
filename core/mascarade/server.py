@@ -823,6 +823,17 @@ async def run_agent(name: str, req: SendRequest):
     }
 
 
+@protected.get("/agents/{name}/prompts/history")
+async def get_agent_prompt_history(name: str):
+    """Get version history for an agent's system prompt."""
+    try:
+        agent = app.state.registry.get(name)
+    except KeyError:
+        raise HTTPException(status_code=404, detail=f"Agent '{name}' not found") from None
+
+    return {"versions": agent.prompt_versions}
+
+
 # --- Orchestration ---
 
 
