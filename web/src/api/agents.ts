@@ -1,4 +1,4 @@
-import { get, post, put } from "./client";
+import { del, get, post, put } from "./client";
 
 export interface Agent {
   name: string;
@@ -144,4 +144,10 @@ export const agentsApi = {
     ),
 
   providers: () => get<{ providers: string[] }>("/api/agents/providers"),
+
+  delete: (name: string) =>
+    del<{ status: string; message?: string }>(`/api/agents/${encodeURIComponent(name)}`),
+
+  metrics: (name: string) =>
+    get<Record<string, unknown>>(`/api/agents/${encodeURIComponent(name)}/metrics`),
 };
