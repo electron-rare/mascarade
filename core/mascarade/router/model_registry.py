@@ -11,6 +11,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+import httpx
+
 logger = logging.getLogger("mascarade.router.model_registry")
 
 DEFAULT_STORAGE_PATH = Path("data/models.json")
@@ -72,6 +74,48 @@ class ModelRegistry:
             Liste des métadonnées de tous les modèles
         """
         return list(self._models.values())
+
+    def verify_health(self, model_id: str) -> str:
+        """Vérifier le statut de santé d'un modèle déployé.
+
+        Args:
+            model_id: Identifiant du modèle à vérifier
+
+        Returns:
+            Le statut de santé: "healthy", "unhealthy", "not_deployed", ou "unknown"
+        """
+        if model_id not in self._models:
+            logger.warning("Model %s not found in registry", model_id)
+            return "unknown"
+
+        model = self._models[model_id]
+
+        if not model.deployment_url:
+            logger.debug("Model %s has no deployment_url", model_id)
+            model.health_status = "not_deployed"
+            self._save()
+            return "not_deployed"
+
+        # Try to connect to deployment URL
+        base_url = model.deployment_url.rstrip("/")
+        try:
+            with httpx.Client(base_url=base_url, timeout=5.0) as client:
+                # For Ollama-based deployments, check /api/tags
+                resp = client.get("/api/tags")
+                resp.raise_for_status()
+                model.health_status = "healthy"
+                logger.info("Model %s is healthy at %s", model_id, base_url)
+        except Exception as exc:
+            logger.warning(
+                "Health check failed for model %s at %s: %s",
+                model_id,
+                base_url,
+                exc,
+            )
+            model.health_status = "unhealthy"
+
+        self._save()
+        return model.health_status
 
     def _save(self) -> None:
         """Sauvegarder les modèles dans un fichier JSON."""
