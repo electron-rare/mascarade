@@ -61,7 +61,6 @@ Multiplexeur terminal : **Zellij 0.43.1**
 | Serveur | Transport |
 |---------|-----------|
 | MCP_DOCKER | `docker mcp gateway run` |
-| Notion | `https://mcp.notion.com/mcp` |
 | Figma | `https://mcp.figma.com/mcp` |
 | Linear | `https://mcp.linear.app/mcp` |
 | GitHub | `https://api.githubcopilot.com/mcp/` |
@@ -77,7 +76,7 @@ Multiplexeur terminal : **Zellij 0.43.1**
 |-----------|----|----------|
 | electronics-hw | 32 | kicad, stm32, spice, pcb-design, fpga-design |
 | devops-infra | 17 | docker-*, cloudflare-deploy, vercel-deploy, linux-admin |
-| productivity | 17 | git-workflow, notion-*, sentry, yeet, playwright |
+| productivity | 17 | git-workflow, sentry, yeet, playwright |
 | web-frontend | 13 | react, vue, svelte, tailwind, figma-* |
 | ai-ml | 8 | crewai, langchain, huggingface, rag-embeddings, mcp-dev |
 | iot-embedded | 8 | esp-idf, homeassistant, mqtt-iot, platformio, rtos |
