@@ -5,9 +5,11 @@ const industrialMcp = new Hono();
 const COCKPIT_BASE_URL = (process.env.AGENT_FACTORY_COCKPIT_URL || "http://agent-factory-cockpit:4173").replace(/\/$/, "");
 const COCKPIT_MCP_PATH = process.env.AGENT_FACTORY_COCKPIT_MCP_PATH || "/mcp/industrial";
 const REQUEST_TIMEOUT_MS = parseInt(process.env.AGENT_FACTORY_COCKPIT_MCP_TIMEOUT_MS || "30000", 10);
-const STATIC_PROXY_GROUPS = String(
-  process.env.AGENT_FACTORY_COCKPIT_PROXY_GROUPS || "",
-).trim();
+const DEFAULT_PROXY_GROUPS = "operator";
+const STATIC_PROXY_GROUPS = (
+  String(process.env.AGENT_FACTORY_COCKPIT_PROXY_GROUPS || "").trim() ||
+  DEFAULT_PROXY_GROUPS
+);
 
 function cockpitMcpUrl(pathSuffix = ""): string {
   return `${COCKPIT_BASE_URL}${COCKPIT_MCP_PATH}${pathSuffix}`;
