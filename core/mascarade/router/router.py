@@ -7,6 +7,7 @@ import time
 from collections.abc import AsyncIterator
 from enum import StrEnum
 
+from mascarade.analytics.clickhouse_logger import get_cost_logger
 from mascarade.cache.cache import ResponseCache
 from mascarade.load_balancer.balancer import LoadBalancer
 from mascarade.metrics.tracker import MetricsTracker
@@ -32,6 +33,7 @@ class Router:
         self.metrics = MetricsTracker()
         self.load_balancer = LoadBalancer()
         self.fallback = FallbackState(max_attempts=3)
+        self.cost_logger = get_cost_logger()
         self._register_defaults()
 
     def _register_defaults(self) -> None:
