@@ -222,6 +222,21 @@ incident_analysis = WorkflowTemplate(
     ),
 )
 
+electronics_pipeline = WorkflowTemplate(
+    id="electronics-pipeline",
+    name="Electronics Design Pipeline",
+    description="Pipeline complet de conception électronique: schéma KiCad, simulation SPICE, BOM et validation",
+    agent_names=["kicad-designer", "spice-expert", "components-expert"],
+    mode=ExecutionMode.PIPELINE,
+    documentation=(
+        "Pipeline de conception électronique professionnelle:\n\n"
+        "1. **kicad-designer**: Crée le schématique KiCad, optimise le layout PCB, applique les règles de design\n"
+        "2. **spice-expert**: Génère et exécute les simulations SPICE (AC/DC/transitoire), analyse les performances\n"
+        "3. **components-expert**: Valide la BOM, vérifie la disponibilité, optimise pour JLCPCB/LCSC\n\n"
+        "Usage: Conception de circuits, validation de PCB, préparation pour fabrication."
+    ),
+)
+
 BUILTIN_TEMPLATES = [
     research_report,
     content_creation,
@@ -229,4 +244,5 @@ BUILTIN_TEMPLATES = [
     code_review_workflow,
     summarize_document,
     incident_analysis,
+    electronics_pipeline,
 ]
