@@ -68,13 +68,13 @@ Documents d'ancrage:
 
 | ID | Tache | Owner |
 | --- | --- | --- |
-| `C-DA-013` | Fiabiliser la smoke locale face aux collisions de port et rendre la dependance upstream plus explicite | `api-contract-auditor` |
+| `C-DA-016` | Ouvrir le lot frontend `bundle + lazy loading + tests` sans rouvrir le gateway | `ui-sequence-mapper` |
 
 ### `Kill_LIFE`
 
 | ID | Tache | Owner |
 | --- | --- | --- |
-| `K-DA-018` | Rendre plus lisible la difference entre artefacts sources et artefacts evidence dans le resume Markdown | `embedded-systems-auditor` |
+| `K-DA-020` | Isoler le blocage restant de `bash tools/test_python.sh --suite stable` autour des deltas MCP runtime hors lot | `mcp-runtime-analyst` |
 
 ## Actions documentees dans ce tour
 
@@ -149,16 +149,25 @@ Documents d'ancrage:
 - revalidation operateur `crazy_life`: `bash scripts/tui/non_proxy_debt_audit.sh audit --strict`, lecture du report, puis purge `.ops/non-proxy-debt-audit`
 - fermeture de `C-DA-012` via `crazy_life/docs/RUNTIME_SMOKE_2026-03-14.md` et la smoke live `KILL_LIFE_ROOT=/Users/electron/Kill_LIFE bash scripts/dev.sh up`
 - revalidation operateur `crazy_life`: `curl http://localhost:3100/api/killlife/workflows` vert, `curl http://localhost:3100/health` en `502` bloque precisement par upstream `:3000`, `127.0.0.1:3100` invalide a cause d'un conflit local `com.docker`
+- fermeture de `C-DA-013` via `crazy_life/api/src/index.ts`, `api/src/index.test.ts`, `scripts/tui/runtime_smoke.sh` et l'exposition additive `killlife_lane_ready` / `upstream_ready` sur `/health`
+- revalidation operateur `crazy_life`: `bash scripts/tui/runtime_smoke.sh audit --yes`, lecture du report `localhost` vs `127.0.0.1`, puis purge `.ops/runtime-smoke`
+- fermeture de `C-DA-014` via `crazy_life/scripts/tui/workflow_lane_smoke.sh`, `docs/WORKFLOW_LANE_SMOKE_2026-03-14.md` et l'ignorance Git de `Kill_LIFE/.crazy-life/`
+- revalidation operateur `crazy_life`: `bash scripts/tui/workflow_lane_smoke.sh audit --yes`, lecture du report `list -> detail -> validate -> dry_run -> run status`, puis purge `.ops/workflow-lane-smoke`
+- fermeture de `C-DA-015` via `crazy_life/docs/GITHUB_CI_STATUS_2026-03-14.md` et la lecture `gh` des runs `ci` / `deploy-pages`
+- revalidation GitHub `crazy_life`: `gh run list --repo electron-rare/crazy_life --limit 10 --json databaseId,workflowName,status,conclusion,url`
 - reduction de regression `M-DA-004` cote `mascarade/api`: fallback `X-Forwarded-Groups` retabli dans `api/src/routes/mcpIndustrial.ts`
 - revalidation locale `mascarade/api`: `npm --prefix api run build` puis `npm --prefix api test`
 - revalidation locale `mascarade/core`: `cd core && ./.venv/bin/python -m pytest -q`
 - fermeture de `K-DA-017` via `Kill_LIFE/tools/auto_check_ci_cd.py`, `test/test_auto_check_ci_cd.py` et le recalcul des artefacts encore presents en cas de drift `summary ok`
 - revalidation locale `Kill_LIFE`: `./.venv/bin/python -m unittest discover -s test -p test_auto_check_ci_cd.py` puis `KILL_LIFE_PIO_MODE=native ./.venv/bin/python tools/auto_check_ci_cd.py`
+- fermeture de `K-DA-018` via `Kill_LIFE/tools/auto_check_ci_cd.py`, `test/test_auto_check_ci_cd.py` et la separation explicite `Source artifacts` / `Evidence files`
+- revalidation locale `Kill_LIFE`: `docs/evidence/ci_cd_audit_summary.md` regenere avec les colonnes `Source`, `Evidence files`, `Missing evidence` et `Drift`
+- fermeture de `K-DA-019` via la relecture complete `KILL_LIFE_PIO_MODE=native ./.venv/bin/python tools/auto_check_ci_cd.py` et la confirmation que la doc evidence ne necessitait pas d'ajustement supplementaire
 
 ## Test status snapshot
 
 - `mascarade/api`: `npm --prefix api run build` vert et `npm --prefix api test` vert (`62/62`) apres correction `mcpIndustrial`
 - `mascarade/core`: `./.venv/bin/python -m pytest -q` vert dans l'etat courant du worktree; les suites cibles `test_cluster.py` et `test_orchestrator.py` restent vertes
-- `crazy_life`: `npm --prefix api run build` vert et `npm --prefix api test` vert (`71/71`) apres durcissement `/api/cad`
+- `crazy_life`: `npm --prefix api run build` vert et `npm --prefix api test` vert (`82/82`) apres smoke health explicite et scripts TUI `runtime_smoke` / `workflow_lane_smoke`
 - `Kill_LIFE`: evidence lane locale verte en mode `native-pio`; la suite `bash tools/test_python.sh --suite stable` reste bloquee par un delta local hors lot dans `tools/mcp_runtime_status.py`
 - aucune pretention de "suite verte globale" n'est faite sans reprise lot-par-lot
