@@ -11,6 +11,7 @@ from mascarade.cache.cache import ResponseCache
 from mascarade.load_balancer.balancer import LoadBalancer
 from mascarade.metrics.tracker import MetricsTracker
 from mascarade.router.fallback import FallbackState
+from mascarade.router.model_registry import ModelRegistry
 from mascarade.router.providers.base import LLMProvider, LLMResponse
 
 logger = logging.getLogger("mascarade.router")
@@ -32,6 +33,7 @@ class Router:
         self.metrics = MetricsTracker()
         self.load_balancer = LoadBalancer()
         self.fallback = FallbackState(max_attempts=3)
+        self.model_registry = ModelRegistry()
         self._register_defaults()
 
     def _register_defaults(self) -> None:
