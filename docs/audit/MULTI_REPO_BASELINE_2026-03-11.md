@@ -34,7 +34,7 @@
 
 - Root: `/Users/electron/crazy_life`
 - Branch: `main`
-- Dirty entries: `18`
+- Dirty entries: `21`
 - Primary README: `README.md`
 - Primary plan anchor: `plan.md`
 - First TODO anchor: `docs/TODO_2026-03-10.md`
@@ -48,10 +48,10 @@
 | Diagram files | 2 |
 | Sequence diagram files | 2 |
 | Feature-map-like files | 3 |
-| Test files | 2 |
+| Test files | 3 |
 | Shell scripts | 4 |
 | Python files | 0 |
-| TS/TSX files | 58 |
+| TS/TSX files | 59 |
 
 ### Gaps
 - Baseline documentation anchors exist; refresh and alignment remain required.
@@ -60,7 +60,7 @@
 
 - Root: `/Users/electron/Kill_LIFE`
 - Branch: `main`
-- Dirty entries: `23`
+- Dirty entries: `22`
 - Primary README: `README.md`
 - Primary plan anchor: `docs/plans/README.md`
 - First TODO anchor: `ai-agentic-embedded-base/specs/04_tasks.md`
