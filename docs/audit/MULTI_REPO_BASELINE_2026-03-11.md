@@ -8,7 +8,7 @@
 
 - Root: `/Users/electron/mascarade`
 - Branch: `feat/apple-coreml-runtime-lot`
-- Dirty entries: `17`
+- Dirty entries: `20`
 - Primary README: `README.md`
 - Primary plan anchor: `plan.md`
 - First TODO anchor: `TODO_AI_NOVEL_ENGINE.md`
@@ -24,7 +24,7 @@
 | Feature-map-like files | 2 |
 | Test files | 59 |
 | Shell scripts | 141 |
-| Python files | 257 |
+| Python files | 258 |
 | TS/TSX files | 121 |
 
 ### Gaps
@@ -34,7 +34,7 @@
 
 - Root: `/Users/electron/crazy_life`
 - Branch: `main`
-- Dirty entries: `22`
+- Dirty entries: `24`
 - Primary README: `README.md`
 - Primary plan anchor: `plan.md`
 - First TODO anchor: `docs/TODO_2026-03-10.md`
@@ -49,7 +49,7 @@
 | Sequence diagram files | 2 |
 | Feature-map-like files | 3 |
 | Test files | 3 |
-| Shell scripts | 4 |
+| Shell scripts | 7 |
 | Python files | 0 |
 | TS/TSX files | 59 |
 
@@ -60,7 +60,7 @@
 
 - Root: `/Users/electron/Kill_LIFE`
 - Branch: `main`
-- Dirty entries: `16`
+- Dirty entries: `24`
 - Primary README: `README.md`
 - Primary plan anchor: `docs/plans/README.md`
 - First TODO anchor: `ai-agentic-embedded-base/specs/04_tasks.md`
