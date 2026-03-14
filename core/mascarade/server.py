@@ -10,7 +10,7 @@ from contextlib import asynccontextmanager
 from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, FastAPI, HTTPException, Query, Request
-from fastapi.responses import StreamingResponse
+from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel, Field
 
 from mascarade.agents import Agent, AgentRegistry
@@ -1930,6 +1930,27 @@ async def qdrant_rag_query(collection_name: str, req: QdrantRAGRequest):
     except Exception as e:
         logger.exception("RAG query failed")
         raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+@app.get("/metrics")
+async def metrics():
+    """Expose Prometheus metrics for scraping."""
+    try:
+        from prometheus_client import REGISTRY, generate_latest
+
+        # Generate metrics in Prometheus text format
+        metrics_output = generate_latest(REGISTRY)
+        return Response(
+            content=metrics_output,
+            media_type="text/plain; version=0.0.4; charset=utf-8"
+        )
+    except ImportError:
+        # If prometheus_client is not installed, return empty metrics
+        return Response(
+            content="# Prometheus client not installed\n",
+            media_type="text/plain; version=0.0.4; charset=utf-8",
+            status_code=503
+        )
 
 
 app.include_router(protected)
