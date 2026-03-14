@@ -469,6 +469,7 @@ services:
       - clickhouse-data:/var/lib/clickhouse
       - ./deploy/clickhouse-config/langfuse-user.xml:/etc/clickhouse-server/users.d/langfuse-user.xml:ro
       - ./deploy/clickhouse-config/thread-pools.xml:/etc/clickhouse-server/config.d/thread-pools.xml:ro
+      - ./deploy/clickhouse/init:/docker-entrypoint-initdb.d:ro
     environment:
       CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:-}
     healthcheck:
