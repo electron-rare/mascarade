@@ -281,6 +281,17 @@ class Router:
                     strategy=attempt_strategy,
                     success=False,
                 )
+                if self.cost_logger:
+                    self.cost_logger.log_event(
+                        provider=selected.name,
+                        model=model or "unknown",
+                        agent="",
+                        input_tokens=0,
+                        output_tokens=0,
+                        cost=0.0,
+                        strategy=attempt_strategy,
+                        success=False,
+                    )
                 self.fallback.record_failure(selected.name)
                 last_error = exc
                 continue
@@ -312,6 +323,17 @@ class Router:
                     strategy=attempt_strategy,
                     success=False,
                 )
+                if self.cost_logger:
+                    self.cost_logger.log_event(
+                        provider=selected.name,
+                        model=model or "unknown",
+                        agent="",
+                        input_tokens=0,
+                        output_tokens=0,
+                        cost=0.0,
+                        strategy=attempt_strategy,
+                        success=False,
+                    )
                 last_error = RuntimeError(
                     f"Strict provider mismatch: requested {provider}, got {response.provider}"
                 )
@@ -341,6 +363,17 @@ class Router:
                 strategy=attempt_strategy,
                 success=True,
             )
+            if self.cost_logger:
+                self.cost_logger.log_event(
+                    provider=selected.name,
+                    model=response.model,
+                    agent="",
+                    input_tokens=usage.get("input_tokens", 0),
+                    output_tokens=usage.get("output_tokens", 0),
+                    cost=cost,
+                    strategy=attempt_strategy,
+                    success=True,
+                )
 
             # Store in cache with original strategy to enable cache hits
             # even after fallback to different provider
@@ -434,6 +467,17 @@ class Router:
                     strategy=attempt_strategy,
                     success=False,
                 )
+                if self.cost_logger:
+                    self.cost_logger.log_event(
+                        provider=selected.name,
+                        model=model or "unknown",
+                        agent="",
+                        input_tokens=0,
+                        output_tokens=0,
+                        cost=0.0,
+                        strategy=attempt_strategy,
+                        success=False,
+                    )
                 self.fallback.record_failure(selected.name)
                 last_error = exc
                 continue
@@ -459,6 +503,17 @@ class Router:
                 strategy=attempt_strategy,
                 success=True,
             )
+            if self.cost_logger:
+                self.cost_logger.log_event(
+                    provider=selected.name,
+                    model=model or selected.available_models()[0] if selected.available_models() else "unknown",
+                    agent="",
+                    input_tokens=0,
+                    output_tokens=0,
+                    cost=0.0,
+                    strategy=attempt_strategy,
+                    success=True,
+                )
             return
 
         raise RuntimeError(
