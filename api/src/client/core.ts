@@ -8,7 +8,7 @@ function configuredCoreApiKeys(): string[] {
   return (process.env.MASCARADE_API_KEY || "")
     .split(",")
     .map((key) => key.trim())
-    .filter((key) => key.length >= 8);
+    .filter((key) => key.length >= 16);
 }
 
 export function getCoreAuthHeaders(): Record<string, string> {
@@ -749,6 +749,182 @@ export const coreClient = {
       message: string;
       payload: Record<string, unknown>;
     }>(`/mcp/industrial/${encodeURIComponent(serverKey)}/tools/${encodeURIComponent(toolName)}`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+
+  // --- Qdrant ---
+
+  qdrantHealth() {
+    return request<Record<string, unknown>>("/qdrant/health");
+  },
+
+  qdrantListCollections() {
+    return request<{ collections: Array<{ name: string }> }>("/qdrant/collections");
+  },
+
+  qdrantGetCollection(collectionName: string) {
+    return request<Record<string, unknown>>(
+      `/qdrant/collections/${encodeURIComponent(collectionName)}`,
+    );
+  },
+
+  qdrantCreateCollection(
+    collectionName: string,
+    body: {
+      vector_size: number;
+      distance?: string;
+      on_disk_payload?: boolean;
+    },
+  ) {
+    return request<Record<string, unknown>>(
+      `/qdrant/collections/${encodeURIComponent(collectionName)}`,
+      { method: "PUT", body: JSON.stringify(body) },
+    );
+  },
+
+  qdrantDeleteCollection(collectionName: string) {
+    return request<Record<string, unknown>>(
+      `/qdrant/collections/${encodeURIComponent(collectionName)}`,
+      { method: "DELETE" },
+    );
+  },
+
+  qdrantUpsertPoints(
+    collectionName: string,
+    body: {
+      points: Array<{
+        id: string | number;
+        vector: number[];
+        payload?: Record<string, unknown>;
+      }>;
+      wait?: boolean;
+    },
+  ) {
+    return request<Record<string, unknown>>(
+      `/qdrant/collections/${encodeURIComponent(collectionName)}/points`,
+      { method: "POST", body: JSON.stringify(body) },
+    );
+  },
+
+  qdrantSearch(
+    collectionName: string,
+    body: {
+      query_vector: number[];
+      limit?: number;
+      score_threshold?: number;
+      with_payload?: boolean;
+      with_vector?: boolean;
+      filter_conditions?: Record<string, unknown>;
+    },
+  ) {
+    return request<{
+      points: Array<{
+        id: string | number;
+        score: number;
+        payload?: Record<string, unknown>;
+        vector?: number[];
+      }>;
+    }>(`/qdrant/collections/${encodeURIComponent(collectionName)}/search`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+
+  qdrantRecommend(
+    collectionName: string,
+    body: {
+      positive: Array<string | number>;
+      negative?: Array<string | number>;
+      limit?: number;
+      score_threshold?: number;
+      with_payload?: boolean;
+      with_vector?: boolean;
+      filter_conditions?: Record<string, unknown>;
+    },
+  ) {
+    return request<{
+      points: Array<{
+        id: string | number;
+        score: number;
+        payload?: Record<string, unknown>;
+        vector?: number[];
+      }>;
+    }>(`/qdrant/collections/${encodeURIComponent(collectionName)}/recommend`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+
+  async qdrantUploadDocuments(collectionName: string, formData: FormData) {
+    const headers = getCoreAuthHeaders();
+    const res = await fetch(`${CORE_URL}/qdrant/collections/${encodeURIComponent(collectionName)}/upload`, {
+      method: "POST",
+      headers,
+      body: formData,
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    });
+    if (!res.ok) {
+      const text = await res.text();
+      let msg = `Core API error ${res.status}`;
+      try {
+        const json = JSON.parse(text);
+        if (json.detail) msg = json.detail;
+        else if (json.error) msg = json.error;
+        else if (json.message) msg = json.message;
+      } catch {
+        // keep default message
+      }
+      throw new CoreApiError(msg, res.status, text);
+    }
+    return res.json();
+  },
+
+  qdrantSemanticSearch(
+    collectionName: string,
+    body: {
+      query: string;
+      limit?: number;
+      score_threshold?: number;
+    },
+  ) {
+    return request<{
+      results: Array<{
+        id: string | number;
+        score: number;
+        text?: string;
+        metadata?: Record<string, unknown>;
+      }>;
+      query: string;
+      collection: string;
+    }>(`/qdrant/collections/${encodeURIComponent(collectionName)}/semantic-search`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+
+  qdrantRAGQuery(
+    collectionName: string,
+    body: {
+      query: string;
+      limit?: number;
+      model?: string;
+      temperature?: number;
+    },
+  ) {
+    return request<{
+      answer: string;
+      chunks: Array<{
+        text: string;
+        score: number;
+        source: string;
+      }>;
+      query: string;
+      collection: string;
+      model: string;
+      provider: string;
+    }>(`/qdrant/collections/${encodeURIComponent(collectionName)}/rag-query`, {
       method: "POST",
       body: JSON.stringify(body),
     });

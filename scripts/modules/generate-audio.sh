@@ -104,6 +104,8 @@ module_generate_audio_compose() {
   fi
 
   echo "  generate-audio:"
+  echo "    profiles:"
+  echo "      - fine-tuning"
   echo "    build:"
   echo "      context: ."
   echo "      dockerfile: deploy/Dockerfile.generate-audio"

@@ -2,6 +2,7 @@ import { Link } from "react-router-dom";
 import { useMemo } from "react";
 import { agentsApi } from "../api/agents";
 import type { OpsMcpServerStatus, OpsMonitor, OpsSourceStatus, OpsSummary } from "../api/ops";
+import type { QdrantCollectionsResponse } from "../api/qdrantKnowledge";
 import { useFetch } from "../hooks/useFetch";
 import { useApi } from "../hooks/useApi";
 import { getDifyHealthUrl, getDifyOrigin } from "../lib/dify";
@@ -114,6 +115,9 @@ export default function OpsHub() {
   });
   const sourceStatus = useFetch<Record<string, OpsSourceStatus>>("/api/ops/sources", {
     pollIntervalMs: 10000,
+  });
+  const qdrantCollections = useFetch<QdrantCollectionsResponse>("/api/qdrant-knowledge/collections", {
+    pollIntervalMs: 15000,
   });
 
   const links = useMemo(() => {
@@ -310,6 +314,13 @@ export default function OpsHub() {
   const mcpServerCount = mcp?.server_count ?? mcpServers.length;
   const mcpServersOk = mcp?.servers_ok ?? mcpServers.filter(([, server]) => server.ok).length;
   const mcpPrimarySurface = mcpPrimary ?? mcp;
+  const qdrantTotalDocuments = useMemo(() => {
+    if (!qdrantCollections.data?.collections) return 0;
+    return qdrantCollections.data.collections.reduce(
+      (sum, collection) => sum + (collection.points_count ?? 0),
+      0
+    );
+  }, [qdrantCollections.data]);
 
   return (
     <div className="space-y-6">
@@ -427,12 +438,12 @@ export default function OpsHub() {
                 </p>
               </div>
               <div className="rounded-3xl border border-border/80 bg-black/30 p-4">
-                <p className="text-[10px] uppercase tracking-[0.2em] text-muted">qdrant</p>
+                <p className="text-[10px] uppercase tracking-[0.2em] text-muted">knowledge base</p>
                 <p className={["mt-3 text-2xl font-semibold uppercase tracking-[0.12em]", statusTone(data.ai.qdrant.ok)].join(" ")}>
                   {data.ai.qdrant.ok ? "ready" : "watch"}
                 </p>
                 <p className="mt-2 text-[12px] leading-5 text-amber-100/46">
-                  {data.ai.qdrant.collections} collection(s) / {formatLatency(data.ai.qdrant.latency_ms)}
+                  {qdrantTotalDocuments} document(s) · {data.ai.qdrant.collections} collection(s) · {formatLatency(data.ai.qdrant.latency_ms)}
                 </p>
               </div>
             </div>

@@ -112,6 +112,9 @@ class Settings(BaseSettings):
     # ComfyUI
     comfyui_url: str = ""
 
+    # Qdrant
+    qdrant_url: str = "http://qdrant:6333"
+
     # Core API server
     core_host: str = "0.0.0.0"
     core_port: int = 8100

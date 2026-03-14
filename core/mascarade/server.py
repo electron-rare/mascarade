@@ -5,11 +5,12 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import time
 from contextlib import asynccontextmanager
 from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, FastAPI, HTTPException, Query, Request
-from fastapi.responses import StreamingResponse
+from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel, Field
 
 from mascarade.agents import Agent, AgentRegistry
@@ -27,6 +28,7 @@ from mascarade.integrations.knowledge_base import (
     knowledge_base_auth_configured,
     knowledge_base_status_detail,
 )
+from mascarade.integrations.qdrant_client import QdrantClient
 from mascarade.mcp import McpCallError, McpRuntimeClient, McpServerUnavailable
 from mascarade.mcp.client import McpError
 from mascarade.observability import AgentTraceBuffer, iso_utc_now, new_run_id
@@ -73,6 +75,14 @@ async def lifespan(app: FastAPI):
     app.state.mcp = McpRuntimeClient(trace_buffer=trace_buffer)
     app.state.comfyui = ComfyUIClient() if settings.comfyui_url else None
     app.state.device_voice = DeviceVoiceService(router=router)
+    app.state.qdrant = QdrantClient() if settings.qdrant_url else None
+
+    # Initialize document processor if Qdrant is configured
+    if app.state.qdrant is not None:
+        from mascarade.integrations.document_processor import DocumentProcessor
+        app.state.document_processor = DocumentProcessor()
+    else:
+        app.state.document_processor = None
 
     registry.load()
 
@@ -84,6 +94,9 @@ async def lifespan(app: FastAPI):
     await cluster.close()
     if app.state.comfyui is not None:
         await app.state.comfyui.close()
+
+    if app.state.qdrant is not None:
+        await app.state.qdrant.close()
 
 
 app = FastAPI(title="Mascarade Core", version="0.1.0", lifespan=lifespan)
@@ -98,6 +111,69 @@ class Message(BaseModel):
 
 
 RoutingPolicy = Literal["auto", "strong", "cheap", "fast"]
+# --- OpenAI-Compatible Models ---
+
+
+class ChatCompletionMessage(BaseModel):
+    role: Literal["system", "user", "assistant", "tool"]
+    content: str | None = None
+    tool_calls: list[dict[str, Any]] | None = None
+    tool_call_id: str | None = Field(default=None, max_length=100)
+
+
+class ChatCompletionRequest(BaseModel):
+    model: str | None = Field(default=None, min_length=1, max_length=100)
+    messages: list[ChatCompletionMessage] = Field(max_length=200)
+    stream: bool = False
+    temperature: float = Field(default=0.7, ge=0.0, le=2.0)
+    max_tokens: int | None = Field(default=None, gt=0, le=128000)
+    top_p: float | None = Field(default=None, ge=0.0, le=1.0)
+    frequency_penalty: float | None = Field(default=None, ge=-2.0, le=2.0)
+    presence_penalty: float | None = Field(default=None, ge=-2.0, le=2.0)
+    stop: str | list[str] | None = None
+    n: int = Field(default=1, ge=1, le=10)
+    user: str | None = Field(default=None, max_length=200)
+
+
+class ChatCompletionUsage(BaseModel):
+    prompt_tokens: int = Field(ge=0)
+    completion_tokens: int = Field(ge=0)
+    total_tokens: int = Field(ge=0)
+
+
+class ChatCompletionChoice(BaseModel):
+    index: int = Field(ge=0)
+    message: ChatCompletionMessage
+    finish_reason: Literal["stop", "length", "tool_calls", "content_filter"] | None = None
+
+
+class ChatCompletionResponse(BaseModel):
+    id: str = Field(min_length=1, max_length=100)
+    object: Literal["chat.completion"] = "chat.completion"
+    created: int = Field(ge=0)
+    model: str = Field(min_length=1, max_length=100)
+    choices: list[ChatCompletionChoice]
+    usage: ChatCompletionUsage | None = None
+
+
+class ChatCompletionChunkDelta(BaseModel):
+    role: Literal["system", "user", "assistant", "tool"] | None = None
+    content: str | None = None
+    tool_calls: list[dict[str, Any]] | None = None
+
+
+class ChatCompletionChunkChoice(BaseModel):
+    index: int = Field(ge=0)
+    delta: ChatCompletionChunkDelta
+    finish_reason: Literal["stop", "length", "tool_calls", "content_filter"] | None = None
+
+
+class ChatCompletionChunk(BaseModel):
+    id: str = Field(min_length=1, max_length=100)
+    object: Literal["chat.completion.chunk"] = "chat.completion.chunk"
+    created: int = Field(ge=0)
+    model: str = Field(min_length=1, max_length=100)
+    choices: list[ChatCompletionChunkChoice]
 
 
 class SendRequest(BaseModel):
@@ -238,6 +314,49 @@ class ComfyUIWorkflowRequest(BaseModel):
     workflow: dict
 
 
+class QdrantCreateCollectionRequest(BaseModel):
+    vector_size: int = Field(gt=0, le=65536)
+    distance: Literal["Cosine", "Euclid", "Dot"] = "Cosine"
+    on_disk_payload: bool = False
+
+
+class QdrantUpsertPointsRequest(BaseModel):
+    points: list[dict[str, Any]] = Field(max_length=1000)
+    wait: bool = True
+
+
+class QdrantSearchRequest(BaseModel):
+    query_vector: list[float] = Field(max_length=65536)
+    limit: int = Field(default=10, gt=0, le=100)
+    score_threshold: float | None = Field(default=None, ge=0.0, le=1.0)
+    with_payload: bool = True
+    with_vector: bool = False
+    filter_conditions: dict[str, Any] | None = None
+
+
+class QdrantRecommendRequest(BaseModel):
+    positive: list[str | int] = Field(min_length=1, max_length=100)
+    negative: list[str | int] | None = Field(default=None, max_length=100)
+    limit: int = Field(default=10, gt=0, le=100)
+    score_threshold: float | None = Field(default=None, ge=0.0, le=1.0)
+    with_payload: bool = True
+    with_vector: bool = False
+    filter_conditions: dict[str, Any] | None = None
+
+
+class QdrantSemanticSearchRequest(BaseModel):
+    query: str = Field(min_length=1, max_length=10000)
+    limit: int = Field(default=10, gt=0, le=100)
+    score_threshold: float | None = Field(default=None, ge=0.0, le=1.0)
+
+
+class QdrantRAGRequest(BaseModel):
+    query: str = Field(min_length=1, max_length=10000)
+    limit: int = Field(default=5, gt=0, le=20)
+    model: str | None = None
+    temperature: float = Field(default=0.7, ge=0.0, le=2.0)
+
+
 # --- Route publique ---
 
 
@@ -253,6 +372,109 @@ async def health():
         health_data["agents"] = len(app.state.registry)
 
     return health_data
+
+
+@app.post("/v1/chat/completions")
+async def chat_completions(req: ChatCompletionRequest):
+    """OpenAI-compatible chat completions endpoint."""
+    # Determine model and provider
+    model_str = req.model if req.model else settings.default_model
+    provider = None
+    model = model_str
+
+    # Parse model string for provider prefix (e.g., "apple-coreml:model")
+    if ":" in model_str:
+        parts = model_str.split(":", 1)
+        provider_prefix = parts[0]
+        model = parts[1]
+
+        # Get supported provider names (these are the known provider types)
+        supported_providers = [
+            "apple-coreml",
+            "ollama",
+            "openai",
+            "claude",
+            "anthropic",
+            "mistral",
+            "bedrock",
+            "gemini",
+        ]
+
+        # Validate provider prefix
+        if provider_prefix not in supported_providers:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Unsupported model prefix '{provider_prefix}'.",
+            )
+
+        provider = provider_prefix
+
+        # Check if provider is available
+        if provider not in app.state.router.available_providers:
+            raise HTTPException(
+                status_code=503,
+                detail={
+                    "error": f"Provider '{provider}' is not configured or unavailable.",
+                    "providers": app.state.router.available_providers,
+                },
+            )
+    else:
+        # Use default provider if no prefix
+        provider = settings.default_provider
+        model = model_str or settings.default_model
+
+    # Convert messages to router format
+    messages = [{"role": m.role, "content": m.content} for m in req.messages]
+
+    # Call router
+    try:
+        response = await app.state.router.send(
+            messages,
+            strategy=Strategy.SPECIFIC,
+            provider=provider,
+            model=model,
+            system=None,
+            response_format=None,
+            temperature=req.temperature,
+            max_tokens=req.max_tokens or 4096,
+        )
+    except ValueError as exc:
+        logger.warning("Chat completions request rejected: %s", exc)
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    # Build OpenAI-compatible response
+    chat_id = f"chatcmpl-{new_run_id()}"
+    created = int(time.time())
+
+    # Extract usage info
+    usage_dict = response.usage or {}
+    prompt_tokens = usage_dict.get("input_tokens", 0)
+    completion_tokens = usage_dict.get("output_tokens", 0)
+    total_tokens = usage_dict.get("total_tokens", prompt_tokens + completion_tokens)
+
+    usage = ChatCompletionUsage(
+        prompt_tokens=prompt_tokens,
+        completion_tokens=completion_tokens,
+        total_tokens=total_tokens,
+    )
+
+    choice = ChatCompletionChoice(
+        index=0,
+        message=ChatCompletionMessage(
+            role="assistant",
+            content=response.content,
+        ),
+        finish_reason="stop",
+    )
+
+    return ChatCompletionResponse(
+        id=chat_id,
+        object="chat.completion",
+        created=created,
+        model=model_str,
+        choices=[choice],
+        usage=usage,
+    )
 
 
 # --- Routes protegees ---
@@ -674,6 +896,105 @@ async def cluster_node_send(req: SendRequest):
         "provider": response.provider,
         "usage": response.usage,
     }
+
+
+# --- Analytics ---
+
+
+class ProviderCostSummary(BaseModel):
+    provider: str
+    model: str
+    total_cost: float = Field(ge=0.0)
+    input_tokens: int = Field(ge=0)
+    output_tokens: int = Field(ge=0)
+    request_count: int = Field(ge=0)
+
+
+class CostAnalyticsResponse(BaseModel):
+    total_cost: float = Field(ge=0.0)
+    total_requests: int = Field(ge=0)
+    total_input_tokens: int = Field(ge=0)
+    total_output_tokens: int = Field(ge=0)
+    by_provider: list[ProviderCostSummary]
+
+
+@protected.get("/v1/analytics/cost")
+async def get_cost_analytics(
+    limit: int = Query(default=1000, ge=1, le=5000),
+    run_id: str | None = Query(default=None, max_length=64),
+):
+    """
+    Get cost analytics aggregated from trace events.
+
+    Args:
+        limit: Maximum number of events to analyze (default: 1000)
+        run_id: Optional run ID to filter by
+
+    Returns:
+        Cost analytics with totals and breakdowns by provider/model
+    """
+    from mascarade.analytics import get_cost_calculator
+
+    # Get recent trace events with token usage
+    events = app.state.trace_buffer.recent(
+        limit=limit,
+        run_id=run_id,
+    )
+
+    # Filter events that have token usage
+    events_with_usage = [e for e in events if e.token_usage]
+
+    # Aggregate by (provider, model)
+    aggregates: dict[tuple[str, str], dict] = {}
+    cost_calc = get_cost_calculator()
+
+    for event in events_with_usage:
+        if not event.provider or not event.model:
+            continue
+
+        key = (event.provider, event.model)
+        if key not in aggregates:
+            aggregates[key] = {
+                "provider": event.provider,
+                "model": event.model,
+                "total_cost": 0.0,
+                "input_tokens": 0,
+                "output_tokens": 0,
+                "request_count": 0,
+            }
+
+        input_tokens = event.token_usage.get("input_tokens", 0) or event.token_usage.get("prompt_tokens", 0)
+        output_tokens = event.token_usage.get("output_tokens", 0) or event.token_usage.get("completion_tokens", 0)
+
+        # Calculate cost for this event
+        cost = cost_calc.calculate_cost(
+            provider=event.provider,
+            model=event.model,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+        )
+
+        aggregates[key]["total_cost"] += cost
+        aggregates[key]["input_tokens"] += input_tokens
+        aggregates[key]["output_tokens"] += output_tokens
+        aggregates[key]["request_count"] += 1
+
+    # Calculate totals
+    total_cost = sum(agg["total_cost"] for agg in aggregates.values())
+    total_requests = sum(agg["request_count"] for agg in aggregates.values())
+    total_input_tokens = sum(agg["input_tokens"] for agg in aggregates.values())
+    total_output_tokens = sum(agg["output_tokens"] for agg in aggregates.values())
+
+    # Convert to response models
+    by_provider = [ProviderCostSummary(**agg) for agg in aggregates.values()]
+
+    return CostAnalyticsResponse(
+        total_cost=total_cost,
+        total_requests=total_requests,
+        total_input_tokens=total_input_tokens,
+        total_output_tokens=total_output_tokens,
+        by_provider=by_provider,
+    )
 
 
 # --- Orchestration traces ---
@@ -1599,6 +1920,309 @@ async def device_voice_reply_audio(reply_id: str, request: Request):
     if audio is None:
         raise HTTPException(status_code=404, detail="Reply audio not found or expired")
     return _Response(content=audio.payload, media_type=audio.content_type)
+# --- Qdrant ---
+
+
+def _require_qdrant() -> QdrantClient:
+    if app.state.qdrant is None:
+        raise HTTPException(status_code=503, detail="Qdrant non configure (QDRANT_URL manquant)")
+    return app.state.qdrant
+
+
+@protected.get("/qdrant/health")
+async def qdrant_health():
+    client = _require_qdrant()
+    return await client.health_check()
+
+
+@protected.get("/qdrant/status")
+async def qdrant_status():
+    client = _require_qdrant()
+    return await client.get_cluster_status()
+
+
+@protected.get("/qdrant/collections")
+async def qdrant_list_collections():
+    client = _require_qdrant()
+    return await client.list_collections()
+
+
+@protected.get("/qdrant/collections/{collection_name}")
+async def qdrant_get_collection(collection_name: str):
+    client = _require_qdrant()
+    try:
+        return await client.get_collection(collection_name)
+    except Exception as e:
+        if "404" in str(e):
+            raise HTTPException(status_code=404, detail=f"Collection '{collection_name}' not found") from e
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+@protected.put("/qdrant/collections/{collection_name}")
+async def qdrant_create_collection(collection_name: str, req: QdrantCreateCollectionRequest):
+    client = _require_qdrant()
+    try:
+        result = await client.create_collection(
+            collection_name,
+            vector_size=req.vector_size,
+            distance=req.distance,
+            on_disk_payload=req.on_disk_payload,
+        )
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+@protected.delete("/qdrant/collections/{collection_name}")
+async def qdrant_delete_collection(collection_name: str):
+    client = _require_qdrant()
+    try:
+        result = await client.delete_collection(collection_name)
+        return result
+    except Exception as e:
+        if "404" in str(e):
+            raise HTTPException(status_code=404, detail=f"Collection '{collection_name}' not found") from e
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+@protected.post("/qdrant/collections/{collection_name}/points")
+async def qdrant_upsert_points(collection_name: str, req: QdrantUpsertPointsRequest):
+    client = _require_qdrant()
+    try:
+        result = await client.upsert_points(
+            collection_name,
+            points=req.points,
+            wait=req.wait,
+        )
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+@protected.post("/qdrant/collections/{collection_name}/search")
+async def qdrant_search(collection_name: str, req: QdrantSearchRequest):
+    client = _require_qdrant()
+    try:
+        result = await client.search(
+            collection_name,
+            query_vector=req.query_vector,
+            limit=req.limit,
+            score_threshold=req.score_threshold,
+            with_payload=req.with_payload,
+            with_vector=req.with_vector,
+            filter_conditions=req.filter_conditions,
+        )
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+@protected.post("/qdrant/collections/{collection_name}/recommend")
+async def qdrant_recommend(collection_name: str, req: QdrantRecommendRequest):
+    client = _require_qdrant()
+    try:
+        result = await client.recommend(
+            collection_name,
+            positive=req.positive,
+            negative=req.negative,
+            limit=req.limit,
+            score_threshold=req.score_threshold,
+            with_payload=req.with_payload,
+            with_vector=req.with_vector,
+            filter_conditions=req.filter_conditions,
+        )
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+@protected.post("/qdrant/collections/{collection_name}/semantic-search")
+async def qdrant_semantic_search(collection_name: str, req: QdrantSemanticSearchRequest):
+    client = _require_qdrant()
+    doc_processor = app.state.document_processor
+    if doc_processor is None:
+        raise HTTPException(status_code=503, detail="Document processor not configured")
+
+    try:
+        query_embedding = await doc_processor.generate_embeddings([req.query])
+        if not query_embedding or len(query_embedding) == 0:
+            raise HTTPException(status_code=500, detail="Failed to generate query embedding")
+
+        results = await client.search(
+            collection_name,
+            query_vector=query_embedding[0],
+            limit=req.limit,
+            score_threshold=req.score_threshold,
+            with_payload=True,
+            with_vector=False,
+        )
+
+        formatted_results = []
+        for r in results.get("result", []):
+            formatted_results.append({
+                "id": r.get("id"),
+                "score": r.get("score"),
+                "text": r.get("payload", {}).get("text"),
+                "metadata": r.get("payload", {}),
+            })
+
+        return {
+            "results": formatted_results,
+            "query": req.query,
+            "collection": collection_name,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+@protected.post("/qdrant/collections/{collection_name}/upload")
+async def qdrant_upload_documents(collection_name: str, request: Request):
+    client = _require_qdrant()
+    doc_processor = app.state.document_processor
+    if doc_processor is None:
+        raise HTTPException(status_code=503, detail="Document processor not configured")
+
+    try:
+        form = await request.form()
+        files = form.getlist("files")
+
+        if not files:
+            raise HTTPException(status_code=400, detail="No files provided")
+
+        total_chunks = 0
+        total_docs = 0
+
+        for file in files:
+            if hasattr(file, "read"):
+                content = await file.read()
+                if isinstance(content, bytes):
+                    text = content.decode("utf-8", errors="ignore")
+                else:
+                    text = str(content)
+
+                filename = getattr(file, "filename", "unknown")
+                chunks_data = await doc_processor.process_document(
+                    text,
+                    metadata={"source": filename, "collection": collection_name}
+                )
+
+                points = []
+                for i, chunk in enumerate(chunks_data):
+                    points.append({
+                        "id": f"{filename}_{i}_{hash(chunk['text']) % 10000000}",
+                        "vector": chunk["embedding"],
+                        "payload": {
+                            "text": chunk["text"],
+                            "source": filename,
+                            "chunk_id": i,
+                            **chunk.get("metadata", {}),
+                        },
+                    })
+
+                if points:
+                    await client.upsert_points(collection_name, points)
+                    total_chunks += len(points)
+                    total_docs += 1
+
+        return {
+            "status": "success",
+            "documents_processed": total_docs,
+            "chunks_created": total_chunks,
+            "collection": collection_name,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("Document upload failed")
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+@protected.post("/qdrant/collections/{collection_name}/rag-query")
+async def qdrant_rag_query(collection_name: str, req: QdrantRAGRequest):
+    client = _require_qdrant()
+    doc_processor = app.state.document_processor
+    if doc_processor is None:
+        raise HTTPException(status_code=503, detail="Document processor not configured")
+
+    router_instance = app.state.router
+    if router_instance is None:
+        raise HTTPException(status_code=503, detail="Router not configured")
+
+    try:
+        query_embedding = await doc_processor.generate_embeddings([req.query])
+        if not query_embedding or len(query_embedding) == 0:
+            raise HTTPException(status_code=500, detail="Failed to generate query embedding")
+
+        search_results = await client.search(
+            collection_name,
+            query_vector=query_embedding[0],
+            limit=req.limit,
+            with_payload=True,
+            with_vector=False,
+        )
+
+        chunks = []
+        for r in search_results.get("result", []):
+            payload = r.get("payload", {})
+            if "text" in payload:
+                chunks.append({
+                    "text": payload["text"],
+                    "score": r.get("score"),
+                    "source": payload.get("source", "unknown"),
+                })
+
+        context = "\n\n".join([f"[Score: {c['score']:.4f}, Source: {c['source']}]\n{c['text']}" for c in chunks])
+
+        system_prompt = (
+            "You are a helpful assistant. Answer the user's question based on the provided context. "
+            "If the context doesn't contain relevant information, say so clearly."
+        )
+
+        prompt = f"Context:\n{context}\n\nQuestion: {req.query}\n\nAnswer:"
+
+        response = await router_instance.route(
+            messages=[{"role": "user", "content": prompt}],
+            system=system_prompt,
+            model=req.model,
+            temperature=req.temperature,
+        )
+
+        return {
+            "answer": response.content,
+            "chunks": chunks,
+            "query": req.query,
+            "collection": collection_name,
+            "model": response.model,
+            "provider": response.provider,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("RAG query failed")
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+@app.get("/metrics")
+async def metrics():
+    """Expose Prometheus metrics for scraping."""
+    try:
+        from prometheus_client import REGISTRY, generate_latest
+
+        # Generate metrics in Prometheus text format
+        metrics_output = generate_latest(REGISTRY)
+        return Response(
+            content=metrics_output,
+            media_type="text/plain; version=0.0.4; charset=utf-8"
+        )
+    except ImportError:
+        # If prometheus_client is not installed, return empty metrics
+        return Response(
+            content="# Prometheus client not installed\n",
+            media_type="text/plain; version=0.0.4; charset=utf-8",
+            status_code=503
+        )
 
 
 app.include_router(protected)
