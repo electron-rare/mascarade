@@ -28,6 +28,54 @@ class Strategy(StrEnum):
     SPECIFIC = "specific"
 
 
+def detect_domain(content: str) -> str | None:
+    """
+    Detect domain from message content based on keywords.
+
+    Args:
+        content: Text content to analyze
+
+    Returns:
+        Detected domain or None
+    """
+    # Keywords for each domain
+    domain_keywords = {
+        "spice": ["spice", "simulation", "ngspice", "ltspice", "circuit simulation"],
+        "kicad": ["kicad", "pcb", "schematic", "footprint", "kicad_pcb"],
+        "stm32": ["stm32", "arm cortex", "hal", "cubemx", "stm32f", "stm32l"],
+        "electronics": [
+            "circuit",
+            "resistor",
+            "capacitor",
+            "transistor",
+            "voltage",
+            "current",
+            "amplifier",
+            "oscillator",
+        ],
+        "code": [
+            "python",
+            "javascript",
+            "function",
+            "class",
+            "api",
+            "algorithm",
+            "debug",
+            "refactor",
+        ],
+    }
+
+    # Normalize content to lowercase for matching
+    content_lower = content.lower()
+
+    # Check for domain keywords
+    for domain, keywords in domain_keywords.items():
+        if any(keyword in content_lower for keyword in keywords):
+            return domain
+
+    return None
+
+
 class Router:
     """Routeur intelligent entre providers LLM."""
 
@@ -190,46 +238,14 @@ class Router:
         Returns:
             Detected domain or None
         """
-        # Keywords for each domain
-        domain_keywords = {
-            "spice": ["spice", "simulation", "ngspice", "ltspice", "circuit simulation"],
-            "kicad": ["kicad", "pcb", "schematic", "footprint", "kicad_pcb"],
-            "stm32": ["stm32", "arm cortex", "hal", "cubemx", "stm32f", "stm32l"],
-            "electronics": [
-                "circuit",
-                "resistor",
-                "capacitor",
-                "transistor",
-                "voltage",
-                "current",
-                "amplifier",
-                "oscillator",
-            ],
-            "code": [
-                "python",
-                "javascript",
-                "function",
-                "class",
-                "api",
-                "algorithm",
-                "debug",
-                "refactor",
-            ],
-        }
-
         # Combine all message content
         content = " ".join(
-            msg.get("content", "").lower()
+            msg.get("content", "")
             for msg in messages
             if isinstance(msg.get("content"), str)
         )
 
-        # Check for domain keywords
-        for domain, keywords in domain_keywords.items():
-            if any(keyword in content for keyword in keywords):
-                return domain
-
-        return None
+        return detect_domain(content)
 
     def _select_provider(
         self,
