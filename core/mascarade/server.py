@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import logging
 import time
 from contextlib import asynccontextmanager
+from dataclasses import asdict
 from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, FastAPI, HTTPException, Query, Request
@@ -14,6 +16,7 @@ from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel, Field
 
 from mascarade.agents import Agent, AgentRegistry
+from mascarade.agents.prompt_versioning import PromptHistory, PromptVersion
 from mascarade.agents.skills import register_default_skills
 from mascarade.auth import (
     add_api_key,
@@ -48,6 +51,13 @@ from mascarade.router.router import Strategy
 
 logger = logging.getLogger("mascarade.server")
 INDUSTRIAL_MCP_SERVER_KEYS = {"cockpit-ops", "plm", "qms", "mes", "erp", "wms", "dcs"}
+
+
+def hash_api_key(key: str) -> str:
+    """Hash API key for author tracking (returns first 8 chars of SHA-256)."""
+    if not key:
+        return ""
+    return hashlib.sha256(key.encode()).hexdigest()[:8]
 
 
 @asynccontextmanager
@@ -220,6 +230,21 @@ class AgentUpdate(BaseModel):
     routing_policy: RoutingPolicy = "auto"
     temperature: float = Field(default=0.7, ge=0.0, le=2.0)
     max_tokens: int = Field(default=4096, gt=0, le=128000)
+    version_note: str | None = Field(default=None, max_length=500)
+
+
+class PromptVersionResponse(BaseModel):
+    version_number: int = Field(ge=1)
+    timestamp: str = Field(min_length=1, max_length=100)
+    content: str = Field(max_length=500_000)
+    author_hash: str = Field(max_length=64)
+    diff: str | None = None
+    note: str | None = Field(default=None, max_length=1000)
+
+
+class PromptHistoryResponse(BaseModel):
+    versions: list[PromptVersionResponse]
+    total: int = Field(ge=0)
 
 
 class AgentRoutingOverride(BaseModel):
@@ -790,7 +815,7 @@ async def get_agent(name: str):
 
 
 @protected.put("/agents/{name}")
-async def update_agent(name: str, req: AgentUpdate):
+async def update_agent(name: str, req: AgentUpdate, request: Request):
     try:
         agent = app.state.registry.get(name)
     except KeyError:
@@ -801,6 +826,11 @@ async def update_agent(name: str, req: AgentUpdate):
             detail="Built-in agents are read-only; create a dynamic agent from the UI to edit routing.",
         )
 
+    # Check if system_prompt is changing
+    old_system_prompt = agent.system_prompt
+    system_prompt_changed = old_system_prompt != req.system_prompt
+
+    # Update agent fields
     agent.description = req.description
     agent.system_prompt = req.system_prompt
     agent.preferred_provider = req.preferred_provider
@@ -810,6 +840,32 @@ async def update_agent(name: str, req: AgentUpdate):
     agent.routing_policy = req.routing_policy
     agent.temperature = req.temperature
     agent.max_tokens = req.max_tokens
+
+    # Create version if system_prompt changed
+    if system_prompt_changed:
+        # Get API key from request headers for author tracking
+        auth_header = request.headers.get("Authorization", "")
+        api_key = ""
+        if auth_header.startswith("Bearer "):
+            api_key = auth_header[7:]
+        author_hash = hash_api_key(api_key)
+
+        # Create PromptHistory and load existing versions
+        prompt_history = PromptHistory(storage_path=None)
+        prompt_history._versions = [
+            PromptVersion(**v) for v in agent.prompt_versions
+        ]
+
+        # Add new version
+        new_version = prompt_history.add_version(
+            content=req.system_prompt,
+            author_hash=author_hash,
+            note=req.version_note,
+        )
+
+        # Update agent's prompt_versions
+        agent.prompt_versions = [asdict(v) for v in prompt_history._versions]
+
     app.state.registry.save()
     return _serialize_agent(agent)
 
@@ -833,6 +889,67 @@ async def run_agent(name: str, req: SendRequest):
         "model": response.model,
         "provider": response.provider,
         "usage": response.usage,
+    }
+
+
+@protected.get("/agents/{name}/prompts/history")
+async def get_agent_prompt_history(name: str):
+    """Get version history for an agent's system prompt."""
+    try:
+        agent = app.state.registry.get(name)
+    except KeyError:
+        raise HTTPException(status_code=404, detail=f"Agent '{name}' not found") from None
+
+    return {"versions": agent.prompt_versions}
+
+
+@protected.post("/agents/{name}/prompts/rollback/{version}")
+async def rollback_agent_prompt(name: str, version: int):
+    """Rollback agent's system prompt to a previous version."""
+    try:
+        agent = app.state.registry.get(name)
+    except KeyError:
+        raise HTTPException(status_code=404, detail=f"Agent '{name}' not found") from None
+
+    # Validate version number
+    if version < 1 or version > len(agent.prompt_versions):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid version {version}. Available versions: 1-{len(agent.prompt_versions)}",
+        )
+
+    # Get the target version content
+    target_version = agent.prompt_versions[version - 1]
+    old_prompt = agent.system_prompt
+
+    # Update the agent's system prompt to the target version
+    agent.system_prompt = target_version["content"]
+
+    # Create a new version entry for the rollback
+    version_number = len(agent.prompt_versions) + 1
+    timestamp = iso_utc_now()
+
+    # Compute diff from old to new (rolled back) prompt
+    diff = app.state.registry._compute_diff(old_prompt, agent.system_prompt)
+
+    rollback_version = {
+        "version_number": version_number,
+        "timestamp": timestamp,
+        "content": old_prompt,
+        "author_hash": "system",
+        "diff": diff,
+        "note": f"Rollback to version {version}",
+    }
+
+    agent.prompt_versions.append(rollback_version)
+
+    # Save the registry to persist changes
+    app.state.registry.save()
+
+    return {
+        "message": f"Rolled back to version {version}",
+        "current_version": version_number,
+        "current_prompt": agent.system_prompt,
     }
 
 

@@ -24,6 +24,7 @@ class Agent:
     tools: list[str] = field(default_factory=list)
     temperature: float = 0.7
     max_tokens: int = 4096
+    prompt_versions: list[dict] = field(default_factory=list)
 
     def build_send_payload(
         self,
