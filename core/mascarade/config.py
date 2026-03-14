@@ -170,5 +170,8 @@ class Settings(BaseSettings):
     default_provider: str = "claude"
     default_model: str = "claude-sonnet-4-6"
 
+    # Prompt versioning
+    prompt_version_max_count: int = 50
+
 
 settings = Settings()

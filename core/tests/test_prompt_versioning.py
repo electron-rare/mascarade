@@ -58,3 +58,63 @@ def test_auto_version_on_prompt_change():
         # Save again without changing prompt - no new version
         registry.save()
         assert len(agent.prompt_versions) == 2
+
+
+def test_version_pruning():
+    """Test automatic pruning of old versions when max_versions is set."""
+    # Create history with max_versions=5
+    history = PromptHistory(storage_path=None, max_versions=5)
+
+    # Add 10 versions
+    for i in range(1, 11):
+        history.add_version(
+            content=f"Prompt version {i}",
+            author_hash="test-author",
+            note=f"Version {i}",
+        )
+
+    # Should only keep last 5 versions
+    assert len(history._versions) == 5
+
+    # Version numbers should be renumbered to 1-5
+    version_numbers = [v.version_number for v in history._versions]
+    assert version_numbers == [1, 2, 3, 4, 5]
+
+    # Content should be from versions 6-10
+    contents = [v.content for v in history._versions]
+    assert contents == [
+        "Prompt version 6",
+        "Prompt version 7",
+        "Prompt version 8",
+        "Prompt version 9",
+        "Prompt version 10",
+    ]
+
+    # Add one more version
+    history.add_version(
+        content="Prompt version 11",
+        author_hash="test-author",
+        note="Version 11",
+    )
+
+    # Should still keep only 5 versions
+    assert len(history._versions) == 5
+
+    # Latest version should be version 11
+    assert history._versions[-1].content == "Prompt version 11"
+    assert history._versions[0].content == "Prompt version 7"
+
+
+def test_version_pruning_disabled_by_default():
+    """Test that pruning is disabled when max_versions is not set."""
+    history = PromptHistory(storage_path=None)
+
+    # Add many versions
+    for i in range(1, 101):
+        history.add_version(
+            content=f"Prompt version {i}",
+            author_hash="test-author",
+        )
+
+    # Should keep all 100 versions
+    assert len(history._versions) == 100
