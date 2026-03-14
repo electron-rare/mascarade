@@ -47,6 +47,8 @@ export interface OrchestrationResult {
   error?: string;
   remote?: boolean;
   selected_by?: string;
+  transport?: string | null;
+  latency_ms?: number | null;
   peer_id?: string | null;
   node_id?: string | null;
   role?: string | null;

@@ -63,21 +63,18 @@ Documents d'ancrage:
 | --- | --- | --- |
 | `M-DA-001` | Maintenir le baseline multi-repo via `scripts/repo_deep_analysis_tui.sh` | `runtime-architect` |
 | `M-DA-004` | Continuer la reduction des regressions `api` puis `core` par lots verifies | `code-surgeon` |
-| `M-DA-008` | Consolider une lecture operateur plus synthétique des traces cluster/P2P | `sequence-mapper` |
 
 ### `crazy_life`
 
 | ID | Tache | Owner |
 | --- | --- | --- |
-| `C-DA-002` | Ajouter un diagramme de sequence pour la lane workflow `Crazy Lane` | `ui-sequence-mapper` |
-| `C-DA-003` | Rafraichir le README pour relier plan, publication et cartographie | `release-readme-curator` |
-| `C-DA-004` | Verifier la couverture `api/public` et les limites du proxy upstream | `api-contract-auditor` |
+| `C-DA-005` | Ajouter une lecture plus compacte des dependances externes et du proxy upstream | `api-contract-auditor` |
 
 ### `Kill_LIFE`
 
 | ID | Tache | Owner |
 | --- | --- | --- |
-| `K-DA-014` | Extraire un resume artefacts dedie dans le rendu Markdown evidence | `embedded-systems-auditor` |
+| `K-DA-015` | Expliciter les fichiers requis/manquants dans `Artifact summary` quand une lane evidence degrade | `embedded-systems-auditor` |
 
 ## Actions documentees dans ce tour
 
@@ -98,6 +95,10 @@ Documents d'ancrage:
 - exposition de `routing_selected_by` dans `AgentTraceBuffer` et l'orchestrateur
 - production de la carte fonctionnelle `crazy_life/docs/CRAZY_LIFE_FEATURE_MAP_2026-03-11.md`
 - reliaison du `README` et du plan `crazy_life` vers la nouvelle carte
+- production du diagramme `crazy_life/docs/CRAZY_LANE_SEQUENCE_2026-03-14.md`
+- fermeture de `C-DA-003` via le realignement du `README`, du plan local et des ancres publication/cartographie
+- fermeture de `C-DA-004` via `docs/GATEWAY_HARDENING_2026-03-14.md`, `api/src/index.ts` et l'audit strict `bash scripts/tui/gateway_audit.sh audit --strict`
+- revalidation locale `crazy_life`: `npm --prefix api test` puis `npm run build`
 - revalidation ciblee: `cd core && ./.venv/bin/python -m pytest -q tests/test_orchestrator.py`
 - production de la carte fonctionnelle `Kill_LIFE/docs/KILL_LIFE_FEATURE_MAP_2026-03-11.md`
 - reliaison du `README` et du plan `Kill_LIFE` vers la nouvelle carte
@@ -123,14 +124,19 @@ Documents d'ancrage:
 - fermeture de `K-DA-011` via la section automatique `Focus failures` dans `Kill_LIFE/tools/auto_check_ci_cd.py`
 - fermeture de `K-DA-012` via la compaction des chemins absolus dans `Kill_LIFE/tools/auto_check_ci_cd.py`
 - fermeture de `K-DA-013` via la reduction des signaux listeux dans `Kill_LIFE/tools/auto_check_ci_cd.py`
+- fermeture de `K-DA-014` via le bloc `Artifact summary` dans `Kill_LIFE/tools/auto_check_ci_cd.py`
 - revalidation locale `Kill_LIFE`: rendu Markdown evidence avec chemins repo-relatifs apres `tools/auto_check_ci_cd.py`
 - revalidation locale `Kill_LIFE`: rendu Markdown evidence avec comptes d'artefacts courts apres `tools/auto_check_ci_cd.py`
+- revalidation locale `Kill_LIFE`: rendu Markdown evidence avec synthese artefacts dediee apres `tools/auto_check_ci_cd.py`
 - revalidation locale `Kill_LIFE`: rendu rouge verifie via `render_markdown_summary(report)` et rendu vert revalide via `tools/auto_check_ci_cd.py`
+- fermeture de `M-DA-008` via l'exposition UI de `routing_selected_by`, `routing_transport` et `routing_latency_ms` dans `web/src/pages/Logs.tsx` et `web/src/pages/Orchestrate.tsx`
+- revalidation locale `mascarade`: `npm --prefix web run build` et `npm --prefix api run build`
 
 ## Test status snapshot
 
-- `mascarade/api`: un echec local initial observe dans `src/routes/mcpIndustrial.test.ts` avant correctif
+- `mascarade/api`: `npm --prefix api run build` vert; `npm --prefix api test` reste rouge sur `src/routes/mcpIndustrial.test.ts` a cause d'un header `X-Forwarded-Groups` absent, hors lot `M-DA-008`
 - `mascarade/core`: suite non verte dans l'etat actuel du worktree; plusieurs echecs relevent soit de regressions locales P2P/cluster, soit de limites sandbox sur le bind reseau
 - `mascarade/core/tests/test_cluster.py` et `mascarade/core/tests/test_orchestrator.py`: verts sur le lot courant
+- `crazy_life`: `npm --prefix api test` vert (`34/34`), `npm run build` vert avec seul warning de chunk Vite > 500 kB
 - `Kill_LIFE`: evidence lane locale verte en mode `native-pio`; la suite `bash tools/test_python.sh --suite stable` reste bloquee par un delta local hors lot dans `tools/mcp_runtime_status.py`
 - aucune pretention de "suite verte globale" n'est faite sans reprise lot-par-lot

@@ -84,6 +84,11 @@ function inferCluster(agentName: string): string {
   return "runtime";
 }
 
+function formatLatency(ms?: number | null): string | null {
+  if (!Number.isFinite(ms) || ms === undefined || ms === null || ms < 0) return null;
+  return `${Math.round(ms)} ms`;
+}
+
 export default function Orchestrate() {
   const { data, loading, error, refetch } = useFetch<{ agents: Agent[] }>("/api/agents");
   const [prompt, setPrompt] = useState("");
@@ -177,15 +182,18 @@ export default function Orchestrate() {
         ts: string;
         event_type: string;
         message: string;
-      agent_name?: string | null;
-      from_agent?: string | null;
-      to_agent?: string | null;
-      prompt_excerpt?: string | null;
-      content_excerpt?: string | null;
+        agent_name?: string | null;
+        from_agent?: string | null;
+        to_agent?: string | null;
+        prompt_excerpt?: string | null;
+        content_excerpt?: string | null;
         routing_role?: string | null;
         routing_provider?: string | null;
         routing_model?: string | null;
         routing_policy?: string | null;
+        routing_selected_by?: string | null;
+        routing_transport?: string | null;
+        routing_latency_ms?: number | null;
         mcp_server?: string | null;
         mcp_tool?: string | null;
         mcp_status?: string | null;
@@ -816,7 +824,13 @@ export default function Orchestrate() {
                           {row.remote ? "remote" : "local"}
                         </Badge>
                         {row.selected_by ? (
-                          <Badge color="muted">{row.selected_by}</Badge>
+                          <Badge color="muted">route {row.selected_by}</Badge>
+                        ) : null}
+                        {row.transport ? (
+                          <Badge color="muted">transport {row.transport}</Badge>
+                        ) : null}
+                        {formatLatency(row.latency_ms) ? (
+                          <Badge color="warning">{formatLatency(row.latency_ms)}</Badge>
                         ) : null}
                         {row.role ? <Badge color="muted">role {row.role}</Badge> : null}
                       </div>
@@ -954,8 +968,22 @@ export default function Orchestrate() {
                           ) : null}
                         </div>
                       ) : null}
-                      {event.routing_role || event.routing_provider || event.routing_model ? (
+                      {event.routing_selected_by ||
+                      event.routing_transport ||
+                      event.routing_latency_ms !== undefined && event.routing_latency_ms !== null ||
+                      event.routing_role ||
+                      event.routing_provider ||
+                      event.routing_model ? (
                         <div className="mt-3 flex flex-wrap gap-2">
+                          {event.routing_selected_by ? (
+                            <Badge color="muted">route {event.routing_selected_by}</Badge>
+                          ) : null}
+                          {event.routing_transport ? (
+                            <Badge color="muted">transport {event.routing_transport}</Badge>
+                          ) : null}
+                          {formatLatency(event.routing_latency_ms) ? (
+                            <Badge color="warning">{formatLatency(event.routing_latency_ms)}</Badge>
+                          ) : null}
                           {event.routing_role ? (
                             <Badge color="warning">role {event.routing_role}</Badge>
                           ) : null}

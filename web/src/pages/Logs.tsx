@@ -120,13 +120,13 @@ function matchesRoutingLabels(
     role: string;
     provider: string;
     model: string;
-    policy: string;
+    policy?: string;
   },
 ): boolean {
   const role = normalizeFilter(filters.role);
   const provider = normalizeFilter(filters.provider);
   const model = normalizeFilter(filters.model);
-  const policy = normalizeFilter(filters.policy);
+  const policy = normalizeFilter(filters.policy ?? "");
 
   if (role && normalizeFilter(labels?.routing_role ?? "") !== role) {
     return false;
@@ -186,6 +186,12 @@ function mcpTone(status?: string): "accent" | "warning" | "error" | "muted" {
 function formatLatency(ms?: number | null): string {
   if (!Number.isFinite(ms) || !ms || ms <= 0) return "-";
   return `${Math.round(ms)} ms`;
+}
+
+function formatRoutingLatency(ms?: number | string | null): string | null {
+  const value = typeof ms === "string" ? Number(ms) : ms;
+  if (!Number.isFinite(value) || value === undefined || value === null || value < 0) return null;
+  return `${Math.round(value)} ms`;
 }
 
 function formatMcpName(name?: string | null): string {
@@ -650,6 +656,12 @@ export default function Logs() {
               routing_provider: entry.routing_provider ?? "",
               routing_model: entry.routing_model ?? "",
               routing_policy: entry.routing_policy ?? "",
+              routing_selected_by: entry.routing_selected_by ?? "",
+              routing_transport: entry.routing_transport ?? "",
+              routing_latency_ms:
+                entry.routing_latency_ms !== undefined && entry.routing_latency_ms !== null
+                  ? String(entry.routing_latency_ms)
+                  : "",
             },
           },
         ]);
@@ -1272,8 +1284,26 @@ export default function Logs() {
                   </p>
                   {entry.labels?.routing_role ||
                   entry.labels?.routing_provider ||
-                  entry.labels?.routing_model ? (
+                  entry.labels?.routing_model ||
+                  entry.labels?.routing_selected_by ||
+                  entry.labels?.routing_transport ||
+                  entry.labels?.routing_latency_ms ? (
                     <div className="mt-3 flex flex-wrap gap-2">
+                      {nonEmptyLabel(entry.labels?.routing_selected_by) ? (
+                        <span className="status-chip border-border/70 bg-black/35 text-amber-100/66">
+                          route {entry.labels?.routing_selected_by}
+                        </span>
+                      ) : null}
+                      {nonEmptyLabel(entry.labels?.routing_transport) ? (
+                        <span className="status-chip border-border/70 bg-black/35 text-amber-100/66">
+                          transport {entry.labels?.routing_transport}
+                        </span>
+                      ) : null}
+                      {formatRoutingLatency(entry.labels?.routing_latency_ms) ? (
+                        <span className="status-chip border-[#6d5c1c] bg-[#1a1507] text-[#ffd166]">
+                          {formatRoutingLatency(entry.labels?.routing_latency_ms)}
+                        </span>
+                      ) : null}
                       {nonEmptyLabel(entry.labels?.routing_role) ? (
                         <span className="status-chip border-[#6d5c1c] bg-[#1a1507] text-[#ffd166]">
                           role {entry.labels?.routing_role}
@@ -1360,8 +1390,22 @@ export default function Logs() {
                       <p className="mt-3 font-mono text-[13px] leading-6 text-amber-100/74">
                         {event.message}
                       </p>
-                      {event.routing_role || event.routing_provider || event.routing_model ? (
+                      {event.routing_selected_by ||
+                      event.routing_transport ||
+                      event.routing_latency_ms !== undefined && event.routing_latency_ms !== null ||
+                      event.routing_role ||
+                      event.routing_provider ||
+                      event.routing_model ? (
                         <div className="mt-3 flex flex-wrap gap-2">
+                          {event.routing_selected_by ? (
+                            <Badge color="muted">route {event.routing_selected_by}</Badge>
+                          ) : null}
+                          {event.routing_transport ? (
+                            <Badge color="muted">transport {event.routing_transport}</Badge>
+                          ) : null}
+                          {formatRoutingLatency(event.routing_latency_ms) ? (
+                            <Badge color="warning">{formatRoutingLatency(event.routing_latency_ms)}</Badge>
+                          ) : null}
                           {event.routing_role ? (
                             <Badge color="warning">role {event.routing_role}</Badge>
                           ) : null}

@@ -173,6 +173,9 @@ export type OpsTraceEvent = {
   routing_provider?: string | null;
   routing_model?: string | null;
   routing_policy?: string | null;
+  routing_selected_by?: string | null;
+  routing_transport?: string | null;
+  routing_latency_ms?: number | null;
   token_usage?: { input_tokens?: number; output_tokens?: number } | null;
   error?: string | null;
   message: string;
