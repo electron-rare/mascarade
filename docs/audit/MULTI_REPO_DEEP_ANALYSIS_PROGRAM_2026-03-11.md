@@ -77,7 +77,7 @@ Documents d'ancrage:
 
 | ID | Tache | Owner |
 | --- | --- | --- |
-| `K-DA-013` | Reduire les signaux trop verbeux dans le rendu Markdown evidence | `embedded-systems-auditor` |
+| `K-DA-014` | Extraire un resume artefacts dedie dans le rendu Markdown evidence | `embedded-systems-auditor` |
 
 ## Actions documentees dans ce tour
 
@@ -122,7 +122,9 @@ Documents d'ancrage:
 - revalidation locale `Kill_LIFE`: sidecar Markdown et Step Summary identiques apres `tools/auto_check_ci_cd.py`
 - fermeture de `K-DA-011` via la section automatique `Focus failures` dans `Kill_LIFE/tools/auto_check_ci_cd.py`
 - fermeture de `K-DA-012` via la compaction des chemins absolus dans `Kill_LIFE/tools/auto_check_ci_cd.py`
+- fermeture de `K-DA-013` via la reduction des signaux listeux dans `Kill_LIFE/tools/auto_check_ci_cd.py`
 - revalidation locale `Kill_LIFE`: rendu Markdown evidence avec chemins repo-relatifs apres `tools/auto_check_ci_cd.py`
+- revalidation locale `Kill_LIFE`: rendu Markdown evidence avec comptes d'artefacts courts apres `tools/auto_check_ci_cd.py`
 - revalidation locale `Kill_LIFE`: rendu rouge verifie via `render_markdown_summary(report)` et rendu vert revalide via `tools/auto_check_ci_cd.py`
 
 ## Test status snapshot
