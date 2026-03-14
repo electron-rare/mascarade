@@ -104,16 +104,37 @@ class Router:
 
         providers = list(self._providers.values())
 
+        # Filter out providers with OPEN circuits
+        # Allow HALF_OPEN providers for recovery testing
+        healthy_providers = [
+            p for p in providers
+            if not self.circuit_breaker.is_open(p.name)
+        ]
+
+        # If all providers have OPEN circuits, fall back to all providers
+        # to allow recovery attempts
+        if not healthy_providers:
+            healthy_providers = providers
+
+        # Apply strategy filtering
         if strategy == Strategy.CHEAPEST:
-            best_value = min(sum(p.cost_per_million) for p in providers)
-            return [p for p in providers if sum(p.cost_per_million) == best_value]
+            best_value = min(sum(p.cost_per_million) for p in healthy_providers)
+            candidates = [p for p in healthy_providers if sum(p.cost_per_million) == best_value]
+        elif strategy == Strategy.FASTEST:
+            best_value = min(p.speed_rank for p in healthy_providers)
+            candidates = [p for p in healthy_providers if p.speed_rank == best_value]
+        else:  # BEST
+            best_value = max(p.quality_rank for p in healthy_providers)
+            candidates = [p for p in healthy_providers if p.quality_rank == best_value]
 
-        if strategy == Strategy.FASTEST:
-            best_value = min(p.speed_rank for p in providers)
-            return [p for p in providers if p.speed_rank == best_value]
+        # Sort candidates by health score (descending - healthiest first)
+        candidates_with_health = [
+            (p, self.health_monitor.get_provider_health(p.name).health_score)
+            for p in candidates
+        ]
+        candidates_with_health.sort(key=lambda x: x[1], reverse=True)
 
-        best_value = max(p.quality_rank for p in providers)
-        return [p for p in providers if p.quality_rank == best_value]
+        return [p for p, _ in candidates_with_health]
 
     def _select_provider(
         self,
@@ -210,12 +231,12 @@ class Router:
             attempt_enum = Strategy(attempt_strategy)
             selected = self._select_provider(attempt_enum, attempt_provider)
 
-            # Check circuit breaker
-            if not self.circuit_breaker.can_execute():
+            # Check circuit breaker for this specific provider
+            if not self.circuit_breaker.can_execute(selected.name):
                 logger.warning(
-                    "Circuit breaker is open, skipping provider %s", selected.name
+                    "Circuit breaker is open for provider %s, skipping", selected.name
                 )
-                last_error = RuntimeError("Circuit breaker is open")
+                last_error = RuntimeError(f"Circuit breaker is open for provider {selected.name}")
                 continue
 
             started_at = time.perf_counter()
@@ -247,7 +268,7 @@ class Router:
                     success=False,
                 )
                 self.fallback.record_failure(selected.name)
-                self.circuit_breaker.record_failure()
+                self.circuit_breaker.record_failure(selected.name)
                 last_error = exc
                 continue
 
@@ -268,7 +289,7 @@ class Router:
                     response_time=elapsed,
                     success=False,
                 )
-                self.circuit_breaker.record_failure()
+                self.circuit_breaker.record_failure(selected.name)
                 last_error = RuntimeError(
                     f"Strict provider mismatch: requested {provider}, got {response.provider}"
                 )
@@ -278,7 +299,7 @@ class Router:
             self.load_balancer.request_completed(
                 selected.name, response_time=elapsed, success=True
             )
-            self.circuit_breaker.record_success()
+            self.circuit_breaker.record_success(selected.name)
 
             usage = response.usage or {}
             self.metrics.track_request(
@@ -345,12 +366,12 @@ class Router:
             attempt_enum = Strategy(attempt_strategy)
             selected = self._select_provider(attempt_enum, attempt_provider)
 
-            # Check circuit breaker
-            if not self.circuit_breaker.can_execute():
+            # Check circuit breaker for this specific provider
+            if not self.circuit_breaker.can_execute(selected.name):
                 logger.warning(
-                    "Circuit breaker is open, skipping provider %s", selected.name
+                    "Circuit breaker is open for provider %s, skipping", selected.name
                 )
-                last_error = RuntimeError("Circuit breaker is open")
+                last_error = RuntimeError(f"Circuit breaker is open for provider {selected.name}")
                 continue
 
             started_at = time.perf_counter()
@@ -381,7 +402,7 @@ class Router:
                     success=False,
                 )
                 self.fallback.record_failure(selected.name)
-                self.circuit_breaker.record_failure()
+                self.circuit_breaker.record_failure(selected.name)
                 last_error = exc
                 continue
 
@@ -389,7 +410,7 @@ class Router:
             self.load_balancer.request_completed(
                 selected.name, response_time=elapsed, success=True
             )
-            self.circuit_breaker.record_success()
+            self.circuit_breaker.record_success(selected.name)
             self.metrics.track_request(
                 provider_name=selected.name,
                 tokens=0,
