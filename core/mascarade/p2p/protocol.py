@@ -15,6 +15,7 @@ logger = logging.getLogger("mascarade.p2p.protocol")
 _HEADER_FMT = "!I"  # 4-byte big-endian unsigned int
 _HEADER_SIZE = struct.calcsize(_HEADER_FMT)
 _MAX_FRAME_SIZE = 16 * 1024 * 1024  # 16 MiB
+_WRITE_TIMEOUT_SECONDS = 5.0
 
 
 @dataclass
@@ -104,7 +105,7 @@ async def read_message(reader: asyncio.StreamReader) -> P2PMessage | None:
 async def write_message(writer: asyncio.StreamWriter, msg: P2PMessage) -> bool:
     try:
         writer.write(msg.encode())
-        await writer.drain()
+        await asyncio.wait_for(writer.drain(), timeout=_WRITE_TIMEOUT_SECONDS)
         return True
-    except (ConnectionError, OSError):
+    except (ConnectionError, OSError, asyncio.TimeoutError):
         return False

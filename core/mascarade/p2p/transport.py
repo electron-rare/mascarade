@@ -13,6 +13,8 @@ from mascarade.p2p.identity import PeerIdentity
 from mascarade.p2p.protocol import P2PMessage, read_message, write_message
 
 logger = logging.getLogger("mascarade.p2p.transport")
+_SEND_TIMEOUT_SECONDS = 6.0
+_BROADCAST_TIMEOUT_SECONDS = 7.0
 
 MessageHandler = Callable[[P2PMessage, "PeerConnection"], Coroutine[Any, Any, None]]
 MessageTransform = Callable[[P2PMessage], P2PMessage]
@@ -50,6 +52,14 @@ class PeerConnection:
             return False
 
     async def send(self, msg: P2PMessage) -> bool:
+        try:
+            return await asyncio.wait_for(self._send_impl(msg), timeout=_SEND_TIMEOUT_SECONDS)
+        except asyncio.TimeoutError:
+            logger.debug("Timed out sending to peer %s at %s:%d", self.peer_id, self.host, self.port)
+            await self.disconnect()
+            return False
+
+    async def _send_impl(self, msg: P2PMessage) -> bool:
         async with self._write_lock:
             if not self.connected or self.writer is None:
                 if not await self.connect():
@@ -185,17 +195,34 @@ class P2PTransport:
         self._inbound_peers.clear()
 
     async def broadcast(self, msg: P2PMessage) -> int:
-        sent = 0
         # Merge outbound + inbound peers (outbound wins on overlap)
         all_peers: dict[str, PeerConnection] = dict(self._inbound_peers)
         all_peers.update(self._peers)
-        for peer_id, conn in list(all_peers.items()):
-            if await conn.send(msg):
+        sends = [
+            (peer_id, conn)
+            for peer_id, conn in list(all_peers.items())
+        ]
+        if not sends:
+            return 0
+
+        results = await asyncio.gather(
+            *(
+                asyncio.wait_for(conn.send(msg), timeout=_BROADCAST_TIMEOUT_SECONDS)
+                for _, conn in sends
+            ),
+            return_exceptions=True,
+        )
+
+        sent = 0
+        for (peer_id, conn), result in zip(sends, results, strict=False):
+            if result is True:
                 sent += 1
                 if self._metrics:
                     self._metrics.record_message_sent(msg.type)
                 if peer_id in self._peers:
                     self._ensure_outbound_reader(peer_id, conn)
+            elif isinstance(result, Exception):
+                logger.debug("Broadcast to %s failed: %s", peer_id, result)
         return sent
 
     async def send_to(self, peer_id: str, msg: P2PMessage) -> bool:
