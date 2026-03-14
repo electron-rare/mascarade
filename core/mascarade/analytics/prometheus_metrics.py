@@ -185,6 +185,9 @@ class CostMetrics:
 # Global instance
 COST_METRICS = CostMetrics()
 
+# Alias for backward compatibility
+total_cost_counter = llm_cost_total
+
 
 __all__ = [
     "COST_METRICS",
@@ -196,4 +199,5 @@ __all__ = [
     "llm_provider_error_rate",
     "llm_provider_avg_cost_per_request",
     "llm_provider_avg_tokens_per_request",
+    "total_cost_counter",
 ]
