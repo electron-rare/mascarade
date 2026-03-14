@@ -26,13 +26,17 @@ dependencies = [
     "google-genai>=1.0,<2",
     "python-multipart>=0.0.22,<1",
     "zeroconf>=0.145.0,<1",
+    "cryptography>=44.0,<45",
+    "huggingface-hub>=1.6.0",
+]
+
+[project.optional-dependencies]
+libp2p = [
     "libp2p>=0.6.0,<1",
     "trio>=0.29,<1",
     "multiaddr>=0.0.9,<1",
     "clickhouse-connect>=0.8,<1",
 ]
-
-[project.optional-dependencies]
 dev = [
     "numpy>=2.3,<3",
     "pytest>=9.0,<10",
@@ -76,6 +80,7 @@ ignore = [
 "mascarade/router/providers/kicad_router.py" = ["F401"]  # imports used for availability checking
 "mascarade/load_balancer/balancer.py" = ["S311"]  # random is acceptable for load balancing
 "mascarade/router/router.py" = ["E501"]  # line length handled by black
+"mascarade/p2p/*" = ["S104"]  # 0.0.0.0 is required for P2P listening
 
 [tool.black]
 line-length = 100

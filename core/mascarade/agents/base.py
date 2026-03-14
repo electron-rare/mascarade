@@ -20,6 +20,7 @@ class Agent:
     preferred_model: str | None = None
     preferred_role: str | None = None
     strategy: Strategy = Strategy.BEST
+    routing_policy: str = "auto"
     tools: list[str] = field(default_factory=list)
     temperature: float = 0.7
     max_tokens: int = 4096
@@ -35,6 +36,7 @@ class Agent:
         return {
             "messages": messages,
             "strategy": self.strategy,
+            "routing_policy": self.routing_policy,
             "provider": self.preferred_provider,
             "model": self.preferred_model,
             "system": self.system_prompt,
@@ -54,6 +56,7 @@ class Agent:
         return await router.send(
             payload["messages"],
             strategy=payload["strategy"],
+            routing_policy=payload.get("routing_policy"),
             provider=payload["provider"],
             model=payload["model"],
             system=payload["system"],
@@ -71,6 +74,7 @@ class Agent:
         return await router.send(
             messages,
             strategy=self.strategy,
+            routing_policy=self.routing_policy,
             provider=self.preferred_provider,
             model=self.preferred_model,
             system=self.system_prompt,

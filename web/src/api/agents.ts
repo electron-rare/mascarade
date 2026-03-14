@@ -8,6 +8,7 @@ export interface Agent {
   preferred_model?: string | null;
   preferred_role?: string | null;
   strategy?: string;
+  routing_policy?: string | null;
   temperature?: number;
   max_tokens?: number;
   builtin?: boolean;
@@ -46,6 +47,8 @@ export interface OrchestrationResult {
   error?: string;
   remote?: boolean;
   selected_by?: string;
+  transport?: string | null;
+  latency_ms?: number | null;
   peer_id?: string | null;
   node_id?: string | null;
   role?: string | null;
@@ -62,6 +65,7 @@ export const agentsApi = {
     preferred_model?: string;
     preferred_role?: string;
     strategy?: string;
+    routing_policy?: string;
     temperature?: number;
     max_tokens?: number;
   }) => post<Agent>("/api/agents", agent),
@@ -77,6 +81,7 @@ export const agentsApi = {
       preferred_model?: string | null;
       preferred_role?: string | null;
       strategy?: string;
+      routing_policy?: string;
       temperature?: number;
       max_tokens?: number;
     },
@@ -118,6 +123,7 @@ export const agentsApi = {
   send: (params: {
     messages: Message[];
     strategy?: string;
+    routing_policy?: string;
     provider?: string;
     model?: string;
     system?: string;
@@ -135,6 +141,7 @@ export const agentsApi = {
         preferred_role?: string | null;
         preferred_provider?: string | null;
         preferred_model?: string | null;
+        routing_policy?: string | null;
       }
     >;
   }) =>

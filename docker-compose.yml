@@ -10,6 +10,7 @@ services:
     restart: unless-stopped
     ports:
       - "${PUBLISH_BIND_HOST:-0.0.0.0}:${CORE_PORT}:8100"
+      - "${PUBLISH_BIND_HOST:-0.0.0.0}:${P2P_LISTEN_PORT:-4001}:4001"
     env_file:
       - .env
     environment:
@@ -28,6 +29,17 @@ services:
       AGENT_FACTORY_DCS_METHOD_READ_SNAPSHOT: ${AGENT_FACTORY_DCS_METHOD_READ_SNAPSHOT:-GET}
       AGENT_FACTORY_DCS_RESOURCE_WRITE_REQUEST: ${AGENT_FACTORY_DCS_RESOURCE_WRITE_REQUEST:-write-request}
       PYTHONPATH: ${AGENT_FACTORY_COCKPIT_DIR:-/workspace/agent-factory-cockpit}:${PYTHONPATH:-}
+      # P2P overlay network
+      P2P_ENABLED: ${P2P_ENABLED:-true}
+      P2P_LISTEN_HOST: ${P2P_LISTEN_HOST:-0.0.0.0}
+      P2P_LISTEN_PORT: ${P2P_LISTEN_PORT:-4001}
+      P2P_BOOTSTRAP_PEERS: ${P2P_BOOTSTRAP_PEERS:-}
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8100/cluster/p2p/status >/dev/null"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:

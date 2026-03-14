@@ -172,6 +172,10 @@ export type OpsTraceEvent = {
   routing_role?: string | null;
   routing_provider?: string | null;
   routing_model?: string | null;
+  routing_policy?: string | null;
+  routing_selected_by?: string | null;
+  routing_transport?: string | null;
+  routing_latency_ms?: number | null;
   token_usage?: { input_tokens?: number; output_tokens?: number } | null;
   error?: string | null;
   message: string;
@@ -280,6 +284,7 @@ export const opsApi = {
     routing_role?: string;
     routing_provider?: string;
     routing_model?: string;
+    routing_policy?: string;
   }) => {
     const search = new URLSearchParams();
     if (params?.limit) search.set("limit", String(params.limit));
@@ -292,6 +297,7 @@ export const opsApi = {
     if (params?.routing_role) search.set("routing_role", params.routing_role);
     if (params?.routing_provider) search.set("routing_provider", params.routing_provider);
     if (params?.routing_model) search.set("routing_model", params.routing_model);
+    if (params?.routing_policy) search.set("routing_policy", params.routing_policy);
     const suffix = search.toString() ? `?${search.toString()}` : "";
     return get<{ entries: OpsLogEntry[]; count: number; timestamp: string }>(
       `/api/ops/logs/recent${suffix}`,
@@ -310,6 +316,7 @@ export const opsApi = {
     routing_role?: string;
     routing_provider?: string;
     routing_model?: string;
+    routing_policy?: string;
   }) => {
     const search = new URLSearchParams();
     if (params?.limit) search.set("limit", String(params.limit));
@@ -324,6 +331,7 @@ export const opsApi = {
     if (params?.routing_role) search.set("routing_role", params.routing_role);
     if (params?.routing_provider) search.set("routing_provider", params.routing_provider);
     if (params?.routing_model) search.set("routing_model", params.routing_model);
+    if (params?.routing_policy) search.set("routing_policy", params.routing_policy);
     const suffix = search.toString() ? `?${search.toString()}` : "";
     return get<{ entries: OpsLogEntry[]; count: number; timestamp: string; source: string }>(
       `/api/ops/logs/query${suffix}`,

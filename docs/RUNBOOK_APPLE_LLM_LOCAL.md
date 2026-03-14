@@ -93,3 +93,10 @@ docker compose restart core api
 - `ai-novel-engine` ne doit pas parler directement a `:8201`; il passe par `POST /v1/chat/completions` sur `:8100`
 - pour `ollama`, utiliser un runbook distinct; ce document est limite au chemin Apple local
 - sous garde-fou ANE, `qwen2.5-0.5b-instruct-onnx` est aujourd'hui le chemin Apple le plus stable pour un diagnostic complet, pas pour une promotion manuscrit
+
+## Etat auto-synchronise
+<!-- AUTO-SYNC:MASCARADE-RUNBOOK:START -->
+- dernier cycle ANE automatise: 2026-03-13T14:15:56+00:00
+- meilleurs candidats actuels: apple-coreml:qwen3.5-4b-onnx-q4f16, ollama:qwen2.5:7b
+- prochain lot utile cote ANE: Confirmer la reference accepted puis resserrer rewrite/repair sur les modeles deja bloques a gate.
+<!-- AUTO-SYNC:MASCARADE-RUNBOOK:END -->

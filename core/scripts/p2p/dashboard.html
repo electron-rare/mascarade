@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mascarade P2P Dashboard</title>
+<style>
+  :root {
+    --bg: #0e1117;
+    --surface: #161b22;
+    --border: #30363d;
+    --text: #c9d1d9;
+    --text-dim: #8b949e;
+    --accent: #58a6ff;
+    --green: #3fb950;
+    --red: #f85149;
+    --yellow: #d29922;
+    --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    --mono: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: var(--bg); color: var(--text); font-family: var(--font); font-size: 14px; padding: 20px; }
+  h1 { font-size: 20px; font-weight: 600; margin-bottom: 16px; }
+  h2 { font-size: 15px; font-weight: 600; margin-bottom: 8px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.5px; }
+
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+  @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+  }
+
+  /* Stats bar */
+  .stats { display: flex; gap: 24px; margin-bottom: 16px; flex-wrap: wrap; }
+  .stat { display: flex; flex-direction: column; }
+  .stat-value { font-size: 28px; font-weight: 700; color: var(--accent); font-family: var(--mono); }
+  .stat-label { font-size: 11px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.5px; }
+
+  /* Connection indicator */
+  .conn { display: flex; align-items: center; gap: 6px; margin-bottom: 16px; font-size: 12px; color: var(--text-dim); }
+  .conn-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--red); }
+  .conn-dot.ok { background: var(--green); }
+
+  /* Peer table */
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--border); color: var(--text-dim); font-weight: 500; }
+  td { padding: 6px 10px; border-bottom: 1px solid var(--border); }
+  tr:last-child td { border-bottom: none; }
+  .badge {
+    display: inline-block;
+    padding: 1px 6px;
+    border-radius: 10px;
+    font-size: 11px;
+    font-weight: 500;
+    background: #1f6feb33;
+    color: var(--accent);
+    margin: 1px 2px;
+  }
+  .badge.role { background: #3fb95033; color: var(--green); }
+  .status-on { color: var(--green); }
+  .status-off { color: var(--red); }
+
+  /* Event log */
+  .log {
+    max-height: 360px;
+    overflow-y: auto;
+    font-family: var(--mono);
+    font-size: 12px;
+    line-height: 1.6;
+  }
+  .log-entry { padding: 2px 0; border-bottom: 1px solid var(--border); display: flex; gap: 8px; }
+  .log-entry:last-child { border-bottom: none; }
+  .log-ts { color: var(--text-dim); white-space: nowrap; flex-shrink: 0; }
+  .log-type { font-weight: 600; white-space: nowrap; flex-shrink: 0; min-width: 130px; }
+  .log-type.peer_joined { color: var(--green); }
+  .log-type.peer_left { color: var(--red); }
+  .log-type.capability_update { color: var(--accent); }
+  .log-type.task_submitted { color: var(--yellow); }
+  .log-type.task_completed { color: var(--green); }
+  .log-type.heartbeat { color: var(--text-dim); }
+  .log-data { color: var(--text-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .empty { color: var(--text-dim); font-style: italic; padding: 20px 0; text-align: center; }
+</style>
+</head>
+<body>
+
+<h1>Mascarade P2P Dashboard</h1>
+
+<div class="conn" id="conn">
+  <div class="conn-dot" id="conn-dot"></div>
+  <span id="conn-text">Connecting...</span>
+</div>
+
+<div class="stats">
+  <div class="stat"><span class="stat-value" id="s-peers">0</span><span class="stat-label">Peers</span></div>
+  <div class="stat"><span class="stat-value" id="s-msgs">0</span><span class="stat-label">Events</span></div>
+  <div class="stat"><span class="stat-value" id="s-uptime">0s</span><span class="stat-label">Connected</span></div>
+</div>
+
+<div class="grid">
+  <div class="card">
+    <h2>Peers</h2>
+    <div id="peer-table"><div class="empty">No peers yet</div></div>
+  </div>
+  <div class="card">
+    <h2>Event Log</h2>
+    <div class="log" id="event-log"><div class="empty">Waiting for events...</div></div>
+  </div>
+</div>
+
+<script>
+(function() {
+  // --- Configuration ---
+  var BASE = location.origin;
+  var SSE_URL = BASE + "/cluster/p2p/stream";
+  var TOPO_URL = BASE + "/cluster/p2p/topology";
+  var MAX_LOG = 200;
+
+  // --- State ---
+  var peers = {};       // peer_id -> {label, role, capabilities, http_base_url, connected, is_local}
+  var eventLog = [];    // [{ts, type, data}]
+  var eventCount = 0;
+  var connectedAt = null;
+  var es = null;
+  var uptimeInterval = null;
+
+  // --- DOM refs ---
+  var $connDot = document.getElementById("conn-dot");
+  var $connText = document.getElementById("conn-text");
+  var $sPeers = document.getElementById("s-peers");
+  var $sMsgs = document.getElementById("s-msgs");
+  var $sUptime = document.getElementById("s-uptime");
+  var $peerTable = document.getElementById("peer-table");
+  var $eventLog = document.getElementById("event-log");
+
+  // --- Helpers ---
+  function fmtTime(epoch) {
+    var d = new Date(epoch * 1000);
+    return d.toLocaleTimeString();
+  }
+
+  function fmtUptime(ms) {
+    var s = Math.floor(ms / 1000);
+    if (s < 60) return s + "s";
+    var m = Math.floor(s / 60); s = s % 60;
+    if (m < 60) return m + "m " + s + "s";
+    var h = Math.floor(m / 60); m = m % 60;
+    return h + "h " + m + "m";
+  }
+
+  function esc(str) {
+    var d = document.createElement("div");
+    d.textContent = str;
+    return d.innerHTML;
+  }
+
+  // --- Render ---
+  function renderPeers() {
+    var ids = Object.keys(peers);
+    $sPeers.textContent = ids.length;
+    if (ids.length === 0) {
+      $peerTable.innerHTML = '<div class="empty">No peers yet</div>';
+      return;
+    }
+    var html = '<table><thead><tr><th>Peer</th><th>Role</th><th>Capabilities</th><th>Status</th></tr></thead><tbody>';
+    ids.sort(function(a, b) {
+      // local first
+      if (peers[a].is_local && !peers[b].is_local) return -1;
+      if (!peers[a].is_local && peers[b].is_local) return 1;
+      return a.localeCompare(b);
+    });
+    for (var i = 0; i < ids.length; i++) {
+      var p = peers[ids[i]];
+      var name = p.label || ids[i].substring(0, 12);
+      var caps = (p.capabilities || []).map(function(c) { return '<span class="badge">' + esc(c) + '</span>'; }).join("");
+      var status = p.connected !== false ? '<span class="status-on">online</span>' : '<span class="status-off">offline</span>';
+      var roleStr = '<span class="badge role">' + esc(p.role || "general") + '</span>';
+      if (p.is_local) name += " (local)";
+      html += '<tr><td title="' + esc(ids[i]) + '">' + esc(name) + '</td><td>' + roleStr + '</td><td>' + (caps || '-') + '</td><td>' + status + '</td></tr>';
+    }
+    html += '</tbody></table>';
+    $peerTable.innerHTML = html;
+  }
+
+  function renderLog() {
+    $sMsgs.textContent = eventCount;
+    if (eventLog.length === 0) {
+      $eventLog.innerHTML = '<div class="empty">Waiting for events...</div>';
+      return;
+    }
+    var html = "";
+    // Show newest first
+    for (var i = eventLog.length - 1; i >= 0; i--) {
+      var e = eventLog[i];
+      var ts = fmtTime(e.ts);
+      var dataStr = JSON.stringify(e.data);
+      if (dataStr.length > 120) dataStr = dataStr.substring(0, 117) + "...";
+      html += '<div class="log-entry">';
+      html += '<span class="log-ts">' + esc(ts) + '</span>';
+      html += '<span class="log-type ' + esc(e.type) + '">' + esc(e.type) + '</span>';
+      html += '<span class="log-data">' + esc(dataStr) + '</span>';
+      html += '</div>';
+    }
+    $eventLog.innerHTML = html;
+  }
+
+  function updateUptime() {
+    if (connectedAt) {
+      $sUptime.textContent = fmtUptime(Date.now() - connectedAt);
+    }
+  }
+
+  // --- Event handling ---
+  function handleP2PEvent(evt) {
+    eventCount++;
+    var type = evt.type;
+    var data = evt.data || {};
+
+    // Update peer state based on event type
+    if (type === "peer_joined" && data.peer_id) {
+      if (!peers[data.peer_id]) peers[data.peer_id] = {};
+      peers[data.peer_id].connected = true;
+      renderPeers();
+    } else if (type === "peer_left" && data.peer_id) {
+      if (peers[data.peer_id]) peers[data.peer_id].connected = false;
+      renderPeers();
+    } else if (type === "capability_update" && data.peer_id) {
+      if (!peers[data.peer_id]) peers[data.peer_id] = {};
+      var p = peers[data.peer_id];
+      p.capabilities = data.capabilities || p.capabilities;
+      p.role = data.role || p.role;
+      p.label = data.label || p.label;
+      p.connected = true;
+      renderPeers();
+    }
+
+    // Add to log (skip heartbeats to reduce noise)
+    if (type !== "heartbeat") {
+      eventLog.push({ ts: evt.timestamp, type: type, data: data });
+      if (eventLog.length > MAX_LOG) eventLog.shift();
+      renderLog();
+    }
+  }
+
+  // --- Topology fetch ---
+  function fetchTopology() {
+    fetch(TOPO_URL).then(function(r) { return r.json(); }).then(function(topo) {
+      peers = {};
+      var nodes = topo.nodes || [];
+      var edges = topo.edges || [];
+      // Build connected set from edges
+      var connSet = {};
+      for (var j = 0; j < edges.length; j++) {
+        if (edges[j].connected) {
+          connSet[edges[j].from] = true;
+          connSet[edges[j].to] = true;
+        }
+      }
+      for (var i = 0; i < nodes.length; i++) {
+        var n = nodes[i];
+        peers[n.peer_id] = {
+          label: n.label,
+          role: n.role,
+          capabilities: n.capabilities,
+          http_base_url: n.http_base_url,
+          is_local: n.is_local || false,
+          connected: n.is_local || !!connSet[n.peer_id],
+        };
+      }
+      renderPeers();
+    }).catch(function() {});
+  }
+
+  // --- SSE connection ---
+  function connect() {
+    if (es) { es.close(); }
+    $connDot.classList.remove("ok");
+    $connText.textContent = "Connecting...";
+
+    es = new EventSource(SSE_URL);
+
+    es.addEventListener("open", function() {
+      $connDot.classList.add("ok");
+      $connText.textContent = "Connected";
+      connectedAt = Date.now();
+      // Fetch initial topology
+      fetchTopology();
+    });
+
+    es.addEventListener("p2p", function(e) {
+      try {
+        var evt = JSON.parse(e.data);
+        handleP2PEvent(evt);
+      } catch (err) {}
+    });
+
+    es.addEventListener("heartbeat", function() {
+      // Keep-alive, no action needed
+    });
+
+    es.addEventListener("error", function() {
+      $connDot.classList.remove("ok");
+      $connText.textContent = "Disconnected — reconnecting...";
+      connectedAt = null;
+      // EventSource auto-reconnects; also re-fetch topology on reconnect
+      setTimeout(fetchTopology, 3000);
+    });
+  }
+
+  // --- Init ---
+  connect();
+  uptimeInterval = setInterval(updateUptime, 1000);
+  // Periodically refresh topology
+  setInterval(fetchTopology, 30000);
+})();
+</script>
+</body>
+</html>
