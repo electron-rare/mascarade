@@ -68,13 +68,13 @@ Documents d'ancrage:
 
 | ID | Tache | Owner |
 | --- | --- | --- |
-| `C-DA-005` | Ajouter une lecture plus compacte des dependances externes et du proxy upstream | `api-contract-auditor` |
+| `C-DA-006` | Prioriser les surfaces proxy amont encore en mode `plain proxy` selon le risque operateur | `api-contract-auditor` |
 
 ### `Kill_LIFE`
 
 | ID | Tache | Owner |
 | --- | --- | --- |
-| `K-DA-015` | Expliciter les fichiers requis/manquants dans `Artifact summary` quand une lane evidence degrade | `embedded-systems-auditor` |
+| `K-DA-016` | Rendre visible l'ecart `summary ok / artefacts reels manquants` quand `verify_evidence` casse apres collecte | `embedded-systems-auditor` |
 
 ## Actions documentees dans ce tour
 
@@ -129,12 +129,18 @@ Documents d'ancrage:
 - revalidation locale `Kill_LIFE`: rendu Markdown evidence avec comptes d'artefacts courts apres `tools/auto_check_ci_cd.py`
 - revalidation locale `Kill_LIFE`: rendu Markdown evidence avec synthese artefacts dediee apres `tools/auto_check_ci_cd.py`
 - revalidation locale `Kill_LIFE`: rendu rouge verifie via `render_markdown_summary(report)` et rendu vert revalide via `tools/auto_check_ci_cd.py`
+- fermeture de `K-DA-015` via l'exposition `required_files` / `missing` dans `Kill_LIFE/tools/auto_check_ci_cd.py`
+- revalidation locale `Kill_LIFE`: `./.venv/bin/python -m unittest discover -s test -p test_auto_check_ci_cd.py` puis `KILL_LIFE_PIO_MODE=native ./.venv/bin/python tools/auto_check_ci_cd.py`
 - fermeture de `M-DA-008` via l'exposition UI de `routing_selected_by`, `routing_transport` et `routing_latency_ms` dans `web/src/pages/Logs.tsx` et `web/src/pages/Orchestrate.tsx`
 - revalidation locale `mascarade`: `npm --prefix web run build` et `npm --prefix api run build`
+- fermeture de `C-DA-005` via `crazy_life/docs/UPSTREAM_DEPENDENCY_LEDGER_2026-03-14.md`
+- revalidation operateur `crazy_life`: `bash scripts/tui/gateway_audit.sh audit --strict`, lecture du report, puis purge `.ops/gateway-audit`
+- reduction de regression `M-DA-004` cote `mascarade/api`: fallback `X-Forwarded-Groups` retabli dans `api/src/routes/mcpIndustrial.ts`
+- revalidation locale `mascarade/api`: `npm --prefix api run build` puis `npm --prefix api test`
 
 ## Test status snapshot
 
-- `mascarade/api`: `npm --prefix api run build` vert; `npm --prefix api test` reste rouge sur `src/routes/mcpIndustrial.test.ts` a cause d'un header `X-Forwarded-Groups` absent, hors lot `M-DA-008`
+- `mascarade/api`: `npm --prefix api run build` vert et `npm --prefix api test` vert (`62/62`) apres correction `mcpIndustrial`
 - `mascarade/core`: suite non verte dans l'etat actuel du worktree; plusieurs echecs relevent soit de regressions locales P2P/cluster, soit de limites sandbox sur le bind reseau
 - `mascarade/core/tests/test_cluster.py` et `mascarade/core/tests/test_orchestrator.py`: verts sur le lot courant
 - `crazy_life`: `npm --prefix api test` vert (`34/34`), `npm run build` vert avec seul warning de chunk Vite > 500 kB
