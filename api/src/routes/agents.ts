@@ -600,4 +600,19 @@ agents.put("/:name", async (c) => {
   }
 });
 
+/** Supprimer un agent */
+agents.delete("/:name", async (c) => {
+  try {
+    const name = c.req.param("name");
+    if (!name || !SAFE_NAME_RE.test(name)) {
+      return c.json({ error: "Invalid agent name" }, 400);
+    }
+    const result = await coreClient.deleteAgent(name);
+    return c.json(result);
+  } catch (error) {
+    const { status, body } = handleCoreError(error);
+    return c.json(body, status);
+  }
+});
+
 export { agents };

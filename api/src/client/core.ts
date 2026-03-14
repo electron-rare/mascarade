@@ -283,6 +283,12 @@ export const coreClient = {
     });
   },
 
+  deleteAgent(name: string) {
+    return request<{ status: string; message?: string }>(`/agents/${encodeURIComponent(name)}`, {
+      method: "DELETE",
+    });
+  },
+
   runAgent(name: string, messages: { role: string; content: string }[]) {
     return request<LLMResponse>(`/agents/${encodeURIComponent(name)}/run`, {
       method: "POST",
