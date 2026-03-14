@@ -68,7 +68,7 @@ Documents d'ancrage:
 
 | ID | Tache | Owner |
 | --- | --- | --- |
-| `C-DA-011` | Revisiter la dette restante hors proxy gateway ou la reclasser explicitement | `api-contract-auditor` |
+| `C-DA-012` | Fermer la smoke runtime locale (`dev:all`, `curl`, lane workflow) ou documenter precisement le blocage | `api-contract-auditor` |
 
 ### `Kill_LIFE`
 
@@ -145,6 +145,8 @@ Documents d'ancrage:
 - revalidation locale `crazy_life/api`: `npm --prefix api run build` puis `npm --prefix api test`
 - fermeture de `C-DA-010` via `crazy_life/api/src/index.ts`, `api/src/index.test.ts`, `scripts/tui/gateway_audit.sh` et `docs/CAD_PROXY_HARDENING_2026-03-14.md`
 - revalidation operateur `crazy_life`: `bash scripts/tui/gateway_audit.sh audit --strict`, lecture du report, puis purge `.ops/gateway-audit`
+- fermeture de `C-DA-011` via `crazy_life/docs/NON_PROXY_DEBT_CLASSIFICATION_2026-03-14.md` et `scripts/tui/non_proxy_debt_audit.sh`
+- revalidation operateur `crazy_life`: `bash scripts/tui/non_proxy_debt_audit.sh audit --strict`, lecture du report, puis purge `.ops/non-proxy-debt-audit`
 - reduction de regression `M-DA-004` cote `mascarade/api`: fallback `X-Forwarded-Groups` retabli dans `api/src/routes/mcpIndustrial.ts`
 - revalidation locale `mascarade/api`: `npm --prefix api run build` puis `npm --prefix api test`
 - revalidation locale `mascarade/core`: `cd core && ./.venv/bin/python -m pytest -q`
