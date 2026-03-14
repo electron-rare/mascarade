@@ -834,6 +834,56 @@ async def get_agent_prompt_history(name: str):
     return {"versions": agent.prompt_versions}
 
 
+@protected.post("/agents/{name}/prompts/rollback/{version}")
+async def rollback_agent_prompt(name: str, version: int):
+    """Rollback agent's system prompt to a previous version."""
+    try:
+        agent = app.state.registry.get(name)
+    except KeyError:
+        raise HTTPException(status_code=404, detail=f"Agent '{name}' not found") from None
+
+    # Validate version number
+    if version < 1 or version > len(agent.prompt_versions):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid version {version}. Available versions: 1-{len(agent.prompt_versions)}",
+        )
+
+    # Get the target version content
+    target_version = agent.prompt_versions[version - 1]
+    old_prompt = agent.system_prompt
+
+    # Update the agent's system prompt to the target version
+    agent.system_prompt = target_version["content"]
+
+    # Create a new version entry for the rollback
+    version_number = len(agent.prompt_versions) + 1
+    timestamp = iso_utc_now()
+
+    # Compute diff from old to new (rolled back) prompt
+    diff = app.state.registry._compute_diff(old_prompt, agent.system_prompt)
+
+    rollback_version = {
+        "version_number": version_number,
+        "timestamp": timestamp,
+        "content": old_prompt,
+        "author_hash": "system",
+        "diff": diff,
+        "note": f"Rollback to version {version}",
+    }
+
+    agent.prompt_versions.append(rollback_version)
+
+    # Save the registry to persist changes
+    app.state.registry.save()
+
+    return {
+        "message": f"Rolled back to version {version}",
+        "current_version": version_number,
+        "current_prompt": agent.system_prompt,
+    }
+
+
 # --- Orchestration ---
 
 
