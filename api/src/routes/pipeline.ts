@@ -157,10 +157,69 @@ pipeline.get("/status", async (c: Context) => {
 
 /**
  * GET /models - List fine-tuned models from registry
- * TODO: Implementation in subtask-4-4
+ * Returns: { ok: boolean, status: string, data?: object, error?: string }
  */
 pipeline.get("/models", async (c: Context) => {
-  return c.json({ status: "not_implemented" }, 501);
+  try {
+    // Determine registry file path (relative to api/ directory)
+    const registryPath = path.resolve(process.cwd(), "../finetune/promoted_models.local.json");
+
+    // Check if registry file exists
+    if (!existsSync(registryPath)) {
+      emitStructuredLog({
+        severity: "info",
+        source: "api",
+        service: "pipeline",
+        message: "No model registry file found",
+      });
+      return c.json(
+        {
+          ok: true,
+          status: "empty",
+          message: "No models have been registered yet",
+          data: { version: 1, models: {} },
+        },
+        200,
+      );
+    }
+
+    // Read and parse registry file
+    const registryContent = readFileSync(registryPath, "utf-8");
+    const registryData = JSON.parse(registryContent);
+
+    emitStructuredLog({
+      severity: "debug",
+      source: "api",
+      service: "pipeline",
+      message: `Model registry retrieved with ${Object.keys(registryData.models || {}).length} models`,
+    });
+
+    return c.json(
+      {
+        ok: true,
+        status: "success",
+        data: registryData,
+      },
+      200,
+    );
+  } catch (error) {
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    emitStructuredLog({
+      severity: "error",
+      source: "api",
+      service: "pipeline",
+      message: `Failed to retrieve model registry: ${errorMsg}`,
+    });
+    return c.json(
+      {
+        ok: false,
+        status: "error",
+        error: "Failed to retrieve model registry",
+        details: errorMsg,
+      },
+      500,
+    );
+  }
 });
 
 export { pipeline };
