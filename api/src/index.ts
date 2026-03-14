@@ -19,6 +19,7 @@ import { industrial } from "./routes/industrial.js";
 import { industrialMcp } from "./routes/mcpIndustrial.js";
 import { killlife } from "./routes/killlife.js";
 import { settings } from "./routes/settings.js";
+import { orchestrateTemplates } from "./routes/orchestrateTemplates.js";
 
 const app = new Hono();
 const hasFrontend = existsSync("./public/index.html");
@@ -46,6 +47,7 @@ app.route("/api/industrial", industrial);
 app.route("/api/mcp/industrial", industrialMcp);
 app.route("/api/killlife", killlife);
 app.route("/api/settings", settings);
+app.route("/api/orchestrate/templates", orchestrateTemplates);
 
 if (hasFrontend) {
   app.use("/assets/*", serveStatic({ root: "./public" }));
