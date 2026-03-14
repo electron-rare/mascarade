@@ -1,13 +1,14 @@
 """Tests for P2P relay protocol — NAT traversal via message forwarding."""
 
 import asyncio
+import time
 
 import pytest
 
 from mascarade.p2p.dht import P2PDHT, DHTEntry
 from mascarade.p2p.identity import PeerIdentity
 from mascarade.p2p.protocol import P2PMessage
-from mascarade.p2p.relay import P2PRelay, RelayClient, RELAY_CAPABILITY
+from mascarade.p2p.relay import P2PRelay, RelayCircuit, RelayClient, RELAY_CAPABILITY
 from mascarade.p2p.transport import P2PTransport
 
 
@@ -245,3 +246,68 @@ async def test_transport_send_to_via_relay():
         await node_a.stop()
         await node_relay.stop()
         await node_b.stop()
+
+
+@pytest.mark.asyncio
+async def test_relay_connect_rejects_unsigned():
+    """relay:connect without a valid signature is rejected (Phase 1.1)."""
+    id_relay, node_relay = await _make_node()
+
+    try:
+        relay = P2PRelay(
+            local_peer_id=id_relay.peer_id,
+            transport=node_relay,
+        )
+
+        # Craft an unsigned relay:connect and inject it directly
+        unsigned_msg = P2PMessage(
+            type="relay:connect",
+            sender="QmAttacker",
+            payload={"target": "QmVictim"},
+        )
+        # Call the handler directly — it should reject the unsigned message
+        from mascarade.p2p.transport import PeerConnection
+        fake_conn = PeerConnection(peer_id="QmAttacker", host="127.0.0.1", port=9999)
+        await relay._handle_connect(unsigned_msg, fake_conn)
+
+        # No circuit should have been created
+        assert len(relay.circuits) == 0
+
+    finally:
+        await node_relay.stop()
+
+
+@pytest.mark.asyncio
+async def test_relay_circuit_ttl_expiration():
+    """Stale circuits are evicted after CIRCUIT_TTL (Phase 1.3)."""
+    id_relay, node_relay = await _make_node()
+
+    try:
+        relay = P2PRelay(
+            local_peer_id=id_relay.peer_id,
+            transport=node_relay,
+        )
+        # Override TTL to a tiny value for testing
+        relay.CIRCUIT_TTL = 0.1
+        relay.CLEANUP_INTERVAL = 0.05
+
+        # Manually insert a circuit with last_active in the past
+        key = frozenset({"QmPeerA", "QmPeerB"})
+        relay._circuits[key] = RelayCircuit(
+            peer_a="QmPeerA",
+            peer_b="QmPeerB",
+            last_active=time.monotonic() - 10.0,  # well beyond TTL
+        )
+        assert len(relay._circuits) == 1
+
+        # Start the cleanup loop
+        await relay.start()
+        # Wait for at least one cleanup cycle
+        await asyncio.sleep(0.2)
+        await relay.stop()
+
+        # Circuit should have been evicted
+        assert len(relay._circuits) == 0
+
+    finally:
+        await node_relay.stop()

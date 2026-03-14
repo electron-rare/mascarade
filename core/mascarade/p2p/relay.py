@@ -50,6 +50,9 @@ class P2PRelay:
     ``p2p-relay`` capability so clients can discover it.
     """
 
+    CIRCUIT_TTL: float = 300.0  # seconds before inactive circuits are evicted
+    CLEANUP_INTERVAL: float = 60.0  # seconds between cleanup sweeps
+
     def __init__(
         self,
         *,
@@ -62,6 +65,7 @@ class P2PRelay:
         self._dht = dht
         # circuit_key = frozenset({peer_a, peer_b})
         self._circuits: dict[frozenset[str], RelayCircuit] = {}
+        self._cleanup_task: asyncio.Task | None = None
 
         # Register message handlers
         transport.on_message("relay:connect", self._handle_connect)
@@ -69,6 +73,22 @@ class P2PRelay:
         transport.on_message("relay:disconnect", self._handle_disconnect)
 
     # -- public API --
+
+    async def start(self) -> None:
+        """Start the periodic circuit cleanup task."""
+        if self._cleanup_task is None:
+            self._cleanup_task = asyncio.create_task(self._cleanup_loop())
+            logger.info("Relay circuit cleanup started (TTL=%ds)", self.CIRCUIT_TTL)
+
+    async def stop(self) -> None:
+        """Stop the periodic circuit cleanup task."""
+        if self._cleanup_task is not None:
+            self._cleanup_task.cancel()
+            try:
+                await self._cleanup_task
+            except asyncio.CancelledError:
+                pass
+            self._cleanup_task = None
 
     async def announce(self) -> None:
         """Announce this node as a relay in the DHT."""
@@ -85,6 +105,13 @@ class P2PRelay:
     async def _handle_connect(self, msg: P2PMessage, conn: PeerConnection) -> None:
         """Handle relay:connect — create a virtual circuit between sender and
         the requested target peer."""
+        if not verify_message(msg, reject_unsigned=True):
+            logger.warning(
+                "relay:connect rejected — unsigned/invalid message from %s",
+                msg.sender,
+            )
+            return
+
         target = msg.payload.get("target")
         if not target:
             logger.warning("relay:connect from %s missing target", msg.sender)
@@ -159,6 +186,27 @@ class P2PRelay:
         removed = self._circuits.pop(key, None)
         if removed:
             logger.info("Relay circuit torn down: %s <-> %s", msg.sender, target)
+
+    async def _cleanup_loop(self) -> None:
+        """Periodically evict circuits that have been inactive beyond CIRCUIT_TTL."""
+        try:
+            while True:
+                await asyncio.sleep(self.CLEANUP_INTERVAL)
+                now = time.monotonic()
+                stale_keys = [
+                    key for key, circuit in self._circuits.items()
+                    if (now - circuit.last_active) > self.CIRCUIT_TTL
+                ]
+                for key in stale_keys:
+                    circuit = self._circuits.pop(key)
+                    logger.info(
+                        "Relay circuit expired (TTL): %s <-> %s",
+                        circuit.peer_a, circuit.peer_b,
+                    )
+                if stale_keys:
+                    logger.debug("Relay cleanup: evicted %d stale circuits", len(stale_keys))
+        except asyncio.CancelledError:
+            pass
 
 
 # ---------------------------------------------------------------------------
