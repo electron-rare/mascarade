@@ -871,6 +871,105 @@ async def cluster_node_send(req: SendRequest):
     }
 
 
+# --- Analytics ---
+
+
+class ProviderCostSummary(BaseModel):
+    provider: str
+    model: str
+    total_cost: float = Field(ge=0.0)
+    input_tokens: int = Field(ge=0)
+    output_tokens: int = Field(ge=0)
+    request_count: int = Field(ge=0)
+
+
+class CostAnalyticsResponse(BaseModel):
+    total_cost: float = Field(ge=0.0)
+    total_requests: int = Field(ge=0)
+    total_input_tokens: int = Field(ge=0)
+    total_output_tokens: int = Field(ge=0)
+    by_provider: list[ProviderCostSummary]
+
+
+@protected.get("/v1/analytics/cost")
+async def get_cost_analytics(
+    limit: int = Query(default=1000, ge=1, le=5000),
+    run_id: str | None = Query(default=None, max_length=64),
+):
+    """
+    Get cost analytics aggregated from trace events.
+
+    Args:
+        limit: Maximum number of events to analyze (default: 1000)
+        run_id: Optional run ID to filter by
+
+    Returns:
+        Cost analytics with totals and breakdowns by provider/model
+    """
+    from mascarade.analytics import get_cost_calculator
+
+    # Get recent trace events with token usage
+    events = app.state.trace_buffer.recent(
+        limit=limit,
+        run_id=run_id,
+    )
+
+    # Filter events that have token usage
+    events_with_usage = [e for e in events if e.token_usage]
+
+    # Aggregate by (provider, model)
+    aggregates: dict[tuple[str, str], dict] = {}
+    cost_calc = get_cost_calculator()
+
+    for event in events_with_usage:
+        if not event.provider or not event.model:
+            continue
+
+        key = (event.provider, event.model)
+        if key not in aggregates:
+            aggregates[key] = {
+                "provider": event.provider,
+                "model": event.model,
+                "total_cost": 0.0,
+                "input_tokens": 0,
+                "output_tokens": 0,
+                "request_count": 0,
+            }
+
+        input_tokens = event.token_usage.get("input_tokens", 0) or event.token_usage.get("prompt_tokens", 0)
+        output_tokens = event.token_usage.get("output_tokens", 0) or event.token_usage.get("completion_tokens", 0)
+
+        # Calculate cost for this event
+        cost = cost_calc.calculate_cost(
+            provider=event.provider,
+            model=event.model,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+        )
+
+        aggregates[key]["total_cost"] += cost
+        aggregates[key]["input_tokens"] += input_tokens
+        aggregates[key]["output_tokens"] += output_tokens
+        aggregates[key]["request_count"] += 1
+
+    # Calculate totals
+    total_cost = sum(agg["total_cost"] for agg in aggregates.values())
+    total_requests = sum(agg["request_count"] for agg in aggregates.values())
+    total_input_tokens = sum(agg["input_tokens"] for agg in aggregates.values())
+    total_output_tokens = sum(agg["output_tokens"] for agg in aggregates.values())
+
+    # Convert to response models
+    by_provider = [ProviderCostSummary(**agg) for agg in aggregates.values()]
+
+    return CostAnalyticsResponse(
+        total_cost=total_cost,
+        total_requests=total_requests,
+        total_input_tokens=total_input_tokens,
+        total_output_tokens=total_output_tokens,
+        by_provider=by_provider,
+    )
+
+
 # --- Orchestration traces ---
 
 
