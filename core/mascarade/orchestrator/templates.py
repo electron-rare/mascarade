@@ -2,10 +2,19 @@
 
 from __future__ import annotations
 
+import json
+import logging
+import os
+import tempfile
 from enum import StrEnum
+from pathlib import Path
 from typing import Any
 
 from pydantic import BaseModel, Field
+
+logger = logging.getLogger("mascarade.orchestrator")
+
+DEFAULT_STORAGE_PATH = Path("data/templates.json")
 
 
 class ExecutionMode(StrEnum):
@@ -32,24 +41,88 @@ class WorkflowTemplate(BaseModel):
 
 
 class TemplateRegistry:
-    """Registre des templates d'orchestration."""
+    """Registre centralisé pour gérer les templates d'orchestration."""
 
-    def __init__(self):
+    def __init__(self, storage_path: Path | None = DEFAULT_STORAGE_PATH) -> None:
         self._templates: dict[str, WorkflowTemplate] = {}
+        self._builtin_ids: set[str] = set()
+        self._storage_path = storage_path
 
-    def register(self, template: WorkflowTemplate) -> None:
+    def register(self, template: WorkflowTemplate, *, builtin: bool = False) -> None:
         """Enregistrer un nouveau template."""
         self._templates[template.id] = template
+        if builtin:
+            self._builtin_ids.add(template.id)
 
     def get(self, template_id: str) -> WorkflowTemplate:
         """Récupérer un template par son ID."""
         if template_id not in self._templates:
-            raise KeyError(f"Template not found: {template_id}")
+            raise KeyError(
+                f"Template '{template_id}' non trouvé. Disponibles: {list(self._templates.keys())}"
+            )
         return self._templates[template_id]
 
     def list(self) -> list[WorkflowTemplate]:
         """Lister tous les templates disponibles."""
         return list(self._templates.values())
+
+    def remove(self, template_id: str) -> None:
+        """Retirer un template du registre."""
+        self._templates.pop(template_id, None)
+        self._builtin_ids.discard(template_id)
+
+    def __contains__(self, template_id: str) -> bool:
+        return template_id in self._templates
+
+    def __len__(self) -> int:
+        return len(self._templates)
+
+    def is_builtin(self, template_id: str) -> bool:
+        """Vérifie si un template est built-in (non modifiable)."""
+        return template_id in self._builtin_ids
+
+    # --- Persistance ---
+
+    def save(self) -> None:
+        """Sauvegarder les templates dynamiques dans un fichier JSON."""
+        if self._storage_path is None:
+            return
+        self._storage_path.parent.mkdir(parents=True, exist_ok=True)
+        templates_data = []
+        for template in self._templates.values():
+            if template.id in self._builtin_ids:
+                continue
+            data = template.model_dump()
+            data["mode"] = template.mode.value if isinstance(template.mode, ExecutionMode) else str(template.mode)
+            templates_data.append(data)
+        # Atomic write: write to temp file, then rename
+        fd, tmp_path = tempfile.mkstemp(
+            dir=str(self._storage_path.parent), suffix=".tmp"
+        )
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
+                json.dump(templates_data, f, indent=2, ensure_ascii=False)
+            os.replace(tmp_path, str(self._storage_path))
+        except BaseException:
+            os.unlink(tmp_path)
+            raise
+
+    def load(self) -> None:
+        """Charger les templates dynamiques depuis le fichier JSON."""
+        if self._storage_path is None or not self._storage_path.exists():
+            return
+        try:
+            raw = json.loads(self._storage_path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError) as exc:
+            logger.error("Failed to load templates from %s: %s", self._storage_path, exc)
+            return
+        for data in raw:
+            try:
+                data["mode"] = ExecutionMode(data["mode"])
+                template = WorkflowTemplate(**data)
+                self.register(template)
+            except (KeyError, TypeError, ValueError) as exc:
+                logger.warning("Skipping invalid template entry: %s", exc)
 
 
 # --- Built-in Templates ---
@@ -58,7 +131,7 @@ class TemplateRegistry:
 def register_builtin_templates(registry: TemplateRegistry) -> None:
     """Enregistrer tous les templates built-in dans le registre."""
     for template in BUILTIN_TEMPLATES:
-        registry.register(template)
+        registry.register(template, builtin=True)
 
 
 research_report = WorkflowTemplate(
