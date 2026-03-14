@@ -37,9 +37,14 @@ DEFAULT_PROMPT_STORAGE_PATH = Path("data/prompt_history.json")
 class PromptHistory:
     """Gestionnaire d'historique des versions de prompts."""
 
-    def __init__(self, storage_path: Path | None = DEFAULT_PROMPT_STORAGE_PATH) -> None:
+    def __init__(
+        self,
+        storage_path: Path | None = DEFAULT_PROMPT_STORAGE_PATH,
+        max_versions: int | None = None,
+    ) -> None:
         self._versions: list[PromptVersion] = []
         self._storage_path = storage_path
+        self._max_versions = max_versions
 
     def add_version(
         self,
@@ -66,6 +71,11 @@ class PromptHistory:
             note=note,
         )
         self._versions.append(version)
+
+        # Auto-prune if max_versions is set
+        if self._max_versions is not None and self._max_versions > 0:
+            self.prune(self._max_versions)
+
         return version
 
     def get_history(
