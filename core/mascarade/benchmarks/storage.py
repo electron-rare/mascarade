@@ -188,8 +188,15 @@ class BenchmarkStorage:
             return []
 
         try:
-            # Build query
-            where_clause = f"WHERE domain = '{domain}'" if domain else ""
+            # Build parameterized query to prevent SQL injection
+            params: dict[str, Any] = {"limit": limit}
+            where_clause = ""
+
+            if domain:
+                where_clause = "WHERE domain = %(domain)s"
+                params["domain"] = domain
+
+            # order_by is already validated via whitelist in server.py, safe to interpolate
             query = f"""
                 SELECT
                     provider,
@@ -206,10 +213,10 @@ class BenchmarkStorage:
                 {where_clause}
                 GROUP BY provider, model, domain
                 ORDER BY {order_by} DESC
-                LIMIT {limit}
+                LIMIT %(limit)s
             """
 
-            result = self.client.query(query)
+            result = self.client.query(query, parameters=params)
             rows = result.result_rows
 
             # Convert to list of dicts
@@ -256,7 +263,14 @@ class BenchmarkStorage:
             return None
 
         try:
-            domain_filter = f"AND domain = '{domain}'" if domain else ""
+            # Build parameterized query to prevent SQL injection
+            params: dict[str, Any] = {"provider": provider}
+            domain_filter = ""
+
+            if domain:
+                domain_filter = "AND domain = %(domain)s"
+                params["domain"] = domain
+
             query = f"""
                 SELECT
                     provider,
@@ -270,11 +284,11 @@ class BenchmarkStorage:
                     min(timestamp) as first_benchmark,
                     max(timestamp) as last_benchmark
                 FROM benchmarks
-                WHERE provider = '{provider}' {domain_filter}
+                WHERE provider = %(provider)s {domain_filter}
                 GROUP BY provider
             """
 
-            result = self.client.query(query)
+            result = self.client.query(query, parameters=params)
             rows = result.result_rows
 
             if not rows:
@@ -312,7 +326,10 @@ class BenchmarkStorage:
             return None
 
         try:
-            query = f"""
+            # Build parameterized query to prevent SQL injection
+            params: dict[str, Any] = {"domain": domain}
+
+            query = """
                 SELECT
                     domain,
                     count(DISTINCT provider) as provider_count,
@@ -324,11 +341,11 @@ class BenchmarkStorage:
                     min(timestamp) as first_benchmark,
                     max(timestamp) as last_benchmark
                 FROM benchmarks
-                WHERE domain = '{domain}'
+                WHERE domain = %(domain)s
                 GROUP BY domain
             """
 
-            result = self.client.query(query)
+            result = self.client.query(query, parameters=params)
             rows = result.result_rows
 
             if not rows:
