@@ -771,6 +771,149 @@ def test_benchmark_storage_health_check_success():
     mock_client.query.assert_called_once_with("SELECT 1")
 
 
+def test_storage_sql_injection_prevention_domain():
+    """Test that SQL injection attempts via domain parameter are blocked."""
+    storage = BenchmarkStorage()
+
+    # Mock client to verify query uses parameterized queries
+    mock_client = MagicMock()
+    mock_result = MagicMock()
+    mock_result.result_rows = []
+    mock_client.query.return_value = mock_result
+    storage.client = mock_client
+
+    # Attempt SQL injection via domain parameter
+    malicious_domain = "general' OR '1'='1"
+
+    # Should safely use parameterized query
+    result = storage.query_leaderboard(domain=malicious_domain)
+
+    # Verify the query was called with parameters (not direct string interpolation)
+    assert mock_client.query.called
+    call_args = mock_client.query.call_args
+
+    # Check that parameters were passed
+    assert call_args is not None
+    assert "parameters" in call_args.kwargs
+    params = call_args.kwargs["parameters"]
+
+    # Verify domain was passed as parameter, not interpolated
+    assert "domain" in params
+    assert params["domain"] == malicious_domain
+
+    # Verify the query uses parameter placeholders, not direct values
+    query = call_args.args[0]
+    assert "%(domain)s" in query
+    # Should NOT contain the malicious string directly in query
+    assert malicious_domain not in query
+
+
+def test_storage_sql_injection_prevention_provider():
+    """Test that SQL injection attempts via provider parameter are blocked."""
+    storage = BenchmarkStorage()
+
+    # Mock client
+    mock_client = MagicMock()
+    mock_result = MagicMock()
+    mock_result.result_rows = []
+    mock_client.query.return_value = mock_result
+    storage.client = mock_client
+
+    # Attempt SQL injection via provider parameter
+    malicious_provider = "anthropic' OR '1'='1"
+
+    # Should safely use parameterized query
+    result = storage.query_provider_stats(malicious_provider)
+
+    # Verify parameterized query was used
+    assert mock_client.query.called
+    call_args = mock_client.query.call_args
+
+    assert call_args is not None
+    assert "parameters" in call_args.kwargs
+    params = call_args.kwargs["parameters"]
+
+    # Verify provider was passed as parameter
+    assert "provider" in params
+    assert params["provider"] == malicious_provider
+
+    # Verify the query uses parameter placeholders
+    query = call_args.args[0]
+    assert "%(provider)s" in query
+    assert malicious_provider not in query
+
+
+def test_storage_sql_injection_prevention_combined():
+    """Test SQL injection prevention with both domain and provider parameters."""
+    storage = BenchmarkStorage()
+
+    # Mock client
+    mock_client = MagicMock()
+    mock_result = MagicMock()
+    mock_result.result_rows = []
+    mock_client.query.return_value = mock_result
+    storage.client = mock_client
+
+    # Attempt SQL injection via both parameters
+    malicious_provider = "test'; DROP TABLE benchmarks; --"
+    malicious_domain = "general' UNION SELECT * FROM users --"
+
+    # Should safely use parameterized query
+    result = storage.query_provider_stats(malicious_provider, domain=malicious_domain)
+
+    # Verify both parameters were safely parameterized
+    assert mock_client.query.called
+    call_args = mock_client.query.call_args
+
+    assert call_args is not None
+    assert "parameters" in call_args.kwargs
+    params = call_args.kwargs["parameters"]
+
+    assert params["provider"] == malicious_provider
+    assert params["domain"] == malicious_domain
+
+    # Verify query uses placeholders for both
+    query = call_args.args[0]
+    assert "%(provider)s" in query
+    assert "%(domain)s" in query
+    # Malicious strings should NOT be in the query itself
+    assert "DROP TABLE" not in query
+    assert "UNION SELECT" not in query
+
+
+def test_storage_sql_injection_prevention_domain_stats():
+    """Test SQL injection prevention in query_domain_stats."""
+    storage = BenchmarkStorage()
+
+    # Mock client
+    mock_client = MagicMock()
+    mock_result = MagicMock()
+    mock_result.result_rows = []
+    mock_client.query.return_value = mock_result
+    storage.client = mock_client
+
+    # Attempt SQL injection via domain parameter
+    malicious_domain = "electronics'; DELETE FROM benchmarks WHERE '1'='1"
+
+    # Should safely use parameterized query
+    result = storage.query_domain_stats(malicious_domain)
+
+    # Verify parameterized query was used
+    assert mock_client.query.called
+    call_args = mock_client.query.call_args
+
+    assert call_args is not None
+    assert "parameters" in call_args.kwargs
+    params = call_args.kwargs["parameters"]
+
+    assert params["domain"] == malicious_domain
+
+    # Verify the query uses parameter placeholders
+    query = call_args.args[0]
+    assert "%(domain)s" in query
+    assert "DELETE FROM" not in query
+
+
 # =============================================================================
 # Routing Integration Tests
 # =============================================================================
