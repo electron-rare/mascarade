@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import logging
 import time
@@ -44,6 +45,13 @@ from mascarade.router.router import Strategy
 
 logger = logging.getLogger("mascarade.server")
 INDUSTRIAL_MCP_SERVER_KEYS = {"cockpit-ops", "plm", "qms", "mes", "erp", "wms", "dcs"}
+
+
+def hash_api_key(key: str) -> str:
+    """Hash API key for author tracking (returns first 8 chars of SHA-256)."""
+    if not key:
+        return ""
+    return hashlib.sha256(key.encode()).hexdigest()[:8]
 
 
 @asynccontextmanager
