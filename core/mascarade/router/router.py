@@ -11,6 +11,7 @@ from mascarade.cache.cache import ResponseCache
 from mascarade.load_balancer.balancer import LoadBalancer
 from mascarade.metrics.tracker import MetricsTracker
 from mascarade.router.fallback import FallbackState
+from mascarade.router.health_monitor import HealthMonitor
 from mascarade.router.providers.base import LLMProvider, LLMResponse
 
 logger = logging.getLogger("mascarade.router")
@@ -32,6 +33,10 @@ class Router:
         self.metrics = MetricsTracker()
         self.load_balancer = LoadBalancer()
         self.fallback = FallbackState(max_attempts=3)
+        self.health_monitor = HealthMonitor(
+            metrics_tracker=self.metrics,
+            load_balancer=self.load_balancer,
+        )
         self._register_defaults()
 
     def _register_defaults(self) -> None:
@@ -141,6 +146,7 @@ class Router:
             "cache": self.cache.get_stats(),
             "load_balancer": self.load_balancer.get_load_stats(),
             "fallback": self.fallback.get_failure_stats(),
+            "health": self.health_monitor.get_all_health(),
         }
 
     def provider_metrics(self, provider_name: str) -> dict:
@@ -151,6 +157,7 @@ class Router:
         self.cache.clear()
         self.load_balancer.reset_stats()
         self.fallback.reset()
+        self.health_monitor._health_cache.clear()
 
     async def send(
         self,
