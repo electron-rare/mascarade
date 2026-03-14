@@ -372,6 +372,35 @@ async def health():
     return health_data
 
 
+@app.get("/health/providers")
+async def get_provider_health():
+    """Provider health metrics endpoint - returns detailed health statistics for all providers."""
+    if not hasattr(app.state, "router"):
+        raise HTTPException(status_code=503, detail="Router not initialized")
+
+    health_monitor = app.state.router.health_monitor
+    circuit_breaker = app.state.router.circuit_breaker
+    all_health = health_monitor.get_all_health()
+
+    # Convert ProviderHealth dataclass objects to dictionaries
+    health_data = {}
+    for provider_name, provider_health in all_health.items():
+        circuit_state = circuit_breaker.get_state(provider_name)
+        health_data[provider_name] = {
+            "provider_name": provider_health.provider_name,
+            "health_score": provider_health.health_score,
+            "circuit_state": circuit_state.value,
+            "latency_p50": provider_health.latency_p50,
+            "latency_p95": provider_health.latency_p95,
+            "latency_p99": provider_health.latency_p99,
+            "error_rate": provider_health.error_rate,
+            "availability": provider_health.availability,
+            "total_requests": provider_health.total_requests,
+        }
+
+    return health_data
+
+
 @app.post("/v1/chat/completions")
 async def chat_completions(req: ChatCompletionRequest):
     """OpenAI-compatible chat completions endpoint."""
