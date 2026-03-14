@@ -8,6 +8,8 @@ module_qdrant_config() {
 
 module_qdrant_compose() {
   echo "  qdrant:"
+  echo "    profiles:"
+  echo "      - personal"
   echo "    image: \${QDRANT_IMAGE:-qdrant/qdrant@sha256:f1c7272cdac52b38c1a0e89313922d940ba50afd90d593a1605dbbc214e66ffb}"
   echo "    container_name: mascarade-qdrant"
   echo "    restart: unless-stopped"

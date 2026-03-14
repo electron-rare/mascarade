@@ -16,7 +16,7 @@ import socket
 
 try:
     from zeroconf import ServiceBrowser, ServiceInfo, ServiceListener, Zeroconf
-except Exception:  # pragma: no cover - optional dependency
+except ImportError:  # pragma: no cover - optional dependency
     ServiceBrowser = None
     ServiceInfo = None
     ServiceListener = object
@@ -28,6 +28,12 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from mascarade.config import settings
 from mascarade.router import Router
+
+try:
+    from mascarade.p2p.node import P2PNode, P2PPeer
+except ImportError:  # pragma: no cover - optional dependency
+    P2PNode = None  # type: ignore[assignment, misc]
+    P2PPeer = None  # type: ignore[assignment, misc]
 
 logger = logging.getLogger("mascarade.cluster")
 
@@ -129,7 +135,7 @@ def _ip_from_host(host: str) -> tuple[bytes, int] | tuple[None, None]:
     """Return packed binary IP and family for zeroconf."""
     host = host.strip()
     if not host:
-        return None, 0
+        return None, None
 
     try:
         return inet_aton(host), AF_INET
@@ -139,7 +145,7 @@ def _ip_from_host(host: str) -> tuple[bytes, int] | tuple[None, None]:
     try:
         return socket.inet_pton(AF_INET6, host), AF_INET6
     except OSError:
-        return None, 0
+        return None, None
 
 
 def _parsed_addresses(info: Any) -> list[str]:
@@ -151,7 +157,7 @@ def _parsed_addresses(info: Any) -> list[str]:
         parsed = list(info.parsed_addresses())
         if parsed:
             return parsed
-    except Exception:  # pragma: no cover - optional zeroconf layout
+    except ImportError:  # pragma: no cover - optional zeroconf layout
         pass
 
     try:
@@ -163,7 +169,7 @@ def _parsed_addresses(info: Any) -> list[str]:
                     addresses.append(inet_ntop(AF_INET6, raw))
             elif isinstance(raw, str):
                 addresses.append(raw)
-    except Exception:  # pragma: no cover - optional zeroconf layout
+    except ImportError:  # pragma: no cover - optional zeroconf layout
         pass
     return addresses
 
@@ -684,11 +690,11 @@ class ClusterManager:
         finally:
             try:
                 browser.cancel()
-            except Exception:  # pragma: no cover
+            except ImportError:  # pragma: no cover
                 pass
             try:
                 zc.close()
-            except Exception:  # pragma: no cover
+            except ImportError:  # pragma: no cover
                 pass
 
     @staticmethod
@@ -819,7 +825,6 @@ class ClusterManager:
         model: str | None,
         allow_local: bool,
     ) -> ClusterRouteSelection:
-        peers = self._collect_known_peers()
         await self._discover_mdns_peers()
         peers = self._collect_known_peers()
         if peer_id:

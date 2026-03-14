@@ -39,6 +39,10 @@ scrape_configs:
       - targets: ['core:8100']
         labels:
           component: p2p
+  - job_name: mascarade-core
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['mascarade-core:8100']
 
   - job_name: blackbox-http
     metrics_path: /probe
