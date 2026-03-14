@@ -8,6 +8,7 @@ import json
 import logging
 import time
 from contextlib import asynccontextmanager
+from dataclasses import asdict
 from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, FastAPI, HTTPException, Query, Request
@@ -15,6 +16,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from mascarade.agents import Agent, AgentRegistry
+from mascarade.agents.prompt_versioning import PromptHistory, PromptVersion
 from mascarade.agents.skills import register_default_skills
 from mascarade.auth import (
     add_api_key,
@@ -212,6 +214,7 @@ class AgentUpdate(BaseModel):
     strategy: Strategy = Strategy.BEST
     temperature: float = Field(default=0.7, ge=0.0, le=2.0)
     max_tokens: int = Field(default=4096, gt=0, le=128000)
+    version_note: str | None = Field(default=None, max_length=500)
 
 
 class AgentRoutingOverride(BaseModel):
@@ -730,7 +733,7 @@ async def get_agent(name: str):
 
 
 @protected.put("/agents/{name}")
-async def update_agent(name: str, req: AgentUpdate):
+async def update_agent(name: str, req: AgentUpdate, request: Request):
     try:
         agent = app.state.registry.get(name)
     except KeyError:
@@ -741,6 +744,11 @@ async def update_agent(name: str, req: AgentUpdate):
             detail="Built-in agents are read-only; create a dynamic agent from the UI to edit routing.",
         )
 
+    # Check if system_prompt is changing
+    old_system_prompt = agent.system_prompt
+    system_prompt_changed = old_system_prompt != req.system_prompt
+
+    # Update agent fields
     agent.description = req.description
     agent.system_prompt = req.system_prompt
     agent.preferred_provider = req.preferred_provider
@@ -749,6 +757,32 @@ async def update_agent(name: str, req: AgentUpdate):
     agent.strategy = req.strategy
     agent.temperature = req.temperature
     agent.max_tokens = req.max_tokens
+
+    # Create version if system_prompt changed
+    if system_prompt_changed:
+        # Get API key from request headers for author tracking
+        auth_header = request.headers.get("Authorization", "")
+        api_key = ""
+        if auth_header.startswith("Bearer "):
+            api_key = auth_header[7:]
+        author_hash = hash_api_key(api_key)
+
+        # Create PromptHistory and load existing versions
+        prompt_history = PromptHistory(storage_path=None)
+        prompt_history._versions = [
+            PromptVersion(**v) for v in agent.prompt_versions
+        ]
+
+        # Add new version
+        new_version = prompt_history.add_version(
+            content=req.system_prompt,
+            author_hash=author_hash,
+            note=req.version_note,
+        )
+
+        # Update agent's prompt_versions
+        agent.prompt_versions = [asdict(v) for v in prompt_history._versions]
+
     app.state.registry.save()
     return _serialize_agent(agent)
 
