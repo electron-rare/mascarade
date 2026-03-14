@@ -84,7 +84,13 @@ async def lifespan(app: FastAPI):
     # Start P2P node if enabled
     await cluster.start_p2p()
 
+    # Start health checks for all registered providers
+    router.health_monitor.start_health_checks(list(router._providers.values()))
+
     yield
+
+    # Stop health checks
+    await router.health_monitor.stop_health_checks()
 
     # Stop P2P node
     await cluster.stop_p2p()
