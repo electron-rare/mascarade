@@ -68,7 +68,7 @@ Documents d'ancrage:
 
 | ID | Tache | Owner |
 | --- | --- | --- |
-| `C-DA-010` | Revisiter `/api/cad` ou formaliser la dette proxy restante | `api-contract-auditor` |
+| `C-DA-011` | Revisiter la dette restante hors proxy gateway ou la reclasser explicitement | `api-contract-auditor` |
 
 ### `Kill_LIFE`
 
@@ -143,6 +143,8 @@ Documents d'ancrage:
 - revalidation operateur `crazy_life`: `bash scripts/tui/gateway_audit.sh audit --strict`, lecture du report, puis purge `.ops/gateway-audit`
 - fermeture de `C-DA-009` via `crazy_life/api/src/index.ts`, `api/src/index.test.ts`, `scripts/tui/gateway_audit.sh` et `docs/KNOWLEDGE_BASE_PROXY_HARDENING_2026-03-14.md`
 - revalidation locale `crazy_life/api`: `npm --prefix api run build` puis `npm --prefix api test`
+- fermeture de `C-DA-010` via `crazy_life/api/src/index.ts`, `api/src/index.test.ts`, `scripts/tui/gateway_audit.sh` et `docs/CAD_PROXY_HARDENING_2026-03-14.md`
+- revalidation operateur `crazy_life`: `bash scripts/tui/gateway_audit.sh audit --strict`, lecture du report, puis purge `.ops/gateway-audit`
 - reduction de regression `M-DA-004` cote `mascarade/api`: fallback `X-Forwarded-Groups` retabli dans `api/src/routes/mcpIndustrial.ts`
 - revalidation locale `mascarade/api`: `npm --prefix api run build` puis `npm --prefix api test`
 - revalidation locale `mascarade/core`: `cd core && ./.venv/bin/python -m pytest -q`
@@ -153,6 +155,6 @@ Documents d'ancrage:
 
 - `mascarade/api`: `npm --prefix api run build` vert et `npm --prefix api test` vert (`62/62`) apres correction `mcpIndustrial`
 - `mascarade/core`: `./.venv/bin/python -m pytest -q` vert dans l'etat courant du worktree; les suites cibles `test_cluster.py` et `test_orchestrator.py` restent vertes
-- `crazy_life`: `npm --prefix api run build` vert et `npm --prefix api test` vert (`61/61`) apres durcissement `/api/knowledge-base`
+- `crazy_life`: `npm --prefix api run build` vert et `npm --prefix api test` vert (`71/71`) apres durcissement `/api/cad`
 - `Kill_LIFE`: evidence lane locale verte en mode `native-pio`; la suite `bash tools/test_python.sh --suite stable` reste bloquee par un delta local hors lot dans `tools/mcp_runtime_status.py`
 - aucune pretention de "suite verte globale" n'est faite sans reprise lot-par-lot
