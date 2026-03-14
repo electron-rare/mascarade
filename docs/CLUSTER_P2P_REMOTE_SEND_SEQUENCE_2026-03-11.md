@@ -103,3 +103,4 @@ sequenceDiagram
 - `TaskResult` remonte deja `remote`, `selected_by`, `peer_id`, `node_id` et `role`.
 - `ClusterManager.forward_send()` remonte aussi `transport` et `latency_ms`.
 - le lot courant remonte aussi `routing_selected_by`, `routing_transport` et `routing_latency_ms` dans `AgentTraceBuffer` pour les evenements `agent_output`.
+- les surfaces cockpit `web/src/pages/Logs.tsx` et `web/src/pages/Orchestrate.tsx` les affichent maintenant comme badges `route`, `transport` et `latence` pour raccourcir la lecture operateur.

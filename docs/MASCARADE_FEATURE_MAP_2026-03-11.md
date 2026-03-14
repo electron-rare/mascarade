@@ -72,6 +72,6 @@ flowchart TD
 
 ## Current gaps and next lots
 
-- la carte fonctionnelle versionnee existe maintenant; il reste a produire les cartes equivalentes pour `crazy_life` et `Kill_LIFE`
-- la trace d'orchestration expose maintenant `routing_selected_by`, `routing_transport` et `routing_latency_ms`; le prochain cran utile est de les exploiter dans une lecture operateur plus synthétique
+- les cartes equivalentes existent maintenant aussi dans `crazy_life` et `Kill_LIFE`; le hub multi-repo peut se concentrer sur les deltas runtime/doc encore ouverts
+- la lecture operateur `Logs` + `Orchestrate` expose maintenant `routing_selected_by`, `routing_transport` et `routing_latency_ms` pour les steps et la timeline live
 - le worktree `core` contient encore des regressions hors de ce lot, notamment sur les chemins P2P/cluster et sur certains tests dependants du reseau local

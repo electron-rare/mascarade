@@ -67,6 +67,9 @@ export interface AgentTraceEvent {
   routing_provider?: string | null;
   routing_model?: string | null;
   routing_policy?: string | null;
+  routing_selected_by?: string | null;
+  routing_transport?: string | null;
+  routing_latency_ms?: number | null;
   mcp_server?: string | null;
   mcp_tool?: string | null;
   mcp_status?: string | null;
@@ -321,6 +324,8 @@ export const coreClient = {
         error?: string;
         remote?: boolean;
         selected_by?: string;
+        transport?: string | null;
+        latency_ms?: number | null;
         peer_id?: string | null;
         node_id?: string | null;
         role?: string | null;
