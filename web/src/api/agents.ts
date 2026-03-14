@@ -18,6 +18,15 @@ export interface Message {
   content: string;
 }
 
+export interface AgentMetrics {
+  total_requests: number;
+  total_tokens: number;
+  total_cost: number;
+  avg_response_time: number;
+  error_rate: number;
+  last_used: string | null;
+}
+
 export interface LLMResponse {
   content: string;
   model: string;
@@ -149,5 +158,5 @@ export const agentsApi = {
     del<{ status: string; message?: string }>(`/api/agents/${encodeURIComponent(name)}`),
 
   metrics: (name: string) =>
-    get<Record<string, unknown>>(`/api/agents/${encodeURIComponent(name)}/metrics`),
+    get<AgentMetrics>(`/api/agents/${encodeURIComponent(name)}/metrics`),
 };
