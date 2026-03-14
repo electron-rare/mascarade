@@ -15,6 +15,11 @@ from mascarade.router.providers.base import LLMProvider, LLMResponse
 
 logger = logging.getLogger("mascarade.router")
 
+try:
+    from mascarade.benchmarks.storage import BenchmarkStorage
+except ImportError:
+    BenchmarkStorage = None  # type: ignore[assignment,misc]
+
 
 class Strategy(StrEnum):
     BEST = "best"
@@ -32,6 +37,7 @@ class Router:
         self.metrics = MetricsTracker()
         self.load_balancer = LoadBalancer()
         self.fallback = FallbackState(max_attempts=3)
+        self.benchmark_storage = BenchmarkStorage() if BenchmarkStorage else None
         self._register_defaults()
 
     def _register_defaults(self) -> None:
@@ -83,6 +89,7 @@ class Router:
         self,
         strategy: Strategy = Strategy.BEST,
         provider_name: str | None = None,
+        domain: str | None = None,
     ) -> list[LLMProvider]:
         if not self._providers:
             raise RuntimeError("Aucun provider LLM configuré. Vérifiez vos clés API.")
@@ -105,16 +112,133 @@ class Router:
             best_value = min(p.speed_rank for p in providers)
             return [p for p in providers if p.speed_rank == best_value]
 
+        # Strategy is BEST - use domain-aware ranking if available
+        if domain and self.benchmark_storage:
+            benchmark_candidates = self._select_by_benchmarks(domain)
+            if benchmark_candidates:
+                logger.debug(
+                    "Using benchmark data for domain '%s': selected %s",
+                    domain,
+                    [p.name for p in benchmark_candidates],
+                )
+                return benchmark_candidates
+            logger.debug(
+                "No benchmark data for domain '%s', falling back to quality_rank", domain
+            )
+
+        # Fallback to static quality_rank
         best_value = max(p.quality_rank for p in providers)
         return [p for p in providers if p.quality_rank == best_value]
+
+    def _select_by_benchmarks(self, domain: str) -> list[LLMProvider]:
+        """
+        Select provider candidates based on benchmark data for a specific domain.
+
+        Args:
+            domain: The domain to query benchmarks for
+
+        Returns:
+            List of best-performing providers based on benchmark quality scores,
+            or empty list if no benchmark data available
+        """
+        if not self.benchmark_storage:
+            return []
+
+        try:
+            # Query leaderboard for this domain, ordered by quality score
+            leaderboard = self.benchmark_storage.query_leaderboard(
+                domain=domain,
+                limit=10,
+                order_by="avg_quality_score",
+            )
+
+            if not leaderboard:
+                return []
+
+            # Get the top quality score
+            top_score = leaderboard[0]["avg_quality_score"]
+
+            # Find all providers with the top score (within 1% tolerance)
+            tolerance = 1.0
+            top_providers = [
+                entry["provider"]
+                for entry in leaderboard
+                if abs(entry["avg_quality_score"] - top_score) <= tolerance
+            ]
+
+            # Return LLMProvider instances for these providers
+            candidates = [
+                self._providers[name]
+                for name in top_providers
+                if name in self._providers
+            ]
+
+            return candidates if candidates else []
+
+        except Exception as exc:
+            logger.warning("Failed to query benchmarks for domain '%s': %s", domain, exc)
+            return []
+
+    @staticmethod
+    def _detect_domain(messages: list[dict]) -> str | None:
+        """
+        Detect domain from message content based on keywords.
+
+        Args:
+            messages: List of message dictionaries
+
+        Returns:
+            Detected domain or None
+        """
+        # Keywords for each domain
+        domain_keywords = {
+            "spice": ["spice", "simulation", "ngspice", "ltspice", "circuit simulation"],
+            "kicad": ["kicad", "pcb", "schematic", "footprint", "kicad_pcb"],
+            "stm32": ["stm32", "arm cortex", "hal", "cubemx", "stm32f", "stm32l"],
+            "electronics": [
+                "circuit",
+                "resistor",
+                "capacitor",
+                "transistor",
+                "voltage",
+                "current",
+                "amplifier",
+                "oscillator",
+            ],
+            "code": [
+                "python",
+                "javascript",
+                "function",
+                "class",
+                "api",
+                "algorithm",
+                "debug",
+                "refactor",
+            ],
+        }
+
+        # Combine all message content
+        content = " ".join(
+            msg.get("content", "").lower()
+            for msg in messages
+            if isinstance(msg.get("content"), str)
+        )
+
+        # Check for domain keywords
+        for domain, keywords in domain_keywords.items():
+            if any(keyword in content for keyword in keywords):
+                return domain
+
+        return None
 
     def _select_provider(
         self,
         strategy: Strategy = Strategy.BEST,
         provider_name: str | None = None,
+        domain: str | None = None,
     ) -> LLMProvider:
         candidates = self._select_candidates(
-            strategy=strategy, provider_name=provider_name
+            strategy=strategy, provider_name=provider_name, domain=domain
         )
         if len(candidates) == 1:
             return candidates[0]
@@ -195,9 +319,12 @@ class Router:
                 available_providers=self.available_providers,
             )
 
+        # Detect domain for domain-aware routing
+        detected_domain = self._detect_domain(messages) if strategy == Strategy.BEST else None
+
         for attempt_strategy, attempt_provider in sequence:
             attempt_enum = Strategy(attempt_strategy)
-            selected = self._select_provider(attempt_enum, attempt_provider)
+            selected = self._select_provider(attempt_enum, attempt_provider, detected_domain)
             started_at = time.perf_counter()
             self.load_balancer.request_started(selected.name)
 
@@ -317,10 +444,13 @@ class Router:
                 available_providers=self.available_providers,
             )
 
+        # Detect domain for domain-aware routing
+        detected_domain = self._detect_domain(messages) if strategy == Strategy.BEST else None
+
         last_error: Exception | None = None
         for attempt_strategy, attempt_provider in sequence:
             attempt_enum = Strategy(attempt_strategy)
-            selected = self._select_provider(attempt_enum, attempt_provider)
+            selected = self._select_provider(attempt_enum, attempt_provider, detected_domain)
             started_at = time.perf_counter()
             self.load_balancer.request_started(selected.name)
 
