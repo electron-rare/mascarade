@@ -784,6 +784,15 @@ async def run_agent(name: str, req: SendRequest):
     }
 
 
+@protected.get("/agents/{name}/metrics")
+async def get_agent_metrics(name: str):
+    try:
+        agent = app.state.registry.get(name)
+    except KeyError:
+        raise HTTPException(status_code=404, detail=f"Agent '{name}' not found") from None
+    return app.state.registry.agent_metrics(name)
+
+
 # --- Orchestration ---
 
 
