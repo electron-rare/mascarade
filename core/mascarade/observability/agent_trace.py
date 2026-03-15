@@ -124,6 +124,15 @@ def build_trace_message(event: AgentTraceEvent) -> str:
     if event.event_type == "mcp_call_failed":
         detail = f" ({event.error})" if event.error else ""
         return f"MCP {event.mcp_server or 'server'}::{event.mcp_tool or 'tool'} failed{detail}"
+    if event.event_type == "retry_attempt":
+        detail = f" ({event.error})" if event.error else ""
+        return f"{event.agent_name or 'agent'} retry attempt{detail}"
+    if event.event_type == "circuit_breaker_opened":
+        detail = f" ({event.error})" if event.error else ""
+        return f"circuit breaker opened for {event.agent_name or 'agent'}{detail}"
+    if event.event_type == "fallback_triggered":
+        detail = f" ({event.error})" if event.error else ""
+        return f"fallback triggered for {event.agent_name or 'agent'}{detail}"
     return event.content_excerpt or event.prompt_excerpt or event.event_type
 
 
