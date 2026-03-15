@@ -256,13 +256,11 @@ async def test_chat_completions_returns_openai_shape(
     assert body["id"].startswith("chatcmpl-")
     assert body["object"] == "chat.completion"
     assert isinstance(body["created"], int)
-    assert body["choices"] == [
-        {
-            "index": 0,
-            "message": {"role": "assistant", "content": "shape ok"},
-            "finish_reason": "stop",
-        }
-    ]
+    assert len(body["choices"]) == 1
+    assert body["choices"][0]["index"] == 0
+    assert body["choices"][0]["message"]["role"] == "assistant"
+    assert body["choices"][0]["message"]["content"] == "shape ok"
+    assert body["choices"][0]["finish_reason"] == "stop"
     assert body["usage"] == {
         "prompt_tokens": 0,
         "completion_tokens": 0,
@@ -366,3 +364,160 @@ async def test_chat_completions_streaming():
     assert len(fake_router.stream_calls) == 1
     assert fake_router.stream_calls[0]["provider"] == "ollama"
     assert fake_router.stream_calls[0]["model"] == "qwen3.5:9b"
+
+
+@pytest.mark.asyncio
+async def test_chat_completions_streaming_with_apple_coreml():
+    import json as json_module
+
+    fake_router = FakeRouter(
+        available_providers=["apple-coreml"],
+        stream_tokens=["Apple", " streaming", " works"],
+    )
+
+    async with _client(fake_router) as client:
+        async with client.stream(
+            "POST",
+            "/v1/chat/completions",
+            json={
+                "model": "apple-coreml:qwen3.5-4b-onnx-q4f16",
+                "messages": [{"role": "user", "content": "Test streaming"}],
+                "stream": True,
+                "temperature": 0.5,
+                "max_tokens": 256,
+            },
+        ) as response:
+            assert response.status_code == 200
+            assert response.headers["content-type"] == "text/event-stream; charset=utf-8"
+
+            chunks = []
+            async for line in response.aiter_lines():
+                if line.startswith("data: "):
+                    data_str = line[6:]
+                    if data_str == "[DONE]":
+                        break
+                    chunk = json_module.loads(data_str)
+                    chunks.append(chunk)
+
+    # Verify chunks
+    assert len(chunks) > 0
+    assert chunks[0]["object"] == "chat.completion.chunk"
+
+    # Verify content
+    content_chunks = [
+        c["choices"][0]["delta"].get("content", "")
+        for c in chunks
+        if c["choices"][0]["delta"].get("content") is not None
+    ]
+    assert "".join(content_chunks) == "Apple streaming works"
+
+    # Verify stream was called with correct provider and parameters
+    assert len(fake_router.stream_calls) == 1
+    assert fake_router.stream_calls[0]["provider"] == "apple-coreml"
+    assert fake_router.stream_calls[0]["model"] == "qwen3.5-4b-onnx-q4f16"
+    assert fake_router.stream_calls[0]["temperature"] == 0.5
+    assert fake_router.stream_calls[0]["max_tokens"] == 256
+
+
+@pytest.mark.asyncio
+async def test_chat_completions_streaming_with_default_provider(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    import json as json_module
+
+    monkeypatch.setattr("mascarade.server.settings.default_provider", "apple-coreml")
+    monkeypatch.setattr("mascarade.server.settings.default_model", "qwen3.5-4b-onnx-q4f16")
+
+    fake_router = FakeRouter(
+        available_providers=["apple-coreml"],
+        stream_tokens=["Default", " provider", " streaming"],
+    )
+
+    async with _client(fake_router) as client:
+        async with client.stream(
+            "POST",
+            "/v1/chat/completions",
+            json={
+                "model": "qwen3.5-4b-onnx-q4f16",
+                "messages": [{"role": "user", "content": "Test default"}],
+                "stream": True,
+            },
+        ) as response:
+            assert response.status_code == 200
+
+            chunks = []
+            async for line in response.aiter_lines():
+                if line.startswith("data: "):
+                    data_str = line[6:]
+                    if data_str == "[DONE]":
+                        break
+                    chunk = json_module.loads(data_str)
+                    chunks.append(chunk)
+
+    # Verify stream was called with default provider
+    assert len(fake_router.stream_calls) == 1
+    assert fake_router.stream_calls[0]["provider"] == "apple-coreml"
+    assert fake_router.stream_calls[0]["model"] == "qwen3.5-4b-onnx-q4f16"
+
+
+@pytest.mark.asyncio
+async def test_chat_completions_streaming_returns_503_for_unavailable_provider():
+    fake_router = FakeRouter(
+        available_providers=["apple-coreml"],
+        supported_provider_names=["apple-coreml", "ollama"],
+    )
+
+    async with _client(fake_router) as client:
+        response = await client.post(
+            "/v1/chat/completions",
+            json={
+                "model": "ollama:qwen3.5:9b",
+                "messages": [{"role": "user", "content": "hello"}],
+                "stream": True,
+            },
+        )
+
+    assert response.status_code == 503
+    assert response.json()["detail"] == {
+        "error": "Provider 'ollama' is not configured or unavailable.",
+        "providers": ["apple-coreml"],
+    }
+
+
+@pytest.mark.asyncio
+async def test_chat_completions_streaming_with_system_prompt():
+    import json as json_module
+
+    fake_router = FakeRouter(
+        available_providers=["ollama"],
+        stream_tokens=["System", " prompt", " works"],
+    )
+
+    async with _client(fake_router) as client:
+        async with client.stream(
+            "POST",
+            "/v1/chat/completions",
+            json={
+                "model": "ollama:qwen3.5:9b",
+                "messages": [
+                    {"role": "system", "content": "You are a helpful assistant"},
+                    {"role": "user", "content": "Test system prompt"},
+                ],
+                "stream": True,
+            },
+        ) as response:
+            assert response.status_code == 200
+
+            chunks = []
+            async for line in response.aiter_lines():
+                if line.startswith("data: "):
+                    data_str = line[6:]
+                    if data_str == "[DONE]":
+                        break
+                    chunk = json_module.loads(data_str)
+                    chunks.append(chunk)
+
+    # Verify system message was included in messages array
+    assert len(fake_router.stream_calls) == 1
+    assert fake_router.stream_calls[0]["messages"][0]["role"] == "system"
+    assert fake_router.stream_calls[0]["messages"][0]["content"] == "You are a helpful assistant"
