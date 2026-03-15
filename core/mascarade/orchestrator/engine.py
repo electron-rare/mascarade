@@ -11,6 +11,7 @@ from mascarade.agents.registry import AgentRegistry
 from mascarade.cluster import ClusterManager
 from mascarade.observability import AgentTraceBuffer, new_run_id
 from mascarade.orchestrator.circuit_breaker import CircuitBreaker
+from mascarade.orchestrator.dead_letter import DeadLetterStore
 from mascarade.orchestrator.retry import RetryConfig, RetryExecutor
 from mascarade.router import Router
 from mascarade.router.providers.base import LLMResponse
@@ -56,6 +57,7 @@ class Orchestrator:
     cluster: ClusterManager | None = None
     retry_executor: RetryExecutor = field(default_factory=RetryExecutor)
     circuit_breakers: dict[str, CircuitBreaker] = field(default_factory=dict)
+    dead_letter_store: DeadLetterStore = field(default_factory=DeadLetterStore)
 
     def _trace(
         self,
@@ -168,6 +170,14 @@ class Orchestrator:
                     agent_name=name,
                     error=error_msg,
                 )
+                self.dead_letter_store.record_failure(
+                    run_id=run_id,
+                    error=error_msg,
+                    context={"prompt": prompt, "agent_names": agent_names},
+                    mode=mode.value,
+                    agent_name=name,
+                    step=i,
+                )
                 results.append(TaskResult(agent_name=name, response=LLMResponse(content="", model="", provider="", usage={}), step=i, error=error_msg))
                 if not skip_on_error:
                     break
@@ -250,6 +260,14 @@ class Orchestrator:
                     agent_name=agent_names[i],
                     error=error_msg,
                 )
+                self.dead_letter_store.record_failure(
+                    run_id=run_id,
+                    error=error_msg,
+                    context={"prompt": prompt, "agent_names": agent_names},
+                    mode=mode.value,
+                    agent_name=agent_names[i],
+                    step=i,
+                )
                 results.append(TaskResult(agent_name=agent_names[i], response=LLMResponse(content="", model="", provider="", usage={}), step=i, error=error_msg))
             else:
                 results.append(r)
@@ -311,6 +329,14 @@ class Orchestrator:
                     severity="error",
                     agent_name=name,
                     error=error_msg,
+                )
+                self.dead_letter_store.record_failure(
+                    run_id=run_id,
+                    error=error_msg,
+                    context={"initial_prompt": initial_prompt, "current_input": current_input, "agent_names": agent_names},
+                    mode=mode.value,
+                    agent_name=name,
+                    step=i,
                 )
                 results.append(TaskResult(agent_name=name, response=LLMResponse(content="", model="", provider="", usage={}), step=i, error=error_msg))
                 if not skip_on_error:
@@ -464,13 +490,20 @@ class Orchestrator:
                     skip_on_error=skip_on_error,
                 )
         except Exception as exc:
+            error_msg = str(exc)
             self._trace(
                 run_id=run_id,
                 mode=mode,
                 event_type="run_failed",
                 step=-1,
                 severity="error",
-                error=str(exc),
+                error=error_msg,
+            )
+            self.dead_letter_store.record_failure(
+                run_id=run_id,
+                error=error_msg,
+                context={"prompt": prompt, "agent_names": agent_names, "mode": mode.value},
+                mode=mode.value,
             )
             raise
 
