@@ -2,6 +2,7 @@
 
 Latest audit pack:
 
+- `MCP_REGISTRY_FIRST_2026-03-14.md`: cartographie registry-first des serveurs MCP integres, classes `official/community-valid/local-only`, drift de config locale, minima `startup_timeout_sec` et follow-up de realignement local.
 - `AUDIT_GLOBAL_2026-03-07.md`: rapport global avec findings priorises machine + multi-repo.
 - `REMEDIATION_BACKLOG_2026-03-07_REAUDIT.md`: backlog canonique `RA-*` issu du re-audit courant.
 - `REMEDIATION_STATUS_2026-03-08.md`: etat courant apres fermeture des RA `002` a `013` et gate E2E explicite.

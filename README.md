@@ -498,9 +498,11 @@ GRAFANA_PUBLIC_ORIGIN=https://grafana.saillant.cc
 LANGFUSE_PUBLIC_ORIGIN=https://langfuse.saillant.cc
 EDGE_PROXY_OPS_AUTH_USER=ops
 EDGE_PROXY_OPS_AUTH_PASSWORD=...
+EDGE_PROXY_INDUSTRIAL_GROUPS=operator
 ```
 
 Avec ces variables, `Grafana` et `Langfuse` passent derriere `edge-proxy` avec une auth dediee au proxy. Par defaut, ce routage reste seulement sur loopback tant que `EDGE_PROXY_BIND_HOST=127.0.0.1`.
+Pour la surface industrielle, le proxy forwarde maintenant `operator` par defaut. Toute elevation (`approver`, `auditor`, `admin`) doit etre explicite via `EDGE_PROXY_INDUSTRIAL_GROUPS`.
 
 Smoke test OTLP -> Loki:
 
@@ -1036,9 +1038,9 @@ mascarade/
 
 ## Etat auto-synchronise
 <!-- AUTO-SYNC:MASCARADE-README:START -->
-- dernier cycle ANE automatise: 2026-03-13T14:15:56+00:00
+- dernier cycle ANE automatise: 2026-03-14T14:03:06+00:00
 - etat de reference ANE: apple-coreml:qwen3.5-4b-onnx-q4f16
-- prochain lot utile cote pipeline: Confirmer la reference accepted puis resserrer rewrite/repair sur les modeles deja bloques a gate.
+- prochain lot utile cote pipeline: Reference locale reconfirmee; retablir le runtime des modeles provider_failed puis reprendre rewrite/repair sur les modeles bloques a gate.
 <!-- AUTO-SYNC:MASCARADE-README:END -->
 ## P2P Secure Sync
 
