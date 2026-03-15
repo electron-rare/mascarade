@@ -203,6 +203,30 @@ check_resources() {
     fi
 }
 
+# Convert comma-separated profile list to Docker Compose --profile flags
+profile_to_compose_args() {
+    local profiles_csv="$1"
+    local -a profiles_array
+    local result=""
+
+    # Return empty if no profiles provided
+    [[ -z "$profiles_csv" ]] && return 0
+
+    # Split CSV into array
+    IFS=',' read -ra profiles_array <<< "$profiles_csv"
+
+    # Build --profile flags
+    for profile in "${profiles_array[@]}"; do
+        # Trim whitespace
+        profile=$(echo "$profile" | xargs)
+        [[ -z "$profile" ]] && continue
+        result="${result}--profile ${profile} "
+    done
+
+    # Trim trailing space and output
+    echo "${result% }"
+}
+
 parse_setup_args() {
     while [[ $# -gt 0 ]]; do
         case "$1" in
