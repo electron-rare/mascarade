@@ -11,6 +11,23 @@
 
 import type { NodePlugin, NodeCategory } from './NodePluginAPI';
 
+// AI plugins
+import { LLMInferenceNode } from './categories/AI/LLMInferenceNode';
+// Audio plugins
+import { ToneSynthNode } from './categories/Audio/ToneSynthNode';
+// Automation plugins
+import { TimerTriggerNode } from './categories/Automation/TimerTriggerNode';
+import { WebhookNode } from './categories/Automation/WebhookNode';
+// CAD plugins
+import { GCodeGeneratorNode } from './categories/CAD/GCodeGeneratorNode';
+// Hardware plugins
+import { DMXOutputNode } from './categories/Hardware/DMXOutputNode';
+import { MIDIOutputNode } from './categories/Hardware/MIDIOutputNode';
+// Workflow plugins
+import { IfNode } from './categories/Workflow/IfNode';
+import { LoopNode } from './categories/Workflow/LoopNode';
+import { SwitchNode } from './categories/Workflow/SwitchNode';
+
 /**
  * Central registry for node plugins
  *
@@ -240,3 +257,40 @@ export class PluginRegistry {
  * Use this for most cases unless you need isolated registries for testing.
  */
 export const globalPluginRegistry = new PluginRegistry();
+
+/**
+ * All built-in node plugins across 6 categories:
+ * AI, Audio, Automation, CAD, Hardware, Workflow
+ */
+const builtinPlugins: NodePlugin[] = [
+  // AI
+  LLMInferenceNode,
+  // Audio
+  ToneSynthNode,
+  // Automation
+  TimerTriggerNode,
+  WebhookNode,
+  // CAD
+  GCodeGeneratorNode,
+  // Hardware
+  DMXOutputNode,
+  MIDIOutputNode,
+  // Workflow
+  IfNode,
+  LoopNode,
+  SwitchNode,
+];
+
+/**
+ * Register all built-in plugins with the global registry
+ */
+export function registerBuiltinPlugins(registry: PluginRegistry = globalPluginRegistry): void {
+  for (const plugin of builtinPlugins) {
+    if (!registry.has(plugin.id)) {
+      registry.register(plugin, { builtin: true });
+    }
+  }
+}
+
+// Auto-register built-in plugins
+registerBuiltinPlugins();
