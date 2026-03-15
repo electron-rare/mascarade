@@ -14,12 +14,15 @@
     "@octokit/auth-app": "^8.2.0",
     "@types/js-yaml": "^4.0.9",
     "@xyflow/react": "^12.10.1",
+    "dmx": "^0.25.1",
     "google-auth-library": "^10.6.1",
     "hono": "^4.12.4",
     "js-yaml": "^4.1.1",
+    "jzz": "^1.7.6",
     "openid-client": "^6.8.2",
     "react": "^19.2.4",
-    "react-dom": "^19.2.4"
+    "react-dom": "^19.2.4",
+    "tone": "^15.3.1"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
