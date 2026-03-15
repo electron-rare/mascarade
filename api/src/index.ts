@@ -9,6 +9,7 @@ import { rateLimitMiddleware } from "./middleware/rate-limit.js";
 import { securityHeaders } from "./middleware/security.js";
 import { auth } from "./routes/auth.js";
 import { health } from "./routes/health.js";
+import { version } from "./routes/version.js";
 import { agents } from "./routes/agents.js";
 import { cluster } from "./routes/cluster.js";
 import { knowledgeBase } from "./routes/knowledgeBase.js";
@@ -37,6 +38,21 @@ app.onError((err, c) => {
 });
 
 app.route("/health", health);
+app.route("/v1/version", version);
+// Auth first — reject unauthenticated before consuming rate-limit quota
+app.use("/v1/api/*", authMiddleware);
+app.use("/v1/api/*", rateLimitMiddleware);
+app.route("/v1/api/agents", agents);
+app.route("/v1/api/cluster", cluster);
+app.route("/v1/api/knowledge-base", knowledgeBase);
+app.route("/v1/api/qdrant-knowledge", qdrantKnowledge);
+app.route("/v1/api/cad", cad);
+app.route("/v1/api/comfyui", comfyui);
+app.route("/v1/api/ops", ops);
+app.route("/v1/api/industrial", industrial);
+app.route("/v1/api/mcp/industrial", industrialMcp);
+app.route("/v1/api/killlife", killlife);
+app.route("/v1/api/settings", settings);
 app.use("/api/auth/*", rateLimitMiddleware);
 app.route("/api/auth", auth);
 // Auth first — reject unauthenticated before consuming rate-limit quota

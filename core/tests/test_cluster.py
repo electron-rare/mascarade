@@ -95,7 +95,7 @@ async def test_cluster_identity_reports_disabled_cluster():
     settings.node_label = "Node One"
 
     async with _client() as client:
-        response = await client.get("/cluster/identity", headers=_auth_headers())
+        response = await client.get("/v1/cluster/identity", headers=_auth_headers())
 
     assert response.status_code == 200
     assert response.json()["cluster_enabled"] is False
@@ -112,13 +112,13 @@ async def test_cluster_node_identity_requires_cluster_auth():
     settings.mesh_bind_host = "100.64.0.10"
 
     async with _client() as client:
-        missing = await client.get("/cluster/node/identity")
+        missing = await client.get("/v1/cluster/node/identity")
         invalid = await client.get(
-            "/cluster/node/identity",
+            "/v1/cluster/node/identity",
             headers={"Authorization": "Bearer wrong-cluster-key"},
         )
         valid = await client.get(
-            "/cluster/node/identity",
+            "/v1/cluster/node/identity",
             headers={"Authorization": "Bearer cluster-key-123456"},
         )
 
@@ -166,7 +166,7 @@ async def test_cluster_peers_uses_manager_probe(monkeypatch):
 
     async with _client() as client:
         monkeypatch.setattr(app.state.cluster, "probe_peers", fake_probe)
-        response = await client.get("/cluster/peers", headers=_auth_headers())
+        response = await client.get("/v1/cluster/peers", headers=_auth_headers())
 
     assert response.status_code == 200
     assert response.json()["peers"][0]["peer_id"] == "node-gpu"
@@ -187,7 +187,7 @@ async def test_cluster_manager_forward_send_returns_remote_payload(monkeypatch):
     async def fake_request_json(peer, method, path, *, json=None):
         assert peer.peer_id == "node-gpu"
         assert method == "POST"
-        assert path == "/cluster/node/send"
+        assert path == "/v1/cluster/node/send"
         assert json == {
             "messages": [{"role": "user", "content": "hello"}],
             "strategy": "routellm",
@@ -405,7 +405,7 @@ async def test_cluster_manager_merges_mdns_peers(monkeypatch):
         return peers
 
     async def fake_request_json(peer, method, path, *, json=None):
-        if path == "/cluster/node/identity":
+        if path == "/v1/cluster/node/identity":
             return {
                 "node_id": peer.peer_id,
                 "label": "remote",
@@ -450,7 +450,7 @@ async def test_cluster_manager_explicit_send_can_target_discovered_mdns_peer(mon
     async def fake_request_json(peer, method, path, *, json=None):
         assert peer.peer_id == "node-mdns"
         assert method == "POST"
-        assert path == "/cluster/node/send"
+        assert path == "/v1/cluster/node/send"
         return {
             "node_id": "node-mdns",
             "content": "ok",

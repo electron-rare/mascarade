@@ -473,6 +473,14 @@ async def health():
     return health_data
 
 
+@app.get("/v1/version")
+async def version():
+    """Version endpoint - returns API version and service information."""
+    return {
+        "version": "v1",
+        "service": "mascarade-core",
+        "api_version": "0.1.0"
+    }
 @app.post("/v1/chat/completions", response_model_exclude_unset=True)
 @app.get("/health/providers")
 async def get_provider_health():
@@ -693,9 +701,9 @@ async def chat_completions(req: ChatCompletionRequest):
 
 # --- Routes protegees ---
 
-protected = APIRouter(dependencies=[Depends(require_auth)])
+protected = APIRouter(prefix="/v1", dependencies=[Depends(require_auth)])
 cluster_protected = APIRouter(
-    prefix="/cluster/node",
+    prefix="/v1/cluster/node",
     dependencies=[Depends(require_cluster_auth)],
 )
 
