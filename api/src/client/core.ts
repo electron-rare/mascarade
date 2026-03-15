@@ -835,6 +835,10 @@ export const coreClient = {
   updateUser(userId: number, body: { username?: string; email?: string; role_id?: number; is_active?: boolean }) {
     return request<{ id: number; username: string; email: string; role_id: number; is_active: boolean; created_at: string; updated_at: string }>(`/users/${userId}`, {
       method: "PUT",
+      body: JSON.stringify(body),
+    });
+  },
+
   // --- Qdrant ---
 
   qdrantHealth() {
@@ -935,6 +939,9 @@ export const coreClient = {
   revokeApiKey(userId: number, keyId: number) {
     return request<{ status: string }>(`/users/${userId}/api-keys/${keyId}`, {
       method: "DELETE",
+    });
+  },
+
   qdrantRecommend(
     collectionName: string,
     body: {
