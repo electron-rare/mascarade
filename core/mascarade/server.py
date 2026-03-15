@@ -1597,6 +1597,26 @@ async def send_midi_message(req: dict[str, Any]):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@protected.get("/api/node-engine/dmx/status")
+async def get_dmx_status(universe: str | None = Query(None, description="Optional universe ID")):
+    """Get DMX universe status and channel values."""
+    from mascarade.node_engine.dmx_controller import get_dmx_controller
+
+    try:
+        controller = get_dmx_controller()
+        await controller.start()
+        status = await controller.get_status(universe)
+        return status
+    except Exception as e:
+        logger.error(f"Failed to get DMX status: {e}")
+        # Graceful degradation - return unavailable status
+        return {
+            "available": False,
+            "error": str(e),
+            "message": "DMX bridge unavailable - no hardware connected or bridge not running",
+        }
+
+
 # --- Orchestration ---
 
 

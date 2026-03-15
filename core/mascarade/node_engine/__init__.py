@@ -2,4 +2,4 @@
 
 from __future__ import annotations
 
-__all__ = ["midi_controller"]
+__all__ = ["midi_controller", "dmx_controller"]
