@@ -5,7 +5,7 @@ import { cad } from "./cad.js";
 
 function makeApp() {
   const app = new Hono();
-  app.route("/api/cad", cad);
+  app.route("/v1/api/cad", cad);
   return app;
 }
 
@@ -18,7 +18,7 @@ describe("cad routes", () => {
       run_id: "run-freecad-001",
     });
 
-    const res = await makeApp().request("/api/cad/freecad/documents", {
+    const res = await makeApp().request("/v1/api/cad/freecad/documents", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -48,7 +48,7 @@ describe("cad routes", () => {
       run_id: "run-openscad-001",
     });
 
-    const res = await makeApp().request("/api/cad/openscad/render", {
+    const res = await makeApp().request("/v1/api/cad/openscad/render", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({

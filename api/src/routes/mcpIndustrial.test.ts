@@ -4,7 +4,7 @@ import { industrialMcp } from "./mcpIndustrial.js";
 
 function makeApp() {
   const app = new Hono();
-  app.route("/api/mcp/industrial", industrialMcp);
+  app.route("/v1/api/mcp/industrial", industrialMcp);
   return app;
 }
 
@@ -21,7 +21,7 @@ describe("industrial MCP HTTP proxy routes", () => {
       }),
     );
 
-    const res = await makeApp().request("/api/mcp/industrial", {
+    const res = await makeApp().request("/v1/api/mcp/industrial", {
       headers: {
         "Cf-Access-Authenticated-User-Email": "c.saillant@gmail.com",
       },
@@ -57,7 +57,7 @@ describe("industrial MCP HTTP proxy routes", () => {
       method: "tools/list",
       params: {},
     };
-    const res = await makeApp().request("/api/mcp/industrial/cockpit-ops", {
+    const res = await makeApp().request("/v1/api/mcp/industrial/cockpit-ops", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

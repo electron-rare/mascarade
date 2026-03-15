@@ -5,7 +5,7 @@ import { industrial } from "./industrial.js";
 
 function makeApp() {
   const app = new Hono();
-  app.route("/api/industrial", industrial);
+  app.route("/v1/api/industrial", industrial);
   return app;
 }
 
@@ -59,7 +59,7 @@ describe("industrial routes", () => {
       vendor_contracts: { summary: { ready_count: 4, blocked_count: 2 } },
     } as any);
 
-    const res = await makeApp().request("/api/industrial/platform");
+    const res = await makeApp().request("/v1/api/industrial/platform");
 
     expect(res.status).toBe(200);
     expect(await res.json()).toMatchObject({
@@ -101,7 +101,7 @@ describe("industrial routes", () => {
       },
     } as any);
 
-    const res = await makeApp().request("/api/industrial/plm/tools/spec_sync", {
+    const res = await makeApp().request("/v1/api/industrial/plm/tools/spec_sync", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({

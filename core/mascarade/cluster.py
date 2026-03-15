@@ -786,6 +786,7 @@ class ClusterManager:
 
         logger.info("cluster forward send -> %s", peer.peer_id)
         started = time.perf_counter()
+        remote = await self._request_json(peer, "POST", "/v1/cluster/node/send", json=payload)
 
         # Try P2P stream forwarding first (lower latency, no HTTP overhead)
         p2p_result = await self._try_p2p_forward(peer.peer_id, payload)
@@ -910,7 +911,7 @@ class ClusterManager:
     async def _probe_peer(self, peer: ClusterPeer) -> PeerStatus:
         started = time.perf_counter()
         try:
-            remote = await self._request_json(peer, "GET", "/cluster/node/identity")
+            remote = await self._request_json(peer, "GET", "/v1/cluster/node/identity")
         except HTTPException as exc:
             latency_ms = int((time.perf_counter() - started) * 1000)
             return PeerStatus(
