@@ -401,7 +401,7 @@ python finetune/distill_dataset.py platformio \
   --out .tmp/pio_smoke.jsonl \
   --report-path .tmp/pio_smoke.report.json \
   --failures-out .tmp/pio_smoke.failures.jsonl \
-  --strategy best \
+  --strategy routellm \
   --temperature 0.4 \
   --max-tokens 96 \
   --timeout 120 \

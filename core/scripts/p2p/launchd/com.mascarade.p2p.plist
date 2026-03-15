@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.mascarade.p2p</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/usr/bin/python3</string>
+        <string>WORKER_SCRIPT_PATH</string>
+    </array>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PYTHONPATH</key>
+        <string>MASCARADE_CORE_PATH</string>
+        <key>P2P_CAPABILITIES</key>
+        <string>CAPABILITIES</string>
+        <key>P2P_ROLE</key>
+        <string>worker</string>
+        <key>P2P_LABEL</key>
+        <string>LABEL</string>
+    </dict>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <key>StandardOutPath</key>
+    <string>/tmp/mascarade-p2p.log</string>
+    <key>StandardErrorPath</key>
+    <string>/tmp/mascarade-p2p.err</string>
+</dict>
+</plist>

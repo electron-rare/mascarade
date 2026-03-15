@@ -206,7 +206,12 @@ Fields of interest:
 - `content_excerpt`
 - `provider`
 - `model`
+- `routing_selected_by`
+- `routing_transport`
+- `routing_latency_ms`
 - `error`
+
+Operator surfaces use these routing fields directly in `Logs` and `Orchestrate` to show who selected the route, which transport was used, and the observed latency.
 
 ### Ops logs feed
 `/api/ops/logs/recent` returns normalized entries used by the Logs page.
