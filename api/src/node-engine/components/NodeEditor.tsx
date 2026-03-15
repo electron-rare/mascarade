@@ -15,7 +15,7 @@
  * - Node-RED: Flow-based visual programming
  */
 
-import { useCallback, useEffect, MouseEvent } from 'react';
+import { useCallback, useEffect, useState, MouseEvent } from 'react';
 import {
   ReactFlow,
   Background,
@@ -33,6 +33,7 @@ import {
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import '../styles/node-editor.css';
+import * as Tone from 'tone';
 
 import type { GraphNode, GraphEdge } from '../types/NodeTypes';
 import { ExampleNode } from './nodes/ExampleNode';
@@ -107,6 +108,10 @@ export function NodeEditor(props: NodeEditorProps = {}) {
     onExecute,
   } = props;
 
+  // Audio context state
+  // Tone.js requires user gesture to start audio context (browser autoplay policy)
+  const [audioInitialized, setAudioInitialized] = useState(false);
+
   // Initialize nodes/edges from props or empty state
   // Note: GraphNode is compatible with ReactFlow Node type
   const [nodes, setNodes, onNodesChange] = useNodesState(
@@ -157,6 +162,23 @@ export function NodeEditor(props: NodeEditorProps = {}) {
   }, [onNodeSelect]);
 
   /**
+   * Handle audio initialization
+   *
+   * Starts the Tone.js audio context. Required by browser autoplay policies
+   * to be called after a user gesture (button click, etc.).
+   *
+   * This enables audio nodes (ToneSynthNode, etc.) to play sounds.
+   */
+  const handleStartAudio = useCallback(async () => {
+    try {
+      await Tone.start();
+      setAudioInitialized(true);
+    } catch (error) {
+      console.error('Failed to start audio context:', error);
+    }
+  }, []);
+
+  /**
    * Notify parent of graph changes
    *
    * Called whenever nodes or edges change.
@@ -168,7 +190,33 @@ export function NodeEditor(props: NodeEditorProps = {}) {
   }, [nodes, edges, onGraphChange]);
 
   return (
-    <div style={{ width: '100%', height: '100vh' }}>
+    <div style={{ width: '100%', height: '100vh', position: 'relative' }}>
+      {/* Audio initialization button */}
+      <button
+        className="audio-init-button"
+        onClick={handleStartAudio}
+        disabled={audioInitialized}
+        style={{
+          position: 'absolute',
+          top: '10px',
+          left: '10px',
+          zIndex: 10,
+          padding: '8px 16px',
+          backgroundColor: audioInitialized ? '#10b981' : '#ef4444',
+          color: '#fff',
+          border: 'none',
+          borderRadius: '6px',
+          cursor: audioInitialized ? 'default' : 'pointer',
+          fontSize: '14px',
+          fontWeight: '500',
+          transition: 'all 0.2s ease',
+          boxShadow: '0 2px 8px rgba(0, 0, 0, 0.3)',
+          opacity: audioInitialized ? 0.8 : 1,
+        }}
+      >
+        {audioInitialized ? '✓ Audio Ready' : '▶ Start Audio'}
+      </button>
+
       <ReactFlow
         nodes={nodes}
         edges={edges}
