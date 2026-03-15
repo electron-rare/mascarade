@@ -566,6 +566,58 @@ curl http://localhost:9000/health
 bash scripts/smoke_generate_audio.sh --url http://localhost:9000
 ```
 
+### Docker Compose Profiles
+
+Le deploiement utilise maintenant des profils Docker Compose pour controler les services a demarrer. Cette approche modulaire permet de composer exactement la stack dont tu as besoin.
+
+**Profiles disponibles :**
+
+- `core` — Services core et API (requis)
+- `ollama` — Serving local Ollama
+- `observability` — Loki, Promtail, Prometheus, Grafana, Tempo
+- `ops` — Console ops et outils operateur
+- `audio` — Generation audio (AudioCraft)
+- `edge` — Reverse proxy Nginx avec Let's Encrypt
+- `ai-tools` — Services IA complementaires (Qdrant, LiteLLM, Mem0, Firecrawl)
+- `heavy` — Services lourds (LocalAI, KoboldCPP, AnythingLLM, SGLang)
+
+**Exemples d'usage :**
+
+```bash
+# Stack minimale (core + api)
+docker compose --profile core up
+
+# Core + Ollama
+docker compose --profile core --profile ollama up
+
+# Core + Observability complete
+docker compose --profile core --profile observability up
+
+# Stack complete production
+docker compose --profile core --profile ollama --profile observability --profile ops --profile edge up
+
+# Avec services IA complementaires
+docker compose --profile core --profile ai-tools up
+
+# Mode detache (background)
+docker compose --profile core --profile ollama up -d
+
+# Arreter tout
+docker compose down
+
+# Rebuild et restart
+docker compose --profile core build
+docker compose --profile core up -d
+```
+
+**Recommandation :**
+
+Le script `./setup` reste la methode recommandee pour un deploiement initial, car il gere automatiquement la configuration, les prerequis et les validations. Les commandes `docker compose` avec profils sont utiles pour :
+
+- Restart selectif de services specifiques
+- Debug et developpement
+- Deploiement custom avec controle fin des composants
+
 ### 4. Dev local (sans Docker)
 
 ```bash
