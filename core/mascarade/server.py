@@ -54,6 +54,10 @@ from mascarade.mcp.client import McpError
 from mascarade.observability import AgentTraceBuffer, iso_utc_now, new_run_id
 from mascarade.orchestrator import Orchestrator
 from mascarade.orchestrator.engine import ExecutionMode
+from mascarade.orchestrator.templates import (
+    TemplateRegistry,
+    register_builtin_templates,
+)
 from mascarade.provider_admin import (
     PROVIDER_REGISTRY,
     get_providers_status,
@@ -94,27 +98,18 @@ async def lifespan(app: FastAPI):
         trace_buffer=trace_buffer,
         cluster=cluster,
     )
+    template_registry = TemplateRegistry()
+    register_builtin_templates(template_registry)
 
     app.state.router = router
     app.state.registry = registry
     app.state.orchestrator = orchestrator
     app.state.trace_buffer = trace_buffer
     app.state.cluster = cluster
+    app.state.template_registry = template_registry
     app.state.mcp = McpRuntimeClient(trace_buffer=trace_buffer)
     app.state.comfyui = ComfyUIClient() if settings.comfyui_url else None
     app.state.device_voice = DeviceVoiceService(router=router)
-    app.state.qdrant = QdrantClient() if settings.qdrant_url else None
-
-    # Initialize document processor if Qdrant is configured
-    if app.state.qdrant is not None:
-        from mascarade.integrations.document_processor import DocumentProcessor
-        app.state.document_processor = DocumentProcessor()
-    else:
-        app.state.document_processor = None
-
-    # Initialize benchmark trigger
-    from mascarade.benchmarks.triggers import ModelDeploymentTrigger
-    app.state.benchmark_trigger = ModelDeploymentTrigger(router=router)
 
     registry.load()
 
@@ -169,71 +164,6 @@ class Message(BaseModel):
 
 
 RoutingPolicy = Literal["auto", "strong", "cheap", "fast"]
-# --- OpenAI-Compatible Models ---
-
-
-class ChatCompletionMessage(BaseModel):
-    model_config = ConfigDict(exclude_none=True)
-
-    role: Literal["system", "user", "assistant", "tool"]
-    content: str | None = None
-    tool_calls: list[dict[str, Any]] | None = None
-    tool_call_id: str | None = None
-
-
-class ChatCompletionRequest(BaseModel):
-    model: str | None = Field(default=None, min_length=1, max_length=100)
-    messages: list[ChatCompletionMessage] = Field(max_length=200)
-    stream: bool = False
-    temperature: float = Field(default=0.7, ge=0.0, le=2.0)
-    max_tokens: int | None = Field(default=None, gt=0, le=128000)
-    top_p: float | None = Field(default=None, ge=0.0, le=1.0)
-    frequency_penalty: float | None = Field(default=None, ge=-2.0, le=2.0)
-    presence_penalty: float | None = Field(default=None, ge=-2.0, le=2.0)
-    stop: str | list[str] | None = None
-    n: int = Field(default=1, ge=1, le=10)
-    user: str | None = Field(default=None, max_length=200)
-
-
-class ChatCompletionUsage(BaseModel):
-    prompt_tokens: int = Field(ge=0)
-    completion_tokens: int = Field(ge=0)
-    total_tokens: int = Field(ge=0)
-
-
-class ChatCompletionChoice(BaseModel):
-    index: int = Field(ge=0)
-    message: ChatCompletionMessage
-    finish_reason: Literal["stop", "length", "tool_calls", "content_filter"] | None = None
-
-
-class ChatCompletionResponse(BaseModel):
-    id: str = Field(min_length=1, max_length=100)
-    object: Literal["chat.completion"] = "chat.completion"
-    created: int = Field(ge=0)
-    model: str = Field(min_length=1, max_length=100)
-    choices: list[ChatCompletionChoice]
-    usage: ChatCompletionUsage | None = None
-
-
-class ChatCompletionChunkDelta(BaseModel):
-    role: Literal["system", "user", "assistant", "tool"] | None = None
-    content: str | None = None
-    tool_calls: list[dict[str, Any]] | None = None
-
-
-class ChatCompletionChunkChoice(BaseModel):
-    index: int = Field(ge=0)
-    delta: ChatCompletionChunkDelta
-    finish_reason: Literal["stop", "length", "tool_calls", "content_filter"] | None = None
-
-
-class ChatCompletionChunk(BaseModel):
-    id: str = Field(min_length=1, max_length=100)
-    object: Literal["chat.completion.chunk"] = "chat.completion.chunk"
-    created: int = Field(ge=0)
-    model: str = Field(min_length=1, max_length=100)
-    choices: list[ChatCompletionChunkChoice]
 
 
 class SendRequest(BaseModel):
@@ -299,6 +229,11 @@ class TaskRequest(BaseModel):
     agent_names: list[str] = Field(max_length=20)
     prompt: str = Field(min_length=1, max_length=100_000)
     mode: ExecutionMode = ExecutionMode.SEQUENTIAL
+    routing_overrides: dict[str, AgentRoutingOverride] = Field(default_factory=dict)
+
+
+class TemplateDeployRequest(BaseModel):
+    input: str = Field(min_length=1, max_length=100_000)
     routing_overrides: dict[str, AgentRoutingOverride] = Field(default_factory=dict)
 
 
@@ -1391,7 +1326,7 @@ async def bedrock_finetune_jobs():
 
 @protected.get("/router/metrics")
 async def metrics_summary():
-    return app.state.router.metrics_summary()
+    return await app.state.router.metrics_summary()
 
 
 @protected.get("/router/metrics/{provider}")
@@ -1404,7 +1339,7 @@ async def metrics_provider(provider: str):
 
 @protected.post("/router/metrics/reset")
 async def metrics_reset():
-    app.state.router.reset_metrics()
+    await app.state.router.reset_metrics()
     return {"status": "ok"}
 
 
@@ -1561,6 +1496,23 @@ async def update_agent(name: str, req: AgentUpdate, request: Request):
     return _serialize_agent(agent)
 
 
+@protected.delete("/agents/{name}")
+async def delete_agent(name: str):
+    try:
+        agent = app.state.registry.get(name)
+    except KeyError:
+        raise HTTPException(status_code=404, detail=f"Agent '{name}' not found") from None
+    if app.state.registry.is_builtin(name):
+        raise HTTPException(
+            status_code=403,
+            detail="Built-in agents are read-only and cannot be deleted.",
+        )
+
+    app.state.registry.remove(name)
+    app.state.registry.save()
+    return {"message": f"Agent '{name}' deleted successfully"}
+
+
 @protected.post("/agents/{name}/run")
 async def run_agent(name: str, req: SendRequest):
     if not req.messages:
@@ -1583,65 +1535,13 @@ async def run_agent(name: str, req: SendRequest):
     }
 
 
-@protected.get("/agents/{name}/prompts/history")
-async def get_agent_prompt_history(name: str):
-    """Get version history for an agent's system prompt."""
+@protected.get("/agents/{name}/metrics")
+async def get_agent_metrics(name: str):
     try:
         agent = app.state.registry.get(name)
     except KeyError:
         raise HTTPException(status_code=404, detail=f"Agent '{name}' not found") from None
-
-    return {"versions": agent.prompt_versions}
-
-
-@protected.post("/agents/{name}/prompts/rollback/{version}")
-async def rollback_agent_prompt(name: str, version: int):
-    """Rollback agent's system prompt to a previous version."""
-    try:
-        agent = app.state.registry.get(name)
-    except KeyError:
-        raise HTTPException(status_code=404, detail=f"Agent '{name}' not found") from None
-
-    # Validate version number
-    if version < 1 or version > len(agent.prompt_versions):
-        raise HTTPException(
-            status_code=400,
-            detail=f"Invalid version {version}. Available versions: 1-{len(agent.prompt_versions)}",
-        )
-
-    # Get the target version content
-    target_version = agent.prompt_versions[version - 1]
-    old_prompt = agent.system_prompt
-
-    # Update the agent's system prompt to the target version
-    agent.system_prompt = target_version["content"]
-
-    # Create a new version entry for the rollback
-    version_number = len(agent.prompt_versions) + 1
-    timestamp = iso_utc_now()
-
-    # Compute diff from old to new (rolled back) prompt
-    diff = app.state.registry._compute_diff(old_prompt, agent.system_prompt)
-
-    rollback_version = {
-        "version_number": version_number,
-        "timestamp": timestamp,
-        "content": old_prompt,
-        "author_hash": "system",
-        "diff": diff,
-        "note": f"Rollback to version {version}",
-    }
-
-    agent.prompt_versions.append(rollback_version)
-
-    # Save the registry to persist changes
-    app.state.registry.save()
-
-    return {
-        "message": f"Rolled back to version {version}",
-        "current_version": version_number,
-        "current_prompt": agent.system_prompt,
-    }
+    return app.state.registry.agent_metrics(name)
 
 
 # --- Orchestration ---
@@ -1663,6 +1563,100 @@ async def orchestrate(req: TaskRequest):
         raise HTTPException(status_code=404, detail=f"Agent not found: {exc}") from exc
     return {
         "run_id": run.run_id,
+        "mode": run.mode.value,
+        "results": [
+            {
+                "agent": r.agent_name,
+                "step": r.step,
+                "content": r.response.content,
+                "model": r.response.model,
+                "provider": r.response.provider,
+                "remote": r.remote,
+                "selected_by": r.selected_by,
+                "peer_id": r.peer_id,
+                "node_id": r.node_id,
+                "role": r.role,
+                **({"error": r.error} if r.error else {}),
+            }
+            for r in run.results
+        ],
+    }
+
+
+@protected.get("/orchestrate/templates")
+async def list_templates():
+    """List all available workflow templates."""
+    templates = app.state.template_registry.list()
+    return [
+        {
+            "id": t.id,
+            "name": t.name,
+            "description": t.description,
+            "agent_names": t.agent_names,
+            "mode": t.mode.value,
+            "documentation": t.documentation,
+            "builtin": app.state.template_registry.is_builtin(t.id),
+        }
+        for t in templates
+    ]
+
+
+@protected.get("/orchestrate/templates/{template_id}")
+async def get_template(template_id: str):
+    """Get a specific workflow template by ID."""
+    try:
+        template = app.state.template_registry.get(template_id)
+    except KeyError as exc:
+        raise HTTPException(
+            status_code=404, detail=f"Template not found: {template_id}"
+        ) from exc
+    return {
+        "id": template.id,
+        "name": template.name,
+        "description": template.description,
+        "agent_names": template.agent_names,
+        "mode": template.mode.value,
+        "routing_overrides": template.routing_overrides,
+        "documentation": template.documentation,
+        "builtin": app.state.template_registry.is_builtin(template.id),
+    }
+
+
+@protected.post("/orchestrate/templates/{template_id}/deploy")
+async def deploy_template(template_id: str, req: TemplateDeployRequest):
+    """Deploy a workflow template with user input."""
+    try:
+        template = app.state.template_registry.get(template_id)
+    except KeyError as exc:
+        raise HTTPException(
+            status_code=404, detail=f"Template not found: {template_id}"
+        ) from exc
+
+    # Merge template routing_overrides with request overrides (request takes precedence)
+    routing_overrides = {}
+    if template.routing_overrides:
+        routing_overrides.update(template.routing_overrides)
+    if req.routing_overrides:
+        routing_overrides.update(
+            {
+                agent_name: override.model_dump()
+                for agent_name, override in req.routing_overrides.items()
+            }
+        )
+
+    try:
+        run = await app.state.orchestrator.run(
+            template.agent_names,
+            req.input,
+            mode=template.mode,
+            routing_overrides=routing_overrides,
+        )
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=f"Agent not found: {exc}") from exc
+
+    return {
+        "run_id": run.run_id,
+        "template_id": template_id,
         "mode": run.mode.value,
         "results": [
             {
@@ -2524,532 +2518,6 @@ async def comfyui_interrupt():
 # --- P2P network ---
 
 
-@protected.get("/cluster/p2p/status")
-async def cluster_p2p_status():
-    return app.state.cluster.p2p_status()
-
-
-@protected.get("/cluster/p2p/stream")
-async def cluster_p2p_stream(
-    request: Request,
-    limit: int = Query(default=20, ge=0, le=200),
-):
-    """SSE stream of real-time P2P events."""
-
-    async def event_stream():
-        node = getattr(app.state.cluster, "_p2p_node", None)
-        if node is None or not hasattr(node, "events"):
-            yield f"event: error\ndata: {json.dumps({'error': 'P2P node not available'})}\n\n"
-            return
-
-        bus = node.events
-        queue = bus.subscribe()
-        try:
-            # Replay recent events
-            if limit > 0:
-                for event in bus.recent(limit=limit):
-                    yield f"event: p2p\ndata: {json.dumps(event.to_dict())}\n\n"
-
-            while True:
-                if await request.is_disconnected():
-                    break
-                try:
-                    event = await asyncio.wait_for(queue.get(), timeout=15)
-                except TimeoutError:
-                    yield f"event: heartbeat\ndata: {json.dumps({'ts': iso_utc_now()})}\n\n"
-                    continue
-                yield f"event: p2p\ndata: {json.dumps(event.to_dict())}\n\n"
-        finally:
-            bus.unsubscribe(queue)
-
-    return StreamingResponse(
-        event_stream(),
-        media_type="text/event-stream",
-        headers={
-            "Cache-Control": "no-cache",
-            "Connection": "keep-alive",
-            "X-Accel-Buffering": "no",
-        },
-    )
-
-
-@protected.get("/cluster/p2p/topology")
-async def cluster_p2p_topology():
-    """JSON snapshot of the P2P network topology."""
-    node = getattr(app.state.cluster, "_p2p_node", None)
-    if node is None or not hasattr(node, "capabilities"):
-        raise HTTPException(status_code=503, detail="P2P node not available")
-
-    nodes = []
-    edges = []
-    all_caps = node.capabilities.all_capabilities()
-
-    # Add local node
-    local_caps = node.capabilities._local_caps
-    local_entry = {
-        "peer_id": node.peer_id,
-        "label": local_caps.label if local_caps else "",
-        "role": local_caps.role if local_caps else "general",
-        "capabilities": local_caps.capabilities if local_caps else [],
-        "http_base_url": local_caps.http_base_url if local_caps else None,
-        "is_local": True,
-    }
-    nodes.append(local_entry)
-
-    # Add remote peers
-    for pid, caps in all_caps.items():
-        nodes.append({
-            "peer_id": pid,
-            "label": caps.label,
-            "role": caps.role,
-            "capabilities": caps.capabilities,
-            "http_base_url": caps.http_base_url,
-            "is_local": False,
-        })
-        edges.append({
-            "from": node.peer_id,
-            "to": pid,
-            "connected": pid in node.transport.peers and node.transport.peers[pid].connected,
-        })
-
-    return {"nodes": nodes, "edges": edges}
-
-
-@protected.post("/cluster/p2p/task")
-async def cluster_p2p_task(req: dict):
-    """Distribute a task via P2P to a capable peer.
-
-    Body: {"capability": "llm-inference", "payload": {...}, "timeout": 30, "target_peer": null}
-    """
-    return await app.state.cluster.p2p_distribute_task(
-        capability=req.get("capability", ""),
-        payload=req.get("payload", {}),
-        timeout=req.get("timeout", 120.0),
-        target_peer=req.get("target_peer"),
-    )
-
-
-# --- OpenAI-compatible chat completions shim ---
-
-
-class _OAIChatMessage(BaseModel):
-    role: str
-    content: str
-
-
-class _OAIChatRequest(BaseModel):
-    model: str | None = None
-    messages: list[_OAIChatMessage]
-    temperature: float = 0.7
-    max_tokens: int = 4096
-
-
-@app.post("/v1/chat/completions")
-async def openai_chat_completions(body: _OAIChatRequest, request: Request):
-    import time as _time
-    import uuid as _uuid
-
-    router = request.app.state.router
-
-    raw_model = body.model or ""
-    provider_name: str | None = None
-    model_name: str | None = None
-
-    if ":" in raw_model:
-        prefix, rest = raw_model.split(":", 1)
-        if prefix in getattr(router, "supported_provider_names", []):
-            provider_name = prefix
-            model_name = rest
-        else:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Unsupported model prefix '{prefix}'.",
-            )
-    else:
-        provider_name = settings.default_provider
-        model_name = raw_model or settings.default_model
-
-    if provider_name and provider_name not in router.available_providers:
-        raise HTTPException(
-            status_code=503,
-            detail={
-                "error": f"Provider '{provider_name}' is not configured or unavailable.",
-                "providers": router.available_providers,
-            },
-        )
-
-    strategy = Strategy.SPECIFIC if provider_name else Strategy.BEST
-    messages = [{"role": m.role, "content": m.content} for m in body.messages]
-
-    result = await router.send(
-        messages,
-        strategy=strategy,
-        provider=provider_name,
-        model=model_name,
-        system=None,
-        response_format=None,
-        temperature=body.temperature,
-        max_tokens=body.max_tokens,
-    )
-
-    usage = result.usage or {}
-    display_model = f"{provider_name}:{result.model}" if provider_name and provider_name != settings.default_provider else result.model
-
-    return {
-        "id": f"chatcmpl-{_uuid.uuid4().hex[:24]}",
-        "object": "chat.completion",
-        "created": int(_time.time()),
-        "model": display_model,
-        "choices": [
-            {
-                "index": 0,
-                "message": {"role": "assistant", "content": result.content},
-                "finish_reason": "stop",
-            }
-        ],
-        "usage": {
-            "prompt_tokens": usage.get("input_tokens", 0),
-            "completion_tokens": usage.get("output_tokens", 0),
-            "total_tokens": usage.get("total_tokens", usage.get("input_tokens", 0) + usage.get("output_tokens", 0)),
-        },
-    }
-
-
-# --- Device voice routes ---
-
-
-@protected.post("/device/v1/voice/session")
-async def device_voice_session(request: Request):
-    form = await request.form()
-    device_id = form.get("device_id", "")
-    mode = form.get("mode", "idle")
-    current_media_raw = form.get("current_media", "{}")
-    try:
-        current_media_payload = json.loads(current_media_raw)
-    except (json.JSONDecodeError, TypeError):
-        current_media_payload = {}
-
-    audio_file = form.get("audio") or form.get("audio.wav")
-    if audio_file is None:
-        raise HTTPException(status_code=400, detail="Missing audio file")
-
-    audio_bytes = await audio_file.read()
-    filename = getattr(audio_file, "filename", "audio.wav")
-    content_type = getattr(audio_file, "content_type", "audio/wav")
-
-    service: DeviceVoiceService = request.app.state.device_voice
-    result = await service.handle_session(
-        device_id=device_id,
-        mode=mode,
-        current_media_payload=current_media_payload,
-        audio_bytes=audio_bytes,
-        filename=filename,
-        content_type=content_type,
-        request_base_url=str(request.base_url),
-    )
-    return result.model_dump()
-
-
-@protected.post("/device/v1/player/event")
-async def device_player_event(event: DevicePlayerEvent, request: Request):
-    service: DeviceVoiceService = request.app.state.device_voice
-    state = service.record_player_event(event)
-    return {"ok": True, "state": state.model_dump()}
-
-
-@protected.get("/device/v1/voice/replies/{reply_id}.wav")
-async def device_voice_reply_audio(reply_id: str, request: Request):
-    from fastapi.responses import Response as _Response
-
-    service: DeviceVoiceService = request.app.state.device_voice
-    audio = service.get_reply_audio(reply_id)
-    if audio is None:
-        raise HTTPException(status_code=404, detail="Reply audio not found or expired")
-    return _Response(content=audio.payload, media_type=audio.content_type)
-# --- Qdrant ---
-
-
-def _require_qdrant() -> QdrantClient:
-    if app.state.qdrant is None:
-        raise HTTPException(status_code=503, detail="Qdrant non configure (QDRANT_URL manquant)")
-    return app.state.qdrant
-
-
-@protected.get("/qdrant/health")
-async def qdrant_health():
-    client = _require_qdrant()
-    return await client.health_check()
-
-
-@protected.get("/qdrant/status")
-async def qdrant_status():
-    client = _require_qdrant()
-    return await client.get_cluster_status()
-
-
-@protected.get("/qdrant/collections")
-async def qdrant_list_collections():
-    client = _require_qdrant()
-    return await client.list_collections()
-
-
-@protected.get("/qdrant/collections/{collection_name}")
-async def qdrant_get_collection(collection_name: str):
-    client = _require_qdrant()
-    try:
-        return await client.get_collection(collection_name)
-    except Exception as e:
-        if "404" in str(e):
-            raise HTTPException(status_code=404, detail=f"Collection '{collection_name}' not found") from e
-        raise HTTPException(status_code=500, detail=str(e)) from e
-
-
-@protected.put("/qdrant/collections/{collection_name}")
-async def qdrant_create_collection(collection_name: str, req: QdrantCreateCollectionRequest):
-    client = _require_qdrant()
-    try:
-        result = await client.create_collection(
-            collection_name,
-            vector_size=req.vector_size,
-            distance=req.distance,
-            on_disk_payload=req.on_disk_payload,
-        )
-        return result
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e)) from e
-
-
-@protected.delete("/qdrant/collections/{collection_name}")
-async def qdrant_delete_collection(collection_name: str):
-    client = _require_qdrant()
-    try:
-        result = await client.delete_collection(collection_name)
-        return result
-    except Exception as e:
-        if "404" in str(e):
-            raise HTTPException(status_code=404, detail=f"Collection '{collection_name}' not found") from e
-        raise HTTPException(status_code=500, detail=str(e)) from e
-
-
-@protected.post("/qdrant/collections/{collection_name}/points")
-async def qdrant_upsert_points(collection_name: str, req: QdrantUpsertPointsRequest):
-    client = _require_qdrant()
-    try:
-        result = await client.upsert_points(
-            collection_name,
-            points=req.points,
-            wait=req.wait,
-        )
-        return result
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e)) from e
-
-
-@protected.post("/qdrant/collections/{collection_name}/search")
-async def qdrant_search(collection_name: str, req: QdrantSearchRequest):
-    client = _require_qdrant()
-    try:
-        result = await client.search(
-            collection_name,
-            query_vector=req.query_vector,
-            limit=req.limit,
-            score_threshold=req.score_threshold,
-            with_payload=req.with_payload,
-            with_vector=req.with_vector,
-            filter_conditions=req.filter_conditions,
-        )
-        return result
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e)) from e
-
-
-@protected.post("/qdrant/collections/{collection_name}/recommend")
-async def qdrant_recommend(collection_name: str, req: QdrantRecommendRequest):
-    client = _require_qdrant()
-    try:
-        result = await client.recommend(
-            collection_name,
-            positive=req.positive,
-            negative=req.negative,
-            limit=req.limit,
-            score_threshold=req.score_threshold,
-            with_payload=req.with_payload,
-            with_vector=req.with_vector,
-            filter_conditions=req.filter_conditions,
-        )
-        return result
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e)) from e
-
-
-@protected.post("/qdrant/collections/{collection_name}/semantic-search")
-async def qdrant_semantic_search(collection_name: str, req: QdrantSemanticSearchRequest):
-    client = _require_qdrant()
-    doc_processor = app.state.document_processor
-    if doc_processor is None:
-        raise HTTPException(status_code=503, detail="Document processor not configured")
-
-    try:
-        query_embedding = await doc_processor.generate_embeddings([req.query])
-        if not query_embedding or len(query_embedding) == 0:
-            raise HTTPException(status_code=500, detail="Failed to generate query embedding")
-
-        results = await client.search(
-            collection_name,
-            query_vector=query_embedding[0],
-            limit=req.limit,
-            score_threshold=req.score_threshold,
-            with_payload=True,
-            with_vector=False,
-        )
-
-        formatted_results = []
-        for r in results.get("result", []):
-            formatted_results.append({
-                "id": r.get("id"),
-                "score": r.get("score"),
-                "text": r.get("payload", {}).get("text"),
-                "metadata": r.get("payload", {}),
-            })
-
-        return {
-            "results": formatted_results,
-            "query": req.query,
-            "collection": collection_name,
-        }
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e)) from e
-
-
-@protected.post("/qdrant/collections/{collection_name}/upload")
-async def qdrant_upload_documents(collection_name: str, request: Request):
-    client = _require_qdrant()
-    doc_processor = app.state.document_processor
-    if doc_processor is None:
-        raise HTTPException(status_code=503, detail="Document processor not configured")
-
-    try:
-        form = await request.form()
-        files = form.getlist("files")
-
-        if not files:
-            raise HTTPException(status_code=400, detail="No files provided")
-
-        total_chunks = 0
-        total_docs = 0
-
-        for file in files:
-            if hasattr(file, "read"):
-                content = await file.read()
-                if isinstance(content, bytes):
-                    text = content.decode("utf-8", errors="ignore")
-                else:
-                    text = str(content)
-
-                filename = getattr(file, "filename", "unknown")
-                chunks_data = await doc_processor.process_document(
-                    text,
-                    metadata={"source": filename, "collection": collection_name}
-                )
-
-                points = []
-                for i, chunk in enumerate(chunks_data):
-                    points.append({
-                        "id": f"{filename}_{i}_{hash(chunk['text']) % 10000000}",
-                        "vector": chunk["embedding"],
-                        "payload": {
-                            "text": chunk["text"],
-                            "source": filename,
-                            "chunk_id": i,
-                            **chunk.get("metadata", {}),
-                        },
-                    })
-
-                if points:
-                    await client.upsert_points(collection_name, points)
-                    total_chunks += len(points)
-                    total_docs += 1
-
-        return {
-            "status": "success",
-            "documents_processed": total_docs,
-            "chunks_created": total_chunks,
-            "collection": collection_name,
-        }
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.exception("Document upload failed")
-        raise HTTPException(status_code=500, detail=str(e)) from e
-
-
-@protected.post("/qdrant/collections/{collection_name}/rag-query")
-async def qdrant_rag_query(collection_name: str, req: QdrantRAGRequest):
-    client = _require_qdrant()
-    doc_processor = app.state.document_processor
-    if doc_processor is None:
-        raise HTTPException(status_code=503, detail="Document processor not configured")
-
-    router_instance = app.state.router
-    if router_instance is None:
-        raise HTTPException(status_code=503, detail="Router not configured")
-
-    try:
-        query_embedding = await doc_processor.generate_embeddings([req.query])
-        if not query_embedding or len(query_embedding) == 0:
-            raise HTTPException(status_code=500, detail="Failed to generate query embedding")
-
-        search_results = await client.search(
-            collection_name,
-            query_vector=query_embedding[0],
-            limit=req.limit,
-            with_payload=True,
-            with_vector=False,
-        )
-
-        chunks = []
-        for r in search_results.get("result", []):
-            payload = r.get("payload", {})
-            if "text" in payload:
-                chunks.append({
-                    "text": payload["text"],
-                    "score": r.get("score"),
-                    "source": payload.get("source", "unknown"),
-                })
-
-        context = "\n\n".join([f"[Score: {c['score']:.4f}, Source: {c['source']}]\n{c['text']}" for c in chunks])
-
-        system_prompt = (
-            "You are a helpful assistant. Answer the user's question based on the provided context. "
-            "If the context doesn't contain relevant information, say so clearly."
-        )
-
-        prompt = f"Context:\n{context}\n\nQuestion: {req.query}\n\nAnswer:"
-
-        response = await router_instance.route(
-            messages=[{"role": "user", "content": prompt}],
-            system=system_prompt,
-            model=req.model,
-            temperature=req.temperature,
-        )
-
-        return {
-            "answer": response.content,
-            "chunks": chunks,
-            "query": req.query,
-            "collection": collection_name,
-            "model": response.model,
-            "provider": response.provider,
-        }
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.exception("RAG query failed")
-        raise HTTPException(status_code=500, detail=str(e)) from e
-
-
 # --- Benchmark Analytics ---
 
 
@@ -3257,19 +2725,16 @@ async def metrics():
     try:
         from prometheus_client import REGISTRY, generate_latest
 
-        # Generate metrics in Prometheus text format
-        metrics_output = generate_latest(REGISTRY)
-        return Response(
-            content=metrics_output,
-            media_type="text/plain; version=0.0.4; charset=utf-8"
-        )
-    except ImportError:
-        # If prometheus_client is not installed, return empty metrics
-        return Response(
-            content="# Prometheus client not installed\n",
-            media_type="text/plain; version=0.0.4; charset=utf-8",
-            status_code=503
-        )
+
+@protected.get("/device/v1/voice/replies/{reply_id}.wav")
+async def device_voice_reply_audio(reply_id: str, request: Request):
+    from fastapi.responses import Response as _Response
+
+    service: DeviceVoiceService = request.app.state.device_voice
+    audio = service.get_reply_audio(reply_id)
+    if audio is None:
+        raise HTTPException(status_code=404, detail="Reply audio not found or expired")
+    return _Response(content=audio.payload, media_type=audio.content_type)
 
 
 app.include_router(protected)

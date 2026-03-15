@@ -413,9 +413,9 @@ DEFAULT_MODEL=claude-sonnet-4-6
 Le routeur active automatiquement les providers dont la cle est presente. Pas de cle = provider ignore.
 
 Note:
-- `Notion` n'est plus dans le scope operateur actif de `mascarade`.
-- Les variables `NOTION_*` ne doivent plus etre traitees comme prerequis courants.
-- Les chemins `Notion` encore presents dans le repo relevent de la compatibilite legacy uniquement.
+- `Notion` a ete retire du scope operateur de `mascarade` (mars 2026).
+- Les surfaces `knowledge-base` et `cad` remplacent le chemin Notion historique.
+- Les variables `NOTION_*` ne sont plus supportees.
 
 ## CAD / EDA
 
@@ -629,9 +629,11 @@ GRAFANA_PUBLIC_ORIGIN=https://grafana.saillant.cc
 LANGFUSE_PUBLIC_ORIGIN=https://langfuse.saillant.cc
 EDGE_PROXY_OPS_AUTH_USER=ops
 EDGE_PROXY_OPS_AUTH_PASSWORD=...
+EDGE_PROXY_INDUSTRIAL_GROUPS=operator
 ```
 
 Avec ces variables, `Grafana` et `Langfuse` passent derriere `edge-proxy` avec une auth dediee au proxy. Par defaut, ce routage reste seulement sur loopback tant que `EDGE_PROXY_BIND_HOST=127.0.0.1`.
+Pour la surface industrielle, le proxy forwarde maintenant `operator` par defaut. Toute elevation (`approver`, `auditor`, `admin`) doit etre explicite via `EDGE_PROXY_INDUSTRIAL_GROUPS`.
 
 Smoke test OTLP -> Loki:
 
@@ -1042,46 +1044,6 @@ Modes d'execution :
 | `parallel`   | Tous les agents traitent le prompt en parallele       |
 | `pipeline`   | La sortie d'un agent devient l'entree du suivant      |
 
-### Compat legacy Notion
-
-Hors scope operateur actif. Ce chemin reste seulement pour compatibilite legacy si
-vous devez relire un ancien flux `Notion` :
-
-```bash
-# Rechercher dans la KB Notion
-curl -H "Authorization: Bearer $KEY" \
-  "http://localhost:3100/api/notion/search?q=architecture"
-
-# Lire une page
-curl -H "Authorization: Bearer $KEY" \
-  http://localhost:3100/api/notion/pages/<page-id>
-
-# Ajouter du contenu a une page
-curl -X POST http://localhost:3100/api/notion/pages/<page-id>/append \
-  -H "Authorization: Bearer $KEY" \
-  -H "Content-Type: application/json" \
-  -d '{"content": "Nouveau contenu a ajouter"}'
-
-# Creer une page
-curl -X POST http://localhost:3100/api/notion/pages \
-  -H "Authorization: Bearer $KEY" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "parent_id": "<parent-page-id>",
-    "title": "Ma nouvelle page",
-    "content": "Contenu initial"
-  }'
-
-# Executer notion-scribe et pousser le resultat dans Notion
-curl -X POST http://localhost:3100/api/agents/notion-scribe/run-and-push \
-  -H "Authorization: Bearer $KEY" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "messages": [{"role": "user", "content": "Formate ce rapport : ..."}],
-    "push_to": "<page-id>"
-  }'
-```
-
 ### GitHub dispatch
 
 Si `KILL_LIFE_GITHUB_TOKEN` ou `GITHUB_TOKEN` est configure :
@@ -1179,7 +1141,6 @@ mascarade/
 │   │   │       └── ...               #   Google, HF, Ollama, Apple CoreML
 │   │   ├── orchestrator/engine.py    # Sequential / parallel / pipeline
 │   │   ├── integrations/
-│   │   │   ├── notion.py             # Client Notion async
 │   │   │   └── comfyui.py            # Generation d'images ComfyUI
 │   │   ├── observability/            # OpenTelemetry, traces agents
 │   │   ├── cache/                    # Cache reponses (TTL 1h)
@@ -1190,7 +1151,7 @@ mascarade/
 ├── api/                              # TypeScript Hono (port 3100)
 │   ├── src/
 │   │   ├── index.ts                  # App + middleware (CORS, auth, rate-limit)
-│   │   └── routes/                   # health, agents, cluster, notion, comfyui,
+│   │   └── routes/                   # health, agents, cluster, comfyui,
 │   │       └── ...                   #   ops, killlife
 │   └── package.json
 ├── web/                              # Frontend React (subtree -> crazy_life)
@@ -1219,9 +1180,9 @@ mascarade/
 
 ## Etat auto-synchronise
 <!-- AUTO-SYNC:MASCARADE-README:START -->
-- dernier cycle ANE automatise: 2026-03-13T14:15:56+00:00
+- dernier cycle ANE automatise: 2026-03-14T14:03:06+00:00
 - etat de reference ANE: apple-coreml:qwen3.5-4b-onnx-q4f16
-- prochain lot utile cote pipeline: Confirmer la reference accepted puis resserrer rewrite/repair sur les modeles deja bloques a gate.
+- prochain lot utile cote pipeline: Reference locale reconfirmee; retablir le runtime des modeles provider_failed puis reprendre rewrite/repair sur les modeles bloques a gate.
 <!-- AUTO-SYNC:MASCARADE-README:END -->
 ## P2P Secure Sync
 

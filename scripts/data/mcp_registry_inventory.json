@@ -1,0 +1,299 @@
+{
+  "version": "2026-03-14",
+  "description": "Registry-first inventory for MCP surfaces referenced by mascarade code, docs, deploy modules, and local Codex config.",
+  "classification_legend": {
+    "official": "Vendor-maintained or curated official package/server.",
+    "community-valid": "Public upstream community server with a credible maintained source, but not treated as the canonical official connector here.",
+    "local-only": "Custom launcher or sibling-repo runtime without a public registry target for this workspace."
+  },
+  "registry_status_legend": {
+    "curated-registry": "Seen in curated MCP registry/GitHub registry sources during this pass.",
+    "vendor-official-upstream": "Official vendor source confirmed, but no curated-registry hit was captured in this pass.",
+    "not-found-in-curated-registry-snapshot": "No curated-registry hit captured in this pass.",
+    "local-custom": "Local custom runtime or wrapper."
+  },
+  "servers": [
+    {
+      "key": "notion",
+      "label": "Notion MCP",
+      "classification": "official",
+      "registry_status": "curated-registry",
+      "integration_scope": ["codex-config", "ops-notes"],
+      "config_names": ["notion"],
+      "expected_transport": "remote",
+      "url_prefixes": ["https://mcp.notion.com/mcp"],
+      "notes": [
+        "Prefer the remote OAuth endpoint over legacy local notion MCP variants.",
+        "Local Codex config should use the direct remote URL."
+      ]
+    },
+    {
+      "key": "huggingface",
+      "label": "Hugging Face MCP",
+      "classification": "official",
+      "registry_status": "curated-registry",
+      "integration_scope": ["codex-config", "ops-agent", "docs"],
+      "config_names": ["huggingface"],
+      "expected_transport": "remote",
+      "url_prefixes": ["https://huggingface.co/mcp"],
+      "notes": [
+        "Remote server with bearer token auth.",
+        "Ops agent already knows this endpoint as an optional remote surface."
+      ]
+    },
+    {
+      "key": "playwright",
+      "label": "Playwright MCP",
+      "classification": "official",
+      "registry_status": "curated-registry",
+      "integration_scope": ["codex-config", "operator-local"],
+      "config_names": ["playwright"],
+      "expected_transport": "local",
+      "command_prefixes": ["npx"],
+      "arg_contains": ["@playwright/mcp"],
+      "notes": [
+        "Canonical local install path stays the official Playwright package.",
+        "Do not replace with an ad hoc browser wrapper."
+      ]
+    },
+    {
+      "key": "firecrawl",
+      "label": "Firecrawl MCP",
+      "classification": "official",
+      "registry_status": "curated-registry",
+      "integration_scope": ["deploy-optional", "ops-ui", "docs"],
+      "config_names": ["firecrawl", "firecrawl-mcp", "mcp-server-firecrawl"],
+      "expected_transport": "remote",
+      "url_prefixes": ["https://mcp.firecrawl.dev/"],
+      "notes": [
+        "Repo deploys Firecrawl via the official image mcp/firecrawl.",
+        "A local Codex config entry is optional and currently absent."
+      ]
+    },
+    {
+      "key": "mem0",
+      "label": "Mem0 / OpenMemory MCP",
+      "classification": "official",
+      "registry_status": "vendor-official-upstream",
+      "integration_scope": ["deploy-optional", "ops-ui", "docs"],
+      "config_names": ["mem0", "openmemory", "openmemory-mcp", "mem0-memory-mcp"],
+      "expected_transport": "remote",
+      "url_prefixes": ["http://localhost:8765/", "https://"],
+      "notes": [
+        "Repo deploys OpenMemory through mem0/openmemory-mcp.",
+        "Treat this as an official upstream surface, but keep the registry-status separate until a curated-registry hit is captured."
+      ]
+    },
+    {
+      "key": "kicad",
+      "label": "KiCad MCP",
+      "classification": "community-valid",
+      "registry_status": "not-found-in-curated-registry-snapshot",
+      "integration_scope": ["core-runtime", "ops-agent", "codex-config", "docs"],
+      "config_names": ["kicad"],
+      "expected_transport": "local",
+      "command_prefixes": ["bash", "sh"],
+      "arg_contains": ["Kill_LIFE/tools/hw/run_kicad_mcp.sh"],
+      "repo_dir_env_keys": ["MASCARADE_DIR"],
+      "notes": [
+        "Current integration is a local launcher into Kill_LIFE and a vendored community KiCad MCP server.",
+        "Registry-first policy keeps it explicitly marked community-valid rather than official."
+      ]
+    },
+    {
+      "key": "validate-specs",
+      "label": "Validate Specs MCP",
+      "classification": "local-only",
+      "registry_status": "local-custom",
+      "integration_scope": ["ops-agent", "codex-config", "docs"],
+      "config_names": ["validate-specs"],
+      "expected_transport": "local",
+      "command_prefixes": ["bash", "sh"],
+      "arg_contains": ["Kill_LIFE/tools/run_validate_specs_mcp.sh"],
+      "min_startup_timeout_sec": 20,
+      "recommended_startup_timeout_sec": 20,
+      "notes": [
+        "Custom sibling-repo launcher, no public registry target for this workspace.",
+        "Observed Codex bootstrap timeouts at 10s on 2026-03-11 and 2026-03-14; keep an explicit startup timeout."
+      ]
+    },
+    {
+      "key": "knowledge-base",
+      "label": "Knowledge Base MCP",
+      "classification": "local-only",
+      "registry_status": "local-custom",
+      "integration_scope": ["core-runtime", "ops-agent", "codex-config", "docs"],
+      "config_names": ["knowledge-base"],
+      "expected_transport": "local",
+      "command_prefixes": ["bash", "sh"],
+      "arg_contains": ["Kill_LIFE/tools/run_knowledge_base_mcp.sh"],
+      "repo_dir_env_keys": ["MASCARADE_DIR"],
+      "notes": [
+        "Custom local runtime backed by mascarade integrations."
+      ]
+    },
+    {
+      "key": "github-dispatch",
+      "label": "GitHub Dispatch MCP",
+      "classification": "local-only",
+      "registry_status": "local-custom",
+      "integration_scope": ["core-runtime", "ops-agent", "codex-config", "docs"],
+      "config_names": ["github-dispatch"],
+      "expected_transport": "local",
+      "command_prefixes": ["bash", "sh"],
+      "arg_contains": ["Kill_LIFE/tools/run_github_dispatch_mcp.sh"],
+      "repo_dir_env_keys": ["MASCARADE_DIR"],
+      "notes": [
+        "Local allowlisted GitHub automation server."
+      ]
+    },
+    {
+      "key": "freecad",
+      "label": "FreeCAD MCP",
+      "classification": "local-only",
+      "registry_status": "local-custom",
+      "integration_scope": ["core-runtime", "ops-agent", "codex-config", "docs"],
+      "config_names": ["freecad"],
+      "expected_transport": "local",
+      "command_prefixes": ["bash", "sh"],
+      "arg_contains": ["Kill_LIFE/tools/run_freecad_mcp.sh"],
+      "repo_dir_env_keys": ["MASCARADE_DIR"],
+      "min_startup_timeout_sec": 45,
+      "recommended_startup_timeout_sec": 45,
+      "notes": [
+        "Local CAD runtime wrapper from Kill_LIFE.",
+        "Observed Codex bootstrap timeouts at 10s on 2026-03-11 and 2026-03-14; FreeCAD cold start needs a wider buffer."
+      ]
+    },
+    {
+      "key": "openscad",
+      "label": "OpenSCAD MCP",
+      "classification": "local-only",
+      "registry_status": "local-custom",
+      "integration_scope": ["core-runtime", "ops-agent", "codex-config", "docs"],
+      "config_names": ["openscad"],
+      "expected_transport": "local",
+      "command_prefixes": ["bash", "sh"],
+      "arg_contains": ["Kill_LIFE/tools/run_openscad_mcp.sh"],
+      "repo_dir_env_keys": ["MASCARADE_DIR"],
+      "min_startup_timeout_sec": 30,
+      "recommended_startup_timeout_sec": 30,
+      "notes": [
+        "Local CAD runtime wrapper from Kill_LIFE.",
+        "Observed Codex bootstrap timeouts at 10s on 2026-03-11 and 2026-03-14; keep an explicit startup timeout."
+      ]
+    },
+    {
+      "key": "cockpit-ops",
+      "label": "Industrial Cockpit Ops MCP",
+      "classification": "local-only",
+      "registry_status": "local-custom",
+      "integration_scope": ["core-runtime-conditional"],
+      "config_names": ["cockpit-ops"],
+      "expected_transport": "local",
+      "command_prefixes": ["python3"],
+      "arg_contains": ["agent_factory_cockpit.cli", "mcp-stdio", "cockpit-ops"],
+      "notes": [
+        "Conditional sibling-repo runtime from agent-factory-cockpit."
+      ]
+    },
+    {
+      "key": "plm",
+      "label": "PLM MCP",
+      "classification": "local-only",
+      "registry_status": "local-custom",
+      "integration_scope": ["core-runtime-conditional"],
+      "config_names": ["plm"],
+      "expected_transport": "local",
+      "command_prefixes": ["python3"],
+      "arg_contains": ["agent_factory_cockpit.cli", "mcp-stdio", "plm"],
+      "notes": [
+        "Conditional industrial contract surface."
+      ]
+    },
+    {
+      "key": "qms",
+      "label": "QMS MCP",
+      "classification": "local-only",
+      "registry_status": "local-custom",
+      "integration_scope": ["core-runtime-conditional"],
+      "config_names": ["qms"],
+      "expected_transport": "local",
+      "command_prefixes": ["python3"],
+      "arg_contains": ["agent_factory_cockpit.cli", "mcp-stdio", "qms"],
+      "notes": [
+        "Conditional industrial contract surface."
+      ]
+    },
+    {
+      "key": "mes",
+      "label": "MES MCP",
+      "classification": "local-only",
+      "registry_status": "local-custom",
+      "integration_scope": ["core-runtime-conditional"],
+      "config_names": ["mes"],
+      "expected_transport": "local",
+      "command_prefixes": ["python3"],
+      "arg_contains": ["agent_factory_cockpit.cli", "mcp-stdio", "mes"],
+      "notes": [
+        "Conditional industrial contract surface."
+      ]
+    },
+    {
+      "key": "erp",
+      "label": "ERP MCP",
+      "classification": "local-only",
+      "registry_status": "local-custom",
+      "integration_scope": ["core-runtime-conditional"],
+      "config_names": ["erp"],
+      "expected_transport": "local",
+      "command_prefixes": ["python3"],
+      "arg_contains": ["agent_factory_cockpit.cli", "mcp-stdio", "erp"],
+      "notes": [
+        "Conditional industrial contract surface."
+      ]
+    },
+    {
+      "key": "wms",
+      "label": "WMS MCP",
+      "classification": "local-only",
+      "registry_status": "local-custom",
+      "integration_scope": ["core-runtime-conditional"],
+      "config_names": ["wms"],
+      "expected_transport": "local",
+      "command_prefixes": ["python3"],
+      "arg_contains": ["agent_factory_cockpit.cli", "mcp-stdio", "wms"],
+      "notes": [
+        "Conditional industrial contract surface."
+      ]
+    },
+    {
+      "key": "dcs",
+      "label": "DCS MCP",
+      "classification": "local-only",
+      "registry_status": "local-custom",
+      "integration_scope": ["core-runtime-conditional"],
+      "config_names": ["dcs"],
+      "expected_transport": "local",
+      "command_prefixes": ["python3"],
+      "arg_contains": ["agent_factory_cockpit.cli", "mcp-stdio", "dcs"],
+      "notes": [
+        "Conditional industrial contract surface."
+      ]
+    },
+    {
+      "key": "graphiti",
+      "label": "Graphiti Knowledge Graph MCP",
+      "classification": "official",
+      "registry_status": "vendor-official-upstream",
+      "integration_scope": ["core-runtime-conditional"],
+      "config_names": ["graphiti"],
+      "expected_transport": "remote",
+      "url_prefixes": ["http://mascarade-graphiti-mcp:8000"],
+      "notes": [
+        "Zep Graphiti MCP — deployed as Docker service, HTTP transport.",
+        "Conditional on GRAPHITI_ENABLED=true."
+      ]
+    }
+  ]
+}

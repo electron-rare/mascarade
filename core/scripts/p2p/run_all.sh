@@ -7,7 +7,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 CORE_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
 VM_HOST="192.168.0.119"
-VM_PORT="4002"
+VM_PORT="4001"
 CILS_HOST="192.168.0.210"
 TOWER_HOST="192.168.0.120"
 KXKM_HOST="kxkm-ai"
@@ -38,10 +38,15 @@ cmd_start() {
 
     echo ""
     echo "1. VM Bootstrap + Relay"
-    ssh root@$VM_HOST "pkill -f node_start_bootstrap 2>/dev/null; pkill -f task_handler_worker.py 2>/dev/null; sleep 1; cd /mascarade/core && P2P_LISTEN_PORT=$VM_PORT nohup python3 scripts/p2p/node_start_bootstrap.py </dev/null >/tmp/p2p_node.log 2>&1 &" 2>/dev/null && ok "VM started" || fail "VM start failed"
+    ssh root@$VM_HOST "pkill -f '[n]ode_start_bootstrap.py' 2>/dev/null || true; pkill -f '[t]ask_handler_worker.py' 2>/dev/null || true; sleep 1; pkill -9 -f '[n]ode_start_bootstrap.py' 2>/dev/null || true; pkill -9 -f '[t]ask_handler_worker.py' 2>/dev/null || true; rm -f /tmp/p2p_node.log; cd /mascarade/core && P2P_LISTEN_PORT=$VM_PORT nohup python3 scripts/p2p/node_start_bootstrap.py </dev/null >/tmp/p2p_node.log 2>&1 & exit 0" >/dev/null 2>&1 || true
     sleep 3
-    VM_LOG=$(ssh root@$VM_HOST "head -2 /tmp/p2p_node.log" 2>/dev/null)
-    echo "$VM_LOG" | grep -q READY && ok "VM READY" || fail "VM not ready: $VM_LOG"
+    VM_PORT_STATUS=$(ssh root@$VM_HOST "ss -tlnp 2>/dev/null | grep ':$VM_PORT ' || netstat -tlnp 2>/dev/null | grep ':$VM_PORT '" 2>/dev/null || true)
+    VM_LOG=$(ssh root@$VM_HOST "head -2 /tmp/p2p_node.log" 2>/dev/null || true)
+    if echo "$VM_PORT_STATUS" | grep -q ":$VM_PORT "; then
+        ok "VM READY on :$VM_PORT"
+    else
+        fail "VM not listening on :$VM_PORT — $VM_LOG"
+    fi
 
     echo ""
     echo "2. Local bridge"
@@ -70,7 +75,7 @@ cmd_start() {
     echo "3. Workers"
     for spec in "cils@$CILS_HOST:CILS MacBook:compute,ft-validation" "clems@$TOWER_HOST:Tower:compute,storage,ft-archive"; do
         IFS=: read -r ssh_target label caps <<< "$spec"
-        ssh "$ssh_target" "lsof -ti:4001 2>/dev/null | xargs kill 2>/dev/null; sleep 1; cd ~/mascarade/core && P2P_BOOTSTRAP_PORT=$VM_PORT P2P_CAPABILITIES=$caps P2P_LABEL='$label' nohup .venv/bin/python scripts/p2p/task_handler_worker.py </dev/null >/tmp/p2p_node.log 2>&1 &" 2>/dev/null && ok "$label started" || fail "$label start failed"
+        ssh "$ssh_target" "pkill -f '[t]ask_handler_worker.py' 2>/dev/null || true; for pid in \$(lsof -ti:4001 2>/dev/null || true); do kill \"\$pid\" 2>/dev/null || true; done; sleep 1; pkill -9 -f '[t]ask_handler_worker.py' 2>/dev/null || true; for pid in \$(lsof -ti:4001 2>/dev/null || true); do kill -9 \"\$pid\" 2>/dev/null || true; done; sleep 1; cd ~/mascarade/core && P2P_BOOTSTRAP_PORT=$VM_PORT P2P_CAPABILITIES=$caps P2P_LABEL='$label' nohup .venv/bin/python scripts/p2p/task_handler_worker.py </dev/null >/tmp/p2p_node.log 2>&1 & exit 0" >/dev/null 2>&1 || true
     done
     sleep 4
 

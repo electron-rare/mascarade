@@ -44,7 +44,7 @@ class FallbackState:
             sequence.append((strategy, None))
 
         # Essais supplémentaires : essayer d'autres stratégies
-        fallback_strategies = ["best", "cheapest", "fastest"]
+        fallback_strategies = ["best", "cheapest", "fastest", "domain"]
         for fallback_strategy in fallback_strategies:
             if fallback_strategy != strategy:
                 sequence.append((fallback_strategy, None))

@@ -571,6 +571,21 @@ agents.post("/knowledge-scribe/run-and-push", async (c) => {
   }
 });
 
+/** Recuperer les metriques d'un agent */
+agents.get("/:name/metrics", async (c) => {
+  try {
+    const name = c.req.param("name");
+    if (!name || !SAFE_NAME_RE.test(name)) {
+      return c.json({ error: "Invalid agent name" }, 400);
+    }
+    const result = await coreClient.getAgentMetrics(name);
+    return c.json(result);
+  } catch (error) {
+    const { status, body } = handleCoreError(error);
+    return c.json(body, status);
+  }
+});
+
 /** Detail agent */
 agents.get("/:name", async (c) => {
   try {
@@ -595,6 +610,21 @@ agents.put("/:name", async (c) => {
     }
     const body = await c.req.json();
     const result = await coreClient.updateAgent(name, body);
+    return c.json(result);
+  } catch (error) {
+    const { status, body } = handleCoreError(error);
+    return c.json(body, status);
+  }
+});
+
+/** Supprimer un agent */
+agents.delete("/:name", async (c) => {
+  try {
+    const name = c.req.param("name");
+    if (!name || !SAFE_NAME_RE.test(name)) {
+      return c.json({ error: "Invalid agent name" }, 400);
+    }
+    const result = await coreClient.deleteAgent(name);
     return c.json(result);
   } catch (error) {
     const { status, body } = handleCoreError(error);

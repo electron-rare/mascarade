@@ -7,6 +7,7 @@ import json
 import time
 from collections import OrderedDict
 from dataclasses import dataclass
+from typing import Protocol
 
 
 @dataclass
@@ -27,7 +28,37 @@ class CacheEntry:
         return time.time() > (self.timestamp + self.ttl)
 
 
-class ResponseCache:
+class CacheBackend(Protocol):
+    """Protocol defining the interface for cache backends."""
+
+    def store(
+        self,
+        messages: list[dict],
+        response: str,
+        tokens: int,
+        cost: float,
+        ttl: float = 3600,
+        **kwargs: dict[str, str | int | float | None],
+    ) -> str:
+        """Store a response in cache."""
+        ...
+
+    def retrieve(
+        self, messages: list[dict], **kwargs: dict[str, str | int | float | None]
+    ) -> CacheEntry | None:
+        """Retrieve a cached response if available."""
+        ...
+
+    def get_stats(self) -> dict:
+        """Get cache statistics."""
+        ...
+
+    def clear(self) -> None:
+        """Clear all cache entries."""
+        ...
+
+
+class InMemoryCache:
     """In-memory cache for LLM responses with LRU strategy."""
 
     def __init__(self, max_size: int = 1000) -> None:

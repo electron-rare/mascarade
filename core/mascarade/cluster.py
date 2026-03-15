@@ -29,12 +29,6 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from mascarade.config import settings
 from mascarade.router import Router
 
-try:
-    from mascarade.p2p.node import P2PNode, P2PPeer
-except ImportError:  # pragma: no cover - optional dependency
-    P2PNode = None  # type: ignore[assignment, misc]
-    P2PPeer = None  # type: ignore[assignment, misc]
-
 logger = logging.getLogger("mascarade.cluster")
 
 _cluster_bearer = HTTPBearer(auto_error=False)
