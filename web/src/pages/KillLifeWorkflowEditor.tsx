@@ -182,6 +182,58 @@ function autoLayout(workflow: KillLifeWorkflow): KillLifeWorkflow {
   return next;
 }
 
+interface NodeComponentProps {
+  node: KillLifeWorkflowNode;
+  selected: boolean;
+  linking: boolean;
+}
+
+export function NoteNode({ node, selected, linking }: NodeComponentProps) {
+  return (
+    <div className={[
+      "relative flex w-[220px] flex-col rounded-[1.3rem] border p-4",
+      nodeTone(node, selected, linking),
+    ].join(" ")}>
+      <div className="absolute left-0 top-1/2 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-border/80 bg-black/30" />
+      <div className="absolute right-0 top-1/2 h-3 w-3 translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-border/80 bg-black/30" />
+
+      <span className="text-[10px] uppercase tracking-[0.2em] text-muted">{node.type}</span>
+      <span className="mt-3 text-sm font-semibold uppercase tracking-[0.14em] text-amber-100">
+        {node.label}
+      </span>
+      <span className="mt-2 line-clamp-3 text-xs leading-5 text-amber-100/56">
+        {node.description || "No description"}
+      </span>
+      <span className="mt-4 text-[10px] uppercase tracking-[0.2em] text-amber-100/40">
+        visual node
+      </span>
+    </div>
+  );
+}
+
+export function GroupNode({ node, selected, linking }: NodeComponentProps) {
+  return (
+    <div className={[
+      "relative flex w-[220px] flex-col rounded-[1.3rem] border p-4",
+      nodeTone(node, selected, linking),
+    ].join(" ")}>
+      <div className="absolute left-0 top-1/2 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-border/80 bg-black/30" />
+      <div className="absolute right-0 top-1/2 h-3 w-3 translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-border/80 bg-black/30" />
+
+      <span className="text-[10px] uppercase tracking-[0.2em] text-muted">{node.type}</span>
+      <span className="mt-3 text-sm font-semibold uppercase tracking-[0.14em] text-amber-100">
+        {node.label}
+      </span>
+      <span className="mt-2 line-clamp-3 text-xs leading-5 text-amber-100/56">
+        {node.description || "No description"}
+      </span>
+      <span className="mt-4 text-[10px] uppercase tracking-[0.2em] text-amber-100/40">
+        group container
+      </span>
+    </div>
+  );
+}
+
 export default function KillLifeWorkflowEditor() {
   const { workflowId = "" } = useParams();
   const details = useFetch<{
