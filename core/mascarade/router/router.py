@@ -12,6 +12,10 @@ from mascarade.cache.cache import ResponseCache
 from mascarade.config import settings
 from mascarade.load_balancer.balancer import LoadBalancer
 from mascarade.metrics.tracker import MetricsTracker
+from mascarade.observability.langfuse import (
+    start_langfuse_generation,
+    update_langfuse_generation,
+)
 from mascarade.router.fallback import FallbackState
 from mascarade.router.providers.base import LLMProvider, LLMResponse
 
@@ -339,7 +343,20 @@ class Router:
                 }
                 if response_format is not None and selected.name in {"mistral", "ollama"}:
                     send_kwargs["response_format"] = response_format
-                response = await selected.send(messages, **send_kwargs)
+
+                with start_langfuse_generation(
+                    name=f"router.send/{selected.name}",
+                    model=effective_model or selected.name,
+                    input=messages,
+                    metadata={
+                        "strategy": effective_strategy.value,
+                        "provider": selected.name,
+                        "temperature": temperature,
+                        "max_tokens": max_tokens,
+                    },
+                ) as generation:
+                    response = await selected.send(messages, **send_kwargs)
+
             except Exception as exc:
                 elapsed = time.perf_counter() - started_at
                 logger.warning(
@@ -395,9 +412,22 @@ class Router:
                 success=True,
             )
 
-            # Store in cache with original strategy to enable cache hits
-            # even after fallback to different provider
-            # But store the actual provider that was used for accurate response metadata
+            update_langfuse_generation(
+                generation,
+                output=response.content,
+                usage={
+                    "input": usage.get("input_tokens", 0),
+                    "output": usage.get("output_tokens", 0),
+                    "total": self._usage_tokens(usage),
+                },
+                metadata={
+                    "provider": response.provider,
+                    "model": response.model,
+                    "response_time_s": round(elapsed, 3),
+                    "cost": self._calculate_cost(selected, usage),
+                },
+            )
+
             if not strict_provider:
                 self.cache.store(
                     messages,
@@ -406,7 +436,7 @@ class Router:
                     cost=self._calculate_cost(selected, usage),
                     ttl=3600,
                     strategy=cache_strategy,
-                    provider=selected.name,  # Store actual provider used
+                    provider=selected.name,
                     model=response.model,
                     system=system,
                     response_format=response_format,

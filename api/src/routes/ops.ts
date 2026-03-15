@@ -366,6 +366,9 @@ const LANGFUSE_PUBLIC_ORIGIN = (
 ).replace(/\/+$/, "");
 const EDGE_PROXY_OPS_AUTH_USER = (process.env.EDGE_PROXY_OPS_AUTH_USER || "").trim();
 const EDGE_PROXY_OPS_AUTH_PASSWORD = process.env.EDGE_PROXY_OPS_AUTH_PASSWORD || "";
+const EDGE_PROXY_INDUSTRIAL_GROUPS = (
+  process.env.EDGE_PROXY_INDUSTRIAL_GROUPS || "operator"
+).trim();
 const KILL_LIFE_ROOT = path.resolve(process.env.KILL_LIFE_ROOT || "/home/clems/Kill_LIFE");
 const KILL_LIFE_MCP_SMOKE = path.join(KILL_LIFE_ROOT, "tools", "hw", "mcp_smoke.py");
 const KILL_LIFE_VALIDATE_SPECS_MCP_SMOKE = path.join(
@@ -444,7 +447,7 @@ function industrialCockpitHeaders(): Record<string, string> {
   return {
     "X-Forwarded-User": "ops",
     "X-Forwarded-Email": "ops",
-    "X-Forwarded-Groups": "operator,approver,auditor,admin",
+    "X-Forwarded-Groups": EDGE_PROXY_INDUSTRIAL_GROUPS,
   };
 }
 
