@@ -114,7 +114,7 @@ async def _client(device_voice: DeviceVoiceService):
 
 @pytest.mark.asyncio
 async def test_device_voice_session_handles_local_volume_intent():
-    add_api_key("device-test-key")
+    add_api_key("device-test-key!")
     fake_audio = FakeAudioBridge(transcript="volume 30", wav_payload=b"RIFFvolume")
     fake_router = FakeRouter(available_providers=["claude"])
     service = DeviceVoiceService(router=fake_router, audio_bridge=fake_audio)
@@ -122,7 +122,7 @@ async def test_device_voice_session_handles_local_volume_intent():
     async with _client(service) as client:
         response = await client.post(
             "/device/v1/voice/session",
-            headers={"Authorization": "Bearer device-test-key"},
+            headers={"Authorization": "Bearer device-test-key!"},
             files={"audio": ("audio.wav", b"RIFF\x00\x00fake", "audio/wav")},
             data={
                 "device_id": "round-box-1",
@@ -144,7 +144,7 @@ async def test_device_voice_session_handles_local_volume_intent():
 
         audio_reply = await client.get(
             body["reply_audio_url"].replace("http://testserver", ""),
-            headers={"Authorization": "Bearer device-test-key"},
+            headers={"Authorization": "Bearer device-test-key!"},
         )
 
     assert audio_reply.status_code == 200
@@ -154,7 +154,7 @@ async def test_device_voice_session_handles_local_volume_intent():
 
 @pytest.mark.asyncio
 async def test_player_event_state_is_reused_for_now_playing_questions():
-    add_api_key("device-test-key")
+    add_api_key("device-test-key!")
     fake_audio = FakeAudioBridge(
         transcript="c'est quoi la musique en cours ?", wav_payload=b"RIFFstate"
     )
@@ -164,7 +164,7 @@ async def test_player_event_state_is_reused_for_now_playing_questions():
     async with _client(service) as client:
         event_response = await client.post(
             "/device/v1/player/event",
-            headers={"Authorization": "Bearer device-test-key"},
+            headers={"Authorization": "Bearer device-test-key!"},
             json={
                 "device_id": "round-box-1",
                 "event": "playback_started",
@@ -180,7 +180,7 @@ async def test_player_event_state_is_reused_for_now_playing_questions():
 
         response = await client.post(
             "/device/v1/voice/session",
-            headers={"Authorization": "Bearer device-test-key"},
+            headers={"Authorization": "Bearer device-test-key!"},
             files={"audio.wav": ("audio.wav", b"RIFF\x00\x00state", "audio/wav")},
             data={
                 "device_id": "round-box-1",
@@ -231,7 +231,7 @@ async def test_service_falls_back_from_claude_to_local_provider():
 
 @pytest.mark.asyncio
 async def test_device_voice_routes_require_authentication():
-    add_api_key("device-test-key")
+    add_api_key("device-test-key!")
     fake_audio = FakeAudioBridge(transcript="volume 10")
     fake_router = FakeRouter(available_providers=["claude"])
     service = DeviceVoiceService(router=fake_router, audio_bridge=fake_audio)

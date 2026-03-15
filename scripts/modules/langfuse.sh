@@ -17,6 +17,8 @@ module_langfuse_config() {
 
 module_langfuse_compose() {
   echo "  langfuse-worker:"
+  echo "    profiles:"
+  echo "      - observability"
   echo "    image: \${LANGFUSE_WORKER_IMAGE:-langfuse/langfuse-worker@sha256:8bb47a4240ea293a210e460eae912ce06ea8fc2f724ce89cb146547eed36f6b2}"
   echo "    container_name: mascarade-langfuse-worker"
   echo "    restart: unless-stopped"
@@ -77,6 +79,8 @@ module_langfuse_compose() {
   echo ""
 
   echo "  langfuse-web:"
+  echo "    profiles:"
+  echo "      - observability"
   echo "    image: \${LANGFUSE_WEB_IMAGE:-langfuse/langfuse@sha256:8d3211972d2a0610258ff0cc86da6b2d367f804bf253e9b94863bf961e59d23c}"
   echo "    container_name: mascarade-langfuse"
   echo "    restart: unless-stopped"
@@ -109,6 +113,8 @@ module_langfuse_compose() {
   echo ""
 
   echo "  minio:"
+  echo "    profiles:"
+  echo "      - observability"
   echo "    image: \${MINIO_IMAGE:-minio/minio@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e}"
   echo "    container_name: mascarade-langfuse-minio"
   echo "    restart: unless-stopped"

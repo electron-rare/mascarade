@@ -45,9 +45,8 @@ Pilotage operationnel:
 - priorite secondaire tant qu'ANE n'a pas de reference locale stable sous garde-fou
 
 ## Auto-sync
-## Auto-sync
 <!-- AUTO-SYNC:MASCARADE-PLAN:START -->
-- dernier cycle ANE automatise: 2026-03-09T06:53:02+00:00
-- reference locale ANE: aucun accepted, meilleur diagnostic: apple-coreml:qwen2.5-0.5b-instruct-onnx
-- prochain lot ANE a servir: Analyser les runs ayant atteint gate/repair puis resserrer la reference locale autour des meilleurs candidats.
+- dernier cycle ANE automatise: 2026-03-13T14:15:56+00:00
+- reference locale ANE: apple-coreml:qwen3.5-4b-onnx-q4f16
+- prochain lot ANE a servir: Confirmer la reference accepted puis resserrer rewrite/repair sur les modeles deja bloques a gate.
 <!-- AUTO-SYNC:MASCARADE-PLAN:END -->

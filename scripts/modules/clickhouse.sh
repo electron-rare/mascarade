@@ -8,6 +8,8 @@ module_clickhouse_config() {
 
 module_clickhouse_compose() {
   echo "  clickhouse:"
+  echo "    profiles:"
+  echo "      - observability"
   echo "    image: \${CLICKHOUSE_IMAGE:-clickhouse/clickhouse-server@sha256:0b2d7824347397b2ba6fcb216f0ae772568105f1f47e19f0d3247e24c79bc10a}"
   echo "    container_name: mascarade-clickhouse"
   echo "    restart: unless-stopped"

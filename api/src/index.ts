@@ -7,10 +7,12 @@ import { authMiddleware } from "./middleware/auth.js";
 import { corsMiddleware } from "./middleware/cors.js";
 import { rateLimitMiddleware } from "./middleware/rate-limit.js";
 import { securityHeaders } from "./middleware/security.js";
+import { auth } from "./routes/auth.js";
 import { health } from "./routes/health.js";
 import { agents } from "./routes/agents.js";
 import { cluster } from "./routes/cluster.js";
 import { knowledgeBase } from "./routes/knowledgeBase.js";
+import { qdrantKnowledge } from "./routes/qdrantKnowledge.js";
 import { cad } from "./routes/cad.js";
 import { comfyui } from "./routes/comfyui.js";
 import { ops } from "./routes/ops.js";
@@ -32,12 +34,15 @@ app.onError((err, c) => {
 });
 
 app.route("/health", health);
+app.use("/api/auth/*", rateLimitMiddleware);
+app.route("/api/auth", auth);
 // Auth first — reject unauthenticated before consuming rate-limit quota
 app.use("/api/*", authMiddleware);
 app.use("/api/*", rateLimitMiddleware);
 app.route("/api/agents", agents);
 app.route("/api/cluster", cluster);
 app.route("/api/knowledge-base", knowledgeBase);
+app.route("/api/qdrant-knowledge", qdrantKnowledge);
 app.route("/api/cad", cad);
 app.route("/api/comfyui", comfyui);
 app.route("/api/ops", ops);
@@ -46,6 +51,8 @@ app.route("/api/mcp/industrial", industrialMcp);
 app.route("/api/killlife", killlife);
 app.route("/api/settings", settings);
 app.route("/api/users", users);
+app.route("/api/p2p", p2p);
+app.route("/api/finetune", finetune);
 
 if (hasFrontend) {
   app.use("/assets/*", serveStatic({ root: "./public" }));
