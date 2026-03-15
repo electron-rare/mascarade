@@ -34,6 +34,7 @@ import {
 import '@xyflow/react/dist/style.css';
 
 import type { GraphNode, GraphEdge } from '../types/NodeTypes';
+import { ExampleNode } from './nodes/ExampleNode';
 
 /**
  * Node type registry
@@ -41,10 +42,11 @@ import type { GraphNode, GraphEdge } from '../types/NodeTypes';
  * Maps node type strings to React components.
  * CRITICAL: Defined OUTSIDE component to prevent ReactFlow re-registration bugs.
  *
- * Currently empty - will be populated when BaseNode and category-specific
- * node components are created in subsequent subtasks.
+ * Example node registered for demonstration of BaseNode wrapper.
  */
-const nodeTypes: NodeTypes = {};
+const nodeTypes: NodeTypes = {
+  'example-node': ExampleNode
+};
 
 /**
  * Edge type registry
