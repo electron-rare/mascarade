@@ -29,13 +29,24 @@ class OpenAIProvider(LLMProvider):
     quality_rank = 2
 
     def __init__(self) -> None:
+        self._proxy_enabled = bool(
+            settings.litellm_proxy_enabled
+            and settings.litellm_base_url.strip()
+            and is_secret_configured(settings.litellm_master_key)
+        )
         self._client = openai.AsyncOpenAI(
-            api_key=settings.openai_api_key,
+            api_key=(settings.litellm_master_key if self._proxy_enabled else settings.openai_api_key),
+            base_url=(settings.litellm_base_url if self._proxy_enabled else None),
             timeout=30.0,
         )
 
     @property
     def is_configured(self) -> bool:
+        if self._proxy_enabled:
+            return bool(
+                settings.litellm_base_url.strip()
+                and is_secret_configured(settings.litellm_master_key)
+            )
         return is_secret_configured(settings.openai_api_key)
 
     @_retry
@@ -57,6 +68,8 @@ class OpenAIProvider(LLMProvider):
             max_tokens=max_tokens,
             temperature=temperature,
         )
+        if not response.choices:
+            raise RuntimeError(f"OpenAI returned empty choices for model {model}")
         choice = response.choices[0]
         return LLMResponse(
             content=choice.message.content or "",
