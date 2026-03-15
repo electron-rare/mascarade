@@ -124,97 +124,65 @@ Strict linting: ruff>=0.15, mypy strict mode
 
 ## Subtask 1-3: Web Service State Analysis — COMPLETED
 
-### Page Inventory (18 pages, 10,842 total lines)
+### Page Inventory (18 pages, 10,842 lines total)
 
-| Page | Lines | Category |
-|------|-------|----------|
-| Logs.tsx | 1,468 | ⚠️ CRITICAL — decomposition candidate |
-| Settings.tsx | 1,129 | ⚠️ CRITICAL — decomposition candidate |
-| OpsHub.tsx | 1,092 | ⚠️ CRITICAL — decomposition candidate |
-| Orchestrate.tsx | 1,028 | ⚠️ CRITICAL — decomposition candidate |
-| KillLifeWorkflowEditor.tsx | 1,019 | ⚠️ CRITICAL — decomposition candidate |
-| QdrantKnowledge.tsx | 893 | Large |
-| Infrastructure.tsx | 565 | Moderate |
-| AgentDetail.tsx | 561 | Moderate |
-| Agents.tsx | 488 | Moderate |
-| Dashboard.tsx | 403 | Moderate |
-| P2P.tsx | 345 | OK |
-| Metrics.tsx | 330 | OK |
-| Playground.tsx | 304 | OK |
-| FineTuning.tsx | 298 | OK |
-| ComfyUI.tsx | 293 | OK |
-| KnowledgeBrowser.tsx | 286 | OK |
-| KillLifeWorkflows.tsx | 195 | Small |
-| P2PMesh.tsx | 145 | Small |
+**Pages >1000 lines (refactoring candidates):**
+| Page | Lines | Domain |
+|------|-------|--------|
+| Logs.tsx | 1,468 | Monitoring/Logging |
+| Settings.tsx | 1,129 | Configuration |
+| OpsHub.tsx | 1,092 | Operations |
+| Orchestrate.tsx | 1,028 | Workflow/Orchestration |
+| KillLifeWorkflowEditor.tsx | 1,019 | Workflow Editing |
 
-### Component Library (15 UI components)
-Badge, Button, Card, CompactModelList, EmptyState, InlineNotice, Input,
-JsonView, LoadingPanel, Modal, Select, Spinner, StatCard, Textarea + index.ts barrel
+**Remaining 13 pages (145–893 lines):**
+QdrantKnowledge (893), Infrastructure (565), AgentDetail (561), Agents (488),
+Dashboard (403), P2P (345), Metrics (330), Playground (304), FineTuning (298),
+ComfyUI (293), KnowledgeBrowser (286), KillLifeWorkflows (195), P2PMesh (145)
 
-Layout: Shell.tsx (layout wrapper)
-Utility: ErrorBoundary.tsx, PromptEditor.tsx
+### Component Library (21 components, 2,121 lines)
+- **Layout:** TopBar (789), navigation.ts (275), Sidebar (186), Shell (109), MobileDock (48)
+- **UI primitives (14):** Modal (116), CompactModelList (68), Button (46), Select (43),
+  Card (33), LoadingPanel (32), Textarea (31), Input (31), InlineNotice (29),
+  Badge (24), StatCard (17), EmptyState (15), Spinner (7), JsonView (7)
+- **Feature:** PromptEditor (157), ErrorBoundary (44)
 
-Most-used components: LoadingPanel (8 pages), Card (8), Badge (7), InlineNotice (6), Button (5)
+### Component Reuse (top imports across pages)
+Badge (354 uses), Card (258), Button (178), InlineNotice (103), Input (80),
+Select (73), LoadingPanel (49), JsonView (27), Textarea (25), EmptyState (23)
+→ 17/18 pages (94%) import from ../components/ui — strong adoption
 
-### Hooks (2 custom hooks)
-- useApi.ts — imperative API call hook
-- useFetch.ts — declarative data fetching with polling
+### API & Hooks (1,450 lines)
+- **API modules (8):** ops.ts (402), client.ts (268), qdrantKnowledge.ts (189),
+  agents.ts (169), killlife.ts (149), cad.ts (55), comfyui.ts (41), knowledgeBase.ts (38)
+- **Hooks (2):** useFetch.ts (104), useApi.ts (35)
+- **Auth (2):** AuthGate.tsx (123), AuthContext.tsx (97)
+- **Lib (1):** dify.ts (23)
 
-### API Layer (8 API modules)
-agents.ts, cad.ts, client.ts, comfyui.ts, killlife.ts, knowledgeBase.ts, ops.ts, qdrantKnowledge.ts
+### Dependency Versions
+- React 19.0.0, React Router DOM 7.1.0 — current
+- Monaco Editor 4.7.0 — current
+- TypeScript 5.6.0, Vite 6.0.0 — current
+- Tailwind CSS 3.4.17 — current (v4 available but v3 is stable)
+- All devDeps current
 
-### Duplicated Helper Functions — KEY FINDING
-`formatLatency()` duplicated in 5 files: Logs.tsx, OpsHub.tsx, Orchestrate.tsx, Metrics.tsx, P2P.tsx
-`mcpTone()` duplicated in 2 files: Logs.tsx, OpsHub.tsx
-`sourceTone()` duplicated in 2 files: Logs.tsx, OpsHub.tsx
-`formatMcpName()` duplicated in 2 files: Logs.tsx, OpsHub.tsx
-→ Extract to shared utils module
+### Test Coverage
+**ZERO test files** — no .test.ts, .spec.ts, or __tests__ directories.
+This is a critical gap. No unit, integration, or component tests exist.
 
-### Dependency Versions (from package.json)
-- React 19.0.0 (latest stable)
-- React Router DOM 7.1.0 (latest major)
-- Vite 6.0.0 (latest major)
-- TypeScript 5.6.0 (current)
-- Tailwind CSS 3.4.17 (current, v4 available but migration non-trivial)
-- @monaco-editor/react 4.7.0 (current)
-- All dependencies are reasonably current — no urgent upgrades needed
+### Build & Config
+- Vite with React plugin, output to dist/
+- Dev server port 80, proxies /api and /health
+- Tailwind dark theme with custom palette (pure black bg, green borders, gold accent)
+- Strict TypeScript (noUnusedLocals, noUnusedParameters)
 
-### Test Coverage — ZERO
-- No test files found (no *.test.*, no *.spec.*, no __tests__/)
-- No test runner configured (no vitest.config, no jest.config)
-- This is a CRITICAL gap for a codebase with 10,842 lines of page code
+### Code Quality Observations
+- Significant helper function duplication between pages (formatLatency, mcpTone,
+  sourceTone, formatMcpName appear in both Logs.tsx and OpsHub.tsx)
+- TopBar.tsx at 789 lines is itself a decomposition candidate
+- No accessibility attributes detected (aria-*, role=)
+- No lazy loading / code splitting — all pages eagerly imported in App.tsx
 
-### Build Configuration
-- Vite 6 with React plugin, Tailwind CSS via PostCSS
-- Build: `tsc -b && vite build` — type-checks before building
-- Cross-build: `build:api-public` deploys into api/public for serving
-- No build output (dist/) committed — correct practice
-- Proxy config: /api and /health → localhost:3000
-
-### Hook Complexity (useState/useEffect/useMemo/useRef/useCallback count)
-- Logs.tsx: 33 hook calls — highest complexity, prime extraction target
-- QdrantKnowledge.tsx: 25
-- Orchestrate.tsx: 25
-- Settings.tsx: 21
-- KillLifeWorkflowEditor.tsx: 16
-
-### Accessibility / Performance Signals
-- No aria-* attributes detected in UI components (not audited exhaustively)
-- No React.lazy / code-splitting — all 18 pages loaded eagerly via App.tsx
-- No Suspense boundaries (only ErrorBoundary)
-- Monaco editor loaded synchronously — potential performance issue
-
-### Routing Structure
-- Flat route structure under Shell layout (no nested routes beyond agents/:name and kill-life/:workflowId)
-- 404 catch-all route present
-- Note: P2P.tsx exists but isn't imported in App.tsx (P2PMesh.tsx is used at /p2p) — P2P.tsx may be dead code
-
-### Key Recommendations
-1. Extract shared helpers (formatLatency, mcpTone, sourceTone, formatMcpName) into web/src/lib/utils.ts
-2. Add React.lazy + Suspense for code-splitting the 5 largest pages
-3. Decompose the 5 pages >1000 lines into sub-components
-4. Add vitest + @testing-library/react for test infrastructure
-5. Investigate P2P.tsx — likely dead/orphan code (345 lines)
-6. Settings.tsx doesn't use any UI components from the shared library — inconsistent
+### Total Web Service: ~20,356 lines across 56 files
 
 === END SESSION 3 ===
