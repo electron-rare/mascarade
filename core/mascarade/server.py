@@ -11,7 +11,7 @@ from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, FastAPI, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from mascarade.agents import Agent, AgentRegistry
 from mascarade.agents.skills import register_default_skills
@@ -111,10 +111,12 @@ class Message(BaseModel):
 
 
 class ChatCompletionMessage(BaseModel):
+    model_config = ConfigDict(exclude_none=True)
+
     role: Literal["system", "user", "assistant", "tool"]
     content: str | None = None
     tool_calls: list[dict[str, Any]] | None = None
-    tool_call_id: str | None = Field(default=None, max_length=100)
+    tool_call_id: str | None = None
 
 
 class ChatCompletionRequest(BaseModel):
@@ -366,7 +368,7 @@ async def health():
     return health_data
 
 
-@app.post("/v1/chat/completions")
+@app.post("/v1/chat/completions", response_model_exclude_unset=True)
 async def chat_completions(req: ChatCompletionRequest):
     """OpenAI-compatible chat completions endpoint."""
     # Determine model and provider
