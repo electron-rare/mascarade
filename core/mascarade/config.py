@@ -112,6 +112,8 @@ class Settings(BaseSettings):
     # ComfyUI
     comfyui_url: str = ""
 
+    # Database
+    database_url: str = "postgresql://mascarade:mascarade@postgres:5432/mascarade"
     # Qdrant
     qdrant_url: str = "http://qdrant:6333"
 

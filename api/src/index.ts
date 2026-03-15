@@ -20,8 +20,7 @@ import { industrial } from "./routes/industrial.js";
 import { industrialMcp } from "./routes/mcpIndustrial.js";
 import { killlife } from "./routes/killlife.js";
 import { settings } from "./routes/settings.js";
-import { p2p } from "./routes/p2p.js";
-import { finetune } from "./routes/finetune.js";
+import { users } from "./routes/users.js";
 
 const app = new Hono();
 const hasFrontend = existsSync("./public/index.html");
@@ -51,6 +50,7 @@ app.route("/api/industrial", industrial);
 app.route("/api/mcp/industrial", industrialMcp);
 app.route("/api/killlife", killlife);
 app.route("/api/settings", settings);
+app.route("/api/users", users);
 app.route("/api/p2p", p2p);
 app.route("/api/finetune", finetune);
 

@@ -6,6 +6,9 @@ import asyncio
 import hashlib
 import json
 import logging
+import secrets
+from contextlib import asynccontextmanager
+from datetime import datetime
 import time
 from contextlib import asynccontextmanager
 from dataclasses import asdict
@@ -21,11 +24,23 @@ from mascarade.agents.skills import register_default_skills
 from mascarade.auth import (
     add_api_key,
     get_active_api_keys,
+    get_current_user,
+    hash_api_key,
     remove_api_key,
+    require_admin,
     require_auth,
 )
 from mascarade.cluster import ClusterManager, require_cluster_auth
 from mascarade.config import settings
+from mascarade.db.connection import close_db_pool, get_db_pool, init_db_pool
+from mascarade.db.models import (
+    ApiKey,
+    ApiKeyCreate,
+    ApiKeyCreateResponse,
+    User,
+    UserCreate,
+    UserUpdate,
+)
 from mascarade.integrations.comfyui import ComfyUIClient
 from mascarade.integrations.knowledge_base import (
     knowledge_base_auth_configured,
@@ -48,6 +63,7 @@ from mascarade.device_voice import (
 )
 from mascarade.router import Router
 from mascarade.router.router import Strategy
+from mascarade.usage_tracking import get_all_usage_stats
 
 logger = logging.getLogger("mascarade.server")
 INDUSTRIAL_MCP_SERVER_KEYS = {"cockpit-ops", "plm", "qms", "mes", "erp", "wms", "dcs"}
@@ -96,6 +112,15 @@ async def lifespan(app: FastAPI):
 
     registry.load()
 
+    # Initialize database pool if DATABASE_URL is configured
+    if settings.database_url:
+        try:
+            await init_db_pool()
+            logger.info("Database pool initialized")
+        except Exception as e:
+            logger.warning("Failed to initialize database pool: %s", e)
+
+    # Start P2P node if enabled
     # Start P2P node (auto-selects backend)
     await cluster.start_p2p()
 
@@ -114,6 +139,10 @@ async def lifespan(app: FastAPI):
     if app.state.comfyui is not None:
         await app.state.comfyui.close()
 
+    # Close database pool
+    if settings.database_url:
+        await close_db_pool()
+        logger.info("Database pool closed")
     if app.state.qdrant is not None:
         await app.state.qdrant.close()
 
@@ -348,6 +377,13 @@ class ComfyUIWorkflowRequest(BaseModel):
     workflow: dict
 
 
+class RateLimitUpdate(BaseModel):
+    """Request model for updating user rate limits."""
+
+    requests_per_minute: int | None = Field(default=None, ge=0)
+    requests_per_hour: int | None = Field(default=None, ge=0)
+    requests_per_day: int | None = Field(default=None, ge=0)
+    tokens_per_day: int | None = Field(default=None, ge=0)
 class QdrantCreateCollectionRequest(BaseModel):
     vector_size: int = Field(gt=0, le=65536)
     distance: Literal["Cosine", "Euclid", "Dot"] = "Cosine"
@@ -616,6 +652,538 @@ async def delete_api_key(req: APIKeyRemove):
 async def list_api_keys():
     keys = get_active_api_keys()
     return {"api_keys": [{"key": k[:4] + "***" + k[-4:], "active": True} for k in keys]}
+
+
+@protected.get("/auth/me")
+async def get_me(current_user: User = Depends(get_current_user)):
+    """Get current authenticated user information."""
+    return {
+        "id": current_user.id,
+        "username": current_user.username,
+        "email": current_user.email,
+        "role_id": current_user.role_id,
+        "is_active": current_user.is_active,
+        "rate_limits": current_user.rate_limits,
+    }
+
+
+# --- User Management ---
+
+
+@protected.get("/users")
+async def list_users(_: None = Depends(require_admin)):
+    """List all users (admin only)."""
+    pool = get_db_pool()
+    if pool is None:
+        raise HTTPException(status_code=500, detail="Database unavailable")
+
+    try:
+        async with pool.acquire() as conn:
+            rows = await conn.fetch(
+                """
+                SELECT id, username, email, role_id, is_active, created_at, updated_at
+                FROM users
+                ORDER BY created_at DESC
+                """
+            )
+            users = [User.from_record(dict(row)) for row in rows]
+            return {"users": [user.model_dump() for user in users]}
+    except Exception as e:
+        logger.error("Error listing users: %s", str(e), exc_info=True)
+        raise HTTPException(status_code=500, detail="Error listing users")
+
+
+@protected.post("/users")
+async def create_user(req: UserCreate, _: None = Depends(require_admin)):
+    """Create a new user (admin only)."""
+    pool = get_db_pool()
+    if pool is None:
+        raise HTTPException(status_code=500, detail="Database unavailable")
+
+    try:
+        async with pool.acquire() as conn:
+            # Check if username already exists
+            existing = await conn.fetchrow(
+                "SELECT id FROM users WHERE username = $1",
+                req.username,
+            )
+            if existing:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Username '{req.username}' already exists",
+                )
+
+            # Check if email already exists
+            existing_email = await conn.fetchrow(
+                "SELECT id FROM users WHERE email = $1",
+                req.email,
+            )
+            if existing_email:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Email '{req.email}' already exists",
+                )
+
+            # Verify role exists
+            role = await conn.fetchrow(
+                "SELECT id FROM roles WHERE id = $1",
+                req.role_id,
+            )
+            if not role:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Role ID {req.role_id} does not exist",
+                )
+
+            # Create user
+            row = await conn.fetchrow(
+                """
+                INSERT INTO users (username, email, role_id, is_active)
+                VALUES ($1, $2, $3, $4)
+                RETURNING id, username, email, role_id, is_active, created_at, updated_at
+                """,
+                req.username,
+                req.email,
+                req.role_id,
+                req.is_active,
+            )
+
+            user = User.from_record(dict(row))
+            logger.info("User created: id=%d, username=%s", user.id, user.username)
+            return user.model_dump()
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("Error creating user: %s", str(e), exc_info=True)
+        raise HTTPException(status_code=500, detail="Error creating user")
+
+
+@protected.get("/users/{user_id}")
+async def get_user(user_id: int, _: None = Depends(require_admin)):
+    """Get a user by ID (admin only)."""
+    pool = get_db_pool()
+    if pool is None:
+        raise HTTPException(status_code=500, detail="Database unavailable")
+
+    try:
+        async with pool.acquire() as conn:
+            row = await conn.fetchrow(
+                """
+                SELECT id, username, email, role_id, is_active, created_at, updated_at
+                FROM users
+                WHERE id = $1
+                """,
+                user_id,
+            )
+
+            if row is None:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"User with ID {user_id} not found",
+                )
+
+            user = User.from_record(dict(row))
+            return user.model_dump()
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("Error getting user: %s", str(e), exc_info=True)
+        raise HTTPException(status_code=500, detail="Error getting user")
+
+
+@protected.put("/users/{user_id}")
+async def update_user(
+    user_id: int,
+    req: UserUpdate,
+    _: None = Depends(require_admin),
+):
+    """Update a user (admin only)."""
+    pool = get_db_pool()
+    if pool is None:
+        raise HTTPException(status_code=500, detail="Database unavailable")
+
+    try:
+        async with pool.acquire() as conn:
+            # Check if user exists
+            existing = await conn.fetchrow(
+                "SELECT id FROM users WHERE id = $1",
+                user_id,
+            )
+            if not existing:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"User with ID {user_id} not found",
+                )
+
+            # Build update query dynamically based on provided fields
+            updates = []
+            params = []
+            param_count = 1
+
+            if req.username is not None:
+                # Check if new username is taken
+                username_check = await conn.fetchrow(
+                    "SELECT id FROM users WHERE username = $1 AND id != $2",
+                    req.username,
+                    user_id,
+                )
+                if username_check:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"Username '{req.username}' already exists",
+                    )
+                updates.append(f"username = ${param_count}")
+                params.append(req.username)
+                param_count += 1
+
+            if req.email is not None:
+                # Check if new email is taken
+                email_check = await conn.fetchrow(
+                    "SELECT id FROM users WHERE email = $1 AND id != $2",
+                    req.email,
+                    user_id,
+                )
+                if email_check:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"Email '{req.email}' already exists",
+                    )
+                updates.append(f"email = ${param_count}")
+                params.append(req.email)
+                param_count += 1
+
+            if req.role_id is not None:
+                # Verify role exists
+                role = await conn.fetchrow(
+                    "SELECT id FROM roles WHERE id = $1",
+                    req.role_id,
+                )
+                if not role:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"Role ID {req.role_id} does not exist",
+                    )
+                updates.append(f"role_id = ${param_count}")
+                params.append(req.role_id)
+                param_count += 1
+
+            if req.is_active is not None:
+                updates.append(f"is_active = ${param_count}")
+                params.append(req.is_active)
+                param_count += 1
+
+            if not updates:
+                raise HTTPException(
+                    status_code=400,
+                    detail="No fields to update",
+                )
+
+            # Always update updated_at
+            updates.append(f"updated_at = NOW()")
+            params.append(user_id)
+
+            query = f"""
+                UPDATE users
+                SET {', '.join(updates)}
+                WHERE id = ${param_count}
+                RETURNING id, username, email, role_id, is_active, created_at, updated_at
+            """
+
+            row = await conn.fetchrow(query, *params)
+            user = User.from_record(dict(row))
+            logger.info("User updated: id=%d, username=%s", user.id, user.username)
+            return user.model_dump()
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("Error updating user: %s", str(e), exc_info=True)
+        raise HTTPException(status_code=500, detail="Error updating user")
+
+
+@protected.delete("/users/{user_id}")
+async def delete_user(user_id: int, _: None = Depends(require_admin)):
+    """Delete a user (admin only)."""
+    pool = get_db_pool()
+    if pool is None:
+        raise HTTPException(status_code=500, detail="Database unavailable")
+
+    try:
+        async with pool.acquire() as conn:
+            # Check if user exists
+            existing = await conn.fetchrow(
+                "SELECT id FROM users WHERE id = $1",
+                user_id,
+            )
+            if not existing:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"User with ID {user_id} not found",
+                )
+
+            # Delete the user (cascading deletes will handle api_keys)
+            await conn.execute(
+                "DELETE FROM users WHERE id = $1",
+                user_id,
+            )
+
+            logger.info("User deleted: id=%d", user_id)
+            return {"status": "ok", "message": f"User {user_id} deleted successfully"}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("Error deleting user: %s", str(e), exc_info=True)
+        raise HTTPException(status_code=500, detail="Error deleting user")
+
+
+@protected.put("/users/{user_id}/rate-limit")
+async def update_user_rate_limit(
+    user_id: int,
+    req: RateLimitUpdate,
+    _: None = Depends(require_admin),
+):
+    """Update rate limit for a user (admin only)."""
+    pool = get_db_pool()
+    if pool is None:
+        raise HTTPException(status_code=500, detail="Database unavailable")
+
+    try:
+        async with pool.acquire() as conn:
+            # Check if user exists
+            existing = await conn.fetchrow(
+                "SELECT id, username FROM users WHERE id = $1",
+                user_id,
+            )
+            if not existing:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"User with ID {user_id} not found",
+                )
+
+            # Build rate limits JSON
+            rate_limits = {
+                "requests_per_minute": req.requests_per_minute,
+                "requests_per_hour": req.requests_per_hour,
+                "requests_per_day": req.requests_per_day,
+                "tokens_per_day": req.tokens_per_day,
+            }
+
+            # Update user's rate limits
+            await conn.execute(
+                """
+                UPDATE users
+                SET rate_limits = $1::jsonb, updated_at = NOW()
+                WHERE id = $2
+                """,
+                json.dumps(rate_limits),
+                user_id,
+            )
+
+            logger.info(
+                "Rate limits updated for user: id=%d, username=%s",
+                user_id,
+                existing["username"],
+            )
+            return {
+                "status": "ok",
+                "message": f"Rate limits updated for user {user_id}",
+                "rate_limits": rate_limits,
+            }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("Error updating rate limits: %s", str(e), exc_info=True)
+        raise HTTPException(status_code=500, detail="Error updating rate limits")
+
+
+# --- API Key Management ---
+
+
+@protected.post("/users/{user_id}/api-keys", status_code=201)
+async def create_user_api_key(
+    user_id: int,
+    req: ApiKeyCreate,
+    _: None = Depends(require_admin),
+):
+    """Create a new API key for a user (admin only)."""
+    pool = get_db_pool()
+    if pool is None:
+        raise HTTPException(status_code=500, detail="Database unavailable")
+
+    try:
+        async with pool.acquire() as conn:
+            # Check if user exists
+            user_row = await conn.fetchrow(
+                "SELECT id FROM users WHERE id = $1",
+                user_id,
+            )
+            if not user_row:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"User with ID {user_id} not found",
+                )
+
+            # Generate a secure random API key (32 bytes = 64 hex chars)
+            api_key = secrets.token_hex(32)
+            key_hash = hash_api_key(api_key)
+            key_prefix = api_key[:8]
+
+            # Insert the API key into the database
+            row = await conn.fetchrow(
+                """
+                INSERT INTO api_keys (user_id, key_hash, key_prefix, name, is_active, expires_at)
+                VALUES ($1, $2, $3, $4, $5, $6)
+                RETURNING id, user_id, key_hash, key_prefix, name, is_active, created_at, expires_at, last_used_at
+                """,
+                user_id,
+                key_hash,
+                key_prefix,
+                req.name,
+                True,  # is_active
+                req.expires_at,
+            )
+
+            api_key_obj = ApiKey.from_record(dict(row))
+            logger.info(
+                "API key created: id=%d, user_id=%d, name=%s",
+                api_key_obj.id,
+                user_id,
+                req.name,
+            )
+
+            # Return the API key object with the actual key (shown only once)
+            return ApiKeyCreateResponse(
+                api_key=api_key_obj,
+                key=api_key,
+            ).model_dump()
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("Error creating API key: %s", str(e), exc_info=True)
+        raise HTTPException(status_code=500, detail="Error creating API key")
+
+
+@protected.get("/users/{user_id}/api-keys")
+async def list_user_api_keys(
+    user_id: int,
+    _: None = Depends(require_admin),
+):
+    """List all API keys for a user (admin only)."""
+    pool = get_db_pool()
+    if pool is None:
+        raise HTTPException(status_code=500, detail="Database unavailable")
+
+    try:
+        async with pool.acquire() as conn:
+            # Check if user exists
+            user_row = await conn.fetchrow(
+                "SELECT id FROM users WHERE id = $1",
+                user_id,
+            )
+            if not user_row:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"User with ID {user_id} not found",
+                )
+
+            # Fetch all API keys for the user
+            rows = await conn.fetch(
+                """
+                SELECT id, user_id, key_hash, key_prefix, name, is_active, created_at, expires_at, last_used_at
+                FROM api_keys
+                WHERE user_id = $1
+                ORDER BY created_at DESC
+                """,
+                user_id,
+            )
+
+            api_keys = [ApiKey.from_record(dict(row)) for row in rows]
+            return {"api_keys": [key.model_dump() for key in api_keys]}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("Error listing API keys: %s", str(e), exc_info=True)
+        raise HTTPException(status_code=500, detail="Error listing API keys")
+
+
+@protected.delete("/users/{user_id}/api-keys/{key_id}")
+async def revoke_user_api_key(
+    user_id: int,
+    key_id: int,
+    _: None = Depends(require_admin),
+):
+    """Revoke (delete) an API key for a user (admin only)."""
+    pool = get_db_pool()
+    if pool is None:
+        raise HTTPException(status_code=500, detail="Database unavailable")
+
+    try:
+        async with pool.acquire() as conn:
+            # Check if API key exists and belongs to the user
+            key_row = await conn.fetchrow(
+                """
+                SELECT id, user_id, name
+                FROM api_keys
+                WHERE id = $1 AND user_id = $2
+                """,
+                key_id,
+                user_id,
+            )
+
+            if not key_row:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"API key with ID {key_id} not found for user {user_id}",
+                )
+
+            # Delete the API key
+            await conn.execute(
+                "DELETE FROM api_keys WHERE id = $1",
+                key_id,
+            )
+
+            logger.info(
+                "API key revoked: id=%d, user_id=%d, name=%s",
+                key_id,
+                user_id,
+                key_row["name"],
+            )
+            return {
+                "status": "ok",
+                "message": f"API key {key_id} revoked successfully",
+            }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("Error revoking API key: %s", str(e), exc_info=True)
+        raise HTTPException(status_code=500, detail="Error revoking API key")
+
+
+# --- Usage Statistics ---
+
+
+@protected.get("/admin/usage/stats")
+async def get_usage_statistics(
+    start_date: datetime | None = Query(default=None, description="Start date for filtering (ISO format)"),
+    end_date: datetime | None = Query(default=None, description="End date for filtering (ISO format)"),
+    _: None = Depends(require_admin),
+):
+    """Get aggregated usage statistics for all users (admin only)."""
+    try:
+        stats = await get_all_usage_stats(start_date=start_date, end_date=end_date)
+        return {"stats": [stat.model_dump() for stat in stats]}
+    except RuntimeError as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    except Exception as e:
+        logger.error("Error fetching usage statistics: %s", str(e), exc_info=True)
+        raise HTTPException(status_code=500, detail="Error fetching usage statistics")
 
 
 # --- LLM ---
