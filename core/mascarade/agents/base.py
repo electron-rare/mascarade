@@ -25,6 +25,7 @@ class Agent:
     preferred_model: str | None = None
     preferred_role: str | None = None
     strategy: Strategy = Strategy.BEST
+    routing_policy: str = "auto"
     tools: list[str] = field(default_factory=list)
     temperature: float = 0.7
     max_tokens: int = 4096
@@ -41,6 +42,7 @@ class Agent:
         return {
             "messages": messages,
             "strategy": self.strategy,
+            "routing_policy": self.routing_policy,
             "provider": self.preferred_provider,
             "model": self.preferred_model,
             "system": self.system_prompt,
@@ -57,37 +59,17 @@ class Agent:
         registry: AgentRegistry | None = None,
     ) -> LLMResponse:
         """Exécuter l'agent avec un prompt donné."""
-        start_time = time.perf_counter()
-        success = False
-        response = None
-
-        try:
-            payload = self.build_send_payload(prompt, context=context)
-            response = await router.send(
-                payload["messages"],
-                strategy=payload["strategy"],
-                provider=payload["provider"],
-                model=payload["model"],
-                system=payload["system"],
-                temperature=payload["temperature"],
-                max_tokens=payload["max_tokens"],
-            )
-            success = True
-            return response
-        finally:
-            elapsed = time.perf_counter() - start_time
-            if registry:
-                tokens = 0
-                if success and response and response.usage:
-                    tokens = sum(response.usage.values())
-                cost = 0.0  # Cost is tracked by router, we track tokens here
-                registry.track_agent_usage(
-                    agent_name=self.name,
-                    tokens=tokens,
-                    cost=cost,
-                    response_time=elapsed,
-                    success=success,
-                )
+        payload = self.build_send_payload(prompt, context=context)
+        return await router.send(
+            payload["messages"],
+            strategy=payload["strategy"],
+            routing_policy=payload.get("routing_policy"),
+            provider=payload["provider"],
+            model=payload["model"],
+            system=payload["system"],
+            temperature=payload["temperature"],
+            max_tokens=payload["max_tokens"],
+        )
 
     async def run_with_history(
         self,
@@ -97,33 +79,13 @@ class Agent:
         registry: AgentRegistry | None = None,
     ) -> LLMResponse:
         """Exécuter l'agent avec un historique de messages complet."""
-        start_time = time.perf_counter()
-        success = False
-        response = None
-
-        try:
-            response = await router.send(
-                messages,
-                strategy=self.strategy,
-                provider=self.preferred_provider,
-                model=self.preferred_model,
-                system=self.system_prompt,
-                temperature=self.temperature,
-                max_tokens=self.max_tokens,
-            )
-            success = True
-            return response
-        finally:
-            elapsed = time.perf_counter() - start_time
-            if registry:
-                tokens = 0
-                if success and response and response.usage:
-                    tokens = sum(response.usage.values())
-                cost = 0.0  # Cost is tracked by router, we track tokens here
-                registry.track_agent_usage(
-                    agent_name=self.name,
-                    tokens=tokens,
-                    cost=cost,
-                    response_time=elapsed,
-                    success=success,
-                )
+        return await router.send(
+            messages,
+            strategy=self.strategy,
+            routing_policy=self.routing_policy,
+            provider=self.preferred_provider,
+            model=self.preferred_model,
+            system=self.system_prompt,
+            temperature=self.temperature,
+            max_tokens=self.max_tokens,
+        )

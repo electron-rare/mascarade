@@ -37,6 +37,11 @@ import subprocess
 import sys
 from pathlib import Path
 
+# Ensure sibling modules are importable when loaded via spec_from_file_location.
+_SCRIPT_DIR = str(Path(__file__).resolve().parent)
+if _SCRIPT_DIR not in sys.path:
+    sys.path.insert(0, _SCRIPT_DIR)
+
 from dataset_quality import DatasetQualityError, enforce_dataset_quality, summarize_quality_report
 from llm_paths import configure_hf_env, hf_cache_roots, shared_model_cache_dir
 from runtime_compat import disable_broken_torchvision
@@ -797,6 +802,9 @@ Available base models:
     domains = DOMAINS if args.domain == "all" else [args.domain]
 
     for domain in domains:
+        extra_kwargs: dict[str, object] = {}
+        if args.deploy_alias is not None:
+            extra_kwargs["deploy_alias"] = args.deploy_alias
         run_pipeline(
             domain,
             args.base,
@@ -806,7 +814,7 @@ Available base models:
             max_samples=args.max_samples,
             quant=gguf_quant,
             train_quant=train_quant,
-            deploy_alias=args.deploy_alias,
+            **extra_kwargs,
         )
 
 

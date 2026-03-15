@@ -366,6 +366,9 @@ const LANGFUSE_PUBLIC_ORIGIN = (
 ).replace(/\/+$/, "");
 const EDGE_PROXY_OPS_AUTH_USER = (process.env.EDGE_PROXY_OPS_AUTH_USER || "").trim();
 const EDGE_PROXY_OPS_AUTH_PASSWORD = process.env.EDGE_PROXY_OPS_AUTH_PASSWORD || "";
+const EDGE_PROXY_INDUSTRIAL_GROUPS = (
+  process.env.EDGE_PROXY_INDUSTRIAL_GROUPS || "operator"
+).trim();
 const KILL_LIFE_ROOT = path.resolve(process.env.KILL_LIFE_ROOT || "/home/clems/Kill_LIFE");
 const KILL_LIFE_MCP_SMOKE = path.join(KILL_LIFE_ROOT, "tools", "hw", "mcp_smoke.py");
 const KILL_LIFE_VALIDATE_SPECS_MCP_SMOKE = path.join(
@@ -444,7 +447,7 @@ function industrialCockpitHeaders(): Record<string, string> {
   return {
     "X-Forwarded-User": "ops",
     "X-Forwarded-Email": "ops",
-    "X-Forwarded-Groups": "operator,approver,auditor,admin",
+    "X-Forwarded-Groups": EDGE_PROXY_INDUSTRIAL_GROUPS,
   };
 }
 
@@ -569,6 +572,9 @@ export function lokiValueToOpsLogEntry(args: {
       ...(coerceOptionalString(decoded.structured.routing_model)
         ? { routing_model: coerceOptionalString(decoded.structured.routing_model)! }
         : {}),
+      ...(coerceOptionalString(decoded.structured.routing_policy)
+        ? { routing_policy: coerceOptionalString(decoded.structured.routing_policy)! }
+        : {}),
     };
     return {
       id:
@@ -628,11 +634,13 @@ function labelsMatchRouting(
     routing_role?: string;
     routing_provider?: string;
     routing_model?: string;
+    routing_policy?: string;
   },
 ): boolean {
   const role = filters.routing_role?.trim().toLowerCase();
   const provider = filters.routing_provider?.trim().toLowerCase();
   const model = filters.routing_model?.trim().toLowerCase();
+  const policy = filters.routing_policy?.trim().toLowerCase();
   const labels = entry.labels || {};
 
   if (role && (labels.routing_role || "").trim().toLowerCase() !== role) {
@@ -642,6 +650,9 @@ function labelsMatchRouting(
     return false;
   }
   if (model && (labels.routing_model || "").trim().toLowerCase() !== model) {
+    return false;
+  }
+  if (policy && (labels.routing_policy || "").trim().toLowerCase() !== policy) {
     return false;
   }
   return true;
@@ -681,6 +692,7 @@ function traceToLogEntry(event: AgentTraceEvent): OpsLogEntry {
       routing_role: event.routing_role ?? "",
       routing_provider: event.routing_provider ?? "",
       routing_model: event.routing_model ?? "",
+      routing_policy: event.routing_policy ?? "",
     },
   };
 }
@@ -952,7 +964,7 @@ function aggregateMcpStatus(servers: Record<string, McpRuntimeStatus>): McpSuite
   };
 }
 
-async function probeMcpRuntime(_timeoutMs: number = 8000): Promise<McpSuiteStatus> {
+async function probeMcpRuntime(timeoutMs: number = 8000): Promise<McpSuiteStatus> {
   const now = Date.now();
   if (cachedMcpProbe && cachedMcpProbe.expiresAt > now) {
     return cachedMcpProbe.value;
@@ -962,9 +974,46 @@ async function probeMcpRuntime(_timeoutMs: number = 8000): Promise<McpSuiteStatu
   }
 
   inflightMcpProbe = (async () => {
-    const statuses = await Promise.all(
+    const hardTimeoutMs = Math.max(1000, timeoutMs);
+    let timeoutHandle: NodeJS.Timeout | null = null;
+    const timeoutResult = new Promise<readonly (readonly [string, McpRuntimeStatus])[]>((resolve) => {
+      timeoutHandle = setTimeout(() => {
+        resolve(
+          MCP_PROBE_CONFIGS.map((config) => [
+            config.key,
+            makeDefaultMcpStatus({
+              status: "degraded",
+              server_name: config.key,
+              error: `Global MCP probe timeout after ${(hardTimeoutMs / 1000).toFixed(1)}s`,
+            }),
+          ] as const),
+        );
+      }, hardTimeoutMs);
+      timeoutHandle.unref?.();
+    });
+
+    const probeResult = Promise.allSettled(
       MCP_PROBE_CONFIGS.map(async (config) => [config.key, await runMcpProbe(config)] as const),
+    ).then((results) =>
+      results.map((result, idx) => {
+        if (result.status === "fulfilled") {
+          return result.value;
+        }
+        const failedConfig = MCP_PROBE_CONFIGS[idx];
+        return [
+          failedConfig.key,
+          makeDefaultMcpStatus({
+            status: "degraded",
+            server_name: failedConfig.key,
+            error: `Probe error: ${String(result.reason || "unknown")}`,
+          }),
+        ] as const;
+      }),
     );
+    const statuses = await Promise.race([probeResult, timeoutResult]);
+    if (timeoutHandle) {
+      clearTimeout(timeoutHandle);
+    }
     const value = aggregateMcpStatus(Object.fromEntries(statuses));
     cachedMcpProbe = {
       value,
@@ -1803,6 +1852,7 @@ ops.get("/logs/recent", async (c) => {
           routing_role: query.routing_role,
           routing_provider: query.routing_provider,
           routing_model: query.routing_model,
+          routing_policy: query.routing_policy,
         }),
       )
       .slice(0, limit);
@@ -1853,6 +1903,7 @@ ops.get("/logs/query", async (c) => {
         routing_role: query.routing_role,
         routing_provider: query.routing_provider,
         routing_model: query.routing_model,
+        routing_policy: query.routing_policy,
       }),
     );
     return c.json({

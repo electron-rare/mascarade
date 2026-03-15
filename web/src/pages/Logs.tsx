@@ -120,11 +120,13 @@ function matchesRoutingLabels(
     role: string;
     provider: string;
     model: string;
+    policy?: string;
   },
 ): boolean {
   const role = normalizeFilter(filters.role);
   const provider = normalizeFilter(filters.provider);
   const model = normalizeFilter(filters.model);
+  const policy = normalizeFilter(filters.policy ?? "");
 
   if (role && normalizeFilter(labels?.routing_role ?? "") !== role) {
     return false;
@@ -133,6 +135,9 @@ function matchesRoutingLabels(
     return false;
   }
   if (model && normalizeFilter(labels?.routing_model ?? "") !== model) {
+    return false;
+  }
+  if (policy && normalizeFilter(labels?.routing_policy ?? "") !== policy) {
     return false;
   }
   return true;
@@ -181,6 +186,12 @@ function mcpTone(status?: string): "accent" | "warning" | "error" | "muted" {
 function formatLatency(ms?: number | null): string {
   if (!Number.isFinite(ms) || !ms || ms <= 0) return "-";
   return `${Math.round(ms)} ms`;
+}
+
+function formatRoutingLatency(ms?: number | string | null): string | null {
+  const value = typeof ms === "string" ? Number(ms) : ms;
+  if (!Number.isFinite(value) || value === undefined || value === null || value < 0) return null;
+  return `${Math.round(value)} ms`;
 }
 
 function formatMcpName(name?: string | null): string {
@@ -259,6 +270,7 @@ export default function Logs() {
   const [routingRoleFilter, setRoutingRoleFilter] = useState(() => searchParams.get("routing_role") ?? "");
   const [routingProviderFilter, setRoutingProviderFilter] = useState(() => searchParams.get("routing_provider") ?? "");
   const [routingModelFilter, setRoutingModelFilter] = useState(() => searchParams.get("routing_model") ?? "");
+  const [routingPolicyFilter, setRoutingPolicyFilter] = useState(() => searchParams.get("routing_policy") ?? "");
   const [serviceFilter, setServiceFilter] = useState(() => searchParams.get("service") ?? "");
   const [queryText, setQueryText] = useState(() => searchParams.get("q") ?? "");
   const [historyWindow, setHistoryWindow] = useState(
@@ -280,8 +292,9 @@ export default function Logs() {
       role: routingRoleFilter,
       provider: routingProviderFilter,
       model: routingModelFilter,
+      policy: routingPolicyFilter,
     }),
-    [routingModelFilter, routingProviderFilter, routingRoleFilter],
+    [routingModelFilter, routingPolicyFilter, routingProviderFilter, routingRoleFilter],
   );
 
   const liveLogsPath = useMemo(() => {
@@ -296,6 +309,7 @@ export default function Logs() {
     if (routingRoleFilter.trim()) search.set("routing_role", routingRoleFilter.trim());
     if (routingProviderFilter.trim()) search.set("routing_provider", routingProviderFilter.trim());
     if (routingModelFilter.trim()) search.set("routing_model", routingModelFilter.trim());
+    if (routingPolicyFilter.trim()) search.set("routing_policy", routingPolicyFilter.trim());
     if (serviceFilter.trim()) search.set("service", serviceFilter.trim());
     return `/api/ops/logs/recent?${search.toString()}`;
   }, [
@@ -304,6 +318,7 @@ export default function Logs() {
     routingModelFilter,
     routingProviderFilter,
     routingRoleFilter,
+    routingPolicyFilter,
     runIdFilter,
     serviceFilter,
     severity,
@@ -323,6 +338,7 @@ export default function Logs() {
     if (routingRoleFilter.trim()) search.set("routing_role", routingRoleFilter.trim());
     if (routingProviderFilter.trim()) search.set("routing_provider", routingProviderFilter.trim());
     if (routingModelFilter.trim()) search.set("routing_model", routingModelFilter.trim());
+    if (routingPolicyFilter.trim()) search.set("routing_policy", routingPolicyFilter.trim());
     if (serviceFilter.trim()) search.set("service", serviceFilter.trim());
     if (queryText.trim()) search.set("q", queryText.trim());
     return `/api/ops/logs/query?${search.toString()}`;
@@ -334,6 +350,7 @@ export default function Logs() {
     routingModelFilter,
     routingProviderFilter,
     routingRoleFilter,
+    routingPolicyFilter,
     runIdFilter,
     serviceFilter,
     severity,
@@ -437,6 +454,7 @@ export default function Logs() {
         routing_role: event.routing_role,
         routing_provider: event.routing_provider,
         routing_model: event.routing_model,
+        routing_policy: event.routing_policy,
         error: event.error,
       })),
     }),
@@ -475,6 +493,7 @@ export default function Logs() {
     if (routingRoleFilter.trim()) next.set("routing_role", routingRoleFilter.trim());
     if (routingProviderFilter.trim()) next.set("routing_provider", routingProviderFilter.trim());
     if (routingModelFilter.trim()) next.set("routing_model", routingModelFilter.trim());
+    if (routingPolicyFilter.trim()) next.set("routing_policy", routingPolicyFilter.trim());
     if (serviceFilter.trim()) next.set("service", serviceFilter.trim());
     if (queryText.trim()) next.set("q", queryText.trim());
 
@@ -490,6 +509,7 @@ export default function Logs() {
     routingModelFilter,
     routingProviderFilter,
     routingRoleFilter,
+    routingPolicyFilter,
     runIdFilter,
     searchParams,
     serviceFilter,
@@ -514,6 +534,7 @@ export default function Logs() {
     routingModelFilter,
     routingProviderFilter,
     routingRoleFilter,
+    routingPolicyFilter,
     runIdFilter,
     serviceFilter,
     severity,
@@ -634,6 +655,13 @@ export default function Logs() {
               routing_role: entry.routing_role ?? "",
               routing_provider: entry.routing_provider ?? "",
               routing_model: entry.routing_model ?? "",
+              routing_policy: entry.routing_policy ?? "",
+              routing_selected_by: entry.routing_selected_by ?? "",
+              routing_transport: entry.routing_transport ?? "",
+              routing_latency_ms:
+                entry.routing_latency_ms !== undefined && entry.routing_latency_ms !== null
+                  ? String(entry.routing_latency_ms)
+                  : "",
             },
           },
         ]);
@@ -929,6 +957,12 @@ export default function Logs() {
                 placeholder="llama3.2:3b, mistral-large..."
               />
               <Input
+                label="Routing policy"
+                value={routingPolicyFilter}
+                onChange={(event) => setRoutingPolicyFilter(event.target.value)}
+                placeholder="auto, strong, cheap, fast..."
+              />
+              <Input
                 label="Service filter"
                 value={serviceFilter}
                 onChange={(event) => setServiceFilter(event.target.value)}
@@ -963,6 +997,7 @@ export default function Logs() {
                     setRoutingRoleFilter("");
                     setRoutingProviderFilter("");
                     setRoutingModelFilter("");
+                    setRoutingPolicyFilter("");
                     setServiceFilter("");
                     setQueryText("");
                     setHistoryWindow("1h");
@@ -1249,8 +1284,26 @@ export default function Logs() {
                   </p>
                   {entry.labels?.routing_role ||
                   entry.labels?.routing_provider ||
-                  entry.labels?.routing_model ? (
+                  entry.labels?.routing_model ||
+                  entry.labels?.routing_selected_by ||
+                  entry.labels?.routing_transport ||
+                  entry.labels?.routing_latency_ms ? (
                     <div className="mt-3 flex flex-wrap gap-2">
+                      {nonEmptyLabel(entry.labels?.routing_selected_by) ? (
+                        <span className="status-chip border-border/70 bg-black/35 text-amber-100/66">
+                          route {entry.labels?.routing_selected_by}
+                        </span>
+                      ) : null}
+                      {nonEmptyLabel(entry.labels?.routing_transport) ? (
+                        <span className="status-chip border-border/70 bg-black/35 text-amber-100/66">
+                          transport {entry.labels?.routing_transport}
+                        </span>
+                      ) : null}
+                      {formatRoutingLatency(entry.labels?.routing_latency_ms) ? (
+                        <span className="status-chip border-[#6d5c1c] bg-[#1a1507] text-[#ffd166]">
+                          {formatRoutingLatency(entry.labels?.routing_latency_ms)}
+                        </span>
+                      ) : null}
                       {nonEmptyLabel(entry.labels?.routing_role) ? (
                         <span className="status-chip border-[#6d5c1c] bg-[#1a1507] text-[#ffd166]">
                           role {entry.labels?.routing_role}
@@ -1337,8 +1390,22 @@ export default function Logs() {
                       <p className="mt-3 font-mono text-[13px] leading-6 text-amber-100/74">
                         {event.message}
                       </p>
-                      {event.routing_role || event.routing_provider || event.routing_model ? (
+                      {event.routing_selected_by ||
+                      event.routing_transport ||
+                      event.routing_latency_ms !== undefined && event.routing_latency_ms !== null ||
+                      event.routing_role ||
+                      event.routing_provider ||
+                      event.routing_model ? (
                         <div className="mt-3 flex flex-wrap gap-2">
+                          {event.routing_selected_by ? (
+                            <Badge color="muted">route {event.routing_selected_by}</Badge>
+                          ) : null}
+                          {event.routing_transport ? (
+                            <Badge color="muted">transport {event.routing_transport}</Badge>
+                          ) : null}
+                          {formatRoutingLatency(event.routing_latency_ms) ? (
+                            <Badge color="warning">{formatRoutingLatency(event.routing_latency_ms)}</Badge>
+                          ) : null}
                           {event.routing_role ? (
                             <Badge color="warning">role {event.routing_role}</Badge>
                           ) : null}

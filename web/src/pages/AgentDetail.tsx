@@ -17,10 +17,18 @@ import {
 import PromptEditor from "../components/PromptEditor";
 
 const strategyOptions = [
+  { value: "routellm", label: "RouteLLM" },
   { value: "best", label: "Best" },
   { value: "fastest", label: "Fastest" },
   { value: "cheapest", label: "Cheapest" },
   { value: "specific", label: "Specific" },
+];
+
+const routingPolicyOptions = [
+  { value: "auto", label: "Auto" },
+  { value: "strong", label: "Strong" },
+  { value: "cheap", label: "Cheap" },
+  { value: "fast", label: "Fast" },
 ];
 
 type AgentProfileForm = {
@@ -30,6 +38,7 @@ type AgentProfileForm = {
   preferred_model: string;
   preferred_role: string;
   strategy: string;
+  routing_policy: string;
   temperature: number;
   max_tokens: number;
 };
@@ -79,7 +88,8 @@ export default function AgentDetail() {
     preferred_provider: "",
     preferred_model: "",
     preferred_role: "",
-    strategy: "best",
+    strategy: "routellm",
+    routing_policy: "auto",
     temperature: 0.7,
     max_tokens: 4096,
   });
@@ -92,7 +102,8 @@ export default function AgentDetail() {
       preferred_provider: detail.data.preferred_provider || "",
       preferred_model: detail.data.preferred_model || "",
       preferred_role: detail.data.preferred_role || "",
-      strategy: detail.data.strategy || "best",
+      strategy: detail.data.strategy || "routellm",
+      routing_policy: detail.data.routing_policy || "auto",
       temperature: detail.data.temperature ?? 0.7,
       max_tokens: detail.data.max_tokens ?? 4096,
     });
@@ -112,6 +123,7 @@ export default function AgentDetail() {
         preferred_model: normalizeOptional(form.preferred_model),
         preferred_role: normalizeOptional(form.preferred_role),
         strategy: form.strategy,
+        routing_policy: form.routing_policy,
         temperature: form.temperature,
         max_tokens: form.max_tokens,
       }),
@@ -208,6 +220,9 @@ export default function AgentDetail() {
                 ) : null}
                 {detail.data?.strategy ? (
                   <Badge color="muted">{detail.data.strategy}</Badge>
+                ) : null}
+                {detail.data?.routing_policy ? (
+                  <Badge color="muted">policy {detail.data.routing_policy}</Badge>
                 ) : null}
               </div>
             </div>
@@ -368,7 +383,7 @@ export default function AgentDetail() {
                 placeholder="llama3.2:3b, mistral-large-latest..."
               />
             </div>
-            <div className="grid gap-4 md:grid-cols-2">
+            <div className="grid gap-4 md:grid-cols-3">
               <Input
                 label="Preferred Role"
                 value={form.preferred_role}
@@ -382,6 +397,13 @@ export default function AgentDetail() {
                 disabled={detail.data?.builtin}
                 onChange={(e) => setForm({ ...form, strategy: e.target.value })}
                 options={strategyOptions}
+              />
+              <Select
+                label="Routing Policy"
+                value={form.routing_policy}
+                disabled={detail.data?.builtin}
+                onChange={(e) => setForm({ ...form, routing_policy: e.target.value })}
+                options={routingPolicyOptions}
               />
             </div>
             <div className="grid gap-4 md:grid-cols-2">

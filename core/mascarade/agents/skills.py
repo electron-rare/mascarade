@@ -55,7 +55,8 @@ agent_zero = Agent(
         "Quand une demande est simple, reponds de facon directe. "
         "Priorite absolue: clarte, precision technique, priorisation et execution."
     ),
-    strategy=Strategy.BEST,
+    strategy=Strategy.ROUTELLM,
+    routing_policy="strong",
     temperature=0.2,
     max_tokens=4096,
 )
@@ -70,7 +71,8 @@ summarizer = Agent(
         "Adapte la longueur au contenu : court pour un paragraphe, "
         "détaillé pour un article long. Réponds dans la langue du texte source."
     ),
-    strategy=Strategy.CHEAPEST,
+    strategy=Strategy.ROUTELLM,
+    routing_policy="cheap",
     temperature=0.3,
     max_tokens=2048,
 )
@@ -87,7 +89,8 @@ writer = Agent(
         "décontracté pour un message, technique pour de la documentation. "
         "Réponds dans la langue de la demande."
     ),
-    strategy=Strategy.BEST,
+    strategy=Strategy.ROUTELLM,
+    routing_policy="strong",
     temperature=0.8,
     max_tokens=4096,
 )
@@ -105,7 +108,8 @@ coder = Agent(
         "Pour la génération : code minimal, typé, avec gestion d'erreurs. "
         "Pas de commentaires évidents. Pas de sur-ingénierie."
     ),
-    strategy=Strategy.BEST,
+    strategy=Strategy.ROUTELLM,
+    routing_policy="strong",
     temperature=0.2,
     max_tokens=4096,
 )
@@ -123,7 +127,8 @@ translator = Agent(
         "si le texte est en anglais, et vers l'anglais sinon. "
         "Retourne uniquement la traduction, sans explication."
     ),
-    strategy=Strategy.FASTEST,
+    strategy=Strategy.ROUTELLM,
+    routing_policy="fast",
     temperature=0.3,
     max_tokens=4096,
 )
@@ -141,7 +146,8 @@ analyst = Agent(
         "Appuie-toi sur des faits et des données, pas des suppositions. "
         "Conclus par des recommandations actionnables."
     ),
-    strategy=Strategy.BEST,
+    strategy=Strategy.ROUTELLM,
+    routing_policy="strong",
     temperature=0.4,
     max_tokens=4096,
 )
@@ -159,7 +165,8 @@ brainstorm = Agent(
         "à la plus audacieuse. Organise par catégorie si pertinent. "
         "Ne censure pas — la quantité prime sur la qualité à ce stade."
     ),
-    strategy=Strategy.BEST,
+    strategy=Strategy.ROUTELLM,
+    routing_policy="strong",
     temperature=0.95,
     max_tokens=4096,
 )
@@ -177,7 +184,8 @@ knowledge_scribe = Agent(
         "Si on te demande un log ou un rapport, structure avec date, "
         "contexte, résultat et prochaines étapes."
     ),
-    strategy=Strategy.CHEAPEST,
+    strategy=Strategy.ROUTELLM,
+    routing_policy="cheap",
     temperature=0.4,
     max_tokens=2048,
 )
@@ -195,7 +203,8 @@ planner = Agent(
         "Propose un ordre d'exécution réaliste. "
         "Format : tableau ou liste numérotée avec checkboxes."
     ),
-    strategy=Strategy.BEST,
+    strategy=Strategy.ROUTELLM,
+    routing_policy="strong",
     temperature=0.4,
     max_tokens=4096,
 )
@@ -213,7 +222,8 @@ classifier = Agent(
         "Sois déterministe : même input = même output. "
         "Retourne UNIQUEMENT le JSON, pas d'explication."
     ),
-    strategy=Strategy.FASTEST,
+    strategy=Strategy.ROUTELLM,
+    routing_policy="fast",
     temperature=0.1,
     max_tokens=512,
 )
@@ -233,7 +243,8 @@ image_generator = Agent(
         "NEGATIVE: <le prompt negatif>\n"
         "PARAMS: steps=<N>, cfg=<N>, width=<N>, height=<N>"
     ),
-    strategy=Strategy.FASTEST,
+    strategy=Strategy.ROUTELLM,
+    routing_policy="fast",
     temperature=0.7,
     max_tokens=1024,
 )
@@ -261,7 +272,8 @@ pcb_routing_kicad = Agent(
         "Tu connais les formats KiCad 8/9 (.kicad_sch, .kicad_pcb, .kicad_mod). "
         "Tu peux générer des footprints, des symboles et des netlists."
     ),
-    strategy=Strategy.DOMAIN,
+    strategy=Strategy.ROUTELLM,
+    routing_policy="strong",
     preferred_provider="ollama",
     preferred_model="mascarade-kicad",
     temperature=0.2,

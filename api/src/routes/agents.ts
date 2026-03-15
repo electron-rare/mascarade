@@ -36,6 +36,7 @@ type OperatorCopilotTrace = {
   routing_role?: string | null;
   routing_provider?: string | null;
   routing_model?: string | null;
+  routing_policy?: string | null;
   error?: string | null;
 };
 type OperatorCopilotRequest = {
@@ -154,6 +155,7 @@ function buildOperatorCopilotPrompt(body: OperatorCopilotRequest): string {
         asTrimmedString(entry.routing_role || undefined),
         asTrimmedString(entry.routing_provider || undefined),
         asTrimmedString(entry.routing_model || undefined),
+        asTrimmedString(entry.routing_policy || undefined),
       ].filter(Boolean);
       const error = asTrimmedString(entry.error || undefined);
       return `${parts.join(" | ")} :: ${asTrimmedString(entry.message) || "(no message)"}${error ? ` / error: ${error}` : ""}`;

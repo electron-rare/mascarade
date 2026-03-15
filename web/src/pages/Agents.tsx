@@ -26,10 +26,18 @@ interface AgentMetrics {
 }
 
 const strategyOptions = [
+  { value: "routellm", label: "RouteLLM" },
   { value: "best", label: "Best" },
   { value: "fastest", label: "Fastest" },
   { value: "cheapest", label: "Cheapest" },
   { value: "specific", label: "Specific" },
+];
+
+const routingPolicyOptions = [
+  { value: "auto", label: "Auto" },
+  { value: "strong", label: "Strong" },
+  { value: "cheap", label: "Cheap" },
+  { value: "fast", label: "Fast" },
 ];
 
 function normalizeOptional(value: string): string | undefined {
@@ -69,7 +77,8 @@ export default function Agents() {
     preferred_provider: "",
     preferred_model: "",
     preferred_role: "",
-    strategy: "best",
+    strategy: "routellm",
+    routing_policy: "auto",
     temperature: 0.7,
     max_tokens: 4096,
   });
@@ -88,6 +97,7 @@ export default function Agents() {
       preferred_model: normalizeOptional(form.preferred_model),
       preferred_role: normalizeOptional(form.preferred_role),
       strategy: form.strategy,
+      routing_policy: form.routing_policy,
       temperature: form.temperature,
       max_tokens: form.max_tokens,
     }),
@@ -137,7 +147,8 @@ export default function Agents() {
       preferred_provider: "",
       preferred_model: "",
       preferred_role: "",
-      strategy: "best",
+      strategy: "routellm",
+      routing_policy: "auto",
       temperature: 0.7,
       max_tokens: 4096,
     });
@@ -341,6 +352,24 @@ export default function Agents() {
                     <p className="text-[11px] uppercase tracking-[0.18em] text-amber-100/34">
                       open detail
                     </p>
+                  ) : (
+                    <p className="text-[11px] uppercase tracking-[0.18em] text-[#82ffc1]">
+                      dynamic editable agent
+                    </p>
+                  )}
+                  <p className="text-sm leading-7 text-amber-100/56">
+                    {a.description || "No description provided for this registry entry."}
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {a.preferred_role ? <Badge color="warning">role {a.preferred_role}</Badge> : null}
+                    {a.preferred_provider ? (
+                      <Badge color="muted">{a.preferred_provider}</Badge>
+                    ) : null}
+                    {a.preferred_model ? (
+                      <Badge color="muted">{a.preferred_model}</Badge>
+                    ) : null}
+                    {a.strategy ? <Badge color="muted">{a.strategy}</Badge> : null}
+                    {a.routing_policy ? <Badge color="muted">policy {a.routing_policy}</Badge> : null}
                   </div>
                 </Card>
               </Link>
@@ -377,7 +406,7 @@ export default function Agents() {
               placeholder="llama3.2:3b, mistral-large-latest..."
             />
           </div>
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid gap-4 md:grid-cols-3">
             <Input
               label="Preferred Role"
               value={form.preferred_role}
@@ -389,6 +418,12 @@ export default function Agents() {
               value={form.strategy}
               onChange={(e) => setForm({ ...form, strategy: e.target.value })}
               options={strategyOptions}
+            />
+            <Select
+              label="Routing Policy"
+              value={form.routing_policy}
+              onChange={(e) => setForm({ ...form, routing_policy: e.target.value })}
+              options={routingPolicyOptions}
             />
           </div>
           <Textarea

@@ -4,7 +4,7 @@ RUN useradd -m -u 1000 appuser
 
 WORKDIR /app
 
-COPY core/ /app/
+COPY --chown=appuser:appuser core/ /app/
 RUN pip install --no-cache-dir .
 
 USER appuser
