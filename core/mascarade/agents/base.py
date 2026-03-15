@@ -23,6 +23,7 @@ class Agent:
     tools: list[str] = field(default_factory=list)
     temperature: float = 0.7
     max_tokens: int = 4096
+    retry_config: dict | None = None
 
     def build_send_payload(
         self,
