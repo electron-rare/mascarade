@@ -15,6 +15,8 @@ from dataclasses import asdict
 from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, FastAPI, HTTPException, Query, Request
+from fastapi.responses import StreamingResponse
+from pydantic import BaseModel, ConfigDict, Field
 from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel, Field
 
@@ -171,10 +173,12 @@ RoutingPolicy = Literal["auto", "strong", "cheap", "fast"]
 
 
 class ChatCompletionMessage(BaseModel):
+    model_config = ConfigDict(exclude_none=True)
+
     role: Literal["system", "user", "assistant", "tool"]
     content: str | None = None
     tool_calls: list[dict[str, Any]] | None = None
-    tool_call_id: str | None = Field(default=None, max_length=100)
+    tool_call_id: str | None = None
 
 
 class ChatCompletionRequest(BaseModel):
@@ -469,6 +473,7 @@ async def health():
     return health_data
 
 
+@app.post("/v1/chat/completions", response_model_exclude_unset=True)
 @app.get("/health/providers")
 async def get_provider_health():
     """Provider health metrics endpoint - returns detailed health statistics for all providers."""
@@ -550,7 +555,92 @@ async def chat_completions(req: ChatCompletionRequest):
     # Convert messages to router format
     messages = [{"role": m.role, "content": m.content} for m in req.messages]
 
-    # Call router
+    # Handle streaming if requested
+    if req.stream:
+        async def stream_response():
+            """Generate SSE stream of chat completion chunks."""
+            chat_id = f"chatcmpl-{new_run_id()}"
+            created = int(time.time())
+
+            # Send initial chunk with role
+            initial_chunk = ChatCompletionChunk(
+                id=chat_id,
+                object="chat.completion.chunk",
+                created=created,
+                model=model_str,
+                choices=[
+                    ChatCompletionChunkChoice(
+                        index=0,
+                        delta=ChatCompletionChunkDelta(role="assistant"),
+                        finish_reason=None,
+                    )
+                ],
+            )
+            yield f"data: {initial_chunk.model_dump_json()}\n\n"
+
+            # Stream tokens
+            try:
+                async for token in app.state.router.stream(
+                    messages,
+                    strategy=Strategy.SPECIFIC,
+                    provider=provider,
+                    model=model,
+                    system=None,
+                    temperature=req.temperature,
+                    max_tokens=req.max_tokens or 4096,
+                ):
+                    chunk = ChatCompletionChunk(
+                        id=chat_id,
+                        object="chat.completion.chunk",
+                        created=created,
+                        model=model_str,
+                        choices=[
+                            ChatCompletionChunkChoice(
+                                index=0,
+                                delta=ChatCompletionChunkDelta(content=token),
+                                finish_reason=None,
+                            )
+                        ],
+                    )
+                    yield f"data: {chunk.model_dump_json()}\n\n"
+
+                # Send final chunk with finish_reason
+                final_chunk = ChatCompletionChunk(
+                    id=chat_id,
+                    object="chat.completion.chunk",
+                    created=created,
+                    model=model_str,
+                    choices=[
+                        ChatCompletionChunkChoice(
+                            index=0,
+                            delta=ChatCompletionChunkDelta(),
+                            finish_reason="stop",
+                        )
+                    ],
+                )
+                yield f"data: {final_chunk.model_dump_json()}\n\n"
+
+            except ValueError as exc:
+                logger.warning("Chat completions streaming failed: %s", exc)
+                # For streaming errors, we can't raise HTTPException
+                # Send an error in SSE format
+                error_data = {"error": {"message": str(exc), "type": "invalid_request_error"}}
+                yield f"data: {json.dumps(error_data)}\n\n"
+
+            # Send [DONE] marker
+            yield "data: [DONE]\n\n"
+
+        return StreamingResponse(
+            stream_response(),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+                "X-Accel-Buffering": "no",
+            },
+        )
+
+    # Non-streaming response (original implementation)
     try:
         response = await app.state.router.send(
             messages,
