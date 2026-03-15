@@ -32,6 +32,7 @@ import {
   BackgroundVariant,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
+import '../styles/node-editor.css';
 
 import type { GraphNode, GraphEdge } from '../types/NodeTypes';
 import { ExampleNode } from './nodes/ExampleNode';

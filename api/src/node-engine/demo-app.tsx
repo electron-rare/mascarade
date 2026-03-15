@@ -13,6 +13,7 @@ import { useState } from 'react';
 import { NodeEditor } from './components/NodeEditor';
 import { NodePalette } from './components/NodePalette';
 import type { GraphNode, GraphEdge } from './types/NodeTypes';
+import './styles/node-editor.css';
 
 /**
  * Demo nodes showing different execution states

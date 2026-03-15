@@ -1,0 +1,599 @@
+/**
+ * Node Engine - Custom CSS Styling
+ *
+ * Custom styles on top of ReactFlow defaults for the node-based execution engine.
+ * Provides consistent dark theme styling, category colors, execution state animations,
+ * and visual feedback for the graph editor.
+ *
+ * Inspired by:
+ * - TouchDesigner: Dark theme with color-coded operators
+ * - ComfyUI: Clean node styling with execution state indicators
+ * - Blender: Professional dark UI with accent colors
+ */
+
+/* ===========================
+   CSS Variables - Color Palette
+   =========================== */
+
+:root {
+  /* Category Colors */
+  --category-ai: #8b5cf6;
+  --category-hardware: #ef4444;
+  --category-audio: #06b6d4;
+  --category-cad: #10b981;
+  --category-workflow: #f59e0b;
+  --category-automation: #ec4899;
+
+  /* Execution State Colors */
+  --state-idle: #6b7280;
+  --state-pending: #f59e0b;
+  --state-running: #3b82f6;
+  --state-complete: #10b981;
+  --state-error: #ef4444;
+
+  /* Background Colors */
+  --bg-canvas: #1a1a1a;
+  --bg-node: #2a2a2a;
+  --bg-node-header: #1e1e1e;
+  --bg-palette: #1e1e1e;
+  --bg-input: #2a2a2a;
+
+  /* Border Colors */
+  --border-default: #333;
+  --border-hover: #555;
+  --border-active: #fff;
+
+  /* Text Colors */
+  --text-primary: #e0e0e0;
+  --text-secondary: #888;
+  --text-muted: #666;
+}
+
+/* ===========================
+   ReactFlow Canvas Customization
+   =========================== */
+
+.react-flow {
+  background-color: var(--bg-canvas);
+}
+
+/* Background grid styling */
+.react-flow__background {
+  background-color: var(--bg-canvas);
+}
+
+/* Dots background variant */
+.react-flow__background-pattern.dots {
+  fill: #444;
+}
+
+/* Lines background variant */
+.react-flow__background-pattern.lines {
+  stroke: #333;
+}
+
+/* ===========================
+   ReactFlow Controls Styling
+   =========================== */
+
+.react-flow__controls {
+  background-color: var(--bg-node);
+  border: 1px solid var(--border-default);
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.react-flow__controls-button {
+  background-color: var(--bg-node);
+  border-bottom: 1px solid var(--border-default);
+  color: var(--text-primary);
+  transition: all 0.2s ease;
+}
+
+.react-flow__controls-button:hover {
+  background-color: #333;
+}
+
+.react-flow__controls-button:last-child {
+  border-bottom: none;
+}
+
+.react-flow__controls-button svg {
+  fill: var(--text-primary);
+}
+
+/* ===========================
+   ReactFlow MiniMap Styling
+   =========================== */
+
+.react-flow__minimap {
+  background-color: var(--bg-node);
+  border: 1px solid var(--border-default);
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.react-flow__minimap-mask {
+  fill: rgba(0, 0, 0, 0.5);
+}
+
+.react-flow__minimap-node {
+  fill: var(--bg-node);
+  stroke: var(--border-default);
+  stroke-width: 2;
+}
+
+/* MiniMap node colors by execution state */
+.react-flow__minimap-node[data-state="idle"] {
+  fill: var(--state-idle);
+}
+
+.react-flow__minimap-node[data-state="pending"] {
+  fill: var(--state-pending);
+}
+
+.react-flow__minimap-node[data-state="running"] {
+  fill: var(--state-running);
+}
+
+.react-flow__minimap-node[data-state="complete"] {
+  fill: var(--state-complete);
+}
+
+.react-flow__minimap-node[data-state="error"] {
+  fill: var(--state-error);
+}
+
+/* ===========================
+   Node Styling
+   =========================== */
+
+.react-flow__node {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-size: 14px;
+  cursor: grab;
+}
+
+.react-flow__node.selected {
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.3);
+}
+
+.react-flow__node.dragging {
+  cursor: grabbing;
+  opacity: 0.8;
+}
+
+/* Base node styling (applied to BaseNode wrapper) */
+.base-node {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.base-node:hover {
+  transform: scale(1.02);
+}
+
+/* Category-specific left border colors */
+.base-node[data-category="AI"] {
+  border-left-color: var(--category-ai);
+}
+
+.base-node[data-category="Hardware"] {
+  border-left-color: var(--category-hardware);
+}
+
+.base-node[data-category="Audio"] {
+  border-left-color: var(--category-audio);
+}
+
+.base-node[data-category="CAD"] {
+  border-left-color: var(--category-cad);
+}
+
+.base-node[data-category="Workflow"] {
+  border-left-color: var(--category-workflow);
+}
+
+.base-node[data-category="Automation"] {
+  border-left-color: var(--category-automation);
+}
+
+/* Execution state border colors */
+.base-node[data-state="idle"] {
+  border-color: var(--state-idle);
+}
+
+.base-node[data-state="pending"] {
+  border-color: var(--state-pending);
+  animation: pulse-pending 2s infinite;
+}
+
+.base-node[data-state="running"] {
+  border-color: var(--state-running);
+  animation: pulse-running 1.5s infinite;
+}
+
+.base-node[data-state="complete"] {
+  border-color: var(--state-complete);
+  animation: flash-complete 0.5s ease-out;
+}
+
+.base-node[data-state="error"] {
+  border-color: var(--state-error);
+  animation: shake-error 0.5s ease-out;
+}
+
+/* ===========================
+   Handle (Port) Styling
+   =========================== */
+
+.react-flow__handle {
+  width: 10px;
+  height: 10px;
+  background-color: var(--state-idle);
+  border: 2px solid var(--bg-node-header);
+  border-radius: 50%;
+  transition: all 0.2s ease;
+}
+
+.react-flow__handle:hover {
+  width: 14px;
+  height: 14px;
+  border-width: 3px;
+  box-shadow: 0 0 8px rgba(255, 255, 255, 0.5);
+}
+
+/* Input handles (target) */
+.react-flow__handle-left {
+  left: -6px;
+}
+
+.react-flow__handle-left:hover {
+  left: -8px;
+}
+
+/* Output handles (source) */
+.react-flow__handle-right {
+  right: -6px;
+  background-color: var(--state-complete);
+}
+
+.react-flow__handle-right:hover {
+  right: -8px;
+}
+
+/* Required input handles */
+.react-flow__handle[data-required="true"] {
+  background-color: var(--state-error);
+  border-color: var(--state-error);
+}
+
+/* Connected handles */
+.react-flow__handle.connected {
+  background-color: var(--state-complete);
+  box-shadow: 0 0 6px var(--state-complete);
+}
+
+/* ===========================
+   Edge (Connection) Styling
+   =========================== */
+
+.react-flow__edge-path {
+  stroke: var(--border-hover);
+  stroke-width: 2;
+  transition: stroke 0.2s ease, stroke-width 0.2s ease;
+}
+
+.react-flow__edge:hover .react-flow__edge-path {
+  stroke: var(--text-primary);
+  stroke-width: 3;
+}
+
+.react-flow__edge.selected .react-flow__edge-path {
+  stroke: var(--border-active);
+  stroke-width: 3;
+}
+
+.react-flow__edge.animated .react-flow__edge-path {
+  stroke-dasharray: 5;
+  animation: dash 0.5s linear infinite;
+}
+
+/* Edge label styling */
+.react-flow__edge-text {
+  fill: var(--text-primary);
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.react-flow__edge-textbg {
+  fill: var(--bg-node);
+  fill-opacity: 0.9;
+}
+
+/* ===========================
+   Node Palette Styling
+   =========================== */
+
+/* Enhance hover states for palette items */
+.node-palette-item {
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.node-palette-item:hover {
+  transform: translateX(4px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+}
+
+.node-palette-item:active {
+  transform: translateX(2px);
+  cursor: grabbing;
+}
+
+/* Category tab active state enhancement */
+.category-tab-active {
+  background: linear-gradient(to right, #333, #2a2a2a);
+}
+
+/* ===========================
+   Animations
+   =========================== */
+
+/* Spinner animation for running state */
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Pulse animation for pending state */
+@keyframes pulse-pending {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.7);
+  }
+  50% {
+    box-shadow: 0 0 0 8px rgba(245, 158, 11, 0);
+  }
+}
+
+/* Pulse animation for running state */
+@keyframes pulse-running {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.7);
+  }
+  50% {
+    box-shadow: 0 0 0 8px rgba(59, 130, 246, 0);
+  }
+}
+
+/* Flash animation for complete state */
+@keyframes flash-complete {
+  0% {
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 1);
+  }
+  50% {
+    box-shadow: 0 0 0 12px rgba(16, 185, 129, 0.5);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0);
+  }
+}
+
+/* Shake animation for error state */
+@keyframes shake-error {
+  0%, 100% {
+    transform: translateX(0);
+  }
+  10%, 30%, 50%, 70%, 90% {
+    transform: translateX(-4px);
+  }
+  20%, 40%, 60%, 80% {
+    transform: translateX(4px);
+  }
+}
+
+/* Edge animation (data flowing) */
+@keyframes dash {
+  to {
+    stroke-dashoffset: -10;
+  }
+}
+
+/* Fade in animation for new nodes */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.react-flow__node {
+  animation: fadeIn 0.3s ease-out;
+}
+
+/* ===========================
+   Selection Box Styling
+   =========================== */
+
+.react-flow__selection {
+  background: rgba(59, 130, 246, 0.1);
+  border: 1px solid rgba(59, 130, 246, 0.5);
+}
+
+/* ===========================
+   Attribution Styling
+   =========================== */
+
+.react-flow__attribution {
+  background: rgba(0, 0, 0, 0.5);
+  color: var(--text-muted);
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.react-flow__attribution a {
+  color: var(--text-secondary);
+  text-decoration: none;
+}
+
+.react-flow__attribution a:hover {
+  color: var(--text-primary);
+}
+
+/* ===========================
+   Scrollbar Styling (for palette)
+   =========================== */
+
+.node-palette-list::-webkit-scrollbar {
+  width: 8px;
+}
+
+.node-palette-list::-webkit-scrollbar-track {
+  background: var(--bg-node-header);
+  border-radius: 4px;
+}
+
+.node-palette-list::-webkit-scrollbar-thumb {
+  background: var(--border-hover);
+  border-radius: 4px;
+  transition: background 0.2s ease;
+}
+
+.node-palette-list::-webkit-scrollbar-thumb:hover {
+  background: var(--text-secondary);
+}
+
+/* ===========================
+   Responsive Adjustments
+   =========================== */
+
+@media (max-width: 768px) {
+  /* Smaller controls on mobile */
+  .react-flow__controls {
+    bottom: 10px;
+    left: 10px;
+  }
+
+  .react-flow__controls-button {
+    width: 28px;
+    height: 28px;
+  }
+
+  /* Hide minimap on mobile */
+  .react-flow__minimap {
+    display: none;
+  }
+
+  /* Narrower palette on mobile */
+  .node-palette {
+    width: 200px;
+  }
+}
+
+/* ===========================
+   Accessibility Enhancements
+   =========================== */
+
+/* Focus styles for keyboard navigation */
+.react-flow__node:focus,
+.react-flow__edge:focus,
+.react-flow__handle:focus {
+  outline: 2px solid var(--state-running);
+  outline-offset: 2px;
+}
+
+/* Reduce motion for users who prefer it */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+  :root {
+    --border-default: #666;
+    --border-hover: #999;
+    --text-primary: #fff;
+    --text-secondary: #ccc;
+  }
+
+  .react-flow__edge-path {
+    stroke-width: 3;
+  }
+}
+
+/* ===========================
+   Print Styles
+   =========================== */
+
+@media print {
+  /* Hide controls and minimap when printing */
+  .react-flow__controls,
+  .react-flow__minimap,
+  .react-flow__attribution {
+    display: none;
+  }
+
+  /* Ensure nodes are visible */
+  .react-flow__node {
+    page-break-inside: avoid;
+  }
+
+  /* Use lighter background for print */
+  .react-flow {
+    background-color: white;
+  }
+
+  .base-node {
+    border: 2px solid black;
+  }
+}
+
+/* ===========================
+   Utility Classes
+   =========================== */
+
+/* Pulse animation utility */
+.pulse {
+  animation: pulse-running 2s infinite;
+}
+
+/* Glow effect utility */
+.glow {
+  box-shadow: 0 0 12px rgba(59, 130, 246, 0.6);
+}
+
+/* Disabled state */
+.disabled {
+  opacity: 0.5;
+  pointer-events: none;
+  filter: grayscale(0.8);
+}
+
+/* Loading state */
+.loading {
+  position: relative;
+  pointer-events: none;
+}
+
+.loading::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  border-radius: 8px;
+  animation: pulse-running 1.5s infinite;
+}
