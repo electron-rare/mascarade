@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
+import "@xyflow/react/dist/style.css";
+import { ReactFlow } from "@xyflow/react";
 import {
   killLifeApi,
   type KillLifeEvidenceEntry,
