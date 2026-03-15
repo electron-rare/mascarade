@@ -346,12 +346,66 @@ export default function KillLifeWorkflowEditor() {
   const [runnerInputsText, setRunnerInputsText] = useState("{}");
   const [edgeTargetId, setEdgeTargetId] = useState("");
 
+  // Undo/Redo state management
+  const [historyPast, setHistoryPast] = useState<KillLifeWorkflow[]>([]);
+  const [historyFuture, setHistoryFuture] = useState<KillLifeWorkflow[]>([]);
+
   const saveAction = useApi(async (doc: KillLifeWorkflow) => killLifeApi.save(doc.id, doc));
   const validateAction = useApi(async (doc: KillLifeWorkflow) => killLifeApi.validate(doc.id, doc));
   const runAction = useApi(
     async (args: { mode: "local" | "github"; dry_run?: boolean }) =>
       killLifeApi.run(workflowId, args),
   );
+
+  // Save current workflow state to history before mutation
+  const saveSnapshot = () => {
+    if (!workflow) return;
+    setHistoryPast((past) => {
+      const newPast = [...past, cloneWorkflow(workflow)];
+      // Limit history to 50 entries
+      if (newPast.length > 50) {
+        newPast.shift();
+      }
+      return newPast;
+    });
+    // Clear future stack when new change is made
+    setHistoryFuture([]);
+  };
+
+  const undo = () => {
+    if (historyPast.length === 0 || !workflow) return;
+    const previous = historyPast[historyPast.length - 1];
+    setHistoryPast((past) => past.slice(0, -1));
+    setHistoryFuture((future) => [cloneWorkflow(workflow), ...future]);
+    setWorkflow(cloneWorkflow(previous));
+    setDirty(true);
+  };
+
+  const redo = () => {
+    if (historyFuture.length === 0) return;
+    const next = historyFuture[0];
+    if (!workflow) return;
+    setHistoryFuture((future) => future.slice(1));
+    setHistoryPast((past) => [...past, cloneWorkflow(workflow)]);
+    setWorkflow(cloneWorkflow(next));
+    setDirty(true);
+  };
+
+  // Keyboard shortcuts for undo/redo
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if ((event.ctrlKey || event.metaKey) && event.key === 'z' && !event.shiftKey) {
+        event.preventDefault();
+        undo();
+      } else if ((event.ctrlKey || event.metaKey) && (event.key === 'y' || (event.key === 'z' && event.shiftKey))) {
+        event.preventDefault();
+        redo();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [historyPast, historyFuture, workflow]);
 
   useEffect(() => {
     if (!details.data?.workflow) return;
@@ -360,6 +414,9 @@ export default function KillLifeWorkflowEditor() {
     setValidation(details.data.validation);
     setSelectedNodeId((current) => current && next.nodes.some((node) => node.id === current) ? current : next.nodes[0]?.id || null);
     setDirty(false);
+    // Clear history when loading a new workflow
+    setHistoryPast([]);
+    setHistoryFuture([]);
   }, [details.data?.workflow, details.data?.validation]);
 
   const selectedNode = useMemo(
@@ -415,6 +472,7 @@ export default function KillLifeWorkflowEditor() {
   }, [details.data?.runs, runAction.data]);
 
   const handleWorkflowField = (field: keyof KillLifeWorkflow, value: string | string[]) => {
+    saveSnapshot();
     setWorkflow((current) => {
       if (!current) return current;
       const next = cloneWorkflow(current);
@@ -425,6 +483,7 @@ export default function KillLifeWorkflowEditor() {
   };
 
   const updateNode = (nodeId: string, updater: (node: KillLifeWorkflowNode) => void) => {
+    saveSnapshot();
     setWorkflow((current) => {
       if (!current) return current;
       const next = cloneWorkflow(current);
@@ -437,6 +496,7 @@ export default function KillLifeWorkflowEditor() {
   };
 
   const addNode = (type: string) => {
+    saveSnapshot();
     setWorkflow((current) => {
       if (!current) return current;
       const next = cloneWorkflow(current);
@@ -460,6 +520,7 @@ export default function KillLifeWorkflowEditor() {
 
   const removeSelectedNode = () => {
     if (!selectedNode || !workflow) return;
+    saveSnapshot();
     setWorkflow((current) => {
       if (!current) return current;
       const next = cloneWorkflow(current);
@@ -475,6 +536,7 @@ export default function KillLifeWorkflowEditor() {
   const connectNodes = (sourceId: string, targetId: string) => {
     if (!workflow || sourceId === targetId) return;
     if (workflow.edges.some((edge) => edge.source === sourceId && edge.target === targetId)) return;
+    saveSnapshot();
     setWorkflow((current) => {
       if (!current) return current;
       const next = cloneWorkflow(current);
@@ -489,6 +551,7 @@ export default function KillLifeWorkflowEditor() {
   };
 
   const removeEdge = (edgeId: string) => {
+    saveSnapshot();
     setWorkflow((current) => {
       if (!current) return current;
       const next = cloneWorkflow(current);
@@ -704,6 +767,7 @@ export default function KillLifeWorkflowEditor() {
               <Button
                 variant="secondary"
                 onClick={() => {
+                  saveSnapshot();
                   setWorkflow((current) => (current ? autoLayoutDagre(current) : current));
                   setDirty(true);
                   // Fit view after layout is applied
