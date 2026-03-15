@@ -114,7 +114,10 @@ class P2PTransport:
     @property
     def peers(self) -> dict[str, PeerConnection]:
         merged = dict(self._inbound_peers)
-        merged.update(self._peers)  # outbound takes precedence
+        for peer_id in self._peers:
+            conn = self._preferred_peer_connection(peer_id)
+            if conn is not None:
+                merged[peer_id] = conn
         return merged
 
     def set_relay_client(self, client: Any) -> None:
@@ -195,9 +198,11 @@ class P2PTransport:
         self._inbound_peers.clear()
 
     async def broadcast(self, msg: P2PMessage) -> int:
-        # Merge outbound + inbound peers (outbound wins on overlap)
-        all_peers: dict[str, PeerConnection] = dict(self._inbound_peers)
-        all_peers.update(self._peers)
+        all_peers: dict[str, PeerConnection] = {}
+        for peer_id in {*self._inbound_peers.keys(), *self._peers.keys()}:
+            conn = self._preferred_peer_connection(peer_id)
+            if conn is not None:
+                all_peers[peer_id] = conn
         sends = [
             (peer_id, conn)
             for peer_id, conn in list(all_peers.items())
@@ -219,7 +224,7 @@ class P2PTransport:
                 sent += 1
                 if self._metrics:
                     self._metrics.record_message_sent(msg.type)
-                if peer_id in self._peers:
+                if self._peers.get(peer_id) is conn:
                     self._ensure_outbound_reader(peer_id, conn)
             elif isinstance(result, Exception):
                 logger.debug("Broadcast to %s failed: %s", peer_id, result)
@@ -229,7 +234,7 @@ class P2PTransport:
         outgoing = self._prepare_outgoing(msg)
         if self._metrics:
             self._metrics.record_message_sent(outgoing.type)
-        conn = self._peers.get(peer_id)
+        conn = self._preferred_peer_connection(peer_id)
         if not conn:
             # Try relay fallback if available
             if self._relay_client is not None:
@@ -245,7 +250,8 @@ class P2PTransport:
             return False
         result = await conn.send(outgoing)
         if result:
-            self._ensure_outbound_reader(peer_id, conn)
+            if self._peers.get(peer_id) is conn:
+                self._ensure_outbound_reader(peer_id, conn)
             return True
         # Direct send failed — try relay fallback
         if self._relay_client is not None:
@@ -260,6 +266,15 @@ class P2PTransport:
                 inner_public_key=outgoing.public_key,
             )
         return False
+
+    def _preferred_peer_connection(self, peer_id: str) -> PeerConnection | None:
+        outbound = self._peers.get(peer_id)
+        inbound = self._inbound_peers.get(peer_id)
+        if outbound is not None and getattr(outbound, "connected", True):
+            return outbound
+        if inbound is not None and getattr(inbound, "connected", True):
+            return inbound
+        return outbound or inbound
 
     async def send_to_via_relay(
         self,

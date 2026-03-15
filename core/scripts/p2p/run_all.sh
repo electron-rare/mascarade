@@ -7,7 +7,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 CORE_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
 VM_HOST="192.168.0.119"
-VM_PORT="4002"
+VM_PORT="4001"
 CILS_HOST="192.168.0.210"
 TOWER_HOST="192.168.0.120"
 KXKM_HOST="kxkm-ai"
@@ -38,10 +38,15 @@ cmd_start() {
 
     echo ""
     echo "1. VM Bootstrap + Relay"
-    ssh root@$VM_HOST "pkill -f '[n]ode_start_bootstrap.py' 2>/dev/null || true; pkill -f '[t]ask_handler_worker.py' 2>/dev/null || true; sleep 1; cd /mascarade/core && P2P_LISTEN_PORT=$VM_PORT nohup python3 scripts/p2p/node_start_bootstrap.py </dev/null >/tmp/p2p_node.log 2>&1 &" >/dev/null 2>&1 || true
+    ssh root@$VM_HOST "pkill -f '[n]ode_start_bootstrap.py' 2>/dev/null || true; pkill -f '[t]ask_handler_worker.py' 2>/dev/null || true; sleep 1; pkill -9 -f '[n]ode_start_bootstrap.py' 2>/dev/null || true; pkill -9 -f '[t]ask_handler_worker.py' 2>/dev/null || true; rm -f /tmp/p2p_node.log; cd /mascarade/core && P2P_LISTEN_PORT=$VM_PORT nohup python3 scripts/p2p/node_start_bootstrap.py </dev/null >/tmp/p2p_node.log 2>&1 & exit 0" >/dev/null 2>&1 || true
     sleep 3
+    VM_PORT_STATUS=$(ssh root@$VM_HOST "ss -tlnp 2>/dev/null | grep ':$VM_PORT ' || netstat -tlnp 2>/dev/null | grep ':$VM_PORT '" 2>/dev/null || true)
     VM_LOG=$(ssh root@$VM_HOST "head -2 /tmp/p2p_node.log" 2>/dev/null || true)
-    echo "$VM_LOG" | grep -q READY && ok "VM READY" || fail "VM not ready: $VM_LOG"
+    if echo "$VM_PORT_STATUS" | grep -q ":$VM_PORT "; then
+        ok "VM READY on :$VM_PORT"
+    else
+        fail "VM not listening on :$VM_PORT — $VM_LOG"
+    fi
 
     echo ""
     echo "2. Local bridge"

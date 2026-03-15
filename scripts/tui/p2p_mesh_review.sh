@@ -163,7 +163,7 @@ ensure_local_bridge() {
     (
         cd "$CORE_DIR"
         P2P_BOOTSTRAP_ID="$bootstrap_peer_id" \
-        P2P_BOOTSTRAP_PORT="4002" \
+        P2P_BOOTSTRAP_PORT="4001" \
         P2P_LISTEN_PORT="$LOCAL_BRIDGE_PORT" \
         P2P_LABEL="GrosMac Research" \
         P2P_CAPABILITIES="ft-research,ft-dataset,ft-teacher,ft-archive" \

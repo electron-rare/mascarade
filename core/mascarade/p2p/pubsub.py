@@ -37,6 +37,7 @@ class P2PPubSub:
         self._subscriptions: dict[str, list[TopicHandler]] = defaultdict(list)
         self._seen: dict[str, _SeenEntry] = {}
         self._seen_lock = asyncio.Lock()
+        self._relay_tasks: set[asyncio.Task] = set()
         self._authenticator: MessageAuthenticator | None = None
 
         transport.on_message("pubsub:publish", self._handle_publish)
@@ -107,9 +108,11 @@ class P2PPubSub:
         sends = []
         for peer_id, peer_conn in self._transport.peers.items():
             if peer_id != msg.sender and peer_id != self._local_peer_id:
-                sends.append(peer_conn.send(relay))
+                sends.append((peer_id, peer_conn))
         if sends:
-            await asyncio.gather(*sends, return_exceptions=True)
+            task = asyncio.create_task(self._relay_publish(relay, sends))
+            self._relay_tasks.add(task)
+            task.add_done_callback(self._relay_tasks.discard)
 
     async def _handle_subscribe(self, msg: P2PMessage, conn: PeerConnection) -> None:
         # Remote peer declares interest in a topic — we track it for targeted gossip
@@ -132,3 +135,16 @@ class P2PPubSub:
             cutoff = time.monotonic() - _SEEN_TTL
             self._seen = {k: v for k, v in self._seen.items() if v.ts > cutoff}
         self._seen[nonce] = _SeenEntry(ts=time.monotonic())
+
+    async def _relay_publish(
+        self,
+        relay: P2PMessage,
+        sends: list[tuple[str, Any]],
+    ) -> None:
+        results = await asyncio.gather(
+            *(peer_conn.send(relay) for _, peer_conn in sends),
+            return_exceptions=True,
+        )
+        for (peer_id, _), result in zip(sends, results, strict=False):
+            if isinstance(result, Exception):
+                logger.debug("PubSub relay to %s failed: %s", peer_id, result)
