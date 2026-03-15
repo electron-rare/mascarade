@@ -5,16 +5,39 @@ from __future__ import annotations
 
 import importlib.metadata
 import json
+import logging
 import os
+import time
 from dataclasses import dataclass
 from pathlib import Path
-from threading import Lock
+from threading import Lock, Thread
 from typing import Any, Protocol
 
+import psutil
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import Response
+from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_latest
 from pydantic import BaseModel, Field
 
 app = FastAPI(title="Mascarade Apple LLM", version="0.1.0")
+
+# Prometheus metrics - use try/except to handle duplicate registration in tests
+try:
+    HTTP_REQUESTS_TOTAL = Counter(
+        "apple_llm_http_requests_total",
+        "Total HTTP requests served by the apple-llm-api.",
+        ["method", "path", "status"],
+    )
+    HTTP_REQUEST_DURATION_SECONDS = Histogram(
+        "apple_llm_http_request_duration_seconds",
+        "HTTP request latency for the apple-llm-api.",
+        ["method", "path"],
+    )
+except ValueError:
+    # Metrics already registered (happens in tests with multiple imports)
+    from prometheus_client import REGISTRY
+    HTTP_REQUESTS_TOTAL = REGISTRY._names_to_collectors.get("apple_llm_http_requests_total")
+    HTTP_REQUEST_DURATION_SECONDS = REGISTRY._names_to_collectors.get("apple_llm_http_request_duration_seconds")
 
 
 class Message(BaseModel):
@@ -61,11 +84,505 @@ class RuntimeConfig:
     trust_remote_code: bool
 
 
+class ModelManager:
+    """Manages multiple CoreML/ONNX models with hot-swap and priority queue support."""
+
+    def __init__(self, max_concurrent_models: int = 1):
+        """Initialize the model manager.
+
+        Args:
+            max_concurrent_models: Maximum number of models that can be loaded simultaneously.
+                                   Default is 1 for memory-constrained devices.
+        """
+        self.loaded_models: dict[str, RuntimeState] = {}
+        self.model_configs: dict[str, RuntimeConfig] = {}
+        self.model_priorities: dict[str, int] = {}
+        self.request_count: dict[str, int] = {}
+        self.last_used: dict[str, float] = {}
+        self.max_concurrent_models: int = max_concurrent_models
+        self.current_model_id: str | None = None
+        self.model_load_lock: Lock = Lock()
+        self.logger = logging.getLogger(f"{__name__}.ModelManager")
+
+    def _get_memory_usage_mb(self) -> float:
+        """Get current memory usage in MB.
+
+        Returns:
+            Current memory usage in megabytes
+        """
+        process = psutil.Process()
+        return process.memory_info().rss / 1024 / 1024
+
+    def get_loaded_model(self, model_id: str) -> RuntimeState | None:
+        """Get a loaded model by ID.
+
+        Args:
+            model_id: The model identifier
+
+        Returns:
+            The runtime state if loaded, None otherwise
+        """
+        model = self.loaded_models.get(model_id)
+        if model is not None:
+            # Track usage
+            self.request_count[model_id] = self.request_count.get(model_id, 0) + 1
+            self.last_used[model_id] = time.time()
+        return model
+
+    def is_loaded(self, model_id: str) -> bool:
+        """Check if a model is currently loaded.
+
+        Args:
+            model_id: The model identifier
+
+        Returns:
+            True if the model is loaded, False otherwise
+        """
+        return model_id in self.loaded_models
+
+    def register_model_config(
+        self, model_id: str, config: RuntimeConfig, priority: int = 0
+    ) -> None:
+        """Register a model configuration.
+
+        Args:
+            model_id: The model identifier
+            config: The runtime configuration for the model
+            priority: Priority for this model (higher = more important, kept longer).
+                     Default is 0.
+        """
+        self.model_configs[model_id] = config
+        self.model_priorities[model_id] = priority
+
+    def get_model_config(self, model_id: str) -> RuntimeConfig | None:
+        """Get a registered model configuration.
+
+        Args:
+            model_id: The model identifier
+
+        Returns:
+            The runtime configuration if registered, None otherwise
+        """
+        return self.model_configs.get(model_id)
+
+    def list_loaded_models(self) -> list[str]:
+        """List all currently loaded model IDs.
+
+        Returns:
+            List of loaded model IDs
+        """
+        return list(self.loaded_models.keys())
+
+    def list_configured_models(self) -> list[str]:
+        """List all configured model IDs.
+
+        Returns:
+            List of configured model IDs
+        """
+        return list(self.model_configs.keys())
+
+    def set_model_priority(self, model_id: str, priority: int) -> None:
+        """Set the priority for a model.
+
+        Args:
+            model_id: The model identifier
+            priority: Priority value (higher = more important, kept longer in memory)
+
+        Raises:
+            ValueError: If the model_id is not configured
+        """
+        if model_id not in self.model_configs:
+            raise ValueError(f"Model '{model_id}' is not configured")
+        self.model_priorities[model_id] = priority
+
+    def get_model_priority(self, model_id: str) -> int:
+        """Get the priority for a model.
+
+        Args:
+            model_id: The model identifier
+
+        Returns:
+            The priority value, or 0 if not set
+
+        Raises:
+            ValueError: If the model_id is not configured
+        """
+        if model_id not in self.model_configs:
+            raise ValueError(f"Model '{model_id}' is not configured")
+        return self.model_priorities.get(model_id, 0)
+
+    def _find_lowest_priority_model(self) -> str | None:
+        """Find the loaded model with the lowest priority.
+
+        Returns:
+            The model_id of the lowest priority loaded model, or None if no models loaded
+
+        Note:
+            This method assumes the caller holds model_load_lock.
+            If multiple models have the same lowest priority, returns the first one found.
+        """
+        if not self.loaded_models:
+            return None
+
+        lowest_priority_model = None
+        lowest_priority = float("inf")
+
+        for model_id in self.loaded_models:
+            priority = self.model_priorities.get(model_id, 0)
+            if priority < lowest_priority:
+                lowest_priority = priority
+                lowest_priority_model = model_id
+
+        return lowest_priority_model
+
+    def load_model(
+        self, model_id: str, config: RuntimeConfig, priority: int = 0
+    ) -> RuntimeState:
+        """Load a model into memory.
+
+        Args:
+            model_id: The model identifier
+            config: The runtime configuration for the model
+            priority: Priority for this model (higher = more important, kept longer).
+                     Default is 0.
+
+        Returns:
+            The loaded runtime state
+
+        Raises:
+            RuntimeConfigError: If the model cannot be loaded
+            ValueError: If the model_id is empty
+        """
+        if not model_id or not model_id.strip():
+            raise ValueError("model_id cannot be empty")
+
+        with self.model_load_lock:
+            # Check if already loaded
+            if model_id in self.loaded_models:
+                return self.loaded_models[model_id]
+
+            # Check if we need to unload a model first
+            if len(self.loaded_models) >= self.max_concurrent_models:
+                # Unload the model with the lowest priority
+                lowest_priority_model = self._find_lowest_priority_model()
+                if lowest_priority_model:
+                    self.unload_model(lowest_priority_model)
+
+            # Register the config if not already registered
+            if model_id not in self.model_configs:
+                self.model_configs[model_id] = config
+                self.model_priorities[model_id] = priority
+
+            # Build the runtime
+            try:
+                load_start_time = time.time()
+                runtime = _build_runtime(config)
+                runtime.check_ready()
+                self.loaded_models[model_id] = runtime
+                self.current_model_id = model_id
+                # Initialize usage tracking
+                self.request_count[model_id] = self.request_count.get(model_id, 0) + 1
+                self.last_used[model_id] = time.time()
+
+                # Log successful model load
+                load_duration = time.time() - load_start_time
+                memory_usage = self._get_memory_usage_mb()
+                self.logger.info(
+                    "model_loaded",
+                    extra={
+                        "event": "model_loaded",
+                        "model_id": model_id,
+                        "duration": load_duration,
+                        "memory_usage": memory_usage,
+                    }
+                )
+
+                return runtime
+            except Exception as exc:
+                raise RuntimeConfigError(
+                    f"Failed to load model '{model_id}': {exc}"
+                ) from exc
+
+    def unload_model(self, model_id: str) -> bool:
+        """Unload a model from memory.
+
+        Args:
+            model_id: The model identifier
+
+        Returns:
+            True if the model was unloaded, False if it wasn't loaded
+
+        Raises:
+            ValueError: If the model_id is empty
+        """
+        if not model_id or not model_id.strip():
+            raise ValueError("model_id cannot be empty")
+
+        with self.model_load_lock:
+            if model_id not in self.loaded_models:
+                return False
+
+            unload_start_time = time.time()
+
+            # Remove the model
+            del self.loaded_models[model_id]
+
+            # Update current_model_id if needed
+            if self.current_model_id == model_id:
+                # Set to the most recently loaded model, or None if no models loaded
+                self.current_model_id = (
+                    list(self.loaded_models.keys())[-1]
+                    if self.loaded_models
+                    else None
+                )
+
+            # Log successful model unload
+            unload_duration = time.time() - unload_start_time
+            memory_usage = self._get_memory_usage_mb()
+            self.logger.info(
+                "model_unloaded",
+                extra={
+                    "event": "model_unloaded",
+                    "model_id": model_id,
+                    "duration": unload_duration,
+                    "memory_usage": memory_usage,
+                }
+            )
+
+            return True
+
+    def _mark_model_used(self, model_id: str) -> None:
+        """Mark a model as recently used by moving it to the end of the dict.
+
+        Args:
+            model_id: The model identifier
+
+        Note:
+            This method assumes the caller holds model_load_lock.
+            Python 3.7+ dicts maintain insertion order, so we move the model
+            to the end to mark it as most recently used.
+        """
+        if model_id in self.loaded_models:
+            # Move to end by removing and re-inserting
+            runtime = self.loaded_models.pop(model_id)
+            self.loaded_models[model_id] = runtime
+
+    def get_usage_stats(self, model_id: str) -> dict[str, Any]:
+        """Get usage statistics for a model.
+
+        Args:
+            model_id: The model identifier
+
+        Returns:
+            Dictionary containing request_count and last_used timestamp.
+            Returns zeros/None if the model has never been used.
+        """
+        return {
+            "request_count": self.request_count.get(model_id, 0),
+            "last_used": self.last_used.get(model_id),
+        }
+
+    def get_all_usage_stats(self) -> dict[str, dict[str, Any]]:
+        """Get usage statistics for all configured models.
+
+        Returns:
+            Dictionary mapping model_id to usage statistics
+        """
+        stats = {}
+        for model_id in self.model_configs:
+            stats[model_id] = self.get_usage_stats(model_id)
+        return stats
+
+    def predict_next_model(self) -> str | None:
+        """Predict the next model likely to be used based on usage patterns.
+
+        Uses a simple heuristic: the model with the highest request count
+        that was used recently (within the last hour) or the most recently used model.
+
+        Returns:
+            The model_id of the predicted next model, or None if no usage history
+        """
+        if not self.request_count:
+            return None
+
+        current_time = time.time()
+        one_hour_ago = current_time - 3600
+
+        # Find models used in the last hour
+        recent_models = {
+            model_id: count
+            for model_id, count in self.request_count.items()
+            if self.last_used.get(model_id, 0) > one_hour_ago
+        }
+
+        if recent_models:
+            # Return the most frequently used model from recent models
+            return max(recent_models, key=recent_models.get)
+        else:
+            # Return the most recently used model overall
+            if self.last_used:
+                return max(self.last_used, key=self.last_used.get)
+            return None
+
+    def swap_model(self, new_model_id: str) -> RuntimeState:
+        """Swap to a different model, implementing priority-based eviction if needed.
+
+        This method loads the requested model if it's not already loaded.
+        If the model is already loaded, it updates its access time.
+        When the maximum number of concurrent models is reached, the model
+        with the lowest priority is evicted.
+
+        Args:
+            new_model_id: The model identifier to swap to
+
+        Returns:
+            The runtime state for the requested model
+
+        Raises:
+            ValueError: If new_model_id is empty or if the model is not configured
+            RuntimeConfigError: If the model cannot be loaded
+        """
+        if not new_model_id or not new_model_id.strip():
+            raise ValueError("model_id cannot be empty")
+
+        swap_start_time = time.time()
+        memory_usage_start = self._get_memory_usage_mb()
+
+        # Log model swap started
+        self.logger.info(
+            "model_swap_started",
+            extra={
+                "event": "model_swap_started",
+                "model_id": new_model_id,
+                "duration": 0,
+                "memory_usage": memory_usage_start,
+            }
+        )
+
+        with self.model_load_lock:
+            # If already loaded, mark as recently used and return
+            if new_model_id in self.loaded_models:
+                self._mark_model_used(new_model_id)
+                self.current_model_id = new_model_id
+                # Track usage
+                self.request_count[new_model_id] = self.request_count.get(new_model_id, 0) + 1
+                self.last_used[new_model_id] = time.time()
+
+                # Log successful model swap (already loaded)
+                swap_duration = time.time() - swap_start_time
+                memory_usage = self._get_memory_usage_mb()
+                self.logger.info(
+                    "model_swap_completed",
+                    extra={
+                        "event": "model_swap_completed",
+                        "model_id": new_model_id,
+                        "duration": swap_duration,
+                        "memory_usage": memory_usage,
+                    }
+                )
+
+                return self.loaded_models[new_model_id]
+
+            # Get the model configuration
+            config = self.model_configs.get(new_model_id)
+            if config is None:
+                raise ValueError(
+                    f"Model '{new_model_id}' is not configured. "
+                    f"Available models: {list(self.model_configs.keys())}"
+                )
+
+            # Check if we need to unload a model first (priority-based eviction)
+            if len(self.loaded_models) >= self.max_concurrent_models:
+                # Evict the model with the lowest priority
+                lowest_priority_model = self._find_lowest_priority_model()
+                if lowest_priority_model:
+                    self.unload_model(lowest_priority_model)
+
+            # Load the new model
+            try:
+                runtime = _build_runtime(config)
+                runtime.check_ready()
+                self.loaded_models[new_model_id] = runtime
+                self.current_model_id = new_model_id
+                # Track usage
+                self.request_count[new_model_id] = self.request_count.get(new_model_id, 0) + 1
+                self.last_used[new_model_id] = time.time()
+
+                # Log successful model swap (newly loaded)
+                swap_duration = time.time() - swap_start_time
+                memory_usage = self._get_memory_usage_mb()
+                self.logger.info(
+                    "model_swap_completed",
+                    extra={
+                        "event": "model_swap_completed",
+                        "model_id": new_model_id,
+                        "duration": swap_duration,
+                        "memory_usage": memory_usage,
+                    }
+                )
+
+                return runtime
+            except Exception as exc:
+                raise RuntimeConfigError(
+                    f"Failed to load model '{new_model_id}': {exc}"
+                ) from exc
+
+
 _runtime_lock = Lock()
 _runtime_cache: RuntimeState | None = None
 _runtime_signature: RuntimeConfig | None = None
+_model_manager = ModelManager(max_concurrent_models=1)
 InputSpec = tuple[str, str, list[Any] | None]
 StateSpec = tuple[str, str, list[Any] | None]
+
+
+def pre_warm_next_model() -> None:
+    """Pre-warm the next likely model in a background thread.
+
+    This function predicts which model is likely to be used next based on usage patterns,
+    and loads it proactively in the background if memory is available.
+    The actual loading happens in a separate thread to avoid blocking the main application.
+    """
+    def _load_predicted_model() -> None:
+        """Background task to load the predicted next model."""
+        try:
+            # Predict which model will be used next
+            next_model_id = _model_manager.predict_next_model()
+            if not next_model_id:
+                return
+
+            # Check if the model is already loaded
+            if _model_manager.is_loaded(next_model_id):
+                return
+
+            # Check if we have memory available (room for another model)
+            loaded_count = len(_model_manager.list_loaded_models())
+            if loaded_count >= _model_manager.max_concurrent_models:
+                return
+
+            # Get the model configuration
+            model_config = _model_manager.get_model_config(next_model_id)
+            if not model_config:
+                # Try to get it from all configs
+                all_configs = _get_all_model_configs()
+                for config in all_configs:
+                    if config.model_id == next_model_id:
+                        model_config = config
+                        break
+
+            if not model_config:
+                return
+
+            # Load the model (this will respect priority and memory constraints)
+            _model_manager.load_model(next_model_id, model_config)
+        except Exception:
+            # Silently ignore errors in background pre-warming
+            # We don't want pre-warming failures to affect the main application
+            pass
+
+    # Start the background thread
+    thread = Thread(target=_load_predicted_model, daemon=True)
+    thread.start()
 
 
 def _package_version(name: str) -> str | None:
@@ -92,6 +609,105 @@ def _env_int(name: str, default: int) -> int:
         return default
 
 
+@dataclass(frozen=True)
+class ModelConfigEntry:
+    """Model configuration entry from APPLE_LLM_MODELS_JSON."""
+    model_id: str
+    model_path: str
+    tokenizer_path: str
+    backend: str = "coreml"
+    priority: int = 0
+    embed_model_path: str = ""
+
+
+def _parse_models_json() -> list[ModelConfigEntry] | None:
+    """Parse APPLE_LLM_MODELS_JSON environment variable.
+
+    Returns:
+        List of model configuration entries, or None if env var is not set or invalid.
+    """
+    models_json = os.getenv("APPLE_LLM_MODELS_JSON", "").strip()
+    if not models_json:
+        return None
+
+    try:
+        models_data = json.loads(models_json)
+        if not isinstance(models_data, list):
+            return None
+
+        entries = []
+        for item in models_data:
+            if not isinstance(item, dict):
+                continue
+
+            model_id = item.get("model_id", "").strip()
+            model_path = item.get("model_path", "").strip()
+            tokenizer_path = item.get("tokenizer_path", "").strip()
+
+            if not model_id or not model_path or not tokenizer_path:
+                continue
+
+            entry = ModelConfigEntry(
+                model_id=model_id,
+                model_path=model_path,
+                tokenizer_path=tokenizer_path,
+                backend=item.get("backend", "coreml").strip(),
+                priority=item.get("priority", 0),
+                embed_model_path=item.get("embed_model_path", "").strip(),
+            )
+            entries.append(entry)
+
+        return entries if entries else None
+    except (json.JSONDecodeError, Exception):
+        return None
+
+
+def _get_all_model_configs() -> list[RuntimeConfig]:
+    """Get all configured models, either from APPLE_LLM_MODELS_JSON or legacy single-model env vars.
+
+    Returns:
+        List of RuntimeConfig objects for all configured models.
+    """
+    backend = _normalize_backend(os.getenv("APPLE_LLM_BACKEND"))
+    compute_units = _normalize_compute_units(os.getenv("APPLE_LLM_COMPUTE_UNITS"))
+    max_input_tokens = max(32, _env_int("APPLE_LLM_MAX_INPUT_TOKENS", 2048))
+    max_new_tokens = max(1, _env_int("APPLE_LLM_MAX_NEW_TOKENS", 256))
+    trust_remote_code = _env_flag("APPLE_LLM_TRUST_REMOTE_CODE", False)
+
+    # Try multi-model JSON config first
+    model_entries = _parse_models_json()
+    if model_entries:
+        configs = []
+        for entry in model_entries:
+            config = RuntimeConfig(
+                backend=_normalize_backend(entry.backend),
+                model_id=entry.model_id,
+                model_path=entry.model_path,
+                embed_model_path=entry.embed_model_path,
+                tokenizer_path=entry.tokenizer_path,
+                compute_units=compute_units,
+                max_input_tokens=max_input_tokens,
+                max_new_tokens=max_new_tokens,
+                trust_remote_code=trust_remote_code,
+            )
+            configs.append(config)
+        return configs
+
+    # Fall back to legacy single-model env vars
+    single_config = RuntimeConfig(
+        backend=backend,
+        model_id=os.getenv("APPLE_LLM_MODEL_ID", "apple-local").strip() or "apple-local",
+        model_path=os.getenv("APPLE_LLM_MODEL_PATH", "").strip(),
+        embed_model_path=os.getenv("APPLE_LLM_EMBED_MODEL_PATH", "").strip(),
+        tokenizer_path=os.getenv("APPLE_LLM_TOKENIZER_PATH", "").strip(),
+        compute_units=compute_units,
+        max_input_tokens=max_input_tokens,
+        max_new_tokens=max_new_tokens,
+        trust_remote_code=trust_remote_code,
+    )
+    return [single_config]
+
+
 def _normalize_backend(raw: str | None) -> str:
     value = (raw or "coreml").strip().lower()
     aliases = {
@@ -114,7 +730,65 @@ def _normalize_compute_units(raw: str | None) -> str:
     return aliases.get(value, "cpu_and_ne")
 
 
+def _get_model_priority(model_id: str) -> int:
+    """Get the priority for a specific model_id from the models config.
+
+    Args:
+        model_id: The model identifier
+
+    Returns:
+        The priority (int) for the model, or 0 if not found in config
+    """
+    model_entries = _parse_models_json()
+    if model_entries:
+        for entry in model_entries:
+            if entry.model_id == model_id:
+                return entry.priority
+    return 0
+
+
+def _get_model_config_by_id(model_id: str) -> RuntimeConfig | None:
+    """Get runtime config for a specific model_id from all configured models.
+
+    Args:
+        model_id: The model identifier to look up
+
+    Returns:
+        RuntimeConfig if found, None otherwise
+    """
+    all_configs = _get_all_model_configs()
+    for config in all_configs:
+        if config.model_id == model_id:
+            return config
+    return None
+
+
 def _runtime_config() -> RuntimeConfig:
+    """Get the primary runtime configuration.
+
+    Supports both multi-model config (APPLE_LLM_MODELS_JSON) and legacy single-model env vars.
+    When multi-model config is present, returns the highest priority model as the default.
+    """
+    # Try multi-model JSON config first
+    model_entries = _parse_models_json()
+    if model_entries:
+        # Sort by priority (descending) to get highest priority model
+        sorted_entries = sorted(model_entries, key=lambda x: x.priority, reverse=True)
+        primary_entry = sorted_entries[0]
+
+        return RuntimeConfig(
+            backend=_normalize_backend(primary_entry.backend),
+            model_id=primary_entry.model_id,
+            model_path=primary_entry.model_path,
+            embed_model_path=primary_entry.embed_model_path,
+            tokenizer_path=primary_entry.tokenizer_path,
+            compute_units=_normalize_compute_units(os.getenv("APPLE_LLM_COMPUTE_UNITS")),
+            max_input_tokens=max(32, _env_int("APPLE_LLM_MAX_INPUT_TOKENS", 2048)),
+            max_new_tokens=max(1, _env_int("APPLE_LLM_MAX_NEW_TOKENS", 256)),
+            trust_remote_code=_env_flag("APPLE_LLM_TRUST_REMOTE_CODE", False),
+        )
+
+    # Fall back to legacy single-model env vars
     return RuntimeConfig(
         backend=_normalize_backend(os.getenv("APPLE_LLM_BACKEND")),
         model_id=os.getenv("APPLE_LLM_MODEL_ID", "apple-local").strip() or "apple-local",
@@ -1161,29 +1835,140 @@ async def health() -> dict[str, Any]:
     }
 
 
+@app.get("/metrics")
+async def metrics():
+    return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
+
+
 @app.get("/models")
 async def models() -> dict[str, Any]:
-    config = _runtime_config()
-    if not _configured(config):
-        return {"models": []}
-    runtime = _resolve_runtime()
+    """List all configured models and their status.
+
+    Returns:
+        Dictionary with:
+        - models: list of model info (model_id, loaded, priority, backend)
+        - backend: backend name
+        - loaded_count: number of currently loaded models
+        - max_concurrent: max concurrent models allowed
+    """
+    all_configs = _get_all_model_configs()
+    if not all_configs:
+        return {
+            "models": [],
+            "backend": "none",
+            "loaded_count": 0,
+            "max_concurrent": _model_manager.max_concurrent_models,
+        }
+
+    loaded_model_ids = _model_manager.list_loaded_models()
+    backend = all_configs[0].backend if all_configs else "none"
+
+    models_info = []
+    for config in all_configs:
+        is_loaded = config.model_id in loaded_model_ids
+
+        # Get priority from config (falls back to 0 if not in models JSON)
+        priority = _get_model_priority(config.model_id)
+
+        models_info.append({
+            "model_id": config.model_id,
+            "loaded": is_loaded,
+            "priority": priority,
+            "backend": config.backend,
+        })
+
     return {
-        "models": runtime.available_models(),
-        "backend": runtime.backend_name,
+        "models": models_info,
+        "backend": backend,
+        "loaded_count": len(loaded_model_ids),
+        "max_concurrent": _model_manager.max_concurrent_models,
+    }
+
+
+@app.get("/status")
+async def status() -> dict[str, Any]:
+    """Get system status including loaded models and memory usage.
+
+    Returns:
+        Dictionary with:
+        - loaded_models: list of loaded model info (model_id, priority, request_count, last_used)
+        - memory: system and process memory usage statistics
+        - max_concurrent_models: maximum concurrent models allowed
+    """
+    # Get loaded models with detailed stats
+    loaded_model_ids = _model_manager.list_loaded_models()
+    loaded_models_info = []
+
+    for model_id in loaded_model_ids:
+        try:
+            priority = _model_manager.get_model_priority(model_id)
+        except ValueError:
+            priority = 0
+
+        request_count = _model_manager.request_count.get(model_id, 0)
+        last_used = _model_manager.last_used.get(model_id)
+
+        loaded_models_info.append({
+            "model_id": model_id,
+            "priority": priority,
+            "request_count": request_count,
+            "last_used": last_used,
+        })
+
+    # Get system memory info
+    memory = psutil.virtual_memory()
+    process = psutil.Process()
+    process_memory = process.memory_info()
+
+    memory_info = {
+        "system": {
+            "total_bytes": memory.total,
+            "available_bytes": memory.available,
+            "used_bytes": memory.used,
+            "percent": memory.percent,
+        },
+        "process": {
+            "rss_bytes": process_memory.rss,
+            "vms_bytes": process_memory.vms,
+        },
+    }
+
+    # Get predicted pre-warm candidate
+    pre_warm_candidate = _model_manager.predict_next_model()
+
+    return {
+        "loaded_models": loaded_models_info,
+        "memory": memory_info,
+        "max_concurrent_models": _model_manager.max_concurrent_models,
+        "pre_warm_candidate": pre_warm_candidate,
     }
 
 
 @app.post("/generate")
 async def generate(req: GenerateRequest):
-    config = _runtime_config()
-    if not _configured(config):
+    # Get default config for validation
+    default_config = _runtime_config()
+    if not _configured(default_config):
         raise HTTPException(
             status_code=503,
             detail="APPLE_LLM_MODEL_PATH and APPLE_LLM_TOKENIZER_PATH must be configured",
         )
 
     try:
-        runtime = _resolve_runtime()
+        # Use model_id from request or fall back to default
+        model_id = req.model or default_config.model_id
+
+        # Look up the model-specific config
+        model_config = _get_model_config_by_id(model_id)
+        if model_config is None:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Model '{model_id}' not found in configured models. Available models: {[c.model_id for c in _get_all_model_configs()]}",
+            )
+
+        # Get priority and load with correct config
+        priority = _get_model_priority(model_id)
+        runtime = _model_manager.load_model(model_id, model_config, priority=priority)
         return runtime.generate(req)
     except HTTPException:
         raise

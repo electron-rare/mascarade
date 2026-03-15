@@ -96,10 +96,13 @@ class Settings(BaseSettings):
     apple_llm_model_id: str = "apple-local"
     apple_llm_backend: str = "coreml"
     apple_llm_timeout_seconds: float = 300.0
+    apple_llm_models_json: str = ""
 
     # ComfyUI
     comfyui_url: str = ""
 
+    # Database
+    database_url: str = "postgresql://mascarade:mascarade@postgres:5432/mascarade"
     # Qdrant
     qdrant_url: str = "http://qdrant:6333"
 
@@ -155,6 +158,12 @@ class Settings(BaseSettings):
     otel_collector_http_endpoint: str = "http://otel-collector:4318"
     ops_agent_url: str = "http://ops-agent:9200"
     loki_url: str = "http://loki:3100"
+
+    # ClickHouse
+    clickhouse_host: str = "http://clickhouse:8123"
+    clickhouse_user: str = "langfuse"
+    clickhouse_password: str = ""
+    clickhouse_database: str = "default"
 
     # Mistral Studio
     mistral_api_base: str = "https://api.mistral.ai/v1"

@@ -1,10 +1,13 @@
 /**
- * Middleware d'authentification — Bearer token avec comparaison timing-safe.
- * Si MASCARADE_API_KEY est vide, l'auth est desactivee (warning au demarrage).
+ * Middleware d'authentification — Bearer token avec validation database et comparaison timing-safe.
+ * Si DATABASE_URL est configuree, valide contre la base de donnees.
+ * Sinon, utilise MASCARADE_API_KEY (backward compatibility).
+ * Si aucune auth n'est configuree, desactive l'auth (warning au demarrage).
  */
 
 import { timingSafeEqual } from "node:crypto";
 import type { MiddlewareHandler } from "hono";
+import { isDatabaseAuthAvailable, validateToken } from "../lib/auth.js";
 
 const API_KEY_COOKIE = "mascarade_key";
 const MIN_KEY_LEN = 16;
@@ -31,10 +34,16 @@ function configuredRoleKeys(envName: string): string[] {
     .filter((key) => key.length >= MIN_KEY_LEN);
 }
 
-if (configuredApiKeys().length === 0) {
+const useDatabaseAuth = isDatabaseAuthAvailable();
+
+if (!useDatabaseAuth && configuredApiKeys().length === 0) {
   console.warn(
-    "[auth] MASCARADE_API_KEY not set — all protected routes are PUBLIC",
+    "[auth] Neither DATABASE_URL nor MASCARADE_API_KEY configured — all protected routes are PUBLIC",
   );
+} else if (useDatabaseAuth) {
+  console.info("[auth] Using database-backed authentication");
+} else {
+  console.info("[auth] Using legacy MASCARADE_API_KEY authentication");
 }
 
 function safeEqual(a: string, b: string): boolean {
@@ -148,11 +157,7 @@ function resolveRole(token: string): AuthRole | null {
 }
 
 export const authMiddleware: MiddlewareHandler = async (c, next) => {
-  const apiKeys = configuredApiKeys();
-  if (apiKeys.length === 0) {
-    return next();
-  }
-
+  // Extract token from header or cookie
   const authHeader = c.req.header("Authorization");
   const headerToken =
     authHeader && authHeader.startsWith("Bearer ")
@@ -162,7 +167,38 @@ export const authMiddleware: MiddlewareHandler = async (c, next) => {
   const token = headerToken || cookieToken;
 
   if (!token) {
-    return c.json({ error: "Token invalide ou manquant" }, 401);
+    // No token provided
+    if (useDatabaseAuth || configuredApiKeys().length > 0) {
+      return c.json({ error: "Token invalide ou manquant" }, 401);
+    }
+    // No auth configured, allow through
+    return next();
+  }
+
+  // Validate token
+  let isValid = false;
+
+  if (useDatabaseAuth) {
+    // Database-backed authentication
+    try {
+      const user = await validateToken(token);
+      if (user) {
+        isValid = true;
+        // Attach user to context for downstream use
+        c.set("user", user);
+      }
+    } catch (error) {
+      // Token validation failed
+      isValid = false;
+    }
+  } else {
+    // Legacy env variable authentication (backward compatibility)
+    const apiKeys = configuredApiKeys();
+    if (apiKeys.length === 0) {
+      // No auth configured
+      return next();
+    }
+    isValid = apiKeys.some((apiKey) => safeEqual(token, apiKey));
   }
 
   const isValid = isValidConfiguredApiKey(token);

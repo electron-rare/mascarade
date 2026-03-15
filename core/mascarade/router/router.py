@@ -7,6 +7,7 @@ import re
 import time
 from collections.abc import AsyncIterator
 from enum import StrEnum
+from typing import Any
 
 from mascarade.cache.multi_tier_cache import MultiTierCache
 from mascarade.config import settings
@@ -17,9 +18,17 @@ from mascarade.observability.langfuse import (
     update_langfuse_generation,
 )
 from mascarade.router.fallback import FallbackState
+from mascarade.router.model_registry import ModelRegistry
+from mascarade.router.health_monitor import HealthMonitor
 from mascarade.router.providers.base import LLMProvider, LLMResponse
+from mascarade.usage_tracking import track_usage
 
 logger = logging.getLogger("mascarade.router")
+
+try:
+    from mascarade.benchmarks.storage import BenchmarkStorage
+except ImportError:
+    BenchmarkStorage = None  # type: ignore[assignment,misc]
 
 
 class Strategy(StrEnum):
@@ -31,6 +40,54 @@ class Strategy(StrEnum):
     ROUTELLM = "routellm"
 
 
+def detect_domain(content: str) -> str | None:
+    """
+    Detect domain from message content based on keywords.
+
+    Args:
+        content: Text content to analyze
+
+    Returns:
+        Detected domain or None
+    """
+    # Keywords for each domain
+    domain_keywords = {
+        "spice": ["spice", "simulation", "ngspice", "ltspice", "circuit simulation"],
+        "kicad": ["kicad", "pcb", "schematic", "footprint", "kicad_pcb"],
+        "stm32": ["stm32", "arm cortex", "hal", "cubemx", "stm32f", "stm32l"],
+        "electronics": [
+            "circuit",
+            "resistor",
+            "capacitor",
+            "transistor",
+            "voltage",
+            "current",
+            "amplifier",
+            "oscillator",
+        ],
+        "code": [
+            "python",
+            "javascript",
+            "function",
+            "class",
+            "api",
+            "algorithm",
+            "debug",
+            "refactor",
+        ],
+    }
+
+    # Normalize content to lowercase for matching
+    content_lower = content.lower()
+
+    # Check for domain keywords
+    for domain, keywords in domain_keywords.items():
+        if any(keyword in content_lower for keyword in keywords):
+            return domain
+
+    return None
+
+
 class Router:
     """Routeur intelligent entre providers LLM."""
 
@@ -40,6 +97,15 @@ class Router:
         self.metrics = MetricsTracker()
         self.load_balancer = LoadBalancer()
         self.fallback = FallbackState(max_attempts=3)
+        self.model_registry = ModelRegistry()
+        self.benchmark_storage = BenchmarkStorage() if BenchmarkStorage else None
+        self.circuit_breaker = CircuitBreaker()
+        self.health_monitor = HealthMonitor(
+            metrics_tracker=self.metrics,
+            load_balancer=self.load_balancer,
+        )
+        self.cost_logger = get_cost_logger()
+        self.cost_calculator = get_cost_calculator()
         self._register_defaults()
 
     def _register_defaults(self) -> None:
@@ -88,10 +154,50 @@ class Router:
             for name, provider in self._providers.items()
         }
 
+    def _get_effective_cost(self, provider: LLMProvider) -> float:
+        """
+        Get effective cost for a provider.
+
+        Uses actual measured cost per request if sufficient data is available,
+        otherwise falls back to static cost_per_million.
+
+        Args:
+            provider: LLMProvider instance
+
+        Returns:
+            Effective cost metric for comparison
+        """
+        MIN_REQUESTS_FOR_MEASURED_COST = 5
+
+        # Try to get measured cost data
+        stats = self.metrics.get_provider_stats(provider.name)
+        if stats and stats.get("total_requests", 0) >= MIN_REQUESTS_FOR_MEASURED_COST:
+            total_cost = stats.get("total_cost", 0.0)
+            total_requests = stats.get("total_requests", 1)
+            avg_cost_per_request = total_cost / total_requests
+            logger.debug(
+                "Using measured cost for %s: $%.6f per request (based on %d requests)",
+                provider.name,
+                avg_cost_per_request,
+                total_requests,
+            )
+            return avg_cost_per_request
+
+        # Fallback to static cost_per_million
+        # Use sum as a proxy for comparison (input + output cost per million)
+        static_cost = sum(provider.cost_per_million)
+        logger.debug(
+            "Using static cost for %s: $%.2f per 1M tokens (insufficient measured data)",
+            provider.name,
+            static_cost,
+        )
+        return static_cost
+
     def _select_candidates(
         self,
         strategy: Strategy = Strategy.BEST,
         provider_name: str | None = None,
+        domain: str | None = None,
     ) -> list[LLMProvider]:
         if not self._providers:
             raise RuntimeError("Aucun provider LLM configuré. Vérifiez vos clés API.")
@@ -106,9 +212,45 @@ class Router:
 
         providers = list(self._providers.values())
 
+        # Filter by domain if specified
+        if domain:
+            domain_models = [
+                m for m in self.model_registry.get_models()
+                if m.domain == domain and m.health_status == "healthy"
+            ]
+            if domain_models:
+                domain_providers = {m.provider for m in domain_models}
+                providers = [
+                    p for p in providers
+                    if p.name in domain_providers
+                ]
+                logger.info(
+                    "Filtered to %d provider(s) for domain '%s': %s",
+                    len(providers),
+                    domain,
+                    [p.name for p in providers],
+                )
+            else:
+                logger.warning(
+                    "No healthy models found for domain '%s', using all providers",
+                    domain,
+                )
+
+        # Filter out providers with OPEN circuits
+        # Allow HALF_OPEN providers for recovery testing
+        healthy_providers = [
+            p for p in providers
+            if not self.circuit_breaker.is_open(p.name)
+        ]
+
+        # If all providers have OPEN circuits, fall back to all providers
+        # to allow recovery attempts
+        if not healthy_providers:
+            healthy_providers = providers
         if strategy == Strategy.CHEAPEST:
-            best_value = min(sum(p.cost_per_million) for p in providers)
-            return [p for p in providers if sum(p.cost_per_million) == best_value]
+            # Use actual measured cost when available, fall back to static cost
+            best_value = min(self._get_effective_cost(p) for p in providers)
+            return [p for p in providers if self._get_effective_cost(p) == best_value]
 
         if strategy == Strategy.DOMAIN:
             # Prefer Ollama provider for domain-specific mascarade-* models
@@ -124,16 +266,109 @@ class Router:
             best_value = min(p.speed_rank for p in providers)
             return [p for p in providers if p.speed_rank == best_value]
 
+        # Sort candidates by health score (descending - healthiest first)
+        candidates_with_health = [
+            (p, self.health_monitor.get_provider_health(p.name).health_score)
+            for p in candidates
+        ]
+        candidates_with_health.sort(key=lambda x: x[1], reverse=True)
+
+        # Strategy is BEST - use domain-aware ranking if available
+        if domain and self.benchmark_storage:
+            benchmark_candidates = self._select_by_benchmarks(domain)
+            if benchmark_candidates:
+                logger.debug(
+                    "Using benchmark data for domain '%s': selected %s",
+                    domain,
+                    [p.name for p in benchmark_candidates],
+                )
+                return benchmark_candidates
+            logger.debug(
+                "No benchmark data for domain '%s', falling back to quality_rank", domain
+            )
+
+        # Fallback to static quality_rank
         best_value = max(p.quality_rank for p in providers)
         return [p for p in providers if p.quality_rank == best_value]
+        return [p for p, _ in candidates_with_health]
+
+    def _select_by_benchmarks(self, domain: str) -> list[LLMProvider]:
+        """
+        Select provider candidates based on benchmark data for a specific domain.
+
+        Args:
+            domain: The domain to query benchmarks for
+
+        Returns:
+            List of best-performing providers based on benchmark quality scores,
+            or empty list if no benchmark data available
+        """
+        if not self.benchmark_storage:
+            return []
+
+        try:
+            # Query leaderboard for this domain, ordered by quality score
+            leaderboard = self.benchmark_storage.query_leaderboard(
+                domain=domain,
+                limit=10,
+                order_by="avg_quality_score",
+            )
+
+            if not leaderboard:
+                return []
+
+            # Get the top quality score
+            top_score = leaderboard[0]["avg_quality_score"]
+
+            # Find all providers with the top score (within 1% tolerance)
+            tolerance = 1.0
+            top_providers = [
+                entry["provider"]
+                for entry in leaderboard
+                if abs(entry["avg_quality_score"] - top_score) <= tolerance
+            ]
+
+            # Return LLMProvider instances for these providers
+            candidates = [
+                self._providers[name]
+                for name in top_providers
+                if name in self._providers
+            ]
+
+            return candidates if candidates else []
+
+        except Exception as exc:
+            logger.warning("Failed to query benchmarks for domain '%s': %s", domain, exc)
+            return []
+
+    @staticmethod
+    def _detect_domain(messages: list[dict]) -> str | None:
+        """
+        Detect domain from message content based on keywords.
+
+        Args:
+            messages: List of message dictionaries
+
+        Returns:
+            Detected domain or None
+        """
+        # Combine all message content
+        content = " ".join(
+            msg.get("content", "")
+            for msg in messages
+            if isinstance(msg.get("content"), str)
+        )
+
+        return detect_domain(content)
 
     def _select_provider(
         self,
         strategy: Strategy = Strategy.BEST,
         provider_name: str | None = None,
+        domain: str | None = None,
     ) -> LLMProvider:
         candidates = self._select_candidates(
-            strategy=strategy, provider_name=provider_name
+            strategy=strategy, provider_name=provider_name, domain=domain
         )
         if len(candidates) == 1:
             return candidates[0]
@@ -261,6 +496,8 @@ class Router:
             "cache": await self.cache.get_stats(),
             "load_balancer": self.load_balancer.get_load_stats(),
             "fallback": self.fallback.get_failure_stats(),
+            "health": self.health_monitor.get_all_health(),
+            "circuit_breaker": self.circuit_breaker.get_stats(),
         }
 
     def provider_metrics(self, provider_name: str) -> dict:
@@ -271,6 +508,44 @@ class Router:
         await self.cache.clear()
         self.load_balancer.reset_stats()
         self.fallback.reset()
+        self.circuit_breaker.reset()
+        self.health_monitor._health_cache.clear()
+
+    def register_finetuned_model(
+        self,
+        model_id: str,
+        *,
+        domain: str | None = None,
+        provider: str = "ollama",
+        deployment_url: str | None = None,
+        verify_health: bool = True,
+        metadata: dict[str, Any] | None = None,
+    ) -> None:
+        """Enregistrer un modèle fine-tuné avec métadonnées et vérification de santé.
+
+        Args:
+            model_id: Identifiant unique du modèle (ex: 'mascarade-spice:latest')
+            domain: Domaine métier du modèle (ex: 'spice', 'electronics')
+            provider: Provider de déploiement (défaut: 'ollama')
+            deployment_url: URL du service de déploiement
+            verify_health: Vérifier la santé du modèle après enregistrement
+            metadata: Métadonnées additionnelles
+        """
+        reg_metadata: dict[str, Any] = metadata.copy() if metadata else {}
+
+        if domain is not None:
+            reg_metadata["domain"] = domain
+        if provider is not None:
+            reg_metadata["provider"] = provider
+        if deployment_url is not None:
+            reg_metadata["deployment_url"] = deployment_url
+
+        self.model_registry.register_model(model_id, reg_metadata)
+        logger.info("Registered finetuned model: %s (domain=%s)", model_id, domain)
+
+        if verify_health:
+            health_status = self.model_registry.verify_health(model_id)
+            logger.info("Health check for %s: %s", model_id, health_status)
 
     async def send(
         self,
@@ -341,9 +616,23 @@ class Router:
                 available_providers=self.available_providers,
             )
 
+        # Detect domain for domain-aware routing
+        detected_domain = self._detect_domain(messages) if strategy == Strategy.BEST else None
+
         for attempt_strategy, attempt_provider in sequence:
             attempt_enum = Strategy(attempt_strategy)
+            selected = self._select_provider(attempt_enum, attempt_provider, domain)
+            selected = self._select_provider(attempt_enum, attempt_provider, detected_domain)
             selected = self._select_provider(attempt_enum, attempt_provider)
+
+            # Check circuit breaker for this specific provider
+            if not self.circuit_breaker.can_execute(selected.name):
+                logger.warning(
+                    "Circuit breaker is open for provider %s, skipping", selected.name
+                )
+                last_error = RuntimeError(f"Circuit breaker is open for provider {selected.name}")
+                continue
+
             started_at = time.perf_counter()
             self.load_balancer.request_started(selected.name)
 
@@ -385,7 +674,29 @@ class Router:
                     response_time=elapsed,
                     success=False,
                 )
+                COST_METRICS.track_request(
+                    provider=selected.name,
+                    model=model or "unknown",
+                    input_tokens=0,
+                    output_tokens=0,
+                    cost=0.0,
+                    duration=elapsed,
+                    strategy=attempt_strategy,
+                    success=False,
+                )
+                if self.cost_logger:
+                    self.cost_logger.log_event(
+                        provider=selected.name,
+                        model=model or "unknown",
+                        agent="",
+                        input_tokens=0,
+                        output_tokens=0,
+                        cost=0.0,
+                        strategy=attempt_strategy,
+                        success=False,
+                    )
                 self.fallback.record_failure(selected.name)
+                self.circuit_breaker.record_failure(selected.name)
                 last_error = exc
                 continue
 
@@ -406,6 +717,28 @@ class Router:
                     response_time=elapsed,
                     success=False,
                 )
+                self.circuit_breaker.record_failure(selected.name)
+                COST_METRICS.track_request(
+                    provider=selected.name,
+                    model=model or "unknown",
+                    input_tokens=0,
+                    output_tokens=0,
+                    cost=0.0,
+                    duration=elapsed,
+                    strategy=attempt_strategy,
+                    success=False,
+                )
+                if self.cost_logger:
+                    self.cost_logger.log_event(
+                        provider=selected.name,
+                        model=model or "unknown",
+                        agent="",
+                        input_tokens=0,
+                        output_tokens=0,
+                        cost=0.0,
+                        strategy=attempt_strategy,
+                        success=False,
+                    )
                 last_error = RuntimeError(
                     f"Strict provider mismatch: requested {effective_provider}, got {response.provider}"
                 )
@@ -415,15 +748,38 @@ class Router:
             self.load_balancer.request_completed(
                 selected.name, response_time=elapsed, success=True
             )
+            self.circuit_breaker.record_success(selected.name)
 
             usage = response.usage or {}
+            cost = self._calculate_cost(selected, usage)
             self.metrics.track_request(
                 provider_name=selected.name,
                 tokens=self._usage_tokens(usage),
-                cost=self._calculate_cost(selected, usage),
+                cost=cost,
                 response_time=elapsed,
                 success=True,
             )
+            COST_METRICS.track_request(
+                provider=selected.name,
+                model=response.model,
+                input_tokens=usage.get("input_tokens", 0),
+                output_tokens=usage.get("output_tokens", 0),
+                cost=cost,
+                duration=elapsed,
+                strategy=attempt_strategy,
+                success=True,
+            )
+            if self.cost_logger:
+                self.cost_logger.log_event(
+                    provider=selected.name,
+                    model=response.model,
+                    agent="",
+                    input_tokens=usage.get("input_tokens", 0),
+                    output_tokens=usage.get("output_tokens", 0),
+                    cost=cost,
+                    strategy=attempt_strategy,
+                    success=True,
+                )
 
             update_langfuse_generation(
                 generation,
@@ -457,6 +813,17 @@ class Router:
                     max_tokens=max_tokens,
                     domain=domain,
                 )
+
+            # Track usage for user if user_id provided
+            if user_id is not None:
+                await track_usage(
+                    user_id=user_id,
+                    provider=selected.name,
+                    model=response.model,
+                    usage=response.usage or {},
+                    cost=self._calculate_cost(selected, response.usage or {}),
+                )
+
             return response
 
         raise RuntimeError(
@@ -496,6 +863,20 @@ class Router:
             )
         strict_provider = effective_strategy == Strategy.SPECIFIC and effective_provider is not None
 
+        cached = self.cache.retrieve(
+            messages,
+            strategy=strategy.value,
+            provider=provider,
+            model=model,
+            system=system,
+            response_format=None,
+            temperature=temperature,
+            max_tokens=max_tokens,
+        )
+        if cached and (not strict_provider or cached.provider == provider):
+            yield cached.response
+            return
+
         if strict_provider:
             sequence = [(effective_strategy.value, effective_provider)]
         else:
@@ -505,10 +886,24 @@ class Router:
                 available_providers=self.available_providers,
             )
 
+        # Detect domain for domain-aware routing
+        detected_domain = self._detect_domain(messages) if strategy == Strategy.BEST else None
+
         last_error: Exception | None = None
         for attempt_strategy, attempt_provider in sequence:
             attempt_enum = Strategy(attempt_strategy)
+            selected = self._select_provider(attempt_enum, attempt_provider, domain)
+            selected = self._select_provider(attempt_enum, attempt_provider, detected_domain)
             selected = self._select_provider(attempt_enum, attempt_provider)
+
+            # Check circuit breaker for this specific provider
+            if not self.circuit_breaker.can_execute(selected.name):
+                logger.warning(
+                    "Circuit breaker is open for provider %s, skipping", selected.name
+                )
+                last_error = RuntimeError(f"Circuit breaker is open for provider {selected.name}")
+                continue
+
             started_at = time.perf_counter()
             self.load_balancer.request_started(selected.name)
 
@@ -535,7 +930,29 @@ class Router:
                     response_time=elapsed,
                     success=False,
                 )
+                COST_METRICS.track_request(
+                    provider=selected.name,
+                    model=model or "unknown",
+                    input_tokens=0,
+                    output_tokens=0,
+                    cost=0.0,
+                    duration=elapsed,
+                    strategy=attempt_strategy,
+                    success=False,
+                )
+                if self.cost_logger:
+                    self.cost_logger.log_event(
+                        provider=selected.name,
+                        model=model or "unknown",
+                        agent="",
+                        input_tokens=0,
+                        output_tokens=0,
+                        cost=0.0,
+                        strategy=attempt_strategy,
+                        success=False,
+                    )
                 self.fallback.record_failure(selected.name)
+                self.circuit_breaker.record_failure(selected.name)
                 if started_streaming:
                     # Already yielded tokens — cannot fallback without data corruption
                     logger.error(
@@ -554,6 +971,7 @@ class Router:
             self.load_balancer.request_completed(
                 selected.name, response_time=elapsed, success=True
             )
+            self.circuit_breaker.record_success(selected.name)
             self.metrics.track_request(
                 provider_name=selected.name,
                 tokens=0,
@@ -561,6 +979,39 @@ class Router:
                 response_time=elapsed,
                 success=True,
             )
+
+            # Track usage for user if user_id provided
+            # Note: streaming doesn't provide token counts, so we track 0 tokens
+            if user_id is not None:
+                await track_usage(
+                    user_id=user_id,
+                    provider=selected.name,
+                    model=model or selected.default_model,
+                    usage={},
+                    cost=0.0,
+                )
+
+            COST_METRICS.track_request(
+                provider=selected.name,
+                model=model or selected.available_models()[0] if selected.available_models() else "unknown",
+                input_tokens=0,
+                output_tokens=0,
+                cost=0.0,
+                duration=elapsed,
+                strategy=attempt_strategy,
+                success=True,
+            )
+            if self.cost_logger:
+                self.cost_logger.log_event(
+                    provider=selected.name,
+                    model=model or selected.available_models()[0] if selected.available_models() else "unknown",
+                    agent="",
+                    input_tokens=0,
+                    output_tokens=0,
+                    cost=0.0,
+                    strategy=attempt_strategy,
+                    success=True,
+                )
             return
 
         raise RuntimeError(

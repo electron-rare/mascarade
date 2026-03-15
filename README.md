@@ -56,6 +56,137 @@ Mascarade fait partie d'un ecosysteme de 5 repos :
                   +------------------+
 ```
 
+## API Versioning & Stability Contract
+
+Mascarade formalise son contrat de stabilite API avec un versioning explicite. Contrairement a LiteLLM (releases multiples par jour avec breaking changes) ou LangChain (0.1→0.2→0.3 avec cassures), Mascarade garantit la stabilite de son API pour les operateurs qui privilegient la fiabilite sur les features bleeding-edge.
+
+### Version Actuelle : API v1.0.0
+
+Tous les endpoints sont prefixes par `/v1/` (Python core) ou `/v1/api/` (TypeScript API).
+
+**Endpoints de version :**
+- `GET /v1/version` (Python core, port 8100) — version API, features supportees, liste providers
+- `GET /v1/version` (TypeScript API, port 3100) — version API aggregee depuis le core
+
+**Exemples :**
+```bash
+# Python Core API (port 8100)
+curl http://localhost:8100/v1/version
+curl -X POST http://localhost:8100/v1/agents/send -H "Authorization: Bearer $MASCARADE_API_KEY" -d '...'
+curl -X POST http://localhost:8100/v1/chat/completions -H "Authorization: Bearer $MASCARADE_API_KEY" -d '...'
+
+# TypeScript API Gateway (port 3100)
+curl http://localhost:3100/v1/version
+curl http://localhost:3100/v1/api/agents/list -H "Authorization: Bearer $MASCARADE_API_KEY"
+```
+
+### Contrats Geles (Frozen Contracts)
+
+Les endpoints suivants ont un contrat gele et **ne changeront pas** en v1.x :
+
+**`POST /v1/chat/completions`** — Interface OpenAI-compatible
+- Schema request/response identique a OpenAI API v1
+- Parametres supportes : `messages`, `model`, `temperature`, `max_tokens`, `stream`
+- Reponse inclut : `id`, `object`, `created`, `choices`, `usage`
+- **Tout changement a ce contrat est considere BREAKING**
+
+### Garanties de Stabilite
+
+#### Backward Compatibility Promise
+
+**Aucun breaking change** ne sera introduit dans les releases v1.x :
+- De nouveaux champs peuvent etre ajoutes aux reponses (clients doivent ignorer les champs inconnus)
+- De nouveaux parametres optionnels peuvent etre ajoutes
+- Les features deprecies seront supportees pendant **minimum 6 mois** avec warnings
+- Un guide de migration sera fourni avant tout changement breaking v2.0
+
+#### Politique de Deprecation
+
+Les endpoints deprecies retournent les headers HTTP suivants (RFC 8594) :
+- `Deprecation: true` — endpoint marque comme deprecie
+- `Warning: "299 - This endpoint will be removed in API v2.0"` — message d'avertissement
+- `Sunset: 2026-09-15T00:00:00Z` — date de retrait prevue
+- `Link: </v2/new-endpoint>; rel="alternate"` — endpoint de remplacement
+- `X-Deprecated-Since: 1.5.0` — version de deprecation
+
+Support minimum : **6 mois** entre deprecation et retrait effectif.
+
+### Classification des Changements
+
+| Label | Signification | Action Requise |
+|-------|---------------|----------------|
+| **[BREAKING]** | Change le contrat existant | Mise a jour client obligatoire |
+| **[DEPRECATED]** | Sera retire dans une version future | Planifier migration |
+| **[ADDED]** | Nouvelle feature ou endpoint | Aucune (opt-in) |
+| **[CHANGED]** | Modification non-breaking | Aucune |
+| **[FIXED]** | Correction de bug | Aucune |
+| **[SECURITY]** | Changement lie a la securite | Review recommande |
+
+### Breaking Changes = Nouvelle Version API
+
+Un breaking change declenche un nouveau prefix de version (`/v2/`) avec periode de migration :
+- La v1 continue de fonctionner pendant la periode de migration (minimum 6 mois)
+- Un guide de migration detaille est fourni
+- Les deux versions coexistent jusqu'au sunset de la v1
+
+**Exemple de migration future v1 → v2 :**
+```bash
+# v1 (deprecated mais encore supportee)
+POST /v1/agents/send
+
+# v2 (nouveau contrat)
+POST /v2/agents/execute
+```
+
+### Tests de Regression
+
+Le contrat API est protege par **45+ tests de regression** :
+- `core/tests/test_api_versioning.py` — tests de versioning (11 tests)
+- `core/tests/test_openai_compat.py` — contrat OpenAI gele (7 tests de stabilite)
+- `api/src/routes/*.test.ts` — tests TypeScript API (34 tests)
+
+**Execution :**
+```bash
+# Tests Python
+cd core && python -m pytest tests/test_api_versioning.py -v
+cd core && python -m pytest tests/test_openai_compat.py -v
+
+# Tests TypeScript
+cd api && npm test
+```
+
+### Changelog
+
+Tous les changements API sont documentes dans [`CHANGELOG.md`](./CHANGELOG.md) avec labels breaking/non-breaking.
+
+**Consulter le changelog :**
+```bash
+cat CHANGELOG.md
+```
+
+### Access Programmatique a la Version
+
+**Python :**
+```python
+from mascarade.api_version import API_VERSION, get_version_info
+
+print(API_VERSION)  # "1.0.0"
+
+info = get_version_info()
+print(info["stability_level"])  # "stable"
+print(info["frozen_contracts"])  # ["/v1/chat/completions"]
+```
+
+**TypeScript / JavaScript :**
+```typescript
+const response = await fetch('http://localhost:3100/v1/version');
+const version = await response.json();
+
+console.log(version.api_version);  // "0.1.0"
+console.log(version.core_version);  # "1.0.0"
+console.log(version.supported_features);  // ["agents", "router", "cache", ...]
+```
+
 ## Suivi
 - backlog ANE dedie: [`TODO_AI_NOVEL_ENGINE.md`](./TODO_AI_NOVEL_ENGINE.md)
 - plan d'execution global: [`docs/EXECUTION_PLAN_2026-03-08.md`](./docs/EXECUTION_PLAN_2026-03-08.md)
@@ -567,6 +698,58 @@ curl http://localhost:9000/health
 # Smoke test reel Generate Audio (si selectionne)
 bash scripts/smoke_generate_audio.sh --url http://localhost:9000
 ```
+
+### Docker Compose Profiles
+
+Le deploiement utilise maintenant des profils Docker Compose pour controler les services a demarrer. Cette approche modulaire permet de composer exactement la stack dont tu as besoin.
+
+**Profiles disponibles :**
+
+- `core` — Services core et API (requis)
+- `ollama` — Serving local Ollama
+- `observability` — Loki, Promtail, Prometheus, Grafana, Tempo
+- `ops` — Console ops et outils operateur
+- `audio` — Generation audio (AudioCraft)
+- `edge` — Reverse proxy Nginx avec Let's Encrypt
+- `ai-tools` — Services IA complementaires (Qdrant, LiteLLM, Mem0, Firecrawl)
+- `heavy` — Services lourds (LocalAI, KoboldCPP, AnythingLLM, SGLang)
+
+**Exemples d'usage :**
+
+```bash
+# Stack minimale (core + api)
+docker compose --profile core up
+
+# Core + Ollama
+docker compose --profile core --profile ollama up
+
+# Core + Observability complete
+docker compose --profile core --profile observability up
+
+# Stack complete production
+docker compose --profile core --profile ollama --profile observability --profile ops --profile edge up
+
+# Avec services IA complementaires
+docker compose --profile core --profile ai-tools up
+
+# Mode detache (background)
+docker compose --profile core --profile ollama up -d
+
+# Arreter tout
+docker compose down
+
+# Rebuild et restart
+docker compose --profile core build
+docker compose --profile core up -d
+```
+
+**Recommandation :**
+
+Le script `./setup` reste la methode recommandee pour un deploiement initial, car il gere automatiquement la configuration, les prerequis et les validations. Les commandes `docker compose` avec profils sont utiles pour :
+
+- Restart selectif de services specifiques
+- Debug et developpement
+- Deploiement custom avec controle fin des composants
 
 ### 4. Dev local (sans Docker)
 
