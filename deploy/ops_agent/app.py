@@ -344,6 +344,32 @@ MCP_PROBE_CONFIGS: list[dict[str, Any]] = [
         "primary": True,
     },
     {
+        "key": "freecad",
+        "command": [
+            "python3",
+            str(KILL_LIFE_ROOT / "tools" / "freecad_mcp_smoke.py"),
+            "--json",
+            "--quick",
+            "--timeout",
+            "10.0",
+        ],
+        "cwd": KILL_LIFE_ROOT,
+        "timeout_s": 10.0,
+    },
+    {
+        "key": "openscad",
+        "command": [
+            "python3",
+            str(KILL_LIFE_ROOT / "tools" / "openscad_mcp_smoke.py"),
+            "--json",
+            "--quick",
+            "--timeout",
+            "10.0",
+        ],
+        "cwd": KILL_LIFE_ROOT,
+        "timeout_s": 10.0,
+    },
+    {
         "key": "validate-specs",
         "command": [
             "python3",

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import difflib
 import json
 import logging
 import os
@@ -10,6 +11,7 @@ from dataclasses import asdict
 from pathlib import Path
 
 from mascarade.agents.base import Agent
+from mascarade.agents.prompt_versioning import iso_utc_now
 from mascarade.router.router import Strategy
 
 logger = logging.getLogger("mascarade.agents")
@@ -59,11 +61,51 @@ class AgentRegistry:
         """Sauvegarder les agents dynamiques dans un fichier JSON."""
         if self._storage_path is None:
             return
+
+        # Load previous state to detect prompt changes
+        previous_agents = {}
+        if self._storage_path.exists():
+            try:
+                raw = json.loads(self._storage_path.read_text(encoding="utf-8"))
+                for data in raw:
+                    previous_agents[data["name"]] = {
+                        "system_prompt": data.get("system_prompt", ""),
+                        "prompt_versions": data.get("prompt_versions", []),
+                    }
+            except (json.JSONDecodeError, OSError) as exc:
+                logger.warning("Failed to load previous agents for versioning: %s", exc)
+
         self._storage_path.parent.mkdir(parents=True, exist_ok=True)
         agents_data = []
         for agent in self._agents.values():
             if agent.name in self._builtin_names:
                 continue
+
+            # Check for prompt changes and create version if needed
+            previous = previous_agents.get(agent.name)
+            if previous is not None:
+                previous_prompt = previous["system_prompt"]
+                if previous_prompt != agent.system_prompt:
+                    # Restore previous versions from disk
+                    agent.prompt_versions = previous["prompt_versions"]
+
+                    # Create a version entry for the OLD prompt (before the change)
+                    version_number = len(agent.prompt_versions) + 1
+
+                    # Compute diff from previous prompt to current prompt
+                    diff = self._compute_diff(previous_prompt, agent.system_prompt)
+
+                    version_entry = {
+                        "version_number": version_number,
+                        "timestamp": iso_utc_now(),
+                        "content": previous_prompt,
+                        "author_hash": "system",
+                        "diff": diff,
+                        "note": None,
+                    }
+
+                    agent.prompt_versions.append(version_entry)
+
             data = asdict(agent)
             data["strategy"] = (
                 agent.strategy.value
@@ -71,6 +113,7 @@ class AgentRegistry:
                 else str(agent.strategy)
             )
             agents_data.append(data)
+
         # Atomic write: write to temp file, then rename
         fd, tmp_path = tempfile.mkstemp(
             dir=str(self._storage_path.parent), suffix=".tmp"
@@ -99,3 +142,15 @@ class AgentRegistry:
                 self.register(agent)
             except (KeyError, TypeError, ValueError) as exc:
                 logger.warning("Skipping invalid agent entry: %s", exc)
+
+    def _compute_diff(self, old_content: str, new_content: str) -> str:
+        """Calculer un diff unifié entre deux contenus."""
+        old_lines = old_content.splitlines(keepends=True)
+        new_lines = new_content.splitlines(keepends=True)
+
+        diff_lines = difflib.unified_diff(
+            old_lines,
+            new_lines,
+            lineterm="",
+        )
+        return "".join(diff_lines)
