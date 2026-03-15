@@ -171,6 +171,12 @@ class Settings(BaseSettings):
     ops_agent_url: str = "http://ops-agent:9200"
     loki_url: str = "http://loki:3100"
 
+    # ClickHouse
+    clickhouse_host: str = "http://clickhouse:8123"
+    clickhouse_user: str = "langfuse"
+    clickhouse_password: str = ""
+    clickhouse_database: str = "default"
+
     # Mistral Studio
     mistral_api_base: str = "https://api.mistral.ai/v1"
     mistral_default_model: str = "mistral-large-latest"

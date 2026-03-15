@@ -22,6 +22,7 @@ dependencies = [
     "httpx>=0.28,<1",
     "prometheus-client>=0.22,<1",
     "boto3>=1.35,<2",
+    "clickhouse-connect>=0.7,<1",
     "google-auth>=2.41,<3",
     "google-genai>=1.0,<2",
     "python-multipart>=0.0.22,<1",
