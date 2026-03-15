@@ -320,6 +320,8 @@ export function GithubDispatchNode({ data }: { data: KillLifeWorkflowNode }) {
 // ReactFlow node type mapping - defined outside component to prevent re-renders
 const nodeTypes = {
   "note": NoteNode,
+  "group": GroupNode,
+  "decision": DecisionNode,
   "manual-gate": ManualGateNode,
   "local-action": LocalActionNode,
   "github-dispatch": GithubDispatchNode,
@@ -614,7 +616,7 @@ export default function KillLifeWorkflowEditor() {
       id: rfEdge.id,
       source: rfEdge.source,
       target: rfEdge.target,
-      label: rfEdge.label || "",
+      label: typeof rfEdge.label === 'string' ? rfEdge.label : undefined,
     }));
 
     const result = await saveAction.execute(workflowToSave);
