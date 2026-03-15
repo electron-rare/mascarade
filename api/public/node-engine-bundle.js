@@ -3488,28 +3488,28 @@
           ))));
           null == value || "boolean" === typeof value || "" === value ? isCustomProperty ? style3.setProperty(styleName, "") : "float" === styleName ? style3.cssFloat = "" : style3[styleName] = "" : isCustomProperty ? style3.setProperty(styleName, value) : "number" !== typeof value || 0 === value || unitlessNumbers.has(styleName) ? "float" === styleName ? style3.cssFloat = value : (checkCSSPropertyStringCoercion(value, styleName), style3[styleName] = ("" + value).trim()) : style3[styleName] = value + "px";
         }
-        function setValueForStyles(node, styles2, prevStyles) {
-          if (null != styles2 && "object" !== typeof styles2)
+        function setValueForStyles(node, styles5, prevStyles) {
+          if (null != styles5 && "object" !== typeof styles5)
             throw Error(
               "The `style` prop expects a mapping from style properties to values, not a string. For example, style={{marginRight: spacing + 'em'}} when using JSX."
             );
-          styles2 && Object.freeze(styles2);
+          styles5 && Object.freeze(styles5);
           node = node.style;
           if (null != prevStyles) {
-            if (styles2) {
+            if (styles5) {
               var expandedUpdates = {};
               if (prevStyles) {
                 for (var key in prevStyles)
-                  if (prevStyles.hasOwnProperty(key) && !styles2.hasOwnProperty(key))
+                  if (prevStyles.hasOwnProperty(key) && !styles5.hasOwnProperty(key))
                     for (var longhands = shorthandToLonghand[key] || [key], i = 0; i < longhands.length; i++)
                       expandedUpdates[longhands[i]] = key;
               }
-              for (var _key in styles2)
-                if (styles2.hasOwnProperty(_key) && (!prevStyles || prevStyles[_key] !== styles2[_key]))
+              for (var _key in styles5)
+                if (styles5.hasOwnProperty(_key) && (!prevStyles || prevStyles[_key] !== styles5[_key]))
                   for (key = shorthandToLonghand[_key] || [_key], longhands = 0; longhands < key.length; longhands++)
                     expandedUpdates[key[longhands]] = _key;
               _key = {};
-              for (var key$jscomp$0 in styles2)
+              for (var key$jscomp$0 in styles5)
                 for (key = shorthandToLonghand[key$jscomp$0] || [key$jscomp$0], longhands = 0; longhands < key.length; longhands++)
                   _key[key[longhands]] = key$jscomp$0;
               key$jscomp$0 = {};
@@ -3517,7 +3517,7 @@
                 if (key = expandedUpdates[_key2], (longhands = _key[_key2]) && key !== longhands && (i = key + "," + longhands, !key$jscomp$0[i])) {
                   key$jscomp$0[i] = true;
                   i = console;
-                  var value = styles2[key];
+                  var value = styles5[key];
                   i.error.call(
                     i,
                     "%s a style property during rerender (%s) when a conflicting property is set (%s) can lead to styling bugs. To avoid this, don't mix shorthand and non-shorthand properties for the same value; instead, replace the shorthand with separate values.",
@@ -3528,12 +3528,12 @@
                 }
             }
             for (var styleName in prevStyles)
-              !prevStyles.hasOwnProperty(styleName) || null != styles2 && styles2.hasOwnProperty(styleName) || (0 === styleName.indexOf("--") ? node.setProperty(styleName, "") : "float" === styleName ? node.cssFloat = "" : node[styleName] = "");
-            for (var _styleName in styles2)
-              _key2 = styles2[_styleName], styles2.hasOwnProperty(_styleName) && prevStyles[_styleName] !== _key2 && setValueForStyle(node, _styleName, _key2);
+              !prevStyles.hasOwnProperty(styleName) || null != styles5 && styles5.hasOwnProperty(styleName) || (0 === styleName.indexOf("--") ? node.setProperty(styleName, "") : "float" === styleName ? node.cssFloat = "" : node[styleName] = "");
+            for (var _styleName in styles5)
+              _key2 = styles5[_styleName], styles5.hasOwnProperty(_styleName) && prevStyles[_styleName] !== _key2 && setValueForStyle(node, _styleName, _key2);
           } else
-            for (expandedUpdates in styles2)
-              styles2.hasOwnProperty(expandedUpdates) && setValueForStyle(node, expandedUpdates, styles2[expandedUpdates]);
+            for (expandedUpdates in styles5)
+              styles5.hasOwnProperty(expandedUpdates) && setValueForStyle(node, expandedUpdates, styles5[expandedUpdates]);
         }
         function isCustomElement(tagName) {
           if (-1 === tagName.indexOf("-")) return false;
@@ -21146,9 +21146,9 @@
             previousDispatcher.S(href, precedence, options);
             var ownerDocument = globalDocument;
             if (ownerDocument && href) {
-              var styles2 = getResourcesFromRoot(ownerDocument).hoistableStyles, key = getStyleKey(href);
+              var styles5 = getResourcesFromRoot(ownerDocument).hoistableStyles, key = getStyleKey(href);
               precedence = precedence || "default";
-              var resource = styles2.get(key);
+              var resource = styles5.get(key);
               if (!resource) {
                 var state = { loading: NotLoaded, preload: null };
                 if (resource = ownerDocument.querySelector(
@@ -21187,7 +21187,7 @@
                   count: 1,
                   state
                 };
-                styles2.set(key, resource);
+                styles5.set(key, resource);
               }
             }
           },
@@ -21738,7 +21738,7 @@
               "The result of getSnapshot should be cached to avoid an infinite loop"
             ), didWarnUncachedGetSnapshot = true);
           }
-          cachedValue = useState3({
+          cachedValue = useState4({
             inst: { value, getSnapshot }
           });
           var inst = cachedValue[0].inst, forceUpdate = cachedValue[1];
@@ -21776,7 +21776,7 @@
           return getSnapshot();
         }
         "undefined" !== typeof __REACT_DEVTOOLS_GLOBAL_HOOK__ && "function" === typeof __REACT_DEVTOOLS_GLOBAL_HOOK__.registerInternalModuleStart && __REACT_DEVTOOLS_GLOBAL_HOOK__.registerInternalModuleStart(Error());
-        var React = require_react(), objectIs = "function" === typeof Object.is ? Object.is : is, useState3 = React.useState, useEffect3 = React.useEffect, useLayoutEffect2 = React.useLayoutEffect, useDebugValue2 = React.useDebugValue, didWarnOld18Alpha = false, didWarnUncachedGetSnapshot = false, shim = "undefined" === typeof window || "undefined" === typeof window.document || "undefined" === typeof window.document.createElement ? useSyncExternalStore$1 : useSyncExternalStore$2;
+        var React = require_react(), objectIs = "function" === typeof Object.is ? Object.is : is, useState4 = React.useState, useEffect3 = React.useEffect, useLayoutEffect2 = React.useLayoutEffect, useDebugValue2 = React.useDebugValue, didWarnOld18Alpha = false, didWarnUncachedGetSnapshot = false, shim = "undefined" === typeof window || "undefined" === typeof window.document || "undefined" === typeof window.document.createElement ? useSyncExternalStore$1 : useSyncExternalStore$2;
         exports.useSyncExternalStore = void 0 !== React.useSyncExternalStore ? React.useSyncExternalStore : shim;
         "undefined" !== typeof __REACT_DEVTOOLS_GLOBAL_HOOK__ && "function" === typeof __REACT_DEVTOOLS_GLOBAL_HOOK__.registerInternalModuleStop && __REACT_DEVTOOLS_GLOBAL_HOOK__.registerInternalModuleStop(Error());
       })();
@@ -21876,9 +21876,10 @@
 
   // src/node-engine/demo-app.tsx
   var import_client = __toESM(require_client(), 1);
+  var import_react8 = __toESM(require_react(), 1);
 
   // src/node-engine/components/NodeEditor.tsx
-  var import_react3 = __toESM(require_react(), 1);
+  var import_react5 = __toESM(require_react(), 1);
 
   // node_modules/@xyflow/react/dist/esm/index.js
   var import_jsx_runtime = __toESM(require_jsx_runtime());
@@ -30706,9 +30707,293 @@
   }
   var NodeResizeControl = (0, import_react2.memo)(ResizeControl);
 
-  // src/node-engine/components/NodeEditor.tsx
+  // src/node-engine/components/nodes/BaseNode.tsx
+  var import_react3 = __toESM(require_react(), 1);
   var import_jsx_runtime2 = __toESM(require_jsx_runtime(), 1);
-  var nodeTypes = {};
+  var CATEGORY_COLORS = {
+    AI: "#8b5cf6",
+    Hardware: "#ef4444",
+    Audio: "#06b6d4",
+    CAD: "#10b981",
+    Workflow: "#f59e0b",
+    Automation: "#ec4899"
+  };
+  var STATE_COLORS = {
+    idle: "#6b7280",
+    // gray
+    pending: "#f59e0b",
+    // amber
+    running: "#3b82f6",
+    // blue
+    complete: "#10b981",
+    // green
+    error: "#ef4444"
+    // red
+  };
+  var STATE_LABELS = {
+    idle: "Idle",
+    pending: "Pending",
+    running: "Running",
+    complete: "Complete",
+    error: "Error"
+  };
+  var BaseNode = (0, import_react3.memo)(function BaseNode2(props) {
+    const {
+      data,
+      children: children2,
+      plugin,
+      showPortLabels = false,
+      className = "",
+      selected: selected2
+    } = props;
+    const {
+      label,
+      category,
+      executionState = "idle",
+      error
+    } = data;
+    const categoryColor = CATEGORY_COLORS[category] || "#6b7280";
+    const stateColor = STATE_COLORS[executionState];
+    const containerStyle2 = {
+      minWidth: "180px",
+      backgroundColor: "#2a2a2a",
+      border: `2px solid ${selected2 ? "#fff" : stateColor}`,
+      borderLeft: `4px solid ${categoryColor}`,
+      borderRadius: "8px",
+      boxShadow: selected2 ? "0 8px 24px rgba(0, 0, 0, 0.4)" : "0 4px 12px rgba(0, 0, 0, 0.3)",
+      color: "#e0e0e0",
+      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+      overflow: "hidden",
+      transition: "all 0.2s ease-in-out"
+    };
+    return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: `base-node ${className}`, style: containerStyle2, children: [
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { style: styles.header, children: [
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { style: styles.headerLeft, children: [
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { style: styles.label, children: label }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { style: styles.category, children: category })
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { style: styles.headerRight, children: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+          "div",
+          {
+            style: {
+              ...styles.stateIndicator,
+              backgroundColor: stateColor
+            },
+            title: STATE_LABELS[executionState]
+          }
+        ) })
+      ] }),
+      (executionState === "running" || executionState === "pending") && /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { style: styles.stateBadge, children: [
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { style: styles.spinner }),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("span", { style: styles.stateLabel, children: [
+          STATE_LABELS[executionState],
+          "..."
+        ] })
+      ] }),
+      executionState === "error" && error && /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { style: styles.errorBanner, children: [
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { style: styles.errorIcon, children: "\u26A0\uFE0F" }),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { style: styles.errorText, children: error })
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { style: styles.content, children: children2 }),
+      plugin?.inputs.map((input, index2) => /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+        Handle,
+        {
+          type: "target",
+          position: Position.Left,
+          id: input.id,
+          style: {
+            ...styles.handle,
+            top: `${(index2 + 1) / (plugin.inputs.length + 1) * 100}%`,
+            background: input.required ? "#ef4444" : "#6b7280"
+          },
+          title: showPortLabels ? input.label : input.description || input.label
+        },
+        `input-${input.id}`
+      )),
+      plugin?.outputs.map((output, index2) => /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+        Handle,
+        {
+          type: "source",
+          position: Position.Right,
+          id: output.id,
+          style: {
+            ...styles.handle,
+            top: `${(index2 + 1) / (plugin.outputs.length + 1) * 100}%`,
+            background: "#10b981"
+          },
+          title: showPortLabels ? output.label : output.description || output.label
+        },
+        `output-${output.id}`
+      ))
+    ] });
+  });
+  var styles = {
+    header: {
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "space-between",
+      padding: "10px 12px",
+      backgroundColor: "#1e1e1e",
+      borderBottom: "1px solid #333"
+    },
+    headerLeft: {
+      display: "flex",
+      flexDirection: "column",
+      gap: "2px"
+    },
+    headerRight: {
+      display: "flex",
+      alignItems: "center",
+      gap: "6px"
+    },
+    label: {
+      fontSize: "14px",
+      fontWeight: 600,
+      color: "#e0e0e0"
+    },
+    category: {
+      fontSize: "11px",
+      color: "#888",
+      textTransform: "uppercase",
+      letterSpacing: "0.5px"
+    },
+    stateIndicator: {
+      width: "10px",
+      height: "10px",
+      borderRadius: "50%",
+      border: "2px solid #1e1e1e",
+      transition: "background-color 0.3s ease"
+    },
+    stateBadge: {
+      display: "flex",
+      alignItems: "center",
+      gap: "8px",
+      padding: "6px 12px",
+      backgroundColor: "#1a2332",
+      borderBottom: "1px solid #2563eb"
+    },
+    spinner: {
+      width: "12px",
+      height: "12px",
+      border: "2px solid #3b82f6",
+      borderTopColor: "transparent",
+      borderRadius: "50%",
+      animation: "spin 0.8s linear infinite"
+    },
+    stateLabel: {
+      fontSize: "12px",
+      color: "#3b82f6",
+      fontWeight: 500
+    },
+    errorBanner: {
+      display: "flex",
+      alignItems: "center",
+      gap: "8px",
+      padding: "8px 12px",
+      backgroundColor: "#2a1416",
+      borderBottom: "1px solid #ef4444"
+    },
+    errorIcon: {
+      fontSize: "14px"
+    },
+    errorText: {
+      fontSize: "12px",
+      color: "#fca5a5",
+      flex: 1,
+      lineHeight: "1.4"
+    },
+    content: {
+      padding: "12px",
+      minHeight: "40px"
+    },
+    handle: {
+      width: "10px",
+      height: "10px",
+      border: "2px solid #1e1e1e",
+      transition: "all 0.2s ease"
+    }
+  };
+  if (typeof document !== "undefined") {
+    const styleSheet = document.createElement("style");
+    styleSheet.textContent = `
+    @keyframes spin {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+  `;
+    document.head.appendChild(styleSheet);
+  }
+
+  // src/node-engine/components/nodes/ExampleNode.tsx
+  var import_jsx_runtime3 = __toESM(require_jsx_runtime(), 1);
+  var examplePlugin = {
+    id: "example-node",
+    category: "Workflow",
+    label: "Example Node",
+    description: "Simple demonstration node",
+    inputs: [
+      { id: "input1", label: "Input 1", type: "string", required: true },
+      { id: "input2", label: "Input 2", type: "number" }
+    ],
+    outputs: [
+      { id: "output1", label: "Output 1", type: "string" },
+      { id: "output2", label: "Output 2", type: "number" }
+    ],
+    execute: async (inputs) => {
+      return { output1: "Hello", output2: 42 };
+    }
+  };
+  function ExampleNode(props) {
+    const { data } = props;
+    return /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(BaseNode, { ...props, plugin: examplePlugin, children: /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { style: styles2.content, children: [
+      /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { style: styles2.field, children: [
+        /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("label", { style: styles2.label, children: "Status:" }),
+        /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { style: styles2.value, children: data.executionState || "idle" })
+      ] }),
+      data.lastOutputs && /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { style: styles2.field, children: [
+        /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("label", { style: styles2.label, children: "Last output:" }),
+        /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("pre", { style: styles2.output, children: JSON.stringify(data.lastOutputs, null, 2) })
+      ] })
+    ] }) });
+  }
+  var styles2 = {
+    content: {
+      display: "flex",
+      flexDirection: "column",
+      gap: "8px"
+    },
+    field: {
+      display: "flex",
+      flexDirection: "column",
+      gap: "4px"
+    },
+    label: {
+      fontSize: "11px",
+      color: "#888",
+      textTransform: "uppercase",
+      letterSpacing: "0.5px"
+    },
+    value: {
+      fontSize: "13px",
+      color: "#e0e0e0"
+    },
+    output: {
+      fontSize: "11px",
+      color: "#10b981",
+      backgroundColor: "#1a2e1e",
+      padding: "6px",
+      borderRadius: "4px",
+      margin: 0,
+      overflow: "auto",
+      maxHeight: "100px"
+    }
+  };
+
+  // src/node-engine/components/NodeEditor.tsx
+  var import_jsx_runtime4 = __toESM(require_jsx_runtime(), 1);
+  var nodeTypes = {
+    "example-node": ExampleNode
+  };
   var edgeTypes = {};
   var initialNodes = [];
   var initialEdges = [];
@@ -30725,13 +31010,13 @@
     const [edges, setEdges, onEdgesChange] = useEdgesState(
       initialGraph?.edges || initialEdges
     );
-    const onConnect = (0, import_react3.useCallback)(
+    const onConnect = (0, import_react5.useCallback)(
       (connection) => {
         setEdges((eds) => addEdge(connection, eds));
       },
       [setEdges]
     );
-    const onNodeClick = (0, import_react3.useCallback)(
+    const onNodeClick = (0, import_react5.useCallback)(
       (_event, node) => {
         if (onNodeSelect) {
           onNodeSelect(node.id);
@@ -30739,17 +31024,17 @@
       },
       [onNodeSelect]
     );
-    const onPaneClick = (0, import_react3.useCallback)(() => {
+    const onPaneClick = (0, import_react5.useCallback)(() => {
       if (onNodeSelect) {
         onNodeSelect(null);
       }
     }, [onNodeSelect]);
-    (0, import_react3.useEffect)(() => {
+    (0, import_react5.useEffect)(() => {
       if (onGraphChange) {
         onGraphChange(nodes, edges);
       }
     }, [nodes, edges, onGraphChange]);
-    return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { style: { width: "100%", height: "100vh" }, children: /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(
+    return /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("div", { style: { width: "100%", height: "100vh" }, children: /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(
       index,
       {
         nodes,
@@ -30764,7 +31049,7 @@
         fitView: true,
         attributionPosition: "bottom-right",
         children: [
-          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+          /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(
             Background,
             {
               variant: BackgroundVariant.Dots,
@@ -30772,8 +31057,8 @@
               size: 1
             }
           ),
-          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Controls, {}),
-          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+          /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Controls, {}),
+          /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(
             MiniMap,
             {
               nodeStrokeWidth: 3,
@@ -30787,8 +31072,8 @@
   }
 
   // src/node-engine/components/NodePalette.tsx
-  var import_react5 = __toESM(require_react(), 1);
-  var import_jsx_runtime3 = __toESM(require_jsx_runtime(), 1);
+  var import_react7 = __toESM(require_react(), 1);
+  var import_jsx_runtime5 = __toESM(require_jsx_runtime(), 1);
   var EXAMPLE_NODES = {
     AI: [
       {
@@ -30916,9 +31201,9 @@
       initialCategory = "AI",
       collapsible = false
     } = props;
-    const [activeCategory, setActiveCategory] = (0, import_react5.useState)(initialCategory);
-    const [isCollapsed, setIsCollapsed] = (0, import_react5.useState)(false);
-    const [searchQuery, setSearchQuery] = (0, import_react5.useState)("");
+    const [activeCategory, setActiveCategory] = (0, import_react7.useState)(initialCategory);
+    const [isCollapsed, setIsCollapsed] = (0, import_react7.useState)(false);
+    const [searchQuery, setSearchQuery] = (0, import_react7.useState)("");
     const paletteGroups = buildPaletteGroups(plugins);
     const handleDragStart = (event, item) => {
       event.dataTransfer.setData("application/reactflow", item.id);
@@ -30941,56 +31226,56 @@
     const currentGroup = paletteGroups.find((g) => g.category === activeCategory);
     const currentNodes = currentGroup ? filterNodes(currentGroup.items) : [];
     if (isCollapsed && collapsible) {
-      return /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("div", { style: styles.collapsedContainer, children: /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(
+      return /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("div", { style: styles3.collapsedContainer, children: /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(
         "button",
         {
-          style: styles.expandButton,
+          style: styles3.expandButton,
           onClick: () => setIsCollapsed(false),
           title: "Expand node palette",
           children: "\u25B6"
         }
       ) });
     }
-    return /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { style: styles.container, children: [
-      /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { style: styles.header, children: [
-        /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("h3", { style: styles.title, children: "Node Palette" }),
-        collapsible && /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(
+    return /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { style: styles3.container, children: [
+      /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { style: styles3.header, children: [
+        /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("h3", { style: styles3.title, children: "Node Palette" }),
+        collapsible && /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(
           "button",
           {
-            style: styles.collapseButton,
+            style: styles3.collapseButton,
             onClick: () => setIsCollapsed(true),
             title: "Collapse palette",
             children: "\u25C0"
           }
         )
       ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("div", { style: styles.searchContainer, children: /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(
+      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("div", { style: styles3.searchContainer, children: /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(
         "input",
         {
           type: "text",
           placeholder: "Search nodes...",
           value: searchQuery,
           onChange: (e) => setSearchQuery(e.target.value),
-          style: styles.searchInput
+          style: styles3.searchInput
         }
       ) }),
-      /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("div", { style: styles.categoryTabs, children: paletteGroups.map((group) => {
+      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("div", { style: styles3.categoryTabs, children: paletteGroups.map((group) => {
         const info = CATEGORY_INFO[group.category];
         const isActive = group.category === activeCategory;
-        return /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)(
+        return /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(
           "button",
           {
             style: {
-              ...styles.categoryTab,
-              ...isActive ? styles.categoryTabActive : {},
+              ...styles3.categoryTab,
+              ...isActive ? styles3.categoryTabActive : {},
               borderLeftColor: info.color
             },
             onClick: () => setActiveCategory(group.category),
             title: group.label,
             children: [
-              /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { style: styles.categoryIcon, children: info.icon }),
-              /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { style: styles.categoryLabel, children: info.label }),
-              /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("span", { style: styles.categoryCount, children: [
+              /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("span", { style: styles3.categoryIcon, children: info.icon }),
+              /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("span", { style: styles3.categoryLabel, children: info.label }),
+              /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("span", { style: styles3.categoryCount, children: [
                 "(",
                 group.items.length,
                 ")"
@@ -31000,35 +31285,35 @@
           group.category
         );
       }) }),
-      /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("div", { style: styles.nodeList, children: currentNodes.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("div", { style: styles.emptyState, children: searchQuery ? /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("p", { children: [
+      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("div", { style: styles3.nodeList, children: currentNodes.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("div", { style: styles3.emptyState, children: searchQuery ? /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("p", { children: [
         'No nodes match "',
         searchQuery,
         '"'
-      ] }) : /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("p", { children: "No nodes in this category" }) }) : currentNodes.map((item) => {
+      ] }) : /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("p", { children: "No nodes in this category" }) }) : currentNodes.map((item) => {
         const info = CATEGORY_INFO[item.category];
-        return /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)(
+        return /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(
           "div",
           {
             draggable: true,
             onDragStart: (e) => handleDragStart(e, item),
             style: {
-              ...styles.nodeItem,
+              ...styles3.nodeItem,
               borderLeftColor: info.color
             },
             title: item.description,
             children: [
-              /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { style: styles.nodeHeader, children: [
-                /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { style: styles.nodeIcon, children: info.icon }),
-                /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { style: styles.nodeLabel, children: item.label })
+              /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { style: styles3.nodeHeader, children: [
+                /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("span", { style: styles3.nodeIcon, children: info.icon }),
+                /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("span", { style: styles3.nodeLabel, children: item.label })
               ] }),
-              /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("div", { style: styles.nodeDescription, children: item.description }),
-              item.experimental && /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { style: styles.experimentalBadge, children: "Experimental" })
+              /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("div", { style: styles3.nodeDescription, children: item.description }),
+              item.experimental && /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("span", { style: styles3.experimentalBadge, children: "Experimental" })
             ]
           },
           item.id
         );
       }) }),
-      /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("div", { style: styles.footer, children: /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("p", { style: styles.hint, children: "\u{1F4A1} Drag nodes onto the canvas" }) })
+      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("div", { style: styles3.footer, children: /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("p", { style: styles3.hint, children: "\u{1F4A1} Drag nodes onto the canvas" }) })
     ] });
   }
   function buildPaletteGroups(plugins) {
@@ -31068,7 +31353,7 @@
       };
     });
   }
-  var styles = {
+  var styles3 = {
     container: {
       display: "flex",
       flexDirection: "column",
@@ -31239,10 +31524,64 @@
   };
 
   // src/node-engine/demo-app.tsx
-  var import_jsx_runtime4 = __toESM(require_jsx_runtime(), 1);
+  var import_jsx_runtime6 = __toESM(require_jsx_runtime(), 1);
+  var demoNodes = [
+    {
+      id: "demo-1",
+      type: "example-node",
+      position: { x: 100, y: 100 },
+      data: {
+        pluginId: "example-node",
+        label: "Idle Node",
+        category: "Workflow",
+        inputValues: {},
+        executionState: "idle"
+      }
+    },
+    {
+      id: "demo-2",
+      type: "example-node",
+      position: { x: 350, y: 100 },
+      data: {
+        pluginId: "example-node",
+        label: "Running Node",
+        category: "AI",
+        inputValues: {},
+        executionState: "running"
+      }
+    },
+    {
+      id: "demo-3",
+      type: "example-node",
+      position: { x: 100, y: 250 },
+      data: {
+        pluginId: "example-node",
+        label: "Complete Node",
+        category: "Audio",
+        inputValues: {},
+        executionState: "complete",
+        lastOutputs: { result: "Success!", value: 42 }
+      }
+    },
+    {
+      id: "demo-4",
+      type: "example-node",
+      position: { x: 350, y: 250 },
+      data: {
+        pluginId: "example-node",
+        label: "Error Node",
+        category: "Hardware",
+        inputValues: {},
+        executionState: "error",
+        error: "Connection timeout: Device not responding"
+      }
+    }
+  ];
+  var demoEdges = [];
   function DemoApp() {
-    return /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { style: { display: "flex", width: "100vw", height: "100vh" }, children: [
-      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(
+    const [showDemo, setShowDemo] = (0, import_react8.useState)(true);
+    return /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("div", { style: { display: "flex", width: "100vw", height: "100vh" }, children: [
+      /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(
         NodePalette,
         {
           onNodeDragStart: (pluginId, category) => {
@@ -31251,22 +31590,61 @@
           collapsible: true
         }
       ),
-      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("div", { style: { flex: 1 }, children: /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(
-        NodeEditor,
-        {
-          onGraphChange: (nodes, edges) => {
-            console.log("Graph changed:", { nodeCount: nodes.length, edgeCount: edges.length });
-          },
-          onNodeSelect: (nodeId) => {
-            console.log("Node selected:", nodeId);
+      /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("div", { style: { flex: 1, position: "relative" }, children: [
+        /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("div", { style: styles4.controls, children: /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)(
+          "button",
+          {
+            onClick: () => setShowDemo(!showDemo),
+            style: styles4.button,
+            children: [
+              showDemo ? "Hide" : "Show",
+              " Demo Nodes"
+            ]
           }
-        }
-      ) })
+        ) }),
+        /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(
+          NodeEditor,
+          {
+            initialGraph: showDemo ? { nodes: demoNodes, edges: demoEdges } : void 0,
+            onGraphChange: (nodes, edges) => {
+              console.log("Graph changed:", { nodeCount: nodes.length, edgeCount: edges.length });
+            },
+            onNodeSelect: (nodeId) => {
+              console.log("Node selected:", nodeId);
+            }
+          }
+        )
+      ] })
     ] });
   }
+  var styles4 = {
+    controls: {
+      position: "absolute",
+      top: "16px",
+      right: "16px",
+      zIndex: 10,
+      display: "flex",
+      gap: "8px"
+    },
+    button: {
+      padding: "8px 16px",
+      backgroundColor: "#2a2a2a",
+      color: "#e0e0e0",
+      border: "1px solid #444",
+      borderRadius: "6px",
+      cursor: "pointer",
+      fontSize: "14px",
+      fontWeight: 500,
+      transition: "all 0.2s",
+      ":hover": {
+        backgroundColor: "#333",
+        borderColor: "#555"
+      }
+    }
+  };
   var root2 = document.getElementById("root");
   if (root2) {
-    (0, import_client.createRoot)(root2).render(/* @__PURE__ */ (0, import_jsx_runtime4.jsx)(DemoApp, {}));
+    (0, import_client.createRoot)(root2).render(/* @__PURE__ */ (0, import_jsx_runtime6.jsx)(DemoApp, {}));
   } else {
     console.error("Root element not found");
   }
