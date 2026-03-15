@@ -3,26 +3,46 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import logging
+import secrets
+from contextlib import asynccontextmanager
+from datetime import datetime
 import time
 from contextlib import asynccontextmanager
+from dataclasses import asdict
 from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, FastAPI, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field
+from fastapi.responses import Response, StreamingResponse
+from pydantic import BaseModel, Field
 
 from mascarade.agents import Agent, AgentRegistry
+from mascarade.agents.prompt_versioning import PromptHistory, PromptVersion
 from mascarade.agents.skills import register_default_skills
 from mascarade.auth import (
     add_api_key,
     get_active_api_keys,
+    get_current_user,
+    hash_api_key,
     remove_api_key,
+    require_admin,
     require_auth,
 )
 from mascarade.cluster import ClusterManager, require_cluster_auth
 from mascarade.config import settings
+from mascarade.db.connection import close_db_pool, get_db_pool, init_db_pool
+from mascarade.db.models import (
+    ApiKey,
+    ApiKeyCreate,
+    ApiKeyCreateResponse,
+    User,
+    UserCreate,
+    UserUpdate,
+)
 from mascarade.integrations.comfyui import ComfyUIClient
 from mascarade.integrations.knowledge_base import (
     knowledge_base_auth_configured,
@@ -39,11 +59,23 @@ from mascarade.provider_admin import (
     get_providers_status,
     update_provider_keys,
 )
+from mascarade.device_voice import (
+    DevicePlayerEvent,
+    DeviceVoiceService,
+)
 from mascarade.router import Router
 from mascarade.router.router import Strategy
+from mascarade.usage_tracking import get_all_usage_stats
 
 logger = logging.getLogger("mascarade.server")
 INDUSTRIAL_MCP_SERVER_KEYS = {"cockpit-ops", "plm", "qms", "mes", "erp", "wms", "dcs"}
+
+
+def hash_api_key(key: str) -> str:
+    """Hash API key for author tracking (returns first 8 chars of SHA-256)."""
+    if not key:
+        return ""
+    return hashlib.sha256(key.encode()).hexdigest()[:8]
 
 
 @asynccontextmanager
@@ -70,6 +102,7 @@ async def lifespan(app: FastAPI):
     app.state.cluster = cluster
     app.state.mcp = McpRuntimeClient(trace_buffer=trace_buffer)
     app.state.comfyui = ComfyUIClient() if settings.comfyui_url else None
+    app.state.device_voice = DeviceVoiceService(router=router)
     app.state.qdrant = QdrantClient() if settings.qdrant_url else None
 
     # Initialize document processor if Qdrant is configured
@@ -79,19 +112,47 @@ async def lifespan(app: FastAPI):
     else:
         app.state.document_processor = None
 
+    # Initialize benchmark trigger
+    from mascarade.benchmarks.triggers import ModelDeploymentTrigger
+    app.state.benchmark_trigger = ModelDeploymentTrigger(router=router)
+
     registry.load()
 
+    # Initialize database pool if DATABASE_URL is configured
+    if settings.database_url:
+        try:
+            await init_db_pool()
+            logger.info("Database pool initialized")
+        except Exception as e:
+            logger.warning("Failed to initialize database pool: %s", e)
+
     # Start P2P node if enabled
+    # Start P2P node (auto-selects backend)
     await cluster.start_p2p()
 
+    # Start health checks for all registered providers
+    router.health_monitor.start_health_checks(list(router._providers.values()))
+
     yield
+
+    # Stop health checks
+    await router.health_monitor.stop_health_checks()
 
     # Stop P2P node
     await cluster.stop_p2p()
 
+    # Clean up benchmark trigger
+    if hasattr(app.state, "benchmark_trigger"):
+        await app.state.benchmark_trigger.close()
+
+    await cluster.close()
     if app.state.comfyui is not None:
         await app.state.comfyui.close()
 
+    # Close database pool
+    if settings.database_url:
+        await close_db_pool()
+        logger.info("Database pool closed")
     if app.state.qdrant is not None:
         await app.state.qdrant.close()
 
@@ -107,6 +168,7 @@ class Message(BaseModel):
     content: str = Field(min_length=1, max_length=100_000)
 
 
+RoutingPolicy = Literal["auto", "strong", "cheap", "fast"]
 # --- OpenAI-Compatible Models ---
 
 
@@ -177,6 +239,7 @@ class ChatCompletionChunk(BaseModel):
 class SendRequest(BaseModel):
     messages: list[Message] = Field(max_length=200)
     strategy: Strategy = Strategy.BEST
+    routing_policy: RoutingPolicy = "auto"
     provider: str | None = Field(default=None, max_length=50)
     model: str | None = Field(default=None, max_length=100)
     system: str | None = Field(default=None, max_length=10_000)
@@ -192,7 +255,8 @@ class AgentCreate(BaseModel):
     preferred_provider: str | None = Field(default=None, max_length=50)
     preferred_model: str | None = Field(default=None, max_length=100)
     preferred_role: str | None = Field(default=None, max_length=100)
-    strategy: Strategy = Strategy.BEST
+    strategy: Strategy = Strategy.ROUTELLM
+    routing_policy: RoutingPolicy = "auto"
     temperature: float = Field(default=0.7, ge=0.0, le=2.0)
     max_tokens: int = Field(default=4096, gt=0, le=128000)
 
@@ -203,15 +267,32 @@ class AgentUpdate(BaseModel):
     preferred_provider: str | None = Field(default=None, max_length=50)
     preferred_model: str | None = Field(default=None, max_length=100)
     preferred_role: str | None = Field(default=None, max_length=100)
-    strategy: Strategy = Strategy.BEST
+    strategy: Strategy = Strategy.ROUTELLM
+    routing_policy: RoutingPolicy = "auto"
     temperature: float = Field(default=0.7, ge=0.0, le=2.0)
     max_tokens: int = Field(default=4096, gt=0, le=128000)
+    version_note: str | None = Field(default=None, max_length=500)
+
+
+class PromptVersionResponse(BaseModel):
+    version_number: int = Field(ge=1)
+    timestamp: str = Field(min_length=1, max_length=100)
+    content: str = Field(max_length=500_000)
+    author_hash: str = Field(max_length=64)
+    diff: str | None = None
+    note: str | None = Field(default=None, max_length=1000)
+
+
+class PromptHistoryResponse(BaseModel):
+    versions: list[PromptVersionResponse]
+    total: int = Field(ge=0)
 
 
 class AgentRoutingOverride(BaseModel):
     preferred_role: str | None = Field(default=None, max_length=100)
     preferred_provider: str | None = Field(default=None, max_length=50)
     preferred_model: str | None = Field(default=None, max_length=100)
+    routing_policy: RoutingPolicy | None = None
 
 
 class TaskRequest(BaseModel):
@@ -308,6 +389,13 @@ class ComfyUIWorkflowRequest(BaseModel):
     workflow: dict
 
 
+class RateLimitUpdate(BaseModel):
+    """Request model for updating user rate limits."""
+
+    requests_per_minute: int | None = Field(default=None, ge=0)
+    requests_per_hour: int | None = Field(default=None, ge=0)
+    requests_per_day: int | None = Field(default=None, ge=0)
+    tokens_per_day: int | None = Field(default=None, ge=0)
 class QdrantCreateCollectionRequest(BaseModel):
     vector_size: int = Field(gt=0, le=65536)
     distance: Literal["Cosine", "Euclid", "Dot"] = "Cosine"
@@ -351,6 +439,23 @@ class QdrantRAGRequest(BaseModel):
     temperature: float = Field(default=0.7, ge=0.0, le=2.0)
 
 
+class BenchmarkRunRequest(BaseModel):
+    domain: str | None = Field(default=None, max_length=50)
+    providers: list[str] | None = Field(default=None, max_length=10)
+    difficulty: str | None = Field(default=None, max_length=20)
+    limit: int | None = Field(default=None, gt=0, le=100)
+
+
+class ModelDeploymentWebhook(BaseModel):
+    provider: str = Field(min_length=1, max_length=50)
+    model: str = Field(min_length=1, max_length=100)
+    event_type: str = Field(default="deployment", max_length=50)
+    domain: str | None = Field(default=None, max_length=50)
+    limit: int | None = Field(default=None, gt=0, le=100)
+    background: bool = Field(default=True)
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
 # --- Route publique ---
 
 
@@ -369,6 +474,36 @@ async def health():
 
 
 @app.post("/v1/chat/completions", response_model_exclude_unset=True)
+@app.get("/health/providers")
+async def get_provider_health():
+    """Provider health metrics endpoint - returns detailed health statistics for all providers."""
+    if not hasattr(app.state, "router"):
+        raise HTTPException(status_code=503, detail="Router not initialized")
+
+    health_monitor = app.state.router.health_monitor
+    circuit_breaker = app.state.router.circuit_breaker
+    all_health = health_monitor.get_all_health()
+
+    # Convert ProviderHealth dataclass objects to dictionaries
+    health_data = {}
+    for provider_name, provider_health in all_health.items():
+        circuit_state = circuit_breaker.get_state(provider_name)
+        health_data[provider_name] = {
+            "provider_name": provider_health.provider_name,
+            "health_score": provider_health.health_score,
+            "circuit_state": circuit_state.value,
+            "latency_p50": provider_health.latency_p50,
+            "latency_p95": provider_health.latency_p95,
+            "latency_p99": provider_health.latency_p99,
+            "error_rate": provider_health.error_rate,
+            "availability": provider_health.availability,
+            "total_requests": provider_health.total_requests,
+        }
+
+    return health_data
+
+
+@app.post("/v1/chat/completions")
 async def chat_completions(req: ChatCompletionRequest):
     """OpenAI-compatible chat completions endpoint."""
     # Determine model and provider
@@ -574,6 +709,7 @@ def _serialize_agent(agent: Agent) -> dict[str, object]:
         "preferred_model": agent.preferred_model,
         "preferred_role": agent.preferred_role,
         "strategy": agent.strategy.value,
+        "routing_policy": agent.routing_policy,
         "temperature": agent.temperature,
         "max_tokens": agent.max_tokens,
         "builtin": app.state.registry.is_builtin(agent.name),
@@ -633,6 +769,538 @@ async def list_api_keys():
     return {"api_keys": [{"key": k[:4] + "***" + k[-4:], "active": True} for k in keys]}
 
 
+@protected.get("/auth/me")
+async def get_me(current_user: User = Depends(get_current_user)):
+    """Get current authenticated user information."""
+    return {
+        "id": current_user.id,
+        "username": current_user.username,
+        "email": current_user.email,
+        "role_id": current_user.role_id,
+        "is_active": current_user.is_active,
+        "rate_limits": current_user.rate_limits,
+    }
+
+
+# --- User Management ---
+
+
+@protected.get("/users")
+async def list_users(_: None = Depends(require_admin)):
+    """List all users (admin only)."""
+    pool = get_db_pool()
+    if pool is None:
+        raise HTTPException(status_code=500, detail="Database unavailable")
+
+    try:
+        async with pool.acquire() as conn:
+            rows = await conn.fetch(
+                """
+                SELECT id, username, email, role_id, is_active, created_at, updated_at
+                FROM users
+                ORDER BY created_at DESC
+                """
+            )
+            users = [User.from_record(dict(row)) for row in rows]
+            return {"users": [user.model_dump() for user in users]}
+    except Exception as e:
+        logger.error("Error listing users: %s", str(e), exc_info=True)
+        raise HTTPException(status_code=500, detail="Error listing users")
+
+
+@protected.post("/users")
+async def create_user(req: UserCreate, _: None = Depends(require_admin)):
+    """Create a new user (admin only)."""
+    pool = get_db_pool()
+    if pool is None:
+        raise HTTPException(status_code=500, detail="Database unavailable")
+
+    try:
+        async with pool.acquire() as conn:
+            # Check if username already exists
+            existing = await conn.fetchrow(
+                "SELECT id FROM users WHERE username = $1",
+                req.username,
+            )
+            if existing:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Username '{req.username}' already exists",
+                )
+
+            # Check if email already exists
+            existing_email = await conn.fetchrow(
+                "SELECT id FROM users WHERE email = $1",
+                req.email,
+            )
+            if existing_email:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Email '{req.email}' already exists",
+                )
+
+            # Verify role exists
+            role = await conn.fetchrow(
+                "SELECT id FROM roles WHERE id = $1",
+                req.role_id,
+            )
+            if not role:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Role ID {req.role_id} does not exist",
+                )
+
+            # Create user
+            row = await conn.fetchrow(
+                """
+                INSERT INTO users (username, email, role_id, is_active)
+                VALUES ($1, $2, $3, $4)
+                RETURNING id, username, email, role_id, is_active, created_at, updated_at
+                """,
+                req.username,
+                req.email,
+                req.role_id,
+                req.is_active,
+            )
+
+            user = User.from_record(dict(row))
+            logger.info("User created: id=%d, username=%s", user.id, user.username)
+            return user.model_dump()
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("Error creating user: %s", str(e), exc_info=True)
+        raise HTTPException(status_code=500, detail="Error creating user")
+
+
+@protected.get("/users/{user_id}")
+async def get_user(user_id: int, _: None = Depends(require_admin)):
+    """Get a user by ID (admin only)."""
+    pool = get_db_pool()
+    if pool is None:
+        raise HTTPException(status_code=500, detail="Database unavailable")
+
+    try:
+        async with pool.acquire() as conn:
+            row = await conn.fetchrow(
+                """
+                SELECT id, username, email, role_id, is_active, created_at, updated_at
+                FROM users
+                WHERE id = $1
+                """,
+                user_id,
+            )
+
+            if row is None:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"User with ID {user_id} not found",
+                )
+
+            user = User.from_record(dict(row))
+            return user.model_dump()
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("Error getting user: %s", str(e), exc_info=True)
+        raise HTTPException(status_code=500, detail="Error getting user")
+
+
+@protected.put("/users/{user_id}")
+async def update_user(
+    user_id: int,
+    req: UserUpdate,
+    _: None = Depends(require_admin),
+):
+    """Update a user (admin only)."""
+    pool = get_db_pool()
+    if pool is None:
+        raise HTTPException(status_code=500, detail="Database unavailable")
+
+    try:
+        async with pool.acquire() as conn:
+            # Check if user exists
+            existing = await conn.fetchrow(
+                "SELECT id FROM users WHERE id = $1",
+                user_id,
+            )
+            if not existing:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"User with ID {user_id} not found",
+                )
+
+            # Build update query dynamically based on provided fields
+            updates = []
+            params = []
+            param_count = 1
+
+            if req.username is not None:
+                # Check if new username is taken
+                username_check = await conn.fetchrow(
+                    "SELECT id FROM users WHERE username = $1 AND id != $2",
+                    req.username,
+                    user_id,
+                )
+                if username_check:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"Username '{req.username}' already exists",
+                    )
+                updates.append(f"username = ${param_count}")
+                params.append(req.username)
+                param_count += 1
+
+            if req.email is not None:
+                # Check if new email is taken
+                email_check = await conn.fetchrow(
+                    "SELECT id FROM users WHERE email = $1 AND id != $2",
+                    req.email,
+                    user_id,
+                )
+                if email_check:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"Email '{req.email}' already exists",
+                    )
+                updates.append(f"email = ${param_count}")
+                params.append(req.email)
+                param_count += 1
+
+            if req.role_id is not None:
+                # Verify role exists
+                role = await conn.fetchrow(
+                    "SELECT id FROM roles WHERE id = $1",
+                    req.role_id,
+                )
+                if not role:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"Role ID {req.role_id} does not exist",
+                    )
+                updates.append(f"role_id = ${param_count}")
+                params.append(req.role_id)
+                param_count += 1
+
+            if req.is_active is not None:
+                updates.append(f"is_active = ${param_count}")
+                params.append(req.is_active)
+                param_count += 1
+
+            if not updates:
+                raise HTTPException(
+                    status_code=400,
+                    detail="No fields to update",
+                )
+
+            # Always update updated_at
+            updates.append(f"updated_at = NOW()")
+            params.append(user_id)
+
+            query = f"""
+                UPDATE users
+                SET {', '.join(updates)}
+                WHERE id = ${param_count}
+                RETURNING id, username, email, role_id, is_active, created_at, updated_at
+            """
+
+            row = await conn.fetchrow(query, *params)
+            user = User.from_record(dict(row))
+            logger.info("User updated: id=%d, username=%s", user.id, user.username)
+            return user.model_dump()
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("Error updating user: %s", str(e), exc_info=True)
+        raise HTTPException(status_code=500, detail="Error updating user")
+
+
+@protected.delete("/users/{user_id}")
+async def delete_user(user_id: int, _: None = Depends(require_admin)):
+    """Delete a user (admin only)."""
+    pool = get_db_pool()
+    if pool is None:
+        raise HTTPException(status_code=500, detail="Database unavailable")
+
+    try:
+        async with pool.acquire() as conn:
+            # Check if user exists
+            existing = await conn.fetchrow(
+                "SELECT id FROM users WHERE id = $1",
+                user_id,
+            )
+            if not existing:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"User with ID {user_id} not found",
+                )
+
+            # Delete the user (cascading deletes will handle api_keys)
+            await conn.execute(
+                "DELETE FROM users WHERE id = $1",
+                user_id,
+            )
+
+            logger.info("User deleted: id=%d", user_id)
+            return {"status": "ok", "message": f"User {user_id} deleted successfully"}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("Error deleting user: %s", str(e), exc_info=True)
+        raise HTTPException(status_code=500, detail="Error deleting user")
+
+
+@protected.put("/users/{user_id}/rate-limit")
+async def update_user_rate_limit(
+    user_id: int,
+    req: RateLimitUpdate,
+    _: None = Depends(require_admin),
+):
+    """Update rate limit for a user (admin only)."""
+    pool = get_db_pool()
+    if pool is None:
+        raise HTTPException(status_code=500, detail="Database unavailable")
+
+    try:
+        async with pool.acquire() as conn:
+            # Check if user exists
+            existing = await conn.fetchrow(
+                "SELECT id, username FROM users WHERE id = $1",
+                user_id,
+            )
+            if not existing:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"User with ID {user_id} not found",
+                )
+
+            # Build rate limits JSON
+            rate_limits = {
+                "requests_per_minute": req.requests_per_minute,
+                "requests_per_hour": req.requests_per_hour,
+                "requests_per_day": req.requests_per_day,
+                "tokens_per_day": req.tokens_per_day,
+            }
+
+            # Update user's rate limits
+            await conn.execute(
+                """
+                UPDATE users
+                SET rate_limits = $1::jsonb, updated_at = NOW()
+                WHERE id = $2
+                """,
+                json.dumps(rate_limits),
+                user_id,
+            )
+
+            logger.info(
+                "Rate limits updated for user: id=%d, username=%s",
+                user_id,
+                existing["username"],
+            )
+            return {
+                "status": "ok",
+                "message": f"Rate limits updated for user {user_id}",
+                "rate_limits": rate_limits,
+            }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("Error updating rate limits: %s", str(e), exc_info=True)
+        raise HTTPException(status_code=500, detail="Error updating rate limits")
+
+
+# --- API Key Management ---
+
+
+@protected.post("/users/{user_id}/api-keys", status_code=201)
+async def create_user_api_key(
+    user_id: int,
+    req: ApiKeyCreate,
+    _: None = Depends(require_admin),
+):
+    """Create a new API key for a user (admin only)."""
+    pool = get_db_pool()
+    if pool is None:
+        raise HTTPException(status_code=500, detail="Database unavailable")
+
+    try:
+        async with pool.acquire() as conn:
+            # Check if user exists
+            user_row = await conn.fetchrow(
+                "SELECT id FROM users WHERE id = $1",
+                user_id,
+            )
+            if not user_row:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"User with ID {user_id} not found",
+                )
+
+            # Generate a secure random API key (32 bytes = 64 hex chars)
+            api_key = secrets.token_hex(32)
+            key_hash = hash_api_key(api_key)
+            key_prefix = api_key[:8]
+
+            # Insert the API key into the database
+            row = await conn.fetchrow(
+                """
+                INSERT INTO api_keys (user_id, key_hash, key_prefix, name, is_active, expires_at)
+                VALUES ($1, $2, $3, $4, $5, $6)
+                RETURNING id, user_id, key_hash, key_prefix, name, is_active, created_at, expires_at, last_used_at
+                """,
+                user_id,
+                key_hash,
+                key_prefix,
+                req.name,
+                True,  # is_active
+                req.expires_at,
+            )
+
+            api_key_obj = ApiKey.from_record(dict(row))
+            logger.info(
+                "API key created: id=%d, user_id=%d, name=%s",
+                api_key_obj.id,
+                user_id,
+                req.name,
+            )
+
+            # Return the API key object with the actual key (shown only once)
+            return ApiKeyCreateResponse(
+                api_key=api_key_obj,
+                key=api_key,
+            ).model_dump()
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("Error creating API key: %s", str(e), exc_info=True)
+        raise HTTPException(status_code=500, detail="Error creating API key")
+
+
+@protected.get("/users/{user_id}/api-keys")
+async def list_user_api_keys(
+    user_id: int,
+    _: None = Depends(require_admin),
+):
+    """List all API keys for a user (admin only)."""
+    pool = get_db_pool()
+    if pool is None:
+        raise HTTPException(status_code=500, detail="Database unavailable")
+
+    try:
+        async with pool.acquire() as conn:
+            # Check if user exists
+            user_row = await conn.fetchrow(
+                "SELECT id FROM users WHERE id = $1",
+                user_id,
+            )
+            if not user_row:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"User with ID {user_id} not found",
+                )
+
+            # Fetch all API keys for the user
+            rows = await conn.fetch(
+                """
+                SELECT id, user_id, key_hash, key_prefix, name, is_active, created_at, expires_at, last_used_at
+                FROM api_keys
+                WHERE user_id = $1
+                ORDER BY created_at DESC
+                """,
+                user_id,
+            )
+
+            api_keys = [ApiKey.from_record(dict(row)) for row in rows]
+            return {"api_keys": [key.model_dump() for key in api_keys]}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("Error listing API keys: %s", str(e), exc_info=True)
+        raise HTTPException(status_code=500, detail="Error listing API keys")
+
+
+@protected.delete("/users/{user_id}/api-keys/{key_id}")
+async def revoke_user_api_key(
+    user_id: int,
+    key_id: int,
+    _: None = Depends(require_admin),
+):
+    """Revoke (delete) an API key for a user (admin only)."""
+    pool = get_db_pool()
+    if pool is None:
+        raise HTTPException(status_code=500, detail="Database unavailable")
+
+    try:
+        async with pool.acquire() as conn:
+            # Check if API key exists and belongs to the user
+            key_row = await conn.fetchrow(
+                """
+                SELECT id, user_id, name
+                FROM api_keys
+                WHERE id = $1 AND user_id = $2
+                """,
+                key_id,
+                user_id,
+            )
+
+            if not key_row:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"API key with ID {key_id} not found for user {user_id}",
+                )
+
+            # Delete the API key
+            await conn.execute(
+                "DELETE FROM api_keys WHERE id = $1",
+                key_id,
+            )
+
+            logger.info(
+                "API key revoked: id=%d, user_id=%d, name=%s",
+                key_id,
+                user_id,
+                key_row["name"],
+            )
+            return {
+                "status": "ok",
+                "message": f"API key {key_id} revoked successfully",
+            }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("Error revoking API key: %s", str(e), exc_info=True)
+        raise HTTPException(status_code=500, detail="Error revoking API key")
+
+
+# --- Usage Statistics ---
+
+
+@protected.get("/admin/usage/stats")
+async def get_usage_statistics(
+    start_date: datetime | None = Query(default=None, description="Start date for filtering (ISO format)"),
+    end_date: datetime | None = Query(default=None, description="End date for filtering (ISO format)"),
+    _: None = Depends(require_admin),
+):
+    """Get aggregated usage statistics for all users (admin only)."""
+    try:
+        stats = await get_all_usage_stats(start_date=start_date, end_date=end_date)
+        return {"stats": [stat.model_dump() for stat in stats]}
+    except RuntimeError as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    except Exception as e:
+        logger.error("Error fetching usage statistics: %s", str(e), exc_info=True)
+        raise HTTPException(status_code=500, detail="Error fetching usage statistics")
+
+
 # --- LLM ---
 
 
@@ -643,6 +1311,7 @@ async def send(req: SendRequest):
         response = await app.state.router.send(
             messages,
             strategy=req.strategy,
+            routing_policy=req.routing_policy,
             provider=req.provider,
             model=req.model,
             system=req.system,
@@ -712,12 +1381,12 @@ async def bedrock_finetune_jobs():
 # --- Metrics ---
 
 
-@protected.get("/metrics")
+@protected.get("/router/metrics")
 async def metrics_summary():
     return app.state.router.metrics_summary()
 
 
-@protected.get("/metrics/{provider}")
+@protected.get("/router/metrics/{provider}")
 async def metrics_provider(provider: str):
     stats = app.state.router.provider_metrics(provider)
     if not stats:
@@ -725,10 +1394,29 @@ async def metrics_provider(provider: str):
     return stats
 
 
-@protected.post("/metrics/reset")
+@protected.post("/router/metrics/reset")
 async def metrics_reset():
     app.state.router.reset_metrics()
     return {"status": "ok"}
+
+
+# --- Prometheus scrape endpoint (public) ---
+
+
+@app.get("/metrics")
+async def prometheus_metrics():
+    """Expose Prometheus metrics for scraping — no auth required."""
+    try:
+        from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
+
+        from starlette.responses import Response
+
+        return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
+    except ImportError:
+        raise HTTPException(
+            status_code=501,
+            detail="prometheus_client is not installed",
+        )
 
 
 # --- Cache ---
@@ -786,6 +1474,7 @@ async def create_agent(req: AgentCreate):
         preferred_model=req.preferred_model,
         preferred_role=req.preferred_role,
         strategy=req.strategy,
+        routing_policy=req.routing_policy,
         temperature=req.temperature,
         max_tokens=req.max_tokens,
     )
@@ -809,7 +1498,7 @@ async def get_agent(name: str):
 
 
 @protected.put("/agents/{name}")
-async def update_agent(name: str, req: AgentUpdate):
+async def update_agent(name: str, req: AgentUpdate, request: Request):
     try:
         agent = app.state.registry.get(name)
     except KeyError:
@@ -820,14 +1509,46 @@ async def update_agent(name: str, req: AgentUpdate):
             detail="Built-in agents are read-only; create a dynamic agent from the UI to edit routing.",
         )
 
+    # Check if system_prompt is changing
+    old_system_prompt = agent.system_prompt
+    system_prompt_changed = old_system_prompt != req.system_prompt
+
+    # Update agent fields
     agent.description = req.description
     agent.system_prompt = req.system_prompt
     agent.preferred_provider = req.preferred_provider
     agent.preferred_model = req.preferred_model
     agent.preferred_role = req.preferred_role
     agent.strategy = req.strategy
+    agent.routing_policy = req.routing_policy
     agent.temperature = req.temperature
     agent.max_tokens = req.max_tokens
+
+    # Create version if system_prompt changed
+    if system_prompt_changed:
+        # Get API key from request headers for author tracking
+        auth_header = request.headers.get("Authorization", "")
+        api_key = ""
+        if auth_header.startswith("Bearer "):
+            api_key = auth_header[7:]
+        author_hash = hash_api_key(api_key)
+
+        # Create PromptHistory and load existing versions
+        prompt_history = PromptHistory(storage_path=None)
+        prompt_history._versions = [
+            PromptVersion(**v) for v in agent.prompt_versions
+        ]
+
+        # Add new version
+        new_version = prompt_history.add_version(
+            content=req.system_prompt,
+            author_hash=author_hash,
+            note=req.version_note,
+        )
+
+        # Update agent's prompt_versions
+        agent.prompt_versions = [asdict(v) for v in prompt_history._versions]
+
     app.state.registry.save()
     return _serialize_agent(agent)
 
@@ -851,6 +1572,67 @@ async def run_agent(name: str, req: SendRequest):
         "model": response.model,
         "provider": response.provider,
         "usage": response.usage,
+    }
+
+
+@protected.get("/agents/{name}/prompts/history")
+async def get_agent_prompt_history(name: str):
+    """Get version history for an agent's system prompt."""
+    try:
+        agent = app.state.registry.get(name)
+    except KeyError:
+        raise HTTPException(status_code=404, detail=f"Agent '{name}' not found") from None
+
+    return {"versions": agent.prompt_versions}
+
+
+@protected.post("/agents/{name}/prompts/rollback/{version}")
+async def rollback_agent_prompt(name: str, version: int):
+    """Rollback agent's system prompt to a previous version."""
+    try:
+        agent = app.state.registry.get(name)
+    except KeyError:
+        raise HTTPException(status_code=404, detail=f"Agent '{name}' not found") from None
+
+    # Validate version number
+    if version < 1 or version > len(agent.prompt_versions):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid version {version}. Available versions: 1-{len(agent.prompt_versions)}",
+        )
+
+    # Get the target version content
+    target_version = agent.prompt_versions[version - 1]
+    old_prompt = agent.system_prompt
+
+    # Update the agent's system prompt to the target version
+    agent.system_prompt = target_version["content"]
+
+    # Create a new version entry for the rollback
+    version_number = len(agent.prompt_versions) + 1
+    timestamp = iso_utc_now()
+
+    # Compute diff from old to new (rolled back) prompt
+    diff = app.state.registry._compute_diff(old_prompt, agent.system_prompt)
+
+    rollback_version = {
+        "version_number": version_number,
+        "timestamp": timestamp,
+        "content": old_prompt,
+        "author_hash": "system",
+        "diff": diff,
+        "note": f"Rollback to version {version}",
+    }
+
+    agent.prompt_versions.append(rollback_version)
+
+    # Save the registry to persist changes
+    app.state.registry.save()
+
+    return {
+        "message": f"Rolled back to version {version}",
+        "current_version": version_number,
+        "current_prompt": agent.system_prompt,
     }
 
 
@@ -921,11 +1703,6 @@ async def cluster_forward_send(req: ClusterForwardSendRequest):
     )
 
 
-@protected.get("/cluster/p2p/status")
-async def cluster_p2p_status():
-    return app.state.cluster.p2p_status()
-
-
 @cluster_protected.get("/identity")
 async def cluster_node_identity():
     return app.state.cluster.local_identity().to_dict()
@@ -938,6 +1715,7 @@ async def cluster_node_send(req: SendRequest):
         response = await app.state.router.send(
             messages,
             strategy=req.strategy,
+            routing_policy=req.routing_policy,
             provider=req.provider,
             model=req.model,
             system=req.system,
@@ -956,6 +1734,105 @@ async def cluster_node_send(req: SendRequest):
         "provider": response.provider,
         "usage": response.usage,
     }
+
+
+# --- Analytics ---
+
+
+class ProviderCostSummary(BaseModel):
+    provider: str
+    model: str
+    total_cost: float = Field(ge=0.0)
+    input_tokens: int = Field(ge=0)
+    output_tokens: int = Field(ge=0)
+    request_count: int = Field(ge=0)
+
+
+class CostAnalyticsResponse(BaseModel):
+    total_cost: float = Field(ge=0.0)
+    total_requests: int = Field(ge=0)
+    total_input_tokens: int = Field(ge=0)
+    total_output_tokens: int = Field(ge=0)
+    by_provider: list[ProviderCostSummary]
+
+
+@protected.get("/v1/analytics/cost")
+async def get_cost_analytics(
+    limit: int = Query(default=1000, ge=1, le=5000),
+    run_id: str | None = Query(default=None, max_length=64),
+):
+    """
+    Get cost analytics aggregated from trace events.
+
+    Args:
+        limit: Maximum number of events to analyze (default: 1000)
+        run_id: Optional run ID to filter by
+
+    Returns:
+        Cost analytics with totals and breakdowns by provider/model
+    """
+    from mascarade.analytics import get_cost_calculator
+
+    # Get recent trace events with token usage
+    events = app.state.trace_buffer.recent(
+        limit=limit,
+        run_id=run_id,
+    )
+
+    # Filter events that have token usage
+    events_with_usage = [e for e in events if e.token_usage]
+
+    # Aggregate by (provider, model)
+    aggregates: dict[tuple[str, str], dict] = {}
+    cost_calc = get_cost_calculator()
+
+    for event in events_with_usage:
+        if not event.provider or not event.model:
+            continue
+
+        key = (event.provider, event.model)
+        if key not in aggregates:
+            aggregates[key] = {
+                "provider": event.provider,
+                "model": event.model,
+                "total_cost": 0.0,
+                "input_tokens": 0,
+                "output_tokens": 0,
+                "request_count": 0,
+            }
+
+        input_tokens = event.token_usage.get("input_tokens", 0) or event.token_usage.get("prompt_tokens", 0)
+        output_tokens = event.token_usage.get("output_tokens", 0) or event.token_usage.get("completion_tokens", 0)
+
+        # Calculate cost for this event
+        cost = cost_calc.calculate_cost(
+            provider=event.provider,
+            model=event.model,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+        )
+
+        aggregates[key]["total_cost"] += cost
+        aggregates[key]["input_tokens"] += input_tokens
+        aggregates[key]["output_tokens"] += output_tokens
+        aggregates[key]["request_count"] += 1
+
+    # Calculate totals
+    total_cost = sum(agg["total_cost"] for agg in aggregates.values())
+    total_requests = sum(agg["request_count"] for agg in aggregates.values())
+    total_input_tokens = sum(agg["input_tokens"] for agg in aggregates.values())
+    total_output_tokens = sum(agg["output_tokens"] for agg in aggregates.values())
+
+    # Convert to response models
+    by_provider = [ProviderCostSummary(**agg) for agg in aggregates.values()]
+
+    return CostAnalyticsResponse(
+        total_cost=total_cost,
+        total_requests=total_requests,
+        total_input_tokens=total_input_tokens,
+        total_output_tokens=total_output_tokens,
+        by_provider=by_provider,
+    )
 
 
 # --- Orchestration traces ---
@@ -1636,6 +2513,251 @@ async def comfyui_interrupt():
     return {"status": "ok"}
 
 
+# --- P2P network ---
+
+
+@protected.get("/cluster/p2p/status")
+async def cluster_p2p_status():
+    return app.state.cluster.p2p_status()
+
+
+@protected.get("/cluster/p2p/stream")
+async def cluster_p2p_stream(
+    request: Request,
+    limit: int = Query(default=20, ge=0, le=200),
+):
+    """SSE stream of real-time P2P events."""
+
+    async def event_stream():
+        node = getattr(app.state.cluster, "_p2p_node", None)
+        if node is None or not hasattr(node, "events"):
+            yield f"event: error\ndata: {json.dumps({'error': 'P2P node not available'})}\n\n"
+            return
+
+        bus = node.events
+        queue = bus.subscribe()
+        try:
+            # Replay recent events
+            if limit > 0:
+                for event in bus.recent(limit=limit):
+                    yield f"event: p2p\ndata: {json.dumps(event.to_dict())}\n\n"
+
+            while True:
+                if await request.is_disconnected():
+                    break
+                try:
+                    event = await asyncio.wait_for(queue.get(), timeout=15)
+                except TimeoutError:
+                    yield f"event: heartbeat\ndata: {json.dumps({'ts': iso_utc_now()})}\n\n"
+                    continue
+                yield f"event: p2p\ndata: {json.dumps(event.to_dict())}\n\n"
+        finally:
+            bus.unsubscribe(queue)
+
+    return StreamingResponse(
+        event_stream(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
+@protected.get("/cluster/p2p/topology")
+async def cluster_p2p_topology():
+    """JSON snapshot of the P2P network topology."""
+    node = getattr(app.state.cluster, "_p2p_node", None)
+    if node is None or not hasattr(node, "capabilities"):
+        raise HTTPException(status_code=503, detail="P2P node not available")
+
+    nodes = []
+    edges = []
+    all_caps = node.capabilities.all_capabilities()
+
+    # Add local node
+    local_caps = node.capabilities._local_caps
+    local_entry = {
+        "peer_id": node.peer_id,
+        "label": local_caps.label if local_caps else "",
+        "role": local_caps.role if local_caps else "general",
+        "capabilities": local_caps.capabilities if local_caps else [],
+        "http_base_url": local_caps.http_base_url if local_caps else None,
+        "is_local": True,
+    }
+    nodes.append(local_entry)
+
+    # Add remote peers
+    for pid, caps in all_caps.items():
+        nodes.append({
+            "peer_id": pid,
+            "label": caps.label,
+            "role": caps.role,
+            "capabilities": caps.capabilities,
+            "http_base_url": caps.http_base_url,
+            "is_local": False,
+        })
+        edges.append({
+            "from": node.peer_id,
+            "to": pid,
+            "connected": pid in node.transport.peers and node.transport.peers[pid].connected,
+        })
+
+    return {"nodes": nodes, "edges": edges}
+
+
+@protected.post("/cluster/p2p/task")
+async def cluster_p2p_task(req: dict):
+    """Distribute a task via P2P to a capable peer.
+
+    Body: {"capability": "llm-inference", "payload": {...}, "timeout": 30, "target_peer": null}
+    """
+    return await app.state.cluster.p2p_distribute_task(
+        capability=req.get("capability", ""),
+        payload=req.get("payload", {}),
+        timeout=req.get("timeout", 120.0),
+        target_peer=req.get("target_peer"),
+    )
+
+
+# --- OpenAI-compatible chat completions shim ---
+
+
+class _OAIChatMessage(BaseModel):
+    role: str
+    content: str
+
+
+class _OAIChatRequest(BaseModel):
+    model: str | None = None
+    messages: list[_OAIChatMessage]
+    temperature: float = 0.7
+    max_tokens: int = 4096
+
+
+@app.post("/v1/chat/completions")
+async def openai_chat_completions(body: _OAIChatRequest, request: Request):
+    import time as _time
+    import uuid as _uuid
+
+    router = request.app.state.router
+
+    raw_model = body.model or ""
+    provider_name: str | None = None
+    model_name: str | None = None
+
+    if ":" in raw_model:
+        prefix, rest = raw_model.split(":", 1)
+        if prefix in getattr(router, "supported_provider_names", []):
+            provider_name = prefix
+            model_name = rest
+        else:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Unsupported model prefix '{prefix}'.",
+            )
+    else:
+        provider_name = settings.default_provider
+        model_name = raw_model or settings.default_model
+
+    if provider_name and provider_name not in router.available_providers:
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "error": f"Provider '{provider_name}' is not configured or unavailable.",
+                "providers": router.available_providers,
+            },
+        )
+
+    strategy = Strategy.SPECIFIC if provider_name else Strategy.BEST
+    messages = [{"role": m.role, "content": m.content} for m in body.messages]
+
+    result = await router.send(
+        messages,
+        strategy=strategy,
+        provider=provider_name,
+        model=model_name,
+        system=None,
+        response_format=None,
+        temperature=body.temperature,
+        max_tokens=body.max_tokens,
+    )
+
+    usage = result.usage or {}
+    display_model = f"{provider_name}:{result.model}" if provider_name and provider_name != settings.default_provider else result.model
+
+    return {
+        "id": f"chatcmpl-{_uuid.uuid4().hex[:24]}",
+        "object": "chat.completion",
+        "created": int(_time.time()),
+        "model": display_model,
+        "choices": [
+            {
+                "index": 0,
+                "message": {"role": "assistant", "content": result.content},
+                "finish_reason": "stop",
+            }
+        ],
+        "usage": {
+            "prompt_tokens": usage.get("input_tokens", 0),
+            "completion_tokens": usage.get("output_tokens", 0),
+            "total_tokens": usage.get("total_tokens", usage.get("input_tokens", 0) + usage.get("output_tokens", 0)),
+        },
+    }
+
+
+# --- Device voice routes ---
+
+
+@protected.post("/device/v1/voice/session")
+async def device_voice_session(request: Request):
+    form = await request.form()
+    device_id = form.get("device_id", "")
+    mode = form.get("mode", "idle")
+    current_media_raw = form.get("current_media", "{}")
+    try:
+        current_media_payload = json.loads(current_media_raw)
+    except (json.JSONDecodeError, TypeError):
+        current_media_payload = {}
+
+    audio_file = form.get("audio") or form.get("audio.wav")
+    if audio_file is None:
+        raise HTTPException(status_code=400, detail="Missing audio file")
+
+    audio_bytes = await audio_file.read()
+    filename = getattr(audio_file, "filename", "audio.wav")
+    content_type = getattr(audio_file, "content_type", "audio/wav")
+
+    service: DeviceVoiceService = request.app.state.device_voice
+    result = await service.handle_session(
+        device_id=device_id,
+        mode=mode,
+        current_media_payload=current_media_payload,
+        audio_bytes=audio_bytes,
+        filename=filename,
+        content_type=content_type,
+        request_base_url=str(request.base_url),
+    )
+    return result.model_dump()
+
+
+@protected.post("/device/v1/player/event")
+async def device_player_event(event: DevicePlayerEvent, request: Request):
+    service: DeviceVoiceService = request.app.state.device_voice
+    state = service.record_player_event(event)
+    return {"ok": True, "state": state.model_dump()}
+
+
+@protected.get("/device/v1/voice/replies/{reply_id}.wav")
+async def device_voice_reply_audio(reply_id: str, request: Request):
+    from fastapi.responses import Response as _Response
+
+    service: DeviceVoiceService = request.app.state.device_voice
+    audio = service.get_reply_audio(reply_id)
+    if audio is None:
+        raise HTTPException(status_code=404, detail="Reply audio not found or expired")
+    return _Response(content=audio.payload, media_type=audio.content_type)
 # --- Qdrant ---
 
 
@@ -1918,6 +3040,228 @@ async def qdrant_rag_query(collection_name: str, req: QdrantRAGRequest):
     except Exception as e:
         logger.exception("RAG query failed")
         raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+# --- Benchmark Analytics ---
+
+
+@protected.get("/v1/analytics/benchmarks")
+async def get_benchmark_results(
+    domain: str | None = Query(default=None, max_length=50),
+    limit: int = Query(default=10, ge=1, le=100),
+    order_by: str = Query(default="quality_score", max_length=50),
+):
+    """
+    Get benchmark results leaderboard.
+
+    Query parameters:
+    - domain: Filter by domain (optional)
+    - limit: Maximum number of results (default: 10, max: 100)
+    - order_by: Column to order by (default: quality_score, options: quality_score, latency_p50, cost)
+
+    Returns:
+        List of benchmark results with provider, model, domain, and performance metrics
+    """
+    from mascarade.benchmarks.storage import BenchmarkStorage
+
+    # Validate order_by parameter
+    valid_order_by = {"quality_score", "latency_p50", "latency_p95", "cost"}
+    if order_by not in valid_order_by:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid order_by parameter. Must be one of: {', '.join(valid_order_by)}"
+        )
+
+    storage = BenchmarkStorage()
+
+    try:
+        results = storage.query_leaderboard(
+            domain=domain,
+            limit=limit,
+            order_by=order_by,
+        )
+
+        return {
+            "results": results,
+            "count": len(results),
+            "filters": {
+                "domain": domain,
+                "limit": limit,
+                "order_by": order_by,
+            }
+        }
+    except Exception as e:
+        logger.exception("Failed to query benchmark results")
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+@protected.post("/v1/benchmarks/run", status_code=202)
+async def trigger_benchmark_run(req: BenchmarkRunRequest):
+    """
+    Trigger an on-demand benchmark run.
+
+    Request body:
+    - domain: Domain to benchmark (optional, runs all domains if not specified)
+    - providers: List of providers to test (optional, tests all providers if not specified)
+    - difficulty: Difficulty level to test (optional)
+    - limit: Maximum number of prompts per provider (optional)
+
+    Returns:
+        202 Accepted with run_id for tracking the benchmark execution
+    """
+    from mascarade.benchmarks.suite import BenchmarkSuite
+
+    # Initialize benchmark suite with router from app state
+    suite = BenchmarkSuite(router=app.state.router)
+
+    # Generate run_id for tracking
+    run_id = suite._generate_run_id()
+
+    # Define the background benchmark task
+    async def run_benchmark_task():
+        """Background task to execute the benchmark."""
+        try:
+            if req.domain:
+                # Run domain-specific benchmark
+                logger.info(
+                    "Starting domain-specific benchmark (domain=%s, run_id=%s)",
+                    req.domain,
+                    run_id,
+                )
+                run = await suite.run_domain_benchmark(
+                    domain=req.domain,
+                    providers=req.providers,
+                    difficulty=req.difficulty,
+                    limit=req.limit,
+                )
+            else:
+                # Run full suite benchmark
+                logger.info(
+                    "Starting full suite benchmark (run_id=%s)",
+                    run_id,
+                )
+                run = await suite.run_full_suite(
+                    providers=req.providers,
+                    difficulty=req.difficulty,
+                    limit=req.limit,
+                )
+
+            logger.info(
+                "Benchmark completed (run_id=%s, total=%d, successful=%d, failed=%d)",
+                run.run_id,
+                run.total_benchmarks,
+                run.successful_benchmarks,
+                run.failed_benchmarks,
+            )
+
+            # Store results in ClickHouse
+            from mascarade.benchmarks.storage import BenchmarkStorage
+
+            storage = BenchmarkStorage()
+            for result in run.results:
+                try:
+                    storage.write_result(result)
+                except Exception as e:
+                    logger.warning(
+                        "Failed to store benchmark result for %s/%s: %s",
+                        result.provider,
+                        result.model,
+                        e,
+                    )
+
+        except Exception as e:
+            logger.exception("Benchmark run failed (run_id=%s): %s", run_id, e)
+
+    # Create background task (fire and forget)
+    asyncio.create_task(run_benchmark_task())
+
+    return {
+        "status": "accepted",
+        "run_id": run_id,
+        "message": "Benchmark run started in background",
+        "filters": {
+            "domain": req.domain,
+            "providers": req.providers,
+            "difficulty": req.difficulty,
+            "limit": req.limit,
+        },
+    }
+
+
+@protected.post("/v1/benchmarks/webhook/deployment", status_code=200)
+async def handle_model_deployment_webhook(webhook: ModelDeploymentWebhook):
+    """
+    Handle model deployment webhook to trigger automatic benchmarks.
+
+    This endpoint is triggered when a new fine-tuned model is deployed
+    and automatically runs benchmarks to evaluate its performance.
+
+    Request body:
+    - provider: Provider name (required)
+    - model: Model identifier (required)
+    - event_type: Type of deployment event (default: "deployment")
+    - domain: Domain to benchmark (optional)
+    - limit: Maximum number of prompts to test (optional)
+    - background: Run benchmark in background (default: true)
+    - metadata: Additional event metadata (optional)
+
+    Returns:
+        Webhook processing result with trigger status
+    """
+    from mascarade.benchmarks.triggers import BenchmarkTriggerError
+
+    try:
+        # Get trigger instance from app state
+        trigger = app.state.benchmark_trigger
+
+        # Process webhook
+        result = await trigger.handle_webhook(
+            payload={
+                "provider": webhook.provider,
+                "model": webhook.model,
+                "event_type": webhook.event_type,
+                "domain": webhook.domain,
+                "limit": webhook.limit,
+                "background": webhook.background,
+                "metadata": webhook.metadata,
+            }
+        )
+
+        logger.info(
+            "Model deployment webhook processed: %s/%s (status=%s)",
+            webhook.provider,
+            webhook.model,
+            result.get("trigger_result", {}).get("status", "unknown"),
+        )
+
+        return result
+
+    except BenchmarkTriggerError as exc:
+        logger.error("Webhook processing failed: %s", exc)
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        logger.exception("Unexpected error processing webhook")
+        raise HTTPException(status_code=500, detail="Internal server error") from exc
+
+@app.get("/metrics")
+async def metrics():
+    """Expose Prometheus metrics for scraping."""
+    try:
+        from prometheus_client import REGISTRY, generate_latest
+
+        # Generate metrics in Prometheus text format
+        metrics_output = generate_latest(REGISTRY)
+        return Response(
+            content=metrics_output,
+            media_type="text/plain; version=0.0.4; charset=utf-8"
+        )
+    except ImportError:
+        # If prometheus_client is not installed, return empty metrics
+        return Response(
+            content="# Prometheus client not installed\n",
+            media_type="text/plain; version=0.0.4; charset=utf-8",
+            status_code=503
+        )
 
 
 app.include_router(protected)

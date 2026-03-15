@@ -42,6 +42,7 @@ export interface AgentInfo {
   preferred_model?: string | null;
   preferred_role?: string | null;
   strategy?: string;
+  routing_policy?: string | null;
   temperature?: number;
   max_tokens?: number;
   builtin?: boolean;
@@ -65,6 +66,10 @@ export interface AgentTraceEvent {
   routing_role?: string | null;
   routing_provider?: string | null;
   routing_model?: string | null;
+  routing_policy?: string | null;
+  routing_selected_by?: string | null;
+  routing_transport?: string | null;
+  routing_latency_ms?: number | null;
   mcp_server?: string | null;
   mcp_tool?: string | null;
   mcp_status?: string | null;
@@ -133,6 +138,18 @@ export interface ProviderStatus {
   auth_modes?: string[];
 }
 
+export interface ProviderHealthMetrics {
+  provider_name: string;
+  health_score: number;
+  circuit_state: string;
+  latency_p50: number | null;
+  latency_p95: number | null;
+  latency_p99: number | null;
+  error_rate: number;
+  availability: number;
+  total_requests: number;
+}
+
 const REQUEST_TIMEOUT_MS = parseInt(process.env.CORE_TIMEOUT_MS || "30000", 10);
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
@@ -176,6 +193,7 @@ export const coreClient = {
   send(body: {
     messages: { role: string; content: string }[];
     strategy?: string;
+    routing_policy?: string;
     provider?: string;
     model?: string;
     system?: string;
@@ -194,6 +212,10 @@ export const coreClient = {
 
   providersStatus() {
     return request<{ providers: ProviderStatus[] }>("/providers/status");
+  },
+
+  providerHealth() {
+    return request<Record<string, ProviderHealthMetrics>>("/health/providers");
   },
 
   updateProviderKey(name: string, keys: Record<string, string>) {
@@ -247,6 +269,7 @@ export const coreClient = {
     preferred_model?: string;
     preferred_role?: string;
     strategy?: string;
+    routing_policy?: string;
     temperature?: number;
     max_tokens?: number;
   }) {
@@ -273,6 +296,7 @@ export const coreClient = {
       preferred_model?: string | null;
       preferred_role?: string | null;
       strategy?: string;
+      routing_policy?: string;
       temperature?: number;
       max_tokens?: number;
     },
@@ -300,6 +324,7 @@ export const coreClient = {
         preferred_role?: string | null;
         preferred_provider?: string | null;
         preferred_model?: string | null;
+        routing_policy?: string | null;
       }
     >;
   }) {
@@ -315,6 +340,8 @@ export const coreClient = {
         error?: string;
         remote?: boolean;
         selected_by?: string;
+        transport?: string | null;
+        latency_ms?: number | null;
         peer_id?: string | null;
         node_id?: string | null;
         role?: string | null;
@@ -361,6 +388,7 @@ export const coreClient = {
     allow_local?: boolean;
     messages: { role: string; content: string }[];
     strategy?: string;
+    routing_policy?: string;
     provider?: string;
     model?: string;
     system?: string | null;
@@ -703,6 +731,25 @@ export const coreClient = {
     }>("/mcp/industrial/platform");
   },
 
+  // --- Fine-tuning ---
+
+  finetunePipeline(body: { task: string; domain?: string; max_model_size_gb?: number }) {
+    return request<{ status: string; task_id?: string }>("/finetune/pipeline", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+
+  finetuneStack() {
+    return request<{ stack: string[]; recommended: string }>("/finetune/stack");
+  },
+
+  deleteFinetuneLog(name: string) {
+    return request<{ status: string }>(`/finetune/logs/${encodeURIComponent(name)}`, {
+      method: "DELETE",
+    });
+  },
+
   industrialMcpTool(
     serverKey: string,
     toolName: string,
@@ -723,6 +770,71 @@ export const coreClient = {
     });
   },
 
+  // --- Authentication ---
+
+  verifyToken(token: string) {
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    };
+    return fetch(`${CORE_URL}/auth/me`, {
+      headers,
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    }).then(async (res) => {
+      if (!res.ok) {
+        const text = await res.text();
+        let parsedBody: unknown = text;
+        if (text) {
+          try {
+            parsedBody = JSON.parse(text);
+          } catch {
+            parsedBody = text;
+          }
+        }
+        const message =
+          typeof parsedBody === "object" && parsedBody !== null
+            ? ((parsedBody as Record<string, unknown>).error as string | undefined) ||
+              ((parsedBody as Record<string, unknown>).detail as string | undefined) ||
+              `Core API error ${res.status}`
+            : text || `Core API error ${res.status}`;
+        throw new CoreApiError(message, res.status, parsedBody);
+      }
+      return res.json() as Promise<{
+        id: number;
+        username: string;
+        email: string;
+        role_id: number;
+        is_active: boolean;
+        rate_limits?: {
+          requests_per_minute?: number | null;
+          requests_per_hour?: number | null;
+          requests_per_day?: number | null;
+          tokens_per_day?: number | null;
+        } | null;
+      }>;
+    });
+  },
+
+  // --- User Management ---
+
+  listUsers() {
+    return request<{ users: Array<{ id: number; username: string; email: string; role_id: number; is_active: boolean; created_at: string; updated_at: string }> }>("/users");
+  },
+
+  createUser(body: { username: string; email: string; role_id: number }) {
+    return request<{ id: number; username: string; email: string; role_id: number; is_active: boolean; created_at: string; updated_at: string }>("/users", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+
+  getUser(userId: number) {
+    return request<{ id: number; username: string; email: string; role_id: number; is_active: boolean; created_at: string; updated_at: string }>(`/users/${userId}`);
+  },
+
+  updateUser(userId: number, body: { username?: string; email?: string; role_id?: number; is_active?: boolean }) {
+    return request<{ id: number; username: string; email: string; role_id: number; is_active: boolean; created_at: string; updated_at: string }>(`/users/${userId}`, {
+      method: "PUT",
   // --- Qdrant ---
 
   qdrantHealth() {
@@ -801,6 +913,28 @@ export const coreClient = {
     });
   },
 
+  deleteUser(userId: number) {
+    return request<{ status: string }>(`/users/${userId}`, {
+      method: "DELETE",
+    });
+  },
+
+  // --- API Key Management ---
+
+  createApiKey(userId: number, body: { name: string; expires_at?: string }) {
+    return request<{ id: number; key: string; key_prefix: string; name: string; created_at: string; expires_at: string | null }>(`/users/${userId}/api-keys`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+
+  listApiKeys(userId: number) {
+    return request<{ api_keys: Array<{ id: number; key_prefix: string; name: string; created_at: string; expires_at: string | null; last_used_at: string | null }> }>(`/users/${userId}/api-keys`);
+  },
+
+  revokeApiKey(userId: number, keyId: number) {
+    return request<{ status: string }>(`/users/${userId}/api-keys/${keyId}`, {
+      method: "DELETE",
   qdrantRecommend(
     collectionName: string,
     body: {
