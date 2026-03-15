@@ -10,6 +10,7 @@ from enum import StrEnum
 from mascarade.agents.registry import AgentRegistry
 from mascarade.cluster import ClusterManager
 from mascarade.observability import AgentTraceBuffer, new_run_id
+from mascarade.orchestrator.retry import RetryConfig, RetryExecutor
 from mascarade.router import Router
 from mascarade.router.providers.base import LLMResponse
 
@@ -50,6 +51,7 @@ class Orchestrator:
     registry: AgentRegistry = field(default_factory=AgentRegistry)
     trace_buffer: AgentTraceBuffer | None = None
     cluster: ClusterManager | None = None
+    retry_executor: RetryExecutor = field(default_factory=RetryExecutor)
 
     def _trace(
         self,
@@ -323,58 +325,68 @@ class Orchestrator:
         step: int,
         routing_override: dict[str, str | None] | None = None,
     ) -> TaskResult:
-        payload = agent.build_send_payload(prompt)
-        if routing_override:
-            if routing_override.get("preferred_provider"):
-                payload["provider"] = routing_override["preferred_provider"]
-            if routing_override.get("preferred_model"):
-                payload["model"] = routing_override["preferred_model"]
+        """Exécuter un agent avec retry automatique en cas d'erreur."""
 
-        preferred_role = (routing_override or {}).get("preferred_role") or getattr(
-            agent, "preferred_role", None
-        )
+        async def _do_execute() -> TaskResult:
+            """Logique d'exécution à retrier."""
+            payload = agent.build_send_payload(prompt)
+            if routing_override:
+                if routing_override.get("preferred_provider"):
+                    payload["provider"] = routing_override["preferred_provider"]
+                if routing_override.get("preferred_model"):
+                    payload["model"] = routing_override["preferred_model"]
 
-        if self.cluster is not None and self.cluster.enabled:
-            routed = await self.cluster.forward_send(
-                peer_id=None,
-                preferred_role=preferred_role,
-                allow_local=True,
-                payload=payload,
+            preferred_role = (routing_override or {}).get("preferred_role") or getattr(
+                agent, "preferred_role", None
             )
-            response = LLMResponse(
-                content=str(routed["content"]),
-                model=str(routed["model"]),
-                provider=str(routed["provider"]),
-                usage=dict(routed.get("usage") or {}),
+
+            if self.cluster is not None and self.cluster.enabled:
+                routed = await self.cluster.forward_send(
+                    peer_id=None,
+                    preferred_role=preferred_role,
+                    allow_local=True,
+                    payload=payload,
+                )
+                response = LLMResponse(
+                    content=str(routed["content"]),
+                    model=str(routed["model"]),
+                    provider=str(routed["provider"]),
+                    usage=dict(routed.get("usage") or {}),
+                )
+                return TaskResult(
+                    agent_name=agent.name,
+                    response=response,
+                    step=step,
+                    remote=bool(routed.get("remote")),
+                    selected_by=str(routed.get("selected_by") or "cluster"),
+                    peer_id=routed.get("peer_id"),
+                    node_id=routed.get("node_id") or None,
+                    role=str(routed.get("role") or "") or None,
+                )
+
+            response = await self.router.send(
+                payload["messages"],
+                strategy=payload["strategy"],
+                provider=payload["provider"],
+                model=payload["model"],
+                system=payload["system"],
+                temperature=payload["temperature"],
+                max_tokens=payload["max_tokens"],
             )
             return TaskResult(
                 agent_name=agent.name,
                 response=response,
                 step=step,
-                remote=bool(routed.get("remote")),
-                selected_by=str(routed.get("selected_by") or "cluster"),
-                peer_id=routed.get("peer_id"),
-                node_id=routed.get("node_id") or None,
-                role=str(routed.get("role") or "") or None,
+                remote=False,
+                selected_by="local-direct",
+                node_id=None,
+                role=None,
             )
 
-        response = await self.router.send(
-            payload["messages"],
-            strategy=payload["strategy"],
-            provider=payload["provider"],
-            model=payload["model"],
-            system=payload["system"],
-            temperature=payload["temperature"],
-            max_tokens=payload["max_tokens"],
-        )
-        return TaskResult(
+        # Exécuter avec retry
+        return await self.retry_executor.execute_with_retry(
+            _do_execute,
             agent_name=agent.name,
-            response=response,
-            step=step,
-            remote=False,
-            selected_by="local-direct",
-            node_id=None,
-            role=None,
         )
 
     async def run(
