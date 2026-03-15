@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import "@xyflow/react/dist/style.css";
-import { ReactFlow } from "@xyflow/react";
+import { ReactFlow, type Node, type Edge } from "@xyflow/react";
 import {
   killLifeApi,
   type KillLifeEvidenceEntry,
@@ -337,6 +337,7 @@ const nodeTypes = {
 };
 // Will be used in ReactFlow integration
 void nodeTypes;
+void ReactFlow;
 
 export default function KillLifeWorkflowEditor() {
   const { workflowId = "" } = useParams();
@@ -377,6 +378,30 @@ export default function KillLifeWorkflowEditor() {
     () => workflow?.nodes.find((node) => node.id === selectedNodeId) || null,
     [selectedNodeId, workflow],
   );
+
+  const reactFlowNodes = useMemo<Node<KillLifeWorkflowNode>[]>(() => {
+    if (!workflow) return [];
+    return workflow.nodes.map((node) => ({
+      id: node.id,
+      type: node.type,
+      position: { x: node.x, y: node.y },
+      data: node,
+    }));
+  }, [workflow]);
+
+  const reactFlowEdges = useMemo<Edge[]>(() => {
+    if (!workflow) return [];
+    return workflow.edges.map((edge) => ({
+      id: edge.id,
+      source: edge.source,
+      target: edge.target,
+      label: edge.label,
+    }));
+  }, [workflow]);
+
+  // ReactFlow integration - will be used in canvas replacement
+  void reactFlowNodes;
+  void reactFlowEdges;
 
   useEffect(() => {
     setConfigText(JSON.stringify(selectedNode?.config || {}, null, 2));
