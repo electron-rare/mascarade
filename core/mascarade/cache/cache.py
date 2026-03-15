@@ -97,7 +97,7 @@ class InMemoryCache:
         """Store a response in cache with LRU strategy."""
 
         key = self._generate_key(messages, **kwargs)
-        strategy = kwargs.get("strategy", "best")
+        strategy = kwargs.get("strategy", "routellm")
         provider = kwargs.get("provider", "unknown")
         model = kwargs.get("model", "unknown")
 

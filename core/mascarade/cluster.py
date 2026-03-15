@@ -29,12 +29,6 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from mascarade.config import settings
 from mascarade.router import Router
 
-try:
-    from mascarade.p2p.node import P2PNode, P2PPeer
-except ImportError:  # pragma: no cover - optional dependency
-    P2PNode = None  # type: ignore[assignment, misc]
-    P2PPeer = None  # type: ignore[assignment, misc]
-
 logger = logging.getLogger("mascarade.cluster")
 
 _cluster_bearer = HTTPBearer(auto_error=False)
@@ -253,10 +247,31 @@ def _normalized_url(value: str) -> str:
     return value.strip().rstrip("/")
 
 
+def _is_loopback_host(host: str) -> bool:
+    normalized = (host or "").strip().lower()
+    return normalized in {"localhost", "127.0.0.1", "::1"}
+
+
+def _cluster_url_allowed_when_insecure(parsed) -> bool:
+    if parsed.scheme == "https":
+        return True
+    if not settings.cluster_require_tls:
+        return True
+    if settings.cluster_allow_insecure_loopback and _is_loopback_host(parsed.hostname or ""):
+        return True
+    return False
+
+
 def advertised_base_url() -> str | None:
     if not settings.cluster_enabled or not settings.mesh_bind_host.strip():
         return None
-    return f"{settings.mesh_scheme}://{settings.mesh_bind_host.strip()}:{settings.core_port}"
+    scheme = settings.mesh_scheme.strip() or "http"
+    host = settings.mesh_bind_host.strip()
+    parsed = urlparse(f"{scheme}://{host}:{settings.core_port}")
+    if not _cluster_url_allowed_when_insecure(parsed):
+        logger.warning("Cluster TLS required: refusing non-HTTPS advertised_base_url for host=%s", host)
+        return None
+    return f"{scheme}://{host}:{settings.core_port}"
 
 
 def parse_cluster_peers(raw: str, *, node_id: str) -> list[ClusterPeer]:
@@ -284,6 +299,9 @@ def parse_cluster_peers(raw: str, *, node_id: str) -> list[ClusterPeer]:
         if parsed.scheme not in {"http", "https"} or not parsed.netloc:
             logger.warning("Ignoring invalid peer URL for %s: %s", peer_id, base_url)
             continue
+        if not _cluster_url_allowed_when_insecure(parsed):
+            logger.warning("Ignoring insecure peer URL for %s while TLS is required: %s", peer_id, base_url)
+            continue
 
         peers.append(ClusterPeer(peer_id=peer_id, role=role, base_url=normalized_url))
         seen.add(peer_id)
@@ -309,60 +327,103 @@ async def require_cluster_auth(
 
 
 class ClusterManager:
-    """Cluster manager with optional mDNS peer discovery."""
+    """Cluster manager with optional mDNS and P2P peer discovery."""
 
     def __init__(self, *, router: Router, agents_count_provider) -> None:
         self._router = router
         self._agents_count_provider = agents_count_provider
         self._timeout_s = max(settings.cluster_request_timeout_ms, 500) / 1000
+        self._http_client: httpx.AsyncClient | None = None
+        self._http_limits = httpx.Limits(max_connections=64, max_keepalive_connections=16)
         self._peers = parse_cluster_peers(settings.cluster_peers, node_id=settings.node_id)
         self._mdns_peers: dict[str, ClusterPeer] = {}
         self._mdns_discovery_expiry = 0.0
         self._mdns_advertiser: Zeroconf | None = None
         self._mdns_service_info: ServiceInfo | None = None
-        self._p2p_node: P2PNode | None = None  # type: ignore[valid-type]
+        self._p2p_node = None  # Set externally via set_p2p_node()
 
         if _cluster_mdns_enabled() and settings.cluster_mdns_advertise:
             self._register_mdns_service()
 
-    @property
-    def enabled(self) -> bool:
-        return bool(settings.cluster_enabled)
+    def set_p2p_node(self, p2p_node) -> None:
+        """Attach a P2P node (libp2p or asyncio backend) as discovery source."""
+        self._p2p_node = p2p_node
 
-    @property
-    def peers(self) -> list[ClusterPeer]:
-        return list(self._collect_known_peers())
-
-    # ── P2P lifecycle (called from server lifespan) ───────────────────
-
-    def _p2p_enabled(self) -> bool:
-        return bool(settings.p2p_enabled and P2PNode is not None)
+    # ── P2P lifecycle ─────────────────────────────────────────────────
 
     async def start_p2p(self) -> None:
-        """Start the libp2p P2P node if enabled."""
-        if not self._p2p_enabled():
+        """Start P2P node using the best available backend."""
+        if not settings.p2p_enabled:
             return
+
+        from mascarade.p2p import BACKEND
+
         try:
-            self._p2p_node = P2PNode(settings)
-            await self._p2p_node.start(
-                identity_provider=lambda: self.local_identity().to_dict(),
-                send_handler=self._p2p_local_send,
-            )
-            logger.info(
-                "P2P node started — peer_id=%s", self._p2p_node.peer_id
-            )
+            if BACKEND == "libp2p":
+                from mascarade.p2p.libp2p_node import P2PNode
+
+                node = P2PNode(settings)
+                await node.start(
+                    identity_provider=lambda: self.local_identity().to_dict(),
+                    send_handler=self._p2p_local_send,
+                )
+                self._p2p_node = node
+            else:
+                from mascarade.p2p.asyncio_node import MascaradeP2PNode
+
+                bootstrap = self._parse_asyncio_bootstrap(settings.p2p_bootstrap_peers)
+                node = MascaradeP2PNode(
+                    listen_host=settings.p2p_listen_host,
+                    listen_port=settings.p2p_listen_port,
+                    key_dir=settings.p2p_key_dir or settings.p2p_identity_key_path or None,
+                    bootstrap_peers=bootstrap,
+                )
+                await node.start()
+
+                identity = self.local_identity()
+                await node.advertise_capabilities(
+                    capabilities=["llm-inference", "agent-orchestration"],
+                    providers=identity.providers,
+                    provider_models=identity.provider_models,
+                    role=identity.role,
+                    label=identity.label,
+                    http_base_url=advertised_base_url(),
+                )
+                # Wire task handler: incoming tasks are executed via local router
+                node.set_task_handler(self._p2p_task_handler)
+                # Wire stream forward handler: incoming LLM requests via P2P
+                node.forwarder.set_request_handler(self._p2p_send_handler)
+                self._p2p_node = node
+
+            logger.info("P2P started (backend=%s)", BACKEND)
         except Exception as exc:
-            logger.warning("P2P node failed to start: %s", exc)
+            logger.warning("P2P failed to start: %s", exc)
             self._p2p_node = None
 
     async def stop_p2p(self) -> None:
-        """Stop the libp2p P2P node."""
+        """Stop P2P node."""
         if self._p2p_node:
             await self._p2p_node.stop()
             self._p2p_node = None
 
+    async def close(self) -> None:
+        """Close cluster resources."""
+        await self.stop_p2p()
+        if self._http_client is not None:
+            await self._http_client.aclose()
+            self._http_client = None
+
+    def _ensure_http_client(self) -> httpx.AsyncClient:
+        if self._http_client is None or self._http_client.is_closed:
+            self._http_client = httpx.AsyncClient(
+                timeout=self._timeout_s,
+                limits=self._http_limits,
+                follow_redirects=False,
+            )
+        return self._http_client
+
     def _p2p_local_send(self, payload: dict) -> dict:
-        """Synchronous wrapper for local send, called from trio thread."""
+        """Sync wrapper for local send (used by libp2p backend from trio thread)."""
         import asyncio as _asyncio
 
         loop = _asyncio.new_event_loop()
@@ -373,9 +434,106 @@ class ClusterManager:
 
     def p2p_status(self) -> dict:
         """Return P2P diagnostic info."""
-        if self._p2p_node:
-            return self._p2p_node.status()
-        return {"running": False, "reason": "disabled" if not self._p2p_enabled() else "not started"}
+        from mascarade.p2p import BACKEND
+
+        if not settings.p2p_enabled:
+            return {"running": False, "reason": "disabled"}
+        if not self._p2p_node:
+            return {"running": False, "reason": "not started", "backend": BACKEND}
+
+        if hasattr(self._p2p_node, "status"):
+            info = self._p2p_node.status()
+        else:
+            info = {"running": self._p2p_node.running, "peer_id": self._p2p_node.peer_id}
+
+        info["backend"] = BACKEND
+        return info
+
+    async def p2p_distribute_task(
+        self,
+        capability: str,
+        payload: dict,
+        timeout: float = 120.0,
+        target_peer: str | None = None,
+    ) -> dict:
+        """Distribute a task via P2P to a capable peer."""
+        if not self._p2p_node:
+            raise HTTPException(status_code=503, detail="P2P node not running")
+        task = await self._p2p_node.distribute_task(
+            payload=payload,
+            capability=capability,
+            timeout=timeout,
+            target_peer=target_peer,
+        )
+        return {
+            "task_id": task.task_id,
+            "status": task.status.value,
+            "claimed_by": task.claimed_by,
+            "result": task.result,
+            "error": task.error,
+        }
+
+    def _merge_p2p_peers(self, peers_by_id: dict[str, ClusterPeer]) -> None:
+        """Merge peers from whichever P2P backend is active."""
+        node = self._p2p_node
+        if node is None:
+            return
+
+        # libp2p backend: discovered_peers() → list[P2PPeer]
+        if hasattr(node, "discovered_peers"):
+            for p2p_peer in node.discovered_peers():
+                if p2p_peer.peer_id not in peers_by_id and p2p_peer.peer_id != settings.node_id:
+                    if p2p_peer.base_url:
+                        peers_by_id[p2p_peer.peer_id] = ClusterPeer(
+                            peer_id=p2p_peer.peer_id,
+                            role=p2p_peer.role,
+                            base_url=p2p_peer.base_url,
+                        )
+
+        # asyncio backend: capabilities.all_capabilities() → dict[str, PeerCapabilities]
+        if hasattr(node, "capabilities"):
+            for peer_id, caps in node.capabilities.all_capabilities().items():
+                if peer_id not in peers_by_id and peer_id != settings.node_id and caps.http_base_url:
+                    peers_by_id[peer_id] = ClusterPeer(
+                        peer_id=peer_id,
+                        role=caps.role or "general",
+                        base_url=caps.http_base_url,
+                    )
+
+    @staticmethod
+    def _parse_asyncio_bootstrap(raw: str) -> list[tuple[str, str, int]]:
+        """Parse 'peer_id|host|port' entries separated by ';' or ','.
+
+        Accepts both semicolon-separated (legacy) and comma-separated
+        (Docker env var friendly) formats:
+          - "peer_id|host|port;peer_id2|host2|port2"
+          - "peer_id|host|port,peer_id2|host2|port2"
+        """
+        import re
+
+        peers: list[tuple[str, str, int]] = []
+        # Split on semicolons or commas (but not commas inside multiaddr)
+        for entry in re.split(r"[;,]", raw):
+            entry = entry.strip()
+            if not entry or entry.startswith("/"):
+                continue  # Skip multiaddr format (for libp2p)
+            parts = entry.split("|")
+            if len(parts) != 3:
+                continue
+            peer_id, host, port_str = (p.strip() for p in parts)
+            try:
+                peers.append((peer_id, host, int(port_str)))
+            except ValueError:
+                continue
+        return peers
+
+    @property
+    def enabled(self) -> bool:
+        return bool(settings.cluster_enabled)
+
+    @property
+    def peers(self) -> list[ClusterPeer]:
+        return list(self._collect_known_peers())
 
     def local_identity(self) -> NodeIdentity:
         provider_models = (
@@ -403,15 +561,9 @@ class ClusterManager:
             if peer.peer_id not in peers_by_id and peer.peer_id != settings.node_id:
                 peers_by_id[peer.peer_id] = peer
 
-        # Merge libp2p-discovered peers
-        if self._p2p_node:
-            for p2p_peer in self._p2p_node.discovered_peers():
-                if p2p_peer.peer_id not in peers_by_id and p2p_peer.peer_id != settings.node_id:
-                    peers_by_id[p2p_peer.peer_id] = ClusterPeer(
-                        peer_id=p2p_peer.peer_id,
-                        role=p2p_peer.role,
-                        base_url=p2p_peer.base_url,
-                    )
+        # Merge P2P-discovered peers (lowest priority — static and mDNS take precedence)
+        if self._p2p_node is not None:
+            self._merge_p2p_peers(peers_by_id)
 
         return list(peers_by_id.values())
 
@@ -573,6 +725,9 @@ class ClusterManager:
         parsed = urlparse(base_url)
         if parsed.scheme not in {"http", "https"} or not parsed.netloc:
             return None
+        if not _cluster_url_allowed_when_insecure(parsed):
+            logger.warning("mDNS peer rejected: insecure URL while TLS required (%s)", base_url)
+            return None
         return ClusterPeer(peer_id=peer_id, role=role, base_url=base_url)
 
     async def probe_peers(self) -> list[PeerStatus]:
@@ -625,13 +780,31 @@ class ClusterManager:
 
         logger.info("cluster forward send -> %s", peer.peer_id)
         started = time.perf_counter()
+
+        # Try P2P stream forwarding first (lower latency, no HTTP overhead)
+        p2p_result = await self._try_p2p_forward(peer.peer_id, payload)
+        if p2p_result is not None:
+            latency_ms = int((time.perf_counter() - started) * 1000)
+            logger.info("cluster P2P forward <- %s (%d ms)", peer.peer_id, latency_ms)
+            return {
+                "peer_id": peer.peer_id,
+                "selected_by": selection.selected_by,
+                "remote": True,
+                "transport": "p2p",
+                "latency_ms": latency_ms,
+                "role": selection.role,
+                **p2p_result,
+            }
+
+        # Fallback to HTTP forwarding
         remote = await self._request_json(peer, "POST", "/cluster/node/send", json=payload)
         latency_ms = int((time.perf_counter() - started) * 1000)
-        logger.info("cluster forward send <- %s (%d ms)", peer.peer_id, latency_ms)
+        logger.info("cluster HTTP forward <- %s (%d ms)", peer.peer_id, latency_ms)
         return {
             "peer_id": peer.peer_id,
             "selected_by": selection.selected_by,
             "remote": True,
+            "transport": "http",
             "latency_ms": latency_ms,
             "role": selection.role,
             **remote,
@@ -779,7 +952,8 @@ class ClusterManager:
         try:
             response = await self._router.send(
                 messages,
-                strategy=payload.get("strategy", "best"),
+                strategy=payload.get("strategy", "routellm"),
+                routing_policy=self._coerce_optional_string(payload.get("routing_policy")),
                 provider=self._coerce_optional_string(payload.get("provider")),
                 model=self._coerce_optional_string(payload.get("model")),
                 system=self._coerce_optional_string(payload.get("system")),
@@ -834,6 +1008,73 @@ class ClusterManager:
             return any(model in models for models in peer_models.values())
         return True
 
+    async def _p2p_task_handler(self, payload: dict, capability: str) -> dict:
+        """Handle an incoming distributed task by executing it via the local router."""
+        response = await self._send_local(payload)
+        return response
+
+    async def _p2p_send_handler(self, request_data: dict) -> dict:
+        """Handle an incoming P2P stream forward request via the local router."""
+        payload = dict(request_data)
+        provided_token = str(payload.pop("__cluster_token", "")).strip()
+        expected_token = settings.cluster_shared_key.strip()
+        if expected_token:
+            if not provided_token or not hmac.compare_digest(
+                provided_token.encode(), expected_token.encode(),
+            ):
+                raise HTTPException(status_code=401, detail="Invalid P2P cluster token")
+        return await self._send_local(payload)
+
+    def _resolve_p2p_forward_target(self, peer_id: str) -> str:
+        """Resolve the transport-specific peer identifier for opportunistic P2P forwarding."""
+        if self._p2p_node is None:
+            return peer_id
+
+        discovered_peers = getattr(self._p2p_node, "discovered_peers", None)
+        if not callable(discovered_peers):
+            return peer_id
+
+        try:
+            for p2p_peer in discovered_peers():
+                if getattr(p2p_peer, "peer_id", None) != peer_id:
+                    continue
+                libp2p_peer_id = getattr(p2p_peer, "libp2p_peer_id", None)
+                if isinstance(libp2p_peer_id, str) and libp2p_peer_id.strip():
+                    return libp2p_peer_id.strip()
+                return peer_id
+        except Exception as exc:  # pragma: no cover - defensive
+            logger.debug("P2P peer target resolution failed for %s: %s", peer_id, exc)
+        return peer_id
+
+    async def _try_p2p_forward(
+        self, peer_id: str, payload: dict[str, object],
+    ) -> dict[str, object] | None:
+        """Try to forward via P2P transport. Returns None if P2P is unavailable."""
+        if self._p2p_node is None:
+            return None
+        p2p_payload = dict(payload)
+        shared_key = settings.cluster_shared_key.strip()
+        if shared_key:
+            p2p_payload["__cluster_token"] = shared_key
+        forwarder = getattr(self._p2p_node, "forwarder", None)
+        if forwarder is not None and forwarder.can_forward(peer_id):
+            try:
+                result = await forwarder.forward_request(peer_id, p2p_payload)
+                return result
+            except (TimeoutError, ConnectionError, RuntimeError):
+                logger.debug("P2P forward to %s failed, falling back to HTTP", peer_id)
+        forward_send = getattr(self._p2p_node, "forward_send", None)
+        if not callable(forward_send):
+            return None
+
+        target_peer = self._resolve_p2p_forward_target(peer_id)
+        try:
+            result = await forward_send(target_peer, p2p_payload)
+            return result
+        except (TimeoutError, ConnectionError, RuntimeError, ValueError):
+            logger.debug("libp2p forward to %s failed, falling back to HTTP", peer_id)
+            return None
+
     async def _request_json(
         self,
         peer: ClusterPeer,
@@ -843,13 +1084,16 @@ class ClusterManager:
         json: dict[str, object] | None = None,
     ) -> dict[str, object]:
         url = f"{peer.base_url}{path}"
+        parsed_url = urlparse(url)
+        if not _cluster_url_allowed_when_insecure(parsed_url):
+            raise HTTPException(status_code=502, detail=f"Cluster peer requires HTTPS: {peer.peer_id}")
         headers = {
             "Authorization": f"Bearer {settings.cluster_shared_key.strip()}",
             "X-Mascarade-Node-ID": settings.node_id,
         }
+        client = self._ensure_http_client()
         try:
-            async with httpx.AsyncClient(timeout=self._timeout_s) as client:
-                response = await client.request(method, url, json=json, headers=headers)
+            response = await client.request(method, url, json=json, headers=headers)
         except httpx.TimeoutException as exc:
             raise HTTPException(status_code=502, detail=f"Cluster peer timed out: {peer.peer_id}") from exc
         except httpx.HTTPError as exc:

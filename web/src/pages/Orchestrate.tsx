@@ -54,10 +54,19 @@ const roleOptions = [
   { value: "builder", label: "Builder" },
 ];
 
+const routingPolicyOverrideOptions = [
+  { value: "", label: "Inherit agent policy" },
+  { value: "auto", label: "Auto" },
+  { value: "strong", label: "Strong" },
+  { value: "cheap", label: "Cheap" },
+  { value: "fast", label: "Fast" },
+];
+
 type RunRoutingOverride = {
   preferred_role: string;
   preferred_provider: string;
   preferred_model: string;
+  routing_policy: string;
 };
 
 type CadActionResult = {
@@ -73,6 +82,11 @@ function inferCluster(agentName: string): string {
     return "electronics";
   }
   return "runtime";
+}
+
+function formatLatency(ms?: number | null): string | null {
+  if (!Number.isFinite(ms) || ms === undefined || ms === null || ms < 0) return null;
+  return `${Math.round(ms)} ms`;
 }
 
 export default function Orchestrate() {
@@ -110,7 +124,8 @@ export default function Orchestrate() {
             return Boolean(
               override.preferred_role.trim() ||
                 override.preferred_provider.trim() ||
-                override.preferred_model.trim(),
+                override.preferred_model.trim() ||
+                override.routing_policy.trim(),
             );
           })
           .map(([agentName, override]) => [
@@ -124,6 +139,9 @@ export default function Orchestrate() {
                 : {}),
               ...(override.preferred_model.trim()
                 ? { preferred_model: override.preferred_model.trim() }
+                : {}),
+              ...(override.routing_policy.trim()
+                ? { routing_policy: override.routing_policy.trim() }
                 : {}),
             },
           ]),
@@ -164,14 +182,18 @@ export default function Orchestrate() {
         ts: string;
         event_type: string;
         message: string;
-      agent_name?: string | null;
-      from_agent?: string | null;
-      to_agent?: string | null;
-      prompt_excerpt?: string | null;
-      content_excerpt?: string | null;
+        agent_name?: string | null;
+        from_agent?: string | null;
+        to_agent?: string | null;
+        prompt_excerpt?: string | null;
+        content_excerpt?: string | null;
         routing_role?: string | null;
         routing_provider?: string | null;
         routing_model?: string | null;
+        routing_policy?: string | null;
+        routing_selected_by?: string | null;
+        routing_transport?: string | null;
+        routing_latency_ms?: number | null;
         mcp_server?: string | null;
         mcp_tool?: string | null;
         mcp_status?: string | null;
@@ -603,6 +625,9 @@ export default function Orchestrate() {
                         ) : (
                           <Badge color="muted">profile inherit</Badge>
                         )}
+                        {agent.routing_policy ? (
+                          <Badge color="muted">policy {agent.routing_policy}</Badge>
+                        ) : null}
                         {routingForm[agent.name]?.preferred_role?.trim() ? (
                           <Badge color="accent">
                             run role {routingForm[agent.name].preferred_role}
@@ -618,9 +643,14 @@ export default function Orchestrate() {
                             run model {routingForm[agent.name].preferred_model}
                           </Badge>
                         ) : null}
+                        {routingForm[agent.name]?.routing_policy?.trim() ? (
+                          <Badge color="accent">
+                            run policy {routingForm[agent.name].routing_policy}
+                          </Badge>
+                        ) : null}
                       </div>
                       <p className="text-[12px] leading-5 text-amber-100/46">
-                        Override role, provider or model for this run only. Leave a field empty to inherit the stored agent profile.
+                        Override role, provider, model or routing policy for this run only. Leave a field empty to inherit the stored agent profile.
                       </p>
                     </div>
                     <div className="space-y-4">
@@ -636,6 +666,8 @@ export default function Orchestrate() {
                                 current[agent.name]?.preferred_provider ?? "",
                               preferred_model:
                                 current[agent.name]?.preferred_model ?? "",
+                              routing_policy:
+                                current[agent.name]?.routing_policy ?? "",
                             },
                           }))
                         }
@@ -652,6 +684,8 @@ export default function Orchestrate() {
                               preferred_provider: e.target.value,
                               preferred_model:
                                 current[agent.name]?.preferred_model ?? "",
+                              routing_policy:
+                                current[agent.name]?.routing_policy ?? "",
                             },
                           }))
                         }
@@ -668,10 +702,30 @@ export default function Orchestrate() {
                               preferred_provider:
                                 current[agent.name]?.preferred_provider ?? "",
                               preferred_model: e.target.value,
+                              routing_policy:
+                                current[agent.name]?.routing_policy ?? "",
                             },
                           }))
                         }
                         placeholder="llama3.2:3b, mistral-large-latest..."
+                      />
+                      <Select
+                        label="Routing policy override"
+                        value={routingForm[agent.name]?.routing_policy ?? ""}
+                        onChange={(e) =>
+                          setRoutingForm((current) => ({
+                            ...current,
+                            [agent.name]: {
+                              preferred_role: current[agent.name]?.preferred_role ?? "",
+                              preferred_provider:
+                                current[agent.name]?.preferred_provider ?? "",
+                              preferred_model:
+                                current[agent.name]?.preferred_model ?? "",
+                              routing_policy: e.target.value,
+                            },
+                          }))
+                        }
+                        options={routingPolicyOverrideOptions}
                       />
                     </div>
                   </div>
@@ -770,7 +824,13 @@ export default function Orchestrate() {
                           {row.remote ? "remote" : "local"}
                         </Badge>
                         {row.selected_by ? (
-                          <Badge color="muted">{row.selected_by}</Badge>
+                          <Badge color="muted">route {row.selected_by}</Badge>
+                        ) : null}
+                        {row.transport ? (
+                          <Badge color="muted">transport {row.transport}</Badge>
+                        ) : null}
+                        {formatLatency(row.latency_ms) ? (
+                          <Badge color="warning">{formatLatency(row.latency_ms)}</Badge>
                         ) : null}
                         {row.role ? <Badge color="muted">role {row.role}</Badge> : null}
                       </div>
@@ -908,8 +968,22 @@ export default function Orchestrate() {
                           ) : null}
                         </div>
                       ) : null}
-                      {event.routing_role || event.routing_provider || event.routing_model ? (
+                      {event.routing_selected_by ||
+                      event.routing_transport ||
+                      event.routing_latency_ms !== undefined && event.routing_latency_ms !== null ||
+                      event.routing_role ||
+                      event.routing_provider ||
+                      event.routing_model ? (
                         <div className="mt-3 flex flex-wrap gap-2">
+                          {event.routing_selected_by ? (
+                            <Badge color="muted">route {event.routing_selected_by}</Badge>
+                          ) : null}
+                          {event.routing_transport ? (
+                            <Badge color="muted">transport {event.routing_transport}</Badge>
+                          ) : null}
+                          {formatLatency(event.routing_latency_ms) ? (
+                            <Badge color="warning">{formatLatency(event.routing_latency_ms)}</Badge>
+                          ) : null}
                           {event.routing_role ? (
                             <Badge color="warning">role {event.routing_role}</Badge>
                           ) : null}

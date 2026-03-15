@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from mascarade.mcp import McpCallError, McpRuntimeClient
+from mascarade.mcp import McpCallError, McpRuntimeClient, McpServerUnavailable
 from mascarade.observability import AgentTraceBuffer
 
 
@@ -156,3 +158,254 @@ while True:
 
     assert exc_info.value.error_code == "missing_secret"
     assert exc_info.value.structured_content["error"]["message"] == "missing secret"
+
+
+# ------------------------------------------------------------------
+# Graphiti / HTTP transport tests
+# ------------------------------------------------------------------
+
+
+def test_graphiti_server_registered_when_enabled():
+    with patch.dict(os.environ, {"GRAPHITI_ENABLED": "true"}):
+        client = McpRuntimeClient()
+    assert "graphiti" in client._servers
+    srv = client._servers["graphiti"]
+    assert srv.transport == "http"
+    assert srv.url == "http://mascarade-graphiti-mcp:8000"
+    assert srv.label == "Graphiti Knowledge Graph"
+
+
+def test_graphiti_server_not_registered_when_disabled():
+    with patch.dict(os.environ, {"GRAPHITI_ENABLED": "false"}):
+        client = McpRuntimeClient()
+    assert "graphiti" not in client._servers
+
+
+def test_graphiti_server_custom_url():
+    with patch.dict(
+        os.environ,
+        {"GRAPHITI_ENABLED": "true", "GRAPHITI_MCP_URL": "http://custom:9999"},
+    ):
+        client = McpRuntimeClient()
+    assert client._servers["graphiti"].url == "http://custom:9999"
+
+
+def test_graphiti_visible_in_list_servers():
+    with patch.dict(os.environ, {"GRAPHITI_ENABLED": "true"}):
+        client = McpRuntimeClient()
+    keys = [s["key"] for s in client.list_servers()]
+    assert "graphiti" in keys
+
+
+class _FakeResponse:
+    """Minimal stand-in for httpx.Response."""
+
+    def __init__(self, json_body: dict, status_code: int = 200):
+        self._json = json_body
+        self.status_code = status_code
+
+    def raise_for_status(self) -> None:
+        if self.status_code >= 400:
+            import httpx
+
+            raise httpx.HTTPStatusError(
+                "error", request=None, response=self  # type: ignore[arg-type]
+            )
+
+    def json(self) -> dict:
+        return self._json
+
+
+@pytest.mark.asyncio
+async def test_call_tool_http_success():
+    with patch.dict(os.environ, {"GRAPHITI_ENABLED": "true"}):
+        client = McpRuntimeClient(trace_buffer=AgentTraceBuffer())
+
+    response_body = {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "result": {
+            "content": [{"type": "text", "text": "found 3 results"}],
+            "structuredContent": {"results": [1, 2, 3]},
+            "isError": False,
+        },
+    }
+
+    mock_post = AsyncMock(return_value=_FakeResponse(response_body))
+    with patch("httpx.AsyncClient") as mock_client_cls:
+        ctx = AsyncMock()
+        ctx.post = mock_post
+        ctx.__aenter__ = AsyncMock(return_value=ctx)
+        ctx.__aexit__ = AsyncMock(return_value=False)
+        mock_client_cls.return_value = ctx
+
+        result = await client.call_tool_http(
+            "graphiti", "search", {"query": "test"}, run_id="r1"
+        )
+
+    assert result.server_key == "graphiti"
+    assert result.tool_name == "search"
+    assert result.transport == "http"
+    assert result.structured_content == {"results": [1, 2, 3]}
+    assert result.message == "found 3 results"
+    assert not result.is_error
+
+
+@pytest.mark.asyncio
+async def test_call_tool_http_error_response():
+    with patch.dict(os.environ, {"GRAPHITI_ENABLED": "true"}):
+        client = McpRuntimeClient()
+
+    response_body = {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "error": {"code": -32600, "message": "invalid request"},
+    }
+
+    mock_post = AsyncMock(return_value=_FakeResponse(response_body))
+    with patch("httpx.AsyncClient") as mock_client_cls:
+        ctx = AsyncMock()
+        ctx.post = mock_post
+        ctx.__aenter__ = AsyncMock(return_value=ctx)
+        ctx.__aexit__ = AsyncMock(return_value=False)
+        mock_client_cls.return_value = ctx
+
+        with pytest.raises(McpServerUnavailable, match="invalid request"):
+            await client.call_tool_http("graphiti", "bad_tool", {})
+
+
+@pytest.mark.asyncio
+async def test_call_tool_http_tool_error():
+    with patch.dict(os.environ, {"GRAPHITI_ENABLED": "true"}):
+        client = McpRuntimeClient()
+
+    response_body = {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "result": {
+            "content": [{"type": "text", "text": "entity not found"}],
+            "structuredContent": {"ok": False, "error": {"code": "not_found", "message": "entity not found"}},
+            "isError": True,
+        },
+    }
+
+    mock_post = AsyncMock(return_value=_FakeResponse(response_body))
+    with patch("httpx.AsyncClient") as mock_client_cls:
+        ctx = AsyncMock()
+        ctx.post = mock_post
+        ctx.__aenter__ = AsyncMock(return_value=ctx)
+        ctx.__aexit__ = AsyncMock(return_value=False)
+        mock_client_cls.return_value = ctx
+
+        with pytest.raises(McpCallError) as exc_info:
+            await client.call_tool_http("graphiti", "get_entity", {"name": "x"})
+
+    assert exc_info.value.error_code == "not_found"
+    assert exc_info.value.transport == "http"
+
+
+@pytest.mark.asyncio
+async def test_call_tool_dispatches_to_http():
+    """call_tool() should auto-dispatch to call_tool_http() for HTTP servers."""
+    with patch.dict(os.environ, {"GRAPHITI_ENABLED": "true"}):
+        client = McpRuntimeClient()
+
+    client.call_tool_http = AsyncMock(  # type: ignore[method-assign]
+        return_value=McpRuntimeClient.__dict__  # placeholder, won't be inspected
+    )
+    # We just check that call_tool delegates — the AsyncMock prevents real HTTP calls.
+    try:
+        await client.call_tool("graphiti", "search", {"query": "hello"})
+    except Exception:
+        pass
+    client.call_tool_http.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_graphiti_search_convenience():
+    with patch.dict(os.environ, {"GRAPHITI_ENABLED": "true"}):
+        client = McpRuntimeClient()
+
+    from mascarade.mcp.client import McpToolResult
+
+    fake_result = McpToolResult(
+        server_key="graphiti",
+        tool_name="search",
+        structured_content={"results": ["a", "b"]},
+        message="ok",
+        protocol_version=None,
+        server_name=None,
+        is_error=False,
+        latency_ms=10.0,
+        transport="http",
+    )
+    client.call_tool = AsyncMock(return_value=fake_result)  # type: ignore[method-assign]
+
+    result = await client.graphiti_search("test query", limit=5, run_id="r2")
+    assert result == {"results": ["a", "b"]}
+    client.call_tool.assert_called_once_with(
+        "graphiti",
+        "search",
+        {"query": "test query", "limit": 5},
+        run_id="r2",
+        mode="internal",
+        step=0,
+        agent_name=None,
+    )
+
+
+@pytest.mark.asyncio
+async def test_graphiti_add_episode_convenience():
+    with patch.dict(os.environ, {"GRAPHITI_ENABLED": "true"}):
+        client = McpRuntimeClient()
+
+    from mascarade.mcp.client import McpToolResult
+
+    fake_result = McpToolResult(
+        server_key="graphiti",
+        tool_name="add_episode",
+        structured_content={"ok": True},
+        message="ok",
+        protocol_version=None,
+        server_name=None,
+        is_error=False,
+        latency_ms=10.0,
+        transport="http",
+    )
+    client.call_tool = AsyncMock(return_value=fake_result)  # type: ignore[method-assign]
+
+    result = await client.graphiti_add_episode("some content", "test-src")
+    assert result == {"ok": True}
+    call_args = client.call_tool.call_args
+    assert call_args[0][0] == "graphiti"
+    assert call_args[0][1] == "add_episode"
+    assert call_args[0][2]["content"] == "some content"
+    assert call_args[0][2]["source"] == "test-src"
+
+
+@pytest.mark.asyncio
+async def test_graphiti_get_entity_convenience():
+    with patch.dict(os.environ, {"GRAPHITI_ENABLED": "true"}):
+        client = McpRuntimeClient()
+
+    from mascarade.mcp.client import McpToolResult
+
+    fake_result = McpToolResult(
+        server_key="graphiti",
+        tool_name="get_entity",
+        structured_content={"name": "Alice", "type": "person"},
+        message="ok",
+        protocol_version=None,
+        server_name=None,
+        is_error=False,
+        latency_ms=10.0,
+        transport="http",
+    )
+    client.call_tool = AsyncMock(return_value=fake_result)  # type: ignore[method-assign]
+
+    result = await client.graphiti_get_entity("Alice")
+    assert result == {"name": "Alice", "type": "person"}
+    call_args = client.call_tool.call_args
+    assert call_args[0][0] == "graphiti"
+    assert call_args[0][1] == "get_entity"
+    assert call_args[0][2] == {"name": "Alice"}

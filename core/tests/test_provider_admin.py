@@ -1,10 +1,20 @@
 from __future__ import annotations
 
 import sys
+from pathlib import Path
 from types import ModuleType
 
 import pytest
-from deploy.ops_agent.app import provider_clear_updates
+
+# The deploy package lives outside core; make it importable.
+_monorepo_root = str(Path(__file__).resolve().parents[2])
+if _monorepo_root not in sys.path:
+    sys.path.insert(0, _monorepo_root)
+
+from deploy.ops_agent.app import (  # noqa: E402
+    build_runtime_secret_group_status,
+    provider_clear_updates,
+)
 
 from mascarade.config import settings
 from mascarade.provider_admin import (

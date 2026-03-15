@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import ast
 import json
 import logging
 import os
@@ -24,6 +25,49 @@ DEFAULT_AGENT_FACTORY_COCKPIT_DIR = Path(
 DEFAULT_MASCARADE_ENV_FILE = Path(
     os.getenv("MASCARADE_ENV_FILE", DEFAULT_MASCARADE_DIR / ".env")
 ).resolve()
+_FREECAD_BLOCKED_SNIPPETS = (
+    "import os",
+    "from os",
+    "import subprocess",
+    "from subprocess",
+    "import socket",
+    "from socket",
+    "__import__",
+    "eval(",
+    "exec(",
+    "open(",
+)
+_FREECAD_ALLOWED_IMPORT_ROOTS = {
+    "FreeCAD",
+    "App",
+    "Part",
+    "math",
+    "json",
+}
+_FREECAD_BLOCKED_MODULE_NAMES = {
+    "os",
+    "subprocess",
+    "socket",
+    "pathlib",
+    "sys",
+    "shutil",
+    "builtins",
+}
+_FREECAD_BLOCKED_CALLS = {
+    "__import__",
+    "eval",
+    "exec",
+    "compile",
+    "open",
+    "input",
+    "help",
+    "globals",
+    "locals",
+    "vars",
+    "getattr",
+    "setattr",
+    "delattr",
+}
 
 
 @dataclass(slots=True)
@@ -36,6 +80,7 @@ class McpServerDefinition:
     transport: str = "stdio"
     label: str | None = None
     description: str | None = None
+    url: str | None = None
 
 
 @dataclass(slots=True)
@@ -129,6 +174,46 @@ async def _write_message(
     await stdin.drain()
 
 
+def _validate_freecad_script(script: str) -> None:
+    if len(script) > 20_000:
+        raise ValueError("FreeCAD script too large (max 20,000 chars)")
+
+    lowered = script.lower()
+    for snippet in _FREECAD_BLOCKED_SNIPPETS:
+        if snippet in lowered:
+            raise ValueError(f"FreeCAD script contains blocked pattern: {snippet}")
+
+    try:
+        tree = ast.parse(script, mode="exec")
+    except SyntaxError as exc:
+        raise ValueError(f"FreeCAD script syntax error: {exc.msg}") from exc
+
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                root = alias.name.split(".", 1)[0]
+                if root not in _FREECAD_ALLOWED_IMPORT_ROOTS:
+                    raise ValueError(f"FreeCAD script blocked import: {alias.name}")
+        elif isinstance(node, ast.ImportFrom):
+            module = (node.module or "").strip()
+            root = module.split(".", 1)[0] if module else ""
+            if node.level != 0 or root not in _FREECAD_ALLOWED_IMPORT_ROOTS:
+                raise ValueError(f"FreeCAD script blocked import-from: {module or '<relative>'}")
+        elif isinstance(node, ast.Call):
+            if isinstance(node.func, ast.Name) and node.func.id in _FREECAD_BLOCKED_CALLS:
+                raise ValueError(f"FreeCAD script blocked function call: {node.func.id}")
+        elif isinstance(node, ast.Attribute):
+            if node.attr.startswith("__"):
+                raise ValueError(f"FreeCAD script blocked dunder attribute: {node.attr}")
+            if isinstance(node.value, ast.Name) and node.value.id in _FREECAD_BLOCKED_MODULE_NAMES:
+                raise ValueError(f"FreeCAD script blocked module access: {node.value.id}.{node.attr}")
+        elif isinstance(node, ast.Name):
+            if isinstance(node.ctx, ast.Load) and (
+                node.id in _FREECAD_BLOCKED_MODULE_NAMES or node.id.startswith("__")
+            ):
+                raise ValueError(f"FreeCAD script blocked name usage: {node.id}")
+
+
 class McpRuntimeClient:
     """Thin async stdio client for local MCP launchers."""
 
@@ -169,8 +254,14 @@ class McpRuntimeClient:
                 launcher=self.kill_life_root / "tools" / "run_openscad_mcp.sh",
                 timeout_s=60.0,
             ),
+            "kicad": McpServerDefinition(
+                key="kicad",
+                launcher=self.kill_life_root / "tools" / "hw" / "run_kicad_mcp.sh",
+                timeout_s=60.0,
+            ),
         }
         self._register_industrial_servers()
+        self._register_graphiti_server()
 
     def _register_industrial_servers(self) -> None:
         if not self.agent_factory_cockpit_dir.exists():
@@ -224,6 +315,21 @@ class McpRuntimeClient:
                 label=label,
                 description=description,
             )
+
+    def _register_graphiti_server(self) -> None:
+        if os.getenv("GRAPHITI_ENABLED", "").lower() not in ("true", "1", "yes"):
+            return
+        graphiti_url = os.getenv(
+            "GRAPHITI_MCP_URL", "http://mascarade-graphiti-mcp:8000"
+        )
+        self._servers["graphiti"] = McpServerDefinition(
+            key="graphiti",
+            transport="http",
+            url=graphiti_url,
+            timeout_s=30.0,
+            label="Graphiti Knowledge Graph",
+            description="Semantic knowledge graph for entity relationships and episodic memory.",
+        )
 
     def _server(self, server_key: str) -> McpServerDefinition:
         try:
@@ -312,6 +418,17 @@ class McpRuntimeClient:
         timeout_s: float | None = None,
     ) -> McpToolResult:
         server = self._server(server_key)
+        if server.transport == "http":
+            return await self.call_tool_http(
+                server_key,
+                tool_name,
+                arguments,
+                run_id=run_id,
+                mode=mode,
+                step=step,
+                agent_name=agent_name,
+                timeout_s=timeout_s,
+            )
         command, cwd = self._server_command(server)
 
         env = os.environ.copy()
@@ -541,6 +658,185 @@ class McpRuntimeClient:
                 # Preserve stderr on unexpected launcher exits when the request path
                 # did not already surface an MCP-level error.
                 pass
+
+    async def call_tool_http(
+        self,
+        server_key: str,
+        tool_name: str,
+        arguments: dict[str, Any] | None = None,
+        *,
+        run_id: str | None = None,
+        mode: str = "internal",
+        step: int = 0,
+        agent_name: str | None = None,
+        timeout_s: float | None = None,
+    ) -> McpToolResult:
+        import httpx
+
+        server = self._server(server_key)
+        url = server.url
+        if not url:
+            raise McpServerUnavailable(
+                f"MCP server '{server_key}' has no URL configured",
+                server_key=server_key,
+                transport="http",
+            )
+        timeout = timeout_s or server.timeout_s
+        started = time.perf_counter()
+        self._trace(
+            run_id=run_id,
+            mode=mode,
+            step=step,
+            agent_name=agent_name,
+            event_type="mcp_call_started",
+            server_key=server_key,
+            tool_name=tool_name,
+            status="started",
+        )
+        payload = {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "tools/call",
+            "params": {
+                "name": tool_name,
+                "arguments": arguments or {},
+            },
+        }
+        try:
+            async with httpx.AsyncClient(timeout=timeout) as http:
+                resp = await http.post(url, json=payload)
+                resp.raise_for_status()
+                body = resp.json()
+        except httpx.TimeoutException as exc:
+            latency_ms = (time.perf_counter() - started) * 1000
+            self._trace(
+                run_id=run_id,
+                mode=mode,
+                step=step,
+                agent_name=agent_name,
+                event_type="mcp_call_failed",
+                server_key=server_key,
+                tool_name=tool_name,
+                status="timeout",
+                severity="error",
+                latency_ms=latency_ms,
+                error=f"HTTP timeout after {timeout:.1f}s",
+            )
+            raise McpServerUnavailable(
+                f"HTTP timeout after {timeout:.1f}s",
+                server_key=server_key,
+                tool_name=tool_name,
+                transport="http",
+                latency_ms=latency_ms,
+                error_code="timeout",
+            ) from exc
+        except httpx.HTTPError as exc:
+            latency_ms = (time.perf_counter() - started) * 1000
+            self._trace(
+                run_id=run_id,
+                mode=mode,
+                step=step,
+                agent_name=agent_name,
+                event_type="mcp_call_failed",
+                server_key=server_key,
+                tool_name=tool_name,
+                status="error",
+                severity="error",
+                latency_ms=latency_ms,
+                error=str(exc),
+            )
+            raise McpServerUnavailable(
+                f"HTTP error calling '{server_key}': {exc}",
+                server_key=server_key,
+                tool_name=tool_name,
+                transport="http",
+                latency_ms=latency_ms,
+            ) from exc
+
+        latency_ms = (time.perf_counter() - started) * 1000
+
+        if "error" in body:
+            error = body["error"] or {}
+            error_msg = str(error.get("message") or "MCP HTTP request failed")
+            self._trace(
+                run_id=run_id,
+                mode=mode,
+                step=step,
+                agent_name=agent_name,
+                event_type="mcp_call_failed",
+                server_key=server_key,
+                tool_name=tool_name,
+                status="error",
+                severity="error",
+                latency_ms=latency_ms,
+                error=error_msg,
+            )
+            raise McpServerUnavailable(
+                error_msg,
+                server_key=server_key,
+                tool_name=tool_name,
+                transport="http",
+                error_code=str(error.get("code") or ""),
+                latency_ms=latency_ms,
+            )
+
+        tool_result = body.get("result") or {}
+        structured = tool_result.get("structuredContent")
+        if not isinstance(structured, dict):
+            structured = {}
+        message = _message_text(tool_result) or tool_name
+        is_error = bool(tool_result.get("isError"))
+
+        if is_error:
+            error_code = None
+            if isinstance(structured.get("error"), dict):
+                error_code = str(structured["error"].get("code") or "").strip() or None
+            self._trace(
+                run_id=run_id,
+                mode=mode,
+                step=step,
+                agent_name=agent_name,
+                event_type="mcp_call_failed",
+                server_key=server_key,
+                tool_name=tool_name,
+                status="error",
+                severity="error",
+                latency_ms=latency_ms,
+                error=message,
+            )
+            raise McpCallError(
+                message,
+                server_key=server_key,
+                tool_name=tool_name,
+                transport="http",
+                latency_ms=latency_ms,
+                structured_content=structured,
+                error_code=error_code,
+            )
+
+        self._trace(
+            run_id=run_id,
+            mode=mode,
+            step=step,
+            agent_name=agent_name,
+            event_type="mcp_call_completed",
+            server_key=server_key,
+            tool_name=tool_name,
+            status="ok",
+            latency_ms=latency_ms,
+            content_excerpt=message,
+        )
+        return McpToolResult(
+            server_key=server_key,
+            tool_name=tool_name,
+            structured_content=structured,
+            message=message,
+            protocol_version=None,
+            server_name=None,
+            is_error=False,
+            latency_ms=latency_ms,
+            transport="http",
+        )
 
     async def describe_server(
         self,
@@ -981,6 +1277,7 @@ class McpRuntimeClient:
         step: int = 0,
         agent_name: str | None = None,
     ) -> dict[str, Any]:
+        _validate_freecad_script(script)
         arguments: dict[str, Any] = {"script": script}
         if output_path:
             arguments["output_path"] = output_path
@@ -1075,6 +1372,77 @@ class McpRuntimeClient:
                 "source": source,
                 "output_path": output_path,
             },
+            run_id=run_id,
+            mode=mode,
+            step=step,
+            agent_name=agent_name,
+        )
+        return result.structured_content
+
+    # ------------------------------------------------------------------
+    # Graphiti Knowledge Graph convenience methods
+    # ------------------------------------------------------------------
+
+    async def graphiti_add_episode(
+        self,
+        content: str,
+        source: str = "mascarade",
+        *,
+        source_description: str = "",
+        run_id: str | None = None,
+        mode: str = "internal",
+        step: int = 0,
+        agent_name: str | None = None,
+    ) -> dict[str, Any]:
+        result = await self.call_tool(
+            "graphiti",
+            "add_episode",
+            {
+                "content": content,
+                "source": source,
+                "source_description": source_description,
+            },
+            run_id=run_id,
+            mode=mode,
+            step=step,
+            agent_name=agent_name,
+        )
+        return result.structured_content
+
+    async def graphiti_search(
+        self,
+        query: str,
+        *,
+        limit: int = 10,
+        run_id: str | None = None,
+        mode: str = "internal",
+        step: int = 0,
+        agent_name: str | None = None,
+    ) -> dict[str, Any]:
+        result = await self.call_tool(
+            "graphiti",
+            "search",
+            {"query": query, "limit": limit},
+            run_id=run_id,
+            mode=mode,
+            step=step,
+            agent_name=agent_name,
+        )
+        return result.structured_content
+
+    async def graphiti_get_entity(
+        self,
+        name: str,
+        *,
+        run_id: str | None = None,
+        mode: str = "internal",
+        step: int = 0,
+        agent_name: str | None = None,
+    ) -> dict[str, Any]:
+        result = await self.call_tool(
+            "graphiti",
+            "get_entity",
+            {"name": name},
             run_id=run_id,
             mode=mode,
             step=step,

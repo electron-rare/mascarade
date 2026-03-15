@@ -62,11 +62,9 @@ Regle:
 - [ ] P1 Ne requalifier `qwen2.5-0.5b` et `qwen2.5:1.5b` qu'en baselines vitesse tant qu'ils n'ont pas un verdict courant complet
 
 ## Auto-sync
-## Auto-sync
 <!-- AUTO-SYNC:MASCARADE-TODO:START -->
-- dernier cycle ANE automatise: 2026-03-09T06:53:02+00:00
-- accepted via runtime local: aucun
-- gate atteint via runtime local: apple-coreml:qwen2.5-0.5b-instruct-onnx, ollama:qwen2.5:1.5b
-- blocage runtime principal: Analyser les runs ayant atteint gate/repair puis resserrer la reference locale autour des meilleurs candidats.
-- checkpoint runtime manuel: Le runtime Apple sert `qwen2.5-0.5b-instruct-onnx` au lieu de `stateful-mistral7b-instruct-int4-coreml`.
+- dernier cycle ANE automatise: 2026-03-14T14:03:06+00:00
+- accepted via runtime local: apple-coreml:qwen3.5-4b-onnx-q4f16
+- gate atteint via runtime local: apple-coreml:qwen3.5-4b-onnx-q4f16, apple-coreml:qwen2.5-0.5b-instruct-onnx
+- blocage runtime principal: Reference locale reconfirmee; retablir le runtime des modeles provider_failed puis reprendre rewrite/repair sur les modeles bloques a gate.
 <!-- AUTO-SYNC:MASCARADE-TODO:END -->

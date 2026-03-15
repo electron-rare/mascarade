@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import os
 from collections.abc import AsyncIterator
 from datetime import UTC, datetime, timedelta
@@ -11,11 +12,18 @@ from google import genai
 from google.auth.transport.requests import Request
 from google.genai import types as genai_types
 from google.oauth2.credentials import Credentials
+import openai
 
 from mascarade.config import is_secret_configured, settings
-from mascarade.router.providers.base import LLMProvider, LLMResponse, make_retry
+from mascarade.router.providers.base import (
+    LLMProvider,
+    LLMResponse,
+    build_chat_messages,
+    make_retry,
+)
 
 _retry = make_retry()
+logger = logging.getLogger("mascarade.router.providers.google")
 
 _TIMEOUT_S = 60
 _OAUTH_REFRESH_SKEW = timedelta(seconds=60)
@@ -67,9 +75,23 @@ class GoogleProvider(LLMProvider):
         self._client: genai.Client | None = None
         self._client_token = ""
         self._client_mode = ""
+        self._proxy_enabled = (
+            settings.litellm_proxy_enabled
+            and settings.litellm_base_url.strip()
+            and is_secret_configured(settings.litellm_master_key)
+        )
+        self._proxy_client: openai.AsyncOpenAI | None = None
+        if settings.litellm_proxy_enabled and not self._proxy_enabled:
+            logger.warning(
+                "LiteLLM proxy requested for google but base_url/master_key is incomplete; using direct SDK mode",
+            )
+        if self._proxy_enabled:
+            logger.info("Google provider will use LiteLLM proxy mode")
 
     @property
     def is_configured(self) -> bool:
+        if self._proxy_enabled:
+            return True
         auth_mode = _normalized_auth_mode()
         if auth_mode == "api_key":
             return is_secret_configured(settings.google_api_key)
@@ -222,6 +244,18 @@ class GoogleProvider(LLMProvider):
         self._client_mode = auth_mode
         return self._client
 
+    def _ensure_proxy_client(self) -> openai.AsyncOpenAI:
+        if not self._proxy_enabled:
+            raise RuntimeError("LiteLLM proxy mode is disabled for google provider")
+        if self._proxy_client is not None:
+            return self._proxy_client
+        self._proxy_client = openai.AsyncOpenAI(
+            api_key=settings.litellm_master_key,
+            base_url=settings.litellm_base_url,
+            timeout=30.0,
+        )
+        return self._proxy_client
+
     @_retry
     async def send(
         self,
@@ -233,6 +267,28 @@ class GoogleProvider(LLMProvider):
         max_tokens: int = 4096,
     ) -> LLMResponse:
         model_id = model or self.default_model
+        if self._proxy_enabled:
+            proxy_client = self._ensure_proxy_client()
+            chat_messages = build_chat_messages(messages, system)
+            response = await proxy_client.chat.completions.create(
+                model=model_id,
+                messages=chat_messages,
+                max_tokens=max_tokens,
+                temperature=temperature,
+            )
+            if not response.choices:
+                raise RuntimeError(f"LiteLLM returned empty choices for model {model_id}")
+            choice = response.choices[0]
+            return LLMResponse(
+                content=choice.message.content or "",
+                model=model_id,
+                provider=self.name,
+                usage={
+                    "input_tokens": response.usage.prompt_tokens if response.usage else 0,
+                    "output_tokens": (response.usage.completion_tokens if response.usage else 0),
+                },
+            )
+
         prompt = _messages_to_text(messages, system=system)
 
         def _call():
@@ -266,6 +322,21 @@ class GoogleProvider(LLMProvider):
         max_tokens: int = 4096,
     ) -> AsyncIterator[str]:
         model_id = model or self.default_model
+        if self._proxy_enabled:
+            proxy_client = self._ensure_proxy_client()
+            chat_messages = build_chat_messages(messages, system)
+            stream = await proxy_client.chat.completions.create(
+                model=model_id,
+                messages=chat_messages,
+                max_tokens=max_tokens,
+                temperature=temperature,
+                stream=True,
+            )
+            async for chunk in stream:
+                if chunk.choices and chunk.choices[0].delta.content:
+                    yield chunk.choices[0].delta.content
+            return
+
         prompt = _messages_to_text(messages, system=system)
 
         def _call():
@@ -277,10 +348,25 @@ class GoogleProvider(LLMProvider):
             )
 
         stream = await asyncio.wait_for(asyncio.to_thread(_call), timeout=_TIMEOUT_S)
-        for chunk in stream:
-            text = getattr(chunk, "text", None)
-            if text:
-                yield text
+
+        queue: asyncio.Queue[str | None] = asyncio.Queue()
+
+        async def _drain():
+            def _run():
+                for chunk in stream:
+                    text = getattr(chunk, "text", None)
+                    if text:
+                        queue.put_nowait(text)
+                queue.put_nowait(None)
+            await asyncio.to_thread(_run)
+
+        drain_task = asyncio.create_task(_drain())
+        while True:
+            item = await queue.get()
+            if item is None:
+                break
+            yield item
+        await drain_task
 
     def available_models(self) -> list[str]:
         return [settings.google_model]

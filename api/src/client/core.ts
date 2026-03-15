@@ -42,6 +42,7 @@ export interface AgentInfo {
   preferred_model?: string | null;
   preferred_role?: string | null;
   strategy?: string;
+  routing_policy?: string | null;
   temperature?: number;
   max_tokens?: number;
   builtin?: boolean;
@@ -65,6 +66,10 @@ export interface AgentTraceEvent {
   routing_role?: string | null;
   routing_provider?: string | null;
   routing_model?: string | null;
+  routing_policy?: string | null;
+  routing_selected_by?: string | null;
+  routing_transport?: string | null;
+  routing_latency_ms?: number | null;
   mcp_server?: string | null;
   mcp_tool?: string | null;
   mcp_status?: string | null;
@@ -191,6 +196,7 @@ export const coreClient = {
   send(body: {
     messages: { role: string; content: string }[];
     strategy?: string;
+    routing_policy?: string;
     provider?: string;
     model?: string;
     system?: string;
@@ -266,6 +272,7 @@ export const coreClient = {
     preferred_model?: string;
     preferred_role?: string;
     strategy?: string;
+    routing_policy?: string;
     temperature?: number;
     max_tokens?: number;
   }) {
@@ -292,6 +299,7 @@ export const coreClient = {
       preferred_model?: string | null;
       preferred_role?: string | null;
       strategy?: string;
+      routing_policy?: string;
       temperature?: number;
       max_tokens?: number;
     },
@@ -325,6 +333,7 @@ export const coreClient = {
         preferred_role?: string | null;
         preferred_provider?: string | null;
         preferred_model?: string | null;
+        routing_policy?: string | null;
       }
     >;
   }) {
@@ -340,6 +349,8 @@ export const coreClient = {
         error?: string;
         remote?: boolean;
         selected_by?: string;
+        transport?: string | null;
+        latency_ms?: number | null;
         peer_id?: string | null;
         node_id?: string | null;
         role?: string | null;
@@ -386,6 +397,7 @@ export const coreClient = {
     allow_local?: boolean;
     messages: { role: string; content: string }[];
     strategy?: string;
+    routing_policy?: string;
     provider?: string;
     model?: string;
     system?: string | null;
@@ -726,6 +738,25 @@ export const coreClient = {
       topology: Record<string, unknown>;
       vendor_contracts: Record<string, unknown>;
     }>("/mcp/industrial/platform");
+  },
+
+  // --- Fine-tuning ---
+
+  finetunePipeline(body: { task: string; domain?: string; max_model_size_gb?: number }) {
+    return request<{ status: string; task_id?: string }>("/finetune/pipeline", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+
+  finetuneStack() {
+    return request<{ stack: string[]; recommended: string }>("/finetune/stack");
+  },
+
+  deleteFinetuneLog(name: string) {
+    return request<{ status: string }>(`/finetune/logs/${encodeURIComponent(name)}`, {
+      method: "DELETE",
+    });
   },
 
   industrialMcpTool(

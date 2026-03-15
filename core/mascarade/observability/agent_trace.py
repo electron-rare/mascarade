@@ -58,6 +58,10 @@ class AgentTraceEvent:
     routing_role: str | None = None
     routing_provider: str | None = None
     routing_model: str | None = None
+    routing_policy: str | None = None
+    routing_selected_by: str | None = None
+    routing_transport: str | None = None
+    routing_latency_ms: float | None = None
     mcp_server: str | None = None
     mcp_tool: str | None = None
     mcp_status: str | None = None
@@ -83,6 +87,8 @@ def build_routing_suffix(event: AgentTraceEvent) -> str:
         parts.append(f"provider={event.routing_provider}")
     if event.routing_model:
         parts.append(f"model={event.routing_model}")
+    if event.routing_policy:
+        parts.append(f"policy={event.routing_policy}")
     return f" [{', '.join(parts)}]" if parts else ""
 
 
@@ -107,6 +113,13 @@ def build_trace_message(event: AgentTraceEvent) -> str:
         summary = f"{event.agent_name or 'agent'} returned output"
         if event.provider or event.model:
             summary += f" via {event.provider or 'provider'}:{event.model or 'model'}"
+        if event.routing_selected_by:
+            summary += f" [{event.routing_selected_by}]"
+        if event.routing_transport:
+            summary += f" [{event.routing_transport}"
+            if event.routing_latency_ms is not None:
+                summary += f" {event.routing_latency_ms:.0f} ms"
+            summary += "]"
         if event.content_excerpt:
             summary += f' "{event.content_excerpt}"'
         return summary
@@ -191,6 +204,10 @@ class AgentTraceBuffer:
             "routing_role": event.routing_role,
             "routing_provider": event.routing_provider,
             "routing_model": event.routing_model,
+            "routing_policy": event.routing_policy,
+            "routing_selected_by": event.routing_selected_by,
+            "routing_transport": event.routing_transport,
+            "routing_latency_ms": event.routing_latency_ms,
             "mcp_server": event.mcp_server,
             "mcp_tool": event.mcp_tool,
             "mcp_status": event.mcp_status,
@@ -217,6 +234,14 @@ class AgentTraceBuffer:
                 "routing_role": event.routing_role or "",
                 "routing_provider": event.routing_provider or "",
                 "routing_model": event.routing_model or "",
+                "routing_policy": event.routing_policy or "",
+                "routing_selected_by": event.routing_selected_by or "",
+                "routing_transport": event.routing_transport or "",
+                "routing_latency_ms": (
+                    str(event.routing_latency_ms)
+                    if event.routing_latency_ms is not None
+                    else ""
+                ),
                 "mcp_server": event.mcp_server or "",
                 "mcp_tool": event.mcp_tool or "",
                 "mcp_status": event.mcp_status or "",
@@ -266,6 +291,10 @@ class AgentTraceBuffer:
         routing_role: str | None = None,
         routing_provider: str | None = None,
         routing_model: str | None = None,
+        routing_policy: str | None = None,
+        routing_selected_by: str | None = None,
+        routing_transport: str | None = None,
+        routing_latency_ms: float | None = None,
         mcp_server: str | None = None,
         mcp_tool: str | None = None,
         mcp_status: str | None = None,
@@ -295,6 +324,10 @@ class AgentTraceBuffer:
             routing_role=excerpt_text(routing_role, limit=120),
             routing_provider=excerpt_text(routing_provider, limit=120),
             routing_model=excerpt_text(routing_model, limit=160),
+            routing_policy=excerpt_text(routing_policy, limit=80),
+            routing_selected_by=excerpt_text(routing_selected_by, limit=80),
+            routing_transport=excerpt_text(routing_transport, limit=80),
+            routing_latency_ms=routing_latency_ms,
             mcp_server=excerpt_text(mcp_server, limit=120),
             mcp_tool=excerpt_text(mcp_tool, limit=160),
             mcp_status=excerpt_text(mcp_status, limit=80),
