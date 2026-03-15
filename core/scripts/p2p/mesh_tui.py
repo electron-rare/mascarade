@@ -24,7 +24,7 @@ RESET = "\033[0m"
 NODES = {
     "VM (bootstrap)": {
         "ssh": "root@192.168.0.119",
-        "port": 4002,
+        "port": 4001,
         "role": "infra",
         "caps": ["docker", "p2p-relay", "compute"],
     },
@@ -151,7 +151,7 @@ def start_node(name, info):
     else:
         caps = ",".join(info["caps"])
         cmd = (f"cd ~/mascarade/core && "
-               f"P2P_CAPABILITIES={caps} P2P_BOOTSTRAP_PORT=4002 "
+               f"P2P_CAPABILITIES={caps} P2P_BOOTSTRAP_PORT=4001 "
                f"nohup python3 scripts/p2p/task_handler_worker.py > /tmp/p2p.log 2>&1 &")
 
     try:

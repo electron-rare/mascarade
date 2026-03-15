@@ -1,5 +1,8 @@
 """Module de cache pour Mascarade."""
 
-from .cache import CacheEntry, ResponseCache
+from .cache import CacheBackend, CacheEntry, InMemoryCache
 
-__all__ = ["ResponseCache", "CacheEntry"]
+# Backward compatibility alias
+ResponseCache = InMemoryCache
+
+__all__ = ["CacheBackend", "InMemoryCache", "ResponseCache", "CacheEntry"]

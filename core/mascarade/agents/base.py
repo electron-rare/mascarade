@@ -2,11 +2,16 @@
 
 from __future__ import annotations
 
+import time
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
 
 from mascarade.router import Router
 from mascarade.router.providers.base import LLMResponse
 from mascarade.router.router import Strategy
+
+if TYPE_CHECKING:
+    from mascarade.agents.registry import AgentRegistry
 
 
 @dataclass
@@ -24,7 +29,7 @@ class Agent:
     tools: list[str] = field(default_factory=list)
     temperature: float = 0.7
     max_tokens: int = 4096
-    prompt_versions: list[dict] = field(default_factory=list)
+    retry_config: dict | None = None
 
     def build_send_payload(
         self,
@@ -51,6 +56,7 @@ class Agent:
         *,
         router: Router,
         context: list[dict] | None = None,
+        registry: AgentRegistry | None = None,
     ) -> LLMResponse:
         """Exécuter l'agent avec un prompt donné."""
         payload = self.build_send_payload(prompt, context=context)
@@ -70,6 +76,7 @@ class Agent:
         messages: list[dict],
         *,
         router: Router,
+        registry: AgentRegistry | None = None,
     ) -> LLMResponse:
         """Exécuter l'agent avec un historique de messages complet."""
         return await router.send(

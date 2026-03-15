@@ -9,14 +9,14 @@ from collections.abc import AsyncIterator
 from enum import StrEnum
 from typing import Any
 
-from mascarade.analytics.clickhouse_logger import get_cost_logger
-from mascarade.analytics.cost_calculator import get_cost_calculator
-from mascarade.analytics.prometheus_metrics import COST_METRICS
-from mascarade.cache.cache import ResponseCache
+from mascarade.cache.multi_tier_cache import MultiTierCache
 from mascarade.config import settings
 from mascarade.load_balancer.balancer import LoadBalancer
 from mascarade.metrics.tracker import MetricsTracker
-from mascarade.router.circuit_breaker import CircuitBreaker
+from mascarade.observability.langfuse import (
+    start_langfuse_generation,
+    update_langfuse_generation,
+)
 from mascarade.router.fallback import FallbackState
 from mascarade.router.model_registry import ModelRegistry
 from mascarade.router.health_monitor import HealthMonitor
@@ -34,6 +34,7 @@ except ImportError:
 class Strategy(StrEnum):
     BEST = "best"
     CHEAPEST = "cheapest"
+    DOMAIN = "domain"
     FASTEST = "fastest"
     SPECIFIC = "specific"
     ROUTELLM = "routellm"
@@ -92,7 +93,7 @@ class Router:
 
     def __init__(self) -> None:
         self._providers: dict[str, LLMProvider] = {}
-        self.cache = ResponseCache()
+        self.cache = MultiTierCache()
         self.metrics = MetricsTracker()
         self.load_balancer = LoadBalancer()
         self.fallback = FallbackState(max_attempts=3)
@@ -251,16 +252,19 @@ class Router:
             best_value = min(self._get_effective_cost(p) for p in providers)
             return [p for p in providers if self._get_effective_cost(p) == best_value]
 
-        # Apply strategy filtering
-        if strategy == Strategy.CHEAPEST:
-            best_value = min(sum(p.cost_per_million) for p in healthy_providers)
-            candidates = [p for p in healthy_providers if sum(p.cost_per_million) == best_value]
-        elif strategy == Strategy.FASTEST:
-            best_value = min(p.speed_rank for p in healthy_providers)
-            candidates = [p for p in healthy_providers if p.speed_rank == best_value]
-        else:  # BEST
-            best_value = max(p.quality_rank for p in healthy_providers)
-            candidates = [p for p in healthy_providers if p.quality_rank == best_value]
+        if strategy == Strategy.DOMAIN:
+            # Prefer Ollama provider for domain-specific mascarade-* models
+            # If Ollama not available, fallback to BEST strategy
+            ollama_providers = [p for p in providers if p.name == "ollama"]
+            if ollama_providers:
+                return ollama_providers
+            # Fallback to BEST strategy
+            best_value = max(p.quality_rank for p in providers)
+            return [p for p in providers if p.quality_rank == best_value]
+
+        if strategy == Strategy.FASTEST:
+            best_value = min(p.speed_rank for p in providers)
+            return [p for p in providers if p.speed_rank == best_value]
 
         # Sort candidates by health score (descending - healthiest first)
         candidates_with_health = [
@@ -486,10 +490,10 @@ class Router:
         in_cost, out_cost = provider.cost_per_million
         return ((input_tokens * in_cost) + (output_tokens * out_cost)) / 1_000_000
 
-    def metrics_summary(self) -> dict:
+    async def metrics_summary(self) -> dict:
         return {
             "providers": self.metrics.get_summary(),
-            "cache": self.cache.get_stats(),
+            "cache": await self.cache.get_stats(),
             "load_balancer": self.load_balancer.get_load_stats(),
             "fallback": self.fallback.get_failure_stats(),
             "health": self.health_monitor.get_all_health(),
@@ -499,9 +503,9 @@ class Router:
     def provider_metrics(self, provider_name: str) -> dict:
         return self.metrics.get_provider_stats(provider_name)
 
-    def reset_metrics(self) -> None:
+    async def reset_metrics(self) -> None:
         self.metrics.reset()
-        self.cache.clear()
+        await self.cache.clear()
         self.load_balancer.reset_stats()
         self.fallback.reset()
         self.circuit_breaker.reset()
@@ -556,7 +560,6 @@ class Router:
         temperature: float = 0.7,
         max_tokens: int = 4096,
         domain: str | None = None,
-        user_id: int | None = None,
     ) -> LLMResponse:
         requested_strategy = Strategy(strategy)
         policy = (routing_policy or "auto").strip().lower() or "auto"
@@ -584,7 +587,7 @@ class Router:
             )
         strict_provider = effective_strategy == Strategy.SPECIFIC and effective_provider is not None
 
-        cached = self.cache.retrieve(
+        cached = await self.cache.retrieve(
             messages,
             strategy=cache_strategy,
             provider=effective_provider,
@@ -593,6 +596,7 @@ class Router:
             response_format=response_format,
             temperature=temperature,
             max_tokens=max_tokens,
+            domain=domain,
         )
         if cached and (not strict_provider or cached.provider == effective_provider):
             return LLMResponse(
@@ -641,7 +645,20 @@ class Router:
                 }
                 if response_format is not None and selected.name in {"mistral", "ollama"}:
                     send_kwargs["response_format"] = response_format
-                response = await selected.send(messages, **send_kwargs)
+
+                with start_langfuse_generation(
+                    name=f"router.send/{selected.name}",
+                    model=effective_model or selected.name,
+                    input=messages,
+                    metadata={
+                        "strategy": effective_strategy.value,
+                        "provider": selected.name,
+                        "temperature": temperature,
+                        "max_tokens": max_tokens,
+                    },
+                ) as generation:
+                    response = await selected.send(messages, **send_kwargs)
+
             except Exception as exc:
                 elapsed = time.perf_counter() - started_at
                 logger.warning(
@@ -764,23 +781,37 @@ class Router:
                     success=True,
                 )
 
-            # Store in cache with original strategy to enable cache hits
-            # even after fallback to different provider
-            # But store the actual provider that was used for accurate response metadata
+            update_langfuse_generation(
+                generation,
+                output=response.content,
+                usage={
+                    "input": usage.get("input_tokens", 0),
+                    "output": usage.get("output_tokens", 0),
+                    "total": self._usage_tokens(usage),
+                },
+                metadata={
+                    "provider": response.provider,
+                    "model": response.model,
+                    "response_time_s": round(elapsed, 3),
+                    "cost": self._calculate_cost(selected, usage),
+                },
+            )
+
             if not strict_provider:
-                self.cache.store(
+                await self.cache.store(
                     messages,
                     response.content,
                     tokens=self._usage_tokens(usage),
                     cost=self._calculate_cost(selected, usage),
                     ttl=3600,
                     strategy=cache_strategy,
-                    provider=selected.name,  # Store actual provider used
+                    provider=selected.name,
                     model=response.model,
                     system=system,
                     response_format=response_format,
                     temperature=temperature,
                     max_tokens=max_tokens,
+                    domain=domain,
                 )
 
             # Track usage for user if user_id provided
@@ -813,7 +844,6 @@ class Router:
         temperature: float = 0.7,
         max_tokens: int = 4096,
         domain: str | None = None,
-        user_id: int | None = None,
     ) -> AsyncIterator[str]:
         requested_strategy = Strategy(strategy)
         effective_strategy = requested_strategy

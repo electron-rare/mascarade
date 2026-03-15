@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import time
 from collections.abc import AsyncIterator
 
 import httpx
@@ -35,6 +36,9 @@ class OllamaProvider(LLMProvider):
             base_url=self._base_url,
             timeout=self._timeout_seconds,
         )
+        self._models_cache: list[str] | None = None
+        self._cache_timestamp: float = 0.0
+        self._cache_ttl: float = 30.0  # Cache for 30 seconds
 
     @property
     def is_configured(self) -> bool:
@@ -135,11 +139,34 @@ class OllamaProvider(LLMProvider):
                     continue
 
     def available_models(self) -> list[str]:
+        """Liste des modèles disponibles pour ce provider (avec cache)."""
+        # Return cached result if still valid
+        current_time = time.time()
+        if (
+            self._models_cache is not None
+            and (current_time - self._cache_timestamp) < self._cache_ttl
+        ):
+            return self._models_cache
+
+        # Fetch fresh list
         try:
             with httpx.Client(base_url=self._base_url, timeout=5.0) as client:
                 resp = client.get("/api/tags")
                 resp.raise_for_status()
-                return [m["name"] for m in resp.json().get("models", [])]
+                models = [m["name"] for m in resp.json().get("models", [])]
+
+                # Update cache
+                self._models_cache = models
+                self._cache_timestamp = current_time
+                return models
         except Exception:
             logger.warning("Cannot list Ollama models at %s", self._base_url)
+            # Return cached result if available, otherwise default
+            if self._models_cache is not None:
+                return self._models_cache
             return [self.default_model]
+
+    def is_model_available(self, model_name: str) -> bool:
+        """Vérifie si un modèle spécifique est chargé dans Ollama."""
+        available = self.available_models()
+        return model_name in available
