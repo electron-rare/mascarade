@@ -10,6 +10,7 @@ services:
     restart: unless-stopped
     ports:
       - "${PUBLISH_BIND_HOST:-0.0.0.0}:${CORE_PORT}:8100"
+      - "${PUBLISH_BIND_HOST:-0.0.0.0}:${P2P_LISTEN_PORT:-4001}:4001"
     env_file:
       - .env
     environment:
@@ -17,6 +18,7 @@ services:
       CORE_PORT: ${CORE_PORT}
       DEFAULT_PROVIDER: ${DEFAULT_PROVIDER}
       DEFAULT_MODEL: ${DEFAULT_MODEL}
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       AGENT_FACTORY_COCKPIT_DIR: ${AGENT_FACTORY_COCKPIT_DIR:-/workspace/agent-factory-cockpit}
       AGENT_FACTORY_DCS_PACK: ${AGENT_FACTORY_DCS_PACK:-generic-rest}
       AGENT_FACTORY_DCS_BASE_URL: ${AGENT_FACTORY_DCS_BASE_URL:-http://agent-factory-dcs-sandbox:4184/api}
@@ -28,11 +30,25 @@ services:
       AGENT_FACTORY_DCS_METHOD_READ_SNAPSHOT: ${AGENT_FACTORY_DCS_METHOD_READ_SNAPSHOT:-GET}
       AGENT_FACTORY_DCS_RESOURCE_WRITE_REQUEST: ${AGENT_FACTORY_DCS_RESOURCE_WRITE_REQUEST:-write-request}
       PYTHONPATH: ${AGENT_FACTORY_COCKPIT_DIR:-/workspace/agent-factory-cockpit}:${PYTHONPATH:-}
+      # P2P overlay network
+      P2P_ENABLED: ${P2P_ENABLED:-true}
+      P2P_LISTEN_HOST: ${P2P_LISTEN_HOST:-0.0.0.0}
+      P2P_LISTEN_PORT: ${P2P_LISTEN_PORT:-4001}
+      P2P_BOOTSTRAP_PEERS: ${P2P_BOOTSTRAP_PEERS:-}
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8100/cluster/p2p/status >/dev/null"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:
       - core-data:/app/data
       - ../agent-factory-cockpit:${AGENT_FACTORY_COCKPIT_DIR:-/workspace/agent-factory-cockpit}:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
     networks:
       - mascarade-network
 
@@ -469,6 +485,7 @@ services:
       - clickhouse-data:/var/lib/clickhouse
       - ./deploy/clickhouse-config/langfuse-user.xml:/etc/clickhouse-server/users.d/langfuse-user.xml:ro
       - ./deploy/clickhouse-config/thread-pools.xml:/etc/clickhouse-server/config.d/thread-pools.xml:ro
+      - ./deploy/clickhouse/init:/docker-entrypoint-initdb.d:ro
     environment:
       CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:-}
     healthcheck:

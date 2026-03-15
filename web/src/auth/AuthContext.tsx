@@ -9,7 +9,6 @@ import {
 } from "react";
 import {
   clearApiKey,
-  getApiKey,
   onAuth401,
   setApiKey,
   validateApiKey,
@@ -55,12 +54,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           return;
         }
 
-        const storedKey = getApiKey();
-        if (storedKey) {
-          const valid = await validateApiKey(storedKey);
-          if (!mountedRef.current) return;
-          setAuthenticated(valid);
-          if (!valid) clearApiKey();
+        const valid = await validateApiKey();
+        if (!mountedRef.current) return;
+        setAuthenticated(valid);
+        if (!valid) {
+          void clearApiKey();
         }
       } catch {
         // API unreachable — degrade gracefully, don't lock out
@@ -79,16 +77,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => onAuth401(() => setAuthenticated(false)), []);
 
   const login = useCallback(async (key: string, persist: boolean): Promise<boolean> => {
-    const valid = await validateApiKey(key);
+    const valid = await setApiKey(key, persist);
     if (valid) {
-      setApiKey(key, persist);
       setAuthenticated(true);
     }
     return valid;
   }, []);
 
   const logout = useCallback(() => {
-    clearApiKey();
+    void clearApiKey();
     setAuthenticated(false);
   }, []);
 
