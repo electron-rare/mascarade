@@ -281,3 +281,378 @@ async def test_chat_completions_rejects_invalid_prefix():
 
     assert response.status_code == 400
     assert response.json()["detail"] == "Unsupported model prefix 'banana'."
+
+
+# Version Stability Tests - ensure /v1/chat/completions contract is frozen
+
+
+@pytest.mark.asyncio
+async def test_chat_completions_contract_required_fields():
+    """
+    Verify that /v1/chat/completions always returns required OpenAI-compatible fields.
+    This is a frozen contract test - changes to these fields are BREAKING.
+    """
+    fake_router = FakeRouter(
+        available_providers=["openai"],
+        response=LLMResponse(
+            content="contract test",
+            model="gpt-4",
+            provider="openai",
+            usage={"input_tokens": 15, "output_tokens": 7},
+        ),
+    )
+
+    async with _client(fake_router) as client:
+        response = await client.post(
+            "/v1/chat/completions",
+            json={
+                "model": "gpt-4",
+                "messages": [{"role": "user", "content": "test"}],
+            },
+        )
+
+    assert response.status_code == 200
+    body = response.json()
+
+    # Top-level required fields (frozen contract)
+    required_top_level_fields = ["id", "object", "created", "model", "choices", "usage"]
+    for field in required_top_level_fields:
+        assert field in body, f"Missing required field: {field}"
+
+    # Verify field types (frozen contract)
+    assert isinstance(body["id"], str)
+    assert body["id"].startswith("chatcmpl-")
+    assert body["object"] == "chat.completion"
+    assert isinstance(body["created"], int)
+    assert isinstance(body["model"], str)
+    assert isinstance(body["choices"], list)
+    assert len(body["choices"]) > 0
+    assert isinstance(body["usage"], dict)
+
+    # Choice structure (frozen contract)
+    choice = body["choices"][0]
+    required_choice_fields = ["index", "message", "finish_reason"]
+    for field in required_choice_fields:
+        assert field in choice, f"Missing required choice field: {field}"
+
+    assert isinstance(choice["index"], int)
+    assert isinstance(choice["message"], dict)
+    assert choice["finish_reason"] in ["stop", "length", "content_filter", None]
+
+    # Message structure (frozen contract)
+    message = choice["message"]
+    required_message_fields = ["role", "content"]
+    for field in required_message_fields:
+        assert field in message, f"Missing required message field: {field}"
+
+    assert message["role"] == "assistant"
+    assert isinstance(message["content"], str)
+
+    # Usage structure (frozen contract)
+    usage = body["usage"]
+    required_usage_fields = ["prompt_tokens", "completion_tokens", "total_tokens"]
+    for field in required_usage_fields:
+        assert field in usage, f"Missing required usage field: {field}"
+
+    assert isinstance(usage["prompt_tokens"], int)
+    assert isinstance(usage["completion_tokens"], int)
+    assert isinstance(usage["total_tokens"], int)
+    assert usage["total_tokens"] == usage["prompt_tokens"] + usage["completion_tokens"]
+
+
+@pytest.mark.asyncio
+async def test_chat_completions_contract_endpoint_path():
+    """
+    Verify that the endpoint path is exactly /v1/chat/completions.
+    This is a frozen contract test - endpoint path changes are BREAKING.
+    """
+    fake_router = FakeRouter(
+        available_providers=["openai"],
+        response=LLMResponse(
+            content="path test",
+            model="gpt-4",
+            provider="openai",
+            usage={"input_tokens": 10, "output_tokens": 5},
+        ),
+    )
+
+    async with _client(fake_router) as client:
+        # Correct versioned path should work
+        response = await client.post(
+            "/v1/chat/completions",
+            json={
+                "model": "gpt-4",
+                "messages": [{"role": "user", "content": "test"}],
+            },
+        )
+        assert response.status_code == 200
+
+        # Old unversioned path should not work
+        response = await client.post(
+            "/chat/completions",
+            json={
+                "model": "gpt-4",
+                "messages": [{"role": "user", "content": "test"}],
+            },
+        )
+        assert response.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_chat_completions_contract_parameter_handling():
+    """
+    Verify that standard OpenAI parameters are correctly handled.
+    This is a frozen contract test - parameter handling changes are BREAKING.
+    """
+    fake_router = FakeRouter(
+        available_providers=["openai"],
+        response=LLMResponse(
+            content="parameter test",
+            model="gpt-4",
+            provider="openai",
+            usage={"input_tokens": 25, "output_tokens": 12},
+        ),
+    )
+
+    async with _client(fake_router) as client:
+        # Test with full set of standard OpenAI parameters
+        response = await client.post(
+            "/v1/chat/completions",
+            json={
+                "model": "gpt-4",
+                "messages": [
+                    {"role": "system", "content": "You are helpful"},
+                    {"role": "user", "content": "Hello"},
+                ],
+                "temperature": 0.8,
+                "max_tokens": 200,
+                "top_p": 0.95,
+                "frequency_penalty": 0.2,
+                "presence_penalty": 0.3,
+            },
+        )
+
+        assert response.status_code == 200
+        body = response.json()
+
+        # Verify parameters were passed to router correctly
+        assert len(fake_router.calls) == 1
+        call = fake_router.calls[0]
+
+        # Verify system message handling
+        assert len(call["messages"]) == 1
+        assert call["messages"][0]["role"] == "user"
+        assert call["messages"][0]["content"] == "Hello"
+        assert call["system"] == "You are helpful"
+
+        # Verify temperature and max_tokens are passed through
+        assert call["temperature"] == 0.8
+        assert call["max_tokens"] == 200
+
+        # Verify response structure is still OpenAI-compatible
+        assert body["object"] == "chat.completion"
+        assert "choices" in body
+        assert "usage" in body
+
+
+@pytest.mark.asyncio
+async def test_chat_completions_contract_error_responses():
+    """
+    Verify that error responses follow OpenAI error format.
+    This is a frozen contract test - error format changes are BREAKING.
+    """
+    # Test unavailable provider error
+    fake_router = FakeRouter(
+        available_providers=["openai"],
+        supported_provider_names=["openai", "claude"],
+    )
+
+    async with _client(fake_router) as client:
+        response = await client.post(
+            "/v1/chat/completions",
+            json={
+                "model": "claude:claude-3-opus",
+                "messages": [{"role": "user", "content": "test"}],
+            },
+        )
+
+    assert response.status_code == 503
+    error_body = response.json()
+    assert "detail" in error_body
+
+    # Test invalid provider prefix error
+    fake_router = FakeRouter(
+        available_providers=["openai"],
+        supported_provider_names=["openai"],
+    )
+
+    async with _client(fake_router) as client:
+        response = await client.post(
+            "/v1/chat/completions",
+            json={
+                "model": "invalid:model",
+                "messages": [{"role": "user", "content": "test"}],
+            },
+        )
+
+    assert response.status_code == 400
+    error_body = response.json()
+    assert "detail" in error_body
+
+
+@pytest.mark.asyncio
+async def test_chat_completions_contract_usage_tokens():
+    """
+    Verify that usage tokens are always calculated correctly.
+    This is a frozen contract test - token calculation changes are BREAKING.
+    """
+    fake_router = FakeRouter(
+        available_providers=["openai"],
+        response=LLMResponse(
+            content="token test",
+            model="gpt-4",
+            provider="openai",
+            usage={"input_tokens": 100, "output_tokens": 50},
+        ),
+    )
+
+    async with _client(fake_router) as client:
+        response = await client.post(
+            "/v1/chat/completions",
+            json={
+                "model": "gpt-4",
+                "messages": [{"role": "user", "content": "test"}],
+            },
+        )
+
+    assert response.status_code == 200
+    body = response.json()
+
+    # Verify usage token calculation
+    usage = body["usage"]
+    assert usage["prompt_tokens"] == 100
+    assert usage["completion_tokens"] == 50
+    assert usage["total_tokens"] == 150
+
+    # Test with partial usage data (only total_tokens)
+    fake_router = FakeRouter(
+        available_providers=["openai"],
+        response=LLMResponse(
+            content="partial token test",
+            model="gpt-4",
+            provider="openai",
+            usage={"total_tokens": 75},
+        ),
+    )
+
+    async with _client(fake_router) as client:
+        response = await client.post(
+            "/v1/chat/completions",
+            json={
+                "model": "gpt-4",
+                "messages": [{"role": "user", "content": "test"}],
+            },
+        )
+
+    assert response.status_code == 200
+    body = response.json()
+    usage = body["usage"]
+
+    # When only total_tokens is provided, prompt_tokens and completion_tokens should default to 0
+    assert "prompt_tokens" in usage
+    assert "completion_tokens" in usage
+    assert "total_tokens" in usage
+
+
+@pytest.mark.asyncio
+async def test_chat_completions_contract_multiple_choices():
+    """
+    Verify that the response correctly handles single choice (n=1).
+    This is a frozen contract test - choices array structure is BREAKING.
+    """
+    fake_router = FakeRouter(
+        available_providers=["openai"],
+        response=LLMResponse(
+            content="single choice test",
+            model="gpt-4",
+            provider="openai",
+            usage={"input_tokens": 20, "output_tokens": 10},
+        ),
+    )
+
+    async with _client(fake_router) as client:
+        response = await client.post(
+            "/v1/chat/completions",
+            json={
+                "model": "gpt-4",
+                "messages": [{"role": "user", "content": "test"}],
+            },
+        )
+
+    assert response.status_code == 200
+    body = response.json()
+
+    # Verify choices is always a list with exactly one element (for n=1)
+    assert isinstance(body["choices"], list)
+    assert len(body["choices"]) == 1
+    assert body["choices"][0]["index"] == 0
+    assert body["choices"][0]["finish_reason"] == "stop"
+
+
+@pytest.mark.asyncio
+async def test_chat_completions_contract_model_prefix_stability():
+    """
+    Verify that provider prefix routing is stable across versions.
+    This is a frozen contract test - model prefix handling is BREAKING.
+    """
+    # Test apple-coreml prefix
+    fake_router = FakeRouter(
+        available_providers=["apple-coreml"],
+        response=LLMResponse(
+            content="apple test",
+            model="qwen3.5-4b-onnx-q4f16",
+            provider="apple-coreml",
+            usage={"input_tokens": 10, "output_tokens": 5},
+        ),
+    )
+
+    async with _client(fake_router) as client:
+        response = await client.post(
+            "/v1/chat/completions",
+            json={
+                "model": "apple-coreml:qwen3.5-4b-onnx-q4f16",
+                "messages": [{"role": "user", "content": "test"}],
+            },
+        )
+
+    assert response.status_code == 200
+    assert fake_router.calls[0]["provider"] == "apple-coreml"
+    assert fake_router.calls[0]["model"] == "qwen3.5-4b-onnx-q4f16"
+    body = response.json()
+    assert body["model"] == "apple-coreml:qwen3.5-4b-onnx-q4f16"
+
+    # Test ollama prefix
+    fake_router = FakeRouter(
+        available_providers=["ollama"],
+        response=LLMResponse(
+            content="ollama test",
+            model="llama2",
+            provider="ollama",
+            usage={"input_tokens": 15, "output_tokens": 8},
+        ),
+    )
+
+    async with _client(fake_router) as client:
+        response = await client.post(
+            "/v1/chat/completions",
+            json={
+                "model": "ollama:llama2",
+                "messages": [{"role": "user", "content": "test"}],
+            },
+        )
+
+    assert response.status_code == 200
+    assert fake_router.calls[0]["provider"] == "ollama"
+    assert fake_router.calls[0]["model"] == "llama2"
+    body = response.json()
+    assert body["model"] == "ollama:llama2"
