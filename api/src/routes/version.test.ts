@@ -17,7 +17,8 @@ describe("version route", () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response(
         JSON.stringify({
-          version: "0.1.0",
+          version: "v1",
+          api_version: "0.1.0",
           service: "mascarade-core",
         }),
         {
@@ -35,7 +36,8 @@ describe("version route", () => {
       api_version: "0.1.0",
       service: "mascarade-api",
       core: {
-        version: "0.1.0",
+        version: "v1",
+        api_version: "0.1.0",
         service: "mascarade-core",
       },
       supported_features: [
