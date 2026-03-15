@@ -598,7 +598,16 @@ export default function KillLifeWorkflowEditor() {
 
   const handleSave = async () => {
     if (!workflow) return;
-    const result = await saveAction.execute(workflow);
+    // Sync ReactFlow node positions back to workflow before saving
+    const workflowToSave = cloneWorkflow(workflow);
+    for (const rfNode of nodes) {
+      const wfNode = workflowToSave.nodes.find((n) => n.id === rfNode.id);
+      if (wfNode) {
+        wfNode.x = rfNode.position.x;
+        wfNode.y = rfNode.position.y;
+      }
+    }
+    const result = await saveAction.execute(workflowToSave);
     if (!result) return;
     setWorkflow(cloneWorkflow(result.workflow));
     setValidation(result.validation);
@@ -778,6 +787,12 @@ export default function KillLifeWorkflowEditor() {
               >
                 auto layout
               </Button>
+              <Button variant="ghost" onClick={undo} disabled={historyPast.length === 0}>
+                undo
+              </Button>
+              <Button variant="ghost" onClick={redo} disabled={historyFuture.length === 0}>
+                redo
+              </Button>
               <Button variant="ghost" onClick={() => void details.refetch()}>
                 reload
               </Button>
@@ -845,6 +860,20 @@ export default function KillLifeWorkflowEditor() {
                   } else {
                     setSelectedNodeId(node.id);
                   }
+                }}
+                onNodeDragStop={(_, node) => {
+                  saveSnapshot();
+                  setWorkflow((current) => {
+                    if (!current) return current;
+                    const next = cloneWorkflow(current);
+                    const wfNode = next.nodes.find((n) => n.id === node.id);
+                    if (wfNode) {
+                      wfNode.x = node.position.x;
+                      wfNode.y = node.position.y;
+                    }
+                    return next;
+                  });
+                  setDirty(true);
                 }}
                 onInit={(instance) => {
                   reactFlowInstance.current = instance;
