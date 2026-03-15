@@ -586,6 +586,16 @@
    Utility Classes
    =========================== */
 
+/* Pulse animation for generic elements (e.g., WS status indicator) */
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
+  }
+}
+
 /* Pulse animation utility */
 .pulse {
   animation: pulse-running 2s infinite;
