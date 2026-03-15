@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import StrEnum
 
@@ -28,6 +29,7 @@ class CircuitBreaker:
     success_count: int = field(default=0, init=False)
     last_failure_time: float | None = field(default=None, init=False)
     last_state_change: float = field(default_factory=time.time, init=False)
+    on_state_change: Callable[[CircuitState, CircuitState], None] | None = field(default=None, init=False, repr=False)
 
     def record_success(self) -> None:
         """Enregistrer un succès d'exécution."""
@@ -68,23 +70,32 @@ class CircuitBreaker:
 
     def _transition_to_open(self) -> None:
         """Transition vers l'état OPEN."""
+        old_state = self.state
         self.state = CircuitState.OPEN
         self.last_state_change = time.time()
         self.success_count = 0
+        if self.on_state_change and old_state != CircuitState.OPEN:
+            self.on_state_change(old_state, CircuitState.OPEN)
 
     def _transition_to_half_open(self) -> None:
         """Transition vers l'état HALF_OPEN."""
+        old_state = self.state
         self.state = CircuitState.HALF_OPEN
         self.last_state_change = time.time()
         self.success_count = 0
         self.failure_count = 0
+        if self.on_state_change and old_state != CircuitState.HALF_OPEN:
+            self.on_state_change(old_state, CircuitState.HALF_OPEN)
 
     def _transition_to_closed(self) -> None:
         """Transition vers l'état CLOSED."""
+        old_state = self.state
         self.state = CircuitState.CLOSED
         self.last_state_change = time.time()
         self.failure_count = 0
         self.success_count = 0
+        if self.on_state_change and old_state != CircuitState.CLOSED:
+            self.on_state_change(old_state, CircuitState.CLOSED)
 
     def get_stats(self) -> dict:
         """Obtenir les statistiques du circuit breaker."""

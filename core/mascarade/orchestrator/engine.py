@@ -145,6 +145,8 @@ class Orchestrator:
                     prompt,
                     step=i,
                     routing_override=override,
+                    run_id=run_id,
+                    mode=mode,
                 )
                 self._trace(
                     run_id=run_id,
@@ -224,6 +226,8 @@ class Orchestrator:
                 prompt,
                 step=step,
                 routing_override=override,
+                run_id=run_id,
+                mode=mode,
             )
             self._trace(
                 run_id=run_id,
@@ -317,6 +321,8 @@ class Orchestrator:
                     current_input,
                     step=i,
                     routing_override=override,
+                    run_id=run_id,
+                    mode=mode,
                 )
             except Exception as exc:
                 error_msg = str(exc)
@@ -376,8 +382,44 @@ class Orchestrator:
         *,
         step: int,
         routing_override: dict[str, str | None] | None = None,
+        run_id: str | None = None,
+        mode: ExecutionMode | None = None,
     ) -> TaskResult:
         """Exécuter un agent avec retry automatique en cas d'erreur."""
+
+        # Obtenir ou créer le circuit breaker pour cet agent
+        if agent.name not in self.circuit_breakers:
+            breaker = CircuitBreaker()
+            # Configurer le callback pour les changements d'état
+            if run_id and mode:
+                breaker.on_state_change = lambda old_state, new_state: self._trace(
+                    run_id=run_id,
+                    mode=mode,
+                    event_type="circuit_breaker_state_changed",
+                    step=step,
+                    severity="warning",
+                    agent_name=agent.name,
+                    error=f"Circuit breaker transitioned from {old_state} to {new_state}",
+                )
+            self.circuit_breakers[agent.name] = breaker
+
+        breaker = self.circuit_breakers[agent.name]
+
+        # Vérifier si le circuit breaker autorise l'exécution
+        if not breaker.can_execute():
+            error_msg = f"Circuit breaker is {breaker.state} for agent {agent.name}"
+            logger.warning(error_msg)
+            if run_id and mode:
+                self._trace(
+                    run_id=run_id,
+                    mode=mode,
+                    event_type="circuit_breaker_blocked",
+                    step=step,
+                    severity="warning",
+                    agent_name=agent.name,
+                    error=error_msg,
+                )
+            raise RuntimeError(error_msg)
 
         async def _do_execute() -> TaskResult:
             """Logique d'exécution à retrier."""
@@ -435,11 +477,46 @@ class Orchestrator:
                 role=None,
             )
 
+        # Callback pour tracer les retries
+        def on_retry_callback(attempt: int, error: str, delay: float) -> None:
+            if run_id and mode:
+                self._trace(
+                    run_id=run_id,
+                    mode=mode,
+                    event_type="retry_attempt",
+                    step=step,
+                    severity="warning",
+                    agent_name=agent.name,
+                    error=f"Retry attempt {attempt} after error: {error} (delay: {delay:.2f}s)",
+                )
+
         # Exécuter avec retry
-        return await self.retry_executor.execute_with_retry(
-            _do_execute,
-            agent_name=agent.name,
-        )
+        try:
+            result = await self.retry_executor.execute_with_retry(
+                _do_execute,
+                agent_name=agent.name,
+                on_retry=on_retry_callback,
+            )
+            # Enregistrer le succès dans le circuit breaker
+            breaker.record_success()
+
+            # Tracer l'utilisation de fallback si applicable
+            if result.fallback_used and run_id and mode:
+                self._trace(
+                    run_id=run_id,
+                    mode=mode,
+                    event_type="fallback_triggered",
+                    step=step,
+                    severity="info",
+                    agent_name=agent.name,
+                    error=f"Fallback to agent {result.fallback_agent}",
+                )
+
+            return result
+        except Exception as e:
+            # Enregistrer l'échec dans le circuit breaker
+            breaker.record_failure()
+            raise
 
     async def run(
         self,

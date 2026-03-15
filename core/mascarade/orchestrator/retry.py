@@ -121,6 +121,7 @@ class RetryExecutor:
         agent_name: str = "default",
         max_retries: int | None = None,
         config: RetryConfig | None = None,
+        on_retry: Callable[[int, str, float], None] | None = None,
     ) -> Any:
         """Exécuter une fonction avec retry et backoff exponentiel."""
         retry_config = config or self.config
@@ -154,6 +155,10 @@ class RetryExecutor:
                 # Calculer le délai avant le prochain retry
                 delay = retry_config.calculate_delay(attempt)
                 state.record_attempt(error=str(e), delay=delay)
+
+                # Notifier du retry via le callback si fourni
+                if on_retry:
+                    on_retry(attempt + 1, str(e), delay)
 
                 # Attendre avant de réessayer
                 await asyncio.sleep(delay)
