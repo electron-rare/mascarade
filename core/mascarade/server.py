@@ -1546,6 +1546,57 @@ async def rollback_agent_prompt(name: str, version: int):
     }
 
 
+# --- Node Engine ---
+
+
+@protected.get("/api/node-engine/midi/devices")
+async def get_midi_devices(device_type: str = Query("output", description="Device type: input or output")):
+    """Get list of available MIDI devices."""
+    from mascarade.node_engine.midi_controller import get_midi_controller
+
+    try:
+        controller = get_midi_controller()
+        await controller.start()
+        devices = await controller.get_devices(device_type)
+        return {
+            "devices": [
+                {
+                    "id": device.id,
+                    "name": device.name,
+                    "manufacturer": device.manufacturer,
+                    "type": device.type,
+                }
+                for device in devices
+            ]
+        }
+    except Exception as e:
+        logger.error(f"Failed to get MIDI devices: {e}")
+        # Graceful degradation - return empty list if MIDI bridge unavailable
+        return {"devices": []}
+
+
+@protected.post("/api/node-engine/midi/send")
+async def send_midi_message(req: dict[str, Any]):
+    """Send MIDI message to device."""
+    from mascarade.node_engine.midi_controller import MIDIMessage, get_midi_controller
+
+    try:
+        controller = get_midi_controller()
+        await controller.start()
+
+        message = MIDIMessage(
+            type=req["type"],
+            channel=req.get("channel", 1),
+            data=req.get("data", {}),
+        )
+
+        result = await controller.send_message(req["device_id"], message)
+        return result
+    except Exception as e:
+        logger.error(f"Failed to send MIDI message: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 # --- Orchestration ---
 
 
