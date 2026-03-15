@@ -191,6 +191,11 @@ console.log(version.supported_features);  // ["agents", "router", "cache", ...]
 - backlog ANE dedie: [`TODO_AI_NOVEL_ENGINE.md`](./TODO_AI_NOVEL_ENGINE.md)
 - plan d'execution global: [`docs/EXECUTION_PLAN_2026-03-08.md`](./docs/EXECUTION_PLAN_2026-03-08.md)
 - runbook Apple local: [`docs/RUNBOOK_APPLE_LLM_LOCAL.md`](./docs/RUNBOOK_APPLE_LLM_LOCAL.md)
+- programme d'analyse multi-repo: [`docs/audit/MULTI_REPO_DEEP_ANALYSIS_PROGRAM_2026-03-11.md`](./docs/audit/MULTI_REPO_DEEP_ANALYSIS_PROGRAM_2026-03-11.md)
+- baseline multi-repo regenere: [`docs/audit/MULTI_REPO_BASELINE_2026-03-11.md`](./docs/audit/MULTI_REPO_BASELINE_2026-03-11.md)
+- diagramme de sequence runtime: [`docs/API_CORE_PROVIDER_SEQUENCE_2026-03-11.md`](./docs/API_CORE_PROVIDER_SEQUENCE_2026-03-11.md)
+- diagramme cluster/p2p/runtime distant: [`docs/CLUSTER_P2P_REMOTE_SEND_SEQUENCE_2026-03-11.md`](./docs/CLUSTER_P2P_REMOTE_SEND_SEQUENCE_2026-03-11.md)
+- feature map repo: [`docs/MASCARADE_FEATURE_MAP_2026-03-11.md`](./docs/MASCARADE_FEATURE_MAP_2026-03-11.md)
 - l'integration `ai-novel-engine` reste limitee au runtime local et au contrat OpenAI-compatible
 
 **Core Python** (`core/`, port `8100`) -- Moteur d'orchestration, routeur LLM, agents, metriques
@@ -692,6 +697,58 @@ curl http://localhost:9000/health
 bash scripts/smoke_generate_audio.sh --url http://localhost:9000
 ```
 
+### Docker Compose Profiles
+
+Le deploiement utilise maintenant des profils Docker Compose pour controler les services a demarrer. Cette approche modulaire permet de composer exactement la stack dont tu as besoin.
+
+**Profiles disponibles :**
+
+- `core` — Services core et API (requis)
+- `ollama` — Serving local Ollama
+- `observability` — Loki, Promtail, Prometheus, Grafana, Tempo
+- `ops` — Console ops et outils operateur
+- `audio` — Generation audio (AudioCraft)
+- `edge` — Reverse proxy Nginx avec Let's Encrypt
+- `ai-tools` — Services IA complementaires (Qdrant, LiteLLM, Mem0, Firecrawl)
+- `heavy` — Services lourds (LocalAI, KoboldCPP, AnythingLLM, SGLang)
+
+**Exemples d'usage :**
+
+```bash
+# Stack minimale (core + api)
+docker compose --profile core up
+
+# Core + Ollama
+docker compose --profile core --profile ollama up
+
+# Core + Observability complete
+docker compose --profile core --profile observability up
+
+# Stack complete production
+docker compose --profile core --profile ollama --profile observability --profile ops --profile edge up
+
+# Avec services IA complementaires
+docker compose --profile core --profile ai-tools up
+
+# Mode detache (background)
+docker compose --profile core --profile ollama up -d
+
+# Arreter tout
+docker compose down
+
+# Rebuild et restart
+docker compose --profile core build
+docker compose --profile core up -d
+```
+
+**Recommandation :**
+
+Le script `./setup` reste la methode recommandee pour un deploiement initial, car il gere automatiquement la configuration, les prerequis et les validations. Les commandes `docker compose` avec profils sont utiles pour :
+
+- Restart selectif de services specifiques
+- Debug et developpement
+- Deploiement custom avec controle fin des composants
+
 ### 4. Dev local (sans Docker)
 
 ```bash
@@ -827,18 +884,29 @@ curl -X POST http://localhost:3100/api/agents/send \
   -H "Content-Type: application/json" \
   -d '{
     "messages": [{"role": "user", "content": "Explique le pattern Strategy en 3 lignes"}],
-    "strategy": "best"
+    "strategy": "routellm",
+    "routing_policy": "auto"
   }'
 ```
 
 Strategies disponibles :
 
-| Strategie  | Comportement                                   |
-|------------|-------------------------------------------------|
-| `best`     | Meilleure qualite (Claude, quality_rank=3)      |
-| `cheapest` | Moins cher (Mistral, $2/$6 par M tokens)        |
-| `fastest`  | Plus rapide (OpenAI/Mistral, speed_rank=1)      |
-| `specific` | Provider specifique (passer `"provider": "..."`) |
+| Strategie   | Comportement |
+|-------------|--------------|
+| `routellm`  | Strategy recommandee. Route via policy explicite (`auto`, `strong`, `cheap`, `fast`) |
+| `best`      | Legacy. Convertie en `routellm` + policy `strong` en orchestration |
+| `cheapest`  | Legacy. Convertie en `routellm` + policy `cheap` en orchestration |
+| `fastest`   | Legacy. Convertie en `routellm` + policy `fast` en orchestration |
+| `specific`  | Provider specifique (passer `"provider": "..."`) |
+
+Policies RouteLLM :
+
+| `routing_policy` | Effet |
+|------------------|-------|
+| `auto`           | Selection strong/cheap selon score de complexite |
+| `strong`         | Force la branche qualite |
+| `cheap`          | Force la branche cout |
+| `fast`           | Force la branche latence |
 
 ### Utiliser l'endpoint OpenAI-compatible
 
@@ -905,19 +973,21 @@ curl -H "Authorization: Bearer $KEY" http://localhost:3100/api/agents/providers
 
 ### Agents
 
-9 agents built-in sont charges au demarrage :
+Les agents built-in sont charges au demarrage (socle + agents metier CAD). Les principaux profils de socle :
 
-| Agent          | Role                                     | Strategie  | Temp |
-|----------------|------------------------------------------|------------|------|
-| `summarizer`   | Resume en bullet points                  | cheapest   | 0.3  |
-| `writer`       | Redaction et reformulation               | best       | 0.8  |
-| `coder`        | Code review, debug, generation           | best       | 0.2  |
-| `translator`   | Traduction naturelle                     | fastest    | 0.3  |
-| `analyst`      | Analyse de donnees et situations         | best       | 0.4  |
-| `brainstorm`   | Generation d'idees creatives             | best       | 0.95 |
-| `notion-scribe`| Formatage pour Notion                    | cheapest   | 0.4  |
-| `planner`      | Planification et decomposition de taches | best       | 0.4  |
-| `classifier`   | Classification en JSON (intent, sentiment)| fastest   | 0.1  |
+| Agent             | Role                                     | Strategie   | Policy   | Temp |
+|-------------------|------------------------------------------|-------------|----------|------|
+| `agent-zero`      | Coordination et operator copilot         | routellm    | strong   | 0.2  |
+| `summarizer`      | Resume en bullet points                  | routellm    | cheap    | 0.3  |
+| `writer`          | Redaction et reformulation               | routellm    | strong   | 0.8  |
+| `coder`           | Code review, debug, generation           | routellm    | strong   | 0.2  |
+| `translator`      | Traduction naturelle                     | routellm    | fast     | 0.3  |
+| `analyst`         | Analyse de donnees et situations         | routellm    | strong   | 0.4  |
+| `brainstorm`      | Generation d'idees creatives             | routellm    | strong   | 0.95 |
+| `knowledge-scribe`| Formatage pour knowledge base            | routellm    | cheap    | 0.4  |
+| `planner`         | Planification et decomposition de taches | routellm    | strong   | 0.4  |
+| `classifier`      | Classification en JSON (intent, sentiment)| routellm   | fast     | 0.1  |
+| `image-generator` | Prompting image                          | routellm    | fast     | 0.7  |
 
 ```bash
 # Lister les agents
@@ -939,7 +1009,8 @@ curl -X POST http://localhost:3100/api/agents \
     "name": "mon-agent",
     "description": "Agent custom",
     "system_prompt": "Tu es un expert en ...",
-    "strategy": "best",
+    "strategy": "routellm",
+    "routing_policy": "strong",
     "temperature": 0.5
   }'
 ```
@@ -955,7 +1026,11 @@ curl -X POST http://localhost:3100/api/agents/orchestrate \
   -d '{
     "agent_names": ["analyst", "summarizer"],
     "prompt": "Analyse cette situation : ...",
-    "mode": "sequential"
+    "mode": "sequential",
+    "routing_overrides": {
+      "summarizer": { "routing_policy": "cheap" },
+      "analyst": { "routing_policy": "strong" }
+    }
   }'
 ```
 
@@ -1143,13 +1218,11 @@ mascarade/
 ```
 
 ## Etat auto-synchronise
-## Etat auto-synchronise
 <!-- AUTO-SYNC:MASCARADE-README:START -->
-- dernier cycle ANE automatise: 2026-03-09T06:53:02+00:00
-- etat de reference ANE: aucun accepted, meilleur diagnostic: apple-coreml:qwen2.5-0.5b-instruct-onnx
-- prochain lot utile cote pipeline: Analyser les runs ayant atteint gate/repair puis resserrer la reference locale autour des meilleurs candidats.
+- dernier cycle ANE automatise: 2026-03-13T14:15:56+00:00
+- etat de reference ANE: apple-coreml:qwen3.5-4b-onnx-q4f16
+- prochain lot utile cote pipeline: Confirmer la reference accepted puis resserrer rewrite/repair sur les modeles deja bloques a gate.
 <!-- AUTO-SYNC:MASCARADE-README:END -->
-
 ## P2P Secure Sync
 
 For secure peer-to-peer synchronization of environment files and API keys:
@@ -1162,3 +1235,51 @@ Features:
 - 32-character auth tokens
 - AES-256 encryption for secrets
 - Rsync-based efficient transfers
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!-- CHANTIER:AUDIT START -->
+## Audit & Execution Plan (2026-03-10)
+
+### Snapshot
+- Priority: `P2`
+- Tech profile: `other`
+- Workflows: `yes`
+- Tests: `yes`
+- Debt markers: `7`
+- Source files: `444`
+
+### Corrections Prioritaires
+- [ ] Optimisation ciblée perf/maintenabilité
+- [ ] Ajouter/fiabiliser les commandes de vérification automatiques.
+- [ ] Clore les points bloquants avant optimisation avancée.
+
+### Optimisation
+- [ ] Identifier le hotspot principal et mesurer avant/après.
+- [ ] Réduire la complexité des modules les plus touchés.
+
+### Mémoire chantier
+- Control plane: `/Users/electron/.codex/memories/electron_rare_chantier`
+- Repo card: `/Users/electron/.codex/memories/electron_rare_chantier/REPOS/mascarade.md`
+
+<!-- CHANTIER:AUDIT END -->

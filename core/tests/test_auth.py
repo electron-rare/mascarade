@@ -13,6 +13,10 @@ from mascarade.auth import (
 )
 from mascarade.server import app
 
+TEST_ADMIN_KEY = "test-admin-key-0001"
+TEST_OPERATOR_KEY = "test-operator-key-01"
+TEST_VIEWER_KEY = "test-viewer-key-0001"
+
 
 @pytest.fixture(autouse=True)
 def _clean_api_keys():
@@ -54,7 +58,7 @@ async def test_health_open_without_auth():
 @pytest.mark.asyncio
 async def test_protected_routes_require_valid_bearer_token():
     """Les routes protégées refusent les tokens absents ou invalides."""
-    add_api_key("test-key-001")
+    add_api_key(TEST_ADMIN_KEY)
 
     async with _client() as client:
         missing = await client.get("/v1/api-keys")
@@ -65,6 +69,12 @@ async def test_protected_routes_require_valid_bearer_token():
         valid = await client.get(
             "/v1/api-keys",
             headers={"Authorization": "Bearer test-key-001"},
+            "/api-keys",
+            headers={"Authorization": "Bearer wrong-key-999999"},
+        )
+        valid = await client.get(
+            "/api-keys",
+            headers={"Authorization": f"Bearer {TEST_ADMIN_KEY}"},
         )
 
     assert missing.status_code == 401
@@ -77,27 +87,26 @@ async def test_protected_routes_require_valid_bearer_token():
 
 def test_multi_key_support():
     """Test du support pour plusieurs clés API."""
-    # Add multiple keys (must be >= 8 characters)
-    add_api_key("test-key-001")
-    add_api_key("test-key-002")
+    add_api_key(TEST_OPERATOR_KEY)
+    add_api_key(TEST_VIEWER_KEY)
 
     # Verify both keys are active
     active_keys = get_active_api_keys()
-    assert "test-key-001" in active_keys
-    assert "test-key-002" in active_keys
+    assert TEST_OPERATOR_KEY in active_keys
+    assert TEST_VIEWER_KEY in active_keys
 
     # Test validation
-    assert is_valid_api_key("test-key-001")
-    assert is_valid_api_key("test-key-002")
-    assert not is_valid_api_key("test-key-003")
+    assert is_valid_api_key(TEST_OPERATOR_KEY)
+    assert is_valid_api_key(TEST_VIEWER_KEY)
+    assert not is_valid_api_key("test-key-003333")
 
     # Remove one key
-    remove_api_key("test-key-001")
+    remove_api_key(TEST_OPERATOR_KEY)
     active_keys = get_active_api_keys()
-    assert "test-key-001" not in active_keys
-    assert "test-key-002" in active_keys
-    assert not is_valid_api_key("test-key-001")
-    assert is_valid_api_key("test-key-002")
+    assert TEST_OPERATOR_KEY not in active_keys
+    assert TEST_VIEWER_KEY in active_keys
+    assert not is_valid_api_key(TEST_OPERATOR_KEY)
+    assert is_valid_api_key(TEST_VIEWER_KEY)
 
 
 def test_api_key_validation():
@@ -118,24 +127,23 @@ def test_api_key_management_functions():
     assert len(get_active_api_keys()) == 0
     assert not is_valid_api_key("any-key")
 
-    # Add keys (must be >= 8 characters)
-    add_api_key("test-key-alpha")
-    add_api_key("test-key-bravo")
-    add_api_key("test-key-charlie")
+    add_api_key("test-key-alpha-0001")
+    add_api_key("test-key-bravo-0001")
+    add_api_key("test-key-charlie-01")
 
     assert len(get_active_api_keys()) == 3
-    assert is_valid_api_key("test-key-alpha")
-    assert is_valid_api_key("test-key-bravo")
-    assert is_valid_api_key("test-key-charlie")
+    assert is_valid_api_key("test-key-alpha-0001")
+    assert is_valid_api_key("test-key-bravo-0001")
+    assert is_valid_api_key("test-key-charlie-01")
 
     # Remove middle key
-    remove_api_key("test-key-bravo")
+    remove_api_key("test-key-bravo-0001")
     assert len(get_active_api_keys()) == 2
-    assert is_valid_api_key("test-key-alpha")
-    assert not is_valid_api_key("test-key-bravo")
-    assert is_valid_api_key("test-key-charlie")
+    assert is_valid_api_key("test-key-alpha-0001")
+    assert not is_valid_api_key("test-key-bravo-0001")
+    assert is_valid_api_key("test-key-charlie-01")
 
     # Remove all keys
-    remove_api_key("test-key-alpha")
-    remove_api_key("test-key-charlie")
+    remove_api_key("test-key-alpha-0001")
+    remove_api_key("test-key-charlie-01")
     assert len(get_active_api_keys()) == 0

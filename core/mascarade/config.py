@@ -97,16 +97,24 @@ class Settings(BaseSettings):
     ollama_base_url: str = "http://ollama:11434"
     ollama_timeout_seconds: float = 180.0
 
+    # llama.cpp (OpenAI-compatible local server)
+    llama_cpp_enabled: bool = False
+    llama_cpp_base_url: str = "http://localhost:8081/v1"
+    llama_cpp_timeout_seconds: float = 120.0
+
     # Apple Silicon local LLM service
     apple_llm_enabled: bool = False
     apple_llm_base_url: str = "http://apple-llm:8201"
     apple_llm_model_id: str = "apple-local"
     apple_llm_backend: str = "coreml"
     apple_llm_timeout_seconds: float = 300.0
+    apple_llm_models_json: str = ""
 
     # ComfyUI
     comfyui_url: str = ""
 
+    # Database
+    database_url: str = "postgresql://mascarade:mascarade@postgres:5432/mascarade"
     # Qdrant
     qdrant_url: str = "http://qdrant:6333"
 
@@ -128,22 +136,27 @@ class Settings(BaseSettings):
     cluster_request_timeout_ms: int = 5000
     cluster_heartbeat_seconds: int = 30
     cluster_forward_enabled: bool = True
+    cluster_require_tls: bool = True
+    cluster_allow_insecure_loopback: bool = False
     cluster_peers: str = ""
     cluster_mdns_enabled: bool = False
     cluster_mdns_service: str = "_mascarade._tcp.local."
     cluster_mdns_discovery_ttl_seconds: int = 60
     cluster_mdns_advertise: bool = False
 
-    # P2P / libp2p
+    # P2P network
     p2p_enabled: bool = False
+    p2p_listen_host: str = "0.0.0.0"
     p2p_listen_port: int = 4001
-    p2p_bootstrap_peers: str = ""
+    p2p_bootstrap_peers: str = ""  # libp2p: multiaddr; asyncio: "peer_id|host|port"
+    p2p_key_dir: str = ""
     p2p_identity_key_path: str = ""
     p2p_heartbeat_interval_seconds: int = 15
+    p2p_heartbeat_seconds: int = 30
     p2p_discovery_interval_seconds: int = 30
     p2p_peer_ttl_seconds: int = 90
     p2p_pubsub_enabled: bool = False
-
+    p2p_require_signatures: bool = True
     # Device voice sessions
     device_stt_model: str = "gpt-4o-mini-transcribe"
     device_stt_language: str = "fr"
@@ -158,6 +171,12 @@ class Settings(BaseSettings):
     ops_agent_url: str = "http://ops-agent:9200"
     loki_url: str = "http://loki:3100"
 
+    # ClickHouse
+    clickhouse_host: str = "http://clickhouse:8123"
+    clickhouse_user: str = "langfuse"
+    clickhouse_password: str = ""
+    clickhouse_database: str = "default"
+
     # Mistral Studio
     mistral_api_base: str = "https://api.mistral.ai/v1"
     mistral_default_model: str = "mistral-large-latest"
@@ -165,10 +184,22 @@ class Settings(BaseSettings):
     litellm_proxy_enabled: bool = False
     litellm_base_url: str = "http://litellm:4000"
     litellm_master_key: str = ""
+    routellm_enabled: bool = False
+    routellm_threshold: float = 0.58
+    routellm_cheap_provider: str = "openai"
+    routellm_cheap_model: str = "gpt-4o-mini"
+    routellm_strong_provider: str = "openai"
+    routellm_strong_model: str = "gpt-4.1"
+    orchestrator_ray_enabled: bool = False
+    orchestrator_ray_address: str = "auto"
+    orchestrator_ray_namespace: str = "mascarade"
 
     # Defaults
     default_provider: str = "claude"
     default_model: str = "claude-sonnet-4-6"
+
+    # Prompt versioning
+    prompt_version_max_count: int = 50
 
 
 settings = Settings()

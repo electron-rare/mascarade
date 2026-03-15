@@ -14,6 +14,13 @@ generate_compose() {
     local volumes_output=""
     local id func
 
+    # ── DEPRECATED: Warn users about legacy generation mode ──
+    warn "DEPRECATED: Using legacy docker-compose.yml generation mode."
+    warn "This generation mode will be removed in a future version."
+    warn "Please migrate to the new Docker Compose profiles system (default behavior)."
+    warn "Run './setup' without --legacy-generation flag to use the new profile-based system."
+    echo "" >&2
+
     # Charger tous les modules
     for mod_file in "$REPO_DIR/scripts/modules/"*.sh; do
         # shellcheck disable=SC1090

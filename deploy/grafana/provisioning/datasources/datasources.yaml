@@ -27,3 +27,14 @@ datasources:
         tags:
           - key: service.name
             value: service_name
+
+  - name: ClickHouse
+    type: grafana-clickhouse-datasource
+    access: proxy
+    url: http://clickhouse:8123
+    editable: false
+    jsonData:
+      defaultDatabase: mascarade
+      username: langfuse
+    secureJsonData:
+      password: ${CLICKHOUSE_PASSWORD}
