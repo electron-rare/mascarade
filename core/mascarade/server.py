@@ -110,6 +110,10 @@ async def lifespan(app: FastAPI):
     else:
         app.state.document_processor = None
 
+    # Initialize benchmark trigger
+    from mascarade.benchmarks.triggers import ModelDeploymentTrigger
+    app.state.benchmark_trigger = ModelDeploymentTrigger(router=router)
+
     registry.load()
 
     # Initialize database pool if DATABASE_URL is configured
@@ -134,6 +138,10 @@ async def lifespan(app: FastAPI):
 
     # Stop P2P node
     await cluster.stop_p2p()
+
+    # Clean up benchmark trigger
+    if hasattr(app.state, "benchmark_trigger"):
+        await app.state.benchmark_trigger.close()
 
     await cluster.close()
     if app.state.comfyui is not None:
@@ -425,6 +433,23 @@ class QdrantRAGRequest(BaseModel):
     limit: int = Field(default=5, gt=0, le=20)
     model: str | None = None
     temperature: float = Field(default=0.7, ge=0.0, le=2.0)
+
+
+class BenchmarkRunRequest(BaseModel):
+    domain: str | None = Field(default=None, max_length=50)
+    providers: list[str] | None = Field(default=None, max_length=10)
+    difficulty: str | None = Field(default=None, max_length=20)
+    limit: int | None = Field(default=None, gt=0, le=100)
+
+
+class ModelDeploymentWebhook(BaseModel):
+    provider: str = Field(min_length=1, max_length=50)
+    model: str = Field(min_length=1, max_length=100)
+    event_type: str = Field(default="deployment", max_length=50)
+    domain: str | None = Field(default=None, max_length=50)
+    limit: int | None = Field(default=None, gt=0, le=100)
+    background: bool = Field(default=True)
+    metadata: dict[str, Any] = Field(default_factory=dict)
 
 
 # --- Route publique ---
@@ -2926,6 +2951,207 @@ async def qdrant_rag_query(collection_name: str, req: QdrantRAGRequest):
         logger.exception("RAG query failed")
         raise HTTPException(status_code=500, detail=str(e)) from e
 
+
+# --- Benchmark Analytics ---
+
+
+@protected.get("/v1/analytics/benchmarks")
+async def get_benchmark_results(
+    domain: str | None = Query(default=None, max_length=50),
+    limit: int = Query(default=10, ge=1, le=100),
+    order_by: str = Query(default="quality_score", max_length=50),
+):
+    """
+    Get benchmark results leaderboard.
+
+    Query parameters:
+    - domain: Filter by domain (optional)
+    - limit: Maximum number of results (default: 10, max: 100)
+    - order_by: Column to order by (default: quality_score, options: quality_score, latency_p50, cost)
+
+    Returns:
+        List of benchmark results with provider, model, domain, and performance metrics
+    """
+    from mascarade.benchmarks.storage import BenchmarkStorage
+
+    # Validate order_by parameter
+    valid_order_by = {"quality_score", "latency_p50", "latency_p95", "cost"}
+    if order_by not in valid_order_by:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid order_by parameter. Must be one of: {', '.join(valid_order_by)}"
+        )
+
+    storage = BenchmarkStorage()
+
+    try:
+        results = storage.query_leaderboard(
+            domain=domain,
+            limit=limit,
+            order_by=order_by,
+        )
+
+        return {
+            "results": results,
+            "count": len(results),
+            "filters": {
+                "domain": domain,
+                "limit": limit,
+                "order_by": order_by,
+            }
+        }
+    except Exception as e:
+        logger.exception("Failed to query benchmark results")
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+@protected.post("/v1/benchmarks/run", status_code=202)
+async def trigger_benchmark_run(req: BenchmarkRunRequest):
+    """
+    Trigger an on-demand benchmark run.
+
+    Request body:
+    - domain: Domain to benchmark (optional, runs all domains if not specified)
+    - providers: List of providers to test (optional, tests all providers if not specified)
+    - difficulty: Difficulty level to test (optional)
+    - limit: Maximum number of prompts per provider (optional)
+
+    Returns:
+        202 Accepted with run_id for tracking the benchmark execution
+    """
+    from mascarade.benchmarks.suite import BenchmarkSuite
+
+    # Initialize benchmark suite with router from app state
+    suite = BenchmarkSuite(router=app.state.router)
+
+    # Generate run_id for tracking
+    run_id = suite._generate_run_id()
+
+    # Define the background benchmark task
+    async def run_benchmark_task():
+        """Background task to execute the benchmark."""
+        try:
+            if req.domain:
+                # Run domain-specific benchmark
+                logger.info(
+                    "Starting domain-specific benchmark (domain=%s, run_id=%s)",
+                    req.domain,
+                    run_id,
+                )
+                run = await suite.run_domain_benchmark(
+                    domain=req.domain,
+                    providers=req.providers,
+                    difficulty=req.difficulty,
+                    limit=req.limit,
+                )
+            else:
+                # Run full suite benchmark
+                logger.info(
+                    "Starting full suite benchmark (run_id=%s)",
+                    run_id,
+                )
+                run = await suite.run_full_suite(
+                    providers=req.providers,
+                    difficulty=req.difficulty,
+                    limit=req.limit,
+                )
+
+            logger.info(
+                "Benchmark completed (run_id=%s, total=%d, successful=%d, failed=%d)",
+                run.run_id,
+                run.total_benchmarks,
+                run.successful_benchmarks,
+                run.failed_benchmarks,
+            )
+
+            # Store results in ClickHouse
+            from mascarade.benchmarks.storage import BenchmarkStorage
+
+            storage = BenchmarkStorage()
+            for result in run.results:
+                try:
+                    storage.write_result(result)
+                except Exception as e:
+                    logger.warning(
+                        "Failed to store benchmark result for %s/%s: %s",
+                        result.provider,
+                        result.model,
+                        e,
+                    )
+
+        except Exception as e:
+            logger.exception("Benchmark run failed (run_id=%s): %s", run_id, e)
+
+    # Create background task (fire and forget)
+    asyncio.create_task(run_benchmark_task())
+
+    return {
+        "status": "accepted",
+        "run_id": run_id,
+        "message": "Benchmark run started in background",
+        "filters": {
+            "domain": req.domain,
+            "providers": req.providers,
+            "difficulty": req.difficulty,
+            "limit": req.limit,
+        },
+    }
+
+
+@protected.post("/v1/benchmarks/webhook/deployment", status_code=200)
+async def handle_model_deployment_webhook(webhook: ModelDeploymentWebhook):
+    """
+    Handle model deployment webhook to trigger automatic benchmarks.
+
+    This endpoint is triggered when a new fine-tuned model is deployed
+    and automatically runs benchmarks to evaluate its performance.
+
+    Request body:
+    - provider: Provider name (required)
+    - model: Model identifier (required)
+    - event_type: Type of deployment event (default: "deployment")
+    - domain: Domain to benchmark (optional)
+    - limit: Maximum number of prompts to test (optional)
+    - background: Run benchmark in background (default: true)
+    - metadata: Additional event metadata (optional)
+
+    Returns:
+        Webhook processing result with trigger status
+    """
+    from mascarade.benchmarks.triggers import BenchmarkTriggerError
+
+    try:
+        # Get trigger instance from app state
+        trigger = app.state.benchmark_trigger
+
+        # Process webhook
+        result = await trigger.handle_webhook(
+            payload={
+                "provider": webhook.provider,
+                "model": webhook.model,
+                "event_type": webhook.event_type,
+                "domain": webhook.domain,
+                "limit": webhook.limit,
+                "background": webhook.background,
+                "metadata": webhook.metadata,
+            }
+        )
+
+        logger.info(
+            "Model deployment webhook processed: %s/%s (status=%s)",
+            webhook.provider,
+            webhook.model,
+            result.get("trigger_result", {}).get("status", "unknown"),
+        )
+
+        return result
+
+    except BenchmarkTriggerError as exc:
+        logger.error("Webhook processing failed: %s", exc)
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        logger.exception("Unexpected error processing webhook")
+        raise HTTPException(status_code=500, detail="Internal server error") from exc
 
 @app.get("/metrics")
 async def metrics():
