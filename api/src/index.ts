@@ -24,6 +24,7 @@ import { analytics } from "./routes/analytics.js";
 import { users } from "./routes/users.js";
 import { p2p } from "./routes/p2p.js";
 import { finetune } from "./routes/finetune.js";
+import { nodeEngine } from "./routes/node-engine.js";
 
 const app = new Hono();
 const hasFrontend = existsSync("./public/index.html");
@@ -57,6 +58,7 @@ app.route("/api/analytics", analytics);
 app.route("/api/users", users);
 app.route("/api/p2p", p2p);
 app.route("/api/finetune", finetune);
+app.route("/api/node-engine", nodeEngine);
 
 // Node Engine UI route
 app.get("/node-engine", serveStatic({ root: "./public", path: "node-engine.html" }));
