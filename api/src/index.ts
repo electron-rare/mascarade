@@ -20,6 +20,7 @@ import { industrial } from "./routes/industrial.js";
 import { industrialMcp } from "./routes/mcpIndustrial.js";
 import { killlife } from "./routes/killlife.js";
 import { settings } from "./routes/settings.js";
+import { pipeline } from "./routes/pipeline.js";
 import { analytics } from "./routes/analytics.js";
 import { users } from "./routes/users.js";
 
@@ -51,6 +52,7 @@ app.route("/api/industrial", industrial);
 app.route("/api/mcp/industrial", industrialMcp);
 app.route("/api/killlife", killlife);
 app.route("/api/settings", settings);
+app.route("/api/pipeline", pipeline);
 app.route("/api/analytics", analytics);
 app.route("/api/users", users);
 app.route("/api/p2p", p2p);
