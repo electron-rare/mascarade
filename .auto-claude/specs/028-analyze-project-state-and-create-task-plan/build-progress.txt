@@ -1,0 +1,220 @@
+=== AUTO-BUILD PROGRESS ===
+
+Project: Analyze Project State and Create Task Plan
+Workspace: /Users/electron/mascarade-main
+Started: 2026-03-16
+
+Workflow Type: feature
+Rationale: Compound meta-task producing 5 new analysis/documentation artifacts across all services. No source code modifications — creates the foundation for subsequent optimization and correction phases.
+
+Session 1 (Planner):
+- Completed deep codebase investigation (Phase 0)
+- Created project_index.json (service map, tech stack, conventions)
+- Created context.json (files to reference, patterns, existing implementations)
+- Created implementation_plan.json (6 phases, 19 subtasks)
+- Created init.sh (environment setup script)
+
+Phase Summary:
+- Phase 1 — Full Worktree State Analysis: 6 subtasks, depends on [] (entry point)
+  - Core service analysis (server.py 2751 lines, 10 providers, 235 tests)
+  - API service analysis (28 routes, ops.ts 1925 lines, core.ts 1082 lines)
+  - Web service analysis (18 pages, 5 pages >1000 lines, no tests)
+  - Finetune service analysis (40+ scripts, 13 domains, 143K examples, no pytest)
+  - Infrastructure analysis (Docker 30+ services, P2P 5 nodes)
+  - Compile PROJECT_STATE_ANALYSIS.md
+
+- Phase 2 — TODO/Plan Consolidation: 3 subtasks, depends on [phase-1]
+  - Parse all 7 TODO files + execution plan
+  - Cross-reference against actual code state
+  - Compile CONSOLIDATED_TASKS.md
+
+- Phase 3 — OSS Research: 3 subtasks, depends on [phase-1], parallel-safe with Phase 2
+  - Research LLM routing/orchestration alternatives (LiteLLM, Dify, CrewAI, etc.)
+  - Research P2P/caching/finetuning/circuit-breaker alternatives
+  - Compile OSS_RESEARCH.md
+
+- Phase 4 — Deep Code Audit: 5 subtasks, depends on [phase-1], parallel-safe with Phases 2 & 3
+  - Core Python audit (server.py decomposition, provider consistency)
+  - API TypeScript audit (ops.ts decomposition, core.ts coupling)
+  - Web React audit (5 large pages, component extraction)
+  - Finetune Python audit (4 large scripts, builder consistency)
+  - Compile CODE_AUDIT_REPORT.md
+
+- Phase 5 — Optimization Synthesis: 2 subtasks, depends on [phases 2, 3, 4]
+  - Architecture optimization opportunities
+  - Performance/operational optimization → Compile OPTIMIZATION_OPPORTUNITIES.md
+
+- Phase 6 — Integration & Validation: 1 subtask, depends on [phase-5]
+  - Cross-validate all 5 documents, verify success criteria, no-regression check
+
+Services Involved:
+- core (primary): Python backend analysis — 365 Python files, 19 modules, 235 tests
+- api (primary): TypeScript gateway analysis — 28 routes, 8 middleware
+- web (primary): React frontend analysis — 18 pages, 15+ components
+- finetune (primary): Python pipeline analysis — 40+ scripts, 13 domains
+- infrastructure (integration): Docker, CI/CD, P2P mesh, deploy scripts
+
+Parallelism Analysis:
+- Max parallel phases: 3 (phases 2, 3, 4 can run concurrently)
+- Recommended workers: 2
+- Parallel groups: [phase-2, phase-3, phase-4] — all depend on phase-1 only, no file conflicts
+- Speedup estimate: 1.8x faster than sequential
+
+Key Findings from Investigation:
+1. server.py (2751 lines) is the #1 refactoring target
+2. ops.ts (1925 lines) and core.ts (1082 lines) are API debt hotspots
+3. 5 web pages exceed 1000 lines — decomposition candidates
+4. Web and finetune have zero test infrastructure — critical gaps
+5. aiobreaker is abandoned (last release May 2021) — needs replacement
+6. 7 TODO files with significant duplication need consolidation
+7. Existing OSS research partially done (docs/research/OSS_PROJECTS_2026-03-11.md)
+8. 25 audit documents already exist — build on, don't duplicate
+
+=== STARTUP COMMAND ===
+
+To continue building this spec, run:
+
+  source auto-claude/.venv/bin/activate && python auto-claude/run.py --spec 028 --parallel 2
+
+Example:
+  source auto-claude/.venv/bin/activate && python auto-claude/run.py --spec 028 --parallel 2
+
+=== END SESSION 1 ===
+
+=== SESSION 2 (Coder — subtask-1-1) ===
+
+## Subtask 1-1: Core Service State Analysis — COMPLETED
+
+### Module Inventory (19 subdirectories)
+agents, analytics, benchmarks, cache, conversation, db, dispatch, finetune,
+integrations, load_balancer, mcp, metrics, observability, orchestrator, p2p,
+resilience, router, tools + root files (server.py, config.py, cluster.py, auth.py, etc.)
+Total: ~29,616 lines of Python
+
+### Complexity Hotspots
+- server.py: 2,751 lines — CRITICAL decomposition candidate
+- mcp/client.py: 1,451 lines — large single-file MCP client
+- cluster.py: 1,112 lines — high complexity
+- router/router.py: 1,021 lines — justified core routing
+- orchestrator/engine.py: 921 lines — moderate
+
+### LLM Providers (10 + 1 specialty)
+All 10 main providers implement LLMProvider ABC consistently (send, stream, available_models, is_configured).
+google.py is largest at 372 lines. kicad_router.py is specialty, different pattern.
+Dynamic import in __init__.py with graceful degradation.
+
+### Test Coverage (UPDATED — higher than spec estimate)
+- 65 test files, 745 test functions (~21K lines of test code)
+- Spec estimated 235 tests — actual is 745
+- Strong coverage across RBAC, orchestration, caching, auth, P2P, finetune
+
+### Dependency Health
+All deps current: fastapi>=0.135, pydantic>=2.12, anthropic>=0.84, openai>=2.24
+Strict linting: ruff>=0.15, mypy strict mode
+
+### Dead Code / Code Quality
+- No dead code detected (no if False, no orphaned functions)
+- Duplicate imports in server.py header (Response, asynccontextmanager) — minor
+- French comments in metrics/health files — cosmetic
+- Notion legacy surface exists per CLAUDE.md
+
+=== END SESSION 2 ===
+
+=== SESSION 3 (Coder — subtask-1-3) ===
+
+## Subtask 1-3: Web Service State Analysis — COMPLETED
+
+### Page Inventory (18 pages, 10,842 total lines)
+
+| Page | Lines | Category |
+|------|-------|----------|
+| Logs.tsx | 1,468 | ⚠️ CRITICAL — decomposition candidate |
+| Settings.tsx | 1,129 | ⚠️ CRITICAL — decomposition candidate |
+| OpsHub.tsx | 1,092 | ⚠️ CRITICAL — decomposition candidate |
+| Orchestrate.tsx | 1,028 | ⚠️ CRITICAL — decomposition candidate |
+| KillLifeWorkflowEditor.tsx | 1,019 | ⚠️ CRITICAL — decomposition candidate |
+| QdrantKnowledge.tsx | 893 | Large |
+| Infrastructure.tsx | 565 | Moderate |
+| AgentDetail.tsx | 561 | Moderate |
+| Agents.tsx | 488 | Moderate |
+| Dashboard.tsx | 403 | Moderate |
+| P2P.tsx | 345 | OK |
+| Metrics.tsx | 330 | OK |
+| Playground.tsx | 304 | OK |
+| FineTuning.tsx | 298 | OK |
+| ComfyUI.tsx | 293 | OK |
+| KnowledgeBrowser.tsx | 286 | OK |
+| KillLifeWorkflows.tsx | 195 | Small |
+| P2PMesh.tsx | 145 | Small |
+
+### Component Library (15 UI components)
+Badge, Button, Card, CompactModelList, EmptyState, InlineNotice, Input,
+JsonView, LoadingPanel, Modal, Select, Spinner, StatCard, Textarea + index.ts barrel
+
+Layout: Shell.tsx (layout wrapper)
+Utility: ErrorBoundary.tsx, PromptEditor.tsx
+
+Most-used components: LoadingPanel (8 pages), Card (8), Badge (7), InlineNotice (6), Button (5)
+
+### Hooks (2 custom hooks)
+- useApi.ts — imperative API call hook
+- useFetch.ts — declarative data fetching with polling
+
+### API Layer (8 API modules)
+agents.ts, cad.ts, client.ts, comfyui.ts, killlife.ts, knowledgeBase.ts, ops.ts, qdrantKnowledge.ts
+
+### Duplicated Helper Functions — KEY FINDING
+`formatLatency()` duplicated in 5 files: Logs.tsx, OpsHub.tsx, Orchestrate.tsx, Metrics.tsx, P2P.tsx
+`mcpTone()` duplicated in 2 files: Logs.tsx, OpsHub.tsx
+`sourceTone()` duplicated in 2 files: Logs.tsx, OpsHub.tsx
+`formatMcpName()` duplicated in 2 files: Logs.tsx, OpsHub.tsx
+→ Extract to shared utils module
+
+### Dependency Versions (from package.json)
+- React 19.0.0 (latest stable)
+- React Router DOM 7.1.0 (latest major)
+- Vite 6.0.0 (latest major)
+- TypeScript 5.6.0 (current)
+- Tailwind CSS 3.4.17 (current, v4 available but migration non-trivial)
+- @monaco-editor/react 4.7.0 (current)
+- All dependencies are reasonably current — no urgent upgrades needed
+
+### Test Coverage — ZERO
+- No test files found (no *.test.*, no *.spec.*, no __tests__/)
+- No test runner configured (no vitest.config, no jest.config)
+- This is a CRITICAL gap for a codebase with 10,842 lines of page code
+
+### Build Configuration
+- Vite 6 with React plugin, Tailwind CSS via PostCSS
+- Build: `tsc -b && vite build` — type-checks before building
+- Cross-build: `build:api-public` deploys into api/public for serving
+- No build output (dist/) committed — correct practice
+- Proxy config: /api and /health → localhost:3000
+
+### Hook Complexity (useState/useEffect/useMemo/useRef/useCallback count)
+- Logs.tsx: 33 hook calls — highest complexity, prime extraction target
+- QdrantKnowledge.tsx: 25
+- Orchestrate.tsx: 25
+- Settings.tsx: 21
+- KillLifeWorkflowEditor.tsx: 16
+
+### Accessibility / Performance Signals
+- No aria-* attributes detected in UI components (not audited exhaustively)
+- No React.lazy / code-splitting — all 18 pages loaded eagerly via App.tsx
+- No Suspense boundaries (only ErrorBoundary)
+- Monaco editor loaded synchronously — potential performance issue
+
+### Routing Structure
+- Flat route structure under Shell layout (no nested routes beyond agents/:name and kill-life/:workflowId)
+- 404 catch-all route present
+- Note: P2P.tsx exists but isn't imported in App.tsx (P2PMesh.tsx is used at /p2p) — P2P.tsx may be dead code
+
+### Key Recommendations
+1. Extract shared helpers (formatLatency, mcpTone, sourceTone, formatMcpName) into web/src/lib/utils.ts
+2. Add React.lazy + Suspense for code-splitting the 5 largest pages
+3. Decompose the 5 pages >1000 lines into sub-components
+4. Add vitest + @testing-library/react for test infrastructure
+5. Investigate P2P.tsx — likely dead/orphan code (345 lines)
+6. Settings.tsx doesn't use any UI components from the shared library — inconsistent
+
+=== END SESSION 3 ===
