@@ -36,6 +36,29 @@ class MockProvider(LLMProvider):
         return True
 
 
+class FailingProvider(LLMProvider):
+    """Provider that always fails for testing error handling."""
+    name = "failing"
+    default_model = "failing-model"
+    cost_per_million = (0.0, 0.0)
+    speed_rank = 1
+    quality_rank = 1
+
+    async def send(self, messages, **kwargs):
+        raise RuntimeError("Simulated agent failure")
+
+    async def stream(self, messages, **kwargs):
+        raise RuntimeError("Simulated agent failure")
+        yield  # Unreachable but needed for generator
+
+    def available_models(self):
+        return [self.default_model]
+
+    @property
+    def is_configured(self):
+        return True
+
+
 class FakeCluster:
     enabled = True
 
@@ -292,3 +315,373 @@ def test_orchestrator_applies_provider_model_override_locally_when_cluster_disab
     assert run.results[0].remote is False
     assert run.results[0].response.provider == "mistral"
     assert run.results[0].response.model == "mistral-large-latest"
+
+
+def test_skip_on_error_sequential():
+    """Test sequential mode continues after agent failure when skip_on_error=True."""
+    from mascarade.orchestrator.retry import RetryConfig
+
+    router = Router()
+    router._providers.clear()
+    router.register(MockProvider())
+    router.register(FailingProvider())
+
+    registry = AgentRegistry()
+    registry.register(
+        Agent(name="good1", description="Good", system_prompt="Good.", preferred_provider="mock")
+    )
+    registry.register(
+        Agent(
+            name="bad",
+            description="Bad",
+            system_prompt="Bad.",
+            strategy="specific",
+            preferred_provider="failing",
+            preferred_model="failing-model",
+        )
+    )
+    registry.register(
+        Agent(name="good2", description="Good", system_prompt="Good.", preferred_provider="mock")
+    )
+
+    # Configure retry executor with 0 retries for faster tests
+    from mascarade.orchestrator.retry import RetryExecutor
+    retry_executor = RetryExecutor(config=RetryConfig(max_retries=0))
+
+    orch = Orchestrator(
+        router=router,
+        registry=registry,
+        trace_buffer=AgentTraceBuffer(),
+        retry_executor=retry_executor,
+    )
+
+    run = asyncio.run(
+        orch.run(["good1", "bad", "good2"], "test", mode="sequential", skip_on_error=True)
+    )
+
+    # Should have 3 results: 2 successful, 1 failed
+    assert len(run.results) == 3
+    assert run.results[0].agent_name == "good1"
+    assert run.results[0].error is None
+    assert run.results[1].agent_name == "bad"
+    assert run.results[1].error is not None
+    assert "Simulated agent failure" in run.results[1].error
+    assert run.results[2].agent_name == "good2"
+    assert run.results[2].error is None
+
+
+def test_sequential_stops_on_error_by_default():
+    """Test sequential mode stops on first error when skip_on_error=False (default)."""
+    from mascarade.orchestrator.retry import RetryConfig, RetryExecutor
+
+    router = Router()
+    router._providers.clear()
+    router.register(MockProvider())
+    router.register(FailingProvider())
+
+    registry = AgentRegistry()
+    registry.register(
+        Agent(name="good1", description="Good", system_prompt="Good.", preferred_provider="mock")
+    )
+    registry.register(
+        Agent(
+            name="bad",
+            description="Bad",
+            system_prompt="Bad.",
+            strategy="specific",
+            preferred_provider="failing",
+            preferred_model="failing-model",
+        )
+    )
+    registry.register(
+        Agent(name="good2", description="Good", system_prompt="Good.", preferred_provider="mock")
+    )
+
+    retry_executor = RetryExecutor(config=RetryConfig(max_retries=0))
+
+    orch = Orchestrator(
+        router=router,
+        registry=registry,
+        trace_buffer=AgentTraceBuffer(),
+        retry_executor=retry_executor,
+    )
+
+    run = asyncio.run(
+        orch.run(["good1", "bad", "good2"], "test", mode="sequential", skip_on_error=False)
+    )
+
+    # Should have 2 results: 1 successful, 1 failed, and stop before good2
+    assert len(run.results) == 2
+    assert run.results[0].agent_name == "good1"
+    assert run.results[0].error is None
+    assert run.results[1].agent_name == "bad"
+    assert run.results[1].error is not None
+    assert "Simulated agent failure" in run.results[1].error
+
+
+def test_skip_on_error_pipeline():
+    """Test pipeline mode continues after agent failure when skip_on_error=True."""
+    from mascarade.orchestrator.retry import RetryConfig, RetryExecutor
+
+    router = Router()
+    router._providers.clear()
+    router.register(MockProvider())
+    router.register(FailingProvider())
+
+    registry = AgentRegistry()
+    registry.register(
+        Agent(name="good1", description="Good", system_prompt="Good.", preferred_provider="mock")
+    )
+    registry.register(
+        Agent(
+            name="bad",
+            description="Bad",
+            system_prompt="Bad.",
+            strategy="specific",
+            preferred_provider="failing",
+            preferred_model="failing-model",
+        )
+    )
+    registry.register(
+        Agent(name="good2", description="Good", system_prompt="Good.", preferred_provider="mock")
+    )
+
+    retry_executor = RetryExecutor(config=RetryConfig(max_retries=0))
+
+    orch = Orchestrator(
+        router=router,
+        registry=registry,
+        trace_buffer=AgentTraceBuffer(),
+        retry_executor=retry_executor,
+    )
+
+    run = asyncio.run(
+        orch.run(["good1", "bad", "good2"], "initial", mode="pipeline", skip_on_error=True)
+    )
+
+    # Should have 3 results: good1 succeeds, bad fails, good2 succeeds
+    assert len(run.results) == 3
+    assert run.results[0].agent_name == "good1"
+    assert run.results[0].error is None
+    assert "[mock] initial" in run.results[0].response.content
+    assert run.results[1].agent_name == "bad"
+    assert run.results[1].error is not None
+    assert run.results[2].agent_name == "good2"
+    assert run.results[2].error is None
+    # good2 should receive output from good1 (not from bad, which failed)
+    assert "[mock]" in run.results[2].response.content
+
+
+def test_pipeline_stops_on_error_by_default():
+    """Test pipeline mode stops on first error when skip_on_error=False (default)."""
+    from mascarade.orchestrator.retry import RetryConfig, RetryExecutor
+
+    router = Router()
+    router._providers.clear()
+    router.register(MockProvider())
+    router.register(FailingProvider())
+
+    registry = AgentRegistry()
+    registry.register(
+        Agent(name="good1", description="Good", system_prompt="Good.", preferred_provider="mock")
+    )
+    registry.register(
+        Agent(
+            name="bad",
+            description="Bad",
+            system_prompt="Bad.",
+            strategy="specific",
+            preferred_provider="failing",
+            preferred_model="failing-model",
+        )
+    )
+    registry.register(
+        Agent(name="good2", description="Good", system_prompt="Good.", preferred_provider="mock")
+    )
+
+    retry_executor = RetryExecutor(config=RetryConfig(max_retries=0))
+
+    orch = Orchestrator(
+        router=router,
+        registry=registry,
+        trace_buffer=AgentTraceBuffer(),
+        retry_executor=retry_executor,
+    )
+
+    run = asyncio.run(
+        orch.run(["good1", "bad", "good2"], "initial", mode="pipeline", skip_on_error=False)
+    )
+
+    # Should have 2 results: good1 succeeds, bad fails, and stop before good2
+    assert len(run.results) == 2
+    assert run.results[0].agent_name == "good1"
+    assert run.results[0].error is None
+    assert run.results[1].agent_name == "bad"
+    assert run.results[1].error is not None
+
+
+def test_parallel_returns_partial_results():
+    """Test parallel mode returns both successful and failed results."""
+    from mascarade.orchestrator.retry import RetryConfig, RetryExecutor
+
+    router = Router()
+    router._providers.clear()
+    router.register(MockProvider())
+    router.register(FailingProvider())
+
+    registry = AgentRegistry()
+    registry.register(
+        Agent(name="good1", description="Good", system_prompt="Good.", preferred_provider="mock")
+    )
+    registry.register(
+        Agent(
+            name="bad",
+            description="Bad",
+            system_prompt="Bad.",
+            strategy="specific",
+            preferred_provider="failing",
+            preferred_model="failing-model",
+        )
+    )
+    registry.register(
+        Agent(name="good2", description="Good", system_prompt="Good.", preferred_provider="mock")
+    )
+
+    retry_executor = RetryExecutor(config=RetryConfig(max_retries=0))
+
+    orch = Orchestrator(
+        router=router,
+        registry=registry,
+        trace_buffer=AgentTraceBuffer(),
+        retry_executor=retry_executor,
+    )
+
+    run = asyncio.run(
+        orch.run(["good1", "bad", "good2"], "test", mode="parallel")
+    )
+
+    # Should have 3 results: 2 successful, 1 failed
+    assert len(run.results) == 3
+
+    # Check we have both successes and failures
+    good_results = [r for r in run.results if r.error is None]
+    bad_results = [r for r in run.results if r.error is not None]
+
+    assert len(good_results) == 2
+    assert len(bad_results) == 1
+
+    good_names = {r.agent_name for r in good_results}
+    bad_names = {r.agent_name for r in bad_results}
+
+    assert good_names == {"good1", "good2"}
+    assert bad_names == {"bad"}
+    assert "Simulated agent failure" in bad_results[0].error
+
+
+def test_error_details_in_task_result():
+    """Test that error information is properly recorded in TaskResult."""
+    from mascarade.orchestrator.retry import RetryConfig, RetryExecutor
+
+    router = Router()
+    router._providers.clear()
+    router.register(FailingProvider())
+
+    registry = AgentRegistry()
+    registry.register(
+        Agent(
+            name="bad",
+            description="Bad",
+            system_prompt="Bad.",
+            strategy="specific",
+            preferred_provider="failing",
+            preferred_model="failing-model",
+        )
+    )
+
+    retry_executor = RetryExecutor(config=RetryConfig(max_retries=0))
+
+    orch = Orchestrator(
+        router=router,
+        registry=registry,
+        trace_buffer=AgentTraceBuffer(),
+        retry_executor=retry_executor,
+    )
+
+    run = asyncio.run(
+        orch.run(["bad"], "test", mode="sequential", skip_on_error=True)
+    )
+
+    assert len(run.results) == 1
+    result = run.results[0]
+
+    # Verify error is recorded
+    assert result.error is not None
+    assert "Simulated agent failure" in result.error
+    assert result.agent_name == "bad"
+
+    # Verify response fields are present but empty for failed agents
+    assert result.response.content == ""
+    assert result.response.model == ""
+    assert result.response.provider == ""
+
+
+def test_dead_letter_store_records_failures():
+    """Test that failed orchestrations are recorded in dead letter store."""
+    from mascarade.orchestrator.retry import RetryConfig, RetryExecutor
+
+    router = Router()
+    router._providers.clear()
+    router.register(FailingProvider())
+
+    registry = AgentRegistry()
+    registry.register(
+        Agent(
+            name="bad",
+            description="Bad",
+            system_prompt="Bad.",
+            strategy="specific",
+            preferred_provider="failing",
+            preferred_model="failing-model",
+        )
+    )
+
+    retry_executor = RetryExecutor(config=RetryConfig(max_retries=0))
+
+    orch = Orchestrator(
+        router=router,
+        registry=registry,
+        trace_buffer=AgentTraceBuffer(),
+        retry_executor=retry_executor,
+    )
+
+    run = asyncio.run(
+        orch.run(["bad"], "test", mode="sequential", skip_on_error=True)
+    )
+
+    # Check dead letter store has the failure
+    failures = orch.dead_letter_store.recent()
+    assert len(failures) > 0
+
+    # Find failure for this run
+    run_failures = [f for f in failures if f.run_id == run.run_id]
+    assert len(run_failures) > 0
+
+    failure = run_failures[0]
+    assert failure.agent_name == "bad"
+    assert "Simulated agent failure" in failure.error
+    assert failure.mode == "sequential"
+
+
+def test_fallback_agent_fields_in_task_result():
+    """Test that fallback_used and fallback_agent fields exist in TaskResult."""
+    orch = _make_orchestrator()
+    run = asyncio.run(orch.run(["analyst"], "test", mode="sequential"))
+
+    assert len(run.results) == 1
+    result = run.results[0]
+
+    # Verify fallback fields exist and have default values
+    assert hasattr(result, "fallback_used")
+    assert hasattr(result, "fallback_agent")
+    assert result.fallback_used is False
+    assert result.fallback_agent is None
