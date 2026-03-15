@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import time
 from collections.abc import AsyncIterator
 
 import httpx
@@ -29,6 +30,9 @@ class AppleCoreMLProvider(LLMProvider):
             base_url=self._base_url,
             timeout=settings.apple_llm_timeout_seconds,
         )
+        self._models_cache: list[str] | None = None
+        self._models_cache_time: float = 0.0
+        self._models_cache_ttl: float = 60.0  # Cache for 60 seconds
 
     @property
     def is_configured(self) -> bool:
@@ -106,13 +110,27 @@ class AppleCoreMLProvider(LLMProvider):
             yield response.content
 
     def available_models(self) -> list[str]:
+        # Return cached models if still fresh
+        now = time.time()
+        if self._models_cache is not None and (now - self._models_cache_time) < self._models_cache_ttl:
+            return self._models_cache
+
+        # Fetch fresh models from endpoint
         try:
             with httpx.Client(base_url=self._base_url, timeout=5.0) as client:
                 resp = client.get("/models")
                 resp.raise_for_status()
                 models = resp.json().get("models", [])
                 if isinstance(models, list) and models:
-                    return [str(model) for model in models]
+                    result = [str(model) for model in models]
+                    # Update cache
+                    self._models_cache = result
+                    self._models_cache_time = now
+                    return result
         except Exception:
             logger.warning("Cannot list Apple LLM models at %s", self._base_url)
+
+        # Return cached models even if expired, or default
+        if self._models_cache is not None:
+            return self._models_cache
         return [self.default_model]

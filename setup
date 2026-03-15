@@ -25,6 +25,8 @@ OLLAMA_MODELS_RAW=""
 OLLAMA_PACK="balanced"
 PROFILE_MODE=""
 PROFILE_EFFECTIVE=""
+COMPOSE_PROFILES=""
+COMPOSE_PROFILES_MODE=true  # Default: use Docker Compose native profiles
 OPS_CONSOLE_ONLY=false
 FORCE_CLEAN=false
 SMOKE_GENERATE_AUDIO=false
@@ -132,7 +134,11 @@ show_setup_help() {
 Usage: ./setup [options]
 
 Installateur TUI Mascarade. Selectionne les services, configure .env,
-genere docker-compose.yml et peut demarrer la stack.
+genere docker-compose.yml avec profils Docker Compose et peut demarrer la stack.
+
+PAR DEFAUT: Le setup genere un docker-compose.yml complet avec tous les services
+tagges par profils (core, observability, industrial, personal, fine-tuning).
+Utilisez --profile pour selectionner quels profils demarrer.
 
 Options:
   -h, --help                 Afficher cette aide et quitter
@@ -140,7 +146,10 @@ Options:
   -y, --yes                  Repondre "oui" aux confirmations
       --with <ids>           Preselection services (csv), ex: core,api,redis
       --profile <name>       Profil services: minimal|standard|full|apple-silicon|auto
-      --all                  Alias de --profile full (active tous les services)
+                             (Traduit en profils Docker Compose: core,observability,etc)
+      --all                  Alias de --profile full (active tous les profils)
+      --compose-profiles <p> Profils Docker Compose explicites (csv), ex: core,observability
+      --legacy-generation    Utiliser l'ancienne generation conditionnelle (deprecated)
       --no-start             Ne pas lancer docker compose up a la fin
       --skip-deps            Ne pas installer les dependances Python/Node locales
       --skip-tests           Ne pas lancer les tests Python pendant le setup
@@ -201,6 +210,30 @@ check_resources() {
     fi
 }
 
+# Convert comma-separated profile list to Docker Compose --profile flags
+profile_to_compose_args() {
+    local profiles_csv="$1"
+    local -a profiles_array
+    local result=""
+
+    # Return empty if no profiles provided
+    [[ -z "$profiles_csv" ]] && return 0
+
+    # Split CSV into array
+    IFS=',' read -ra profiles_array <<< "$profiles_csv"
+
+    # Build --profile flags
+    for profile in "${profiles_array[@]}"; do
+        # Trim whitespace
+        profile=$(echo "$profile" | xargs)
+        [[ -z "$profile" ]] && continue
+        result="${result}--profile ${profile} "
+    done
+
+    # Trim trailing space and output
+    echo "${result% }"
+}
+
 parse_setup_args() {
     while [[ $# -gt 0 ]]; do
         case "$1" in
@@ -233,6 +266,18 @@ parse_setup_args() {
                 ;;
             --all)
                 PROFILE_MODE="full"
+                ;;
+            --compose-profiles)
+                if [[ $# -lt 2 || -z "${2:-}" ]]; then
+                    err "Option --compose-profiles attend une liste de profils (csv)."
+                    exit 2
+                fi
+                COMPOSE_PROFILES="$2"
+                shift
+                ;;
+            --legacy-generation)
+                COMPOSE_PROFILES_MODE=false
+                info "Mode legacy: generation conditionnelle (deprecated)"
                 ;;
             --no-start)
                 NO_START=true
@@ -1140,6 +1185,47 @@ if [[ $sel_count -eq 0 ]]; then
     exit 1
 fi
 
+# ── Compose Profiles Mode: Map selected services to profiles and enable all services ──
+if [[ "$COMPOSE_PROFILES_MODE" == true ]]; then
+    dbg "Compose profiles mode active: mapping services to profiles"
+
+    # Map selected services to their profiles
+    declare -A profile_set=()
+    for id in "${SVC_IDS[@]}"; do
+        if [[ "${SVC_ON[$id]}" == "1" ]]; then
+            local svc_profile="${SVC_PROFILES[$id]:-}"
+            if [[ -n "$svc_profile" ]]; then
+                profile_set["$svc_profile"]=1
+                dbg "  Service $id → profile $svc_profile"
+            fi
+        fi
+    done
+
+    # Build COMPOSE_PROFILES from selected profiles (if not explicitly set)
+    if [[ -z "$COMPOSE_PROFILES" ]]; then
+        local -a profile_list=()
+        for profile in "${!profile_set[@]}"; do
+            profile_list+=("$profile")
+        done
+        # Sort for deterministic output
+        IFS=$'\n' sorted_profiles=($(sort <<<"${profile_list[*]}"))
+        unset IFS
+        COMPOSE_PROFILES=$(IFS=,; echo "${sorted_profiles[*]}")
+        dbg "Auto-detected COMPOSE_PROFILES: $COMPOSE_PROFILES"
+    fi
+
+    # Enable ALL services for generation (profile tags in YAML will filter at runtime)
+    local all_services_count=0
+    for id in "${SVC_IDS[@]}"; do
+        SVC_ON[$id]="1"
+        ((all_services_count++)) || true
+    done
+
+    info "Profils Docker Compose: $COMPOSE_PROFILES"
+    info "Generation complete avec ${all_services_count} services (filtres par profils au demarrage)"
+    dbg "Tous les services actives pour generation docker-compose.yml complet"
+fi
+
 if [[ "$SMOKE_GENERATE_AUDIO" == true && "${SVC_ON[generate-audio]:-0}" != "1" ]]; then
     warn "--smoke-generate-audio ignore: service generate-audio non selectionne."
     SMOKE_GENERATE_AUDIO=false
@@ -1450,6 +1536,10 @@ fi
 
 # ── 7/8 : Demarrage ──
 step_progress 7 8 "Demarrage des services"
+
+# Export compose profiles configuration for docker_compose_cmd
+export COMPOSE_PROFILES_MODE
+export COMPOSE_PROFILES
 
 if [[ "$NO_START" == true ]]; then
     ok "Demarrage ignore (--no-start)"

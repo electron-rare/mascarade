@@ -1088,6 +1088,24 @@ docker_compose_cmd() {
         [[ -n "$compose_env_file" ]] && compose_args+=(--env-file "$compose_env_file")
     fi
 
+    # Add profile flags when COMPOSE_PROFILES_MODE is active
+    if [[ "${COMPOSE_PROFILES_MODE:-false}" == true && -n "${COMPOSE_PROFILES:-}" ]]; then
+        local profiles_csv="$COMPOSE_PROFILES"
+        local -a profiles_array
+
+        # Split CSV into array
+        IFS=',' read -ra profiles_array <<< "$profiles_csv"
+
+        # Add --profile flag for each profile
+        for profile in "${profiles_array[@]}"; do
+            # Trim whitespace
+            profile=$(echo "$profile" | xargs)
+            [[ -z "$profile" ]] && continue
+            compose_args+=(--profile "$profile")
+            dbg "Adding profile: $profile"
+        done
+    fi
+
     if [[ "$_DOCKER_NEEDS_SUDO" == true ]]; then
         sudo docker compose "${compose_args[@]}" "$@"
     else
