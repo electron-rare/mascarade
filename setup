@@ -25,6 +25,7 @@ OLLAMA_MODELS_RAW=""
 OLLAMA_PACK="balanced"
 PROFILE_MODE=""
 PROFILE_EFFECTIVE=""
+COMPOSE_PROFILES=""
 OPS_CONSOLE_ONLY=false
 FORCE_CLEAN=false
 SMOKE_GENERATE_AUDIO=false
@@ -141,6 +142,7 @@ Options:
       --with <ids>           Preselection services (csv), ex: core,api,redis
       --profile <name>       Profil services: minimal|standard|full|apple-silicon|auto
       --all                  Alias de --profile full (active tous les services)
+      --compose-profiles <p> Profils Docker Compose natifs (csv), ex: dev,monitoring
       --no-start             Ne pas lancer docker compose up a la fin
       --skip-deps            Ne pas installer les dependances Python/Node locales
       --skip-tests           Ne pas lancer les tests Python pendant le setup
@@ -233,6 +235,14 @@ parse_setup_args() {
                 ;;
             --all)
                 PROFILE_MODE="full"
+                ;;
+            --compose-profiles)
+                if [[ $# -lt 2 || -z "${2:-}" ]]; then
+                    err "Option --compose-profiles attend une liste de profils (csv)."
+                    exit 2
+                fi
+                COMPOSE_PROFILES="$2"
+                shift
                 ;;
             --no-start)
                 NO_START=true
