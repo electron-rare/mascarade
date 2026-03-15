@@ -326,6 +326,16 @@ export function GithubDispatchNode({ node, selected, linking }: NodeComponentPro
   );
 }
 
+// ReactFlow node type mapping - defined outside component to prevent re-renders
+const nodeTypes = {
+  "note": NoteNode,
+  "manual-gate": ManualGateNode,
+  "local-action": LocalActionNode,
+  "github-dispatch": GithubDispatchNode,
+};
+// Will be used in ReactFlow integration
+void nodeTypes;
+
 export default function KillLifeWorkflowEditor() {
   const { workflowId = "" } = useParams();
   const details = useFetch<{
