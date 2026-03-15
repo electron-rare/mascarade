@@ -107,6 +107,7 @@ class Orchestrator:
         run_id: str,
         mode: ExecutionMode,
         routing_overrides: dict[str, dict[str, str | None]] | None = None,
+        skip_on_error: bool = False,
     ) -> list[TaskResult]:
         """Exécuter des agents séquentiellement, chacun avec le prompt original."""
         results = []
@@ -134,24 +135,40 @@ class Orchestrator:
                 routing_provider=override.get("preferred_provider"),
                 routing_model=override.get("preferred_model"),
             )
-            result = await self._execute_agent(
-                agent,
-                prompt,
-                step=i,
-                routing_override=override,
-            )
-            self._trace(
-                run_id=run_id,
-                mode=mode,
-                event_type="agent_output",
-                step=i,
-                agent_name=name,
-                content_excerpt=result.response.content,
-                provider=result.response.provider,
-                model=result.response.model,
-                token_usage=result.response.usage,
-            )
-            results.append(result)
+            try:
+                result = await self._execute_agent(
+                    agent,
+                    prompt,
+                    step=i,
+                    routing_override=override,
+                )
+                self._trace(
+                    run_id=run_id,
+                    mode=mode,
+                    event_type="agent_output",
+                    step=i,
+                    agent_name=name,
+                    content_excerpt=result.response.content,
+                    provider=result.response.provider,
+                    model=result.response.model,
+                    token_usage=result.response.usage,
+                )
+                results.append(result)
+            except Exception as exc:
+                error_msg = str(exc)
+                logger.error("Sequential agent %s (step %d) failed: %s", name, i, error_msg)
+                self._trace(
+                    run_id=run_id,
+                    mode=mode,
+                    event_type="run_failed",
+                    step=i,
+                    severity="error",
+                    agent_name=name,
+                    error=error_msg,
+                )
+                results.append(TaskResult(agent_name=name, response=LLMResponse(content="", model="", provider="", usage={}), step=i, error=error_msg))
+                if not skip_on_error:
+                    break
         return results
 
     async def run_parallel(
@@ -244,6 +261,7 @@ class Orchestrator:
         run_id: str,
         mode: ExecutionMode,
         routing_overrides: dict[str, dict[str, str | None]] | None = None,
+        skip_on_error: bool = False,
     ) -> list[TaskResult]:
         """Pipeline : la sortie d'un agent devient l'entrée du suivant."""
         results = []
@@ -281,7 +299,8 @@ class Orchestrator:
                     routing_override=override,
                 )
             except Exception as exc:
-                logger.error("Pipeline agent %s (step %d) failed: %s", name, i, exc)
+                error_msg = str(exc)
+                logger.error("Pipeline agent %s (step %d) failed: %s", name, i, error_msg)
                 self._trace(
                     run_id=run_id,
                     mode=mode,
@@ -289,10 +308,13 @@ class Orchestrator:
                     step=i,
                     severity="error",
                     agent_name=name,
-                    error=str(exc),
+                    error=error_msg,
                 )
-                results.append(TaskResult(agent_name=name, response=LLMResponse(content="", model="", provider="", usage={}), step=i, error=str(exc)))
-                break
+                results.append(TaskResult(agent_name=name, response=LLMResponse(content="", model="", provider="", usage={}), step=i, error=error_msg))
+                if not skip_on_error:
+                    break
+                # Continue with current input if skipping error
+                continue
             self._trace(
                 run_id=run_id,
                 mode=mode,
@@ -398,6 +420,7 @@ class Orchestrator:
         *,
         mode: ExecutionMode | str = ExecutionMode.SEQUENTIAL,
         routing_overrides: dict[str, dict[str, str | None]] | None = None,
+        skip_on_error: bool = False,
     ) -> OrchestrationRun:
         """Point d'entrée principal — choisir le mode d'exécution."""
         mode = ExecutionMode(mode)
@@ -419,6 +442,7 @@ class Orchestrator:
                     run_id=run_id,
                     mode=mode,
                     routing_overrides=routing_overrides,
+                    skip_on_error=skip_on_error,
                 )
             elif mode == ExecutionMode.PARALLEL:
                 results = await self.run_parallel(
@@ -435,6 +459,7 @@ class Orchestrator:
                     run_id=run_id,
                     mode=mode,
                     routing_overrides=routing_overrides,
+                    skip_on_error=skip_on_error,
                 )
         except Exception as exc:
             self._trace(
