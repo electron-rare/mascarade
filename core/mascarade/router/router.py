@@ -308,6 +308,20 @@ class Router:
         strategy = Strategy(strategy)
         strict_provider = strategy == Strategy.SPECIFIC and provider is not None
 
+        cached = self.cache.retrieve(
+            messages,
+            strategy=strategy.value,
+            provider=provider,
+            model=model,
+            system=system,
+            response_format=None,
+            temperature=temperature,
+            max_tokens=max_tokens,
+        )
+        if cached and (not strict_provider or cached.provider == provider):
+            yield cached.response
+            return
+
         if strict_provider:
             sequence = [(strategy.value, provider)]
         else:
