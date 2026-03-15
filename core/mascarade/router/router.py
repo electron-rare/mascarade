@@ -8,7 +8,7 @@ import time
 from collections.abc import AsyncIterator
 from enum import StrEnum
 
-from mascarade.cache.cache import ResponseCache
+from mascarade.cache.multi_tier_cache import MultiTierCache
 from mascarade.config import settings
 from mascarade.load_balancer.balancer import LoadBalancer
 from mascarade.metrics.tracker import MetricsTracker
