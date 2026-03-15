@@ -177,6 +177,10 @@ class Settings(BaseSettings):
     circuit_breaker_success_threshold: int = 2
     circuit_breaker_timeout_seconds: float = 60.0
 
+    # Dead letter queue settings
+    dead_letter_max_entries: int = 1000
+    dead_letter_retention_seconds: int = 86400
+
     # Defaults
     default_provider: str = "claude"
     default_model: str = "claude-sonnet-4-6"
