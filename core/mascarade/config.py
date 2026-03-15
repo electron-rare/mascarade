@@ -108,6 +108,7 @@ class Settings(BaseSettings):
     apple_llm_model_id: str = "apple-local"
     apple_llm_backend: str = "coreml"
     apple_llm_timeout_seconds: float = 300.0
+    apple_llm_models_json: str = ""
 
     # ComfyUI
     comfyui_url: str = ""
