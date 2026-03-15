@@ -225,3 +225,37 @@ Comparaison par remotes locales (`local-api`, `local-apple`, `local-front`) real
 Interpretation operationnelle:
 - les deltas restants sont majoritairement des changements locaux non commites par repo,
 - la suite doit passer par lots locaux (code/api/ui/tools/infra) avant relance merge inter-repos.
+
+## Update convergence main (strategie 2)
+
+- creation d'un worktree propre d'integration: `/Users/electron/.auto-claude/worktrees/integration-main-sync`
+- branche d'integration: `integration/main-sync`
+- merges absorbes dans la branche d'integration:
+  - `feat/apple-coreml-runtime-lot`
+  - `feat/apple-coreml-runtime-pristine`
+  - `feat/frontend-pr1-stability`
+- resolution de conflit repetee sur `MANIFEST.md`
+- fast-forward reussi de `main` vers `integration/main-sync`
+
+### Correctifs de stabilisation appliques ensuite
+
+- compatibilite cache restauree dans le routeur
+- contrainte `aiobreaker` assouplie vers une version resolvable
+- compatibilite de l'orchestrateur restauree:
+  - champ `retry_executor`
+  - `dead_letter_store`
+  - `circuit_breakers`
+  - champs `fallback_used` / `fallback_agent`
+  - gestion `skip_on_error` en sequential
+  - fallback agent en pipeline
+
+### Validation post-correctif
+
+- `pytest tests/test_orchestrator.py -q`: PASS (suite ciblee)
+- `npm --prefix api run build`: PASS dans le worktree d'integration
+- `docker compose config`: PASS dans le worktree d'integration
+
+### Limites restantes
+
+- le worktree principal `mascarade-main` garde quelques fichiers non trackes utiles a trier separment
+- les snapshots bruts de preflight ont ete analyses puis doivent etre supprimes ou ignores
