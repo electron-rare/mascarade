@@ -15,7 +15,7 @@ LISTEN_PORT = int(os.environ.get('P2P_LISTEN_PORT', '4001'))
 KEY_DIR = os.path.expanduser(os.environ.get('P2P_KEY_DIR', '~/.mascarade/p2p'))
 BOOTSTRAP_ID = os.environ.get('P2P_BOOTSTRAP_ID', 'QmTO5AYG6ZT3EU3UWVLNWU2FFFHWKUJR7S')
 BOOTSTRAP_HOST = os.environ.get('P2P_BOOTSTRAP_HOST', '192.168.0.119')
-BOOTSTRAP_PORT = int(os.environ.get('P2P_BOOTSTRAP_PORT', '4002'))
+BOOTSTRAP_PORT = int(os.environ.get('P2P_BOOTSTRAP_PORT', '4001'))
 CAPABILITIES = os.environ.get(
     'P2P_CAPABILITIES',
     'p2p-relay,p2p-bridge,llm-inference,ft-research,ft-dataset,ft-teacher,ft-archive',

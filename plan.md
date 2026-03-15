@@ -23,3 +23,4 @@ Pour le contrat actif et la sequence de publication:
 - `../crazy_life/docs/REPO_CARTOGRAPHY_2026-03-07.md`
 - `../crazy_life/docs/PUBLISH_FLOW.md`
 - `README.md`
+- `docs/audit/MCP_REGISTRY_FIRST_2026-03-14.md`

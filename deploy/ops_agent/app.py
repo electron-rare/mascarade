@@ -91,115 +91,6 @@ RUNTIME_SECRET_GROUPS: dict[str, dict[str, Any]] = {
             }
         ],
     },
-    "notion": {
-        "label": "Notion MCP",
-        "description": "Auth Notion runtime et page de smoke test utilisee par les probes MCP.",
-        "classification": "integration-credential",
-        "criticality": "feature-required",
-        "required_when": "Requis seulement si l'integration Notion est utilisee.",
-        "used_by": ["core", "ops-agent"],
-        "generate_supported": False,
-        "auth_mode": {
-            "env": "NOTION_AUTH_MODE",
-            "default": "api_key",
-            "options": ["api_key", "oauth_oidc"],
-        },
-        "fields": [
-            {
-                "env": "NOTION_API_KEY",
-                "label": "Notion API key",
-                "secret": True,
-                "restart_services": ["core"],
-                "auth_modes": ["api_key"],
-                "classification": "integration-credential",
-            },
-            {
-                "env": "NOTION_OAUTH_ACCESS_TOKEN",
-                "label": "OAuth access token",
-                "secret": True,
-                "restart_services": ["core"],
-                "auth_modes": ["oauth_oidc"],
-                "classification": "integration-credential",
-            },
-            {
-                "env": "NOTION_OAUTH_REFRESH_TOKEN",
-                "label": "OAuth refresh token",
-                "secret": True,
-                "restart_services": ["core"],
-                "auth_modes": ["oauth_oidc"],
-                "classification": "integration-credential",
-            },
-            {
-                "env": "NOTION_OAUTH_CLIENT_ID",
-                "label": "OAuth client ID",
-                "secret": False,
-                "restart_services": [],
-                "auth_modes": ["oauth_oidc"],
-                "classification": "oauth-config",
-            },
-            {
-                "env": "NOTION_OAUTH_CLIENT_SECRET",
-                "label": "OAuth client secret",
-                "secret": True,
-                "restart_services": [],
-                "auth_modes": ["oauth_oidc"],
-                "classification": "integration-credential",
-            },
-            {
-                "env": "NOTION_OAUTH_AUTHORIZATION_ENDPOINT",
-                "label": "OAuth authorization endpoint",
-                "secret": False,
-                "restart_services": [],
-                "auth_modes": ["oauth_oidc"],
-                "classification": "oauth-config",
-                "criticality": "local-operator-context",
-            },
-            {
-                "env": "NOTION_OAUTH_TOKEN_ENDPOINT",
-                "label": "OAuth token endpoint",
-                "secret": False,
-                "restart_services": [],
-                "auth_modes": ["oauth_oidc"],
-                "classification": "oauth-config",
-                "criticality": "local-operator-context",
-            },
-            {
-                "env": "NOTION_OAUTH_REDIRECT_URI",
-                "label": "OAuth redirect URI override",
-                "secret": False,
-                "restart_services": [],
-                "auth_modes": ["oauth_oidc"],
-                "classification": "oauth-config",
-                "criticality": "local-operator-context",
-            },
-            {
-                "env": "NOTION_OAUTH_EXPIRES_AT",
-                "label": "OAuth expires at",
-                "secret": False,
-                "restart_services": [],
-                "auth_modes": ["oauth_oidc"],
-                "classification": "oauth-config",
-                "criticality": "local-operator-context",
-            },
-            {
-                "env": "NOTION_OAUTH_WORKSPACE_NAME",
-                "label": "OAuth workspace name",
-                "secret": False,
-                "restart_services": [],
-                "auth_modes": ["oauth_oidc"],
-                "classification": "operator-context",
-                "criticality": "local-operator-context",
-            },
-            {
-                "env": "NOTION_MCP_SMOKE_PAGE_ID",
-                "label": "Smoke page ID",
-                "secret": False,
-                "restart_services": [],
-                "classification": "live-validation-target",
-                "criticality": "live-validation-optional",
-            },
-        ],
-    },
     "github-dispatch": {
         "label": "GitHub dispatch MCP",
         "description": "Auth GitHub utilises pour les dispatch GitHub et leur smoke MCP.",
@@ -381,18 +272,6 @@ MCP_PROBE_CONFIGS: list[dict[str, Any]] = [
         ],
         "cwd": KILL_LIFE_ROOT,
         "timeout_s": 8.0,
-    },
-    {
-        "key": "notion",
-        "command": [
-            "python3",
-            str(KILL_LIFE_ROOT / "tools" / "notion_mcp_smoke.py"),
-            "--json",
-            "--timeout",
-            "12.0",
-        ],
-        "cwd": KILL_LIFE_ROOT,
-        "timeout_s": 12.0,
     },
     {
         "key": "github-dispatch",
@@ -701,30 +580,6 @@ def is_runtime_secret_group_configured(
             env_values.get(
                 "MASCARADE_API_KEY", os.getenv("MASCARADE_API_KEY", "")
             ).strip()
-        )
-    if group_name == "notion":
-        if auth_mode == "oauth_oidc":
-            return bool(
-                env_values.get(
-                    "NOTION_OAUTH_CLIENT_ID", os.getenv("NOTION_OAUTH_CLIENT_ID", "")
-                ).strip()
-                and (
-                    env_values.get(
-                        "NOTION_OAUTH_ACCESS_TOKEN",
-                        os.getenv("NOTION_OAUTH_ACCESS_TOKEN", ""),
-                    ).strip()
-                    or env_values.get(
-                        "NOTION_OAUTH_REFRESH_TOKEN",
-                        os.getenv("NOTION_OAUTH_REFRESH_TOKEN", ""),
-                    ).strip()
-                )
-                and env_values.get(
-                    "NOTION_OAUTH_CLIENT_SECRET",
-                    os.getenv("NOTION_OAUTH_CLIENT_SECRET", ""),
-                ).strip()
-            )
-        return bool(
-            env_values.get("NOTION_API_KEY", os.getenv("NOTION_API_KEY", "")).strip()
         )
     if group_name == "github-dispatch":
         if auth_mode == "app":

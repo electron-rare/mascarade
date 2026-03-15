@@ -5,7 +5,7 @@ bootstrap:
   name: "Photon VM"
   host: "192.168.0.119"
   user: "root"
-  port: 4002
+  port: 4001
   role: "infra"
   capabilities: ["docker", "p2p-relay", "compute"]
   http_base_url: "http://192.168.0.119:8100"

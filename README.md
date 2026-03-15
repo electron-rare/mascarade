@@ -56,6 +56,137 @@ Mascarade fait partie d'un ecosysteme de 5 repos :
                   +------------------+
 ```
 
+## API Versioning & Stability Contract
+
+Mascarade formalise son contrat de stabilite API avec un versioning explicite. Contrairement a LiteLLM (releases multiples par jour avec breaking changes) ou LangChain (0.1→0.2→0.3 avec cassures), Mascarade garantit la stabilite de son API pour les operateurs qui privilegient la fiabilite sur les features bleeding-edge.
+
+### Version Actuelle : API v1.0.0
+
+Tous les endpoints sont prefixes par `/v1/` (Python core) ou `/v1/api/` (TypeScript API).
+
+**Endpoints de version :**
+- `GET /v1/version` (Python core, port 8100) — version API, features supportees, liste providers
+- `GET /v1/version` (TypeScript API, port 3100) — version API aggregee depuis le core
+
+**Exemples :**
+```bash
+# Python Core API (port 8100)
+curl http://localhost:8100/v1/version
+curl -X POST http://localhost:8100/v1/agents/send -H "Authorization: Bearer $MASCARADE_API_KEY" -d '...'
+curl -X POST http://localhost:8100/v1/chat/completions -H "Authorization: Bearer $MASCARADE_API_KEY" -d '...'
+
+# TypeScript API Gateway (port 3100)
+curl http://localhost:3100/v1/version
+curl http://localhost:3100/v1/api/agents/list -H "Authorization: Bearer $MASCARADE_API_KEY"
+```
+
+### Contrats Geles (Frozen Contracts)
+
+Les endpoints suivants ont un contrat gele et **ne changeront pas** en v1.x :
+
+**`POST /v1/chat/completions`** — Interface OpenAI-compatible
+- Schema request/response identique a OpenAI API v1
+- Parametres supportes : `messages`, `model`, `temperature`, `max_tokens`, `stream`
+- Reponse inclut : `id`, `object`, `created`, `choices`, `usage`
+- **Tout changement a ce contrat est considere BREAKING**
+
+### Garanties de Stabilite
+
+#### Backward Compatibility Promise
+
+**Aucun breaking change** ne sera introduit dans les releases v1.x :
+- De nouveaux champs peuvent etre ajoutes aux reponses (clients doivent ignorer les champs inconnus)
+- De nouveaux parametres optionnels peuvent etre ajoutes
+- Les features deprecies seront supportees pendant **minimum 6 mois** avec warnings
+- Un guide de migration sera fourni avant tout changement breaking v2.0
+
+#### Politique de Deprecation
+
+Les endpoints deprecies retournent les headers HTTP suivants (RFC 8594) :
+- `Deprecation: true` — endpoint marque comme deprecie
+- `Warning: "299 - This endpoint will be removed in API v2.0"` — message d'avertissement
+- `Sunset: 2026-09-15T00:00:00Z` — date de retrait prevue
+- `Link: </v2/new-endpoint>; rel="alternate"` — endpoint de remplacement
+- `X-Deprecated-Since: 1.5.0` — version de deprecation
+
+Support minimum : **6 mois** entre deprecation et retrait effectif.
+
+### Classification des Changements
+
+| Label | Signification | Action Requise |
+|-------|---------------|----------------|
+| **[BREAKING]** | Change le contrat existant | Mise a jour client obligatoire |
+| **[DEPRECATED]** | Sera retire dans une version future | Planifier migration |
+| **[ADDED]** | Nouvelle feature ou endpoint | Aucune (opt-in) |
+| **[CHANGED]** | Modification non-breaking | Aucune |
+| **[FIXED]** | Correction de bug | Aucune |
+| **[SECURITY]** | Changement lie a la securite | Review recommande |
+
+### Breaking Changes = Nouvelle Version API
+
+Un breaking change declenche un nouveau prefix de version (`/v2/`) avec periode de migration :
+- La v1 continue de fonctionner pendant la periode de migration (minimum 6 mois)
+- Un guide de migration detaille est fourni
+- Les deux versions coexistent jusqu'au sunset de la v1
+
+**Exemple de migration future v1 → v2 :**
+```bash
+# v1 (deprecated mais encore supportee)
+POST /v1/agents/send
+
+# v2 (nouveau contrat)
+POST /v2/agents/execute
+```
+
+### Tests de Regression
+
+Le contrat API est protege par **45+ tests de regression** :
+- `core/tests/test_api_versioning.py` — tests de versioning (11 tests)
+- `core/tests/test_openai_compat.py` — contrat OpenAI gele (7 tests de stabilite)
+- `api/src/routes/*.test.ts` — tests TypeScript API (34 tests)
+
+**Execution :**
+```bash
+# Tests Python
+cd core && python -m pytest tests/test_api_versioning.py -v
+cd core && python -m pytest tests/test_openai_compat.py -v
+
+# Tests TypeScript
+cd api && npm test
+```
+
+### Changelog
+
+Tous les changements API sont documentes dans [`CHANGELOG.md`](./CHANGELOG.md) avec labels breaking/non-breaking.
+
+**Consulter le changelog :**
+```bash
+cat CHANGELOG.md
+```
+
+### Access Programmatique a la Version
+
+**Python :**
+```python
+from mascarade.api_version import API_VERSION, get_version_info
+
+print(API_VERSION)  # "1.0.0"
+
+info = get_version_info()
+print(info["stability_level"])  # "stable"
+print(info["frozen_contracts"])  # ["/v1/chat/completions"]
+```
+
+**TypeScript / JavaScript :**
+```typescript
+const response = await fetch('http://localhost:3100/v1/version');
+const version = await response.json();
+
+console.log(version.api_version);  // "0.1.0"
+console.log(version.core_version);  # "1.0.0"
+console.log(version.supported_features);  // ["agents", "router", "cache", ...]
+```
+
 ## Suivi
 - backlog ANE dedie: [`TODO_AI_NOVEL_ENGINE.md`](./TODO_AI_NOVEL_ENGINE.md)
 - plan d'execution global: [`docs/EXECUTION_PLAN_2026-03-08.md`](./docs/EXECUTION_PLAN_2026-03-08.md)
@@ -282,9 +413,9 @@ DEFAULT_MODEL=claude-sonnet-4-6
 Le routeur active automatiquement les providers dont la cle est presente. Pas de cle = provider ignore.
 
 Note:
-- `Notion` n'est plus dans le scope operateur actif de `mascarade`.
-- Les variables `NOTION_*` ne doivent plus etre traitees comme prerequis courants.
-- Les chemins `Notion` encore presents dans le repo relevent de la compatibilite legacy uniquement.
+- `Notion` a ete retire du scope operateur de `mascarade` (mars 2026).
+- Les surfaces `knowledge-base` et `cad` remplacent le chemin Notion historique.
+- Les variables `NOTION_*` ne sont plus supportees.
 
 ## CAD / EDA
 
@@ -498,9 +629,11 @@ GRAFANA_PUBLIC_ORIGIN=https://grafana.saillant.cc
 LANGFUSE_PUBLIC_ORIGIN=https://langfuse.saillant.cc
 EDGE_PROXY_OPS_AUTH_USER=ops
 EDGE_PROXY_OPS_AUTH_PASSWORD=...
+EDGE_PROXY_INDUSTRIAL_GROUPS=operator
 ```
 
 Avec ces variables, `Grafana` et `Langfuse` passent derriere `edge-proxy` avec une auth dediee au proxy. Par defaut, ce routage reste seulement sur loopback tant que `EDGE_PROXY_BIND_HOST=127.0.0.1`.
+Pour la surface industrielle, le proxy forwarde maintenant `operator` par defaut. Toute elevation (`approver`, `auditor`, `admin`) doit etre explicite via `EDGE_PROXY_INDUSTRIAL_GROUPS`.
 
 Smoke test OTLP -> Loki:
 
@@ -565,6 +698,58 @@ curl http://localhost:9000/health
 # Smoke test reel Generate Audio (si selectionne)
 bash scripts/smoke_generate_audio.sh --url http://localhost:9000
 ```
+
+### Docker Compose Profiles
+
+Le deploiement utilise maintenant des profils Docker Compose pour controler les services a demarrer. Cette approche modulaire permet de composer exactement la stack dont tu as besoin.
+
+**Profiles disponibles :**
+
+- `core` — Services core et API (requis)
+- `ollama` — Serving local Ollama
+- `observability` — Loki, Promtail, Prometheus, Grafana, Tempo
+- `ops` — Console ops et outils operateur
+- `audio` — Generation audio (AudioCraft)
+- `edge` — Reverse proxy Nginx avec Let's Encrypt
+- `ai-tools` — Services IA complementaires (Qdrant, LiteLLM, Mem0, Firecrawl)
+- `heavy` — Services lourds (LocalAI, KoboldCPP, AnythingLLM, SGLang)
+
+**Exemples d'usage :**
+
+```bash
+# Stack minimale (core + api)
+docker compose --profile core up
+
+# Core + Ollama
+docker compose --profile core --profile ollama up
+
+# Core + Observability complete
+docker compose --profile core --profile observability up
+
+# Stack complete production
+docker compose --profile core --profile ollama --profile observability --profile ops --profile edge up
+
+# Avec services IA complementaires
+docker compose --profile core --profile ai-tools up
+
+# Mode detache (background)
+docker compose --profile core --profile ollama up -d
+
+# Arreter tout
+docker compose down
+
+# Rebuild et restart
+docker compose --profile core build
+docker compose --profile core up -d
+```
+
+**Recommandation :**
+
+Le script `./setup` reste la methode recommandee pour un deploiement initial, car il gere automatiquement la configuration, les prerequis et les validations. Les commandes `docker compose` avec profils sont utiles pour :
+
+- Restart selectif de services specifiques
+- Debug et developpement
+- Deploiement custom avec controle fin des composants
 
 ### 4. Dev local (sans Docker)
 
@@ -859,46 +1044,6 @@ Modes d'execution :
 | `parallel`   | Tous les agents traitent le prompt en parallele       |
 | `pipeline`   | La sortie d'un agent devient l'entree du suivant      |
 
-### Compat legacy Notion
-
-Hors scope operateur actif. Ce chemin reste seulement pour compatibilite legacy si
-vous devez relire un ancien flux `Notion` :
-
-```bash
-# Rechercher dans la KB Notion
-curl -H "Authorization: Bearer $KEY" \
-  "http://localhost:3100/api/notion/search?q=architecture"
-
-# Lire une page
-curl -H "Authorization: Bearer $KEY" \
-  http://localhost:3100/api/notion/pages/<page-id>
-
-# Ajouter du contenu a une page
-curl -X POST http://localhost:3100/api/notion/pages/<page-id>/append \
-  -H "Authorization: Bearer $KEY" \
-  -H "Content-Type: application/json" \
-  -d '{"content": "Nouveau contenu a ajouter"}'
-
-# Creer une page
-curl -X POST http://localhost:3100/api/notion/pages \
-  -H "Authorization: Bearer $KEY" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "parent_id": "<parent-page-id>",
-    "title": "Ma nouvelle page",
-    "content": "Contenu initial"
-  }'
-
-# Executer notion-scribe et pousser le resultat dans Notion
-curl -X POST http://localhost:3100/api/agents/notion-scribe/run-and-push \
-  -H "Authorization: Bearer $KEY" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "messages": [{"role": "user", "content": "Formate ce rapport : ..."}],
-    "push_to": "<page-id>"
-  }'
-```
-
 ### GitHub dispatch
 
 Si `KILL_LIFE_GITHUB_TOKEN` ou `GITHUB_TOKEN` est configure :
@@ -996,7 +1141,6 @@ mascarade/
 │   │   │       └── ...               #   Google, HF, Ollama, Apple CoreML
 │   │   ├── orchestrator/engine.py    # Sequential / parallel / pipeline
 │   │   ├── integrations/
-│   │   │   ├── notion.py             # Client Notion async
 │   │   │   └── comfyui.py            # Generation d'images ComfyUI
 │   │   ├── observability/            # OpenTelemetry, traces agents
 │   │   ├── cache/                    # Cache reponses (TTL 1h)
@@ -1007,7 +1151,7 @@ mascarade/
 ├── api/                              # TypeScript Hono (port 3100)
 │   ├── src/
 │   │   ├── index.ts                  # App + middleware (CORS, auth, rate-limit)
-│   │   └── routes/                   # health, agents, cluster, notion, comfyui,
+│   │   └── routes/                   # health, agents, cluster, comfyui,
 │   │       └── ...                   #   ops, killlife
 │   └── package.json
 ├── web/                              # Frontend React (subtree -> crazy_life)
@@ -1036,9 +1180,9 @@ mascarade/
 
 ## Etat auto-synchronise
 <!-- AUTO-SYNC:MASCARADE-README:START -->
-- dernier cycle ANE automatise: 2026-03-13T14:15:56+00:00
+- dernier cycle ANE automatise: 2026-03-14T14:03:06+00:00
 - etat de reference ANE: apple-coreml:qwen3.5-4b-onnx-q4f16
-- prochain lot utile cote pipeline: Confirmer la reference accepted puis resserrer rewrite/repair sur les modeles deja bloques a gate.
+- prochain lot utile cote pipeline: Reference locale reconfirmee; retablir le runtime des modeles provider_failed puis reprendre rewrite/repair sur les modeles bloques a gate.
 <!-- AUTO-SYNC:MASCARADE-README:END -->
 ## P2P Secure Sync
 

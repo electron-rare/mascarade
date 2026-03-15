@@ -155,7 +155,7 @@ Documents d'ancrage:
 - revalidation operateur `crazy_life`: `bash scripts/tui/workflow_lane_smoke.sh audit --yes`, lecture du report `list -> detail -> validate -> dry_run -> run status`, puis purge `.ops/workflow-lane-smoke`
 - fermeture de `C-DA-015` via `crazy_life/docs/GITHUB_CI_STATUS_2026-03-14.md` et la lecture `gh` des runs `ci` / `deploy-pages`
 - revalidation GitHub `crazy_life`: `gh run list --repo electron-rare/crazy_life --limit 10 --json databaseId,workflowName,status,conclusion,url`
-- reduction de regression `M-DA-004` cote `mascarade/api`: fallback `X-Forwarded-Groups` retabli dans `api/src/routes/mcpIndustrial.ts`
+- reduction de regression `M-DA-004` cote `mascarade/api`: fallback `X-Forwarded-Groups` supprime; groupes implicites interdits dans `api/src/routes/mcpIndustrial.ts`
 - revalidation locale `mascarade/api`: `npm --prefix api run build` puis `npm --prefix api test`
 - revalidation locale `mascarade/core`: `cd core && ./.venv/bin/python -m pytest -q`
 - fermeture de `K-DA-017` via `Kill_LIFE/tools/auto_check_ci_cd.py`, `test/test_auto_check_ci_cd.py` et le recalcul des artefacts encore presents en cas de drift `summary ok`
