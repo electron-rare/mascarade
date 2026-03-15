@@ -127,56 +127,6 @@ function nextEdgeId(workflow: KillLifeWorkflow, source: string, target: string):
   return candidate;
 }
 
-function autoLayout(workflow: KillLifeWorkflow): KillLifeWorkflow {
-  const next = cloneWorkflow(workflow);
-  const adjacency = new Map<string, string[]>();
-  const indegree = new Map<string, number>();
-  for (const node of next.nodes) {
-    adjacency.set(node.id, []);
-    indegree.set(node.id, 0);
-  }
-  for (const edge of next.edges) {
-    adjacency.get(edge.source)?.push(edge.target);
-    indegree.set(edge.target, (indegree.get(edge.target) || 0) + 1);
-  }
-  const levels = new Map<string, number>();
-  const queue = next.nodes
-    .filter((node) => (indegree.get(node.id) || 0) === 0)
-    .map((node) => node.id);
-  for (const root of queue) levels.set(root, 0);
-
-  while (queue.length > 0) {
-    const current = queue.shift();
-    if (!current) continue;
-    const level = levels.get(current) || 0;
-    for (const target of adjacency.get(current) || []) {
-      levels.set(target, Math.max(levels.get(target) || 0, level + 1));
-      indegree.set(target, (indegree.get(target) || 0) - 1);
-      if ((indegree.get(target) || 0) === 0) {
-        queue.push(target);
-      }
-    }
-  }
-
-  const columns = new Map<number, KillLifeWorkflowNode[]>();
-  for (const node of next.nodes) {
-    const level = levels.get(node.id) || 0;
-    const bucket = columns.get(level) || [];
-    bucket.push(node);
-    columns.set(level, bucket);
-  }
-
-  for (const [level, nodes] of columns.entries()) {
-    nodes
-      .sort((left, right) => left.label.localeCompare(right.label))
-      .forEach((node, index) => {
-        node.x = 80 + level * 280;
-        node.y = 100 + index * 180;
-      });
-  }
-  return next;
-}
-
 const NODE_WIDTH = 220;
 const NODE_HEIGHT = 108;
 
@@ -205,6 +155,39 @@ function applyDagreLayout(nodes: Node[], edges: Edge[]): Node[] {
       },
     };
   });
+}
+
+function autoLayoutDagre(workflow: KillLifeWorkflow): KillLifeWorkflow {
+  const next = cloneWorkflow(workflow);
+
+  // Convert to ReactFlow format
+  const nodes: Node[] = next.nodes.map((node) => ({
+    id: node.id,
+    type: node.type,
+    position: { x: node.x, y: node.y },
+    data: node,
+  }));
+
+  const edges: Edge[] = next.edges.map((edge) => ({
+    id: edge.id,
+    source: edge.source,
+    target: edge.target,
+    label: edge.label,
+  }));
+
+  // Apply Dagre layout
+  const layoutedNodes = applyDagreLayout(nodes, edges);
+
+  // Update workflow nodes with new positions
+  layoutedNodes.forEach((layoutedNode) => {
+    const workflowNode = next.nodes.find((n) => n.id === layoutedNode.id);
+    if (workflowNode) {
+      workflowNode.x = layoutedNode.position.x;
+      workflowNode.y = layoutedNode.position.y;
+    }
+  });
+
+  return next;
 }
 
 export function NoteNode({ data }: { data: KillLifeWorkflowNode }) {
@@ -719,7 +702,7 @@ export default function KillLifeWorkflowEditor() {
               <Button
                 variant="secondary"
                 onClick={() => {
-                  setWorkflow((current) => (current ? autoLayout(current) : current));
+                  setWorkflow((current) => (current ? autoLayoutDagre(current) : current));
                   setDirty(true);
                 }}
               >
