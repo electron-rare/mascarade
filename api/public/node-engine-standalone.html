@@ -37,5 +37,52 @@
   <div class="info-banner">✓ NodeEditor Component Test - ReactFlow Canvas Loaded</div>
   <div id="root"></div>
   <script src="/node-engine-bundle.js"></script>
+  <script>
+    // WebSocket connection for real-time execution updates
+    (function() {
+      const wsUrl = `ws://${window.location.host}/ws/execution`;
+      console.log('Connecting to WebSocket:', wsUrl);
+
+      const ws = new WebSocket(wsUrl);
+
+      ws.onopen = () => {
+        console.log('✓ WebSocket connected');
+        // Subscribe to all execution events
+        ws.send(JSON.stringify({ type: 'subscribe_all' }));
+      };
+
+      ws.onmessage = (event) => {
+        try {
+          const message = JSON.parse(event.data);
+          console.log('WebSocket message:', message);
+
+          // Handle execution events
+          if (message.type === 'execution_event') {
+            console.log('Execution event:', message.event);
+          }
+        } catch (err) {
+          console.error('Failed to parse WebSocket message:', err);
+        }
+      };
+
+      ws.onerror = (error) => {
+        console.error('WebSocket error:', error);
+      };
+
+      ws.onclose = () => {
+        console.log('WebSocket disconnected');
+      };
+
+      // Keep-alive ping every 30 seconds
+      setInterval(() => {
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: 'ping' }));
+        }
+      }, 30000);
+
+      // Make WebSocket globally accessible for debugging
+      window.nodeEngineWS = ws;
+    })();
+  </script>
 </body>
 </html>
