@@ -598,15 +598,25 @@ export default function KillLifeWorkflowEditor() {
 
   const handleSave = async () => {
     if (!workflow) return;
-    // Sync ReactFlow node positions back to workflow before saving
+
+    // Convert ReactFlow state to API model
     const workflowToSave = cloneWorkflow(workflow);
-    for (const rfNode of nodes) {
-      const wfNode = workflowToSave.nodes.find((n) => n.id === rfNode.id);
-      if (wfNode) {
-        wfNode.x = rfNode.position.x;
-        wfNode.y = rfNode.position.y;
-      }
-    }
+
+    // Convert ReactFlow nodes to KillLifeWorkflowNode with updated positions
+    workflowToSave.nodes = nodes.map((rfNode) => ({
+      ...rfNode.data,
+      x: rfNode.position.x,
+      y: rfNode.position.y,
+    }));
+
+    // Convert ReactFlow edges to API edges
+    workflowToSave.edges = edges.map((rfEdge) => ({
+      id: rfEdge.id,
+      source: rfEdge.source,
+      target: rfEdge.target,
+      label: rfEdge.label || "",
+    }));
+
     const result = await saveAction.execute(workflowToSave);
     if (!result) return;
     setWorkflow(cloneWorkflow(result.workflow));
