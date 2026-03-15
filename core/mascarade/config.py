@@ -166,6 +166,12 @@ class Settings(BaseSettings):
     litellm_base_url: str = "http://litellm:4000"
     litellm_master_key: str = ""
 
+    # Orchestrator retry settings
+    orchestrator_default_max_retries: int = 3
+    orchestrator_default_backoff_seconds: float = 1.0
+    orchestrator_default_max_backoff_seconds: float = 60.0
+    orchestrator_default_backoff_multiplier: float = 2.0
+
     # Defaults
     default_provider: str = "claude"
     default_model: str = "claude-sonnet-4-6"
