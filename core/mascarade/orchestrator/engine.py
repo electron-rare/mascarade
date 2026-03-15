@@ -35,6 +35,8 @@ class TaskResult:
     peer_id: str | None = None
     node_id: str | None = None
     role: str | None = None
+    fallback_used: bool = False
+    fallback_agent: str | None = None
 
 
 @dataclass
