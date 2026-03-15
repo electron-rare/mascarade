@@ -26,7 +26,7 @@ function collectorEndpoint(): string {
 }
 
 export function emitStructuredLog(entry: {
-  source: string;
+  source?: string;
   service: string;
   severity: Severity;
   message: string;
@@ -35,8 +35,10 @@ export function emitStructuredLog(entry: {
   event_type?: string;
   mode?: string;
   result_count?: number;
+  [key: string]: unknown;
 }) {
-  console.log(JSON.stringify(entry));
+  const logEntry = { source: "api", ...entry };
+  console.log(JSON.stringify(logEntry));
 
   if (!otelEnabled()) {
     return;
@@ -49,7 +51,7 @@ export function emitStructuredLog(entry: {
           attributes: [
             {
               key: "service.name",
-              value: { stringValue: entry.service },
+              value: { stringValue: logEntry.service },
             },
           ],
         },
@@ -59,10 +61,10 @@ export function emitStructuredLog(entry: {
             logRecords: [
               {
                 timeUnixNano: `${Date.now()}000000`,
-                severityText: entry.severity.toUpperCase(),
-                severityNumber: severityNumber(entry.severity),
-                body: { stringValue: entry.message },
-                attributes: Object.entries(entry)
+                severityText: logEntry.severity.toUpperCase(),
+                severityNumber: severityNumber(logEntry.severity),
+                body: { stringValue: logEntry.message },
+                attributes: Object.entries(logEntry)
                   .filter(([key, value]) =>
                     key !== "message" &&
                     key !== "severity" &&
