@@ -1,6 +1,6 @@
 # TODO runtime MCP — `mascarade`
 
-Last updated: 2026-03-07
+Last updated: 2026-03-14
 
 Format:
 
@@ -41,7 +41,13 @@ Format:
 - [x] M-011 — Décider le statut final des micro-serveurs auxiliaires
   - AC: `component_database`, `kicad_tools` et `nexar_api` sont explicitement classés comme surfaces auxiliaires supportées.
 
+- [x] M-012 — Formaliser les minima de bootstrap MCP local
+  - AC: `scripts/data/mcp_registry_inventory.json` et `scripts/tui/mcp_registry_review.sh` signalent désormais `validate-specs<20`, `openscad<30` et `freecad<45`.
+
 ## Reste ouvert
 
 - [ ] M-010 — Faire passer le boot réel du serveur sur une machine avec KiCad Python disponible
   - AC: `initialize` puis `tools/list` passent aussi sur le chemin host-native.
+
+- [ ] M-013 — Appliquer hors sandbox la shadow config Codex validée
+  - AC: `~/.codex/config.toml` porte `MASCARADE_DIR=/Users/electron/mascarade` pour `kicad`, `knowledge-base`, `github-dispatch`, `freecad`, `openscad`, plus `startup_timeout_sec=20/30/45` pour `validate-specs` / `openscad` / `freecad`.
