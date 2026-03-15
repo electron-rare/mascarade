@@ -15,7 +15,7 @@
  * - Node-RED: Flow-based visual programming
  */
 
-import { useCallback, useEffect, useState, MouseEvent } from 'react';
+import { useCallback, useEffect, useState, useRef, MouseEvent } from 'react';
 import {
   ReactFlow,
   Background,
@@ -36,6 +36,7 @@ import '../styles/node-editor.css';
 import * as Tone from 'tone';
 
 import type { GraphNode, GraphEdge } from '../types/NodeTypes';
+import type { ExecutionEvent } from '../types/ExecutionTypes';
 import { ExampleNode } from './nodes/ExampleNode';
 
 /**
@@ -111,6 +112,10 @@ export function NodeEditor(props: NodeEditorProps = {}) {
   // Audio context state
   // Tone.js requires user gesture to start audio context (browser autoplay policy)
   const [audioInitialized, setAudioInitialized] = useState(false);
+
+  // WebSocket connection state
+  const wsRef = useRef<WebSocket | null>(null);
+  const [wsConnected, setWsConnected] = useState(false);
 
   // Initialize nodes/edges from props or empty state
   // Note: GraphNode is compatible with ReactFlow Node type
@@ -189,6 +194,124 @@ export function NodeEditor(props: NodeEditorProps = {}) {
     }
   }, [nodes, edges, onGraphChange]);
 
+  /**
+   * WebSocket connection and execution event handling
+   *
+   * Connects to the WebSocket server at /ws/execution and listens for
+   * real-time execution events. Updates node visual state based on events.
+   */
+  useEffect(() => {
+    // Determine WebSocket URL (ws:// or wss:// based on current protocol)
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const wsUrl = `${protocol}//${window.location.host}/ws/execution`;
+
+    // Create WebSocket connection
+    const ws = new WebSocket(wsUrl);
+    wsRef.current = ws;
+
+    // Handle connection open
+    ws.onopen = () => {
+      setWsConnected(true);
+
+      // Subscribe to all execution events
+      ws.send(JSON.stringify({ type: 'subscribe_all' }));
+    };
+
+    // Handle incoming messages
+    ws.onmessage = (event) => {
+      try {
+        const message = JSON.parse(event.data);
+
+        // Handle execution events
+        if (message.type === 'execution_event') {
+          const execEvent = message.event as ExecutionEvent;
+
+          // Handle node state changes
+          if (execEvent.type === 'node.state') {
+            const { nodeId, state } = execEvent;
+
+            // Update the node's execution state
+            setNodes((nds) =>
+              nds.map((node) => {
+                if (node.id === nodeId) {
+                  return {
+                    ...node,
+                    data: {
+                      ...node.data,
+                      executionState: state,
+                    },
+                  };
+                }
+                return node;
+              })
+            );
+          }
+
+          // Handle node output events (update last outputs)
+          else if (execEvent.type === 'node.output') {
+            const { nodeId, outputs } = execEvent;
+
+            setNodes((nds) =>
+              nds.map((node) => {
+                if (node.id === nodeId) {
+                  return {
+                    ...node,
+                    data: {
+                      ...node.data,
+                      lastOutputs: outputs,
+                    },
+                  };
+                }
+                return node;
+              })
+            );
+          }
+
+          // Handle node error events
+          else if (execEvent.type === 'node.error') {
+            const { nodeId, error } = execEvent;
+
+            setNodes((nds) =>
+              nds.map((node) => {
+                if (node.id === nodeId) {
+                  return {
+                    ...node,
+                    data: {
+                      ...node.data,
+                      executionState: 'error',
+                      error: error.message,
+                    },
+                  };
+                }
+                return node;
+              })
+            );
+          }
+        }
+      } catch (error) {
+        // Silently ignore parse errors (e.g., ping/pong messages)
+      }
+    };
+
+    // Handle connection close
+    ws.onclose = () => {
+      setWsConnected(false);
+    };
+
+    // Handle errors
+    ws.onerror = (error) => {
+      setWsConnected(false);
+    };
+
+    // Cleanup on unmount
+    return () => {
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.close();
+      }
+      wsRef.current = null;
+    };
+  }, []); // Empty dependency array - connect once on mount
+
   return (
     <div style={{ width: '100%', height: '100vh', position: 'relative' }}>
       {/* Audio initialization button */}
@@ -216,6 +339,39 @@ export function NodeEditor(props: NodeEditorProps = {}) {
       >
         {audioInitialized ? '✓ Audio Ready' : '▶ Start Audio'}
       </button>
+
+      {/* WebSocket connection status */}
+      <div
+        style={{
+          position: 'absolute',
+          top: '50px',
+          left: '10px',
+          zIndex: 10,
+          padding: '6px 12px',
+          backgroundColor: wsConnected ? '#10b981' : '#6b7280',
+          color: '#fff',
+          border: 'none',
+          borderRadius: '6px',
+          fontSize: '12px',
+          fontWeight: '500',
+          boxShadow: '0 2px 8px rgba(0, 0, 0, 0.3)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '6px',
+        }}
+        title={wsConnected ? 'WebSocket connected - real-time updates active' : 'WebSocket disconnected'}
+      >
+        <span
+          style={{
+            width: '8px',
+            height: '8px',
+            borderRadius: '50%',
+            backgroundColor: wsConnected ? '#fff' : '#333',
+            animation: wsConnected ? 'pulse 2s infinite' : 'none',
+          }}
+        />
+        {wsConnected ? 'Live' : 'Offline'}
+      </div>
 
       <ReactFlow
         nodes={nodes}
