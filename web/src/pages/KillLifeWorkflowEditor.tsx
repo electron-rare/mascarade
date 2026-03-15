@@ -130,6 +130,7 @@ function nextEdgeId(workflow: KillLifeWorkflow, source: string, target: string):
 
 const NODE_WIDTH = 220;
 const NODE_HEIGHT = 108;
+const MAX_HISTORY_DEPTH = 50;
 
 function applyDagreLayout(nodes: Node[], edges: Edge[]): Node[] {
   const dagreGraph = new dagre.graphlib.Graph();
@@ -364,8 +365,8 @@ export default function KillLifeWorkflowEditor() {
     if (!workflow) return;
     setHistoryPast((past) => {
       const newPast = [...past, cloneWorkflow(workflow)];
-      // Limit history to 50 entries
-      if (newPast.length > 50) {
+      // Limit history to MAX_HISTORY_DEPTH entries to prevent memory issues
+      if (newPast.length > MAX_HISTORY_DEPTH) {
         newPast.shift();
       }
       return newPast;
