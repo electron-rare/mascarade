@@ -811,11 +811,58 @@ services:
     networks:
       - mascarade-network
 
+  neo4j:
+    image: neo4j:5-community
+    container_name: mascarade-neo4j
+    restart: unless-stopped
+    ports:
+      - "${PUBLISH_BIND_HOST:-0.0.0.0}:${NEO4J_HTTP_PORT:-7474}:7474"
+      - "${PUBLISH_BIND_HOST:-0.0.0.0}:${NEO4J_BOLT_PORT:-7687}:7687"
+    environment:
+      NEO4J_AUTH: ${NEO4J_USER:-neo4j}/${NEO4J_PASSWORD:-mascarade2026}
+    volumes:
+      - neo4j-data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "cypher-shell -u neo4j -p ${NEO4J_PASSWORD:-mascarade2026} 'RETURN 1' >/dev/null 2>&1"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+    networks:
+      - mascarade-network
+
+  graphiti-mcp:
+    image: ghcr.io/getzep/graphiti-mcp:latest
+    container_name: mascarade-graphiti-mcp
+    restart: unless-stopped
+    ports:
+      - "${PUBLISH_BIND_HOST:-0.0.0.0}:${GRAPHITI_MCP_PORT:-3500}:8000"
+    environment:
+      NEO4J_URI: bolt://mascarade-neo4j:7687
+      NEO4J_USER: ${NEO4J_USER:-neo4j}
+      NEO4J_PASSWORD: ${NEO4J_PASSWORD:-mascarade2026}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_BASE_URL: ${GRAPHITI_OPENAI_BASE_URL:-}
+      MODEL_NAME: ${GRAPHITI_MODEL_NAME:-gpt-4o-mini}
+      EMBEDDING_MODEL_NAME: ${GRAPHITI_EMBEDDING_MODEL:-text-embedding-3-small}
+    depends_on:
+      neo4j:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import socket; sock = socket.create_connection(('127.0.0.1', 8000), 3); sock.close()\""]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    networks:
+      - mascarade-network
+
 networks:
   mascarade-network:
     driver: bridge
 
 volumes:
+  neo4j-data:
   core-data:
   agent-factory-cockpit-data:
     name: agent-factory-cockpit-data
@@ -832,6 +879,9 @@ volumes:
   redis-data:
   postgres-data:
   qdrant-data:
+  grafana-data:
+  tempo-data:
+  prometheus-data:
   loki-data:
   promtail-data:
   edge-proxy-auth:
