@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import "@xyflow/react/dist/style.css";
 import {
@@ -11,7 +11,8 @@ import {
   Handle,
   Position,
   type Node,
-  type Edge
+  type Edge,
+  type ReactFlowInstance
 } from "@xyflow/react";
 import dagre from "dagre";
 import {
@@ -335,6 +336,7 @@ export default function KillLifeWorkflowEditor() {
     runs: KillLifeRunRecord[];
   }>(workflowId ? `/api/killlife/workflows/${encodeURIComponent(workflowId)}` : null);
 
+  const reactFlowInstance = useRef<ReactFlowInstance<Node<KillLifeWorkflowNode>, Edge> | null>(null);
   const [workflow, setWorkflow] = useState<KillLifeWorkflow | null>(null);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [linkSourceId, setLinkSourceId] = useState<string | null>(null);
@@ -704,6 +706,10 @@ export default function KillLifeWorkflowEditor() {
                 onClick={() => {
                   setWorkflow((current) => (current ? autoLayoutDagre(current) : current));
                   setDirty(true);
+                  // Fit view after layout is applied
+                  setTimeout(() => {
+                    reactFlowInstance.current?.fitView({ padding: 0.2, duration: 400 });
+                  }, 50);
                 }}
               >
                 auto layout
@@ -775,6 +781,9 @@ export default function KillLifeWorkflowEditor() {
                   } else {
                     setSelectedNodeId(node.id);
                   }
+                }}
+                onInit={(instance) => {
+                  reactFlowInstance.current = instance;
                 }}
                 nodeTypes={nodeTypes}
                 fitView
