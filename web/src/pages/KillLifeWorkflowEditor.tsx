@@ -1,7 +1,18 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import "@xyflow/react/dist/style.css";
-import { ReactFlow, type Node, type Edge } from "@xyflow/react";
+import {
+  ReactFlow,
+  Background,
+  Controls,
+  MiniMap,
+  useNodesState,
+  useEdgesState,
+  Handle,
+  Position,
+  type Node,
+  type Edge
+} from "@xyflow/react";
 import {
   killLifeApi,
   type KillLifeEvidenceEntry,
@@ -24,9 +35,6 @@ import {
   Select,
   Textarea,
 } from "../components/ui";
-
-const NODE_WIDTH = 220;
-const NODE_HEIGHT = 108;
 
 const nodePalette = [
   { type: "note", label: "Note" },
@@ -81,22 +89,6 @@ function statusColor(status: string): "accent" | "warning" | "error" | "muted" {
   if (status === "draft" || status === "dry-run") return "warning";
   if (status === "failed" || status === "archived") return "error";
   return "muted";
-}
-
-function nodeTone(node: KillLifeWorkflowNode, selected: boolean, linking: boolean): string {
-  if (selected) {
-    return "border-accent/55 bg-accent/12 shadow-[0_0_20px_rgba(255,209,102,0.18)]";
-  }
-  if (linking) {
-    return "border-[#8cffb7]/45 bg-[#0c170f]/80 text-[#8cffb7]";
-  }
-  if (node.type === "local-action") {
-    return "border-accent/28 bg-black/35";
-  }
-  if (node.type === "github-dispatch") {
-    return "border-[#8cffb7]/35 bg-[#07140c]/80";
-  }
-  return "border-border/80 bg-black/30";
 }
 
 function defaultRunner(type: string) {
@@ -184,146 +176,128 @@ function autoLayout(workflow: KillLifeWorkflow): KillLifeWorkflow {
   return next;
 }
 
-interface NodeComponentProps {
-  node: KillLifeWorkflowNode;
-  selected: boolean;
-  linking: boolean;
-}
-
-export function NoteNode({ node, selected, linking }: NodeComponentProps) {
+export function NoteNode({ data }: { data: KillLifeWorkflowNode }) {
   return (
-    <div className={[
-      "relative flex w-[220px] flex-col rounded-[1.3rem] border p-4",
-      nodeTone(node, selected, linking),
-    ].join(" ")}>
-      <div className="absolute left-0 top-1/2 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-border/80 bg-black/30" />
-      <div className="absolute right-0 top-1/2 h-3 w-3 translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-border/80 bg-black/30" />
+    <div className="relative flex w-[220px] flex-col rounded-[1.3rem] border border-border/80 bg-black/30 p-4">
+      <Handle type="target" position={Position.Left} />
 
-      <span className="text-[10px] uppercase tracking-[0.2em] text-muted">{node.type}</span>
+      <span className="text-[10px] uppercase tracking-[0.2em] text-muted">{data.type}</span>
       <span className="mt-3 text-sm font-semibold uppercase tracking-[0.14em] text-amber-100">
-        {node.label}
+        {data.label}
       </span>
       <span className="mt-2 line-clamp-3 text-xs leading-5 text-amber-100/56">
-        {node.description || "No description"}
+        {data.description || "No description"}
       </span>
       <span className="mt-4 text-[10px] uppercase tracking-[0.2em] text-amber-100/40">
         visual node
       </span>
+
+      <Handle type="source" position={Position.Right} />
     </div>
   );
 }
 
-export function GroupNode({ node, selected, linking }: NodeComponentProps) {
+export function GroupNode({ data }: { data: KillLifeWorkflowNode }) {
   return (
-    <div className={[
-      "relative flex w-[220px] flex-col rounded-[1.3rem] border p-4",
-      nodeTone(node, selected, linking),
-    ].join(" ")}>
-      <div className="absolute left-0 top-1/2 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-border/80 bg-black/30" />
-      <div className="absolute right-0 top-1/2 h-3 w-3 translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-border/80 bg-black/30" />
+    <div className="relative flex w-[220px] flex-col rounded-[1.3rem] border border-border/80 bg-black/30 p-4">
+      <Handle type="target" position={Position.Left} />
 
-      <span className="text-[10px] uppercase tracking-[0.2em] text-muted">{node.type}</span>
+      <span className="text-[10px] uppercase tracking-[0.2em] text-muted">{data.type}</span>
       <span className="mt-3 text-sm font-semibold uppercase tracking-[0.14em] text-amber-100">
-        {node.label}
+        {data.label}
       </span>
       <span className="mt-2 line-clamp-3 text-xs leading-5 text-amber-100/56">
-        {node.description || "No description"}
+        {data.description || "No description"}
       </span>
       <span className="mt-4 text-[10px] uppercase tracking-[0.2em] text-amber-100/40">
         group container
       </span>
+
+      <Handle type="source" position={Position.Right} />
     </div>
   );
 }
 
-export function DecisionNode({ node, selected, linking }: NodeComponentProps) {
+export function DecisionNode({ data }: { data: KillLifeWorkflowNode }) {
   return (
-    <div className={[
-      "relative flex w-[220px] flex-col rounded-[1.3rem] border p-4",
-      nodeTone(node, selected, linking),
-    ].join(" ")}>
-      <div className="absolute left-0 top-1/2 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-border/80 bg-black/30" />
-      <div className="absolute right-0 top-1/2 h-3 w-3 translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-border/80 bg-black/30" />
+    <div className="relative flex w-[220px] flex-col rounded-[1.3rem] border border-border/80 bg-black/30 p-4">
+      <Handle type="target" position={Position.Left} />
 
-      <span className="text-[10px] uppercase tracking-[0.2em] text-muted">{node.type}</span>
+      <span className="text-[10px] uppercase tracking-[0.2em] text-muted">{data.type}</span>
       <span className="mt-3 text-sm font-semibold uppercase tracking-[0.14em] text-amber-100">
-        {node.label}
+        {data.label}
       </span>
       <span className="mt-2 line-clamp-3 text-xs leading-5 text-amber-100/56">
-        {node.description || "No description"}
+        {data.description || "No description"}
       </span>
       <span className="mt-4 text-[10px] uppercase tracking-[0.2em] text-amber-100/40">
         decision point
       </span>
+
+      <Handle type="source" position={Position.Right} />
     </div>
   );
 }
 
-export function ManualGateNode({ node, selected, linking }: NodeComponentProps) {
+export function ManualGateNode({ data }: { data: KillLifeWorkflowNode }) {
   return (
-    <div className={[
-      "relative flex w-[220px] flex-col rounded-[1.3rem] border p-4",
-      nodeTone(node, selected, linking),
-    ].join(" ")}>
-      <div className="absolute left-0 top-1/2 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-border/80 bg-black/30" />
-      <div className="absolute right-0 top-1/2 h-3 w-3 translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-border/80 bg-black/30" />
+    <div className="relative flex w-[220px] flex-col rounded-[1.3rem] border border-border/80 bg-black/30 p-4">
+      <Handle type="target" position={Position.Left} />
 
-      <span className="text-[10px] uppercase tracking-[0.2em] text-muted">{node.type}</span>
+      <span className="text-[10px] uppercase tracking-[0.2em] text-muted">{data.type}</span>
       <span className="mt-3 text-sm font-semibold uppercase tracking-[0.14em] text-amber-100">
-        {node.label}
+        {data.label}
       </span>
       <span className="mt-2 line-clamp-3 text-xs leading-5 text-amber-100/56">
-        {node.description || "No description"}
+        {data.description || "No description"}
       </span>
       <span className="mt-4 text-[10px] uppercase tracking-[0.2em] text-amber-100/40">
         manual approval
       </span>
+
+      <Handle type="source" position={Position.Right} />
     </div>
   );
 }
 
-export function LocalActionNode({ node, selected, linking }: NodeComponentProps) {
+export function LocalActionNode({ data }: { data: KillLifeWorkflowNode }) {
   return (
-    <div className={[
-      "relative flex w-[220px] flex-col rounded-[1.3rem] border p-4",
-      nodeTone(node, selected, linking),
-    ].join(" ")}>
-      <div className="absolute left-0 top-1/2 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-border/80 bg-black/30" />
-      <div className="absolute right-0 top-1/2 h-3 w-3 translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-border/80 bg-black/30" />
+    <div className="relative flex w-[220px] flex-col rounded-[1.3rem] border border-accent/28 bg-black/35 p-4">
+      <Handle type="target" position={Position.Left} />
 
-      <span className="text-[10px] uppercase tracking-[0.2em] text-muted">{node.type}</span>
+      <span className="text-[10px] uppercase tracking-[0.2em] text-muted">{data.type}</span>
       <span className="mt-3 text-sm font-semibold uppercase tracking-[0.14em] text-amber-100">
-        {node.label}
+        {data.label}
       </span>
       <span className="mt-2 line-clamp-3 text-xs leading-5 text-amber-100/56">
-        {node.description || "No description"}
+        {data.description || "No description"}
       </span>
       <span className="mt-4 text-[10px] uppercase tracking-[0.2em] text-amber-100/40">
-        {node.runner?.kind === "local-action" ? node.runner.action : "local action"}
+        {data.runner?.kind === "local-action" ? data.runner.action : "local action"}
       </span>
+
+      <Handle type="source" position={Position.Right} />
     </div>
   );
 }
 
-export function GithubDispatchNode({ node, selected, linking }: NodeComponentProps) {
+export function GithubDispatchNode({ data }: { data: KillLifeWorkflowNode }) {
   return (
-    <div className={[
-      "relative flex w-[220px] flex-col rounded-[1.3rem] border p-4",
-      nodeTone(node, selected, linking),
-    ].join(" ")}>
-      <div className="absolute left-0 top-1/2 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-border/80 bg-black/30" />
-      <div className="absolute right-0 top-1/2 h-3 w-3 translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-border/80 bg-black/30" />
+    <div className="relative flex w-[220px] flex-col rounded-[1.3rem] border border-[#8cffb7]/35 bg-[#07140c]/80 p-4">
+      <Handle type="target" position={Position.Left} />
 
-      <span className="text-[10px] uppercase tracking-[0.2em] text-muted">{node.type}</span>
+      <span className="text-[10px] uppercase tracking-[0.2em] text-muted">{data.type}</span>
       <span className="mt-3 text-sm font-semibold uppercase tracking-[0.14em] text-amber-100">
-        {node.label}
+        {data.label}
       </span>
       <span className="mt-2 line-clamp-3 text-xs leading-5 text-amber-100/56">
-        {node.description || "No description"}
+        {data.description || "No description"}
       </span>
       <span className="mt-4 text-[10px] uppercase tracking-[0.2em] text-amber-100/40">
-        {node.runner?.kind === "github-dispatch" ? node.runner.workflow_file : "github dispatch"}
+        {data.runner?.kind === "github-dispatch" ? data.runner.workflow_file : "github dispatch"}
       </span>
+
+      <Handle type="source" position={Position.Right} />
     </div>
   );
 }
@@ -352,11 +326,9 @@ export default function KillLifeWorkflowEditor() {
   const [linkSourceId, setLinkSourceId] = useState<string | null>(null);
   const [validation, setValidation] = useState<KillLifeValidation | null>(null);
   const [dirty, setDirty] = useState(false);
-  const [dragState, setDragState] = useState<{ nodeId: string; offsetX: number; offsetY: number } | null>(null);
   const [configText, setConfigText] = useState("{}");
   const [runnerInputsText, setRunnerInputsText] = useState("{}");
   const [edgeTargetId, setEdgeTargetId] = useState("");
-  const boardRef = useRef<HTMLDivElement>(null);
 
   const saveAction = useApi(async (doc: KillLifeWorkflow) => killLifeApi.save(doc.id, doc));
   const validateAction = useApi(async (doc: KillLifeWorkflow) => killLifeApi.validate(doc.id, doc));
@@ -379,7 +351,7 @@ export default function KillLifeWorkflowEditor() {
     [selectedNodeId, workflow],
   );
 
-  const reactFlowNodes = useMemo<Node<KillLifeWorkflowNode>[]>(() => {
+  const reactFlowNodesInitial = useMemo<Node<KillLifeWorkflowNode>[]>(() => {
     if (!workflow) return [];
     return workflow.nodes.map((node) => ({
       id: node.id,
@@ -389,7 +361,7 @@ export default function KillLifeWorkflowEditor() {
     }));
   }, [workflow]);
 
-  const reactFlowEdges = useMemo<Edge[]>(() => {
+  const reactFlowEdgesInitial = useMemo<Edge[]>(() => {
     if (!workflow) return [];
     return workflow.edges.map((edge) => ({
       id: edge.id,
@@ -399,43 +371,20 @@ export default function KillLifeWorkflowEditor() {
     }));
   }, [workflow]);
 
-  // ReactFlow integration - will be used in canvas replacement
-  void reactFlowNodes;
-  void reactFlowEdges;
+  const [nodes, setNodes, onNodesChange] = useNodesState(reactFlowNodesInitial);
+  const [edges, setEdges, onEdgesChange] = useEdgesState(reactFlowEdgesInitial);
+
+  // Sync ReactFlow state when workflow changes
+  useEffect(() => {
+    setNodes(reactFlowNodesInitial);
+    setEdges(reactFlowEdgesInitial);
+  }, [reactFlowNodesInitial, reactFlowEdgesInitial, setNodes, setEdges]);
 
   useEffect(() => {
     setConfigText(JSON.stringify(selectedNode?.config || {}, null, 2));
     setRunnerInputsText(JSON.stringify(selectedNode?.runner?.inputs || {}, null, 2));
     setEdgeTargetId("");
   }, [selectedNode?.id]);
-
-  useEffect(() => {
-    if (!dragState || !workflow) return;
-
-    const handleMove = (event: MouseEvent) => {
-      const rect = boardRef.current?.getBoundingClientRect();
-      if (!rect) return;
-      setWorkflow((current) => {
-        if (!current) return current;
-        const next = cloneWorkflow(current);
-        const node = next.nodes.find((entry) => entry.id === dragState.nodeId);
-        if (!node) return current;
-        node.x = Math.max(20, Math.min(current.viewport.width - NODE_WIDTH - 20, event.clientX - rect.left - dragState.offsetX));
-        node.y = Math.max(20, Math.min(current.viewport.height - NODE_HEIGHT - 20, event.clientY - rect.top - dragState.offsetY));
-        return next;
-      });
-      setDirty(true);
-    };
-
-    const handleUp = () => setDragState(null);
-
-    window.addEventListener("mousemove", handleMove);
-    window.addEventListener("mouseup", handleUp);
-    return () => {
-      window.removeEventListener("mousemove", handleMove);
-      window.removeEventListener("mouseup", handleUp);
-    };
-  }, [dragState, workflow]);
 
   const evidenceTarget =
     selectedNode && typeof selectedNode.config?.target === "string" ? selectedNode.config.target : null;
@@ -796,101 +745,38 @@ export default function KillLifeWorkflowEditor() {
               />
             ) : null}
 
-            <div className="overflow-auto rounded-[1.5rem] border border-border/80 bg-black/35 p-3">
-              <div
-                ref={boardRef}
-                className="killlife-canvas relative"
-                style={{
-                  width: `${workflow.viewport.width}px`,
-                  height: `${workflow.viewport.height}px`,
+            <div
+              className="overflow-hidden rounded-[1.5rem] border border-border/80 bg-black/35"
+              style={{ height: "600px" }}
+            >
+              <ReactFlow
+                nodes={nodes}
+                edges={edges}
+                onNodesChange={onNodesChange}
+                onEdgesChange={onEdgesChange}
+                onNodeClick={(_, node) => {
+                  if (linkSourceId && linkSourceId !== node.id) {
+                    connectNodes(linkSourceId, node.id);
+                    setLinkSourceId(null);
+                  } else {
+                    setSelectedNodeId(node.id);
+                  }
                 }}
+                nodeTypes={nodeTypes}
+                fitView
+                className="bg-black/20"
               >
-                <svg
-                  className="pointer-events-none absolute inset-0 h-full w-full"
-                  viewBox={`0 0 ${workflow.viewport.width} ${workflow.viewport.height}`}
-                >
-                  {workflow.edges.map((edge) => {
-                    const source = workflow.nodes.find((node) => node.id === edge.source);
-                    const target = workflow.nodes.find((node) => node.id === edge.target);
-                    if (!source || !target) return null;
-                    const x1 = source.x + NODE_WIDTH;
-                    const y1 = source.y + NODE_HEIGHT / 2;
-                    const x2 = target.x;
-                    const y2 = target.y + NODE_HEIGHT / 2;
-                    const dx = Math.max(80, Math.abs(x2 - x1) / 2);
-                    return (
-                      <g key={edge.id}>
-                        <path
-                          d={`M ${x1} ${y1} C ${x1 + dx} ${y1}, ${x2 - dx} ${y2}, ${x2} ${y2}`}
-                          fill="none"
-                          stroke="rgba(255,209,102,0.48)"
-                          strokeWidth="3"
-                        />
-                        {edge.label ? (
-                          <text
-                            x={(x1 + x2) / 2}
-                            y={(y1 + y2) / 2 - 8}
-                            fill="rgba(255,209,102,0.82)"
-                            fontSize="11"
-                            textAnchor="middle"
-                          >
-                            {edge.label}
-                          </text>
-                        ) : null}
-                      </g>
-                    );
-                  })}
-                </svg>
-
-                {workflow.nodes.map((node) => (
-                  <button
-                    key={node.id}
-                    type="button"
-                    onMouseDown={(event) => {
-                      if (linkSourceId) {
-                        return;
-                      }
-                      const rect = boardRef.current?.getBoundingClientRect();
-                      if (!rect) return;
-                      setSelectedNodeId(node.id);
-                      setDragState({
-                        nodeId: node.id,
-                        offsetX: event.clientX - rect.left - node.x,
-                        offsetY: event.clientY - rect.top - node.y,
-                      });
-                    }}
-                    onClick={() => {
-                      if (linkSourceId && linkSourceId !== node.id) {
-                        connectNodes(linkSourceId, node.id);
-                        setLinkSourceId(null);
-                      } else {
-                        setSelectedNodeId(node.id);
-                      }
-                    }}
-                    className={[
-                      "absolute flex w-[220px] flex-col rounded-[1.3rem] border p-4 text-left transition-all",
-                      "cursor-grab active:cursor-grabbing",
-                      nodeTone(node, selectedNodeId === node.id, linkSourceId === node.id),
-                    ].join(" ")}
-                    style={{ left: `${node.x}px`, top: `${node.y}px` }}
-                  >
-                    <span className="text-[10px] uppercase tracking-[0.2em] text-muted">{node.type}</span>
-                    <span className="mt-3 text-sm font-semibold uppercase tracking-[0.14em] text-amber-100">
-                      {node.label}
-                    </span>
-                    <span className="mt-2 line-clamp-3 text-xs leading-5 text-amber-100/56">
-                      {node.description || "No description"}
-                    </span>
-                    <span className="mt-4 text-[10px] uppercase tracking-[0.2em] text-amber-100/40">
-                      {node.runner?.kind === "local-action"
-                        ? node.runner.action
-                        : node.runner?.kind === "github-dispatch"
-                          ? node.runner.workflow_file
-                          : "visual node"}
-                    </span>
-                  </button>
-                ))}
-              </div>
+                <Background color="#ffd166" gap={16} size={1} />
+                <Controls className="bg-black/60 border-border/80" />
+                <MiniMap
+                  className="bg-black/60 border border-border/80"
+                  nodeColor={(node) => {
+                    if (node.type === "local-action") return "rgba(255, 209, 102, 0.5)";
+                    if (node.type === "github-dispatch") return "rgba(140, 255, 183, 0.5)";
+                    return "rgba(255, 209, 102, 0.3)";
+                  }}
+                />
+              </ReactFlow>
             </div>
           </div>
         </Card>
