@@ -13,6 +13,7 @@ import {
   type Node,
   type Edge
 } from "@xyflow/react";
+import dagre from "dagre";
 import {
   killLifeApi,
   type KillLifeEvidenceEntry,
@@ -174,6 +175,36 @@ function autoLayout(workflow: KillLifeWorkflow): KillLifeWorkflow {
       });
   }
   return next;
+}
+
+const NODE_WIDTH = 220;
+const NODE_HEIGHT = 108;
+
+function applyDagreLayout(nodes: Node[], edges: Edge[]): Node[] {
+  const dagreGraph = new dagre.graphlib.Graph();
+  dagreGraph.setDefaultEdgeLabel(() => ({}));
+  dagreGraph.setGraph({ rankdir: 'TB' });
+
+  nodes.forEach((node) => {
+    dagreGraph.setNode(node.id, { width: NODE_WIDTH, height: NODE_HEIGHT });
+  });
+
+  edges.forEach((edge) => {
+    dagreGraph.setEdge(edge.source, edge.target);
+  });
+
+  dagre.layout(dagreGraph);
+
+  return nodes.map((node) => {
+    const nodeWithPosition = dagreGraph.node(node.id);
+    return {
+      ...node,
+      position: {
+        x: nodeWithPosition.x - NODE_WIDTH / 2,
+        y: nodeWithPosition.y - NODE_HEIGHT / 2,
+      },
+    };
+  });
 }
 
 export function NoteNode({ data }: { data: KillLifeWorkflowNode }) {
