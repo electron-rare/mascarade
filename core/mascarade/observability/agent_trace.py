@@ -66,6 +66,8 @@ class AgentTraceEvent:
     mcp_protocol_version: str | None = None
     token_usage: dict[str, int] | None = None
     error: str | None = None
+    retry_count: int | None = None
+    circuit_breaker_state: str | None = None
 
     def to_dict(self) -> dict:
         payload = asdict(self)
@@ -195,6 +197,8 @@ class AgentTraceBuffer:
             "mcp_transport": event.mcp_transport,
             "mcp_latency_ms": event.mcp_latency_ms,
             "mcp_protocol_version": event.mcp_protocol_version,
+            "retry_count": event.retry_count,
+            "circuit_breaker_state": event.circuit_breaker_state,
             "ts": event.ts,
         }
         print(json.dumps(structured_log, ensure_ascii=True), flush=True)
@@ -218,6 +222,8 @@ class AgentTraceBuffer:
                 "mcp_status": event.mcp_status or "",
                 "mcp_transport": event.mcp_transport or "",
                 "mcp_protocol_version": event.mcp_protocol_version or "",
+                "retry_count": str(event.retry_count) if event.retry_count is not None else "",
+                "circuit_breaker_state": event.circuit_breaker_state or "",
             },
         )
 
@@ -268,6 +274,8 @@ class AgentTraceBuffer:
         mcp_protocol_version: str | None = None,
         token_usage: dict[str, int] | None = None,
         error: str | None = None,
+        retry_count: int | None = None,
+        circuit_breaker_state: str | None = None,
     ) -> AgentTraceEvent:
         event = AgentTraceEvent(
             id=uuid4().hex,
@@ -295,6 +303,8 @@ class AgentTraceBuffer:
             mcp_protocol_version=excerpt_text(mcp_protocol_version, limit=80),
             token_usage=token_usage,
             error=excerpt_text(error),
+            retry_count=retry_count,
+            circuit_breaker_state=excerpt_text(circuit_breaker_state, limit=80),
         )
         return self.emit(event)
 
