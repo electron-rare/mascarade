@@ -685,3 +685,236 @@ def test_fallback_agent_fields_in_task_result():
     assert hasattr(result, "fallback_agent")
     assert result.fallback_used is False
     assert result.fallback_agent is None
+
+
+def test_pipeline_fallback_agent_success():
+    """Test that fallback agent is used when primary agent fails."""
+    from mascarade.orchestrator.retry import RetryConfig, RetryExecutor
+
+    router = Router()
+    router._providers.clear()
+    router.register(MockProvider())
+    router.register(FailingProvider())
+
+    registry = AgentRegistry()
+    # Primary agent that will fail
+    registry.register(
+        Agent(
+            name="primary",
+            description="Primary agent that fails",
+            system_prompt="You are primary",
+            strategy="specific",
+            preferred_provider="failing",
+            preferred_model="failing-model",
+        )
+    )
+    # Fallback agent that will succeed
+    registry.register(
+        Agent(
+            name="fallback",
+            description="Fallback agent that works",
+            system_prompt="You are fallback",
+            preferred_provider="mock",
+        )
+    )
+
+    retry_executor = RetryExecutor(config=RetryConfig(max_retries=0))
+
+    orch = Orchestrator(
+        router=router,
+        registry=registry,
+        trace_buffer=AgentTraceBuffer(),
+        retry_executor=retry_executor,
+    )
+
+    # Run pipeline with fallback configuration
+    run = asyncio.run(
+        orch.run(
+            ["primary"],
+            "test prompt",
+            mode="pipeline",
+            fallback_map={"primary": "fallback"},
+        )
+    )
+
+    assert len(run.results) == 1
+    result = run.results[0]
+
+    # Verify fallback was used
+    assert result.fallback_used is True
+    assert result.fallback_agent == "fallback"
+    assert "[mock]" in result.response.content
+    assert result.error is None
+    # Agent name should be the fallback agent name
+    assert result.agent_name == "fallback"
+
+
+def test_pipeline_fallback_agent_both_fail():
+    """Test that pipeline fails when both primary and fallback fail."""
+    from mascarade.orchestrator.retry import RetryConfig, RetryExecutor
+
+    router = Router()
+    router._providers.clear()
+    router.register(FailingProvider())
+
+    registry = AgentRegistry()
+    # Both agents will fail
+    registry.register(
+        Agent(
+            name="primary",
+            description="Primary agent that fails",
+            system_prompt="You are primary",
+            strategy="specific",
+            preferred_provider="failing",
+            preferred_model="failing-model",
+        )
+    )
+    registry.register(
+        Agent(
+            name="fallback",
+            description="Fallback agent that also fails",
+            system_prompt="You are fallback",
+            strategy="specific",
+            preferred_provider="failing",
+            preferred_model="failing-model",
+        )
+    )
+
+    retry_executor = RetryExecutor(config=RetryConfig(max_retries=0))
+
+    orch = Orchestrator(
+        router=router,
+        registry=registry,
+        trace_buffer=AgentTraceBuffer(),
+        retry_executor=retry_executor,
+    )
+
+    # Run should produce an error result
+    run = asyncio.run(
+        orch.run(
+            ["primary"],
+            "test prompt",
+            mode="pipeline",
+            fallback_map={"primary": "fallback"},
+            skip_on_error=True,  # Allow run to complete despite errors
+        )
+    )
+
+    # Verify we got an error result
+    assert len(run.results) == 1
+    result = run.results[0]
+    assert result.error is not None
+    # Error message should mention both failures
+    assert "Primary agent 'primary' failed" in result.error
+    assert "Fallback agent 'fallback' also failed" in result.error
+
+
+def test_pipeline_fallback_agent_not_configured():
+    """Test that pipeline fails normally when no fallback is configured."""
+    from mascarade.orchestrator.retry import RetryConfig, RetryExecutor
+
+    router = Router()
+    router._providers.clear()
+    router.register(FailingProvider())
+
+    registry = AgentRegistry()
+    registry.register(
+        Agent(
+            name="failing_agent",
+            description="Agent that fails",
+            system_prompt="You are failing",
+            strategy="specific",
+            preferred_provider="failing",
+            preferred_model="failing-model",
+        )
+    )
+
+    retry_executor = RetryExecutor(config=RetryConfig(max_retries=0))
+
+    orch = Orchestrator(
+        router=router,
+        registry=registry,
+        trace_buffer=AgentTraceBuffer(),
+        retry_executor=retry_executor,
+    )
+
+    # Run without fallback_map should produce error result
+    run = asyncio.run(
+        orch.run(
+            ["failing_agent"],
+            "test prompt",
+            mode="pipeline",
+            fallback_map=None,  # No fallback
+            skip_on_error=True,  # Allow run to complete despite errors
+        )
+    )
+
+    assert len(run.results) == 1
+    result = run.results[0]
+    assert result.error is not None
+    assert "Simulated agent failure" in result.error
+    # Should NOT use fallback
+    assert result.fallback_used is False
+    assert result.fallback_agent is None
+
+
+def test_pipeline_fallback_trace_event_emitted():
+    """Test that fallback_triggered trace event is emitted."""
+    from mascarade.orchestrator.retry import RetryConfig, RetryExecutor
+
+    router = Router()
+    router._providers.clear()
+    router.register(MockProvider())
+    router.register(FailingProvider())
+
+    registry = AgentRegistry()
+    registry.register(
+        Agent(
+            name="primary",
+            description="Primary agent that fails",
+            system_prompt="You are primary",
+            strategy="specific",
+            preferred_provider="failing",
+            preferred_model="failing-model",
+        )
+    )
+    registry.register(
+        Agent(
+            name="fallback",
+            description="Fallback agent that works",
+            system_prompt="You are fallback",
+            preferred_provider="mock",
+        )
+    )
+
+    retry_executor = RetryExecutor(config=RetryConfig(max_retries=0))
+
+    orch = Orchestrator(
+        router=router,
+        registry=registry,
+        trace_buffer=AgentTraceBuffer(),
+        retry_executor=retry_executor,
+    )
+
+    run = asyncio.run(
+        orch.run(
+            ["primary"],
+            "test prompt",
+            mode="pipeline",
+            fallback_map={"primary": "fallback"},
+        )
+    )
+
+    # Check trace buffer for fallback_triggered event
+    events = orch.trace_buffer.run_events(run.run_id)
+    event_types = [event.event_type for event in events]
+
+    assert "fallback_triggered" in event_types
+
+    # Find the fallback event
+    fallback_events = [e for e in events if e.event_type == "fallback_triggered"]
+    assert len(fallback_events) > 0
+
+    fallback_event = fallback_events[0]
+    assert fallback_event.agent_name == "primary"
+    assert "fallback" in fallback_event.error.lower()

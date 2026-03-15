@@ -286,14 +286,29 @@ class Orchestrator:
         mode: ExecutionMode,
         routing_overrides: dict[str, dict[str, str | None]] | None = None,
         skip_on_error: bool = False,
+        fallback_map: dict[str, str] | None = None,
     ) -> list[TaskResult]:
-        """Pipeline : la sortie d'un agent devient l'entrée du suivant."""
+        """Pipeline : la sortie d'un agent devient l'entrée du suivant.
+
+        Args:
+            agent_names: List of agent names to execute sequentially
+            initial_prompt: Initial prompt
+            run_id: Unique ID for this run
+            mode: Execution mode
+            routing_overrides: Optional routing overrides per agent
+            skip_on_error: Continue pipeline even if stage fails (after trying fallback)
+            fallback_map: Optional mapping of agent_name -> fallback_agent_name
+                         When primary agent fails, fallback agent is attempted
+        """
         results = []
         current_input = initial_prompt
 
         for i, name in enumerate(agent_names):
             agent = self.registry.get(name)
             override = (routing_overrides or {}).get(name) or {}
+            # Obtenir le fallback agent name depuis la map si configuré
+            fallback_name = fallback_map.get(name) if fallback_map else None
+
             self._trace(
                 run_id=run_id,
                 mode=mode,
@@ -323,6 +338,7 @@ class Orchestrator:
                     routing_override=override,
                     run_id=run_id,
                     mode=mode,
+                    fallback_agent_name=fallback_name,
                 )
             except Exception as exc:
                 error_msg = str(exc)
@@ -384,8 +400,9 @@ class Orchestrator:
         routing_override: dict[str, str | None] | None = None,
         run_id: str | None = None,
         mode: ExecutionMode | None = None,
+        fallback_agent_name: str | None = None,
     ) -> TaskResult:
-        """Exécuter un agent avec retry automatique en cas d'erreur."""
+        """Exécuter un agent avec retry automatique en cas d'erreur et fallback optionnel."""
 
         # Obtenir ou créer le circuit breaker pour cet agent
         if agent.name not in self.circuit_breakers:
@@ -513,9 +530,121 @@ class Orchestrator:
                 )
 
             return result
-        except Exception as e:
+        except Exception as primary_error:
             # Enregistrer l'échec dans le circuit breaker
             breaker.record_failure()
+
+            # Tenter le fallback agent si configuré
+            if fallback_agent_name:
+                try:
+                    fallback_agent = self.registry.get(fallback_agent_name)
+                    if not fallback_agent:
+                        raise ValueError(f"Fallback agent '{fallback_agent_name}' not found in registry")
+
+                    # Exécuter le fallback agent (sans retry pour éviter boucle infinie)
+                    async def _do_fallback_execute() -> TaskResult:
+                        """Logique d'exécution pour le fallback agent."""
+                        payload = fallback_agent.build_send_payload(prompt)
+                        if routing_override:
+                            if routing_override.get("preferred_provider"):
+                                payload["provider"] = routing_override["preferred_provider"]
+                            if routing_override.get("preferred_model"):
+                                payload["model"] = routing_override["preferred_model"]
+
+                        preferred_role = (routing_override or {}).get("preferred_role") or getattr(
+                            fallback_agent, "preferred_role", None
+                        )
+
+                        if self.cluster is not None and self.cluster.enabled:
+                            routed = await self.cluster.forward_send(
+                                peer_id=None,
+                                preferred_role=preferred_role,
+                                allow_local=True,
+                                payload=payload,
+                            )
+                            response = LLMResponse(
+                                content=str(routed["content"]),
+                                model=str(routed["model"]),
+                                provider=str(routed["provider"]),
+                                usage=dict(routed.get("usage") or {}),
+                            )
+                            return TaskResult(
+                                agent_name=fallback_agent.name,
+                                response=response,
+                                step=step,
+                                remote=bool(routed.get("remote")),
+                                selected_by=str(routed.get("selected_by") or "cluster"),
+                                peer_id=routed.get("peer_id"),
+                                node_id=routed.get("node_id") or None,
+                                role=str(routed.get("role") or "") or None,
+                                fallback_used=True,
+                                fallback_agent=fallback_agent_name,
+                            )
+
+                        response = await self.router.send(
+                            payload["messages"],
+                            strategy=payload["strategy"],
+                            provider=payload["provider"],
+                            model=payload["model"],
+                            system=payload["system"],
+                            temperature=payload["temperature"],
+                            max_tokens=payload["max_tokens"],
+                        )
+                        return TaskResult(
+                            agent_name=fallback_agent.name,
+                            response=response,
+                            step=step,
+                            remote=False,
+                            selected_by="local-direct",
+                            node_id=None,
+                            role=None,
+                            fallback_used=True,
+                            fallback_agent=fallback_agent_name,
+                        )
+
+                    # Exécuter fallback avec retries limités (1 retry max)
+                    result = await self.retry_executor.execute_with_retry(
+                        _do_fallback_execute,
+                        agent_name=f"{agent.name}->fallback:{fallback_agent_name}",
+                        on_retry=None,  # Pas de callback pour le fallback
+                    )
+
+                    # Émettre événement de trace pour fallback
+                    if run_id and mode:
+                        self._trace(
+                            run_id=run_id,
+                            mode=mode,
+                            event_type="fallback_triggered",
+                            step=step,
+                            severity="info",
+                            agent_name=agent.name,
+                            error=f"Primary agent failed, used fallback: {fallback_agent_name}",
+                        )
+
+                    return result
+
+                except Exception as fallback_error:
+                    # Les deux agents (primaire et fallback) ont échoué - combiner les erreurs
+                    combined_error = (
+                        f"Primary agent '{agent.name}' failed: {str(primary_error)}. "
+                        f"Fallback agent '{fallback_agent_name}' also failed: {str(fallback_error)}"
+                    )
+
+                    if run_id and mode:
+                        self._trace(
+                            run_id=run_id,
+                            mode=mode,
+                            event_type="agent_failed",
+                            step=step,
+                            severity="error",
+                            agent_name=agent.name,
+                            error=combined_error,
+                        )
+
+                    # Re-raise avec message d'erreur combiné
+                    raise Exception(combined_error) from primary_error
+
+            # Pas de fallback configuré, re-raise l'erreur originale
             raise
 
     async def run(
@@ -526,6 +655,7 @@ class Orchestrator:
         mode: ExecutionMode | str = ExecutionMode.SEQUENTIAL,
         routing_overrides: dict[str, dict[str, str | None]] | None = None,
         skip_on_error: bool = False,
+        fallback_map: dict[str, str] | None = None,
     ) -> OrchestrationRun:
         """Point d'entrée principal — choisir le mode d'exécution."""
         mode = ExecutionMode(mode)
@@ -565,6 +695,7 @@ class Orchestrator:
                     mode=mode,
                     routing_overrides=routing_overrides,
                     skip_on_error=skip_on_error,
+                    fallback_map=fallback_map,
                 )
         except Exception as exc:
             error_msg = str(exc)
