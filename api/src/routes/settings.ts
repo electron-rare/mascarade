@@ -6,6 +6,7 @@ import {
   getGitHubDispatchAccessToken,
   normalizeGitHubDispatchAuthMode,
 } from "../lib/githubDispatchAuth.js";
+import { isSecureRequest, noStoreHeaders } from "../lib/request-security.js";
 
 const settings = new Hono();
 const OPS_AGENT_URL = (process.env.OPS_AGENT_URL || "http://ops-agent:9200").replace(/\/+$/, "");
@@ -37,6 +38,15 @@ type RuntimeSecretMutationResponse = {
   updated_env?: string[];
   cleared_env?: string[];
 };
+const SENSITIVE_KEY_RE = /(token|secret|api[_-]?key|password|authorization)/i;
+const GENERATED_VALUE_KEY_RE = /^(generated[_-]?value|generatedValue)$/i;
+
+settings.use("*", async (c, next) => {
+  await next();
+  for (const [header, value] of Object.entries(noStoreHeaders())) {
+    c.header(header, value);
+  }
+});
 
 function escapeHtml(value: string): string {
   return value
@@ -59,6 +69,86 @@ function parseJsonBody(text: string): JsonBody {
   } catch {
     return null;
   }
+}
+
+function maskSecret(value: string): string {
+  const token = String(value || "").trim();
+  if (!token) {
+    return "";
+  }
+  if (token.length <= 8) {
+    return "***";
+  }
+  return `${token.slice(0, 4)}***${token.slice(-4)}`;
+}
+
+function sanitizeErrorMessage(value: string): string {
+  const message = String(value || "").trim();
+  if (!message) {
+    return "";
+  }
+  return message
+    .replace(
+      /\b(Bearer\s+)([A-Za-z0-9._~\-]{8,})\b/gi,
+      (_match, prefix: string, token: string) => `${prefix}${maskSecret(token)}`,
+    )
+    .replace(
+      /\b(token|secret|api[_-]?key|password|authorization)\b\s*[:=]\s*([^\s,;]+)/gi,
+      (_match, key: string, token: string) => `${key}=${maskSecret(token)}`,
+    );
+}
+
+function sanitizePublicMessage(value: string): string {
+  const message = sanitizeErrorMessage(value);
+  if (!message) {
+    return "";
+  }
+  return message
+    .replace(
+      /\beyJ[A-Za-z0-9_-]{12,}\.[A-Za-z0-9_-]{12,}\.[A-Za-z0-9_-]{8,}\b/g,
+      (token: string) => maskSecret(token),
+    )
+    .replace(
+      /\b(sk-[A-Za-z0-9_-]{8,})\b/gi,
+      (token: string) => maskSecret(token),
+    );
+}
+
+function sanitizePublicError(error: unknown, fallback: string): string {
+  if (!(error instanceof Error)) {
+    return fallback;
+  }
+  const message = sanitizePublicMessage(error.message || "");
+  return message || fallback;
+}
+
+function sanitizeSensitivePayload(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map((item) => sanitizeSensitivePayload(item));
+  }
+  if (!value || typeof value !== "object") {
+    return value;
+  }
+  const input = value as Record<string, unknown>;
+  const output: Record<string, unknown> = {};
+  for (const [key, raw] of Object.entries(input)) {
+    if (GENERATED_VALUE_KEY_RE.test(key)) {
+      if (typeof raw === "string" && raw.trim()) {
+        output.generated_value_masked = maskSecret(raw);
+      }
+      continue;
+    }
+    if (typeof raw === "string" && SENSITIVE_KEY_RE.test(key)) {
+      output[key] = maskSecret(raw);
+      continue;
+    }
+    if (typeof raw === "string" && /(?:^|_)(error|message|detail|reason)$/i.test(key)) {
+      output[key] = sanitizePublicMessage(raw);
+      continue;
+    }
+    output[key] = sanitizeSensitivePayload(raw);
+  }
+  return output;
 }
 
 function cookieValue(cookieHeader: string | undefined, name: string): string {
@@ -120,13 +210,14 @@ function popupResponse(
   provider: string,
   extraHeaders?: HeadersInit,
 ): Response {
+  const publicMessage = sanitizePublicMessage(message);
   const payload = JSON.stringify({
     type: "mascarade-oauth-result",
     provider,
     ok,
-    message,
+    message: publicMessage,
   }).replaceAll("<", "\\u003c");
-  const safeMessage = escapeHtml(message);
+  const safeMessage = escapeHtml(publicMessage);
   const body = `<!doctype html>
 <html lang="en">
   <head>
@@ -150,6 +241,7 @@ function popupResponse(
     status: ok ? 200 : 400,
     headers: {
       "Content-Type": "text/html; charset=utf-8",
+      ...noStoreHeaders(),
       ...(extraHeaders || {}),
     },
   });
@@ -158,12 +250,8 @@ function popupResponse(
 function requestHeaders(c: Context, body?: unknown): Headers {
   const headers = new Headers();
   const authHeader = c.req.header("Authorization");
-  const cookieHeader = c.req.header("Cookie");
   if (authHeader) {
     headers.set("Authorization", authHeader);
-  }
-  if (cookieHeader) {
-    headers.set("Cookie", cookieHeader);
   }
   if (body !== undefined) {
     headers.set("Content-Type", "application/json");
@@ -172,8 +260,10 @@ function requestHeaders(c: Context, body?: unknown): Headers {
 }
 
 function jsonWithStatus(c: Context, body: Record<string, unknown>, status: number) {
-  return c.newResponse(JSON.stringify(body), status as any, {
+  const sanitized = (sanitizeSensitivePayload(body) as Record<string, unknown>) || {};
+  return c.newResponse(JSON.stringify(sanitized), status as any, {
     "Content-Type": "application/json",
+    ...noStoreHeaders(),
   });
 }
 
@@ -228,7 +318,7 @@ async function persistProviderValues(
   providerName: string,
   keys: Record<string, string>,
 ): Promise<{ error?: string }> {
-  const { upstream, text, json } = await proxyOpsAgentJson(
+  const { upstream, json } = await proxyOpsAgentJson(
     c,
     `/providers/${encodeURIComponent(providerName)}`,
     {
@@ -237,11 +327,10 @@ async function persistProviderValues(
     },
   );
   if (!upstream.ok) {
+    const upstreamError =
+      (json && typeof json.error === "string" && sanitizeErrorMessage(json.error)) || "";
     return {
-      error:
-        (json && typeof json.error === "string" && json.error) ||
-        text ||
-        `Ops Agent request failed (${upstream.status})`,
+      error: upstreamError || `Ops Agent request failed (${upstream.status})`,
     };
   }
   syncProviderEnvFromUpdate(keys);
@@ -254,10 +343,10 @@ settings.get("/runtime-secrets", async (c) => {
     if (!upstream.ok) {
       return jsonWithStatus(c, json || { error: text || "Ops Agent request failed" }, upstream.status);
     }
-    return c.json(json || { groups: [] });
+    return c.json((sanitizeSensitivePayload(json || { groups: [] }) as Record<string, unknown>) || { groups: [] });
   } catch (error) {
     return c.json(
-      { error: error instanceof Error ? error.message : "Ops Agent request failed" },
+      { error: sanitizePublicError(error, "Ops Agent request failed") },
       503,
     );
   }
@@ -280,10 +369,10 @@ settings.put("/runtime-secrets/:groupName", async (c) => {
       return jsonWithStatus(c, json || { error: text || "Ops Agent request failed" }, upstream.status);
     }
     syncRuntimeEnvFromUpdate(values);
-    return c.json(json || { status: "ok" });
+    return c.json((sanitizeSensitivePayload(json || { status: "ok" }) as Record<string, unknown>) || { status: "ok" });
   } catch (error) {
     return c.json(
-      { error: error instanceof Error ? error.message : "Ops Agent request failed" },
+      { error: sanitizePublicError(error, "Ops Agent request failed") },
       503,
     );
   }
@@ -307,10 +396,10 @@ settings.post("/runtime-secrets/:groupName/clear", async (c) => {
     }
     const response = (json || { status: "ok" }) as RuntimeSecretMutationResponse;
     syncRuntimeEnvFromClear(response.cleared_env || fields || []);
-    return c.json(response);
+    return c.json((sanitizeSensitivePayload(response) as Record<string, unknown>) || { status: "ok" });
   } catch (error) {
     return c.json(
-      { error: error instanceof Error ? error.message : "Ops Agent request failed" },
+      { error: sanitizePublicError(error, "Ops Agent request failed") },
       503,
     );
   }
@@ -331,10 +420,11 @@ settings.post("/runtime-secrets/:groupName/generate", async (c) => {
     if (response.generated_value) {
       process.env.MASCARADE_API_KEY = response.generated_value;
     }
-    return c.json(response);
+    const { generated_value: _generatedValue, ...publicResponse } = response;
+    return c.json((sanitizeSensitivePayload(publicResponse) as Record<string, unknown>) || { status: "ok" });
   } catch (error) {
     return c.json(
-      { error: error instanceof Error ? error.message : "Ops Agent request failed" },
+      { error: sanitizePublicError(error, "Ops Agent request failed") },
       503,
     );
   }
@@ -351,10 +441,10 @@ settings.post("/runtime-secrets/knowledge-base/bootstrap-memos", async (c) => {
       return jsonWithStatus(c, json || { error: text || "Ops Agent request failed" }, upstream.status);
     }
     const response = (json || {}) as RuntimeSecretMutationResponse;
-    return c.json(response);
+    return c.json((sanitizeSensitivePayload(response) as Record<string, unknown>) || { status: "ok" });
   } catch (error) {
     return c.json(
-      { error: error instanceof Error ? error.message : "Ops Agent request failed" },
+      { error: sanitizePublicError(error, "Ops Agent request failed") },
       503,
     );
   }
@@ -371,21 +461,21 @@ settings.get("/providers/huggingface/oauth/start", async (c) => {
       scope: "openid profile inference-api",
       state,
     });
-    const secure = new URL(c.req.url).protocol === "https:" ? "; Secure" : "";
+    const secure = isSecureRequest(c.req) ? "; Secure" : "";
     return c.newResponse(null, 302 as any, {
       Location: authorizationUrl.href,
       "Set-Cookie": `${HUGGINGFACE_OAUTH_STATE_COOKIE}=${encodeURIComponent(state)}; HttpOnly; SameSite=Lax; Path=/api/settings/oauth/huggingface/callback; Max-Age=${PROVIDER_OAUTH_STATE_MAX_AGE}${secure}`,
     });
   } catch (error) {
     return c.json(
-      { error: error instanceof Error ? error.message : "Unable to start HuggingFace OAuth" },
+      { error: sanitizePublicError(error, "Unable to start HuggingFace OAuth") },
       400,
     );
   }
 });
 
 settings.get("/oauth/huggingface/callback", async (c) => {
-  const secure = new URL(c.req.url).protocol === "https:" ? "; Secure" : "";
+  const secure = isSecureRequest(c.req) ? "; Secure" : "";
   const clearCookie = `${HUGGINGFACE_OAUTH_STATE_COOKIE}=; HttpOnly; SameSite=Lax; Path=/api/settings/oauth/huggingface/callback; Max-Age=0${secure}`;
   try {
     const expectedState = cookieValue(c.req.header("Cookie"), HUGGINGFACE_OAUTH_STATE_COOKIE);
@@ -434,7 +524,7 @@ settings.get("/oauth/huggingface/callback", async (c) => {
     return popupResponse("HuggingFace OAuth linked", true, "huggingface", { "Set-Cookie": clearCookie });
   } catch (error) {
     return popupResponse(
-      error instanceof Error ? error.message : "HuggingFace OAuth callback failed",
+      sanitizePublicError(error, "HuggingFace OAuth callback failed"),
       false,
       "huggingface",
       { "Set-Cookie": clearCookie },
@@ -453,21 +543,21 @@ settings.get("/providers/google/oauth/start", async (c) => {
       scope: GOOGLE_OAUTH_SCOPES,
       state,
     });
-    const secure = new URL(c.req.url).protocol === "https:" ? "; Secure" : "";
+    const secure = isSecureRequest(c.req) ? "; Secure" : "";
     return c.newResponse(null, 302 as any, {
       Location: authorizationUrl,
       "Set-Cookie": `${GOOGLE_OAUTH_STATE_COOKIE}=${encodeURIComponent(state)}; HttpOnly; SameSite=Lax; Path=/api/settings/oauth/google/callback; Max-Age=${PROVIDER_OAUTH_STATE_MAX_AGE}${secure}`,
     });
   } catch (error) {
     return c.json(
-      { error: error instanceof Error ? error.message : "Unable to start Google OAuth" },
+      { error: sanitizePublicError(error, "Unable to start Google OAuth") },
       400,
     );
   }
 });
 
 settings.get("/oauth/google/callback", async (c) => {
-  const secure = new URL(c.req.url).protocol === "https:" ? "; Secure" : "";
+  const secure = isSecureRequest(c.req) ? "; Secure" : "";
   const clearCookie = `${GOOGLE_OAUTH_STATE_COOKIE}=; HttpOnly; SameSite=Lax; Path=/api/settings/oauth/google/callback; Max-Age=0${secure}`;
   try {
     const expectedState = cookieValue(c.req.header("Cookie"), GOOGLE_OAUTH_STATE_COOKIE);
@@ -514,7 +604,7 @@ settings.get("/oauth/google/callback", async (c) => {
     return popupResponse("Google OAuth linked", true, "google", { "Set-Cookie": clearCookie });
   } catch (error) {
     return popupResponse(
-      error instanceof Error ? error.message : "Google OAuth callback failed",
+      sanitizePublicError(error, "Google OAuth callback failed"),
       false,
       "google",
       { "Set-Cookie": clearCookie },
@@ -531,12 +621,13 @@ settings.post("/runtime-secrets/github-dispatch/app-token", async (c) => {
     return c.json({
       status: "ok",
       auth_mode: auth.authMode,
-      token: auth.token,
+      token_masked: maskSecret(auth.token),
+      token_present: Boolean(String(auth.token || "").trim()),
       expires_at: auth.expiresAt,
     });
   } catch (error) {
     return c.json(
-      { error: error instanceof Error ? error.message : "GitHub App token refresh failed" },
+      { error: sanitizePublicError(error, "GitHub App token refresh failed") },
       400,
     );
   }

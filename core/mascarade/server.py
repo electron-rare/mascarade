@@ -3,18 +3,23 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import logging
 import secrets
 from contextlib import asynccontextmanager
 from datetime import datetime
+import time
+from contextlib import asynccontextmanager
+from dataclasses import asdict
 from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, FastAPI, HTTPException, Query, Request
-from fastapi.responses import StreamingResponse
+from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel, Field
 
 from mascarade.agents import Agent, AgentRegistry
+from mascarade.agents.prompt_versioning import PromptHistory, PromptVersion
 from mascarade.agents.skills import register_default_skills
 from mascarade.auth import (
     add_api_key,
@@ -41,6 +46,7 @@ from mascarade.integrations.knowledge_base import (
     knowledge_base_auth_configured,
     knowledge_base_status_detail,
 )
+from mascarade.integrations.qdrant_client import QdrantClient
 from mascarade.mcp import McpCallError, McpRuntimeClient, McpServerUnavailable
 from mascarade.mcp.client import McpError
 from mascarade.observability import AgentTraceBuffer, iso_utc_now, new_run_id
@@ -51,12 +57,23 @@ from mascarade.provider_admin import (
     get_providers_status,
     update_provider_keys,
 )
+from mascarade.device_voice import (
+    DevicePlayerEvent,
+    DeviceVoiceService,
+)
 from mascarade.router import Router
 from mascarade.router.router import Strategy
 from mascarade.usage_tracking import get_all_usage_stats
 
 logger = logging.getLogger("mascarade.server")
 INDUSTRIAL_MCP_SERVER_KEYS = {"cockpit-ops", "plm", "qms", "mes", "erp", "wms", "dcs"}
+
+
+def hash_api_key(key: str) -> str:
+    """Hash API key for author tracking (returns first 8 chars of SHA-256)."""
+    if not key:
+        return ""
+    return hashlib.sha256(key.encode()).hexdigest()[:8]
 
 
 @asynccontextmanager
@@ -83,6 +100,15 @@ async def lifespan(app: FastAPI):
     app.state.cluster = cluster
     app.state.mcp = McpRuntimeClient(trace_buffer=trace_buffer)
     app.state.comfyui = ComfyUIClient() if settings.comfyui_url else None
+    app.state.device_voice = DeviceVoiceService(router=router)
+    app.state.qdrant = QdrantClient() if settings.qdrant_url else None
+
+    # Initialize document processor if Qdrant is configured
+    if app.state.qdrant is not None:
+        from mascarade.integrations.document_processor import DocumentProcessor
+        app.state.document_processor = DocumentProcessor()
+    else:
+        app.state.document_processor = None
 
     registry.load()
 
@@ -95,13 +121,21 @@ async def lifespan(app: FastAPI):
             logger.warning("Failed to initialize database pool: %s", e)
 
     # Start P2P node if enabled
+    # Start P2P node (auto-selects backend)
     await cluster.start_p2p()
 
+    # Start health checks for all registered providers
+    router.health_monitor.start_health_checks(list(router._providers.values()))
+
     yield
+
+    # Stop health checks
+    await router.health_monitor.stop_health_checks()
 
     # Stop P2P node
     await cluster.stop_p2p()
 
+    await cluster.close()
     if app.state.comfyui is not None:
         await app.state.comfyui.close()
 
@@ -109,6 +143,8 @@ async def lifespan(app: FastAPI):
     if settings.database_url:
         await close_db_pool()
         logger.info("Database pool closed")
+    if app.state.qdrant is not None:
+        await app.state.qdrant.close()
 
 
 app = FastAPI(title="Mascarade Core", version="0.1.0", lifespan=lifespan)
@@ -122,9 +158,76 @@ class Message(BaseModel):
     content: str = Field(min_length=1, max_length=100_000)
 
 
+RoutingPolicy = Literal["auto", "strong", "cheap", "fast"]
+# --- OpenAI-Compatible Models ---
+
+
+class ChatCompletionMessage(BaseModel):
+    role: Literal["system", "user", "assistant", "tool"]
+    content: str | None = None
+    tool_calls: list[dict[str, Any]] | None = None
+    tool_call_id: str | None = Field(default=None, max_length=100)
+
+
+class ChatCompletionRequest(BaseModel):
+    model: str | None = Field(default=None, min_length=1, max_length=100)
+    messages: list[ChatCompletionMessage] = Field(max_length=200)
+    stream: bool = False
+    temperature: float = Field(default=0.7, ge=0.0, le=2.0)
+    max_tokens: int | None = Field(default=None, gt=0, le=128000)
+    top_p: float | None = Field(default=None, ge=0.0, le=1.0)
+    frequency_penalty: float | None = Field(default=None, ge=-2.0, le=2.0)
+    presence_penalty: float | None = Field(default=None, ge=-2.0, le=2.0)
+    stop: str | list[str] | None = None
+    n: int = Field(default=1, ge=1, le=10)
+    user: str | None = Field(default=None, max_length=200)
+
+
+class ChatCompletionUsage(BaseModel):
+    prompt_tokens: int = Field(ge=0)
+    completion_tokens: int = Field(ge=0)
+    total_tokens: int = Field(ge=0)
+
+
+class ChatCompletionChoice(BaseModel):
+    index: int = Field(ge=0)
+    message: ChatCompletionMessage
+    finish_reason: Literal["stop", "length", "tool_calls", "content_filter"] | None = None
+
+
+class ChatCompletionResponse(BaseModel):
+    id: str = Field(min_length=1, max_length=100)
+    object: Literal["chat.completion"] = "chat.completion"
+    created: int = Field(ge=0)
+    model: str = Field(min_length=1, max_length=100)
+    choices: list[ChatCompletionChoice]
+    usage: ChatCompletionUsage | None = None
+
+
+class ChatCompletionChunkDelta(BaseModel):
+    role: Literal["system", "user", "assistant", "tool"] | None = None
+    content: str | None = None
+    tool_calls: list[dict[str, Any]] | None = None
+
+
+class ChatCompletionChunkChoice(BaseModel):
+    index: int = Field(ge=0)
+    delta: ChatCompletionChunkDelta
+    finish_reason: Literal["stop", "length", "tool_calls", "content_filter"] | None = None
+
+
+class ChatCompletionChunk(BaseModel):
+    id: str = Field(min_length=1, max_length=100)
+    object: Literal["chat.completion.chunk"] = "chat.completion.chunk"
+    created: int = Field(ge=0)
+    model: str = Field(min_length=1, max_length=100)
+    choices: list[ChatCompletionChunkChoice]
+
+
 class SendRequest(BaseModel):
     messages: list[Message] = Field(max_length=200)
     strategy: Strategy = Strategy.BEST
+    routing_policy: RoutingPolicy = "auto"
     provider: str | None = Field(default=None, max_length=50)
     model: str | None = Field(default=None, max_length=100)
     system: str | None = Field(default=None, max_length=10_000)
@@ -140,7 +243,8 @@ class AgentCreate(BaseModel):
     preferred_provider: str | None = Field(default=None, max_length=50)
     preferred_model: str | None = Field(default=None, max_length=100)
     preferred_role: str | None = Field(default=None, max_length=100)
-    strategy: Strategy = Strategy.BEST
+    strategy: Strategy = Strategy.ROUTELLM
+    routing_policy: RoutingPolicy = "auto"
     temperature: float = Field(default=0.7, ge=0.0, le=2.0)
     max_tokens: int = Field(default=4096, gt=0, le=128000)
 
@@ -151,15 +255,32 @@ class AgentUpdate(BaseModel):
     preferred_provider: str | None = Field(default=None, max_length=50)
     preferred_model: str | None = Field(default=None, max_length=100)
     preferred_role: str | None = Field(default=None, max_length=100)
-    strategy: Strategy = Strategy.BEST
+    strategy: Strategy = Strategy.ROUTELLM
+    routing_policy: RoutingPolicy = "auto"
     temperature: float = Field(default=0.7, ge=0.0, le=2.0)
     max_tokens: int = Field(default=4096, gt=0, le=128000)
+    version_note: str | None = Field(default=None, max_length=500)
+
+
+class PromptVersionResponse(BaseModel):
+    version_number: int = Field(ge=1)
+    timestamp: str = Field(min_length=1, max_length=100)
+    content: str = Field(max_length=500_000)
+    author_hash: str = Field(max_length=64)
+    diff: str | None = None
+    note: str | None = Field(default=None, max_length=1000)
+
+
+class PromptHistoryResponse(BaseModel):
+    versions: list[PromptVersionResponse]
+    total: int = Field(ge=0)
 
 
 class AgentRoutingOverride(BaseModel):
     preferred_role: str | None = Field(default=None, max_length=100)
     preferred_provider: str | None = Field(default=None, max_length=50)
     preferred_model: str | None = Field(default=None, max_length=100)
+    routing_policy: RoutingPolicy | None = None
 
 
 class TaskRequest(BaseModel):
@@ -263,6 +384,47 @@ class RateLimitUpdate(BaseModel):
     requests_per_hour: int | None = Field(default=None, ge=0)
     requests_per_day: int | None = Field(default=None, ge=0)
     tokens_per_day: int | None = Field(default=None, ge=0)
+class QdrantCreateCollectionRequest(BaseModel):
+    vector_size: int = Field(gt=0, le=65536)
+    distance: Literal["Cosine", "Euclid", "Dot"] = "Cosine"
+    on_disk_payload: bool = False
+
+
+class QdrantUpsertPointsRequest(BaseModel):
+    points: list[dict[str, Any]] = Field(max_length=1000)
+    wait: bool = True
+
+
+class QdrantSearchRequest(BaseModel):
+    query_vector: list[float] = Field(max_length=65536)
+    limit: int = Field(default=10, gt=0, le=100)
+    score_threshold: float | None = Field(default=None, ge=0.0, le=1.0)
+    with_payload: bool = True
+    with_vector: bool = False
+    filter_conditions: dict[str, Any] | None = None
+
+
+class QdrantRecommendRequest(BaseModel):
+    positive: list[str | int] = Field(min_length=1, max_length=100)
+    negative: list[str | int] | None = Field(default=None, max_length=100)
+    limit: int = Field(default=10, gt=0, le=100)
+    score_threshold: float | None = Field(default=None, ge=0.0, le=1.0)
+    with_payload: bool = True
+    with_vector: bool = False
+    filter_conditions: dict[str, Any] | None = None
+
+
+class QdrantSemanticSearchRequest(BaseModel):
+    query: str = Field(min_length=1, max_length=10000)
+    limit: int = Field(default=10, gt=0, le=100)
+    score_threshold: float | None = Field(default=None, ge=0.0, le=1.0)
+
+
+class QdrantRAGRequest(BaseModel):
+    query: str = Field(min_length=1, max_length=10000)
+    limit: int = Field(default=5, gt=0, le=20)
+    model: str | None = None
+    temperature: float = Field(default=0.7, ge=0.0, le=2.0)
 
 
 # --- Route publique ---
@@ -280,6 +442,138 @@ async def health():
         health_data["agents"] = len(app.state.registry)
 
     return health_data
+
+
+@app.get("/health/providers")
+async def get_provider_health():
+    """Provider health metrics endpoint - returns detailed health statistics for all providers."""
+    if not hasattr(app.state, "router"):
+        raise HTTPException(status_code=503, detail="Router not initialized")
+
+    health_monitor = app.state.router.health_monitor
+    circuit_breaker = app.state.router.circuit_breaker
+    all_health = health_monitor.get_all_health()
+
+    # Convert ProviderHealth dataclass objects to dictionaries
+    health_data = {}
+    for provider_name, provider_health in all_health.items():
+        circuit_state = circuit_breaker.get_state(provider_name)
+        health_data[provider_name] = {
+            "provider_name": provider_health.provider_name,
+            "health_score": provider_health.health_score,
+            "circuit_state": circuit_state.value,
+            "latency_p50": provider_health.latency_p50,
+            "latency_p95": provider_health.latency_p95,
+            "latency_p99": provider_health.latency_p99,
+            "error_rate": provider_health.error_rate,
+            "availability": provider_health.availability,
+            "total_requests": provider_health.total_requests,
+        }
+
+    return health_data
+
+
+@app.post("/v1/chat/completions")
+async def chat_completions(req: ChatCompletionRequest):
+    """OpenAI-compatible chat completions endpoint."""
+    # Determine model and provider
+    model_str = req.model if req.model else settings.default_model
+    provider = None
+    model = model_str
+
+    # Parse model string for provider prefix (e.g., "apple-coreml:model")
+    if ":" in model_str:
+        parts = model_str.split(":", 1)
+        provider_prefix = parts[0]
+        model = parts[1]
+
+        # Get supported provider names (these are the known provider types)
+        supported_providers = [
+            "apple-coreml",
+            "ollama",
+            "openai",
+            "claude",
+            "anthropic",
+            "mistral",
+            "bedrock",
+            "gemini",
+        ]
+
+        # Validate provider prefix
+        if provider_prefix not in supported_providers:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Unsupported model prefix '{provider_prefix}'.",
+            )
+
+        provider = provider_prefix
+
+        # Check if provider is available
+        if provider not in app.state.router.available_providers:
+            raise HTTPException(
+                status_code=503,
+                detail={
+                    "error": f"Provider '{provider}' is not configured or unavailable.",
+                    "providers": app.state.router.available_providers,
+                },
+            )
+    else:
+        # Use default provider if no prefix
+        provider = settings.default_provider
+        model = model_str or settings.default_model
+
+    # Convert messages to router format
+    messages = [{"role": m.role, "content": m.content} for m in req.messages]
+
+    # Call router
+    try:
+        response = await app.state.router.send(
+            messages,
+            strategy=Strategy.SPECIFIC,
+            provider=provider,
+            model=model,
+            system=None,
+            response_format=None,
+            temperature=req.temperature,
+            max_tokens=req.max_tokens or 4096,
+        )
+    except ValueError as exc:
+        logger.warning("Chat completions request rejected: %s", exc)
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    # Build OpenAI-compatible response
+    chat_id = f"chatcmpl-{new_run_id()}"
+    created = int(time.time())
+
+    # Extract usage info
+    usage_dict = response.usage or {}
+    prompt_tokens = usage_dict.get("input_tokens", 0)
+    completion_tokens = usage_dict.get("output_tokens", 0)
+    total_tokens = usage_dict.get("total_tokens", prompt_tokens + completion_tokens)
+
+    usage = ChatCompletionUsage(
+        prompt_tokens=prompt_tokens,
+        completion_tokens=completion_tokens,
+        total_tokens=total_tokens,
+    )
+
+    choice = ChatCompletionChoice(
+        index=0,
+        message=ChatCompletionMessage(
+            role="assistant",
+            content=response.content,
+        ),
+        finish_reason="stop",
+    )
+
+    return ChatCompletionResponse(
+        id=chat_id,
+        object="chat.completion",
+        created=created,
+        model=model_str,
+        choices=[choice],
+        usage=usage,
+    )
 
 
 # --- Routes protegees ---
@@ -300,6 +594,7 @@ def _serialize_agent(agent: Agent) -> dict[str, object]:
         "preferred_model": agent.preferred_model,
         "preferred_role": agent.preferred_role,
         "strategy": agent.strategy.value,
+        "routing_policy": agent.routing_policy,
         "temperature": agent.temperature,
         "max_tokens": agent.max_tokens,
         "builtin": app.state.registry.is_builtin(agent.name),
@@ -901,6 +1196,7 @@ async def send(req: SendRequest):
         response = await app.state.router.send(
             messages,
             strategy=req.strategy,
+            routing_policy=req.routing_policy,
             provider=req.provider,
             model=req.model,
             system=req.system,
@@ -970,12 +1266,12 @@ async def bedrock_finetune_jobs():
 # --- Metrics ---
 
 
-@protected.get("/metrics")
+@protected.get("/router/metrics")
 async def metrics_summary():
     return app.state.router.metrics_summary()
 
 
-@protected.get("/metrics/{provider}")
+@protected.get("/router/metrics/{provider}")
 async def metrics_provider(provider: str):
     stats = app.state.router.provider_metrics(provider)
     if not stats:
@@ -983,10 +1279,29 @@ async def metrics_provider(provider: str):
     return stats
 
 
-@protected.post("/metrics/reset")
+@protected.post("/router/metrics/reset")
 async def metrics_reset():
     app.state.router.reset_metrics()
     return {"status": "ok"}
+
+
+# --- Prometheus scrape endpoint (public) ---
+
+
+@app.get("/metrics")
+async def prometheus_metrics():
+    """Expose Prometheus metrics for scraping — no auth required."""
+    try:
+        from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
+
+        from starlette.responses import Response
+
+        return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
+    except ImportError:
+        raise HTTPException(
+            status_code=501,
+            detail="prometheus_client is not installed",
+        )
 
 
 # --- Cache ---
@@ -1044,6 +1359,7 @@ async def create_agent(req: AgentCreate):
         preferred_model=req.preferred_model,
         preferred_role=req.preferred_role,
         strategy=req.strategy,
+        routing_policy=req.routing_policy,
         temperature=req.temperature,
         max_tokens=req.max_tokens,
     )
@@ -1067,7 +1383,7 @@ async def get_agent(name: str):
 
 
 @protected.put("/agents/{name}")
-async def update_agent(name: str, req: AgentUpdate):
+async def update_agent(name: str, req: AgentUpdate, request: Request):
     try:
         agent = app.state.registry.get(name)
     except KeyError:
@@ -1078,14 +1394,46 @@ async def update_agent(name: str, req: AgentUpdate):
             detail="Built-in agents are read-only; create a dynamic agent from the UI to edit routing.",
         )
 
+    # Check if system_prompt is changing
+    old_system_prompt = agent.system_prompt
+    system_prompt_changed = old_system_prompt != req.system_prompt
+
+    # Update agent fields
     agent.description = req.description
     agent.system_prompt = req.system_prompt
     agent.preferred_provider = req.preferred_provider
     agent.preferred_model = req.preferred_model
     agent.preferred_role = req.preferred_role
     agent.strategy = req.strategy
+    agent.routing_policy = req.routing_policy
     agent.temperature = req.temperature
     agent.max_tokens = req.max_tokens
+
+    # Create version if system_prompt changed
+    if system_prompt_changed:
+        # Get API key from request headers for author tracking
+        auth_header = request.headers.get("Authorization", "")
+        api_key = ""
+        if auth_header.startswith("Bearer "):
+            api_key = auth_header[7:]
+        author_hash = hash_api_key(api_key)
+
+        # Create PromptHistory and load existing versions
+        prompt_history = PromptHistory(storage_path=None)
+        prompt_history._versions = [
+            PromptVersion(**v) for v in agent.prompt_versions
+        ]
+
+        # Add new version
+        new_version = prompt_history.add_version(
+            content=req.system_prompt,
+            author_hash=author_hash,
+            note=req.version_note,
+        )
+
+        # Update agent's prompt_versions
+        agent.prompt_versions = [asdict(v) for v in prompt_history._versions]
+
     app.state.registry.save()
     return _serialize_agent(agent)
 
@@ -1109,6 +1457,67 @@ async def run_agent(name: str, req: SendRequest):
         "model": response.model,
         "provider": response.provider,
         "usage": response.usage,
+    }
+
+
+@protected.get("/agents/{name}/prompts/history")
+async def get_agent_prompt_history(name: str):
+    """Get version history for an agent's system prompt."""
+    try:
+        agent = app.state.registry.get(name)
+    except KeyError:
+        raise HTTPException(status_code=404, detail=f"Agent '{name}' not found") from None
+
+    return {"versions": agent.prompt_versions}
+
+
+@protected.post("/agents/{name}/prompts/rollback/{version}")
+async def rollback_agent_prompt(name: str, version: int):
+    """Rollback agent's system prompt to a previous version."""
+    try:
+        agent = app.state.registry.get(name)
+    except KeyError:
+        raise HTTPException(status_code=404, detail=f"Agent '{name}' not found") from None
+
+    # Validate version number
+    if version < 1 or version > len(agent.prompt_versions):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid version {version}. Available versions: 1-{len(agent.prompt_versions)}",
+        )
+
+    # Get the target version content
+    target_version = agent.prompt_versions[version - 1]
+    old_prompt = agent.system_prompt
+
+    # Update the agent's system prompt to the target version
+    agent.system_prompt = target_version["content"]
+
+    # Create a new version entry for the rollback
+    version_number = len(agent.prompt_versions) + 1
+    timestamp = iso_utc_now()
+
+    # Compute diff from old to new (rolled back) prompt
+    diff = app.state.registry._compute_diff(old_prompt, agent.system_prompt)
+
+    rollback_version = {
+        "version_number": version_number,
+        "timestamp": timestamp,
+        "content": old_prompt,
+        "author_hash": "system",
+        "diff": diff,
+        "note": f"Rollback to version {version}",
+    }
+
+    agent.prompt_versions.append(rollback_version)
+
+    # Save the registry to persist changes
+    app.state.registry.save()
+
+    return {
+        "message": f"Rolled back to version {version}",
+        "current_version": version_number,
+        "current_prompt": agent.system_prompt,
     }
 
 
@@ -1179,11 +1588,6 @@ async def cluster_forward_send(req: ClusterForwardSendRequest):
     )
 
 
-@protected.get("/cluster/p2p/status")
-async def cluster_p2p_status():
-    return app.state.cluster.p2p_status()
-
-
 @cluster_protected.get("/identity")
 async def cluster_node_identity():
     return app.state.cluster.local_identity().to_dict()
@@ -1196,6 +1600,7 @@ async def cluster_node_send(req: SendRequest):
         response = await app.state.router.send(
             messages,
             strategy=req.strategy,
+            routing_policy=req.routing_policy,
             provider=req.provider,
             model=req.model,
             system=req.system,
@@ -1214,6 +1619,105 @@ async def cluster_node_send(req: SendRequest):
         "provider": response.provider,
         "usage": response.usage,
     }
+
+
+# --- Analytics ---
+
+
+class ProviderCostSummary(BaseModel):
+    provider: str
+    model: str
+    total_cost: float = Field(ge=0.0)
+    input_tokens: int = Field(ge=0)
+    output_tokens: int = Field(ge=0)
+    request_count: int = Field(ge=0)
+
+
+class CostAnalyticsResponse(BaseModel):
+    total_cost: float = Field(ge=0.0)
+    total_requests: int = Field(ge=0)
+    total_input_tokens: int = Field(ge=0)
+    total_output_tokens: int = Field(ge=0)
+    by_provider: list[ProviderCostSummary]
+
+
+@protected.get("/v1/analytics/cost")
+async def get_cost_analytics(
+    limit: int = Query(default=1000, ge=1, le=5000),
+    run_id: str | None = Query(default=None, max_length=64),
+):
+    """
+    Get cost analytics aggregated from trace events.
+
+    Args:
+        limit: Maximum number of events to analyze (default: 1000)
+        run_id: Optional run ID to filter by
+
+    Returns:
+        Cost analytics with totals and breakdowns by provider/model
+    """
+    from mascarade.analytics import get_cost_calculator
+
+    # Get recent trace events with token usage
+    events = app.state.trace_buffer.recent(
+        limit=limit,
+        run_id=run_id,
+    )
+
+    # Filter events that have token usage
+    events_with_usage = [e for e in events if e.token_usage]
+
+    # Aggregate by (provider, model)
+    aggregates: dict[tuple[str, str], dict] = {}
+    cost_calc = get_cost_calculator()
+
+    for event in events_with_usage:
+        if not event.provider or not event.model:
+            continue
+
+        key = (event.provider, event.model)
+        if key not in aggregates:
+            aggregates[key] = {
+                "provider": event.provider,
+                "model": event.model,
+                "total_cost": 0.0,
+                "input_tokens": 0,
+                "output_tokens": 0,
+                "request_count": 0,
+            }
+
+        input_tokens = event.token_usage.get("input_tokens", 0) or event.token_usage.get("prompt_tokens", 0)
+        output_tokens = event.token_usage.get("output_tokens", 0) or event.token_usage.get("completion_tokens", 0)
+
+        # Calculate cost for this event
+        cost = cost_calc.calculate_cost(
+            provider=event.provider,
+            model=event.model,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+        )
+
+        aggregates[key]["total_cost"] += cost
+        aggregates[key]["input_tokens"] += input_tokens
+        aggregates[key]["output_tokens"] += output_tokens
+        aggregates[key]["request_count"] += 1
+
+    # Calculate totals
+    total_cost = sum(agg["total_cost"] for agg in aggregates.values())
+    total_requests = sum(agg["request_count"] for agg in aggregates.values())
+    total_input_tokens = sum(agg["input_tokens"] for agg in aggregates.values())
+    total_output_tokens = sum(agg["output_tokens"] for agg in aggregates.values())
+
+    # Convert to response models
+    by_provider = [ProviderCostSummary(**agg) for agg in aggregates.values()]
+
+    return CostAnalyticsResponse(
+        total_cost=total_cost,
+        total_requests=total_requests,
+        total_input_tokens=total_input_tokens,
+        total_output_tokens=total_output_tokens,
+        by_provider=by_provider,
+    )
 
 
 # --- Orchestration traces ---
@@ -1892,6 +2396,556 @@ async def comfyui_interrupt():
     client = _require_comfyui()
     await client.interrupt()
     return {"status": "ok"}
+
+
+# --- P2P network ---
+
+
+@protected.get("/cluster/p2p/status")
+async def cluster_p2p_status():
+    return app.state.cluster.p2p_status()
+
+
+@protected.get("/cluster/p2p/stream")
+async def cluster_p2p_stream(
+    request: Request,
+    limit: int = Query(default=20, ge=0, le=200),
+):
+    """SSE stream of real-time P2P events."""
+
+    async def event_stream():
+        node = getattr(app.state.cluster, "_p2p_node", None)
+        if node is None or not hasattr(node, "events"):
+            yield f"event: error\ndata: {json.dumps({'error': 'P2P node not available'})}\n\n"
+            return
+
+        bus = node.events
+        queue = bus.subscribe()
+        try:
+            # Replay recent events
+            if limit > 0:
+                for event in bus.recent(limit=limit):
+                    yield f"event: p2p\ndata: {json.dumps(event.to_dict())}\n\n"
+
+            while True:
+                if await request.is_disconnected():
+                    break
+                try:
+                    event = await asyncio.wait_for(queue.get(), timeout=15)
+                except TimeoutError:
+                    yield f"event: heartbeat\ndata: {json.dumps({'ts': iso_utc_now()})}\n\n"
+                    continue
+                yield f"event: p2p\ndata: {json.dumps(event.to_dict())}\n\n"
+        finally:
+            bus.unsubscribe(queue)
+
+    return StreamingResponse(
+        event_stream(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
+@protected.get("/cluster/p2p/topology")
+async def cluster_p2p_topology():
+    """JSON snapshot of the P2P network topology."""
+    node = getattr(app.state.cluster, "_p2p_node", None)
+    if node is None or not hasattr(node, "capabilities"):
+        raise HTTPException(status_code=503, detail="P2P node not available")
+
+    nodes = []
+    edges = []
+    all_caps = node.capabilities.all_capabilities()
+
+    # Add local node
+    local_caps = node.capabilities._local_caps
+    local_entry = {
+        "peer_id": node.peer_id,
+        "label": local_caps.label if local_caps else "",
+        "role": local_caps.role if local_caps else "general",
+        "capabilities": local_caps.capabilities if local_caps else [],
+        "http_base_url": local_caps.http_base_url if local_caps else None,
+        "is_local": True,
+    }
+    nodes.append(local_entry)
+
+    # Add remote peers
+    for pid, caps in all_caps.items():
+        nodes.append({
+            "peer_id": pid,
+            "label": caps.label,
+            "role": caps.role,
+            "capabilities": caps.capabilities,
+            "http_base_url": caps.http_base_url,
+            "is_local": False,
+        })
+        edges.append({
+            "from": node.peer_id,
+            "to": pid,
+            "connected": pid in node.transport.peers and node.transport.peers[pid].connected,
+        })
+
+    return {"nodes": nodes, "edges": edges}
+
+
+@protected.post("/cluster/p2p/task")
+async def cluster_p2p_task(req: dict):
+    """Distribute a task via P2P to a capable peer.
+
+    Body: {"capability": "llm-inference", "payload": {...}, "timeout": 30, "target_peer": null}
+    """
+    return await app.state.cluster.p2p_distribute_task(
+        capability=req.get("capability", ""),
+        payload=req.get("payload", {}),
+        timeout=req.get("timeout", 120.0),
+        target_peer=req.get("target_peer"),
+    )
+
+
+# --- OpenAI-compatible chat completions shim ---
+
+
+class _OAIChatMessage(BaseModel):
+    role: str
+    content: str
+
+
+class _OAIChatRequest(BaseModel):
+    model: str | None = None
+    messages: list[_OAIChatMessage]
+    temperature: float = 0.7
+    max_tokens: int = 4096
+
+
+@app.post("/v1/chat/completions")
+async def openai_chat_completions(body: _OAIChatRequest, request: Request):
+    import time as _time
+    import uuid as _uuid
+
+    router = request.app.state.router
+
+    raw_model = body.model or ""
+    provider_name: str | None = None
+    model_name: str | None = None
+
+    if ":" in raw_model:
+        prefix, rest = raw_model.split(":", 1)
+        if prefix in getattr(router, "supported_provider_names", []):
+            provider_name = prefix
+            model_name = rest
+        else:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Unsupported model prefix '{prefix}'.",
+            )
+    else:
+        provider_name = settings.default_provider
+        model_name = raw_model or settings.default_model
+
+    if provider_name and provider_name not in router.available_providers:
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "error": f"Provider '{provider_name}' is not configured or unavailable.",
+                "providers": router.available_providers,
+            },
+        )
+
+    strategy = Strategy.SPECIFIC if provider_name else Strategy.BEST
+    messages = [{"role": m.role, "content": m.content} for m in body.messages]
+
+    result = await router.send(
+        messages,
+        strategy=strategy,
+        provider=provider_name,
+        model=model_name,
+        system=None,
+        response_format=None,
+        temperature=body.temperature,
+        max_tokens=body.max_tokens,
+    )
+
+    usage = result.usage or {}
+    display_model = f"{provider_name}:{result.model}" if provider_name and provider_name != settings.default_provider else result.model
+
+    return {
+        "id": f"chatcmpl-{_uuid.uuid4().hex[:24]}",
+        "object": "chat.completion",
+        "created": int(_time.time()),
+        "model": display_model,
+        "choices": [
+            {
+                "index": 0,
+                "message": {"role": "assistant", "content": result.content},
+                "finish_reason": "stop",
+            }
+        ],
+        "usage": {
+            "prompt_tokens": usage.get("input_tokens", 0),
+            "completion_tokens": usage.get("output_tokens", 0),
+            "total_tokens": usage.get("total_tokens", usage.get("input_tokens", 0) + usage.get("output_tokens", 0)),
+        },
+    }
+
+
+# --- Device voice routes ---
+
+
+@protected.post("/device/v1/voice/session")
+async def device_voice_session(request: Request):
+    form = await request.form()
+    device_id = form.get("device_id", "")
+    mode = form.get("mode", "idle")
+    current_media_raw = form.get("current_media", "{}")
+    try:
+        current_media_payload = json.loads(current_media_raw)
+    except (json.JSONDecodeError, TypeError):
+        current_media_payload = {}
+
+    audio_file = form.get("audio") or form.get("audio.wav")
+    if audio_file is None:
+        raise HTTPException(status_code=400, detail="Missing audio file")
+
+    audio_bytes = await audio_file.read()
+    filename = getattr(audio_file, "filename", "audio.wav")
+    content_type = getattr(audio_file, "content_type", "audio/wav")
+
+    service: DeviceVoiceService = request.app.state.device_voice
+    result = await service.handle_session(
+        device_id=device_id,
+        mode=mode,
+        current_media_payload=current_media_payload,
+        audio_bytes=audio_bytes,
+        filename=filename,
+        content_type=content_type,
+        request_base_url=str(request.base_url),
+    )
+    return result.model_dump()
+
+
+@protected.post("/device/v1/player/event")
+async def device_player_event(event: DevicePlayerEvent, request: Request):
+    service: DeviceVoiceService = request.app.state.device_voice
+    state = service.record_player_event(event)
+    return {"ok": True, "state": state.model_dump()}
+
+
+@protected.get("/device/v1/voice/replies/{reply_id}.wav")
+async def device_voice_reply_audio(reply_id: str, request: Request):
+    from fastapi.responses import Response as _Response
+
+    service: DeviceVoiceService = request.app.state.device_voice
+    audio = service.get_reply_audio(reply_id)
+    if audio is None:
+        raise HTTPException(status_code=404, detail="Reply audio not found or expired")
+    return _Response(content=audio.payload, media_type=audio.content_type)
+# --- Qdrant ---
+
+
+def _require_qdrant() -> QdrantClient:
+    if app.state.qdrant is None:
+        raise HTTPException(status_code=503, detail="Qdrant non configure (QDRANT_URL manquant)")
+    return app.state.qdrant
+
+
+@protected.get("/qdrant/health")
+async def qdrant_health():
+    client = _require_qdrant()
+    return await client.health_check()
+
+
+@protected.get("/qdrant/status")
+async def qdrant_status():
+    client = _require_qdrant()
+    return await client.get_cluster_status()
+
+
+@protected.get("/qdrant/collections")
+async def qdrant_list_collections():
+    client = _require_qdrant()
+    return await client.list_collections()
+
+
+@protected.get("/qdrant/collections/{collection_name}")
+async def qdrant_get_collection(collection_name: str):
+    client = _require_qdrant()
+    try:
+        return await client.get_collection(collection_name)
+    except Exception as e:
+        if "404" in str(e):
+            raise HTTPException(status_code=404, detail=f"Collection '{collection_name}' not found") from e
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+@protected.put("/qdrant/collections/{collection_name}")
+async def qdrant_create_collection(collection_name: str, req: QdrantCreateCollectionRequest):
+    client = _require_qdrant()
+    try:
+        result = await client.create_collection(
+            collection_name,
+            vector_size=req.vector_size,
+            distance=req.distance,
+            on_disk_payload=req.on_disk_payload,
+        )
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+@protected.delete("/qdrant/collections/{collection_name}")
+async def qdrant_delete_collection(collection_name: str):
+    client = _require_qdrant()
+    try:
+        result = await client.delete_collection(collection_name)
+        return result
+    except Exception as e:
+        if "404" in str(e):
+            raise HTTPException(status_code=404, detail=f"Collection '{collection_name}' not found") from e
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+@protected.post("/qdrant/collections/{collection_name}/points")
+async def qdrant_upsert_points(collection_name: str, req: QdrantUpsertPointsRequest):
+    client = _require_qdrant()
+    try:
+        result = await client.upsert_points(
+            collection_name,
+            points=req.points,
+            wait=req.wait,
+        )
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+@protected.post("/qdrant/collections/{collection_name}/search")
+async def qdrant_search(collection_name: str, req: QdrantSearchRequest):
+    client = _require_qdrant()
+    try:
+        result = await client.search(
+            collection_name,
+            query_vector=req.query_vector,
+            limit=req.limit,
+            score_threshold=req.score_threshold,
+            with_payload=req.with_payload,
+            with_vector=req.with_vector,
+            filter_conditions=req.filter_conditions,
+        )
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+@protected.post("/qdrant/collections/{collection_name}/recommend")
+async def qdrant_recommend(collection_name: str, req: QdrantRecommendRequest):
+    client = _require_qdrant()
+    try:
+        result = await client.recommend(
+            collection_name,
+            positive=req.positive,
+            negative=req.negative,
+            limit=req.limit,
+            score_threshold=req.score_threshold,
+            with_payload=req.with_payload,
+            with_vector=req.with_vector,
+            filter_conditions=req.filter_conditions,
+        )
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+@protected.post("/qdrant/collections/{collection_name}/semantic-search")
+async def qdrant_semantic_search(collection_name: str, req: QdrantSemanticSearchRequest):
+    client = _require_qdrant()
+    doc_processor = app.state.document_processor
+    if doc_processor is None:
+        raise HTTPException(status_code=503, detail="Document processor not configured")
+
+    try:
+        query_embedding = await doc_processor.generate_embeddings([req.query])
+        if not query_embedding or len(query_embedding) == 0:
+            raise HTTPException(status_code=500, detail="Failed to generate query embedding")
+
+        results = await client.search(
+            collection_name,
+            query_vector=query_embedding[0],
+            limit=req.limit,
+            score_threshold=req.score_threshold,
+            with_payload=True,
+            with_vector=False,
+        )
+
+        formatted_results = []
+        for r in results.get("result", []):
+            formatted_results.append({
+                "id": r.get("id"),
+                "score": r.get("score"),
+                "text": r.get("payload", {}).get("text"),
+                "metadata": r.get("payload", {}),
+            })
+
+        return {
+            "results": formatted_results,
+            "query": req.query,
+            "collection": collection_name,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+@protected.post("/qdrant/collections/{collection_name}/upload")
+async def qdrant_upload_documents(collection_name: str, request: Request):
+    client = _require_qdrant()
+    doc_processor = app.state.document_processor
+    if doc_processor is None:
+        raise HTTPException(status_code=503, detail="Document processor not configured")
+
+    try:
+        form = await request.form()
+        files = form.getlist("files")
+
+        if not files:
+            raise HTTPException(status_code=400, detail="No files provided")
+
+        total_chunks = 0
+        total_docs = 0
+
+        for file in files:
+            if hasattr(file, "read"):
+                content = await file.read()
+                if isinstance(content, bytes):
+                    text = content.decode("utf-8", errors="ignore")
+                else:
+                    text = str(content)
+
+                filename = getattr(file, "filename", "unknown")
+                chunks_data = await doc_processor.process_document(
+                    text,
+                    metadata={"source": filename, "collection": collection_name}
+                )
+
+                points = []
+                for i, chunk in enumerate(chunks_data):
+                    points.append({
+                        "id": f"{filename}_{i}_{hash(chunk['text']) % 10000000}",
+                        "vector": chunk["embedding"],
+                        "payload": {
+                            "text": chunk["text"],
+                            "source": filename,
+                            "chunk_id": i,
+                            **chunk.get("metadata", {}),
+                        },
+                    })
+
+                if points:
+                    await client.upsert_points(collection_name, points)
+                    total_chunks += len(points)
+                    total_docs += 1
+
+        return {
+            "status": "success",
+            "documents_processed": total_docs,
+            "chunks_created": total_chunks,
+            "collection": collection_name,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("Document upload failed")
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+@protected.post("/qdrant/collections/{collection_name}/rag-query")
+async def qdrant_rag_query(collection_name: str, req: QdrantRAGRequest):
+    client = _require_qdrant()
+    doc_processor = app.state.document_processor
+    if doc_processor is None:
+        raise HTTPException(status_code=503, detail="Document processor not configured")
+
+    router_instance = app.state.router
+    if router_instance is None:
+        raise HTTPException(status_code=503, detail="Router not configured")
+
+    try:
+        query_embedding = await doc_processor.generate_embeddings([req.query])
+        if not query_embedding or len(query_embedding) == 0:
+            raise HTTPException(status_code=500, detail="Failed to generate query embedding")
+
+        search_results = await client.search(
+            collection_name,
+            query_vector=query_embedding[0],
+            limit=req.limit,
+            with_payload=True,
+            with_vector=False,
+        )
+
+        chunks = []
+        for r in search_results.get("result", []):
+            payload = r.get("payload", {})
+            if "text" in payload:
+                chunks.append({
+                    "text": payload["text"],
+                    "score": r.get("score"),
+                    "source": payload.get("source", "unknown"),
+                })
+
+        context = "\n\n".join([f"[Score: {c['score']:.4f}, Source: {c['source']}]\n{c['text']}" for c in chunks])
+
+        system_prompt = (
+            "You are a helpful assistant. Answer the user's question based on the provided context. "
+            "If the context doesn't contain relevant information, say so clearly."
+        )
+
+        prompt = f"Context:\n{context}\n\nQuestion: {req.query}\n\nAnswer:"
+
+        response = await router_instance.route(
+            messages=[{"role": "user", "content": prompt}],
+            system=system_prompt,
+            model=req.model,
+            temperature=req.temperature,
+        )
+
+        return {
+            "answer": response.content,
+            "chunks": chunks,
+            "query": req.query,
+            "collection": collection_name,
+            "model": response.model,
+            "provider": response.provider,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("RAG query failed")
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+@app.get("/metrics")
+async def metrics():
+    """Expose Prometheus metrics for scraping."""
+    try:
+        from prometheus_client import REGISTRY, generate_latest
+
+        # Generate metrics in Prometheus text format
+        metrics_output = generate_latest(REGISTRY)
+        return Response(
+            content=metrics_output,
+            media_type="text/plain; version=0.0.4; charset=utf-8"
+        )
+    except ImportError:
+        # If prometheus_client is not installed, return empty metrics
+        return Response(
+            content="# Prometheus client not installed\n",
+            media_type="text/plain; version=0.0.4; charset=utf-8",
+            status_code=503
+        )
 
 
 app.include_router(protected)

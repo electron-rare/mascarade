@@ -13,6 +13,8 @@ module_mem0_config() {
 module_mem0_compose() {
   cat <<'EOF'
   mem0:
+    profiles:
+      - personal
     image: ${MEM0_IMAGE:-mem0/openmemory-mcp:latest}
     container_name: mascarade-mem0
     restart: unless-stopped

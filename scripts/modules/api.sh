@@ -9,6 +9,8 @@ module_api_config() {
 
 module_api_compose() {
   echo "  api:"
+  echo "    profiles:"
+  echo "      - core"
   echo "    build:"
   echo "      context: ."
   echo "      dockerfile: deploy/Dockerfile.api"

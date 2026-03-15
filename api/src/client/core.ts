@@ -42,6 +42,7 @@ export interface AgentInfo {
   preferred_model?: string | null;
   preferred_role?: string | null;
   strategy?: string;
+  routing_policy?: string | null;
   temperature?: number;
   max_tokens?: number;
   builtin?: boolean;
@@ -65,6 +66,10 @@ export interface AgentTraceEvent {
   routing_role?: string | null;
   routing_provider?: string | null;
   routing_model?: string | null;
+  routing_policy?: string | null;
+  routing_selected_by?: string | null;
+  routing_transport?: string | null;
+  routing_latency_ms?: number | null;
   mcp_server?: string | null;
   mcp_tool?: string | null;
   mcp_status?: string | null;
@@ -133,6 +138,18 @@ export interface ProviderStatus {
   auth_modes?: string[];
 }
 
+export interface ProviderHealthMetrics {
+  provider_name: string;
+  health_score: number;
+  circuit_state: string;
+  latency_p50: number | null;
+  latency_p95: number | null;
+  latency_p99: number | null;
+  error_rate: number;
+  availability: number;
+  total_requests: number;
+}
+
 const REQUEST_TIMEOUT_MS = parseInt(process.env.CORE_TIMEOUT_MS || "30000", 10);
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
@@ -176,6 +193,7 @@ export const coreClient = {
   send(body: {
     messages: { role: string; content: string }[];
     strategy?: string;
+    routing_policy?: string;
     provider?: string;
     model?: string;
     system?: string;
@@ -194,6 +212,10 @@ export const coreClient = {
 
   providersStatus() {
     return request<{ providers: ProviderStatus[] }>("/providers/status");
+  },
+
+  providerHealth() {
+    return request<Record<string, ProviderHealthMetrics>>("/health/providers");
   },
 
   updateProviderKey(name: string, keys: Record<string, string>) {
@@ -247,6 +269,7 @@ export const coreClient = {
     preferred_model?: string;
     preferred_role?: string;
     strategy?: string;
+    routing_policy?: string;
     temperature?: number;
     max_tokens?: number;
   }) {
@@ -273,6 +296,7 @@ export const coreClient = {
       preferred_model?: string | null;
       preferred_role?: string | null;
       strategy?: string;
+      routing_policy?: string;
       temperature?: number;
       max_tokens?: number;
     },
@@ -300,6 +324,7 @@ export const coreClient = {
         preferred_role?: string | null;
         preferred_provider?: string | null;
         preferred_model?: string | null;
+        routing_policy?: string | null;
       }
     >;
   }) {
@@ -315,6 +340,8 @@ export const coreClient = {
         error?: string;
         remote?: boolean;
         selected_by?: string;
+        transport?: string | null;
+        latency_ms?: number | null;
         peer_id?: string | null;
         node_id?: string | null;
         role?: string | null;
@@ -361,6 +388,7 @@ export const coreClient = {
     allow_local?: boolean;
     messages: { role: string; content: string }[];
     strategy?: string;
+    routing_policy?: string;
     provider?: string;
     model?: string;
     system?: string | null;
@@ -703,6 +731,25 @@ export const coreClient = {
     }>("/mcp/industrial/platform");
   },
 
+  // --- Fine-tuning ---
+
+  finetunePipeline(body: { task: string; domain?: string; max_model_size_gb?: number }) {
+    return request<{ status: string; task_id?: string }>("/finetune/pipeline", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+
+  finetuneStack() {
+    return request<{ stack: string[]; recommended: string }>("/finetune/stack");
+  },
+
+  deleteFinetuneLog(name: string) {
+    return request<{ status: string }>(`/finetune/logs/${encodeURIComponent(name)}`, {
+      method: "DELETE",
+    });
+  },
+
   industrialMcpTool(
     serverKey: string,
     toolName: string,
@@ -788,6 +835,80 @@ export const coreClient = {
   updateUser(userId: number, body: { username?: string; email?: string; role_id?: number; is_active?: boolean }) {
     return request<{ id: number; username: string; email: string; role_id: number; is_active: boolean; created_at: string; updated_at: string }>(`/users/${userId}`, {
       method: "PUT",
+  // --- Qdrant ---
+
+  qdrantHealth() {
+    return request<Record<string, unknown>>("/qdrant/health");
+  },
+
+  qdrantListCollections() {
+    return request<{ collections: Array<{ name: string }> }>("/qdrant/collections");
+  },
+
+  qdrantGetCollection(collectionName: string) {
+    return request<Record<string, unknown>>(
+      `/qdrant/collections/${encodeURIComponent(collectionName)}`,
+    );
+  },
+
+  qdrantCreateCollection(
+    collectionName: string,
+    body: {
+      vector_size: number;
+      distance?: string;
+      on_disk_payload?: boolean;
+    },
+  ) {
+    return request<Record<string, unknown>>(
+      `/qdrant/collections/${encodeURIComponent(collectionName)}`,
+      { method: "PUT", body: JSON.stringify(body) },
+    );
+  },
+
+  qdrantDeleteCollection(collectionName: string) {
+    return request<Record<string, unknown>>(
+      `/qdrant/collections/${encodeURIComponent(collectionName)}`,
+      { method: "DELETE" },
+    );
+  },
+
+  qdrantUpsertPoints(
+    collectionName: string,
+    body: {
+      points: Array<{
+        id: string | number;
+        vector: number[];
+        payload?: Record<string, unknown>;
+      }>;
+      wait?: boolean;
+    },
+  ) {
+    return request<Record<string, unknown>>(
+      `/qdrant/collections/${encodeURIComponent(collectionName)}/points`,
+      { method: "POST", body: JSON.stringify(body) },
+    );
+  },
+
+  qdrantSearch(
+    collectionName: string,
+    body: {
+      query_vector: number[];
+      limit?: number;
+      score_threshold?: number;
+      with_payload?: boolean;
+      with_vector?: boolean;
+      filter_conditions?: Record<string, unknown>;
+    },
+  ) {
+    return request<{
+      points: Array<{
+        id: string | number;
+        score: number;
+        payload?: Record<string, unknown>;
+        vector?: number[];
+      }>;
+    }>(`/qdrant/collections/${encodeURIComponent(collectionName)}/search`, {
+      method: "POST",
       body: JSON.stringify(body),
     });
   },
@@ -814,6 +935,101 @@ export const coreClient = {
   revokeApiKey(userId: number, keyId: number) {
     return request<{ status: string }>(`/users/${userId}/api-keys/${keyId}`, {
       method: "DELETE",
+  qdrantRecommend(
+    collectionName: string,
+    body: {
+      positive: Array<string | number>;
+      negative?: Array<string | number>;
+      limit?: number;
+      score_threshold?: number;
+      with_payload?: boolean;
+      with_vector?: boolean;
+      filter_conditions?: Record<string, unknown>;
+    },
+  ) {
+    return request<{
+      points: Array<{
+        id: string | number;
+        score: number;
+        payload?: Record<string, unknown>;
+        vector?: number[];
+      }>;
+    }>(`/qdrant/collections/${encodeURIComponent(collectionName)}/recommend`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+
+  async qdrantUploadDocuments(collectionName: string, formData: FormData) {
+    const headers = getCoreAuthHeaders();
+    const res = await fetch(`${CORE_URL}/qdrant/collections/${encodeURIComponent(collectionName)}/upload`, {
+      method: "POST",
+      headers,
+      body: formData,
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    });
+    if (!res.ok) {
+      const text = await res.text();
+      let msg = `Core API error ${res.status}`;
+      try {
+        const json = JSON.parse(text);
+        if (json.detail) msg = json.detail;
+        else if (json.error) msg = json.error;
+        else if (json.message) msg = json.message;
+      } catch {
+        // keep default message
+      }
+      throw new CoreApiError(msg, res.status, text);
+    }
+    return res.json();
+  },
+
+  qdrantSemanticSearch(
+    collectionName: string,
+    body: {
+      query: string;
+      limit?: number;
+      score_threshold?: number;
+    },
+  ) {
+    return request<{
+      results: Array<{
+        id: string | number;
+        score: number;
+        text?: string;
+        metadata?: Record<string, unknown>;
+      }>;
+      query: string;
+      collection: string;
+    }>(`/qdrant/collections/${encodeURIComponent(collectionName)}/semantic-search`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+
+  qdrantRAGQuery(
+    collectionName: string,
+    body: {
+      query: string;
+      limit?: number;
+      model?: string;
+      temperature?: number;
+    },
+  ) {
+    return request<{
+      answer: string;
+      chunks: Array<{
+        text: string;
+        score: number;
+        source: string;
+      }>;
+      query: string;
+      collection: string;
+      model: string;
+      provider: string;
+    }>(`/qdrant/collections/${encodeURIComponent(collectionName)}/rag-query`, {
+      method: "POST",
+      body: JSON.stringify(body),
     });
   },
 };
