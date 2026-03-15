@@ -10,6 +10,7 @@ from enum import StrEnum
 from mascarade.agents.registry import AgentRegistry
 from mascarade.cluster import ClusterManager
 from mascarade.observability import AgentTraceBuffer, new_run_id
+from mascarade.orchestrator.circuit_breaker import CircuitBreaker
 from mascarade.orchestrator.retry import RetryConfig, RetryExecutor
 from mascarade.router import Router
 from mascarade.router.providers.base import LLMResponse
@@ -52,6 +53,7 @@ class Orchestrator:
     trace_buffer: AgentTraceBuffer | None = None
     cluster: ClusterManager | None = None
     retry_executor: RetryExecutor = field(default_factory=RetryExecutor)
+    circuit_breakers: dict[str, CircuitBreaker] = field(default_factory=dict)
 
     def _trace(
         self,
