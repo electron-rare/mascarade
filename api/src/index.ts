@@ -56,6 +56,10 @@ app.route("/api/users", users);
 app.route("/api/p2p", p2p);
 app.route("/api/finetune", finetune);
 
+// Node Engine UI route
+app.get("/node-engine", serveStatic({ root: "./public", path: "node-engine.html" }));
+app.use("/node-engine-bundle.js*", serveStatic({ root: "./public" }));
+
 if (hasFrontend) {
   app.use("/assets/*", serveStatic({ root: "./public" }));
   app.use("/favicon.ico", serveStatic({ root: "./public" }));
