@@ -226,8 +226,22 @@ export function NodeEditor(props: NodeEditorProps = {}) {
         if (message.type === 'execution_event') {
           const execEvent = message.event as ExecutionEvent;
 
+          // Handle graph started - reset all nodes to idle
+          if (execEvent.type === 'graph.started') {
+            setNodes((nds) =>
+              nds.map((node) => ({
+                ...node,
+                data: {
+                  ...node.data,
+                  executionState: 'idle',
+                  error: undefined,
+                },
+              }))
+            );
+          }
+
           // Handle node state changes
-          if (execEvent.type === 'node.state') {
+          else if (execEvent.type === 'node.state') {
             const { nodeId, state } = execEvent;
 
             // Update the node's execution state

@@ -128,7 +128,7 @@ export const BaseNode = memo(function BaseNode(props: BaseNodeProps) {
   };
 
   return (
-    <div className={`base-node ${className}`} style={containerStyle}>
+    <div className={`base-node ${className}`} data-state={executionState} data-category={category} style={containerStyle}>
       {/* Node header */}
       <div style={styles.header}>
         <div style={styles.headerLeft}>
