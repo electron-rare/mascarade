@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import asyncio
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import StrEnum
+from typing import Any
 
 
 class BackoffStrategy(StrEnum):
@@ -103,3 +106,76 @@ class RetryState:
         self.attempts = 0
         self.total_delay = 0.0
         self.errors = []
+
+
+@dataclass
+class RetryExecutor:
+    """Exécuteur avec logique de retry et backoff."""
+
+    config: RetryConfig = field(default_factory=RetryConfig)
+    states: dict[str, RetryState] = field(default_factory=dict)
+
+    async def execute_with_retry(
+        self,
+        fn: Callable[[], Any],
+        agent_name: str = "default",
+        max_retries: int | None = None,
+        config: RetryConfig | None = None,
+    ) -> Any:
+        """Exécuter une fonction avec retry et backoff exponentiel."""
+        retry_config = config or self.config
+        max_attempts = (
+            max_retries if max_retries is not None else retry_config.max_retries
+        ) + 1
+
+        # Obtenir ou créer l'état de retry
+        if agent_name not in self.states:
+            self.states[agent_name] = RetryState(agent_name=agent_name)
+        state = self.states[agent_name]
+
+        last_error = None
+
+        for attempt in range(max_attempts):
+            try:
+                # Tenter d'exécuter la fonction
+                if asyncio.iscoroutinefunction(fn):
+                    result = await fn()
+                else:
+                    result = fn()
+                return result
+            except Exception as e:
+                last_error = e
+
+                # Si c'est la dernière tentative, enregistrer et lever l'erreur
+                if attempt >= max_attempts - 1:
+                    state.record_attempt(error=str(e), delay=0.0)
+                    raise
+
+                # Calculer le délai avant le prochain retry
+                delay = retry_config.calculate_delay(attempt)
+                state.record_attempt(error=str(e), delay=delay)
+
+                # Attendre avant de réessayer
+                await asyncio.sleep(delay)
+
+        # Ne devrait jamais arriver ici, mais au cas où
+        if last_error:
+            raise last_error
+
+    def get_stats(self, agent_name: str | None = None) -> dict:
+        """Obtenir les statistiques des retries."""
+        if agent_name:
+            state = self.states.get(agent_name)
+            return state.get_stats() if state else {}
+
+        return {
+            name: state.get_stats() for name, state in self.states.items()
+        }
+
+    def reset(self, agent_name: str | None = None) -> None:
+        """Réinitialiser les statistiques."""
+        if agent_name:
+            if agent_name in self.states:
+                self.states[agent_name].reset()
+        else:
+            self.states = {}
