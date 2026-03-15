@@ -230,6 +230,11 @@ _TAGLINES=(
     "Vous avez la frequence — KEEP THE BEAT"
     "Orchestration LLM agentic — groove edition"
     "Si un enfant demande 'c'est quoi un ion ?', c'est un electron qui a trop fait la fete !"
+    "Bienvenue au carnaval mutant de photon-machine"
+    "Le portail opalin s'ouvre a 125 BPM"
+    "Les gobelins du build dansent sous le plasma violet"
+    "Douglas Adams a la passerelle, Pratchett dans le moteur"
+    "Haraway au cockpit, Mhalla sur le radar"
     "MoldBot → MoltBot → ClawdBot → OpenClaw → Mascarade"
 )
 
@@ -1068,6 +1073,24 @@ docker_compose_cmd() {
         fi
 
         [[ -n "$compose_env_file" ]] && compose_args+=(--env-file "$compose_env_file")
+    fi
+
+    # Add profile flags when COMPOSE_PROFILES_MODE is active
+    if [[ "${COMPOSE_PROFILES_MODE:-false}" == true && -n "${COMPOSE_PROFILES:-}" ]]; then
+        local profiles_csv="$COMPOSE_PROFILES"
+        local -a profiles_array
+
+        # Split CSV into array
+        IFS=',' read -ra profiles_array <<< "$profiles_csv"
+
+        # Add --profile flag for each profile
+        for profile in "${profiles_array[@]}"; do
+            # Trim whitespace
+            profile=$(echo "$profile" | xargs)
+            [[ -z "$profile" ]] && continue
+            compose_args+=(--profile "$profile")
+            dbg "Adding profile: $profile"
+        done
     fi
 
     if [[ "$_DOCKER_NEEDS_SUDO" == true ]]; then

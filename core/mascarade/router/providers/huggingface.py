@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from collections.abc import AsyncIterator
 from datetime import UTC, datetime, timedelta
 
@@ -22,6 +23,7 @@ _retry = make_retry(
     openai.APITimeoutError,
 )
 _OAUTH_REFRESH_SKEW = timedelta(seconds=60)
+logger = logging.getLogger("mascarade.router.providers.huggingface")
 
 
 def _normalized_auth_mode() -> str:
@@ -55,9 +57,21 @@ class HuggingFaceProvider(LLMProvider):
     def __init__(self) -> None:
         self._client: openai.AsyncOpenAI | None = None
         self._client_token = ""
+        self._client_mode = ""
+        self._proxy_enabled = (
+            settings.litellm_proxy_enabled
+            and settings.litellm_base_url.strip()
+            and is_secret_configured(settings.litellm_master_key)
+        )
+        if settings.litellm_proxy_enabled and not self._proxy_enabled:
+            logger.warning(
+                "LiteLLM proxy requested for huggingface but base_url/master_key is incomplete; using direct provider mode",
+            )
 
     @property
     def is_configured(self) -> bool:
+        if self._proxy_enabled:
+            return True
         if _normalized_auth_mode() == "api_key":
             return is_secret_configured(settings.huggingface_api_key)
         return bool(
@@ -131,8 +145,29 @@ class HuggingFaceProvider(LLMProvider):
         return await self._resolve_oauth_access_token()
 
     async def _ensure_client(self) -> openai.AsyncOpenAI:
+        if self._proxy_enabled:
+            proxy_key = settings.litellm_master_key
+            if (
+                self._client is not None
+                and self._client_mode == "litellm"
+                and self._client_token == proxy_key
+            ):
+                return self._client
+            self._client = openai.AsyncOpenAI(
+                api_key=proxy_key,
+                base_url=settings.litellm_base_url,
+                timeout=30.0,
+            )
+            self._client_token = proxy_key
+            self._client_mode = "litellm"
+            return self._client
+
         token = await self._resolve_access_token()
-        if self._client is not None and self._client_token == token:
+        if (
+            self._client is not None
+            and self._client_mode == "direct"
+            and self._client_token == token
+        ):
             return self._client
         self._client = openai.AsyncOpenAI(
             api_key=token,
@@ -140,6 +175,7 @@ class HuggingFaceProvider(LLMProvider):
             timeout=30.0,
         )
         self._client_token = token
+        self._client_mode = "direct"
         return self._client
 
     @_retry
@@ -162,6 +198,8 @@ class HuggingFaceProvider(LLMProvider):
             max_tokens=max_tokens,
             temperature=temperature,
         )
+        if not response.choices:
+            raise RuntimeError(f"HuggingFace returned empty choices for model {model}")
         choice = response.choices[0]
         return LLMResponse(
             content=choice.message.content or "",

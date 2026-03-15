@@ -30,9 +30,10 @@ class OllamaProvider(LLMProvider):
 
     def __init__(self) -> None:
         self._base_url = settings.ollama_base_url.rstrip("/")
+        self._timeout_seconds = settings.ollama_timeout_seconds
         self._client = httpx.AsyncClient(
             base_url=self._base_url,
-            timeout=180.0,
+            timeout=self._timeout_seconds,
         )
 
     @property
@@ -72,10 +73,17 @@ class OllamaProvider(LLMProvider):
             else:
                 payload["format"] = response_format
 
-        response = await self._client.post(
-            "/api/chat",
-            json=payload,
-        )
+        try:
+            response = await self._client.post(
+                "/api/chat",
+                json=payload,
+            )
+        except httpx.ReadTimeout:
+            raise RuntimeError(
+                f"Ollama local timeout after {int(self._timeout_seconds)}s "
+                f"on model={model} max_tokens={max_tokens}. "
+                f"Increase OLLAMA_TIMEOUT_SECONDS if the model needs more time."
+            ) from None
         response.raise_for_status()
         data = response.json()
 

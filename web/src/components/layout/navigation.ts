@@ -134,6 +134,33 @@ export const navigationGroups: NavGroup[] = [
     ],
   },
   {
+    label: "P2P & Training",
+    items: [
+      {
+        to: "/p2p",
+        icon: "◉",
+        label: "P2P Mesh",
+        shortLabel: "Mesh",
+        hint: "peer topology",
+        eyebrow: "mesh control",
+        title: "P2P Mesh",
+        description: "Topologie du mesh P2P, status des noeuds, capabilities et controle du cluster distribue.",
+        section: "P2P & Training",
+      },
+      {
+        to: "/finetune",
+        icon: "◈",
+        label: "Fine-Tuning",
+        shortLabel: "FT",
+        hint: "training pipeline",
+        eyebrow: "fine-tuning lab",
+        title: "Fine-Tuning",
+        description: "Pipeline de fine-tuning distribue: agents, modeles, datasets, runs et orchestration P2P.",
+        section: "P2P & Training",
+      },
+    ],
+  },
+  {
     label: "Integrations",
     items: [
       {
@@ -185,6 +212,14 @@ function resolveBaseItem(pathname: string): NavItem | undefined {
 
   if (pathname.startsWith("/kill-life/")) {
     return navigationItems.find((item) => item.to === "/kill-life");
+  }
+
+  if (pathname.startsWith("/p2p/")) {
+    return navigationItems.find((item) => item.to === "/p2p");
+  }
+
+  if (pathname.startsWith("/finetune/")) {
+    return navigationItems.find((item) => item.to === "/finetune");
   }
 
   return navigationItems.find((item) => item.to === pathname);

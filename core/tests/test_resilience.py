@@ -42,7 +42,9 @@ def test_fallback_cache_metrics_and_lb_stats():
     router.register(FailThenOkProvider("p2", fail_once=False))
 
     payload = [{"role": "user", "content": "hello"}]
-    first = asyncio.run(router.send(payload, strategy="best"))
+    first = asyncio.run(
+        router.send(payload, strategy="routellm", routing_policy="strong")
+    )
 
     # For second call, use specific provider to ensure cache hit
     # Use the provider that was actually selected in the first call

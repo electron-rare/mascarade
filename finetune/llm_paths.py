@@ -51,7 +51,10 @@ def ensure_llm_dirs() -> dict[str, Path]:
         "apple_llm": apple_llm_dir(),
     }
     for path in roots.values():
-        path.mkdir(parents=True, exist_ok=True)
+        try:
+            path.mkdir(parents=True, exist_ok=True)
+        except OSError:
+            pass
     return roots
 
 
