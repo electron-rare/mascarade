@@ -770,6 +770,71 @@ export const coreClient = {
     });
   },
 
+  // --- Authentication ---
+
+  verifyToken(token: string) {
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    };
+    return fetch(`${CORE_URL}/auth/me`, {
+      headers,
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    }).then(async (res) => {
+      if (!res.ok) {
+        const text = await res.text();
+        let parsedBody: unknown = text;
+        if (text) {
+          try {
+            parsedBody = JSON.parse(text);
+          } catch {
+            parsedBody = text;
+          }
+        }
+        const message =
+          typeof parsedBody === "object" && parsedBody !== null
+            ? ((parsedBody as Record<string, unknown>).error as string | undefined) ||
+              ((parsedBody as Record<string, unknown>).detail as string | undefined) ||
+              `Core API error ${res.status}`
+            : text || `Core API error ${res.status}`;
+        throw new CoreApiError(message, res.status, parsedBody);
+      }
+      return res.json() as Promise<{
+        id: number;
+        username: string;
+        email: string;
+        role_id: number;
+        is_active: boolean;
+        rate_limits?: {
+          requests_per_minute?: number | null;
+          requests_per_hour?: number | null;
+          requests_per_day?: number | null;
+          tokens_per_day?: number | null;
+        } | null;
+      }>;
+    });
+  },
+
+  // --- User Management ---
+
+  listUsers() {
+    return request<{ users: Array<{ id: number; username: string; email: string; role_id: number; is_active: boolean; created_at: string; updated_at: string }> }>("/users");
+  },
+
+  createUser(body: { username: string; email: string; role_id: number }) {
+    return request<{ id: number; username: string; email: string; role_id: number; is_active: boolean; created_at: string; updated_at: string }>("/users", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+
+  getUser(userId: number) {
+    return request<{ id: number; username: string; email: string; role_id: number; is_active: boolean; created_at: string; updated_at: string }>(`/users/${userId}`);
+  },
+
+  updateUser(userId: number, body: { username?: string; email?: string; role_id?: number; is_active?: boolean }) {
+    return request<{ id: number; username: string; email: string; role_id: number; is_active: boolean; created_at: string; updated_at: string }>(`/users/${userId}`, {
+      method: "PUT",
   // --- Qdrant ---
 
   qdrantHealth() {
@@ -848,6 +913,28 @@ export const coreClient = {
     });
   },
 
+  deleteUser(userId: number) {
+    return request<{ status: string }>(`/users/${userId}`, {
+      method: "DELETE",
+    });
+  },
+
+  // --- API Key Management ---
+
+  createApiKey(userId: number, body: { name: string; expires_at?: string }) {
+    return request<{ id: number; key: string; key_prefix: string; name: string; created_at: string; expires_at: string | null }>(`/users/${userId}/api-keys`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+
+  listApiKeys(userId: number) {
+    return request<{ api_keys: Array<{ id: number; key_prefix: string; name: string; created_at: string; expires_at: string | null; last_used_at: string | null }> }>(`/users/${userId}/api-keys`);
+  },
+
+  revokeApiKey(userId: number, keyId: number) {
+    return request<{ status: string }>(`/users/${userId}/api-keys/${keyId}`, {
+      method: "DELETE",
   qdrantRecommend(
     collectionName: string,
     body: {

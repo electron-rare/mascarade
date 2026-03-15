@@ -18,6 +18,7 @@ services:
       CORE_PORT: ${CORE_PORT}
       DEFAULT_PROVIDER: ${DEFAULT_PROVIDER}
       DEFAULT_MODEL: ${DEFAULT_MODEL}
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       AGENT_FACTORY_COCKPIT_DIR: ${AGENT_FACTORY_COCKPIT_DIR:-/workspace/agent-factory-cockpit}
       AGENT_FACTORY_DCS_PACK: ${AGENT_FACTORY_DCS_PACK:-generic-rest}
       AGENT_FACTORY_DCS_BASE_URL: ${AGENT_FACTORY_DCS_BASE_URL:-http://agent-factory-dcs-sandbox:4184/api}
@@ -45,6 +46,9 @@ services:
     volumes:
       - core-data:/app/data
       - ../agent-factory-cockpit:${AGENT_FACTORY_COCKPIT_DIR:-/workspace/agent-factory-cockpit}:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
     networks:
       - mascarade-network
 

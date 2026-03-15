@@ -19,6 +19,7 @@ from mascarade.router.circuit_breaker import CircuitBreaker
 from mascarade.router.fallback import FallbackState
 from mascarade.router.health_monitor import HealthMonitor
 from mascarade.router.providers.base import LLMProvider, LLMResponse
+from mascarade.usage_tracking import track_usage
 
 logger = logging.getLogger("mascarade.router")
 
@@ -349,6 +350,7 @@ class Router:
         response_format: dict | None = None,
         temperature: float = 0.7,
         max_tokens: int = 4096,
+        user_id: int | None = None,
     ) -> LLMResponse:
         requested_strategy = Strategy(strategy)
         policy = (routing_policy or "auto").strip().lower() or "auto"
@@ -569,6 +571,17 @@ class Router:
                     temperature=temperature,
                     max_tokens=max_tokens,
                 )
+
+            # Track usage for user if user_id provided
+            if user_id is not None:
+                await track_usage(
+                    user_id=user_id,
+                    provider=selected.name,
+                    model=response.model,
+                    usage=response.usage or {},
+                    cost=self._calculate_cost(selected, response.usage or {}),
+                )
+
             return response
 
         raise RuntimeError(
@@ -588,6 +601,7 @@ class Router:
         system: str | None = None,
         temperature: float = 0.7,
         max_tokens: int = 4096,
+        user_id: int | None = None,
     ) -> AsyncIterator[str]:
         requested_strategy = Strategy(strategy)
         effective_strategy = requested_strategy
@@ -704,6 +718,18 @@ class Router:
                 response_time=elapsed,
                 success=True,
             )
+
+            # Track usage for user if user_id provided
+            # Note: streaming doesn't provide token counts, so we track 0 tokens
+            if user_id is not None:
+                await track_usage(
+                    user_id=user_id,
+                    provider=selected.name,
+                    model=model or selected.default_model,
+                    usage={},
+                    cost=0.0,
+                )
+
             COST_METRICS.track_request(
                 provider=selected.name,
                 model=model or selected.available_models()[0] if selected.available_models() else "unknown",
