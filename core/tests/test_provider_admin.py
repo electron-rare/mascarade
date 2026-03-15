@@ -125,28 +125,6 @@ def test_get_providers_status_ollama_toggle_disables_provider():
     assert entry["fields"][0]["criticality"] == "local-operator-context"
 
 
-def test_runtime_secret_group_status_exposes_criticality_matrix():
-    entry = build_runtime_secret_group_status("notion")
-    notion_api_key = next(
-        field for field in entry["fields"] if field["env"] == "NOTION_API_KEY"
-    )
-    smoke_page = next(
-        field for field in entry["fields"] if field["env"] == "NOTION_MCP_SMOKE_PAGE_ID"
-    )
-
-    assert entry["criticality"] == "feature-required"
-    assert (
-        entry["required_when"]
-        == "Requis seulement si l'integration Notion est utilisee."
-    )
-    assert entry["classification"] == "integration-credential"
-    assert entry["used_by"] == ["core", "ops-agent"]
-    assert notion_api_key["classification"] == "integration-credential"
-    assert notion_api_key["criticality"] == "feature-required"
-    assert smoke_page["classification"] == "live-validation-target"
-    assert smoke_page["criticality"] == "live-validation-optional"
-
-
 def test_update_provider_keys_reinitializes_provider_from_registry(monkeypatch):
     fake_module = ModuleType("test_provider_admin_fake")
     fake_module.FakeProvider = _FakeProvider

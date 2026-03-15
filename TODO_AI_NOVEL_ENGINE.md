@@ -63,8 +63,8 @@ Regle:
 
 ## Auto-sync
 <!-- AUTO-SYNC:MASCARADE-TODO:START -->
-- dernier cycle ANE automatise: 2026-03-13T14:15:56+00:00
+- dernier cycle ANE automatise: 2026-03-14T14:03:06+00:00
 - accepted via runtime local: apple-coreml:qwen3.5-4b-onnx-q4f16
-- gate atteint via runtime local: apple-coreml:qwen3.5-4b-onnx-q4f16, ollama:qwen2.5:7b, apple-coreml:qwen2.5-0.5b-instruct-onnx, ollama:qwen2.5:1.5b
-- blocage runtime principal: Confirmer la reference accepted puis resserrer rewrite/repair sur les modeles deja bloques a gate.
+- gate atteint via runtime local: apple-coreml:qwen3.5-4b-onnx-q4f16, apple-coreml:qwen2.5-0.5b-instruct-onnx
+- blocage runtime principal: Reference locale reconfirmee; retablir le runtime des modeles provider_failed puis reprendre rewrite/repair sur les modeles bloques a gate.
 <!-- AUTO-SYNC:MASCARADE-TODO:END -->

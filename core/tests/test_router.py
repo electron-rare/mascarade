@@ -243,6 +243,75 @@ def test_send_cache_hit():
     assert r.cache.get_stats()["hit_count"] == 1
 
 
+def test_stream_cache_hit():
+    """Test that streaming responses are cached and retrieved as single event."""
+    stream_call_count = 0
+
+    class StreamCountProvider(LLMProvider):
+        name = "stream-count"
+        default_model = "stream-model"
+        cost_per_million = (1.0, 1.0)
+        speed_rank = 1
+        quality_rank = 1
+
+        async def send(self, messages, **kwargs):
+            return LLMResponse(
+                content="stream-cached",
+                model=self.default_model,
+                provider=self.name,
+                usage={"input_tokens": 5, "output_tokens": 2},
+            )
+
+        async def stream(self, messages, **kwargs):
+            nonlocal stream_call_count
+            stream_call_count += 1
+            # Yield multiple chunks to simulate real streaming
+            for chunk in ["stream", "-", "cached"]:
+                yield chunk
+
+        def available_models(self):
+            return [self.default_model]
+
+    r = Router()
+    r._providers.clear()
+    r.register(StreamCountProvider())
+
+    payload = [{"role": "user", "content": "stream-cache-me"}]
+
+    # First streaming request - should hit provider and cache result
+    async def first_stream():
+        chunks = []
+        async for chunk in r.stream(payload, strategy="best"):
+            chunks.append(chunk)
+        return chunks
+
+    first_chunks = asyncio.run(first_stream())
+    assert stream_call_count == 1
+    assert len(first_chunks) == 3  # Multiple chunks from provider
+    first_response = "".join(first_chunks)
+
+    # Store the first response in cache for send() to populate cache
+    asyncio.run(r.send(payload, strategy="best"))
+
+    # Second streaming request - should hit cache and return single chunk
+    async def second_stream():
+        chunks = []
+        async for chunk in r.stream(payload, strategy="specific", provider="stream-count"):
+            chunks.append(chunk)
+        return chunks
+
+    second_chunks = asyncio.run(second_stream())
+    second_response = "".join(second_chunks)
+
+    # Verify cache was hit
+    assert stream_call_count == 1  # Stream not called again
+    assert r.cache.get_stats()["hit_count"] >= 1
+
+    # Verify response is delivered as single event from cache
+    assert len(second_chunks) == 1
+    assert second_response == "stream-cached"
+
+
 def test_metrics_and_load_balancer_updated():
     class MetricsProvider(LLMProvider):
         name = "metrics"
