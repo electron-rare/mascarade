@@ -560,6 +560,29 @@
 }
 
 /* ===========================
+   Audio Initialization Button
+   =========================== */
+
+.audio-init-button {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  transition: all 0.2s ease;
+}
+
+.audio-init-button:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+.audio-init-button:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.audio-init-button:disabled {
+  cursor: default;
+  opacity: 0.8;
+}
+
+/* ===========================
    Utility Classes
    =========================== */
 
