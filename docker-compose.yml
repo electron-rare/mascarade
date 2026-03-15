@@ -71,7 +71,7 @@ services:
 
   litellm:
     profiles:
-      - core
+      - personal
     image: ${LITELLM_IMAGE:-ghcr.io/berriai/litellm@sha256:59a2736ac84800821fa0e1656487366089f2d29d10f8ae05c918df9c6e4940af}
     container_name: mascarade-litellm
     restart: unless-stopped
@@ -596,7 +596,7 @@ services:
 
   edge-proxy:
     profiles:
-      - core
+      - industrial
     build:
       context: .
       dockerfile: deploy/Dockerfile.edge-proxy
@@ -627,7 +627,7 @@ services:
 
   ops-agent:
     profiles:
-      - observability
+      - industrial
     build:
       context: .
       dockerfile: deploy/Dockerfile.ops-agent
