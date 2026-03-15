@@ -96,6 +96,8 @@ class TaskResult:
     role: str | None = None
     transport: str | None = None
     latency_ms: int | None = None
+    fallback_used: bool = False
+    fallback_agent: str | None = None
 
 
 @dataclass
@@ -113,11 +115,20 @@ class Orchestrator:
     registry: AgentRegistry = field(default_factory=AgentRegistry)
     trace_buffer: AgentTraceBuffer | None = None
     cluster: ClusterManager | None = None
+    retry_executor: RetryExecutor = field(
+        default_factory=lambda: RetryExecutor(config=RetryConfig())
+    )
+    dead_letter_store: DeadLetterStore = field(default_factory=DeadLetterStore)
+    circuit_breakers: dict[str, CircuitBreaker] = field(default_factory=dict)
     _ray_client: Any = field(default=None, init=False, repr=False)
     _ray_send_remote: Any = field(default=None, init=False, repr=False)
     _ray_disabled: bool = field(default=False, init=False, repr=False)
     _ray_failures: dict[str, int] = field(default_factory=dict, init=False, repr=False)
     _ray_circuit_open_until: dict[str, float] = field(default_factory=dict, init=False, repr=False)
+
+    def __post_init__(self) -> None:
+        if self.trace_buffer is None:
+            self.trace_buffer = AgentTraceBuffer()
 
     def _trace(
         self,
@@ -330,12 +341,44 @@ class Orchestrator:
                 routing_model=override.get("preferred_model"),
                 routing_policy=routing_policy,
             )
-            result = await self._execute_agent(
-                agent,
-                prompt,
-                step=i,
-                routing_override=override,
-            )
+            try:
+                result = await self._execute_agent(
+                    agent,
+                    prompt,
+                    step=i,
+                    routing_override=override,
+                    run_id=run_id,
+                    mode=mode,
+                )
+            except Exception as exc:
+                error_msg = str(exc)
+                self._trace(
+                    run_id=run_id,
+                    mode=mode,
+                    event_type="run_failed",
+                    step=i,
+                    severity="error",
+                    agent_name=name,
+                    error=error_msg,
+                )
+                self.dead_letter_store.record_failure(
+                    run_id=run_id,
+                    error=error_msg,
+                    context={"prompt": prompt, "agent_names": agent_names},
+                    mode=mode.value,
+                    agent_name=name,
+                    step=i,
+                )
+                result = TaskResult(
+                    agent_name=name,
+                    response=LLMResponse(content="", model="", provider="", usage={}),
+                    step=i,
+                    error=error_msg,
+                )
+                results.append(result)
+                if not skip_on_error:
+                    break
+                continue
             self._trace(
                 run_id=run_id,
                 mode=mode,
@@ -484,6 +527,7 @@ class Orchestrator:
         for i, name in enumerate(agent_names):
             agent = self.registry.get(name)
             override = (routing_overrides or {}).get(name) or {}
+            fallback_name = (fallback_map or {}).get(name)
             routing_policy = override.get("routing_policy") or getattr(
                 agent, "routing_policy", None
             )
@@ -518,10 +562,55 @@ class Orchestrator:
                     routing_override=override,
                     run_id=run_id,
                     mode=mode,
-                    fallback_agent_name=fallback_name,
                 )
             except Exception as exc:
                 error_msg = str(exc)
+                if fallback_name:
+                    self._trace(
+                        run_id=run_id,
+                        mode=mode,
+                        event_type="fallback_triggered",
+                        step=i,
+                        severity="warning",
+                        agent_name=name,
+                        error=f"Primary agent '{name}' failed, trying fallback '{fallback_name}'",
+                    )
+                    try:
+                        fallback_agent = self.registry.get(fallback_name)
+                        fallback_override = (routing_overrides or {}).get(fallback_name) or {}
+                        result = await self._execute_agent(
+                            fallback_agent,
+                            current_input,
+                            step=i,
+                            routing_override=fallback_override,
+                            run_id=run_id,
+                            mode=mode,
+                        )
+                        result.fallback_used = True
+                        result.fallback_agent = fallback_name
+                        self._trace(
+                            run_id=run_id,
+                            mode=mode,
+                            event_type="agent_output",
+                            step=i,
+                            agent_name=fallback_name,
+                            content_excerpt=result.response.content,
+                            provider=result.response.provider,
+                            model=result.response.model,
+                            routing_policy=routing_policy,
+                            routing_selected_by=result.selected_by,
+                            routing_transport=result.transport,
+                            routing_latency_ms=result.latency_ms,
+                            token_usage=result.response.usage,
+                        )
+                        results.append(result)
+                        current_input = result.response.content
+                        continue
+                    except Exception as fallback_exc:
+                        error_msg = (
+                            f"Primary agent '{name}' failed: {exc}; "
+                            f"Fallback agent '{fallback_name}' also failed: {fallback_exc}"
+                        )
                 logger.error("Pipeline agent %s (step %d) failed: %s", name, i, error_msg)
                 self._trace(
                     run_id=run_id,
@@ -540,7 +629,16 @@ class Orchestrator:
                     agent_name=name,
                     step=i,
                 )
-                results.append(TaskResult(agent_name=name, response=LLMResponse(content="", model="", provider="", usage={}), step=i, error=error_msg))
+                results.append(
+                    TaskResult(
+                        agent_name=name,
+                        response=LLMResponse(content="", model="", provider="", usage={}),
+                        step=i,
+                        error=error_msg,
+                        fallback_used=False,
+                        fallback_agent=fallback_name,
+                    )
+                )
                 if not skip_on_error:
                     break
                 # Continue with current input if skipping error
@@ -644,14 +742,6 @@ class Orchestrator:
             raise RuntimeError(error_msg)
 
         async def _do_execute() -> TaskResult:
-            """Logique d'exécution à retrier."""
-            payload = agent.build_send_payload(prompt)
-            if routing_override:
-                if routing_override.get("preferred_provider"):
-                    payload["provider"] = routing_override["preferred_provider"]
-                if routing_override.get("preferred_model"):
-                    payload["model"] = routing_override["preferred_model"]
-
             preferred_role = (routing_override or {}).get("preferred_role") or getattr(
                 agent, "preferred_role", None
             )
@@ -676,13 +766,28 @@ class Orchestrator:
                     remote=bool(routed.get("remote")),
                     selected_by=str(routed.get("selected_by") or "cluster"),
                     peer_id=routed.get("peer_id"),
-                    node_id=routed.get("node_id") or None,
+                    node_id=str(routed.get("node_id") or "") or None,
                     role=str(routed.get("role") or "") or None,
+                    transport=str(routed.get("transport") or ("local" if not routed.get("remote") else "")) or None,
+                    latency_ms=(
+                        int(routed["latency_ms"])
+                        if isinstance(routed.get("latency_ms"), (int, float))
+                        else None
+                    ),
                 )
+
+            ray_result = await self._execute_agent_via_ray(
+                agent_name=agent.name,
+                payload=payload,
+                step=step,
+            )
+            if ray_result is not None:
+                return ray_result
 
             response = await self.router.send(
                 payload["messages"],
                 strategy=payload["strategy"],
+                routing_policy=payload.get("routing_policy"),
                 provider=payload["provider"],
                 model=payload["model"],
                 system=payload["system"],
@@ -693,48 +798,39 @@ class Orchestrator:
                 agent_name=agent.name,
                 response=response,
                 step=step,
-                remote=bool(routed.get("remote")),
-                selected_by=str(routed.get("selected_by") or "cluster"),
-                peer_id=routed.get("peer_id"),
-                node_id=str(routed.get("node_id") or "") or None,
-                role=str(routed.get("role") or "") or None,
-                transport=str(routed.get("transport") or ("local" if not routed.get("remote") else "")) or None,
-                latency_ms=(
-                    int(routed["latency_ms"])
-                    if isinstance(routed.get("latency_ms"), (int, float))
-                    else None
-                ),
+                remote=False,
+                selected_by="local-direct",
+                node_id=None,
+                role=preferred_role,
+                transport="local",
+                latency_ms=0,
+                fallback_used=bool(fallback_agent_name),
+                fallback_agent=fallback_agent_name,
             )
 
-        ray_result = await self._execute_agent_via_ray(
-            agent_name=agent.name,
-            payload=payload,
-            step=step,
-        )
-        if ray_result is not None:
-            return ray_result
+        def _on_retry(attempt: int, error: str, delay: float) -> None:
+            if run_id and mode:
+                self._trace(
+                    run_id=run_id,
+                    mode=mode,
+                    event_type="retry_attempt",
+                    step=step,
+                    severity="warning",
+                    agent_name=agent.name,
+                    error=f"attempt={attempt} delay={delay:.2f}s error={error}",
+                )
 
-        response = await self.router.send(
-            payload["messages"],
-            strategy=payload["strategy"],
-            routing_policy=payload.get("routing_policy"),
-            provider=payload["provider"],
-            model=payload["model"],
-            system=payload["system"],
-            temperature=payload["temperature"],
-            max_tokens=payload["max_tokens"],
-        )
-        return TaskResult(
-            agent_name=agent.name,
-            response=response,
-            step=step,
-            remote=False,
-            selected_by="local-direct",
-            node_id=None,
-            role=None,
-            transport="local",
-            latency_ms=0,
-        )
+        try:
+            result = await self.retry_executor.execute_with_retry(
+                _do_execute,
+                agent_name=agent.name,
+                on_retry=_on_retry,
+            )
+            breaker.record_success()
+            return result
+        except Exception:
+            breaker.record_failure()
+            raise
 
     async def run(
         self,
