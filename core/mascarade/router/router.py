@@ -7,6 +7,7 @@ import re
 import time
 from collections.abc import AsyncIterator
 from enum import StrEnum
+from typing import Any
 
 from mascarade.analytics.clickhouse_logger import get_cost_logger
 from mascarade.analytics.cost_calculator import get_cost_calculator
@@ -17,6 +18,7 @@ from mascarade.load_balancer.balancer import LoadBalancer
 from mascarade.metrics.tracker import MetricsTracker
 from mascarade.router.circuit_breaker import CircuitBreaker
 from mascarade.router.fallback import FallbackState
+from mascarade.router.model_registry import ModelRegistry
 from mascarade.router.health_monitor import HealthMonitor
 from mascarade.router.providers.base import LLMProvider, LLMResponse
 from mascarade.usage_tracking import track_usage
@@ -94,6 +96,7 @@ class Router:
         self.metrics = MetricsTracker()
         self.load_balancer = LoadBalancer()
         self.fallback = FallbackState(max_attempts=3)
+        self.model_registry = ModelRegistry()
         self.benchmark_storage = BenchmarkStorage() if BenchmarkStorage else None
         self.circuit_breaker = CircuitBreaker()
         self.health_monitor = HealthMonitor(
@@ -207,6 +210,30 @@ class Router:
             return [self._providers[provider_name]]
 
         providers = list(self._providers.values())
+
+        # Filter by domain if specified
+        if domain:
+            domain_models = [
+                m for m in self.model_registry.get_models()
+                if m.domain == domain and m.health_status == "healthy"
+            ]
+            if domain_models:
+                domain_providers = {m.provider for m in domain_models}
+                providers = [
+                    p for p in providers
+                    if p.name in domain_providers
+                ]
+                logger.info(
+                    "Filtered to %d provider(s) for domain '%s': %s",
+                    len(providers),
+                    domain,
+                    [p.name for p in providers],
+                )
+            else:
+                logger.warning(
+                    "No healthy models found for domain '%s', using all providers",
+                    domain,
+                )
 
         # Filter out providers with OPEN circuits
         # Allow HALF_OPEN providers for recovery testing
@@ -480,6 +507,42 @@ class Router:
         self.circuit_breaker.reset()
         self.health_monitor._health_cache.clear()
 
+    def register_finetuned_model(
+        self,
+        model_id: str,
+        *,
+        domain: str | None = None,
+        provider: str = "ollama",
+        deployment_url: str | None = None,
+        verify_health: bool = True,
+        metadata: dict[str, Any] | None = None,
+    ) -> None:
+        """Enregistrer un modèle fine-tuné avec métadonnées et vérification de santé.
+
+        Args:
+            model_id: Identifiant unique du modèle (ex: 'mascarade-spice:latest')
+            domain: Domaine métier du modèle (ex: 'spice', 'electronics')
+            provider: Provider de déploiement (défaut: 'ollama')
+            deployment_url: URL du service de déploiement
+            verify_health: Vérifier la santé du modèle après enregistrement
+            metadata: Métadonnées additionnelles
+        """
+        reg_metadata: dict[str, Any] = metadata.copy() if metadata else {}
+
+        if domain is not None:
+            reg_metadata["domain"] = domain
+        if provider is not None:
+            reg_metadata["provider"] = provider
+        if deployment_url is not None:
+            reg_metadata["deployment_url"] = deployment_url
+
+        self.model_registry.register_model(model_id, reg_metadata)
+        logger.info("Registered finetuned model: %s (domain=%s)", model_id, domain)
+
+        if verify_health:
+            health_status = self.model_registry.verify_health(model_id)
+            logger.info("Health check for %s: %s", model_id, health_status)
+
     async def send(
         self,
         messages: list[dict],
@@ -492,6 +555,7 @@ class Router:
         response_format: dict | None = None,
         temperature: float = 0.7,
         max_tokens: int = 4096,
+        domain: str | None = None,
         user_id: int | None = None,
     ) -> LLMResponse:
         requested_strategy = Strategy(strategy)
@@ -553,6 +617,7 @@ class Router:
 
         for attempt_strategy, attempt_provider in sequence:
             attempt_enum = Strategy(attempt_strategy)
+            selected = self._select_provider(attempt_enum, attempt_provider, domain)
             selected = self._select_provider(attempt_enum, attempt_provider, detected_domain)
             selected = self._select_provider(attempt_enum, attempt_provider)
 
@@ -747,6 +812,7 @@ class Router:
         system: str | None = None,
         temperature: float = 0.7,
         max_tokens: int = 4096,
+        domain: str | None = None,
         user_id: int | None = None,
     ) -> AsyncIterator[str]:
         requested_strategy = Strategy(strategy)
@@ -782,6 +848,7 @@ class Router:
         last_error: Exception | None = None
         for attempt_strategy, attempt_provider in sequence:
             attempt_enum = Strategy(attempt_strategy)
+            selected = self._select_provider(attempt_enum, attempt_provider, domain)
             selected = self._select_provider(attempt_enum, attempt_provider, detected_domain)
             selected = self._select_provider(attempt_enum, attempt_provider)
 
