@@ -154,6 +154,21 @@ class Settings(BaseSettings):
     litellm_base_url: str = "http://litellm:4000"
     litellm_master_key: str = ""
 
+    # Orchestrator retry settings
+    orchestrator_default_max_retries: int = 3
+    orchestrator_default_backoff_seconds: float = 1.0
+    orchestrator_default_max_backoff_seconds: float = 60.0
+    orchestrator_default_backoff_multiplier: float = 2.0
+
+    # Circuit breaker settings
+    circuit_breaker_failure_threshold: int = 5
+    circuit_breaker_success_threshold: int = 2
+    circuit_breaker_timeout_seconds: float = 60.0
+
+    # Dead letter queue settings
+    dead_letter_max_entries: int = 1000
+    dead_letter_retention_seconds: int = 86400
+
     # Defaults
     default_provider: str = "claude"
     default_model: str = "claude-sonnet-4-6"
