@@ -5,14 +5,23 @@ from __future__ import annotations
 from collections.abc import AsyncIterator
 
 import anthropic
+import openai
 
 from mascarade.config import is_secret_configured, settings
-from mascarade.router.providers.base import LLMProvider, LLMResponse, make_retry
+from mascarade.router.providers.base import (
+    LLMProvider,
+    LLMResponse,
+    build_chat_messages,
+    make_retry,
+)
 
 _retry = make_retry(
     anthropic.RateLimitError,
     anthropic.APIConnectionError,
     anthropic.APITimeoutError,
+    openai.RateLimitError,
+    openai.APIConnectionError,
+    openai.APITimeoutError,
 )
 
 
@@ -24,13 +33,30 @@ class ClaudeProvider(LLMProvider):
     quality_rank = 3
 
     def __init__(self) -> None:
-        self._client = anthropic.AsyncAnthropic(
-            api_key=settings.anthropic_api_key,
-            timeout=30.0,
+        self._proxy_enabled = bool(
+            settings.litellm_proxy_enabled
+            and settings.litellm_base_url.strip()
+            and is_secret_configured(settings.litellm_master_key)
         )
+        if self._proxy_enabled:
+            self._client = openai.AsyncOpenAI(
+                api_key=settings.litellm_master_key,
+                base_url=settings.litellm_base_url,
+                timeout=30.0,
+            )
+        else:
+            self._client = anthropic.AsyncAnthropic(
+                api_key=settings.anthropic_api_key,
+                timeout=30.0,
+            )
 
     @property
     def is_configured(self) -> bool:
+        if self._proxy_enabled:
+            return bool(
+                settings.litellm_base_url.strip()
+                and is_secret_configured(settings.litellm_master_key)
+            )
         return is_secret_configured(settings.anthropic_api_key)
 
     @_retry
@@ -44,6 +70,27 @@ class ClaudeProvider(LLMProvider):
         max_tokens: int = 4096,
     ) -> LLMResponse:
         model = model or self.default_model
+        if self._proxy_enabled:
+            chat_messages = build_chat_messages(messages, system)
+            response = await self._client.chat.completions.create(
+                model=model,
+                messages=chat_messages,
+                max_tokens=max_tokens,
+                temperature=temperature,
+            )
+            if not response.choices:
+                raise RuntimeError(f"Claude proxy returned empty choices for model {model}")
+            choice = response.choices[0]
+            return LLMResponse(
+                content=choice.message.content or "",
+                model=model,
+                provider=self.name,
+                usage={
+                    "input_tokens": response.usage.prompt_tokens if response.usage else 0,
+                    "output_tokens": response.usage.completion_tokens if response.usage else 0,
+                },
+            )
+
         kwargs: dict = {
             "model": model,
             "messages": messages,
@@ -54,13 +101,15 @@ class ClaudeProvider(LLMProvider):
             kwargs["system"] = system
 
         response = await self._client.messages.create(**kwargs)
+        content = response.content[0].text if response.content else ""
+        usage = response.usage
         return LLMResponse(
-            content=response.content[0].text,
+            content=content,
             model=model,
             provider=self.name,
             usage={
-                "input_tokens": response.usage.input_tokens,
-                "output_tokens": response.usage.output_tokens,
+                "input_tokens": usage.input_tokens if usage else 0,
+                "output_tokens": usage.output_tokens if usage else 0,
             },
         )
 
@@ -74,6 +123,20 @@ class ClaudeProvider(LLMProvider):
         max_tokens: int = 4096,
     ) -> AsyncIterator[str]:
         model = model or self.default_model
+        if self._proxy_enabled:
+            chat_messages = build_chat_messages(messages, system)
+            stream = await self._client.chat.completions.create(
+                model=model,
+                messages=chat_messages,
+                max_tokens=max_tokens,
+                temperature=temperature,
+                stream=True,
+            )
+            async for chunk in stream:
+                if chunk.choices and chunk.choices[0].delta.content:
+                    yield chunk.choices[0].delta.content
+            return
+
         kwargs: dict = {
             "model": model,
             "messages": messages,
