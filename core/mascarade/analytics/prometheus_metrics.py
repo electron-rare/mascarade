@@ -59,6 +59,24 @@ llm_provider_avg_tokens_per_request = Gauge(
     ["provider", "token_type"],
 ) if Gauge else None
 
+# Classifier metrics
+classifier_latency = Histogram(
+    "mascarade_classifier_latency_seconds",
+    "ML classifier inference latency in seconds",
+    buckets=(0.001, 0.005, 0.010, 0.025, 0.050, 0.100, 0.250, 0.500, 1.0),
+) if Histogram else None
+
+classifier_predictions_total = Counter(
+    "mascarade_classifier_predictions_total",
+    "Total number of classifier predictions",
+    ["predicted_domain"],
+) if Counter else None
+
+classifier_accuracy = Gauge(
+    "mascarade_classifier_accuracy",
+    "Current classifier accuracy (0.0 to 1.0)",
+) if Gauge else None
+
 
 class CostMetrics:
     """Wrapper class for cost tracking metrics."""
@@ -199,5 +217,8 @@ __all__ = [
     "llm_provider_error_rate",
     "llm_provider_avg_cost_per_request",
     "llm_provider_avg_tokens_per_request",
+    "classifier_latency",
+    "classifier_predictions_total",
+    "classifier_accuracy",
     "total_cost_counter",
 ]

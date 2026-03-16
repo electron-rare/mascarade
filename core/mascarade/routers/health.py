@@ -6,6 +6,7 @@ from dataclasses import asdict
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request
+from fastapi.responses import PlainTextResponse
 
 router = APIRouter(tags=["health"])
 
@@ -56,3 +57,15 @@ async def get_provider_health(request: Request):
         "providers": providers_health,
         "timestamp": health_monitor.last_check_time.isoformat() if health_monitor.last_check_time else None
     }
+
+
+@router.get("/metrics", response_class=PlainTextResponse)
+async def metrics():
+    """Prometheus metrics endpoint - exposes metrics in Prometheus format."""
+    try:
+        from prometheus_client import REGISTRY, generate_latest
+
+        return generate_latest(REGISTRY)
+    except ImportError:
+        # Prometheus client not available, return empty response
+        return "# Prometheus client not installed\n"
