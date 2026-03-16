@@ -495,3 +495,195 @@ class TestEndToEndRegistryIntegration:
         available = registry.available_domains()
         assert "math" in available
         assert "offline" not in available
+
+
+class TestAcceptanceCriteria:
+    """
+    End-to-end verification test covering all acceptance criteria from spec.
+
+    This test explicitly verifies the 6 requirements from subtask-8-3:
+    1. Register a mock NodeWorker with test domain
+    2. Register node types for the test domain
+    3. Create a graph with 3 nodes in parallel
+    4. Execute graph and verify topological ordering
+    5. Verify parallel execution within levels
+    6. Verify cycle detection rejects cyclic graphs
+    """
+
+    @pytest.mark.asyncio
+    async def test_all_acceptance_criteria(self):
+        """Comprehensive E2E test covering all Phase 0 acceptance criteria."""
+
+        # --- STEP 1: Register a mock NodeWorker with test domain ---
+        worker_registry = WorkerRegistry()
+        test_worker = CalculatorWorker()
+        worker_registry.register(test_worker)
+
+        assert "math" in worker_registry
+        assert len(worker_registry.list()) == 1
+
+        # --- STEP 2: Register node types for the test domain ---
+        node_registry = NodeTypeRegistry(storage_path=None)
+        node_registry.register(
+            NodeType(id="math.constant", domain="math", label="Constant", description="Constant value")
+        )
+        node_registry.register(
+            NodeType(id="math.add", domain="math", label="Add", description="Addition")
+        )
+        node_registry.register(
+            NodeType(id="math.multiply", domain="math", label="Multiply", description="Multiplication")
+        )
+
+        assert "math.constant" in node_registry
+        assert "math.add" in node_registry
+        assert "math.multiply" in node_registry
+        assert len(node_registry.list(domain="math")) == 3
+
+        # --- STEP 3: Create a graph with 3 nodes in parallel ---
+        # Graph structure: constant(10) -> (add(+5), multiply(*2), add(+1)) in parallel -> final add
+        # This creates a diamond pattern with 3 parallel nodes in the middle level
+        graph = Graph(
+            id="acceptance-test",
+            name="Acceptance Test Graph",
+            nodes=[
+                GraphNode(id="source", node_type="math.constant", label="Source", config={"value": 10}),
+                GraphNode(id="parallel1", node_type="math.add", label="Parallel Add", config={"b": 5}),
+                GraphNode(id="parallel2", node_type="math.multiply", label="Parallel Multiply", config={"b": 2}),
+                GraphNode(id="parallel3", node_type="math.add", label="Parallel Add 2", config={"b": 1}),
+                GraphNode(id="sink", node_type="math.add", label="Sink", config={}),
+            ],
+            edges=[
+                # Source fans out to 3 parallel nodes
+                GraphEdge(
+                    id="e1",
+                    source_node="source",
+                    source_port="value",
+                    target_node="parallel1",
+                    target_port="a",
+                ),
+                GraphEdge(
+                    id="e2",
+                    source_node="source",
+                    source_port="value",
+                    target_node="parallel2",
+                    target_port="a",
+                ),
+                GraphEdge(
+                    id="e3",
+                    source_node="source",
+                    source_port="value",
+                    target_node="parallel3",
+                    target_port="a",
+                ),
+                # Parallel nodes converge to sink (using first two for simplicity)
+                GraphEdge(
+                    id="e4",
+                    source_node="parallel1",
+                    source_port="result",
+                    target_node="sink",
+                    target_port="a",
+                ),
+                GraphEdge(
+                    id="e5",
+                    source_node="parallel2",
+                    source_port="result",
+                    target_node="sink",
+                    target_port="b",
+                ),
+            ],
+        )
+
+        # --- STEP 4: Execute graph and verify topological ordering ---
+        engine = GraphExecutionEngine(worker_registry, node_registry)
+
+        # Verify topological sort produces correct levels
+        levels = engine._topological_sort(graph)
+        assert len(levels) == 3, f"Expected 3 levels, got {len(levels)}"
+        assert levels[0] == ["source"], "Level 0 should be source node"
+        assert set(levels[1]) == {"parallel1", "parallel2", "parallel3"}, "Level 1 should have 3 parallel nodes"
+        assert levels[2] == ["sink"], "Level 2 should be sink node"
+
+        # Execute the graph
+        test_worker._execution_log = []  # Reset execution log
+        results = await engine.execute(graph, run_id="acceptance-run")
+
+        # Verify all nodes executed
+        assert len(results) == 5, f"Expected 5 results, got {len(results)}"
+        result_map = {r.node_id: r for r in results}
+
+        # Verify correct data flow
+        assert result_map["source"].outputs["value"] == 10
+        assert result_map["parallel1"].outputs["result"] == 15  # 10 + 5
+        assert result_map["parallel2"].outputs["result"] == 20  # 10 * 2
+        assert result_map["parallel3"].outputs["result"] == 11  # 10 + 1
+        assert result_map["sink"].outputs["result"] == 35  # 15 + 20
+
+        # --- STEP 5: Verify parallel execution within levels ---
+        # The execution log should show source first, then all 3 parallel nodes, then sink
+        execution_order = test_worker._execution_log
+        assert execution_order[0] == "source", "Source should execute first"
+
+        # All 3 parallel nodes should be executed after source but before sink
+        parallel_execution = execution_order[1:4]
+        assert set(parallel_execution) == {"parallel1", "parallel2", "parallel3"}, \
+            "All 3 parallel nodes should execute in level 1"
+
+        assert execution_order[4] == "sink", "Sink should execute last"
+
+        # Verify no errors in parallel execution
+        for node_id in ["source", "parallel1", "parallel2", "parallel3", "sink"]:
+            assert result_map[node_id].error is None, f"Node {node_id} should not have errors"
+
+        # --- STEP 6: Verify cycle detection rejects cyclic graphs ---
+        cyclic_graph = Graph(
+            id="cyclic-test",
+            name="Cyclic Graph Test",
+            nodes=[
+                GraphNode(id="n1", node_type="math.add", label="Node 1"),
+                GraphNode(id="n2", node_type="math.add", label="Node 2"),
+                GraphNode(id="n3", node_type="math.add", label="Node 3"),
+            ],
+            edges=[
+                GraphEdge(
+                    id="e1",
+                    source_node="n1",
+                    source_port="result",
+                    target_node="n2",
+                    target_port="a",
+                ),
+                GraphEdge(
+                    id="e2",
+                    source_node="n2",
+                    source_port="result",
+                    target_node="n3",
+                    target_port="a",
+                ),
+                GraphEdge(
+                    id="e3",
+                    source_node="n3",
+                    source_port="result",
+                    target_node="n1",
+                    target_port="a",
+                ),  # This creates a cycle: n1 -> n2 -> n3 -> n1
+            ],
+        )
+
+        # Verify cycle detection raises CycleDetectedError
+        from mascarade.node_engine.engine import CycleDetectedError
+
+        with pytest.raises(CycleDetectedError) as exc_info:
+            engine._topological_sort(cyclic_graph)
+
+        assert "cycle" in str(exc_info.value).lower(), "Error message should mention cycle"
+
+        # Verify execution also rejects cyclic graph (topological sort is called first)
+        with pytest.raises(CycleDetectedError):
+            await engine.execute(cyclic_graph, run_id="cyclic-run")
+
+        # --- ALL ACCEPTANCE CRITERIA VERIFIED ---
+        # ✓ Mock worker registered and functional
+        # ✓ Node types registered for test domain
+        # ✓ Graph with 3 parallel nodes created and executed
+        # ✓ Topological ordering verified (3 levels: source, 3 parallel, sink)
+        # ✓ Parallel execution within levels confirmed via execution log
+        # ✓ Cycle detection prevents execution of cyclic graphs
