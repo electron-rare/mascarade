@@ -572,3 +572,7 @@ Given the deployment target (4 vCPU, 6.8 GiB RAM):
 - [ ] Worker degrades gracefully when external tools are unavailable
 - [ ] All nodes follow the `NodeWorker` interface from Phase 0
 - [ ] Resource limits are enforced per deployment constraints
+
+## SPEC-025 Compatibility
+
+Electronics Worker nodes implement the `NodeWorker` interface from Phase 0. Legacy electronics plugins built against SPEC-025 can be adapted via the `Spec025Adapter` without code changes.

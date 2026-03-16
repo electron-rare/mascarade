@@ -752,3 +752,7 @@ Write capabilities must be explicitly granted per-graph. Read capabilities are g
 - [ ] All hardware state changes are persisted to the audit log
 - [ ] Emergency stop halts all outputs and requires manual reset
 - [ ] Write capabilities are denied by default and require explicit grants
+
+## SPEC-025 Compatibility
+
+Hardware Worker nodes implement the `NodeWorker` interface from Phase 0. Any legacy hardware control plugins built on SPEC-025 can be wrapped using the `Spec025Adapter`, though safety interlocks must be explicitly configured on the adapted nodes.

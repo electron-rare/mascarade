@@ -1161,3 +1161,7 @@ Phase 1 (AI Worker) combined with Phase 0 (Foundations) must pass the following 
 - Integration tests for Orchestrator delegation (mock agents)
 - Validation tests for all required-input constraints
 - Type compatibility tests for AI domain port types
+
+## SPEC-025 Compatibility
+
+All AI Worker nodes implement the `NodeWorker` interface defined in Phase 0, which includes backward compatibility with SPEC-025 (`NodePlugin`) via the `Spec025Adapter`. Existing AI integrations built on SPEC-025 can be wrapped without modification.

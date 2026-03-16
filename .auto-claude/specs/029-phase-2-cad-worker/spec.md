@@ -529,3 +529,7 @@ The following endpoints must be added to `api/src/routes/cad.ts` for full Phase 
 - [ ] Nodes compose in graphs (e.g., schematic → layout → DRC → manufacturing pipeline)
 - [ ] API routes in `cad.ts` are extended for new endpoints
 - [ ] Error handling follows Mascarade patterns (circuit breaker, retry, dead letter)
+
+## SPEC-025 Compatibility
+
+CAD Worker nodes conform to the `NodeWorker` interface from Phase 0. Any legacy CAD plugins built on SPEC-025 can be migrated using the `Spec025Adapter` defined in the Phase 0 foundations spec.
