@@ -955,3 +955,7 @@ graph:
 - [ ] AI→CAD→Electronics→Hardware pipeline executes with correct adapter chaining
 - [ ] AI→SPICE→AI analysis loop produces valid simulation results and analysis
 - [ ] Sensor feedback loop demonstrates bidirectional cross-domain flow
+
+## SPEC-025 Compatibility
+
+Cross-domain orchestration supports mixed graphs containing both native `NodeWorker` implementations and legacy SPEC-025 nodes wrapped via the `Spec025Adapter`. Type adapters handle port compatibility across both interfaces.
