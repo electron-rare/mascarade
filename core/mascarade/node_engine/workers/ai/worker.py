@@ -211,21 +211,87 @@ class AIWorker(NodeWorker):
         inputs: dict[str, Any],
         config: dict[str, Any],
     ) -> list[str]:
-        """Validate ai.llm-inference node (stub for future implementation)."""
-        return []
+        """Validate ai.llm-inference node inputs and configuration.
+
+        Required inputs:
+        - prompt: The user prompt to send to the LLM
+
+        Args:
+            inputs: Dictionary of input port values
+            config: Node configuration parameters
+
+        Returns:
+            List of validation error messages. Empty if valid.
+        """
+        errors: list[str] = []
+
+        if "prompt" not in inputs:
+            errors.append("Missing required input: prompt")
+
+        return errors
 
     def _validate_agent_dispatch(
         self,
         inputs: dict[str, Any],
         config: dict[str, Any],
     ) -> list[str]:
-        """Validate ai.agent-dispatch node (stub for future implementation)."""
-        return []
+        """Validate ai.agent-dispatch node inputs and configuration.
+
+        Required inputs:
+        - agent_name: Name of agent in the AgentRegistry
+        - message: Message to send to the agent
+
+        Validation checks:
+        - agent_name must be present
+        - message must be present
+        - agent_name must exist in the AgentRegistry
+
+        Args:
+            inputs: Dictionary of input port values
+            config: Node configuration parameters
+
+        Returns:
+            List of validation error messages. Empty if valid.
+        """
+        errors: list[str] = []
+
+        if "agent_name" not in inputs:
+            errors.append("Missing required input: agent_name")
+        elif not isinstance(inputs["agent_name"], str):
+            errors.append("Input 'agent_name' must be a string")
+        else:
+            # Check if agent exists in registry
+            agent_name = inputs["agent_name"]
+            try:
+                self.registry.get(agent_name)
+            except (KeyError, ValueError):
+                errors.append(f"Agent '{agent_name}' not found in registry")
+
+        if "message" not in inputs:
+            errors.append("Missing required input: message")
+
+        return errors
 
     def _validate_llm_stream(
         self,
         inputs: dict[str, Any],
         config: dict[str, Any],
     ) -> list[str]:
-        """Validate ai.llm-stream node (stub for future implementation)."""
-        return []
+        """Validate ai.llm-stream node inputs and configuration.
+
+        Required inputs:
+        - prompt: The user prompt to send to the LLM (for streaming)
+
+        Note: This has the same validation as ai.llm-inference since
+        the inputs are identical. The only difference is in execution
+        where stream() is used instead of send().
+
+        Args:
+            inputs: Dictionary of input port values
+            config: Node configuration parameters
+
+        Returns:
+            List of validation error messages. Empty if valid.
+        """
+        # Same validation as llm-inference
+        return self._validate_llm_inference(inputs, config)
