@@ -186,3 +186,156 @@ This is a critical gap. No unit, integration, or component tests exist.
 ### Total Web Service: ~20,356 lines across 56 files
 
 === END SESSION 3 ===
+
+=== SESSION 4 (Coder — subtask-1-4) ===
+
+## Subtask 1-4: Finetune Service State Analysis — COMPLETED
+
+### Script Inventory (36 Python scripts, 7 shell scripts, 11 notebooks = 54 total)
+
+**Python scripts (36 files, ~26,111 lines):**
+| Script | Lines | Role |
+|--------|-------|------|
+| model_selector.py | 1,746 | CRITICAL — HF Hub search, ranking, download, watch, validation registry |
+| batch_local.py | 1,628 | CRITICAL — Batch orchestration: distill + train + promote pipeline |
+| distill_dataset.py | 1,324 | Teacher distillation via Mascarade API |
+| dataset_refresh.py | 1,207 | Dataset refresh, research probes, web-research briefs |
+| train_local.py | 887 | Local GPU/CPU training with QLoRA |
+| pipeline.py | 822 | Full pipeline: train → merge → GGUF → Ollama deploy |
+| run_local.py | 823 | Local inference runner |
+| auto_policy.py | 729 | Hardware detection, autotune plans |
+| pipeline_automated.py | 728 | Automated pipeline with OpenTelemetry events |
+| distill_and_train.py | 646 | Combined distill+train workflow |
+| promotion_utils.py | 575 | Model promotion (best run → production) |
+| sharegpt_utils.py | ~400 | ShareGPT JSONL utilities (load, validate, dedupe, row IDs) |
+| dataset_quality.py | ~300 | Quality enforcement gates |
+| dataset_bootstrap.py | ~200 | Seed dataset creation |
+| llmfit_utils.py | ~200 | LLMFit integration helpers |
+| llm_paths.py | ~150 | HF cache/env configuration |
+| workspace_utils.py | ~100 | Training output dir management |
+| runtime_compat.py | ~50 | Torchvision compatibility shim |
+| ollama_runtime.py | ~200 | Ollama create/run/resolve |
+| validators.py | ~100 | Dataset validators |
+| probe_hf_repo.py | ~150 | HuggingFace repo probing |
+| probe_research_sources.py | ~200 | Web research source probing |
+| prepare_hf_dataset.py | ~150 | HF dataset preparation |
+| promote_model.py | ~100 | Model promotion CLI |
+| run_manifest.py | ~100 | Run manifest management |
+| scenario_matrix.py | ~150 | Batch scenario matrix |
+| batch_scenarios.py | ~200 | Batch scenario execution |
+| batch_status.py | ~150 | Batch status reporting |
+| bedrock_finetune.py | ~200 | AWS Bedrock fine-tuning |
+| bench_gpu_slots.py | ~100 | GPU slot benchmarking |
+| benchmark_gpu_slots.py | ~100 | GPU benchmark (duplicate?) |
+| rejection_sampling.py | ~150 | Rejection sampling for DPO |
+| train_cpu.py | ~200 | CPU-only training fallback |
+| train_dpo.py | ~200 | DPO training |
+
+**Shell scripts (7):**
+batch_full_pipeline.sh, batch_phase_a.sh, deploy_all.sh, deploy_model.sh,
+train_all.sh, train_parallel.sh, upload_datasets_hf.sh
+
+**Notebooks (11):**
+One per domain (stm32, spice, iot, power, dsp, emc, kicad, embedded, freecad)
++ 2 Mistral variants (kicad_mistral, spice_mistral, freecad_mistral_studio)
+
+### Domain Map (11 domains in code, NOT 13 as spec claims)
+
+The DOMAINS list is consistent across pipeline.py, batch_local.py, train_local.py,
+pipeline_automated.py, distill_and_train.py, dataset_refresh.py — all define exactly 11:
+
+| # | Domain | Builder | Research Source | Research Probe | HF Dataset |
+|---|--------|---------|-----------------|----------------|------------|
+| 1 | stm32 | build_stm32_dataset.py (1,191 lines) | ✅ | ✅ | ✗ |
+| 2 | spice | build_spice_dataset.py (1,075 lines) | ✅ | ✅ | ✗ |
+| 3 | iot | build_iot_dataset.py (788 lines) | ✅ | ✅ | ✗ |
+| 4 | power | build_power_dataset.py (609 lines) | ✅ | ✅ | ✗ |
+| 5 | dsp | build_dsp_dataset.py (553 lines) | ✅ | ✅ | ✗ |
+| 6 | emc | build_emc_dataset.py (550 lines) | ✅ | ✅ | ✗ |
+| 7 | kicad | build_kicad_dataset.py (1,223 lines) | ✅ | ✅ | ✗ |
+| 8 | embedded | build_embedded_dataset.py (1,123 lines) | ✅ | ✅ | ✗ |
+| 9 | platformio | build_platformio_dataset.py (1,582 lines) | ✅ | ✅ | ✗ |
+| 10 | freecad | build_freecad_dataset.py (720 lines) | ✅ | ✅ | ✗ |
+| 11 | components | NO BUILDER (legacy ignored) | ✅ | ✗ | ✅ (30 rows) |
+
+**Total dataset builder lines:** 9,414 across 10 builders
+**components anomaly:** Has no builder script (listed in LEGACY_IGNORED_PATHS in dataset_refresh.py),
+has only 30 rows in hf_datasets/components_chat.jsonl — smallest domain by far.
+**No JSONL files in datasets/ dir** — datasets are generated on-demand by builders.
+
+### Pipeline Architecture (5 stages)
+
+1. **Dataset Build** — build_*_dataset.py generates ShareGPT JSONL from templates
+2. **Distillation** — distill_dataset.py calls Mascarade API to get teacher model completions
+3. **Training** — train_local.py / pipeline.py runs QLoRA fine-tuning (Quadro P2000 target)
+4. **Export** — GGUF quantization (q4_k_m, q4_k_s, q5_k_m, q8_0)
+5. **Deploy** — Ollama model creation and deployment
+
+**Batch orchestration:** batch_local.py ties stages 1-5 together with domain job management,
+student model selection, teacher model selection, LLMFit integration, and promotion.
+
+### Model Selection (model_selector.py — 1,746 lines)
+
+- Searches HuggingFace Hub for code-generation models
+- Ranks by: VRAM fit, benchmarks, popularity, architecture compatibility
+- Watch mode: monitors WATCH_AUTHORS (Qwen, mistralai, deepseek-ai, JetBrains)
+- Validation registry: tracks model download/test results
+- State management: complex multi-path state dir resolution (/dev/shm, /tmp, script dir)
+- Fallback model: Qwen/Qwen2.5-Coder-1.5B-Instruct
+- **Complexity concern:** 1,746 lines in one file — decomposition candidate
+
+### Batch Local (batch_local.py — 1,628 lines)
+
+- Full domain job lifecycle: prevalidate → distill → train → promote
+- Student model selection: explicit, model_selector, hardware auto, or default
+- Teacher model selection via auto_policy.py
+- LLMFit integration for training plan optimization
+- Manifest writing for run tracking
+- **Complexity concern:** 1,628 lines — decomposition candidate
+
+### KiCad Subdirectories (3 — ALL EMPTY)
+
+| Directory | Contents |
+|-----------|----------|
+| kicad_mcp_server/ | EMPTY — placeholder only |
+| kicad_kic_ai/ | EMPTY — placeholder only |
+| kicad_fabrication_toolkit/ | EMPTY — placeholder only |
+
+These appear to be planned but unimplemented KiCad tool integrations.
+
+### Research Infrastructure
+
+- **research_sources/domains/**: 11 JSON files (one per domain) — authoritative URLs, repos, forums
+- **research_probes/**: 10 JSON probe results (all domains except components)
+- **research/**: 11 domain refresh reports (JSON + MD pairs) including components
+- **dataset_refresh.py** embeds extensive forum URL lists per domain category:
+  EMBEDDED_FORUM_URLS (10), ELECTRONICS_SIM_FORUM_URLS (10), ELECTRONICS_FORUM_URLS (10),
+  DSP_FORUM_URLS (10), EDA_FORUM_URLS (10), CAD_FORUM_URLS (10)
+- **probe_research_sources.py** validates URL liveness on 7-day TTL
+
+### Training Examples Count
+
+- **No pre-built JSONL datasets exist in the repo** — datasets are generated on-demand
+- **hf_datasets/components/**: 30 rows (only uploaded domain)
+- **"143K training examples" from spec** — this refers to the aggregate output of all builders,
+  not pre-existing files. Cannot verify exact count without running builders.
+
+### Test Coverage
+
+**ZERO test files** — no test_*, *_test.py, pytest.ini, or conftest.py in finetune/.
+No test infrastructure whatsoever. Critical gap matching the web service.
+
+### Key Findings & Gaps
+
+1. **Domain count discrepancy:** Code defines 11 domains, spec claims 13 — likely counting
+   aliases (esp32→iot, pio→platformio) or planned future domains
+2. **10 builders, not 12:** Only 10 build_*_dataset.py scripts exist; components has no builder
+3. **model_selector.py (1,746 lines)** and **batch_local.py (1,628 lines)** are the top
+   complexity hotspots — both are decomposition candidates
+4. **3 empty KiCad directories** — planned integrations never started
+5. **No tests** — zero pytest infrastructure
+6. **DOMAINS list duplicated** in 6+ files — DRY violation, should be single source of truth
+7. **bench_gpu_slots.py vs benchmark_gpu_slots.py** — potential duplicate scripts
+8. **Components domain orphaned** — no builder, only 30 HF rows, excluded from probes
+
+=== END SESSION 4 ===
