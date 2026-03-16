@@ -32,6 +32,14 @@ from mascarade.routers.providers import router as providers_router
 
 logger = logging.getLogger("mascarade.server")
 
+# Import Gradio UI (lazy import to avoid loading gradio if not using finetune extras)
+try:
+    from mascarade.gradio_ui import create_gradio_app
+    GRADIO_AVAILABLE = True
+except ImportError:
+    GRADIO_AVAILABLE = False
+    logger.warning("Gradio not available. Install with: uv pip install -e '.[finetune]'")
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -151,6 +159,16 @@ def create_app() -> FastAPI:
     app.include_router(memory_router)
     app.include_router(providers_router)
     app.include_router(finetune_router)
+
+    # Mount Gradio UI for fine-tuning (if available)
+    if GRADIO_AVAILABLE:
+        try:
+            import gradio as gr
+            gradio_app = create_gradio_app()
+            app = gr.mount_gradio_app(app, gradio_app, path="/finetune")
+            logger.info("Gradio fine-tuning UI mounted at /finetune")
+        except Exception as e:
+            logger.warning("Failed to mount Gradio UI: %s", e)
 
     return app
 
