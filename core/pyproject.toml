@@ -116,5 +116,5 @@ minversion = "9.0"
 testpaths = ["tests"]
 python_files = "test_*.py"
 python_functions = "test_*"
-addopts = "-ra -q"
+addopts = "-ra -q --cov=mascarade --cov-report=term --cov-report=html --cov-branch"
 asyncio_mode = "auto"
