@@ -492,3 +492,36 @@ Full audit report: core-deep-audit.md
 **Severity breakdown:** 3 CRITICAL, 5 HIGH, 4 MEDIUM, 3 LOW
 
 === END SESSION 6 ===
+
+=== SESSION 7 (Coder — subtask-4-3) ===
+
+## Subtask 4-3: Deep Web React Code Audit — COMPLETED
+
+Full audit report: web-deep-audit.md
+
+### Key Findings
+
+**Page decomposition (5 pages → 31 extracted components):**
+- Logs.tsx (1,468 lines): 6 components extractable → main drops to ~200 lines
+- Settings.tsx (1,129 lines): 5 components/hooks extractable, DRY violation between ProviderCard/RuntimeSecretCard
+- OpsHub.tsx (1,092 lines): 6 components extractable → main drops to ~200 lines
+- Orchestrate.tsx (1,028 lines): 6 components extractable, 15+ useState → should use useReducer
+- KillLifeWorkflowEditor.tsx (1,019 lines): 8 components extractable, JSON cloning anti-pattern
+
+**Duplicated utilities (CRITICAL — 5 functions × 2-3 copies):**
+- formatLatency (3 copies: Logs, OpsHub, Orchestrate)
+- formatMcpName, mcpTone, sourceTone (2 copies each: Logs, OpsHub)
+- summarizeMcpServer (2 variants: Logs, OpsHub)
+- Recommendation: extract to lib/formatting.ts (~80 lines, eliminates ~200 lines duplication)
+
+**State management:** 49+ useState hooks across 5 pages, 0 useReducer usage.
+Orchestrate (15 states) and KillLife (10 states) are candidates for useReducer.
+
+**Performance anti-patterns:** Missing useCallback on handlers, JSON.stringify cloning,
+no React.lazy code splitting, inline objects in render paths.
+
+**Test coverage: ZERO** — no tests exist for any web component, hook, or utility.
+
+**Estimated remediation: ~35 hours** across decomposition, DRY extraction, performance fixes, and test foundation.
+
+=== END SESSION 7 ===
