@@ -23,6 +23,7 @@ from mascarade.orchestrator.templates import (
 )
 from mascarade.router import Router
 from mascarade.routers.agents import router as agents_router
+from mascarade.routers.auth import router as auth_router
 from mascarade.routers.chat import router as chat_router
 from mascarade.routers.health import router as health_router
 from mascarade.routers.memory import router as memory_router
@@ -112,6 +113,7 @@ def create_app() -> FastAPI:
 
     # Mount routers
     app.include_router(health_router)
+    app.include_router(auth_router)
     app.include_router(chat_router)
     app.include_router(agents_router)
     app.include_router(memory_router)
