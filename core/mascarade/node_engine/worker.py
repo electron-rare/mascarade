@@ -139,3 +139,27 @@ class NodeWorker(ABC):
     def is_available(self) -> bool:
         """Vérifie si le worker est disponible pour exécution."""
         return True
+
+    def on_init(self, context: "ExecutionContext") -> None:
+        """
+        Lifecycle hook: called when a graph execution starts.
+
+        Optional override for workers that need to initialize resources,
+        establish connections, or load models at the start of execution.
+
+        Args:
+            context: Execution context with graph/run metadata
+        """
+        pass
+
+    def on_destroy(self, context: "ExecutionContext") -> None:
+        """
+        Lifecycle hook: called when a graph execution completes.
+
+        Optional override for workers that need to release resources,
+        close connections, or flush buffers at the end of execution.
+
+        Args:
+            context: Execution context with graph/run metadata
+        """
+        pass

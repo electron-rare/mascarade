@@ -692,3 +692,37 @@ class TestAcceptanceCriteria:
         # ✓ Topological ordering verified (3 levels: source, 3 parallel, sink)
         # ✓ Parallel execution within levels confirmed via execution log
         # ✓ Cycle detection prevents execution of cyclic graphs
+
+
+def test_worker_lifecycle_hooks():
+    """Test that workers can override lifecycle hooks."""
+    from mascarade.node_engine.graph import ExecutionContext
+
+    hook_log = []
+
+    class LifecycleWorker(NodeWorker):
+        name = "lifecycle-test"
+        domain = "test"
+
+        def on_init(self, context):
+            hook_log.append(f"init:{context.run_id}")
+
+        def on_destroy(self, context):
+            hook_log.append(f"destroy:{context.run_id}")
+
+        async def execute(self, node_type, inputs, config, context):
+            return {"result": "ok"}
+
+        async def validate(self, node_type, inputs, config):
+            return []
+
+        def capabilities(self):
+            return NodeCapability(node_types=["test.op"], domain="test")
+
+    worker = LifecycleWorker()
+    ctx = ExecutionContext(graph_id="g1", run_id="r1", node_id="n1")
+
+    worker.on_init(ctx)
+    worker.on_destroy(ctx)
+
+    assert hook_log == ["init:r1", "destroy:r1"]
