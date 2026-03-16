@@ -24,11 +24,15 @@ RoutingPolicy = Literal["auto", "strong", "cheap", "fast"]
 
 
 class Message(BaseModel):
+    """A chat message with role and content."""
+
     role: Literal["system", "user", "assistant", "tool"]
     content: str = Field(min_length=1, max_length=100_000)
 
 
 class AgentCreate(BaseModel):
+    """Request model for creating a new agent."""
+
     name: str = Field(min_length=1, max_length=100)
     description: str = Field(max_length=1000)
     system_prompt: str = Field(max_length=50_000)
@@ -42,6 +46,8 @@ class AgentCreate(BaseModel):
 
 
 class AgentUpdate(BaseModel):
+    """Request model for updating an existing agent."""
+
     description: str = Field(max_length=1000)
     system_prompt: str = Field(max_length=50_000)
     preferred_provider: str | None = Field(default=None, max_length=50)
@@ -55,6 +61,8 @@ class AgentUpdate(BaseModel):
 
 
 class SendRequest(BaseModel):
+    """Request model for running an agent with messages."""
+
     messages: list[Message] = Field(max_length=200)
     strategy: Strategy = Strategy.BEST
     routing_policy: RoutingPolicy = "auto"
@@ -77,7 +85,16 @@ def hash_api_key(key: str) -> str:
 
 
 def _serialize_agent(agent: Agent, request: Request) -> dict[str, object]:
-    """Serialize an agent to a dictionary."""
+    """
+    Serialize an agent to a dictionary for API response.
+
+    Args:
+        agent: Agent instance to serialize
+        request: FastAPI request object for accessing registry state
+
+    Returns:
+        Dictionary containing agent configuration and metadata
+    """
     return {
         "name": agent.name,
         "description": agent.description,
@@ -98,7 +115,19 @@ def _serialize_agent(agent: Agent, request: Request) -> dict[str, object]:
 
 @router.post("/agents")
 async def create_agent(req: AgentCreate, request: Request):
-    """Create a new agent."""
+    """
+    Create a new agent with the specified configuration.
+
+    Args:
+        req: Agent creation parameters including name, description, and routing settings
+        request: FastAPI request object for accessing app state
+
+    Returns:
+        Serialized agent object with all configuration details
+
+    Raises:
+        HTTPException: If agent with the same name already exists
+    """
     agent = Agent(
         name=req.name,
         description=req.description,
@@ -118,7 +147,15 @@ async def create_agent(req: AgentCreate, request: Request):
 
 @router.get("/agents")
 async def list_agents(request: Request):
-    """List all registered agents."""
+    """
+    List all registered agents in the system.
+
+    Args:
+        request: FastAPI request object for accessing app state
+
+    Returns:
+        Dictionary with "agents" key containing list of serialized agent objects
+    """
     return {
         "agents": [
             _serialize_agent(agent, request)
@@ -129,7 +166,19 @@ async def list_agents(request: Request):
 
 @router.get("/agents/{name}")
 async def get_agent(name: str, request: Request):
-    """Get a specific agent by name."""
+    """
+    Get a specific agent by name.
+
+    Args:
+        name: Agent name to retrieve
+        request: FastAPI request object for accessing app state
+
+    Returns:
+        Serialized agent object with all configuration details
+
+    Raises:
+        HTTPException: If agent with the specified name is not found (404)
+    """
     try:
         agent = request.app.state.registry.get(name)
     except KeyError:
@@ -141,7 +190,23 @@ async def get_agent(name: str, request: Request):
 
 @router.put("/agents/{name}")
 async def update_agent(name: str, req: AgentUpdate, request: Request):
-    """Update an existing agent."""
+    """
+    Update an existing agent's configuration.
+
+    This endpoint supports prompt versioning - when the system_prompt is changed,
+    a new version is automatically created and tracked.
+
+    Args:
+        name: Agent name to update
+        req: Updated agent configuration including optional version note
+        request: FastAPI request object for accessing app state
+
+    Returns:
+        Serialized agent object with updated configuration
+
+    Raises:
+        HTTPException: If agent is not found (404) or is a built-in agent (403)
+    """
     try:
         agent = request.app.state.registry.get(name)
     except KeyError:
@@ -200,7 +265,19 @@ async def update_agent(name: str, req: AgentUpdate, request: Request):
 
 @router.delete("/agents/{name}")
 async def delete_agent(name: str, request: Request):
-    """Delete an agent."""
+    """
+    Delete an agent from the registry.
+
+    Args:
+        name: Agent name to delete
+        request: FastAPI request object for accessing app state
+
+    Returns:
+        Success message confirming deletion
+
+    Raises:
+        HTTPException: If agent is not found (404) or is a built-in agent (403)
+    """
     try:
         agent = request.app.state.registry.get(name)
     except KeyError:
@@ -220,7 +297,20 @@ async def delete_agent(name: str, request: Request):
 
 @router.post("/agents/{name}/run")
 async def run_agent(name: str, req: SendRequest, request: Request):
-    """Run an agent with the given messages."""
+    """
+    Run an agent with the provided messages.
+
+    Args:
+        name: Agent name to run
+        req: Request containing messages and optional routing parameters
+        request: FastAPI request object for accessing app state
+
+    Returns:
+        Dictionary containing response content, model used, provider, and usage statistics
+
+    Raises:
+        HTTPException: If agent is not found (404) or no messages provided (400)
+    """
     if not req.messages:
         raise HTTPException(status_code=400, detail="At least one message is required")
 
@@ -245,7 +335,19 @@ async def run_agent(name: str, req: SendRequest, request: Request):
 
 @router.get("/agents/{name}/metrics")
 async def get_agent_metrics(name: str, request: Request):
-    """Get metrics for a specific agent."""
+    """
+    Get metrics for a specific agent.
+
+    Args:
+        name: Agent name to retrieve metrics for
+        request: FastAPI request object for accessing app state
+
+    Returns:
+        Dictionary containing agent usage metrics and statistics
+
+    Raises:
+        HTTPException: If agent with the specified name is not found (404)
+    """
     try:
         agent = request.app.state.registry.get(name)
     except KeyError:

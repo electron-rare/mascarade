@@ -19,6 +19,8 @@ router = APIRouter(prefix="/api", dependencies=[Depends(require_auth)], tags=["p
 
 
 class ProviderKeyUpdate(BaseModel):
+    """Request model for updating provider API keys."""
+
     keys: dict[str, str] = Field(description="Map ENV_VAR -> value")
 
 
@@ -27,19 +29,49 @@ class ProviderKeyUpdate(BaseModel):
 
 @router.get("/providers")
 async def list_providers(request: Request):
-    """List all available providers."""
+    """
+    List all available LLM providers in the system.
+
+    Args:
+        request: FastAPI request object for accessing app state
+
+    Returns:
+        Dictionary with "providers" key containing list of provider names
+    """
     return {"providers": request.app.state.router.available_providers}
 
 
 @router.get("/providers/status")
 async def providers_status(request: Request):
-    """Get status of all providers including configuration."""
+    """
+    Get status and configuration details for all providers.
+
+    Args:
+        request: FastAPI request object for accessing app state
+
+    Returns:
+        Dictionary with "providers" key containing detailed status for each provider
+        including API key configuration, model availability, and health status
+    """
     return {"providers": get_providers_status(request.app.state.router)}
 
 
 @router.put("/providers/{name}/key")
 async def update_provider(name: str, req: ProviderKeyUpdate, request: Request):
-    """Update API keys for a specific provider."""
+    """
+    Update API keys for a specific provider.
+
+    Args:
+        name: Provider name (e.g., "openai", "anthropic", "bedrock")
+        req: Dictionary mapping environment variable names to their values
+        request: FastAPI request object for accessing app state
+
+    Returns:
+        Dictionary containing update status and provider information
+
+    Raises:
+        HTTPException: If provider name is not recognized (404)
+    """
     if name not in PROVIDER_REGISTRY:
         raise HTTPException(status_code=404, detail=f"Unknown provider: {name}")
     result = update_provider_keys(
@@ -53,7 +85,18 @@ async def update_provider(name: str, req: ProviderKeyUpdate, request: Request):
 
 @router.get("/providers/bedrock/models")
 async def bedrock_models(request: Request):
-    """List Bedrock models including fine-tuned custom models."""
+    """
+    List AWS Bedrock models including fine-tuned custom models.
+
+    Args:
+        request: FastAPI request object for accessing app state
+
+    Returns:
+        Dictionary containing "models" (base models) and "custom_models" (fine-tuned)
+
+    Raises:
+        HTTPException: If Bedrock provider is not initialized or available (404)
+    """
     provider = request.app.state.router._providers.get("bedrock")
     if not provider:
         raise HTTPException(status_code=404, detail="Bedrock provider not available")
@@ -65,7 +108,18 @@ async def bedrock_models(request: Request):
 
 @router.get("/providers/bedrock/finetune-jobs")
 async def bedrock_finetune_jobs(request: Request):
-    """Check status of Bedrock fine-tuning jobs."""
+    """
+    Check status of AWS Bedrock fine-tuning jobs.
+
+    Args:
+        request: FastAPI request object for accessing app state
+
+    Returns:
+        List of fine-tuning job statuses with job details and progress
+
+    Raises:
+        HTTPException: If Bedrock provider is not initialized or available (404)
+    """
     provider = request.app.state.router._providers.get("bedrock")
     if not provider:
         raise HTTPException(status_code=404, detail="Bedrock provider not available")
