@@ -218,7 +218,7 @@ export const coreClient = {
   },
 
   providerHealth() {
-    return request<Record<string, ProviderHealthMetrics>>("/health/providers");
+    return request<Record<string, unknown>>("/health/providers");
   },
 
   updateProviderKey(name: string, keys: Record<string, string>) {
@@ -680,6 +680,88 @@ export const coreClient = {
     });
   },
 
+  kicadGenerateSchematic(body: {
+    requirements: string;
+    library?: string;
+    run_id?: string;
+  }) {
+    return request<{
+      ok: boolean;
+      schematic_path?: string;
+      component_count?: number;
+      net_count?: number;
+      run_id: string;
+    }>("/mcp/kicad/schematic", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+
+  kicadOptimizeLayout(body: {
+    schematic_data: Record<string, unknown>;
+    constraints?: Record<string, unknown>;
+    run_id?: string;
+  }) {
+    return request<{
+      ok: boolean;
+      layout_path?: string;
+      optimization_score?: number;
+      run_id: string;
+    }>("/mcp/kicad/layout", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+
+  kicadCreateFootprint(body: {
+    component_description: string;
+    datasheet_url?: string;
+    run_id?: string;
+  }) {
+    return request<{
+      ok: boolean;
+      footprint_path?: string;
+      pad_count?: number;
+      run_id: string;
+    }>("/mcp/kicad/footprint", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+
+  kicadCheckDRC(body: {
+    layout_data: Record<string, unknown>;
+    rules?: Record<string, unknown>;
+    run_id?: string;
+  }) {
+    return request<{
+      ok: boolean;
+      violations?: Array<Record<string, unknown>>;
+      violation_count?: number;
+      run_id: string;
+    }>("/mcp/kicad/drc", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+
+  kicadExportManufacturing(body: {
+    layout_data: Record<string, unknown>;
+    bom_data?: Record<string, unknown>;
+    format?: string;
+    run_id?: string;
+  }) {
+    return request<{
+      ok: boolean;
+      output_files?: string[];
+      format?: string;
+      run_id: string;
+    }>("/mcp/kicad/manufacturing", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+
   industrialMcpServers() {
     return request<{
       items: Array<{
@@ -848,6 +930,10 @@ export const coreClient = {
   updateUser(userId: number, body: { username?: string; email?: string; role_id?: number; is_active?: boolean }) {
     return request<{ id: number; username: string; email: string; role_id: number; is_active: boolean; created_at: string; updated_at: string }>(`/users/${userId}`, {
       method: "PUT",
+      body: JSON.stringify(body),
+    });
+  },
+
   // --- Qdrant ---
 
   qdrantHealth() {
@@ -948,6 +1034,9 @@ export const coreClient = {
   revokeApiKey(userId: number, keyId: number) {
     return request<{ status: string }>(`/users/${userId}/api-keys/${keyId}`, {
       method: "DELETE",
+    });
+  },
+
   qdrantRecommend(
     collectionName: string,
     body: {
