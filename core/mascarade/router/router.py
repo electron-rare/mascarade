@@ -11,6 +11,7 @@ from typing import Any
 
 from mascarade.analytics.clickhouse_logger import get_cost_logger
 from mascarade.analytics.cost_calculator import get_cost_calculator
+from mascarade.analytics.prometheus_metrics import COST_METRICS
 from mascarade.cache.multi_tier_cache import MultiTierCache
 from mascarade.config import settings
 from mascarade.load_balancer.balancer import LoadBalancer
@@ -269,10 +270,10 @@ class Router:
             best_value = min(p.speed_rank for p in providers)
             return [p for p in providers if p.speed_rank == best_value]
 
-        # Sort candidates by health score (descending - healthiest first)
+        # Sort providers by health score (descending - healthiest first)
         candidates_with_health = [
             (p, self.health_monitor.get_provider_health(p.name).health_score)
-            for p in candidates
+            for p in providers
         ]
         candidates_with_health.sort(key=lambda x: x[1], reverse=True)
 
@@ -563,6 +564,7 @@ class Router:
         temperature: float = 0.7,
         max_tokens: int = 4096,
         domain: str | None = None,
+        user_id: str | None = None,
     ) -> LLMResponse:
         requested_strategy = Strategy(strategy)
         policy = (routing_policy or "auto").strip().lower() or "auto"
@@ -847,6 +849,7 @@ class Router:
         temperature: float = 0.7,
         max_tokens: int = 4096,
         domain: str | None = None,
+        user_id: str | None = None,
     ) -> AsyncIterator[str]:
         requested_strategy = Strategy(strategy)
         effective_strategy = requested_strategy
@@ -866,9 +869,9 @@ class Router:
             )
         strict_provider = effective_strategy == Strategy.SPECIFIC and effective_provider is not None
 
-        cached = self.cache.retrieve(
+        cached = await self.cache.retrieve(
             messages,
-            strategy=strategy.value,
+            strategy=requested_strategy.value,
             provider=provider,
             model=model,
             system=system,
