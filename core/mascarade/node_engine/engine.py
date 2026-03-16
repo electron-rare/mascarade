@@ -53,6 +53,7 @@ class NodeResult:
     worker_name: str = ""
 
 
+@dataclass
 class GraphExecutionEngine:
     """
     Executes a node graph respecting topological ordering and parallel branches.
@@ -62,9 +63,17 @@ class GraphExecutionEngine:
     and cross-domain type adaptation.
     """
 
-    def __init__(self, worker_registry: "WorkerRegistry", node_registry: "NodeTypeRegistry"):
-        self._worker_registry = worker_registry
-        self._node_registry = node_registry
+    worker_registry: "WorkerRegistry" = field(default_factory=lambda: None)
+    node_registry: "NodeTypeRegistry" = field(default_factory=lambda: None)
+
+    def __post_init__(self) -> None:
+        """Initialize registries if not provided."""
+        if self.worker_registry is None:
+            from mascarade.node_engine.registry import WorkerRegistry
+            self.worker_registry = WorkerRegistry()
+        if self.node_registry is None:
+            from mascarade.node_engine.registry import NodeTypeRegistry
+            self.node_registry = NodeTypeRegistry()
 
     def _topological_sort(self, graph: "Graph") -> list[list[str]]:
         """
@@ -171,8 +180,8 @@ class GraphExecutionEngine:
         import time
 
         start = time.monotonic()
-        node_type = self._node_registry.get(node.node_type)
-        worker = self._worker_registry.get(node_type.domain)
+        node_type = self.node_registry.get(node.node_type)
+        worker = self.worker_registry.get(node_type.domain)
 
         try:
             outputs = await worker.execute(
