@@ -339,3 +339,113 @@ No test infrastructure whatsoever. Critical gap matching the web service.
 8. **Components domain orphaned** — no builder, only 30 HF rows, excluded from probes
 
 === END SESSION 4 ===
+
+=== SESSION 5 (Coder — subtask-1-5) ===
+
+## Subtask 1-5: Infrastructure State Analysis — COMPLETED
+
+### Docker Compose Services (45 total across 5 compose files)
+
+**Main docker-compose.yml (955 lines) — 5 profiles:**
+
+| Profile | Services | Count |
+|---------|----------|-------|
+| core | core, api, redis, postgres | 4 |
+| personal | litellm, n8n, firecrawl, mem0, dify-api, dify-web, dify-worker, qdrant, tts, stt | 10 |
+| observability | prometheus, grafana, loki, promtail, tempo, blackbox-exporter, otel-collector, clickhouse, minio, langfuse-web, langfuse-worker | 11 |
+| industrial | edge-proxy, ops-agent, agent-factory-cockpit, agent-factory-dcs-sandbox | 4 |
+| fine-tuning | ollama, generate-audio | 2 |
+| (no profile) | neo4j, graphiti-mcp | 2 |
+
+**Additional compose files:**
+- deploy/phase2/docker-compose.yml: searxng, paperless (+redis, +db), karakeep (+chrome, +meilisearch) = 7 services
+- deploy/cad/docker-compose.yml: kicad-headless, kicad-mcp, freecad-headless, platformio = 4 services
+- deploy/ops-console/docker-compose.yml: ops-console = 1 service
+
+**Networking:** mascarade-network (bridge), 22 persistent volumes, health checks on ALL services.
+
+### CI/CD Pipeline (.github/workflows/ci.yml)
+
+**9 jobs:** api (Node test+build), web (build), core (pytest), lint (ruff+black),
+compose (validation), docker (GHCR image build, main only), finetune (GPU, 180min,
+self-hosted), deploy (SSH), notify (status).
+
+**Triggers:** Push to main/dev, PRs to main/dev, manual dispatch.
+**Images published to:** ghcr.io/<repo>/core and ghcr.io/<repo>/api
+
+### Deploy Directory (10 Dockerfiles, 20+ configs)
+
+**Dockerfiles (10):**
+- Root: Dockerfile.api, Dockerfile.core, Dockerfile.edge-proxy, Dockerfile.ops-agent, Dockerfile.generate-audio
+- Subdirs: cad/Dockerfile.freecad-headless, cad/Dockerfile.kicad-mcp, cad/Dockerfile.platformio, finetune-metrics-exporter/Dockerfile
+
+**Key configs:**
+- deploy/prometheus/prometheus.yml — 35 scrape job definitions
+- deploy/edge-proxy/default.conf.template — 1,102 lines nginx, 20+ server blocks
+- deploy/grafana/provisioning/ — 6 JSON dashboards (ops, AI runtime, logs, model leaderboard, cost, tooling)
+- deploy/loki/loki-config.yaml — tsdb schema, 24h retention
+- deploy/tempo/tempo.yaml — OTLP receivers, local storage
+- deploy/otel-collector/config.yaml — OpenTelemetry pipeline
+- deploy/clickhouse-config/ — Langfuse user + thread pool tuning
+
+### Scripts Directory (123 scripts)
+
+**Categories:**
+- Docker/Compose management: 7 (compose.sh is 27KB)
+- Fine-tuning & training: 20 scripts
+- Apple LLM/ML operations: 8 scripts
+- Configuration & setup: 13 scripts
+- Infrastructure & edge proxy: 6 scripts
+- Provider integration tests: 6 scripts
+- Database & ops tools: 6 scripts
+- Multi-agent orchestration: 10 scripts (execution_hub.py is 22.8KB)
+- Tools & TUI: 8 scripts
+- P2P mesh: subdirectory with mesh_tui.py, test_mesh.py, node_start_bridge.py
+
+### P2P Mesh (4 nodes, not 5 as spec claimed)
+
+**nodes.yaml topology:**
+- bootstrap: "Photon VM" (192.168.0.119, port 4001, infra role)
+- cils: MacBook validator (192.168.0.210)
+- grosmac: Bridge node (Tailscale 100.80.178.42, M4, orchestrator)
+- kxkm: Remote compute (Tailscale 100.87.54.119, GPU-enabled)
+
+**Implementation:** libp2p + Zeroconf/mDNS + Tailscale VPN + HMAC auth
+**Env vars:** 12 cluster/mesh variables (CLUSTER_ENABLED=false by default)
+
+### Monitoring Stack (LGTM — complete)
+
+- **Prometheus:** 15s scrape, 35 jobs, blackbox synthetic probes
+- **Grafana:** 6 provisioned dashboards, auto-configured datasources
+- **Loki + Promtail:** tsdb v13, 24h retention, Docker + journal log shipping
+- **Tempo:** OTLP traces, 5min block duration
+- **OpenTelemetry Collector:** gRPC/HTTP receivers → Tempo/Prometheus/Loki
+- **ClickHouse:** Langfuse analytics backend
+- **MinIO:** S3-compatible storage for Langfuse media/events
+
+### Edge Proxy (Nginx)
+
+- 1,102-line nginx config template with 20+ server blocks
+- Domain: *.saillant.cc (self-signed + Let's Encrypt ACME via Cloudflare DNS)
+- HTTP/2, WebSocket upgrade, basic auth on ops tools
+- Services proxied: API, Grafana, Langfuse, Ollama, Prometheus, Mem0, Firecrawl, Industrial, SearXNG, Paperless, Karakeep, Zeroclaw, Dify
+
+### Environment Management
+
+- .env.example: 300+ lines covering images (30 SHA256-pinned), ports (25+), credentials (9), provider APIs (10+), cluster (12), ACME (5)
+- .env.vm.example: VM connectivity (11 lines)
+- .env.trials.template: Experimentation environment
+- deploy/phase2/.env.example: Phase 2 services
+
+### Key Findings
+
+1. **45 services total** — spec said 30+, actual is significantly more
+2. **4 P2P nodes, not 5** — spec overcounted
+3. **123 scripts, not 134** — spec overcounted
+4. **compose.sh (27KB)** generates docker-compose.yml dynamically — modularization target
+5. **1,102-line nginx config** — very large, could benefit from splitting
+6. **All images SHA256-pinned** — excellent supply chain security
+7. **Complete LGTM stack** with 6 pre-built Grafana dashboards
+8. **9 CI/CD jobs** including self-hosted GPU runner for fine-tuning
+
+=== END SESSION 5 ===
