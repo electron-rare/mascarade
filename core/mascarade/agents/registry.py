@@ -11,6 +11,7 @@ from dataclasses import asdict
 from pathlib import Path
 
 from mascarade.agents.base import Agent
+from mascarade.agents.prompt_versioning import iso_utc_now
 from mascarade.metrics.tracker import MetricsTracker
 from mascarade.router.router import Strategy
 
