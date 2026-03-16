@@ -488,3 +488,61 @@ def test_e2e_summarize_node(runtime):
     # Verify summary output
     assert "summary" in result.outputs
     assert isinstance(result.outputs["summary"], str)
+
+
+def test_chain_of_thought_graph(runtime):
+    """Test end-to-end execution of chain-of-thought reasoning node."""
+    # Create a graph with a chain-of-thought node
+    graph = Graph(
+        nodes=[
+            Node(
+                id="cot1",
+                type="ai.chain-of-thought",
+                inputs={
+                    "question": "How does photosynthesis work?",
+                    "steps": 3,
+                },
+                config={"strategy": "best"},
+            ),
+        ],
+        metadata={"id": "chain-of-thought-test", "name": "Chain of Thought Test"},
+    )
+
+    # Execute the graph
+    context = asyncio.run(runtime.execute(graph))
+
+    # Verify execution succeeded
+    assert context.status == ExecutionStatus.COMPLETED
+    assert len(context.node_results) == 1
+
+    # Verify chain-of-thought node execution
+    result = context.node_results["cot1"]
+    assert result.status == ExecutionStatus.COMPLETED
+    assert result.worker_name == "ai-worker"
+
+    # Verify output structure
+    assert "reasoning" in result.outputs
+    assert "answer" in result.outputs
+    assert "usage" in result.outputs
+
+    # Verify reasoning steps
+    reasoning = result.outputs["reasoning"]
+    assert isinstance(reasoning, list)
+    assert len(reasoning) == 3  # Should have 3 reasoning steps
+
+    # Verify each reasoning step has content
+    for i, step in enumerate(reasoning):
+        assert isinstance(step, str)
+        assert len(step) > 0
+        # Mock provider should echo back the step number
+        assert f"Step {i + 1}/3" in step
+
+    # Verify final answer
+    answer = result.outputs["answer"]
+    assert isinstance(answer, str)
+    assert len(answer) > 0
+    # Final synthesis should reference the question
+    assert "photosynthesis" in answer.lower()
+
+    # Verify usage tracking
+    assert isinstance(result.outputs["usage"], dict)
