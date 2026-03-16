@@ -1135,6 +1135,135 @@ export const coreClient = {
     });
   },
 
+  // --- Mesh Operations ---
+
+  meshImport(body: { data: string; format: string; run_id?: string }) {
+    return request<{
+      ok: boolean;
+      run_id: string;
+      protocol_version?: string;
+      server_name?: string;
+      message: string;
+      payload: Record<string, unknown>;
+    }>("/mcp/mesh/import", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+
+  meshExport(body: {
+    mesh: Record<string, unknown>;
+    format: string;
+    options?: Record<string, unknown>;
+    run_id?: string;
+  }) {
+    return request<{
+      ok: boolean;
+      run_id: string;
+      protocol_version?: string;
+      server_name?: string;
+      message: string;
+      payload: Record<string, unknown>;
+    }>("/mcp/mesh/export", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+
+  meshSimplify(body: {
+    mesh: Record<string, unknown>;
+    target_ratio: number;
+    preserve_boundaries?: boolean;
+    run_id?: string;
+  }) {
+    return request<{
+      ok: boolean;
+      run_id: string;
+      protocol_version?: string;
+      server_name?: string;
+      message: string;
+      payload: Record<string, unknown>;
+    }>("/mcp/mesh/simplify", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+
+  meshBoolean(body: {
+    mesh_a: Record<string, unknown>;
+    mesh_b: Record<string, unknown>;
+    operation: string;
+    run_id?: string;
+  }) {
+    return request<{
+      ok: boolean;
+      run_id: string;
+      protocol_version?: string;
+      server_name?: string;
+      message: string;
+      payload: Record<string, unknown>;
+    }>("/mcp/mesh/boolean", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+
+  // --- Toolpath Operations ---
+
+  toolpathGenerate(body: {
+    mesh: Record<string, unknown>;
+    tool: Record<string, unknown>;
+    strategy: string;
+    stock?: Record<string, unknown>;
+    run_id?: string;
+  }) {
+    return request<{
+      ok: boolean;
+      run_id: string;
+      gcode: {
+        program: string;
+        estimated_time_s: number;
+        bounds: Record<string, number>;
+        tool_changes: number;
+      };
+      toolpath: {
+        moves: Array<Record<string, unknown>>;
+        unit: string;
+        tool_id: string;
+      };
+    }>("/mcp/toolpath/generate", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+
+  toolpathOptimize(body: {
+    toolpath: Record<string, unknown>;
+    objective: string;
+    constraints?: Record<string, unknown>;
+    run_id?: string;
+  }) {
+    return request<{
+      ok: boolean;
+      run_id: string;
+      toolpath: {
+        moves: Array<Record<string, unknown>>;
+        unit: string;
+        tool_id: string;
+      };
+      gcode: {
+        program: string;
+        estimated_time_s: number;
+        bounds: Record<string, number>;
+        tool_changes: number;
+      };
+      improvement_pct: number;
+    }>("/mcp/toolpath/optimize", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+
   // --- Templates ---
 
   listTemplates() {

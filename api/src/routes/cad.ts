@@ -123,4 +123,58 @@ cad.post("/kicad/manufacturing", async (c) => {
   }
 });
 
+cad.post("/mesh/import", async (c) => {
+  try {
+    return c.json(await coreClient.meshImport(await c.req.json()));
+  } catch (error) {
+    const { status, body } = handleCoreError(error);
+    return c.json(body, status);
+  }
+});
+
+cad.post("/mesh/export", async (c) => {
+  try {
+    return c.json(await coreClient.meshExport(await c.req.json()));
+  } catch (error) {
+    const { status, body } = handleCoreError(error);
+    return c.json(body, status);
+  }
+});
+
+cad.post("/mesh/simplify", async (c) => {
+  try {
+    return c.json(await coreClient.meshSimplify(await c.req.json()));
+  } catch (error) {
+    const { status, body } = handleCoreError(error);
+    return c.json(body, status);
+  }
+});
+
+cad.post("/mesh/boolean", async (c) => {
+  try {
+    return c.json(await coreClient.meshBoolean(await c.req.json()));
+  } catch (error) {
+    const { status, body } = handleCoreError(error);
+    return c.json(body, status);
+  }
+});
+
+cad.post("/toolpath/generate", async (c) => {
+  try {
+    return c.json(await coreClient.toolpathGenerate(await c.req.json()));
+  } catch (error) {
+    const { status, body } = handleCoreError(error);
+    return c.json(body, status);
+  }
+});
+
+cad.post("/toolpath/optimize", async (c) => {
+  try {
+    return c.json(await coreClient.toolpathOptimize(await c.req.json()));
+  } catch (error) {
+    const { status, body } = handleCoreError(error);
+    return c.json(body, status);
+  }
+});
+
 export { cad };
