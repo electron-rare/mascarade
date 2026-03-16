@@ -57,3 +57,26 @@ class Graph:
     nodes: list[GraphNode] = field(default_factory=list)
     edges: list[GraphEdge] = field(default_factory=list)
     metadata: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass
+class ExecutionContext:
+    """Runtime context for executing a single node."""
+
+    graph_id: str
+    run_id: str
+    node_id: str
+    inputs: dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass
+class NodeResult:
+    """Result of executing a single node."""
+
+    node_id: str
+    status: str
+    outputs: dict[str, Any] = field(default_factory=dict)
+    error: str | None = None
+    execution_time_ms: float | None = None
+    metadata: dict[str, Any] = field(default_factory=dict)
