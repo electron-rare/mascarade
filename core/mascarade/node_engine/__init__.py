@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+from mascarade.node_engine.registry import NodeTypeRegistry
 from mascarade.node_engine.types import DomainType, NodeType, PortType
 
 __all__ = [
     "DomainType",
     "PortType",
     "NodeType",
+    "NodeTypeRegistry",
 ]
