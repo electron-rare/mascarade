@@ -10,6 +10,7 @@ import json
 import logging
 import os
 import tempfile
+from collections.abc import Callable
 from dataclasses import asdict
 from datetime import UTC, datetime
 from pathlib import Path
@@ -26,6 +27,117 @@ SCHEMA_NAME = "universal-node-engine-graph-v1"
 def iso_utc_now() -> str:
     """Retourne un timestamp ISO8601 UTC avec suffixe Z stable."""
     return datetime.now(UTC).isoformat().replace("+00:00", "Z")
+
+
+class MigrationRegistry:
+    """Registre de migrations pour les mises à jour de schéma."""
+
+    def __init__(self) -> None:
+        self._migrations: dict[tuple[str, str], Callable[[dict[str, Any]], dict[str, Any]]] = {}
+
+    def register(
+        self,
+        from_version: str,
+        to_version: str,
+        migration_func: Callable[[dict[str, Any]], dict[str, Any]],
+    ) -> None:
+        """
+        Enregistrer une fonction de migration.
+
+        Args:
+            from_version: Version source du schéma
+            to_version: Version cible du schéma
+            migration_func: Fonction qui transforme les données de la version source à la cible
+        """
+        key = (from_version, to_version)
+        if key in self._migrations:
+            logger.warning(
+                "Replacing existing migration from %s to %s",
+                from_version,
+                to_version,
+            )
+        self._migrations[key] = migration_func
+        logger.debug("Registered migration: %s -> %s", from_version, to_version)
+
+    def get(
+        self, from_version: str, to_version: str
+    ) -> Callable[[dict[str, Any]], dict[str, Any]]:
+        """
+        Obtenir une fonction de migration.
+
+        Args:
+            from_version: Version source
+            to_version: Version cible
+
+        Returns:
+            La fonction de migration
+
+        Raises:
+            KeyError: Si la migration n'existe pas
+        """
+        key = (from_version, to_version)
+        if key not in self._migrations:
+            raise KeyError(
+                f"No migration from '{from_version}' to '{to_version}'. "
+                f"Available: {list(self._migrations.keys())}"
+            )
+        return self._migrations[key]
+
+    def migrate(self, data: dict[str, Any], target_version: str) -> dict[str, Any]:
+        """
+        Migrer des données vers une version cible.
+
+        Args:
+            data: Données à migrer (doit contenir une clé 'version')
+            target_version: Version cible du schéma
+
+        Returns:
+            Données migrées
+
+        Raises:
+            KeyError: Si la migration nécessaire n'existe pas
+            ValueError: Si les données sont invalides
+        """
+        current_version = data.get("version")
+        if not current_version:
+            raise ValueError("Data missing 'version' key")
+
+        if current_version == target_version:
+            logger.debug("Data already at target version %s", target_version)
+            return data
+
+        migration_func = self.get(current_version, target_version)
+        logger.info("Migrating data from %s to %s", current_version, target_version)
+
+        try:
+            migrated_data = migration_func(data)
+            migrated_data["version"] = target_version
+            return migrated_data
+        except Exception as exc:
+            logger.error(
+                "Migration failed from %s to %s: %s",
+                current_version,
+                target_version,
+                exc,
+            )
+            raise
+
+    def list_migrations(self) -> list[tuple[str, str]]:
+        """
+        Lister toutes les migrations disponibles.
+
+        Returns:
+            Liste de tuples (from_version, to_version)
+        """
+        return list(self._migrations.keys())
+
+    def __contains__(self, key: tuple[str, str]) -> bool:
+        """Vérifier si une migration existe."""
+        return key in self._migrations
+
+    def __len__(self) -> int:
+        """Nombre de migrations enregistrées."""
+        return len(self._migrations)
 
 
 class GraphSerializer:
