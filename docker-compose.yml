@@ -10,6 +10,11 @@ services:
       dockerfile: deploy/Dockerfile.core
     container_name: mascarade-core
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 4G
     ports:
       - "${PUBLISH_BIND_HOST:-0.0.0.0}:${CORE_PORT}:8100"
     env_file:
@@ -46,6 +51,11 @@ services:
       dockerfile: deploy/Dockerfile.api
     container_name: mascarade-api
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 4G
     user: "${API_RUNTIME_UID:-1000}:${API_RUNTIME_GID:-1000}"
     ports:
       - "${PUBLISH_BIND_HOST:-0.0.0.0}:${API_PORT}:3000"
@@ -75,6 +85,11 @@ services:
     image: ${LITELLM_IMAGE:-ghcr.io/berriai/litellm@sha256:59a2736ac84800821fa0e1656487366089f2d29d10f8ae05c918df9c6e4940af}
     container_name: mascarade-litellm
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 2G
     ports:
       - "${PUBLISH_BIND_HOST:-0.0.0.0}:${LITELLM_PORT}:4000"
     env_file:
@@ -104,6 +119,11 @@ services:
     image: ${N8N_IMAGE:-n8nio/n8n@sha256:cfa50544c4cc172506834da1ec9bb5171db55958c8d1918205df0bda237a56f4}
     container_name: mascarade-n8n
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 2G
     ports:
       - "${PUBLISH_BIND_HOST:-0.0.0.0}:${N8N_PORT}:5678"
     environment:
@@ -133,6 +153,11 @@ services:
     image: ${LANGFUSE_WORKER_IMAGE:-langfuse/langfuse-worker@sha256:8bb47a4240ea293a210e460eae912ce06ea8fc2f724ce89cb146547eed36f6b2}
     container_name: mascarade-langfuse-worker
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 2G
     environment: &langfuse-worker-env
       NEXTAUTH_URL: ${NEXTAUTH_URL}
       DATABASE_URL: postgresql://mascarade:${POSTGRES_PASSWORD}@postgres:5432/langfuse
@@ -188,6 +213,11 @@ services:
     image: ${LANGFUSE_WEB_IMAGE:-langfuse/langfuse@sha256:8d3211972d2a0610258ff0cc86da6b2d367f804bf253e9b94863bf961e59d23c}
     container_name: mascarade-langfuse
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 2G
     ports:
       - "${PUBLISH_BIND_HOST:-0.0.0.0}:${LANGFUSE_PORT}:3000"
     environment:
@@ -215,6 +245,11 @@ services:
     image: ${MINIO_IMAGE:-minio/minio@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e}
     container_name: mascarade-langfuse-minio
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 2G
     entrypoint: sh
     command: -c 'mkdir -p /data/langfuse && minio server --address ":9000" --console-address ":9001" /data'
     environment:
@@ -240,6 +275,11 @@ services:
     image: ${FIRECRAWL_IMAGE:-mcp/firecrawl@sha256:e6676bd31d1806574d931b7a7b7b6fba953c031853e80adc1ec8115c17ab81ca}
     container_name: mascarade-firecrawl
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 2G
     ports:
       - "${PUBLISH_BIND_HOST:-0.0.0.0}:${FIRECRAWL_PORT:-3400}:3000"
     env_file:
@@ -265,6 +305,11 @@ services:
     image: ${MEM0_IMAGE:-mem0/openmemory-mcp:latest}
     container_name: mascarade-mem0
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 2G
     ports:
       - "${PUBLISH_BIND_HOST:-0.0.0.0}:${MEM0_PORT:-3300}:8765"
     env_file:
@@ -296,6 +341,11 @@ services:
     image: ${DIFY_API_IMAGE:-langgenius/dify-api@sha256:5f622b4d0b39bdc6d3b401063cfb60962fa92dcc63f55daccec138f98b260e67}
     container_name: mascarade-dify-api
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 2G
     ports:
       - "${PUBLISH_BIND_HOST:-0.0.0.0}:${DIFY_API_PORT}:5001"
     environment:
@@ -326,6 +376,11 @@ services:
     image: ${DIFY_WEB_IMAGE:-langgenius/dify-web@sha256:30339b4d5060488fac147ddc6fb40438ef71cd5f5dfdeb26c886768302bf7197}
     container_name: mascarade-dify-web
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 2G
     ports:
       - "${PUBLISH_BIND_HOST:-0.0.0.0}:${DIFY_WEB_PORT}:3000"
     environment:
@@ -357,6 +412,11 @@ services:
     image: ${DIFY_API_IMAGE:-langgenius/dify-api@sha256:5f622b4d0b39bdc6d3b401063cfb60962fa92dcc63f55daccec138f98b260e67}
     container_name: mascarade-dify-worker
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 2G
     command: celery -A app.celery worker
     environment:
       DB_USERNAME: mascarade
@@ -389,6 +449,11 @@ services:
       dockerfile: Dockerfile
     container_name: mascarade-agent-factory-cockpit
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
     env_file:
       - .env
     environment:
@@ -449,6 +514,11 @@ services:
       dockerfile: Dockerfile
     container_name: mascarade-agent-factory-dcs-sandbox
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 1G
     env_file:
       - .env
     environment:
@@ -492,6 +562,11 @@ services:
     image: ${CLICKHOUSE_IMAGE:-clickhouse/clickhouse-server@sha256:0b2d7824347397b2ba6fcb216f0ae772568105f1f47e19f0d3247e24c79bc10a}
     container_name: mascarade-clickhouse
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 4G
     ports:
       - "${PUBLISH_BIND_HOST:-0.0.0.0}:${CLICKHOUSE_HTTP_PORT}:8123"
       - "${PUBLISH_BIND_HOST:-0.0.0.0}:${CLICKHOUSE_NATIVE_PORT}:9000"
@@ -516,6 +591,11 @@ services:
       - personal
     container_name: mascarade-tts
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 2G
     ports:
       - "${PUBLISH_BIND_HOST:-0.0.0.0}:${TTS_PORT}:10200"
     image: ${TTS_PIPER_IMAGE:-rhasspy/wyoming-piper:latest}
@@ -533,6 +613,11 @@ services:
     image: ${STT_IMAGE:-onerahmet/openai-whisper-asr-webservice:latest}
     container_name: mascarade-stt
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 2G
     ports:
       - "${PUBLISH_BIND_HOST:-0.0.0.0}:${STT_PORT}:9000"
     environment:
@@ -560,6 +645,11 @@ services:
         AUDIOCRAFT_VERSION: 1.3.0
     container_name: mascarade-generate-audio
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 4G
     ports:
       - "${PUBLISH_BIND_HOST:-0.0.0.0}:${GENERATE_AUDIO_PORT}:9000"
     environment:
@@ -581,6 +671,11 @@ services:
     image: ${OLLAMA_IMAGE:-ollama/ollama@sha256:719122581b6932e1240ae70d788859089cb80d17e23cd4f98ba960b0290f70cb}
     container_name: mascarade-ollama
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 4G
     ports:
       - "${PUBLISH_BIND_HOST:-0.0.0.0}:${OLLAMA_PORT}:11434"
     volumes:
@@ -602,6 +697,11 @@ services:
       dockerfile: deploy/Dockerfile.edge-proxy
     container_name: mascarade-edge-proxy
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
     ports:
       - "${EDGE_PROXY_BIND_HOST:-0.0.0.0}:${EDGE_PROXY_HTTP_PORT}:80"
       - "${EDGE_PROXY_BIND_HOST:-0.0.0.0}:${EDGE_PROXY_HTTPS_PORT}:443"
@@ -633,6 +733,11 @@ services:
       dockerfile: deploy/Dockerfile.ops-agent
     container_name: mascarade-ops-agent
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
     ports:
       - "${PUBLISH_BIND_HOST:-0.0.0.0}:${OPS_AGENT_PORT}:9200"
     env_file:
@@ -660,6 +765,11 @@ services:
     image: ${REDIS_IMAGE:-redis@sha256:8b81dd37ff027bec4e516d41acfbe9fe2460070dc6d4a4570a2ac5b9d59df065}
     container_name: mascarade-redis
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 2G
     ports:
       - "${PUBLISH_BIND_HOST:-0.0.0.0}:${REDIS_PORT}:6379"
     volumes:
@@ -678,6 +788,11 @@ services:
     image: ${POSTGRES_IMAGE:-postgres@sha256:20edbde7749f822887a1a022ad526fde0a47d6b2be9a8364433605cf65099416}
     container_name: mascarade-postgres
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 4G
     ports:
       - "${PUBLISH_BIND_HOST:-0.0.0.0}:${POSTGRES_PORT}:5432"
     environment:
@@ -701,6 +816,11 @@ services:
     image: ${QDRANT_IMAGE:-qdrant/qdrant@sha256:f1c7272cdac52b38c1a0e89313922d940ba50afd90d593a1605dbbc214e66ffb}
     container_name: mascarade-qdrant
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 2G
     ports:
       - "${PUBLISH_BIND_HOST:-0.0.0.0}:${QDRANT_PORT}:6333"
       - "${PUBLISH_BIND_HOST:-0.0.0.0}:${QDRANT_GRPC_PORT}:6334"
@@ -722,6 +842,11 @@ services:
     image: ${GRAFANA_IMAGE:-grafana/grafana@sha256:b0ae311af06228bcfd4a620504b653db80f5b91e94dc3dc2a5b7dab202bcde20}
     container_name: mascarade-grafana
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 2G
     ports:
       - "${PUBLISH_BIND_HOST:-0.0.0.0}:${GRAFANA_PORT}:3000"
     volumes:
@@ -744,6 +869,11 @@ services:
     image: ${TEMPO_IMAGE:-grafana/tempo:latest}
     container_name: mascarade-tempo
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 2G
     command: ["-config.file=/etc/tempo/tempo.yaml"]
     ports:
       - "${PUBLISH_BIND_HOST:-0.0.0.0}:${TEMPO_PORT}:3200"
@@ -765,6 +895,11 @@ services:
     image: ${PROMETHEUS_IMAGE:-prom/prometheus@sha256:4a61322ac1103a0e3aea2a61ef1718422a48fa046441f299d71e660a3bc71ae9}
     container_name: mascarade-prometheus
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 2G
     command:
       - --config.file=/etc/prometheus/prometheus.yml
     ports:
@@ -789,6 +924,11 @@ services:
     image: ${BLACKBOX_EXPORTER_IMAGE:-prom/blackbox-exporter:latest}
     container_name: mascarade-blackbox-exporter
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
     ports:
       - "${PUBLISH_BIND_HOST:-0.0.0.0}:${BLACKBOX_EXPORTER_PORT}:9115"
     command: ["--config.file=/etc/blackbox/blackbox.yml"]
@@ -809,6 +949,11 @@ services:
     image: ${LOKI_IMAGE:-grafana/loki:3.5.3}
     container_name: mascarade-loki
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 2G
     command: ["-config.file=/etc/loki/local-config.yaml"]
     ports:
       - "${PUBLISH_BIND_HOST:-0.0.0.0}:${LOKI_PORT}:3100"
@@ -829,6 +974,11 @@ services:
     image: ${PROMTAIL_IMAGE:-grafana/promtail:3.5.3}
     container_name: mascarade-promtail
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
     entrypoint: ["/bin/sh", "/usr/local/bin/promtail-entrypoint.sh"]
     ports:
       - "${PUBLISH_BIND_HOST:-0.0.0.0}:${PROMTAIL_PORT}:9080"
@@ -857,6 +1007,11 @@ services:
     image: ${OTEL_COLLECTOR_IMAGE:-otel/opentelemetry-collector-contrib:0.116.1}
     container_name: mascarade-otel-collector
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 2G
     user: "0:0"
     command: ["--config=/etc/otelcol-contrib/config.yaml"]
     ports:
@@ -880,6 +1035,11 @@ services:
     image: neo4j:5-community
     container_name: mascarade-neo4j
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 4G
     ports:
       - "${PUBLISH_BIND_HOST:-0.0.0.0}:${NEO4J_HTTP_PORT:-7474}:7474"
       - "${PUBLISH_BIND_HOST:-0.0.0.0}:${NEO4J_BOLT_PORT:-7687}:7687"
@@ -900,6 +1060,11 @@ services:
     image: ghcr.io/getzep/graphiti-mcp:latest
     container_name: mascarade-graphiti-mcp
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
     ports:
       - "${PUBLISH_BIND_HOST:-0.0.0.0}:${GRAPHITI_MCP_PORT:-3500}:8000"
     environment:
