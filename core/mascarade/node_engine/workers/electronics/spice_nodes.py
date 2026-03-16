@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
+import tempfile
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
 
 from mascarade.node_engine.types import PortDirection, PortType
@@ -24,6 +27,16 @@ class NetlistGeneratorConfig(NodeConfig):
 
     include_control_section: bool = True
     default_analyses: list[str] = field(default_factory=lambda: ["op"])
+
+
+@dataclass
+class SimulateConfig(NodeConfig):
+    """Configuration for SPICE simulation node."""
+
+    ngspice_path: str = "ngspice"
+    timeout_seconds: int = 300
+    batch_mode: bool = True
+    capture_raw_output: bool = False
 
 
 class BaseNode:
@@ -240,4 +253,295 @@ class NetlistGeneratorNode(BaseNode):
         return {"netlist": netlist}
 
 
-__all__ = ["NetlistGeneratorNode", "BaseNode", "NodeConfig", "NetlistGeneratorConfig"]
+class SimulateNode(BaseNode):
+    """Executes SPICE simulation using ngspice in batch mode.
+
+    Mirrors the SpiceAgent simulation capabilities, running ngspice on a provided
+    netlist and capturing results.
+
+    Input Ports:
+        netlist (electronics.Netlist): SPICE netlist to simulate
+        netlist_content (optional<string>): Raw netlist content (alternative to netlist object)
+        extra_directives (optional<string>): Additional SPICE directives to append
+
+    Output Ports:
+        results (electronics.SimulationResults): Parsed simulation results
+        stdout (string): Standard output from ngspice
+        stderr (string): Standard error from ngspice
+        success (boolean): Whether simulation completed successfully
+        exit_code (integer): ngspice exit code
+
+    Configuration:
+        ngspice_path (string): Path to ngspice executable (default: "ngspice")
+        timeout_seconds (integer): Maximum simulation time in seconds (default: 300)
+        batch_mode (boolean): Run in batch mode (default: true)
+        capture_raw_output (boolean): Capture raw binary output (default: false)
+    """
+
+    node_type = "electronics.spice.simulate"
+    description = "Executes SPICE simulation using ngspice in batch mode"
+
+    def _default_config(self) -> SimulateConfig:
+        """Return default configuration for simulator."""
+        return SimulateConfig()
+
+    def _define_input_ports(self) -> list[PortType]:
+        """Define input ports for simulator."""
+        return [
+            PortType(
+                name="netlist",
+                direction=PortDirection.INPUT,
+                port_type="electronics.Netlist",
+                description="SPICE netlist to simulate",
+                optional=True,
+                default_value=None,
+            ),
+            PortType(
+                name="netlist_content",
+                direction=PortDirection.INPUT,
+                port_type="string",
+                description="Raw netlist content (alternative to netlist object)",
+                optional=True,
+                default_value=None,
+            ),
+            PortType(
+                name="extra_directives",
+                direction=PortDirection.INPUT,
+                port_type="string",
+                description="Additional SPICE directives to append",
+                optional=True,
+                default_value=None,
+            ),
+        ]
+
+    def _define_output_ports(self) -> list[PortType]:
+        """Define output ports for simulator."""
+        return [
+            PortType(
+                name="results",
+                direction=PortDirection.OUTPUT,
+                port_type="electronics.SimulationResults",
+                description="Parsed simulation results",
+            ),
+            PortType(
+                name="stdout",
+                direction=PortDirection.OUTPUT,
+                port_type="string",
+                description="Standard output from ngspice",
+            ),
+            PortType(
+                name="stderr",
+                direction=PortDirection.OUTPUT,
+                port_type="string",
+                description="Standard error from ngspice",
+            ),
+            PortType(
+                name="success",
+                direction=PortDirection.OUTPUT,
+                port_type="boolean",
+                description="Whether simulation completed successfully",
+            ),
+            PortType(
+                name="exit_code",
+                direction=PortDirection.OUTPUT,
+                port_type="integer",
+                description="ngspice exit code",
+            ),
+        ]
+
+    async def execute(self, inputs: dict[str, Any]) -> dict[str, Any]:
+        """Execute SPICE simulation.
+
+        Args:
+            inputs: Dictionary with netlist or netlist_content (required),
+                   extra_directives (optional)
+
+        Returns:
+            Dictionary with results, stdout, stderr, success, exit_code
+
+        Raises:
+            ValueError: If neither netlist nor netlist_content is provided
+        """
+        # Extract netlist content from input
+        netlist_obj = inputs.get("netlist")
+        netlist_content = inputs.get("netlist_content")
+        extra_directives = inputs.get("extra_directives")
+
+        # Determine netlist content
+        if netlist_obj and isinstance(netlist_obj, dict):
+            netlist_text = netlist_obj.get("content", "")
+        elif netlist_content:
+            netlist_text = netlist_content
+        else:
+            raise ValueError(
+                "Either 'netlist' object or 'netlist_content' string must be provided"
+            )
+
+        if not netlist_text.strip():
+            raise ValueError("Netlist content cannot be empty")
+
+        # Append extra directives if provided
+        if extra_directives:
+            # Insert before .end if present, otherwise append
+            if ".end" in netlist_text.lower():
+                lines = netlist_text.split("\n")
+                end_index = next(
+                    (i for i, line in enumerate(lines) if line.strip().lower() == ".end"),
+                    len(lines),
+                )
+                lines.insert(end_index, extra_directives)
+                netlist_text = "\n".join(lines)
+            else:
+                netlist_text += f"\n{extra_directives}\n"
+
+        # Get configuration
+        config = self.config
+        if not isinstance(config, SimulateConfig):
+            config = SimulateConfig()
+
+        logger.info(
+            f"Starting ngspice simulation (timeout={config.timeout_seconds}s, "
+            f"batch_mode={config.batch_mode})"
+        )
+
+        # Create temporary file for netlist
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".cir", delete=False, encoding="utf-8"
+        ) as tmp_file:
+            tmp_file.write(netlist_text)
+            tmp_path = Path(tmp_file.name)
+
+        try:
+            # Build ngspice command
+            cmd = [config.ngspice_path]
+            if config.batch_mode:
+                cmd.append("-b")  # Batch mode
+            cmd.append(str(tmp_path))  # Netlist file
+
+            logger.debug(f"Running command: {' '.join(cmd)}")
+
+            # Execute ngspice
+            process = await asyncio.create_subprocess_exec(
+                *cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+
+            try:
+                stdout_bytes, stderr_bytes = await asyncio.wait_for(
+                    process.communicate(), timeout=config.timeout_seconds
+                )
+            except asyncio.TimeoutError:
+                process.kill()
+                await process.wait()
+                raise TimeoutError(
+                    f"Simulation exceeded timeout of {config.timeout_seconds} seconds"
+                )
+
+            # Decode output
+            stdout = stdout_bytes.decode("utf-8", errors="replace")
+            stderr = stderr_bytes.decode("utf-8", errors="replace")
+            exit_code = process.returncode or 0
+
+            # Determine success
+            success = exit_code == 0 and "error" not in stderr.lower()
+
+            logger.info(
+                f"Simulation completed: exit_code={exit_code}, success={success}"
+            )
+
+            # Parse results (simplified - in production, parse actual output)
+            results = {
+                "format": "ngspice",
+                "raw_output": stdout if config.capture_raw_output else "",
+                "measurements": self._extract_measurements(stdout),
+                "convergence_info": self._extract_convergence_info(stdout, stderr),
+            }
+
+            return {
+                "results": results,
+                "stdout": stdout,
+                "stderr": stderr,
+                "success": success,
+                "exit_code": exit_code,
+            }
+
+        finally:
+            # Clean up temporary file
+            try:
+                tmp_path.unlink()
+            except Exception as e:
+                logger.warning(f"Failed to delete temporary netlist file: {e}")
+
+    def _extract_measurements(self, stdout: str) -> dict[str, Any]:
+        """Extract measurement values from ngspice output.
+
+        Args:
+            stdout: ngspice standard output
+
+        Returns:
+            Dictionary of measurement name to value
+        """
+        measurements = {}
+
+        # Simple parser for ngspice output format
+        # Example: "v(out) = 5.0000e+00"
+        for line in stdout.split("\n"):
+            line = line.strip()
+            if "=" in line and not line.startswith("*"):
+                try:
+                    name, value = line.split("=", 1)
+                    name = name.strip()
+                    value = value.strip()
+                    # Try to convert to float
+                    try:
+                        measurements[name] = float(value)
+                    except ValueError:
+                        measurements[name] = value
+                except ValueError:
+                    continue
+
+        return measurements
+
+    def _extract_convergence_info(self, stdout: str, stderr: str) -> dict[str, Any]:
+        """Extract convergence information from simulation output.
+
+        Args:
+            stdout: ngspice standard output
+            stderr: ngspice standard error
+
+        Returns:
+            Dictionary with convergence status and issues
+        """
+        combined = stdout + "\n" + stderr
+        combined_lower = combined.lower()
+
+        convergence_info = {
+            "converged": True,
+            "warnings": [],
+            "errors": [],
+        }
+
+        # Check for convergence failures
+        if "convergence" in combined_lower and "failed" in combined_lower:
+            convergence_info["converged"] = False
+
+        # Extract warnings
+        for line in combined.split("\n"):
+            line_lower = line.lower()
+            if "warning" in line_lower:
+                convergence_info["warnings"].append(line.strip())
+            if "error" in line_lower and not line.startswith("*"):
+                convergence_info["errors"].append(line.strip())
+
+        return convergence_info
+
+
+__all__ = [
+    "NetlistGeneratorNode",
+    "SimulateNode",
+    "BaseNode",
+    "NodeConfig",
+    "NetlistGeneratorConfig",
+    "SimulateConfig",
+]
