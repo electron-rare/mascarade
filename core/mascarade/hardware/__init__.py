@@ -14,6 +14,7 @@ from mascarade.hardware.types import (
     SerialData,
     SerialParity,
 )
+from mascarade.hardware.worker import HardwareWorker
 
 __all__ = [
     "DMXFrame",
@@ -21,6 +22,7 @@ __all__ = [
     "GPIOPull",
     "GPIOState",
     "HARDWARE_DOMAIN_TYPES",
+    "HardwareWorker",
     "MIDIMessage",
     "MIDIStatus",
     "SensorReading",
