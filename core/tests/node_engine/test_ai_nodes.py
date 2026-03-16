@@ -4,10 +4,12 @@ from __future__ import annotations
 
 import pytest
 
+from mascarade.agents.base import Agent
 from mascarade.agents.registry import AgentRegistry
 from mascarade.node_engine.workers.ai.worker import AIWorker
 from mascarade.router import Router
 from mascarade.router.providers.base import LLMResponse
+from mascarade.router.router import Strategy
 
 
 @pytest.fixture
@@ -518,3 +520,83 @@ class TestSummarize:
         assert "summary" in result
         assert isinstance(result["summary"], str)
         assert len(result["summary"]) > 0
+
+class TestAgentDispatch:
+    """Test suite for ai.agent-dispatch execution."""
+
+    @pytest.mark.asyncio
+    async def test_agent_dispatch(self, ai_worker):
+        """Test agent dispatch with registered agent."""
+        # Create and register a test agent
+        test_agent = Agent(
+            name="test-agent",
+            description="A test agent for validation",
+            system_prompt="You are a helpful test assistant.",
+            strategy=Strategy.BEST,
+        )
+        ai_worker.registry.register(test_agent)
+
+        # Execute agent dispatch
+        result = await ai_worker.execute(
+            node_type="ai.agent-dispatch",
+            inputs={
+                "agent_name": "test-agent",
+                "message": "Hello, agent!",
+            },
+            config={},
+            context=None,
+        )
+
+        assert "response" in result
+        response = result["response"]
+        assert isinstance(response, LLMResponse)
+        assert response.content == "Test response"
+        assert response.model == "test-model"
+        assert response.provider == "test-provider"
+
+    @pytest.mark.asyncio
+    async def test_agent_dispatch_with_context(self, ai_worker):
+        """Test agent dispatch with conversation context."""
+        # Create and register a test agent
+        test_agent = Agent(
+            name="context-agent",
+            description="An agent that handles context",
+            system_prompt="You are a context-aware assistant.",
+            strategy=Strategy.BEST,
+        )
+        ai_worker.registry.register(test_agent)
+
+        # Execute agent dispatch with context
+        result = await ai_worker.execute(
+            node_type="ai.agent-dispatch",
+            inputs={
+                "agent_name": "context-agent",
+                "message": "Continue the conversation",
+                "context": [
+                    {"role": "user", "content": "Hello"},
+                    {"role": "assistant", "content": "Hi there!"},
+                ],
+            },
+            config={},
+            context=None,
+        )
+
+        assert "response" in result
+        response = result["response"]
+        assert isinstance(response, LLMResponse)
+
+    @pytest.mark.asyncio
+    async def test_agent_dispatch_unknown_agent(self, ai_worker):
+        """Test agent dispatch with unknown agent name."""
+        # Attempt to dispatch to non-existent agent
+        # This should raise a KeyError from the registry
+        with pytest.raises(KeyError):
+            await ai_worker.execute(
+                node_type="ai.agent-dispatch",
+                inputs={
+                    "agent_name": "non-existent-agent",
+                    "message": "Hello",
+                },
+                config={},
+                context=None,
+            )

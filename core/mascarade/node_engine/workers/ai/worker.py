@@ -269,8 +269,45 @@ class AIWorker(NodeWorker):
         config: dict[str, Any],
         context: Any,
     ) -> dict[str, Any]:
-        """Execute ai.agent-dispatch node (stub for future implementation)."""
-        raise NotImplementedError("ai.agent-dispatch execution not yet implemented")
+        """
+        Execute ai.agent-dispatch node.
+
+        Wraps AgentRegistry.get() and Agent.run() to provide agent-based
+        inference via the graph engine. Agents encapsulate system prompts,
+        routing preferences, and specialized behavior.
+
+        Expected inputs:
+        - agent_name (required): Name of the agent in the AgentRegistry
+        - message (required): User message to send to the agent
+        - context (optional): Message history for multi-turn conversations
+
+        Expected config:
+        - Config parameters are inherited from the agent's settings
+        - Override options can be added in future implementations
+
+        Returns:
+            Dictionary with "response" key containing LLMResponse
+        """
+        # Extract required inputs
+        agent_name = inputs["agent_name"]
+        message = inputs["message"]
+
+        # Extract optional inputs
+        message_context = inputs.get("context")
+
+        # Get agent from registry (raises KeyError if not found)
+        agent = self.registry.get(agent_name)
+
+        # Call agent.run() with the router
+        response = await agent.run(
+            prompt=message,
+            router=self.router,
+            context=message_context,
+            registry=self.registry,
+        )
+
+        # Return response wrapped in output dict
+        return {"response": response}
 
     async def _execute_llm_stream(
         self,
