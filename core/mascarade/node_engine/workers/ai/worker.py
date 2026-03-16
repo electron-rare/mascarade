@@ -97,6 +97,9 @@ class AIWorker(NodeWorker):
             return await self._execute_llm_stream(inputs, config, context)
         elif node_type == "ai.batch-inference":
             return await self._execute_batch_inference(inputs, config, context)
+        elif node_type == "ai.prompt-template":
+            # Pure function - not async
+            return self._prompt_template(inputs)
         else:
             raise ValueError(f"Unsupported node type: {node_type}")
 
@@ -134,6 +137,8 @@ class AIWorker(NodeWorker):
             errors.extend(self._validate_llm_stream(inputs, config))
         elif node_type == "ai.batch-inference":
             errors.extend(self._validate_batch_inference(inputs, config))
+        elif node_type == "ai.prompt-template":
+            errors.extend(self._validate_prompt_template(inputs, config))
         else:
             errors.append(f"Unsupported node type: {node_type}")
 
@@ -156,6 +161,7 @@ class AIWorker(NodeWorker):
                 "ai.agent-dispatch",
                 "ai.llm-stream",
                 "ai.batch-inference",
+                "ai.prompt-template",
             ],
             "domain": "ai",
             "supports_streaming": True,
@@ -481,6 +487,37 @@ class AIWorker(NodeWorker):
         # Return responses wrapped in output dict
         return {"responses": responses}
 
+    def _prompt_template(
+        self,
+        inputs: dict[str, Any],
+    ) -> dict[str, Any]:
+        """
+        Execute ai.prompt-template node.
+
+        Pure function that performs variable substitution in a template string.
+        Replaces {{variable}} placeholders with corresponding values from the
+        variables dictionary. This is a non-LLM operation.
+
+        Expected inputs:
+        - template (required): Template string with {{variable}} placeholders
+        - variables (required): Dictionary mapping variable names to values
+
+        Returns:
+            Dictionary with "prompt" key containing the rendered template
+        """
+        # Extract required inputs
+        template = inputs["template"]
+        variables = inputs.get("variables", {})
+
+        # Perform variable substitution
+        result = template
+        for key, value in variables.items():
+            # Replace {{key}} with the string value
+            result = result.replace(f"{{{{{key}}}}}", str(value))
+
+        # Return rendered prompt
+        return {"prompt": result}
+
     def _validate_batch_inference(
         self,
         inputs: dict[str, Any],
@@ -504,5 +541,37 @@ class AIWorker(NodeWorker):
             errors.append("Missing required input: prompts")
         elif not isinstance(inputs["prompts"], list):
             errors.append("Input 'prompts' must be a list")
+
+        return errors
+
+    def _validate_prompt_template(
+        self,
+        inputs: dict[str, Any],
+        config: dict[str, Any],
+    ) -> list[str]:
+        """Validate ai.prompt-template node inputs and configuration.
+
+        Required inputs:
+        - template: Template string with {{variable}} placeholders
+        - variables: Dictionary mapping variable names to values
+
+        Args:
+            inputs: Dictionary of input port values
+            config: Node configuration parameters
+
+        Returns:
+            List of validation error messages. Empty if valid.
+        """
+        errors: list[str] = []
+
+        if "template" not in inputs:
+            errors.append("Missing required input: template")
+        elif not isinstance(inputs["template"], str):
+            errors.append("Input 'template' must be a string")
+
+        if "variables" not in inputs:
+            errors.append("Missing required input: variables")
+        elif not isinstance(inputs["variables"], dict):
+            errors.append("Input 'variables' must be a dictionary")
 
         return errors
