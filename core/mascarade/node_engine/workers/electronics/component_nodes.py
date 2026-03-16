@@ -60,6 +60,23 @@ class AvailabilityCheckConfig(NodeConfig):
     check_lead_time: bool = True
 
 
+@dataclass
+class DatasheetConfig(NodeConfig):
+    """Configuration for datasheet node."""
+
+    include_parameters: bool = True
+    include_diagrams: bool = False
+
+
+@dataclass
+class FindAlternativesConfig(NodeConfig):
+    """Configuration for find alternatives node."""
+
+    include_pin_compatible: bool = True
+    include_functional_equiv: bool = True
+    max_alternatives: int = 10
+
+
 class BaseNode:
     """Base class for all executable nodes.
 
@@ -971,3 +988,586 @@ class AvailabilityCheckNode(BaseNode):
                 })
 
         return recommendations
+
+
+class DatasheetNode(BaseNode):
+    """Fetches and analyzes component datasheets.
+
+    Retrieves datasheet information for electronic components, including
+    electrical parameters, mechanical specifications, and thermal characteristics.
+
+    Input Ports:
+        component (string): Component identifier (LCSC part number, MPN, or description)
+        include_diagrams (optional<boolean>): Include block diagrams and schematics (default: False)
+
+    Output Ports:
+        datasheet_url (string): URL to component datasheet PDF
+        parameters (json): Key electrical and mechanical parameters
+        summary (string): Human-readable summary of component specs
+
+    Configuration:
+        include_parameters (bool): Extract key parameters (default: True)
+        include_diagrams (bool): Include diagrams in summary (default: False)
+    """
+
+    node_type = "electronics.component.datasheet"
+    description = "Fetches and analyzes component datasheets"
+
+    def _default_config(self) -> DatasheetConfig:
+        """Return default configuration for datasheet lookup."""
+        return DatasheetConfig()
+
+    def _define_input_ports(self) -> list[PortType]:
+        """Define input ports for datasheet node."""
+        return [
+            PortType(
+                name="component",
+                direction=PortDirection.INPUT,
+                port_type="string",
+                description="Component identifier (LCSC part number, MPN, or description)",
+                optional=False,
+            ),
+            PortType(
+                name="include_diagrams",
+                direction=PortDirection.INPUT,
+                port_type="boolean",
+                description="Include block diagrams and schematics (default: False)",
+                optional=True,
+                default_value=False,
+            ),
+        ]
+
+    def _define_output_ports(self) -> list[PortType]:
+        """Define output ports for datasheet node."""
+        return [
+            PortType(
+                name="datasheet_url",
+                direction=PortDirection.OUTPUT,
+                port_type="string",
+                description="URL to component datasheet PDF",
+            ),
+            PortType(
+                name="parameters",
+                direction=PortDirection.OUTPUT,
+                port_type="json",
+                description="Key electrical and mechanical parameters",
+            ),
+            PortType(
+                name="summary",
+                direction=PortDirection.OUTPUT,
+                port_type="string",
+                description="Human-readable summary of component specs",
+            ),
+        ]
+
+    async def execute(self, inputs: dict[str, Any]) -> dict[str, Any]:
+        """Execute datasheet lookup.
+
+        Args:
+            inputs: Dictionary with component (required), include_diagrams (optional)
+
+        Returns:
+            Dictionary with datasheet_url (string), parameters (json), summary (string)
+
+        Raises:
+            ValueError: If component is missing or empty
+        """
+        # Validate required inputs
+        component = inputs.get("component")
+        if not component:
+            raise ValueError("component is required and cannot be empty")
+
+        include_diagrams = inputs.get("include_diagrams", False)
+
+        # Get configuration
+        config = self.config
+        if not isinstance(config, DatasheetConfig):
+            config = DatasheetConfig()
+
+        logger.info(f"Fetching datasheet for component: {component}")
+
+        # Simulate datasheet lookup (in production, query LCSC/manufacturer APIs)
+        datasheet_url = self._get_datasheet_url(component)
+        parameters = {}
+        if config.include_parameters:
+            parameters = self._extract_parameters(component)
+
+        summary = self._generate_summary(component, parameters, include_diagrams or config.include_diagrams)
+
+        logger.info(f"Datasheet retrieved for {component}")
+
+        return {
+            "datasheet_url": datasheet_url,
+            "parameters": parameters,
+            "summary": summary,
+        }
+
+    def _get_datasheet_url(self, component: str) -> str:
+        """Get datasheet URL for component.
+
+        Args:
+            component: Component identifier
+
+        Returns:
+            URL to datasheet PDF
+        """
+        # Mock implementation - in production, query LCSC/manufacturer databases
+        return f"https://datasheet.lcsc.com/lcsc/{component}.pdf"
+
+    def _extract_parameters(self, component: str) -> dict[str, Any]:
+        """Extract key parameters from datasheet.
+
+        Args:
+            component: Component identifier
+
+        Returns:
+            Dictionary of parameters
+        """
+        # Mock implementation - in production, parse actual datasheet
+        return {
+            "voltage_rating": "50V",
+            "current_rating": "100mA",
+            "temperature_range": "-40°C to +85°C",
+            "package": "0805",
+            "tolerance": "±1%",
+            "power_rating": "0.125W",
+        }
+
+    def _generate_summary(self, component: str, parameters: dict[str, Any], include_diagrams: bool) -> str:
+        """Generate human-readable summary of component.
+
+        Args:
+            component: Component identifier
+            parameters: Extracted parameters
+            include_diagrams: Whether to mention diagram availability
+
+        Returns:
+            Summary string
+        """
+        summary_lines = [f"Component: {component}"]
+
+        for key, value in parameters.items():
+            key_formatted = key.replace("_", " ").title()
+            summary_lines.append(f"{key_formatted}: {value}")
+
+        if include_diagrams:
+            summary_lines.append("Block diagrams and application circuits available in datasheet.")
+
+        return "\n".join(summary_lines)
+
+
+class BomGenerateNode(BaseNode):
+    """Generates Bill of Materials (BOM) for JLCPCB assembly.
+
+    Creates manufacturing-ready BOM from circuit description, optimized for
+    JLCPCB assembly with LCSC part numbers and proper formatting.
+
+    Input Ports:
+        circuit_description (string): Circuit description or component list
+        components (optional<json>): Pre-selected component list with LCSC part numbers
+
+    Output Ports:
+        bom_csv (string): JLCPCB-formatted BOM (CSV)
+        bom_data (json): BOM as structured JSON
+        summary (json): BOM summary with component counts and cost estimates
+
+    Configuration:
+        format (string): Output format "jlcpcb", "csv", "json" (default: "jlcpcb")
+        include_cost_estimates (bool): Include cost estimates (default: True)
+    """
+
+    node_type = "electronics.component.bom_generate"
+    description = "Generates Bill of Materials (BOM) for JLCPCB assembly"
+
+    def _default_config(self) -> BomGeneratorConfig:
+        """Return default configuration for BOM generation."""
+        return BomGeneratorConfig()
+
+    def _define_input_ports(self) -> list[PortType]:
+        """Define input ports for BOM generation."""
+        return [
+            PortType(
+                name="circuit_description",
+                direction=PortDirection.INPUT,
+                port_type="string",
+                description="Circuit description or component list",
+                optional=False,
+            ),
+            PortType(
+                name="components",
+                direction=PortDirection.INPUT,
+                port_type="json",
+                description="Pre-selected component list with LCSC part numbers",
+                optional=True,
+                default_value=None,
+            ),
+        ]
+
+    def _define_output_ports(self) -> list[PortType]:
+        """Define output ports for BOM generation."""
+        return [
+            PortType(
+                name="bom_csv",
+                direction=PortDirection.OUTPUT,
+                port_type="string",
+                description="JLCPCB-formatted BOM (CSV)",
+            ),
+            PortType(
+                name="bom_data",
+                direction=PortDirection.OUTPUT,
+                port_type="json",
+                description="BOM as structured JSON",
+            ),
+            PortType(
+                name="summary",
+                direction=PortDirection.OUTPUT,
+                port_type="json",
+                description="BOM summary with component counts and cost estimates",
+            ),
+        ]
+
+    async def execute(self, inputs: dict[str, Any]) -> dict[str, Any]:
+        """Execute BOM generation.
+
+        Args:
+            inputs: Dictionary with circuit_description (required), components (optional)
+
+        Returns:
+            Dictionary with bom_csv (string), bom_data (json), summary (json)
+
+        Raises:
+            ValueError: If circuit_description is missing or empty
+        """
+        # Validate required inputs
+        circuit_description = inputs.get("circuit_description")
+        if not circuit_description:
+            raise ValueError("circuit_description is required and cannot be empty")
+
+        components = inputs.get("components")
+
+        # Get configuration
+        config = self.config
+        if not isinstance(config, BomGeneratorConfig):
+            config = BomGeneratorConfig()
+
+        logger.info(f"Generating BOM in {config.format} format")
+
+        # Generate BOM data
+        bom_data = self._generate_bom_data(circuit_description, components)
+
+        # Format as CSV
+        bom_csv = self._format_bom_csv(bom_data, config)
+
+        # Generate summary
+        summary = self._generate_bom_summary(bom_data, config)
+
+        logger.info(f"Generated BOM with {len(bom_data)} line items")
+
+        return {
+            "bom_csv": bom_csv,
+            "bom_data": bom_data,
+            "summary": summary,
+        }
+
+    def _generate_bom_data(
+        self, circuit_description: str, components: list[dict[str, Any]] | None
+    ) -> list[dict[str, Any]]:
+        """Generate BOM data structure from circuit description.
+
+        Args:
+            circuit_description: Circuit description
+            components: Pre-selected components (optional)
+
+        Returns:
+            List of BOM line items
+        """
+        # Use provided components or generate from description
+        if components:
+            return components
+
+        # Mock implementation - generate default BOM
+        return [
+            {
+                "comment": "10kΩ Resistor",
+                "designator": "R1,R2,R3",
+                "footprint": "R_0805_2012Metric",
+                "lcsc_part_number": "C17414",
+                "manufacturer": "UniOhm",
+                "mpn": "0805W8F1002T5E",
+                "quantity": 3,
+                "unit_price": 0.0009,
+            },
+            {
+                "comment": "100nF Capacitor",
+                "designator": "C1,C2",
+                "footprint": "C_0805_2012Metric",
+                "lcsc_part_number": "C49678",
+                "manufacturer": "Samsung",
+                "mpn": "CL21B104KBCNNNC",
+                "quantity": 2,
+                "unit_price": 0.0015,
+            },
+        ]
+
+    def _format_bom_csv(self, bom_data: list[dict[str, Any]], config: BomGeneratorConfig) -> str:
+        """Format BOM data as CSV.
+
+        Args:
+            bom_data: BOM data structure
+            config: BOM generator configuration
+
+        Returns:
+            CSV formatted string
+        """
+        if config.format == "jlcpcb":
+            lines = ["Comment,Designator,Footprint,LCSC Part Number,Manufacturer,MPN,Quantity"]
+            for item in bom_data:
+                lines.append(
+                    f'"{item.get("comment", "")}","{item.get("designator", "")}","{item.get("footprint", "")}","{item.get("lcsc_part_number", "")}","{item.get("manufacturer", "")}","{item.get("mpn", "")}",{item.get("quantity", 0)}'
+                )
+        else:
+            lines = ["Reference,Value,Footprint,Quantity,Manufacturer,MPN"]
+            for item in bom_data:
+                lines.append(
+                    f'"{item.get("designator", "")}","{item.get("comment", "")}","{item.get("footprint", "")}",{item.get("quantity", 0)},"{item.get("manufacturer", "")}","{item.get("mpn", "")}"'
+                )
+
+        return "\n".join(lines)
+
+    def _generate_bom_summary(self, bom_data: list[dict[str, Any]], config: BomGeneratorConfig) -> dict[str, Any]:
+        """Generate BOM summary with statistics.
+
+        Args:
+            bom_data: BOM data structure
+            config: BOM generator configuration
+
+        Returns:
+            Summary dictionary
+        """
+        total_line_items = len(bom_data)
+        total_components = sum(item.get("quantity", 0) for item in bom_data)
+        total_cost = 0.0
+
+        if config.include_cost_estimates:
+            total_cost = sum(
+                item.get("unit_price", 0.0) * item.get("quantity", 0) for item in bom_data
+            )
+
+        return {
+            "total_line_items": total_line_items,
+            "total_components": total_components,
+            "estimated_cost": f"${total_cost:.2f}" if config.include_cost_estimates else "N/A",
+            "format": config.format,
+        }
+
+
+class FindAlternativesNode(BaseNode):
+    """Finds alternative components based on specifications.
+
+    Searches for pin-compatible replacements and functional equivalents for
+    electronic components, considering availability, cost, and performance.
+
+    Input Ports:
+        component_spec (string): Component specification or part number
+        requirements (optional<json>): Additional requirements (voltage, package, etc.)
+        max_results (optional<number>): Maximum number of alternatives (default: 10)
+
+    Output Ports:
+        alternatives (json): List of alternative components with compatibility notes
+        pin_compatible (json): Direct pin-compatible replacements
+        functional_equiv (json): Functional equivalents (may require circuit changes)
+
+    Configuration:
+        include_pin_compatible (bool): Include pin-compatible replacements (default: True)
+        include_functional_equiv (bool): Include functional equivalents (default: True)
+        max_alternatives (int): Maximum alternatives to return (default: 10)
+    """
+
+    node_type = "electronics.component.find_alternatives"
+    description = "Finds alternative components based on specifications"
+
+    def _default_config(self) -> FindAlternativesConfig:
+        """Return default configuration for find alternatives."""
+        return FindAlternativesConfig()
+
+    def _define_input_ports(self) -> list[PortType]:
+        """Define input ports for find alternatives."""
+        return [
+            PortType(
+                name="component_spec",
+                direction=PortDirection.INPUT,
+                port_type="string",
+                description="Component specification or part number",
+                optional=False,
+            ),
+            PortType(
+                name="requirements",
+                direction=PortDirection.INPUT,
+                port_type="json",
+                description="Additional requirements (voltage, package, etc.)",
+                optional=True,
+                default_value=None,
+            ),
+            PortType(
+                name="max_results",
+                direction=PortDirection.INPUT,
+                port_type="number",
+                description="Maximum number of alternatives (default: 10)",
+                optional=True,
+                default_value=10,
+            ),
+        ]
+
+    def _define_output_ports(self) -> list[PortType]:
+        """Define output ports for find alternatives."""
+        return [
+            PortType(
+                name="alternatives",
+                direction=PortDirection.OUTPUT,
+                port_type="json",
+                description="List of alternative components with compatibility notes",
+            ),
+            PortType(
+                name="pin_compatible",
+                direction=PortDirection.OUTPUT,
+                port_type="json",
+                description="Direct pin-compatible replacements",
+            ),
+            PortType(
+                name="functional_equiv",
+                direction=PortDirection.OUTPUT,
+                port_type="json",
+                description="Functional equivalents (may require circuit changes)",
+            ),
+        ]
+
+    async def execute(self, inputs: dict[str, Any]) -> dict[str, Any]:
+        """Execute find alternatives.
+
+        Args:
+            inputs: Dictionary with component_spec (required), requirements (optional), max_results (optional)
+
+        Returns:
+            Dictionary with alternatives (json), pin_compatible (json), functional_equiv (json)
+
+        Raises:
+            ValueError: If component_spec is missing or empty
+        """
+        # Validate required inputs
+        component_spec = inputs.get("component_spec")
+        if not component_spec:
+            raise ValueError("component_spec is required and cannot be empty")
+
+        requirements = inputs.get("requirements", {})
+        max_results = inputs.get("max_results", 10)
+
+        # Get configuration
+        config = self.config
+        if not isinstance(config, FindAlternativesConfig):
+            config = FindAlternativesConfig()
+
+        logger.info(f"Finding alternatives for component: {component_spec}")
+
+        # Find alternatives (mock implementation)
+        all_alternatives = self._find_all_alternatives(component_spec, requirements, config)
+
+        # Separate by compatibility type
+        pin_compatible = []
+        functional_equiv = []
+
+        if config.include_pin_compatible:
+            pin_compatible = [alt for alt in all_alternatives if alt.get("pin_compatible", False)]
+
+        if config.include_functional_equiv:
+            functional_equiv = [alt for alt in all_alternatives if not alt.get("pin_compatible", False)]
+
+        # Limit results
+        max_limit = min(max_results, config.max_alternatives)
+        all_alternatives = all_alternatives[:max_limit]
+        pin_compatible = pin_compatible[:max_limit]
+        functional_equiv = functional_equiv[:max_limit]
+
+        logger.info(
+            f"Found {len(all_alternatives)} alternatives ({len(pin_compatible)} pin-compatible, {len(functional_equiv)} functional)"
+        )
+
+        return {
+            "alternatives": all_alternatives,
+            "pin_compatible": pin_compatible,
+            "functional_equiv": functional_equiv,
+        }
+
+    def _find_all_alternatives(
+        self, component_spec: str, requirements: dict[str, Any], config: FindAlternativesConfig
+    ) -> list[dict[str, Any]]:
+        """Find all alternative components.
+
+        Args:
+            component_spec: Component specification
+            requirements: Additional requirements
+            config: Find alternatives configuration
+
+        Returns:
+            List of alternative components
+        """
+        # Mock implementation - in production, query LCSC/JLCPCB databases
+        alternatives = []
+
+        # Pin-compatible alternatives
+        if config.include_pin_compatible:
+            alternatives.extend([
+                {
+                    "lcsc_part_number": "C17414",
+                    "manufacturer": "UniOhm",
+                    "mpn": "0805W8F1002T5E",
+                    "description": "10kΩ ±1% 0805 Resistor",
+                    "pin_compatible": True,
+                    "notes": "Direct replacement, same footprint and specs",
+                    "availability": "In stock",
+                    "price_unit": "$0.0009",
+                    "compatibility_score": 100,
+                },
+                {
+                    "lcsc_part_number": "C25804",
+                    "manufacturer": "Yageo",
+                    "mpn": "RC0805FR-0710KL",
+                    "description": "10kΩ ±1% 0805 Resistor",
+                    "pin_compatible": True,
+                    "notes": "Direct replacement, slightly different manufacturer",
+                    "availability": "In stock",
+                    "price_unit": "$0.0010",
+                    "compatibility_score": 95,
+                },
+            ])
+
+        # Functional equivalents
+        if config.include_functional_equiv:
+            alternatives.extend([
+                {
+                    "lcsc_part_number": "C17415",
+                    "manufacturer": "UniOhm",
+                    "mpn": "0603W8F1002T5E",
+                    "description": "10kΩ ±1% 0603 Resistor",
+                    "pin_compatible": False,
+                    "notes": "Smaller package (0603), requires PCB layout change",
+                    "availability": "In stock",
+                    "price_unit": "$0.0007",
+                    "compatibility_score": 80,
+                },
+                {
+                    "lcsc_part_number": "C25805",
+                    "manufacturer": "UniOhm",
+                    "mpn": "0805W8F1002T5E",
+                    "description": "10kΩ ±5% 0805 Resistor",
+                    "pin_compatible": False,
+                    "notes": "Lower tolerance (±5%), check if acceptable for application",
+                    "availability": "In stock",
+                    "price_unit": "$0.0005",
+                    "compatibility_score": 70,
+                },
+            ])
+
+        # Sort by compatibility score
+        alternatives.sort(key=lambda x: x.get("compatibility_score", 0), reverse=True)
+
+        return alternatives
