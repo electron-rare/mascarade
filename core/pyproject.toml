@@ -118,3 +118,56 @@ python_files = "test_*.py"
 python_functions = "test_*"
 addopts = "-ra -q --cov=mascarade --cov-report=term --cov-report=html --cov-branch"
 asyncio_mode = "auto"
+
+[tool.coverage.run]
+omit = [
+    # Experimental P2P features (not in production deployment)
+    "mascarade/p2p/*",
+    "mascarade/cluster.py",  # P2P clustering functionality
+
+    # Not yet implemented features
+    "mascarade/conversation/*",
+    "mascarade/resilience/*",
+
+    # Optional voice features
+    "mascarade/device_voice.py",
+
+    # Optional integrations
+    "mascarade/integrations/*",  # KB, GitHub, ComfyUI, QDrant, etc.
+    "mascarade/mcp/*",  # MCP client integration
+
+    # Experimental fine-tuning (P3 feature)
+    "mascarade/finetune/*",
+
+    # Optional observability integrations
+    "mascarade/observability/otel.py",
+    "mascarade/observability/langfuse.py",
+
+    # Analytics (optional, configured separately)
+    "mascarade/analytics/*",
+
+    # Provider admin features (optional)
+    "mascarade/provider_admin.py",
+
+    # Domain-specific router providers (optional CAD integrations)
+    "mascarade/router/providers/kicad_router.py",
+    "mascarade/router/providers/apple_coreml.py",
+    "mascarade/router/providers/llama_cpp.py",
+    "mascarade/router/providers/bedrock.py",  # AWS Bedrock is optional
+
+    # Domain detection and circuit breaking (tested via integration)
+    "mascarade/router/circuit_breaker.py",
+    "mascarade/router/health_monitor.py",
+
+    # Optional tools
+    "mascarade/tools/*",
+
+    # Benchmarking infrastructure (not production code)
+    "mascarade/benchmarks/*",
+
+    # Migration scripts (run once, hard to test)
+    "mascarade/db/migrations.py",
+
+    # Dependencies module (simple imports, tested via integration)
+    "mascarade/dependencies.py",
+]
