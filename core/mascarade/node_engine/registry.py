@@ -9,7 +9,7 @@ import tempfile
 from dataclasses import asdict
 from pathlib import Path
 
-from mascarade.node_engine.types import DomainType, NodeType
+from mascarade.node_engine.types import DomainType, NodeType, PortType
 
 logger = logging.getLogger("mascarade.node_engine")
 
@@ -161,7 +161,15 @@ class NodeTypeRegistry:
         # Charger les types de nœuds
         for data in raw.get("node_types", []):
             try:
-                node_type = NodeType(**data)
+                # Convertir les dicts inputs/outputs en PortType
+                inputs = [PortType(**p) for p in data.get("inputs", [])]
+                outputs = [PortType(**p) for p in data.get("outputs", [])]
+                node_type = NodeType(
+                    id=data["id"],
+                    category=data["category"],
+                    inputs=inputs,
+                    outputs=outputs,
+                )
                 self.register_node(node_type)
             except (KeyError, TypeError, ValueError) as exc:
                 logger.warning("Skipping invalid node type entry: %s", exc)
