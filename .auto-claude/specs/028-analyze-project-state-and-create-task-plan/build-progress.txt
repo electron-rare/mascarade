@@ -525,3 +525,38 @@ no React.lazy code splitting, inline objects in render paths.
 **Estimated remediation: ~35 hours** across decomposition, DRY extraction, performance fixes, and test foundation.
 
 === END SESSION 7 ===
+
+=== SESSION 8 (Coder — subtask-4-4) ===
+
+## Subtask 4-4: Deep Finetune Python Code Audit — COMPLETED
+
+Full audit report: finetune-deep-audit.md
+
+### Key Findings
+
+**4 large scripts analyzed with decomposition proposals:**
+- model_selector.py (1,746 lines, 51 functions) → 5 modules
+- batch_local.py (1,628 lines, 38 functions) → 5 modules
+- distill_dataset.py (1,324 lines, 41 functions) → 4 modules
+- dataset_refresh.py (1,207 lines, 23 functions) → 4 modules
+
+**Dataset builder consistency (10 builders, 9,414 lines):**
+- All 10 follow identical pattern: SYSTEM_PROMPT → SEED_EXAMPLES → build_from_huggingface() → main()
+- Missing `components` builder — domain in SUPPORTED_DOMAINS (11) but only 10 builders exist
+- Spice builder has unique `build_from_external()` not in other builders
+
+**Error handling gaps:**
+- model_selector.py: 21 except clauses, ~15 broad catches silently swallowing errors
+- batch_local.py: No subprocess timeout handling — can hang forever
+- distill_dataset.py: LocalHFTeacher has no OOM recovery
+- dataset_refresh.py: Under-protected (only 3 except in 1,207 lines)
+
+**VRAM management:** Spread across 13 files, heuristic-based, no runtime OOM recovery
+
+**Batch/resume:** File-existence-only skip logic, no mid-domain checkpointing, no training resume
+
+**Test coverage: ZERO** — no test files in entire finetune/ directory
+
+**9 actionable findings** rated by severity and effort in audit report.
+
+=== END SESSION 8 ===
