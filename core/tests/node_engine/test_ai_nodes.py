@@ -234,3 +234,72 @@ class TestBatchInference:
         responses = result["responses"]
         assert isinstance(responses, list)
         assert len(responses) == 0
+
+
+class TestPromptTemplate:
+    """Test suite for ai.prompt-template execution."""
+
+    @pytest.mark.asyncio
+    async def test_prompt_template(self, ai_worker):
+        """Test basic prompt template variable substitution."""
+        result = await ai_worker.execute(
+            node_type="ai.prompt-template",
+            inputs={
+                "template": "Hello {{name}}, your role is {{role}}!",
+                "variables": {"name": "Alice", "role": "developer"},
+            },
+            config={},
+            context=None,
+        )
+
+        assert "prompt" in result
+        assert result["prompt"] == "Hello Alice, your role is developer!"
+
+    @pytest.mark.asyncio
+    async def test_prompt_template_empty_variables(self, ai_worker):
+        """Test prompt template with no variables."""
+        result = await ai_worker.execute(
+            node_type="ai.prompt-template",
+            inputs={
+                "template": "This is a static template.",
+                "variables": {},
+            },
+            config={},
+            context=None,
+        )
+
+        assert "prompt" in result
+        assert result["prompt"] == "This is a static template."
+
+    @pytest.mark.asyncio
+    async def test_prompt_template_partial_substitution(self, ai_worker):
+        """Test prompt template with some variables missing."""
+        result = await ai_worker.execute(
+            node_type="ai.prompt-template",
+            inputs={
+                "template": "Hello {{name}}, {{greeting}} from {{place}}!",
+                "variables": {"name": "Bob", "place": "Earth"},
+            },
+            config={},
+            context=None,
+        )
+
+        assert "prompt" in result
+        # Unmatched variables should remain as placeholders
+        assert result["prompt"] == "Hello Bob, {{greeting}} from Earth!"
+
+    @pytest.mark.asyncio
+    async def test_prompt_template_type_coercion(self, ai_worker):
+        """Test prompt template with non-string variable values."""
+        result = await ai_worker.execute(
+            node_type="ai.prompt-template",
+            inputs={
+                "template": "Count: {{count}}, Price: {{price}}",
+                "variables": {"count": 42, "price": 19.99},
+            },
+            config={},
+            context=None,
+        )
+
+        assert "prompt" in result
+        assert result["prompt"] == "Count: 42, Price: 19.99"
