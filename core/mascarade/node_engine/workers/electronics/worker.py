@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from typing import TYPE_CHECKING
 
 from mascarade.node_engine.domains.electronics import ELECTRONICS_DOMAIN_TYPES
@@ -9,6 +10,8 @@ from mascarade.node_engine.worker import NodeWorker, WorkerCapabilities
 
 if TYPE_CHECKING:
     from mascarade.node_engine.registry import NodeRegistry
+
+logger = logging.getLogger("mascarade.node_engine.workers.electronics")
 
 
 class ElectronicsWorker(NodeWorker):
@@ -69,41 +72,45 @@ class ElectronicsWorker(NodeWorker):
         # Enregistrer les types de domaine électronique
         if self.registry:
             for domain_type in ELECTRONICS_DOMAIN_TYPES:
-                await self.registry.register_type(domain_type)
+                self.registry.register_type(domain_type, builtin=True)
+            logger.info(
+                "Registered %d electronics domain types",
+                len(ELECTRONICS_DOMAIN_TYPES),
+            )
 
         # Vérifier la disponibilité des outils externes (warn if missing, don't fail)
         self._ngspice_available = await self._check_tool("ngspice")
         if not self._ngspice_available:
-            print(
-                "Warning: ngspice not found in PATH. SPICE simulation nodes will fail. "
+            logger.warning(
+                "ngspice not found in PATH. SPICE simulation nodes will fail. "
                 "Install with: apt-get install ngspice (Debian/Ubuntu) or brew install ngspice (macOS)"
             )
 
         self._kicad_available = await self._check_tool("kicad-cli")
         if not self._kicad_available:
-            print(
-                "Warning: kicad-cli not found in PATH. PCB DRC nodes will fail. "
+            logger.warning(
+                "kicad-cli not found in PATH. PCB DRC nodes will fail. "
                 "Install KiCad 7.0+ from https://www.kicad.org/download/"
             )
 
         self._espidf_available = await self._check_tool("idf.py")
         if not self._espidf_available:
-            print(
-                "Warning: idf.py not found in PATH. ESP-IDF firmware compilation will not be available. "
+            logger.warning(
+                "idf.py not found in PATH. ESP-IDF firmware compilation will not be available. "
                 "Install ESP-IDF from https://docs.espressif.com/projects/esp-idf/en/latest/esp32/get-started/"
             )
 
         self._platformio_available = await self._check_tool("pio")
         if not self._platformio_available:
-            print(
-                "Warning: pio (PlatformIO) not found in PATH. PlatformIO firmware compilation will not be available. "
+            logger.warning(
+                "pio (PlatformIO) not found in PATH. PlatformIO firmware compilation will not be available. "
                 "Install with: pip install platformio"
             )
 
         # Avertissement si aucun framework de firmware n'est disponible
         if not self._espidf_available and not self._platformio_available:
-            print(
-                "Warning: Neither ESP-IDF nor PlatformIO available. Firmware compilation nodes will fail. "
+            logger.warning(
+                "Neither ESP-IDF nor PlatformIO available. Firmware compilation nodes will fail. "
                 "Install at least one firmware framework."
             )
 

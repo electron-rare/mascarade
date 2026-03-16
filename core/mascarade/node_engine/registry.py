@@ -159,6 +159,43 @@ class NodeRegistry:
         """
         return domain in self._workers
 
+    async def initialize_workers(self) -> None:
+        """Initialiser tous les workers enregistrés.
+
+        Appelle la méthode initialize() de chaque worker dans l'ordre
+        d'enregistrement. Les erreurs d'initialisation sont journalisées
+        mais n'empêchent pas l'initialisation des autres workers.
+        """
+        for domain, worker in self._workers.items():
+            try:
+                logger.info("Initializing worker for domain: %s", domain)
+                await worker.initialize()
+            except Exception as exc:
+                logger.error(
+                    "Failed to initialize worker for domain %s: %s",
+                    domain,
+                    exc,
+                    exc_info=True,
+                )
+
+    async def shutdown_workers(self) -> None:
+        """Arrêter tous les workers enregistrés.
+
+        Appelle la méthode shutdown() de chaque worker. Les erreurs
+        sont journalisées mais n'empêchent pas l'arrêt des autres workers.
+        """
+        for domain, worker in self._workers.items():
+            try:
+                logger.info("Shutting down worker for domain: %s", domain)
+                await worker.shutdown()
+            except Exception as exc:
+                logger.error(
+                    "Failed to shutdown worker for domain %s: %s",
+                    domain,
+                    exc,
+                    exc_info=True,
+                )
+
     # --- Persistence ---
 
     def save(self) -> None:
