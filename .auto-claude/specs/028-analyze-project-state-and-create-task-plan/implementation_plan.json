@@ -1,0 +1,607 @@
+{
+  "feature": "Analyze Project State and Create Task Plan",
+  "workflow_type": "feature",
+  "workflow_rationale": "This is a compound meta-task that produces 5 new analysis/documentation artifacts (PROJECT_STATE_ANALYSIS.md, CONSOLIDATED_TASKS.md, OSS_RESEARCH.md, CODE_AUDIT_REPORT.md, OPTIMIZATION_OPPORTUNITIES.md). While it has investigation aspects, the primary output is new deliverables — making it a feature workflow. No source code is modified.",
+  "phases": [
+    {
+      "id": "phase-1-state-analysis",
+      "name": "Full Worktree State Analysis",
+      "type": "implementation",
+      "description": "Analyze the entire repository across all 4 services to map current state, identify code quality signals, and produce a structured PROJECT_STATE_ANALYSIS.md. This phase performs the deep data-gathering that all subsequent phases depend on.",
+      "depends_on": [],
+      "parallel_safe": true,
+      "subtasks": [
+        {
+          "id": "subtask-1-1",
+          "description": "Analyze core service state: module inventory, dependency health, test coverage, complexity hotspots (server.py 2751 lines, router.py 1021 lines, cluster.py 1112 lines), provider pattern consistency across all 10 providers, dead code detection, import analysis",
+          "service": "core",
+          "files_to_modify": [],
+          "files_to_create": [],
+          "patterns_from": [
+            "core/mascarade/server.py",
+            "core/mascarade/router/router.py",
+            "core/mascarade/router/providers/base.py",
+            "core/mascarade/config.py"
+          ],
+          "verification": {
+            "type": "manual",
+            "instructions": "Verify analysis covers: module inventory (19 subdirectories), all 10 LLM providers, test coverage (235 tests across 65 files), complexity hotspots, dependency health from pyproject.toml, dead code signals"
+          },
+          "status": "completed",
+          "notes": "Analysis complete. 19 modules, 29.6K lines, 10 providers (all pattern-compliant), 745 tests across 65 files, server.py (2751 lines) is top decomposition candidate. No dead code. Dependencies current. Duplicate imports in server.py header (minor).",
+          "updated_at": "2026-03-15T23:19:39.231877+00:00"
+        },
+        {
+          "id": "subtask-1-2",
+          "description": "Analyze API service state: route inventory (28 handlers), middleware audit (8 files), core client coupling analysis (core.ts 1082 lines), ops.ts complexity (1925 lines), two-tier versioning consistency, auth coverage, killlife.ts coupling (924 lines)",
+          "service": "api",
+          "files_to_modify": [],
+          "files_to_create": [],
+          "patterns_from": [
+            "api/src/index.ts",
+            "api/src/client/core.ts",
+            "api/src/routes/ops.ts",
+            "api/src/lib/auth.ts"
+          ],
+          "verification": {
+            "type": "manual",
+            "instructions": "Verify analysis covers: all 28 route handlers mapped, middleware chain documented, core.ts coupling assessment, ops.ts decomposition analysis, versioning consistency check, auth coverage per route"
+          },
+          "status": "completed",
+          "notes": "Analysis complete: 95 route handlers mapped, 8 middleware files audited, core.ts/ops.ts/killlife.ts coupling assessed, versioning inconsistencies found (missing p2p/finetune imports = runtime bug), auth coverage documented",
+          "updated_at": "2026-03-15T23:23:27.697369+00:00"
+        },
+        {
+          "id": "subtask-1-3",
+          "description": "Analyze web service state: page inventory (18 pages), component library audit, large page analysis (Logs.tsx 1468 lines, Settings.tsx 1129 lines, OpsHub.tsx 1092 lines, Orchestrate.tsx 1028 lines, KillLifeWorkflowEditor.tsx 1019 lines), dependency versions, no-test assessment, build output size",
+          "service": "web",
+          "files_to_modify": [],
+          "files_to_create": [],
+          "patterns_from": [
+            "web/src/App.tsx",
+            "web/src/pages/Logs.tsx",
+            "web/src/pages/OpsHub.tsx",
+            "web/vite.config.ts",
+            "web/package.json"
+          ],
+          "verification": {
+            "type": "manual",
+            "instructions": "Verify analysis covers: all 18 pages mapped with sizes, 5 pages >1000 lines identified as refactoring candidates, component reuse analysis, dependency currency check, accessibility/performance signals, test coverage gap documented"
+          },
+          "status": "completed",
+          "notes": "Analysis complete. 18 pages (10,842 lines), 5 pages >1000 lines identified as refactoring candidates. 21 components (2,121 lines) with 94% UI library adoption. Zero test files — critical gap. Helper function duplication between Logs.tsx/OpsHub.tsx. No lazy loading/code splitting. All dependencies current. TopBar.tsx (789 lines) is also a decomposition candidate.",
+          "updated_at": "2026-03-15T23:57:27.053727+00:00"
+        },
+        {
+          "id": "subtask-1-4",
+          "description": "Analyze finetune service state: script inventory (40+ scripts), dataset builder audit (12 builders, 13 domains), model pipeline assessment, 143K training examples quality status, research probes, kicad_mcp_server state, model_selector.py complexity (1746 lines), batch_local.py complexity (1628 lines)",
+          "service": "finetune",
+          "files_to_modify": [],
+          "files_to_create": [],
+          "patterns_from": [
+            "finetune/pipeline.py",
+            "finetune/batch_local.py",
+            "finetune/model_selector.py",
+            "finetune/dataset_refresh.py"
+          ],
+          "verification": {
+            "type": "manual",
+            "instructions": "Verify analysis covers: all 13 domains mapped with row counts, 12 dataset builders inventoried, pipeline stages documented, large scripts identified, kicad_mcp_server status, no-test gap documented"
+          },
+          "status": "pending",
+          "notes": "Finetune has no pytest infrastructure — significant gap. Multiple large files (model_selector.py 1746 lines, batch_local.py 1628 lines, distill_dataset.py 1324 lines). kicad_mcp_server/package.json is missing."
+        },
+        {
+          "id": "subtask-1-5",
+          "description": "Analyze infrastructure state: Docker Compose (955 lines, 30+ services across 5 profiles), CI/CD workflows, deploy directory, P2P mesh operational status (5 nodes), Prometheus/Grafana/Loki/Tempo stack, edge-proxy configuration, .env management, scripts directory (134 scripts)",
+          "service": "infrastructure",
+          "files_to_modify": [],
+          "files_to_create": [],
+          "patterns_from": [
+            "docker-compose.yml",
+            "docker-compose.override.yml"
+          ],
+          "verification": {
+            "type": "manual",
+            "instructions": "Verify analysis covers: all Docker services mapped with profiles, P2P mesh status, CI/CD pipeline assessment, deploy directory structure, scripts inventory, .env variable audit"
+          },
+          "status": "pending",
+          "notes": "docker-compose.yml at 955 lines is large — potential modularization target. Multiple deploy subdirectories (ops-console, phase2, cad, dify)."
+        },
+        {
+          "id": "subtask-1-6",
+          "description": "Compile all service analyses into docs/PROJECT_STATE_ANALYSIS.md following the existing execution plan format with status tables, metrics summary, and risk assessment per service",
+          "service": "core",
+          "files_to_modify": [],
+          "files_to_create": [
+            "docs/PROJECT_STATE_ANALYSIS.md"
+          ],
+          "patterns_from": [
+            "docs/EXECUTION_PLAN_2026-03-10.md",
+            "docs/audit/AUDIT_GLOBAL_2026-03-07.md",
+            "docs/MASCARADE_FEATURE_MAP_2026-03-11.md"
+          ],
+          "verification": {
+            "type": "command",
+            "command": "test -s docs/PROJECT_STATE_ANALYSIS.md && grep -c '##' docs/PROJECT_STATE_ANALYSIS.md",
+            "expected": "Non-empty file with multiple sections"
+          },
+          "status": "pending",
+          "notes": "Must follow bilingual FR/EN convention. Must include: per-service status tables, key metrics, risk ratings, architecture overview, dependency tree summary."
+        }
+      ]
+    },
+    {
+      "id": "phase-2-todo-consolidation",
+      "name": "TODO/Plan Consolidation",
+      "type": "implementation",
+      "description": "Read and consolidate all 7 existing TODO files and execution plans into a single prioritized task list, resolving conflicts, removing completed items, and cross-referencing against actual code state from Phase 1.",
+      "depends_on": [
+        "phase-1-state-analysis"
+      ],
+      "parallel_safe": false,
+      "subtasks": [
+        {
+          "id": "subtask-2-1",
+          "description": "Parse all 7 TODO files and the execution plan: extract every open item (unchecked checkbox), categorize by domain (core/api/web/finetune/infra/external), note priority level, identify stale items referencing deleted/moved code, flag cross-repo dependencies on crazy_life/Kill_LIFE",
+          "service": "core",
+          "files_to_modify": [],
+          "files_to_create": [],
+          "patterns_from": [
+            "docs/TODO_2026-03-10.md",
+            "TODO_IMPLEMENTE.md",
+            "TODO_VM.md",
+            "TODO_COCKPIT_OPS.md",
+            "TODO_CAD_KICAD.md",
+            "TODO_TUNNING_PARTY.md",
+            "TODO_AI_NOVEL_ENGINE.md",
+            "docs/EXECUTION_PLAN_2026-03-10.md"
+          ],
+          "verification": {
+            "type": "manual",
+            "instructions": "Verify: all 7 TODO files processed, open items counted and categorized, stale items identified with evidence, cross-repo dependencies flagged, duplicate items found across files"
+          },
+          "status": "pending",
+          "notes": "Key challenge: TODO_2026-03-10.md is 9635 lines — must be parsed carefully. Items may be duplicated across files. Use most recent document as authoritative source for conflicts."
+        },
+        {
+          "id": "subtask-2-2",
+          "description": "Cross-reference extracted TODO items against actual codebase state from Phase 1: identify items already completed but unchecked, items referencing code that no longer exists, items superseded by newer work, and items blocked by external dependencies",
+          "service": "core",
+          "files_to_modify": [],
+          "files_to_create": [],
+          "patterns_from": [],
+          "verification": {
+            "type": "manual",
+            "instructions": "Verify: each open TODO item has been checked against code state, stale items marked with reason, completed-but-unchecked items identified"
+          },
+          "status": "pending",
+          "notes": "Critical deduplication step. Must verify items like 'P2P auth reject_unsigned=true' (appears in multiple TODOs), 'Grafana dashboard P2P import' (appears in multiple TODOs)."
+        },
+        {
+          "id": "subtask-2-3",
+          "description": "Compile deduplicated, prioritized task list into docs/CONSOLIDATED_TASKS.md using the execution plan format: numbered axes, P0-P8 priorities, effort estimates, blocker flags, dependency chains, and service scope per task",
+          "service": "core",
+          "files_to_modify": [],
+          "files_to_create": [
+            "docs/CONSOLIDATED_TASKS.md"
+          ],
+          "patterns_from": [
+            "docs/EXECUTION_PLAN_2026-03-10.md",
+            "docs/TODO_2026-03-10.md"
+          ],
+          "verification": {
+            "type": "command",
+            "command": "test -s docs/CONSOLIDATED_TASKS.md && grep -c '\\- \\[' docs/CONSOLIDATED_TASKS.md",
+            "expected": "Non-empty file with checkbox items"
+          },
+          "status": "pending",
+          "notes": "Must follow established format: French section headers, axes grouping, priority levels, effort estimates. Must include provenance (which original TODO file each item came from). Must chain into subsequent phases."
+        }
+      ]
+    },
+    {
+      "id": "phase-3-oss-research",
+      "name": "OSS Research and Documentation",
+      "type": "implementation",
+      "description": "Research comparable open-source projects and reusable libraries for each major Mascarade component. Build on existing research in docs/research/OSS_PROJECTS_2026-03-11.md and extend with web research for LLM routing, agent orchestration, P2P mesh, and fine-tuning pipeline alternatives.",
+      "depends_on": [
+        "phase-1-state-analysis"
+      ],
+      "parallel_safe": true,
+      "subtasks": [
+        {
+          "id": "subtask-3-1",
+          "description": "Research LLM routing and agent orchestration alternatives: LiteLLM (directly comparable to Mascarade router), Dify (overlaps core orchestration), CrewAI, AutoGen, LangGraph, Semantic Kernel. For each: stars, last release, key features, how it compares to Mascarade, adoption viability",
+          "service": "core",
+          "files_to_modify": [],
+          "files_to_create": [],
+          "patterns_from": [
+            "docs/research/OSS_PROJECTS_2026-03-11.md"
+          ],
+          "verification": {
+            "type": "manual",
+            "instructions": "Verify: at least 6 projects evaluated for routing/orchestration, comparison table with stars/features/viability, clear recommendation per category"
+          },
+          "status": "pending",
+          "notes": "LiteLLM is flagged as DIRECTLY COMPARABLE by prior research. Dify OVERLAPS with core LLM orchestration. Must evaluate whether adoption would reduce maintenance burden vs. feature loss."
+        },
+        {
+          "id": "subtask-3-2",
+          "description": "Research P2P mesh, caching, fine-tuning pipeline, and circuit breaker alternatives: libp2p alternatives, Redis/Valkey caching patterns, Unsloth/LLaMA-Factory/Axolotl for training, aiobreaker replacements (abandoned since 2021). For each: maintenance status, compatibility, migration effort",
+          "service": "core",
+          "files_to_modify": [],
+          "files_to_create": [],
+          "patterns_from": [
+            "docs/research/OSS_PROJECTS_2026-03-11.md",
+            "docs/audit/P2P_MESH_RESEARCH_2026-03-14.md"
+          ],
+          "verification": {
+            "type": "manual",
+            "instructions": "Verify: P2P alternatives evaluated, circuit breaker alternatives to aiobreaker identified, fine-tuning framework comparison with existing pipeline, caching layer analysis"
+          },
+          "status": "pending",
+          "notes": "aiobreaker (latest 1.2.0 from May 2021) is flagged as not actively maintained — must find replacement. Existing OSS research already covers OpenRLHF, lm-evaluation-harness, LLaMA-Factory, RLHFlow, DeepEval."
+        },
+        {
+          "id": "subtask-3-3",
+          "description": "Compile all OSS research into docs/OSS_RESEARCH.md with categorized findings, comparison tables (stars, maintenance, features, compatibility), and actionable recommendations for adoption, inspiration, or rejection per category",
+          "service": "core",
+          "files_to_modify": [],
+          "files_to_create": [
+            "docs/OSS_RESEARCH.md"
+          ],
+          "patterns_from": [
+            "docs/research/OSS_PROJECTS_2026-03-11.md"
+          ],
+          "verification": {
+            "type": "command",
+            "command": "test -s docs/OSS_RESEARCH.md && grep -c '|' docs/OSS_RESEARCH.md",
+            "expected": "Non-empty file with comparison tables"
+          },
+          "status": "pending",
+          "notes": "Must build on existing research in OSS_PROJECTS_2026-03-11.md rather than starting from scratch. Categories: LLM Routing, Agent Orchestration, P2P/Networking, Fine-Tuning, Observability, Caching, Circuit Breakers."
+        }
+      ]
+    },
+    {
+      "id": "phase-4-code-audit",
+      "name": "Deep Code Audit",
+      "type": "implementation",
+      "description": "Perform deep code analysis across all services: identify oversized files, duplicated logic, missing error handling, security concerns, dead code, unused imports, unreachable routes, and anti-patterns. Produce CODE_AUDIT_REPORT.md with specific file:line references.",
+      "depends_on": [
+        "phase-1-state-analysis"
+      ],
+      "parallel_safe": true,
+      "subtasks": [
+        {
+          "id": "subtask-4-1",
+          "description": "Deep audit of core Python code: server.py decomposition analysis (2751 lines — identify logical boundaries), router.py complexity assessment, all 10 provider files for API currency and pattern consistency against base.py interface, cluster.py analysis, dead code detection, unused imports, Notion legacy code quantification, aiobreaker usage patterns",
+          "service": "core",
+          "files_to_modify": [],
+          "files_to_create": [],
+          "patterns_from": [
+            "core/mascarade/server.py",
+            "core/mascarade/router/router.py",
+            "core/mascarade/router/providers/base.py"
+          ],
+          "verification": {
+            "type": "manual",
+            "instructions": "Verify: server.py logical boundaries identified (propose split into N files), all 10 providers audited for consistency, dead code paths found, Notion legacy surface quantified, severity ratings assigned"
+          },
+          "status": "pending",
+          "notes": "server.py at 2751 lines is the #1 refactoring target. Must identify natural split points (routes, middleware, config, health checks, etc.). Check each provider implements LLMProvider interface correctly."
+        },
+        {
+          "id": "subtask-4-2",
+          "description": "Deep audit of API TypeScript code: ops.ts decomposition analysis (1925 lines), core.ts coupling assessment (1082 lines), killlife.ts analysis (924 lines), route handler consistency audit, middleware chain analysis, auth coverage gaps, error handling patterns",
+          "service": "api",
+          "files_to_modify": [],
+          "files_to_create": [],
+          "patterns_from": [
+            "api/src/routes/ops.ts",
+            "api/src/client/core.ts",
+            "api/src/lib/killlife.ts"
+          ],
+          "verification": {
+            "type": "manual",
+            "instructions": "Verify: ops.ts split points identified, core.ts coupling degree assessed, all route handlers checked for auth middleware, error handling patterns documented, dead routes found"
+          },
+          "status": "pending",
+          "notes": "ops.ts (1925 lines) and core.ts (1082 lines) are key audit targets. Check for route handlers missing auth middleware. Verify two-tier versioning consistency."
+        },
+        {
+          "id": "subtask-4-3",
+          "description": "Deep audit of web React code: large page decomposition analysis for 5 pages >1000 lines (Logs.tsx, Settings.tsx, OpsHub.tsx, Orchestrate.tsx, KillLifeWorkflowEditor.tsx), component extraction opportunities, state management patterns, bundle size analysis, performance anti-patterns",
+          "service": "web",
+          "files_to_modify": [],
+          "files_to_create": [],
+          "patterns_from": [
+            "web/src/pages/Logs.tsx",
+            "web/src/pages/OpsHub.tsx",
+            "web/src/pages/Settings.tsx"
+          ],
+          "verification": {
+            "type": "manual",
+            "instructions": "Verify: all 5 large pages analyzed with decomposition proposals, shared component extraction opportunities identified, state management patterns documented, test gap assessed"
+          },
+          "status": "pending",
+          "notes": "5 pages exceed 1000 lines — each should be analyzed for natural component extraction. No test infrastructure exists — this is a critical gap to document."
+        },
+        {
+          "id": "subtask-4-4",
+          "description": "Deep audit of finetune Python code: large script analysis (model_selector.py 1746 lines, batch_local.py 1628 lines, distill_dataset.py 1324 lines, dataset_refresh.py 1207 lines), dataset builder consistency across 12 builders, error handling patterns, VRAM management code, batch/resume logic",
+          "service": "finetune",
+          "files_to_modify": [],
+          "files_to_create": [],
+          "patterns_from": [
+            "finetune/model_selector.py",
+            "finetune/batch_local.py",
+            "finetune/distill_dataset.py"
+          ],
+          "verification": {
+            "type": "manual",
+            "instructions": "Verify: all 4 large scripts analyzed with decomposition proposals, dataset builder patterns compared for consistency, error handling gaps found, test gap documented"
+          },
+          "status": "pending",
+          "notes": "Finetune has no pytest — the most critical testing gap. Large files need decomposition analysis. kicad_mcp_server/package.json is missing."
+        },
+        {
+          "id": "subtask-4-5",
+          "description": "Compile all code audit findings into docs/CODE_AUDIT_REPORT.md with specific file:line references, severity ratings (Critique/Haute/Moyenne/Basse), categorized findings (dead code, oversized files, missing error handling, security concerns, anti-patterns), and suggested fixes",
+          "service": "core",
+          "files_to_modify": [],
+          "files_to_create": [
+            "docs/CODE_AUDIT_REPORT.md"
+          ],
+          "patterns_from": [
+            "docs/audit/AUDIT_GLOBAL_2026-03-07.md",
+            "docs/audit/SECURITY_AUDIT_MASCARADE_2026-03-11.md"
+          ],
+          "verification": {
+            "type": "command",
+            "command": "test -s docs/CODE_AUDIT_REPORT.md && grep -cE '(Critique|Haute|Moyenne|Basse)' docs/CODE_AUDIT_REPORT.md",
+            "expected": "Non-empty file with severity-rated findings"
+          },
+          "status": "pending",
+          "notes": "Must follow existing audit format from AUDIT_GLOBAL_2026-03-07.md. Findings must be actionable with specific file:line references and fix recommendations."
+        }
+      ]
+    },
+    {
+      "id": "phase-5-optimization",
+      "name": "Optimization Opportunities Synthesis",
+      "type": "implementation",
+      "description": "Synthesize findings from code audit, state analysis, and OSS research into a categorized document of architecture and performance optimization opportunities with effort-vs-impact ratings.",
+      "depends_on": [
+        "phase-2-todo-consolidation",
+        "phase-3-oss-research",
+        "phase-4-code-audit"
+      ],
+      "parallel_safe": false,
+      "subtasks": [
+        {
+          "id": "subtask-5-1",
+          "description": "Identify and categorize architecture optimization opportunities: file decomposition candidates (server.py, ops.ts, large web pages), module extraction, dependency modernization (aiobreaker replacement), pattern improvements, Docker Compose modularization, test infrastructure gaps (web, finetune)",
+          "service": "core",
+          "files_to_modify": [],
+          "files_to_create": [],
+          "patterns_from": [],
+          "verification": {
+            "type": "manual",
+            "instructions": "Verify: each optimization opportunity has effort estimate (hours/days), impact rating (low/medium/high), service scope, and dependency on other optimizations"
+          },
+          "status": "pending",
+          "notes": "Key architecture opportunities: server.py split, web test infrastructure, finetune pytest setup, Docker Compose profiles rationalization, Notion legacy removal."
+        },
+        {
+          "id": "subtask-5-2",
+          "description": "Identify performance and operational optimization opportunities: caching improvements, provider routing efficiency, P2P mesh latency, bundle size optimization (web), Docker image sizes, CI/CD pipeline speed, observability gaps. Compile into docs/OPTIMIZATION_OPPORTUNITIES.md with effort-vs-impact matrix and priority recommendations",
+          "service": "core",
+          "files_to_modify": [],
+          "files_to_create": [
+            "docs/OPTIMIZATION_OPPORTUNITIES.md"
+          ],
+          "patterns_from": [
+            "docs/EXECUTION_PLAN_2026-03-10.md"
+          ],
+          "verification": {
+            "type": "command",
+            "command": "test -s docs/OPTIMIZATION_OPPORTUNITIES.md && grep -c '|' docs/OPTIMIZATION_OPPORTUNITIES.md",
+            "expected": "Non-empty file with effort-vs-impact tables"
+          },
+          "status": "pending",
+          "notes": "Must produce an actionable roadmap, not just a list. Group by effort tier (quick wins, medium effort, major investment). Include OSS adoption recommendations from Phase 3."
+        }
+      ]
+    },
+    {
+      "id": "phase-6-integration",
+      "name": "Integration and Validation",
+      "type": "integration",
+      "description": "Cross-validate all 5 output documents for consistency, verify completeness against success criteria, ensure no source code was modified, and validate that the task plan chains into subsequent optimization phases.",
+      "depends_on": [
+        "phase-5-optimization"
+      ],
+      "parallel_safe": false,
+      "subtasks": [
+        {
+          "id": "subtask-6-1",
+          "description": "Cross-validate all 5 output documents: verify PROJECT_STATE_ANALYSIS.md covers all 4 services, CONSOLIDATED_TASKS.md references items from all 7 TODO files, OSS_RESEARCH.md has comparison tables, CODE_AUDIT_REPORT.md has file:line references, OPTIMIZATION_OPPORTUNITIES.md has effort-vs-impact ratings. Verify no source code was modified. Verify existing tests still pass.",
+          "all_services": true,
+          "files_to_modify": [],
+          "files_to_create": [],
+          "patterns_from": [],
+          "verification": {
+            "type": "e2e",
+            "steps": [
+              "Verify docs/PROJECT_STATE_ANALYSIS.md exists and covers core, api, web, finetune",
+              "Verify docs/CONSOLIDATED_TASKS.md exists and has prioritized items from all TODO files",
+              "Verify docs/OSS_RESEARCH.md exists and has comparison tables",
+              "Verify docs/CODE_AUDIT_REPORT.md exists and has file:line references with severity ratings",
+              "Verify docs/OPTIMIZATION_OPPORTUNITIES.md exists and has effort-vs-impact ratings",
+              "Run 'cd core && python -m pytest' — 235+ tests still passing (no regressions)",
+              "Verify no source code files were modified (git diff --name-only shows only docs/ changes)",
+              "Verify CONSOLIDATED_TASKS.md enables chaining into next phases"
+            ]
+          },
+          "status": "pending",
+          "notes": "Final validation step. All success criteria from spec.md must be verified. Key check: no source code modified — only docs/ artifacts created."
+        }
+      ]
+    }
+  ],
+  "summary": {
+    "total_phases": 6,
+    "total_subtasks": 19,
+    "services_involved": [
+      "core",
+      "api",
+      "web",
+      "finetune",
+      "infrastructure"
+    ],
+    "parallelism": {
+      "max_parallel_phases": 3,
+      "parallel_groups": [
+        {
+          "phases": [
+            "phase-2-todo-consolidation",
+            "phase-3-oss-research",
+            "phase-4-code-audit"
+          ],
+          "reason": "All three depend only on phase-1-state-analysis, operate on different data sets (TODO files vs OSS projects vs code analysis), and produce separate output documents with no file conflicts"
+        }
+      ],
+      "recommended_workers": 2,
+      "speedup_estimate": "1.8x faster than sequential — phases 2, 3, 4 can overlap"
+    },
+    "startup_command": "source auto-claude/.venv/bin/activate && python auto-claude/run.py --spec 028 --parallel 2"
+  },
+  "verification_strategy": {
+    "risk_level": "medium",
+    "skip_validation": false,
+    "test_creation_phase": "post_implementation",
+    "test_types_required": [
+      "unit",
+      "integration"
+    ],
+    "security_scanning_required": false,
+    "staging_deployment_required": false,
+    "acceptance_criteria": [
+      "All 5 output documents created in docs/ and non-empty",
+      "PROJECT_STATE_ANALYSIS.md covers all 4 services (core, api, web, finetune)",
+      "CONSOLIDATED_TASKS.md includes items from all 7 TODO files",
+      "OSS_RESEARCH.md has categorized comparison tables",
+      "CODE_AUDIT_REPORT.md has specific file:line references with severity ratings",
+      "OPTIMIZATION_OPPORTUNITIES.md has effort-vs-impact matrix",
+      "No source code was modified (analysis-only phase)",
+      "All existing tests still pass (cd core && python -m pytest)",
+      "Output documents follow project conventions (bilingual, structured tables, axes/priorities)"
+    ],
+    "verification_steps": [
+      {
+        "name": "Document Existence Check",
+        "command": "for f in docs/PROJECT_STATE_ANALYSIS.md docs/CONSOLIDATED_TASKS.md docs/OSS_RESEARCH.md docs/CODE_AUDIT_REPORT.md docs/OPTIMIZATION_OPPORTUNITIES.md; do test -s \"$f\" && echo \"OK: $f\" || echo \"MISSING: $f\"; done",
+        "expected_outcome": "All 5 files exist and are non-empty",
+        "type": "test",
+        "required": true,
+        "blocking": true
+      },
+      {
+        "name": "Core Tests Regression",
+        "command": "cd core && python -m pytest -q 2>&1 | tail -5",
+        "expected_outcome": "235+ tests passed, 0 failed",
+        "type": "test",
+        "required": true,
+        "blocking": true
+      },
+      {
+        "name": "No Source Code Modified",
+        "command": "git diff --name-only HEAD | grep -v '^docs/' | grep -v '^\\.auto-claude/' | head -5",
+        "expected_outcome": "No output (only docs/ files changed)",
+        "type": "test",
+        "required": true,
+        "blocking": true
+      },
+      {
+        "name": "Document Quality Check",
+        "command": "wc -l docs/PROJECT_STATE_ANALYSIS.md docs/CONSOLIDATED_TASKS.md docs/OSS_RESEARCH.md docs/CODE_AUDIT_REPORT.md docs/OPTIMIZATION_OPPORTUNITIES.md",
+        "expected_outcome": "Each document has substantial content (>50 lines)",
+        "type": "test",
+        "required": true,
+        "blocking": false
+      }
+    ],
+    "reasoning": "Medium risk analysis-only change. Primary risk is incomplete or inaccurate analysis, not code breakage. Verification focuses on output document completeness and existing test non-regression."
+  },
+  "qa_acceptance": {
+    "unit_tests": {
+      "required": true,
+      "commands": [
+        "cd core && python -m pytest -q"
+      ],
+      "minimum_coverage": null,
+      "notes": "No new tests to write — verify existing 235+ tests still pass (no regressions since no source code is modified)"
+    },
+    "integration_tests": {
+      "required": true,
+      "commands": [],
+      "services_to_test": [
+        "core"
+      ],
+      "notes": "Verify analysis completeness: every service directory appears in PROJECT_STATE_ANALYSIS.md, TODO consolidation cross-references all 7 source files"
+    },
+    "e2e_tests": {
+      "required": false,
+      "commands": [],
+      "flows": []
+    },
+    "browser_verification": {
+      "required": false,
+      "pages": []
+    },
+    "database_verification": {
+      "required": false,
+      "checks": []
+    },
+    "document_verification": {
+      "required": true,
+      "checks": [
+        {
+          "file": "docs/PROJECT_STATE_ANALYSIS.md",
+          "expected": "Non-empty, has sections for core/api/web/finetune, includes metrics tables"
+        },
+        {
+          "file": "docs/CONSOLIDATED_TASKS.md",
+          "expected": "Non-empty, has prioritized items, uses axes/priority format, references all 7 TODO sources"
+        },
+        {
+          "file": "docs/OSS_RESEARCH.md",
+          "expected": "Non-empty, has comparison tables, covers routing/orchestration/P2P/finetuning categories"
+        },
+        {
+          "file": "docs/CODE_AUDIT_REPORT.md",
+          "expected": "Non-empty, has file:line references, severity ratings (Critique/Haute/Moyenne/Basse)"
+        },
+        {
+          "file": "docs/OPTIMIZATION_OPPORTUNITIES.md",
+          "expected": "Non-empty, has effort-vs-impact matrix, categorized by Architecture/Performance/Operational"
+        }
+      ]
+    }
+  },
+  "qa_signoff": null,
+  "executionPhase": "coding",
+  "status": "in_progress",
+  "planStatus": "in_progress",
+  "updated_at": "2026-03-15T23:55:47.062Z",
+  "xstateState": "coding",
+  "lastEvent": {
+    "eventId": "38fb802a-ca04-4970-9ad8-9626f4e09eeb",
+    "sequence": 0,
+    "type": "PLANNING_COMPLETE",
+    "timestamp": "2026-03-15T23:17:14.260783+00:00"
+  },
+  "last_updated": "2026-03-15T23:57:27.053735+00:00"
+}
