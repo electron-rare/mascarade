@@ -10,9 +10,11 @@ from .types import (
     PromptTemplate,
     TokenUsage,
 )
+from .worker import AIWorker
 
 __all__ = [
     "AI_DOMAIN_TYPES",
+    "AIWorker",
     "ChatMessage",
     "EmbeddingVector",
     "LLMResponse",
