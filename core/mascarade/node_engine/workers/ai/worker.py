@@ -100,6 +100,8 @@ class AIWorker(NodeWorker):
         elif node_type == "ai.prompt-template":
             # Pure function - not async
             return self._prompt_template(inputs)
+        elif node_type == "ai.chain-of-thought":
+            return await self._chain_of_thought(inputs, config, context)
         else:
             raise ValueError(f"Unsupported node type: {node_type}")
 
@@ -139,6 +141,8 @@ class AIWorker(NodeWorker):
             errors.extend(self._validate_batch_inference(inputs, config))
         elif node_type == "ai.prompt-template":
             errors.extend(self._validate_prompt_template(inputs, config))
+        elif node_type == "ai.chain-of-thought":
+            errors.extend(self._validate_chain_of_thought(inputs, config))
         else:
             errors.append(f"Unsupported node type: {node_type}")
 
@@ -162,6 +166,7 @@ class AIWorker(NodeWorker):
                 "ai.llm-stream",
                 "ai.batch-inference",
                 "ai.prompt-template",
+                "ai.chain-of-thought",
             ],
             "domain": "ai",
             "supports_streaming": True,
@@ -573,5 +578,119 @@ class AIWorker(NodeWorker):
             errors.append("Missing required input: variables")
         elif not isinstance(inputs["variables"], dict):
             errors.append("Input 'variables' must be a dictionary")
+
+        return errors
+
+    async def _chain_of_thought(
+        self,
+        inputs: dict[str, Any],
+        config: dict[str, Any],
+        context: Any,
+    ) -> dict[str, Any]:
+        """
+        Execute ai.chain-of-thought node.
+
+        Multi-step reasoning with intermediate outputs. Each step feeds its output
+        as context to the next step. Maps to Orchestrator's PIPELINE execution mode.
+
+        Expected inputs:
+        - question (required): The question to reason about
+        - steps (optional): Number of reasoning steps (default: 3)
+
+        Expected config:
+        - Same as ai.llm-inference (model, provider, temperature, etc.)
+
+        Returns:
+            Dictionary with:
+            - reasoning: Array of intermediate reasoning steps
+            - answer: Final synthesized answer
+            - usage: Aggregate token consumption across all steps
+        """
+        # Extract inputs
+        question = inputs["question"]
+        steps = inputs.get("steps", 3)
+
+        # Initialize reasoning chain
+        reasoning = []
+        current_context = question
+
+        # Execute reasoning steps
+        for i in range(steps):
+            step_prompt = (
+                f"Step {i + 1}/{steps}: Reason about the following.\n\n"
+                f"{current_context}\n\n"
+                f"Provide your reasoning for this step."
+            )
+
+            # Execute LLM inference for this step
+            result = await self._execute_llm_inference(
+                {"prompt": step_prompt},
+                config,
+                context,
+            )
+
+            # Extract step output
+            step_output = result["response"].content
+            reasoning.append(step_output)
+
+            # Update context for next step
+            current_context = f"{question}\n\nPrevious reasoning:\n" + "\n".join(reasoning)
+
+        # Final synthesis
+        synthesis_prompt = (
+            f"Based on the following reasoning steps, provide a final answer.\n\n"
+            f"Question: {question}\n\n"
+            f"Reasoning:\n" + "\n---\n".join(reasoning)
+        )
+
+        final = await self._execute_llm_inference(
+            {"prompt": synthesis_prompt},
+            config,
+            context,
+        )
+
+        # Return results
+        return {
+            "reasoning": reasoning,
+            "answer": final["response"].content,
+            "usage": final["response"].usage or {},
+        }
+
+    def _validate_chain_of_thought(
+        self,
+        inputs: dict[str, Any],
+        config: dict[str, Any],
+    ) -> list[str]:
+        """Validate ai.chain-of-thought node inputs and configuration.
+
+        Required inputs:
+        - question: The question to reason about
+
+        Optional inputs:
+        - steps: Number of reasoning steps (default: 3)
+
+        Args:
+            inputs: Dictionary of input port values
+            config: Node configuration parameters
+
+        Returns:
+            List of validation error messages. Empty if valid.
+        """
+        errors: list[str] = []
+
+        if "question" not in inputs:
+            errors.append("Missing required input: question")
+        elif not isinstance(inputs["question"], str):
+            errors.append("Input 'question' must be a string")
+
+        # Validate steps if provided
+        if "steps" in inputs:
+            steps = inputs["steps"]
+            if not isinstance(steps, int):
+                errors.append("Input 'steps' must be an integer")
+            elif steps < 1:
+                errors.append("Input 'steps' must be at least 1")
+            elif steps > 10:
+                errors.append("Input 'steps' must not exceed 10")
 
         return errors

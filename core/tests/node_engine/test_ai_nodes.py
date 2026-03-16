@@ -303,3 +303,80 @@ class TestPromptTemplate:
 
         assert "prompt" in result
         assert result["prompt"] == "Count: 42, Price: 19.99"
+
+
+class TestChainOfThought:
+    """Test suite for ai.chain-of-thought execution."""
+
+    @pytest.mark.asyncio
+    async def test_chain_of_thought(self, ai_worker):
+        """Test basic chain-of-thought multi-step reasoning."""
+        result = await ai_worker.execute(
+            node_type="ai.chain-of-thought",
+            inputs={
+                "question": "What is the capital of France?",
+                "steps": 2,
+            },
+            config={},
+            context=None,
+        )
+
+        assert "reasoning" in result
+        assert "answer" in result
+        assert "usage" in result
+
+        # Verify reasoning is a list with correct number of steps
+        reasoning = result["reasoning"]
+        assert isinstance(reasoning, list)
+        assert len(reasoning) == 2
+
+        # Verify each reasoning step is a string
+        for step in reasoning:
+            assert isinstance(step, str)
+            assert len(step) > 0
+
+        # Verify answer is a string
+        assert isinstance(result["answer"], str)
+        assert len(result["answer"]) > 0
+
+        # Verify usage is a dict
+        assert isinstance(result["usage"], dict)
+
+    @pytest.mark.asyncio
+    async def test_chain_of_thought_default_steps(self, ai_worker):
+        """Test chain-of-thought with default steps (3)."""
+        result = await ai_worker.execute(
+            node_type="ai.chain-of-thought",
+            inputs={
+                "question": "Why is the sky blue?",
+            },
+            config={},
+            context=None,
+        )
+
+        assert "reasoning" in result
+        reasoning = result["reasoning"]
+        assert isinstance(reasoning, list)
+        # Default steps should be 3
+        assert len(reasoning) == 3
+
+    @pytest.mark.asyncio
+    async def test_chain_of_thought_with_config(self, ai_worker):
+        """Test chain-of-thought with custom config parameters."""
+        result = await ai_worker.execute(
+            node_type="ai.chain-of-thought",
+            inputs={
+                "question": "Explain photosynthesis.",
+                "steps": 1,
+            },
+            config={
+                "model": "custom-model",
+                "temperature": 0.5,
+                "max_tokens": 2048,
+            },
+            context=None,
+        )
+
+        assert "reasoning" in result
+        assert "answer" in result
+        assert len(result["reasoning"]) == 1
