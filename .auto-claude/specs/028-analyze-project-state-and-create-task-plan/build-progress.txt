@@ -1,0 +1,595 @@
+=== AUTO-BUILD PROGRESS ===
+
+Project: Analyze Project State and Create Task Plan
+Workspace: /Users/electron/mascarade-main
+Started: 2026-03-16
+
+Workflow Type: feature
+Rationale: Compound meta-task producing 5 new analysis/documentation artifacts across all services. No source code modifications — creates the foundation for subsequent optimization and correction phases.
+
+Session 1 (Planner):
+- Completed deep codebase investigation (Phase 0)
+- Created project_index.json (service map, tech stack, conventions)
+- Created context.json (files to reference, patterns, existing implementations)
+- Created implementation_plan.json (6 phases, 19 subtasks)
+- Created init.sh (environment setup script)
+
+Phase Summary:
+- Phase 1 — Full Worktree State Analysis: 6 subtasks, depends on [] (entry point)
+  - Core service analysis (server.py 2751 lines, 10 providers, 235 tests)
+  - API service analysis (28 routes, ops.ts 1925 lines, core.ts 1082 lines)
+  - Web service analysis (18 pages, 5 pages >1000 lines, no tests)
+  - Finetune service analysis (40+ scripts, 13 domains, 143K examples, no pytest)
+  - Infrastructure analysis (Docker 30+ services, P2P 5 nodes)
+  - Compile PROJECT_STATE_ANALYSIS.md
+
+- Phase 2 — TODO/Plan Consolidation: 3 subtasks, depends on [phase-1]
+  - Parse all 7 TODO files + execution plan
+  - Cross-reference against actual code state
+  - Compile CONSOLIDATED_TASKS.md
+
+- Phase 3 — OSS Research: 3 subtasks, depends on [phase-1], parallel-safe with Phase 2
+  - Research LLM routing/orchestration alternatives (LiteLLM, Dify, CrewAI, etc.)
+  - Research P2P/caching/finetuning/circuit-breaker alternatives
+  - Compile OSS_RESEARCH.md
+
+- Phase 4 — Deep Code Audit: 5 subtasks, depends on [phase-1], parallel-safe with Phases 2 & 3
+  - Core Python audit (server.py decomposition, provider consistency)
+  - API TypeScript audit (ops.ts decomposition, core.ts coupling)
+  - Web React audit (5 large pages, component extraction)
+  - Finetune Python audit (4 large scripts, builder consistency)
+  - Compile CODE_AUDIT_REPORT.md
+
+- Phase 5 — Optimization Synthesis: 2 subtasks, depends on [phases 2, 3, 4]
+  - Architecture optimization opportunities
+  - Performance/operational optimization → Compile OPTIMIZATION_OPPORTUNITIES.md
+
+- Phase 6 — Integration & Validation: 1 subtask, depends on [phase-5]
+  - Cross-validate all 5 documents, verify success criteria, no-regression check
+
+Services Involved:
+- core (primary): Python backend analysis — 365 Python files, 19 modules, 235 tests
+- api (primary): TypeScript gateway analysis — 28 routes, 8 middleware
+- web (primary): React frontend analysis — 18 pages, 15+ components
+- finetune (primary): Python pipeline analysis — 40+ scripts, 13 domains
+- infrastructure (integration): Docker, CI/CD, P2P mesh, deploy scripts
+
+Parallelism Analysis:
+- Max parallel phases: 3 (phases 2, 3, 4 can run concurrently)
+- Recommended workers: 2
+- Parallel groups: [phase-2, phase-3, phase-4] — all depend on phase-1 only, no file conflicts
+- Speedup estimate: 1.8x faster than sequential
+
+Key Findings from Investigation:
+1. server.py (2751 lines) is the #1 refactoring target
+2. ops.ts (1925 lines) and core.ts (1082 lines) are API debt hotspots
+3. 5 web pages exceed 1000 lines — decomposition candidates
+4. Web and finetune have zero test infrastructure — critical gaps
+5. aiobreaker is abandoned (last release May 2021) — needs replacement
+6. 7 TODO files with significant duplication need consolidation
+7. Existing OSS research partially done (docs/research/OSS_PROJECTS_2026-03-11.md)
+8. 25 audit documents already exist — build on, don't duplicate
+
+=== STARTUP COMMAND ===
+
+To continue building this spec, run:
+
+  source auto-claude/.venv/bin/activate && python auto-claude/run.py --spec 028 --parallel 2
+
+Example:
+  source auto-claude/.venv/bin/activate && python auto-claude/run.py --spec 028 --parallel 2
+
+=== END SESSION 1 ===
+
+=== SESSION 2 (Coder — subtask-1-1) ===
+
+## Subtask 1-1: Core Service State Analysis — COMPLETED
+
+### Module Inventory (19 subdirectories)
+agents, analytics, benchmarks, cache, conversation, db, dispatch, finetune,
+integrations, load_balancer, mcp, metrics, observability, orchestrator, p2p,
+resilience, router, tools + root files (server.py, config.py, cluster.py, auth.py, etc.)
+Total: ~29,616 lines of Python
+
+### Complexity Hotspots
+- server.py: 2,751 lines — CRITICAL decomposition candidate
+- mcp/client.py: 1,451 lines — large single-file MCP client
+- cluster.py: 1,112 lines — high complexity
+- router/router.py: 1,021 lines — justified core routing
+- orchestrator/engine.py: 921 lines — moderate
+
+### LLM Providers (10 + 1 specialty)
+All 10 main providers implement LLMProvider ABC consistently (send, stream, available_models, is_configured).
+google.py is largest at 372 lines. kicad_router.py is specialty, different pattern.
+Dynamic import in __init__.py with graceful degradation.
+
+### Test Coverage (UPDATED — higher than spec estimate)
+- 65 test files, 745 test functions (~21K lines of test code)
+- Spec estimated 235 tests — actual is 745
+- Strong coverage across RBAC, orchestration, caching, auth, P2P, finetune
+
+### Dependency Health
+All deps current: fastapi>=0.135, pydantic>=2.12, anthropic>=0.84, openai>=2.24
+Strict linting: ruff>=0.15, mypy strict mode
+
+### Dead Code / Code Quality
+- No dead code detected (no if False, no orphaned functions)
+- Duplicate imports in server.py header (Response, asynccontextmanager) — minor
+- French comments in metrics/health files — cosmetic
+- Notion legacy surface exists per CLAUDE.md
+
+=== END SESSION 2 ===
+
+=== SESSION 3 (Coder — subtask-1-3) ===
+
+## Subtask 1-3: Web Service State Analysis — COMPLETED
+
+### Page Inventory (18 pages, 10,842 lines total)
+
+**Pages >1000 lines (refactoring candidates):**
+| Page | Lines | Domain |
+|------|-------|--------|
+| Logs.tsx | 1,468 | Monitoring/Logging |
+| Settings.tsx | 1,129 | Configuration |
+| OpsHub.tsx | 1,092 | Operations |
+| Orchestrate.tsx | 1,028 | Workflow/Orchestration |
+| KillLifeWorkflowEditor.tsx | 1,019 | Workflow Editing |
+
+**Remaining 13 pages (145–893 lines):**
+QdrantKnowledge (893), Infrastructure (565), AgentDetail (561), Agents (488),
+Dashboard (403), P2P (345), Metrics (330), Playground (304), FineTuning (298),
+ComfyUI (293), KnowledgeBrowser (286), KillLifeWorkflows (195), P2PMesh (145)
+
+### Component Library (21 components, 2,121 lines)
+- **Layout:** TopBar (789), navigation.ts (275), Sidebar (186), Shell (109), MobileDock (48)
+- **UI primitives (14):** Modal (116), CompactModelList (68), Button (46), Select (43),
+  Card (33), LoadingPanel (32), Textarea (31), Input (31), InlineNotice (29),
+  Badge (24), StatCard (17), EmptyState (15), Spinner (7), JsonView (7)
+- **Feature:** PromptEditor (157), ErrorBoundary (44)
+
+### Component Reuse (top imports across pages)
+Badge (354 uses), Card (258), Button (178), InlineNotice (103), Input (80),
+Select (73), LoadingPanel (49), JsonView (27), Textarea (25), EmptyState (23)
+→ 17/18 pages (94%) import from ../components/ui — strong adoption
+
+### API & Hooks (1,450 lines)
+- **API modules (8):** ops.ts (402), client.ts (268), qdrantKnowledge.ts (189),
+  agents.ts (169), killlife.ts (149), cad.ts (55), comfyui.ts (41), knowledgeBase.ts (38)
+- **Hooks (2):** useFetch.ts (104), useApi.ts (35)
+- **Auth (2):** AuthGate.tsx (123), AuthContext.tsx (97)
+- **Lib (1):** dify.ts (23)
+
+### Dependency Versions
+- React 19.0.0, React Router DOM 7.1.0 — current
+- Monaco Editor 4.7.0 — current
+- TypeScript 5.6.0, Vite 6.0.0 — current
+- Tailwind CSS 3.4.17 — current (v4 available but v3 is stable)
+- All devDeps current
+
+### Test Coverage
+**ZERO test files** — no .test.ts, .spec.ts, or __tests__ directories.
+This is a critical gap. No unit, integration, or component tests exist.
+
+### Build & Config
+- Vite with React plugin, output to dist/
+- Dev server port 80, proxies /api and /health
+- Tailwind dark theme with custom palette (pure black bg, green borders, gold accent)
+- Strict TypeScript (noUnusedLocals, noUnusedParameters)
+
+### Code Quality Observations
+- Significant helper function duplication between pages (formatLatency, mcpTone,
+  sourceTone, formatMcpName appear in both Logs.tsx and OpsHub.tsx)
+- TopBar.tsx at 789 lines is itself a decomposition candidate
+- No accessibility attributes detected (aria-*, role=)
+- No lazy loading / code splitting — all pages eagerly imported in App.tsx
+
+### Total Web Service: ~20,356 lines across 56 files
+
+=== END SESSION 3 ===
+
+=== SESSION 4 (Coder — subtask-1-4) ===
+
+## Subtask 1-4: Finetune Service State Analysis — COMPLETED
+
+### Script Inventory (36 Python scripts, 7 shell scripts, 11 notebooks = 54 total)
+
+**Python scripts (36 files, ~26,111 lines):**
+| Script | Lines | Role |
+|--------|-------|------|
+| model_selector.py | 1,746 | CRITICAL — HF Hub search, ranking, download, watch, validation registry |
+| batch_local.py | 1,628 | CRITICAL — Batch orchestration: distill + train + promote pipeline |
+| distill_dataset.py | 1,324 | Teacher distillation via Mascarade API |
+| dataset_refresh.py | 1,207 | Dataset refresh, research probes, web-research briefs |
+| train_local.py | 887 | Local GPU/CPU training with QLoRA |
+| pipeline.py | 822 | Full pipeline: train → merge → GGUF → Ollama deploy |
+| run_local.py | 823 | Local inference runner |
+| auto_policy.py | 729 | Hardware detection, autotune plans |
+| pipeline_automated.py | 728 | Automated pipeline with OpenTelemetry events |
+| distill_and_train.py | 646 | Combined distill+train workflow |
+| promotion_utils.py | 575 | Model promotion (best run → production) |
+| sharegpt_utils.py | ~400 | ShareGPT JSONL utilities (load, validate, dedupe, row IDs) |
+| dataset_quality.py | ~300 | Quality enforcement gates |
+| dataset_bootstrap.py | ~200 | Seed dataset creation |
+| llmfit_utils.py | ~200 | LLMFit integration helpers |
+| llm_paths.py | ~150 | HF cache/env configuration |
+| workspace_utils.py | ~100 | Training output dir management |
+| runtime_compat.py | ~50 | Torchvision compatibility shim |
+| ollama_runtime.py | ~200 | Ollama create/run/resolve |
+| validators.py | ~100 | Dataset validators |
+| probe_hf_repo.py | ~150 | HuggingFace repo probing |
+| probe_research_sources.py | ~200 | Web research source probing |
+| prepare_hf_dataset.py | ~150 | HF dataset preparation |
+| promote_model.py | ~100 | Model promotion CLI |
+| run_manifest.py | ~100 | Run manifest management |
+| scenario_matrix.py | ~150 | Batch scenario matrix |
+| batch_scenarios.py | ~200 | Batch scenario execution |
+| batch_status.py | ~150 | Batch status reporting |
+| bedrock_finetune.py | ~200 | AWS Bedrock fine-tuning |
+| bench_gpu_slots.py | ~100 | GPU slot benchmarking |
+| benchmark_gpu_slots.py | ~100 | GPU benchmark (duplicate?) |
+| rejection_sampling.py | ~150 | Rejection sampling for DPO |
+| train_cpu.py | ~200 | CPU-only training fallback |
+| train_dpo.py | ~200 | DPO training |
+
+**Shell scripts (7):**
+batch_full_pipeline.sh, batch_phase_a.sh, deploy_all.sh, deploy_model.sh,
+train_all.sh, train_parallel.sh, upload_datasets_hf.sh
+
+**Notebooks (11):**
+One per domain (stm32, spice, iot, power, dsp, emc, kicad, embedded, freecad)
++ 2 Mistral variants (kicad_mistral, spice_mistral, freecad_mistral_studio)
+
+### Domain Map (11 domains in code, NOT 13 as spec claims)
+
+The DOMAINS list is consistent across pipeline.py, batch_local.py, train_local.py,
+pipeline_automated.py, distill_and_train.py, dataset_refresh.py — all define exactly 11:
+
+| # | Domain | Builder | Research Source | Research Probe | HF Dataset |
+|---|--------|---------|-----------------|----------------|------------|
+| 1 | stm32 | build_stm32_dataset.py (1,191 lines) | ✅ | ✅ | ✗ |
+| 2 | spice | build_spice_dataset.py (1,075 lines) | ✅ | ✅ | ✗ |
+| 3 | iot | build_iot_dataset.py (788 lines) | ✅ | ✅ | ✗ |
+| 4 | power | build_power_dataset.py (609 lines) | ✅ | ✅ | ✗ |
+| 5 | dsp | build_dsp_dataset.py (553 lines) | ✅ | ✅ | ✗ |
+| 6 | emc | build_emc_dataset.py (550 lines) | ✅ | ✅ | ✗ |
+| 7 | kicad | build_kicad_dataset.py (1,223 lines) | ✅ | ✅ | ✗ |
+| 8 | embedded | build_embedded_dataset.py (1,123 lines) | ✅ | ✅ | ✗ |
+| 9 | platformio | build_platformio_dataset.py (1,582 lines) | ✅ | ✅ | ✗ |
+| 10 | freecad | build_freecad_dataset.py (720 lines) | ✅ | ✅ | ✗ |
+| 11 | components | NO BUILDER (legacy ignored) | ✅ | ✗ | ✅ (30 rows) |
+
+**Total dataset builder lines:** 9,414 across 10 builders
+**components anomaly:** Has no builder script (listed in LEGACY_IGNORED_PATHS in dataset_refresh.py),
+has only 30 rows in hf_datasets/components_chat.jsonl — smallest domain by far.
+**No JSONL files in datasets/ dir** — datasets are generated on-demand by builders.
+
+### Pipeline Architecture (5 stages)
+
+1. **Dataset Build** — build_*_dataset.py generates ShareGPT JSONL from templates
+2. **Distillation** — distill_dataset.py calls Mascarade API to get teacher model completions
+3. **Training** — train_local.py / pipeline.py runs QLoRA fine-tuning (Quadro P2000 target)
+4. **Export** — GGUF quantization (q4_k_m, q4_k_s, q5_k_m, q8_0)
+5. **Deploy** — Ollama model creation and deployment
+
+**Batch orchestration:** batch_local.py ties stages 1-5 together with domain job management,
+student model selection, teacher model selection, LLMFit integration, and promotion.
+
+### Model Selection (model_selector.py — 1,746 lines)
+
+- Searches HuggingFace Hub for code-generation models
+- Ranks by: VRAM fit, benchmarks, popularity, architecture compatibility
+- Watch mode: monitors WATCH_AUTHORS (Qwen, mistralai, deepseek-ai, JetBrains)
+- Validation registry: tracks model download/test results
+- State management: complex multi-path state dir resolution (/dev/shm, /tmp, script dir)
+- Fallback model: Qwen/Qwen2.5-Coder-1.5B-Instruct
+- **Complexity concern:** 1,746 lines in one file — decomposition candidate
+
+### Batch Local (batch_local.py — 1,628 lines)
+
+- Full domain job lifecycle: prevalidate → distill → train → promote
+- Student model selection: explicit, model_selector, hardware auto, or default
+- Teacher model selection via auto_policy.py
+- LLMFit integration for training plan optimization
+- Manifest writing for run tracking
+- **Complexity concern:** 1,628 lines — decomposition candidate
+
+### KiCad Subdirectories (3 — ALL EMPTY)
+
+| Directory | Contents |
+|-----------|----------|
+| kicad_mcp_server/ | EMPTY — placeholder only |
+| kicad_kic_ai/ | EMPTY — placeholder only |
+| kicad_fabrication_toolkit/ | EMPTY — placeholder only |
+
+These appear to be planned but unimplemented KiCad tool integrations.
+
+### Research Infrastructure
+
+- **research_sources/domains/**: 11 JSON files (one per domain) — authoritative URLs, repos, forums
+- **research_probes/**: 10 JSON probe results (all domains except components)
+- **research/**: 11 domain refresh reports (JSON + MD pairs) including components
+- **dataset_refresh.py** embeds extensive forum URL lists per domain category:
+  EMBEDDED_FORUM_URLS (10), ELECTRONICS_SIM_FORUM_URLS (10), ELECTRONICS_FORUM_URLS (10),
+  DSP_FORUM_URLS (10), EDA_FORUM_URLS (10), CAD_FORUM_URLS (10)
+- **probe_research_sources.py** validates URL liveness on 7-day TTL
+
+### Training Examples Count
+
+- **No pre-built JSONL datasets exist in the repo** — datasets are generated on-demand
+- **hf_datasets/components/**: 30 rows (only uploaded domain)
+- **"143K training examples" from spec** — this refers to the aggregate output of all builders,
+  not pre-existing files. Cannot verify exact count without running builders.
+
+### Test Coverage
+
+**ZERO test files** — no test_*, *_test.py, pytest.ini, or conftest.py in finetune/.
+No test infrastructure whatsoever. Critical gap matching the web service.
+
+### Key Findings & Gaps
+
+1. **Domain count discrepancy:** Code defines 11 domains, spec claims 13 — likely counting
+   aliases (esp32→iot, pio→platformio) or planned future domains
+2. **10 builders, not 12:** Only 10 build_*_dataset.py scripts exist; components has no builder
+3. **model_selector.py (1,746 lines)** and **batch_local.py (1,628 lines)** are the top
+   complexity hotspots — both are decomposition candidates
+4. **3 empty KiCad directories** — planned integrations never started
+5. **No tests** — zero pytest infrastructure
+6. **DOMAINS list duplicated** in 6+ files — DRY violation, should be single source of truth
+7. **bench_gpu_slots.py vs benchmark_gpu_slots.py** — potential duplicate scripts
+8. **Components domain orphaned** — no builder, only 30 HF rows, excluded from probes
+
+=== END SESSION 4 ===
+
+=== SESSION 5 (Coder — subtask-1-5) ===
+
+## Subtask 1-5: Infrastructure State Analysis — COMPLETED
+
+### Docker Compose Services (45 total across 5 compose files)
+
+**Main docker-compose.yml (955 lines) — 5 profiles:**
+
+| Profile | Services | Count |
+|---------|----------|-------|
+| core | core, api, redis, postgres | 4 |
+| personal | litellm, n8n, firecrawl, mem0, dify-api, dify-web, dify-worker, qdrant, tts, stt | 10 |
+| observability | prometheus, grafana, loki, promtail, tempo, blackbox-exporter, otel-collector, clickhouse, minio, langfuse-web, langfuse-worker | 11 |
+| industrial | edge-proxy, ops-agent, agent-factory-cockpit, agent-factory-dcs-sandbox | 4 |
+| fine-tuning | ollama, generate-audio | 2 |
+| (no profile) | neo4j, graphiti-mcp | 2 |
+
+**Additional compose files:**
+- deploy/phase2/docker-compose.yml: searxng, paperless (+redis, +db), karakeep (+chrome, +meilisearch) = 7 services
+- deploy/cad/docker-compose.yml: kicad-headless, kicad-mcp, freecad-headless, platformio = 4 services
+- deploy/ops-console/docker-compose.yml: ops-console = 1 service
+
+**Networking:** mascarade-network (bridge), 22 persistent volumes, health checks on ALL services.
+
+### CI/CD Pipeline (.github/workflows/ci.yml)
+
+**9 jobs:** api (Node test+build), web (build), core (pytest), lint (ruff+black),
+compose (validation), docker (GHCR image build, main only), finetune (GPU, 180min,
+self-hosted), deploy (SSH), notify (status).
+
+**Triggers:** Push to main/dev, PRs to main/dev, manual dispatch.
+**Images published to:** ghcr.io/<repo>/core and ghcr.io/<repo>/api
+
+### Deploy Directory (10 Dockerfiles, 20+ configs)
+
+**Dockerfiles (10):**
+- Root: Dockerfile.api, Dockerfile.core, Dockerfile.edge-proxy, Dockerfile.ops-agent, Dockerfile.generate-audio
+- Subdirs: cad/Dockerfile.freecad-headless, cad/Dockerfile.kicad-mcp, cad/Dockerfile.platformio, finetune-metrics-exporter/Dockerfile
+
+**Key configs:**
+- deploy/prometheus/prometheus.yml — 35 scrape job definitions
+- deploy/edge-proxy/default.conf.template — 1,102 lines nginx, 20+ server blocks
+- deploy/grafana/provisioning/ — 6 JSON dashboards (ops, AI runtime, logs, model leaderboard, cost, tooling)
+- deploy/loki/loki-config.yaml — tsdb schema, 24h retention
+- deploy/tempo/tempo.yaml — OTLP receivers, local storage
+- deploy/otel-collector/config.yaml — OpenTelemetry pipeline
+- deploy/clickhouse-config/ — Langfuse user + thread pool tuning
+
+### Scripts Directory (123 scripts)
+
+**Categories:**
+- Docker/Compose management: 7 (compose.sh is 27KB)
+- Fine-tuning & training: 20 scripts
+- Apple LLM/ML operations: 8 scripts
+- Configuration & setup: 13 scripts
+- Infrastructure & edge proxy: 6 scripts
+- Provider integration tests: 6 scripts
+- Database & ops tools: 6 scripts
+- Multi-agent orchestration: 10 scripts (execution_hub.py is 22.8KB)
+- Tools & TUI: 8 scripts
+- P2P mesh: subdirectory with mesh_tui.py, test_mesh.py, node_start_bridge.py
+
+### P2P Mesh (4 nodes, not 5 as spec claimed)
+
+**nodes.yaml topology:**
+- bootstrap: "Photon VM" (192.168.0.119, port 4001, infra role)
+- cils: MacBook validator (192.168.0.210)
+- grosmac: Bridge node (Tailscale 100.80.178.42, M4, orchestrator)
+- kxkm: Remote compute (Tailscale 100.87.54.119, GPU-enabled)
+
+**Implementation:** libp2p + Zeroconf/mDNS + Tailscale VPN + HMAC auth
+**Env vars:** 12 cluster/mesh variables (CLUSTER_ENABLED=false by default)
+
+### Monitoring Stack (LGTM — complete)
+
+- **Prometheus:** 15s scrape, 35 jobs, blackbox synthetic probes
+- **Grafana:** 6 provisioned dashboards, auto-configured datasources
+- **Loki + Promtail:** tsdb v13, 24h retention, Docker + journal log shipping
+- **Tempo:** OTLP traces, 5min block duration
+- **OpenTelemetry Collector:** gRPC/HTTP receivers → Tempo/Prometheus/Loki
+- **ClickHouse:** Langfuse analytics backend
+- **MinIO:** S3-compatible storage for Langfuse media/events
+
+### Edge Proxy (Nginx)
+
+- 1,102-line nginx config template with 20+ server blocks
+- Domain: *.saillant.cc (self-signed + Let's Encrypt ACME via Cloudflare DNS)
+- HTTP/2, WebSocket upgrade, basic auth on ops tools
+- Services proxied: API, Grafana, Langfuse, Ollama, Prometheus, Mem0, Firecrawl, Industrial, SearXNG, Paperless, Karakeep, Zeroclaw, Dify
+
+### Environment Management
+
+- .env.example: 300+ lines covering images (30 SHA256-pinned), ports (25+), credentials (9), provider APIs (10+), cluster (12), ACME (5)
+- .env.vm.example: VM connectivity (11 lines)
+- .env.trials.template: Experimentation environment
+- deploy/phase2/.env.example: Phase 2 services
+
+### Key Findings
+
+1. **45 services total** — spec said 30+, actual is significantly more
+2. **4 P2P nodes, not 5** — spec overcounted
+3. **123 scripts, not 134** — spec overcounted
+4. **compose.sh (27KB)** generates docker-compose.yml dynamically — modularization target
+5. **1,102-line nginx config** — very large, could benefit from splitting
+6. **All images SHA256-pinned** — excellent supply chain security
+7. **Complete LGTM stack** with 6 pre-built Grafana dashboards
+8. **9 CI/CD jobs** including self-hosted GPU runner for fine-tuning
+
+=== END SESSION 5 ===
+
+=== SESSION 6 (Coder — subtask-4-1) ===
+
+## Subtask 4-1: Deep Core Python Code Audit — COMPLETED
+
+Full audit report: core-deep-audit.md
+
+### Key Findings
+
+**server.py (2,751 lines) — Propose split into 15 modules:**
+- 93 route handlers across 15+ logical domains
+- 37 Pydantic models inline (should be in models.py)
+- 3 sets of duplicate imports (asynccontextmanager, StreamingResponse, BaseModel)
+- Orphaned decorator at L419 (@app.post with no function body)
+- Duplicate /metrics route (L1349 vs L2722, second is incomplete)
+- hash_api_key defined locally AND imported from mascarade.auth
+
+**router.py (1,021 lines) — 3 CRITICAL missing imports:**
+- CircuitBreaker (from mascarade.router.circuit_breaker)
+- get_cost_logger (from mascarade.analytics.clickhouse_logger)
+- get_cost_calculator (from mascarade.analytics.cost_calculator)
+- send() method is 285 lines — needs extraction into 4-5 smaller methods
+
+**Provider audit (10 files) — 9/10 consistent:**
+- All implement LLMProvider ABC correctly
+- 9/10 use make_retry decorator consistently
+- kicad_router.py missing make_retry (only inconsistency)
+- mistral.py: send() has response_format, stream() does not
+- All model names current (claude-sonnet-4-6, gpt-4o, etc.)
+- No provider directly uses aiobreaker — circuit breaking at Router level ✅
+
+**cluster.py — Clean:**
+- Minor duplicate socket import, otherwise well-structured
+
+**aiobreaker usage:**
+- Two separate CircuitBreaker implementations exist (router/ vs resilience/)
+- Potential confusion between them
+
+**Notion legacy: ZERO** — fully replaced by knowledge base
+
+**Severity breakdown:** 3 CRITICAL, 5 HIGH, 4 MEDIUM, 3 LOW
+
+=== END SESSION 6 ===
+
+=== SESSION 7 (Coder — subtask-4-3) ===
+
+## Subtask 4-3: Deep Web React Code Audit — COMPLETED
+
+Full audit report: web-deep-audit.md
+
+### Key Findings
+
+**Page decomposition (5 pages → 31 extracted components):**
+- Logs.tsx (1,468 lines): 6 components extractable → main drops to ~200 lines
+- Settings.tsx (1,129 lines): 5 components/hooks extractable, DRY violation between ProviderCard/RuntimeSecretCard
+- OpsHub.tsx (1,092 lines): 6 components extractable → main drops to ~200 lines
+- Orchestrate.tsx (1,028 lines): 6 components extractable, 15+ useState → should use useReducer
+- KillLifeWorkflowEditor.tsx (1,019 lines): 8 components extractable, JSON cloning anti-pattern
+
+**Duplicated utilities (CRITICAL — 5 functions × 2-3 copies):**
+- formatLatency (3 copies: Logs, OpsHub, Orchestrate)
+- formatMcpName, mcpTone, sourceTone (2 copies each: Logs, OpsHub)
+- summarizeMcpServer (2 variants: Logs, OpsHub)
+- Recommendation: extract to lib/formatting.ts (~80 lines, eliminates ~200 lines duplication)
+
+**State management:** 49+ useState hooks across 5 pages, 0 useReducer usage.
+Orchestrate (15 states) and KillLife (10 states) are candidates for useReducer.
+
+**Performance anti-patterns:** Missing useCallback on handlers, JSON.stringify cloning,
+no React.lazy code splitting, inline objects in render paths.
+
+**Test coverage: ZERO** — no tests exist for any web component, hook, or utility.
+
+**Estimated remediation: ~35 hours** across decomposition, DRY extraction, performance fixes, and test foundation.
+
+=== END SESSION 7 ===
+
+=== SESSION 8 (Coder — subtask-4-4) ===
+
+## Subtask 4-4: Deep Finetune Python Code Audit — COMPLETED
+
+Full audit report: finetune-deep-audit.md
+
+### Key Findings
+
+**4 large scripts analyzed with decomposition proposals:**
+- model_selector.py (1,746 lines, 51 functions) → 5 modules
+- batch_local.py (1,628 lines, 38 functions) → 5 modules
+- distill_dataset.py (1,324 lines, 41 functions) → 4 modules
+- dataset_refresh.py (1,207 lines, 23 functions) → 4 modules
+
+**Dataset builder consistency (10 builders, 9,414 lines):**
+- All 10 follow identical pattern: SYSTEM_PROMPT → SEED_EXAMPLES → build_from_huggingface() → main()
+- Missing `components` builder — domain in SUPPORTED_DOMAINS (11) but only 10 builders exist
+- Spice builder has unique `build_from_external()` not in other builders
+
+**Error handling gaps:**
+- model_selector.py: 21 except clauses, ~15 broad catches silently swallowing errors
+- batch_local.py: No subprocess timeout handling — can hang forever
+- distill_dataset.py: LocalHFTeacher has no OOM recovery
+- dataset_refresh.py: Under-protected (only 3 except in 1,207 lines)
+
+**VRAM management:** Spread across 13 files, heuristic-based, no runtime OOM recovery
+
+**Batch/resume:** File-existence-only skip logic, no mid-domain checkpointing, no training resume
+
+**Test coverage: ZERO** — no test files in entire finetune/ directory
+
+**9 actionable findings** rated by severity and effort in audit report.
+
+=== END SESSION 8 ===
+
+=== SESSION 9 (Coder — subtask-6-1) ===
+
+## Subtask 6-1: Cross-Validation of All 5 Output Documents — COMPLETED
+
+### Validation Matrix
+
+| # | Document | Exists | Key Criteria | Status |
+|---|----------|--------|-------------|--------|
+| 1 | docs/PROJECT_STATE_ANALYSIS.md | ✅ | Covers core, api, web, finetune | ✅ PASS |
+| 2 | docs/CONSOLIDATED_TASKS.md | ✅ | References all 7 TODO files + plan.md + EXECUTION_PLAN | ✅ PASS |
+| 3 | docs/OSS_RESEARCH.md | ✅ | 137 table rows (comparison tables present) | ✅ PASS |
+| 4 | docs/CODE_AUDIT_REPORT.md | ✅ | 13 findings (F-001–F-013) with file:line refs | ✅ PASS |
+| 5 | docs/OPTIMIZATION_OPPORTUNITIES.md | ✅ | 21 effort/impact references | ✅ PASS |
+
+### Source Code Integrity
+- `git diff --name-only` shows ONLY docs/ and .auto-claude/ changes — ✅ NO source code modified
+
+### TODO File Coverage (7 files referenced in CONSOLIDATED_TASKS.md)
+All 6 root TODO files confirmed: TODO_VM.md, TODO_COCKPIT_OPS.md, TODO_IMPLEMENTE.md,
+TODO_CAD_KICAD.md, TODO_TUNNING_PARTY.md, TODO_AI_NOVEL_ENGINE.md
+Plus docs/TODO_2026-03-10.md (7th) and plan.md, EXECUTION_PLAN as bonus sources.
+
+### Test Regression Check
+- ⚠️ BLOCKED: pytest not installed in core/.venv and network proxy blocks pip install
+- Core tests cannot be executed in this environment
+- No source code was modified, so regression risk is zero
+
+### Chaining Verification
+- CONSOLIDATED_TASKS.md structured with P0-P4 priorities across 4 axes (Core, API, Web, Finetune)
+- Enables direct chaining into implementation phases
+
+=== END SESSION 9 ===
