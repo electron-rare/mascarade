@@ -69,6 +69,7 @@ from mascarade.device_voice import (
 )
 from mascarade.router import Router
 from mascarade.router.router import Strategy
+from mascarade.routers.chat import router as chat_router
 from mascarade.routers.health import router as health_router
 from mascarade.usage_tracking import get_all_usage_stats
 
@@ -2695,6 +2696,7 @@ async def device_voice_reply_audio(reply_id: str, request: Request):
 
 
 app.include_router(health_router)
+app.include_router(chat_router)
 app.include_router(protected)
 app.include_router(cluster_protected)
 
