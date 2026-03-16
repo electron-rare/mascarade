@@ -252,8 +252,61 @@ class AIWorker(NodeWorker):
         config: dict[str, Any],
         context: Any,
     ) -> dict[str, Any]:
-        """Execute ai.llm-stream node (stub for future implementation)."""
-        raise NotImplementedError("ai.llm-stream execution not yet implemented")
+        """
+        Execute ai.llm-stream node.
+
+        Wraps Router.stream() to provide streaming LLM inference via the graph engine.
+        Returns an AsyncIterator that yields tokens as they are generated.
+
+        Expected inputs:
+        - prompt (required): User prompt string
+        - system (optional): System prompt string
+
+        Expected config:
+        - model (optional): Model name (e.g., "gpt-4")
+        - provider (optional): Provider name (e.g., "openai")
+        - temperature (optional): Temperature (default: 0.7)
+        - max_tokens (optional): Max output tokens (default: 4096)
+        - strategy (optional): Routing strategy (default: "best")
+        - routing_policy (optional): RouteLLM policy (default: "auto")
+        - domain (optional): Domain for domain-aware routing
+
+        Returns:
+            Dictionary with "stream" key containing AsyncIterator[str]
+        """
+        # Extract required inputs
+        prompt = inputs["prompt"]
+
+        # Extract optional inputs
+        system = inputs.get("system")
+
+        # Extract config parameters with defaults
+        model = config.get("model")
+        provider = config.get("provider")
+        temperature = config.get("temperature", 0.7)
+        max_tokens = config.get("max_tokens", 4096)
+        strategy = config.get("strategy", "best")
+        routing_policy = config.get("routing_policy")
+        domain = config.get("domain")
+
+        # Build messages list (simple user message)
+        messages = [{"role": "user", "content": prompt}]
+
+        # Call Router.stream() with extracted parameters and return the async iterator
+        stream = self.router.stream(
+            messages,
+            strategy=strategy,
+            routing_policy=routing_policy,
+            provider=provider,
+            model=model,
+            system=system,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            domain=domain,
+        )
+
+        # Return stream wrapped in output dict
+        return {"stream": stream}
 
     def _validate_llm_inference(
         self,

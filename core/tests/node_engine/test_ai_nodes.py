@@ -24,7 +24,14 @@ def mock_router(monkeypatch):
             usage={"input_tokens": 10, "output_tokens": 20},
         )
 
+    # Mock the stream method to return an async iterator
+    async def mock_stream(*args, **kwargs):
+        tokens = ["Test", " ", "streaming", " ", "response"]
+        for token in tokens:
+            yield token
+
     monkeypatch.setattr(router, "send", mock_send)
+    monkeypatch.setattr(router, "stream", mock_stream)
     return router
 
 
@@ -94,3 +101,76 @@ class TestLLMInference:
         assert "response" in result
         response = result["response"]
         assert isinstance(response, LLMResponse)
+
+
+class TestLLMStream:
+    """Test suite for ai.llm-stream execution."""
+
+    @pytest.mark.asyncio
+    async def test_llm_stream(self, ai_worker):
+        """Test basic LLM streaming with prompt."""
+        result = await ai_worker.execute(
+            node_type="ai.llm-stream",
+            inputs={"prompt": "Hello, world!"},
+            config={},
+            context=None,
+        )
+
+        assert "stream" in result
+        stream = result["stream"]
+
+        # Collect all tokens from the stream
+        tokens = []
+        async for token in stream:
+            tokens.append(token)
+
+        # Verify we received the expected tokens
+        assert len(tokens) == 5
+        assert "".join(tokens) == "Test streaming response"
+
+    @pytest.mark.asyncio
+    async def test_llm_stream_with_config(self, ai_worker):
+        """Test LLM streaming with custom config parameters."""
+        result = await ai_worker.execute(
+            node_type="ai.llm-stream",
+            inputs={"prompt": "Test prompt"},
+            config={
+                "model": "custom-model",
+                "temperature": 0.5,
+                "max_tokens": 2048,
+            },
+            context=None,
+        )
+
+        assert "stream" in result
+        stream = result["stream"]
+
+        # Verify stream is iterable
+        tokens = []
+        async for token in stream:
+            tokens.append(token)
+
+        assert len(tokens) > 0
+
+    @pytest.mark.asyncio
+    async def test_llm_stream_with_system(self, ai_worker):
+        """Test LLM streaming with system prompt."""
+        result = await ai_worker.execute(
+            node_type="ai.llm-stream",
+            inputs={
+                "prompt": "What is 2+2?",
+                "system": "You are a helpful math tutor.",
+            },
+            config={},
+            context=None,
+        )
+
+        assert "stream" in result
+        stream = result["stream"]
+
+        # Verify stream is iterable
+        tokens = []
+        async for token in stream:
+            tokens.append(token)
+
+        assert len(tokens) > 0
