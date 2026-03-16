@@ -449,3 +449,46 @@ self-hosted), deploy (SSH), notify (status).
 8. **9 CI/CD jobs** including self-hosted GPU runner for fine-tuning
 
 === END SESSION 5 ===
+
+=== SESSION 6 (Coder — subtask-4-1) ===
+
+## Subtask 4-1: Deep Core Python Code Audit — COMPLETED
+
+Full audit report: core-deep-audit.md
+
+### Key Findings
+
+**server.py (2,751 lines) — Propose split into 15 modules:**
+- 93 route handlers across 15+ logical domains
+- 37 Pydantic models inline (should be in models.py)
+- 3 sets of duplicate imports (asynccontextmanager, StreamingResponse, BaseModel)
+- Orphaned decorator at L419 (@app.post with no function body)
+- Duplicate /metrics route (L1349 vs L2722, second is incomplete)
+- hash_api_key defined locally AND imported from mascarade.auth
+
+**router.py (1,021 lines) — 3 CRITICAL missing imports:**
+- CircuitBreaker (from mascarade.router.circuit_breaker)
+- get_cost_logger (from mascarade.analytics.clickhouse_logger)
+- get_cost_calculator (from mascarade.analytics.cost_calculator)
+- send() method is 285 lines — needs extraction into 4-5 smaller methods
+
+**Provider audit (10 files) — 9/10 consistent:**
+- All implement LLMProvider ABC correctly
+- 9/10 use make_retry decorator consistently
+- kicad_router.py missing make_retry (only inconsistency)
+- mistral.py: send() has response_format, stream() does not
+- All model names current (claude-sonnet-4-6, gpt-4o, etc.)
+- No provider directly uses aiobreaker — circuit breaking at Router level ✅
+
+**cluster.py — Clean:**
+- Minor duplicate socket import, otherwise well-structured
+
+**aiobreaker usage:**
+- Two separate CircuitBreaker implementations exist (router/ vs resilience/)
+- Potential confusion between them
+
+**Notion legacy: ZERO** — fully replaced by knowledge base
+
+**Severity breakdown:** 3 CRITICAL, 5 HIGH, 4 MEDIUM, 3 LOW
+
+=== END SESSION 6 ===
