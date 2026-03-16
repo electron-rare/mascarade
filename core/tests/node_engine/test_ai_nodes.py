@@ -174,3 +174,63 @@ class TestLLMStream:
             tokens.append(token)
 
         assert len(tokens) > 0
+
+
+class TestBatchInference:
+    """Test suite for ai.batch-inference execution."""
+
+    @pytest.mark.asyncio
+    async def test_batch_inference(self, ai_worker):
+        """Test batch inference with multiple prompts."""
+        result = await ai_worker.execute(
+            node_type="ai.batch-inference",
+            inputs={"prompts": ["Hello", "World", "Test"]},
+            config={},
+            context=None,
+        )
+
+        assert "responses" in result
+        responses = result["responses"]
+        assert isinstance(responses, list)
+        assert len(responses) == 3
+
+        # Verify each response is an LLMResponse
+        for response in responses:
+            assert isinstance(response, LLMResponse)
+            assert response.content == "Test response"
+            assert response.model == "test-model"
+            assert response.provider == "test-provider"
+
+    @pytest.mark.asyncio
+    async def test_batch_inference_with_config(self, ai_worker):
+        """Test batch inference with custom config parameters."""
+        result = await ai_worker.execute(
+            node_type="ai.batch-inference",
+            inputs={"prompts": ["Prompt 1", "Prompt 2"]},
+            config={
+                "model": "custom-model",
+                "temperature": 0.5,
+                "max_tokens": 2048,
+            },
+            context=None,
+        )
+
+        assert "responses" in result
+        responses = result["responses"]
+        assert isinstance(responses, list)
+        assert len(responses) == 2
+
+    @pytest.mark.asyncio
+    async def test_batch_inference_empty_list(self, ai_worker):
+        """Test batch inference with empty prompts list."""
+        result = await ai_worker.execute(
+            node_type="ai.batch-inference",
+            inputs={"prompts": []},
+            config={},
+            context=None,
+        )
+
+        assert "responses" in result
+        responses = result["responses"]
+        assert isinstance(responses, list)
+        assert len(responses) == 0

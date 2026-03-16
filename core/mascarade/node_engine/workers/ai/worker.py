@@ -95,6 +95,8 @@ class AIWorker(NodeWorker):
             return await self._execute_agent_dispatch(inputs, config, context)
         elif node_type == "ai.llm-stream":
             return await self._execute_llm_stream(inputs, config, context)
+        elif node_type == "ai.batch-inference":
+            return await self._execute_batch_inference(inputs, config, context)
         else:
             raise ValueError(f"Unsupported node type: {node_type}")
 
@@ -130,6 +132,8 @@ class AIWorker(NodeWorker):
             errors.extend(self._validate_agent_dispatch(inputs, config))
         elif node_type == "ai.llm-stream":
             errors.extend(self._validate_llm_stream(inputs, config))
+        elif node_type == "ai.batch-inference":
+            errors.extend(self._validate_batch_inference(inputs, config))
         else:
             errors.append(f"Unsupported node type: {node_type}")
 
@@ -151,6 +155,7 @@ class AIWorker(NodeWorker):
                 "ai.llm-inference",
                 "ai.agent-dispatch",
                 "ai.llm-stream",
+                "ai.batch-inference",
             ],
             "domain": "ai",
             "supports_streaming": True,
@@ -397,3 +402,107 @@ class AIWorker(NodeWorker):
         """
         # Same validation as llm-inference
         return self._validate_llm_inference(inputs, config)
+    async def _execute_batch_inference(
+        self,
+        inputs: dict[str, Any],
+        config: dict[str, Any],
+        context: Any,
+    ) -> dict[str, Any]:
+        """
+        Execute ai.batch-inference node.
+
+        Processes multiple prompts in parallel using asyncio.gather() to batch
+        LLM inference calls. This is more efficient than sequential execution
+        when processing multiple independent prompts.
+
+        Expected inputs:
+        - prompts (required): List of prompt strings to process in parallel
+
+        Expected config:
+        - model (optional): Model name (e.g., "gpt-4")
+        - provider (optional): Provider name (e.g., "openai")
+        - temperature (optional): Temperature (default: 0.7)
+        - max_tokens (optional): Max output tokens (default: 4096)
+        - strategy (optional): Routing strategy (default: "best")
+        - routing_policy (optional): RouteLLM policy (default: "auto")
+        - max_concurrent (optional): Max concurrent requests (default: 10)
+
+        Returns:
+            Dictionary with "responses" key containing list of LLMResponse objects
+        """
+        import asyncio
+
+        # Extract required inputs
+        prompts = inputs["prompts"]
+
+        # Extract optional inputs
+        system = inputs.get("system")
+
+        # Extract config parameters with defaults
+        model = config.get("model")
+        provider = config.get("provider")
+        temperature = config.get("temperature", 0.7)
+        max_tokens = config.get("max_tokens", 4096)
+        strategy = config.get("strategy", "best")
+        routing_policy = config.get("routing_policy")
+        max_concurrent = config.get("max_concurrent", 10)
+
+        # If prompts list is empty, return empty responses list
+        if not prompts:
+            return {"responses": []}
+
+        # Helper function to process a single prompt
+        async def _process_prompt(prompt: str):
+            messages = [{"role": "user", "content": prompt}]
+            return await self.router.send(
+                messages,
+                strategy=strategy,
+                routing_policy=routing_policy,
+                provider=provider,
+                model=model,
+                system=system,
+                temperature=temperature,
+                max_tokens=max_tokens,
+            )
+
+        # Process prompts in parallel using asyncio.gather
+        # If there are more prompts than max_concurrent, process in batches
+        if len(prompts) <= max_concurrent:
+            # Process all prompts at once
+            responses = await asyncio.gather(*[_process_prompt(p) for p in prompts])
+        else:
+            # Process in batches to respect max_concurrent limit
+            responses = []
+            for i in range(0, len(prompts), max_concurrent):
+                batch = prompts[i:i + max_concurrent]
+                batch_responses = await asyncio.gather(*[_process_prompt(p) for p in batch])
+                responses.extend(batch_responses)
+
+        # Return responses wrapped in output dict
+        return {"responses": responses}
+
+    def _validate_batch_inference(
+        self,
+        inputs: dict[str, Any],
+        config: dict[str, Any],
+    ) -> list[str]:
+        """Validate ai.batch-inference node inputs and configuration.
+
+        Required inputs:
+        - prompts: List of prompt strings to process in parallel
+
+        Args:
+            inputs: Dictionary of input port values
+            config: Node configuration parameters
+
+        Returns:
+            List of validation error messages. Empty if valid.
+        """
+        errors: list[str] = []
+
+        if "prompts" not in inputs:
+            errors.append("Missing required input: prompts")
+        elif not isinstance(inputs["prompts"], list):
+            errors.append("Input 'prompts' must be a list")
+
+        return errors
