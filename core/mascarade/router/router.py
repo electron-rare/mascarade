@@ -9,6 +9,7 @@ from collections.abc import AsyncIterator
 from enum import StrEnum
 from typing import Any
 
+from mascarade.analytics import COST_METRICS
 from mascarade.analytics.clickhouse_logger import get_cost_logger
 from mascarade.analytics.cost_calculator import get_cost_calculator
 from mascarade.cache.multi_tier_cache import MultiTierCache
@@ -269,13 +270,6 @@ class Router:
             best_value = min(p.speed_rank for p in providers)
             return [p for p in providers if p.speed_rank == best_value]
 
-        # Sort candidates by health score (descending - healthiest first)
-        candidates_with_health = [
-            (p, self.health_monitor.get_provider_health(p.name).health_score)
-            for p in candidates
-        ]
-        candidates_with_health.sort(key=lambda x: x[1], reverse=True)
-
         # Strategy is BEST - use domain-aware ranking if available
         if domain and self.benchmark_storage:
             benchmark_candidates = self._select_by_benchmarks(domain)
@@ -291,9 +285,8 @@ class Router:
             )
 
         # Fallback to static quality_rank
-        best_value = max(p.quality_rank for p in providers)
-        return [p for p in providers if p.quality_rank == best_value]
-        return [p for p, _ in candidates_with_health]
+        best_value = max(p.quality_rank for p in healthy_providers)
+        return [p for p in healthy_providers if p.quality_rank == best_value]
 
     def _select_by_benchmarks(self, domain: str) -> list[LLMProvider]:
         """
@@ -817,15 +810,15 @@ class Router:
                     domain=domain,
                 )
 
-            # Track usage for user if user_id provided
-            if user_id is not None:
-                await track_usage(
-                    user_id=user_id,
-                    provider=selected.name,
-                    model=response.model,
-                    usage=response.usage or {},
-                    cost=self._calculate_cost(selected, response.usage or {}),
-                )
+            # TODO: Add user_id parameter if needed for usage tracking
+            # if user_id is not None:
+            #     await track_usage(
+            #         user_id=user_id,
+            #         provider=selected.name,
+            #         model=response.model,
+            #         usage=response.usage or {},
+            #         cost=self._calculate_cost(selected, response.usage or {}),
+            #     )
 
             return response
 
@@ -983,16 +976,16 @@ class Router:
                 success=True,
             )
 
-            # Track usage for user if user_id provided
+            # TODO: Add user_id parameter if needed for usage tracking
             # Note: streaming doesn't provide token counts, so we track 0 tokens
-            if user_id is not None:
-                await track_usage(
-                    user_id=user_id,
-                    provider=selected.name,
-                    model=model or selected.default_model,
-                    usage={},
-                    cost=0.0,
-                )
+            # if user_id is not None:
+            #     await track_usage(
+            #         user_id=user_id,
+            #         provider=selected.name,
+            #         model=model or selected.default_model,
+            #         usage={},
+            #         cost=0.0,
+            #     )
 
             COST_METRICS.track_request(
                 provider=selected.name,
