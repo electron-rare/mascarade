@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings
 
 _PLACEHOLDER_SECRETS = {
@@ -11,8 +12,12 @@ _PLACEHOLDER_SECRETS = {
 }
 
 
-def is_secret_configured(value: str) -> bool:
+def is_secret_configured(value: str | SecretStr) -> bool:
     """Return True only for non-placeholder secret values."""
+    # Handle SecretStr type
+    if isinstance(value, SecretStr):
+        value = value.get_secret_value()
+
     normalized = value.strip()
     if not normalized:
         return False
@@ -27,39 +32,39 @@ class Settings(BaseSettings):
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8", "extra": "ignore"}
 
     # LLM API keys
-    anthropic_api_key: str = ""
-    openai_api_key: str = ""
-    mistral_api_key: str = ""
-    google_api_key: str = ""
+    anthropic_api_key: SecretStr = Field(default=SecretStr(""), repr=False)
+    openai_api_key: SecretStr = Field(default=SecretStr(""), repr=False)
+    mistral_api_key: SecretStr = Field(default=SecretStr(""), repr=False)
+    google_api_key: SecretStr = Field(default=SecretStr(""), repr=False)
     google_auth_mode: str = "api_key"
-    huggingface_api_key: str = ""
+    huggingface_api_key: SecretStr = Field(default=SecretStr(""), repr=False)
     huggingface_auth_mode: str = "api_key"
     huggingface_base_url: str = "https://router.huggingface.co/v1"
     huggingface_model: str = "meta-llama/Meta-Llama-3.1-8B-Instruct"
-    huggingface_oauth_access_token: str = ""
-    huggingface_oauth_refresh_token: str = ""
-    huggingface_oauth_client_id: str = ""
-    huggingface_oauth_client_secret: str = ""
+    huggingface_oauth_access_token: SecretStr = Field(default=SecretStr(""), repr=False)
+    huggingface_oauth_refresh_token: SecretStr = Field(default=SecretStr(""), repr=False)
+    huggingface_oauth_client_id: SecretStr = Field(default=SecretStr(""), repr=False)
+    huggingface_oauth_client_secret: SecretStr = Field(default=SecretStr(""), repr=False)
     huggingface_oauth_token_endpoint: str = "https://huggingface.co/oauth/token"
     huggingface_oauth_expires_at: str = ""
 
     # AWS Bedrock
-    aws_access_key_id: str = ""
-    aws_secret_access_key: str = ""
-    aws_session_token: str = ""
+    aws_access_key_id: SecretStr = Field(default=SecretStr(""), repr=False)
+    aws_secret_access_key: SecretStr = Field(default=SecretStr(""), repr=False)
+    aws_session_token: SecretStr = Field(default=SecretStr(""), repr=False)
     aws_region: str = "eu-west-1"
     aws_bedrock_model_id: str = "anthropic.claude-3-5-sonnet-20241022-v2:0"
 
     # Google / Gemini
-    google_oauth_access_token: str = ""
-    google_oauth_refresh_token: str = ""
-    google_oauth_client_id: str = ""
-    google_oauth_client_secret: str = ""
+    google_oauth_access_token: SecretStr = Field(default=SecretStr(""), repr=False)
+    google_oauth_refresh_token: SecretStr = Field(default=SecretStr(""), repr=False)
+    google_oauth_client_id: SecretStr = Field(default=SecretStr(""), repr=False)
+    google_oauth_client_secret: SecretStr = Field(default=SecretStr(""), repr=False)
     google_oauth_token_endpoint: str = "https://oauth2.googleapis.com/token"
     google_oauth_expires_at: str = ""
     google_cloud_project: str = ""
     google_cloud_location: str = "europe-west1"
-    google_application_credentials: str = ""
+    google_application_credentials: SecretStr = Field(default=SecretStr(""), repr=False)
     google_model: str = "gemini-2.5-flash"
 
     # Knowledge base provider
@@ -67,17 +72,17 @@ class Settings(BaseSettings):
     knowledge_base_smoke_page_id: str = ""
     memos_base_url: str = ""
     memos_public_url: str = ""
-    memos_access_token: str = ""
+    memos_access_token: SecretStr = Field(default=SecretStr(""), repr=False)
     memos_default_visibility: str = "PRIVATE"
     docmost_base_url: str = ""
     docmost_email: str = ""
-    docmost_password: str = ""
+    docmost_password: SecretStr = Field(default=SecretStr(""), repr=False)
     docmost_space_id: str = ""
 
     # GitHub dispatch
     github_dispatch_auth_mode: str = "token"
     github_app_id: str = ""
-    github_app_private_key: str = ""
+    github_app_private_key: SecretStr = Field(default=SecretStr(""), repr=False)
     github_app_installation_id: str = ""
 
     # Ollama
@@ -102,7 +107,10 @@ class Settings(BaseSettings):
     comfyui_url: str = ""
 
     # Database
-    database_url: str = "postgresql://mascarade:mascarade@postgres:5432/mascarade"
+    database_url: SecretStr = Field(
+        default=SecretStr("postgresql://mascarade:mascarade@postgres:5432/mascarade"),
+        repr=False,
+    )
     # Qdrant
     qdrant_url: str = "http://qdrant:6333"
 
@@ -111,9 +119,9 @@ class Settings(BaseSettings):
     core_port: int = 8100
 
     # Authentication
-    mascarade_api_key: str = ""
+    mascarade_api_key: SecretStr = Field(default=SecretStr(""), repr=False)
     cluster_enabled: bool = False
-    cluster_shared_key: str = ""
+    cluster_shared_key: SecretStr = Field(default=SecretStr(""), repr=False)
 
     # Cluster / multi-node
     node_id: str = "node-1"
@@ -162,7 +170,7 @@ class Settings(BaseSettings):
     # ClickHouse
     clickhouse_host: str = "http://clickhouse:8123"
     clickhouse_user: str = "langfuse"
-    clickhouse_password: str = ""
+    clickhouse_password: SecretStr = Field(default=SecretStr(""), repr=False)
     clickhouse_database: str = "default"
 
     # Mistral Studio
@@ -171,7 +179,7 @@ class Settings(BaseSettings):
     mistral_timeout_ms: int = 120000
     litellm_proxy_enabled: bool = False
     litellm_base_url: str = "http://litellm:4000"
-    litellm_master_key: str = ""
+    litellm_master_key: SecretStr = Field(default=SecretStr(""), repr=False)
     routellm_enabled: bool = False
     routellm_threshold: float = 0.58
     routellm_cheap_provider: str = "openai"
