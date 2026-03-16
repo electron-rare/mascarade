@@ -27,6 +27,7 @@ import { analytics } from "./routes/analytics.js";
 import { users } from "./routes/users.js";
 import { p2p } from "./routes/p2p.js";
 import { finetune } from "./routes/finetune.js";
+import { nodes } from "./routes/nodes.js";
 
 const app = new Hono();
 const hasFrontend = existsSync("./public/index.html");
@@ -55,6 +56,7 @@ app.route("/v1/api/industrial", industrial);
 app.route("/v1/api/mcp/industrial", industrialMcp);
 app.route("/v1/api/killlife", killlife);
 app.route("/v1/api/settings", settings);
+app.route("/v1/api/nodes", nodes);
 app.use("/api/auth/*", rateLimitMiddleware);
 app.route("/api/auth", auth);
 // Auth first — reject unauthenticated before consuming rate-limit quota
@@ -77,6 +79,7 @@ app.route("/api/analytics", analytics);
 app.route("/api/users", users);
 app.route("/api/p2p", p2p);
 app.route("/api/finetune", finetune);
+app.route("/api/nodes", nodes);
 
 if (hasFrontend) {
   app.use("/assets/*", serveStatic({ root: "./public" }));
