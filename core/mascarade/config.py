@@ -55,6 +55,11 @@ class Settings(BaseSettings):
     aws_region: str = "eu-west-1"
     aws_bedrock_model_id: str = "anthropic.claude-3-5-sonnet-20241022-v2:0"
 
+    # AWS Secrets Manager integration
+    use_aws_secrets: bool = False
+    aws_secret_name: str = ""
+    aws_secrets_region: str = "eu-west-1"
+
     # Google / Gemini
     google_oauth_access_token: SecretStr = Field(default=SecretStr(""), repr=False)
     google_oauth_refresh_token: SecretStr = Field(default=SecretStr(""), repr=False)
