@@ -25,6 +25,7 @@ from mascarade.router import Router
 from mascarade.routers.agents import router as agents_router
 from mascarade.routers.auth import router as auth_router
 from mascarade.routers.chat import router as chat_router
+from mascarade.routers.finetune import router as finetune_router
 from mascarade.routers.health import router as health_router
 from mascarade.routers.memory import router as memory_router
 from mascarade.routers.providers import router as providers_router
@@ -135,6 +136,10 @@ def create_app() -> FastAPI:
                 "name": "auth",
                 "description": "Authentication and authorization",
             },
+            {
+                "name": "finetune",
+                "description": "Fine-tuning job management",
+            },
         ],
     )
 
@@ -145,6 +150,7 @@ def create_app() -> FastAPI:
     app.include_router(agents_router)
     app.include_router(memory_router)
     app.include_router(providers_router)
+    app.include_router(finetune_router)
 
     return app
 
