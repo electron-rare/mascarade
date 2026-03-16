@@ -5,6 +5,7 @@ suitable for CI environments where external providers are not available.
 """
 
 import asyncio
+import time
 
 from mascarade.router.providers.base import LLMProvider, LLMResponse
 from mascarade.router.router import Router, Strategy
@@ -359,3 +360,28 @@ def test_e2e_token_usage_tracking():
     # Verify token usage is reported
     assert response.usage["input_tokens"] > 0
     assert response.usage["output_tokens"] > 0
+
+
+def test_e2e_basic_performance_tracking():
+    """E2E: Basic performance metrics are reasonable."""
+    router = Router()
+    router._providers.clear()
+
+    openai = MockOpenAIProvider()
+    router.register(openai)
+
+    messages = [{"role": "user", "content": "Performance check"}]
+
+    # Measure basic request latency
+    start = time.perf_counter()
+    response = asyncio.run(
+        router.send(
+            messages,
+            strategy=Strategy.FASTEST,
+        )
+    )
+    elapsed_ms = (time.perf_counter() - start) * 1000
+
+    # Basic sanity check - mock should be fast
+    assert elapsed_ms < 100, f"Mock request took {elapsed_ms:.2f}ms, expected < 100ms"
+    assert response.content is not None
