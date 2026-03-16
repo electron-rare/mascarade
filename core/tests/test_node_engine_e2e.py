@@ -27,13 +27,15 @@ class CalculatorWorker(NodeWorker):
         self._execution_log.append(context.node_id)
 
         if node_type == "math.add":
-            a = inputs.get("a", 0)
-            b = inputs.get("b", 0)
+            # Check inputs first, then fall back to config
+            a = inputs.get("a", config.get("a", 0))
+            b = inputs.get("b", config.get("b", 0))
             return {"result": a + b}
 
         if node_type == "math.multiply":
-            a = inputs.get("a", 1)
-            b = inputs.get("b", 1)
+            # Check inputs first, then fall back to config
+            a = inputs.get("a", config.get("a", 1))
+            b = inputs.get("b", config.get("b", 1))
             return {"result": a * b}
 
         if node_type == "math.constant":
@@ -66,17 +68,20 @@ class StringWorker(NodeWorker):
     async def execute(self, node_type, inputs, config, context):
         """Execute string operations."""
         if node_type == "text.concat":
-            a = inputs.get("a", "")
-            b = inputs.get("b", "")
+            # Check inputs first, then fall back to config
+            a = inputs.get("a", config.get("a", ""))
+            b = inputs.get("b", config.get("b", ""))
             return {"result": a + b}
 
         if node_type == "text.upper":
-            text = inputs.get("text", "")
+            # Check inputs first, then fall back to config
+            text = inputs.get("text", config.get("text", ""))
             return {"result": text.upper()}
 
         if node_type == "text.repeat":
-            text = inputs.get("text", "")
-            count = inputs.get("count", 1)
+            # Check inputs first, then fall back to config
+            text = inputs.get("text", config.get("text", ""))
+            count = inputs.get("count", config.get("count", 1))
             return {"result": text * count}
 
         raise ValueError(f"Unknown node type: {node_type}")
