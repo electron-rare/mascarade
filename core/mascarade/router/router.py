@@ -9,6 +9,8 @@ from collections.abc import AsyncIterator
 from enum import StrEnum
 from typing import Any
 
+from mascarade.analytics.clickhouse_logger import get_cost_logger
+from mascarade.analytics.cost_calculator import get_cost_calculator
 from mascarade.cache.multi_tier_cache import MultiTierCache
 from mascarade.config import settings
 from mascarade.load_balancer.balancer import LoadBalancer
@@ -17,6 +19,7 @@ from mascarade.observability.langfuse import (
     start_langfuse_generation,
     update_langfuse_generation,
 )
+from mascarade.router.circuit_breaker import CircuitBreaker
 from mascarade.router.fallback import FallbackState
 from mascarade.router.model_registry import ModelRegistry
 from mascarade.router.health_monitor import HealthMonitor
