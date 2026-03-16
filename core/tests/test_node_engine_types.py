@@ -182,7 +182,7 @@ class TestDomainType:
     def test_domain_type_serialization(self):
         """Domain type should serialize correctly."""
         dt = DomainType(domain="ai", name="Embedding", schema_def={"vector": "array"})
-        data = dt.model_dump()
+        data = dt.model_dump(by_alias=True)
         assert data["kind"] == "domain"
         assert data["domain"] == "ai"
         assert data["name"] == "Embedding"

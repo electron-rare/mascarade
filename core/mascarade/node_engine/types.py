@@ -49,6 +49,8 @@ class StreamType(BaseModel):
 
 
 class DomainType(BaseModel):
+    model_config = {"populate_by_name": True}
+
     kind: Literal["domain"] = "domain"
     domain: str
     name: str
