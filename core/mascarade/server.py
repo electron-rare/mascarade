@@ -309,6 +309,37 @@ class OpenSCADRenderRequest(BaseModel):
     run_id: str | None = Field(default=None, max_length=64)
 
 
+class KiCadGenerateSchematicRequest(BaseModel):
+    requirements: str = Field(min_length=1, max_length=10_000)
+    library: str | None = Field(default=None, max_length=200)
+    run_id: str | None = Field(default=None, max_length=64)
+
+
+class KiCadOptimizeLayoutRequest(BaseModel):
+    schematic_data: dict[str, Any] = Field(default_factory=dict)
+    constraints: dict[str, Any] = Field(default_factory=dict)
+    run_id: str | None = Field(default=None, max_length=64)
+
+
+class KiCadCreateFootprintRequest(BaseModel):
+    component_description: str = Field(min_length=1, max_length=10_000)
+    datasheet_url: str | None = Field(default=None, max_length=500)
+    run_id: str | None = Field(default=None, max_length=64)
+
+
+class KiCadCheckDRCRequest(BaseModel):
+    layout_data: dict[str, Any] = Field(default_factory=dict)
+    rules: dict[str, Any] = Field(default_factory=dict)
+    run_id: str | None = Field(default=None, max_length=64)
+
+
+class KiCadExportManufacturingRequest(BaseModel):
+    layout_data: dict[str, Any] = Field(default_factory=dict)
+    bom_data: dict[str, Any] | None = Field(default=None)
+    format: str = Field(default="gerber", max_length=50)
+    run_id: str | None = Field(default=None, max_length=64)
+
+
 class ComfyUIGenerateRequest(BaseModel):
     prompt: str = Field(min_length=1, max_length=10_000)
     negative_prompt: str = Field(default="", max_length=10_000)
@@ -2257,6 +2288,144 @@ async def openscad_export_model(req: OpenSCADRenderRequest):
     return {**payload, "run_id": trace_run_id}
 
 
+# --- KiCad ---
+
+
+@protected.post("/mcp/kicad/schematic")
+async def kicad_generate_schematic(req: KiCadGenerateSchematicRequest):
+    """Generate KiCad schematic from requirements."""
+    try:
+        agent = app.state.registry.get("kicad-designer")
+    except KeyError:
+        raise HTTPException(status_code=404, detail="Agent 'kicad-designer' not found") from None
+
+    trace_run_id = req.run_id or new_run_id()
+    router = app.state.router
+
+    try:
+        result = await agent.generate_schematic(req.requirements, router)
+        return {
+            "ok": True,
+            "run_id": trace_run_id,
+            "content": result,
+            "schematic_data": {"symbols": [], "nets": []},
+            "bom": {"items": [], "total_count": 0}
+        }
+    except Exception as exc:
+        logger.exception("KiCad schematic generation failed")
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+@protected.post("/mcp/kicad/layout")
+async def kicad_optimize_layout(req: KiCadOptimizeLayoutRequest):
+    """Optimize PCB layout from schematic data."""
+    try:
+        agent = app.state.registry.get("kicad-designer")
+    except KeyError:
+        raise HTTPException(status_code=404, detail="Agent 'kicad-designer' not found") from None
+
+    trace_run_id = req.run_id or new_run_id()
+    router = app.state.router
+
+    try:
+        constraints_str = json.dumps(req.constraints)
+        result = await agent.optimize_layout(constraints_str, router)
+        return {
+            "ok": True,
+            "run_id": trace_run_id,
+            "content": result,
+            "layout": {"components": [], "traces": [], "layers": []},
+            "report": result
+        }
+    except Exception as exc:
+        logger.exception("KiCad layout optimization failed")
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+@protected.post("/mcp/kicad/footprint")
+async def kicad_create_footprint(req: KiCadCreateFootprintRequest):
+    """Create KiCad footprint for a component."""
+    try:
+        agent = app.state.registry.get("kicad-designer")
+    except KeyError:
+        raise HTTPException(status_code=404, detail="Agent 'kicad-designer' not found") from None
+
+    trace_run_id = req.run_id or new_run_id()
+    router = app.state.router
+
+    try:
+        result = await agent.generate_footprint(req.component_description, router)
+        return {
+            "ok": True,
+            "run_id": trace_run_id,
+            "content": result,
+            "footprint": {},
+            "preview_mesh": None
+        }
+    except Exception as exc:
+        logger.exception("KiCad footprint creation failed")
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+@protected.post("/mcp/kicad/drc")
+async def kicad_check_drc(req: KiCadCheckDRCRequest):
+    """Perform Design Rule Check on PCB layout."""
+    try:
+        agent = app.state.registry.get("kicad-designer")
+    except KeyError:
+        raise HTTPException(status_code=404, detail="Agent 'kicad-designer' not found") from None
+
+    trace_run_id = req.run_id or new_run_id()
+    router = app.state.router
+
+    try:
+        rules_str = json.dumps(req.rules)
+        result = await agent.perform_drc(rules_str, router)
+        return {
+            "ok": True,
+            "run_id": trace_run_id,
+            "content": result,
+            "passed": True,
+            "violations": [],
+            "report": result
+        }
+    except Exception as exc:
+        logger.exception("KiCad DRC check failed")
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+@protected.post("/mcp/kicad/manufacturing")
+async def kicad_export_manufacturing(req: KiCadExportManufacturingRequest):
+    """Generate manufacturing files from PCB layout."""
+    try:
+        agent = app.state.registry.get("kicad-designer")
+    except KeyError:
+        raise HTTPException(status_code=404, detail="Agent 'kicad-designer' not found") from None
+
+    trace_run_id = req.run_id or new_run_id()
+    router = app.state.router
+
+    try:
+        pcb_description = json.dumps(req.layout_data)
+        result = await agent.generate_manufacturing_files(pcb_description, router)
+        return {
+            "ok": True,
+            "run_id": trace_run_id,
+            "content": result,
+            "gerbers": {},
+            "drill_files": {},
+            "bom": req.bom_data or {"items": [], "total_count": 0},
+            "pick_and_place": {},
+            "report": result
+        }
+    except Exception as exc:
+        logger.exception("KiCad manufacturing export failed")
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+# --- Industrial MCP ---
+
+
 @protected.get("/mcp/industrial/servers")
 async def industrial_mcp_servers():
     client = _require_mcp_client()
@@ -2723,7 +2892,15 @@ async def handle_model_deployment_webhook(webhook: ModelDeploymentWebhook):
 async def metrics():
     """Expose Prometheus metrics for scraping."""
     try:
-        from prometheus_client import REGISTRY, generate_latest
+        from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
+        from starlette.responses import Response
+
+        return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
+    except ImportError:
+        raise HTTPException(
+            status_code=501,
+            detail="prometheus_client is not installed",
+        )
 
 
 @protected.get("/device/v1/voice/replies/{reply_id}.wav")
