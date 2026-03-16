@@ -546,3 +546,63 @@ def test_chain_of_thought_graph(runtime):
 
     # Verify usage tracking
     assert isinstance(result.outputs["usage"], dict)
+
+
+def test_agent_orchestration(runtime):
+    """Test end-to-end agent dispatch and orchestration."""
+    from mascarade.agents.base import Agent
+    from mascarade.router.router import Strategy
+
+    # Create and register a mock agent
+    mock_agent = Agent(
+        name="test-assistant",
+        description="A test assistant agent",
+        system_prompt="You are a helpful test assistant.",
+        strategy=Strategy.BEST,
+        temperature=0.5,
+    )
+    # Access the AI worker from the runtime and register the agent
+    ai_worker = runtime.workers["ai"]
+    ai_worker.registry.register(mock_agent)
+
+    # Create a graph with agent-dispatch node
+    graph = Graph(
+        nodes=[
+            Node(
+                id="agent1",
+                type="ai.agent-dispatch",
+                inputs={
+                    "agent_name": "test-assistant",
+                    "message": "Hello, how are you?",
+                },
+                config={},
+            ),
+        ],
+        metadata={"id": "agent-dispatch-test", "name": "Agent Dispatch Test"},
+    )
+
+    # Execute the graph
+    context = asyncio.run(runtime.execute(graph))
+
+    # Verify execution succeeded
+    assert context.status == ExecutionStatus.COMPLETED
+    assert len(context.node_results) == 1
+
+    # Verify agent dispatch node execution
+    result = context.node_results["agent1"]
+    assert result.status == ExecutionStatus.COMPLETED
+    assert result.worker_name == "ai-worker"
+
+    # Verify output structure
+    assert "response" in result.outputs
+    response = result.outputs["response"]
+
+    # Verify agent response - the mock provider will echo the message
+    assert response.content == "Response to: Hello, how are you?"
+    assert response.model == "mock-model"
+    assert response.provider == "mock"
+
+    # Verify usage tracking
+    assert response.usage["input_tokens"] == 10
+    assert response.usage["output_tokens"] == 20
+    assert response.usage["total_tokens"] == 30
