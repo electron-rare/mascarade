@@ -41,6 +41,17 @@ libp2p = [
     "redis>=5.2,<6",
     "tiktoken>=0.9,<1",
 ]
+finetune = [
+    # Unsloth GPU fine-tuning (P3) - auto-detects CUDA, graceful CPU fallback
+    "torch>=2.5.0,<3",
+    "unsloth>=2024.12",
+    "transformers>=4.57.6,<6",
+    "peft>=0.18.0,<1",
+    "accelerate>=1.12.0,<2",
+    "bitsandbytes>=0.46.0,<1",
+    "datasets>=4.1.0,<5",
+    "trl>=0.24.0,<1",
+]
 dev = [
     "numpy>=2.3,<3",
     "pytest>=9.0,<10",
