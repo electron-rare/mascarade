@@ -1544,6 +1544,77 @@ async def get_agent_metrics(name: str):
     return app.state.registry.agent_metrics(name)
 
 
+# --- Node Engine ---
+
+
+@protected.get("/api/node-engine/midi/devices")
+async def get_midi_devices(device_type: str = Query("output", description="Device type: input or output")):
+    """Get list of available MIDI devices."""
+    from mascarade.node_engine.midi_controller import get_midi_controller
+
+    try:
+        controller = get_midi_controller()
+        await controller.start()
+        devices = await controller.get_devices(device_type)
+        return {
+            "devices": [
+                {
+                    "id": device.id,
+                    "name": device.name,
+                    "manufacturer": device.manufacturer,
+                    "type": device.type,
+                }
+                for device in devices
+            ]
+        }
+    except Exception as e:
+        logger.error(f"Failed to get MIDI devices: {e}")
+        # Graceful degradation - return empty list if MIDI bridge unavailable
+        return {"devices": []}
+
+
+@protected.post("/api/node-engine/midi/send")
+async def send_midi_message(req: dict[str, Any]):
+    """Send MIDI message to device."""
+    from mascarade.node_engine.midi_controller import MIDIMessage, get_midi_controller
+
+    try:
+        controller = get_midi_controller()
+        await controller.start()
+
+        message = MIDIMessage(
+            type=req["type"],
+            channel=req.get("channel", 1),
+            data=req.get("data", {}),
+        )
+
+        result = await controller.send_message(req["device_id"], message)
+        return result
+    except Exception as e:
+        logger.error(f"Failed to send MIDI message: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@protected.get("/api/node-engine/dmx/status")
+async def get_dmx_status(universe: str | None = Query(None, description="Optional universe ID")):
+    """Get DMX universe status and channel values."""
+    from mascarade.node_engine.dmx_controller import get_dmx_controller
+
+    try:
+        controller = get_dmx_controller()
+        await controller.start()
+        status = await controller.get_status(universe)
+        return status
+    except Exception as e:
+        logger.error(f"Failed to get DMX status: {e}")
+        # Graceful degradation - return unavailable status
+        return {
+            "available": False,
+            "error": str(e),
+            "message": "DMX bridge unavailable - no hardware connected or bridge not running",
+        }
+
+
 # --- Orchestration ---
 
 

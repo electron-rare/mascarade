@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Node Engine - Standalone Test</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      overflow: hidden;
+    }
+    #root {
+      width: 100vw;
+      height: 100vh;
+    }
+    .info-banner {
+      position: fixed;
+      top: 10px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #4CAF50;
+      color: white;
+      padding: 12px 24px;
+      border-radius: 4px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+      z-index: 9999;
+      font-size: 14px;
+    }
+  </style>
+</head>
+<body>
+  <div class="info-banner">✓ NodeEditor Component Test - ReactFlow Canvas Loaded</div>
+  <div id="root"></div>
+  <script src="/node-engine-bundle.js"></script>
+  <script>
+    // WebSocket connection for real-time execution updates
+    (function() {
+      const wsUrl = `ws://${window.location.host}/ws/execution`;
+      console.log('Connecting to WebSocket:', wsUrl);
+
+      const ws = new WebSocket(wsUrl);
+
+      ws.onopen = () => {
+        console.log('✓ WebSocket connected');
+        // Subscribe to all execution events
+        ws.send(JSON.stringify({ type: 'subscribe_all' }));
+      };
+
+      ws.onmessage = (event) => {
+        try {
+          const message = JSON.parse(event.data);
+          console.log('WebSocket message:', message);
+
+          // Handle execution events
+          if (message.type === 'execution_event') {
+            console.log('Execution event:', message.event);
+          }
+        } catch (err) {
+          console.error('Failed to parse WebSocket message:', err);
+        }
+      };
+
+      ws.onerror = (error) => {
+        console.error('WebSocket error:', error);
+      };
+
+      ws.onclose = () => {
+        console.log('WebSocket disconnected');
+      };
+
+      // Keep-alive ping every 30 seconds
+      setInterval(() => {
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: 'ping' }));
+        }
+      }, 30000);
+
+      // Make WebSocket globally accessible for debugging
+      window.nodeEngineWS = ws;
+    })();
+  </script>
+</body>
+</html>
