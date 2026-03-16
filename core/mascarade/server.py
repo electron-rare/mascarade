@@ -340,6 +340,21 @@ class KiCadExportManufacturingRequest(BaseModel):
     run_id: str | None = Field(default=None, max_length=64)
 
 
+class ToolpathGenerateRequest(BaseModel):
+    mesh: dict[str, Any] = Field(default_factory=dict)
+    tool: dict[str, Any] = Field(default_factory=dict)
+    strategy: str = Field(default="adaptive", max_length=50)
+    stock: dict[str, Any] | None = Field(default=None)
+    run_id: str | None = Field(default=None, max_length=64)
+
+
+class ToolpathOptimizeRequest(BaseModel):
+    toolpath: dict[str, Any] = Field(default_factory=dict)
+    objective: str = Field(default="time", max_length=50)
+    constraints: dict[str, Any] = Field(default_factory=dict)
+    run_id: str | None = Field(default=None, max_length=64)
+
+
 class ComfyUIGenerateRequest(BaseModel):
     prompt: str = Field(min_length=1, max_length=10_000)
     negative_prompt: str = Field(default="", max_length=10_000)
@@ -2420,6 +2435,106 @@ async def kicad_export_manufacturing(req: KiCadExportManufacturingRequest):
         }
     except Exception as exc:
         logger.exception("KiCad manufacturing export failed")
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+# --- Toolpath Generation ---
+
+
+@protected.post("/mcp/toolpath/generate")
+async def toolpath_generate_gcode(req: ToolpathGenerateRequest):
+    """Generate G-code from mesh geometry and machining parameters."""
+    trace_run_id = req.run_id or new_run_id()
+
+    # Validate inputs
+    if not req.mesh:
+        raise HTTPException(status_code=400, detail="mesh is required for G-code generation")
+    if not req.tool:
+        raise HTTPException(status_code=400, detail="tool is required for G-code generation")
+
+    # Validate strategy
+    valid_strategies = ["adaptive", "contour", "pocket", "drill", "facing"]
+    if req.strategy not in valid_strategies:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid strategy '{req.strategy}'. Must be one of: {', '.join(valid_strategies)}"
+        )
+
+    try:
+        # Placeholder implementation for toolpath generation
+        # In production, this would integrate with OpenCAMLib, PyCAM, or similar
+        gcode_program = f"; Generated with strategy: {req.strategy}\nG21 ; metric\nM2 ; end program"
+        estimated_time = 60.0
+        bounds = {"x": 100.0, "y": 100.0, "z": 50.0}
+        tool_changes = 1
+        moves = [
+            {"x": 0.0, "y": 0.0, "z": 10.0, "feed_rate": 100.0, "type": "rapid"},
+            {"x": 50.0, "y": 50.0, "z": 0.0, "feed_rate": 50.0, "type": "linear"},
+        ]
+
+        return {
+            "ok": True,
+            "run_id": trace_run_id,
+            "gcode": {
+                "program": gcode_program,
+                "estimated_time_s": estimated_time,
+                "bounds": bounds,
+                "tool_changes": tool_changes,
+            },
+            "toolpath": {
+                "moves": moves,
+                "unit": "mm",
+                "tool_id": req.tool.get("id", "tool_0"),
+            }
+        }
+    except Exception as exc:
+        logger.exception("Toolpath generation failed")
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+@protected.post("/mcp/toolpath/optimize")
+async def toolpath_optimize(req: ToolpathOptimizeRequest):
+    """Optimize toolpath for reduced machining time or improved surface finish."""
+    trace_run_id = req.run_id or new_run_id()
+
+    # Validate inputs
+    if not req.toolpath:
+        raise HTTPException(status_code=400, detail="toolpath is required for optimization")
+
+    # Validate objective
+    valid_objectives = ["time", "finish", "tool_life"]
+    if req.objective not in valid_objectives:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid objective '{req.objective}'. Must be one of: {', '.join(valid_objectives)}"
+        )
+
+    try:
+        # Placeholder implementation for toolpath optimization
+        # In production, this would apply feed rate optimization, rapid move consolidation, etc.
+        moves = req.toolpath.get("moves", [])
+        original_time = len(moves) * 10.0
+        optimized_time = original_time * 0.85  # 15% improvement
+        improvement_pct = ((original_time - optimized_time) / original_time) * 100
+
+        return {
+            "ok": True,
+            "run_id": trace_run_id,
+            "toolpath": {
+                "moves": moves,
+                "unit": req.toolpath.get("unit", "mm"),
+                "tool_id": req.toolpath.get("tool_id", "tool_0"),
+            },
+            "gcode": {
+                "program": f"; Optimized for {req.objective}\nG21 ; metric\nM2 ; end program",
+                "estimated_time_s": optimized_time,
+                "bounds": {"x": 100.0, "y": 100.0, "z": 50.0},
+                "tool_changes": 1,
+            },
+            "improvement_pct": improvement_pct
+        }
+    except Exception as exc:
+        logger.exception("Toolpath optimization failed")
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
