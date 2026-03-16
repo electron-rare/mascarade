@@ -104,6 +104,8 @@ class AIWorker(NodeWorker):
             return await self._execute_agent_dispatch(inputs, config, context)
         elif node_type == "ai.llm-stream":
             return await self._execute_llm_stream(inputs, config, context)
+        elif node_type == "ai.embedding":
+            return await self._embedding(inputs, config, context)
         elif node_type == "ai.batch-inference":
             return await self._execute_batch_inference(inputs, config, context)
         elif node_type == "ai.prompt-template":
@@ -155,6 +157,8 @@ class AIWorker(NodeWorker):
             errors.extend(self._validate_agent_dispatch(inputs, config))
         elif node_type == "ai.llm-stream":
             errors.extend(self._validate_llm_stream(inputs, config))
+        elif node_type == "ai.embedding":
+            errors.extend(self._validate_embedding(inputs, config))
         elif node_type == "ai.batch-inference":
             errors.extend(self._validate_batch_inference(inputs, config))
         elif node_type == "ai.prompt-template":
@@ -190,6 +194,7 @@ class AIWorker(NodeWorker):
                 "ai.llm-inference",
                 "ai.agent-dispatch",
                 "ai.llm-stream",
+                "ai.embedding",
                 "ai.batch-inference",
                 "ai.prompt-template",
                 "ai.chain-of-thought",
@@ -391,6 +396,43 @@ class AIWorker(NodeWorker):
         # Return stream wrapped in output dict
         return {"stream": stream}
 
+    async def _embedding(
+        self,
+        inputs: dict[str, Any],
+        config: dict[str, Any],
+        context: Any,
+    ) -> dict[str, Any]:
+        """
+        Execute ai.embedding node.
+
+        Generate embeddings for text input via the provider system.
+        Delegates to provider embedding endpoint via Router.
+
+        Expected inputs:
+        - text (required): Text to embed
+
+        Expected config:
+        - model (optional): Embedding model to use (provider default if not specified)
+        - provider (optional): Specific provider for embeddings (auto-select if not specified)
+
+        Returns:
+            Dictionary with "vector" key containing EmbeddingVector:
+            - values: list[float] - Dense vector embedding
+            - model: str - Model identifier used
+            - dimensions: int - Vector dimensionality
+
+        Raises:
+            NotImplementedError: Embedding support pending provider implementation
+        """
+        # Extract inputs and config (for future implementation)
+        text = inputs["text"]
+        provider_name = config.get("provider")
+        model = config.get("model")
+
+        # Implementation depends on provider embedding API
+        # This will be implemented when provider embedding support is added
+        raise NotImplementedError("Embedding support pending provider implementation")
+
     def _validate_llm_inference(
         self,
         inputs: dict[str, Any],
@@ -480,6 +522,37 @@ class AIWorker(NodeWorker):
         """
         # Same validation as llm-inference
         return self._validate_llm_inference(inputs, config)
+
+    def _validate_embedding(
+        self,
+        inputs: dict[str, Any],
+        config: dict[str, Any],
+    ) -> list[str]:
+        """Validate ai.embedding node inputs and configuration.
+
+        Required inputs:
+        - text: Text to embed
+
+        Optional config:
+        - model: Embedding model to use
+        - provider: Specific provider for embeddings
+
+        Args:
+            inputs: Dictionary of input port values
+            config: Node configuration parameters
+
+        Returns:
+            List of validation error messages. Empty if valid.
+        """
+        errors: list[str] = []
+
+        if "text" not in inputs:
+            errors.append("Missing required input: text")
+        elif not isinstance(inputs["text"], str):
+            errors.append("Input 'text' must be a string")
+
+        return errors
+
     async def _execute_batch_inference(
         self,
         inputs: dict[str, Any],
