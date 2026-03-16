@@ -27,6 +27,11 @@ from mascarade.router.health_monitor import HealthMonitor
 from mascarade.router.providers.base import LLMProvider, LLMResponse
 from mascarade.usage_tracking import track_usage
 
+try:
+    from mascarade.router.classifier import get_classifier
+except ImportError:
+    get_classifier = None  # type: ignore[assignment,misc]
+
 logger = logging.getLogger("mascarade.router")
 
 try:
@@ -110,6 +115,21 @@ class Router:
         )
         self.cost_logger = get_cost_logger()
         self.cost_calculator = get_cost_calculator()
+
+        # ML classifier for domain detection (optional)
+        self.use_classifier = settings.use_ml_classifier
+        self.classifier = None
+        if self.use_classifier and get_classifier is not None:
+            try:
+                self.classifier = get_classifier()
+                if self.classifier.is_loaded:
+                    logger.info("ML classifier loaded for domain detection")
+                else:
+                    logger.info("ML classifier enabled but model not trained/loaded")
+            except Exception as exc:
+                logger.warning("Failed to initialize ML classifier: %s", exc)
+                self.use_classifier = False
+
         self._register_defaults()
 
     def _register_defaults(self) -> None:
@@ -337,10 +357,9 @@ class Router:
             logger.warning("Failed to query benchmarks for domain '%s': %s", domain, exc)
             return []
 
-    @staticmethod
-    def _detect_domain(messages: list[dict]) -> str | None:
+    def _detect_domain(self, messages: list[dict]) -> str | None:
         """
-        Detect domain from message content based on keywords.
+        Detect domain from message content using ML classifier (if enabled) or keywords.
 
         Args:
             messages: List of message dictionaries
@@ -355,6 +374,20 @@ class Router:
             if isinstance(msg.get("content"), str)
         )
 
+        if not content.strip():
+            return None
+
+        # Try ML classifier first if enabled
+        if self.use_classifier and self.classifier is not None:
+            try:
+                domain = self.classifier.predict(content)
+                if domain:
+                    logger.debug("ML classifier detected domain: %s", domain)
+                    return domain
+            except Exception as exc:
+                logger.warning("ML classifier prediction failed: %s, falling back to keywords", exc)
+
+        # Fallback to keyword-based detection
         return detect_domain(content)
 
     def _select_provider(

@@ -216,6 +216,7 @@ class Settings(BaseSettings):
 
     # Domain-aware routing
     domain_model_mappings: str = ""
+    use_ml_classifier: bool = False  # Enable ML classifier for domain detection
 
 
 settings = Settings()
