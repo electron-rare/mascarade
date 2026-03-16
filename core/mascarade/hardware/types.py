@@ -159,6 +159,23 @@ class SerialData(BaseModel):
     timestamp_ms: int = Field(0, description="Timestamp in milliseconds")
 
 
+# --- HardwareDeviceDescriptor ---
+
+
+class HardwareDeviceDescriptor(BaseModel):
+    """Descriptor reported by a discovered hardware device."""
+
+    device_id: str = Field(description="Unique device identifier")
+    device_type: str = Field(description="Device type (esp32, midi_interface, dmx_adapter, etc.)")
+    hostname: str = Field(description="Network hostname or IP")
+    port: int = Field(description="Primary communication port")
+    protocols: list[str] = Field(description="Supported protocols (http, ws, mqtt, serial)")
+    capabilities: list[str] = Field(description="Device capabilities (gpio, sensor, ota, etc.)")
+    firmware_version: str | None = Field(None, description="Current firmware version")
+    last_seen_ms: int = Field(description="Last seen timestamp in milliseconds")
+    online: bool = Field(True, description="Whether device is currently reachable")
+
+
 # DomainType registration entries for the NodeTypeRegistry
 HARDWARE_DOMAIN_TYPES = [
     {
