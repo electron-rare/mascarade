@@ -201,7 +201,6 @@ export const authMiddleware: MiddlewareHandler = async (c, next) => {
     isValid = apiKeys.some((apiKey) => safeEqual(token, apiKey));
   }
 
-  const isValid = isValidConfiguredApiKey(token);
   if (!isValid) {
     return c.json({ error: "Token invalide ou manquant" }, 401);
   }

@@ -25,6 +25,8 @@ import { chat } from "./routes/chat.js";
 import { pipeline } from "./routes/pipeline.js";
 import { analytics } from "./routes/analytics.js";
 import { users } from "./routes/users.js";
+import { p2p } from "./routes/p2p.js";
+import { finetune } from "./routes/finetune.js";
 
 const app = new Hono();
 const hasFrontend = existsSync("./public/index.html");

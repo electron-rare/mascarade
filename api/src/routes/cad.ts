@@ -78,4 +78,49 @@ cad.post("/openscad/export", async (c) => {
   }
 });
 
+cad.post("/kicad/schematic", async (c) => {
+  try {
+    return c.json(await coreClient.kicadGenerateSchematic(await c.req.json()));
+  } catch (error) {
+    const { status, body } = handleCoreError(error);
+    return c.json(body, status);
+  }
+});
+
+cad.post("/kicad/layout", async (c) => {
+  try {
+    return c.json(await coreClient.kicadOptimizeLayout(await c.req.json()));
+  } catch (error) {
+    const { status, body } = handleCoreError(error);
+    return c.json(body, status);
+  }
+});
+
+cad.post("/kicad/footprint", async (c) => {
+  try {
+    return c.json(await coreClient.kicadCreateFootprint(await c.req.json()));
+  } catch (error) {
+    const { status, body } = handleCoreError(error);
+    return c.json(body, status);
+  }
+});
+
+cad.post("/kicad/drc", async (c) => {
+  try {
+    return c.json(await coreClient.kicadCheckDRC(await c.req.json()));
+  } catch (error) {
+    const { status, body } = handleCoreError(error);
+    return c.json(body, status);
+  }
+});
+
+cad.post("/kicad/manufacturing", async (c) => {
+  try {
+    return c.json(await coreClient.kicadExportManufacturing(await c.req.json()));
+  } catch (error) {
+    const { status, body } = handleCoreError(error);
+    return c.json(body, status);
+  }
+});
+
 export { cad };
