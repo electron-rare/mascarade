@@ -185,8 +185,57 @@ class AIWorker(NodeWorker):
         config: dict[str, Any],
         context: Any,
     ) -> dict[str, Any]:
-        """Execute ai.llm-inference node (stub for future implementation)."""
-        raise NotImplementedError("ai.llm-inference execution not yet implemented")
+        """
+        Execute ai.llm-inference node.
+
+        Wraps Router.send() to provide direct LLM inference via the graph engine.
+
+        Expected inputs:
+        - prompt (required): User prompt string
+        - system (optional): System prompt string
+
+        Expected config:
+        - model (optional): Model name (e.g., "gpt-4")
+        - provider (optional): Provider name (e.g., "openai")
+        - temperature (optional): Temperature (default: 0.7)
+        - max_tokens (optional): Max output tokens (default: 4096)
+        - strategy (optional): Routing strategy (default: "best")
+        - routing_policy (optional): RouteLLM policy (default: "auto")
+
+        Returns:
+            Dictionary with "response" key containing LLMResponse
+        """
+        # Extract required inputs
+        prompt = inputs["prompt"]
+
+        # Extract optional inputs
+        system = inputs.get("system")
+
+        # Extract config parameters with defaults
+        model = config.get("model")
+        provider = config.get("provider")
+        temperature = config.get("temperature", 0.7)
+        max_tokens = config.get("max_tokens", 4096)
+        strategy = config.get("strategy", "best")
+        routing_policy = config.get("routing_policy")
+
+        # Build messages list (simple user message)
+        messages = [{"role": "user", "content": prompt}]
+
+        # Call Router.send() with extracted parameters
+        response = await self.router.send(
+            messages,
+            strategy=strategy,
+            routing_policy=routing_policy,
+            provider=provider,
+            model=model,
+            system=system,
+            temperature=temperature,
+            max_tokens=max_tokens,
+        )
+
+        # Return response wrapped in output dict
+        return {"response": response}
 
     async def _execute_agent_dispatch(
         self,
