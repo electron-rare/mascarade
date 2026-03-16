@@ -122,6 +122,7 @@ class GraphExecutionEngine:
 
         for level in levels:
             tasks = []
+            node_ids = []
             for node_id in level:
                 node = next(n for n in graph.nodes if n.id == node_id)
                 inputs = self._collect_inputs(graph, node_id, port_data)
@@ -132,13 +133,19 @@ class GraphExecutionEngine:
                     config=node.config,
                 )
                 tasks.append(self._execute_node(node, inputs, ctx))
+                node_ids.append(node_id)
 
+            # Execute all nodes in this level in parallel
             results = await asyncio.gather(*tasks, return_exceptions=True)
 
-            for result in results:
+            # Process results, maintaining association with node_ids
+            for i, result in enumerate(results):
                 if isinstance(result, Exception):
-                    logger.error("Node execution failed: %s", result)
-                    all_results.append(NodeResult(node_id="unknown", error=str(result)))
+                    # Defensive: _execute_node should catch exceptions, but handle edge cases
+                    logger.error("Unexpected exception for node %s: %s", node_ids[i], result)
+                    all_results.append(
+                        NodeResult(node_id=node_ids[i], error=str(result))
+                    )
                 else:
                     all_results.append(result)
                     port_data[result.node_id] = result.outputs
