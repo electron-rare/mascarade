@@ -147,6 +147,21 @@ class GraphSerializer:
     Follows the AgentRegistry persistence pattern with atomic writes,
     error handling, and logging. The JSON format is versioned for
     forward compatibility and schema evolution.
+
+    Phase 0 Implementation:
+        - Single-version persistence with atomic writes (temp + rename)
+        - Schema versioning via MigrationRegistry
+        - File-based JSON storage
+
+    Phase 1+ Features (PostgreSQL):
+        - Version history tracking with JSON Patch diffs (RFC 6902)
+        - Version metadata (author, timestamp, description)
+        - Efficient version chain storage and querying
+        - Concurrent multi-user version management
+
+    The file-based approach in Phase 0 focuses on reliable storage
+    of the current graph state. Advanced version history features
+    are deferred to the PostgreSQL backend in Phase 1+.
     """
 
     def __init__(self, schema_version: str = CURRENT_SCHEMA_VERSION) -> None:
