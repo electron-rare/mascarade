@@ -86,10 +86,6 @@ async def lifespan(app: FastAPI):
     # Cleanup
     await router.health_monitor.stop_health_checks()
     await cluster.stop_p2p()
-
-    if hasattr(app.state, "benchmark_trigger"):
-        await app.state.benchmark_trigger.close()
-
     await cluster.close()
 
     if app.state.comfyui is not None:
@@ -98,9 +94,6 @@ async def lifespan(app: FastAPI):
     if settings.database_url:
         await close_db_pool()
         logger.info("Database pool closed")
-
-    if hasattr(app.state, "qdrant") and app.state.qdrant is not None:
-        await app.state.qdrant.close()
 
 
 def create_app() -> FastAPI:
