@@ -262,6 +262,7 @@ Pipeline de fine-tuning QLoRA pour modeles code specialises electronique embarqu
 Runbook detaille:
 
 - [docs/FINETUNING_OPERATOR_RUNBOOK.md](/ai/saisail/mascarade/docs/FINETUNING_OPERATOR_RUNBOOK.md)
+- [docs/finetune/unsloth-guide.md](/ai/saisail/mascarade/docs/finetune/unsloth-guide.md) — Guide Unsloth (hardware, VRAM reduction, couts)
 
 ```bash
 cd /ai/saisail/mascarade
