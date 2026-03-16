@@ -117,6 +117,9 @@ class AIWorker(NodeWorker):
             return await self._summarize(inputs, config, context)
         elif node_type == "ai.orchestrate":
             return await self._execute_orchestrate(inputs, config, context)
+        elif node_type == "ai.router-select":
+            # Pure function - not async
+            return self._router_select(inputs, config)
         else:
             raise ValueError(f"Unsupported node type: {node_type}")
 
@@ -164,6 +167,8 @@ class AIWorker(NodeWorker):
             errors.extend(self._validate_summarize(inputs, config))
         elif node_type == "ai.orchestrate":
             errors.extend(self._validate_orchestrate(inputs, config))
+        elif node_type == "ai.router-select":
+            errors.extend(self._validate_router_select(inputs, config))
         else:
             errors.append(f"Unsupported node type: {node_type}")
 
@@ -191,6 +196,7 @@ class AIWorker(NodeWorker):
                 "ai.classify",
                 "ai.summarize",
                 "ai.orchestrate",
+                "ai.router-select",
             ],
             "domain": "ai",
             "supports_streaming": True,
@@ -1077,5 +1083,119 @@ class AIWorker(NodeWorker):
                 errors.append("Input 'mode' must be a string")
             elif mode not in {"sequential", "parallel", "pipeline"}:
                 errors.append(f"Input 'mode' must be one of: sequential, parallel, pipeline. Got: {mode}")
+
+        return errors
+
+    def _router_select(
+        self,
+        inputs: dict[str, Any],
+        config: dict[str, Any],
+    ) -> dict[str, Any]:
+        """
+        Execute ai.router-select node.
+
+        Selects a provider and model based on routing strategy without executing
+        an inference call. This is useful for understanding which provider would
+        be selected for a given strategy before making an actual LLM call.
+
+        Expected inputs:
+        - strategy (required): Routing strategy - "cheapest", "fastest", "best", "specific"
+        - provider_name (optional): For "specific" strategy, the provider to use
+        - domain (optional): Domain hint for domain-aware routing
+
+        Expected config:
+        - constraints (optional): Additional constraints (reserved for future use)
+
+        Returns:
+            Dictionary with:
+            - provider: Selected provider name
+            - model: Selected model identifier (default model for the provider)
+        """
+        from mascarade.router.router import Strategy
+
+        # Extract strategy from inputs
+        strategy_str = inputs["strategy"]
+        strategy = Strategy(strategy_str)
+
+        # Extract optional parameters
+        provider_name = inputs.get("provider_name")
+        domain = inputs.get("domain")
+
+        # Use Router's internal provider selection logic
+        # This mirrors the selection that would happen during an actual inference call
+        selected_provider = self.router._select_provider(
+            strategy=strategy,
+            provider_name=provider_name,
+            domain=domain,
+        )
+
+        # Get the default model for the selected provider
+        # Providers expose their available models via available_models()
+        available_models = selected_provider.available_models()
+        default_model = available_models[0] if available_models else ""
+
+        # Return the selected provider and model
+        return {
+            "provider": selected_provider.name,
+            "model": default_model,
+        }
+
+    def _validate_router_select(
+        self,
+        inputs: dict[str, Any],
+        config: dict[str, Any],
+    ) -> list[str]:
+        """Validate ai.router-select node inputs and configuration.
+
+        Required inputs:
+        - strategy: Routing strategy - "cheapest", "fastest", "best", "specific"
+
+        Optional inputs:
+        - provider_name: For "specific" strategy, the provider to use
+        - domain: Domain hint for domain-aware routing
+
+        Args:
+            inputs: Dictionary of input port values
+            config: Node configuration parameters
+
+        Returns:
+            List of validation error messages. Empty if valid.
+        """
+        errors: list[str] = []
+
+        # Validate required strategy input
+        if "strategy" not in inputs:
+            errors.append("Missing required input: strategy")
+        elif not isinstance(inputs["strategy"], str):
+            errors.append("Input 'strategy' must be a string")
+        else:
+            # Validate strategy value
+            valid_strategies = {"cheapest", "fastest", "best", "specific"}
+            strategy = inputs["strategy"]
+            if strategy not in valid_strategies:
+                errors.append(
+                    f"Input 'strategy' must be one of: {', '.join(sorted(valid_strategies))}. Got: {strategy}"
+                )
+
+            # If strategy is "specific", provider_name is required
+            if strategy == "specific" and "provider_name" not in inputs:
+                errors.append("Input 'provider_name' is required when strategy is 'specific'")
+
+        # Validate provider_name if provided
+        if "provider_name" in inputs:
+            provider_name = inputs["provider_name"]
+            if not isinstance(provider_name, str):
+                errors.append("Input 'provider_name' must be a string")
+            elif provider_name not in self.router.available_providers:
+                errors.append(
+                    f"Provider '{provider_name}' not available. "
+                    f"Available providers: {', '.join(self.router.available_providers)}"
+                )
+
+        # Validate domain if provided
+        if "domain" in inputs:
+            domain = inputs["domain"]
+            if not isinstance(domain, str):
+                errors.append("Input 'domain' must be a string")
 
         return errors
