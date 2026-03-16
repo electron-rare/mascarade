@@ -75,15 +75,39 @@ class TestDispatch:
             )
 
     @pytest.mark.asyncio
-    async def test_dispatch_llm_stream_raises_not_implemented(self, ai_worker):
-        """Test that ai.llm-stream dispatches correctly (raises NotImplementedError for now)."""
-        with pytest.raises(NotImplementedError, match="ai.llm-stream execution not yet implemented"):
-            await ai_worker.execute(
-                node_type="ai.llm-stream",
-                inputs={"prompt": "Test prompt"},
-                config={},
-                context=None,
-            )
+    async def test_dispatch_llm_stream(self, ai_worker, monkeypatch):
+        """Test that ai.llm-stream dispatches correctly to Router.stream()."""
+        # Mock the Router.stream method
+        stream_called = False
+        stream_args = {}
+
+        async def mock_stream(*args, **kwargs):
+            nonlocal stream_called, stream_args
+            stream_called = True
+            stream_args = kwargs
+            # Return a simple async generator
+            for token in ["test", " ", "tokens"]:
+                yield token
+
+        monkeypatch.setattr(ai_worker.router, "stream", mock_stream)
+
+        result = await ai_worker.execute(
+            node_type="ai.llm-stream",
+            inputs={"prompt": "Test prompt"},
+            config={},
+            context=None,
+        )
+
+        # Verify stream was called and result contains stream
+        assert stream_called
+        assert "stream" in result
+
+        # Consume the stream to verify it works
+        tokens = []
+        async for token in result["stream"]:
+            tokens.append(token)
+
+        assert tokens == ["test", " ", "tokens"]
 
     @pytest.mark.asyncio
     async def test_dispatch_unsupported_node_type(self, ai_worker):
