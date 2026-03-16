@@ -145,6 +145,183 @@ def test_api_key_management_functions():
     assert len(get_active_api_keys()) == 0
 
 
+def test_rate_limiting():
+    """Test comprehensive rate limiting functionality."""
+    import time
+
+    from fastapi import HTTPException
+
+    from mascarade.auth import RateLimiter
+
+    # Test 1: Basic initialization with custom limits
+    limiter = RateLimiter(per_user_limit=5, per_ip_limit=10, window_seconds=60)
+    assert limiter._per_user_limit == 5
+    assert limiter._per_ip_limit == 10
+    assert limiter._window_seconds == 60
+
+    # Test 2: Per-user rate limiting
+    user_key = "test_user_123"
+
+    # Should allow up to the limit
+    for i in range(5):
+        limiter.check_rate_limit(user_key=user_key)
+
+    # 6th request should fail
+    with pytest.raises(HTTPException) as exc_info:
+        limiter.check_rate_limit(user_key=user_key)
+    assert exc_info.value.status_code == 429
+    assert "Rate limit exceeded" in exc_info.value.detail
+
+    # Test 3: Per-IP rate limiting
+    limiter2 = RateLimiter(per_user_limit=100, per_ip_limit=3, window_seconds=60)
+    ip_address = "192.168.1.100"
+
+    # Should allow up to the limit
+    for i in range(3):
+        limiter2.check_rate_limit(ip_address=ip_address)
+
+    # 4th request should fail
+    with pytest.raises(HTTPException) as exc_info:
+        limiter2.check_rate_limit(ip_address=ip_address)
+    assert exc_info.value.status_code == 429
+    assert "Rate limit exceeded" in exc_info.value.detail
+
+    # Test 4: Combined user + IP rate limiting
+    limiter3 = RateLimiter(per_user_limit=5, per_ip_limit=5, window_seconds=60)
+    user_key2 = "test_user_456"
+    ip_address2 = "192.168.1.200"
+
+    # Make 3 requests (both limits should track)
+    for i in range(3):
+        limiter3.check_rate_limit(user_key=user_key2, ip_address=ip_address2)
+
+    # Verify both user and IP are being tracked
+    metrics = limiter3.get_metrics()
+    assert metrics["tracked_users"] >= 1
+    assert metrics["tracked_ips"] >= 1
+    assert metrics["total_user_requests"] >= 3
+    assert metrics["total_ip_requests"] >= 3
+
+    # Test 5: Rate limit reset for user
+    limiter4 = RateLimiter(per_user_limit=2, per_ip_limit=100, window_seconds=60)
+    user_key3 = "test_user_789"
+
+    # Use up the limit
+    for i in range(2):
+        limiter4.check_rate_limit(user_key=user_key3)
+
+    # Should be rate limited
+    with pytest.raises(HTTPException) as exc_info:
+        limiter4.check_rate_limit(user_key=user_key3)
+    assert exc_info.value.status_code == 429
+
+    # Reset the user's rate limit
+    limiter4.reset(user_key=user_key3)
+
+    # Should now succeed
+    limiter4.check_rate_limit(user_key=user_key3)
+
+    # Test 6: Rate limit reset for IP
+    limiter5 = RateLimiter(per_user_limit=100, per_ip_limit=2, window_seconds=60)
+    ip_address3 = "192.168.1.300"
+
+    # Use up the limit
+    for i in range(2):
+        limiter5.check_rate_limit(ip_address=ip_address3)
+
+    # Should be rate limited
+    with pytest.raises(HTTPException) as exc_info:
+        limiter5.check_rate_limit(ip_address=ip_address3)
+    assert exc_info.value.status_code == 429
+
+    # Reset the IP's rate limit
+    limiter5.reset(ip_address=ip_address3)
+
+    # Should now succeed
+    limiter5.check_rate_limit(ip_address=ip_address3)
+
+    # Test 7: Reset all rate limits
+    limiter6 = RateLimiter(per_user_limit=1, per_ip_limit=1, window_seconds=60)
+
+    limiter6.check_rate_limit(user_key="user_a")
+    limiter6.check_rate_limit(user_key="user_b")
+    limiter6.check_rate_limit(ip_address="10.0.0.1")
+    limiter6.check_rate_limit(ip_address="10.0.0.2")
+
+    # Verify tracking
+    metrics = limiter6.get_metrics()
+    assert metrics["tracked_users"] == 2
+    assert metrics["tracked_ips"] == 2
+
+    # Reset all
+    limiter6.reset()
+
+    # Verify all cleared
+    metrics = limiter6.get_metrics()
+    assert metrics["tracked_users"] == 0
+    assert metrics["tracked_ips"] == 0
+
+    # Test 8: Metrics retrieval
+    limiter7 = RateLimiter(per_user_limit=10, per_ip_limit=10, window_seconds=60)
+
+    # Make some requests
+    limiter7.check_rate_limit(user_key="user_metrics_1")
+    limiter7.check_rate_limit(user_key="user_metrics_1")
+    limiter7.check_rate_limit(user_key="user_metrics_2")
+    limiter7.check_rate_limit(ip_address="10.1.1.1")
+
+    metrics = limiter7.get_metrics()
+    assert metrics["tracked_users"] == 2
+    assert metrics["tracked_ips"] == 1
+    assert metrics["total_user_requests"] == 3
+    assert metrics["total_ip_requests"] == 1
+
+    # Test 9: Different users/IPs don't interfere
+    limiter8 = RateLimiter(per_user_limit=2, per_ip_limit=2, window_seconds=60)
+
+    # User A uses up their limit
+    limiter8.check_rate_limit(user_key="user_a")
+    limiter8.check_rate_limit(user_key="user_a")
+
+    # User A is rate limited
+    with pytest.raises(HTTPException):
+        limiter8.check_rate_limit(user_key="user_a")
+
+    # User B should still work
+    limiter8.check_rate_limit(user_key="user_b")
+    limiter8.check_rate_limit(user_key="user_b")
+
+    # IP A uses up their limit
+    limiter8.check_rate_limit(ip_address="10.0.0.1")
+    limiter8.check_rate_limit(ip_address="10.0.0.1")
+
+    # IP A is rate limited
+    with pytest.raises(HTTPException):
+        limiter8.check_rate_limit(ip_address="10.0.0.1")
+
+    # IP B should still work
+    limiter8.check_rate_limit(ip_address="10.0.0.2")
+    limiter8.check_rate_limit(ip_address="10.0.0.2")
+
+    # Test 10: Window expiration (requests outside window don't count)
+    limiter9 = RateLimiter(per_user_limit=2, per_ip_limit=2, window_seconds=1)  # 1 second window
+    user_key_expiry = "user_expiry"
+
+    # Make 2 requests (at limit)
+    limiter9.check_rate_limit(user_key=user_key_expiry)
+    limiter9.check_rate_limit(user_key=user_key_expiry)
+
+    # Should be rate limited immediately
+    with pytest.raises(HTTPException):
+        limiter9.check_rate_limit(user_key=user_key_expiry)
+
+    # Wait for window to expire
+    time.sleep(1.1)
+
+    # Old requests should have expired, new request should succeed
+    limiter9.check_rate_limit(user_key=user_key_expiry)
+
+
 @pytest.mark.asyncio
 async def test_rate_limiting_per_user():
     """Test que le rate limiting par utilisateur fonctionne correctement."""
