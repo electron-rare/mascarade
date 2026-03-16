@@ -69,6 +69,7 @@ from mascarade.device_voice import (
 )
 from mascarade.router import Router
 from mascarade.router.router import Strategy
+from mascarade.routers.health import router as health_router
 from mascarade.usage_tracking import get_all_usage_stats
 
 logger = logging.getLogger("mascarade.server")
@@ -392,58 +393,6 @@ class ModelDeploymentWebhook(BaseModel):
 
 
 # --- Route publique ---
-
-
-@app.get("/health")
-async def health():
-    """Health check endpoint - returns basic system status."""
-    health_data = {"status": "ok"}
-
-    # Add optional metrics if state is initialized
-    if hasattr(app.state, "router"):
-        health_data["providers"] = app.state.router.available_providers
-    if hasattr(app.state, "registry"):
-        health_data["agents"] = len(app.state.registry)
-
-    return health_data
-
-
-@app.get("/v1/version")
-async def version():
-    """Version endpoint - returns API version and service information."""
-    return {
-        "version": "v1",
-        "service": "mascarade-core",
-        "api_version": "0.1.0"
-    }
-@app.post("/v1/chat/completions", response_model_exclude_unset=True)
-@app.get("/health/providers")
-async def get_provider_health():
-    """Provider health metrics endpoint - returns detailed health statistics for all providers."""
-    if not hasattr(app.state, "router"):
-        raise HTTPException(status_code=503, detail="Router not initialized")
-
-    health_monitor = app.state.router.health_monitor
-    circuit_breaker = app.state.router.circuit_breaker
-    all_health = health_monitor.get_all_health()
-
-    # Convert ProviderHealth dataclass objects to dictionaries
-    health_data = {}
-    for provider_name, provider_health in all_health.items():
-        circuit_state = circuit_breaker.get_state(provider_name)
-        health_data[provider_name] = {
-            "provider_name": provider_health.provider_name,
-            "health_score": provider_health.health_score,
-            "circuit_state": circuit_state.value,
-            "latency_p50": provider_health.latency_p50,
-            "latency_p95": provider_health.latency_p95,
-            "latency_p99": provider_health.latency_p99,
-            "error_rate": provider_health.error_rate,
-            "availability": provider_health.availability,
-            "total_requests": provider_health.total_requests,
-        }
-
-    return health_data
 
 
 @app.post("/v1/chat/completions")
@@ -2723,7 +2672,15 @@ async def handle_model_deployment_webhook(webhook: ModelDeploymentWebhook):
 async def metrics():
     """Expose Prometheus metrics for scraping."""
     try:
-        from prometheus_client import REGISTRY, generate_latest
+        from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
+        from starlette.responses import Response
+
+        return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
+    except ImportError:
+        raise HTTPException(
+            status_code=501,
+            detail="prometheus_client is not installed",
+        )
 
 
 @protected.get("/device/v1/voice/replies/{reply_id}.wav")
@@ -2737,6 +2694,7 @@ async def device_voice_reply_audio(reply_id: str, request: Request):
     return _Response(content=audio.payload, media_type=audio.content_type)
 
 
+app.include_router(health_router)
 app.include_router(protected)
 app.include_router(cluster_protected)
 
