@@ -173,6 +173,10 @@ class WorkerRegistry:
     def list(self) -> list["NodeWorker"]:
         return list(self._workers.values())
 
+    def remove(self, domain: str) -> None:
+        """Remove a worker from the registry."""
+        self._workers.pop(domain, None)
+
     def available_domains(self) -> list[str]:
         return [d for d, w in self._workers.items() if w.is_available]
 
