@@ -13,6 +13,7 @@ from mascarade.node_engine.worker import NodeWorker
 
 if TYPE_CHECKING:
     from mascarade.agents.registry import AgentRegistry
+    from mascarade.orchestrator.engine import Orchestrator
     from mascarade.router import Router
 
 logger = logging.getLogger("mascarade.node_engine.workers.ai")
@@ -42,20 +43,28 @@ class AIWorker(NodeWorker):
     name: str = "ai-worker"
     domain: str = "ai"
 
-    def __init__(self, router: Router, registry: AgentRegistry) -> None:
+    def __init__(
+        self,
+        router: Router,
+        registry: AgentRegistry,
+        orchestrator: Orchestrator | None = None,
+    ) -> None:
         """
         Initialize AI worker with router and agent registry.
 
         Args:
             router: Mascarade Router instance for multi-provider LLM access
             registry: AgentRegistry instance for agent definitions and dispatch
+            orchestrator: Optional Orchestrator instance for multi-agent workflows
         """
         self.router = router
         self.registry = registry
+        self.orchestrator = orchestrator
         logger.info(
-            "AIWorker initialized with router=%s, registry=%s",
+            "AIWorker initialized with router=%s, registry=%s, orchestrator=%s",
             router.__class__.__name__,
             registry.__class__.__name__,
+            orchestrator.__class__.__name__ if orchestrator else "None",
         )
 
     async def execute(
@@ -106,6 +115,8 @@ class AIWorker(NodeWorker):
             return await self._classify(inputs, config, context)
         elif node_type == "ai.summarize":
             return await self._summarize(inputs, config, context)
+        elif node_type == "ai.orchestrate":
+            return await self._execute_orchestrate(inputs, config, context)
         else:
             raise ValueError(f"Unsupported node type: {node_type}")
 
@@ -151,6 +162,8 @@ class AIWorker(NodeWorker):
             errors.extend(self._validate_classify(inputs, config))
         elif node_type == "ai.summarize":
             errors.extend(self._validate_summarize(inputs, config))
+        elif node_type == "ai.orchestrate":
+            errors.extend(self._validate_orchestrate(inputs, config))
         else:
             errors.append(f"Unsupported node type: {node_type}")
 
@@ -177,6 +190,7 @@ class AIWorker(NodeWorker):
                 "ai.chain-of-thought",
                 "ai.classify",
                 "ai.summarize",
+                "ai.orchestrate",
             ],
             "domain": "ai",
             "supports_streaming": True,
@@ -906,5 +920,162 @@ class AIWorker(NodeWorker):
                 errors.append("Input 'max_length' must be an integer")
             elif max_length < 1:
                 errors.append("Input 'max_length' must be at least 1")
+
+        return errors
+
+    async def _execute_orchestrate(
+        self,
+        inputs: dict[str, Any],
+        config: dict[str, Any],
+        context: Any,
+    ) -> dict[str, Any]:
+        """
+        Execute ai.orchestrate node.
+
+        Orchestrates multi-agent workflows using the Orchestrator engine.
+        Supports three execution modes: sequential, parallel, and pipeline.
+
+        Expected inputs:
+        - agent_names (required): List of agent names to orchestrate
+        - prompt (required): Input prompt for the workflow
+        - mode (optional): Execution mode - "sequential", "parallel", or "pipeline" (default: "sequential")
+
+        Expected config:
+        - routing_overrides (optional): Dict mapping agent_name -> routing config
+        - skip_on_error (optional): Continue execution on error (default: False)
+        - fallback_map (optional): Dict mapping agent_name -> fallback_agent_name
+        - timeout (optional): Timeout for parallel execution (default: 120.0)
+
+        Returns:
+            Dictionary with:
+            - run_id: Unique identifier for this orchestration run
+            - mode: Execution mode used
+            - results: List of TaskResult objects from each agent
+            - errors: List of error messages (if any)
+        """
+        from mascarade.orchestrator.engine import ExecutionMode
+
+        # Check if orchestrator is available
+        if self.orchestrator is None:
+            raise RuntimeError("Orchestrator not available - AIWorker was initialized without orchestrator")
+
+        # Extract required inputs
+        agent_names = inputs["agent_names"]
+        prompt = inputs["prompt"]
+
+        # Extract optional inputs with defaults
+        mode_str = inputs.get("mode", "sequential")
+        mode = ExecutionMode(mode_str)
+
+        # Extract config parameters
+        routing_overrides = config.get("routing_overrides")
+        skip_on_error = config.get("skip_on_error", False)
+        fallback_map = config.get("fallback_map")
+
+        # Execute orchestration
+        orchestration_run = await self.orchestrator.run(
+            agent_names=agent_names,
+            prompt=prompt,
+            mode=mode,
+            routing_overrides=routing_overrides,
+            skip_on_error=skip_on_error,
+            fallback_map=fallback_map,
+        )
+
+        # Convert TaskResult objects to serializable dictionaries
+        results = []
+        errors = []
+        for task_result in orchestration_run.results:
+            result_dict = {
+                "agent_name": task_result.agent_name,
+                "response": {
+                    "content": task_result.response.content,
+                    "model": task_result.response.model,
+                    "provider": task_result.response.provider,
+                    "usage": task_result.response.usage or {},
+                },
+                "step": task_result.step,
+                "error": task_result.error,
+                "remote": task_result.remote,
+                "selected_by": task_result.selected_by,
+                "peer_id": task_result.peer_id,
+                "node_id": task_result.node_id,
+                "role": task_result.role,
+                "transport": task_result.transport,
+                "latency_ms": task_result.latency_ms,
+                "fallback_used": task_result.fallback_used,
+                "fallback_agent": task_result.fallback_agent,
+            }
+            results.append(result_dict)
+            if task_result.error:
+                errors.append(task_result.error)
+
+        # Return orchestration results
+        return {
+            "run_id": orchestration_run.run_id,
+            "mode": orchestration_run.mode.value,
+            "results": results,
+            "errors": errors,
+        }
+
+    def _validate_orchestrate(
+        self,
+        inputs: dict[str, Any],
+        config: dict[str, Any],
+    ) -> list[str]:
+        """Validate ai.orchestrate node inputs and configuration.
+
+        Required inputs:
+        - agent_names: List of agent names to orchestrate
+        - prompt: Input prompt for the workflow
+
+        Optional inputs:
+        - mode: Execution mode - "sequential", "parallel", or "pipeline"
+
+        Args:
+            inputs: Dictionary of input port values
+            config: Node configuration parameters
+
+        Returns:
+            List of validation error messages. Empty if valid.
+        """
+        errors: list[str] = []
+
+        # Check if orchestrator is available
+        if self.orchestrator is None:
+            errors.append("Orchestrator not available - AIWorker requires orchestrator for ai.orchestrate nodes")
+            return errors
+
+        # Validate agent_names
+        if "agent_names" not in inputs:
+            errors.append("Missing required input: agent_names")
+        elif not isinstance(inputs["agent_names"], list):
+            errors.append("Input 'agent_names' must be a list")
+        elif len(inputs["agent_names"]) == 0:
+            errors.append("Input 'agent_names' must not be empty")
+        else:
+            # Validate each agent exists in registry
+            for agent_name in inputs["agent_names"]:
+                if not isinstance(agent_name, str):
+                    errors.append(f"Agent name must be a string, got: {type(agent_name).__name__}")
+                    continue
+                try:
+                    self.registry.get(agent_name)
+                except (KeyError, ValueError):
+                    errors.append(f"Agent '{agent_name}' not found in registry")
+
+        # Validate prompt
+        if "prompt" not in inputs:
+            errors.append("Missing required input: prompt")
+        elif not isinstance(inputs["prompt"], str):
+            errors.append("Input 'prompt' must be a string")
+
+        # Validate mode if provided
+        if "mode" in inputs:
+            mode = inputs["mode"]
+            if not isinstance(mode, str):
+                errors.append("Input 'mode' must be a string")
+            elif mode not in {"sequential", "parallel", "pipeline"}:
+                errors.append(f"Input 'mode' must be one of: sequential, parallel, pipeline. Got: {mode}")
 
         return errors
