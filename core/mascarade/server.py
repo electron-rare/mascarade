@@ -355,6 +355,33 @@ class ToolpathOptimizeRequest(BaseModel):
     run_id: str | None = Field(default=None, max_length=64)
 
 
+class MeshImportRequest(BaseModel):
+    data: str = Field(min_length=0, max_length=50_000_000)
+    format: str = Field(min_length=1, max_length=50)
+    run_id: str | None = Field(default=None, max_length=64)
+
+
+class MeshExportRequest(BaseModel):
+    mesh: dict[str, Any] = Field(default_factory=dict)
+    format: str = Field(min_length=1, max_length=50)
+    options: dict[str, Any] = Field(default_factory=dict)
+    run_id: str | None = Field(default=None, max_length=64)
+
+
+class MeshSimplifyRequest(BaseModel):
+    mesh: dict[str, Any] = Field(default_factory=dict)
+    target_ratio: float = Field(ge=0.0, le=1.0)
+    preserve_boundaries: bool = Field(default=True)
+    run_id: str | None = Field(default=None, max_length=64)
+
+
+class MeshBooleanRequest(BaseModel):
+    mesh_a: dict[str, Any] = Field(default_factory=dict)
+    mesh_b: dict[str, Any] = Field(default_factory=dict)
+    operation: str = Field(min_length=1, max_length=50)
+    run_id: str | None = Field(default=None, max_length=64)
+
+
 class ComfyUIGenerateRequest(BaseModel):
     prompt: str = Field(min_length=1, max_length=10_000)
     negative_prompt: str = Field(default="", max_length=10_000)
@@ -2712,6 +2739,125 @@ async def industrial_mcp_tool(server_key: str, tool_name: str, req: IndustrialMc
         "run_id": trace_run_id,
         "server_key": server_key,
         "tool_name": tool_name,
+        "protocol_version": payload.protocol_version,
+        "server_name": payload.server_name,
+        "message": payload.message,
+        "payload": payload.structured_content,
+    }
+
+
+# --- Mesh Operations ---
+
+
+@protected.post("/mcp/mesh/import")
+async def mesh_import(req: MeshImportRequest):
+    """Import a mesh from file data (STL, OBJ, PLY)."""
+    client = _require_mcp_client()
+    trace_run_id = req.run_id or new_run_id()
+    try:
+        payload = await client.call_tool(
+            "cad-mesh",
+            "import",
+            {"data": req.data, "format": req.format},
+            run_id=trace_run_id,
+            mode="mesh-operation",
+            step=0,
+            agent_name="mesh",
+        )
+    except (McpCallError, McpServerUnavailable) as exc:
+        raise _mcp_http_exception(exc) from exc
+    return {
+        "ok": not payload.is_error,
+        "run_id": trace_run_id,
+        "protocol_version": payload.protocol_version,
+        "server_name": payload.server_name,
+        "message": payload.message,
+        "payload": payload.structured_content,
+    }
+
+
+@protected.post("/mcp/mesh/export")
+async def mesh_export(req: MeshExportRequest):
+    """Export a mesh to a target format."""
+    client = _require_mcp_client()
+    trace_run_id = req.run_id or new_run_id()
+    try:
+        payload = await client.call_tool(
+            "cad-mesh",
+            "export",
+            {"mesh": req.mesh, "format": req.format, "options": req.options},
+            run_id=trace_run_id,
+            mode="mesh-operation",
+            step=0,
+            agent_name="mesh",
+        )
+    except (McpCallError, McpServerUnavailable) as exc:
+        raise _mcp_http_exception(exc) from exc
+    return {
+        "ok": not payload.is_error,
+        "run_id": trace_run_id,
+        "protocol_version": payload.protocol_version,
+        "server_name": payload.server_name,
+        "message": payload.message,
+        "payload": payload.structured_content,
+    }
+
+
+@protected.post("/mcp/mesh/simplify")
+async def mesh_simplify(req: MeshSimplifyRequest):
+    """Reduce mesh complexity while preserving shape fidelity."""
+    client = _require_mcp_client()
+    trace_run_id = req.run_id or new_run_id()
+    try:
+        payload = await client.call_tool(
+            "cad-mesh",
+            "simplify",
+            {
+                "mesh": req.mesh,
+                "target_ratio": req.target_ratio,
+                "preserve_boundaries": req.preserve_boundaries,
+            },
+            run_id=trace_run_id,
+            mode="mesh-operation",
+            step=0,
+            agent_name="mesh",
+        )
+    except (McpCallError, McpServerUnavailable) as exc:
+        raise _mcp_http_exception(exc) from exc
+    return {
+        "ok": not payload.is_error,
+        "run_id": trace_run_id,
+        "protocol_version": payload.protocol_version,
+        "server_name": payload.server_name,
+        "message": payload.message,
+        "payload": payload.structured_content,
+    }
+
+
+@protected.post("/mcp/mesh/boolean")
+async def mesh_boolean(req: MeshBooleanRequest):
+    """Perform boolean operations (union, intersection, difference) on two meshes."""
+    client = _require_mcp_client()
+    trace_run_id = req.run_id or new_run_id()
+    try:
+        payload = await client.call_tool(
+            "cad-mesh",
+            "boolean",
+            {
+                "mesh_a": req.mesh_a,
+                "mesh_b": req.mesh_b,
+                "operation": req.operation,
+            },
+            run_id=trace_run_id,
+            mode="mesh-operation",
+            step=0,
+            agent_name="mesh",
+        )
+    except (McpCallError, McpServerUnavailable) as exc:
+        raise _mcp_http_exception(exc) from exc
+    return {
+        "ok": not payload.is_error,
+        "run_id": trace_run_id,
         "protocol_version": payload.protocol_version,
         "server_name": payload.server_name,
         "message": payload.message,
