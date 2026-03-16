@@ -8,8 +8,10 @@ import pytest
 from mascarade.auth import (
     add_api_key,
     get_active_api_keys,
+    get_rate_limit_metrics,
     is_valid_api_key,
     remove_api_key,
+    reset_rate_limit,
 )
 from mascarade.server import app
 
@@ -147,3 +149,114 @@ def test_api_key_management_functions():
     remove_api_key("test-key-alpha-0001")
     remove_api_key("test-key-charlie-01")
     assert len(get_active_api_keys()) == 0
+
+
+@pytest.mark.asyncio
+async def test_rate_limiting_per_user():
+    """Test que le rate limiting par utilisateur fonctionne correctement."""
+    import os
+
+    # Configure low rate limits for testing
+    os.environ["MASCARADE_RATE_LIMIT_PER_USER"] = "3"
+    os.environ["MASCARADE_RATE_LIMIT_PER_IP"] = "100"
+    os.environ["MASCARADE_RATE_LIMIT_WINDOW"] = "60"
+
+    # Need to reload the module to pick up new env vars
+    from importlib import reload
+    from mascarade import auth as auth_module
+
+    reload(auth_module)
+    from mascarade.auth import reset_rate_limit
+
+    add_api_key(TEST_ADMIN_KEY)
+
+    async with _client() as client:
+        # First 3 requests should succeed
+        for i in range(3):
+            response = await client.get(
+                "/v1/api-keys",
+                headers={"Authorization": f"Bearer {TEST_ADMIN_KEY}"},
+            )
+            assert response.status_code == 200, f"Request {i+1} should succeed"
+
+        # 4th request should be rate limited
+        response = await client.get(
+            "/v1/api-keys",
+            headers={"Authorization": f"Bearer {TEST_ADMIN_KEY}"},
+        )
+        assert response.status_code == 429, "4th request should be rate limited"
+        assert "Rate limit exceeded" in response.json()["detail"]
+
+        # Reset rate limit and verify it works again
+        import hashlib
+
+        user_key = hashlib.sha256(TEST_ADMIN_KEY.encode()).hexdigest()
+        reset_rate_limit(user_key=user_key)
+
+        response = await client.get(
+            "/v1/api-keys",
+            headers={"Authorization": f"Bearer {TEST_ADMIN_KEY}"},
+        )
+        assert response.status_code == 200, "Request should succeed after reset"
+
+    # Restore defaults
+    os.environ["MASCARADE_RATE_LIMIT_PER_USER"] = "100"
+    os.environ["MASCARADE_RATE_LIMIT_PER_IP"] = "200"
+    reload(auth_module)
+
+
+@pytest.mark.asyncio
+async def test_rate_limiting_per_ip():
+    """Test que le rate limiting par IP fonctionne correctement."""
+    import os
+
+    # Configure low IP rate limits for testing
+    os.environ["MASCARADE_RATE_LIMIT_PER_USER"] = "100"
+    os.environ["MASCARADE_RATE_LIMIT_PER_IP"] = "2"
+    os.environ["MASCARADE_RATE_LIMIT_WINDOW"] = "60"
+
+    from importlib import reload
+    from mascarade import auth as auth_module
+
+    reload(auth_module)
+    from mascarade.auth import reset_rate_limit
+
+    add_api_key(TEST_ADMIN_KEY)
+    add_api_key(TEST_OPERATOR_KEY)
+
+    async with _client() as client:
+        # First 2 requests with different keys from same IP should succeed
+        response1 = await client.get(
+            "/v1/api-keys",
+            headers={"Authorization": f"Bearer {TEST_ADMIN_KEY}"},
+        )
+        assert response1.status_code == 200
+
+        response2 = await client.get(
+            "/v1/api-keys",
+            headers={"Authorization": f"Bearer {TEST_OPERATOR_KEY}"},
+        )
+        assert response2.status_code == 200
+
+        # 3rd request from same IP should be rate limited
+        response3 = await client.get(
+            "/v1/api-keys",
+            headers={"Authorization": f"Bearer {TEST_ADMIN_KEY}"},
+        )
+        assert response3.status_code == 429, "3rd request from same IP should be rate limited"
+        assert "Rate limit exceeded" in response3.json()["detail"]
+
+    # Restore defaults
+    os.environ["MASCARADE_RATE_LIMIT_PER_USER"] = "100"
+    os.environ["MASCARADE_RATE_LIMIT_PER_IP"] = "200"
+    reload(auth_module)
+
+
+def test_rate_limit_metrics():
+    """Test que les métriques de rate limiting fonctionnent."""
+    metrics = get_rate_limit_metrics()
+    assert isinstance(metrics, dict)
+    assert "tracked_users" in metrics
+    assert "tracked_ips" in metrics
+    assert "total_user_requests" in metrics
+    assert "total_ip_requests" in metrics
