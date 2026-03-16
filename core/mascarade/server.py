@@ -101,7 +101,41 @@ def create_app() -> FastAPI:
     app = FastAPI(
         title="Mascarade Core",
         version="0.1.0",
+        description=(
+            "Personal agentic orchestration system - Python core API\n\n"
+            "Provides LLM routing, agent orchestration, memory management, "
+            "and OpenAI-compatible chat completions."
+        ),
         lifespan=lifespan,
+        docs_url="/docs",
+        redoc_url="/redoc",
+        openapi_url="/openapi.json",
+        openapi_tags=[
+            {
+                "name": "health",
+                "description": "Health checks and system status monitoring",
+            },
+            {
+                "name": "chat",
+                "description": "OpenAI-compatible chat completion endpoints",
+            },
+            {
+                "name": "agents",
+                "description": "Agent management and orchestration",
+            },
+            {
+                "name": "memory",
+                "description": "Memory and knowledge base operations",
+            },
+            {
+                "name": "providers",
+                "description": "LLM provider management and configuration",
+            },
+            {
+                "name": "auth",
+                "description": "Authentication and authorization",
+            },
+        ],
     )
 
     # Mount routers
