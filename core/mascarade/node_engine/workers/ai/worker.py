@@ -102,6 +102,10 @@ class AIWorker(NodeWorker):
             return self._prompt_template(inputs)
         elif node_type == "ai.chain-of-thought":
             return await self._chain_of_thought(inputs, config, context)
+        elif node_type == "ai.classify":
+            return await self._classify(inputs, config, context)
+        elif node_type == "ai.summarize":
+            return await self._summarize(inputs, config, context)
         else:
             raise ValueError(f"Unsupported node type: {node_type}")
 
@@ -143,6 +147,10 @@ class AIWorker(NodeWorker):
             errors.extend(self._validate_prompt_template(inputs, config))
         elif node_type == "ai.chain-of-thought":
             errors.extend(self._validate_chain_of_thought(inputs, config))
+        elif node_type == "ai.classify":
+            errors.extend(self._validate_classify(inputs, config))
+        elif node_type == "ai.summarize":
+            errors.extend(self._validate_summarize(inputs, config))
         else:
             errors.append(f"Unsupported node type: {node_type}")
 
@@ -167,6 +175,8 @@ class AIWorker(NodeWorker):
                 "ai.batch-inference",
                 "ai.prompt-template",
                 "ai.chain-of-thought",
+                "ai.classify",
+                "ai.summarize",
             ],
             "domain": "ai",
             "supports_streaming": True,
@@ -692,5 +702,172 @@ class AIWorker(NodeWorker):
                 errors.append("Input 'steps' must be at least 1")
             elif steps > 10:
                 errors.append("Input 'steps' must not exceed 10")
+
+        return errors
+
+    async def _classify(
+        self,
+        inputs: dict[str, Any],
+        config: dict[str, Any],
+        context: Any,
+    ) -> dict[str, Any]:
+        """
+        Execute ai.classify node.
+
+        Classify text into predefined categories using LLM inference.
+
+        Expected inputs:
+        - text (required): Text to classify
+        - categories (required): List of available category labels
+
+        Expected config:
+        - Same as ai.llm-inference (model, provider, temperature, etc.)
+        - Note: temperature is forced to 0.1 for deterministic classification
+
+        Returns:
+            Dictionary with:
+            - category: Selected category label
+            - confidence: Classification confidence (0.0-1.0)
+        """
+        # Extract required inputs
+        text = inputs["text"]
+        categories = inputs["categories"]
+
+        # Build classification prompt
+        prompt = (
+            f"Classify the following text into exactly one of these categories: "
+            f"{', '.join(categories)}\n\n"
+            f"Text: {text}\n\n"
+            f"Respond with only the category name."
+        )
+
+        # Execute LLM inference with low temperature for deterministic classification
+        result = await self._execute_llm_inference(
+            {"prompt": prompt},
+            {**config, "temperature": 0.1},
+            context,
+        )
+
+        # Extract category from response
+        category = result["response"].content.strip()
+
+        # Return classification result
+        return {
+            "category": category,
+            "confidence": 1.0,  # Placeholder — real confidence requires logprobs
+        }
+
+    async def _summarize(
+        self,
+        inputs: dict[str, Any],
+        config: dict[str, Any],
+        context: Any,
+    ) -> dict[str, Any]:
+        """
+        Execute ai.summarize node.
+
+        Summarize text using LLM inference.
+
+        Expected inputs:
+        - text (required): Text to summarize
+        - max_length (optional): Target summary length in words (default: 200)
+
+        Expected config:
+        - Same as ai.llm-inference (model, provider, temperature, etc.)
+
+        Returns:
+            Dictionary with:
+            - summary: Summarized text
+        """
+        # Extract required inputs
+        text = inputs["text"]
+
+        # Extract optional inputs
+        max_length = inputs.get("max_length", 200)
+
+        # Build summarization prompt
+        prompt = (
+            f"Summarize the following text in approximately {max_length} words:\n\n"
+            f"{text}"
+        )
+
+        # Execute LLM inference
+        result = await self._execute_llm_inference(
+            {"prompt": prompt},
+            config,
+            context,
+        )
+
+        # Return summary
+        return {"summary": result["response"].content}
+
+    def _validate_classify(
+        self,
+        inputs: dict[str, Any],
+        config: dict[str, Any],
+    ) -> list[str]:
+        """Validate ai.classify node inputs and configuration.
+
+        Required inputs:
+        - text: Text to classify
+        - categories: List of available category labels
+
+        Args:
+            inputs: Dictionary of input port values
+            config: Node configuration parameters
+
+        Returns:
+            List of validation error messages. Empty if valid.
+        """
+        errors: list[str] = []
+
+        if "text" not in inputs:
+            errors.append("Missing required input: text")
+        elif not isinstance(inputs["text"], str):
+            errors.append("Input 'text' must be a string")
+
+        if "categories" not in inputs:
+            errors.append("Missing required input: categories")
+        elif not isinstance(inputs["categories"], list):
+            errors.append("Input 'categories' must be a list")
+        elif len(inputs["categories"]) == 0:
+            errors.append("Input 'categories' must not be empty")
+
+        return errors
+
+    def _validate_summarize(
+        self,
+        inputs: dict[str, Any],
+        config: dict[str, Any],
+    ) -> list[str]:
+        """Validate ai.summarize node inputs and configuration.
+
+        Required inputs:
+        - text: Text to summarize
+
+        Optional inputs:
+        - max_length: Target summary length in words (default: 200)
+
+        Args:
+            inputs: Dictionary of input port values
+            config: Node configuration parameters
+
+        Returns:
+            List of validation error messages. Empty if valid.
+        """
+        errors: list[str] = []
+
+        if "text" not in inputs:
+            errors.append("Missing required input: text")
+        elif not isinstance(inputs["text"], str):
+            errors.append("Input 'text' must be a string")
+
+        # Validate max_length if provided
+        if "max_length" in inputs:
+            max_length = inputs["max_length"]
+            if not isinstance(max_length, int):
+                errors.append("Input 'max_length' must be an integer")
+            elif max_length < 1:
+                errors.append("Input 'max_length' must be at least 1")
 
         return errors

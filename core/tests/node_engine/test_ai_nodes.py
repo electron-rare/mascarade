@@ -380,3 +380,141 @@ class TestChainOfThought:
         assert "reasoning" in result
         assert "answer" in result
         assert len(result["reasoning"]) == 1
+
+
+class TestClassify:
+    """Test suite for ai.classify execution."""
+
+    @pytest.mark.asyncio
+    async def test_classify(self, ai_worker):
+        """Test basic text classification."""
+        result = await ai_worker.execute(
+            node_type="ai.classify",
+            inputs={
+                "text": "This is a great product! I love it!",
+                "categories": ["positive", "negative", "neutral"],
+            },
+            config={},
+            context=None,
+        )
+
+        assert "category" in result
+        assert "confidence" in result
+
+        # Verify category is a string
+        assert isinstance(result["category"], str)
+        assert len(result["category"]) > 0
+
+        # Verify confidence is a number
+        assert isinstance(result["confidence"], (int, float))
+        assert 0.0 <= result["confidence"] <= 1.0
+
+    @pytest.mark.asyncio
+    async def test_classify_with_config(self, ai_worker):
+        """Test classification with custom config parameters."""
+        result = await ai_worker.execute(
+            node_type="ai.classify",
+            inputs={
+                "text": "The weather is okay.",
+                "categories": ["good", "bad", "average"],
+            },
+            config={
+                "model": "custom-model",
+                "max_tokens": 10,
+            },
+            context=None,
+        )
+
+        assert "category" in result
+        assert "confidence" in result
+        assert isinstance(result["category"], str)
+
+    @pytest.mark.asyncio
+    async def test_classify_binary(self, ai_worker):
+        """Test binary classification."""
+        result = await ai_worker.execute(
+            node_type="ai.classify",
+            inputs={
+                "text": "The system failed to start.",
+                "categories": ["success", "failure"],
+            },
+            config={},
+            context=None,
+        )
+
+        assert "category" in result
+        assert "confidence" in result
+        assert isinstance(result["category"], str)
+
+
+class TestSummarize:
+    """Test suite for ai.summarize execution."""
+
+    @pytest.mark.asyncio
+    async def test_summarize(self, ai_worker):
+        """Test basic text summarization."""
+        long_text = (
+            "The quick brown fox jumps over the lazy dog. "
+            "This is a common pangram used for testing. "
+            "It contains all letters of the alphabet. "
+            "Many typographers and designers use this phrase. "
+            "It has been around for over a century."
+        )
+
+        result = await ai_worker.execute(
+            node_type="ai.summarize",
+            inputs={
+                "text": long_text,
+            },
+            config={},
+            context=None,
+        )
+
+        assert "summary" in result
+        assert isinstance(result["summary"], str)
+        assert len(result["summary"]) > 0
+
+    @pytest.mark.asyncio
+    async def test_summarize_with_max_length(self, ai_worker):
+        """Test summarization with custom max_length."""
+        long_text = (
+            "Artificial intelligence is transforming the world. "
+            "Machine learning models are becoming more capable. "
+            "Natural language processing enables better communication. "
+            "Computer vision helps us understand images and videos."
+        )
+
+        result = await ai_worker.execute(
+            node_type="ai.summarize",
+            inputs={
+                "text": long_text,
+                "max_length": 50,
+            },
+            config={},
+            context=None,
+        )
+
+        assert "summary" in result
+        assert isinstance(result["summary"], str)
+        assert len(result["summary"]) > 0
+
+    @pytest.mark.asyncio
+    async def test_summarize_with_config(self, ai_worker):
+        """Test summarization with custom config parameters."""
+        result = await ai_worker.execute(
+            node_type="ai.summarize",
+            inputs={
+                "text": "This is a test text that needs to be summarized.",
+                "max_length": 100,
+            },
+            config={
+                "model": "custom-model",
+                "temperature": 0.3,
+                "max_tokens": 512,
+            },
+            context=None,
+        )
+
+        assert "summary" in result
+        assert isinstance(result["summary"], str)
+        assert len(result["summary"]) > 0
