@@ -1,17 +1,40 @@
-"""NodeWorker — minimal stub for Phase 3 testing.
-
-Full implementation in Phase 4 (subtask-4-1).
-This stub provides just enough for parallel execution tests.
-"""
+"""Interface abstraite pour les workers Node."""
 
 from __future__ import annotations
 
+import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
+from tenacity import (
+    before_sleep_log,
+    retry,
+    retry_if_exception_type,
+    stop_after_attempt,
+    wait_exponential,
+)
+
 if TYPE_CHECKING:
+    from aiobreaker import CircuitBreaker
+
     from mascarade.node_engine.graph import ExecutionContext
+
+logger = logging.getLogger("mascarade.node_engine")
+
+# Exceptions transitoires communes pour workers
+RETRYABLE_WORKER_EXCEPTIONS = (ConnectionError, TimeoutError, OSError)
+
+
+def make_worker_retry(*extra_exceptions: type[BaseException]):
+    """Créer un décorateur retry avec exceptions spécifiques au worker."""
+    return retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=1, max=10),
+        retry=retry_if_exception_type(RETRYABLE_WORKER_EXCEPTIONS + tuple(extra_exceptions)),
+        before_sleep=before_sleep_log(logger, logging.WARNING),
+        reraise=True,
+    )
 
 
 @dataclass
@@ -30,14 +53,26 @@ class NodeCapability:
 
 class NodeWorker(ABC):
     """
-    Abstract base class for all domain workers (minimal stub for Phase 3).
+    Interface commune pour tous les workers Node.
 
-    Full implementation with circuit breaker integration and retry
-    support will be added in Phase 4.
+    Circuit Breaker Support:
+        Les méthodes execute() sont protégées par un circuit breaker
+        pour prévenir les pannes en cascade. Le circuit breaker est automatiquement
+        appliqué par le Node Engine lors des appels aux workers.
+
+        États du circuit breaker:
+        - CLOSED: Fonctionnement normal
+        - OPEN: Échecs répétés, appels rejetés immédiatement
+        - HALF_OPEN: Test de récupération
+
+        Configuration par défaut: fail_max=5, timeout=60s
     """
 
     name: str
     domain: str
+
+    # Circuit breaker instance (set by Node Engine or CircuitBreakerManager)
+    circuit_breaker: "CircuitBreaker | None" = None
 
     @abstractmethod
     async def execute(
@@ -48,16 +83,27 @@ class NodeWorker(ABC):
         context: "ExecutionContext",
     ) -> dict[str, Any]:
         """
-        Execute a node of the given type with the provided inputs.
+        Exécuter un node avec les inputs fournis.
+
+        Note: Cette méthode est protégée par un circuit breaker au niveau
+        du Node Engine pour prévenir les pannes en cascade. Le circuit s'ouvre
+        après 5 échecs consécutifs et rejette les appels pendant 60s avant
+        de tester la récupération.
 
         Args:
-            node_type: The registered node type identifier
-            inputs: Input port values (keyed by port ID)
-            config: Node-specific configuration
-            context: Execution context with run metadata and cancellation
+            node_type: Identifiant du type de node
+            inputs: Valeurs des ports d'entrée (par ID de port)
+            config: Configuration spécifique au node
+            context: Contexte d'exécution avec métadonnées et annulation
 
         Returns:
-            Output port values (keyed by port ID)
+            Valeurs des ports de sortie (par ID de port)
+
+        Raises:
+            CircuitBreakerError: Si le circuit breaker est ouvert
+            ConnectionError: Erreur de connexion
+            TimeoutError: Timeout de l'exécution
+            ValueError: Inputs ou configuration invalides
         """
         ...
 
@@ -69,21 +115,27 @@ class NodeWorker(ABC):
         config: dict[str, Any],
     ) -> list[str]:
         """
-        Validate inputs and configuration before execution.
-
-        Returns a list of validation error messages (empty if valid).
+        Valider inputs et configuration avant exécution.
 
         Args:
-            node_type: The registered node type identifier
-            inputs: Input port values to validate
-            config: Node-specific configuration to validate
+            node_type: Identifiant du type de node
+            inputs: Valeurs des ports d'entrée à valider
+            config: Configuration spécifique au node à valider
 
         Returns:
-            List of validation error messages (empty = valid)
+            Liste des messages d'erreur de validation (vide si valide)
+
+        Raises:
+            ValueError: Erreur de validation avec détails
         """
         ...
 
     @abstractmethod
     def capabilities(self) -> NodeCapability:
-        """Declare this worker's capabilities."""
+        """Déclarer les capacités de ce worker."""
         ...
+
+    @property
+    def is_available(self) -> bool:
+        """Vérifie si le worker est disponible pour exécution."""
+        return True
