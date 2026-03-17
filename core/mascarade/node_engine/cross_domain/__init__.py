@@ -13,8 +13,10 @@ See SPEC-029-P5 for full specification.
 from __future__ import annotations
 
 from mascarade.node_engine.cross_domain.adapter import AdapterMapping, CrossDomainAdapter
+from mascarade.node_engine.cross_domain.envelope import CrossDomainEnvelope
 
 __all__ = [
     "CrossDomainAdapter",
     "AdapterMapping",
+    "CrossDomainEnvelope",
 ]
