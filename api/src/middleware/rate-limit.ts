@@ -100,8 +100,6 @@ function getClientKey(c: Context): string {
   }
 
   // Fallback to IP-based key for unauthenticated requests
-  return (
-    `ip:${c.req.header("x-forwarded-for")?.split(",")[0]?.trim() || c.req.header("x-real-ip") || "unknown"}`
   const env = c.env as Record<string, unknown>;
   const incoming = env["incoming"] as { remote?: { address?: string } } | undefined;
   const directRemote = normalizeIp(
@@ -239,7 +237,6 @@ const cleanupInterval = setInterval(() => {
     }
   }
 }, MINUTE_MS);
-}, WINDOW_MS);
 
 if (typeof (cleanupInterval as any).unref === "function") {
   (cleanupInterval as any).unref();
