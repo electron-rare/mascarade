@@ -46,9 +46,10 @@ async def test_mem0_request_post_success():
     with patch("httpx.AsyncClient") as mock_client:
         mock_instance = AsyncMock()
         mock_client.return_value.__aenter__.return_value = mock_instance
-        mock_instance.post = AsyncMock()
-        mock_instance.post.return_value.json.return_value = mock_response
-        mock_instance.post.return_value.raise_for_status = MagicMock()
+        mock_resp = MagicMock()
+        mock_resp.json.return_value = mock_response
+        mock_resp.raise_for_status = MagicMock()
+        mock_instance.post = AsyncMock(return_value=mock_resp)
 
         result = await _mem0_request(
             "http://mem0:8765/memories",
@@ -68,9 +69,10 @@ async def test_mem0_request_get_success():
     with patch("httpx.AsyncClient") as mock_client:
         mock_instance = AsyncMock()
         mock_client.return_value.__aenter__.return_value = mock_instance
-        mock_instance.get = AsyncMock()
-        mock_instance.get.return_value.json.return_value = mock_response
-        mock_instance.get.return_value.raise_for_status = MagicMock()
+        mock_resp = MagicMock()
+        mock_resp.json.return_value = mock_response
+        mock_resp.raise_for_status = MagicMock()
+        mock_instance.get = AsyncMock(return_value=mock_resp)
 
         result = await _mem0_request(
             "http://mem0:8765/memories",
@@ -90,9 +92,10 @@ async def test_mem0_request_delete_success():
     with patch("httpx.AsyncClient") as mock_client:
         mock_instance = AsyncMock()
         mock_client.return_value.__aenter__.return_value = mock_instance
-        mock_instance.delete = AsyncMock()
-        mock_instance.delete.return_value.json.return_value = mock_response
-        mock_instance.delete.return_value.raise_for_status = MagicMock()
+        mock_resp = MagicMock()
+        mock_resp.json.return_value = mock_response
+        mock_resp.raise_for_status = MagicMock()
+        mock_instance.delete = AsyncMock(return_value=mock_resp)
 
         result = await _mem0_request(
             "http://mem0:8765/memories/mem-123",
@@ -135,14 +138,13 @@ async def test_mem0_request_http_error():
         mock_response.status_code = 404
         mock_response.text = "Memory not found"
 
-        mock_instance.post = AsyncMock()
-        mock_instance.post.return_value.raise_for_status.side_effect = (
-            httpx.HTTPStatusError(
-                "404 Not Found",
-                request=MagicMock(),
-                response=mock_response,
-            )
+        mock_resp = MagicMock()
+        mock_resp.raise_for_status.side_effect = httpx.HTTPStatusError(
+            "404 Not Found",
+            request=MagicMock(),
+            response=mock_response,
         )
+        mock_instance.post = AsyncMock(return_value=mock_resp)
 
         with pytest.raises(HTTPException) as exc_info:
             await _mem0_request(
@@ -489,9 +491,10 @@ async def test_mem0_request_handles_various_response_formats():
     with patch("httpx.AsyncClient") as mock_client:
         mock_instance = AsyncMock()
         mock_client.return_value.__aenter__.return_value = mock_instance
-        mock_instance.post = AsyncMock()
-        mock_instance.post.return_value.json.return_value = {"id": "mem-123"}
-        mock_instance.post.return_value.raise_for_status = MagicMock()
+        mock_resp = MagicMock()
+        mock_resp.json.return_value = {"id": "mem-123"}
+        mock_resp.raise_for_status = MagicMock()
+        mock_instance.post = AsyncMock(return_value=mock_resp)
 
         result = await _mem0_request(
             "http://mem0:8765/memories",
@@ -505,11 +508,12 @@ async def test_mem0_request_handles_various_response_formats():
     with patch("httpx.AsyncClient") as mock_client:
         mock_instance = AsyncMock()
         mock_client.return_value.__aenter__.return_value = mock_instance
-        mock_instance.get = AsyncMock()
-        mock_instance.get.return_value.json.return_value = {
+        mock_resp = MagicMock()
+        mock_resp.json.return_value = {
             "results": [{"id": "mem-1"}, {"id": "mem-2"}]
         }
-        mock_instance.get.return_value.raise_for_status = MagicMock()
+        mock_resp.raise_for_status = MagicMock()
+        mock_instance.get = AsyncMock(return_value=mock_resp)
 
         result = await _mem0_request(
             "http://mem0:8765/memories",

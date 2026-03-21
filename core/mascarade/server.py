@@ -31,6 +31,12 @@ from mascarade.routers.finetune import router as finetune_router
 from mascarade.routers.health import router as health_router
 from mascarade.routers.memory import router as memory_router
 from mascarade.routers.providers import router as providers_router
+from mascarade.routers.prompt_versioning import router as prompt_versioning_router
+from mascarade.routers.cad_mcp import router as cad_mcp_router
+from mascarade.routers.knowledge_base import (
+    knowledge_base_auth_configured,
+    router as knowledge_base_router,
+)
 
 logger = logging.getLogger("mascarade.server")
 
@@ -170,6 +176,9 @@ def create_app() -> FastAPI:
     app.include_router(memory_router)
     app.include_router(providers_router)
     app.include_router(finetune_router)
+    app.include_router(prompt_versioning_router)
+    app.include_router(cad_mcp_router)
+    app.include_router(knowledge_base_router)
 
     # Mount Gradio UI for fine-tuning (if available)
     if GRADIO_AVAILABLE:
