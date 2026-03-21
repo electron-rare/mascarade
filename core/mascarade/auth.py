@@ -269,15 +269,23 @@ class RateLimiter:
 _rate_limiter = RateLimiter()
 
 
+def _configured_api_keys_string() -> str:
+    value = _config_module.settings.mascarade_api_key
+    if hasattr(value, "get_secret_value"):
+        return value.get_secret_value()
+    return str(value or "")
+
+
 def _load_api_keys() -> None:
     """Load API keys from configuration (thread-safe)."""
     global _api_keys, _last_key_rotation
 
     with _keys_lock:
-        if _config_module.settings.mascarade_api_key:
+        configured_keys = _configured_api_keys_string()
+        if configured_keys:
             new_keys = {
                 key.strip()
-                for key in _config_module.settings.mascarade_api_key.split(",")
+                for key in configured_keys.split(",")
                 if key.strip() and len(key.strip()) >= _MIN_API_KEY_LENGTH
             }
             if new_keys != _api_keys:
@@ -470,15 +478,20 @@ def reset_rate_limit(user_key: str | None = None, ip_address: str | None = None)
 
 
 def hash_api_key(key: str) -> str:
-    """Hash an API key using SHA-256.
+    """Hash an API key using HMAC-SHA256 with a server-side secret.
+
+    Uses a secret from the MASCARADE_KEY_HASH_SECRET environment variable
+    (falls back to a static pepper if unset, but a proper secret is strongly
+    recommended in production).
 
     Args:
         key: The API key to hash
 
     Returns:
-        Hex-encoded SHA-256 hash of the key
+        Hex-encoded HMAC-SHA256 hash of the key
     """
-    return hashlib.sha256(key.encode()).hexdigest()
+    secret = os.getenv("MASCARADE_KEY_HASH_SECRET", "mascarade-default-pepper-change-me")
+    return hmac.new(secret.encode(), key.encode(), hashlib.sha256).hexdigest()
 
 
 async def authenticate_user(api_key: str) -> User | None:
@@ -727,7 +740,8 @@ async def migrate_legacy_keys() -> dict:
     if pool is None:
         raise RuntimeError("Database pool not initialized. Call init_db_pool() first.")
 
-    if not _config_module.settings.mascarade_api_key:
+    configured_keys = _configured_api_keys_string()
+    if not configured_keys:
         logger.info("No legacy API keys configured (MASCARADE_API_KEY is empty)")
         return {
             "migrated": 0,
@@ -739,7 +753,7 @@ async def migrate_legacy_keys() -> dict:
     # Parse legacy API keys
     legacy_keys = [
         key.strip()
-        for key in _config_module.settings.mascarade_api_key.split(",")
+        for key in configured_keys.split(",")
         if key.strip() and len(key.strip()) >= 8
     ]
 

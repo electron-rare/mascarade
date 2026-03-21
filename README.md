@@ -1,234 +1,1104 @@
 # Mascarade
 
-Personal agentic LLM orchestration system. Intelligently routes requests across 11 LLM providers (Claude, GPT, Mistral, Bedrock, Gemini, Hugging Face, Ollama, llama.cpp, CoreML, and more) with specialized agents, multi-agent orchestration, caching, automatic fallback, and runtime surfaces for knowledge-base, CAD, and electronics.
+Systeme d'orchestration agentique personnel. Route intelligemment les requetes LLM entre Claude, GPT, Mistral, AWS Bedrock, Google Gemini et Hugging Face, avec agents specialises, orchestration multi-agents, cache, fallback automatique et surfaces runtime `knowledge-base` / `cad`.
 
-## Ecosystem
+## Ecosysteme
 
-Mascarade is part of a 5-repository ecosystem:
+Mascarade fait partie d'un ecosysteme de 5 repos :
 
 | Repo | Role |
 |------|------|
-| **[mascarade](https://github.com/electron-rare/mascarade)** | Runtime/ops, agentic orchestration, fine-tuning, LLM routing |
-| **[mascarade-datasets](https://github.com/electron-rare/mascarade-datasets)** | Fine-tuning datasets (13 domains, ~74k examples) |
-| **[mascarade-cockpit](https://github.com/electron-rare/mascarade-cockpit)** | SvelteKit ops console (Docker monitoring, metrics, energy) |
-| **[crazy_life](https://github.com/electron-rare/crazy_life)** | Web cockpit and CrazyLane workflow editor |
-| **[Kill_LIFE](https://github.com/electron-rare/Kill_LIFE)** | Agentic template for embedded AI projects (7 MCP servers) |
+| **[mascarade](https://github.com/electron-rare/mascarade)** | Repo compagnon runtime/ops, orchestration agentique, fine-tuning et bridge historique |
+| **[mascarade-datasets](https://github.com/electron-rare/mascarade-datasets)** | Datasets de fine-tuning (13 domaines, ~74k exemples) |
+| **[mascarade-cockpit](https://github.com/electron-rare/mascarade-cockpit)** | Console ops SvelteKit (monitoring Docker, metriques, energie) |
+| **[crazy_life](https://github.com/electron-rare/crazy_life)** | Repo canonique web/devops du cockpit et de la surface `Crazy Lane` |
+| **[Kill_LIFE](https://github.com/electron-rare/Kill_LIFE)** | Template agentique pour projets embarques IA (spec-first, gates, evidence packs) |
 
 ## Architecture
 
-```mermaid
-graph TB
-    Client[Client / curl / crazy_life] -->|:3000| API
-    API["API Gateway<br/>TypeScript (Hono)"] -->|:8100| Core
-    Core["Core Runtime<br/>Python (FastAPI)"]
-    Core --> Router[Router + Strategy]
-    Core --> Agents[Agent Registry]
-    Core --> Orchestrator[Orchestrator<br/>seq / par / pipeline]
-    Core --> NodeEngine[Node Engine<br/>Graph Runtime]
-    Core --> P2P[P2P Mesh<br/>4 nodes]
-    Router --> Providers["11 LLM Providers"]
-    Core --> MCP["MCP Client<br/>Kill_LIFE servers"]
-    Core --> Cache["Cache + Metrics"]
-    Core --> Observability["OTEL + Langfuse"]
+```
+                         +-----------+
+                         |  Client   |
+                         | curl/app  |
+                         +-----+-----+
+                               |
+                      :3100    v
+                  +--------------------+
+                  |   API TypeScript   |
+                  |   (Hono + auth)    |
+                  +--------+-----------+
+                           |
+                  :8100    v
+          +-------------------------------+
+          |        Core Python            |
+          |  +--------+  +-----------+    |
+          |  | Router |  |  Agents   |    |
+          |  | strat. |  | registry  |    |
+          |  +---+----+  +-----+-----+    |
+          |      |             |          |
+          |  +---+---+  +-----+------+   |
+          |  | Cache |  |Orchestrator|   |
+          |  |Metrics|  | seq/par/   |   |
+          |  |Fallbk |  | pipeline   |   |
+          |  |  LB   |  +------------+   |
+          |  +---+---+                    |
+          +------+------------------------+
+                 |
+    +------------+------------+
+    |            |            |
++---v---+  +----v---+  +-----v----+
+|Claude |  | OpenAI |  | Mistral  |
++-------+  +--------+  +----------+
+
+                  +------------------+
+                  | Knowledge Base / |
+                  | MCP integrations |
+                  +------------------+
 ```
 
-### Stack
+## Suivi
+- backlog ANE dedie: [`TODO_AI_NOVEL_ENGINE.md`](./TODO_AI_NOVEL_ENGINE.md)
+- plan d'execution global: [`docs/EXECUTION_PLAN_2026-03-08.md`](./docs/EXECUTION_PLAN_2026-03-08.md)
+- runbook Apple local: [`docs/RUNBOOK_APPLE_LLM_LOCAL.md`](./docs/RUNBOOK_APPLE_LLM_LOCAL.md)
+- programme d'analyse multi-repo: [`docs/audit/MULTI_REPO_DEEP_ANALYSIS_PROGRAM_2026-03-11.md`](./docs/audit/MULTI_REPO_DEEP_ANALYSIS_PROGRAM_2026-03-11.md)
+- baseline multi-repo regenere: [`docs/audit/MULTI_REPO_BASELINE_2026-03-11.md`](./docs/audit/MULTI_REPO_BASELINE_2026-03-11.md)
+- diagramme de sequence runtime: [`docs/API_CORE_PROVIDER_SEQUENCE_2026-03-11.md`](./docs/API_CORE_PROVIDER_SEQUENCE_2026-03-11.md)
+- diagramme cluster/p2p/runtime distant: [`docs/CLUSTER_P2P_REMOTE_SEND_SEQUENCE_2026-03-11.md`](./docs/CLUSTER_P2P_REMOTE_SEND_SEQUENCE_2026-03-11.md)
+- feature map repo: [`docs/MASCARADE_FEATURE_MAP_2026-03-11.md`](./docs/MASCARADE_FEATURE_MAP_2026-03-11.md)
+- l'integration `ai-novel-engine` reste limitee au runtime local et au contrat OpenAI-compatible
 
-| Layer | Technology | Port |
-|-------|-----------|------|
-| API Gateway | TypeScript, Hono, 30 route modules | 3000 |
-| Core Runtime | Python 3.11+, FastAPI, async | 8100 |
-| Frontend | React 19, XYFlow graph editor | — |
-| Data | Redis, PostgreSQL, Qdrant, ClickHouse, Neo4j | — |
-| AI Services | Ollama, TTS, STT | — |
-| Observability | Prometheus, Grafana, Loki, Tempo, OTEL | — |
-| Orchestration | LiteLLM, n8n, Dify, Langfuse | — |
+**Core Python** (`core/`, port `8100`) -- Moteur d'orchestration, routeur LLM, agents, metriques
+**API TypeScript** (`api/`, port `3100`) -- Facade HTTP Hono, auth middleware, proxy vers le core
+**VM** -- Deploiement Docker sur `192.168.0.119`
 
-## Quick Start
+---
 
-### Prerequisites
+## Crazy Life (frontend)
 
-- Docker + Docker Compose
-- Node.js 20+
-- Python 3.11+ (with `uv` recommended)
+`mascarade` pilote l'operateur local et le runtime Docker de cette machine.
+`mascarade/web/` est un subtree bridge vers le repo canonique [crazy_life](https://github.com/electron-rare/crazy_life).
 
-### 1. Clone and configure
+Contrat courant:
+- `crazy_life` = repo canonique web/devops et release du shell cockpit
+- `Kill_LIFE` = source de verite runtime, workflows JSON, evidence, firmware, CAD et compliance
+- `mascarade` = repo compagnon/orchestration + bridge historique optionnel
 
 ```bash
-git clone https://github.com/electron-rare/mascarade.git
+scripts/sync_crazy_life.sh status          # Etat de sync
+scripts/sync_crazy_life.sh push            # export bridge web/ -> crazy_life
+scripts/sync_crazy_life.sh pull            # crazy_life/main -> web/
+npm --prefix web run build                 # build local dans web/dist
+npm --prefix web run build:api-public      # refresh explicite du snapshot api/public
+```
+
+Rappel operatoire:
+- `scripts/sync_crazy_life.sh` ne publie pas une release canonique
+- la readiness de release vit dans `crazy_life`, via `scripts/publish_preflight.sh`
+
+### Boucle "next useful lot"
+
+Les scripts canoniques pour enchainer automatiquement sur le prochain lot utile
+local sont:
+
+```bash
+bash scripts/next_useful_lot.sh detect
+bash scripts/next_useful_lot.sh checks
+bash scripts/run_next_useful_lot.sh
+```
+
+Contrat:
+- `detect` choisit le lot local le plus utile encore ouvert
+- `checks` rejoue ses validations canoniques
+- `run_next_useful_lot.sh` fait `detect + checks + refresh` de
+  `docs/NEXT_USEFUL_LOT_STATE.md`
+
+Le fichier versionne [NEXT_USEFUL_LOT_STATE.md](/home/clems/mascarade/docs/NEXT_USEFUL_LOT_STATE.md)
+devient la note de handoff court terme pour le lot actif.
+
+---
+
+## Fine-Tuning
+
+Pipeline de fine-tuning QLoRA pour modeles code specialises electronique embarquee.
+
+- **Profil operateur** : derive du materiel detecte
+- **Machine validee ici** : RTX 4090 24 Go
+- **Student auto courant** : `Qwen/Qwen3.5-9B-Base`
+- **10 domaines** : stm32, spice, iot, power, dsp, emc, kicad, embedded, platformio, freecad
+- **Datasets** : ~74k exemples au format ShareGPT (repo [mascarade-datasets](https://github.com/electron-rare/mascarade-datasets))
+- **Racine canonique des modeles** : `/ai/llm`
+
+Runbook detaille:
+
+- [docs/FINETUNING_OPERATOR_RUNBOOK.md](/ai/saisail/mascarade/docs/FINETUNING_OPERATOR_RUNBOOK.md)
+
+```bash
+cd /ai/saisail/mascarade
+. ./scripts/llm_env.sh
+
+# Selection/veille du student
+venv_tuning/bin/python finetune/model_selector.py --watch --refresh --task code --top 6 --auto
+
+# Entrainement local auto
+venv_tuning/bin/python finetune/run_local.py stm32
+
+# Prochain lot utile
+./scripts/next_finetune_lots.sh --skip-cad-smoke --skip-components-review
+./scripts/bench_watch_candidate.sh
+./scripts/bench_watch_candidate.sh --execute
+./scripts/auto_chain_next_lots_loop.sh --iterations 1 --sleep-seconds 600 --max-blocked-streak 12 --max-cycles 0
+
+# Consolidation des caches/modeles
+./scripts/migrate_models_to_llm.sh
+./scripts/migrate_models_to_llm.sh --execute --cleanup --link-home-cache
+```
+
+---
+
+## Prerequis
+
+- **Docker** et **Docker Compose** (deploiement)
+- **Python 3.11+** (dev local core)
+- **Node.js 22+** (dev local API)
+- `MASCARADE_API_KEY` pour un runtime protege
+- Au moins un provider LLM configure, ou `OLLAMA_ENABLED=true` avec un runtime Ollama joignable
+
+Le setup installe aussi un `htop` repo-local epingle en `3.4.0` sous `tools/.local/` et l'expose via `./tools/htop`.
+Pourquoi: Ubuntu 24.04 livre `htop 3.3.0`, qui n'inclut pas le meter `GPU usage`. La `3.4.0` ajoute ce meter, utile pour suivre les services GPU du repo sans ecraser le `htop` systeme.
+
+---
+
+## Installation
+
+### 1. Cloner le repo
+
+```bash
+git clone <repo-url> mascarade
 cd mascarade
+```
+
+### 2. Configurer l'environnement
+
+```bash
 cp .env.example .env
-# Edit .env with your API keys (ANTHROPIC_API_KEY, OPENAI_API_KEY, etc.)
 ```
 
-### 2. Start with Docker Compose
+Editer `.env` et remplir les cles :
+
+- `required-security`: `MASCARADE_API_KEY` protege l'API, le core et l'ops-agent.
+- `feature-required`: providers LLM et integrations que vous activez reellement.
+- `live-validation-optional`: cibles de smoke/runtime live seulement.
+- `local-operator-context`: endpoints OAuth, chemins et overrides locaux.
 
 ```bash
-# Start core services
-docker compose --profile core up -d
+# Runtime security — toujours requis pour un runtime protege
+MASCARADE_API_KEY=un-token-secret
 
-# Start full stack (including observability)
-docker compose up -d
+# Providers LLM — configurer seulement ce que vous utilisez
+ANTHROPIC_API_KEY=sk-ant-xxxxx          # Claude (best quality)
+OPENAI_API_KEY=sk-xxxxx                 # GPT (fastest)
+MISTRAL_API_KEY=xxxxx                   # Mistral (cheapest)
+GOOGLE_API_KEY=xxxxx                    # Gemini API (mode api_key)
+GOOGLE_AUTH_MODE=api_key                # or oauth_oidc or adc
+GOOGLE_OAUTH_ACCESS_TOKEN=
+GOOGLE_OAUTH_REFRESH_TOKEN=
+GOOGLE_OAUTH_CLIENT_ID=
+GOOGLE_OAUTH_CLIENT_SECRET=
+GOOGLE_OAUTH_TOKEN_ENDPOINT=https://oauth2.googleapis.com/token
+GOOGLE_OAUTH_EXPIRES_AT=
+HUGGINGFACE_API_KEY=hf_xxxxx            # Hugging Face Inference (mode api_key)
+HUGGINGFACE_AUTH_MODE=api_key           # or oauth_oidc
+HUGGINGFACE_BASE_URL=https://router.huggingface.co/v1
+HUGGINGFACE_OAUTH_ACCESS_TOKEN=
+HUGGINGFACE_OAUTH_REFRESH_TOKEN=
+HUGGINGFACE_OAUTH_CLIENT_ID=
+HUGGINGFACE_OAUTH_CLIENT_SECRET=
+HUGGINGFACE_OAUTH_TOKEN_ENDPOINT=https://huggingface.co/oauth/token
+HUGGINGFACE_OAUTH_EXPIRES_AT=
+HUGGINGFACE_MODEL=meta-llama/Meta-Llama-3.1-8B-Instruct
+
+# AWS Bedrock (optionnel)
+AWS_ACCESS_KEY_ID=AKIA...
+AWS_SECRET_ACCESS_KEY=...
+AWS_REGION=eu-west-1
+AWS_BEDROCK_MODEL_ID=anthropic.claude-3-5-sonnet-20241022-v2:0
+
+# Google Cloud / Vertex (optionnel, requis en mode adc et utilisable aussi avec oauth_oidc)
+GOOGLE_CLOUD_PROJECT=mon-projet
+GOOGLE_CLOUD_LOCATION=europe-west1
+GOOGLE_APPLICATION_CREDENTIALS=/chemin/key.json
+GOOGLE_MODEL=gemini-2.5-flash
+
+# GitHub dispatch — integration optionnelle
+GITHUB_DISPATCH_AUTH_MODE=token       # or app
+KILL_LIFE_GITHUB_TOKEN=ghp_xxxxx
+GITHUB_TOKEN=
+GITHUB_APP_ID=
+GITHUB_APP_PRIVATE_KEY=
+GITHUB_APP_INSTALLATION_ID=
+
+# Firecrawl MCP — integration optionnelle
+FIRECRAWL_HOST=0.0.0.0
+FIRECRAWL_API_KEY=fc_xxxxx
+FIRECRAWL_API_URL=                     # optionnel, seulement si vous ciblez une API Firecrawl self-hosted
+
+# Mem0 / OpenMemory — integration optionnelle
+MEM0_USER=mascarade
+MEM0_OPENAI_API_KEY=sk-mem0-local    # si LiteLLM a une master key, reprendre la meme ici
+MEM0_OPENAI_BASE_URL=http://litellm:4000
+MEM0_QDRANT_HOST=qdrant
+MEM0_QDRANT_PORT=6333
+
+# Core
+CORE_HOST=0.0.0.0
+CORE_PORT=8100
+
+# API
+API_PORT=3100
+CORE_URL=http://localhost:8100          # http://core:8100 en Docker
+
+# Ollama (Docker ou hote natif)
+OLLAMA_ENABLED=true
+OLLAMA_HOST_MODE=docker
+OLLAMA_BASE_URL=http://ollama:11434    # macOS natif: http://host.docker.internal:11434
+OLLAMA_TIMEOUT_SECONDS=180             # augmenter pour les smokes ANE longs
+
+# Apple LLM natif (service hote macOS pour Core ML / ANE)
+APPLE_LLM_ENABLED=false
+APPLE_LLM_BASE_URL=http://host.docker.internal:8201  # dev local hors Docker: http://127.0.0.1:8201
+APPLE_LLM_MODEL_ID=apple-local
+APPLE_LLM_BACKEND=coreml                              # ou onnx-coreml
+APPLE_LLM_MODEL_PATH=/chemin/model.mlpackage          # onnx-coreml: /chemin/model.onnx
+APPLE_LLM_EMBED_MODEL_PATH=/chemin/embed_tokens.mlpackage  # optionnel, requis si le modele attend inputs_embeds
+APPLE_LLM_TOKENIZER_PATH=/chemin/tokenizer
+APPLE_LLM_COMPUTE_UNITS=cpu_and_ne
+APPLE_LLM_ENABLE_THINKING=false                      # Qwen3.5: false pour une reponse directe
+
+# Defauts LLM
+DEFAULT_PROVIDER=claude
+DEFAULT_MODEL=claude-sonnet-4-6
 ```
 
-### 3. Development mode
+Le routeur active automatiquement les providers dont la cle est presente. Pas de cle = provider ignore.
+
+Note:
+- `Notion` n'est plus dans le scope operateur actif de `mascarade`.
+- Les variables `NOTION_*` ne doivent plus etre traitees comme prerequis courants.
+- Les chemins `Notion` encore presents dans le repo relevent de la compatibilite legacy uniquement.
+
+## CAD / EDA
+
+Une stack Docker dédiée `KiCad headless`, `KiCad MCP`, `FreeCAD` et `PlatformIO` est disponible dans [deploy/cad/README.md](/home/clems/mascarade/deploy/cad/README.md).
+
+Validation cloud rapide:
 
 ```bash
-# Python core
-cd core && pip install -e . && python -m mascarade.server
-
-# TypeScript API
-cd api && npm install && npm run dev
-
-# Web frontend
-cd web && npm install && npm run dev
+./scripts/check_aws_bedrock.sh
+./scripts/check_google_cloud.sh
 ```
 
-### 4. Verify
+### 3. Lancer avec Docker (recommande)
 
 ```bash
-# Health check
-curl http://localhost:8100/v1/version
-curl http://localhost:3000/health
+./setup
+```
 
-# Send a request
-curl -X POST http://localhost:8100/v1/chat/completions \
-  -H "Authorization: Bearer $MASCARADE_API_KEY" \
+Une fois le setup passe, tu peux lancer le `htop` fourni par le repo avec:
+
+```bash
+./tools/htop
+```
+
+Si tu veux desactiver ce telechargement repo-local pendant `./setup`, exporte `MASCARADE_SKIP_REPO_HTOP=true`.
+
+Ou en mode non-interactif:
+
+```bash
+./setup --with core,api,ops-console,ollama --yes
+```
+
+Sur macOS Apple Silicon (M1 a M5), le profil dedie privilegie une stack legere. Si Ollama natif est installe, `setup` configure automatiquement `OLLAMA_BASE_URL` pour que les conteneurs parlent a l'hote:
+
+```bash
+MASCARADE_TUI_MODE=plain ./setup --profile apple-silicon --yes
+```
+
+Ce profil est pense pour les outils locaux Apple Silicon actuels:
+
+- Ollama natif pour le serving local simple
+- MLX / `mlx-lm` pour l'experimentation Apple Silicon
+- Core ML / ONNX Runtime CoreML EP pour un vrai chemin Neural Engine
+
+Pour brancher un vrai service local Apple Silicon / Neural Engine, Mascarade expose maintenant un provider `apple-coreml` qui parle a un service hote macOS:
+
+```bash
+./scripts/install_apple_coreml_model.sh
+
+export APPLE_LLM_ENABLED=true
+export APPLE_LLM_BASE_URL=http://host.docker.internal:8201
+export APPLE_LLM_MODEL_ID=stateful-mistral7b-instruct-int4-coreml
+export APPLE_LLM_BACKEND=coreml
+export APPLE_LLM_TIMEOUT_SECONDS=900
+export APPLE_LLM_MODEL_PATH="$HOME/Models/mascarade/apple-llm/StatefulMistral7BInstructInt4/StatefulMistral7BInstructInt4.mlpackage"
+export APPLE_LLM_TOKENIZER_PATH="$HOME/Models/mascarade/apple-llm/StatefulMistral7BInstructInt4/tokenizer"
+
+./scripts/run_apple_llm_service.sh
+```
+
+Pour les smokes `ai-novel-engine`, prevoir un timeout Apple plus large que les providers cloud: le warm-up Core ML peut depasser plusieurs minutes sur le premier appel.
+
+Validation locale utile pour `ai-novel-engine` au 8 mars 2026:
+- sous protocole ANE avec garde-fou actif, aucun modele n'est encore `accepted`
+- sous protocole ANE avec boucle `repair`, aucun modele n'atteint encore `gate` en live
+- `apple-coreml:qwen2.5-0.5b-instruct-onnx` atteint `rewrite` puis timeoute a `300s`
+- `apple-coreml:qwen3.5-4b-onnx-q4f16` atteint `rewrite` avec une critique exploitable puis timeoute a `300s`
+- `ollama:qwen2.5:1.5b` timeoute en `structure` via le service Docker CPU
+- `ollama:qwen2.5:7b` atteint `rewrite` avec une critique exploitable puis timeoute a `300s`
+- `apple-coreml:stateful-mistral7b-instruct-int4-coreml` repond au preflight, mais reste preflight-only pour ANE sur cette machine
+- pour les smokes ANE qualitatifs sur le service Docker CPU, prevoir un `OLLAMA_TIMEOUT_SECONDS` plus large que `180` si les requetes de structure ou de draft depassent plusieurs minutes
+- le runtime Apple local ne sert qu'un seul `model_id` a la fois; pour comparer plusieurs modeles Apple, il faut relancer `:8201` entre deux runs
+
+Si tu as deja un export Core ML natif produit ailleurs, tu peux aussi le stage dans un layout stable pour Mascarade:
+
+```bash
+./scripts/stage_apple_coreml_model.sh \
+  --model-source ~/Exports/Qwen3.5/decoder_model_merged.mlpackage \
+  --embed-source ~/Exports/Qwen3.5/embed_tokens.mlpackage \
+  --tokenizer-source ~/Exports/Qwen3.5/tokenizer \
+  --dest ~/Models/mascarade/apple-llm/Qwen3.5-4B-CoreML \
+  --model-id qwen3.5-4b-coreml
+
+export APPLE_LLM_ENABLED=true
+export APPLE_LLM_BASE_URL=http://host.docker.internal:8201
+export APPLE_LLM_MODEL_ID=qwen3.5-4b-coreml
+export APPLE_LLM_BACKEND=coreml
+export APPLE_LLM_MODEL_PATH="$HOME/Models/mascarade/apple-llm/Qwen3.5-4B-CoreML/decoder_model_merged.mlpackage"
+export APPLE_LLM_EMBED_MODEL_PATH="$HOME/Models/mascarade/apple-llm/Qwen3.5-4B-CoreML/embed_tokens.mlpackage"
+export APPLE_LLM_TOKENIZER_PATH="$HOME/Models/mascarade/apple-llm/Qwen3.5-4B-CoreML/tokenizer"
+export APPLE_LLM_ENABLE_THINKING=false
+
+./scripts/run_apple_llm_service.sh
+./scripts/smoke_apple_llm.sh --url http://127.0.0.1:8201 --model qwen3.5-4b-coreml
+```
+
+Le chemin ONNX reste disponible comme fallback de compatibilite:
+
+```bash
+./scripts/install_apple_llm_model.sh
+
+export APPLE_LLM_ENABLED=true
+export APPLE_LLM_BASE_URL=http://host.docker.internal:8201
+export APPLE_LLM_MODEL_ID=qwen3.5-4b-onnx-q4f16
+export APPLE_LLM_BACKEND=onnx-coreml
+export APPLE_LLM_MODEL_PATH="/ai/llm/apple-llm/Qwen3.5-4B-ONNX-q4f16/onnx/decoder_model_merged_q4f16.onnx"
+export APPLE_LLM_TOKENIZER_PATH="/ai/llm/apple-llm/Qwen3.5-4B-ONNX-q4f16"
+export APPLE_LLM_ENABLE_THINKING=false
+
+./scripts/run_apple_llm_service.sh
+./scripts/smoke_apple_llm.sh --url http://127.0.0.1:8201 --model qwen3.5-4b-onnx-q4f16
+```
+
+Ensuite, pour que le routeur utilise ce chemin:
+
+```bash
+DEFAULT_PROVIDER=apple-coreml
+DEFAULT_MODEL=<meme-valeur-que-APPLE_LLM_MODEL_ID>
+```
+
+Notes:
+
+- `scripts/stage_apple_coreml_model.sh` stage un export Core ML natif dans un layout stable pour `APPLE_LLM_BACKEND=coreml`
+- `scripts/install_apple_coreml_model.sh` telecharge un artefact Core ML natif depuis Hugging Face avec son tokenizer associe
+- `scripts/install_apple_llm_model.sh` installe par defaut `onnx-community/Qwen3.5-4B-ONNX` avec `onnx/decoder_model_merged_q4f16.onnx` et `onnx/embed_tokens_q4f16.onnx`
+- `APPLE_LLM_BACKEND=coreml` attend un modele Core ML exporte, typiquement `.mlpackage` ou `.mlmodelc`
+- `APPLE_LLM_EMBED_MODEL_PATH` est optionnel, mais devient utile des qu'un export natif attend `inputs_embeds`
+- `scripts/run_apple_llm_service.sh` prefere automatiquement `python3.12` pour `coreml`; si seule une venv `Python 3.14` existe, `coremltools` ne charge pas le runtime natif attendu
+- `APPLE_LLM_BACKEND=onnx-coreml` attend un modele `.onnx` execute via ONNX Runtime CoreML EP
+- ce service est volontairement hote natif macOS; Docker Desktop n'expose pas le Neural Engine au conteneur
+- le moteur implemente un chemin autoregressif simple, utile pour prototyper et valider le routage Mascarade vers un runtime ANE
+- le chemin `coreml` charge maintenant un vrai artefact natif, expose ses specs d'entree dans `/health`, et supporte aussi les modèles Core ML stateful
+- le chemin Qwen3.5 utilise un export ONNX moderne avec `inputs_embeds`, `embed_tokens` et cache mixte `past_key_values` / `past_conv` / `past_recurrent`
+- `APPLE_LLM_ENABLE_THINKING=false` desactive le mode thinking de `Qwen3.5` via son chat template officiel
+- `Qwen2.5-0.5B-Instruct` reste un fallback valide sur cette machine si un graphe plus simple est prefere
+
+Avec `generate-audio` et un vrai smoke test HTTP de `POST /generate`:
+
+```bash
+./setup --with core,api,ops-console,generate-audio,ollama --smoke-generate-audio --yes
+```
+
+`generate-audio` utilise AudioCraft avec une pile PyTorch/XFormers epinglee. En mode `cpu`, le build prend les wheels CPU; en mode `cuda`, le setup bascule vers les wheels CUDA 11.8. Le service emet `gpus: all` et suppose `nvidia-container-toolkit` installe sur l'hote. Les builds CPU et CUDA ont ete verifies localement.
+
+Par defaut, `generate-audio` charge maintenant le modele seulement au moment de `POST /generate`, puis le decharge apres la requete. Il n'est donc plus cense garder plusieurs Go de VRAM en resident entre deux usages. Tu peux changer ce comportement avec:
+
+```bash
+GENERATE_AUDIO_KEEP_LOADED=true
+GENERATE_AUDIO_IDLE_UNLOAD_SECONDS=300
+```
+
+et le liberer explicitement avec:
+
+```bash
+curl -X POST http://localhost:9000/unload
+```
+
+Par defaut, `setup` verifie seulement `GET /health`. Le vrai smoke test `POST /generate` est opt-in avec `--smoke-generate-audio`, car il peut declencher un premier chargement modele plus long.
+
+Si la machine a deja un service Ollama systeme avec ses modeles sous `/usr/share/ollama/.ollama`, la stack peut reutiliser ce stockage via:
+
+```bash
+OLLAMA_PUBLISH_PORT=false
+OLLAMA_HOST_MODELS_DIR=/usr/share/ollama/.ollama
+```
+
+Dans ce mode, `ollama` reste interne au reseau Docker de Mascarade et n'entre pas en conflit avec un `127.0.0.1:11434` deja occupe sur l'hote.
+
+Le `setup` prend maintenant cette variante comme default quand il detecte deja un `11434` occupe et un store Ollama local present.
+
+Pour les ecarts de portabilite machine/VM, les garde-fous Docker/GPU et les
+limites observees pendant le portage, voir `docs/PORTAGE_MASCARADE.md`.
+
+Deux containers demarrent :
+- `core` sur `:8100`
+- `api` sur `:3100`
+- le cockpit expose maintenant une vraie lane `Logs` sur `http://localhost:3100/logs`
+- tous les ports publies utilisent maintenant `PUBLISH_BIND_HOST=127.0.0.1` par defaut
+- `ops-console` sur `:80` (si selectionne), avec override possible via `OPS_CONSOLE_BIND_HOST`
+- `edge-proxy` peut exposer seulement `:80/:443` pour l'entree publique
+
+Si tu veux tout garder en local, laisse `PUBLISH_BIND_HOST=127.0.0.1` dans `.env`.
+Si tu veux exposer des services internes au LAN, passe explicitement `PUBLISH_BIND_HOST=0.0.0.0`.
+Si tu veux publier `edge-proxy` sur `:80/:443`, passe explicitement `EDGE_PROXY_BIND_HOST=0.0.0.0`.
+
+Mode reverse proxy:
+
+```bash
+PUBLISH_BIND_HOST=127.0.0.1 ./setup --with core,api,ops-console,edge-proxy --yes
+```
+
+Dans ce mode, seuls `edge-proxy` sur `:80/:443` sont publics si `EDGE_PROXY_BIND_HOST=0.0.0.0`; sinon toute la stack reste sur loopback.
+
+Observability complementaire opt-in:
+
+```bash
+./setup --with core,api,ops-console,loki,promtail,otel-collector --yes
+```
+
+Ce lot ajoute le stockage/relais observability, mais le cockpit utilise deja aujourd'hui la trace native du core pour afficher les echanges inter-agent dans `Logs`.
+Pour la pile observability complete, ajouter aussi `prometheus,grafana,tempo,blackbox-exporter,langfuse`.
+
+`Tempo` est maintenant le backend de traces nominal pour Grafana. `Loki` reste la source de logs et `Prometheus` la source de metriques; `blackbox-exporter` complete la couverture des services qui n'exposent pas `/metrics`.
+
+Surfaces operateur proxifiees:
+
+```bash
+EDGE_PROXY_GRAFANA_SERVER_NAME=grafana.saillant.cc
+EDGE_PROXY_LANGFUSE_SERVER_NAME=langfuse.saillant.cc
+GRAFANA_PUBLIC_ORIGIN=https://grafana.saillant.cc
+LANGFUSE_PUBLIC_ORIGIN=https://langfuse.saillant.cc
+EDGE_PROXY_OPS_AUTH_USER=ops
+EDGE_PROXY_OPS_AUTH_PASSWORD=...
+EDGE_PROXY_INDUSTRIAL_GROUPS=operator
+```
+
+Avec ces variables, `Grafana` et `Langfuse` passent derriere `edge-proxy` avec une auth dediee au proxy. Par defaut, ce routage reste seulement sur loopback tant que `EDGE_PROXY_BIND_HOST=127.0.0.1`.
+Pour la surface industrielle, le proxy forwarde maintenant `operator` par defaut. Toute elevation (`approver`, `auditor`, `admin`) doit etre explicite via `EDGE_PROXY_INDUSTRIAL_GROUPS`.
+
+Smoke test OTLP -> Loki:
+
+```bash
+bash scripts/smoke_otel_loki.sh
+bash scripts/smoke_otel_loki.sh --json
+```
+
+Report de cardinalite Loki:
+
+```bash
+bash scripts/loki_cardinality_report.sh
+bash scripts/loki_cardinality_report.sh --json
+```
+
+Certificat Let's Encrypt par DNS-01 Cloudflare:
+
+```bash
+# Variables minimales dans .env
+EDGE_PROXY_SERVER_NAME=saillant.cc
+EDGE_PROXY_ACME_EMAIL=toi@example.com
+EDGE_PROXY_ACME_DOMAINS=saillant.cc,grafana.saillant.cc,langfuse.saillant.cc,dify.saillant.cc
+CLOUDFLARE_API_TOKEN=...              # API token Cloudflare
+# ou, si tu utilises une Global API Key:
+CLOUDFLARE_API_EMAIL=toi@example.com
+CLOUDFLARE_API_KEY=...
+
+# Emission du certificat
+bash scripts/edge_proxy_cert.sh issue
+```
+
+Le proxy continue a generer un certificat auto-signe tant qu'aucun certificat reel n'est installe. Une fois le certificat emis, `edge-proxy` recharge Nginx automatiquement.
+
+Sur la machine de reference, le certificat reel en place couvre maintenant
+`saillant.cc` et `*.saillant.cc`, ce qui absorbe `grafana.saillant.cc`,
+`langfuse.saillant.cc` et `dify.saillant.cc`.
+
+Si tu restes en provider `manual`, le flux devient:
+
+```bash
+bash scripts/edge_proxy_cert.sh issue --provider manual
+# ajouter les TXT ACME demandes par le script
+bash scripts/edge_proxy_cert.sh renew --provider manual
+```
+
+Sur la machine de reference, `edge-proxy` est maintenant publie sur `0.0.0.0:80/443`, avec les hostnames `saillant.cc`, `grafana.saillant.cc`, `langfuse.saillant.cc` et `dify.saillant.cc`.
+
+Les agents dynamiques sont persistes dans un volume Docker (`core-data:/app/data`).
+
+Verifier que tout tourne :
+
+```bash
+# Health du core
+curl http://localhost:8100/health
+
+# Health de l'API
+curl http://localhost:3100/health
+
+# Health Generate Audio (si selectionne)
+curl http://localhost:9000/health
+
+# Smoke test reel Generate Audio (si selectionne)
+bash scripts/smoke_generate_audio.sh --url http://localhost:9000
+```
+
+### 4. Dev local (sans Docker)
+
+```bash
+# Core Python
+bash scripts/bootstrap_python_env.sh
+cd core
+source .venv/bin/activate
+python -m uvicorn mascarade.server:app --host 0.0.0.0 --port 8100 --reload
+
+# API TypeScript (autre terminal)
+cd api
+npm install
+npm run dev
+```
+
+Validation repo-locale recommandee avant tout tri de delta:
+
+```bash
+bash scripts/test_python.sh
+curl -fsS http://127.0.0.1:8100/health
+curl -fsS http://127.0.0.1:3100/health
+curl -fsS http://127.0.0.1:9200/health
+```
+
+---
+
+## Deploiement sur la VM (192.168.0.119)
+
+### Contexte Docker SSH
+
+Creer un contexte Docker pointe sur la VM :
+
+```bash
+docker context create mascarade-vm --docker "host=ssh://user@192.168.0.119"
+```
+
+Tester la connexion :
+
+```bash
+./scripts/vm-docker.sh ps
+```
+
+### Configurer la VM
+
+```bash
+cp .env.example .env.vm
+```
+
+Editer `.env.vm` :
+
+```bash
+VM_HOST=192.168.0.119
+VM_API_URL=http://192.168.0.119:3100
+VM_CORE_URL=http://192.168.0.119:8100
+MASCARADE_API_KEY=ton-token-secret
+DOCKER_VM_CONTEXT=mascarade-vm
+```
+
+### Deployer / mettre a jour
+
+Le script `deploy/update.sh` gere tout (git pull, tests, build, restart, health check) :
+
+```bash
+# Depuis la VM (SSH)
+ssh user@192.168.0.119
+cd /chemin/vers/mascarade
+./deploy/update.sh
+
+# Options
+./deploy/update.sh --no-pull          # deployer l'etat local sans git pull
+./deploy/update.sh --service core     # rebuild uniquement le core
+./deploy/update.sh --service api      # rebuild uniquement l'API
+```
+
+### Migration stack IA additionnelle
+
+Pour migrer aussi les services IA lourds (LocalAI, KoboldCPP, AnythingLLM, SGLang, Mem0, Langfuse):
+
+```bash
+cd /mascarade
+bash scripts/apply_ai_tools_migration.sh /home/cils/tools
+```
+
+Puis, au besoin:
+
+```bash
+cd /home/cils/tools
+docker compose -f docker-compose.yml -f docker-compose.ai.yml --profile heavy up -d localai koboldcpp anythingllm sglang
+```
+
+Sur VM legere, garder ces services arretes par defaut (profil `heavy`).
+
+`Langfuse` reste une brique supportee du repo, mais optionnelle hors profil standard. `Firecrawl` est supporte comme service MCP optionnel via l'image officielle `mcp/firecrawl`; il exige `FIRECRAWL_API_KEY` ou `FIRECRAWL_API_URL` pour demarrer. `Mem0` est supporte via `mem0/openmemory-mcp`, adosse a `Qdrant` et route par defaut ses appels OpenAI-compatibles vers `LiteLLM`.
+`Tempo` est supporte comme backend traces de reference de la stack observability locale, et les surfaces operateur `Grafana` / `Langfuse` peuvent etre publiees derriere `edge-proxy` sans exposer `Prometheus` ni les services internes.
+
+### Interagir avec la VM depuis le Mac
+
+```bash
+# Appeler l'API de la VM
+./scripts/vm-api.sh /health
+./scripts/vm-api.sh /api/agents/providers
+
+# Commandes Docker sur la VM
+./scripts/vm-docker.sh logs core --tail=50
+./scripts/vm-docker.sh ps
+```
+
+---
+
+## Utilisation
+
+### Authentification
+
+Si `MASCARADE_API_KEY` est defini, toutes les routes protegees exigent le header :
+
+```
+Authorization: Bearer <MASCARADE_API_KEY>
+```
+
+`GET /health` reste toujours public.
+
+Dans les exemples ci-dessous, remplacer `$KEY` par ta cle ou exporter :
+
+```bash
+export KEY="ton-token-secret"
+```
+
+### Envoyer une requete LLM
+
+```bash
+curl -X POST http://localhost:3100/api/agents/send \
+  -H "Authorization: Bearer $KEY" \
   -H "Content-Type: application/json" \
-  -d '{"messages": [{"role": "user", "content": "Hello"}], "model": "claude-sonnet-4-20250514"}'
+  -d '{
+    "messages": [{"role": "user", "content": "Explique le pattern Strategy en 3 lignes"}],
+    "strategy": "routellm",
+    "routing_policy": "auto"
+  }'
 ```
 
-### 5. Run tests
+Strategies disponibles :
+
+| Strategie   | Comportement |
+|-------------|--------------|
+| `routellm`  | Strategy recommandee. Route via policy explicite (`auto`, `strong`, `cheap`, `fast`) |
+| `best`      | Legacy. Convertie en `routellm` + policy `strong` en orchestration |
+| `cheapest`  | Legacy. Convertie en `routellm` + policy `cheap` en orchestration |
+| `fastest`   | Legacy. Convertie en `routellm` + policy `fast` en orchestration |
+| `specific`  | Provider specifique (passer `"provider": "..."`) |
+
+Policies RouteLLM :
+
+| `routing_policy` | Effet |
+|------------------|-------|
+| `auto`           | Selection strong/cheap selon score de complexite |
+| `strong`         | Force la branche qualite |
+| `cheap`          | Force la branche cout |
+| `fast`           | Force la branche latence |
+
+### Utiliser l'endpoint OpenAI-compatible
+
+Le core Python expose aussi un shim local `POST /v1/chat/completions` sur `:8100`.
+Il est utile pour brancher des outils qui parlent deja l'API OpenAI, sans leur
+ajouter de logique provider Mascarade.
+
+Selection du backend local par `model` :
+
+- `apple-coreml:<model-id>`
+- `ollama:<model-id>`
+- sans prefixe, Mascarade retombe sur `DEFAULT_PROVIDER` et `DEFAULT_MODEL`
+
+Le modele doit rester explicite dans les smokes ANE. Les exemples ci-dessous sont
+des exemples connus bons, pas des defaults imposes par le repo.
+
+Exemple Apple CoreML :
 
 ```bash
-# Python core tests (281 passing)
-cd core && python -m pytest
-
-# TypeScript API tests
-cd api && npm test
+curl -X POST http://localhost:8100/v1/chat/completions \
+  -H "Authorization: Bearer $KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "apple-coreml:qwen3.5-4b-onnx-q4f16",
+    "messages": [{"role": "user", "content": "Resume ce chapitre en 5 lignes"}],
+    "temperature": 0.2,
+    "max_tokens": 512
+  }'
 ```
 
-## Features
+Exemple Ollama :
 
-### LLM Router
-- **11 providers**: Claude, OpenAI, Mistral, Bedrock, Gemini, HuggingFace, Ollama, llama.cpp, CoreML, KiCad router
-- **Routing strategies**: cheapest, fastest, best quality, specific provider
-- **Automatic fallback**: provider failure triggers next in chain
-- **Response caching**: prompt-hash based, Redis backed
-- **OpenAI-compatible API**: frozen `/v1/chat/completions` contract
-- **Streaming**: SSE support across all providers
-- **Cost tracking**: per-request token usage and cost
+```bash
+curl -X POST http://localhost:8100/v1/chat/completions \
+  -H "Authorization: Bearer $KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "ollama:qwen2.5:1.5b",
+    "messages": [{"role": "user", "content": "Propose un plan de scene"}]
+  }'
+```
+
+Smoke minimal utile a `ai-novel-engine` :
+
+```bash
+bash scripts/smoke_openai_compat_ane.sh \
+  --url http://localhost:8100 \
+  --model "apple-coreml:qwen3.5-4b-onnx-q4f16"
+```
+
+Notes :
+
+- le endpoint est synchrone et non-streaming en v1
+- `response_format` est accepte, mais pour `apple-coreml` et `ollama` le JSON doit
+  rester impose par prompt
+- si `MASCARADE_API_KEY` est vide, la route reste ouverte en local comme les autres
+  routes protegees du core
+
+### Lister les providers actifs
+
+```bash
+curl -H "Authorization: Bearer $KEY" http://localhost:3100/api/agents/providers
+```
 
 ### Agents
-- **KiCad agent**: PCB design assistance via MCP
-- **FreeCAD agent**: 3D CAD modeling via MCP
-- **SPICE agent**: circuit simulation
-- **Components agent**: electronics BOM management
-- **Prompt versioning** and **skills system**
 
-### Orchestrator
-- Sequential, parallel, and pipeline execution modes
-- Circuit breaker, retry with backoff, dead letter queue
-- Execution context for state passing between steps
-- Template-based orchestration patterns
+Les agents built-in sont charges au demarrage (socle + agents metier CAD). Les principaux profils de socle :
 
-### Node Engine
-- DAG-based graph runtime with visual editor (XYFlow)
-- Domain workers: AI, CAD, Electronics
-- Cross-domain bridge for multi-domain workflows
-- Hardware nodes: DMX controller, MIDI bridge, ESP32 client
-- Persistence layer for save/load
+| Agent             | Role                                     | Strategie   | Policy   | Temp |
+|-------------------|------------------------------------------|-------------|----------|------|
+| `agent-zero`      | Coordination et operator copilot         | routellm    | strong   | 0.2  |
+| `summarizer`      | Resume en bullet points                  | routellm    | cheap    | 0.3  |
+| `writer`          | Redaction et reformulation               | routellm    | strong   | 0.8  |
+| `coder`           | Code review, debug, generation           | routellm    | strong   | 0.2  |
+| `translator`      | Traduction naturelle                     | routellm    | fast     | 0.3  |
+| `analyst`         | Analyse de donnees et situations         | routellm    | strong   | 0.4  |
+| `brainstorm`      | Generation d'idees creatives             | routellm    | strong   | 0.95 |
+| `knowledge-scribe`| Formatage pour knowledge base            | routellm    | cheap    | 0.4  |
+| `planner`         | Planification et decomposition de taches | routellm    | strong   | 0.4  |
+| `classifier`      | Classification en JSON (intent, sentiment)| routellm   | fast     | 0.1  |
+| `image-generator` | Prompting image                          | routellm    | fast     | 0.7  |
 
-### P2P Mesh
-- **4-node cluster**: VM bootstrap, GrosMac bridge, CILS, Tower, KXKM-AI (RTX 4090)
-- libp2p with DHT, gossip, mDNS discovery
-- Tailscale relay for remote nodes
-- Claim-based task distribution
-- Capabilities advertisement (GPU, storage, compute)
+```bash
+# Lister les agents
+curl -H "Authorization: Bearer $KEY" http://localhost:3100/api/agents
 
-### Fine-Tuning Pipeline
-- **Best stack**: Qwen2.5-Coder-1.5B + Unsloth + SimPO + Magicoder-OSS-75K
-- **7 agents**: student, teacher, reinforcer, analyst, validator, documentalist, archivist
-- GGUF conversion pipeline (F16 → Q4_K_M: 3.09G → 941MB)
-- Ollama deployment with auto-registration
-- P2P distributed training on RTX 4090
+# Executer un agent
+curl -X POST http://localhost:3100/api/agents/summarizer/run \
+  -H "Authorization: Bearer $KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "messages": [{"role": "user", "content": "Texte long a resumer..."}]
+  }'
 
-### MCP Integration
-- HTTP transport MCP client (`call_tool_http()`)
-- Graphiti knowledge graph (Neo4j backed)
-- 7 Kill_LIFE MCP servers: kicad, freecad, openscad, validate-specs, knowledge-base, github-dispatch, huggingface
+# Creer un agent custom (persiste au restart)
+curl -X POST http://localhost:3100/api/agents \
+  -H "Authorization: Bearer $KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "mon-agent",
+    "description": "Agent custom",
+    "system_prompt": "Tu es un expert en ...",
+    "strategy": "routellm",
+    "routing_policy": "strong",
+    "temperature": 0.5
+  }'
+```
 
-### Observability
-- Prometheus metrics + Grafana dashboards
-- Loki log aggregation + Promtail
-- Tempo distributed tracing
-- OTEL collector pipeline
-- Langfuse LLM-specific observability
+### Orchestration multi-agents
 
-## Integration Status
+Executer plusieurs agents sur le meme prompt :
 
-| Integration | Status | Notes |
-|------------|--------|-------|
-| Claude / Anthropic | Active | Primary provider |
-| OpenAI / GPT | Active | |
-| Mistral | Active | |
-| AWS Bedrock | Active | TOCTOU race fixed |
-| Google Gemini | Active | |
-| Hugging Face | Active | Inference API |
-| Ollama (local) | Active | mascarade-coder deployed |
-| llama.cpp | Active | GGUF models |
-| Apple CoreML | Active | M-series Macs |
-| Kill_LIFE MCP | Active | 7 servers |
-| Graphiti / Neo4j | Active | Knowledge graph |
-| P2P Mesh | Active | 4 nodes connected |
-| Langfuse | Active | LLM observability |
-| crazy_life cockpit | In progress | Vue 3 migration |
+```bash
+curl -X POST http://localhost:3100/api/agents/orchestrate \
+  -H "Authorization: Bearer $KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "agent_names": ["analyst", "summarizer"],
+    "prompt": "Analyse cette situation : ...",
+    "mode": "sequential",
+    "routing_overrides": {
+      "summarizer": { "routing_policy": "cheap" },
+      "analyst": { "routing_policy": "strong" }
+    }
+  }'
+```
 
-## Apple Intelligence Roadmap
+Modes d'execution :
 
-Mascarade is preparing native Apple Silicon integration for 2026:
+| Mode         | Comportement                                          |
+|--------------|-------------------------------------------------------|
+| `sequential` | Chaque agent traite le prompt original, un par un     |
+| `parallel`   | Tous les agents traitent le prompt en parallele       |
+| `pipeline`   | La sortie d'un agent devient l'entree du suivant      |
 
-| Phase | Timeline | Feature | Status |
-|-------|----------|---------|--------|
-| 1 | Q2 2026 | **MLX-LM provider** — OpenAI-compatible server, native Metal GPU inference | Planned |
-| 1 | Q2 2026 | **Exo distributed inference** — split large models across Mac cluster | Planned |
-| 2 | Q3 2026 | **Apple Foundation Models** — 3B on-device via Swift bridge | Planned |
-| 3 | Q4 2026 | **Core AI framework** — unified Apple ML API (post-WWDC 2026) | Planned |
-| 3 | Q4 2026 | **App Intents / Siri** — voice-driven LLM orchestration | Planned |
+### Compat legacy Notion
 
-New `local-first` routing strategy will prefer local Apple Silicon inference with cloud fallback.
+Hors scope operateur actif. Ce chemin reste seulement pour compatibilite legacy si
+vous devez relire un ancien flux `Notion` :
 
-See [`docs/APPLE_INTELLIGENCE_SPEC.md`](./docs/APPLE_INTELLIGENCE_SPEC.md) for full technical specification.
+```bash
+# Rechercher dans la KB Notion
+curl -H "Authorization: Bearer $KEY" \
+  "http://localhost:3100/api/notion/search?q=architecture"
 
-## API Versioning & Stability Contract
+# Lire une page
+curl -H "Authorization: Bearer $KEY" \
+  http://localhost:3100/api/notion/pages/<page-id>
 
-Current version: **API v1.0.0**. All endpoints prefixed by `/v1/`.
+# Ajouter du contenu a une page
+curl -X POST http://localhost:3100/api/notion/pages/<page-id>/append \
+  -H "Authorization: Bearer $KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"content": "Nouveau contenu a ajouter"}'
 
-**Frozen contracts** (no breaking changes in v1.x):
-- `POST /v1/chat/completions` — OpenAI-compatible interface
-- `GET /v1/version` — Version and capabilities
+# Creer une page
+curl -X POST http://localhost:3100/api/notion/pages \
+  -H "Authorization: Bearer $KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "parent_id": "<parent-page-id>",
+    "title": "Ma nouvelle page",
+    "content": "Contenu initial"
+  }'
 
-**Guarantees**:
-- No breaking changes in v1.x releases
-- New optional fields may be added (clients must ignore unknown fields)
-- Deprecated features supported for minimum 6 months with RFC 8594 headers
-- 45+ regression tests protect the API contract
+# Executer notion-scribe et pousser le resultat dans Notion
+curl -X POST http://localhost:3100/api/agents/notion-scribe/run-and-push \
+  -H "Authorization: Bearer $KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "messages": [{"role": "user", "content": "Formate ce rapport : ..."}],
+    "push_to": "<page-id>"
+  }'
+```
 
-See [`CHANGELOG.md`](./CHANGELOG.md) for detailed change history.
+### GitHub dispatch
 
-## Documentation
+Si `KILL_LIFE_GITHUB_TOKEN` ou `GITHUB_TOKEN` est configure :
 
-| Document | Description |
-|----------|-------------|
-| [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) | Full architecture with Mermaid diagrams |
-| [`docs/FEATURE_MAP.md`](./docs/FEATURE_MAP.md) | Complete feature map with status and priorities |
-| [`docs/APPLE_INTELLIGENCE_SPEC.md`](./docs/APPLE_INTELLIGENCE_SPEC.md) | Apple Intelligence integration spec |
-| [`docs/API_CORE_PROVIDER_SEQUENCE_2026-03-11.md`](./docs/API_CORE_PROVIDER_SEQUENCE_2026-03-11.md) | Runtime sequence diagram |
-| [`docs/CLUSTER_P2P_REMOTE_SEND_SEQUENCE_2026-03-11.md`](./docs/CLUSTER_P2P_REMOTE_SEND_SEQUENCE_2026-03-11.md) | P2P cluster sequence diagram |
-| [`docs/RUNBOOK_APPLE_LLM_LOCAL.md`](./docs/RUNBOOK_APPLE_LLM_LOCAL.md) | Apple local runtime runbook |
-| [`FINE_TUNING_GUIDE.md`](./FINE_TUNING_GUIDE.md) | Fine-tuning pipeline guide |
-| [`P2P_NETWORK_README.md`](./P2P_NETWORK_README.md) | P2P mesh documentation |
+```bash
+# Lister les workflows allowlistes exposes par le MCP / bridge
+python3 /home/clems/Kill_LIFE/tools/github_dispatch_mcp_smoke.py --json
 
-## License
+# Ou tester le bridge API cote mascarade sans dispatch reel
+curl -X POST http://localhost:3100/api/killlife/workflows/repo_state/run \
+  -H "Authorization: Bearer $KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"mode":"github","dry_run":true}'
+```
 
-See [`LICENSE.md`](./LICENSE.md).
+### Observabilite
+
+```bash
+# Metriques globales (providers + cache + LB + fallback)
+curl -H "Authorization: Bearer $KEY" http://localhost:3100/api/agents/metrics
+
+# Metriques d'un provider
+curl -H "Authorization: Bearer $KEY" http://localhost:3100/api/agents/metrics/claude
+
+# Stats cache
+curl -H "Authorization: Bearer $KEY" http://localhost:3100/api/agents/cache/stats
+
+# Stats load balancer
+curl -H "Authorization: Bearer $KEY" http://localhost:3100/api/agents/load-balancer/stats
+
+# Stats fallback
+curl -H "Authorization: Bearer $KEY" http://localhost:3100/api/agents/fallback/stats
+
+# Reset (POST)
+curl -X POST -H "Authorization: Bearer $KEY" http://localhost:3100/api/agents/metrics/reset
+curl -X POST -H "Authorization: Bearer $KEY" http://localhost:3100/api/agents/cache/reset
+curl -X POST -H "Authorization: Bearer $KEY" http://localhost:3100/api/agents/load-balancer/reset
+curl -X POST -H "Authorization: Bearer $KEY" http://localhost:3100/api/agents/fallback/reset
+```
+
+---
+
+## Providers LLM
+
+| Provider   | Modeles                                          | Cout (in/out par M tokens) | Vitesse | Qualite |
+|------------|--------------------------------------------------|---------------------------|---------|---------|
+| **Claude** | `claude-sonnet-4-6`, `claude-haiku-4-5-20251001`, `claude-opus-4-6` | $3 / $15 | 2 | 3 (best) |
+| **OpenAI** | `gpt-4o`, `gpt-4o-mini`, `o1`, `o3-mini`        | $2.50 / $10               | 1 (fast)| 2       |
+| **Mistral**| `mistral-large-latest`, `mistral-small-latest`, `codestral-latest` | $2 / $6 | 1 (fast)| 1       |
+
+Resilience integree :
+- **Retry** : 3 tentatives avec backoff exponentiel (1s, 2s, 4s) sur rate limit, timeout et erreurs de connexion
+- **Fallback** : si le provider choisi echoue, le routeur essaie automatiquement les autres strategies
+- **Cache** : reponses identiques servies depuis le cache (TTL 1h)
+- **Load Balancer** : distribution round-robin entre providers de meme rang
+
+---
+
+## Tests
+
+```bash
+bash scripts/bootstrap_python_env.sh
+bash scripts/test_python.sh
+```
+
+Le chemin supporte pour les tests Python du repo est `core/.venv`. Ne lance pas `python3 -m pytest` depuis l'hote sans passer par ce venv.
+Le bootstrap couvre aussi les dependances du `deploy/ops_agent`, afin que le meme venv suffise pour les tests `core/tests/` qui importent l'ops-agent.
+Pour une verification type "machine fraiche" sans toucher au venv principal:
+
+```bash
+bash scripts/test_python.sh --bootstrap --venv-dir /tmp/mascarade-core-venv
+```
+
+---
+
+## Structure du projet
+
+```
+mascarade/
+├── core/                             # Python FastAPI (port 8100)
+│   ├── mascarade/
+│   │   ├── server.py                 # Routes FastAPI + lifespan
+│   │   ├── config.py                 # Settings (.env)
+│   │   ├── auth.py                   # Bearer token auth
+│   │   ├── cluster.py                # Coordination multi-noeud
+│   │   ├── agents/
+│   │   │   ├── base.py               # Dataclass Agent
+│   │   │   ├── registry.py           # Registre + persistance JSON
+│   │   │   ├── skills.py             # 9 agents built-in
+│   │   │   ├── kicad_agent.py        # Agent KiCad
+│   │   │   └── spice_agent.py        # Agent SPICE
+│   │   ├── router/
+│   │   │   ├── router.py             # Routeur intelligent + cache/LB/fallback
+│   │   │   └── providers/            # Claude, OpenAI, Mistral, Bedrock,
+│   │   │       └── ...               #   Google, HF, Ollama, Apple CoreML
+│   │   ├── orchestrator/engine.py    # Sequential / parallel / pipeline
+│   │   ├── integrations/
+│   │   │   ├── notion.py             # Client Notion async
+│   │   │   └── comfyui.py            # Generation d'images ComfyUI
+│   │   ├── observability/            # OpenTelemetry, traces agents
+│   │   ├── cache/                    # Cache reponses (TTL 1h)
+│   │   ├── metrics/                  # Tracking usage/perf/couts
+│   │   └── load_balancer/            # Distribution round-robin
+│   ├── tests/                        # pytest (42 tests)
+│   └── pyproject.toml
+├── api/                              # TypeScript Hono (port 3100)
+│   ├── src/
+│   │   ├── index.ts                  # App + middleware (CORS, auth, rate-limit)
+│   │   └── routes/                   # health, agents, cluster, notion, comfyui,
+│   │       └── ...                   #   ops, killlife
+│   └── package.json
+├── web/                              # Frontend React (subtree -> crazy_life)
+├── finetune/                         # Pipeline fine-tuning QLoRA
+│   ├── model_selector.py             # Selection automatique de modele (HF Hub)
+│   ├── train_local.py                # Entrainement GPU (4-bit QLoRA)
+│   ├── train_cpu.py                  # Entrainement CPU (fallback)
+│   ├── train_all.sh                  # Batch dashboard multi-domaines
+│   ├── pipeline.py                   # train -> merge -> GGUF -> Ollama
+│   ├── batch_local.py                # Orchestration distillation + training
+│   ├── datasets/                     # Builders + datasets JSONL
+│   └── kicad_*/                      # Submodules KiCad (KiC-AI, MCP, Fab Toolkit)
+├── deploy/                           # Dockerfiles (core, api, edge-proxy, audio)
+│   ├── cad/                          # Stack CAD (KiCad, FreeCAD, PlatformIO)
+│   └── update.sh                     # Deploiement VM
+├── scripts/                          # Automation (setup, deploy, finetune, CAD)
+├── docs/                             # Architecture, audits, runbooks, plans
+├── tools/                            # htop repo-local, litellm config
+├── vendors/                          # Submodule kicadrouterai (HuggingFace)
+├── setup                             # Installeur TUI interactif
+├── config                            # Reconfiguration .env
+├── docker-compose.yml                # Genere par setup
+├── .env.example                      # Template configuration
+└── CLAUDE.md                         # Conventions dev
+```
+
+## Etat auto-synchronise
+<!-- AUTO-SYNC:MASCARADE-README:START -->
+- dernier cycle ANE automatise: 2026-03-17T09:44:06+00:00
+- etat de reference ANE: apple-coreml:qwen3.5-4b-onnx-q4f16
+- prochain lot utile cote pipeline: Reference locale reconfirmee; resserrer rewrite/repair sur les modeles deja bloques a gate.
+<!-- AUTO-SYNC:MASCARADE-README:END -->
+## P2P Secure Sync
+
+For secure peer-to-peer synchronization of environment files and API keys:
+
+- [P2P Sync Documentation](P2P_SYNC_README.md)
+- [Deployment Guide](P2P_NETWORK_README.md#deployment-scenarios)
+
+Features:
+- 8-character public key authentication
+- 32-character auth tokens
+- AES-256 encryption for secrets
+- Rsync-based efficient transfers
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!-- CHANTIER:AUDIT START -->
+## Audit & Execution Plan (2026-03-10)
+
+### Snapshot
+- Priority: `P2`
+- Tech profile: `other`
+- Workflows: `yes`
+- Tests: `yes`
+- Debt markers: `7`
+- Source files: `444`
+
+### Corrections Prioritaires
+- [ ] Optimisation ciblée perf/maintenabilité
+- [ ] Ajouter/fiabiliser les commandes de vérification automatiques.
+- [ ] Clore les points bloquants avant optimisation avancée.
+
+### Optimisation
+- [ ] Identifier le hotspot principal et mesurer avant/après.
+- [ ] Réduire la complexité des modules les plus touchés.
+
+### Mémoire chantier
+- Control plane: `/Users/electron/.codex/memories/electron_rare_chantier`
+- Repo card: `/Users/electron/.codex/memories/electron_rare_chantier/REPOS/mascarade.md`
+
+<!-- CHANTIER:AUDIT END -->
