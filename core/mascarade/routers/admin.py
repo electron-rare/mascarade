@@ -437,10 +437,9 @@ async def reset_cache(request: Request):
 # --- Read-only status endpoints (all authenticated users) ---
 
 
-@router.get("/providers")
+@router.get("/v1/providers")
 async def list_providers_view(request: Request):
     """List available providers (all authenticated users)."""
-    user = await _get_authenticated_user(request)
     # Return provider list from the app state router
     try:
         app_router = request.app.state.router
@@ -452,7 +451,7 @@ async def list_providers_view(request: Request):
         return []
 
 
-@router.get("/providers/status")
+@router.get("/v1/providers/status")
 async def get_providers_status(request: Request):
     """Get provider status (all authenticated users)."""
     user = await _get_authenticated_user(request)

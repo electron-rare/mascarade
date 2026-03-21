@@ -14,7 +14,7 @@ from mascarade.agents.prompt_versioning import PromptHistory, PromptVersion
 from mascarade.auth import require_auth
 from mascarade.router.router import Strategy
 
-router = APIRouter(prefix="/api", dependencies=[Depends(require_auth)], tags=["agents"])
+router = APIRouter(prefix="/v1/api", dependencies=[Depends(require_auth)], tags=["agents"])
 
 
 # --- Models ---
@@ -151,7 +151,7 @@ async def create_agent(req: AgentCreate, request: Request):
     return _serialize_agent(agent, request)
 
 
-@router.get("/agents")
+@router.get("/v1/agents")
 async def list_agents(
     request: Request,
     limit: int = Query(default=50, ge=1, le=200, description="Max items to return"),
@@ -179,7 +179,7 @@ async def list_agents(
     }
 
 
-@router.get("/agents/{name}")
+@router.get("/v1/agents/{name}")
 async def get_agent(name: str, request: Request):
     """
     Get a specific agent by name.
