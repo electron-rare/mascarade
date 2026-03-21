@@ -46,6 +46,42 @@ except ImportError:
     pass
 
 try:
+    from mascarade.router.providers.interop import (
+        ModelContextProtocol,
+        AgentCommunicationProtocol,
+        InteropManager,
+        NISTCompliance,
+        FinancialServicesInterop
+    )
+
+    __all__.extend([
+        "ModelContextProtocol",
+        "AgentCommunicationProtocol",
+        "InteropManager",
+        "NISTCompliance",
+        "FinancialServicesInterop"
+    ])
+except ImportError:
+    pass
+
+try:
+    from mascarade.router.providers.quantum import (
+        QuantumAIProvider,
+        QuantumClassicalHybrid,
+        QuantumReadiness,
+        QuantumSecurity
+    )
+
+    __all__.extend([
+        "QuantumAIProvider",
+        "QuantumClassicalHybrid",
+        "QuantumReadiness",
+        "QuantumSecurity"
+    ])
+except ImportError:
+    pass
+
+try:
     from mascarade.router.providers.bedrock import BedrockProvider
 
     __all__.append("BedrockProvider")
