@@ -1,263 +1,186 @@
-"""Node registry — type and worker registration for the Node Engine."""
+"""Registry for domain type registration and discovery."""
 
 from __future__ import annotations
 
 import json
 import logging
+import os
+import tempfile
 from pathlib import Path
-from typing import TYPE_CHECKING
 
 from mascarade.node_engine.types import DomainType
 
-if TYPE_CHECKING:
-    from mascarade.node_engine.worker import NodeWorker
+logger = logging.getLogger("mascarade.node_engine")
 
-logger = logging.getLogger("mascarade.node_engine.registry")
-
-DEFAULT_STORAGE_PATH = Path("data/node_types.json")
+DEFAULT_STORAGE_PATH = Path("data/domain_types.json")
 
 
-class NodeRegistry:
-    """Registre centralisé pour gérer les types de domaine et les workers."""
+class NodeTypeRegistry:
+    """Centralized registry for managing domain types.
+
+    Stores and retrieves domain-specific type definitions (DomainType instances)
+    that extend the base type system with domain-specific structures.
+    """
 
     def __init__(self, storage_path: Path | None = DEFAULT_STORAGE_PATH) -> None:
-        self._domain_types: dict[str, DomainType] = {}
-        self._workers: dict[str, NodeWorker] = {}
-        self._builtin_types: set[str] = set()
+        """Initialize the registry.
+
+        Args:
+            storage_path: Path to JSON file for persistence. If None, persistence is disabled.
+        """
+        self._types: dict[str, DomainType] = {}
+        self._builtin_names: set[str] = set()
         self._storage_path = storage_path
 
-    # --- Domain Type Registration ---
-
-    def register_type(self, domain_type: DomainType, *, builtin: bool = False) -> None:
-        """Enregistrer un type de domaine.
+    def register(self, domain_type: DomainType, *, builtin: bool = False) -> None:
+        """Register a domain type.
 
         Args:
-            domain_type: Type de domaine à enregistrer
-            builtin: Si True, marque le type comme intégré (non sauvegardé)
+            domain_type: The DomainType instance to register
+            builtin: Whether this is a builtin type (not persisted)
+
+        Raises:
+            ValueError: If a type with the same qualified name is already registered
         """
-        self._domain_types[domain_type.full_name] = domain_type
+        qualified_name = domain_type.qualified_name
+        if qualified_name in self._types and qualified_name not in self._builtin_names:
+            logger.warning(
+                "Overwriting existing domain type: %s", qualified_name
+            )
+        self._types[qualified_name] = domain_type
         if builtin:
-            self._builtin_types.add(domain_type.full_name)
+            self._builtin_names.add(qualified_name)
 
-    def get_type(self, full_name: str) -> DomainType:
-        """Obtenir un type de domaine par son nom complet.
+    def get(self, qualified_name: str) -> DomainType:
+        """Get a domain type by its qualified name (domain.name).
 
         Args:
-            full_name: Nom complet du type (ex: "electronics.Netlist")
+            qualified_name: The qualified type name (e.g., "ai.LLMResponse")
 
         Returns:
-            DomainType correspondant
+            The DomainType instance
 
         Raises:
-            KeyError: Si le type n'existe pas
+            KeyError: If the type is not found
         """
-        if full_name not in self._domain_types:
+        if qualified_name not in self._types:
             raise KeyError(
-                f"Type '{full_name}' non trouvé. Disponibles: {list(self._domain_types.keys())}"
+                f"Domain type '{qualified_name}' not found. "
+                f"Available: {list(self._types.keys())}"
             )
-        return self._domain_types[full_name]
+        return self._types[qualified_name]
 
-    def list_types(self, domain: str | None = None) -> list[DomainType]:
-        """Lister les types de domaine disponibles.
+    def get_by_domain(self, domain: str) -> list[DomainType]:
+        """Get all domain types for a specific domain.
 
         Args:
-            domain: Si fourni, filtre par domaine spécifique
+            domain: The domain identifier (e.g., "ai", "cad")
 
         Returns:
-            Liste des types de domaine
+            List of DomainType instances for the specified domain
         """
-        if domain is None:
-            return list(self._domain_types.values())
-        return [dt for dt in self._domain_types.values() if dt.domain == domain]
+        return [dt for dt in self._types.values() if dt.domain == domain]
 
-    def remove_type(self, full_name: str) -> None:
-        """Retirer un type de domaine du registre.
-
-        Args:
-            full_name: Nom complet du type à retirer
-        """
-        self._domain_types.pop(full_name, None)
-        self._builtin_types.discard(full_name)
-
-    def has_type(self, full_name: str) -> bool:
-        """Vérifier si un type existe dans le registre.
-
-        Args:
-            full_name: Nom complet du type
+    def list(self) -> list[DomainType]:
+        """List all registered domain types.
 
         Returns:
-            True si le type existe, False sinon
+            List of all DomainType instances
         """
-        return full_name in self._domain_types
+        return list(self._types.values())
 
-    def is_builtin_type(self, full_name: str) -> bool:
-        """Vérifier si un type est intégré.
+    def remove(self, qualified_name: str) -> None:
+        """Remove a domain type from the registry.
 
         Args:
-            full_name: Nom complet du type
+            qualified_name: The qualified type name to remove
+        """
+        self._types.pop(qualified_name, None)
+        self._builtin_names.discard(qualified_name)
+
+    def __contains__(self, qualified_name: str) -> bool:
+        """Check if a domain type is registered.
+
+        Args:
+            qualified_name: The qualified type name to check
 
         Returns:
-            True si le type est intégré, False sinon
+            True if the type is registered
         """
-        return full_name in self._builtin_types
+        return qualified_name in self._types
 
-    # --- Worker Registration ---
-
-    def register_worker(self, worker: NodeWorker) -> None:
-        """Enregistrer un worker de domaine.
-
-        Args:
-            worker: Worker à enregistrer
-        """
-        self._workers[worker.domain] = worker
-        worker.registry = self
-
-    def get_worker(self, domain: str) -> NodeWorker:
-        """Obtenir un worker par domaine.
-
-        Args:
-            domain: Nom du domaine (ex: "electronics")
+    def __len__(self) -> int:
+        """Get the number of registered domain types.
 
         Returns:
-            NodeWorker correspondant
-
-        Raises:
-            KeyError: Si le worker n'existe pas
+            Number of registered types
         """
-        if domain not in self._workers:
-            raise KeyError(
-                f"Worker pour domaine '{domain}' non trouvé. Disponibles: {list(self._workers.keys())}"
-            )
-        return self._workers[domain]
+        return len(self._types)
 
-    def list_workers(self) -> list[NodeWorker]:
-        """Lister tous les workers enregistrés.
-
-        Returns:
-            Liste des workers
-        """
-        return list(self._workers.values())
-
-    def remove_worker(self, domain: str) -> None:
-        """Retirer un worker du registre.
+    def is_builtin(self, qualified_name: str) -> bool:
+        """Check if a domain type is builtin.
 
         Args:
-            domain: Domaine du worker à retirer
-        """
-        worker = self._workers.pop(domain, None)
-        if worker:
-            worker.registry = None
-
-    def has_worker(self, domain: str) -> bool:
-        """Vérifier si un worker existe pour un domaine.
-
-        Args:
-            domain: Nom du domaine
+            qualified_name: The qualified type name to check
 
         Returns:
-            True si le worker existe, False sinon
+            True if the type is builtin
         """
-        return domain in self._workers
-
-    async def initialize_workers(self) -> None:
-        """Initialiser tous les workers enregistrés.
-
-        Appelle la méthode initialize() de chaque worker dans l'ordre
-        d'enregistrement. Les erreurs d'initialisation sont journalisées
-        mais n'empêchent pas l'initialisation des autres workers.
-        """
-        for domain, worker in self._workers.items():
-            try:
-                logger.info("Initializing worker for domain: %s", domain)
-                await worker.initialize()
-            except Exception as exc:
-                logger.error(
-                    "Failed to initialize worker for domain %s: %s",
-                    domain,
-                    exc,
-                    exc_info=True,
-                )
-
-    async def shutdown_workers(self) -> None:
-        """Arrêter tous les workers enregistrés.
-
-        Appelle la méthode shutdown() de chaque worker. Les erreurs
-        sont journalisées mais n'empêchent pas l'arrêt des autres workers.
-        """
-        for domain, worker in self._workers.items():
-            try:
-                logger.info("Shutting down worker for domain: %s", domain)
-                await worker.shutdown()
-            except Exception as exc:
-                logger.error(
-                    "Failed to shutdown worker for domain %s: %s",
-                    domain,
-                    exc,
-                    exc_info=True,
-                )
+        return qualified_name in self._builtin_names
 
     # --- Persistence ---
 
     def save(self) -> None:
-        """Sauvegarder les types de domaine dynamiques dans un fichier JSON."""
+        """Save custom domain types to JSON file.
+
+        Builtin types are not persisted. Uses atomic write to prevent corruption.
+        """
         if self._storage_path is None:
             return
 
         self._storage_path.parent.mkdir(parents=True, exist_ok=True)
+
+        # Only save non-builtin types
         types_data = []
+        for domain_type in self._types.values():
+            if domain_type.qualified_name not in self._builtin_names:
+                types_data.append(domain_type.model_dump())
 
-        for domain_type in self._domain_types.values():
-            if domain_type.full_name in self._builtin_types:
-                continue
-
-            data = {
-                "domain": domain_type.domain,
-                "name": domain_type.name,
-                "schema": domain_type.schema,
-                "description": domain_type.description,
-                "metadata": domain_type.metadata,
-            }
-            types_data.append(data)
-
+        # Atomic write: write to temp file, then rename
+        fd, tmp_path = tempfile.mkstemp(
+            dir=str(self._storage_path.parent), suffix=".tmp"
+        )
         try:
-            with open(self._storage_path, "w", encoding="utf-8") as f:
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
                 json.dump(types_data, f, indent=2, ensure_ascii=False)
-        except OSError as exc:
-            logger.error("Failed to save types to %s: %s", self._storage_path, exc)
+            os.replace(tmp_path, str(self._storage_path))
+        except BaseException:
+            if os.path.exists(tmp_path):
+                os.unlink(tmp_path)
+            raise
 
     def load(self) -> None:
-        """Charger les types de domaine depuis le fichier JSON."""
+        """Load custom domain types from JSON file.
+
+        Builtin types are not loaded from storage. Invalid entries are skipped
+        with a warning.
+        """
         if self._storage_path is None or not self._storage_path.exists():
             return
 
         try:
             raw = json.loads(self._storage_path.read_text(encoding="utf-8"))
         except (json.JSONDecodeError, OSError) as exc:
-            logger.error("Failed to load types from %s: %s", self._storage_path, exc)
+            logger.error(
+                "Failed to load domain types from %s: %s",
+                self._storage_path,
+                exc
+            )
             return
 
         for data in raw:
             try:
-                domain_type = DomainType(
-                    domain=data["domain"],
-                    name=data["name"],
-                    schema=data["schema"],
-                    description=data.get("description", ""),
-                    metadata=data.get("metadata", {}),
-                )
-                self.register_type(domain_type)
+                domain_type = DomainType(**data)
+                self.register(domain_type)
             except (KeyError, TypeError, ValueError) as exc:
-                logger.warning("Skipping invalid type entry: %s", exc)
-
-    # --- Utility Methods ---
-
-    def __len__(self) -> int:
-        """Retourne le nombre total de types et workers."""
-        return len(self._domain_types) + len(self._workers)
-
-    def __repr__(self) -> str:
-        """Représentation lisible du registre."""
-        return (
-            f"NodeRegistry(types={len(self._domain_types)}, "
-            f"workers={len(self._workers)})"
-        )
+                logger.warning("Skipping invalid domain type entry: %s", exc)
