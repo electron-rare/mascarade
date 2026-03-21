@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
+from uuid import uuid4
 
 import httpx
 import pytest
@@ -496,3 +497,141 @@ async def test_create_agent_with_preferences(request, _clean_registry):
     assert body["preferred_provider"] == "openai"
     assert body["preferred_model"] == "gpt-4"
     assert body["preferred_role"] == "assistant"
+
+
+@pytest.mark.asyncio
+async def test_delete_builtin_agent_forbidden():
+    """Test that built-in agents cannot be deleted (403)."""
+    async with _client() as client:
+        # List agents to find a builtin
+        list_resp = await client.get(
+            "/api/agents",
+            headers={"Authorization": f"Bearer {TEST_API_KEY}"},
+        )
+        assert list_resp.status_code == 200
+        agents = list_resp.json()["agents"]
+        builtins = [a for a in agents if a.get("builtin")]
+
+        if builtins:
+            response = await client.delete(
+                f"/api/agents/{builtins[0]['name']}",
+                headers={"Authorization": f"Bearer {TEST_API_KEY}"},
+            )
+            assert response.status_code == 403
+            assert "read-only" in response.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_update_builtin_agent_forbidden():
+    """Test that built-in agents cannot be updated (403)."""
+    async with _client() as client:
+        list_resp = await client.get(
+            "/api/agents",
+            headers={"Authorization": f"Bearer {TEST_API_KEY}"},
+        )
+        assert list_resp.status_code == 200
+        agents = list_resp.json()["agents"]
+        builtins = [a for a in agents if a.get("builtin")]
+
+        if builtins:
+            response = await client.put(
+                f"/api/agents/{builtins[0]['name']}",
+                headers={"Authorization": f"Bearer {TEST_API_KEY}"},
+                json={
+                    "description": "Updated",
+                    "system_prompt": "Updated",
+                },
+            )
+            assert response.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_create_duplicate_agent(request, _clean_registry):
+    """Test creating an agent with a duplicate name fails."""
+    agent_name = f"dup-agent-{uuid4().hex[:8]}"
+    async with _client() as client:
+        payload = {
+            "name": agent_name,
+            "description": "Test",
+            "system_prompt": "Test",
+        }
+        resp1 = await client.post(
+            "/api/agents",
+            headers={"Authorization": f"Bearer {TEST_API_KEY}"},
+            json=payload,
+        )
+        assert resp1.status_code == 200
+
+        # Try to create the same agent again
+        resp2 = await client.post(
+            "/api/agents",
+            headers={"Authorization": f"Bearer {TEST_API_KEY}"},
+            json=payload,
+        )
+        # Should fail with conflict or error
+        assert resp2.status_code in (400, 409, 422, 500)
+
+
+@pytest.mark.asyncio
+async def test_run_agent_router_error(request, _clean_registry):
+    """Test running an agent when router raises an error."""
+    fake_router = FakeRouter(error=RuntimeError("LLM unavailable"))
+
+    async with _client(fake_router) as client:
+        await client.post(
+            "/api/agents",
+            headers={"Authorization": f"Bearer {TEST_API_KEY}"},
+            json={
+                "name": "error-agent",
+                "description": "Test",
+                "system_prompt": "Test",
+            },
+        )
+
+        response = await client.post(
+            "/api/agents/error-agent/run",
+            headers={"Authorization": f"Bearer {TEST_API_KEY}"},
+            json={
+                "messages": [{"role": "user", "content": "Hello"}],
+            },
+        )
+
+    assert response.status_code == 503
+
+
+@pytest.mark.asyncio
+async def test_create_agent_with_custom_strategy(request, _clean_registry):
+    """Test creating an agent with a non-default strategy."""
+    agent_name = f"cheap-agent-{uuid4().hex[:8]}"
+    async with _client() as client:
+        response = await client.post(
+            "/api/agents",
+            headers={"Authorization": f"Bearer {TEST_API_KEY}"},
+            json={
+                "name": agent_name,
+                "description": "Test",
+                "system_prompt": "You are cheap",
+                "strategy": "cheapest",
+                "routing_policy": "cheap",
+                "temperature": 0.3,
+                "max_tokens": 1024,
+            },
+        )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["strategy"] == "cheapest"
+    assert body["temperature"] == 0.3
+    assert body["max_tokens"] == 1024
+
+
+@pytest.mark.asyncio
+async def test_agent_invalid_auth_token():
+    """Test agent endpoints reject invalid auth tokens."""
+    async with _client() as client:
+        response = await client.get(
+            "/api/agents",
+            headers={"Authorization": "Bearer invalid-key-xyz"},
+        )
+
+    assert response.status_code == 401

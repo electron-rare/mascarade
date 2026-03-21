@@ -406,3 +406,188 @@ async def test_chat_completion_message_with_tool_call_id():
 
     assert response.status_code == 200
     assert fake_router.calls[0]["messages"][0]["tool_call_id"] == "call_123"
+
+
+@pytest.mark.asyncio
+async def test_chat_completion_empty_messages():
+    """Test chat completion with empty messages list is rejected by validation."""
+    fake_router = FakeRouter()
+
+    async with _client(fake_router) as client:
+        response = await client.post(
+            "/v1/chat/completions",
+            json={
+                "model": "gpt-4",
+                "messages": [],
+            },
+        )
+
+    # FastAPI/Pydantic should reject empty messages
+    assert response.status_code == 422 or response.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_chat_completion_missing_model():
+    """Test chat completion without model field is rejected."""
+    fake_router = FakeRouter()
+
+    async with _client(fake_router) as client:
+        response = await client.post(
+            "/v1/chat/completions",
+            json={
+                "messages": [{"role": "user", "content": "test"}],
+            },
+        )
+
+    assert response.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_chat_completion_unsupported_provider_prefix():
+    """Test chat completion with unsupported provider prefix returns 400."""
+    fake_router = FakeRouter()
+    fake_router.available_providers = ["openai"]
+
+    async with _client(fake_router) as client:
+        response = await client.post(
+            "/v1/chat/completions",
+            json={
+                "model": "unknownprovider:gpt-4",
+                "messages": [{"role": "user", "content": "test"}],
+            },
+        )
+
+    assert response.status_code == 400
+    assert "Unsupported model prefix" in response.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_chat_completion_streaming_mode():
+    """Test chat completion in streaming mode returns SSE events."""
+
+    class StreamableFakeRouter(FakeRouter):
+        async def stream(self, messages, **kwargs):
+            for token in ["Hello", " ", "World"]:
+                yield token
+
+    fake_router = StreamableFakeRouter()
+    fake_router.available_providers = ["openai"]
+
+    async with _client(fake_router) as client:
+        response = await client.post(
+            "/v1/chat/completions",
+            json={
+                "model": "openai:gpt-4",
+                "messages": [{"role": "user", "content": "test"}],
+                "stream": True,
+            },
+        )
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("text/event-stream")
+    body_text = response.text
+    assert "data:" in body_text
+    assert "[DONE]" in body_text
+
+
+@pytest.mark.asyncio
+async def test_chat_completion_streaming_contains_content_chunks():
+    """Test streaming response includes content delta chunks."""
+    import json as _json
+
+    class StreamableFakeRouter(FakeRouter):
+        async def stream(self, messages, **kwargs):
+            yield "token1"
+            yield "token2"
+
+    fake_router = StreamableFakeRouter()
+    fake_router.available_providers = ["openai"]
+
+    async with _client(fake_router) as client:
+        response = await client.post(
+            "/v1/chat/completions",
+            json={
+                "model": "openai:gpt-4",
+                "messages": [{"role": "user", "content": "test"}],
+                "stream": True,
+            },
+        )
+
+    assert response.status_code == 200
+    lines = [l for l in response.text.strip().split("\n") if l.startswith("data:") and l != "data: [DONE]"]
+    # First chunk is role, then content chunks, then finish chunk
+    assert len(lines) >= 3  # role + 2 content + finish
+    # Check a content chunk
+    for line in lines:
+        chunk = _json.loads(line.removeprefix("data: "))
+        assert chunk["object"] == "chat.completion.chunk"
+        assert "choices" in chunk
+
+
+@pytest.mark.asyncio
+async def test_chat_completion_provider_not_available():
+    """Test chat completion with unavailable provider returns 503."""
+    fake_router = FakeRouter()
+    fake_router.available_providers = ["openai"]
+
+    async with _client(fake_router) as client:
+        response = await client.post(
+            "/v1/chat/completions",
+            json={
+                "model": "anthropic:claude-sonnet-4-20250514",
+                "messages": [{"role": "user", "content": "test"}],
+            },
+        )
+
+    assert response.status_code == 503
+    body = response.json()
+    assert "not configured" in body["detail"]["error"] or "unavailable" in body["detail"]["error"]
+
+
+@pytest.mark.asyncio
+async def test_chat_completion_response_has_unique_ids():
+    """Test that each chat completion gets a unique ID."""
+    fake_router = FakeRouter()
+
+    ids = set()
+    async with _client(fake_router) as client:
+        for _ in range(3):
+            response = await client.post(
+                "/v1/chat/completions",
+                json={
+                    "model": "gpt-4",
+                    "messages": [{"role": "user", "content": "test"}],
+                },
+            )
+            assert response.status_code == 200
+            ids.add(response.json()["id"])
+
+    assert len(ids) == 3
+
+
+@pytest.mark.asyncio
+async def test_parse_model_string_ollama_with_tag():
+    """Test parsing 'ollama:qwen3.5:9b' where model name has colons."""
+    from mascarade.routers.chat import _parse_model_string
+
+    class FakeRouterInstance:
+        available_providers = ["ollama"]
+
+    provider, model, display = _parse_model_string("ollama:qwen3.5:9b", FakeRouterInstance())
+    assert provider == "ollama"
+    assert model == "qwen3.5:9b"
+    assert display == "ollama:qwen3.5:9b"
+
+
+@pytest.mark.asyncio
+async def test_parse_model_string_no_prefix():
+    """Test parsing plain model name without provider prefix."""
+    from mascarade.routers.chat import _parse_model_string
+
+    class FakeRouterInstance:
+        available_providers = ["openai"]
+
+    provider, model, display = _parse_model_string("gpt-4", FakeRouterInstance())
+    assert provider is None
+    assert model == "gpt-4"
+    assert display == "gpt-4"

@@ -238,3 +238,163 @@ class TestHeartbeatMonitor:
         # 3rd failure: dead
         hb._handle_failure(w)
         assert w.status == WorkerStatus.DEAD
+
+    def test_get_dead_workers(self):
+        w1 = WorkerState(node_id="w1", url="http://w1:8201", status=WorkerStatus.ALIVE)
+        w2 = WorkerState(node_id="w2", url="http://w2:8201", status=WorkerStatus.DEAD)
+        w3 = WorkerState(node_id="w3", url="http://w3:8201", status=WorkerStatus.DEAD)
+        hb = HeartbeatMonitor({"w1": w1, "w2": w2, "w3": w3})
+        dead = hb.get_dead_workers()
+        assert len(dead) == 2
+        assert {d.node_id for d in dead} == {"w2", "w3"}
+
+    def test_handle_failure_idempotent_after_dead(self):
+        """Calling _handle_failure on already-dead worker stays dead."""
+        w = WorkerState(node_id="w1", url="http://w1:8201", status=WorkerStatus.DEAD)
+        w.missed_heartbeats = 10
+        hb = HeartbeatMonitor({"w1": w})
+        hb._handle_failure(w)
+        assert w.status == WorkerStatus.DEAD
+        assert w.missed_heartbeats == 11
+
+
+# --- Additional WorkerState tests ---
+
+
+class TestWorkerStateExtended:
+    def test_p95_latency_default(self):
+        w = WorkerState(node_id="test", url="http://localhost:8201")
+        assert w.p95_latency_ms == 5000.0
+
+    def test_p95_latency_computed(self):
+        w = WorkerState(node_id="test", url="http://localhost:8201")
+        for i in range(100):
+            w.response_times_ms.append(float(i * 10))
+        # p95 should be around 950
+        assert w.p95_latency_ms >= 900
+
+    def test_draining_status_no_capacity(self):
+        w = WorkerState(
+            node_id="test",
+            url="http://localhost:8201",
+            status=WorkerStatus.DRAINING,
+            max_concurrent=10,
+        )
+        assert not w.has_capacity()
+        assert w.alive is False
+
+    def test_request_completed_decrements_load(self):
+        w = WorkerState(node_id="test", url="http://localhost:8201")
+        w.request_started()
+        w.request_started()
+        assert w.current_load == 2
+        w.request_completed(100.0, True)
+        assert w.current_load == 1
+
+    def test_error_rate_zero_when_no_requests(self):
+        w = WorkerState(node_id="test", url="http://localhost:8201")
+        assert w.error_rate == 0.0
+
+    def test_vram_usage_pct_zero_vram(self):
+        w = WorkerState(node_id="test", url="http://localhost:8201", vram_total_mb=0)
+        assert w.vram_usage_pct == 0.0
+
+    def test_update_from_health_unknown_runtime(self):
+        w = WorkerState(node_id="test", url="http://localhost:8201")
+        w.update_from_health({"runtime": "invalid_runtime_xyz"})
+        assert w.runtime == WorkerRuntime.UNKNOWN
+
+    def test_to_dict_completeness(self):
+        w = WorkerState(node_id="test", url="http://localhost:8201")
+        d = w.to_dict()
+        expected_keys = {
+            "node_id", "url", "runtime", "status", "vram_total_mb", "vram_free_mb",
+            "vram_usage_pct", "ram_total_mb", "ram_free_mb", "cpu_percent", "gpu_percent",
+            "current_load", "max_concurrent", "queue_depth", "loaded_models",
+            "avg_latency_ms", "p95_latency_ms", "error_rate", "total_requests", "alive",
+        }
+        assert set(d.keys()) == expected_keys
+
+
+# --- Additional Scheduler tests ---
+
+
+class TestSchedulerExtended:
+    def _make_worker(self, node_id, **kwargs):
+        defaults = {
+            "url": f"http://{node_id}:8201",
+            "status": WorkerStatus.ALIVE,
+            "max_concurrent": 4,
+            "loaded_models": [],
+        }
+        defaults.update(kwargs)
+        return WorkerState(node_id=node_id, **defaults)
+
+    def test_remove_worker(self):
+        s = ResourceAwareScheduler()
+        s.register_worker(self._make_worker("w1"))
+        assert "w1" in s.workers
+        s.remove_worker("w1")
+        assert "w1" not in s.workers
+
+    def test_remove_nonexistent_worker_no_error(self):
+        s = ResourceAwareScheduler()
+        s.remove_worker("nonexistent")  # should not raise
+
+    def test_total_queue_depth(self):
+        s = ResourceAwareScheduler()
+        w1 = self._make_worker("w1")
+        w1.queue_depth = 10
+        w2 = self._make_worker("w2")
+        w2.queue_depth = 20
+        s.register_worker(w1)
+        s.register_worker(w2)
+        assert s.total_queue_depth == 30
+
+    def test_workers_for_model_with_capacity(self):
+        s = ResourceAwareScheduler()
+        w1 = self._make_worker("w1", loaded_models=["llama-8b"])
+        w2 = self._make_worker("w2", loaded_models=["qwen-7b"])
+        s.register_worker(w1)
+        s.register_worker(w2)
+        # Both can serve llama-8b: w1 has it, w2 has capacity
+        result = s.workers_for_model("llama-8b")
+        assert len(result) == 2
+
+    def test_estimate_wait_no_workers(self):
+        s = ResourceAwareScheduler()
+        req = ScheduledRequest(model="any", messages=[{"role": "user", "content": "hi"}])
+        assert s.estimate_wait(req) == float("inf")
+
+    def test_admit_no_capable_worker(self):
+        s = ResourceAwareScheduler()
+        # Only dead workers
+        s.register_worker(self._make_worker("dead", status=WorkerStatus.DEAD))
+        req = ScheduledRequest(model="any", messages=[{"role": "user", "content": "hi"}])
+        with pytest.raises(HTTPException) as exc_info:
+            s.admit(req)
+        assert exc_info.value.status_code == 503
+
+    def test_vram_scoring_prefers_more_free_vram(self):
+        s = ResourceAwareScheduler()
+        low_vram = self._make_worker(
+            "low", loaded_models=["m"], vram_total_mb=24000, vram_free_mb=2000,
+        )
+        high_vram = self._make_worker(
+            "high", loaded_models=["m"], vram_total_mb=24000, vram_free_mb=20000,
+        )
+        s.register_worker(low_vram)
+        s.register_worker(high_vram)
+        req = ScheduledRequest(model="m", messages=[{"role": "user", "content": "hi"}])
+        result = s.select_worker(req)
+        assert result.node_id == "high"
+
+    def test_dispatch_count_increments(self):
+        s = ResourceAwareScheduler()
+        s.register_worker(self._make_worker("w1", loaded_models=["m"]))
+        req = ScheduledRequest(model="m", messages=[{"role": "user", "content": "hi"}])
+        assert s._dispatch_count == 0
+        s.select_worker(req)
+        assert s._dispatch_count == 1
+        s.select_worker(req)
+        assert s._dispatch_count == 2
