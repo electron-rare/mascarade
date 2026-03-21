@@ -43,7 +43,7 @@ class KTOExample:
 class ReinforcementResult:
     dataset_path: str
     total_pairs: int
-    method: str = "dpo"  # "dpo", "simpo", or "kto"
+    method: str = "dpo"  # "dpo", "simpo", "kto", or "rlvr"
     ready_for_training: bool = True
 
 
@@ -54,6 +54,7 @@ class ReinforcerAgent:
     - DPO: Direct Preference Optimization (preference pairs, requires reference model)
     - SimPO: Simple Preference Optimization (reference-free, length-normalized reward)
     - KTO: Kahneman-Tversky Optimization (binary feedback, no pairs needed)
+    - RLVR: Reinforcement Learning with Verifiable Rewards (GRPO/DAPO with domain rewards)
 
     Workflow:
     1. Analyst detects errors in student output
@@ -330,9 +331,19 @@ class ReinforcerAgent:
 
         Default beta values per method: dpo=0.1, simpo=2.0, kto=0.1
         """
-        valid_methods = {"dpo", "simpo", "kto"}
+        valid_methods = {"dpo", "simpo", "kto", "rlvr"}
         if method not in valid_methods:
             raise ValueError(f"Unknown alignment method '{method}', must be one of {valid_methods}")
+
+        if method == "rlvr":
+            return await self._train_rlvr(
+                model_path, dataset_path,
+                run_id=run_id,
+                learning_rate=learning_rate,
+                num_epochs=num_epochs,
+                max_length=max_length,
+                beta=beta if beta is not None else 0.04,
+            )
 
         if method == "kto":
             return await self._train_kto(
@@ -366,6 +377,55 @@ class ReinforcerAgent:
             num_epochs=num_epochs,
             max_length=max_length,
         )
+
+    async def _train_rlvr(
+        self,
+        model_path: str,
+        dataset_path: str,
+        *,
+        run_id: str | None = None,
+        beta: float = 0.04,
+        learning_rate: float = 1e-6,
+        num_epochs: int = 3,
+        max_length: int = 2048,
+        reward_functions: list[str] | None = None,
+        loss_type: str = "dapo",
+        num_generations: int = 16,
+    ) -> dict:
+        """Run RLVR alignment using GRPO/DAPO with verifiable reward functions.
+
+        RLVR (Reinforcement Learning with Verifiable Rewards):
+        - Uses domain-specific programmatic rewards (code compilation, KiCad DRC, etc.)
+        - No human preference data needed — self-improving via verifiable checks
+        - Supports GRPO and DAPO loss types
+        - Works with QLoRA via Unsloth for low-VRAM training
+        """
+        from mascarade.finetune.rlvr.trainer import RLVRConfig, RLVRTrainer
+
+        config = RLVRConfig(
+            base_model=model_path,
+            reward_functions=reward_functions or ["code_compilation"],
+            num_generations=num_generations,
+            loss_type=loss_type,
+            max_completion_length=max_length,
+            learning_rate=learning_rate,
+            num_epochs=num_epochs,
+            batch_size=4,
+            beta=beta,
+        )
+
+        trainer = RLVRTrainer()
+        result = await trainer.train(config, dataset_path)
+
+        return {
+            "output_dir": result.output_dir,
+            "method": "rlvr",
+            "training_time_seconds": result.training_time_seconds,
+            "final_loss": result.final_loss,
+            "final_reward_mean": result.final_reward_mean,
+            "model_path": result.model_path,
+            "reward_functions": result.reward_functions,
+        }
 
     async def _train_dpo(
         self,

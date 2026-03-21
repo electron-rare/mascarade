@@ -57,6 +57,10 @@ finetune = [
     "trl>=0.25.0,<1",
     "gradio>=5.0,<6",
 ]
+rlvr = [
+    "trl>=0.17",
+    "kibot>=1.8",
+]
 observability = [
     "openllmetry-sdk>=0.33",
 ]

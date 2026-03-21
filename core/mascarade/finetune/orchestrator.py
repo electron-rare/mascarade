@@ -22,7 +22,7 @@ class PipelineConfig:
     languages: list[str] = field(default_factory=lambda: ["en", "fr"])
     lora_config: dict = field(default_factory=dict)
     dpo_iterations: int = 1
-    alignment_method: str = "dpo"      # "dpo", "simpo", or "kto"
+    alignment_method: str = "dpo"      # "dpo", "simpo", "kto", or "rlvr"
     auto_publish: bool = False
 
 

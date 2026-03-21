@@ -103,6 +103,11 @@ class Settings(BaseSettings):
     ollama_base_url: str = "http://ollama:11434"
     ollama_timeout_seconds: float = 180.0
 
+    # Exo (distributed inference cluster, OpenAI-compatible)
+    exo_enabled: bool = False
+    exo_base_url: str = "http://localhost:52415"
+    exo_timeout_seconds: float = 120.0
+
     # llama.cpp (OpenAI-compatible local server)
     llama_cpp_enabled: bool = False
     llama_cpp_base_url: str = "http://localhost:8081/v1"
@@ -245,6 +250,10 @@ class Settings(BaseSettings):
     # Domain-aware routing
     domain_model_mappings: str = ""
     use_ml_classifier: bool = False  # Enable ML classifier for domain detection
+
+    # ML routing classifier (tier prediction: strong/cheap/fast)
+    ml_routing_classifier_enabled: bool = False
+    ml_routing_classifier_path: str = ""  # Path to model JSON; empty = default ~/.mascarade/models/
 
 
 settings = Settings()
