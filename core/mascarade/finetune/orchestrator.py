@@ -22,6 +22,7 @@ class PipelineConfig:
     languages: list[str] = field(default_factory=lambda: ["en", "fr"])
     lora_config: dict = field(default_factory=dict)
     dpo_iterations: int = 1
+    alignment_method: str = "dpo"      # "dpo", "simpo", or "kto"
     auto_publish: bool = False
 
 
@@ -88,9 +89,9 @@ class FinetuneOrchestrator:
             state.phase = "eval"
             state = await self._phase_eval(state)
 
-            # Phase 6: DPO (optional iterations)
+            # Phase 6: Alignment — DPO/SimPO/KTO (optional iterations)
             for i in range(config.dpo_iterations):
-                state.phase = f"dpo-{i+1}"
+                state.phase = f"alignment-{config.alignment_method}-{i+1}"
                 state = await self._phase_dpo(state)
 
             # Phase 7: Validation
@@ -228,18 +229,19 @@ class FinetuneOrchestrator:
         return state
 
     async def _phase_dpo(self, state: PipelineState) -> PipelineState:
-        logger.info("Phase: DPO reinforcement (%s)", state.phase)
+        alignment_method = state.config.alignment_method
+        logger.info("Phase: %s alignment (%s)", alignment_method.upper(), state.phase)
 
         # 1. Check prerequisites: eval_report must exist with data
         if not state.eval_report or not state.eval_report.get("metrics"):
-            logger.warning("DPO skipped — no eval report available")
-            state.errors.append(f"DPO phase {state.phase} skipped: no eval report")
+            logger.warning("%s skipped — no eval report available", alignment_method.upper())
+            state.errors.append(f"{alignment_method} phase {state.phase} skipped: no eval report")
             return state
 
         model_path = state.training_result.get("output_dir", "")
         if not model_path:
-            logger.warning("DPO skipped — no trained model path")
-            state.errors.append(f"DPO phase {state.phase} skipped: no model path")
+            logger.warning("%s skipped — no trained model path", alignment_method.upper())
+            state.errors.append(f"{alignment_method} phase {state.phase} skipped: no model path")
             return state
 
         # Build test prompts from domain context
@@ -251,7 +253,7 @@ class FinetuneOrchestrator:
 
         try:
             # 2. Distribute collect_errors task to ft-reinforcement capability
-            logger.info("DPO: collecting errors from model at %s", model_path)
+            logger.info("%s: collecting errors from model at %s", alignment_method.upper(), model_path)
             error_result = await self._distribute("ft-reinforcement", {
                 "action": "collect_errors",
                 "model_path": model_path,
@@ -261,33 +263,37 @@ class FinetuneOrchestrator:
 
             errors = error_result.get("errors", [])
             if not errors:
-                logger.info("DPO: no errors found, model looks good — skipping DPO pair generation")
+                logger.info("%s: no errors found, model looks good — skipping", alignment_method.upper())
                 return state
 
-            # 3. Distribute generate_dpo task to produce DPO training pairs
-            logger.info("DPO: generating DPO pairs from %d errors", len(errors))
-            dpo_result = await self._distribute("ft-reinforcement", {
+            # 3. Distribute alignment data generation task
+            logger.info("%s: generating training data from %d errors", alignment_method.upper(), len(errors))
+            alignment_result = await self._distribute("ft-reinforcement", {
                 "action": "generate_dpo",
                 "errors": errors,
-                "run_id": f"dpo-{state.config.domain}-{state.phase}",
+                "run_id": f"{alignment_method}-{state.config.domain}-{state.phase}",
+                "alignment_method": alignment_method,
             })
 
-            dpo_dataset_path = dpo_result.get("dataset_path", "")
-            total_pairs = dpo_result.get("total_pairs", 0)
-            logger.info("DPO: generated %d pairs → %s", total_pairs, dpo_dataset_path)
+            alignment_dataset_path = alignment_result.get("dataset_path", "")
+            total_pairs = alignment_result.get("total_pairs", 0)
+            logger.info("%s: generated %d examples → %s",
+                        alignment_method.upper(), total_pairs, alignment_dataset_path)
 
-            # 4. Update state with DPO results
-            state.training_result["dpo_dataset"] = dpo_dataset_path
-            state.training_result["dpo_pairs"] = total_pairs
-            state.eval_report[f"dpo_{state.phase}"] = {
+            # 4. Update state with alignment results
+            state.training_result["alignment_dataset"] = alignment_dataset_path
+            state.training_result["alignment_pairs"] = total_pairs
+            state.training_result["alignment_method"] = alignment_method
+            state.eval_report[f"alignment_{state.phase}"] = {
+                "method": alignment_method,
                 "errors_found": len(errors),
                 "pairs_generated": total_pairs,
-                "dataset_path": dpo_dataset_path,
+                "dataset_path": alignment_dataset_path,
             }
 
         except Exception as e:
-            state.errors.append(f"DPO phase {state.phase} failed: {e}")
-            logger.warning("DPO phase %s failed: %s", state.phase, e)
+            state.errors.append(f"{alignment_method} phase {state.phase} failed: {e}")
+            logger.warning("%s phase %s failed: %s", alignment_method.upper(), state.phase, e)
 
         return state
 

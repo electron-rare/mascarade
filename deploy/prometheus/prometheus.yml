@@ -4,6 +4,7 @@ global:
 
 rule_files:
   - /etc/prometheus/alerts/finetune.yml
+  - /etc/prometheus/rules/recording.yml
 
 scrape_configs:
   - job_name: prometheus
