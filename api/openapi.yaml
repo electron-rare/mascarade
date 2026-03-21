@@ -1,0 +1,1167 @@
+openapi: 3.1.0
+info:
+  title: Mascarade API
+  version: 0.1.0
+  description: |
+    Multi-agent LLM orchestration — API gateway.
+
+    Mascarade exposes an OpenAI-compatible chat completions endpoint,
+    a full agent CRUD + run surface, provider management, knowledge-base
+    search, multi-agent orchestration, pipeline execution, analytics,
+    and session-based authentication.
+
+    Most endpoints live under `/api/` (unversioned) **and** `/v1/api/`
+    (versioned mirror). This spec documents the `/api/` prefix.
+  license:
+    name: MIT
+
+servers:
+  - url: http://localhost:3000
+    description: Local development
+
+security:
+  - BearerAuth: []
+
+tags:
+  - name: health
+    description: Health and version checks (no auth required)
+  - name: auth
+    description: Session management (rate-limited, no bearer required)
+  - name: chat
+    description: OpenAI-compatible chat completions
+  - name: agents
+    description: Agent CRUD, execution, and routing
+  - name: providers
+    description: LLM provider listing and key management
+  - name: knowledge-base
+    description: Semantic search over the knowledge base
+  - name: orchestration
+    description: Multi-agent orchestration
+  - name: pipeline
+    description: Domain pipeline execution
+  - name: analytics
+    description: Benchmark analytics
+  - name: llm-providers
+    description: LLM provider lane configuration (v2)
+
+paths:
+  # ── Health & Version ───────────────────────────────────────────────
+  /health:
+    get:
+      operationId: getHealth
+      tags: [health]
+      summary: Health check
+      security: []
+      responses:
+        "200":
+          description: API and core are healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+              example:
+                status: ok
+                auth_required: true
+                core:
+                  status: ok
+        "503":
+          description: Core unreachable
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+              example:
+                status: degraded
+                auth_required: true
+                core: unreachable
+
+  /v1/version:
+    get:
+      operationId: getVersion
+      tags: [health]
+      summary: Version information
+      security: []
+      responses:
+        "200":
+          description: Version details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VersionResponse"
+              example:
+                api_version: "0.1.0"
+                service: mascarade-api
+                core:
+                  version: "0.4.0"
+                supported_features:
+                  - versioned_endpoints
+                  - deprecation_headers
+                  - openai_compatibility
+        "503":
+          description: Core unreachable (version still returned)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VersionResponse"
+
+  # ── Authentication ─────────────────────────────────────────────────
+  /api/auth/session:
+    post:
+      operationId: createSession
+      tags: [auth]
+      summary: Create session (login)
+      description: |
+        Validates an API key (from body or Authorization header) and sets
+        a session cookie. No bearer token required on this endpoint.
+      security: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SessionCreateRequest"
+      responses:
+        "200":
+          description: Session created
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusOk"
+        "401":
+          description: Invalid or missing token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                error: "Token invalide ou manquant"
+
+    delete:
+      operationId: deleteSession
+      tags: [auth]
+      summary: Logout (clear session cookie)
+      security: []
+      responses:
+        "200":
+          description: Session cleared
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusOk"
+
+  # ── Chat Completions ───────────────────────────────────────────────
+  /api/v1/chat/completions:
+    post:
+      operationId: chatCompletions
+      tags: [chat]
+      summary: OpenAI-compatible chat completions
+      description: |
+        Proxies to the core engine. Supports both synchronous JSON
+        responses and Server-Sent Events streaming (`stream: true`).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChatCompletionRequest"
+            example:
+              model: claude-sonnet-4-6
+              messages:
+                - role: user
+                  content: "Hello, who are you?"
+              temperature: 0.7
+              max_tokens: 4096
+              stream: false
+      responses:
+        "200":
+          description: |
+            Completion result. When `stream: false` the body is a JSON
+            object. When `stream: true` the response is `text/event-stream`.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatCompletionResponse"
+            text/event-stream:
+              schema:
+                type: string
+                description: SSE stream of completion chunks
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ValidationError"
+        "504":
+          description: Core request timed out
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  # ── Agents CRUD ────────────────────────────────────────────────────
+  /api/agents:
+    get:
+      operationId: listAgents
+      tags: [agents]
+      summary: List all agents
+      responses:
+        "200":
+          description: Array of agents
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Agent"
+
+    post:
+      operationId: createAgent
+      tags: [agents]
+      summary: Create a new agent
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AgentCreateRequest"
+      responses:
+        "201":
+          description: Agent created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Agent"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ValidationError"
+
+  /api/agents/{name}:
+    parameters:
+      - $ref: "#/components/parameters/AgentName"
+
+    get:
+      operationId: getAgent
+      tags: [agents]
+      summary: Get agent by name
+      responses:
+        "200":
+          description: Agent details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Agent"
+        "400":
+          description: Invalid agent name
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Agent not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+    put:
+      operationId: updateAgent
+      tags: [agents]
+      summary: Update an existing agent
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AgentUpdateRequest"
+      responses:
+        "200":
+          description: Agent updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Agent"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ValidationError"
+        "404":
+          description: Agent not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+    delete:
+      operationId: deleteAgent
+      tags: [agents]
+      summary: Delete an agent
+      responses:
+        "200":
+          description: Agent deleted
+          content:
+            application/json:
+              schema:
+                type: object
+        "400":
+          description: Invalid agent name
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Agent not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  # ── Agent Execution ────────────────────────────────────────────────
+  /api/agents/{name}/run:
+    parameters:
+      - $ref: "#/components/parameters/AgentName"
+    post:
+      operationId: runAgent
+      tags: [agents]
+      summary: Run an agent with messages
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AgentRunRequest"
+            example:
+              messages:
+                - role: user
+                  content: "Summarize the latest metrics."
+      responses:
+        "200":
+          description: Agent execution result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AgentRunResponse"
+        "400":
+          description: Invalid agent name or request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /api/agents/{name}/metrics:
+    parameters:
+      - $ref: "#/components/parameters/AgentName"
+    get:
+      operationId: getAgentMetrics
+      tags: [agents]
+      summary: Get metrics for a specific agent
+      responses:
+        "200":
+          description: Agent metrics
+          content:
+            application/json:
+              schema:
+                type: object
+        "400":
+          description: Invalid agent name
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /api/agents/send:
+    post:
+      operationId: sendPrompt
+      tags: [agents]
+      summary: Send a prompt with routing
+      description: |
+        Send messages with optional routing hints (strategy, provider,
+        model). The core engine picks the best provider/model according
+        to routing policy.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SendRequest"
+      responses:
+        "200":
+          description: Routed completion result
+          content:
+            application/json:
+              schema:
+                type: object
+
+  # ── Orchestration ──────────────────────────────────────────────────
+  /api/agents/orchestrate:
+    post:
+      operationId: orchestrate
+      tags: [orchestration]
+      summary: Multi-agent orchestration
+      description: |
+        Runs a multi-step orchestration across several agents. Returns
+        per-step results, a run ID, and the orchestration mode used.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OrchestrateRequest"
+      responses:
+        "200":
+          description: Orchestration result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrchestrateResponse"
+
+  # ── Providers ──────────────────────────────────────────────────────
+  /api/agents/providers:
+    get:
+      operationId: listProviders
+      tags: [providers]
+      summary: List available LLM providers
+      responses:
+        "200":
+          description: Provider list
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /api/agents/providers/status:
+    get:
+      operationId: getProvidersStatus
+      tags: [providers]
+      summary: Detailed provider status (keys, config)
+      responses:
+        "200":
+          description: Provider status details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProvidersStatusResponse"
+
+  /api/agents/providers/{name}/key:
+    parameters:
+      - name: name
+        in: path
+        required: true
+        schema:
+          type: string
+          pattern: "^[\\w.-]+$"
+        description: Provider name
+    put:
+      operationId: updateProviderKey
+      tags: [providers]
+      summary: Update API key for a provider
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [keys]
+              properties:
+                keys:
+                  type: object
+                  additionalProperties:
+                    type: string
+                  description: Key-value pairs of environment variables to set
+      responses:
+        "200":
+          description: Key updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProviderMutationResponse"
+        "400":
+          description: Invalid provider name
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  # ── Knowledge Base ─────────────────────────────────────────────────
+  /api/knowledge-base/search:
+    get:
+      operationId: searchKnowledgeBase
+      tags: [knowledge-base]
+      summary: Semantic search over the knowledge base
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 1000
+          description: Search query
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+          description: Maximum number of results
+        - name: project_id
+          in: query
+          required: false
+          schema:
+            type: string
+            maxLength: 256
+          description: Scope search to a project
+        - name: knowledge_scope
+          in: query
+          required: false
+          schema:
+            type: string
+            maxLength: 256
+          description: Knowledge scope filter
+        - name: federation_scope
+          in: query
+          required: false
+          schema:
+            type: string
+            maxLength: 1000
+          description: Comma-separated list of federation scopes
+      responses:
+        "200":
+          description: Search results
+          content:
+            application/json:
+              schema:
+                type: object
+                description: Search results from core engine
+        "400":
+          description: Query validation failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ValidationError"
+
+  # ── Pipeline ───────────────────────────────────────────────────────
+  /api/pipeline/run:
+    post:
+      operationId: runPipeline
+      tags: [pipeline]
+      summary: Trigger a domain pipeline execution
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PipelineRunRequest"
+            example:
+              domain: stm32
+              dry_run: true
+      responses:
+        "200":
+          description: Pipeline started
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PipelineRunResponse"
+        "400":
+          description: Invalid or missing domain
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                  valid_domains:
+                    type: array
+                    items:
+                      type: string
+              example:
+                error: "Invalid or missing domain parameter"
+                valid_domains:
+                  - stm32
+                  - spice
+                  - iot
+                  - power
+                  - dsp
+                  - emc
+                  - kicad
+                  - embedded
+                  - platformio
+                  - freecad
+                  - components
+
+  # ── Analytics ──────────────────────────────────────────────────────
+  /api/analytics/v1/benchmarks:
+    get:
+      operationId: getBenchmarks
+      tags: [analytics]
+      summary: Retrieve benchmark analytics
+      responses:
+        "200":
+          description: Benchmark data
+          content:
+            application/json:
+              schema:
+                type: object
+
+  # ── Metrics / Cache / Load-Balancer ────────────────────────────────
+  /api/agents/metrics:
+    get:
+      operationId: getGlobalMetrics
+      tags: [agents]
+      summary: Global agent metrics
+      responses:
+        "200":
+          description: Aggregated metrics
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /api/agents/cache/stats:
+    get:
+      operationId: getCacheStats
+      tags: [agents]
+      summary: Semantic cache statistics
+      responses:
+        "200":
+          description: Cache stats
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /api/agents/load-balancer/stats:
+    get:
+      operationId: getLoadBalancerStats
+      tags: [agents]
+      summary: Load-balancer statistics
+      responses:
+        "200":
+          description: Load-balancer stats
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /api/agents/fallback/stats:
+    get:
+      operationId: getFallbackStats
+      tags: [agents]
+      summary: Fallback chain statistics
+      responses:
+        "200":
+          description: Fallback stats
+          content:
+            application/json:
+              schema:
+                type: object
+
+  # ── LLM Providers v2 ──────────────────────────────────────────────
+  /api/v2/llm-providers:
+    get:
+      operationId: getLlmProviders
+      tags: [llm-providers]
+      summary: LLM provider lane configuration
+      description: |
+        Returns the cheap/strong lane configuration with live status
+        for each provider, plus the full list of available providers.
+      responses:
+        "200":
+          description: Provider lanes and available providers
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LlmProvidersResponse"
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      description: |
+        Pass the API key as `Authorization: Bearer <key>`.
+        Alternatively, authenticate via session cookie (POST /api/auth/session).
+
+  parameters:
+    AgentName:
+      name: name
+      in: path
+      required: true
+      schema:
+        type: string
+        pattern: "^[\\w.-]+$"
+        maxLength: 128
+      description: Agent name (alphanumeric, dots, hyphens, underscores)
+
+  schemas:
+    # ── Primitives ─────────────────────────────────────────────────
+    Message:
+      type: object
+      required: [role, content]
+      properties:
+        role:
+          type: string
+          enum: [system, user, assistant, tool]
+        content:
+          type: string
+          minLength: 1
+          maxLength: 100000
+
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+
+    ValidationError:
+      type: object
+      required: [error, details]
+      properties:
+        error:
+          type: string
+          example: Validation failed
+        details:
+          type: array
+          items:
+            type: object
+            properties:
+              path:
+                type: string
+              message:
+                type: string
+              code:
+                type: string
+
+    StatusOk:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [ok]
+
+    # ── Health / Version ───────────────────────────────────────────
+    HealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [ok, degraded]
+        auth_required:
+          type: boolean
+        core:
+          oneOf:
+            - type: object
+            - type: string
+
+    VersionResponse:
+      type: object
+      properties:
+        api_version:
+          type: string
+        service:
+          type: string
+        core:
+          oneOf:
+            - type: object
+            - type: string
+        supported_features:
+          type: array
+          items:
+            type: string
+
+    # ── Auth ───────────────────────────────────────────────────────
+    SessionCreateRequest:
+      type: object
+      properties:
+        api_key:
+          type: string
+          description: API key (alternative to Authorization header)
+        persist:
+          type: boolean
+          default: false
+          description: If true, sets a persistent cookie
+
+    # ── Chat ───────────────────────────────────────────────────────
+    ChatCompletionRequest:
+      type: object
+      required: [messages]
+      properties:
+        model:
+          type: string
+          maxLength: 100
+          description: Model identifier (optional — core picks default)
+        messages:
+          type: array
+          minItems: 1
+          maxItems: 200
+          items:
+            $ref: "#/components/schemas/Message"
+        temperature:
+          type: number
+          minimum: 0
+          maximum: 2
+          default: 0.7
+        max_tokens:
+          type: integer
+          minimum: 1
+          maximum: 128000
+          default: 4096
+        stream:
+          type: boolean
+          default: false
+          description: Enable SSE streaming
+
+    ChatCompletionResponse:
+      type: object
+      description: OpenAI-compatible completion response
+      properties:
+        id:
+          type: string
+        object:
+          type: string
+        created:
+          type: integer
+        model:
+          type: string
+        choices:
+          type: array
+          items:
+            type: object
+            properties:
+              index:
+                type: integer
+              message:
+                $ref: "#/components/schemas/Message"
+              finish_reason:
+                type: string
+        usage:
+          type: object
+          properties:
+            prompt_tokens:
+              type: integer
+            completion_tokens:
+              type: integer
+            total_tokens:
+              type: integer
+
+    # ── Agents ─────────────────────────────────────────────────────
+    Agent:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        system_prompt:
+          type: string
+        preferred_provider:
+          type: string
+        preferred_model:
+          type: string
+        preferred_role:
+          type: string
+        strategy:
+          type: string
+        routing_policy:
+          type: string
+        temperature:
+          type: number
+        max_tokens:
+          type: integer
+
+    AgentCreateRequest:
+      type: object
+      required: [name, description, system_prompt]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 128
+          pattern: "^[\\w.-]+$"
+        description:
+          type: string
+          maxLength: 2000
+        system_prompt:
+          type: string
+          minLength: 1
+          maxLength: 50000
+        preferred_provider:
+          type: string
+          maxLength: 100
+        preferred_model:
+          type: string
+          maxLength: 100
+        preferred_role:
+          type: string
+          maxLength: 100
+        strategy:
+          type: string
+          maxLength: 50
+        routing_policy:
+          type: string
+          maxLength: 50
+        temperature:
+          type: number
+          minimum: 0
+          maximum: 2
+        max_tokens:
+          type: integer
+          minimum: 1
+          maximum: 128000
+
+    AgentUpdateRequest:
+      type: object
+      description: All fields optional — only supplied fields are updated.
+      properties:
+        description:
+          type: string
+          maxLength: 2000
+        system_prompt:
+          type: string
+          minLength: 1
+          maxLength: 50000
+        preferred_provider:
+          type: string
+          maxLength: 100
+        preferred_model:
+          type: string
+          maxLength: 100
+        preferred_role:
+          type: string
+          maxLength: 100
+        strategy:
+          type: string
+          maxLength: 50
+        routing_policy:
+          type: string
+          maxLength: 50
+        temperature:
+          type: number
+          minimum: 0
+          maximum: 2
+        max_tokens:
+          type: integer
+          minimum: 1
+          maximum: 128000
+
+    AgentRunRequest:
+      type: object
+      required: [messages]
+      properties:
+        messages:
+          type: array
+          minItems: 1
+          maxItems: 200
+          items:
+            $ref: "#/components/schemas/Message"
+
+    AgentRunResponse:
+      type: object
+      description: Result of running an agent
+      properties:
+        response:
+          type: string
+        model:
+          type: string
+        provider:
+          type: string
+        usage:
+          type: object
+          properties:
+            prompt_tokens:
+              type: integer
+            completion_tokens:
+              type: integer
+            total_tokens:
+              type: integer
+
+    SendRequest:
+      type: object
+      required: [messages]
+      properties:
+        messages:
+          type: array
+          minItems: 1
+          maxItems: 200
+          items:
+            $ref: "#/components/schemas/Message"
+        strategy:
+          type: string
+          maxLength: 50
+        routing_policy:
+          type: string
+          maxLength: 50
+        provider:
+          type: string
+          maxLength: 100
+        model:
+          type: string
+          maxLength: 100
+        system:
+          type: string
+          maxLength: 50000
+        temperature:
+          type: number
+          minimum: 0
+          maximum: 2
+        max_tokens:
+          type: integer
+          minimum: 1
+          maximum: 128000
+
+    # ── Orchestration ──────────────────────────────────────────────
+    OrchestrateRequest:
+      type: object
+      description: Multi-agent orchestration request (forwarded to core)
+      properties:
+        steps:
+          type: array
+          items:
+            type: object
+            properties:
+              agent:
+                type: string
+              messages:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Message"
+        mode:
+          type: string
+          description: Orchestration mode (e.g. sequential, parallel)
+
+    OrchestrateResponse:
+      type: object
+      properties:
+        run_id:
+          type: string
+        mode:
+          type: string
+        results:
+          type: array
+          items:
+            type: object
+            properties:
+              agent:
+                type: string
+              response:
+                type: string
+              error:
+                type: string
+                nullable: true
+
+    # ── Providers ──────────────────────────────────────────────────
+    ProviderStatus:
+      type: object
+      properties:
+        name:
+          type: string
+        active:
+          type: boolean
+        configured:
+          type: boolean
+
+    ProvidersStatusResponse:
+      type: object
+      properties:
+        providers:
+          type: array
+          items:
+            $ref: "#/components/schemas/ProviderStatus"
+
+    ProviderMutationResponse:
+      type: object
+      properties:
+        status:
+          type: string
+        active:
+          type: boolean
+        configured:
+          type: boolean
+        message:
+          type: string
+        updated_env:
+          type: array
+          items:
+            type: string
+        cleared_env:
+          type: array
+          items:
+            type: string
+        restarted_services:
+          type: array
+          items:
+            type: string
+
+    # ── Pipeline ───────────────────────────────────────────────────
+    PipelineRunRequest:
+      type: object
+      required: [domain]
+      properties:
+        domain:
+          type: string
+          minLength: 1
+          maxLength: 50
+          description: |
+            Pipeline domain. Valid values: stm32, spice, iot, power,
+            dsp, emc, kicad, embedded, platformio, freecad, components
+        dry_run:
+          type: boolean
+          default: false
+
+    PipelineRunResponse:
+      type: object
+      properties:
+        status:
+          type: string
+        run_id:
+          type: string
+        domain:
+          type: string
+        dry_run:
+          type: boolean
+
+    # ── LLM Providers v2 ──────────────────────────────────────────
+    LlmProvidersResponse:
+      type: object
+      properties:
+        ok:
+          type: boolean
+        data:
+          type: object
+          properties:
+            healthy:
+              type: boolean
+            providers:
+              type: array
+              items:
+                type: object
+                properties:
+                  lane:
+                    type: string
+                    enum: [cheap, strong]
+                  provider:
+                    type: string
+                  model:
+                    type: string
+                  status:
+                    type: string
+                    enum: [active, configured, inactive, unavailable]
+            available_providers:
+              type: array
+              items:
+                $ref: "#/components/schemas/ProviderStatus"
