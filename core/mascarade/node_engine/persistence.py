@@ -12,6 +12,7 @@ import os
 import tempfile
 from collections.abc import Callable
 from dataclasses import asdict
+from enum import Enum
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -140,6 +141,65 @@ class MigrationRegistry:
         return len(self._migrations)
 
 
+def _obj_to_dict(obj: Any) -> Any:
+    """Convert a dataclass or object to a dict recursively."""
+    import dataclasses
+    if dataclasses.is_dataclass(obj) and not isinstance(obj, type):
+        return asdict(obj)
+    elif isinstance(obj, dict):
+        return {k: _obj_to_dict(v) for k, v in obj.items()}
+    elif isinstance(obj, (list, tuple)):
+        return type(obj)(_obj_to_dict(item) for item in obj)
+    elif isinstance(obj, Enum):
+        return obj.value
+    else:
+        return obj
+
+
+def _graph_to_dict(graph: Graph) -> dict[str, Any]:
+    """Convert a Graph instance to a dictionary."""
+    import dataclasses
+
+    nodes_data = []
+    for node in graph.nodes:
+        if dataclasses.is_dataclass(node) and not isinstance(node, type):
+            nodes_data.append(asdict(node))
+        else:
+            nodes_data.append({
+                "id": getattr(node, "id", ""),
+                "node_type": getattr(node, "node_type", ""),
+                "label": getattr(node, "label", ""),
+                "config": getattr(node, "config", {}),
+                "position": getattr(node, "position", (0.0, 0.0)),
+                "domain": getattr(node, "domain", None),
+            })
+
+    edges_data = []
+    for edge in graph.edges:
+        if dataclasses.is_dataclass(edge) and not isinstance(edge, type):
+            edges_data.append(asdict(edge))
+        else:
+            edges_data.append({
+                "id": getattr(edge, "id", ""),
+                "source_node": getattr(edge, "source_node", ""),
+                "source_port": getattr(edge, "source_port", ""),
+                "target_node": getattr(edge, "target_node", ""),
+                "target_port": getattr(edge, "target_port", ""),
+            })
+
+    status_val = graph.status.value if isinstance(graph.status, GraphStatus) else str(graph.status)
+
+    return {
+        "id": graph.id,
+        "name": graph.name,
+        "version": graph.version,
+        "status": status_val,
+        "nodes": nodes_data,
+        "edges": edges_data,
+        "metadata": dict(graph.metadata),
+    }
+
+
 class GraphSerializer:
     """
     Serializes and deserializes graphs to/from versioned JSON format.
@@ -177,8 +237,8 @@ class GraphSerializer:
         Returns:
             A dictionary ready for JSON serialization
         """
-        # Convert dataclass to dict
-        graph_data = asdict(graph)
+        # Convert to dict (handles both dataclass and regular class)
+        graph_data = _graph_to_dict(graph)
 
         # Convert enum to string
         if isinstance(graph.status, GraphStatus):

@@ -259,7 +259,9 @@ async def test_chat_completion_multiple_messages():
         )
 
     assert response.status_code == 200
-    assert len(fake_router.calls[0]["messages"]) == 4
+    # System messages are extracted and passed as system= kwarg
+    assert len(fake_router.calls[0]["messages"]) == 3
+    assert fake_router.calls[0]["system"] == "You are helpful"
 
 
 @pytest.mark.asyncio

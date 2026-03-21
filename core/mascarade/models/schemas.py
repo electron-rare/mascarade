@@ -64,6 +64,7 @@ class ChatCompletionRequest(BaseModel):
         min_length=1, max_length=200, description="List of messages in the conversation"
     )
     model: str = Field(
+        default="",
         max_length=100,
         description="Model to use (e.g., 'gpt-4', 'claude-3-5-sonnet-20241022')",
     )

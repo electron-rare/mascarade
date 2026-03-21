@@ -32,6 +32,7 @@ class Agent:
     max_tokens: int = 4096
     skills: list[str] = field(default_factory=list)  # assigned skill names
     retry_config: dict | None = None
+    prompt_versions: list[dict] = field(default_factory=list)
 
     def get_enhanced_system_prompt(self, skill_registry: SkillRegistry) -> str:
         """Build system prompt enhanced with assigned skills.
