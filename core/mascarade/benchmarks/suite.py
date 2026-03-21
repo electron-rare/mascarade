@@ -64,6 +64,7 @@ class BenchmarkSuite:
     runner: BenchmarkRunner | None = None
     run_history: list[BenchmarkRun] = field(default_factory=list)
     max_history: int = 100
+    _run_counter: int = field(default=0, repr=False)
 
     def __post_init__(self) -> None:
         """Initialiser les composants après création."""
@@ -75,7 +76,8 @@ class BenchmarkSuite:
     def _generate_run_id(self) -> str:
         """Générer un ID unique pour une exécution de benchmark."""
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        return f"bench_{timestamp}_{len(self.run_history)}"
+        self._run_counter += 1
+        return f"bench_{timestamp}_{self._run_counter}"
 
     def _record_run(self, run: BenchmarkRun) -> None:
         """Enregistrer une exécution dans l'historique."""

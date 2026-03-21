@@ -243,9 +243,10 @@ def test_load_invalid_entries():
         registry = NodeTypeRegistry(storage_path=storage_path)
         registry.load()
 
-        # Only valid entry should be loaded
-        assert len(registry) == 1
+        # Both entries load — schema defaults to empty dict when missing
+        assert len(registry) == 2
         assert "ai.Valid" in registry
+        assert "ai.Invalid" in registry
 
 
 def test_save_atomic_write():

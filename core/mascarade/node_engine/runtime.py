@@ -162,11 +162,18 @@ class GraphRuntime:
                 )
                 continue
 
+            # Build effective inputs: explicit inputs + ports that will be
+            # filled by incoming edges (so validation doesn't flag them as missing).
+            effective_inputs = dict(node.inputs)
+            for edge in graph.edges:
+                if edge.to_node == node.id:
+                    effective_inputs.setdefault(edge.to_port, "__edge__")
+
             # Delegate to worker-specific validation
             try:
                 validation_errors = await worker.validate(
                     node.type,
-                    node.inputs,
+                    effective_inputs,
                     node.config,
                 )
                 for error in validation_errors:
