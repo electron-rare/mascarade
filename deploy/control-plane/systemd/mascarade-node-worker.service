@@ -1,0 +1,17 @@
+[Unit]
+Description=Mascarade Node Worker
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/mascarade/api
+EnvironmentFile=/etc/mascarade/node-worker.env
+ExecStart=/usr/bin/node /opt/mascarade/api/src/worker/http-runtime-worker.js
+Restart=always
+RestartSec=2
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
