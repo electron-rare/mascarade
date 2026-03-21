@@ -2,7 +2,6 @@ import { serve } from "@hono/node-server";
 import { serveStatic } from "@hono/node-server/serve-static";
 import { Hono } from "hono";
 import { logger } from "hono/logger";
-import { createServer } from "node:http";
 import { existsSync } from "node:fs";
 import { authMiddleware } from "./middleware/auth.js";
 import { corsMiddleware } from "./middleware/cors.js";
@@ -28,8 +27,7 @@ import { analytics } from "./routes/analytics.js";
 import { users } from "./routes/users.js";
 import { p2p } from "./routes/p2p.js";
 import { finetune } from "./routes/finetune.js";
-import { nodeEngine } from "./routes/node-engine.js";
-import { createExecutionWebSocketServer } from "./websockets/execution.js";
+import { nodes, graphs } from "./routes/nodes.js";
 
 const app = new Hono();
 const hasFrontend = existsSync("./public/index.html");
@@ -44,6 +42,7 @@ app.onError((err, c) => {
 
 app.route("/health", health);
 app.route("/v1/version", version);
+app.route("/graphs", graphs);
 // Auth first — reject unauthenticated before consuming rate-limit quota
 app.use("/v1/api/*", authMiddleware);
 app.use("/v1/api/*", rateLimitMiddleware);
@@ -58,6 +57,8 @@ app.route("/v1/api/industrial", industrial);
 app.route("/v1/api/mcp/industrial", industrialMcp);
 app.route("/v1/api/killlife", killlife);
 app.route("/v1/api/settings", settings);
+app.route("/v1/api/nodes", nodes);
+app.route("/v1/api/graphs", graphs);
 app.use("/api/auth/*", rateLimitMiddleware);
 app.route("/api/auth", auth);
 // Auth first — reject unauthenticated before consuming rate-limit quota
@@ -80,11 +81,8 @@ app.route("/api/analytics", analytics);
 app.route("/api/users", users);
 app.route("/api/p2p", p2p);
 app.route("/api/finetune", finetune);
-app.route("/api/node-engine", nodeEngine);
-
-// Node Engine UI route
-app.get("/node-engine", serveStatic({ root: "./public", path: "node-engine.html" }));
-app.use("/node-engine-bundle.js*", serveStatic({ root: "./public" }));
+app.route("/api/nodes", nodes);
+app.route("/api/graphs", graphs);
 
 if (hasFrontend) {
   app.use("/assets/*", serveStatic({ root: "./public" }));
@@ -98,36 +96,7 @@ app.notFound((c) => c.json({ error: "Not found" }, 404));
 
 const port = parseInt(process.env.API_PORT || "3000", 10);
 
-// Create HTTP server manually to integrate WebSocket
-const server = createServer(async (req, res) => {
-  const request = new Request(`http://${req.headers.host}${req.url}`, {
-    method: req.method,
-    headers: req.headers as HeadersInit,
-    body: req.method !== 'GET' && req.method !== 'HEAD' ? req : undefined,
-  });
-
-  const response = await app.fetch(request);
-
-  res.statusCode = response.status;
-  response.headers.forEach((value, key) => {
-    res.setHeader(key, value);
-  });
-
-  if (response.body) {
-    const buffer = await response.arrayBuffer();
-    res.end(Buffer.from(buffer));
-  } else {
-    res.end();
-  }
-});
-
-// Initialize WebSocket server for real-time execution updates
-createExecutionWebSocketServer(server, "/ws/execution");
-
-// Start server
-server.listen(port, () => {
-  console.log(`Mascarade API listening on port ${port}`);
-  console.log(`WebSocket endpoint: ws://localhost:${port}/ws/execution`);
-});
+console.log(`Mascarade API listening on port ${port}`);
+serve({ fetch: app.fetch, port });
 
 export { app };

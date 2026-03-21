@@ -138,6 +138,13 @@ export interface ProviderStatus {
   auth_modes?: string[];
 }
 
+export interface ProviderHealthMetrics {
+  status: string;
+  latency_ms?: number;
+  error?: string;
+  last_check?: string;
+}
+
 export interface AgentTemplate {
   id: string;
   name: string;
