@@ -1,1 +1,1 @@
-"""Workers package for domain-specific node implementations."""
+"""Domain workers for the Universal Node Engine."""

@@ -1,429 +1,409 @@
-"""Graph runtime — node execution engine for the Universal Node Engine."""
+"""Graph runtime for executing node graphs.
+
+Executes graphs in topological order, resolving dependencies and dispatching
+nodes to domain workers.
+"""
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from dataclasses import dataclass, field
-from enum import Enum
-from typing import Any, TYPE_CHECKING
+from enum import StrEnum
+from typing import Any
 
-if TYPE_CHECKING:
-    from mascarade.node_engine.registry import NodeRegistry
-    from mascarade.node_engine.types import PortType
+from mascarade.node_engine.graph import Graph
+from mascarade.node_engine.worker import NodeWorker
 
-logger = logging.getLogger("mascarade.node_engine.runtime")
+logger = logging.getLogger("mascarade.node_engine")
 
 
-class NodeStatus(str, Enum):
-    """Execution status of a node."""
+class ExecutionStatus(StrEnum):
+    """Execution status for graph runs."""
 
     PENDING = "pending"
-    READY = "ready"
     RUNNING = "running"
     COMPLETED = "completed"
     FAILED = "failed"
-    SKIPPED = "skipped"
+    CANCELLED = "cancelled"
 
 
 @dataclass
-class NodeInstance:
-    """A node instance in the graph with runtime state.
+class NodeResult:
+    """Result of a single node execution.
 
-    Attributes:
-        node_id: Unique identifier for this node instance
-        node_type: Type identifier (e.g., "electronics.spice.simulate")
-        inputs: Input port definitions
-        outputs: Output port definitions
-        config: Node configuration parameters
-        status: Current execution status
-        input_values: Values received on input ports
-        output_values: Values produced on output ports
-        error: Error message if status is FAILED
+    Captures outputs, errors, and metadata for a single node execution.
     """
 
     node_id: str
-    node_type: str
-    inputs: list[PortType] = field(default_factory=list)
-    outputs: list[PortType] = field(default_factory=list)
-    config: dict[str, Any] = field(default_factory=dict)
-    status: NodeStatus = NodeStatus.PENDING
-    input_values: dict[str, Any] = field(default_factory=dict)
-    output_values: dict[str, Any] = field(default_factory=dict)
+    status: ExecutionStatus
+    outputs: dict[str, Any] = field(default_factory=dict)
     error: str | None = None
+    worker_name: str | None = None
+    execution_time_ms: float | None = None
 
 
 @dataclass
-class Connection:
-    """A connection between two node ports.
+class GraphExecutionContext:
+    """Execution context for a graph run.
 
-    Attributes:
-        from_node: Source node ID
-        from_port: Source output port name
-        to_node: Destination node ID
-        to_port: Destination input port name
-    """
-
-    from_node: str
-    from_port: str
-    to_node: str
-    to_port: str
-
-
-@dataclass
-class GraphDefinition:
-    """Definition of a node graph.
-
-    Attributes:
-        graph_id: Unique identifier for this graph
-        nodes: Node instances in the graph
-        connections: Connections between nodes
-        metadata: Additional graph metadata
+    Tracks state and results across the entire graph execution.
     """
 
     graph_id: str
-    nodes: list[NodeInstance] = field(default_factory=list)
-    connections: list[Connection] = field(default_factory=list)
+    status: ExecutionStatus = ExecutionStatus.PENDING
+    node_results: dict[str, NodeResult] = field(default_factory=dict)
     metadata: dict[str, Any] = field(default_factory=dict)
 
 
+@dataclass
 class GraphRuntime:
-    """Runtime engine for executing node graphs.
+    """Runtime for executing node graphs.
 
-    The GraphRuntime orchestrates the execution of node graphs:
-    - Validates graph topology and type compatibility
-    - Determines execution order based on dependencies
-    - Executes nodes with proper data flow
-    - Tracks execution state and handles errors
+    Orchestrates graph execution by:
+    1. Validating the graph structure and node inputs
+    2. Computing topological execution order
+    3. Resolving edge-connected inputs from previous node outputs
+    4. Dispatching nodes to appropriate domain workers
+    5. Tracking execution state and results
 
     Example:
-        >>> from mascarade.node_engine.runtime import GraphRuntime, GraphDefinition
-        >>> from mascarade.node_engine.registry import NodeRegistry
-        >>> registry = NodeRegistry()
-        >>> runtime = GraphRuntime(registry=registry)
-        >>> graph = GraphDefinition(graph_id="test-graph")
-        >>> # Add nodes and connections
-        >>> result = await runtime.execute(graph)
+        >>> from mascarade.node_engine.workers.ai.worker import AIWorker
+        >>> from mascarade.router import Router
+        >>> from mascarade.agents.registry import AgentRegistry
+        >>>
+        >>> runtime = GraphRuntime()
+        >>> ai_worker = AIWorker(router=Router(), registry=AgentRegistry())
+        >>> runtime.register_worker(ai_worker)
+        >>>
+        >>> graph = Graph(nodes=[...], edges=[...])
+        >>> context = await runtime.execute(graph)
     """
 
-    def __init__(self, registry: NodeRegistry) -> None:
-        """Initialize the graph runtime.
+    workers: dict[str, NodeWorker] = field(default_factory=dict)
+    max_concurrent: int = field(default=10)
+    execution_timeout_s: float = field(default=300.0)
+
+    def register_worker(self, worker: NodeWorker) -> None:
+        """Register a domain worker with the runtime.
 
         Args:
-            registry: NodeRegistry for type validation and worker lookup
-        """
-        self._registry = registry
-        self._execution_history: list[dict[str, Any]] = []
-
-    async def execute(self, graph: GraphDefinition) -> dict[str, Any]:
-        """Execute a node graph.
-
-        Args:
-            graph: Graph definition to execute
-
-        Returns:
-            Execution result with status, outputs, and metrics
+            worker: NodeWorker instance to register
 
         Raises:
-            ValueError: If graph is invalid
+            ValueError: If a worker for this domain is already registered
         """
-        logger.info("Starting graph execution: %s", graph.graph_id)
-
-        # Validate graph topology
-        validation_result = self._validate_graph(graph)
-        if not validation_result["valid"]:
-            error_msg = f"Graph validation failed: {validation_result['errors']}"
-            logger.error(error_msg)
-            raise ValueError(error_msg)
-
-        # Determine execution order
-        execution_order = self._compute_execution_order(graph)
-        logger.debug("Execution order: %s", [n.node_id for n in execution_order])
-
-        # Execute nodes in order
-        failed_nodes = []
-        completed_nodes = []
-
-        for node in execution_order:
-            try:
-                # Mark node as ready
-                node.status = NodeStatus.READY
-
-                # Collect input values from connections
-                self._collect_inputs(node, graph)
-
-                # Validate input values
-                validation_errors = self._validate_inputs(node)
-                if validation_errors:
-                    node.status = NodeStatus.FAILED
-                    node.error = f"Input validation failed: {', '.join(validation_errors)}"
-                    logger.error("Node %s input validation failed: %s", node.node_id, node.error)
-                    failed_nodes.append(node.node_id)
-                    continue
-
-                # Execute node
-                node.status = NodeStatus.RUNNING
-                logger.debug("Executing node: %s (type: %s)", node.node_id, node.node_type)
-
-                # For now, this is a placeholder for actual node execution
-                # In the full implementation, this would dispatch to the appropriate worker
-                await self._execute_node(node)
-
-                node.status = NodeStatus.COMPLETED
-                completed_nodes.append(node.node_id)
-                logger.debug("Node %s completed", node.node_id)
-
-            except Exception as e:
-                node.status = NodeStatus.FAILED
-                node.error = str(e)
-                logger.exception("Node %s execution failed", node.node_id)
-                failed_nodes.append(node.node_id)
-
-        # Compile results
-        result = {
-            "graph_id": graph.graph_id,
-            "status": "failed" if failed_nodes else "completed",
-            "completed_nodes": completed_nodes,
-            "failed_nodes": failed_nodes,
-            "outputs": self._collect_graph_outputs(graph),
-        }
-
-        # Record execution history
-        self._execution_history.append(result)
-
+        if worker.domain in self.workers:
+            logger.warning(
+                "Overwriting existing worker for domain '%s': %s -> %s",
+                worker.domain,
+                self.workers[worker.domain].name,
+                worker.name,
+            )
+        self.workers[worker.domain] = worker
         logger.info(
-            "Graph %s execution %s: %d/%d nodes completed",
-            graph.graph_id,
-            result["status"],
-            len(completed_nodes),
-            len(graph.nodes),
+            "Registered worker '%s' for domain '%s'",
+            worker.name,
+            worker.domain,
         )
 
-        return result
+    def get_worker(self, domain: str) -> NodeWorker | None:
+        """Get the worker for a specific domain.
 
-    def _validate_graph(self, graph: GraphDefinition) -> dict[str, Any]:
-        """Validate graph topology and type compatibility.
+        Args:
+            domain: Domain identifier (e.g., "ai", "cad")
+
+        Returns:
+            NodeWorker instance if registered, None otherwise
+        """
+        return self.workers.get(domain)
+
+    async def validate_graph(self, graph: Graph) -> list[str]:
+        """Validate graph before execution.
+
+        Checks:
+        - Graph structure (DAG constraint, edge validity) — handled by Graph model
+        - All referenced node types have registered workers
+        - Node inputs pass worker-specific validation
 
         Args:
             graph: Graph to validate
 
         Returns:
-            Validation result with valid flag and errors list
+            List of validation error messages. Empty if validation passes.
         """
-        errors = []
+        errors: list[str] = []
 
-        # Check for duplicate node IDs
-        node_ids = [n.node_id for n in graph.nodes]
-        if len(node_ids) != len(set(node_ids)):
-            errors.append("Duplicate node IDs found")
-
-        # Validate connections
-        node_map = {n.node_id: n for n in graph.nodes}
-        for conn in graph.connections:
-            # Check if source node exists
-            if conn.from_node not in node_map:
-                errors.append(f"Connection references non-existent source node: {conn.from_node}")
-                continue
-
-            # Check if destination node exists
-            if conn.to_node not in node_map:
-                errors.append(f"Connection references non-existent destination node: {conn.to_node}")
-                continue
-
-            # Check if source port exists
-            from_node = node_map[conn.from_node]
-            from_port = next((p for p in from_node.outputs if p.name == conn.from_port), None)
-            if not from_port:
-                errors.append(
-                    f"Connection references non-existent output port: {conn.from_node}.{conn.from_port}"
-                )
-                continue
-
-            # Check if destination port exists
-            to_node = node_map[conn.to_node]
-            to_port = next((p for p in to_node.inputs if p.name == conn.to_port), None)
-            if not to_port:
-                errors.append(
-                    f"Connection references non-existent input port: {conn.to_node}.{conn.to_port}"
-                )
-                continue
-
-            # Check port type compatibility
-            if not from_port.is_compatible_with(to_port):
-                errors.append(
-                    f"Incompatible port types: {conn.from_node}.{conn.from_port} "
-                    f"({from_port.port_type}) -> {conn.to_node}.{conn.to_port} ({to_port.port_type})"
-                )
-
-        # Check for cycles (basic cycle detection)
-        if self._has_cycles(graph):
-            errors.append("Graph contains cycles")
-
-        return {
-            "valid": len(errors) == 0,
-            "errors": errors,
-        }
-
-    def _has_cycles(self, graph: GraphDefinition) -> bool:
-        """Check if graph contains cycles using DFS.
-
-        Args:
-            graph: Graph to check
-
-        Returns:
-            True if cycles are detected, False otherwise
-        """
-        # Build adjacency list
-        adjacency: dict[str, list[str]] = {n.node_id: [] for n in graph.nodes}
-        for conn in graph.connections:
-            adjacency[conn.from_node].append(conn.to_node)
-
-        # DFS cycle detection
-        visited = set()
-        rec_stack = set()
-
-        def dfs(node_id: str) -> bool:
-            visited.add(node_id)
-            rec_stack.add(node_id)
-
-            for neighbor in adjacency.get(node_id, []):
-                if neighbor not in visited:
-                    if dfs(neighbor):
-                        return True
-                elif neighbor in rec_stack:
-                    return True
-
-            rec_stack.remove(node_id)
-            return False
-
+        # Validate that all node types have registered workers
         for node in graph.nodes:
-            if node.node_id not in visited:
-                if dfs(node.node_id):
-                    return True
+            domain = node.domain
+            worker = self.get_worker(domain)
 
-        return False
+            if worker is None:
+                errors.append(
+                    f"Node '{node.id}' has type '{node.type}' but no worker registered for domain '{domain}'"
+                )
+                continue
 
-    def _compute_execution_order(self, graph: GraphDefinition) -> list[NodeInstance]:
-        """Compute topological execution order for nodes.
+            # Check if worker is available
+            if not worker.is_available:
+                errors.append(
+                    f"Node '{node.id}' requires worker '{worker.name}' but it is not available"
+                )
+                continue
 
-        Args:
-            graph: Graph to compute order for
+            # Check if worker supports this node type
+            capabilities = worker.capabilities()
+            node_types = capabilities.get("node_types", [])
+            if node.type not in node_types:
+                errors.append(
+                    f"Node '{node.id}' has type '{node.type}' but worker '{worker.name}' "
+                    f"does not support it (supports: {', '.join(node_types)})"
+                )
+                continue
 
-        Returns:
-            List of nodes in execution order
-        """
-        # Build adjacency list and in-degree map
-        adjacency: dict[str, list[str]] = {n.node_id: [] for n in graph.nodes}
-        in_degree: dict[str, int] = {n.node_id: 0 for n in graph.nodes}
-
-        for conn in graph.connections:
-            adjacency[conn.from_node].append(conn.to_node)
-            in_degree[conn.to_node] = in_degree.get(conn.to_node, 0) + 1
-
-        # Topological sort using Kahn's algorithm
-        queue = [node_id for node_id, degree in in_degree.items() if degree == 0]
-        result = []
-        node_map = {n.node_id: n for n in graph.nodes}
-
-        while queue:
-            node_id = queue.pop(0)
-            result.append(node_map[node_id])
-
-            for neighbor in adjacency.get(node_id, []):
-                in_degree[neighbor] -= 1
-                if in_degree[neighbor] == 0:
-                    queue.append(neighbor)
-
-        return result
-
-    def _collect_inputs(self, node: NodeInstance, graph: GraphDefinition) -> None:
-        """Collect input values from connected output ports.
-
-        Args:
-            node: Node to collect inputs for
-            graph: Graph containing the connections
-        """
-        # Find all connections that target this node
-        for conn in graph.connections:
-            if conn.to_node == node.node_id:
-                # Find source node
-                source_node = next((n for n in graph.nodes if n.node_id == conn.from_node), None)
-                if source_node and conn.from_port in source_node.output_values:
-                    # Copy value from source output to this input
-                    node.input_values[conn.to_port] = source_node.output_values[conn.from_port]
-
-    def _validate_inputs(self, node: NodeInstance) -> list[str]:
-        """Validate input values against port definitions.
-
-        Args:
-            node: Node to validate inputs for
-
-        Returns:
-            List of validation error messages (empty if valid)
-        """
-        errors = []
-
-        # Get domain types from registry
-        domain_types = {dt.full_name: dt for dt in self._registry.list_types()}
-
-        for input_port in node.inputs:
-            value = node.input_values.get(input_port.name)
-
-            # Validate value against port type
-            is_valid, error_msg = input_port.validate_value(value, domain_types)
-            if not is_valid:
-                errors.append(f"{input_port.name}: {error_msg}")
+            # Delegate to worker-specific validation
+            try:
+                validation_errors = await worker.validate(
+                    node.type,
+                    node.inputs,
+                    node.config,
+                )
+                for error in validation_errors:
+                    errors.append(f"Node '{node.id}': {error}")
+            except Exception as exc:
+                errors.append(
+                    f"Node '{node.id}': validation failed with exception: {exc}"
+                )
 
         return errors
 
-    async def _execute_node(self, node: NodeInstance) -> None:
-        """Execute a single node.
-
-        This is a placeholder for actual node execution. In the full implementation,
-        this would dispatch to the appropriate worker based on node_type.
-
-        Args:
-            node: Node to execute
-        """
-        # For now, just log the execution
-        # In the full implementation, this would:
-        # 1. Extract domain from node_type (e.g., "electronics" from "electronics.spice.simulate")
-        # 2. Get the appropriate worker from registry
-        # 3. Call the worker's execute method with the node
-        logger.debug("Node %s execution (placeholder)", node.node_id)
-
-        # Placeholder: set empty outputs
-        for output_port in node.outputs:
-            if output_port.name not in node.output_values:
-                node.output_values[output_port.name] = None
-
-    def _collect_graph_outputs(self, graph: GraphDefinition) -> dict[str, Any]:
-        """Collect all output values from graph nodes.
+    async def execute(
+        self,
+        graph: Graph,
+        *,
+        initial_inputs: dict[str, Any] | None = None,
+        metadata: dict[str, Any] | None = None,
+    ) -> GraphExecutionContext:
+        """Execute a graph.
 
         Args:
-            graph: Graph to collect outputs from
+            graph: Graph to execute
+            initial_inputs: Optional initial inputs for the graph (injected into first nodes)
+            metadata: Optional metadata to attach to the execution context
 
         Returns:
-            Dictionary mapping node_id.port_name to output values
-        """
-        outputs = {}
-        for node in graph.nodes:
-            for port_name, value in node.output_values.items():
-                key = f"{node.node_id}.{port_name}"
-                outputs[key] = value
-        return outputs
+            GraphExecutionContext with execution results
 
-    def get_execution_history(self) -> list[dict[str, Any]]:
-        """Get the execution history.
+        Raises:
+            ValueError: If graph validation fails
+            RuntimeError: If execution fails
+        """
+        # Validate graph
+        validation_errors = await self.validate_graph(graph)
+        if validation_errors:
+            error_msg = "Graph validation failed:\n" + "\n".join(
+                f"  - {e}" for e in validation_errors
+            )
+            raise ValueError(error_msg)
+
+        # Initialize execution context
+        context = GraphExecutionContext(
+            graph_id=graph.metadata.get("id", "unknown"),
+            status=ExecutionStatus.RUNNING,
+            metadata=metadata or {},
+        )
+
+        logger.info(
+            "Starting graph execution: %s (%d nodes, %d edges)",
+            context.graph_id,
+            graph.node_count,
+            graph.edge_count,
+        )
+
+        try:
+            # Get topological execution order
+            execution_order = graph.topological_sort()
+
+            # Storage for node outputs (used to resolve edge connections)
+            node_outputs: dict[str, dict[str, Any]] = {}
+
+            # Execute nodes in order
+            for node in execution_order:
+                logger.debug("Executing node: %s (type: %s)", node.id, node.type)
+
+                # Resolve inputs from edges
+                resolved_inputs = dict(node.inputs)  # Start with literal inputs
+
+                # Override with edge-connected inputs
+                incoming_edges = graph.get_incoming_edges(node.id)
+                for edge in incoming_edges:
+                    # Get output from source node
+                    if edge.from_node not in node_outputs:
+                        raise RuntimeError(
+                            f"Node '{node.id}' depends on '{edge.from_node}' "
+                            f"but it has not been executed yet (execution order bug)"
+                        )
+
+                    source_outputs = node_outputs[edge.from_node]
+                    if edge.from_port not in source_outputs:
+                        raise RuntimeError(
+                            f"Node '{node.id}' expects input from "
+                            f"'{edge.from_node}.{edge.from_port}' but that port "
+                            f"did not produce an output (available: {list(source_outputs.keys())})"
+                        )
+
+                    # Connect source output to destination input
+                    resolved_inputs[edge.to_port] = source_outputs[edge.from_port]
+
+                # Get worker for this node's domain
+                worker = self.get_worker(node.domain)
+                if worker is None:
+                    raise RuntimeError(
+                        f"No worker registered for domain '{node.domain}' (node: {node.id})"
+                    )
+
+                # Execute node
+                import time
+
+                start_time = time.perf_counter()
+                try:
+                    outputs = await worker.execute(
+                        node.type,
+                        resolved_inputs,
+                        node.config,
+                        context,
+                    )
+                    execution_time_ms = (time.perf_counter() - start_time) * 1000
+
+                    # Store outputs for edge resolution
+                    node_outputs[node.id] = outputs
+
+                    # Record result
+                    context.node_results[node.id] = NodeResult(
+                        node_id=node.id,
+                        status=ExecutionStatus.COMPLETED,
+                        outputs=outputs,
+                        worker_name=worker.name,
+                        execution_time_ms=execution_time_ms,
+                    )
+
+                    logger.debug(
+                        "Node '%s' completed in %.2fms",
+                        node.id,
+                        execution_time_ms,
+                    )
+
+                except Exception as exc:
+                    execution_time_ms = (time.perf_counter() - start_time) * 1000
+                    error_msg = f"{type(exc).__name__}: {exc}"
+
+                    context.node_results[node.id] = NodeResult(
+                        node_id=node.id,
+                        status=ExecutionStatus.FAILED,
+                        error=error_msg,
+                        worker_name=worker.name,
+                        execution_time_ms=execution_time_ms,
+                    )
+
+                    logger.error(
+                        "Node '%s' failed after %.2fms: %s",
+                        node.id,
+                        execution_time_ms,
+                        error_msg,
+                    )
+
+                    # Fail fast — stop execution on first error
+                    context.status = ExecutionStatus.FAILED
+                    return context
+
+            # All nodes completed successfully
+            context.status = ExecutionStatus.COMPLETED
+            logger.info("Graph execution completed: %s", context.graph_id)
+
+        except Exception as exc:
+            logger.error("Graph execution failed: %s", exc, exc_info=True)
+            context.status = ExecutionStatus.FAILED
+            raise RuntimeError(f"Graph execution failed: {exc}") from exc
+
+        return context
+
+    async def execute_node(
+        self,
+        node_type: str,
+        inputs: dict[str, Any],
+        config: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """Execute a single node without a graph.
+
+        Convenience method for executing a single node in isolation.
+        Useful for testing or simple workflows.
+
+        Args:
+            node_type: Fully qualified node type (e.g., "ai.llm-inference")
+            inputs: Input port values
+            config: Optional node configuration
 
         Returns:
-            List of execution results
+            Output port values
+
+        Raises:
+            ValueError: If node type is not supported
+            RuntimeError: If execution fails
         """
-        return self._execution_history
+        # Extract domain from node type
+        if "." not in node_type:
+            raise ValueError(
+                f"Invalid node type '{node_type}' — must be fully qualified (domain.typename)"
+            )
 
-    def clear_history(self) -> None:
-        """Clear the execution history."""
-        self._execution_history.clear()
+        domain = node_type.split(".")[0]
+        worker = self.get_worker(domain)
 
-    def __repr__(self) -> str:
-        """Return a readable representation of the runtime."""
-        return f"GraphRuntime(executions={len(self._execution_history)})"
+        if worker is None:
+            raise ValueError(
+                f"No worker registered for domain '{domain}' (available: {list(self.workers.keys())})"
+            )
+
+        # Validate inputs
+        validation_errors = await worker.validate(
+            node_type,
+            inputs,
+            config or {},
+        )
+        if validation_errors:
+            raise ValueError(
+                f"Node validation failed:\n" + "\n".join(f"  - {e}" for e in validation_errors)
+            )
+
+        # Execute
+        context = GraphExecutionContext(
+            graph_id="single-node",
+            status=ExecutionStatus.RUNNING,
+        )
+
+        return await worker.execute(
+            node_type,
+            inputs,
+            config or {},
+            context,
+        )
+
+    def list_workers(self) -> list[dict[str, Any]]:
+        """List all registered workers with their capabilities.
+
+        Returns:
+            List of worker metadata dictionaries
+        """
+        result = []
+        for domain, worker in self.workers.items():
+            capabilities = worker.capabilities()
+            result.append(
+                {
+                    "domain": domain,
+                    "name": worker.name,
+                    "is_available": worker.is_available,
+                    "capabilities": capabilities,
+                }
+            )
+        return result

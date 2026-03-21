@@ -1,269 +1,180 @@
-"""Tests pour les types de domaine et les ports."""
+"""Tests for node engine core type system."""
 
-from mascarade.node_engine.types import DomainType, PortDirection, PortType
+import pytest
+from pydantic import ValidationError
 
-
-def test_domain_type_full_name():
-    """Le nom complet combine le domaine et le nom."""
-    dt = DomainType(
-        domain="electronics",
-        name="Netlist",
-        schema={"type": "object"},
-    )
-    assert dt.full_name == "electronics.Netlist"
+from mascarade.node_engine.types import DomainType, PortType
 
 
-def test_domain_type_validate_schema_object_valid():
-    """Validation réussie pour un objet conforme au schéma."""
-    dt = DomainType(
-        domain="electronics",
-        name="Netlist",
-        schema={
-            "type": "object",
-            "properties": {
-                "format": {"type": "string", "enum": ["spice", "kicad"]},
-                "content": {"type": "string"},
-            },
-            "required": ["format", "content"],
-        },
-    )
-    data = {"format": "spice", "content": "* SPICE netlist\n.end"}
-    valid, error = dt.validate_schema(data)
-    assert valid is True
-    assert error is None
-
-
-def test_domain_type_validate_schema_missing_required():
-    """Validation échoue si un champ requis manque."""
-    dt = DomainType(
-        domain="electronics",
-        name="Netlist",
-        schema={
-            "type": "object",
-            "properties": {
-                "format": {"type": "string"},
-                "content": {"type": "string"},
-            },
-            "required": ["format", "content"],
-        },
-    )
-    data = {"format": "spice"}
-    valid, error = dt.validate_schema(data)
-    assert valid is False
-    assert "content" in error
-
-
-def test_domain_type_validate_schema_wrong_type():
-    """Validation échoue si le type de données est incorrect."""
-    dt = DomainType(
-        domain="test",
-        name="Example",
-        schema={"type": "object"},
-    )
-    valid, error = dt.validate_schema("not an object")
-    assert valid is False
-    assert "Expected object" in error
-
-
-def test_domain_type_validate_schema_enum_violation():
-    """Validation échoue si une valeur enum est invalide."""
-    dt = DomainType(
-        domain="electronics",
-        name="Netlist",
-        schema={
-            "type": "object",
-            "properties": {
-                "format": {"type": "string", "enum": ["spice", "kicad"]},
-            },
-            "required": ["format"],
-        },
-    )
-    data = {"format": "invalid"}
-    valid, error = dt.validate_schema(data)
-    assert valid is False
-    assert "enum" in error
-
-
-def test_domain_type_validate_schema_union_type():
-    """Validation réussie pour les types union (ex: string|null)."""
-    dt = DomainType(
-        domain="test",
-        name="Optional",
-        schema={
-            "type": "object",
-            "properties": {
-                "value": {"type": ["string", "null"]},
-            },
-        },
-    )
-    valid_str, _ = dt.validate_schema({"value": "hello"})
-    valid_null, _ = dt.validate_schema({"value": None})
-    assert valid_str is True
-    assert valid_null is True
-
-
-def test_domain_type_validate_schema_primitive_types():
-    """Validation des types primitifs."""
-    string_type = DomainType(domain="test", name="String", schema={"type": "string"})
-    valid, _ = string_type.validate_schema("hello")
-    assert valid is True
-    valid, error = string_type.validate_schema(123)
-    assert valid is False
-
-    int_type = DomainType(domain="test", name="Integer", schema={"type": "integer"})
-    valid, _ = int_type.validate_schema(42)
-    assert valid is True
-    valid, error = int_type.validate_schema("42")
-    assert valid is False
-
-    bool_type = DomainType(domain="test", name="Boolean", schema={"type": "boolean"})
-    valid, _ = bool_type.validate_schema(True)
-    assert valid is True
-    valid, error = bool_type.validate_schema(1)
-    assert valid is False
-
-    array_type = DomainType(domain="test", name="Array", schema={"type": "array"})
-    valid, _ = array_type.validate_schema([1, 2, 3])
-    assert valid is True
-    valid, error = array_type.validate_schema("not array")
-    assert valid is False
-
-
-def test_port_type_is_compatible_with():
-    """Deux ports sont compatibles si directions opposées et même type."""
-    input_port = PortType(
-        name="input",
-        direction=PortDirection.INPUT,
-        port_type="string",
-    )
-    output_port = PortType(
-        name="output",
-        direction=PortDirection.OUTPUT,
-        port_type="string",
-    )
-    assert input_port.is_compatible_with(output_port) is True
-    assert output_port.is_compatible_with(input_port) is True
-
-
-def test_port_type_incompatible_same_direction():
-    """Deux ports de même direction ne sont pas compatibles."""
-    port1 = PortType(name="a", direction=PortDirection.INPUT, port_type="string")
-    port2 = PortType(name="b", direction=PortDirection.INPUT, port_type="string")
-    assert port1.is_compatible_with(port2) is False
-
-
-def test_port_type_incompatible_different_types():
-    """Deux ports de types différents ne sont pas compatibles."""
-    input_port = PortType(
-        name="input",
-        direction=PortDirection.INPUT,
-        port_type="string",
-    )
-    output_port = PortType(
-        name="output",
-        direction=PortDirection.OUTPUT,
-        port_type="integer",
-    )
-    assert input_port.is_compatible_with(output_port) is False
-
-
-def test_port_type_validate_value_builtin_types():
-    """Validation des valeurs pour les types intégrés."""
-    string_port = PortType(name="s", direction=PortDirection.INPUT, port_type="string")
-    valid, _ = string_port.validate_value("hello")
-    assert valid is True
-    valid, error = string_port.validate_value(123)
-    assert valid is False
-    assert "string" in error
-
-    int_port = PortType(name="i", direction=PortDirection.INPUT, port_type="integer")
-    valid, _ = int_port.validate_value(42)
-    assert valid is True
-    valid, error = int_port.validate_value("42")
-    assert valid is False
-
-    bool_port = PortType(name="b", direction=PortDirection.INPUT, port_type="boolean")
-    valid, _ = bool_port.validate_value(True)
-    assert valid is True
-    valid, error = bool_port.validate_value(1)
-    assert valid is False
-
-    json_port = PortType(name="j", direction=PortDirection.INPUT, port_type="json")
-    valid, _ = json_port.validate_value({"key": "value"})
-    assert valid is True
-    valid, _ = json_port.validate_value([1, 2, 3])
-    assert valid is True
-    valid, error = json_port.validate_value("not json")
-    assert valid is False
-
-    binary_port = PortType(name="bin", direction=PortDirection.INPUT, port_type="binary")
-    valid, _ = binary_port.validate_value(b"binary data")
-    assert valid is True
-    valid, error = binary_port.validate_value("not binary")
-    assert valid is False
-
-
-def test_port_type_validate_value_optional():
-    """Les ports optionnels acceptent None."""
-    optional_port = PortType(
-        name="opt",
-        direction=PortDirection.INPUT,
-        port_type="string",
-        optional=True,
-    )
-    valid, _ = optional_port.validate_value(None)
-    assert valid is True
-
-    required_port = PortType(
-        name="req",
-        direction=PortDirection.INPUT,
-        port_type="string",
-        optional=False,
-    )
-    valid, error = required_port.validate_value(None)
-    assert valid is False
-    assert "required" in error
-
-
-def test_port_type_validate_value_with_domain_type():
-    """Validation d'un port avec type de domaine personnalisé."""
+def test_domain_type_creation():
+    """Test basic DomainType creation."""
     domain_type = DomainType(
-        domain="electronics",
-        name="Netlist",
+        domain="ai",
+        name="LLMResponse",
         schema={
             "type": "object",
-            "properties": {"format": {"type": "string"}},
-            "required": ["format"],
+            "properties": {
+                "content": {"type": "string"},
+                "model": {"type": "string"},
+            },
+            "required": ["content", "model"],
         },
     )
+    assert domain_type.domain == "ai"
+    assert domain_type.name == "LLMResponse"
+    assert domain_type.qualified_name == "ai.LLMResponse"
+    assert domain_type.schema["type"] == "object"
+
+
+def test_domain_type_qualified_name():
+    """Test qualified name property."""
+    domain_type = DomainType(
+        domain="cad",
+        name="Sketch",
+        schema={"type": "object", "properties": {}},
+    )
+    assert domain_type.qualified_name == "cad.Sketch"
+
+
+def test_domain_type_validation_missing_type():
+    """Test schema validation requires 'type' field."""
+    with pytest.raises(ValidationError) as exc_info:
+        DomainType(
+            domain="ai",
+            name="Invalid",
+            schema={"properties": {}},  # Missing 'type'
+        )
+    assert "schema must include a 'type' field" in str(exc_info.value)
+
+
+def test_domain_type_validation_empty_domain():
+    """Test validation rejects empty domain."""
+    with pytest.raises(ValidationError):
+        DomainType(
+            domain="",
+            name="Test",
+            schema={"type": "object"},
+        )
+
+
+def test_domain_type_validation_empty_name():
+    """Test validation rejects empty name."""
+    with pytest.raises(ValidationError):
+        DomainType(
+            domain="ai",
+            name="",
+            schema={"type": "object"},
+        )
+
+
+def test_domain_type_immutable():
+    """Test that DomainType instances are immutable."""
+    domain_type = DomainType(
+        domain="ai",
+        name="Test",
+        schema={"type": "object"},
+    )
+    with pytest.raises(ValidationError):
+        domain_type.domain = "cad"
+
+
+def test_port_type_creation():
+    """Test basic PortType creation."""
     port = PortType(
-        name="netlist",
-        direction=PortDirection.OUTPUT,
-        port_type="electronics.Netlist",
+        name="prompt",
+        type="string",
+        required=True,
+        description="The user prompt",
     )
-
-    domain_types = {"electronics.Netlist": domain_type}
-    valid, _ = port.validate_value({"format": "spice"}, domain_types)
-    assert valid is True
-
-    valid, error = port.validate_value({"wrong": "data"}, domain_types)
-    assert valid is False
+    assert port.name == "prompt"
+    assert port.type == "string"
+    assert port.required is True
+    assert port.description == "The user prompt"
 
 
-def test_port_type_validate_value_array_type():
-    """Validation basique des types array."""
-    array_port = PortType(
-        name="items",
-        direction=PortDirection.INPUT,
-        port_type="array<string>",
+def test_port_type_defaults():
+    """Test PortType default values."""
+    port = PortType(name="output", type="string")
+    assert port.required is True
+    assert port.description is None
+
+
+def test_port_type_validation_empty_name():
+    """Test validation rejects empty port name."""
+    with pytest.raises(ValidationError):
+        PortType(name="", type="string")
+
+
+def test_port_type_validation_empty_type():
+    """Test validation rejects empty type."""
+    with pytest.raises(ValidationError):
+        PortType(name="test", type="")
+
+
+def test_port_type_is_primitive():
+    """Test primitive type detection."""
+    assert PortType(name="p1", type="string").is_primitive is True
+    assert PortType(name="p2", type="number").is_primitive is True
+    assert PortType(name="p3", type="boolean").is_primitive is True
+    assert PortType(name="p4", type="json").is_primitive is True
+    assert PortType(name="p5", type="void").is_primitive is True
+    assert PortType(name="p6", type="ai.LLMResponse").is_primitive is False
+    assert PortType(name="p7", type="cad.Sketch").is_primitive is False
+
+
+def test_port_type_is_stream():
+    """Test stream type detection."""
+    assert PortType(name="p1", type="stream<string>").is_stream is True
+    assert PortType(name="p2", type="stream<ai.LLMResponse>").is_stream is True
+    assert PortType(name="p3", type="string").is_stream is False
+    assert PortType(name="p4", type="ai.LLMResponse").is_stream is False
+
+
+def test_port_type_is_array():
+    """Test array type detection."""
+    assert PortType(name="p1", type="array<string>").is_array is True
+    assert PortType(name="p2", type="array<ai.LLMResponse>").is_array is True
+    assert PortType(name="p3", type="string").is_array is False
+    assert PortType(name="p4", type="ai.LLMResponse").is_array is False
+
+
+def test_port_type_is_map():
+    """Test map type detection."""
+    assert PortType(name="p1", type="map<string,number>").is_map is True
+    assert PortType(name="p2", type="map<string,ai.LLMResponse>").is_map is True
+    assert PortType(name="p3", type="string").is_map is False
+    assert PortType(name="p4", type="ai.LLMResponse").is_map is False
+
+
+def test_port_type_immutable():
+    """Test that PortType instances are immutable."""
+    port = PortType(name="test", type="string")
+    with pytest.raises(ValidationError):
+        port.name = "changed"
+
+
+def test_port_type_with_domain_specific_type():
+    """Test PortType with domain-specific types."""
+    port = PortType(
+        name="response",
+        type="ai.LLMResponse",
+        required=True,
+        description="LLM response object",
     )
-    valid, _ = array_port.validate_value(["a", "b", "c"])
-    assert valid is True
-    valid, error = array_port.validate_value("not array")
-    assert valid is False
+    assert port.type == "ai.LLMResponse"
+    assert port.is_primitive is False
 
 
-def test_port_direction_enum():
-    """PortDirection enum a les valeurs correctes."""
-    assert PortDirection.INPUT.value == "input"
-    assert PortDirection.OUTPUT.value == "output"
+def test_port_type_with_generic_types():
+    """Test PortType with generic types like array<T> and map<K,V>."""
+    array_port = PortType(name="messages", type="array<string>")
+    assert array_port.is_array is True
+    assert array_port.is_primitive is False
+
+    map_port = PortType(name="metadata", type="map<string,string>")
+    assert map_port.is_map is True
+    assert map_port.is_primitive is False
+
+    stream_port = PortType(name="tokens", type="stream<string>")
+    assert stream_port.is_stream is True
+    assert stream_port.is_primitive is False
