@@ -9,9 +9,9 @@ from collections.abc import AsyncIterator
 from enum import StrEnum
 from typing import Any
 
+from mascarade.analytics import COST_METRICS
 from mascarade.analytics.clickhouse_logger import get_cost_logger
 from mascarade.analytics.cost_calculator import get_cost_calculator
-from mascarade.analytics.prometheus_metrics import COST_METRICS
 from mascarade.cache.multi_tier_cache import MultiTierCache
 from mascarade.config import settings
 from mascarade.load_balancer.balancer import LoadBalancer
@@ -26,6 +26,11 @@ from mascarade.router.model_registry import ModelRegistry
 from mascarade.router.health_monitor import HealthMonitor
 from mascarade.router.providers.base import LLMProvider, LLMResponse
 from mascarade.usage_tracking import track_usage
+
+try:
+    from mascarade.router.classifier import get_classifier
+except ImportError:
+    get_classifier = None  # type: ignore[assignment,misc]
 
 logger = logging.getLogger("mascarade.router")
 
@@ -110,6 +115,21 @@ class Router:
         )
         self.cost_logger = get_cost_logger()
         self.cost_calculator = get_cost_calculator()
+
+        # ML classifier for domain detection (optional)
+        self.use_classifier = settings.use_ml_classifier
+        self.classifier = None
+        if self.use_classifier and get_classifier is not None:
+            try:
+                self.classifier = get_classifier()
+                if self.classifier.is_loaded:
+                    logger.info("ML classifier loaded for domain detection")
+                else:
+                    logger.info("ML classifier enabled but model not trained/loaded")
+            except Exception as exc:
+                logger.warning("Failed to initialize ML classifier: %s", exc)
+                self.use_classifier = False
+
         self._register_defaults()
 
     def _register_defaults(self) -> None:
@@ -270,13 +290,6 @@ class Router:
             best_value = min(p.speed_rank for p in providers)
             return [p for p in providers if p.speed_rank == best_value]
 
-        # Sort providers by health score (descending - healthiest first)
-        candidates_with_health = [
-            (p, self.health_monitor.get_provider_health(p.name).health_score)
-            for p in providers
-        ]
-        candidates_with_health.sort(key=lambda x: x[1], reverse=True)
-
         # Strategy is BEST - use domain-aware ranking if available
         if domain and self.benchmark_storage:
             benchmark_candidates = self._select_by_benchmarks(domain)
@@ -292,9 +305,8 @@ class Router:
             )
 
         # Fallback to static quality_rank
-        best_value = max(p.quality_rank for p in providers)
-        return [p for p in providers if p.quality_rank == best_value]
-        return [p for p, _ in candidates_with_health]
+        best_value = max(p.quality_rank for p in healthy_providers)
+        return [p for p in healthy_providers if p.quality_rank == best_value]
 
     def _select_by_benchmarks(self, domain: str) -> list[LLMProvider]:
         """
@@ -345,10 +357,9 @@ class Router:
             logger.warning("Failed to query benchmarks for domain '%s': %s", domain, exc)
             return []
 
-    @staticmethod
-    def _detect_domain(messages: list[dict]) -> str | None:
+    def _detect_domain(self, messages: list[dict]) -> str | None:
         """
-        Detect domain from message content based on keywords.
+        Detect domain from message content using ML classifier (if enabled) or keywords.
 
         Args:
             messages: List of message dictionaries
@@ -363,6 +374,20 @@ class Router:
             if isinstance(msg.get("content"), str)
         )
 
+        if not content.strip():
+            return None
+
+        # Try ML classifier first if enabled
+        if self.use_classifier and self.classifier is not None:
+            try:
+                domain = self.classifier.predict(content)
+                if domain:
+                    logger.debug("ML classifier detected domain: %s", domain)
+                    return domain
+            except Exception as exc:
+                logger.warning("ML classifier prediction failed: %s, falling back to keywords", exc)
+
+        # Fallback to keyword-based detection
         return detect_domain(content)
 
     def _select_provider(
@@ -564,7 +589,6 @@ class Router:
         temperature: float = 0.7,
         max_tokens: int = 4096,
         domain: str | None = None,
-        user_id: str | None = None,
     ) -> LLMResponse:
         requested_strategy = Strategy(strategy)
         policy = (routing_policy or "auto").strip().lower() or "auto"
@@ -819,15 +843,15 @@ class Router:
                     domain=domain,
                 )
 
-            # Track usage for user if user_id provided
-            if user_id is not None:
-                await track_usage(
-                    user_id=user_id,
-                    provider=selected.name,
-                    model=response.model,
-                    usage=response.usage or {},
-                    cost=self._calculate_cost(selected, response.usage or {}),
-                )
+            # TODO: Add user_id parameter if needed for usage tracking
+            # if user_id is not None:
+            #     await track_usage(
+            #         user_id=user_id,
+            #         provider=selected.name,
+            #         model=response.model,
+            #         usage=response.usage or {},
+            #         cost=self._calculate_cost(selected, response.usage or {}),
+            #     )
 
             return response
 
@@ -849,7 +873,6 @@ class Router:
         temperature: float = 0.7,
         max_tokens: int = 4096,
         domain: str | None = None,
-        user_id: str | None = None,
     ) -> AsyncIterator[str]:
         requested_strategy = Strategy(strategy)
         effective_strategy = requested_strategy
@@ -869,9 +892,9 @@ class Router:
             )
         strict_provider = effective_strategy == Strategy.SPECIFIC and effective_provider is not None
 
-        cached = await self.cache.retrieve(
+        cached = self.cache.retrieve(
             messages,
-            strategy=requested_strategy.value,
+            strategy=strategy.value,
             provider=provider,
             model=model,
             system=system,
@@ -986,16 +1009,16 @@ class Router:
                 success=True,
             )
 
-            # Track usage for user if user_id provided
+            # TODO: Add user_id parameter if needed for usage tracking
             # Note: streaming doesn't provide token counts, so we track 0 tokens
-            if user_id is not None:
-                await track_usage(
-                    user_id=user_id,
-                    provider=selected.name,
-                    model=model or selected.default_model,
-                    usage={},
-                    cost=0.0,
-                )
+            # if user_id is not None:
+            #     await track_usage(
+            #         user_id=user_id,
+            #         provider=selected.name,
+            #         model=model or selected.default_model,
+            #         usage={},
+            #         cost=0.0,
+            #     )
 
             COST_METRICS.track_request(
                 provider=selected.name,

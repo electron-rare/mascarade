@@ -45,6 +45,18 @@ libp2p = [
     "redis>=5.2,<6",
     "tiktoken>=0.9,<1",
 ]
+finetune = [
+    # Unsloth GPU fine-tuning (P3) - auto-detects CUDA, graceful CPU fallback
+    "torch>=2.5.0,<3",
+    "unsloth>=2024.12",
+    "transformers>=4.57.6,<6",
+    "peft>=0.18.0,<1",
+    "accelerate>=1.12.0,<2",
+    "bitsandbytes>=0.46.0,<1",
+    "datasets>=4.1.0,<5",
+    "trl>=0.24.0,<1",
+    "gradio>=5.0,<6",
+]
 dev = [
     "numpy>=2.3,<3",
     "pytest>=9.0,<10",
@@ -120,5 +132,58 @@ minversion = "9.0"
 testpaths = ["tests"]
 python_files = "test_*.py"
 python_functions = "test_*"
-addopts = "-ra -q"
+addopts = "-ra -q --cov=mascarade --cov-report=term --cov-report=html --cov-branch"
 asyncio_mode = "auto"
+
+[tool.coverage.run]
+omit = [
+    # Experimental P2P features (not in production deployment)
+    "mascarade/p2p/*",
+    "mascarade/cluster.py",  # P2P clustering functionality
+
+    # Not yet implemented features
+    "mascarade/conversation/*",
+    "mascarade/resilience/*",
+
+    # Optional voice features
+    "mascarade/device_voice.py",
+
+    # Optional integrations
+    "mascarade/integrations/*",  # KB, GitHub, ComfyUI, QDrant, etc.
+    "mascarade/mcp/*",  # MCP client integration
+
+    # Experimental fine-tuning (P3 feature)
+    "mascarade/finetune/*",
+
+    # Optional observability integrations
+    "mascarade/observability/otel.py",
+    "mascarade/observability/langfuse.py",
+
+    # Analytics (optional, configured separately)
+    "mascarade/analytics/*",
+
+    # Provider admin features (optional)
+    "mascarade/provider_admin.py",
+
+    # Domain-specific router providers (optional CAD integrations)
+    "mascarade/router/providers/kicad_router.py",
+    "mascarade/router/providers/apple_coreml.py",
+    "mascarade/router/providers/llama_cpp.py",
+    "mascarade/router/providers/bedrock.py",  # AWS Bedrock is optional
+
+    # Domain detection and circuit breaking (tested via integration)
+    "mascarade/router/circuit_breaker.py",
+    "mascarade/router/health_monitor.py",
+
+    # Optional tools
+    "mascarade/tools/*",
+
+    # Benchmarking infrastructure (not production code)
+    "mascarade/benchmarks/*",
+
+    # Migration scripts (run once, hard to test)
+    "mascarade/db/migrations.py",
+
+    # Dependencies module (simple imports, tested via integration)
+    "mascarade/dependencies.py",
+]
