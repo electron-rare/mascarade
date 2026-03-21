@@ -1,5 +1,20 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
+import "@xyflow/react/dist/style.css";
+import {
+  ReactFlow,
+  Background,
+  Controls,
+  MiniMap,
+  useNodesState,
+  useEdgesState,
+  Handle,
+  Position,
+  type Node,
+  type Edge,
+  type ReactFlowInstance
+} from "@xyflow/react";
+import dagre from "dagre";
 import {
   killLifeApi,
   type KillLifeEvidenceEntry,
@@ -22,9 +37,6 @@ import {
   Select,
   Textarea,
 } from "../components/ui";
-
-const NODE_WIDTH = 220;
-const NODE_HEIGHT = 108;
 
 const nodePalette = [
   { type: "note", label: "Note" },
@@ -81,22 +93,6 @@ function statusColor(status: string): "accent" | "warning" | "error" | "muted" {
   return "muted";
 }
 
-function nodeTone(node: KillLifeWorkflowNode, selected: boolean, linking: boolean): string {
-  if (selected) {
-    return "border-accent/55 bg-accent/12 shadow-[0_0_20px_rgba(255,209,102,0.18)]";
-  }
-  if (linking) {
-    return "border-[#8cffb7]/45 bg-[#0c170f]/80 text-[#8cffb7]";
-  }
-  if (node.type === "local-action") {
-    return "border-accent/28 bg-black/35";
-  }
-  if (node.type === "github-dispatch") {
-    return "border-[#8cffb7]/35 bg-[#07140c]/80";
-  }
-  return "border-border/80 bg-black/30";
-}
-
 function defaultRunner(type: string) {
   if (type === "local-action") {
     return { kind: "local-action", action: "compliance.validate" };
@@ -132,55 +128,208 @@ function nextEdgeId(workflow: KillLifeWorkflow, source: string, target: string):
   return candidate;
 }
 
-function autoLayout(workflow: KillLifeWorkflow): KillLifeWorkflow {
+const NODE_WIDTH = 220;
+const NODE_HEIGHT = 108;
+const MAX_HISTORY_DEPTH = 50;
+
+function applyDagreLayout(nodes: Node[], edges: Edge[]): Node[] {
+  const dagreGraph = new dagre.graphlib.Graph();
+  dagreGraph.setDefaultEdgeLabel(() => ({}));
+  dagreGraph.setGraph({ rankdir: 'TB' });
+
+  nodes.forEach((node) => {
+    dagreGraph.setNode(node.id, { width: NODE_WIDTH, height: NODE_HEIGHT });
+  });
+
+  edges.forEach((edge) => {
+    dagreGraph.setEdge(edge.source, edge.target);
+  });
+
+  dagre.layout(dagreGraph);
+
+  return nodes.map((node) => {
+    const nodeWithPosition = dagreGraph.node(node.id);
+    return {
+      ...node,
+      position: {
+        x: nodeWithPosition.x - NODE_WIDTH / 2,
+        y: nodeWithPosition.y - NODE_HEIGHT / 2,
+      },
+    };
+  });
+}
+
+function autoLayoutDagre(workflow: KillLifeWorkflow): KillLifeWorkflow {
   const next = cloneWorkflow(workflow);
-  const adjacency = new Map<string, string[]>();
-  const indegree = new Map<string, number>();
-  for (const node of next.nodes) {
-    adjacency.set(node.id, []);
-    indegree.set(node.id, 0);
-  }
-  for (const edge of next.edges) {
-    adjacency.get(edge.source)?.push(edge.target);
-    indegree.set(edge.target, (indegree.get(edge.target) || 0) + 1);
-  }
-  const levels = new Map<string, number>();
-  const queue = next.nodes
-    .filter((node) => (indegree.get(node.id) || 0) === 0)
-    .map((node) => node.id);
-  for (const root of queue) levels.set(root, 0);
 
-  while (queue.length > 0) {
-    const current = queue.shift();
-    if (!current) continue;
-    const level = levels.get(current) || 0;
-    for (const target of adjacency.get(current) || []) {
-      levels.set(target, Math.max(levels.get(target) || 0, level + 1));
-      indegree.set(target, (indegree.get(target) || 0) - 1);
-      if ((indegree.get(target) || 0) === 0) {
-        queue.push(target);
-      }
+  // Convert to ReactFlow format
+  const nodes: Node[] = next.nodes.map((node) => ({
+    id: node.id,
+    type: node.type,
+    position: { x: node.x, y: node.y },
+    data: node,
+  }));
+
+  const edges: Edge[] = next.edges.map((edge) => ({
+    id: edge.id,
+    source: edge.source,
+    target: edge.target,
+    label: edge.label,
+  }));
+
+  // Apply Dagre layout
+  const layoutedNodes = applyDagreLayout(nodes, edges);
+
+  // Update workflow nodes with new positions
+  layoutedNodes.forEach((layoutedNode) => {
+    const workflowNode = next.nodes.find((n) => n.id === layoutedNode.id);
+    if (workflowNode) {
+      workflowNode.x = layoutedNode.position.x;
+      workflowNode.y = layoutedNode.position.y;
     }
-  }
+  });
 
-  const columns = new Map<number, KillLifeWorkflowNode[]>();
-  for (const node of next.nodes) {
-    const level = levels.get(node.id) || 0;
-    const bucket = columns.get(level) || [];
-    bucket.push(node);
-    columns.set(level, bucket);
-  }
-
-  for (const [level, nodes] of columns.entries()) {
-    nodes
-      .sort((left, right) => left.label.localeCompare(right.label))
-      .forEach((node, index) => {
-        node.x = 80 + level * 280;
-        node.y = 100 + index * 180;
-      });
-  }
   return next;
 }
+
+export function NoteNode({ data }: { data: KillLifeWorkflowNode }) {
+  return (
+    <div className="relative flex w-[220px] flex-col rounded-[1.3rem] border border-border/80 bg-black/30 p-4">
+      <Handle type="target" position={Position.Left} />
+
+      <span className="text-[10px] uppercase tracking-[0.2em] text-muted">{data.type}</span>
+      <span className="mt-3 text-sm font-semibold uppercase tracking-[0.14em] text-amber-100">
+        {data.label}
+      </span>
+      <span className="mt-2 line-clamp-3 text-xs leading-5 text-amber-100/56">
+        {data.description || "No description"}
+      </span>
+      <span className="mt-4 text-[10px] uppercase tracking-[0.2em] text-amber-100/40">
+        visual node
+      </span>
+
+      <Handle type="source" position={Position.Right} />
+    </div>
+  );
+}
+
+export function GroupNode({ data }: { data: KillLifeWorkflowNode }) {
+  return (
+    <div className="relative flex w-[220px] flex-col rounded-[1.3rem] border border-border/80 bg-black/30 p-4">
+      <Handle type="target" position={Position.Left} />
+
+      <span className="text-[10px] uppercase tracking-[0.2em] text-muted">{data.type}</span>
+      <span className="mt-3 text-sm font-semibold uppercase tracking-[0.14em] text-amber-100">
+        {data.label}
+      </span>
+      <span className="mt-2 line-clamp-3 text-xs leading-5 text-amber-100/56">
+        {data.description || "No description"}
+      </span>
+      <span className="mt-4 text-[10px] uppercase tracking-[0.2em] text-amber-100/40">
+        group container
+      </span>
+
+      <Handle type="source" position={Position.Right} />
+    </div>
+  );
+}
+
+export function DecisionNode({ data }: { data: KillLifeWorkflowNode }) {
+  return (
+    <div className="relative flex w-[220px] flex-col rounded-[1.3rem] border border-border/80 bg-black/30 p-4">
+      <Handle type="target" position={Position.Left} />
+
+      <span className="text-[10px] uppercase tracking-[0.2em] text-muted">{data.type}</span>
+      <span className="mt-3 text-sm font-semibold uppercase tracking-[0.14em] text-amber-100">
+        {data.label}
+      </span>
+      <span className="mt-2 line-clamp-3 text-xs leading-5 text-amber-100/56">
+        {data.description || "No description"}
+      </span>
+      <span className="mt-4 text-[10px] uppercase tracking-[0.2em] text-amber-100/40">
+        decision point
+      </span>
+
+      <Handle type="source" position={Position.Right} />
+    </div>
+  );
+}
+
+export function ManualGateNode({ data }: { data: KillLifeWorkflowNode }) {
+  return (
+    <div className="relative flex w-[220px] flex-col rounded-[1.3rem] border border-border/80 bg-black/30 p-4">
+      <Handle type="target" position={Position.Left} />
+
+      <span className="text-[10px] uppercase tracking-[0.2em] text-muted">{data.type}</span>
+      <span className="mt-3 text-sm font-semibold uppercase tracking-[0.14em] text-amber-100">
+        {data.label}
+      </span>
+      <span className="mt-2 line-clamp-3 text-xs leading-5 text-amber-100/56">
+        {data.description || "No description"}
+      </span>
+      <span className="mt-4 text-[10px] uppercase tracking-[0.2em] text-amber-100/40">
+        manual approval
+      </span>
+
+      <Handle type="source" position={Position.Right} />
+    </div>
+  );
+}
+
+export function LocalActionNode({ data }: { data: KillLifeWorkflowNode }) {
+  return (
+    <div className="relative flex w-[220px] flex-col rounded-[1.3rem] border border-accent/28 bg-black/35 p-4">
+      <Handle type="target" position={Position.Left} />
+
+      <span className="text-[10px] uppercase tracking-[0.2em] text-muted">{data.type}</span>
+      <span className="mt-3 text-sm font-semibold uppercase tracking-[0.14em] text-amber-100">
+        {data.label}
+      </span>
+      <span className="mt-2 line-clamp-3 text-xs leading-5 text-amber-100/56">
+        {data.description || "No description"}
+      </span>
+      <span className="mt-4 text-[10px] uppercase tracking-[0.2em] text-amber-100/40">
+        {data.runner?.kind === "local-action" ? data.runner.action : "local action"}
+      </span>
+
+      <Handle type="source" position={Position.Right} />
+    </div>
+  );
+}
+
+export function GithubDispatchNode({ data }: { data: KillLifeWorkflowNode }) {
+  return (
+    <div className="relative flex w-[220px] flex-col rounded-[1.3rem] border border-[#8cffb7]/35 bg-[#07140c]/80 p-4">
+      <Handle type="target" position={Position.Left} />
+
+      <span className="text-[10px] uppercase tracking-[0.2em] text-muted">{data.type}</span>
+      <span className="mt-3 text-sm font-semibold uppercase tracking-[0.14em] text-amber-100">
+        {data.label}
+      </span>
+      <span className="mt-2 line-clamp-3 text-xs leading-5 text-amber-100/56">
+        {data.description || "No description"}
+      </span>
+      <span className="mt-4 text-[10px] uppercase tracking-[0.2em] text-amber-100/40">
+        {data.runner?.kind === "github-dispatch" ? data.runner.workflow_file : "github dispatch"}
+      </span>
+
+      <Handle type="source" position={Position.Right} />
+    </div>
+  );
+}
+
+// ReactFlow node type mapping - defined outside component to prevent re-renders
+const nodeTypes = {
+  "note": NoteNode,
+  "group": GroupNode,
+  "decision": DecisionNode,
+  "manual-gate": ManualGateNode,
+  "local-action": LocalActionNode,
+  "github-dispatch": GithubDispatchNode,
+};
+// Will be used in ReactFlow integration
+void nodeTypes;
+void ReactFlow;
 
 export default function KillLifeWorkflowEditor() {
   const { workflowId = "" } = useParams();
@@ -190,16 +339,19 @@ export default function KillLifeWorkflowEditor() {
     runs: KillLifeRunRecord[];
   }>(workflowId ? `/api/killlife/workflows/${encodeURIComponent(workflowId)}` : null);
 
+  const reactFlowInstance = useRef<ReactFlowInstance<Node<KillLifeWorkflowNode>, Edge> | null>(null);
   const [workflow, setWorkflow] = useState<KillLifeWorkflow | null>(null);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [linkSourceId, setLinkSourceId] = useState<string | null>(null);
   const [validation, setValidation] = useState<KillLifeValidation | null>(null);
   const [dirty, setDirty] = useState(false);
-  const [dragState, setDragState] = useState<{ nodeId: string; offsetX: number; offsetY: number } | null>(null);
   const [configText, setConfigText] = useState("{}");
   const [runnerInputsText, setRunnerInputsText] = useState("{}");
   const [edgeTargetId, setEdgeTargetId] = useState("");
-  const boardRef = useRef<HTMLDivElement>(null);
+
+  // Undo/Redo state management
+  const [historyPast, setHistoryPast] = useState<KillLifeWorkflow[]>([]);
+  const [historyFuture, setHistoryFuture] = useState<KillLifeWorkflow[]>([]);
 
   const saveAction = useApi(async (doc: KillLifeWorkflow) => killLifeApi.save(doc.id, doc));
   const validateAction = useApi(async (doc: KillLifeWorkflow) => killLifeApi.validate(doc.id, doc));
@@ -208,6 +360,56 @@ export default function KillLifeWorkflowEditor() {
       killLifeApi.run(workflowId, args),
   );
 
+  // Save current workflow state to history before mutation
+  const saveSnapshot = () => {
+    if (!workflow) return;
+    setHistoryPast((past) => {
+      const newPast = [...past, cloneWorkflow(workflow)];
+      // Limit history to MAX_HISTORY_DEPTH entries to prevent memory issues
+      if (newPast.length > MAX_HISTORY_DEPTH) {
+        newPast.shift();
+      }
+      return newPast;
+    });
+    // Clear future stack when new change is made
+    setHistoryFuture([]);
+  };
+
+  const undo = () => {
+    if (historyPast.length === 0 || !workflow) return;
+    const previous = historyPast[historyPast.length - 1];
+    setHistoryPast((past) => past.slice(0, -1));
+    setHistoryFuture((future) => [cloneWorkflow(workflow), ...future]);
+    setWorkflow(cloneWorkflow(previous));
+    setDirty(true);
+  };
+
+  const redo = () => {
+    if (historyFuture.length === 0) return;
+    const next = historyFuture[0];
+    if (!workflow) return;
+    setHistoryFuture((future) => future.slice(1));
+    setHistoryPast((past) => [...past, cloneWorkflow(workflow)]);
+    setWorkflow(cloneWorkflow(next));
+    setDirty(true);
+  };
+
+  // Keyboard shortcuts for undo/redo
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if ((event.ctrlKey || event.metaKey) && event.key === 'z' && !event.shiftKey) {
+        event.preventDefault();
+        undo();
+      } else if ((event.ctrlKey || event.metaKey) && (event.key === 'y' || (event.key === 'z' && event.shiftKey))) {
+        event.preventDefault();
+        redo();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [historyPast, historyFuture, workflow]);
+
   useEffect(() => {
     if (!details.data?.workflow) return;
     const next = cloneWorkflow(details.data.workflow);
@@ -215,6 +417,9 @@ export default function KillLifeWorkflowEditor() {
     setValidation(details.data.validation);
     setSelectedNodeId((current) => current && next.nodes.some((node) => node.id === current) ? current : next.nodes[0]?.id || null);
     setDirty(false);
+    // Clear history when loading a new workflow
+    setHistoryPast([]);
+    setHistoryFuture([]);
   }, [details.data?.workflow, details.data?.validation]);
 
   const selectedNode = useMemo(
@@ -222,39 +427,40 @@ export default function KillLifeWorkflowEditor() {
     [selectedNodeId, workflow],
   );
 
+  const reactFlowNodesInitial = useMemo<Node<KillLifeWorkflowNode>[]>(() => {
+    if (!workflow) return [];
+    return workflow.nodes.map((node) => ({
+      id: node.id,
+      type: node.type,
+      position: { x: node.x, y: node.y },
+      data: node,
+    }));
+  }, [workflow]);
+
+  const reactFlowEdgesInitial = useMemo<Edge[]>(() => {
+    if (!workflow) return [];
+    return workflow.edges.map((edge) => ({
+      id: edge.id,
+      source: edge.source,
+      target: edge.target,
+      label: edge.label,
+    }));
+  }, [workflow]);
+
+  const [nodes, setNodes, onNodesChange] = useNodesState(reactFlowNodesInitial);
+  const [edges, setEdges, onEdgesChange] = useEdgesState(reactFlowEdgesInitial);
+
+  // Sync ReactFlow state when workflow changes
+  useEffect(() => {
+    setNodes(reactFlowNodesInitial);
+    setEdges(reactFlowEdgesInitial);
+  }, [reactFlowNodesInitial, reactFlowEdgesInitial, setNodes, setEdges]);
+
   useEffect(() => {
     setConfigText(JSON.stringify(selectedNode?.config || {}, null, 2));
     setRunnerInputsText(JSON.stringify(selectedNode?.runner?.inputs || {}, null, 2));
     setEdgeTargetId("");
   }, [selectedNode?.id]);
-
-  useEffect(() => {
-    if (!dragState || !workflow) return;
-
-    const handleMove = (event: MouseEvent) => {
-      const rect = boardRef.current?.getBoundingClientRect();
-      if (!rect) return;
-      setWorkflow((current) => {
-        if (!current) return current;
-        const next = cloneWorkflow(current);
-        const node = next.nodes.find((entry) => entry.id === dragState.nodeId);
-        if (!node) return current;
-        node.x = Math.max(20, Math.min(current.viewport.width - NODE_WIDTH - 20, event.clientX - rect.left - dragState.offsetX));
-        node.y = Math.max(20, Math.min(current.viewport.height - NODE_HEIGHT - 20, event.clientY - rect.top - dragState.offsetY));
-        return next;
-      });
-      setDirty(true);
-    };
-
-    const handleUp = () => setDragState(null);
-
-    window.addEventListener("mousemove", handleMove);
-    window.addEventListener("mouseup", handleUp);
-    return () => {
-      window.removeEventListener("mousemove", handleMove);
-      window.removeEventListener("mouseup", handleUp);
-    };
-  }, [dragState, workflow]);
 
   const evidenceTarget =
     selectedNode && typeof selectedNode.config?.target === "string" ? selectedNode.config.target : null;
@@ -269,6 +475,7 @@ export default function KillLifeWorkflowEditor() {
   }, [details.data?.runs, runAction.data]);
 
   const handleWorkflowField = (field: keyof KillLifeWorkflow, value: string | string[]) => {
+    saveSnapshot();
     setWorkflow((current) => {
       if (!current) return current;
       const next = cloneWorkflow(current);
@@ -279,6 +486,7 @@ export default function KillLifeWorkflowEditor() {
   };
 
   const updateNode = (nodeId: string, updater: (node: KillLifeWorkflowNode) => void) => {
+    saveSnapshot();
     setWorkflow((current) => {
       if (!current) return current;
       const next = cloneWorkflow(current);
@@ -291,6 +499,7 @@ export default function KillLifeWorkflowEditor() {
   };
 
   const addNode = (type: string) => {
+    saveSnapshot();
     setWorkflow((current) => {
       if (!current) return current;
       const next = cloneWorkflow(current);
@@ -314,6 +523,7 @@ export default function KillLifeWorkflowEditor() {
 
   const removeSelectedNode = () => {
     if (!selectedNode || !workflow) return;
+    saveSnapshot();
     setWorkflow((current) => {
       if (!current) return current;
       const next = cloneWorkflow(current);
@@ -329,6 +539,7 @@ export default function KillLifeWorkflowEditor() {
   const connectNodes = (sourceId: string, targetId: string) => {
     if (!workflow || sourceId === targetId) return;
     if (workflow.edges.some((edge) => edge.source === sourceId && edge.target === targetId)) return;
+    saveSnapshot();
     setWorkflow((current) => {
       if (!current) return current;
       const next = cloneWorkflow(current);
@@ -343,6 +554,7 @@ export default function KillLifeWorkflowEditor() {
   };
 
   const removeEdge = (edgeId: string) => {
+    saveSnapshot();
     setWorkflow((current) => {
       if (!current) return current;
       const next = cloneWorkflow(current);
@@ -389,7 +601,26 @@ export default function KillLifeWorkflowEditor() {
 
   const handleSave = async () => {
     if (!workflow) return;
-    const result = await saveAction.execute(workflow);
+
+    // Convert ReactFlow state to API model
+    const workflowToSave = cloneWorkflow(workflow);
+
+    // Convert ReactFlow nodes to KillLifeWorkflowNode with updated positions
+    workflowToSave.nodes = nodes.map((rfNode) => ({
+      ...rfNode.data,
+      x: rfNode.position.x,
+      y: rfNode.position.y,
+    }));
+
+    // Convert ReactFlow edges to API edges
+    workflowToSave.edges = edges.map((rfEdge) => ({
+      id: rfEdge.id,
+      source: rfEdge.source,
+      target: rfEdge.target,
+      label: typeof rfEdge.label === 'string' ? rfEdge.label : undefined,
+    }));
+
+    const result = await saveAction.execute(workflowToSave);
     if (!result) return;
     setWorkflow(cloneWorkflow(result.workflow));
     setValidation(result.validation);
@@ -558,11 +789,22 @@ export default function KillLifeWorkflowEditor() {
               <Button
                 variant="secondary"
                 onClick={() => {
-                  setWorkflow((current) => (current ? autoLayout(current) : current));
+                  saveSnapshot();
+                  setWorkflow((current) => (current ? autoLayoutDagre(current) : current));
                   setDirty(true);
+                  // Fit view after layout is applied
+                  setTimeout(() => {
+                    reactFlowInstance.current?.fitView({ padding: 0.2, duration: 400 });
+                  }, 50);
                 }}
               >
                 auto layout
+              </Button>
+              <Button variant="ghost" onClick={undo} disabled={historyPast.length === 0}>
+                undo
+              </Button>
+              <Button variant="ghost" onClick={redo} disabled={historyFuture.length === 0}>
+                redo
               </Button>
               <Button variant="ghost" onClick={() => void details.refetch()}>
                 reload
@@ -615,101 +857,55 @@ export default function KillLifeWorkflowEditor() {
               />
             ) : null}
 
-            <div className="overflow-auto rounded-[1.5rem] border border-border/80 bg-black/35 p-3">
-              <div
-                ref={boardRef}
-                className="killlife-canvas relative"
-                style={{
-                  width: `${workflow.viewport.width}px`,
-                  height: `${workflow.viewport.height}px`,
+            <div
+              className="overflow-hidden rounded-[1.5rem] border border-border/80 bg-black/35"
+              style={{ height: "600px" }}
+            >
+              <ReactFlow
+                nodes={nodes}
+                edges={edges}
+                onNodesChange={onNodesChange}
+                onEdgesChange={onEdgesChange}
+                onNodeClick={(_, node) => {
+                  if (linkSourceId && linkSourceId !== node.id) {
+                    connectNodes(linkSourceId, node.id);
+                    setLinkSourceId(null);
+                  } else {
+                    setSelectedNodeId(node.id);
+                  }
                 }}
+                onNodeDragStop={(_, node) => {
+                  saveSnapshot();
+                  setWorkflow((current) => {
+                    if (!current) return current;
+                    const next = cloneWorkflow(current);
+                    const wfNode = next.nodes.find((n) => n.id === node.id);
+                    if (wfNode) {
+                      wfNode.x = node.position.x;
+                      wfNode.y = node.position.y;
+                    }
+                    return next;
+                  });
+                  setDirty(true);
+                }}
+                onInit={(instance) => {
+                  reactFlowInstance.current = instance;
+                }}
+                nodeTypes={nodeTypes}
+                fitView
+                className="bg-black/20"
               >
-                <svg
-                  className="pointer-events-none absolute inset-0 h-full w-full"
-                  viewBox={`0 0 ${workflow.viewport.width} ${workflow.viewport.height}`}
-                >
-                  {workflow.edges.map((edge) => {
-                    const source = workflow.nodes.find((node) => node.id === edge.source);
-                    const target = workflow.nodes.find((node) => node.id === edge.target);
-                    if (!source || !target) return null;
-                    const x1 = source.x + NODE_WIDTH;
-                    const y1 = source.y + NODE_HEIGHT / 2;
-                    const x2 = target.x;
-                    const y2 = target.y + NODE_HEIGHT / 2;
-                    const dx = Math.max(80, Math.abs(x2 - x1) / 2);
-                    return (
-                      <g key={edge.id}>
-                        <path
-                          d={`M ${x1} ${y1} C ${x1 + dx} ${y1}, ${x2 - dx} ${y2}, ${x2} ${y2}`}
-                          fill="none"
-                          stroke="rgba(255,209,102,0.48)"
-                          strokeWidth="3"
-                        />
-                        {edge.label ? (
-                          <text
-                            x={(x1 + x2) / 2}
-                            y={(y1 + y2) / 2 - 8}
-                            fill="rgba(255,209,102,0.82)"
-                            fontSize="11"
-                            textAnchor="middle"
-                          >
-                            {edge.label}
-                          </text>
-                        ) : null}
-                      </g>
-                    );
-                  })}
-                </svg>
-
-                {workflow.nodes.map((node) => (
-                  <button
-                    key={node.id}
-                    type="button"
-                    onMouseDown={(event) => {
-                      if (linkSourceId) {
-                        return;
-                      }
-                      const rect = boardRef.current?.getBoundingClientRect();
-                      if (!rect) return;
-                      setSelectedNodeId(node.id);
-                      setDragState({
-                        nodeId: node.id,
-                        offsetX: event.clientX - rect.left - node.x,
-                        offsetY: event.clientY - rect.top - node.y,
-                      });
-                    }}
-                    onClick={() => {
-                      if (linkSourceId && linkSourceId !== node.id) {
-                        connectNodes(linkSourceId, node.id);
-                        setLinkSourceId(null);
-                      } else {
-                        setSelectedNodeId(node.id);
-                      }
-                    }}
-                    className={[
-                      "absolute flex w-[220px] flex-col rounded-[1.3rem] border p-4 text-left transition-all",
-                      "cursor-grab active:cursor-grabbing",
-                      nodeTone(node, selectedNodeId === node.id, linkSourceId === node.id),
-                    ].join(" ")}
-                    style={{ left: `${node.x}px`, top: `${node.y}px` }}
-                  >
-                    <span className="text-[10px] uppercase tracking-[0.2em] text-muted">{node.type}</span>
-                    <span className="mt-3 text-sm font-semibold uppercase tracking-[0.14em] text-amber-100">
-                      {node.label}
-                    </span>
-                    <span className="mt-2 line-clamp-3 text-xs leading-5 text-amber-100/56">
-                      {node.description || "No description"}
-                    </span>
-                    <span className="mt-4 text-[10px] uppercase tracking-[0.2em] text-amber-100/40">
-                      {node.runner?.kind === "local-action"
-                        ? node.runner.action
-                        : node.runner?.kind === "github-dispatch"
-                          ? node.runner.workflow_file
-                          : "visual node"}
-                    </span>
-                  </button>
-                ))}
-              </div>
+                <Background color="#ffd166" gap={16} size={1} />
+                <Controls className="bg-black/60 border-border/80" />
+                <MiniMap
+                  className="bg-black/60 border border-border/80"
+                  nodeColor={(node) => {
+                    if (node.type === "local-action") return "rgba(255, 209, 102, 0.5)";
+                    if (node.type === "github-dispatch") return "rgba(140, 255, 183, 0.5)";
+                    return "rgba(255, 209, 102, 0.3)";
+                  }}
+                />
+              </ReactFlow>
             </div>
           </div>
         </Card>

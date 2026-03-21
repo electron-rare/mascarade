@@ -2,58 +2,72 @@
 
 from __future__ import annotations
 
-import asyncio
-import json
 import logging
 from contextlib import asynccontextmanager
-from typing import Any, Literal
 
-from fastapi import APIRouter, Depends, FastAPI, HTTPException, Query, Request
-from fastapi.responses import StreamingResponse
-from pydantic import BaseModel, Field
+from fastapi import FastAPI
 
-from mascarade.agents import Agent, AgentRegistry
-from mascarade.agents.skills import register_default_skills
-from mascarade.auth import (
-    add_api_key,
-    get_active_api_keys,
-    remove_api_key,
-    require_auth,
-)
-from mascarade.cluster import ClusterManager, require_cluster_auth
+from mascarade.agents import AgentRegistry
+from mascarade.agents.skill_registry import SkillRegistry
+from mascarade.agents.skills import register_default_skills, register_default_skills_v2
+from mascarade.cluster import ClusterManager
 from mascarade.config import settings
+from mascarade.db.connection import close_db_pool, init_db_pool
+from mascarade.device_voice import DeviceVoiceService
 from mascarade.integrations.comfyui import ComfyUIClient
 from mascarade.mcp import McpRuntimeClient
-from mascarade.observability import AgentTraceBuffer, iso_utc_now, new_run_id
+from mascarade.observability import AgentTraceBuffer
 from mascarade.orchestrator import Orchestrator
-from mascarade.orchestrator.engine import ExecutionMode
-from mascarade.provider_admin import (
-    PROVIDER_REGISTRY,
-    get_providers_status,
-    update_provider_keys,
+from mascarade.orchestrator.templates import (
+    TemplateRegistry,
+    register_builtin_templates,
 )
-from mascarade.device_voice import DeviceVoiceService
-from mascarade.router import Router
-from mascarade.router.router import Strategy
 from mascarade.middleware.log_filter import install_secret_masking
 from mascarade.middleware.rate_limit import RateLimitMiddleware
+from mascarade.router import Router
+from mascarade.scheduler import ResourceAwareScheduler, HeartbeatMonitor, WorkerState
 
 install_secret_masking()
-
-# Route modules
-from mascarade.routes.mcp_routes import router as mcp_router
-from mascarade.routes.comfyui_routes import router as comfyui_router
-from mascarade.routes.device_routes import router as device_router
-from mascarade.routes.compat_routes import router as compat_router
+from mascarade.routers.agents import router as agents_router
+from mascarade.routers.skills import router as skills_router
+from mascarade.routers.auth import router as auth_router
+from mascarade.routers.chat import router as chat_router
+from mascarade.routers.finetune import router as finetune_router
+from mascarade.routers.health import router as health_router
+from mascarade.routers.memory import router as memory_router
+from mascarade.routers.providers import router as providers_router
+from mascarade.routers.prompt_versioning import router as prompt_versioning_router
+from mascarade.routers.cad_mcp import router as cad_mcp_router
+from mascarade.routers.admin import router as admin_router
+from mascarade.routers.scheduler import router as scheduler_router
+from mascarade.scheduler.metrics_exporter import router as metrics_router
+from mascarade.routers.analytics import router as analytics_router
+from mascarade.routers.knowledge_base import (
+    knowledge_base_auth_configured,
+    router as knowledge_base_router,
+)
+from mascarade.benchmarks.storage import BenchmarkStorage  # noqa: F401 — used by tests via patch
 
 logger = logging.getLogger("mascarade.server")
+
+# Import Gradio UI (lazy import to avoid loading gradio if not using finetune extras)
+try:
+    from mascarade.gradio_ui import create_gradio_app
+    GRADIO_AVAILABLE = True
+except ImportError:
+    GRADIO_AVAILABLE = False
+    logger.warning("Gradio not available. Install with: uv pip install -e '.[finetune]'")
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    """Application lifespan manager - initializes and cleans up resources."""
+    # Initialize core services
     router = Router()
     registry = AgentRegistry()
     register_default_skills(registry)
+    skill_registry = SkillRegistry()
+    register_default_skills_v2(skill_registry)
     trace_buffer = AgentTraceBuffer()
     cluster = ClusterManager(
         router=router,
@@ -65,719 +79,198 @@ async def lifespan(app: FastAPI):
         trace_buffer=trace_buffer,
         cluster=cluster,
     )
+    template_registry = TemplateRegistry()
+    register_builtin_templates(template_registry)
 
-    app.state.router = router
-    app.state.registry = registry
-    app.state.orchestrator = orchestrator
-    app.state.trace_buffer = trace_buffer
-    app.state.cluster = cluster
-    app.state.mcp = McpRuntimeClient(trace_buffer=trace_buffer)
-    app.state.comfyui = ComfyUIClient() if settings.comfyui_url else None
-    app.state.device_voice = DeviceVoiceService(router=router)
+    # Initialize distributed scheduler
+    scheduler = ResourceAwareScheduler()
+    if settings.scheduler_enabled and settings.scheduler_workers:
+        for entry in settings.scheduler_workers.split(","):
+            entry = entry.strip()
+            if not entry:
+                continue
+            parts = entry.split(":")
+            node_id = parts[0]
+            port = parts[1] if len(parts) > 1 else "8201"
+            worker = WorkerState(node_id=node_id, url=f"http://{entry}" if ":" in entry else f"http://{entry}:{port}")
+            scheduler.register_worker(worker)
+        logger.info("Scheduler enabled with %d workers", len(scheduler.workers))
 
+    heartbeat = HeartbeatMonitor(
+        scheduler.workers,
+        interval=settings.scheduler_heartbeat_interval,
+    )
+
+    # Store in app state
+    # Only set if not already set (to preserve test mocks)
+    if not hasattr(app.state, "router") or app.state.router is None:
+        app.state.router = router
+    if not hasattr(app.state, "registry") or app.state.registry is None:
+        app.state.registry = registry
+    if not hasattr(app.state, "orchestrator") or app.state.orchestrator is None:
+        app.state.orchestrator = orchestrator
+    if not hasattr(app.state, "trace_buffer") or app.state.trace_buffer is None:
+        app.state.trace_buffer = trace_buffer
+    if not hasattr(app.state, "cluster") or app.state.cluster is None:
+        app.state.cluster = cluster
+    if not hasattr(app.state, "skill_registry") or app.state.skill_registry is None:
+        app.state.skill_registry = skill_registry
+    if not hasattr(app.state, "template_registry") or app.state.template_registry is None:
+        app.state.template_registry = template_registry
+    if not hasattr(app.state, "mcp") or app.state.mcp is None:
+        app.state.mcp = McpRuntimeClient(trace_buffer=trace_buffer)
+    if not hasattr(app.state, "comfyui"):
+        app.state.comfyui = ComfyUIClient() if settings.comfyui_url else None
+    if not hasattr(app.state, "device_voice") or app.state.device_voice is None:
+        app.state.device_voice = DeviceVoiceService(router=router)
+    if not hasattr(app.state, "scheduler") or app.state.scheduler is None:
+        app.state.scheduler = scheduler
+    if not hasattr(app.state, "heartbeat_monitor") or app.state.heartbeat_monitor is None:
+        app.state.heartbeat_monitor = heartbeat
+
+    # Load persisted data
     registry.load()
+    skill_registry.load()
+
+    # Initialize database pool if configured
+    if settings.database_url:
+        try:
+            await init_db_pool()
+            logger.info("Database pool initialized")
+        except Exception as e:
+            logger.warning("Failed to initialize database pool: %s", e)
 
     # Start P2P node (auto-selects backend)
     await cluster.start_p2p()
 
+    # Start health checks for all registered providers
+    router.health_monitor.start_health_checks(list(router._providers.values()))
+
+    # Start distributed scheduler heartbeat
+    if settings.scheduler_enabled and scheduler.workers:
+        await heartbeat.start()
+        # Wire scheduler into router for distributed dispatch
+        router.scheduler = scheduler
+        logger.info("Distributed scheduler heartbeat started")
+
     yield
 
+    # Cleanup
+    if hasattr(app.state, "heartbeat_monitor") and app.state.heartbeat_monitor:
+        await app.state.heartbeat_monitor.stop()
+    await router.health_monitor.stop_health_checks()
+    await cluster.stop_p2p()
     await cluster.close()
+
     if app.state.comfyui is not None:
         await app.state.comfyui.close()
 
+    if settings.database_url:
+        await close_db_pool()
+        logger.info("Database pool closed")
 
-app = FastAPI(title="Mascarade Core", version="0.1.0", lifespan=lifespan)
+
+def create_app() -> FastAPI:
+    """Create and configure the FastAPI application."""
+    app = FastAPI(
+        title="Mascarade Core",
+        version="0.1.0",
+        description=(
+            "Personal agentic orchestration system - Python core API\n\n"
+            "Provides LLM routing, agent orchestration, memory management, "
+            "and OpenAI-compatible chat completions."
+        ),
+        lifespan=lifespan,
+        docs_url="/docs",
+        redoc_url="/redoc",
+        openapi_url="/openapi.json",
+        openapi_tags=[
+            {
+                "name": "health",
+                "description": "Health checks and system status monitoring",
+            },
+            {
+                "name": "chat",
+                "description": "OpenAI-compatible chat completion endpoints",
+            },
+            {
+                "name": "agents",
+                "description": "Agent management and orchestration",
+            },
+            {
+                "name": "skills",
+                "description": "Skill management and agent assignment",
+            },
+            {
+                "name": "memory",
+                "description": "Memory and knowledge base operations",
+            },
+            {
+                "name": "providers",
+                "description": "LLM provider management and configuration",
+            },
+            {
+                "name": "auth",
+                "description": "Authentication and authorization",
+            },
+            {
+                "name": "finetune",
+                "description": "Fine-tuning job management",
+            },
+        ],
+    )
+
+    # Pre-initialize state attributes so tests can patch them before lifespan runs
+    app.state.router = None
+    app.state.registry = None
+    app.state.orchestrator = None
+    app.state.trace_buffer = None
+    app.state.cluster = None
+    app.state.skill_registry = None
+    app.state.template_registry = None
+    app.state.mcp = None
+    app.state.comfyui = None
+    app.state.device_voice = None
+    app.state.scheduler = None
+    app.state.heartbeat_monitor = None
+
+    # Mount routers
+    app.include_router(health_router)
+    app.include_router(auth_router)
+    app.include_router(chat_router)
+    app.include_router(agents_router)
+    app.include_router(skills_router)
+    app.include_router(memory_router)
+    app.include_router(providers_router)
+    app.include_router(finetune_router)
+    app.include_router(prompt_versioning_router)
+    app.include_router(cad_mcp_router)
+    app.include_router(knowledge_base_router)
+    app.include_router(admin_router)
+    app.include_router(scheduler_router)
+    app.include_router(metrics_router)
+    app.include_router(analytics_router)
+
+    # Mount Gradio UI for fine-tuning (if available)
+    if GRADIO_AVAILABLE:
+        try:
+            import gradio as gr
+            gradio_app = create_gradio_app()
+            app = gr.mount_gradio_app(app, gradio_app, path="/finetune")
+            logger.info("Gradio fine-tuning UI mounted at /finetune")
+        except Exception as e:
+            logger.warning("Failed to mount Gradio UI: %s", e)
+
+    return app
+
+
+# Create app instance
+app = create_app()
 app.add_middleware(RateLimitMiddleware, requests_per_minute=60, burst=120)
 
 
-# --- Models ---
-
-
-class Message(BaseModel):
-    role: Literal["system", "user", "assistant", "tool"]
-    content: str = Field(min_length=1, max_length=100_000)
-
-
-RoutingPolicy = Literal["auto", "strong", "cheap", "fast"]
-
-
-class SendRequest(BaseModel):
-    messages: list[Message] = Field(max_length=200)
-    strategy: Strategy = Strategy.BEST
-    routing_policy: RoutingPolicy = "auto"
-    provider: str | None = Field(default=None, max_length=50)
-    model: str | None = Field(default=None, max_length=100)
-    system: str | None = Field(default=None, max_length=10_000)
-    response_format: dict | None = Field(default=None)
-    temperature: float = Field(default=0.7, ge=0.0, le=2.0)
-    max_tokens: int = Field(default=4096, gt=0, le=128000)
-
-
-class AgentCreate(BaseModel):
-    name: str = Field(min_length=1, max_length=100)
-    description: str = Field(max_length=1000)
-    system_prompt: str = Field(max_length=50_000)
-    preferred_provider: str | None = Field(default=None, max_length=50)
-    preferred_model: str | None = Field(default=None, max_length=100)
-    preferred_role: str | None = Field(default=None, max_length=100)
-    strategy: Strategy = Strategy.ROUTELLM
-    routing_policy: RoutingPolicy = "auto"
-    temperature: float = Field(default=0.7, ge=0.0, le=2.0)
-    max_tokens: int = Field(default=4096, gt=0, le=128000)
-
-
-class AgentUpdate(BaseModel):
-    description: str = Field(max_length=1000)
-    system_prompt: str = Field(max_length=50_000)
-    preferred_provider: str | None = Field(default=None, max_length=50)
-    preferred_model: str | None = Field(default=None, max_length=100)
-    preferred_role: str | None = Field(default=None, max_length=100)
-    strategy: Strategy = Strategy.ROUTELLM
-    routing_policy: RoutingPolicy = "auto"
-    temperature: float = Field(default=0.7, ge=0.0, le=2.0)
-    max_tokens: int = Field(default=4096, gt=0, le=128000)
-
-
-class AgentRoutingOverride(BaseModel):
-    preferred_role: str | None = Field(default=None, max_length=100)
-    preferred_provider: str | None = Field(default=None, max_length=50)
-    preferred_model: str | None = Field(default=None, max_length=100)
-    routing_policy: RoutingPolicy | None = None
-
-
-class TaskRequest(BaseModel):
-    agent_names: list[str] = Field(max_length=20)
-    prompt: str = Field(min_length=1, max_length=100_000)
-    mode: ExecutionMode = ExecutionMode.SEQUENTIAL
-    routing_overrides: dict[str, AgentRoutingOverride] = Field(default_factory=dict)
-
-
-class ClusterForwardSendRequest(SendRequest):
-    peer_id: str | None = Field(default=None, max_length=100)
-    preferred_role: str | None = Field(default=None, max_length=100)
-    allow_local: bool = True
-
-
-# --- Route publique ---
-
-
-@app.get("/health")
-async def health():
-    """Health check endpoint - returns basic system status."""
-    health_data = {"status": "ok"}
-
-    # Add optional metrics if state is initialized
-    if hasattr(app.state, "router"):
-        health_data["providers"] = app.state.router.available_providers
-    if hasattr(app.state, "registry"):
-        health_data["agents"] = len(app.state.registry)
-
-    return health_data
-
-
-# --- Routes protegees ---
-
-protected = APIRouter(dependencies=[Depends(require_auth)])
-cluster_protected = APIRouter(
-    prefix="/cluster/node",
-    dependencies=[Depends(require_cluster_auth)],
-)
-
-
-def _serialize_agent(agent: Agent) -> dict[str, object]:
-    return {
-        "name": agent.name,
-        "description": agent.description,
-        "system_prompt": agent.system_prompt,
-        "preferred_provider": agent.preferred_provider,
-        "preferred_model": agent.preferred_model,
-        "preferred_role": agent.preferred_role,
-        "strategy": agent.strategy.value,
-        "routing_policy": agent.routing_policy,
-        "temperature": agent.temperature,
-        "max_tokens": agent.max_tokens,
-        "builtin": app.state.registry.is_builtin(agent.name),
-    }
-
-
-# --- Gestion des cles API ---
-
-
-class ProviderKeyUpdate(BaseModel):
-    keys: dict[str, str] = Field(description="Map ENV_VAR -> value")
-
-
-class APIKeyCreate(BaseModel):
-    key: str = Field(min_length=8, max_length=256, description="Nouvelle cle API")
-
-
-class APIKeyRemove(BaseModel):
-    key: str = Field(min_length=1, max_length=256, description="Cle API a retirer")
-
-
-@protected.post("/api-keys")
-async def create_api_key(req: APIKeyCreate):
-    add_api_key(req.key)
-    return {"status": "ok", "message": "API key added successfully"}
-
-
-@protected.post("/api-keys/remove")
-async def delete_api_key(req: APIKeyRemove):
-    remove_api_key(req.key)
-    return {"status": "ok", "message": "API key removed successfully"}
-
-
-@protected.get("/api-keys")
-async def list_api_keys():
-    keys = get_active_api_keys()
-    return {"api_keys": [{"key": k[:4] + "***" + k[-4:], "active": True} for k in keys]}
-
-
-# --- LLM ---
-
-
-@protected.post("/send")
-async def send(req: SendRequest):
-    messages = [m.model_dump() for m in req.messages]
-    try:
-        response = await app.state.router.send(
-            messages,
-            strategy=req.strategy,
-            routing_policy=req.routing_policy,
-            provider=req.provider,
-            model=req.model,
-            system=req.system,
-            response_format=req.response_format,
-            temperature=req.temperature,
-            max_tokens=req.max_tokens,
-        )
-    except ValueError as exc:
-        logger.warning("Send request rejected: %s", exc)
-        raise HTTPException(status_code=400, detail="Invalid request parameters") from exc
-    return {
-        "content": response.content,
-        "model": response.model,
-        "provider": response.provider,
-        "usage": response.usage,
-    }
-
-
-@protected.get("/providers")
-async def list_providers():
-    return {"providers": app.state.router.available_providers}
-
-
-@protected.get("/providers/status")
-async def providers_status():
-    return {"providers": get_providers_status(app.state.router)}
-
-
-@protected.put("/providers/{name}/key")
-async def update_provider(name: str, req: ProviderKeyUpdate):
-    if name not in PROVIDER_REGISTRY:
-        raise HTTPException(status_code=404, detail=f"Unknown provider: {name}")
-    result = update_provider_keys(
-        name,
-        req.keys,
-        app.state.router,
-        persist_env=False,
-    )
-    if "error" in result:
-        raise HTTPException(status_code=400, detail=result["error"])
-    return result
-
-
-@protected.get("/providers/bedrock/models")
-async def bedrock_models():
-    """List Bedrock models including fine-tuned custom models."""
-    provider = app.state.router._providers.get("bedrock")
-    if not provider:
-        raise HTTPException(status_code=503, detail="Bedrock provider not configured")
-    return {
-        "default": provider.default_model,
-        "available": provider.available_models(),
-        "custom": provider.custom_models(),
-    }
-
-
-@protected.get("/providers/bedrock/finetune-jobs")
-async def bedrock_finetune_jobs():
-    """Check status of Bedrock fine-tuning jobs."""
-    provider = app.state.router._providers.get("bedrock")
-    if not provider:
-        raise HTTPException(status_code=503, detail="Bedrock provider not configured")
-    jobs = await provider.finetune_jobs()
-    return {"jobs": jobs}
-
-
-# --- Metrics ---
-
-
-@protected.get("/router/metrics")
-async def metrics_summary():
-    return app.state.router.metrics_summary()
-
-
-@protected.get("/router/metrics/{provider}")
-async def metrics_provider(provider: str):
-    stats = app.state.router.provider_metrics(provider)
-    if not stats:
-        raise HTTPException(status_code=404, detail="Provider has no metrics yet")
-    return stats
-
-
-@protected.post("/router/metrics/reset")
-async def metrics_reset():
-    app.state.router.reset_metrics()
-    return {"status": "ok"}
-
-
-# --- Prometheus scrape endpoint (public) ---
-
-
-@app.get("/metrics")
-async def prometheus_metrics():
-    """Expose Prometheus metrics for scraping — no auth required."""
-    try:
-        from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
-
-        from starlette.responses import Response
-
-        return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
-    except ImportError:
-        raise HTTPException(
-            status_code=501,
-            detail="prometheus_client is not installed",
-        )
-
-
-# --- Cache ---
-
-
-@protected.get("/cache/stats")
-async def cache_stats():
-    return app.state.router.cache.get_stats()
-
-
-@protected.post("/cache/reset")
-async def cache_reset():
-    app.state.router.cache.clear()
-    return {"status": "ok"}
-
-
-# --- Load Balancer ---
-
-
-@protected.get("/load-balancer/stats")
-async def lb_stats():
-    return app.state.router.load_balancer.get_load_stats()
-
-
-@protected.post("/load-balancer/reset")
-async def lb_reset():
-    app.state.router.load_balancer.reset_stats()
-    return {"status": "ok"}
-
-
-# --- Fallback ---
-
-
-@protected.get("/fallback/stats")
-async def fallback_stats():
-    return app.state.router.fallback.get_failure_stats()
-
-
-@protected.post("/fallback/reset")
-async def fallback_reset():
-    app.state.router.fallback.reset()
-    return {"status": "ok"}
-
-
-# --- Agents ---
-
-
-@protected.post("/agents")
-async def create_agent(req: AgentCreate):
-    agent = Agent(
-        name=req.name,
-        description=req.description,
-        system_prompt=req.system_prompt,
-        preferred_provider=req.preferred_provider,
-        preferred_model=req.preferred_model,
-        preferred_role=req.preferred_role,
-        strategy=req.strategy,
-        routing_policy=req.routing_policy,
-        temperature=req.temperature,
-        max_tokens=req.max_tokens,
-    )
-    app.state.registry.register(agent)
-    app.state.registry.save()
-    return _serialize_agent(agent)
-
-
-@protected.get("/agents")
-async def list_agents():
-    return {"agents": [_serialize_agent(agent) for agent in app.state.registry.list()]}
-
-
-@protected.get("/agents/{name}")
-async def get_agent(name: str):
-    try:
-        agent = app.state.registry.get(name)
-    except KeyError:
-        raise HTTPException(status_code=404, detail=f"Agent '{name}' not found") from None
-    return _serialize_agent(agent)
-
-
-@protected.put("/agents/{name}")
-async def update_agent(name: str, req: AgentUpdate):
-    try:
-        agent = app.state.registry.get(name)
-    except KeyError:
-        raise HTTPException(status_code=404, detail=f"Agent '{name}' not found") from None
-    if app.state.registry.is_builtin(name):
-        raise HTTPException(
-            status_code=403,
-            detail="Built-in agents are read-only; create a dynamic agent from the UI to edit routing.",
-        )
-
-    agent.description = req.description
-    agent.system_prompt = req.system_prompt
-    agent.preferred_provider = req.preferred_provider
-    agent.preferred_model = req.preferred_model
-    agent.preferred_role = req.preferred_role
-    agent.strategy = req.strategy
-    agent.routing_policy = req.routing_policy
-    agent.temperature = req.temperature
-    agent.max_tokens = req.max_tokens
-    app.state.registry.save()
-    return _serialize_agent(agent)
-
-
-@protected.post("/agents/{name}/run")
-async def run_agent(name: str, req: SendRequest):
-    if not req.messages:
-        raise HTTPException(status_code=400, detail="At least one message is required")
-
-    try:
-        agent = app.state.registry.get(name)
-    except KeyError:
-        raise HTTPException(status_code=404, detail=f"Agent '{name}' not found") from None
-
-    messages = [m.model_dump() for m in req.messages]
-    prompt = messages[-1]["content"]
-    context = messages[:-1] if len(messages) > 1 else None
-    response = await agent.run(prompt, router=app.state.router, context=context)
-    return {
-        "content": response.content,
-        "model": response.model,
-        "provider": response.provider,
-        "usage": response.usage,
-    }
-
-
-# --- Orchestration ---
-
-
-@protected.post("/orchestrate")
-async def orchestrate(req: TaskRequest):
-    try:
-        run = await app.state.orchestrator.run(
-            req.agent_names,
-            req.prompt,
-            mode=req.mode,
-            routing_overrides={
-                agent_name: override.model_dump()
-                for agent_name, override in req.routing_overrides.items()
-            },
-        )
-    except KeyError as exc:
-        raise HTTPException(status_code=404, detail=f"Agent not found: {exc}") from exc
-    return {
-        "run_id": run.run_id,
-        "mode": run.mode.value,
-        "results": [
-            {
-                "agent": r.agent_name,
-                "step": r.step,
-                "content": r.response.content,
-                "model": r.response.model,
-                "provider": r.response.provider,
-                "remote": r.remote,
-                "selected_by": r.selected_by,
-                "peer_id": r.peer_id,
-                "node_id": r.node_id,
-                "role": r.role,
-                **({"error": r.error} if r.error else {}),
-            }
-            for r in run.results
-        ],
-    }
-
-
-# --- Cluster / multi-node ---
-
-
-@protected.get("/cluster/identity")
-async def cluster_identity():
-    return app.state.cluster.local_identity().to_dict()
-
-
-@protected.get("/cluster/peers")
-async def cluster_peers():
-    peers = await app.state.cluster.probe_peers()
-    return {
-        "node": app.state.cluster.local_identity().to_dict(),
-        "peers": [peer.to_dict() for peer in peers],
-    }
-
-
-@protected.post("/cluster/forward/send")
-async def cluster_forward_send(req: ClusterForwardSendRequest):
-    payload = req.model_dump(exclude={"peer_id", "preferred_role", "allow_local"})
-    return await app.state.cluster.forward_send(
-        peer_id=req.peer_id,
-        preferred_role=req.preferred_role,
-        allow_local=req.allow_local,
-        payload=payload,
-    )
-
-
-@cluster_protected.get("/identity")
-async def cluster_node_identity():
-    return app.state.cluster.local_identity().to_dict()
-
-
-@cluster_protected.post("/send")
-async def cluster_node_send(req: SendRequest):
-    messages = [m.model_dump() for m in req.messages]
-    try:
-        response = await app.state.router.send(
-            messages,
-            strategy=req.strategy,
-            routing_policy=req.routing_policy,
-            provider=req.provider,
-            model=req.model,
-            system=req.system,
-            response_format=req.response_format,
-            temperature=req.temperature,
-            max_tokens=req.max_tokens,
-        )
-    except ValueError as exc:
-        logger.warning("Cluster send request rejected: %s", exc)
-        raise HTTPException(status_code=400, detail="Invalid request parameters") from exc
-
-    return {
-        "node_id": settings.node_id,
-        "content": response.content,
-        "model": response.model,
-        "provider": response.provider,
-        "usage": response.usage,
-    }
-
-
-# --- Orchestration traces ---
-
-
-@protected.get("/agent-traces/recent")
-async def recent_agent_traces(
-    limit: int = Query(default=50, ge=1, le=500),
-    run_id: str | None = Query(default=None, max_length=64),
-    agent_name: str | None = Query(default=None, max_length=128),
-    event_type: str | None = Query(default=None, max_length=64),
-):
-    events = app.state.trace_buffer.recent(
-        limit=limit,
-        run_id=run_id,
-        agent_name=agent_name,
-        event_type=event_type,
-    )
-    return {
-        "events": [event.to_dict() for event in events],
-        "count": len(events),
-    }
-
-
-@protected.get("/agent-traces/stream")
-async def stream_agent_traces(
-    request: Request,
-    run_id: str | None = Query(default=None, max_length=64),
-    agent_name: str | None = Query(default=None, max_length=128),
-    event_type: str | None = Query(default=None, max_length=64),
-    limit: int = Query(default=20, ge=0, le=200),
-):
-    async def event_stream():
-        queue, unsubscribe = app.state.trace_buffer.subscribe(
-            run_id=run_id,
-            agent_name=agent_name,
-            event_type=event_type,
-        )
-        try:
-            if limit > 0:
-                for event in app.state.trace_buffer.recent(
-                    limit=limit,
-                    run_id=run_id,
-                    agent_name=agent_name,
-                    event_type=event_type,
-                ):
-                    yield f"event: agent_trace\ndata: {json.dumps(event.to_dict())}\n\n"
-
-            while True:
-                if await request.is_disconnected():
-                    break
-                try:
-                    event = await asyncio.wait_for(queue.get(), timeout=15)
-                except TimeoutError:
-                    yield f"event: heartbeat\ndata: {json.dumps({'ts': iso_utc_now()})}\n\n"
-                    continue
-                yield f"event: agent_trace\ndata: {json.dumps(event.to_dict())}\n\n"
-        finally:
-            unsubscribe()
-
-    return StreamingResponse(
-        event_stream(),
-        media_type="text/event-stream",
-        headers={
-            "Cache-Control": "no-cache",
-            "Connection": "keep-alive",
-            "X-Accel-Buffering": "no",
-        },
-    )
-
-
-@protected.get("/agent-traces/{run_id}")
-async def run_agent_traces(
-    run_id: str,
-    limit: int = Query(default=200, ge=1, le=1000),
-):
-    events = app.state.trace_buffer.run_events(run_id, limit=limit)
-    return {
-        "run_id": run_id,
-        "events": [event.to_dict() for event in events],
-        "count": len(events),
-    }
-
-
-# --- P2P network ---
-
-
-@protected.get("/cluster/p2p/status")
-async def cluster_p2p_status():
-    return app.state.cluster.p2p_status()
-
-
-@protected.get("/cluster/p2p/stream")
-async def cluster_p2p_stream(
-    request: Request,
-    limit: int = Query(default=20, ge=0, le=200),
-):
-    """SSE stream of real-time P2P events."""
-
-    async def event_stream():
-        node = getattr(app.state.cluster, "_p2p_node", None)
-        if node is None or not hasattr(node, "events"):
-            yield f"event: error\ndata: {json.dumps({'error': 'P2P node not available'})}\n\n"
-            return
-
-        bus = node.events
-        queue = bus.subscribe()
-        try:
-            # Replay recent events
-            if limit > 0:
-                for event in bus.recent(limit=limit):
-                    yield f"event: p2p\ndata: {json.dumps(event.to_dict())}\n\n"
-
-            while True:
-                if await request.is_disconnected():
-                    break
-                try:
-                    event = await asyncio.wait_for(queue.get(), timeout=15)
-                except TimeoutError:
-                    yield f"event: heartbeat\ndata: {json.dumps({'ts': iso_utc_now()})}\n\n"
-                    continue
-                yield f"event: p2p\ndata: {json.dumps(event.to_dict())}\n\n"
-        finally:
-            bus.unsubscribe(queue)
-
-    return StreamingResponse(
-        event_stream(),
-        media_type="text/event-stream",
-        headers={
-            "Cache-Control": "no-cache",
-            "Connection": "keep-alive",
-            "X-Accel-Buffering": "no",
-        },
-    )
-
-
-@protected.get("/cluster/p2p/topology")
-async def cluster_p2p_topology():
-    """JSON snapshot of the P2P network topology."""
-    node = getattr(app.state.cluster, "_p2p_node", None)
-    if node is None or not hasattr(node, "capabilities"):
-        raise HTTPException(status_code=503, detail="P2P node not available")
-
-    nodes = []
-    edges = []
-    all_caps = node.capabilities.all_capabilities()
-
-    # Add local node
-    local_caps = node.capabilities._local_caps
-    local_entry = {
-        "peer_id": node.peer_id,
-        "label": local_caps.label if local_caps else "",
-        "role": local_caps.role if local_caps else "general",
-        "capabilities": local_caps.capabilities if local_caps else [],
-        "http_base_url": local_caps.http_base_url if local_caps else None,
-        "is_local": True,
-    }
-    nodes.append(local_entry)
-
-    # Add remote peers
-    for pid, caps in all_caps.items():
-        nodes.append({
-            "peer_id": pid,
-            "label": caps.label,
-            "role": caps.role,
-            "capabilities": caps.capabilities,
-            "http_base_url": caps.http_base_url,
-            "is_local": False,
-        })
-        edges.append({
-            "from": node.peer_id,
-            "to": pid,
-            "connected": pid in node.transport.peers and node.transport.peers[pid].connected,
-        })
-
-    return {"nodes": nodes, "edges": edges}
-
-
-@protected.post("/cluster/p2p/task")
-async def cluster_p2p_task(req: dict):
-    """Distribute a task via P2P to a capable peer.
-
-    Body: {"capability": "llm-inference", "payload": {...}, "timeout": 30, "target_peer": null}
-    """
-    return await app.state.cluster.p2p_distribute_task(
-        capability=req.get("capability", ""),
-        payload=req.get("payload", {}),
-        timeout=req.get("timeout", 120.0),
-        target_peer=req.get("target_peer"),
-    )
-
-
-# --- Include routers ---
-
-app.include_router(protected)
-app.include_router(cluster_protected)
-app.include_router(mcp_router)
-app.include_router(comfyui_router)
-app.include_router(device_router)
-app.include_router(compat_router)
-
-
 def start():
+    """Start the server using uvicorn."""
     import uvicorn
 
     uvicorn.run(app, host=settings.core_host, port=settings.core_port)

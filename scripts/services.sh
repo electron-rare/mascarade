@@ -3,7 +3,7 @@
 
 # ── Tableaux ──
 declare -a SVC_IDS=()
-declare -A SVC_LABEL=() SVC_DESC=() SVC_PORT=() SVC_CAT=() SVC_ON=() SVC_DEPS=()
+declare -A SVC_LABEL=() SVC_DESC=() SVC_PORT=() SVC_CAT=() SVC_ON=() SVC_DEPS=() SVC_PROFILES=()
 
 define_service() {
     local id="$1" label="$2" desc="$3" port="$4" cat="$5" on="${6:-0}" deps="${7:-}"
@@ -48,6 +48,44 @@ define_service "blackbox-exporter" "Blackbox Exporter" "Probes HTTP pour service
 define_service "loki"       "Loki"              "Historique des logs et traces structurees"        "3101"  "infra" 0 ""
 define_service "promtail"   "Promtail"          "Collecte Docker/journald vers Loki"               "9080"  "infra" 0 "loki"
 define_service "otel-collector" "OTel Collector" "Recepteur OTLP et point d'export observability"  "4318"  "infra" 0 ""
+
+# ── Profile mappings ──
+# core: Essential services
+SVC_PROFILES["core"]="core"
+SVC_PROFILES["api"]="core"
+SVC_PROFILES["redis"]="core"
+SVC_PROFILES["postgres"]="core"
+
+# observability: Monitoring and observability stack
+SVC_PROFILES["grafana"]="observability"
+SVC_PROFILES["prometheus"]="observability"
+SVC_PROFILES["loki"]="observability"
+SVC_PROFILES["tempo"]="observability"
+SVC_PROFILES["promtail"]="observability"
+SVC_PROFILES["otel-collector"]="observability"
+SVC_PROFILES["blackbox-exporter"]="observability"
+SVC_PROFILES["langfuse"]="observability"
+SVC_PROFILES["clickhouse"]="observability"
+
+# industrial: Production/industrial services
+SVC_PROFILES["agent-factory-cockpit"]="industrial"
+SVC_PROFILES["edge-proxy"]="industrial"
+SVC_PROFILES["ops-agent"]="industrial"
+
+# personal: Personal AI tools and workflow automation
+SVC_PROFILES["n8n"]="personal"
+SVC_PROFILES["dify"]="personal"
+SVC_PROFILES["firecrawl"]="personal"
+SVC_PROFILES["mem0"]="personal"
+SVC_PROFILES["litellm"]="personal"
+SVC_PROFILES["qdrant"]="personal"
+
+# fine-tuning: AI model training and generation
+SVC_PROFILES["comfyui"]="fine-tuning"
+SVC_PROFILES["ollama"]="fine-tuning"
+SVC_PROFILES["tts"]="fine-tuning"
+SVC_PROFILES["stt"]="fine-tuning"
+SVC_PROFILES["generate-audio"]="fine-tuning"
 
 dbg "services.sh: ${#SVC_IDS[@]} services definis"
 

@@ -52,6 +52,13 @@ except ImportError:
     pass
 
 try:
+    from mascarade.router.providers.mlx_lm import MLXLMProvider
+
+    __all__.append("MLXLMProvider")
+except ImportError:
+    pass
+
+try:
     from mascarade.router.providers.apple_coreml import AppleCoreMLProvider
 
     __all__.append("AppleCoreMLProvider")

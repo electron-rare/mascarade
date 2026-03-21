@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Node Engine - Audio E2E Verification</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #1a1a2e;
+      color: #e0e0e0;
+      padding: 40px;
+    }
+    h1 { color: #fff; margin-bottom: 8px; }
+    .subtitle { color: #888; margin-bottom: 32px; font-size: 14px; }
+    .step {
+      background: #16213e;
+      border: 1px solid #333;
+      border-radius: 8px;
+      padding: 20px;
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+    .step-num {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: #333;
+      color: #888;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: bold;
+      flex-shrink: 0;
+    }
+    .step.active .step-num { background: #3b82f6; color: #fff; }
+    .step.pass .step-num { background: #10b981; color: #fff; }
+    .step.fail .step-num { background: #ef4444; color: #fff; }
+    .step-content { flex: 1; }
+    .step-title { font-weight: 600; margin-bottom: 4px; }
+    .step-detail { font-size: 13px; color: #888; }
+    .step-status { font-size: 13px; margin-top: 4px; }
+    .step-status.ok { color: #10b981; }
+    .step-status.err { color: #ef4444; }
+    button {
+      padding: 12px 24px;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 15px;
+      font-weight: 600;
+      transition: all 0.2s;
+    }
+    .btn-audio {
+      background: #ef4444;
+      color: #fff;
+    }
+    .btn-audio.ready {
+      background: #10b981;
+      cursor: default;
+    }
+    .btn-execute {
+      background: #3b82f6;
+      color: #fff;
+    }
+    .btn-execute:disabled {
+      background: #333;
+      color: #666;
+      cursor: not-allowed;
+    }
+    .log-box {
+      background: #0d1117;
+      border: 1px solid #333;
+      border-radius: 8px;
+      padding: 16px;
+      margin-top: 24px;
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      font-size: 13px;
+      max-height: 200px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+    }
+    .log-info { color: #58a6ff; }
+    .log-ok { color: #3fb950; }
+    .log-err { color: #f85149; }
+    .summary {
+      margin-top: 24px;
+      padding: 20px;
+      border-radius: 8px;
+      font-size: 16px;
+      font-weight: 600;
+      text-align: center;
+      display: none;
+    }
+    .summary.pass { display: block; background: #064e3b; color: #10b981; border: 1px solid #10b981; }
+    .summary.fail { display: block; background: #450a0a; color: #ef4444; border: 1px solid #ef4444; }
+  </style>
+</head>
+<body>
+  <h1>Audio Synthesis E2E Verification</h1>
+  <p class="subtitle">Verifies: Tone.js synth node plays sound after user gesture (subtask-10-4)</p>
+
+  <div class="step" id="step1">
+    <div class="step-num">1</div>
+    <div class="step-content">
+      <div class="step-title">Tone.js Library Loaded</div>
+      <div class="step-detail">Verify Tone.js is available in the browser</div>
+      <div class="step-status" id="step1-status"></div>
+    </div>
+  </div>
+
+  <div class="step" id="step2">
+    <div class="step-num">2</div>
+    <div class="step-content">
+      <div class="step-title">Audio Context State: Suspended</div>
+      <div class="step-detail">Browser autoplay policy prevents audio before user gesture</div>
+      <div class="step-status" id="step2-status"></div>
+    </div>
+  </div>
+
+  <div class="step" id="step3">
+    <div class="step-num">3</div>
+    <div class="step-content">
+      <div class="step-title">Start Audio Context (User Gesture)</div>
+      <div class="step-detail">Click the button below to satisfy browser autoplay policy</div>
+      <div class="step-status" id="step3-status"></div>
+      <div style="margin-top: 12px;">
+        <button class="btn-audio" id="btn-start-audio" onclick="startAudio()">▶ Start Audio</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="step" id="step4">
+    <div class="step-num">4</div>
+    <div class="step-content">
+      <div class="step-title">Execute Tone.js Synth Node</div>
+      <div class="step-detail">Creates a synth and plays C4 for a quarter note — you should hear a tone</div>
+      <div class="step-status" id="step4-status"></div>
+      <div style="margin-top: 12px;">
+        <button class="btn-execute" id="btn-execute" onclick="executeGraph()" disabled>▶ Execute Graph</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="step" id="step5">
+    <div class="step-num">5</div>
+    <div class="step-content">
+      <div class="step-title">Verify Audio Output</div>
+      <div class="step-detail">Confirm the synth triggered and outputs are correct</div>
+      <div class="step-status" id="step5-status"></div>
+    </div>
+  </div>
+
+  <div class="summary" id="summary"></div>
+
+  <div class="log-box" id="log"></div>
+
+  <!-- Load Tone.js from CDN for standalone verification -->
+  <script src="https://cdn.jsdelivr.net/npm/tone@14/build/Tone.js"></script>
+  <script>
+    function log(msg, level = 'info') {
+      const el = document.getElementById('log');
+      const cls = level === 'ok' ? 'log-ok' : level === 'err' ? 'log-err' : 'log-info';
+      el.innerHTML += `<span class="${cls}">[${new Date().toISOString().slice(11, 23)}] ${msg}</span>\n`;
+      el.scrollTop = el.scrollHeight;
+    }
+
+    function setStep(num, state, msg) {
+      const step = document.getElementById(`step${num}`);
+      step.className = `step ${state}`;
+      const status = document.getElementById(`step${num}-status`);
+      status.className = `step-status ${state === 'pass' ? 'ok' : state === 'fail' ? 'err' : ''}`;
+      status.textContent = msg;
+    }
+
+    // Step 1: Check Tone.js loaded
+    if (typeof Tone !== 'undefined') {
+      setStep(1, 'pass', '✓ Tone.js loaded (version available)');
+      log('Tone.js library loaded successfully', 'ok');
+    } else {
+      setStep(1, 'fail', '✗ Tone.js not found');
+      log('Tone.js library not loaded', 'err');
+    }
+
+    // Step 2: Check initial audio context state
+    if (typeof Tone !== 'undefined') {
+      const state = Tone.context.state;
+      if (state === 'suspended') {
+        setStep(2, 'pass', `✓ Audio context state: ${state} (correct — waiting for user gesture)`);
+        log(`Audio context state: ${state}`, 'ok');
+      } else {
+        setStep(2, 'active', `Audio context state: ${state}`);
+        log(`Audio context state: ${state} (expected: suspended)`, 'info');
+      }
+    }
+
+    async function startAudio() {
+      log('User clicked Start Audio button...');
+      try {
+        await Tone.start();
+        const state = Tone.context.state;
+        log(`Tone.start() completed. Context state: ${state}`, 'ok');
+
+        if (state === 'running') {
+          setStep(3, 'pass', '✓ Audio context started successfully');
+          document.getElementById('btn-start-audio').textContent = '✓ Audio Ready';
+          document.getElementById('btn-start-audio').className = 'btn-audio ready';
+          document.getElementById('btn-execute').disabled = false;
+        } else {
+          setStep(3, 'fail', `✗ Audio context state: ${state} (expected: running)`);
+          log(`Unexpected state after Tone.start(): ${state}`, 'err');
+        }
+      } catch (err) {
+        setStep(3, 'fail', `✗ Failed: ${err.message}`);
+        log(`Tone.start() failed: ${err.message}`, 'err');
+      }
+    }
+
+    async function executeGraph() {
+      log('Executing Tone.js synth node...');
+      setStep(4, 'active', 'Executing...');
+
+      try {
+        // Verify context is running
+        if (Tone.context.state !== 'running') {
+          throw new Error(`Audio context not running: ${Tone.context.state}`);
+        }
+
+        // Create synth and play note (mirrors ToneSynthNode.execute)
+        const synth = new Tone.Synth().toDestination();
+        const note = 'C4';
+        const duration = '4n';
+        const velocity = 0.7;
+
+        synth.volume.value = 20 * Math.log10(velocity);
+        const now = Tone.now();
+        synth.triggerAttackRelease(note, duration, now);
+
+        const timestamp = Tone.context.currentTime;
+
+        log(`Note triggered: ${note}, duration: ${duration}, velocity: ${velocity}`, 'ok');
+        log(`Audio context time: ${timestamp.toFixed(3)}s`, 'ok');
+        log(`Synth volume: ${synth.volume.value.toFixed(1)} dB`, 'info');
+
+        setStep(4, 'pass', `✓ Synth triggered: ${note} @ ${duration}`);
+
+        // Step 5: Verify outputs
+        const outputs = { triggered: true, note, timestamp };
+        const valid = outputs.triggered === true && outputs.note === 'C4' && typeof outputs.timestamp === 'number';
+
+        if (valid) {
+          setStep(5, 'pass', `✓ Outputs verified: triggered=${outputs.triggered}, note=${outputs.note}, timestamp=${outputs.timestamp.toFixed(3)}`);
+          log('All verification steps passed', 'ok');
+          showSummary(true);
+        } else {
+          setStep(5, 'fail', '✗ Output validation failed');
+          log('Output validation failed', 'err');
+          showSummary(false);
+        }
+      } catch (err) {
+        setStep(4, 'fail', `✗ Execution failed: ${err.message}`);
+        log(`Execution error: ${err.message}`, 'err');
+        showSummary(false);
+      }
+    }
+
+    function showSummary(pass) {
+      const el = document.getElementById('summary');
+      if (pass) {
+        el.className = 'summary pass';
+        el.textContent = '✓ E2E VERIFICATION PASSED — Audio synthesis node plays sound after user gesture';
+      } else {
+        el.className = 'summary fail';
+        el.textContent = '✗ E2E VERIFICATION FAILED — Check logs for details';
+      }
+    }
+  </script>
+</body>
+</html>

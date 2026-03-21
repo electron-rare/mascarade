@@ -8,7 +8,7 @@ function configuredCoreApiKeys(): string[] {
   return (process.env.MASCARADE_API_KEY || "")
     .split(",")
     .map((key) => key.trim())
-    .filter((key) => key.length >= 8);
+    .filter((key) => key.length >= 16);
 }
 
 export function getCoreAuthHeaders(): Record<string, string> {
@@ -138,6 +138,28 @@ export interface ProviderStatus {
   auth_modes?: string[];
 }
 
+export interface ProviderHealthMetrics {
+  status: string;
+  latency_ms?: number;
+  error?: string;
+  last_check?: string;
+}
+
+export interface AgentTemplate {
+  id: string;
+  name: string;
+  description: string;
+  system_prompt: string;
+  preferred_provider?: string | null;
+  preferred_model?: string | null;
+  preferred_role?: string | null;
+  strategy?: string;
+  temperature?: number;
+  max_tokens?: number;
+  category?: string;
+  tags?: string[];
+}
+
 const REQUEST_TIMEOUT_MS = parseInt(process.env.CORE_TIMEOUT_MS || "30000", 10);
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
@@ -202,6 +224,10 @@ export const coreClient = {
     return request<{ providers: ProviderStatus[] }>("/providers/status");
   },
 
+  providerHealth() {
+    return request<Record<string, unknown>>("/health/providers");
+  },
+
   updateProviderKey(name: string, keys: Record<string, string>) {
     return request<{ status: string; active: boolean; message?: string }>(
       `/providers/${encodeURIComponent(name)}/key`,
@@ -215,6 +241,10 @@ export const coreClient = {
 
   getProviderMetrics(provider: string) {
     return request<Record<string, unknown>>(`/metrics/${encodeURIComponent(provider)}`);
+  },
+
+  getAgentMetrics(name: string) {
+    return request<Record<string, unknown>>(`/agents/${encodeURIComponent(name)}/metrics`);
   },
 
   resetMetrics() {
@@ -288,6 +318,12 @@ export const coreClient = {
     return request<AgentInfo>(`/agents/${encodeURIComponent(name)}`, {
       method: "PUT",
       body: JSON.stringify(body),
+    });
+  },
+
+  deleteAgent(name: string) {
+    return request<{ status: string; message?: string }>(`/agents/${encodeURIComponent(name)}`, {
+      method: "DELETE",
     });
   },
 
@@ -651,6 +687,88 @@ export const coreClient = {
     });
   },
 
+  kicadGenerateSchematic(body: {
+    requirements: string;
+    library?: string;
+    run_id?: string;
+  }) {
+    return request<{
+      ok: boolean;
+      schematic_path?: string;
+      component_count?: number;
+      net_count?: number;
+      run_id: string;
+    }>("/mcp/kicad/schematic", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+
+  kicadOptimizeLayout(body: {
+    schematic_data: Record<string, unknown>;
+    constraints?: Record<string, unknown>;
+    run_id?: string;
+  }) {
+    return request<{
+      ok: boolean;
+      layout_path?: string;
+      optimization_score?: number;
+      run_id: string;
+    }>("/mcp/kicad/layout", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+
+  kicadCreateFootprint(body: {
+    component_description: string;
+    datasheet_url?: string;
+    run_id?: string;
+  }) {
+    return request<{
+      ok: boolean;
+      footprint_path?: string;
+      pad_count?: number;
+      run_id: string;
+    }>("/mcp/kicad/footprint", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+
+  kicadCheckDRC(body: {
+    layout_data: Record<string, unknown>;
+    rules?: Record<string, unknown>;
+    run_id?: string;
+  }) {
+    return request<{
+      ok: boolean;
+      violations?: Array<Record<string, unknown>>;
+      violation_count?: number;
+      run_id: string;
+    }>("/mcp/kicad/drc", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+
+  kicadExportManufacturing(body: {
+    layout_data: Record<string, unknown>;
+    bom_data?: Record<string, unknown>;
+    format?: string;
+    run_id?: string;
+  }) {
+    return request<{
+      ok: boolean;
+      output_files?: string[];
+      format?: string;
+      run_id: string;
+    }>("/mcp/kicad/manufacturing", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+
   industrialMcpServers() {
     return request<{
       items: Array<{
@@ -749,6 +867,439 @@ export const coreClient = {
       message: string;
       payload: Record<string, unknown>;
     }>(`/mcp/industrial/${encodeURIComponent(serverKey)}/tools/${encodeURIComponent(toolName)}`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+
+  // --- Authentication ---
+
+  verifyToken(token: string) {
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    };
+    return fetch(`${CORE_URL}/auth/me`, {
+      headers,
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    }).then(async (res) => {
+      if (!res.ok) {
+        const text = await res.text();
+        let parsedBody: unknown = text;
+        if (text) {
+          try {
+            parsedBody = JSON.parse(text);
+          } catch {
+            parsedBody = text;
+          }
+        }
+        const message =
+          typeof parsedBody === "object" && parsedBody !== null
+            ? ((parsedBody as Record<string, unknown>).error as string | undefined) ||
+              ((parsedBody as Record<string, unknown>).detail as string | undefined) ||
+              `Core API error ${res.status}`
+            : text || `Core API error ${res.status}`;
+        throw new CoreApiError(message, res.status, parsedBody);
+      }
+      return res.json() as Promise<{
+        id: number;
+        username: string;
+        email: string;
+        role_id: number;
+        is_active: boolean;
+        rate_limits?: {
+          requests_per_minute?: number | null;
+          requests_per_hour?: number | null;
+          requests_per_day?: number | null;
+          tokens_per_day?: number | null;
+        } | null;
+      }>;
+    });
+  },
+
+  // --- User Management ---
+
+  listUsers() {
+    return request<{ users: Array<{ id: number; username: string; email: string; role_id: number; is_active: boolean; created_at: string; updated_at: string }> }>("/users");
+  },
+
+  createUser(body: { username: string; email: string; role_id: number }) {
+    return request<{ id: number; username: string; email: string; role_id: number; is_active: boolean; created_at: string; updated_at: string }>("/users", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+
+  getUser(userId: number) {
+    return request<{ id: number; username: string; email: string; role_id: number; is_active: boolean; created_at: string; updated_at: string }>(`/users/${userId}`);
+  },
+
+  updateUser(userId: number, body: { username?: string; email?: string; role_id?: number; is_active?: boolean }) {
+    return request<{ id: number; username: string; email: string; role_id: number; is_active: boolean; created_at: string; updated_at: string }>(`/users/${userId}`, {
+      method: "PUT",
+      body: JSON.stringify(body),
+    });
+  },
+
+  // --- Qdrant ---
+
+  qdrantHealth() {
+    return request<Record<string, unknown>>("/qdrant/health");
+  },
+
+  qdrantListCollections() {
+    return request<{ collections: Array<{ name: string }> }>("/qdrant/collections");
+  },
+
+  qdrantGetCollection(collectionName: string) {
+    return request<Record<string, unknown>>(
+      `/qdrant/collections/${encodeURIComponent(collectionName)}`,
+    );
+  },
+
+  qdrantCreateCollection(
+    collectionName: string,
+    body: {
+      vector_size: number;
+      distance?: string;
+      on_disk_payload?: boolean;
+    },
+  ) {
+    return request<Record<string, unknown>>(
+      `/qdrant/collections/${encodeURIComponent(collectionName)}`,
+      { method: "PUT", body: JSON.stringify(body) },
+    );
+  },
+
+  qdrantDeleteCollection(collectionName: string) {
+    return request<Record<string, unknown>>(
+      `/qdrant/collections/${encodeURIComponent(collectionName)}`,
+      { method: "DELETE" },
+    );
+  },
+
+  qdrantUpsertPoints(
+    collectionName: string,
+    body: {
+      points: Array<{
+        id: string | number;
+        vector: number[];
+        payload?: Record<string, unknown>;
+      }>;
+      wait?: boolean;
+    },
+  ) {
+    return request<Record<string, unknown>>(
+      `/qdrant/collections/${encodeURIComponent(collectionName)}/points`,
+      { method: "POST", body: JSON.stringify(body) },
+    );
+  },
+
+  qdrantSearch(
+    collectionName: string,
+    body: {
+      query_vector: number[];
+      limit?: number;
+      score_threshold?: number;
+      with_payload?: boolean;
+      with_vector?: boolean;
+      filter_conditions?: Record<string, unknown>;
+    },
+  ) {
+    return request<{
+      points: Array<{
+        id: string | number;
+        score: number;
+        payload?: Record<string, unknown>;
+        vector?: number[];
+      }>;
+    }>(`/qdrant/collections/${encodeURIComponent(collectionName)}/search`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+
+  deleteUser(userId: number) {
+    return request<{ status: string }>(`/users/${userId}`, {
+      method: "DELETE",
+    });
+  },
+
+  // --- API Key Management ---
+
+  createApiKey(userId: number, body: { name: string; expires_at?: string }) {
+    return request<{ id: number; key: string; key_prefix: string; name: string; created_at: string; expires_at: string | null }>(`/users/${userId}/api-keys`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+
+  listApiKeys(userId: number) {
+    return request<{ api_keys: Array<{ id: number; key_prefix: string; name: string; created_at: string; expires_at: string | null; last_used_at: string | null }> }>(`/users/${userId}/api-keys`);
+  },
+
+  revokeApiKey(userId: number, keyId: number) {
+    return request<{ status: string }>(`/users/${userId}/api-keys/${keyId}`, {
+      method: "DELETE",
+    });
+  },
+
+  qdrantRecommend(
+    collectionName: string,
+    body: {
+      positive: Array<string | number>;
+      negative?: Array<string | number>;
+      limit?: number;
+      score_threshold?: number;
+      with_payload?: boolean;
+      with_vector?: boolean;
+      filter_conditions?: Record<string, unknown>;
+    },
+  ) {
+    return request<{
+      points: Array<{
+        id: string | number;
+        score: number;
+        payload?: Record<string, unknown>;
+        vector?: number[];
+      }>;
+    }>(`/qdrant/collections/${encodeURIComponent(collectionName)}/recommend`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+
+  async qdrantUploadDocuments(collectionName: string, formData: FormData) {
+    const headers = getCoreAuthHeaders();
+    const res = await fetch(`${CORE_URL}/qdrant/collections/${encodeURIComponent(collectionName)}/upload`, {
+      method: "POST",
+      headers,
+      body: formData,
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    });
+    if (!res.ok) {
+      const text = await res.text();
+      let msg = `Core API error ${res.status}`;
+      try {
+        const json = JSON.parse(text);
+        if (json.detail) msg = json.detail;
+        else if (json.error) msg = json.error;
+        else if (json.message) msg = json.message;
+      } catch {
+        // keep default message
+      }
+      throw new CoreApiError(msg, res.status, text);
+    }
+    return res.json();
+  },
+
+  qdrantSemanticSearch(
+    collectionName: string,
+    body: {
+      query: string;
+      limit?: number;
+      score_threshold?: number;
+    },
+  ) {
+    return request<{
+      results: Array<{
+        id: string | number;
+        score: number;
+        text?: string;
+        metadata?: Record<string, unknown>;
+      }>;
+      query: string;
+      collection: string;
+    }>(`/qdrant/collections/${encodeURIComponent(collectionName)}/semantic-search`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+
+  qdrantRAGQuery(
+    collectionName: string,
+    body: {
+      query: string;
+      limit?: number;
+      model?: string;
+      temperature?: number;
+    },
+  ) {
+    return request<{
+      answer: string;
+      chunks: Array<{
+        text: string;
+        score: number;
+        source: string;
+      }>;
+      query: string;
+      collection: string;
+      model: string;
+      provider: string;
+    }>(`/qdrant/collections/${encodeURIComponent(collectionName)}/rag-query`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+
+  // --- Mesh Operations ---
+
+  meshImport(body: { data: string; format: string; run_id?: string }) {
+    return request<{
+      ok: boolean;
+      run_id: string;
+      protocol_version?: string;
+      server_name?: string;
+      message: string;
+      payload: Record<string, unknown>;
+    }>("/mcp/mesh/import", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+
+  meshExport(body: {
+    mesh: Record<string, unknown>;
+    format: string;
+    options?: Record<string, unknown>;
+    run_id?: string;
+  }) {
+    return request<{
+      ok: boolean;
+      run_id: string;
+      protocol_version?: string;
+      server_name?: string;
+      message: string;
+      payload: Record<string, unknown>;
+    }>("/mcp/mesh/export", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+
+  meshSimplify(body: {
+    mesh: Record<string, unknown>;
+    target_ratio: number;
+    preserve_boundaries?: boolean;
+    run_id?: string;
+  }) {
+    return request<{
+      ok: boolean;
+      run_id: string;
+      protocol_version?: string;
+      server_name?: string;
+      message: string;
+      payload: Record<string, unknown>;
+    }>("/mcp/mesh/simplify", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+
+  meshBoolean(body: {
+    mesh_a: Record<string, unknown>;
+    mesh_b: Record<string, unknown>;
+    operation: string;
+    run_id?: string;
+  }) {
+    return request<{
+      ok: boolean;
+      run_id: string;
+      protocol_version?: string;
+      server_name?: string;
+      message: string;
+      payload: Record<string, unknown>;
+    }>("/mcp/mesh/boolean", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+
+  // --- Toolpath Operations ---
+
+  toolpathGenerate(body: {
+    mesh: Record<string, unknown>;
+    tool: Record<string, unknown>;
+    strategy: string;
+    stock?: Record<string, unknown>;
+    run_id?: string;
+  }) {
+    return request<{
+      ok: boolean;
+      run_id: string;
+      gcode: {
+        program: string;
+        estimated_time_s: number;
+        bounds: Record<string, number>;
+        tool_changes: number;
+      };
+      toolpath: {
+        moves: Array<Record<string, unknown>>;
+        unit: string;
+        tool_id: string;
+      };
+    }>("/mcp/toolpath/generate", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+
+  toolpathOptimize(body: {
+    toolpath: Record<string, unknown>;
+    objective: string;
+    constraints?: Record<string, unknown>;
+    run_id?: string;
+  }) {
+    return request<{
+      ok: boolean;
+      run_id: string;
+      toolpath: {
+        moves: Array<Record<string, unknown>>;
+        unit: string;
+        tool_id: string;
+      };
+      gcode: {
+        program: string;
+        estimated_time_s: number;
+        bounds: Record<string, number>;
+        tool_changes: number;
+      };
+      improvement_pct: number;
+    }>("/mcp/toolpath/optimize", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+
+  // --- Templates ---
+
+  listTemplates() {
+    return request<{ templates: unknown[] }>("/orchestrate/templates");
+  },
+
+  getTemplate(templateId: string) {
+    return request<unknown>(`/orchestrate/templates/${encodeURIComponent(templateId)}`);
+  },
+
+  deployTemplate(templateId: string, body: { input: string; routing_overrides?: Record<string, unknown> }) {
+    return request<{
+      run_id: string;
+      template_id: string;
+      mode: string;
+      results: {
+        agent: string;
+        step: number;
+        content: string;
+        model: string;
+        provider: string;
+        error?: string;
+        remote?: boolean;
+        selected_by?: string;
+        peer_id?: string | null;
+        node_id?: string | null;
+        role?: string | null;
+      }[];
+    }>(`/orchestrate/templates/${encodeURIComponent(templateId)}/deploy`, {
       method: "POST",
       body: JSON.stringify(body),
     });

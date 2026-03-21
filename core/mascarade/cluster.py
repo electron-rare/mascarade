@@ -16,7 +16,7 @@ import socket
 
 try:
     from zeroconf import ServiceBrowser, ServiceInfo, ServiceListener, Zeroconf
-except Exception:  # pragma: no cover - optional dependency
+except ImportError:  # pragma: no cover - optional dependency
     ServiceBrowser = None
     ServiceInfo = None
     ServiceListener = object
@@ -129,7 +129,7 @@ def _ip_from_host(host: str) -> tuple[bytes, int] | tuple[None, None]:
     """Return packed binary IP and family for zeroconf."""
     host = host.strip()
     if not host:
-        return None, 0
+        return None, None
 
     try:
         return inet_aton(host), AF_INET
@@ -139,7 +139,7 @@ def _ip_from_host(host: str) -> tuple[bytes, int] | tuple[None, None]:
     try:
         return socket.inet_pton(AF_INET6, host), AF_INET6
     except OSError:
-        return None, 0
+        return None, None
 
 
 def _parsed_addresses(info: Any) -> list[str]:
@@ -151,7 +151,7 @@ def _parsed_addresses(info: Any) -> list[str]:
         parsed = list(info.parsed_addresses())
         if parsed:
             return parsed
-    except Exception:  # pragma: no cover - optional zeroconf layout
+    except ImportError:  # pragma: no cover - optional zeroconf layout
         pass
 
     try:
@@ -163,7 +163,7 @@ def _parsed_addresses(info: Any) -> list[str]:
                     addresses.append(inet_ntop(AF_INET6, raw))
             elif isinstance(raw, str):
                 addresses.append(raw)
-    except Exception:  # pragma: no cover - optional zeroconf layout
+    except ImportError:  # pragma: no cover - optional zeroconf layout
         pass
     return addresses
 
@@ -684,11 +684,11 @@ class ClusterManager:
         finally:
             try:
                 browser.cancel()
-            except Exception:  # pragma: no cover
+            except ImportError:  # pragma: no cover
                 pass
             try:
                 zc.close()
-            except Exception:  # pragma: no cover
+            except ImportError:  # pragma: no cover
                 pass
 
     @staticmethod
@@ -781,7 +781,7 @@ class ClusterManager:
         logger.info("cluster forward send -> %s", peer.peer_id)
         started = time.perf_counter()
 
-        # Try P2P stream forwarding first (lower latency, no HTTP overhead)
+        # Try P2P forwarding first (lower latency, no HTTP overhead)
         p2p_result = await self._try_p2p_forward(peer.peer_id, payload)
         if p2p_result is not None:
             latency_ms = int((time.perf_counter() - started) * 1000)
@@ -796,8 +796,8 @@ class ClusterManager:
                 **p2p_result,
             }
 
-        # Fallback to HTTP forwarding
-        remote = await self._request_json(peer, "POST", "/cluster/node/send", json=payload)
+        # Fallback to HTTP forwarding (only if P2P unavailable/failed)
+        remote = await self._request_json(peer, "POST", "/v1/cluster/node/send", json=payload)
         latency_ms = int((time.perf_counter() - started) * 1000)
         logger.info("cluster HTTP forward <- %s (%d ms)", peer.peer_id, latency_ms)
         return {
@@ -819,7 +819,6 @@ class ClusterManager:
         model: str | None,
         allow_local: bool,
     ) -> ClusterRouteSelection:
-        peers = self._collect_known_peers()
         await self._discover_mdns_peers()
         peers = self._collect_known_peers()
         if peer_id:
@@ -905,7 +904,7 @@ class ClusterManager:
     async def _probe_peer(self, peer: ClusterPeer) -> PeerStatus:
         started = time.perf_counter()
         try:
-            remote = await self._request_json(peer, "GET", "/cluster/node/identity")
+            remote = await self._request_json(peer, "GET", "/v1/cluster/node/identity")
         except HTTPException as exc:
             latency_ms = int((time.perf_counter() - started) * 1000)
             return PeerStatus(

@@ -2,6 +2,9 @@ global:
   scrape_interval: 15s
   evaluation_interval: 15s
 
+rule_files:
+  - /etc/prometheus/alerts/finetune.yml
+
 scrape_configs:
   - job_name: prometheus
     static_configs:
@@ -33,12 +36,15 @@ scrape_configs:
     static_configs:
       - targets: ['litellm:4000']
 
-  - job_name: mascarade-core-p2p
+  - job_name: finetune-metrics-exporter
     metrics_path: /metrics
     static_configs:
-      - targets: ['core:8100']
-        labels:
-          component: p2p
+      - targets: ['finetune-metrics-exporter:9101']
+
+  - job_name: nvidia-dcgm-exporter
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['nvidia-dcgm-exporter:9400']
 
   - job_name: blackbox-http
     metrics_path: /probe
