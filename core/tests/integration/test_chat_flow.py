@@ -182,13 +182,14 @@ async def test_chat_flow_with_system_message():
 
     assert response.status_code == 200
 
-    # Verify provider received system message
+    # Verify provider received system message (extracted as separate 'system' kwarg)
     assert len(fake_provider.send_calls) == 1
     call = fake_provider.send_calls[0]
-    assert len(call["messages"]) == 2
-    assert call["messages"][0]["role"] == "system"
-    assert call["messages"][0]["content"] == "You are a helpful assistant"
-    assert call["messages"][1]["role"] == "user"
+    # System messages are extracted and passed via 'system' parameter
+    assert call["system"] == "You are a helpful assistant"
+    assert len(call["messages"]) == 1
+    assert call["messages"][0]["role"] == "user"
+    assert call["messages"][0]["content"] == "What is 2+2?"
 
 
 @pytest.mark.asyncio

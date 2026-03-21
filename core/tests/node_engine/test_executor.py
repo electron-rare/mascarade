@@ -346,7 +346,7 @@ def test_execute_node_with_error():
     assert fail_record is not None
     assert fail_record.status == ExecutionStatus.FAILED
     assert "Test error" in fail_record.error
-    assert fail_record.error_type == "RuntimeError"
+    assert fail_record.error_type == "TestError"
 
 
 def test_execute_with_timeout():

@@ -32,6 +32,7 @@ async def redis_cache(mock_redis):
         return mock_redis
 
     cache._get_redis = get_mock_redis
+    cache._redis = mock_redis
     yield cache
 
     # Cleanup
