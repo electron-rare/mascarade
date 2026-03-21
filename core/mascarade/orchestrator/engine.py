@@ -113,6 +113,7 @@ class Orchestrator:
 
     router: Router = field(default_factory=Router)
     registry: AgentRegistry = field(default_factory=AgentRegistry)
+    skill_registry: Any = None
     trace_buffer: AgentTraceBuffer | None = None
     cluster: ClusterManager | None = None
     retry_executor: RetryExecutor = field(
@@ -684,7 +685,7 @@ class Orchestrator:
         mode: ExecutionMode | None = None,
         fallback_agent_name: str | None = None,
     ) -> TaskResult:
-        payload = agent.build_send_payload(prompt)
+        payload = agent.build_send_payload(prompt, skill_registry=self.skill_registry)
         if routing_override:
             if routing_override.get("preferred_provider"):
                 payload["provider"] = routing_override["preferred_provider"]
