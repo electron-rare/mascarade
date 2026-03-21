@@ -17,13 +17,21 @@ from mascarade.observability import AgentTraceBuffer
 logger = logging.getLogger("mascarade.mcp.client")
 
 DEFAULT_PROTOCOL_VERSION = "2025-03-26"
-DEFAULT_MASCARADE_DIR = Path(os.getenv("MASCARADE_DIR", "/home/clems/mascarade")).resolve()
-DEFAULT_KILL_LIFE_ROOT = Path(os.getenv("KILL_LIFE_ROOT", "/home/clems/Kill_LIFE")).resolve()
-DEFAULT_AGENT_FACTORY_COCKPIT_DIR = Path(
-    os.getenv("AGENT_FACTORY_COCKPIT_DIR", "/home/clems/agent-factory-cockpit")
-).resolve()
+def _resolve_default_dir(env_var: str, fallback_name: str) -> Path:
+    """Resolve a directory from env var, falling back to ~/fallback_name."""
+    raw = os.getenv(env_var, "")
+    if raw:
+        return Path(raw).resolve()
+    return Path.home().joinpath(fallback_name).resolve()
+
+
+DEFAULT_MASCARADE_DIR = _resolve_default_dir("MASCARADE_DIR", "mascarade")
+DEFAULT_KILL_LIFE_ROOT = _resolve_default_dir("KILL_LIFE_ROOT", "Kill_LIFE")
+DEFAULT_AGENT_FACTORY_COCKPIT_DIR = _resolve_default_dir(
+    "AGENT_FACTORY_COCKPIT_DIR", "agent-factory-cockpit"
+)
 DEFAULT_MASCARADE_ENV_FILE = Path(
-    os.getenv("MASCARADE_ENV_FILE", DEFAULT_MASCARADE_DIR / ".env")
+    os.getenv("MASCARADE_ENV_FILE", str(DEFAULT_MASCARADE_DIR / ".env"))
 ).resolve()
 _FREECAD_BLOCKED_SNIPPETS = (
     "import os",
