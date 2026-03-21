@@ -7,6 +7,8 @@ module_grafana_config() {
 
 module_grafana_compose() {
   echo "  grafana:"
+  echo "    profiles:"
+  echo "      - observability"
   echo "    image: \${GRAFANA_IMAGE:-grafana/grafana@sha256:b0ae311af06228bcfd4a620504b653db80f5b91e94dc3dc2a5b7dab202bcde20}"
   echo "    container_name: mascarade-grafana"
   echo "    restart: unless-stopped"

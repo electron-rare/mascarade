@@ -1,0 +1,55 @@
+groups:
+  - name: finetune
+    interval: 30s
+    rules:
+      - alert: FineTuneJobFailed
+        expr: finetune_run_status == 3
+        for: 1m
+        labels:
+          severity: critical
+          component: finetune
+        annotations:
+          summary: "Fine-tuning run {{ $labels.run_label }} failed"
+          description: "Fine-tuning run {{ $labels.run_label }} has failed. Check logs for details."
+
+      - alert: FineTuneJobStalled
+        expr: |
+          (time() - finetune_run_updated_timestamp) > 600
+          and finetune_run_status == 1
+        for: 5m
+        labels:
+          severity: warning
+          component: finetune
+        annotations:
+          summary: "Fine-tuning run {{ $labels.run_label }} may be stalled"
+          description: "Fine-tuning run {{ $labels.run_label }} has not updated in over 10 minutes."
+
+      - alert: FineTuneGPUMemoryHigh
+        expr: nvidia_gpu_memory_used_bytes / nvidia_gpu_memory_total_bytes > 0.95
+        for: 5m
+        labels:
+          severity: warning
+          component: finetune
+        annotations:
+          summary: "GPU memory usage high on {{ $labels.gpu }}"
+          description: "GPU {{ $labels.gpu }} memory usage is above 95%."
+
+      - alert: FineTuneGPUMemoryCritical
+        expr: nvidia_gpu_memory_used_bytes / nvidia_gpu_memory_total_bytes > 0.98
+        for: 2m
+        labels:
+          severity: critical
+          component: finetune
+        annotations:
+          summary: "GPU memory critically high on {{ $labels.gpu }}"
+          description: "GPU {{ $labels.gpu }} memory usage is above 98%. Risk of OOM."
+
+      - alert: FineTuneMetricsExporterDown
+        expr: up{job="finetune-metrics-exporter"} == 0
+        for: 2m
+        labels:
+          severity: warning
+          component: finetune
+        annotations:
+          summary: "Fine-tune metrics exporter is down"
+          description: "The fine-tune metrics exporter has been down for more than 2 minutes. Metrics collection unavailable."

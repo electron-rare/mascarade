@@ -1603,7 +1603,7 @@ ops.get("/sources", async (c) =>
 
 ops.get("/summary", async (c) => {
   try {
-    const [monitor, traces, opsAgent, mcp, loki, clusterIdentity, clusterPeers] = await Promise.all([
+    const [monitor, traces, opsAgent, mcp, loki, clusterIdentity, clusterPeers, providerHealth] = await Promise.all([
       collectMonitorSnapshot(),
       coreClient.recentAgentTraces({ limit: 60 }),
       opsAgentJson("/summary", 5000),
@@ -1611,6 +1611,7 @@ ops.get("/summary", async (c) => {
       lokiReady(),
       coreClient.clusterIdentity().catch(() => null),
       coreClient.clusterPeers().catch(() => null),
+      coreClient.providerHealth().catch(() => ({})),
     ]);
 
     const recentRuns = Array.from(
@@ -1683,6 +1684,7 @@ ops.get("/summary", async (c) => {
         peers_total: clusterPeers?.peers?.length || 0,
         peers_ok: clusterPeers?.peers?.filter((peer) => peer.ok).length || 0,
       },
+      provider_health: providerHealth,
       gpu: opsAgent.json?.sources?.gpu ?? null,
       mcp,
       ops_agent: opsAgent.json ?? null,

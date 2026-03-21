@@ -12,6 +12,8 @@ module_tts_compose() {
   engine="$(echo "${TTS_ENGINE:-piper}" | tr '[:upper:]' '[:lower:]')"
 
   echo "  tts:"
+  echo "    profiles:"
+  echo "      - personal"
   echo "    container_name: mascarade-tts"
   echo "    restart: unless-stopped"
   echo "    ports:"

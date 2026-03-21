@@ -11,6 +11,8 @@ module_ops_agent_config() {
 
 module_ops_agent_compose() {
   echo "  ops-agent:"
+  echo "    profiles:"
+  echo "      - industrial"
   echo "    build:"
   echo "      context: ."
   echo "      dockerfile: deploy/Dockerfile.ops-agent"

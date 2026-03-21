@@ -233,8 +233,21 @@ _TAGLINES=(
     "Bienvenue au carnaval mutant de photon-machine"
     "Le portail opalin s'ouvre a 125 BPM"
     "Les gobelins du build dansent sous le plasma violet"
+    "Fantasy neon, freaks rigoureux, pipeline propre"
+    "Foret syntaxique a tribord, replicants au balcon"
+    "Grimoire de specs, oscilloscope de cristal"
+    "Route beat, carnet gonzo, logs propres au retour"
     "Douglas Adams a la passerelle, Pratchett dans le moteur"
+    "Entre Hofmann et Huxley, le plasma reste discipline"
+    "Difference, repetition, freakshow, et build qui passe"
+    "Kesey dans le bus, Steadman sur le pare-brise"
+    "Le Guin a la carte, Moorcock dans le multivers"
+    "Bakhtine au carnaval, Burroughs dans le cut-up"
     "Haraway au cockpit, Mhalla sur le radar"
+    "Preciado dans les murs, Crawford dans les machines"
+    "McLuhan dans le cablage, Virilio dans la vitesse"
+    "Glitch feminism au patch panel, xenofeminism en reserve"
+    "Techgnosis dans le bruit, Baudrillard dans le miroir"
     "MoldBot → MoltBot → ClawdBot → OpenClaw → Mascarade"
 )
 
@@ -1073,6 +1086,24 @@ docker_compose_cmd() {
         fi
 
         [[ -n "$compose_env_file" ]] && compose_args+=(--env-file "$compose_env_file")
+    fi
+
+    # Add profile flags when COMPOSE_PROFILES_MODE is active
+    if [[ "${COMPOSE_PROFILES_MODE:-false}" == true && -n "${COMPOSE_PROFILES:-}" ]]; then
+        local profiles_csv="$COMPOSE_PROFILES"
+        local -a profiles_array
+
+        # Split CSV into array
+        IFS=',' read -ra profiles_array <<< "$profiles_csv"
+
+        # Add --profile flag for each profile
+        for profile in "${profiles_array[@]}"; do
+            # Trim whitespace
+            profile=$(echo "$profile" | xargs)
+            [[ -z "$profile" ]] && continue
+            compose_args+=(--profile "$profile")
+            dbg "Adding profile: $profile"
+        done
     fi
 
     if [[ "$_DOCKER_NEEDS_SUDO" == true ]]; then

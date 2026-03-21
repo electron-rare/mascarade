@@ -12,10 +12,8 @@
   "dependencies": {
     "@hono/node-server": "^1.19.10",
     "@octokit/auth-app": "^8.2.0",
-    "@types/js-yaml": "^4.0.9",
     "google-auth-library": "^10.6.1",
     "hono": "^4.12.4",
-    "js-yaml": "^4.1.1",
     "openid-client": "^6.8.2"
   },
   "devDependencies": {

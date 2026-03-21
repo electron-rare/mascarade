@@ -7,6 +7,8 @@ module_litellm_config() {
 
 module_litellm_compose() {
   echo "  litellm:"
+  echo "    profiles:"
+  echo "      - personal"
   echo "    image: \${LITELLM_IMAGE:-ghcr.io/berriai/litellm@sha256:59a2736ac84800821fa0e1656487366089f2d29d10f8ae05c918df9c6e4940af}"
   echo "    container_name: mascarade-litellm"
   echo "    restart: unless-stopped"

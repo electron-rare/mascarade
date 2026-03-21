@@ -3,6 +3,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from mascarade.router.health_monitor import HealthMonitor
 
 
 @dataclass
@@ -13,12 +17,23 @@ class FallbackState:
     failed_attempts: dict[str, int] = field(default_factory=dict)
 
     def build_sequence(
-        self, strategy: str, provider: str | None, available_providers: list[str]
+        self,
+        strategy: str,
+        provider: str | None,
+        available_providers: list[str],
+        health_monitor: HealthMonitor | None = None,
     ) -> list[tuple[str, str | None]]:
         """Construire la séquence de fallback."""
 
         if strategy == "specific" and provider:
             return [(strategy, provider)]
+
+        # Trier les providers par santé si health_monitor est disponible
+        sorted_providers = available_providers
+        if health_monitor:
+            sorted_providers = health_monitor.get_healthiest_providers(
+                available_providers
+            )
 
         sequence: list[tuple[str, str | None]] = []
 
@@ -29,13 +44,13 @@ class FallbackState:
             sequence.append((strategy, None))
 
         # Essais supplémentaires : essayer d'autres stratégies
-        fallback_strategies = ["best", "cheapest", "fastest"]
+        fallback_strategies = ["best", "cheapest", "fastest", "domain"]
         for fallback_strategy in fallback_strategies:
             if fallback_strategy != strategy:
                 sequence.append((fallback_strategy, None))
 
-        # Dernier essai : essayer des providers spécifiques
-        for available_provider in available_providers:
+        # Dernier essai : essayer des providers spécifiques (triés par santé)
+        for available_provider in sorted_providers:
             if not provider or available_provider != provider:
                 sequence.append((strategy, available_provider))
 

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Link, useParams } from "react-router-dom";
-import { agentsApi, type Agent } from "../api/agents";
+import { Link, useNavigate, useParams } from "react-router-dom";
+import { agentsApi, type Agent, type AgentMetrics } from "../api/agents";
 import { useApi } from "../hooks/useApi";
 import { useFetch } from "../hooks/useFetch";
 import {
@@ -10,9 +10,11 @@ import {
   InlineNotice,
   Input,
   LoadingPanel,
+  Modal,
   Select,
   Textarea,
 } from "../components/ui";
+import PromptEditor from "../components/PromptEditor";
 
 const strategyOptions = [
   { value: "routellm", label: "RouteLLM" },
@@ -46,12 +48,40 @@ function normalizeOptional(value: string): string | null {
   return trimmed ? trimmed : null;
 }
 
+function formatStamp(value: string | null): string {
+  if (!value) return "-";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return new Intl.DateTimeFormat("fr-FR", {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  }).format(date);
+}
+
+function healthStatusText(errorRate: number): string {
+  if (errorRate === 0) return "healthy";
+  if (errorRate < 5) return "nominal";
+  if (errorRate < 20) return "watch";
+  return "degraded";
+}
+
+function healthStatusOk(errorRate: number): boolean {
+  return errorRate < 5;
+}
+
 export default function AgentDetail() {
   const { name } = useParams<{ name: string }>();
+  const navigate = useNavigate();
   const [input, setInput] = useState("");
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
   const isAgentZero = name === "agent-zero";
 
   const detail = useFetch<Agent>(name ? `/api/agents/${encodeURIComponent(name)}` : null);
+  const metrics = useFetch<AgentMetrics>(
+    name ? `/api/agents/${encodeURIComponent(name)}/metrics` : null,
+    { pollIntervalMs: 5000 },
+  );
   const [form, setForm] = useState<AgentProfileForm>({
     description: "",
     system_prompt: "",
@@ -115,6 +145,14 @@ export default function AgentDetail() {
     status: saveStatus,
   } = useApi(updateFn);
 
+  const deleteFn = useMemo(() => () => agentsApi.delete(name!), [name]);
+
+  const {
+    execute: deleteAgent,
+    loading: deleting,
+    error: deleteError,
+  } = useApi(deleteFn);
+
   const handleRun = () => {
     if (!input.trim()) return;
     void execute(undefined);
@@ -125,6 +163,14 @@ export default function AgentDetail() {
     const updated = await saveProfile(undefined);
     if (updated) {
       void detail.refetch();
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!name || detail.data?.builtin) return;
+    const result = await deleteAgent(undefined);
+    if (result) {
+      navigate("/agents");
     }
   };
 
@@ -232,6 +278,78 @@ export default function AgentDetail() {
         />
       ) : null}
 
+      {metrics.data && Object.keys(metrics.data).length > 0 ? (
+        <Card title="Agent metrics" className="bg-[linear-gradient(180deg,rgba(10,12,11,0.92),rgba(6,7,7,0.98))]">
+          <div className="space-y-4">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="screen-label">performance track</p>
+                <p className="mt-3 text-sm leading-6 text-amber-100/54">
+                  Metriques de sante et d&apos;activite pour {name}. Les compteurs remontent depuis le core tracker du registry.
+                </p>
+              </div>
+              <span
+                className={[
+                  "status-chip",
+                  healthStatusOk(metrics.data.error_rate)
+                    ? "border-[#214e31] bg-[#0c170f]/80 text-[#8cffb7]"
+                    : "border-[#5d2332] bg-[#18070d]/80 text-error",
+                ].join(" ")}
+              >
+                {healthStatusText(metrics.data.error_rate)}
+              </span>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-3">
+              <div className="rounded-3xl border border-border/80 bg-black/25 p-4">
+                <p className="text-[10px] uppercase tracking-[0.18em] text-muted">requests</p>
+                <p className="mt-3 text-xl font-semibold uppercase tracking-[0.14em] text-accent">
+                  {metrics.data.total_requests.toString().padStart(2, "0")}
+                </p>
+              </div>
+              <div className="rounded-3xl border border-border/80 bg-black/25 p-4">
+                <p className="text-[10px] uppercase tracking-[0.18em] text-muted">error rate</p>
+                <p
+                  className={[
+                    "mt-3 text-xl font-semibold uppercase tracking-[0.14em]",
+                    healthStatusOk(metrics.data.error_rate) ? "text-[#8cffb7]" : "text-error",
+                  ].join(" ")}
+                >
+                  {metrics.data.error_rate.toFixed(1)}%
+                </p>
+              </div>
+              <div className="rounded-3xl border border-border/80 bg-black/25 p-4">
+                <p className="text-[10px] uppercase tracking-[0.18em] text-muted">latency</p>
+                <p className="mt-3 text-xl font-semibold uppercase tracking-[0.14em] text-accent">
+                  {metrics.data.avg_response_time > 0
+                    ? `${Math.round(metrics.data.avg_response_time)} ms`
+                    : "-"}
+                </p>
+              </div>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-3">
+              <div className="rounded-3xl border border-border/80 bg-black/25 p-4">
+                <p className="text-[10px] uppercase tracking-[0.18em] text-muted">tokens</p>
+                <p className="mt-3 text-xl font-semibold uppercase tracking-[0.14em] text-accent">
+                  {metrics.data.total_tokens.toLocaleString()}
+                </p>
+              </div>
+              <div className="rounded-3xl border border-border/80 bg-black/25 p-4">
+                <p className="text-[10px] uppercase tracking-[0.18em] text-muted">cost</p>
+                <p className="mt-3 text-xl font-semibold uppercase tracking-[0.14em] text-accent">
+                  ${metrics.data.total_cost.toFixed(4)}
+                </p>
+              </div>
+              <div className="rounded-3xl border border-border/80 bg-black/25 p-4">
+                <p className="text-[10px] uppercase tracking-[0.18em] text-muted">last used</p>
+                <p className="mt-3 text-xl font-semibold uppercase tracking-[0.14em] text-accent">
+                  {formatStamp(metrics.data.last_used)}
+                </p>
+              </div>
+            </div>
+          </div>
+        </Card>
+      ) : null}
+
       <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
         <Card title="Routing profile">
           <div className="space-y-4">
@@ -242,12 +360,12 @@ export default function AgentDetail() {
               disabled={detail.data?.builtin}
               onChange={(e) => setForm({ ...form, description: e.target.value })}
             />
-            <Textarea
+            <PromptEditor
               label="System Prompt"
-              rows={8}
               value={form.system_prompt}
               disabled={detail.data?.builtin}
-              onChange={(e) => setForm({ ...form, system_prompt: e.target.value })}
+              onChange={(value) => setForm({ ...form, system_prompt: value })}
+              placeholder="Enter the system prompt for this agent..."
             />
             <div className="grid gap-4 md:grid-cols-2">
               <Input
@@ -330,17 +448,30 @@ export default function AgentDetail() {
             {saveError ? (
               <InlineNotice title="save failed" message={saveError} tone="error" />
             ) : null}
-            <div className="flex justify-end gap-3 pt-2">
-              <Button variant="secondary" onClick={() => void detail.refetch()}>
-                reload profile
-              </Button>
-              <Button
-                onClick={handleSave}
-                loading={saving}
-                disabled={!form.system_prompt.trim() || detail.data?.builtin}
-              >
-                save profile
-              </Button>
+            <div className="flex justify-between gap-3 pt-2">
+              <div>
+                {!detail.data?.builtin ? (
+                  <Button
+                    variant="secondary"
+                    onClick={() => setShowDeleteModal(true)}
+                    disabled={deleting}
+                  >
+                    delete agent
+                  </Button>
+                ) : null}
+              </div>
+              <div className="flex gap-3">
+                <Button variant="secondary" onClick={() => void detail.refetch()}>
+                  reload profile
+                </Button>
+                <Button
+                  onClick={handleSave}
+                  loading={saving}
+                  disabled={!form.system_prompt.trim() || detail.data?.builtin}
+                >
+                  save profile
+                </Button>
+              </div>
             </div>
           </div>
         </Card>
@@ -398,6 +529,33 @@ export default function AgentDetail() {
           ) : null}
         </div>
       </section>
+
+      <Modal
+        open={showDeleteModal}
+        onClose={() => setShowDeleteModal(false)}
+        title="Delete Agent"
+      >
+        <div className="space-y-4">
+          <p className="text-sm leading-7 text-amber-100/78">
+            Are you sure you want to delete the agent <strong className="text-accent">{name}</strong>? This action cannot be undone.
+          </p>
+          {deleteError ? (
+            <InlineNotice title="delete failed" message={deleteError} tone="error" />
+          ) : null}
+          <div className="flex justify-end gap-3 pt-2">
+            <Button
+              variant="secondary"
+              onClick={() => setShowDeleteModal(false)}
+              disabled={deleting}
+            >
+              cancel
+            </Button>
+            <Button onClick={handleDelete} loading={deleting}>
+              delete agent
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

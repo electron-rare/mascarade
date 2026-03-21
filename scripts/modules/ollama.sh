@@ -32,6 +32,8 @@ module_ollama_config() {
 
 module_ollama_compose() {
   echo "  ollama:"
+  echo "    profiles:"
+  echo "      - fine-tuning"
   echo "    image: \${OLLAMA_IMAGE:-ollama/ollama@sha256:719122581b6932e1240ae70d788859089cb80d17e23cd4f98ba960b0290f70cb}"
   echo "    container_name: mascarade-ollama"
   echo "    restart: unless-stopped"

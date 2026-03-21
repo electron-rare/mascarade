@@ -1,10 +1,25 @@
 #!/usr/bin/env bash
 # scripts/compose.sh — Generation du docker-compose.yml
 
+# Source dependencies if not already loaded
+if [[ -z "${REPO_DIR:-}" ]]; then
+    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+    source "$REPO_DIR/scripts/lib.sh"
+    source "$REPO_DIR/scripts/services.sh"
+fi
+
 generate_compose() {
     local output="${1:-$REPO_DIR/docker-compose.yml}"
     local volumes_output=""
     local id func
+
+    # ── DEPRECATED: Warn users about legacy generation mode ──
+    warn "DEPRECATED: Using legacy docker-compose.yml generation mode."
+    warn "This generation mode will be removed in a future version."
+    warn "Please migrate to the new Docker Compose profiles system (default behavior)."
+    warn "Run './setup' without --legacy-generation flag to use the new profile-based system."
+    echo "" >&2
 
     # Charger tous les modules
     for mod_file in "$REPO_DIR/scripts/modules/"*.sh; do

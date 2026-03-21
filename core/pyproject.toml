@@ -14,6 +14,8 @@ dependencies = [
     "uvicorn>=0.41,<1",
     "pydantic>=2.12,<3",
     "pydantic-settings>=2.13,<3",
+    "aiobreaker>=1.2.0,<2",
+    "aiomqtt>=2.0,<3",
     "anthropic>=0.84,<1",
     "openai>=2.24,<3",
     "mistralai>=1.12,<2",
@@ -21,13 +23,18 @@ dependencies = [
     "notion-client>=3.0,<4",
     "httpx>=0.28,<1",
     "prometheus-client>=0.22,<1",
+    "redis[hiredis]>=7.1.1,<8",
     "boto3>=1.35,<2",
+    "clickhouse-connect>=0.7,<1",
     "google-auth>=2.41,<3",
     "google-genai>=1.0,<2",
     "python-multipart>=0.0.22,<1",
+    "websockets>=13.0,<14",
     "zeroconf>=0.145.0,<1",
     "cryptography>=44.0,<45",
     "huggingface-hub>=1.6.0",
+    "python-rtmidi>=1.5,<2",
+    "mido>=1.3,<2",
 ]
 
 [project.optional-dependencies]
@@ -35,6 +42,20 @@ libp2p = [
     "libp2p>=0.6.0,<1",
     "trio>=0.29,<1",
     "multiaddr>=0.0.9,<1",
+    "redis[hiredis]>=7.1.1,<8",
+    "tiktoken>=0.9,<1",
+]
+finetune = [
+    # Unsloth GPU fine-tuning (P3) - auto-detects CUDA, graceful CPU fallback
+    "torch>=2.5.0,<3",
+    "unsloth>=2024.12",
+    "transformers>=4.57.6,<6",
+    "peft>=0.18.0,<1",
+    "accelerate>=1.12.0,<2",
+    "bitsandbytes>=0.46.0,<1",
+    "datasets>=4.1.0,<5",
+    "trl>=0.24.0,<1",
+    "gradio>=5.0,<6",
 ]
 dev = [
     "numpy>=2.3,<3",
@@ -111,5 +132,58 @@ minversion = "9.0"
 testpaths = ["tests"]
 python_files = "test_*.py"
 python_functions = "test_*"
-addopts = "-ra -q"
+addopts = "-ra -q --cov=mascarade --cov-report=term --cov-report=html --cov-branch"
 asyncio_mode = "auto"
+
+[tool.coverage.run]
+omit = [
+    # Experimental P2P features (not in production deployment)
+    "mascarade/p2p/*",
+    "mascarade/cluster.py",  # P2P clustering functionality
+
+    # Not yet implemented features
+    "mascarade/conversation/*",
+    "mascarade/resilience/*",
+
+    # Optional voice features
+    "mascarade/device_voice.py",
+
+    # Optional integrations
+    "mascarade/integrations/*",  # KB, GitHub, ComfyUI, QDrant, etc.
+    "mascarade/mcp/*",  # MCP client integration
+
+    # Experimental fine-tuning (P3 feature)
+    "mascarade/finetune/*",
+
+    # Optional observability integrations
+    "mascarade/observability/otel.py",
+    "mascarade/observability/langfuse.py",
+
+    # Analytics (optional, configured separately)
+    "mascarade/analytics/*",
+
+    # Provider admin features (optional)
+    "mascarade/provider_admin.py",
+
+    # Domain-specific router providers (optional CAD integrations)
+    "mascarade/router/providers/kicad_router.py",
+    "mascarade/router/providers/apple_coreml.py",
+    "mascarade/router/providers/llama_cpp.py",
+    "mascarade/router/providers/bedrock.py",  # AWS Bedrock is optional
+
+    # Domain detection and circuit breaking (tested via integration)
+    "mascarade/router/circuit_breaker.py",
+    "mascarade/router/health_monitor.py",
+
+    # Optional tools
+    "mascarade/tools/*",
+
+    # Benchmarking infrastructure (not production code)
+    "mascarade/benchmarks/*",
+
+    # Migration scripts (run once, hard to test)
+    "mascarade/db/migrations.py",
+
+    # Dependencies module (simple imports, tested via integration)
+    "mascarade/dependencies.py",
+]

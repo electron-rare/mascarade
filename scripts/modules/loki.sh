@@ -7,6 +7,8 @@ module_loki_config() {
 
 module_loki_compose() {
   echo "  loki:"
+  echo "    profiles:"
+  echo "      - observability"
   echo "    image: \${LOKI_IMAGE:-grafana/loki:3.5.3}"
   echo "    container_name: mascarade-loki"
   echo "    restart: unless-stopped"

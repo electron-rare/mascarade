@@ -36,6 +36,8 @@ module_edge_proxy_config() {
 
 module_edge_proxy_compose() {
   echo "  edge-proxy:"
+  echo "    profiles:"
+  echo "      - industrial"
   echo "    build:"
   echo "      context: ."
   echo "      dockerfile: deploy/Dockerfile.edge-proxy"
