@@ -148,6 +148,7 @@ class Router:
             ("mascarade.router.providers.llama_cpp", "LlamaCppProvider"),
             ("mascarade.router.providers.mlx_lm", "MLXLMProvider"),
             ("mascarade.router.providers.apple_coreml", "AppleCoreMLProvider"),
+            ("mascarade.router.providers.litellm", "LiteLLMProvider"),
         ]
 
         for module_name, class_name in provider_specs:
@@ -423,13 +424,38 @@ class Router:
         return max(1, int(len(text) / 4))
 
     @staticmethod
-    def _complexity_score(messages: list[dict], system: str | None = None) -> float:
+    def _joined_message_text(messages: list[dict], system: str | None = None) -> str:
         chunks: list[str] = []
         if system:
             chunks.append(system)
         for message in messages:
             chunks.append(str(message.get("content") or ""))
-        text = "\n".join(chunks)
+        return "\n".join(chunks)
+
+    @classmethod
+    def _routellm_heuristic_policy(
+        cls,
+        messages: list[dict],
+        system: str | None = None,
+    ) -> str | None:
+        normalized = re.sub(r"\s+", " ", cls._joined_message_text(messages, system)).strip().lower()
+        if not normalized:
+            return None
+        if len(normalized) < 50:
+            return "cheap"
+        if len(normalized) > 200:
+            return "strong"
+        if re.search(
+            r"\b(explique|explain|analyse|analyze|compare|comparison|comparez|pourquoi|why)\b",
+            normalized,
+            re.I,
+        ):
+            return "strong"
+        return None
+
+    @staticmethod
+    def _complexity_score(messages: list[dict], system: str | None = None) -> float:
+        text = Router._joined_message_text(messages, system)
         if not text.strip():
             return 0.0
         length_score = min(len(text) / 6000.0, 1.0)
@@ -438,6 +464,32 @@ class Router:
         planning_score = 0.15 if re.search(r"\b(plan|todo|roadmap|architecture|threat model)\b", text, re.I) else 0.0
         multilingual_score = 0.10 if re.search(r"[\u0400-\u04FF\u4E00-\u9FFF]", text) else 0.0
         return max(0.0, min(length_score + code_score + math_score + planning_score + multilingual_score, 1.0))
+
+    @staticmethod
+    def _normalize_scope(
+        *,
+        project_id: str | None,
+        federation_scope: list[str] | tuple[str, ...] | None,
+        knowledge_scope: str,
+    ) -> tuple[str, tuple[str, ...], str]:
+        normalized_project = (project_id or settings.mascarade_project_id).strip() or "default"
+        normalized_scope = (knowledge_scope or "project").strip().lower() or "project"
+        if normalized_scope not in {"project", "federated"}:
+            raise ValueError(f"Unsupported knowledge_scope: {knowledge_scope}")
+
+        normalized_federation = tuple(
+            sorted(
+                {
+                    item.strip()
+                    for item in (federation_scope or [])
+                    if isinstance(item, str) and item.strip()
+                }
+            )
+        )
+        if normalized_scope == "federated" and not normalized_federation:
+            raise ValueError("federation_scope is required when knowledge_scope is federated")
+
+        return normalized_project, normalized_federation, normalized_scope
 
     def _resolve_routellm_target(
         self,
@@ -495,6 +547,24 @@ class Router:
         if policy == "fast":
             logger.debug("RouteLLM policy fast selected")
             return Strategy.FASTEST, None, model
+
+        heuristic_policy = self._routellm_heuristic_policy(messages, system)
+        if heuristic_policy == "strong":
+            strategy, chosen_provider, chosen_model = _strong_target()
+            logger.debug(
+                "RouteLLM heuristic strong selected provider=%s model=%s",
+                chosen_provider,
+                chosen_model,
+            )
+            return strategy, chosen_provider, chosen_model
+        if heuristic_policy == "cheap":
+            strategy, chosen_provider, chosen_model = _cheap_target()
+            logger.debug(
+                "RouteLLM heuristic cheap selected provider=%s model=%s",
+                chosen_provider,
+                chosen_model,
+            )
+            return strategy, chosen_provider, chosen_model
 
         threshold = max(0.0, min(float(settings.routellm_threshold), 1.0))
         score = self._complexity_score(messages, system)
@@ -594,7 +664,20 @@ class Router:
         temperature: float = 0.7,
         max_tokens: int = 4096,
         domain: str | None = None,
+        project_id: str | None = None,
+        federation_scope: list[str] | tuple[str, ...] | None = None,
+        knowledge_scope: str = "project",
     ) -> LLMResponse:
+        normalized_project, normalized_federation, normalized_scope = self._normalize_scope(
+            project_id=project_id,
+            federation_scope=federation_scope,
+            knowledge_scope=knowledge_scope,
+        )
+        cache_scope = {
+            "project_id": normalized_project,
+            "knowledge_scope": normalized_scope,
+            "federation_scope": ",".join(normalized_federation),
+        }
         requested_strategy = Strategy(strategy)
         policy = (routing_policy or "auto").strip().lower() or "auto"
         if policy not in {"auto", "strong", "cheap", "fast"}:
@@ -631,6 +714,7 @@ class Router:
             temperature=temperature,
             max_tokens=max_tokens,
             domain=domain,
+            **cache_scope,
         )
         if cached and (not strict_provider or cached.provider == effective_provider):
             return LLMResponse(
@@ -678,6 +762,7 @@ class Router:
                 distributed = await self._try_distributed_send(
                     selected, messages, effective_model, system,
                     temperature, max_tokens, response_format,
+                    normalized_project, normalized_federation, normalized_scope,
                 )
                 if distributed is not None:
                     elapsed = time.perf_counter() - started_at
@@ -862,6 +947,7 @@ class Router:
                     temperature=temperature,
                     max_tokens=max_tokens,
                     domain=domain,
+                    **cache_scope,
                 )
 
             # TODO: Add user_id parameter if needed for usage tracking
@@ -891,6 +977,9 @@ class Router:
         temperature: float,
         max_tokens: int,
         response_format: dict | None,
+        project_id: str,
+        federation_scope: tuple[str, ...],
+        knowledge_scope: str,
     ) -> LLMResponse | None:
         """Try to dispatch to a distributed worker via the scheduler.
 
@@ -921,7 +1010,11 @@ class Router:
                 "messages": messages,
                 "temperature": temperature,
                 "max_tokens": max_tokens,
+                "project_id": project_id,
+                "knowledge_scope": knowledge_scope,
             }
+            if federation_scope:
+                payload["federation_scope"] = list(federation_scope)
             if system:
                 payload["messages"] = [{"role": "system", "content": system}] + messages
             if response_format:
@@ -975,7 +1068,15 @@ class Router:
         temperature: float = 0.7,
         max_tokens: int = 4096,
         domain: str | None = None,
+        project_id: str | None = None,
+        federation_scope: list[str] | tuple[str, ...] | None = None,
+        knowledge_scope: str = "project",
     ) -> AsyncIterator[str]:
+        normalized_project, normalized_federation, normalized_scope = self._normalize_scope(
+            project_id=project_id,
+            federation_scope=federation_scope,
+            knowledge_scope=knowledge_scope,
+        )
         requested_strategy = Strategy(strategy)
         effective_strategy = requested_strategy
         effective_provider = provider
@@ -1003,6 +1104,9 @@ class Router:
             response_format=None,
             temperature=temperature,
             max_tokens=max_tokens,
+            project_id=normalized_project,
+            knowledge_scope=normalized_scope,
+            federation_scope=",".join(normalized_federation),
         )
         if cached and (not strict_provider or cached.provider == provider):
             yield cached.response

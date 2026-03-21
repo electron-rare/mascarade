@@ -24,6 +24,20 @@ except ImportError:
     pass
 
 try:
+    from mascarade.router.providers.mistral_studio import MistralStudioProvider
+
+    __all__.append("MistralStudioProvider")
+except ImportError:
+    pass
+
+try:
+    from mascarade.router.providers.mistral_embeddings import MistralEmbeddingsProvider
+
+    __all__.append("MistralEmbeddingsProvider")
+except ImportError:
+    pass
+
+try:
     from mascarade.router.providers.bedrock import BedrockProvider
 
     __all__.append("BedrockProvider")
@@ -62,6 +76,13 @@ try:
     from mascarade.router.providers.apple_coreml import AppleCoreMLProvider
 
     __all__.append("AppleCoreMLProvider")
+except ImportError:
+    pass
+
+try:
+    from mascarade.router.providers.litellm import LiteLLMProvider
+
+    __all__.append("LiteLLMProvider")
 except ImportError:
     pass
 

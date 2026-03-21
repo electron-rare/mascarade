@@ -12,12 +12,16 @@ _PLACEHOLDER_SECRETS = {
 }
 
 
+def secret_value(value: str | SecretStr) -> str:
+    """Return the plain string value for either a raw string or SecretStr."""
+    if isinstance(value, SecretStr):
+        return value.get_secret_value()
+    return value
+
+
 def is_secret_configured(value: str | SecretStr) -> bool:
     """Return True only for non-placeholder secret values."""
-    # Handle SecretStr type
-    if isinstance(value, SecretStr):
-        value = value.get_secret_value()
-
+    value = secret_value(value)
     normalized = value.strip()
     if not normalized:
         return False
@@ -74,6 +78,7 @@ class Settings(BaseSettings):
 
     # Knowledge base provider
     knowledge_base_provider: str = "memos"
+    mascarade_project_id: str = "default"
     knowledge_base_smoke_page_id: str = ""
     memos_base_url: str = ""
     memos_public_url: str = ""
@@ -83,6 +88,9 @@ class Settings(BaseSettings):
     docmost_email: str = ""
     docmost_password: SecretStr = Field(default=SecretStr(""), repr=False)
     docmost_space_id: str = ""
+    kxkm_rag_url: str = "http://localhost:3333"
+    kxkm_timeout_seconds: float = 20.0
+    kxkm_dpo_persona: str = "pharmacius"
 
     # GitHub dispatch
     github_dispatch_auth_mode: str = "token"
@@ -196,14 +204,16 @@ class Settings(BaseSettings):
     mistral_default_model: str = "mistral-large-latest"
     mistral_timeout_ms: int = 120000
     litellm_proxy_enabled: bool = False
+    litellm_enabled: bool = False
     litellm_base_url: str = "http://litellm:4000"
     litellm_master_key: SecretStr = Field(default=SecretStr(""), repr=False)
+    litellm_timeout_seconds: float = 120.0
     routellm_enabled: bool = False
     routellm_threshold: float = 0.58
-    routellm_cheap_provider: str = "openai"
-    routellm_cheap_model: str = "gpt-4o-mini"
-    routellm_strong_provider: str = "openai"
-    routellm_strong_model: str = "gpt-4.1"
+    routellm_cheap_provider: str = "ollama"
+    routellm_cheap_model: str = "qwen3.5:9b"
+    routellm_strong_provider: str = "claude"
+    routellm_strong_model: str = "claude-sonnet-4-6"
     orchestrator_ray_enabled: bool = False
     orchestrator_ray_address: str = "auto"
     orchestrator_ray_namespace: str = "mascarade"
