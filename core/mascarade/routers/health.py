@@ -14,7 +14,7 @@ router = APIRouter(tags=["health"])
 @router.get("/health")
 async def health(request: Request):
     """Health check endpoint - returns basic system status."""
-    health_data = {"status": "ok"}
+    health_data = {"status": "healthy"}
 
     # Add optional metrics if state is initialized
     if hasattr(request.app.state, "router"):

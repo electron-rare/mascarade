@@ -112,6 +112,7 @@ A2A_ENABLED=true
 - [Feature Map](docs/MASCARADE_FEATURE_MAP_2026-03-11.md)
 - [Cluster & P2P Sequences](docs/CLUSTER_P2P_REMOTE_SEND_SEQUENCE_2026-03-11.md)
 - [API-Core-Provider Sequence](docs/API_CORE_PROVIDER_SEQUENCE_2026-03-11.md)
+- [Specifications Techniques](docs/SPECIFICATIONS_TECHNIQUES.md)
 
 ## Ecosystem
 

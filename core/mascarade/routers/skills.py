@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field
 from mascarade.agents.skill import Skill
 from mascarade.auth import require_auth
 
-router = APIRouter(prefix="/api", dependencies=[Depends(require_auth)], tags=["skills"])
+router = APIRouter(prefix="/v1/api", dependencies=[Depends(require_auth)], tags=["skills"])
 
 
 # --- Models ---

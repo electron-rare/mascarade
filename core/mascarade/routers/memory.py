@@ -13,7 +13,7 @@ from mascarade.auth import require_auth
 
 logger = logging.getLogger("mascarade.routers.memory")
 
-router = APIRouter(prefix="/api", tags=["memory"])
+router = APIRouter(prefix="/v1/api", tags=["memory"])
 
 
 # --- Models ---
