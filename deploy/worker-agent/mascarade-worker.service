@@ -1,0 +1,22 @@
+[Unit]
+Description=Mascarade Worker Agent
+Documentation=https://github.com/electron-rare/mascarade
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=%i
+WorkingDirectory=/home/%i/mascarade-worker
+ExecStart=/usr/bin/python3 worker_agent.py --port 8201 --runtime auto
+Restart=always
+RestartSec=5
+StartLimitIntervalSec=60
+StartLimitBurst=5
+Environment=PYTHONUNBUFFERED=1
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=mascarade-worker
+
+[Install]
+WantedBy=multi-user.target
