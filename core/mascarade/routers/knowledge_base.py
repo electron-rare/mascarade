@@ -26,8 +26,22 @@ def _check_kb_auth() -> bool:
     return fn()
 
 
+def _parse_federation_scope(raw_scope: str | None) -> list[str] | None:
+    if not raw_scope:
+        return None
+    values = [item.strip() for item in raw_scope.split(",") if item.strip()]
+    return values or None
+
+
 @router.get("/knowledge-base/search")
-async def knowledge_base_search(q: str, request: Request):
+async def knowledge_base_search(
+    q: str,
+    request: Request,
+    limit: int = 10,
+    project_id: str | None = None,
+    federation_scope: str | None = None,
+    knowledge_scope: str = "project",
+):
     """Search the knowledge base via MCP client."""
     if not _check_kb_auth():
         raise HTTPException(status_code=503, detail="Knowledge base not configured")
@@ -36,7 +50,13 @@ async def knowledge_base_search(q: str, request: Request):
     if mcp is None:
         raise HTTPException(status_code=503, detail="MCP client not available")
 
-    result = await mcp.knowledge_base_search(q)
+    result = await mcp.knowledge_base_search(
+        q,
+        limit=max(1, min(limit, 50)),
+        project_id=project_id,
+        federation_scope=_parse_federation_scope(federation_scope),
+        knowledge_scope=knowledge_scope,
+    )
     return result
 
 

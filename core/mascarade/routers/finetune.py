@@ -6,7 +6,7 @@ import time
 import uuid
 from typing import Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Request, Response
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from pydantic import BaseModel, Field
 
 from mascarade.auth import require_auth
@@ -123,22 +123,31 @@ async def create_job(req: JobCreate, request: Request, response: Response):
 
 
 @router.get("/finetune/jobs")
-async def list_jobs(request: Request):
+async def list_jobs(
+    request: Request,
+    limit: int = Query(default=50, ge=1, le=200, description="Max items to return"),
+    offset: int = Query(default=0, ge=0, description="Number of items to skip"),
+):
     """
-    List all fine-tuning jobs in the system.
+    List all fine-tuning jobs in the system with pagination.
 
     Args:
         request: FastAPI request object for accessing app state
+        limit: Maximum number of jobs to return (1-200, default 50)
+        offset: Number of jobs to skip (default 0)
 
     Returns:
-        Dictionary with "jobs" key containing list of serialized job objects
+        Dictionary with jobs list and pagination metadata
     """
     registry = _get_registry(request)
+    all_jobs = list(registry.runs.values())
+    total = len(all_jobs)
+    page = all_jobs[offset : offset + limit]
     return {
-        "jobs": [
-            _serialize_job(entry)
-            for entry in registry.runs.values()
-        ]
+        "jobs": [_serialize_job(entry) for entry in page],
+        "total": total,
+        "limit": limit,
+        "offset": offset,
     }
 
 

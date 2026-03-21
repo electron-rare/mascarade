@@ -6,7 +6,7 @@ import hashlib
 from dataclasses import asdict
 from typing import Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 
 from mascarade.agents import Agent
@@ -152,21 +152,30 @@ async def create_agent(req: AgentCreate, request: Request):
 
 
 @router.get("/agents")
-async def list_agents(request: Request):
+async def list_agents(
+    request: Request,
+    limit: int = Query(default=50, ge=1, le=200, description="Max items to return"),
+    offset: int = Query(default=0, ge=0, description="Number of items to skip"),
+):
     """
-    List all registered agents in the system.
+    List all registered agents in the system with pagination.
 
     Args:
         request: FastAPI request object for accessing app state
+        limit: Maximum number of agents to return (1-200, default 50)
+        offset: Number of agents to skip (default 0)
 
     Returns:
-        Dictionary with "agents" key containing list of serialized agent objects
+        Dictionary with agents list and pagination metadata
     """
+    all_agents = request.app.state.registry.list()
+    total = len(all_agents)
+    page = all_agents[offset : offset + limit]
     return {
-        "agents": [
-            _serialize_agent(agent, request)
-            for agent in request.app.state.registry.list()
-        ]
+        "agents": [_serialize_agent(agent, request) for agent in page],
+        "total": total,
+        "limit": limit,
+        "offset": offset,
     }
 
 

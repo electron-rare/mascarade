@@ -2,6 +2,7 @@
 
 import asyncio
 
+from mascarade.config import settings
 from mascarade.router.providers.base import LLMProvider, LLMResponse, make_retry
 from mascarade.router.router import Router, Strategy
 
@@ -243,6 +244,66 @@ def test_send_cache_hit():
     assert r.cache.l1.get_stats()["hit_count"] == 1
 
 
+def test_send_cache_is_scoped_by_project_id():
+    call_count = 0
+
+    class CountProvider(LLMProvider):
+        name = "count"
+        default_model = "count-model"
+        cost_per_million = (1.0, 1.0)
+        speed_rank = 1
+        quality_rank = 1
+
+        async def send(self, messages, **kwargs):
+            nonlocal call_count
+            call_count += 1
+            return LLMResponse(
+                content=f"response-{call_count}",
+                model=self.default_model,
+                provider=self.name,
+                usage={"input_tokens": 5, "output_tokens": 2},
+            )
+
+        async def stream(self, messages, **kwargs):
+            yield "cached"
+
+        def available_models(self):
+            return [self.default_model]
+
+    r = Router()
+    r._providers.clear()
+    r.register(CountProvider())
+
+    payload = [{"role": "user", "content": "cache-me"}]
+    first = asyncio.run(
+        r.send(payload, strategy="specific", provider="count", project_id="project-a")
+    )
+    second = asyncio.run(
+        r.send(payload, strategy="specific", provider="count", project_id="project-b")
+    )
+
+    assert first.content == "response-1"
+    assert second.content == "response-2"
+    assert call_count == 2
+
+
+def test_send_rejects_federated_scope_without_scope_list():
+    r = _make_router()
+
+    try:
+        asyncio.run(
+            r.send(
+                [{"role": "user", "content": "hello"}],
+                strategy="best",
+                project_id="project-a",
+                knowledge_scope="federated",
+            )
+        )
+        assert False, "Should have raised ValueError"
+    except ValueError:
+        pass
+
+
 def test_stream_cache_hit():
     """Test that streaming correctly handles cached send() responses."""
     stream_call_count = 0
@@ -443,3 +504,50 @@ def test_metrics_and_load_balancer_updated():
 
     lb_stats = r.load_balancer.get_load_stats()
     assert "metrics" in lb_stats["providers"]
+
+
+def test_routellm_auto_routes_short_messages_to_cheap(monkeypatch):
+    r = _make_router()
+    monkeypatch.setattr(settings, "routellm_enabled", True)
+    monkeypatch.setattr(settings, "routellm_cheap_provider", "cheap")
+    monkeypatch.setattr(settings, "routellm_cheap_model", "cheap-model")
+    monkeypatch.setattr(settings, "routellm_strong_provider", "best")
+    monkeypatch.setattr(settings, "routellm_strong_model", "best-model")
+
+    strategy, provider, model = r._resolve_routellm_target(
+        messages=[{"role": "user", "content": "salut"}],
+        system=None,
+        provider=None,
+        model=None,
+        routing_policy="auto",
+    )
+
+    assert strategy == Strategy.SPECIFIC
+    assert provider == "cheap"
+    assert model == "cheap-model"
+
+
+def test_routellm_auto_routes_complex_messages_to_strong(monkeypatch):
+    r = _make_router()
+    monkeypatch.setattr(settings, "routellm_enabled", True)
+    monkeypatch.setattr(settings, "routellm_cheap_provider", "cheap")
+    monkeypatch.setattr(settings, "routellm_cheap_model", "cheap-model")
+    monkeypatch.setattr(settings, "routellm_strong_provider", "best")
+    monkeypatch.setattr(settings, "routellm_strong_model", "best-model")
+
+    strategy, provider, model = r._resolve_routellm_target(
+        messages=[
+            {
+                "role": "user",
+                "content": "Peux-tu explique et compare les compromis entre MLX-LM, vLLM et llama.cpp pour un cluster heterogene ?",
+            }
+        ],
+        system=None,
+        provider=None,
+        model=None,
+        routing_policy="auto",
+    )
+
+    assert strategy == Strategy.SPECIFIC
+    assert provider == "best"
+    assert model == "best-model"

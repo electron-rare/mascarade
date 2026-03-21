@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import asdict
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 
 from mascarade.agents.skill import Skill
@@ -77,13 +77,20 @@ async def create_skill(req: SkillCreate, request: Request):
 
 
 @router.get("/skills")
-async def list_skills(request: Request):
-    """List all registered skills."""
+async def list_skills(
+    request: Request,
+    limit: int = Query(default=50, ge=1, le=200, description="Max items to return"),
+    offset: int = Query(default=0, ge=0, description="Number of items to skip"),
+):
+    """List all registered skills with pagination."""
+    all_skills = request.app.state.skill_registry.list()
+    total = len(all_skills)
+    page = all_skills[offset : offset + limit]
     return {
-        "skills": [
-            _serialize_skill(skill, request)
-            for skill in request.app.state.skill_registry.list()
-        ]
+        "skills": [_serialize_skill(skill, request) for skill in page],
+        "total": total,
+        "limit": limit,
+        "offset": offset,
     }
 
 
