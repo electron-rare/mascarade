@@ -187,6 +187,21 @@ class DomainType(BaseModel):
     )
 
 
+# --- PortType Union (for rich type descriptors) ---
+
+PortTypeUnion = Union[
+    PrimitiveType, ArrayType, MapType, OptionalType,
+    UnionType, StreamType, DomainType,
+]
+
+# Required for Pydantic forward reference resolution
+ArrayType.model_rebuild()
+MapType.model_rebuild()
+OptionalType.model_rebuild()
+UnionType.model_rebuild()
+StreamType.model_rebuild()
+
+
 # --- PortType (extended to support direction, port_type, optional, default_value) ---
 
 
