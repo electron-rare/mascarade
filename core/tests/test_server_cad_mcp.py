@@ -95,3 +95,100 @@ async def test_openscad_render_route_generates_run_id_when_missing():
     assert call.kwargs["run_id"] == payload["run_id"]
     assert call.kwargs["mode"] == "openscad"
     assert call.kwargs["agent_name"] == "openscad"
+
+
+@pytest.mark.asyncio
+async def test_toolpath_generate_gcode_route():
+    add_api_key("test-key-001")
+
+    async with _client() as client:
+        response = await client.post(
+            "/v1/mcp/toolpath/generate",
+            headers={"Authorization": "Bearer test-key-001"},
+            json={
+                "mesh": {"vertices": [[0, 0, 0], [10, 0, 0], [10, 10, 0]], "faces": [[0, 1, 2]], "format": "stl"},
+                "tool": {"id": "tool_1", "diameter": 6.0, "flute_count": 2},
+                "strategy": "adaptive",
+                "run_id": "run-toolpath-001",
+            },
+        )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["ok"] is True
+    assert payload["run_id"] == "run-toolpath-001"
+    assert "gcode" in payload
+    assert "toolpath" in payload
+    assert payload["gcode"]["program"]
+    assert payload["gcode"]["estimated_time_s"] > 0
+    assert payload["toolpath"]["unit"] == "mm"
+    assert payload["toolpath"]["tool_id"] == "tool_1"
+
+
+@pytest.mark.asyncio
+async def test_toolpath_generate_validates_strategy():
+    add_api_key("test-key-001")
+
+    async with _client() as client:
+        response = await client.post(
+            "/v1/mcp/toolpath/generate",
+            headers={"Authorization": "Bearer test-key-001"},
+            json={
+                "mesh": {},
+                "tool": {},
+                "strategy": "invalid_strategy",
+            },
+        )
+
+    assert response.status_code == 400
+    assert "Invalid strategy" in response.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_toolpath_optimize_route():
+    add_api_key("test-key-001")
+
+    async with _client() as client:
+        response = await client.post(
+            "/v1/mcp/toolpath/optimize",
+            headers={"Authorization": "Bearer test-key-001"},
+            json={
+                "toolpath": {
+                    "moves": [
+                        {"x": 0.0, "y": 0.0, "z": 10.0, "feed_rate": 100.0, "type": "rapid"},
+                        {"x": 50.0, "y": 50.0, "z": 0.0, "feed_rate": 50.0, "type": "linear"},
+                    ],
+                    "unit": "mm",
+                    "tool_id": "tool_0"
+                },
+                "objective": "time",
+                "run_id": "run-toolpath-opt-001",
+            },
+        )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["ok"] is True
+    assert payload["run_id"] == "run-toolpath-opt-001"
+    assert "toolpath" in payload
+    assert "gcode" in payload
+    assert "improvement_pct" in payload
+    assert payload["improvement_pct"] > 0
+
+
+@pytest.mark.asyncio
+async def test_toolpath_optimize_validates_objective():
+    add_api_key("test-key-001")
+
+    async with _client() as client:
+        response = await client.post(
+            "/v1/mcp/toolpath/optimize",
+            headers={"Authorization": "Bearer test-key-001"},
+            json={
+                "toolpath": {"moves": [], "unit": "mm", "tool_id": "tool_0"},
+                "objective": "invalid_objective",
+            },
+        )
+
+    assert response.status_code == 400
+    assert "Invalid objective" in response.json()["detail"]

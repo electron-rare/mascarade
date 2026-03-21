@@ -225,7 +225,7 @@ export const coreClient = {
   },
 
   providerHealth() {
-    return request<Record<string, ProviderHealthMetrics>>("/health/providers");
+    return request<Record<string, unknown>>("/health/providers");
   },
 
   updateProviderKey(name: string, keys: Record<string, string>) {
@@ -687,6 +687,88 @@ export const coreClient = {
     });
   },
 
+  kicadGenerateSchematic(body: {
+    requirements: string;
+    library?: string;
+    run_id?: string;
+  }) {
+    return request<{
+      ok: boolean;
+      schematic_path?: string;
+      component_count?: number;
+      net_count?: number;
+      run_id: string;
+    }>("/mcp/kicad/schematic", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+
+  kicadOptimizeLayout(body: {
+    schematic_data: Record<string, unknown>;
+    constraints?: Record<string, unknown>;
+    run_id?: string;
+  }) {
+    return request<{
+      ok: boolean;
+      layout_path?: string;
+      optimization_score?: number;
+      run_id: string;
+    }>("/mcp/kicad/layout", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+
+  kicadCreateFootprint(body: {
+    component_description: string;
+    datasheet_url?: string;
+    run_id?: string;
+  }) {
+    return request<{
+      ok: boolean;
+      footprint_path?: string;
+      pad_count?: number;
+      run_id: string;
+    }>("/mcp/kicad/footprint", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+
+  kicadCheckDRC(body: {
+    layout_data: Record<string, unknown>;
+    rules?: Record<string, unknown>;
+    run_id?: string;
+  }) {
+    return request<{
+      ok: boolean;
+      violations?: Array<Record<string, unknown>>;
+      violation_count?: number;
+      run_id: string;
+    }>("/mcp/kicad/drc", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+
+  kicadExportManufacturing(body: {
+    layout_data: Record<string, unknown>;
+    bom_data?: Record<string, unknown>;
+    format?: string;
+    run_id?: string;
+  }) {
+    return request<{
+      ok: boolean;
+      output_files?: string[];
+      format?: string;
+      run_id: string;
+    }>("/mcp/kicad/manufacturing", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+
   industrialMcpServers() {
     return request<{
       items: Array<{
@@ -1055,6 +1137,135 @@ export const coreClient = {
       model: string;
       provider: string;
     }>(`/qdrant/collections/${encodeURIComponent(collectionName)}/rag-query`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+
+  // --- Mesh Operations ---
+
+  meshImport(body: { data: string; format: string; run_id?: string }) {
+    return request<{
+      ok: boolean;
+      run_id: string;
+      protocol_version?: string;
+      server_name?: string;
+      message: string;
+      payload: Record<string, unknown>;
+    }>("/mcp/mesh/import", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+
+  meshExport(body: {
+    mesh: Record<string, unknown>;
+    format: string;
+    options?: Record<string, unknown>;
+    run_id?: string;
+  }) {
+    return request<{
+      ok: boolean;
+      run_id: string;
+      protocol_version?: string;
+      server_name?: string;
+      message: string;
+      payload: Record<string, unknown>;
+    }>("/mcp/mesh/export", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+
+  meshSimplify(body: {
+    mesh: Record<string, unknown>;
+    target_ratio: number;
+    preserve_boundaries?: boolean;
+    run_id?: string;
+  }) {
+    return request<{
+      ok: boolean;
+      run_id: string;
+      protocol_version?: string;
+      server_name?: string;
+      message: string;
+      payload: Record<string, unknown>;
+    }>("/mcp/mesh/simplify", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+
+  meshBoolean(body: {
+    mesh_a: Record<string, unknown>;
+    mesh_b: Record<string, unknown>;
+    operation: string;
+    run_id?: string;
+  }) {
+    return request<{
+      ok: boolean;
+      run_id: string;
+      protocol_version?: string;
+      server_name?: string;
+      message: string;
+      payload: Record<string, unknown>;
+    }>("/mcp/mesh/boolean", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+
+  // --- Toolpath Operations ---
+
+  toolpathGenerate(body: {
+    mesh: Record<string, unknown>;
+    tool: Record<string, unknown>;
+    strategy: string;
+    stock?: Record<string, unknown>;
+    run_id?: string;
+  }) {
+    return request<{
+      ok: boolean;
+      run_id: string;
+      gcode: {
+        program: string;
+        estimated_time_s: number;
+        bounds: Record<string, number>;
+        tool_changes: number;
+      };
+      toolpath: {
+        moves: Array<Record<string, unknown>>;
+        unit: string;
+        tool_id: string;
+      };
+    }>("/mcp/toolpath/generate", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+
+  toolpathOptimize(body: {
+    toolpath: Record<string, unknown>;
+    objective: string;
+    constraints?: Record<string, unknown>;
+    run_id?: string;
+  }) {
+    return request<{
+      ok: boolean;
+      run_id: string;
+      toolpath: {
+        moves: Array<Record<string, unknown>>;
+        unit: string;
+        tool_id: string;
+      };
+      gcode: {
+        program: string;
+        estimated_time_s: number;
+        bounds: Record<string, number>;
+        tool_changes: number;
+      };
+      improvement_pct: number;
+    }>("/mcp/toolpath/optimize", {
       method: "POST",
       body: JSON.stringify(body),
     });
