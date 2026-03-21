@@ -169,7 +169,7 @@ class CodexAgent(Agent):
     def __init__(
         self,
         workdir: str | None = None,
-        approval_mode: str = "auto-edit",
+        full_auto: bool = True,
     ):
         super().__init__(
             name="codex",
@@ -177,7 +177,7 @@ class CodexAgent(Agent):
             system_prompt=(
                 "You are the Codex CLI agent powered by OpenAI. "
                 "Execute coding tasks: write, review, debug, run commands. "
-                "Use auto-edit mode for autonomous file modifications."
+                "Use full-auto mode for autonomous sandboxed execution."
             ),
             preferred_provider="openai",
             strategy=Strategy.SPECIFIC,
@@ -185,7 +185,7 @@ class CodexAgent(Agent):
             max_tokens=8192,
         )
         self._workdir = workdir
-        self._approval_mode = approval_mode
+        self._full_auto = full_auto
 
     @property
     def is_available(self) -> bool:
@@ -203,12 +203,10 @@ class CodexAgent(Agent):
         if not self.is_available:
             raise RuntimeError("codex CLI not found. Install: npm install -g @openai/codex")
 
-        cmd = [
-            "codex", "exec",
-            "--quiet",
-            "--approval-mode", self._approval_mode,
-            prompt,
-        ]
+        cmd = ["codex", "exec"]
+        if self._full_auto:
+            cmd.append("--full-auto")
+        cmd.extend(["--skip-git-repo-check", prompt])
 
         stdout, stderr, code = await _run_cli(cmd, workdir=self._workdir)
 

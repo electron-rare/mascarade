@@ -35,7 +35,7 @@ class CLIAgentRequest(BaseModel):
     allowed_tools: list[str] | None = None
 
     # Codex-specific
-    approval_mode: str = Field(default="auto-edit", max_length=30)
+    full_auto: bool = True
 
 
 @router.get("/status")
@@ -85,7 +85,7 @@ async def run_cli_agent(req: CLIAgentRequest, request: Request):
         ),
         "codex": lambda: CodexAgent(
             workdir=req.workdir,
-            approval_mode=req.approval_mode,
+            full_auto=req.full_auto,
         ),
         "claude-code": lambda: ClaudeCodeAgent(
             workdir=req.workdir,
