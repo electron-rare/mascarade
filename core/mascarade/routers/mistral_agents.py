@@ -12,7 +12,7 @@ from mascarade.auth import require_auth
 logger = logging.getLogger("mascarade.routers.mistral_agents")
 
 router = APIRouter(
-    prefix="/api/mistral-agents",
+    prefix="/v1/api/mistral-agents",
     dependencies=[Depends(require_auth)],
     tags=["mistral-agents"],
 )

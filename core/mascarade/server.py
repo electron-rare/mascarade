@@ -160,6 +160,9 @@ async def lifespan(app: FastAPI):
 
     # Start health checks for all registered providers
     router.health_monitor.start_health_checks(list(router._providers.values()))
+    
+    # Initialize health endpoint response
+    app.state.health_status = "healthy"
 
     # Start distributed scheduler heartbeat
     if settings.scheduler_enabled and scheduler.workers:
