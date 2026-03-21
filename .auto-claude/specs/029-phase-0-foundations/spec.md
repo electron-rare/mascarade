@@ -1092,13 +1092,23 @@ Graphs are serialized as versioned JSON documents designed for human readability
 
 ### 6.2 Versioning Strategy
 
-Graph versions use a simple incrementing integer (not semver — graphs are data, not APIs). The persistence layer stores:
+Graph versions use a simple incrementing integer (not semver — graphs are data, not APIs).
 
-- **Current version:** Full graph JSON
+**Phase 0 Implementation:**
+- **Current version:** Full graph JSON with atomic writes (temp + rename)
+- **Schema versioning:** Via `MigrationRegistry` for schema evolution
+
+**Phase 1+ Implementation (PostgreSQL):**
 - **Version history:** Diffs between consecutive versions using JSON Patch (RFC 6902)
 - **Version metadata:** Author, timestamp, description per version
 
-This mirrors the prompt versioning pattern in `AgentRegistry.save()` where prompt changes are tracked with diffs.
+The file-based persistence in Phase 0 focuses on reliable single-version storage. Version history tracking with JSON Patch diffs is better suited for the PostgreSQL backend (Phase 1+), which provides:
+- Efficient storage of version chains
+- ACID guarantees for version transitions
+- Query capabilities for version history
+- Concurrent multi-user version management
+
+This follows the same pattern as `AgentRegistry.save()` which defers advanced persistence features to database backends.
 
 ### 6.3 Storage Backends
 
@@ -1186,6 +1196,6 @@ class MigrationRegistry:
 ### 7.5 Persistence Layer
 
 - [ ] Graph serialization format is versioned and forward-compatible
-- [ ] Version history uses JSON Patch diffs
+- [ ] Version history uses JSON Patch diffs (deferred to Phase 1+ PostgreSQL backend)
 - [ ] Migration framework supports sequential schema upgrades
 - [ ] File-based storage uses atomic writes (temp + rename)
