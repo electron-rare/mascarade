@@ -43,6 +43,11 @@ def register_default_skills(registry: AgentRegistry) -> None:
 
     register_cli_agents(registry)
 
+    # Register Mistral AI Studio agents (Devstral-Code, Forge, Tower, Sentinelle)
+    from mascarade.agents.mistral_agents import register_mistral_agents
+
+    register_mistral_agents(registry)
+
 
 # --- Summarizer ---
 
