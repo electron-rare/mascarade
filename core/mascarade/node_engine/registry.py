@@ -1,183 +1,263 @@
-"""Registre de types de nœuds — enregistrement, découverte et persistance."""
+"""Node registry — type and worker registration for the Node Engine."""
 
 from __future__ import annotations
 
 import json
 import logging
-import os
-import tempfile
-from dataclasses import asdict
 from pathlib import Path
+from typing import TYPE_CHECKING
 
-from mascarade.node_engine.types import DomainType, NodeType, PortType
+from mascarade.node_engine.types import DomainType
 
-logger = logging.getLogger("mascarade.node_engine")
+if TYPE_CHECKING:
+    from mascarade.node_engine.worker import NodeWorker
+
+logger = logging.getLogger("mascarade.node_engine.registry")
 
 DEFAULT_STORAGE_PATH = Path("data/node_types.json")
 
 
-class NodeTypeRegistry:
-    """Registre centralisé pour gérer les types de nœuds et types de domaine."""
+class NodeRegistry:
+    """Registre centralisé pour gérer les types de domaine et les workers."""
 
     def __init__(self, storage_path: Path | None = DEFAULT_STORAGE_PATH) -> None:
-        self._node_types: dict[str, NodeType] = {}
         self._domain_types: dict[str, DomainType] = {}
-        self._builtin_node_names: set[str] = set()
-        self._builtin_domain_names: set[str] = set()
+        self._workers: dict[str, NodeWorker] = {}
+        self._builtin_types: set[str] = set()
         self._storage_path = storage_path
 
-    # --- Node Type Management ---
+    # --- Domain Type Registration ---
 
-    def register_node(self, node_type: NodeType, *, builtin: bool = False) -> None:
-        """Enregistrer un type de nœud."""
-        self._node_types[node_type.id] = node_type
+    def register_type(self, domain_type: DomainType, *, builtin: bool = False) -> None:
+        """Enregistrer un type de domaine.
+
+        Args:
+            domain_type: Type de domaine à enregistrer
+            builtin: Si True, marque le type comme intégré (non sauvegardé)
+        """
+        self._domain_types[domain_type.full_name] = domain_type
         if builtin:
-            self._builtin_node_names.add(node_type.id)
+            self._builtin_types.add(domain_type.full_name)
 
-    def get_node(self, node_id: str) -> NodeType:
-        """Récupérer un type de nœud par ID."""
-        if node_id not in self._node_types:
+    def get_type(self, full_name: str) -> DomainType:
+        """Obtenir un type de domaine par son nom complet.
+
+        Args:
+            full_name: Nom complet du type (ex: "electronics.Netlist")
+
+        Returns:
+            DomainType correspondant
+
+        Raises:
+            KeyError: Si le type n'existe pas
+        """
+        if full_name not in self._domain_types:
             raise KeyError(
-                f"Node type '{node_id}' non trouvé. Disponibles: {list(self._node_types.keys())}"
+                f"Type '{full_name}' non trouvé. Disponibles: {list(self._domain_types.keys())}"
             )
-        return self._node_types[node_id]
+        return self._domain_types[full_name]
 
-    def list_nodes(self, category: str | None = None) -> list[NodeType]:
-        """Lister tous les types de nœuds, optionnellement filtrés par catégorie."""
-        nodes = list(self._node_types.values())
-        if category:
-            nodes = [n for n in nodes if n.category == category]
-        return nodes
+    def list_types(self, domain: str | None = None) -> list[DomainType]:
+        """Lister les types de domaine disponibles.
 
-    def remove_node(self, node_id: str) -> None:
-        """Supprimer un type de nœud."""
-        self._node_types.pop(node_id, None)
-        self._builtin_node_names.discard(node_id)
+        Args:
+            domain: Si fourni, filtre par domaine spécifique
 
-    def is_builtin_node(self, node_id: str) -> bool:
-        """Vérifier si un type de nœud est builtin."""
-        return node_id in self._builtin_node_names
+        Returns:
+            Liste des types de domaine
+        """
+        if domain is None:
+            return list(self._domain_types.values())
+        return [dt for dt in self._domain_types.values() if dt.domain == domain]
 
-    # --- Domain Type Management ---
+    def remove_type(self, full_name: str) -> None:
+        """Retirer un type de domaine du registre.
 
-    def register_domain_type(
-        self, domain_type: DomainType, *, builtin: bool = False
-    ) -> None:
-        """Enregistrer un type de domaine."""
-        key = f"{domain_type.domain}.{domain_type.name}"
-        self._domain_types[key] = domain_type
-        if builtin:
-            self._builtin_domain_names.add(key)
+        Args:
+            full_name: Nom complet du type à retirer
+        """
+        self._domain_types.pop(full_name, None)
+        self._builtin_types.discard(full_name)
 
-    def get_domain_type(self, domain: str, name: str) -> DomainType:
-        """Récupérer un type de domaine par domaine et nom."""
-        key = f"{domain}.{name}"
-        if key not in self._domain_types:
+    def has_type(self, full_name: str) -> bool:
+        """Vérifier si un type existe dans le registre.
+
+        Args:
+            full_name: Nom complet du type
+
+        Returns:
+            True si le type existe, False sinon
+        """
+        return full_name in self._domain_types
+
+    def is_builtin_type(self, full_name: str) -> bool:
+        """Vérifier si un type est intégré.
+
+        Args:
+            full_name: Nom complet du type
+
+        Returns:
+            True si le type est intégré, False sinon
+        """
+        return full_name in self._builtin_types
+
+    # --- Worker Registration ---
+
+    def register_worker(self, worker: NodeWorker) -> None:
+        """Enregistrer un worker de domaine.
+
+        Args:
+            worker: Worker à enregistrer
+        """
+        self._workers[worker.domain] = worker
+        worker.registry = self
+
+    def get_worker(self, domain: str) -> NodeWorker:
+        """Obtenir un worker par domaine.
+
+        Args:
+            domain: Nom du domaine (ex: "electronics")
+
+        Returns:
+            NodeWorker correspondant
+
+        Raises:
+            KeyError: Si le worker n'existe pas
+        """
+        if domain not in self._workers:
             raise KeyError(
-                f"Domain type '{key}' non trouvé. Disponibles: {list(self._domain_types.keys())}"
+                f"Worker pour domaine '{domain}' non trouvé. Disponibles: {list(self._workers.keys())}"
             )
-        return self._domain_types[key]
+        return self._workers[domain]
 
-    def list_domain_types(self, domain: str | None = None) -> list[DomainType]:
-        """Lister tous les types de domaine, optionnellement filtrés par domaine."""
-        types = list(self._domain_types.values())
-        if domain:
-            types = [t for t in types if t.domain == domain]
-        return types
+    def list_workers(self) -> list[NodeWorker]:
+        """Lister tous les workers enregistrés.
 
-    def remove_domain_type(self, domain: str, name: str) -> None:
-        """Supprimer un type de domaine."""
-        key = f"{domain}.{name}"
-        self._domain_types.pop(key, None)
-        self._builtin_domain_names.discard(key)
+        Returns:
+            Liste des workers
+        """
+        return list(self._workers.values())
 
-    def is_builtin_domain_type(self, domain: str, name: str) -> bool:
-        """Vérifier si un type de domaine est builtin."""
-        key = f"{domain}.{name}"
-        return key in self._builtin_domain_names
+    def remove_worker(self, domain: str) -> None:
+        """Retirer un worker du registre.
 
-    # --- Magic Methods ---
+        Args:
+            domain: Domaine du worker à retirer
+        """
+        worker = self._workers.pop(domain, None)
+        if worker:
+            worker.registry = None
 
-    def __contains__(self, item: str) -> bool:
-        """Vérifier si un type de nœud ou de domaine existe."""
-        return item in self._node_types or item in self._domain_types
+    def has_worker(self, domain: str) -> bool:
+        """Vérifier si un worker existe pour un domaine.
 
-    def __len__(self) -> int:
-        """Nombre total de types (nœuds + domaines)."""
-        return len(self._node_types) + len(self._domain_types)
+        Args:
+            domain: Nom du domaine
 
-    # --- Persistance ---
+        Returns:
+            True si le worker existe, False sinon
+        """
+        return domain in self._workers
+
+    async def initialize_workers(self) -> None:
+        """Initialiser tous les workers enregistrés.
+
+        Appelle la méthode initialize() de chaque worker dans l'ordre
+        d'enregistrement. Les erreurs d'initialisation sont journalisées
+        mais n'empêchent pas l'initialisation des autres workers.
+        """
+        for domain, worker in self._workers.items():
+            try:
+                logger.info("Initializing worker for domain: %s", domain)
+                await worker.initialize()
+            except Exception as exc:
+                logger.error(
+                    "Failed to initialize worker for domain %s: %s",
+                    domain,
+                    exc,
+                    exc_info=True,
+                )
+
+    async def shutdown_workers(self) -> None:
+        """Arrêter tous les workers enregistrés.
+
+        Appelle la méthode shutdown() de chaque worker. Les erreurs
+        sont journalisées mais n'empêchent pas l'arrêt des autres workers.
+        """
+        for domain, worker in self._workers.items():
+            try:
+                logger.info("Shutting down worker for domain: %s", domain)
+                await worker.shutdown()
+            except Exception as exc:
+                logger.error(
+                    "Failed to shutdown worker for domain %s: %s",
+                    domain,
+                    exc,
+                    exc_info=True,
+                )
+
+    # --- Persistence ---
 
     def save(self) -> None:
-        """Sauvegarder les types dynamiques dans un fichier JSON."""
+        """Sauvegarder les types de domaine dynamiques dans un fichier JSON."""
         if self._storage_path is None:
             return
 
         self._storage_path.parent.mkdir(parents=True, exist_ok=True)
+        types_data = []
 
-        # Séparer les types builtin des types dynamiques
-        node_types_data = []
-        for node_type in self._node_types.values():
-            if node_type.id in self._builtin_node_names:
-                continue
-            data = asdict(node_type)
-            node_types_data.append(data)
-
-        domain_types_data = []
         for domain_type in self._domain_types.values():
-            key = f"{domain_type.domain}.{domain_type.name}"
-            if key in self._builtin_domain_names:
+            if domain_type.full_name in self._builtin_types:
                 continue
-            data = asdict(domain_type)
-            domain_types_data.append(data)
 
-        registry_data = {
-            "node_types": node_types_data,
-            "domain_types": domain_types_data,
-        }
+            data = {
+                "domain": domain_type.domain,
+                "name": domain_type.name,
+                "schema": domain_type.schema,
+                "description": domain_type.description,
+                "metadata": domain_type.metadata,
+            }
+            types_data.append(data)
 
-        # Atomic write: write to temp file, then rename
-        fd, tmp_path = tempfile.mkstemp(
-            dir=str(self._storage_path.parent), suffix=".tmp"
-        )
         try:
-            with os.fdopen(fd, "w", encoding="utf-8") as f:
-                json.dump(registry_data, f, indent=2, ensure_ascii=False)
-            os.replace(tmp_path, str(self._storage_path))
-        except BaseException:
-            os.unlink(tmp_path)
-            raise
+            with open(self._storage_path, "w", encoding="utf-8") as f:
+                json.dump(types_data, f, indent=2, ensure_ascii=False)
+        except OSError as exc:
+            logger.error("Failed to save types to %s: %s", self._storage_path, exc)
 
     def load(self) -> None:
-        """Charger les types dynamiques depuis le fichier JSON."""
+        """Charger les types de domaine depuis le fichier JSON."""
         if self._storage_path is None or not self._storage_path.exists():
             return
+
         try:
             raw = json.loads(self._storage_path.read_text(encoding="utf-8"))
         except (json.JSONDecodeError, OSError) as exc:
-            logger.error("Failed to load node types from %s: %s", self._storage_path, exc)
+            logger.error("Failed to load types from %s: %s", self._storage_path, exc)
             return
 
-        # Charger les types de nœuds
-        for data in raw.get("node_types", []):
+        for data in raw:
             try:
-                # Convertir les dicts inputs/outputs en PortType
-                inputs = [PortType(**p) for p in data.get("inputs", [])]
-                outputs = [PortType(**p) for p in data.get("outputs", [])]
-                node_type = NodeType(
-                    id=data["id"],
-                    category=data["category"],
-                    inputs=inputs,
-                    outputs=outputs,
+                domain_type = DomainType(
+                    domain=data["domain"],
+                    name=data["name"],
+                    schema=data["schema"],
+                    description=data.get("description", ""),
+                    metadata=data.get("metadata", {}),
                 )
-                self.register_node(node_type)
+                self.register_type(domain_type)
             except (KeyError, TypeError, ValueError) as exc:
-                logger.warning("Skipping invalid node type entry: %s", exc)
+                logger.warning("Skipping invalid type entry: %s", exc)
 
-        # Charger les types de domaine
-        for data in raw.get("domain_types", []):
-            try:
-                domain_type = DomainType(**data)
-                self.register_domain_type(domain_type)
-            except (KeyError, TypeError, ValueError) as exc:
-                logger.warning("Skipping invalid domain type entry: %s", exc)
+    # --- Utility Methods ---
+
+    def __len__(self) -> int:
+        """Retourne le nombre total de types et workers."""
+        return len(self._domain_types) + len(self._workers)
+
+    def __repr__(self) -> str:
+        """Représentation lisible du registre."""
+        return (
+            f"NodeRegistry(types={len(self._domain_types)}, "
+            f"workers={len(self._workers)})"
+        )

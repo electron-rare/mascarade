@@ -1,1 +1,1 @@
-"""CAD worker modules for the Node Engine."""
+"""Workers package for domain-specific node implementations."""
