@@ -44,6 +44,10 @@ def _parse_model_string(
     supported = getattr(router_instance, "supported_provider_names", None)
     if supported is None:
         supported = list(SUPPORTED_PROVIDER_PREFIXES)
+    # Also include dynamically registered providers
+    available = getattr(router_instance, "available_providers", [])
+    if available:
+        supported = list(set(supported) | set(available))
 
     # Try to match a known provider prefix
     if ":" in model:
@@ -206,7 +210,7 @@ async def create_chat_completion(
                 total_tokens=total,
             )
 
-        # Build model name for response (include provider prefix if used)
+        # Build model name for response - use display_model to include provider prefix
         resp_model = display_model
 
         response = ChatCompletionResponse(

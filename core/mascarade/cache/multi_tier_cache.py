@@ -338,6 +338,10 @@ class MultiTierCache:
             "combined_hit_rate": round(combined_hit_rate, 2),
         }
 
+        # Add top-level convenience keys for backward compatibility
+        stats["hit_count"] = total_hits
+        stats["miss_count"] = total_misses
+
         return stats
 
     async def clear(self) -> None:

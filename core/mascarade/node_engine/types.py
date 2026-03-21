@@ -176,7 +176,7 @@ class DomainType(BaseModel):
                 prop_schema = properties[key]
                 # Check enum constraints
                 if "enum" in prop_schema and value not in prop_schema["enum"]:
-                    return False, f"Invalid value for {key}: {value}. Must be one of {prop_schema['enum']}"
+                    return False, f"Invalid value for {key}: {value}. enum constraint violated, must be one of {prop_schema['enum']}"
 
         return True, None
 
