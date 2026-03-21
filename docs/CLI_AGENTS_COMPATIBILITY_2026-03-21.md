@@ -10,7 +10,7 @@
 | **photon** | Photon OS 5 | x86_64 | 3.11.13 | 22.22.0 | - | 28.2.2 |
 | **KXKM-AI** | Ubuntu | x86_64 | 3.12.3 | - | RTX 4090 | 29.3.0 |
 | **Cils** | macOS 23.6 | x86_64 | 3.9.6 | - | - | - |
-| **Tower** | - | - | - | - | - | - |
+| **Tower** | Linux | x86_64 | 3.12.3 | 18.19.1 | - | - |
 
 ## Disponibilité des CLI Agents
 
@@ -20,7 +20,7 @@
 | **photon** | 2.3.0 (fixé) | 0.115.0 | 2.1.76 |
 | **KXKM-AI** | - | 0.114.0 (snap) | - |
 | **Cils** | - | - | - |
-| **Tower** | timeout SSH | - | - |
+| **Tower** | - | 0.107.0 | - |
 
 ## Tests Réels
 
@@ -71,4 +71,4 @@
 | **KXKM-AI** | Installer Vibe (`curl -LsSf https://mistral.ai/vibe/install.sh \| bash`) | P2 |
 | **KXKM-AI** | Installer Node.js + Claude Code | P2 |
 | **Cils** | Mettre à jour Python 3.9 → 3.12+ (ou ignorer, machine secondaire) | P3 |
-| **Tower** | Vérifier connectivité SSH | P3 |
+| **Tower** | Installer Vibe + Claude Code (Node 18 présent) | P2 |
