@@ -38,6 +38,14 @@ except ImportError:
     pass
 
 try:
+    from mascarade.router.providers.gpt53_codex import GPT53CodexProvider, GPT53CodexFunctionCalling
+
+    __all__.append("GPT53CodexProvider")
+    __all__.append("GPT53CodexFunctionCalling")
+except ImportError:
+    pass
+
+try:
     from mascarade.router.providers.bedrock import BedrockProvider
 
     __all__.append("BedrockProvider")
@@ -76,6 +84,13 @@ try:
     from mascarade.router.providers.apple_coreml import AppleCoreMLProvider
 
     __all__.append("AppleCoreMLProvider")
+except ImportError:
+    pass
+
+try:
+    from mascarade.router.providers.exo import ExoProvider
+
+    __all__.append("ExoProvider")
 except ImportError:
     pass
 

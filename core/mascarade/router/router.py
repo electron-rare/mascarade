@@ -35,6 +35,11 @@ try:
 except ImportError:
     get_classifier = None  # type: ignore[assignment,misc]
 
+try:
+    from mascarade.router.ml_classifier import get_routing_classifier
+except ImportError:
+    get_routing_classifier = None  # type: ignore[assignment,misc]
+
 logger = logging.getLogger("mascarade.router")
 
 try:
@@ -134,6 +139,25 @@ class Router:
                 logger.warning("Failed to initialize ML classifier: %s", exc)
                 self.use_classifier = False
 
+        # ML routing classifier for tier prediction (strong/cheap/fast)
+        self.routing_classifier = None
+        if settings.ml_routing_classifier_enabled and get_routing_classifier is not None:
+            try:
+                from pathlib import Path
+
+                model_path = (
+                    Path(settings.ml_routing_classifier_path)
+                    if settings.ml_routing_classifier_path.strip()
+                    else None
+                )
+                self.routing_classifier = get_routing_classifier(model_path)
+                logger.info(
+                    "ML routing classifier initialised (loaded=%s)",
+                    self.routing_classifier.is_loaded,
+                )
+            except Exception as exc:
+                logger.warning("Failed to initialize ML routing classifier: %s", exc)
+
         self._register_defaults()
 
     def _register_defaults(self) -> None:
@@ -145,6 +169,7 @@ class Router:
             ("mascarade.router.providers.google", "GoogleProvider"),
             ("mascarade.router.providers.huggingface", "HuggingFaceProvider"),
             ("mascarade.router.providers.ollama", "OllamaProvider"),
+            ("mascarade.router.providers.exo", "ExoProvider"),
             ("mascarade.router.providers.llama_cpp", "LlamaCppProvider"),
             ("mascarade.router.providers.mlx_lm", "MLXLMProvider"),
             ("mascarade.router.providers.apple_coreml", "AppleCoreMLProvider"),
@@ -566,6 +591,33 @@ class Router:
             )
             return strategy, chosen_provider, chosen_model
 
+        # --- ML routing classifier (if enabled and loaded) --------
+        if self.routing_classifier is not None and self.routing_classifier.is_loaded:
+            try:
+                joined = self._joined_message_text(messages, system)
+                ml_tier, ml_confidence = self.routing_classifier.predict_with_confidence(joined)
+                logger.debug(
+                    "ML routing classifier: tier=%s confidence=%.3f",
+                    ml_tier,
+                    ml_confidence,
+                )
+                # Only use ML prediction when confidence exceeds threshold
+                if ml_confidence >= max(0.0, min(float(settings.routellm_threshold), 1.0)):
+                    if ml_tier == "strong":
+                        strategy, chosen_provider, chosen_model = _strong_target()
+                    elif ml_tier == "fast":
+                        return Strategy.FASTEST, None, model
+                    else:
+                        strategy, chosen_provider, chosen_model = _cheap_target()
+                    logger.debug(
+                        "RouteLLM ML classifier selected tier=%s provider=%s model=%s",
+                        ml_tier, chosen_provider, chosen_model,
+                    )
+                    return strategy, chosen_provider, chosen_model
+            except Exception as exc:
+                logger.warning("ML routing classifier failed, falling back to heuristic: %s", exc)
+
+        # --- Rule-based complexity score fallback ------------------
         threshold = max(0.0, min(float(settings.routellm_threshold), 1.0))
         score = self._complexity_score(messages, system)
         if score >= threshold:
