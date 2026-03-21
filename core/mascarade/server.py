@@ -45,6 +45,7 @@ from mascarade.scheduler.metrics_exporter import router as metrics_router
 from mascarade.routers.analytics import router as analytics_router
 from mascarade.routers.a2a import public_router as a2a_public_router, authed_router as a2a_authed_router
 from mascarade.routers.ws import router as ws_router
+from mascarade.routers.cli_agents import router as cli_agents_router
 from mascarade.routers.knowledge_base import (
     knowledge_base_auth_configured,
     router as knowledge_base_router,
@@ -270,6 +271,7 @@ def create_app() -> FastAPI:
     app.include_router(a2a_public_router)
     app.include_router(a2a_authed_router)
     app.include_router(ws_router)
+    app.include_router(cli_agents_router)
 
     # Mount Gradio UI for fine-tuning (if available)
     if GRADIO_AVAILABLE:
