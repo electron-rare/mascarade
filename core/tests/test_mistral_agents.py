@@ -5,12 +5,17 @@ from __future__ import annotations
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
+from pydantic import SecretStr
+
 from mascarade.agents.mistral_agents import (
     MistralRemoteAgent,
     discover_mistral_agents,
     register_mistral_agents,
 )
 from mascarade.router.router import Strategy
+
+# A valid-looking SecretStr that passes is_secret_configured
+_FAKE_API_KEY = SecretStr("test-mistral-key-12345678")
 
 
 def test_mistral_remote_agent_attributes():
@@ -55,7 +60,9 @@ async def test_run_new_conversation():
         "usage": {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15},
     }
 
-    with patch("httpx.AsyncClient") as mock_client_cls:
+    with patch("mascarade.agents.mistral_agents.settings") as mock_settings, \
+         patch("httpx.AsyncClient") as mock_client_cls:
+        mock_settings.mistral_api_key = _FAKE_API_KEY
         mock_client = AsyncMock()
         mock_client.post = AsyncMock(return_value=mock_response)
         mock_client.__aenter__ = AsyncMock(return_value=mock_client)
@@ -93,7 +100,9 @@ async def test_run_continue_conversation():
         "usage": {},
     }
 
-    with patch("httpx.AsyncClient") as mock_client_cls:
+    with patch("mascarade.agents.mistral_agents.settings") as mock_settings, \
+         patch("httpx.AsyncClient") as mock_client_cls:
+        mock_settings.mistral_api_key = _FAKE_API_KEY
         mock_client = AsyncMock()
         mock_client.post = AsyncMock(return_value=mock_response)
         mock_client.__aenter__ = AsyncMock(return_value=mock_client)
@@ -117,7 +126,7 @@ async def test_run_no_api_key():
     )
 
     with patch("mascarade.agents.mistral_agents.settings") as mock_settings:
-        mock_settings.mistral_api_key = ""
+        mock_settings.mistral_api_key = SecretStr("")
         with pytest.raises(RuntimeError, match="MISTRAL_API_KEY"):
             await agent.run("test")
 
@@ -125,7 +134,7 @@ async def test_run_no_api_key():
 @pytest.mark.asyncio
 async def test_discover_no_api_key():
     with patch("mascarade.agents.mistral_agents.settings") as mock_settings:
-        mock_settings.mistral_api_key = ""
+        mock_settings.mistral_api_key = SecretStr("")
         result = await discover_mistral_agents()
         assert result == []
 
@@ -134,7 +143,7 @@ def test_register_default_agents():
     registry = MagicMock()
 
     with patch("mascarade.agents.mistral_agents.settings") as mock_settings:
-        mock_settings.mistral_api_key = "valid-key-12345678"
+        mock_settings.mistral_api_key = _FAKE_API_KEY
         register_mistral_agents(registry)
 
     # 4 default agents registered
@@ -150,7 +159,7 @@ def test_register_no_api_key():
     registry = MagicMock()
 
     with patch("mascarade.agents.mistral_agents.settings") as mock_settings:
-        mock_settings.mistral_api_key = ""
+        mock_settings.mistral_api_key = SecretStr("")
         register_mistral_agents(registry)
 
     assert registry.register.call_count == 0
