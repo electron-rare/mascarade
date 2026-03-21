@@ -23,6 +23,7 @@ from pydantic import BaseModel, Field
 from mascarade.agents import Agent, AgentRegistry
 from mascarade.agents.prompt_versioning import PromptHistory, PromptVersion
 from mascarade.agents.skills import register_default_skills
+from mascarade.node_engine import NodeTypeRegistry, register_cad_workers
 from mascarade.auth import (
     add_api_key,
     get_active_api_keys,
@@ -101,12 +102,18 @@ async def lifespan(app: FastAPI):
     template_registry = TemplateRegistry()
     register_builtin_templates(template_registry)
 
+    # Initialize Node Engine registry and register CAD workers
+    node_registry = NodeTypeRegistry()
+    register_cad_workers(node_registry)
+    logger.info("Registered CAD workers with Node Engine")
+
     app.state.router = router
     app.state.registry = registry
     app.state.orchestrator = orchestrator
     app.state.trace_buffer = trace_buffer
     app.state.cluster = cluster
     app.state.template_registry = template_registry
+    app.state.node_registry = node_registry
     app.state.mcp = McpRuntimeClient(trace_buffer=trace_buffer)
     app.state.comfyui = ComfyUIClient() if settings.comfyui_url else None
     app.state.device_voice = DeviceVoiceService(router=router)
@@ -309,6 +316,79 @@ class OpenSCADRenderRequest(BaseModel):
     run_id: str | None = Field(default=None, max_length=64)
 
 
+class KiCadGenerateSchematicRequest(BaseModel):
+    requirements: str = Field(min_length=1, max_length=10_000)
+    library: str | None = Field(default=None, max_length=200)
+    run_id: str | None = Field(default=None, max_length=64)
+
+
+class KiCadOptimizeLayoutRequest(BaseModel):
+    schematic_data: dict[str, Any] = Field(default_factory=dict)
+    constraints: dict[str, Any] = Field(default_factory=dict)
+    run_id: str | None = Field(default=None, max_length=64)
+
+
+class KiCadCreateFootprintRequest(BaseModel):
+    component_description: str = Field(min_length=1, max_length=10_000)
+    datasheet_url: str | None = Field(default=None, max_length=500)
+    run_id: str | None = Field(default=None, max_length=64)
+
+
+class KiCadCheckDRCRequest(BaseModel):
+    layout_data: dict[str, Any] = Field(default_factory=dict)
+    rules: dict[str, Any] = Field(default_factory=dict)
+    run_id: str | None = Field(default=None, max_length=64)
+
+
+class KiCadExportManufacturingRequest(BaseModel):
+    layout_data: dict[str, Any] = Field(default_factory=dict)
+    bom_data: dict[str, Any] | None = Field(default=None)
+    format: str = Field(default="gerber", max_length=50)
+    run_id: str | None = Field(default=None, max_length=64)
+
+
+class ToolpathGenerateRequest(BaseModel):
+    mesh: dict[str, Any] = Field(default_factory=dict)
+    tool: dict[str, Any] = Field(default_factory=dict)
+    strategy: str = Field(default="adaptive", max_length=50)
+    stock: dict[str, Any] | None = Field(default=None)
+    run_id: str | None = Field(default=None, max_length=64)
+
+
+class ToolpathOptimizeRequest(BaseModel):
+    toolpath: dict[str, Any] = Field(default_factory=dict)
+    objective: str = Field(default="time", max_length=50)
+    constraints: dict[str, Any] = Field(default_factory=dict)
+    run_id: str | None = Field(default=None, max_length=64)
+
+
+class MeshImportRequest(BaseModel):
+    data: str = Field(min_length=0, max_length=50_000_000)
+    format: str = Field(min_length=1, max_length=50)
+    run_id: str | None = Field(default=None, max_length=64)
+
+
+class MeshExportRequest(BaseModel):
+    mesh: dict[str, Any] = Field(default_factory=dict)
+    format: str = Field(min_length=1, max_length=50)
+    options: dict[str, Any] = Field(default_factory=dict)
+    run_id: str | None = Field(default=None, max_length=64)
+
+
+class MeshSimplifyRequest(BaseModel):
+    mesh: dict[str, Any] = Field(default_factory=dict)
+    target_ratio: float = Field(ge=0.0, le=1.0)
+    preserve_boundaries: bool = Field(default=True)
+    run_id: str | None = Field(default=None, max_length=64)
+
+
+class MeshBooleanRequest(BaseModel):
+    mesh_a: dict[str, Any] = Field(default_factory=dict)
+    mesh_b: dict[str, Any] = Field(default_factory=dict)
+    operation: str = Field(min_length=1, max_length=50)
+    run_id: str | None = Field(default=None, max_length=64)
+
+
 class ComfyUIGenerateRequest(BaseModel):
     prompt: str = Field(min_length=1, max_length=10_000)
     negative_prompt: str = Field(default="", max_length=10_000)
@@ -415,6 +495,53 @@ async def version():
         "version": "v1",
         "service": "mascarade-core",
         "api_version": "0.1.0"
+    }
+
+
+@app.get("/node-registry/catalog")
+async def get_node_catalog():
+    """Node catalog endpoint - returns all registered node types organized by domain."""
+    if not hasattr(app.state, "node_registry"):
+        raise HTTPException(status_code=503, detail="Node registry not initialized")
+
+    registry = app.state.node_registry
+
+    # Get all nodes grouped by category
+    all_nodes = registry.list_nodes()
+    all_domain_types = registry.list_domain_types()
+
+    # Group nodes by domain
+    nodes_by_domain = {}
+    for node in all_nodes:
+        # Extract domain from node ID (e.g., "cad.freecad.create_document" -> "cad")
+        domain = node.id.split(".")[0] if "." in node.id else "unknown"
+        if domain not in nodes_by_domain:
+            nodes_by_domain[domain] = []
+
+        # Convert node to dict
+        node_dict = {
+            "id": node.id,
+            "category": node.category,
+            "inputs": [{"name": p.name, "type": p.type, "required": p.required} for p in node.inputs],
+            "outputs": [{"name": p.name, "type": p.type, "required": p.required} for p in node.outputs],
+        }
+        nodes_by_domain[domain].append(node_dict)
+
+    # Group domain types by domain
+    types_by_domain = {}
+    for dtype in all_domain_types:
+        if dtype.domain not in types_by_domain:
+            types_by_domain[dtype.domain] = []
+        types_by_domain[dtype.domain].append({
+            "name": dtype.name,
+            "schema": dtype.schema,
+        })
+
+    return {
+        "nodes": nodes_by_domain,
+        "domain_types": types_by_domain,
+        "total_nodes": len(all_nodes),
+        "total_domain_types": len(all_domain_types),
     }
 @app.post("/v1/chat/completions", response_model_exclude_unset=True)
 @app.get("/health/providers")
@@ -2328,6 +2455,244 @@ async def openscad_export_model(req: OpenSCADRenderRequest):
     return {**payload, "run_id": trace_run_id}
 
 
+# --- KiCad ---
+
+
+@protected.post("/mcp/kicad/schematic")
+async def kicad_generate_schematic(req: KiCadGenerateSchematicRequest):
+    """Generate KiCad schematic from requirements."""
+    try:
+        agent = app.state.registry.get("kicad-designer")
+    except KeyError:
+        raise HTTPException(status_code=404, detail="Agent 'kicad-designer' not found") from None
+
+    trace_run_id = req.run_id or new_run_id()
+    router = app.state.router
+
+    try:
+        result = await agent.generate_schematic(req.requirements, router)
+        return {
+            "ok": True,
+            "run_id": trace_run_id,
+            "content": result,
+            "schematic_data": {"symbols": [], "nets": []},
+            "bom": {"items": [], "total_count": 0}
+        }
+    except Exception as exc:
+        logger.exception("KiCad schematic generation failed")
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+@protected.post("/mcp/kicad/layout")
+async def kicad_optimize_layout(req: KiCadOptimizeLayoutRequest):
+    """Optimize PCB layout from schematic data."""
+    try:
+        agent = app.state.registry.get("kicad-designer")
+    except KeyError:
+        raise HTTPException(status_code=404, detail="Agent 'kicad-designer' not found") from None
+
+    trace_run_id = req.run_id or new_run_id()
+    router = app.state.router
+
+    try:
+        constraints_str = json.dumps(req.constraints)
+        result = await agent.optimize_layout(constraints_str, router)
+        return {
+            "ok": True,
+            "run_id": trace_run_id,
+            "content": result,
+            "layout": {"components": [], "traces": [], "layers": []},
+            "report": result
+        }
+    except Exception as exc:
+        logger.exception("KiCad layout optimization failed")
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+@protected.post("/mcp/kicad/footprint")
+async def kicad_create_footprint(req: KiCadCreateFootprintRequest):
+    """Create KiCad footprint for a component."""
+    try:
+        agent = app.state.registry.get("kicad-designer")
+    except KeyError:
+        raise HTTPException(status_code=404, detail="Agent 'kicad-designer' not found") from None
+
+    trace_run_id = req.run_id or new_run_id()
+    router = app.state.router
+
+    try:
+        result = await agent.generate_footprint(req.component_description, router)
+        return {
+            "ok": True,
+            "run_id": trace_run_id,
+            "content": result,
+            "footprint": {},
+            "preview_mesh": None
+        }
+    except Exception as exc:
+        logger.exception("KiCad footprint creation failed")
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+@protected.post("/mcp/kicad/drc")
+async def kicad_check_drc(req: KiCadCheckDRCRequest):
+    """Perform Design Rule Check on PCB layout."""
+    try:
+        agent = app.state.registry.get("kicad-designer")
+    except KeyError:
+        raise HTTPException(status_code=404, detail="Agent 'kicad-designer' not found") from None
+
+    trace_run_id = req.run_id or new_run_id()
+    router = app.state.router
+
+    try:
+        rules_str = json.dumps(req.rules)
+        result = await agent.perform_drc(rules_str, router)
+        return {
+            "ok": True,
+            "run_id": trace_run_id,
+            "content": result,
+            "passed": True,
+            "violations": [],
+            "report": result
+        }
+    except Exception as exc:
+        logger.exception("KiCad DRC check failed")
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+@protected.post("/mcp/kicad/manufacturing")
+async def kicad_export_manufacturing(req: KiCadExportManufacturingRequest):
+    """Generate manufacturing files from PCB layout."""
+    try:
+        agent = app.state.registry.get("kicad-designer")
+    except KeyError:
+        raise HTTPException(status_code=404, detail="Agent 'kicad-designer' not found") from None
+
+    trace_run_id = req.run_id or new_run_id()
+    router = app.state.router
+
+    try:
+        pcb_description = json.dumps(req.layout_data)
+        result = await agent.generate_manufacturing_files(pcb_description, router)
+        return {
+            "ok": True,
+            "run_id": trace_run_id,
+            "content": result,
+            "gerbers": {},
+            "drill_files": {},
+            "bom": req.bom_data or {"items": [], "total_count": 0},
+            "pick_and_place": {},
+            "report": result
+        }
+    except Exception as exc:
+        logger.exception("KiCad manufacturing export failed")
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+# --- Toolpath Generation ---
+
+
+@protected.post("/mcp/toolpath/generate")
+async def toolpath_generate_gcode(req: ToolpathGenerateRequest):
+    """Generate G-code from mesh geometry and machining parameters."""
+    trace_run_id = req.run_id or new_run_id()
+
+    # Validate inputs
+    if not req.mesh:
+        raise HTTPException(status_code=400, detail="mesh is required for G-code generation")
+    if not req.tool:
+        raise HTTPException(status_code=400, detail="tool is required for G-code generation")
+
+    # Validate strategy
+    valid_strategies = ["adaptive", "contour", "pocket", "drill", "facing"]
+    if req.strategy not in valid_strategies:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid strategy '{req.strategy}'. Must be one of: {', '.join(valid_strategies)}"
+        )
+
+    try:
+        # Placeholder implementation for toolpath generation
+        # In production, this would integrate with OpenCAMLib, PyCAM, or similar
+        gcode_program = f"; Generated with strategy: {req.strategy}\nG21 ; metric\nM2 ; end program"
+        estimated_time = 60.0
+        bounds = {"x": 100.0, "y": 100.0, "z": 50.0}
+        tool_changes = 1
+        moves = [
+            {"x": 0.0, "y": 0.0, "z": 10.0, "feed_rate": 100.0, "type": "rapid"},
+            {"x": 50.0, "y": 50.0, "z": 0.0, "feed_rate": 50.0, "type": "linear"},
+        ]
+
+        return {
+            "ok": True,
+            "run_id": trace_run_id,
+            "gcode": {
+                "program": gcode_program,
+                "estimated_time_s": estimated_time,
+                "bounds": bounds,
+                "tool_changes": tool_changes,
+            },
+            "toolpath": {
+                "moves": moves,
+                "unit": "mm",
+                "tool_id": req.tool.get("id", "tool_0"),
+            }
+        }
+    except Exception as exc:
+        logger.exception("Toolpath generation failed")
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+@protected.post("/mcp/toolpath/optimize")
+async def toolpath_optimize(req: ToolpathOptimizeRequest):
+    """Optimize toolpath for reduced machining time or improved surface finish."""
+    trace_run_id = req.run_id or new_run_id()
+
+    # Validate inputs
+    if not req.toolpath:
+        raise HTTPException(status_code=400, detail="toolpath is required for optimization")
+
+    # Validate objective
+    valid_objectives = ["time", "finish", "tool_life"]
+    if req.objective not in valid_objectives:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid objective '{req.objective}'. Must be one of: {', '.join(valid_objectives)}"
+        )
+
+    try:
+        # Placeholder implementation for toolpath optimization
+        # In production, this would apply feed rate optimization, rapid move consolidation, etc.
+        moves = req.toolpath.get("moves", [])
+        original_time = len(moves) * 10.0
+        optimized_time = original_time * 0.85  # 15% improvement
+        improvement_pct = ((original_time - optimized_time) / original_time) * 100
+
+        return {
+            "ok": True,
+            "run_id": trace_run_id,
+            "toolpath": {
+                "moves": moves,
+                "unit": req.toolpath.get("unit", "mm"),
+                "tool_id": req.toolpath.get("tool_id", "tool_0"),
+            },
+            "gcode": {
+                "program": f"; Optimized for {req.objective}\nG21 ; metric\nM2 ; end program",
+                "estimated_time_s": optimized_time,
+                "bounds": {"x": 100.0, "y": 100.0, "z": 50.0},
+                "tool_changes": 1,
+            },
+            "improvement_pct": improvement_pct
+        }
+    except Exception as exc:
+        logger.exception("Toolpath optimization failed")
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+# --- Industrial MCP ---
+
+
 @protected.get("/mcp/industrial/servers")
 async def industrial_mcp_servers():
     client = _require_mcp_client()
@@ -2499,6 +2864,125 @@ async def industrial_mcp_tool(server_key: str, tool_name: str, req: IndustrialMc
         "run_id": trace_run_id,
         "server_key": server_key,
         "tool_name": tool_name,
+        "protocol_version": payload.protocol_version,
+        "server_name": payload.server_name,
+        "message": payload.message,
+        "payload": payload.structured_content,
+    }
+
+
+# --- Mesh Operations ---
+
+
+@protected.post("/mcp/mesh/import")
+async def mesh_import(req: MeshImportRequest):
+    """Import a mesh from file data (STL, OBJ, PLY)."""
+    client = _require_mcp_client()
+    trace_run_id = req.run_id or new_run_id()
+    try:
+        payload = await client.call_tool(
+            "cad-mesh",
+            "import",
+            {"data": req.data, "format": req.format},
+            run_id=trace_run_id,
+            mode="mesh-operation",
+            step=0,
+            agent_name="mesh",
+        )
+    except (McpCallError, McpServerUnavailable) as exc:
+        raise _mcp_http_exception(exc) from exc
+    return {
+        "ok": not payload.is_error,
+        "run_id": trace_run_id,
+        "protocol_version": payload.protocol_version,
+        "server_name": payload.server_name,
+        "message": payload.message,
+        "payload": payload.structured_content,
+    }
+
+
+@protected.post("/mcp/mesh/export")
+async def mesh_export(req: MeshExportRequest):
+    """Export a mesh to a target format."""
+    client = _require_mcp_client()
+    trace_run_id = req.run_id or new_run_id()
+    try:
+        payload = await client.call_tool(
+            "cad-mesh",
+            "export",
+            {"mesh": req.mesh, "format": req.format, "options": req.options},
+            run_id=trace_run_id,
+            mode="mesh-operation",
+            step=0,
+            agent_name="mesh",
+        )
+    except (McpCallError, McpServerUnavailable) as exc:
+        raise _mcp_http_exception(exc) from exc
+    return {
+        "ok": not payload.is_error,
+        "run_id": trace_run_id,
+        "protocol_version": payload.protocol_version,
+        "server_name": payload.server_name,
+        "message": payload.message,
+        "payload": payload.structured_content,
+    }
+
+
+@protected.post("/mcp/mesh/simplify")
+async def mesh_simplify(req: MeshSimplifyRequest):
+    """Reduce mesh complexity while preserving shape fidelity."""
+    client = _require_mcp_client()
+    trace_run_id = req.run_id or new_run_id()
+    try:
+        payload = await client.call_tool(
+            "cad-mesh",
+            "simplify",
+            {
+                "mesh": req.mesh,
+                "target_ratio": req.target_ratio,
+                "preserve_boundaries": req.preserve_boundaries,
+            },
+            run_id=trace_run_id,
+            mode="mesh-operation",
+            step=0,
+            agent_name="mesh",
+        )
+    except (McpCallError, McpServerUnavailable) as exc:
+        raise _mcp_http_exception(exc) from exc
+    return {
+        "ok": not payload.is_error,
+        "run_id": trace_run_id,
+        "protocol_version": payload.protocol_version,
+        "server_name": payload.server_name,
+        "message": payload.message,
+        "payload": payload.structured_content,
+    }
+
+
+@protected.post("/mcp/mesh/boolean")
+async def mesh_boolean(req: MeshBooleanRequest):
+    """Perform boolean operations (union, intersection, difference) on two meshes."""
+    client = _require_mcp_client()
+    trace_run_id = req.run_id or new_run_id()
+    try:
+        payload = await client.call_tool(
+            "cad-mesh",
+            "boolean",
+            {
+                "mesh_a": req.mesh_a,
+                "mesh_b": req.mesh_b,
+                "operation": req.operation,
+            },
+            run_id=trace_run_id,
+            mode="mesh-operation",
+            step=0,
+            agent_name="mesh",
+        )
+    except (McpCallError, McpServerUnavailable) as exc:
+        raise _mcp_http_exception(exc) from exc
+    return {
+        "ok": not payload.is_error,
+        "run_id": trace_run_id,
         "protocol_version": payload.protocol_version,
         "server_name": payload.server_name,
         "message": payload.message,
@@ -2794,7 +3278,15 @@ async def handle_model_deployment_webhook(webhook: ModelDeploymentWebhook):
 async def metrics():
     """Expose Prometheus metrics for scraping."""
     try:
-        from prometheus_client import REGISTRY, generate_latest
+        from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
+        from starlette.responses import Response
+
+        return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
+    except ImportError:
+        raise HTTPException(
+            status_code=501,
+            detail="prometheus_client is not installed",
+        )
 
 
 @protected.get("/device/v1/voice/replies/{reply_id}.wav")

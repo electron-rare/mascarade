@@ -1,31 +1,18 @@
-"""Universal Node Engine — Core module for node-based graph execution.
-
-The node engine provides a universal type system and execution runtime for
-domain-agnostic graph execution across AI, CAD, Electronics, and Hardware domains.
-"""
+"""Node Engine — infrastructure pour l'exécution de graphes composables."""
 
 from __future__ import annotations
 
+from mascarade.node_engine.executor import NodeExecutionResult, NodeExecutor
+from mascarade.node_engine.registry import NodeTypeRegistry
+from mascarade.node_engine.types import DomainType, NodeType, PortType
+from mascarade.node_engine.workers.cad import register_cad_workers
+
 __all__ = [
-    "PrimitiveType",
-    "ArrayType",
-    "MapType",
-    "OptionalType",
-    "UnionType",
-    "StreamType",
     "DomainType",
     "PortType",
-    "NodePortDefinition",
+    "NodeType",
+    "NodeTypeRegistry",
+    "NodeExecutor",
+    "NodeExecutionResult",
+    "register_cad_workers",
 ]
-
-from mascarade.node_engine.types import (
-    ArrayType,
-    DomainType,
-    MapType,
-    NodePortDefinition,
-    OptionalType,
-    PortType,
-    PrimitiveType,
-    StreamType,
-    UnionType,
-)
