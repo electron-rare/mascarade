@@ -100,6 +100,12 @@ class Settings(BaseSettings):
     llama_cpp_base_url: str = "http://localhost:8081/v1"
     llama_cpp_timeout_seconds: float = 120.0
 
+    # MLX-LM (Apple Silicon native inference via mlx-lm server)
+    mlx_lm_enabled: bool = False
+    mlx_lm_base_url: str = "http://localhost:8201"
+    mlx_lm_default_model: str = "mlx-community/Meta-Llama-3.1-8B-Instruct-4bit"
+    mlx_lm_timeout_seconds: float = 120.0
+
     # Apple Silicon local LLM service
     apple_llm_enabled: bool = False
     apple_llm_base_url: str = "http://apple-llm:8201"

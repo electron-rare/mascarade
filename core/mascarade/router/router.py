@@ -142,6 +142,7 @@ class Router:
             ("mascarade.router.providers.huggingface", "HuggingFaceProvider"),
             ("mascarade.router.providers.ollama", "OllamaProvider"),
             ("mascarade.router.providers.llama_cpp", "LlamaCppProvider"),
+            ("mascarade.router.providers.mlx_lm", "MLXLMProvider"),
             ("mascarade.router.providers.apple_coreml", "AppleCoreMLProvider"),
         ]
 
