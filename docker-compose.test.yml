@@ -1,0 +1,150 @@
+# docker-compose.test.yml — E2E Test Stack
+# Minimal service configuration for automated E2E testing
+
+services:
+  # Core services needed for E2E testing
+  core:
+    build:
+      context: .
+      dockerfile: deploy/Dockerfile.core
+    container_name: mascarade-core-test
+    environment:
+      CORE_HOST: 0.0.0.0
+      CORE_PORT: 8100
+      DEFAULT_PROVIDER: ${DEFAULT_PROVIDER:-openai}
+      DEFAULT_MODEL: ${DEFAULT_MODEL:-gpt-3.5-turbo}
+      CLICKHOUSE_URL: http://clickhouse:8123
+      CLICKHOUSE_USER: ${CLICKHOUSE_USER:-langfuse}
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:-}
+      PROMETHEUS_MULTIPROC_DIR: /tmp/prometheus_multiproc
+    env_file:
+      - .env
+    ports:
+      - "8100:8100"
+    depends_on:
+      clickhouse:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8100/health >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    networks:
+      - test-network
+
+  api:
+    build:
+      context: .
+      dockerfile: deploy/Dockerfile.api
+    container_name: mascarade-api-test
+    environment:
+      CORE_URL: http://core:8100
+      API_PORT: 3000
+      HOME: /tmp
+    env_file:
+      - .env
+    ports:
+      - "3000:3000"
+    depends_on:
+      core:
+        condition: service_started
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"fetch('http://127.0.0.1:3000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    networks:
+      - test-network
+
+  clickhouse:
+    image: ${CLICKHOUSE_IMAGE:-clickhouse/clickhouse-server@sha256:0b2d7824347397b2ba6fcb216f0ae772568105f1f47e19f0d3247e24c79bc10a}
+    container_name: mascarade-clickhouse-test
+    environment:
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:-testpass}
+    volumes:
+      - ./deploy/clickhouse-config/langfuse-user.xml:/etc/clickhouse-server/users.d/langfuse-user.xml:ro
+      - ./deploy/clickhouse/init/001_cost_tracking.sql:/docker-entrypoint-initdb.d/001_cost_tracking.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "clickhouse-client --query 'SELECT 1' >/dev/null 2>&1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    networks:
+      - test-network
+
+  prometheus:
+    image: ${PROMETHEUS_IMAGE:-prom/prometheus@sha256:4a61322ac1103a0e3aea2a61ef1718422a48fa046441f299d71e660a3bc71ae9}
+    container_name: mascarade-prometheus-test
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.retention.time=1h
+    volumes:
+      - ./deploy/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    ports:
+      - "9090:9090"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:9090/-/healthy >/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - test-network
+
+  grafana:
+    image: ${GRAFANA_IMAGE:-grafana/grafana@sha256:b0ae311af06228bcfd4a620504b653db80f5b91e94dc3dc2a5b7dab202bcde20}
+    container_name: mascarade-grafana-test
+    environment:
+      GF_SERVER_ROOT_URL: http://localhost:3001
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      GF_INSTALL_PLUGINS: grafana-clickhouse-datasource
+    volumes:
+      - ./deploy/grafana/provisioning:/etc/grafana/provisioning:ro
+    ports:
+      - "3001:3000"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:3000/api/health >/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    networks:
+      - test-network
+
+  redis:
+    image: ${REDIS_IMAGE:-redis@sha256:8b81dd37ff027bec4e516d41acfbe9fe2460070dc6d4a4570a2ac5b9d59df065}
+    container_name: mascarade-redis-test
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - test-network
+
+  postgres:
+    image: ${POSTGRES_IMAGE:-postgres@sha256:20edbde7749f822887a1a022ad526fde0a47d6b2be9a8364433605cf65099416}
+    container_name: mascarade-postgres-test
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-mascarade}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-testpass}
+      POSTGRES_DB: ${POSTGRES_DB:-mascarade}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-mascarade} -d ${POSTGRES_DB:-mascarade}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - test-network
+
+networks:
+  test-network:
+    driver: bridge

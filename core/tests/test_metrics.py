@@ -1,6 +1,6 @@
 """Tests pour le système de métriques."""
 
-from mascarade.metrics.tracker import MetricsTracker, ProviderMetrics
+from mascarade.metrics.tracker import ClassifierMetrics, MetricsTracker, ProviderMetrics
 
 
 def test_provider_metrics_update_success():
@@ -86,3 +86,66 @@ def test_best_performer():
         t.track_request("slow", tokens=10, cost=0.0, response_time=2.0, success=True)
     summary = t.get_summary()
     assert summary["best_performer"] == "fast"
+
+
+def test_classifier_metrics_update():
+    m = ClassifierMetrics()
+    m.update(latency=0.05, predicted_domain="kicad", was_correct=True)
+    assert m.total_predictions == 1
+    assert m.correct_predictions == 1
+    assert m.accuracy == 1.0
+    assert m.avg_latency == 0.05
+    assert m.predictions_by_domain["kicad"] == 1
+    assert m.last_used is not None
+
+
+def test_classifier_metrics_accuracy():
+    m = ClassifierMetrics()
+    # 2 correct, 1 incorrect → 66.7% accuracy
+    m.update(latency=0.01, predicted_domain="kicad", was_correct=True)
+    m.update(latency=0.02, predicted_domain="spice", was_correct=True)
+    m.update(latency=0.03, predicted_domain="freecad", was_correct=False)
+    assert m.total_predictions == 3
+    assert m.correct_predictions == 2
+    assert abs(m.accuracy - 2.0 / 3.0) < 0.01
+
+
+def test_classifier_metrics_latency():
+    m = ClassifierMetrics()
+    m.update(latency=0.01, predicted_domain="kicad")
+    m.update(latency=0.03, predicted_domain="spice")
+    assert abs(m.avg_latency - 0.02) < 0.001
+
+
+def test_classifier_metrics_domain_counts():
+    m = ClassifierMetrics()
+    m.update(latency=0.01, predicted_domain="kicad")
+    m.update(latency=0.01, predicted_domain="kicad")
+    m.update(latency=0.01, predicted_domain="spice")
+    assert m.predictions_by_domain["kicad"] == 2
+    assert m.predictions_by_domain["spice"] == 1
+
+
+def test_tracker_classifier_prediction():
+    t = MetricsTracker()
+    t.track_classifier_prediction(latency=0.05, predicted_domain="kicad", was_correct=True)
+    assert t.classifier.total_predictions == 1
+    stats = t.get_classifier_stats()
+    assert stats["total_predictions"] == 1
+    assert stats["accuracy"] == 1.0
+    assert stats["avg_latency_ms"] == 50.0
+
+
+def test_tracker_classifier_in_summary():
+    t = MetricsTracker()
+    t.track_classifier_prediction(latency=0.01, predicted_domain="kicad")
+    summary = t.get_summary()
+    assert "classifier" in summary
+    assert summary["classifier"]["total_predictions"] == 1
+
+
+def test_tracker_reset_includes_classifier():
+    t = MetricsTracker()
+    t.track_classifier_prediction(latency=0.01, predicted_domain="kicad")
+    t.reset()
+    assert t.classifier.total_predictions == 0
