@@ -96,7 +96,8 @@ docker compose restart core api
 
 ## Etat auto-synchronise
 <!-- AUTO-SYNC:MASCARADE-RUNBOOK:START -->
-- dernier cycle ANE automatise: 2026-03-14T14:03:06+00:00
+- dernier cycle ANE automatise: 2026-03-17T09:44:06+00:00
 - meilleurs candidats actuels: apple-coreml:qwen3.5-4b-onnx-q4f16, ollama:qwen2.5:7b
-- prochain lot utile cote ANE: Reference locale reconfirmee; retablir le runtime des modeles provider_failed puis reprendre rewrite/repair sur les modeles bloques a gate.
+- prochain lot utile cote ANE: Reference locale reconfirmee; resserrer rewrite/repair sur les modeles deja bloques a gate.
+- checkpoint runtime manuel: Le runtime Apple sert `aucun modèle` au lieu de `qwen3.5-4b-onnx-q4f16`.
 <!-- AUTO-SYNC:MASCARADE-RUNBOOK:END -->

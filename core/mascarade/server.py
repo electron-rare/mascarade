@@ -50,6 +50,15 @@ from mascarade.benchmarks.storage import BenchmarkStorage  # noqa: F401 — used
 
 logger = logging.getLogger("mascarade.server")
 
+# OpenLLMetry auto-instrumentation (traces LLM calls via OpenTelemetry)
+# Install with: uv pip install -e '.[observability]'
+try:
+    from traceloop.sdk import Traceloop
+    Traceloop.init(disable_batch=False)
+    logger.info("OpenLLMetry auto-instrumentation enabled")
+except ImportError:
+    pass
+
 # Import Gradio UI (lazy import to avoid loading gradio if not using finetune extras)
 try:
     from mascarade.gradio_ui import create_gradio_app

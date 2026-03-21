@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import os
@@ -23,12 +24,18 @@ class SkillRegistry:
         self._skills: dict[str, Skill] = {}
         self._builtin_names: set[str] = set()
         self._storage_path = storage_path
+        self._lock = asyncio.Lock()
 
     def register(self, skill: Skill, *, builtin: bool = False) -> None:
         """Register a skill in the registry."""
         self._skills[skill.name] = skill
         if builtin:
             self._builtin_names.add(skill.name)
+
+    async def async_register(self, skill: Skill, *, builtin: bool = False) -> None:
+        """Thread-safe register for use from async contexts."""
+        async with self._lock:
+            self.register(skill, builtin=builtin)
 
     def get(self, name: str) -> Skill:
         """Get a skill by name."""
@@ -47,6 +54,11 @@ class SkillRegistry:
         self._skills.pop(name, None)
         self._builtin_names.discard(name)
 
+    async def async_remove(self, name: str) -> None:
+        """Thread-safe remove for use from async contexts."""
+        async with self._lock:
+            self.remove(name)
+
     def __contains__(self, name: str) -> bool:
         return name in self._skills
 
@@ -58,6 +70,16 @@ class SkillRegistry:
         return name in self._builtin_names
 
     # --- Persistence ---
+
+    async def async_save(self) -> None:
+        """Thread-safe save for use from async contexts."""
+        async with self._lock:
+            self.save()
+
+    async def async_load(self) -> None:
+        """Thread-safe load for use from async contexts."""
+        async with self._lock:
+            self.load()
 
     def save(self) -> None:
         """Save dynamic skills to JSON file (atomic write)."""

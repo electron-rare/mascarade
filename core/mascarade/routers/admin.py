@@ -55,7 +55,7 @@ async def _get_authenticated_user(request: Request) -> User:
                 )
                 if ak_row is None:
                     ak_row = await conn.fetchrow(
-                        "SELECT * FROM api_keys", key_hash
+                        "SELECT * FROM api_keys WHERE key_hash = $1", key_hash
                     )
                 if ak_row and ak_row.get("is_active", True):
                     user_id = ak_row["user_id"]

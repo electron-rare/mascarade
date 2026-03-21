@@ -1,4 +1,4 @@
-"""Local MCP clients used by Mascarade core."""
+"""MCP clients and server for Mascarade core."""
 
 from mascarade.mcp.client import (
     McpCallError,
@@ -6,10 +6,12 @@ from mascarade.mcp.client import (
     McpServerUnavailable,
     McpToolResult,
 )
+from mascarade.mcp.server import McpServer
 
 __all__ = [
     "McpCallError",
     "McpRuntimeClient",
+    "McpServer",
     "McpServerUnavailable",
     "McpToolResult",
 ]
