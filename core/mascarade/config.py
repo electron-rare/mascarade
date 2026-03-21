@@ -151,6 +151,13 @@ class Settings(BaseSettings):
     cluster_mdns_discovery_ttl_seconds: int = 60
     cluster_mdns_advertise: bool = False
 
+    # Distributed scheduler
+    scheduler_enabled: bool = False
+    scheduler_workers: str = ""  # comma-separated: "kxkm-ai:8201,tower:8201,grosmac:8201"
+    scheduler_heartbeat_interval: int = 5  # seconds
+    scheduler_max_queue: int = 200
+    scheduler_max_wait_s: int = 30
+
     # P2P network
     p2p_enabled: bool = False
     p2p_listen_host: str = "0.0.0.0"

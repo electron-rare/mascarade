@@ -23,6 +23,7 @@ from mascarade.orchestrator.templates import (
     register_builtin_templates,
 )
 from mascarade.router import Router
+from mascarade.scheduler import ResourceAwareScheduler, HeartbeatMonitor, WorkerState
 from mascarade.routers.agents import router as agents_router
 from mascarade.routers.skills import router as skills_router
 from mascarade.routers.auth import router as auth_router
@@ -33,6 +34,8 @@ from mascarade.routers.memory import router as memory_router
 from mascarade.routers.providers import router as providers_router
 from mascarade.routers.prompt_versioning import router as prompt_versioning_router
 from mascarade.routers.cad_mcp import router as cad_mcp_router
+from mascarade.routers.admin import router as admin_router
+from mascarade.routers.scheduler import router as scheduler_router
 from mascarade.routers.knowledge_base import (
     knowledge_base_auth_configured,
     router as knowledge_base_router,
@@ -72,17 +75,51 @@ async def lifespan(app: FastAPI):
     template_registry = TemplateRegistry()
     register_builtin_templates(template_registry)
 
+    # Initialize distributed scheduler
+    scheduler = ResourceAwareScheduler()
+    if settings.scheduler_enabled and settings.scheduler_workers:
+        for entry in settings.scheduler_workers.split(","):
+            entry = entry.strip()
+            if not entry:
+                continue
+            parts = entry.split(":")
+            node_id = parts[0]
+            port = parts[1] if len(parts) > 1 else "8201"
+            worker = WorkerState(node_id=node_id, url=f"http://{entry}" if ":" in entry else f"http://{entry}:{port}")
+            scheduler.register_worker(worker)
+        logger.info("Scheduler enabled with %d workers", len(scheduler.workers))
+
+    heartbeat = HeartbeatMonitor(
+        scheduler.workers,
+        interval=settings.scheduler_heartbeat_interval,
+    )
+
     # Store in app state
-    app.state.router = router
-    app.state.registry = registry
-    app.state.orchestrator = orchestrator
-    app.state.trace_buffer = trace_buffer
-    app.state.cluster = cluster
-    app.state.skill_registry = skill_registry
-    app.state.template_registry = template_registry
-    app.state.mcp = McpRuntimeClient(trace_buffer=trace_buffer)
-    app.state.comfyui = ComfyUIClient() if settings.comfyui_url else None
-    app.state.device_voice = DeviceVoiceService(router=router)
+    # Only set if not already set (to preserve test mocks)
+    if not hasattr(app.state, "router") or app.state.router is None:
+        app.state.router = router
+    if not hasattr(app.state, "registry") or app.state.registry is None:
+        app.state.registry = registry
+    if not hasattr(app.state, "orchestrator") or app.state.orchestrator is None:
+        app.state.orchestrator = orchestrator
+    if not hasattr(app.state, "trace_buffer") or app.state.trace_buffer is None:
+        app.state.trace_buffer = trace_buffer
+    if not hasattr(app.state, "cluster") or app.state.cluster is None:
+        app.state.cluster = cluster
+    if not hasattr(app.state, "skill_registry") or app.state.skill_registry is None:
+        app.state.skill_registry = skill_registry
+    if not hasattr(app.state, "template_registry") or app.state.template_registry is None:
+        app.state.template_registry = template_registry
+    if not hasattr(app.state, "mcp") or app.state.mcp is None:
+        app.state.mcp = McpRuntimeClient(trace_buffer=trace_buffer)
+    if not hasattr(app.state, "comfyui"):
+        app.state.comfyui = ComfyUIClient() if settings.comfyui_url else None
+    if not hasattr(app.state, "device_voice") or app.state.device_voice is None:
+        app.state.device_voice = DeviceVoiceService(router=router)
+    if not hasattr(app.state, "scheduler") or app.state.scheduler is None:
+        app.state.scheduler = scheduler
+    if not hasattr(app.state, "heartbeat_monitor") or app.state.heartbeat_monitor is None:
+        app.state.heartbeat_monitor = heartbeat
 
     # Load persisted data
     registry.load()
@@ -102,9 +139,18 @@ async def lifespan(app: FastAPI):
     # Start health checks for all registered providers
     router.health_monitor.start_health_checks(list(router._providers.values()))
 
+    # Start distributed scheduler heartbeat
+    if settings.scheduler_enabled and scheduler.workers:
+        await heartbeat.start()
+        # Wire scheduler into router for distributed dispatch
+        router.scheduler = scheduler
+        logger.info("Distributed scheduler heartbeat started")
+
     yield
 
     # Cleanup
+    if hasattr(app.state, "heartbeat_monitor") and app.state.heartbeat_monitor:
+        await app.state.heartbeat_monitor.stop()
     await router.health_monitor.stop_health_checks()
     await cluster.stop_p2p()
     await cluster.close()
@@ -167,6 +213,20 @@ def create_app() -> FastAPI:
         ],
     )
 
+    # Pre-initialize state attributes so tests can patch them before lifespan runs
+    app.state.router = None
+    app.state.registry = None
+    app.state.orchestrator = None
+    app.state.trace_buffer = None
+    app.state.cluster = None
+    app.state.skill_registry = None
+    app.state.template_registry = None
+    app.state.mcp = None
+    app.state.comfyui = None
+    app.state.device_voice = None
+    app.state.scheduler = None
+    app.state.heartbeat_monitor = None
+
     # Mount routers
     app.include_router(health_router)
     app.include_router(auth_router)
@@ -179,6 +239,8 @@ def create_app() -> FastAPI:
     app.include_router(prompt_versioning_router)
     app.include_router(cad_mcp_router)
     app.include_router(knowledge_base_router)
+    app.include_router(admin_router)
+    app.include_router(scheduler_router)
 
     # Mount Gradio UI for fine-tuning (if available)
     if GRADIO_AVAILABLE:
