@@ -38,6 +38,11 @@ def register_default_skills(registry: AgentRegistry) -> None:
     components_agent = ComponentsAgent()
     registry.register(components_agent, builtin=True)
 
+    # Register CLI coding agents (Vibe, Codex, Claude Code)
+    from mascarade.agents.cli_agents import register_cli_agents
+
+    register_cli_agents(registry)
+
 
 # --- Summarizer ---
 
