@@ -3,19 +3,11 @@ import type { ContentfulStatusCode } from "hono/utils/http-status";
 import { getCoreAuthHeaders } from "../client/core.js";
 import { handleCoreError } from "../middleware/error.js";
 import { stream } from "hono/streaming";
+import { ChatCompletionRequestSchema, type ChatCompletionRequest } from "../validation/index.js";
 
 const chat = new Hono();
 const CORE_URL = (process.env.CORE_URL || "http://localhost:8100").replace(/\/+$/, "");
 const REQUEST_TIMEOUT_MS = parseInt(process.env.CORE_TIMEOUT_MS || "30000", 10);
-
-type ChatCompletionRequest = {
-  model: string;
-  messages: Array<{ role: string; content: string }>;
-  stream?: boolean;
-  temperature?: number;
-  max_tokens?: number;
-  [key: string]: unknown;
-};
 
 /**
  * POST /completions
@@ -24,7 +16,24 @@ type ChatCompletionRequest = {
  */
 chat.post("/completions", async (c: Context) => {
   try {
-    const body = await c.req.json<ChatCompletionRequest>();
+    let raw: unknown;
+    try {
+      raw = await c.req.json();
+    } catch {
+      return c.json({ error: "Validation failed", details: [{ message: "Request body is not valid JSON" }] }, 400);
+    }
+    const parsed = ChatCompletionRequestSchema.safeParse(raw);
+    if (!parsed.success) {
+      return c.json({
+        error: "Validation failed",
+        details: parsed.error.issues.map((issue: { path: (string | number)[]; message: string; code: string }) => ({
+          path: issue.path.join("."),
+          message: issue.message,
+          code: issue.code,
+        })),
+      }, 400);
+    }
+    const body: ChatCompletionRequest = parsed.data;
     const isStreaming = body.stream === true;
 
     const headers = new Headers({

@@ -2,6 +2,10 @@ import { Hono, type Context } from "hono";
 import { CoreApiError, coreClient } from "../client/core.js";
 import { emitStructuredLog } from "../lib/otel.js";
 import { handleCoreError } from "../middleware/error.js";
+import {
+  AgentCreateRequestSchema,
+  AgentUpdateRequestSchema,
+} from "../validation/index.js";
 
 const agents = new Hono();
 const SAFE_NAME_RE = /^[\w.-]+$/;
@@ -266,7 +270,24 @@ agents.get("/", async (c) => {
 /** Creer un agent */
 agents.post("/", async (c) => {
   try {
-    const body = await c.req.json();
+    let raw: unknown;
+    try {
+      raw = await c.req.json();
+    } catch {
+      return c.json({ error: "Validation failed", details: [{ message: "Request body is not valid JSON" }] }, 400);
+    }
+    const parsed = AgentCreateRequestSchema.safeParse(raw);
+    if (!parsed.success) {
+      return c.json({
+        error: "Validation failed",
+        details: parsed.error.issues.map((issue: { path: (string | number)[]; message: string; code: string }) => ({
+          path: issue.path.join("."),
+          message: issue.message,
+          code: issue.code,
+        })),
+      }, 400);
+    }
+    const body = parsed.data;
     const result = await coreClient.createAgent(body);
     return c.json(result, 201);
   } catch (error) {
@@ -608,7 +629,24 @@ agents.put("/:name", async (c) => {
     if (!name || !SAFE_NAME_RE.test(name)) {
       return c.json({ error: "Invalid agent name" }, 400);
     }
-    const body = await c.req.json();
+    let raw: unknown;
+    try {
+      raw = await c.req.json();
+    } catch {
+      return c.json({ error: "Validation failed", details: [{ message: "Request body is not valid JSON" }] }, 400);
+    }
+    const parsed = AgentUpdateRequestSchema.safeParse(raw);
+    if (!parsed.success) {
+      return c.json({
+        error: "Validation failed",
+        details: parsed.error.issues.map((issue: { path: (string | number)[]; message: string; code: string }) => ({
+          path: issue.path.join("."),
+          message: issue.message,
+          code: issue.code,
+        })),
+      }, 400);
+    }
+    const body = parsed.data;
     const result = await coreClient.updateAgent(name, body);
     return c.json(result);
   } catch (error) {
