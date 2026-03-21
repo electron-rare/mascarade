@@ -8,7 +8,8 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 from mascarade.agents import AgentRegistry
-from mascarade.agents.skills import register_default_skills
+from mascarade.agents.skill_registry import SkillRegistry
+from mascarade.agents.skills import register_default_skills, register_default_skills_v2
 from mascarade.cluster import ClusterManager
 from mascarade.config import settings
 from mascarade.db.connection import close_db_pool, init_db_pool
@@ -23,6 +24,7 @@ from mascarade.orchestrator.templates import (
 )
 from mascarade.router import Router
 from mascarade.routers.agents import router as agents_router
+from mascarade.routers.skills import router as skills_router
 from mascarade.routers.auth import router as auth_router
 from mascarade.routers.chat import router as chat_router
 from mascarade.routers.finetune import router as finetune_router
@@ -48,6 +50,8 @@ async def lifespan(app: FastAPI):
     router = Router()
     registry = AgentRegistry()
     register_default_skills(registry)
+    skill_registry = SkillRegistry()
+    register_default_skills_v2(skill_registry)
     trace_buffer = AgentTraceBuffer()
     cluster = ClusterManager(
         router=router,
@@ -68,13 +72,15 @@ async def lifespan(app: FastAPI):
     app.state.orchestrator = orchestrator
     app.state.trace_buffer = trace_buffer
     app.state.cluster = cluster
+    app.state.skill_registry = skill_registry
     app.state.template_registry = template_registry
     app.state.mcp = McpRuntimeClient(trace_buffer=trace_buffer)
     app.state.comfyui = ComfyUIClient() if settings.comfyui_url else None
     app.state.device_voice = DeviceVoiceService(router=router)
 
-    # Load agents
+    # Load persisted data
     registry.load()
+    skill_registry.load()
 
     # Initialize database pool if configured
     if settings.database_url:
@@ -133,6 +139,10 @@ def create_app() -> FastAPI:
                 "description": "Agent management and orchestration",
             },
             {
+                "name": "skills",
+                "description": "Skill management and agent assignment",
+            },
+            {
                 "name": "memory",
                 "description": "Memory and knowledge base operations",
             },
@@ -156,6 +166,7 @@ def create_app() -> FastAPI:
     app.include_router(auth_router)
     app.include_router(chat_router)
     app.include_router(agents_router)
+    app.include_router(skills_router)
     app.include_router(memory_router)
     app.include_router(providers_router)
     app.include_router(finetune_router)

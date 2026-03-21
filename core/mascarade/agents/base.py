@@ -12,6 +12,7 @@ from mascarade.router.router import Strategy
 
 if TYPE_CHECKING:
     from mascarade.agents.registry import AgentRegistry
+    from mascarade.agents.skill_registry import SkillRegistry
 
 
 @dataclass
@@ -29,7 +30,24 @@ class Agent:
     tools: list[str] = field(default_factory=list)
     temperature: float = 0.7
     max_tokens: int = 4096
+    skills: list[str] = field(default_factory=list)  # assigned skill names
     retry_config: dict | None = None
+
+    def get_enhanced_system_prompt(self, skill_registry: SkillRegistry) -> str:
+        """Build system prompt enhanced with assigned skills.
+
+        Concatenates the agent's base system_prompt with instruction fragments
+        from all assigned and enabled skills.
+        """
+        parts = [self.system_prompt]
+        for skill_name in self.skills:
+            try:
+                skill = skill_registry.get(skill_name)
+            except KeyError:
+                continue
+            if skill.enabled and skill.instruction:
+                parts.append(skill.instruction)
+        return "\n\n".join(parts)
 
     def build_send_payload(
         self,
