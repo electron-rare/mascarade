@@ -233,6 +233,11 @@ class Settings(BaseSettings):
     dead_letter_max_entries: int = 1000
     dead_letter_retention_seconds: int = 86400
 
+    # A2A (Agent-to-Agent) protocol
+    a2a_enabled: bool = False
+    a2a_agent_name: str = "mascarade"
+    a2a_agent_url: str = ""
+
     # Defaults
     default_provider: str = "claude"
     default_model: str = "claude-sonnet-4-6"
