@@ -318,17 +318,133 @@ _AGENT_CATEGORY_MAP: dict[str, str] = {
 
 
 def register_default_skills_v2(skill_registry: SkillRegistry) -> None:
-    """Create Skill objects from the existing builtin agents and register them."""
-    for agent in ALL_SKILLS:
-        category = _AGENT_CATEGORY_MAP.get(agent.name, "general")
-        skill = Skill(
-            name=agent.name,
-            description=agent.description,
-            category=category,
-            instruction=agent.system_prompt,
-            tools=list(agent.tools),
-            examples=[],
-            enabled=True,
-            version=1,
-        )
+    """Register orthogonal, composable skills (not agent mirrors).
+
+    Skills are reusable instruction fragments that inject capabilities into
+    any agent via agent.skills = ["skill-name", ...].  They are NOT 1:1
+    copies of agents — they are cross-cutting concerns that enhance agents.
+    """
+    _BUILTIN_SKILLS: list[Skill] = [
+        Skill(
+            name="structured-output",
+            description="Force structured JSON output with schema validation",
+            category="output",
+            instruction=(
+                "Tu DOIS repondre exclusivement en JSON valide. "
+                "Aucun texte avant ou apres le bloc JSON. "
+                "Si l'utilisateur demande un schema specifique, respecte-le exactement. "
+                "Valide mentalement ton JSON avant de repondre."
+            ),
+            examples=[
+                {"input": "Liste 3 fruits", "output": '{"fruits": ["pomme", "banane", "orange"]}'},
+            ],
+        ),
+        Skill(
+            name="chain-of-thought",
+            description="Raisonnement etape par etape avant la reponse finale",
+            category="reasoning",
+            instruction=(
+                "Avant de repondre, decompose ton raisonnement en etapes numerotees. "
+                "Montre ton travail: hypotheses, verifications, conclusion. "
+                "Termine par une reponse finale claire separee du raisonnement."
+            ),
+        ),
+        Skill(
+            name="safety-review",
+            description="Analyse de securite et risques avant toute action",
+            category="security",
+            instruction=(
+                "Avant d'executer ou de recommander une action, effectue une analyse de risque: "
+                "1. Identifie les effets de bord potentiels. "
+                "2. Evalue la reversibilite de l'action. "
+                "3. Verifie les implications de securite (injection, fuite de donnees, privileges). "
+                "4. Propose des alternatives plus sures si le risque est eleve. "
+                "Signale explicitement tout risque identifie."
+            ),
+        ),
+        Skill(
+            name="french-output",
+            description="Repondre exclusivement en francais",
+            category="language",
+            instruction=(
+                "Tu reponds TOUJOURS en francais, quelle que soit la langue de la question. "
+                "Utilise un francais technique precis et naturel. "
+                "Pas d'anglicismes inutiles quand un equivalent francais existe."
+            ),
+        ),
+        Skill(
+            name="concise",
+            description="Reponses courtes et directes, sans fioritures",
+            category="output",
+            instruction=(
+                "Sois le plus concis possible. Pas d'introduction, pas de conclusion, "
+                "pas de reformulation de la question. Va droit au but. "
+                "Si la reponse tient en une ligne, ne fais pas un paragraphe."
+            ),
+        ),
+        Skill(
+            name="electronics-domain",
+            description="Contexte electronique: PCB, composants, normes IPC",
+            category="domain",
+            instruction=(
+                "Tu travailles dans le domaine de l'electronique. "
+                "Respecte les normes IPC (IPC-2221, IPC-A-610, IPC-2581). "
+                "Utilise les unites SI (mm, mA, V, Ohm). "
+                "Quand tu references un composant, donne le package, la tension nominale et la tolerance. "
+                "Privilegies les solutions avec des composants courants et disponibles."
+            ),
+            tools=["kicad-mcp", "spice-mcp", "components-mcp"],
+        ),
+        Skill(
+            name="cad-domain",
+            description="Contexte CAO 3D: FreeCAD, OpenSCAD, tolerances",
+            category="domain",
+            instruction=(
+                "Tu travailles dans le domaine de la conception 3D et fabrication. "
+                "Utilise les unites metriques (mm). "
+                "Respecte les tolerances de fabrication standard (±0.1mm pour usinage, ±0.3mm pour impression 3D). "
+                "Quand tu generes du code, utilise FreeCAD Part Design ou OpenSCAD. "
+                "Verifie que les formes sont manifold et imprimables."
+            ),
+            tools=["freecad-mcp", "openscad-mcp"],
+        ),
+        Skill(
+            name="code-review",
+            description="Revue de code approfondie avec checklist securite",
+            category="code",
+            instruction=(
+                "Quand tu analyses du code: "
+                "1. Verifie la logique et les edge cases. "
+                "2. Cherche les vulnerabilites OWASP (injection, XSS, SSRF, auth bypass). "
+                "3. Verifie la gestion d'erreurs et les ressources (fuites memoire, handles). "
+                "4. Evalue la lisibilite et la maintenabilite. "
+                "5. Propose des corrections specifiques avec des diffs."
+            ),
+        ),
+        Skill(
+            name="few-shot-format",
+            description="Utilise des exemples pour guider le format de sortie",
+            category="output",
+            instruction=(
+                "Quand des exemples sont fournis dans le contexte, utilise-les comme modele "
+                "pour le format de ta reponse. Reproduis exactement la structure, "
+                "le style et le niveau de detail des exemples."
+            ),
+        ),
+        Skill(
+            name="web-search-augmented",
+            description="Enrichir les reponses avec des recherches web",
+            category="augmentation",
+            instruction=(
+                "Si la question porte sur des faits recents, des bibliotheques, "
+                "des versions ou des evenements post-entrainement, indique clairement "
+                "les limites de tes connaissances et suggere une verification web. "
+                "Quand des resultats de recherche sont disponibles dans le contexte, "
+                "cite-les avec leurs sources."
+            ),
+            tools=["firecrawl-mcp"],
+        ),
+    ]
+
+    for skill in _BUILTIN_SKILLS:
         skill_registry.register(skill, builtin=True)

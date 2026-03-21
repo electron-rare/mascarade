@@ -128,6 +128,12 @@ async def create_agent(req: AgentCreate, request: Request):
     Raises:
         HTTPException: If agent with the same name already exists
     """
+    if req.name in request.app.state.registry:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Agent '{req.name}' already exists",
+        )
+
     agent = Agent(
         name=req.name,
         description=req.description,
@@ -324,7 +330,20 @@ async def run_agent(name: str, req: SendRequest, request: Request):
     messages = [m.model_dump() for m in req.messages]
     prompt = messages[-1]["content"]
     context = messages[:-1] if len(messages) > 1 else None
-    response = await agent.run(prompt, router=request.app.state.router, context=context)
+    try:
+        response = await agent.run(
+            prompt,
+            router=request.app.state.router,
+            context=context,
+            skill_registry=getattr(request.app.state, "skill_registry", None),
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
     return {
         "content": response.content,
         "model": response.model,

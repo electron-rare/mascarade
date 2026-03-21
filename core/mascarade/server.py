@@ -85,6 +85,7 @@ async def lifespan(app: FastAPI):
     orchestrator = Orchestrator(
         router=router,
         registry=registry,
+        skill_registry=skill_registry,
         trace_buffer=trace_buffer,
         cluster=cluster,
     )
