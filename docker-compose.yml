@@ -3,8 +3,6 @@
 
 services:
   core:
-    profiles:
-      - core
     build:
       context: .
       dockerfile: deploy/Dockerfile.core
@@ -39,8 +37,6 @@ services:
       - mascarade-network
 
   api:
-    profiles:
-      - core
     build:
       context: .
       dockerfile: deploy/Dockerfile.api
@@ -69,321 +65,7 @@ services:
     networks:
       - mascarade-network
 
-  litellm:
-    profiles:
-      - personal
-    image: ${LITELLM_IMAGE:-ghcr.io/berriai/litellm@sha256:59a2736ac84800821fa0e1656487366089f2d29d10f8ae05c918df9c6e4940af}
-    container_name: mascarade-litellm
-    restart: unless-stopped
-    ports:
-      - "${PUBLISH_BIND_HOST:-0.0.0.0}:${LITELLM_PORT}:4000"
-    env_file:
-      - .env
-    environment:
-      LITELLM_PORT: ${LITELLM_PORT}
-      REDIS_HOST: redis
-      REDIS_PORT: 6379
-    volumes:
-      - ./tools/litellm-config.yaml:/app/config.yaml:ro
-    command: ["--config", "/app/config.yaml"]
-    depends_on:
-      redis:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD-SHELL", "python -c 'import urllib.request; urllib.request.urlopen(\"http://127.0.0.1:4000/health/liveliness\", timeout=3)' >/dev/null"]
-      interval: 15s
-      timeout: 5s
-      retries: 10
-      start_period: 20s
-    networks:
-      - mascarade-network
-
-  n8n:
-    profiles:
-      - personal
-    image: ${N8N_IMAGE:-n8nio/n8n@sha256:cfa50544c4cc172506834da1ec9bb5171db55958c8d1918205df0bda237a56f4}
-    container_name: mascarade-n8n
-    restart: unless-stopped
-    ports:
-      - "${PUBLISH_BIND_HOST:-0.0.0.0}:${N8N_PORT}:5678"
-    environment:
-      DB_TYPE: postgresdb
-      DB_POSTGRESDB_HOST: postgres
-      DB_POSTGRESDB_PORT: 5432
-      DB_POSTGRESDB_DATABASE: mascarade
-      DB_POSTGRESDB_USER: mascarade
-      DB_POSTGRESDB_PASSWORD: ${POSTGRES_PASSWORD:-}
-    depends_on:
-      postgres:
-        condition: service_healthy
-    volumes:
-      - n8n-data:/home/node/.n8n
-    healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:5678/healthz >/dev/null"]
-      interval: 15s
-      timeout: 5s
-      retries: 10
-      start_period: 30s
-    networks:
-      - mascarade-network
-
-  langfuse-worker:
-    profiles:
-      - observability
-    image: ${LANGFUSE_WORKER_IMAGE:-langfuse/langfuse-worker@sha256:8bb47a4240ea293a210e460eae912ce06ea8fc2f724ce89cb146547eed36f6b2}
-    container_name: mascarade-langfuse-worker
-    restart: unless-stopped
-    environment: &langfuse-worker-env
-      NEXTAUTH_URL: ${NEXTAUTH_URL}
-      DATABASE_URL: postgresql://mascarade:${POSTGRES_PASSWORD}@postgres:5432/langfuse
-      SALT: ${SALT}
-      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
-      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET}
-      TELEMETRY_ENABLED: "true"
-      LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES: "false"
-      CLICKHOUSE_URL: http://clickhouse:8123
-      CLICKHOUSE_MIGRATION_URL: clickhouse://clickhouse:9000
-      CLICKHOUSE_USER: ${CLICKHOUSE_USER:-langfuse}
-      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:-}
-      CLICKHOUSE_CLUSTER_ENABLED: "false"
-      REDIS_CONNECTION_STRING: redis://redis:6379
-      REDIS_TLS_ENABLED: "false"
-      LANGFUSE_S3_EVENT_UPLOAD_BUCKET: langfuse
-      LANGFUSE_S3_EVENT_UPLOAD_REGION: auto
-      LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID: ${MINIO_ROOT_USER:-minio}
-      LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD:-}
-      LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT: http://minio:9000
-      LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE: "true"
-      LANGFUSE_S3_EVENT_UPLOAD_PREFIX: events/
-      LANGFUSE_S3_MEDIA_UPLOAD_BUCKET: langfuse
-      LANGFUSE_S3_MEDIA_UPLOAD_REGION: auto
-      LANGFUSE_S3_MEDIA_UPLOAD_ACCESS_KEY_ID: ${MINIO_ROOT_USER:-minio}
-      LANGFUSE_S3_MEDIA_UPLOAD_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD:-}
-      LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT: http://minio:9000
-      LANGFUSE_S3_MEDIA_UPLOAD_FORCE_PATH_STYLE: "true"
-      LANGFUSE_S3_MEDIA_UPLOAD_PREFIX: media/
-    depends_on:
-      postgres:
-        condition: service_healthy
-      clickhouse:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-      minio:
-        condition: service_healthy
-    healthcheck:
-      test:
-        - CMD-SHELL
-        - IP=$$(hostname -i | awk '{print $$1}') && wget -q --spider "http://$$IP:3030/"
-      interval: 15s
-      timeout: 5s
-      retries: 10
-      start_period: 20s
-    networks:
-      - mascarade-network
-
-  langfuse-web:
-    profiles:
-      - observability
-    image: ${LANGFUSE_WEB_IMAGE:-langfuse/langfuse@sha256:8d3211972d2a0610258ff0cc86da6b2d367f804bf253e9b94863bf961e59d23c}
-    container_name: mascarade-langfuse
-    restart: unless-stopped
-    ports:
-      - "${PUBLISH_BIND_HOST:-0.0.0.0}:${LANGFUSE_PORT}:3000"
-    environment:
-      <<: *langfuse-worker-env
-      LANGFUSE_INIT_PROJECT_PUBLIC_KEY: ${LANGFUSE_INIT_PROJECT_PUBLIC_KEY:-}
-      LANGFUSE_INIT_PROJECT_SECRET_KEY: ${LANGFUSE_INIT_PROJECT_SECRET_KEY:-}
-      LANGFUSE_PUBLIC_ORIGIN: ${LANGFUSE_PUBLIC_ORIGIN:-http://langfuse-web:3000}
-    depends_on:
-      langfuse-worker:
-        condition: service_started
-      postgres:
-        condition: service_healthy
-      clickhouse:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-      minio:
-        condition: service_healthy
-    networks:
-      - mascarade-network
-
-  minio:
-    profiles:
-      - observability
-    image: ${MINIO_IMAGE:-minio/minio@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e}
-    container_name: mascarade-langfuse-minio
-    restart: unless-stopped
-    entrypoint: sh
-    command: -c 'mkdir -p /data/langfuse && minio server --address ":9000" --console-address ":9001" /data'
-    environment:
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minio}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-}
-    ports:
-      - "${PUBLISH_BIND_HOST:-0.0.0.0}:9190:9000"
-      - "${PUBLISH_BIND_HOST:-0.0.0.0}:9191:9001"
-    volumes:
-      - langfuse-minio-data:/data
-    healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:9000/minio/health/live >/dev/null"]
-      interval: 15s
-      timeout: 5s
-      retries: 10
-      start_period: 15s
-    networks:
-      - mascarade-network
-
-  firecrawl:
-    profiles:
-      - personal
-    image: ${FIRECRAWL_IMAGE:-mcp/firecrawl@sha256:e6676bd31d1806574d931b7a7b7b6fba953c031853e80adc1ec8115c17ab81ca}
-    container_name: mascarade-firecrawl
-    restart: unless-stopped
-    ports:
-      - "${PUBLISH_BIND_HOST:-0.0.0.0}:${FIRECRAWL_PORT:-3400}:3000"
-    env_file:
-      - .env
-    environment:
-      HTTP_STREAMABLE_SERVER: "true"
-      PORT: 3000
-      HOST: ${FIRECRAWL_HOST:-0.0.0.0}
-      FIRECRAWL_API_KEY: ${FIRECRAWL_API_KEY:-}
-      FIRECRAWL_API_URL: ${FIRECRAWL_API_URL:-}
-    healthcheck:
-      test: ["CMD-SHELL", "node -e \"if (!process.env.FIRECRAWL_API_KEY && !process.env.FIRECRAWL_API_URL) process.exit(1); const net = require('net'); const socket = net.connect(3000, '127.0.0.1'); socket.on('connect', () => { socket.end(); process.exit(0); }); socket.on('error', () => process.exit(1)); setTimeout(() => process.exit(1), 3000);\""]
-      interval: 15s
-      timeout: 5s
-      retries: 10
-      start_period: 20s
-    networks:
-      - mascarade-network
-
-  mem0:
-    profiles:
-      - personal
-    image: ${MEM0_IMAGE:-mem0/openmemory-mcp:latest}
-    container_name: mascarade-mem0
-    restart: unless-stopped
-    ports:
-      - "${PUBLISH_BIND_HOST:-0.0.0.0}:${MEM0_PORT:-3300}:8765"
-    env_file:
-      - .env
-    environment:
-      USER: ${MEM0_USER:-mascarade}
-      OPENAI_API_KEY: ${MEM0_OPENAI_API_KEY:-sk-mem0-local}
-      OPENAI_API_BASE: ${MEM0_OPENAI_BASE_URL:-http://litellm:4000}
-      OPENAI_BASE_URL: ${MEM0_OPENAI_BASE_URL:-http://litellm:4000}
-      QDRANT_HOST: ${MEM0_QDRANT_HOST:-qdrant}
-      QDRANT_PORT: ${MEM0_QDRANT_PORT:-6333}
-    depends_on:
-      litellm:
-        condition: service_healthy
-      qdrant:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD-SHELL", "python -c \"import socket; sock = socket.create_connection(('127.0.0.1', 8765), 3); sock.close()\""]
-      interval: 15s
-      timeout: 5s
-      retries: 10
-      start_period: 25s
-    networks:
-      - mascarade-network
-
-  dify-api:
-    profiles:
-      - personal
-    image: ${DIFY_API_IMAGE:-langgenius/dify-api@sha256:5f622b4d0b39bdc6d3b401063cfb60962fa92dcc63f55daccec138f98b260e67}
-    container_name: mascarade-dify-api
-    restart: unless-stopped
-    ports:
-      - "${PUBLISH_BIND_HOST:-0.0.0.0}:${DIFY_API_PORT}:5001"
-    environment:
-      DB_USERNAME: mascarade
-      DB_PASSWORD: ${POSTGRES_PASSWORD:-}
-      DB_HOST: postgres
-      DB_PORT: 5432
-      DB_DATABASE: mascarade
-      REDIS_HOST: redis
-      REDIS_PORT: 6379
-      APP_WEB_URL: ${DIFY_PUBLIC_ORIGIN:-https://dify.localhost}
-      CONSOLE_WEB_URL: ${DIFY_PUBLIC_ORIGIN:-https://dify.localhost}
-      CONSOLE_API_URL: ${DIFY_PUBLIC_ORIGIN:-https://dify.localhost}
-      SERVICE_API_URL: ${DIFY_PUBLIC_ORIGIN:-https://dify.localhost}
-      OPENDAL_SCHEME: fs
-      OPENDAL_ROOT: /app/api/storage
-      OPENDAL_FS_ROOT: /app/api/storage
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    networks:
-      - mascarade-network
-  dify-web:
-    profiles:
-      - personal
-    image: ${DIFY_WEB_IMAGE:-langgenius/dify-web@sha256:30339b4d5060488fac147ddc6fb40438ef71cd5f5dfdeb26c886768302bf7197}
-    container_name: mascarade-dify-web
-    restart: unless-stopped
-    ports:
-      - "${PUBLISH_BIND_HOST:-0.0.0.0}:${DIFY_WEB_PORT}:3000"
-    environment:
-      DB_USERNAME: mascarade
-      DB_PASSWORD: ${POSTGRES_PASSWORD:-}
-      DB_HOST: postgres
-      DB_PORT: 5432
-      DB_DATABASE: mascarade
-      REDIS_HOST: redis
-      REDIS_PORT: 6379
-      APP_WEB_URL: ${DIFY_PUBLIC_ORIGIN:-https://dify.localhost}
-      CONSOLE_WEB_URL: ${DIFY_PUBLIC_ORIGIN:-https://dify.localhost}
-      CONSOLE_API_URL: ${DIFY_PUBLIC_ORIGIN:-https://dify.localhost}
-      SERVICE_API_URL: ${DIFY_PUBLIC_ORIGIN:-https://dify.localhost}
-      OPENDAL_SCHEME: fs
-      OPENDAL_ROOT: /app/api/storage
-      OPENDAL_FS_ROOT: /app/api/storage
-      APP_API_URL: ${DIFY_PUBLIC_ORIGIN:-https://dify.localhost}
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    networks:
-      - mascarade-network
-  dify-worker:
-    profiles:
-      - personal
-    image: ${DIFY_API_IMAGE:-langgenius/dify-api@sha256:5f622b4d0b39bdc6d3b401063cfb60962fa92dcc63f55daccec138f98b260e67}
-    container_name: mascarade-dify-worker
-    restart: unless-stopped
-    command: celery -A app.celery worker
-    environment:
-      DB_USERNAME: mascarade
-      DB_PASSWORD: ${POSTGRES_PASSWORD:-}
-      DB_HOST: postgres
-      DB_PORT: 5432
-      DB_DATABASE: mascarade
-      REDIS_HOST: redis
-      REDIS_PORT: 6379
-      APP_WEB_URL: ${DIFY_PUBLIC_ORIGIN:-https://dify.localhost}
-      CONSOLE_WEB_URL: ${DIFY_PUBLIC_ORIGIN:-https://dify.localhost}
-      CONSOLE_API_URL: ${DIFY_PUBLIC_ORIGIN:-https://dify.localhost}
-      SERVICE_API_URL: ${DIFY_PUBLIC_ORIGIN:-https://dify.localhost}
-      OPENDAL_SCHEME: fs
-      OPENDAL_ROOT: /app/api/storage
-      OPENDAL_FS_ROOT: /app/api/storage
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    networks:
-      - mascarade-network
-
   agent-factory-cockpit:
-    profiles:
-      - industrial
     build:
       context: ../agent-factory-cockpit
       dockerfile: Dockerfile
@@ -442,8 +124,6 @@ services:
       - mascarade-network
 
   agent-factory-dcs-sandbox:
-    profiles:
-      - industrial
     build:
       context: ../agent-factory-cockpit
       dockerfile: Dockerfile
@@ -486,9 +166,299 @@ services:
     networks:
       - mascarade-network
 
+  litellm:
+    image: ${LITELLM_IMAGE:-ghcr.io/berriai/litellm@sha256:59a2736ac84800821fa0e1656487366089f2d29d10f8ae05c918df9c6e4940af}
+    container_name: mascarade-litellm
+    restart: unless-stopped
+    ports:
+      - "${PUBLISH_BIND_HOST:-0.0.0.0}:${LITELLM_PORT}:4000"
+    env_file:
+      - .env
+    environment:
+      LITELLM_PORT: ${LITELLM_PORT}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+    volumes:
+      - ./tools/litellm-config.yaml:/app/config.yaml:ro
+    command: ["--config", "/app/config.yaml"]
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "python -c 'import urllib.request; urllib.request.urlopen(\"http://127.0.0.1:4000/health/liveliness\", timeout=3)' >/dev/null"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    networks:
+      - mascarade-network
+
+  n8n:
+    image: ${N8N_IMAGE:-n8nio/n8n@sha256:cfa50544c4cc172506834da1ec9bb5171db55958c8d1918205df0bda237a56f4}
+    container_name: mascarade-n8n
+    restart: unless-stopped
+    ports:
+      - "${PUBLISH_BIND_HOST:-0.0.0.0}:${N8N_PORT}:5678"
+    environment:
+      DB_TYPE: postgresdb
+      DB_POSTGRESDB_HOST: postgres
+      DB_POSTGRESDB_PORT: 5432
+      DB_POSTGRESDB_DATABASE: mascarade
+      DB_POSTGRESDB_USER: mascarade
+      DB_POSTGRESDB_PASSWORD: ${POSTGRES_PASSWORD:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - n8n-data:/home/node/.n8n
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:5678/healthz >/dev/null"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    networks:
+      - mascarade-network
+
+  langfuse-worker:
+    image: ${LANGFUSE_WORKER_IMAGE:-langfuse/langfuse-worker@sha256:8bb47a4240ea293a210e460eae912ce06ea8fc2f724ce89cb146547eed36f6b2}
+    container_name: mascarade-langfuse-worker
+    restart: unless-stopped
+    environment: &langfuse-worker-env
+      NEXTAUTH_URL: ${NEXTAUTH_URL}
+      DATABASE_URL: postgresql://mascarade:${POSTGRES_PASSWORD}@postgres:5432/langfuse
+      SALT: ${SALT}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET}
+      TELEMETRY_ENABLED: "true"
+      LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES: "false"
+      CLICKHOUSE_URL: http://clickhouse:8123
+      CLICKHOUSE_MIGRATION_URL: clickhouse://clickhouse:9000
+      CLICKHOUSE_USER: ${CLICKHOUSE_USER:-langfuse}
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:-}
+      CLICKHOUSE_CLUSTER_ENABLED: "false"
+      REDIS_CONNECTION_STRING: redis://redis:6379
+      REDIS_TLS_ENABLED: "false"
+      LANGFUSE_S3_EVENT_UPLOAD_BUCKET: langfuse
+      LANGFUSE_S3_EVENT_UPLOAD_REGION: auto
+      LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID: ${MINIO_ROOT_USER:-minio}
+      LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD:-}
+      LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT: http://minio:9000
+      LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE: "true"
+      LANGFUSE_S3_EVENT_UPLOAD_PREFIX: events/
+      LANGFUSE_S3_MEDIA_UPLOAD_BUCKET: langfuse
+      LANGFUSE_S3_MEDIA_UPLOAD_REGION: auto
+      LANGFUSE_S3_MEDIA_UPLOAD_ACCESS_KEY_ID: ${MINIO_ROOT_USER:-minio}
+      LANGFUSE_S3_MEDIA_UPLOAD_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD:-}
+      LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT: http://minio:9000
+      LANGFUSE_S3_MEDIA_UPLOAD_FORCE_PATH_STYLE: "true"
+      LANGFUSE_S3_MEDIA_UPLOAD_PREFIX: media/
+    depends_on:
+      postgres:
+        condition: service_healthy
+      clickhouse:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - IP=$$(hostname -i | awk '{print $$1}') && wget -q --spider "http://$$IP:3030/"
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    networks:
+      - mascarade-network
+
+  langfuse-web:
+    image: ${LANGFUSE_WEB_IMAGE:-langfuse/langfuse@sha256:8d3211972d2a0610258ff0cc86da6b2d367f804bf253e9b94863bf961e59d23c}
+    container_name: mascarade-langfuse
+    restart: unless-stopped
+    ports:
+      - "${PUBLISH_BIND_HOST:-0.0.0.0}:${LANGFUSE_PORT}:3000"
+    environment:
+      <<: *langfuse-worker-env
+      LANGFUSE_PUBLIC_ORIGIN: ${LANGFUSE_PUBLIC_ORIGIN:-http://langfuse-web:3000}
+      LANGFUSE_INIT_PROJECT_PUBLIC_KEY: ${LANGFUSE_INIT_PROJECT_PUBLIC_KEY:-}
+      LANGFUSE_INIT_PROJECT_SECRET_KEY: ${LANGFUSE_INIT_PROJECT_SECRET_KEY:-}
+    depends_on:
+      langfuse-worker:
+        condition: service_started
+      postgres:
+        condition: service_healthy
+      clickhouse:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    networks:
+      - mascarade-network
+
+  minio:
+    image: ${MINIO_IMAGE:-minio/minio@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e}
+    container_name: mascarade-langfuse-minio
+    restart: unless-stopped
+    entrypoint: sh
+    command: -c 'mkdir -p /data/langfuse && minio server --address ":9000" --console-address ":9001" /data'
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minio}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-}
+    ports:
+      - "${PUBLISH_BIND_HOST:-0.0.0.0}:9190:9000"
+      - "${PUBLISH_BIND_HOST:-0.0.0.0}:9191:9001"
+    volumes:
+      - langfuse-minio-data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:9000/minio/health/live >/dev/null"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+    networks:
+      - mascarade-network
+
+  firecrawl:
+    image: ${FIRECRAWL_IMAGE:-mcp/firecrawl@sha256:e6676bd31d1806574d931b7a7b7b6fba953c031853e80adc1ec8115c17ab81ca}
+    container_name: mascarade-firecrawl
+    restart: unless-stopped
+    ports:
+      - "${PUBLISH_BIND_HOST:-0.0.0.0}:${FIRECRAWL_PORT:-3400}:3000"
+    env_file:
+      - .env
+    environment:
+      HTTP_STREAMABLE_SERVER: "true"
+      PORT: 3000
+      HOST: ${FIRECRAWL_HOST:-0.0.0.0}
+      FIRECRAWL_API_KEY: ${FIRECRAWL_API_KEY:-}
+      FIRECRAWL_API_URL: ${FIRECRAWL_API_URL:-}
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"if (!process.env.FIRECRAWL_API_KEY && !process.env.FIRECRAWL_API_URL) process.exit(1); const net = require('net'); const socket = net.connect(3000, '127.0.0.1'); socket.on('connect', () => { socket.end(); process.exit(0); }); socket.on('error', () => process.exit(1)); setTimeout(() => process.exit(1), 3000);\""]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    networks:
+      - mascarade-network
+
+  mem0:
+    image: ${MEM0_IMAGE:-mem0/openmemory-mcp:latest}
+    container_name: mascarade-mem0
+    restart: unless-stopped
+    ports:
+      - "${PUBLISH_BIND_HOST:-0.0.0.0}:${MEM0_PORT:-3300}:8765"
+    env_file:
+      - .env
+    environment:
+      USER: ${MEM0_USER:-mascarade}
+      OPENAI_API_KEY: ${MEM0_OPENAI_API_KEY:-sk-mem0-local}
+      OPENAI_API_BASE: ${MEM0_OPENAI_BASE_URL:-http://litellm:4000}
+      OPENAI_BASE_URL: ${MEM0_OPENAI_BASE_URL:-http://litellm:4000}
+      QDRANT_HOST: ${MEM0_QDRANT_HOST:-qdrant}
+      QDRANT_PORT: ${MEM0_QDRANT_PORT:-6333}
+    depends_on:
+      litellm:
+        condition: service_healthy
+      qdrant:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import socket; sock = socket.create_connection(('127.0.0.1', 8765), 3); sock.close()\""]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 25s
+    networks:
+      - mascarade-network
+
+  dify-api:
+    image: ${DIFY_API_IMAGE:-langgenius/dify-api@sha256:5f622b4d0b39bdc6d3b401063cfb60962fa92dcc63f55daccec138f98b260e67}
+    container_name: mascarade-dify-api
+    restart: unless-stopped
+    ports:
+      - "${PUBLISH_BIND_HOST:-0.0.0.0}:${DIFY_API_PORT}:5001"
+    environment:
+      DB_USERNAME: mascarade
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-}
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_DATABASE: mascarade
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      APP_WEB_URL: ${DIFY_PUBLIC_ORIGIN:-https://dify.localhost}
+      CONSOLE_WEB_URL: ${DIFY_PUBLIC_ORIGIN:-https://dify.localhost}
+      CONSOLE_API_URL: ${DIFY_PUBLIC_ORIGIN:-https://dify.localhost}
+      SERVICE_API_URL: ${DIFY_PUBLIC_ORIGIN:-https://dify.localhost}
+      OPENDAL_SCHEME: fs
+      OPENDAL_ROOT: /app/api/storage
+      OPENDAL_FS_ROOT: /app/api/storage
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - mascarade-network
+  dify-web:
+    image: ${DIFY_WEB_IMAGE:-langgenius/dify-web@sha256:30339b4d5060488fac147ddc6fb40438ef71cd5f5dfdeb26c886768302bf7197}
+    container_name: mascarade-dify-web
+    restart: unless-stopped
+    ports:
+      - "${PUBLISH_BIND_HOST:-0.0.0.0}:${DIFY_WEB_PORT}:3000"
+    environment:
+      DB_USERNAME: mascarade
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-}
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_DATABASE: mascarade
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      APP_WEB_URL: ${DIFY_PUBLIC_ORIGIN:-https://dify.localhost}
+      CONSOLE_WEB_URL: ${DIFY_PUBLIC_ORIGIN:-https://dify.localhost}
+      CONSOLE_API_URL: ${DIFY_PUBLIC_ORIGIN:-https://dify.localhost}
+      SERVICE_API_URL: ${DIFY_PUBLIC_ORIGIN:-https://dify.localhost}
+      OPENDAL_SCHEME: fs
+      OPENDAL_ROOT: /app/api/storage
+      OPENDAL_FS_ROOT: /app/api/storage
+      APP_API_URL: ${DIFY_PUBLIC_ORIGIN:-https://dify.localhost}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - mascarade-network
+  dify-worker:
+    image: ${DIFY_API_IMAGE:-langgenius/dify-api@sha256:5f622b4d0b39bdc6d3b401063cfb60962fa92dcc63f55daccec138f98b260e67}
+    container_name: mascarade-dify-worker
+    restart: unless-stopped
+    command: celery -A app.celery worker
+    environment:
+      DB_USERNAME: mascarade
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-}
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_DATABASE: mascarade
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      APP_WEB_URL: ${DIFY_PUBLIC_ORIGIN:-https://dify.localhost}
+      CONSOLE_WEB_URL: ${DIFY_PUBLIC_ORIGIN:-https://dify.localhost}
+      CONSOLE_API_URL: ${DIFY_PUBLIC_ORIGIN:-https://dify.localhost}
+      SERVICE_API_URL: ${DIFY_PUBLIC_ORIGIN:-https://dify.localhost}
+      OPENDAL_SCHEME: fs
+      OPENDAL_ROOT: /app/api/storage
+      OPENDAL_FS_ROOT: /app/api/storage
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - mascarade-network
+
   clickhouse:
-    profiles:
-      - observability
     image: ${CLICKHOUSE_IMAGE:-clickhouse/clickhouse-server@sha256:0b2d7824347397b2ba6fcb216f0ae772568105f1f47e19f0d3247e24c79bc10a}
     container_name: mascarade-clickhouse
     restart: unless-stopped
@@ -510,10 +480,7 @@ services:
     networks:
       - mascarade-network
 
-
   tts:
-    profiles:
-      - personal
     container_name: mascarade-tts
     restart: unless-stopped
     ports:
@@ -528,8 +495,6 @@ services:
       - mascarade-network
 
   stt:
-    profiles:
-      - personal
     image: ${STT_IMAGE:-onerahmet/openai-whisper-asr-webservice:latest}
     container_name: mascarade-stt
     restart: unless-stopped
@@ -545,8 +510,6 @@ services:
       - mascarade-network
 
   generate-audio:
-    profiles:
-      - fine-tuning
     build:
       context: .
       dockerfile: deploy/Dockerfile.generate-audio
@@ -575,28 +538,7 @@ services:
     networks:
       - mascarade-network
 
-  ollama:
-    profiles:
-      - fine-tuning
-    image: ${OLLAMA_IMAGE:-ollama/ollama@sha256:719122581b6932e1240ae70d788859089cb80d17e23cd4f98ba960b0290f70cb}
-    container_name: mascarade-ollama
-    restart: unless-stopped
-    ports:
-      - "${PUBLISH_BIND_HOST:-0.0.0.0}:${OLLAMA_PORT}:11434"
-    volumes:
-      - ollama-data:/root/.ollama
-    healthcheck:
-      test: ["CMD-SHELL", "ollama list >/dev/null 2>&1"]
-      interval: 20s
-      timeout: 10s
-      retries: 15
-      start_period: 40s
-    networks:
-      - mascarade-network
-
   edge-proxy:
-    profiles:
-      - industrial
     build:
       context: .
       dockerfile: deploy/Dockerfile.edge-proxy
@@ -607,6 +549,8 @@ services:
       - "${EDGE_PROXY_BIND_HOST:-0.0.0.0}:${EDGE_PROXY_HTTPS_PORT}:443"
     env_file:
       - .env
+    environment:
+      EDGE_PROXY_INDUSTRIAL_SERVER_NAME: ${EDGE_PROXY_INDUSTRIAL_SERVER_NAME:-industrial.saillant.cc}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:
@@ -615,6 +559,8 @@ services:
       - ../Kill_LIFE/tools/ai/integrations:/srv/kill-life/integrations:ro
     depends_on:
       api:
+        condition: service_started
+      agent-factory-cockpit:
         condition: service_started
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/healthz >/dev/null"]
@@ -626,8 +572,6 @@ services:
       - mascarade-network
 
   ops-agent:
-    profiles:
-      - industrial
     build:
       context: .
       dockerfile: deploy/Dockerfile.ops-agent
@@ -655,8 +599,6 @@ services:
       - mascarade-network
 
   redis:
-    profiles:
-      - core
     image: ${REDIS_IMAGE:-redis@sha256:8b81dd37ff027bec4e516d41acfbe9fe2460070dc6d4a4570a2ac5b9d59df065}
     container_name: mascarade-redis
     restart: unless-stopped
@@ -673,8 +615,6 @@ services:
       - mascarade-network
 
   postgres:
-    profiles:
-      - core
     image: ${POSTGRES_IMAGE:-postgres@sha256:20edbde7749f822887a1a022ad526fde0a47d6b2be9a8364433605cf65099416}
     container_name: mascarade-postgres
     restart: unless-stopped
@@ -696,8 +636,6 @@ services:
       - mascarade-network
 
   qdrant:
-    profiles:
-      - personal
     image: ${QDRANT_IMAGE:-qdrant/qdrant@sha256:f1c7272cdac52b38c1a0e89313922d940ba50afd90d593a1605dbbc214e66ffb}
     container_name: mascarade-qdrant
     restart: unless-stopped
@@ -717,8 +655,6 @@ services:
           - mem0_store
 
   grafana:
-    profiles:
-      - observability
     image: ${GRAFANA_IMAGE:-grafana/grafana@sha256:b0ae311af06228bcfd4a620504b653db80f5b91e94dc3dc2a5b7dab202bcde20}
     container_name: mascarade-grafana
     restart: unless-stopped
@@ -739,8 +675,6 @@ services:
       - mascarade-network
 
   tempo:
-    profiles:
-      - observability
     image: ${TEMPO_IMAGE:-grafana/tempo:latest}
     container_name: mascarade-tempo
     restart: unless-stopped
@@ -759,9 +693,63 @@ services:
     networks:
       - mascarade-network
 
+  blackbox-exporter:
+    image: ${BLACKBOX_EXPORTER_IMAGE:-prom/blackbox-exporter:latest}
+    container_name: mascarade-blackbox-exporter
+    restart: unless-stopped
+    ports:
+      - "${PUBLISH_BIND_HOST:-0.0.0.0}:${BLACKBOX_EXPORTER_PORT}:9115"
+    command: ["--config.file=/etc/blackbox/blackbox.yml"]
+    volumes:
+      - ./deploy/prometheus/blackbox.yml:/etc/blackbox/blackbox.yml:ro
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:9115/-/healthy >/dev/null"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    networks:
+      - mascarade-network
+
+  nvidia-gpu-exporter:
+    image: ${NVIDIA_GPU_EXPORTER_IMAGE:-utkuozdemir/nvidia_gpu_exporter:1.2.1}
+    container_name: mascarade-nvidia-gpu-exporter
+    restart: unless-stopped
+    ports:
+      - "${PUBLISH_BIND_HOST:-0.0.0.0}:${NVIDIA_GPU_EXPORTER_PORT:-9835}:9835"
+    runtime: nvidia
+    environment:
+      NVIDIA_VISIBLE_DEVICES: all
+      NVIDIA_DRIVER_CAPABILITIES: compute,utility
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:9835/metrics >/dev/null"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    networks:
+      - mascarade-network
+
+  finetune-metrics-exporter:
+    build:
+      context: ./deploy/finetune-metrics-exporter
+      dockerfile: Dockerfile
+    container_name: mascarade-finetune-metrics-exporter
+    restart: unless-stopped
+    ports:
+      - "${PUBLISH_BIND_HOST:-0.0.0.0}:${FINETUNE_METRICS_EXPORTER_PORT:-9101}:9101"
+    volumes:
+      - ./finetune/runs:/workspace/finetune/runs:ro
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:9101/metrics >/dev/null"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    networks:
+      - mascarade-network
+
   prometheus:
-    profiles:
-      - observability
     image: ${PROMETHEUS_IMAGE:-prom/prometheus@sha256:4a61322ac1103a0e3aea2a61ef1718422a48fa046441f299d71e660a3bc71ae9}
     container_name: mascarade-prometheus
     restart: unless-stopped
@@ -782,30 +770,7 @@ services:
       retries: 5
     networks:
       - mascarade-network
-
-  blackbox-exporter:
-    profiles:
-      - observability
-    image: ${BLACKBOX_EXPORTER_IMAGE:-prom/blackbox-exporter:latest}
-    container_name: mascarade-blackbox-exporter
-    restart: unless-stopped
-    ports:
-      - "${PUBLISH_BIND_HOST:-0.0.0.0}:${BLACKBOX_EXPORTER_PORT}:9115"
-    command: ["--config.file=/etc/blackbox/blackbox.yml"]
-    volumes:
-      - ./deploy/prometheus/blackbox.yml:/etc/blackbox/blackbox.yml:ro
-    healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:9115/-/healthy >/dev/null"]
-      interval: 15s
-      timeout: 5s
-      retries: 10
-      start_period: 10s
-    networks:
-      - mascarade-network
-
   loki:
-    profiles:
-      - observability
     image: ${LOKI_IMAGE:-grafana/loki:3.5.3}
     container_name: mascarade-loki
     restart: unless-stopped
@@ -824,8 +789,6 @@ services:
       - mascarade-network
 
   promtail:
-    profiles:
-      - observability
     image: ${PROMTAIL_IMAGE:-grafana/promtail:3.5.3}
     container_name: mascarade-promtail
     restart: unless-stopped
@@ -852,8 +815,6 @@ services:
       - mascarade-network
 
   otel-collector:
-    profiles:
-      - observability
     image: ${OTEL_COLLECTOR_IMAGE:-otel/opentelemetry-collector-contrib:0.116.1}
     container_name: mascarade-otel-collector
     restart: unless-stopped
@@ -876,79 +837,31 @@ services:
     networks:
       - mascarade-network
 
-  neo4j:
-    image: neo4j:5-community
-    container_name: mascarade-neo4j
-    restart: unless-stopped
-    ports:
-      - "${PUBLISH_BIND_HOST:-0.0.0.0}:${NEO4J_HTTP_PORT:-7474}:7474"
-      - "${PUBLISH_BIND_HOST:-0.0.0.0}:${NEO4J_BOLT_PORT:-7687}:7687"
-    environment:
-      NEO4J_AUTH: ${NEO4J_USER:-neo4j}/${NEO4J_PASSWORD:-mascarade2026}
-    volumes:
-      - neo4j-data:/data
-    healthcheck:
-      test: ["CMD-SHELL", "cypher-shell -u neo4j -p ${NEO4J_PASSWORD:-mascarade2026} 'RETURN 1' >/dev/null 2>&1"]
-      interval: 15s
-      timeout: 10s
-      retries: 10
-      start_period: 30s
-    networks:
-      - mascarade-network
-
-  graphiti-mcp:
-    image: ghcr.io/getzep/graphiti-mcp:latest
-    container_name: mascarade-graphiti-mcp
-    restart: unless-stopped
-    ports:
-      - "${PUBLISH_BIND_HOST:-0.0.0.0}:${GRAPHITI_MCP_PORT:-3500}:8000"
-    environment:
-      NEO4J_URI: bolt://mascarade-neo4j:7687
-      NEO4J_USER: ${NEO4J_USER:-neo4j}
-      NEO4J_PASSWORD: ${NEO4J_PASSWORD:-mascarade2026}
-      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
-      OPENAI_BASE_URL: ${GRAPHITI_OPENAI_BASE_URL:-}
-      MODEL_NAME: ${GRAPHITI_MODEL_NAME:-gpt-4o-mini}
-      EMBEDDING_MODEL_NAME: ${GRAPHITI_EMBEDDING_MODEL:-text-embedding-3-small}
-    depends_on:
-      neo4j:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD-SHELL", "python -c \"import socket; sock = socket.create_connection(('127.0.0.1', 8000), 3); sock.close()\""]
-      interval: 15s
-      timeout: 5s
-      retries: 10
-      start_period: 20s
-    networks:
-      - mascarade-network
-
 networks:
   mascarade-network:
     driver: bridge
 
 volumes:
-  neo4j-data:
   core-data:
-  n8n-data:
-  langfuse-minio-data:
   agent-factory-cockpit-data:
     name: agent-factory-cockpit-data
+  n8n-data:
+  langfuse-minio-data:
   clickhouse-data:
   tts-data:
   stt-cache:
   generate-audio-cache:
-  ollama-data:
   edge-proxy-certs:
     name: mascarade-edge-proxy-certs
   edge-proxy-acme:
     name: mascarade-edge-proxy-acme
-  edge-proxy-auth:
-    name: mascarade-edge-proxy-auth
   redis-data:
   postgres-data:
   qdrant-data:
   grafana-data:
-  tempo-data:
   prometheus-data:
+  tempo-data:
   loki-data:
   promtail-data:
+  edge-proxy-auth:
+    name: mascarade-edge-proxy-auth
