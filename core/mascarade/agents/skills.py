@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from mascarade.agents.base import Agent
 from mascarade.agents.registry import AgentRegistry
+from mascarade.agents.skill import Skill
+from mascarade.agents.skill_registry import SkillRegistry
 from mascarade.router.router import Strategy
 
 
@@ -296,3 +298,37 @@ ALL_SKILLS: list[Agent] = [
     image_generator,
     pcb_routing_kicad,
 ]
+
+# --- Mapping agents -> skill categories ---
+
+_AGENT_CATEGORY_MAP: dict[str, str] = {
+    "agent-zero": "coordination",
+    "summarizer": "text",
+    "writer": "text",
+    "coder": "code",
+    "translator": "text",
+    "analyst": "analysis",
+    "brainstorm": "creative",
+    "knowledge-scribe": "text",
+    "planner": "analysis",
+    "classifier": "analysis",
+    "image-generator": "creative",
+    "pcb-routing-kicad": "domain",
+}
+
+
+def register_default_skills_v2(skill_registry: SkillRegistry) -> None:
+    """Create Skill objects from the existing builtin agents and register them."""
+    for agent in ALL_SKILLS:
+        category = _AGENT_CATEGORY_MAP.get(agent.name, "general")
+        skill = Skill(
+            name=agent.name,
+            description=agent.description,
+            category=category,
+            instruction=agent.system_prompt,
+            tools=list(agent.tools),
+            examples=[],
+            enabled=True,
+            version=1,
+        )
+        skill_registry.register(skill, builtin=True)
