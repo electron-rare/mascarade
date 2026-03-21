@@ -7,7 +7,10 @@ import re
 import time
 from collections.abc import AsyncIterator
 from enum import StrEnum
-from typing import Any
+from typing import Any, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from mascarade.scheduler.scheduler import ResourceAwareScheduler
 
 from mascarade.analytics import COST_METRICS
 from mascarade.analytics.clickhouse_logger import get_cost_logger
@@ -115,6 +118,7 @@ class Router:
         )
         self.cost_logger = get_cost_logger()
         self.cost_calculator = get_cost_calculator()
+        self.scheduler = None  # Set by server.py when scheduler_enabled
 
         # ML classifier for domain detection (optional)
         self.use_classifier = settings.use_ml_classifier
@@ -664,6 +668,24 @@ class Router:
             started_at = time.perf_counter()
             self.load_balancer.request_started(selected.name)
 
+            # Distributed scheduling: if scheduler is active and provider is local,
+            # route to the best worker in the cluster instead of local-only.
+            if (
+                self.scheduler is not None
+                and selected.name in ("ollama", "mlx_lm", "llama_cpp")
+                and self.scheduler.workers
+            ):
+                distributed = await self._try_distributed_send(
+                    selected, messages, effective_model, system,
+                    temperature, max_tokens, response_format,
+                )
+                if distributed is not None:
+                    elapsed = time.perf_counter() - started_at
+                    self.load_balancer.request_completed(
+                        selected.name, response_time=elapsed, success=True,
+                    )
+                    return distributed
+
             try:
                 send_kwargs = {
                     "model": effective_model,
@@ -859,6 +881,87 @@ class Router:
             if last_error is None
             else f"All fallback attempts failed: {last_error}"
         )
+
+    async def _try_distributed_send(
+        self,
+        selected: LLMProvider,
+        messages: list[dict],
+        model: str | None,
+        system: str | None,
+        temperature: float,
+        max_tokens: int,
+        response_format: dict | None,
+    ) -> LLMResponse | None:
+        """Try to dispatch to a distributed worker via the scheduler.
+
+        Returns LLMResponse if successful, None to fall back to local provider.
+        """
+        import httpx
+        from mascarade.scheduler.scheduler import ScheduledRequest
+
+        req = ScheduledRequest(
+            model=model or selected.default_model,
+            messages=messages,
+            max_tokens=max_tokens,
+            temperature=temperature,
+        )
+
+        try:
+            worker = self.scheduler.select_worker(req)
+        except Exception:
+            logger.debug("Scheduler: no suitable worker, falling back to local")
+            return None
+
+        worker.request_started()
+        started = time.perf_counter()
+
+        try:
+            payload: dict[str, Any] = {
+                "model": model or selected.default_model,
+                "messages": messages,
+                "temperature": temperature,
+                "max_tokens": max_tokens,
+            }
+            if system:
+                payload["messages"] = [{"role": "system", "content": system}] + messages
+            if response_format:
+                payload["response_format"] = response_format
+
+            async with httpx.AsyncClient(timeout=httpx.Timeout(120.0)) as client:
+                resp = await client.post(
+                    f"{worker.url}/v1/chat/completions",
+                    json=payload,
+                )
+
+            if resp.status_code != 200:
+                raise RuntimeError(f"Worker {worker.node_id} returned {resp.status_code}")
+
+            data = resp.json()
+            elapsed_ms = (time.perf_counter() - started) * 1000
+            worker.request_completed(latency_ms=elapsed_ms, success=True)
+
+            # Parse OpenAI-compatible response
+            choice = data.get("choices", [{}])[0]
+            content = choice.get("message", {}).get("content", "")
+            usage = data.get("usage", {})
+
+            logger.info(
+                "Distributed send → %s (%.0f ms, %d tokens)",
+                worker.node_id, elapsed_ms, usage.get("total_tokens", 0),
+            )
+
+            return LLMResponse(
+                content=content,
+                model=data.get("model", model or ""),
+                provider=f"distributed:{worker.node_id}",
+                usage=usage,
+            )
+
+        except Exception as exc:
+            elapsed_ms = (time.perf_counter() - started) * 1000
+            worker.request_completed(latency_ms=elapsed_ms, success=False)
+            logger.warning("Distributed send to %s failed: %s", worker.node_id, exc)
+            return None  # fall back to local
 
     async def stream(
         self,
