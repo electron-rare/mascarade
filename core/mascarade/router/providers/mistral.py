@@ -8,7 +8,7 @@ import httpx
 import openai
 from mistralai import Mistral
 
-from mascarade.config import is_secret_configured, settings
+from mascarade.config import is_secret_configured, secret_value, settings
 from mascarade.router.providers.base import (
     LLMProvider,
     LLMResponse,
@@ -34,13 +34,13 @@ class MistralProvider(LLMProvider):
         )
         if self._proxy_enabled:
             self._client = openai.AsyncOpenAI(
-                api_key=settings.litellm_master_key,
+                api_key=secret_value(settings.litellm_master_key),
                 base_url=settings.litellm_base_url,
                 timeout=max(settings.mistral_timeout_ms / 1000, 1),
             )
         else:
             self._client = Mistral(
-                api_key=settings.mistral_api_key,
+                api_key=secret_value(settings.mistral_api_key),
                 timeout_ms=settings.mistral_timeout_ms,
             )
 

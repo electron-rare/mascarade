@@ -181,15 +181,15 @@ async def _handle_reinforcement(payload: dict) -> dict:
         from mascarade.finetune.agents.teacher import TeacherAgent
         from mascarade.finetune.agents.reinforcer import ReinforcerAgent
 
-        router = Router()
-        if not router._providers:
-            return {"error": "No LLM providers configured (check API keys)"}
-
-        teacher = TeacherAgent(router=router)
-        agent = ReinforcerAgent(teacher=teacher)
         action = payload.get("action", "collect_errors")
 
         if action == "collect_errors":
+            router = Router()
+            if not router._providers:
+                return {"error": "No LLM providers configured (check API keys)"}
+
+            teacher = TeacherAgent(router=router)
+            agent = ReinforcerAgent(teacher=teacher)
             model_path = payload.get("model_path")
             test_prompts = payload.get("test_prompts")
             if not model_path or not test_prompts:
@@ -201,12 +201,23 @@ async def _handle_reinforcement(payload: dict) -> dict:
             )
             return {"errors": errors, "total": len(errors)}
         elif action == "generate_dpo":
-            errors = payload.get("errors")
-            if not errors:
-                return {"error": "Missing required field: errors"}
+            errors = payload.get("errors") or []
+            teacher = None
+            if errors:
+                router = Router()
+                if not router._providers:
+                    return {"error": "No LLM providers configured (check API keys)"}
+                teacher = TeacherAgent(router=router)
+
+            agent = ReinforcerAgent(teacher=teacher)
             result = await agent.generate_dpo_pairs(
                 errors,
                 run_id=payload.get("run_id"),
+                persona=payload.get("persona"),
+                project_id=payload.get("project_id"),
+                federation_scope=payload.get("federation_scope"),
+                knowledge_scope=payload.get("knowledge_scope", "project"),
+                include_kxkm_feedback=payload.get("include_kxkm_feedback", True),
             )
             return result.__dict__
 

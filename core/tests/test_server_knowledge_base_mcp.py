@@ -55,6 +55,36 @@ async def test_knowledge_base_search_route_uses_mcp_client(monkeypatch: pytest.M
 
 
 @pytest.mark.asyncio
+async def test_knowledge_base_search_route_forwards_project_scope(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    add_api_key("test-key-001")
+    fake_mcp = AsyncMock()
+    fake_mcp.knowledge_base_search.return_value = {
+        "results": [{"id": "chunk-1", "title": "Musique concrete", "url": "http://kb/chunk-1"}],
+        "provider": "kxkm",
+        "provider_label": "kxkm",
+    }
+    monkeypatch.setattr("mascarade.server.knowledge_base_auth_configured", lambda: True)
+
+    async with _client() as client:
+        app.state.mcp = fake_mcp
+        response = await client.get(
+            "/knowledge-base/search?q=musique&limit=5&project_id=project-alpha&federation_scope=project-alpha,project-beta&knowledge_scope=federated",
+            headers={"Authorization": "Bearer test-key-001"},
+        )
+
+    assert response.status_code == 200
+    fake_mcp.knowledge_base_search.assert_awaited_once_with(
+        "musique",
+        limit=5,
+        project_id="project-alpha",
+        federation_scope=["project-alpha", "project-beta"],
+        knowledge_scope="federated",
+    )
+
+
+@pytest.mark.asyncio
 async def test_knowledge_scribe_push_uses_mcp_and_preserves_run_id(
     monkeypatch: pytest.MonkeyPatch,
 ):

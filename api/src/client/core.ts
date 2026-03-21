@@ -108,6 +108,15 @@ export interface ClusterPeerStatus {
   last_seen?: string | null;
 }
 
+export interface SchedulerStatus {
+  enabled: boolean;
+  workers: Record<string, Record<string, unknown>>;
+  total_queue_depth?: number;
+  total_dispatched?: number;
+  alive_workers?: number;
+  dead_workers?: number;
+}
+
 export interface ProviderFieldStatus {
   env: string;
   label: string;
@@ -143,6 +152,13 @@ export interface ProviderHealthMetrics {
   latency_ms?: number;
   error?: string;
   last_check?: string;
+}
+
+export interface KnowledgeBaseSearchOptions {
+  limit?: number;
+  projectId?: string;
+  federationScope?: string[];
+  knowledgeScope?: string;
 }
 
 export interface AgentTemplate {
@@ -402,6 +418,10 @@ export const coreClient = {
     return request<{ node: ClusterIdentity; peers: ClusterPeerStatus[] }>("/cluster/peers");
   },
 
+  schedulerStatus() {
+    return request<SchedulerStatus>("/api/scheduler/status");
+  },
+
   clusterForwardSend(body: {
     peer_id?: string;
     preferred_role?: string;
@@ -434,10 +454,38 @@ export const coreClient = {
 
   // --- Knowledge Base ---
 
-  knowledgeBaseSearch(query: string) {
-    return request<{ results: { id: string; title: string; url: string }[] }>(
-      `/knowledge-base/search?q=${encodeURIComponent(query)}`,
-    );
+  knowledgeBaseSearch(query: string, options: KnowledgeBaseSearchOptions = {}) {
+    const search = new URLSearchParams({ q: query });
+    if (options.limit !== undefined) {
+      search.set("limit", String(options.limit));
+    }
+    if (options.projectId) {
+      search.set("project_id", options.projectId);
+    }
+    if (options.knowledgeScope) {
+      search.set("knowledge_scope", options.knowledgeScope);
+    }
+    if (options.federationScope && options.federationScope.length > 0) {
+      search.set("federation_scope", options.federationScope.join(","));
+    }
+
+    return request<{
+      results: {
+        id: string;
+        title: string;
+        url: string;
+        provider?: string;
+        text?: string;
+        score?: number | null;
+        metadata?: Record<string, unknown>;
+      }[];
+      provider?: string;
+      provider_label?: string;
+      project_id?: string;
+      knowledge_scope?: string;
+      federation_scope?: string[];
+      total?: number;
+    }>(`/knowledge-base/search?${search.toString()}`);
   },
 
   knowledgeBaseReadPage(pageId: string) {

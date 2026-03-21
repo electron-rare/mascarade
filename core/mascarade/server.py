@@ -23,6 +23,7 @@ from mascarade.orchestrator.templates import (
     register_builtin_templates,
 )
 from mascarade.middleware.log_filter import install_secret_masking
+from mascarade.middleware.body_limit import BodySizeLimitMiddleware
 from mascarade.middleware.rate_limit import RateLimitMiddleware
 from mascarade.router import Router
 from mascarade.scheduler import ResourceAwareScheduler, HeartbeatMonitor, WorkerState
@@ -286,6 +287,7 @@ def create_app() -> FastAPI:
 # Create app instance
 app = create_app()
 app.add_middleware(RateLimitMiddleware, requests_per_minute=60, burst=120)
+app.add_middleware(BodySizeLimitMiddleware, max_bytes=10 * 1024 * 1024)
 
 
 def start():

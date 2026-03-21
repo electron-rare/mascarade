@@ -25,8 +25,22 @@ router = APIRouter(tags=["chat"], prefix="/v1")
 
 # Known provider prefixes that may appear in model strings
 SUPPORTED_PROVIDER_PREFIXES = frozenset(
-    ["apple-coreml", "ollama", "openai", "claude", "mistral", "google", "mlx-lm", "huggingface"]
+    [
+        "apple-coreml",
+        "ollama",
+        "openai",
+        "claude",
+        "anthropic",
+        "mistral",
+        "google",
+        "mlx-lm",
+        "huggingface",
+    ]
 )
+
+PROVIDER_PREFIX_ALIASES = {
+    "anthropic": "claude",
+}
 
 
 def _parse_model_string(
@@ -54,13 +68,13 @@ def _parse_model_string(
         for prefix in supported:
             if model.startswith(prefix + ":"):
                 model_name = model[len(prefix) + 1 :]
-                return prefix, model_name, model
+                return PROVIDER_PREFIX_ALIASES.get(prefix, prefix), model_name, model
         # Unknown prefix
         prefix = model.split(":", 1)[0]
         if prefix not in supported:
             raise ValueError(f"Unsupported model prefix '{prefix}'.")
         model_name = model[len(prefix) + 1 :]
-        return prefix, model_name, model
+        return PROVIDER_PREFIX_ALIASES.get(prefix, prefix), model_name, model
 
     # No prefix -- use default provider
     return None, model, model

@@ -27,6 +27,7 @@ import { analytics } from "./routes/analytics.js";
 import { users } from "./routes/users.js";
 import { p2p } from "./routes/p2p.js";
 import { finetune } from "./routes/finetune.js";
+import { llmProviders } from "./routes/llmProviders.js";
 
 const app = new Hono();
 const hasFrontend = existsSync("./public/index.html");
@@ -77,6 +78,7 @@ app.route("/api/analytics", analytics);
 app.route("/api/users", users);
 app.route("/api/p2p", p2p);
 app.route("/api/finetune", finetune);
+app.route("/api/v2/llm-providers", llmProviders);
 
 if (hasFrontend) {
   app.use("/assets/*", serveStatic({ root: "./public" }));

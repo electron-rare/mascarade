@@ -6,7 +6,7 @@ import logging
 from abc import ABC, abstractmethod
 from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 from tenacity import (
     before_sleep_log,
@@ -53,6 +53,15 @@ class LLMResponse:
     model: str
     provider: str
     usage: dict[str, int] = field(default_factory=dict)
+
+
+@dataclass
+class LLMStreamChunk:
+    """Chunk de streaming pour les réponses LLM."""
+
+    content: str
+    model: str
+    finish_reason: str | None = None
 
 
 class LLMProvider(ABC):
