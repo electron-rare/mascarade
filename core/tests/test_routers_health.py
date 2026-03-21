@@ -92,11 +92,11 @@ async def _client(fake_router: FakeRouter | None = None, fake_registry: FakeRegi
         original_router = None
         original_registry = None
 
-        if fake_router:
+        if fake_router is not None:
             original_router = app.state.router if hasattr(app.state, "router") else None
             app.state.router = fake_router
 
-        if fake_registry:
+        if fake_registry is not None:
             original_registry = app.state.registry if hasattr(app.state, "registry") else None
             app.state.registry = fake_registry
 
@@ -308,3 +308,149 @@ async def test_health_multiple_calls():
             response = await client.get("/health")
             assert response.status_code == 200
             assert response.json()["status"] == "ok"
+
+
+@pytest.mark.asyncio
+async def test_health_without_router_or_registry():
+    """Test health returns ok even without router or registry."""
+    async with app.router.lifespan_context(app):
+        original_router = getattr(app.state, "router", None)
+        original_registry = getattr(app.state, "registry", None)
+        if hasattr(app.state, "router"):
+            delattr(app.state, "router")
+        if hasattr(app.state, "registry"):
+            delattr(app.state, "registry")
+
+        try:
+            transport = httpx.ASGITransport(app=app)
+            async with httpx.AsyncClient(
+                transport=transport,
+                base_url="http://testserver",
+            ) as client:
+                response = await client.get("/health")
+        finally:
+            if original_router:
+                app.state.router = original_router
+            if original_registry:
+                app.state.registry = original_registry
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "ok"
+    assert "providers" not in body
+    assert "agents" not in body
+
+
+@pytest.mark.asyncio
+async def test_version_response_fields():
+    """Test that version endpoint returns exactly the expected fields."""
+    async with _client() as client:
+        response = await client.get("/v1/version")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["version"] == "v1"
+    assert body["service"] == "mascarade-core"
+    assert body["api_version"] == "0.1.0"
+
+
+@pytest.mark.asyncio
+async def test_health_provider_count_matches():
+    """Test health endpoint reports correct number of providers."""
+    fake_router = FakeRouter()
+    fake_router.available_providers = ["openai", "anthropic"]
+
+    async with _client(fake_router) as client:
+        response = await client.get("/health")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert len(body["providers"]) == 2
+
+
+@pytest.mark.asyncio
+async def test_provider_health_all_healthy():
+    """Test provider health endpoint with all healthy providers."""
+
+    class AllHealthyMonitor:
+        last_check_time = datetime.now()
+        def get_all_health(self):
+            return {
+                "openai": FakeProviderHealth(
+                    is_healthy=True, success_rate=1.0, avg_latency_ms=100.0,
+                    total_requests=200, failed_requests=0,
+                    last_success=datetime.now(), last_failure=None,
+                    consecutive_failures=0,
+                ),
+            }
+
+    class AllClosedBreaker:
+        def get_state(self, provider):
+            return "closed"
+
+    class HealthyRouter:
+        available_providers = ["openai"]
+        health_monitor = AllHealthyMonitor()
+        circuit_breaker = AllClosedBreaker()
+
+    async with _client(HealthyRouter()) as client:
+        response = await client.get("/health/providers")
+
+    assert response.status_code == 200
+    body = response.json()
+    openai_health = body["providers"]["openai"]
+    assert openai_health["is_healthy"] is True
+    assert openai_health["failed_requests"] == 0
+    assert openai_health["circuit_breaker_state"] == "closed"
+
+
+@pytest.mark.asyncio
+async def test_provider_health_circuit_breaker_open():
+    """Test provider health shows circuit breaker state correctly."""
+    fake_router = FakeRouter()
+
+    async with _client(fake_router) as client:
+        response = await client.get("/health/providers")
+
+    assert response.status_code == 200
+    body = response.json()
+    # Anthropic should have open circuit breaker
+    assert body["providers"]["anthropic"]["circuit_breaker_state"] == "open"
+    # OpenAI should have closed circuit breaker
+    assert body["providers"]["openai"]["circuit_breaker_state"] == "closed"
+
+
+@pytest.mark.asyncio
+async def test_metrics_endpoint():
+    """Test Prometheus metrics endpoint returns text/plain."""
+    async with _client() as client:
+        response = await client.get("/metrics")
+
+    assert response.status_code == 200
+    assert "text/plain" in response.headers["content-type"]
+
+
+@pytest.mark.asyncio
+async def test_health_returns_json_content_type():
+    """Test health endpoint returns application/json content type."""
+    async with _client() as client:
+        response = await client.get("/health")
+
+    assert response.status_code == 200
+    assert "application/json" in response.headers["content-type"]
+
+
+@pytest.mark.asyncio
+async def test_health_with_zero_agents():
+    """Test health reports zero agents when registry is empty."""
+
+    class EmptyRegistry:
+        def __len__(self):
+            return 0
+
+    async with _client(fake_registry=EmptyRegistry()) as client:
+        response = await client.get("/health")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["agents"] == 0

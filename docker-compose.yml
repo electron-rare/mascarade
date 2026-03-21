@@ -1,5 +1,6 @@
 # docker-compose.yml — Genere par Mascarade setup
 # Ne pas editer manuellement, utiliser ./config pour reconfigurer
+# Network segmentation: frontend / backend / observability / industrial
 
 services:
   core:
@@ -41,7 +42,8 @@ services:
       - core-data:/app/data
       - ../agent-factory-cockpit:${AGENT_FACTORY_COCKPIT_DIR:-/workspace/agent-factory-cockpit}:ro
     networks:
-      - mascarade-network
+      - backend
+      - observability
 
   api:
     profiles:
@@ -77,7 +79,8 @@ services:
       retries: 10
       start_period: 20s
     networks:
-      - mascarade-network
+      - frontend
+      - backend
 
   litellm:
     profiles:
@@ -111,7 +114,7 @@ services:
       retries: 10
       start_period: 20s
     networks:
-      - mascarade-network
+      - backend
 
   n8n:
     profiles:
@@ -145,7 +148,7 @@ services:
       retries: 10
       start_period: 30s
     networks:
-      - mascarade-network
+      - backend
 
   langfuse-worker:
     profiles:
@@ -205,7 +208,8 @@ services:
       retries: 10
       start_period: 20s
     networks:
-      - mascarade-network
+      - observability
+      - backend
 
   langfuse-web:
     profiles:
@@ -237,7 +241,8 @@ services:
       minio:
         condition: service_healthy
     networks:
-      - mascarade-network
+      - observability
+      - backend
 
   minio:
     profiles:
@@ -267,7 +272,7 @@ services:
       retries: 10
       start_period: 15s
     networks:
-      - mascarade-network
+      - observability
 
   firecrawl:
     profiles:
@@ -297,7 +302,7 @@ services:
       retries: 10
       start_period: 20s
     networks:
-      - mascarade-network
+      - frontend
 
   mem0:
     profiles:
@@ -333,7 +338,7 @@ services:
       retries: 10
       start_period: 25s
     networks:
-      - mascarade-network
+      - backend
 
   dify-api:
     profiles:
@@ -369,7 +374,7 @@ services:
       redis:
         condition: service_healthy
     networks:
-      - mascarade-network
+      - backend
   dify-web:
     profiles:
       - personal
@@ -405,7 +410,8 @@ services:
       redis:
         condition: service_healthy
     networks:
-      - mascarade-network
+      - frontend
+      - backend
   dify-worker:
     profiles:
       - personal
@@ -439,7 +445,7 @@ services:
       redis:
         condition: service_healthy
     networks:
-      - mascarade-network
+      - backend
 
   agent-factory-cockpit:
     profiles:
@@ -504,7 +510,7 @@ services:
       retries: 10
       start_period: 15s
     networks:
-      - mascarade-network
+      - industrial
 
   agent-factory-dcs-sandbox:
     profiles:
@@ -554,7 +560,7 @@ services:
       retries: 10
       start_period: 10s
     networks:
-      - mascarade-network
+      - industrial
 
   clickhouse:
     profiles:
@@ -583,7 +589,7 @@ services:
       retries: 15
       start_period: 30s
     networks:
-      - mascarade-network
+      - observability
 
 
   tts:
@@ -605,7 +611,7 @@ services:
     volumes:
       - tts-data:/data
     networks:
-      - mascarade-network
+      - backend
 
   stt:
     profiles:
@@ -627,7 +633,7 @@ services:
     volumes:
       - stt-cache:/root/.cache
     networks:
-      - mascarade-network
+      - backend
 
   generate-audio:
     profiles:
@@ -663,7 +669,7 @@ services:
     volumes:
       - generate-audio-cache:/root/.cache/huggingface
     networks:
-      - mascarade-network
+      - backend
 
   ollama:
     profiles:
@@ -687,7 +693,7 @@ services:
       retries: 15
       start_period: 40s
     networks:
-      - mascarade-network
+      - backend
 
   edge-proxy:
     profiles:
@@ -723,7 +729,7 @@ services:
       retries: 10
       start_period: 10s
     networks:
-      - mascarade-network
+      - frontend
 
   ops-agent:
     profiles:
@@ -757,7 +763,8 @@ services:
       timeout: 5s
       retries: 10
     networks:
-      - mascarade-network
+      - industrial
+      - observability
 
   redis:
     profiles:
@@ -780,7 +787,7 @@ services:
       timeout: 3s
       retries: 10
     networks:
-      - mascarade-network
+      - backend
 
   postgres:
     profiles:
@@ -808,7 +815,7 @@ services:
       retries: 10
       start_period: 20s
     networks:
-      - mascarade-network
+      - backend
 
   qdrant:
     profiles:
@@ -832,7 +839,7 @@ services:
       timeout: 5s
       retries: 5
     networks:
-      mascarade-network:
+      backend:
         aliases:
           - mem0_store
 
@@ -861,7 +868,7 @@ services:
       timeout: 5s
       retries: 5
     networks:
-      - mascarade-network
+      - observability
 
   tempo:
     profiles:
@@ -887,7 +894,7 @@ services:
       retries: 12
       start_period: 20s
     networks:
-      - mascarade-network
+      - observability
 
   prometheus:
     profiles:
@@ -916,7 +923,8 @@ services:
       timeout: 5s
       retries: 5
     networks:
-      - mascarade-network
+      - observability
+      - backend
 
   blackbox-exporter:
     profiles:
@@ -941,7 +949,8 @@ services:
       retries: 10
       start_period: 10s
     networks:
-      - mascarade-network
+      - observability
+      - frontend
 
   loki:
     profiles:
@@ -966,7 +975,7 @@ services:
       timeout: 5s
       retries: 10
     networks:
-      - mascarade-network
+      - observability
 
   promtail:
     profiles:
@@ -999,7 +1008,7 @@ services:
       timeout: 5s
       retries: 10
     networks:
-      - mascarade-network
+      - observability
 
   otel-collector:
     profiles:
@@ -1029,7 +1038,7 @@ services:
       timeout: 5s
       retries: 10
     networks:
-      - mascarade-network
+      - observability
 
   neo4j:
     image: neo4j:5-community
@@ -1054,7 +1063,7 @@ services:
       retries: 10
       start_period: 30s
     networks:
-      - mascarade-network
+      - backend
 
   graphiti-mcp:
     image: ghcr.io/getzep/graphiti-mcp:latest
@@ -1085,11 +1094,21 @@ services:
       retries: 10
       start_period: 20s
     networks:
-      - mascarade-network
+      - backend
 
 networks:
-  mascarade-network:
+  frontend:
     driver: bridge
+    name: mascarade-frontend
+  backend:
+    driver: bridge
+    name: mascarade-network
+  observability:
+    driver: bridge
+    name: mascarade-observability
+  industrial:
+    driver: bridge
+    name: mascarade-industrial
 
 volumes:
   neo4j-data:
