@@ -37,10 +37,12 @@ from mascarade.routers.cad_mcp import router as cad_mcp_router
 from mascarade.routers.admin import router as admin_router
 from mascarade.routers.scheduler import router as scheduler_router
 from mascarade.scheduler.metrics_exporter import router as metrics_router
+from mascarade.routers.analytics import router as analytics_router
 from mascarade.routers.knowledge_base import (
     knowledge_base_auth_configured,
     router as knowledge_base_router,
 )
+from mascarade.benchmarks.storage import BenchmarkStorage  # noqa: F401 — used by tests via patch
 
 logger = logging.getLogger("mascarade.server")
 
@@ -243,6 +245,7 @@ def create_app() -> FastAPI:
     app.include_router(admin_router)
     app.include_router(scheduler_router)
     app.include_router(metrics_router)
+    app.include_router(analytics_router)
 
     # Mount Gradio UI for fine-tuning (if available)
     if GRADIO_AVAILABLE:

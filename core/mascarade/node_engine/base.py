@@ -74,8 +74,9 @@ class NodeExecutionContext:
     - Capability grants (permissions)
     """
 
-    node_id: str = field(metadata={"description": "Unique node instance ID"})
-    graph_id: str = field(metadata={"description": "Parent graph ID"})
+    node_id: str = field(default="", metadata={"description": "Unique node instance ID"})
+    graph_id: str = field(default="", metadata={"description": "Parent graph ID"})
+    node_type: str = field(default="", metadata={"description": "Node type identifier"})
     inputs: dict[str, Any] = field(default_factory=dict)
     config: dict[str, Any] = field(default_factory=dict)
     capabilities: set[str] = field(default_factory=set)
@@ -114,6 +115,11 @@ class NodeExecutionResult:
     error: str | None = None
     error_type: str | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
+
+    @property
+    def error_message(self) -> str | None:
+        """Alias for error field, for backward compatibility."""
+        return self.error
 
     @classmethod
     def ok(cls, **outputs: Any) -> NodeExecutionResult:

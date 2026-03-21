@@ -386,6 +386,15 @@ async def execute_dmx_universe(ctx: NodeExecutionContext) -> NodeExecutionResult
         # Merge input frame into universe
         if not isinstance(input_frame, DMXFrame):
             # Try to construct from dict
+            if isinstance(input_frame, dict):
+                # Validate that the dict looks like a DMX frame
+                valid_keys = {"kind", "domain", "name", "universe", "channels", "timestamp_ms"}
+                unknown_keys = set(input_frame.keys()) - valid_keys
+                if unknown_keys and not any(k in input_frame for k in ("universe", "channels")):
+                    return NodeExecutionResult(
+                        success=False,
+                        error=f"Invalid DMX frame: unrecognized keys {unknown_keys}",
+                    )
             try:
                 input_frame = DMXFrame(**input_frame)
             except Exception as exc:

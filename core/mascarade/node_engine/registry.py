@@ -119,8 +119,79 @@ class NodeTypeRegistry:
         """Get the number of registered types."""
         return len(self._types) + len(self._node_types)
 
+    def __bool__(self) -> bool:
+        """Registry is always truthy (even when empty)."""
+        return True
+
     def is_builtin(self, qualified_name: str) -> bool:
         """Check if a type is builtin."""
+        return qualified_name in self._builtin_names
+
+    # --- Worker management ---
+
+    def register_type(self, item: DomainType | NodeType, *, builtin: bool = False) -> None:
+        """Alias for register() for backward compatibility."""
+        self.register(item, builtin=builtin)
+
+    def register_worker(self, worker: Any) -> None:
+        """Register a worker and set its registry reference.
+
+        Args:
+            worker: A NodeWorker instance (must have .domain attribute)
+        """
+        worker.registry = self
+        if not hasattr(self, "_workers"):
+            self._workers: dict[str, Any] = {}
+        domain = worker.domain
+        if domain in self._workers:
+            logger.warning("Replacing worker for domain '%s'", domain)
+        self._workers[domain] = worker
+
+    def has_worker(self, domain: str) -> bool:
+        """Check if a worker is registered for a domain."""
+        return domain in getattr(self, "_workers", {})
+
+    def get_worker(self, domain: str) -> Any:
+        """Get the worker for a domain."""
+        workers = getattr(self, "_workers", {})
+        if domain not in workers:
+            raise KeyError(f"No worker registered for domain '{domain}'")
+        return workers[domain]
+
+    def remove_worker(self, domain: str) -> None:
+        """Remove the worker for a domain."""
+        workers = getattr(self, "_workers", {})
+        worker = workers.pop(domain, None)
+        if worker is not None:
+            worker.registry = None
+
+    async def initialize_workers(self) -> None:
+        """Initialize all registered workers."""
+        for worker in getattr(self, "_workers", {}).values():
+            await worker.initialize()
+
+    async def shutdown_workers(self) -> None:
+        """Shutdown all registered workers."""
+        for worker in getattr(self, "_workers", {}).values():
+            await worker.shutdown()
+
+    # --- Type queries ---
+
+    def list_types(self, *, domain: str | None = None) -> list[DomainType]:
+        """List registered domain types, optionally filtered by domain."""
+        types = list(self._types.values())
+        if domain:
+            types = [dt for dt in types if dt.domain == domain]
+        return types
+
+    def get_type(self, qualified_name: str) -> DomainType:
+        """Get a domain type by its qualified name."""
+        if qualified_name in self._types:
+            return self._types[qualified_name]
+        raise KeyError(f"Type '{qualified_name}' not found")
+
+    def is_builtin_type(self, qualified_name: str) -> bool:
+        """Check if a type is a builtin type."""
         return qualified_name in self._builtin_names
 
     # --- Persistence ---
