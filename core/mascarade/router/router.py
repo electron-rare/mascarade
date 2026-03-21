@@ -651,9 +651,7 @@ class Router:
 
         for attempt_strategy, attempt_provider in sequence:
             attempt_enum = Strategy(attempt_strategy)
-            selected = self._select_provider(attempt_enum, attempt_provider, domain)
-            selected = self._select_provider(attempt_enum, attempt_provider, detected_domain)
-            selected = self._select_provider(attempt_enum, attempt_provider)
+            selected = self._select_provider(attempt_enum, attempt_provider, domain or detected_domain)
 
             # Check circuit breaker for this specific provider
             if not self.circuit_breaker.can_execute(selected.name):
@@ -893,9 +891,9 @@ class Router:
             )
         strict_provider = effective_strategy == Strategy.SPECIFIC and effective_provider is not None
 
-        cached = self.cache.retrieve(
+        cached = await self.cache.retrieve(
             messages,
-            strategy=strategy.value,
+            strategy=requested_strategy.value,
             provider=provider,
             model=model,
             system=system,
@@ -922,9 +920,7 @@ class Router:
         last_error: Exception | None = None
         for attempt_strategy, attempt_provider in sequence:
             attempt_enum = Strategy(attempt_strategy)
-            selected = self._select_provider(attempt_enum, attempt_provider, domain)
-            selected = self._select_provider(attempt_enum, attempt_provider, detected_domain)
-            selected = self._select_provider(attempt_enum, attempt_provider)
+            selected = self._select_provider(attempt_enum, attempt_provider, domain or detected_domain)
 
             # Check circuit breaker for this specific provider
             if not self.circuit_breaker.can_execute(selected.name):

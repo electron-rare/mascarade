@@ -780,9 +780,8 @@ class ClusterManager:
 
         logger.info("cluster forward send -> %s", peer.peer_id)
         started = time.perf_counter()
-        remote = await self._request_json(peer, "POST", "/v1/cluster/node/send", json=payload)
 
-        # Try P2P stream forwarding first (lower latency, no HTTP overhead)
+        # Try P2P forwarding first (lower latency, no HTTP overhead)
         p2p_result = await self._try_p2p_forward(peer.peer_id, payload)
         if p2p_result is not None:
             latency_ms = int((time.perf_counter() - started) * 1000)
@@ -797,8 +796,8 @@ class ClusterManager:
                 **p2p_result,
             }
 
-        # Fallback to HTTP forwarding
-        remote = await self._request_json(peer, "POST", "/cluster/node/send", json=payload)
+        # Fallback to HTTP forwarding (only if P2P unavailable/failed)
+        remote = await self._request_json(peer, "POST", "/v1/cluster/node/send", json=payload)
         latency_ms = int((time.perf_counter() - started) * 1000)
         logger.info("cluster HTTP forward <- %s (%d ms)", peer.peer_id, latency_ms)
         return {

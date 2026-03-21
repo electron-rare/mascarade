@@ -312,6 +312,119 @@ def test_stream_cache_hit():
     assert second_response == "stream-cached"
 
 
+def test_select_provider_called_once_with_domain():
+    """Bug fix: _select_provider must be called once with the domain parameter,
+    not three times where the last call discards the domain."""
+    r = _make_router()
+    call_log = []
+    original = r._select_provider
+
+    def tracking_select(strategy, provider_name=None, domain=None):
+        call_log.append({"strategy": strategy, "provider_name": provider_name, "domain": domain})
+        return original(strategy, provider_name, domain)
+
+    r._select_provider = tracking_select
+
+    asyncio.run(
+        r.send(
+            [{"role": "user", "content": "hello"}],
+            strategy="best",
+            domain="electronics",
+        )
+    )
+
+    # Should be called once per attempt in the fallback sequence, each with domain
+    assert len(call_log) >= 1
+    for call in call_log:
+        assert call["domain"] == "electronics", (
+            f"_select_provider called with domain={call['domain']!r}, expected 'electronics'"
+        )
+
+
+def test_select_provider_called_once_with_domain_in_stream():
+    """Bug fix: same triple-call issue in stream() method."""
+    r = _make_router()
+    call_log = []
+    original = r._select_provider
+
+    def tracking_select(strategy, provider_name=None, domain=None):
+        call_log.append({"strategy": strategy, "provider_name": provider_name, "domain": domain})
+        return original(strategy, provider_name, domain)
+
+    r._select_provider = tracking_select
+
+    async def run_stream():
+        chunks = []
+        async for chunk in r.stream(
+            [{"role": "user", "content": "hello"}],
+            strategy="best",
+            domain="electronics",
+        ):
+            chunks.append(chunk)
+        return chunks
+
+    asyncio.run(run_stream())
+
+    assert len(call_log) >= 1
+    for call in call_log:
+        assert call["domain"] == "electronics", (
+            f"_select_provider called with domain={call['domain']!r}, expected 'electronics'"
+        )
+
+
+def test_stream_cache_retrieve_is_awaited():
+    """Bug fix: cache.retrieve() in stream() must be awaited.
+    Without await, a coroutine object is always truthy, breaking cache logic."""
+    call_count = 0
+
+    class StreamProvider(LLMProvider):
+        name = "sp"
+        default_model = "sp-model"
+        cost_per_million = (1.0, 1.0)
+        speed_rank = 1
+        quality_rank = 1
+
+        async def send(self, messages, **kwargs):
+            return LLMResponse(
+                content="sp-response",
+                model=self.default_model,
+                provider=self.name,
+                usage={"input_tokens": 5, "output_tokens": 2},
+            )
+
+        async def stream(self, messages, **kwargs):
+            nonlocal call_count
+            call_count += 1
+            yield "streamed"
+
+        def available_models(self):
+            return [self.default_model]
+
+    r = Router()
+    r._providers.clear()
+    r.register(StreamProvider())
+
+    payload = [{"role": "user", "content": "cache-stream-test"}]
+
+    # First stream call - should hit provider
+    async def first():
+        return [c async for c in r.stream(payload, strategy="best")]
+
+    asyncio.run(first())
+    assert call_count == 1
+
+    # If cache.retrieve() is not awaited, the coroutine is truthy and
+    # stream() would yield the coroutine object instead of calling provider.
+    # With the fix, cache miss returns None (no send() to populate cache),
+    # so provider is called again.
+    async def second():
+        return [c async for c in r.stream(payload, strategy="best")]
+
+    result = asyncio.run(second())
+    assert call_count == 2  # Provider called again (no cache populated by stream-only)
+    assert result == ["streamed"]
+
+
 def test_metrics_and_load_balancer_updated():
     class MetricsProvider(LLMProvider):
         name = "metrics"
