@@ -23,6 +23,7 @@ from pydantic import BaseModel, Field
 from mascarade.agents import Agent, AgentRegistry
 from mascarade.agents.prompt_versioning import PromptHistory, PromptVersion
 from mascarade.agents.skills import register_default_skills
+from mascarade.node_engine import NodeTypeRegistry, register_cad_workers
 from mascarade.auth import (
     add_api_key,
     get_active_api_keys,
@@ -101,12 +102,18 @@ async def lifespan(app: FastAPI):
     template_registry = TemplateRegistry()
     register_builtin_templates(template_registry)
 
+    # Initialize Node Engine registry and register CAD workers
+    node_registry = NodeTypeRegistry()
+    register_cad_workers(node_registry)
+    logger.info("Registered CAD workers with Node Engine")
+
     app.state.router = router
     app.state.registry = registry
     app.state.orchestrator = orchestrator
     app.state.trace_buffer = trace_buffer
     app.state.cluster = cluster
     app.state.template_registry = template_registry
+    app.state.node_registry = node_registry
     app.state.mcp = McpRuntimeClient(trace_buffer=trace_buffer)
     app.state.comfyui = ComfyUIClient() if settings.comfyui_url else None
     app.state.device_voice = DeviceVoiceService(router=router)
@@ -488,6 +495,53 @@ async def version():
         "version": "v1",
         "service": "mascarade-core",
         "api_version": "0.1.0"
+    }
+
+
+@app.get("/node-registry/catalog")
+async def get_node_catalog():
+    """Node catalog endpoint - returns all registered node types organized by domain."""
+    if not hasattr(app.state, "node_registry"):
+        raise HTTPException(status_code=503, detail="Node registry not initialized")
+
+    registry = app.state.node_registry
+
+    # Get all nodes grouped by category
+    all_nodes = registry.list_nodes()
+    all_domain_types = registry.list_domain_types()
+
+    # Group nodes by domain
+    nodes_by_domain = {}
+    for node in all_nodes:
+        # Extract domain from node ID (e.g., "cad.freecad.create_document" -> "cad")
+        domain = node.id.split(".")[0] if "." in node.id else "unknown"
+        if domain not in nodes_by_domain:
+            nodes_by_domain[domain] = []
+
+        # Convert node to dict
+        node_dict = {
+            "id": node.id,
+            "category": node.category,
+            "inputs": [{"name": p.name, "type": p.type, "required": p.required} for p in node.inputs],
+            "outputs": [{"name": p.name, "type": p.type, "required": p.required} for p in node.outputs],
+        }
+        nodes_by_domain[domain].append(node_dict)
+
+    # Group domain types by domain
+    types_by_domain = {}
+    for dtype in all_domain_types:
+        if dtype.domain not in types_by_domain:
+            types_by_domain[dtype.domain] = []
+        types_by_domain[dtype.domain].append({
+            "name": dtype.name,
+            "schema": dtype.schema,
+        })
+
+    return {
+        "nodes": nodes_by_domain,
+        "domain_types": types_by_domain,
+        "total_nodes": len(all_nodes),
+        "total_domain_types": len(all_domain_types),
     }
 @app.post("/v1/chat/completions", response_model_exclude_unset=True)
 @app.get("/health/providers")
