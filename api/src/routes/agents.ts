@@ -646,7 +646,7 @@ agents.put("/:name", async (c) => {
         })),
       }, 400);
     }
-    const body = parsed.data;
+    const body = parsed.data as Record<string, unknown>;
     const result = await coreClient.updateAgent(name, body);
     return c.json(result);
   } catch (error) {

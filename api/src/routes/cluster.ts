@@ -61,7 +61,7 @@ cluster.get("/state", async (c) => {
 
     const peerMap = new Map(peers.map((peer) => [peer.remote_node_id || peer.peer_id, peer]));
     const schedulerWorkers = Object.entries(scheduler.workers || {}).map(([workerId, worker]) =>
-      asWorkerNode(workerId, worker, peerMap),
+      asWorkerNode(workerId, worker as Record<string, unknown>, peerMap),
     );
     const nodes =
       schedulerWorkers.length > 0
