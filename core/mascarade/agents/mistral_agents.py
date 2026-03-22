@@ -20,6 +20,123 @@ from mascarade.router.router import Strategy
 logger = logging.getLogger("mascarade.agents.mistral_agents")
 
 
+def _mistral_base_url() -> str:
+    return settings.mistral_api_base.rstrip("/") or "https://api.mistral.ai/v1"
+
+
+def _render_content(content: object) -> str:
+    """Normalize Mistral beta content blocks into plain text."""
+    if isinstance(content, str):
+        return content
+
+    if isinstance(content, list):
+        chunks: list[str] = []
+        for item in content:
+            if isinstance(item, str):
+                if item:
+                    chunks.append(item)
+                continue
+            if not isinstance(item, dict):
+                continue
+            text = item.get("text")
+            if isinstance(text, str) and text:
+                chunks.append(text)
+        return "\n".join(chunks)
+
+    return ""
+
+
+def _default_agents() -> list[dict[str, Any]]:
+    return [
+        {
+            "name": "devstral-code",
+            "agent_id": settings.mistral_agent_devstral_id.strip(),
+            "description": (
+                "Agent de développement code pour le workflow agentique saillant.cc. "
+                "Génération, refactoring, review, debugging via Devstral."
+            ),
+            "system_prompt": (
+                "Tu es Devstral-Code, un agent de développement expert. "
+                "Tu génères, refactores, reviews et debugs du code pour l'écosystème saillant.cc / mascarade. "
+                "Tu connais Python, TypeScript, React, FastAPI, Docker, et les patterns agentiques."
+            ),
+            "temperature": 0.2,
+            "max_tokens": 16384,
+        },
+        {
+            "name": "forge",
+            "agent_id": settings.mistral_agent_forge_id.strip(),
+            "description": (
+                "Agent de pilotage fine-tuning de Mascarade. "
+                "Pipeline DPO/SimPO/KTO/RLVR, gestion des runs, évaluation."
+            ),
+            "system_prompt": (
+                "Tu es Forge, l'agent de pilotage du fine-tuning mascarade. "
+                "Tu gères les pipelines d'entraînement (DPO, SimPO, KTO, RLVR), "
+                "les datasets, l'évaluation des modèles et le déploiement. "
+                "Tu connais Unsloth, TRL, LoRA, et les 11 domaines spécialisés."
+            ),
+            "temperature": 0.3,
+            "max_tokens": 8192,
+        },
+        {
+            "name": "tower-commercial",
+            "agent_id": settings.mistral_agent_tower_id.strip(),
+            "description": (
+                "Agent commercial de l'écosystème saillant.cc. "
+                "Scoring leads, nurturing, qualification, CRM."
+            ),
+            "system_prompt": (
+                "Tu es Tower, l'agent commercial de saillant.cc. "
+                "Tu scores les leads, qualifies les prospects, nurtures les contacts, "
+                "et gères les interactions CRM pour L'Electron Rare."
+            ),
+            "temperature": 0.5,
+            "max_tokens": 4096,
+        },
+        {
+            "name": "sentinelle",
+            "agent_id": settings.mistral_agent_sentinelle_id.strip(),
+            "description": (
+                "Agent ops/monitoring de l'écosystème saillant.cc. "
+                "Diagnostique, surveille, alerte, analyse les incidents."
+            ),
+            "system_prompt": (
+                "Tu es Sentinelle, l'agent ops de saillant.cc. "
+                "Tu diagnostiques les problèmes, surveilles les services, "
+                "analyses les métriques et traces, et proposes des remédiations."
+            ),
+            "temperature": 0.2,
+            "max_tokens": 8192,
+        },
+    ]
+
+
+def _extract_response_content(data: dict[str, Any]) -> tuple[str, dict[str, int]]:
+    outputs = data.get("outputs", [])
+    if outputs:
+        assistant_outputs = [out for out in outputs if out.get("role") == "assistant"]
+        latest = assistant_outputs[-1] if assistant_outputs else outputs[-1]
+        usage_data = data.get("usage", {})
+        return _render_content(latest.get("content", "")), {
+            "input_tokens": usage_data.get("prompt_tokens", 0),
+            "output_tokens": usage_data.get("completion_tokens", 0),
+            "total_tokens": usage_data.get("total_tokens", 0),
+        }
+
+    choices = data.get("choices", [])
+    if choices:
+        message = choices[0].get("message", {})
+        usage_data = data.get("usage", {})
+        return str(message.get("content", "")), {
+            "input_tokens": usage_data.get("prompt_tokens", 0),
+            "output_tokens": usage_data.get("completion_tokens", 0),
+            "total_tokens": usage_data.get("total_tokens", 0),
+        }
+
+    raise RuntimeError("Mistral agent returned no content")
+
+
 @dataclass
 class MistralRemoteAgent(Agent):
     """Agent mascarade qui délègue à un agent Mistral AI Studio.
@@ -45,53 +162,63 @@ class MistralRemoteAgent(Agent):
         api_key = secret_value(settings.mistral_api_key).strip()
         if not is_secret_configured(api_key):
             raise RuntimeError("MISTRAL_API_KEY not configured")
+        if not self.agent_id.strip():
+            raise RuntimeError(f"Mistral agent '{self.name}' has no agent_id configured")
 
         headers = {
             "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json",
         }
+        base_url = _mistral_base_url()
+        api_mode = getattr(settings, "mistral_agents_api_mode", "beta").strip().lower() or "beta"
 
         async with httpx.AsyncClient(timeout=120.0) as client:
-            if self.conversation_id:
-                # Continue existing conversation
-                url = f"https://api.mistral.ai/v1/conversations/{self.conversation_id}"
+            if api_mode == "beta" and self.conversation_id:
+                url = f"{base_url}/conversations/{self.conversation_id}"
                 payload: dict[str, Any] = {
                     "inputs": prompt,
                     "stream": False,
                 }
-            else:
-                # Start new conversation
-                url = "https://api.mistral.ai/v1/conversations"
+            elif api_mode == "beta":
+                url = f"{base_url}/conversations"
                 payload = {
                     "agent_id": self.agent_id,
                     "inputs": prompt,
                     "stream": False,
                 }
+            else:
+                url = f"{base_url}/agents/{self.agent_id}/completions"
+                payload = {"messages": [{"role": "user", "content": prompt}]}
 
-            resp = await client.post(url, json=payload, headers=headers)
-            resp.raise_for_status()
-            data = resp.json()
+            try:
+                resp = await client.post(url, json=payload, headers=headers)
+                resp.raise_for_status()
+                data = resp.json()
+            except (httpx.HTTPStatusError, httpx.TransportError) as exc:
+                if api_mode != "beta":
+                    raise
+                logger.warning(
+                    "Beta conversations API failed for agent %s, fallback deprecated endpoint: %s",
+                    self.agent_id,
+                    exc,
+                )
+                resp = await client.post(
+                    f"{base_url}/agents/{self.agent_id}/completions",
+                    json={"messages": [{"role": "user", "content": prompt}]},
+                    headers=headers,
+                )
+                resp.raise_for_status()
+                data = resp.json()
 
         # Store conversation_id for follow-ups
         self.conversation_id = data.get("conversation_id")
-
-        # Extract response
-        outputs = data.get("outputs", [])
-        content = ""
-        if outputs:
-            content = outputs[-1].get("content", "")
-
-        usage_data = data.get("usage", {})
+        content, usage = _extract_response_content(data)
 
         return LLMResponse(
             content=content,
             model=f"mistral-agent:{self.name}",
             provider="mistral-agents",
-            usage={
-                "input_tokens": usage_data.get("prompt_tokens", 0),
-                "output_tokens": usage_data.get("completion_tokens", 0),
-                "total_tokens": usage_data.get("total_tokens", 0),
-            },
+            usage=usage,
         )
 
     def reset_conversation(self) -> None:
@@ -141,7 +268,7 @@ class MistralRemoteAgent(Agent):
 
         async with httpx.AsyncClient(timeout=30.0) as client:
             resp = await client.patch(
-                f"https://api.mistral.ai/v1/agents/{self.agent_id}",
+                f"{_mistral_base_url()}/agents/{self.agent_id}",
                 json=payload,
                 headers=headers,
             )
@@ -169,7 +296,7 @@ async def discover_mistral_agents() -> list[dict[str, str]]:
     try:
         async with httpx.AsyncClient(timeout=15.0) as client:
             resp = await client.get(
-                "https://api.mistral.ai/v1/agents",
+                f"{_mistral_base_url()}/agents",
                 headers={"Authorization": f"Bearer {api_key}"},
                 params={"page": 0, "page_size": 50},
             )
@@ -199,7 +326,7 @@ def register_mistral_agents(registry, agents_config: list[dict] | None = None) -
     known agents from L'Electron Rare workspace.
     """
     if agents_config is None:
-        agents_config = _DEFAULT_AGENTS
+        agents_config = _default_agents()
 
     api_key = getattr(settings, "mistral_api_key", "")
     if not is_secret_configured(api_key):
@@ -219,70 +346,3 @@ def register_mistral_agents(registry, agents_config: list[dict] | None = None) -
         )
         registry.register(agent, builtin=True)
         logger.info("Mistral remote agent registered: %s (%s)", cfg["name"], cfg["agent_id"])
-
-
-# --- Default Mistral agents from L'Electron Rare AI Studio workspace ---
-
-_DEFAULT_AGENTS: list[dict[str, Any]] = [
-    {
-        "name": "devstral-code",
-        "agent_id": "",  # À remplir avec l'ID réel depuis AI Studio
-        "description": (
-            "Agent de développement code pour le workflow agentique saillant.cc. "
-            "Génération, refactoring, review, debugging via Devstral."
-        ),
-        "system_prompt": (
-            "Tu es Devstral-Code, un agent de développement expert. "
-            "Tu génères, refactores, reviews et debugs du code pour l'écosystème saillant.cc / mascarade. "
-            "Tu connais Python, TypeScript, React, FastAPI, Docker, et les patterns agentiques."
-        ),
-        "temperature": 0.2,
-        "max_tokens": 16384,
-    },
-    {
-        "name": "forge",
-        "agent_id": "",  # À remplir
-        "description": (
-            "Agent de pilotage fine-tuning de Mascarade. "
-            "Pipeline DPO/SimPO/KTO/RLVR, gestion des runs, évaluation."
-        ),
-        "system_prompt": (
-            "Tu es Forge, l'agent de pilotage du fine-tuning mascarade. "
-            "Tu gères les pipelines d'entraînement (DPO, SimPO, KTO, RLVR), "
-            "les datasets, l'évaluation des modèles et le déploiement. "
-            "Tu connais Unsloth, TRL, LoRA, et les 11 domaines spécialisés."
-        ),
-        "temperature": 0.3,
-        "max_tokens": 8192,
-    },
-    {
-        "name": "tower-commercial",
-        "agent_id": "",  # À remplir
-        "description": (
-            "Agent commercial de l'écosystème saillant.cc. "
-            "Scoring leads, nurturing, qualification, CRM."
-        ),
-        "system_prompt": (
-            "Tu es Tower, l'agent commercial de saillant.cc. "
-            "Tu scores les leads, qualifies les prospects, nurtures les contacts, "
-            "et gères les interactions CRM pour L'Electron Rare."
-        ),
-        "temperature": 0.5,
-        "max_tokens": 4096,
-    },
-    {
-        "name": "sentinelle",
-        "agent_id": "",  # À remplir
-        "description": (
-            "Agent ops/monitoring de l'écosystème saillant.cc. "
-            "Diagnostique, surveille, alerte, analyse les incidents."
-        ),
-        "system_prompt": (
-            "Tu es Sentinelle, l'agent ops de saillant.cc. "
-            "Tu diagnostiques les problèmes, surveilles les services, "
-            "analyses les métriques et traces, et proposes des remédiations."
-        ),
-        "temperature": 0.2,
-        "max_tokens": 8192,
-    },
-]

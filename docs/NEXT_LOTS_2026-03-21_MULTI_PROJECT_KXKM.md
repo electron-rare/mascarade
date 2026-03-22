@@ -5,6 +5,9 @@ Plan opérationnel de continuité après intégration `kxkm` dans `mascarade`, e
 ## Contexte vérifié
 
 - Le core Python porte maintenant:
+  - un provider `mistral-agents` branché au routeur actif
+  - un bridge `agents.mistral_agents` recâblé sur les IDs/config Mistral actifs
+  - un fallback beta conversations -> deprecated completions pour les agents distants Mistral
   - le bridge MCP `kxkm_rag_search`
   - le provider knowledge base `kxkm`
   - le pull DPO `kxkm`
@@ -25,6 +28,8 @@ Plan opérationnel de continuité après intégration `kxkm` dans `mascarade`, e
 
 ```bash
 cd /Users/electron/Documents/Projets/mascarade/core && ./.venv/bin/python -m pytest \
+  tests/test_mistral_agents.py \
+  tests/test_mistral_agents_provider.py \
   tests/test_scheduler_optional_vllm.py \
   tests/test_scheduler.py \
   tests/test_routers_health.py \
@@ -61,8 +66,10 @@ bash scripts/monitor.sh --help
 
 ### Lot A — Core multi-projet / `kxkm`
 - Scope: `core/mascarade`, `core/tests`
-- État: livré et vérifié sur le sous-ensemble `router + knowledge base + finetune + chat/agents/health + scheduler import`
+- État: livré et vérifié sur le sous-ensemble `router + mistral agents + knowledge base + finetune + chat/agents/health + scheduler import`
 - Résultat attendu:
+  - provider `mistral-agents` réellement branché dans le routeur actif
+  - bridge d’agents distants Mistral recâblé sur `settings`
   - recherche RAG `kxkm`
   - DPO `kxkm`
   - RouteLLM cheap/strong local
@@ -105,6 +112,13 @@ bash scripts/monitor.sh --help
   - `docker-compose` segmentation réseau traité comme chantier parallèle à relire avant merge
 
 ## Prochains lots prioritaires
+
+### P0 — Finir le lot Mistral réellement exploitable
+- [x] porter `T-MA-038` dans le repo actif `mascarade`
+- [ ] documenter le mapping `.env` des IDs `mistral_agent_*` sans recopier les secrets dans le repo
+- [ ] décider si le cockpit opérateur doit appeler le provider routeur `mistral-agents` ou rester sur l’API Mistral directe
+- [ ] brancher `T-MS-023` Codestral FIM sur le routeur actif, pas sur la copie historique `mascarade-main`
+- [ ] garder `T-MA-016/017/021` explicitement bloqués tant que la VM datasets/fine-tune n’est pas disponible
 
 ### P0 — Consolider le contrat multi-projet réel
 - [ ] rendre `project_id` obligatoire sur les enveloppes de requête exposées aux agents

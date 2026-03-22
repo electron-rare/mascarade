@@ -24,6 +24,13 @@ except ImportError:
     pass
 
 try:
+    from mascarade.router.providers.mistral_agents import MistralAgentsProvider
+
+    __all__.append("MistralAgentsProvider")
+except ImportError:
+    pass
+
+try:
     from mascarade.router.providers.mistral_studio import MistralStudioProvider
 
     __all__.append("MistralStudioProvider")
