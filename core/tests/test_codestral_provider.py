@@ -93,3 +93,50 @@ async def test_codestral_send_empty_response(provider):
 
     with pytest.raises(RuntimeError, match="empty choices"):
         await provider.send([{"role": "user", "content": "test"}])
+
+
+def test_codestral_available_models(provider):
+    models = provider.available_models()
+    assert isinstance(models, list)
+    assert "codestral-latest" in models
+    assert "codestral-2501" in models
+    assert len(models) >= 2
+
+
+@pytest.mark.asyncio
+async def test_codestral_stream(provider):
+    """Test the stream method yields content chunks from SSE lines."""
+
+    # Build a fake async streaming response context manager
+    lines = [
+        'data: {"choices": [{"delta": {"content": "hello"}}]}',
+        'data: {"choices": [{"delta": {"content": " world"}}]}',
+        "data: [DONE]",
+    ]
+
+    async def _aiter_lines():
+        for line in lines:
+            yield line
+
+    mock_resp = MagicMock()
+    mock_resp.raise_for_status = MagicMock()
+    mock_resp.aiter_lines = _aiter_lines
+
+    # Make client.stream return an async context manager yielding mock_resp
+    class _StreamCM:
+        async def __aenter__(self):
+            return mock_resp
+
+        async def __aexit__(self, *args):
+            pass
+
+    provider._client.stream = MagicMock(return_value=_StreamCM())
+
+    chunks = []
+    async for chunk in provider.stream(
+        [{"role": "user", "content": "hi"}],
+        temperature=0.0,
+    ):
+        chunks.append(chunk)
+
+    assert chunks == ["hello", " world"]
