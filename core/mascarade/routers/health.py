@@ -35,6 +35,35 @@ async def version():
     }
 
 
+@router.get("/v1/models")
+async def list_models(request: Request):
+    """OpenAI-compatible model list — used by Xcode Intelligence and other clients.
+
+    Returns the list of available providers and agents as selectable models.
+    Format: {"object": "list", "data": [{"id": "...", "object": "model", ...}]}
+    """
+    import time
+
+    models = []
+    if hasattr(request.app.state, "router"):
+        for name in request.app.state.router.available_providers:
+            models.append({
+                "id": name,
+                "object": "model",
+                "created": 1700000000,
+                "owned_by": "mascarade",
+            })
+    if hasattr(request.app.state, "registry"):
+        for agent in request.app.state.registry.list():
+            models.append({
+                "id": f"agent:{agent.name}",
+                "object": "model",
+                "created": 1700000000,
+                "owned_by": "mascarade",
+            })
+    return {"object": "list", "data": models}
+
+
 @router.get("/health/providers")
 async def get_provider_health(request: Request):
     """Provider health metrics endpoint - returns detailed health statistics for all providers."""
