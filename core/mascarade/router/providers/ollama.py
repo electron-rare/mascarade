@@ -19,6 +19,25 @@ from mascarade.router.providers.base import (
 
 logger = logging.getLogger("mascarade.providers.ollama")
 
+_METAL_ERROR_PATTERNS = ("metal", "gpu", "mps", "ggml_metal", "device lost", "command buffer")
+
+
+class MetalGPUError(RuntimeError):
+    """Non-retryable error from Ollama Metal/GPU backend.
+
+    Raised when Ollama returns a server error containing Metal or GPU-related
+    keywords. These errors indicate a driver/hardware issue that will not
+    resolve by retrying the same request.
+    """
+
+
+def _is_metal_error(response_body: str) -> bool:
+    """Check if an Ollama error response indicates a Metal/GPU crash."""
+    lower = response_body.lower()
+    return any(p in lower for p in _METAL_ERROR_PATTERNS)
+
+
+# Do NOT retry MetalGPUError — it's a hardware issue, not transient
 _retry = make_retry(httpx.ConnectError, httpx.TimeoutException)
 
 
@@ -88,6 +107,16 @@ class OllamaProvider(LLMProvider):
                 f"on model={model} max_tokens={max_tokens}. "
                 f"Increase OLLAMA_TIMEOUT_SECONDS if the model needs more time."
             ) from None
+
+        # Detect Metal/GPU errors — these should not be retried
+        if response.status_code >= 500:
+            body = response.text
+            if _is_metal_error(body):
+                raise MetalGPUError(
+                    f"Ollama Metal/GPU crash for model '{model}': {body[:200]}. "
+                    "Use Docker CPU fallback (OLLAMA_BASE_URL=http://127.0.0.1:11435) "
+                    "or try a different model."
+                )
         response.raise_for_status()
         data = response.json()
 
@@ -126,6 +155,15 @@ class OllamaProvider(LLMProvider):
                 },
             },
         ) as response:
+            if response.status_code >= 500:
+                body = await response.aread()
+                text = body.decode(errors="replace")
+                if _is_metal_error(text):
+                    raise MetalGPUError(
+                        f"Ollama Metal/GPU crash during streaming for model '{model}': "
+                        f"{text[:200]}"
+                    )
+                response.raise_for_status()
             response.raise_for_status()
             async for line in response.aiter_lines():
                 if not line:
