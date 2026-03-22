@@ -19,6 +19,7 @@
     "src/**/__tests__/**",
     "src/**/*.test.*",
     "src/node-engine/plugins/categories/Audio/**",
-    "src/node-engine/plugins/categories/Hardware/**"
+    "src/node-engine/plugins/categories/Hardware/**",
+    "src/node-engine/demo-app.tsx"
   ]
 }
