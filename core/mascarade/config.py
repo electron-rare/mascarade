@@ -212,6 +212,11 @@ class Settings(BaseSettings):
     mistral_api_base: str = "https://api.mistral.ai/v1"
     mistral_default_model: str = "mistral-large-latest"
     mistral_timeout_ms: int = 120000
+    mistral_agents_api_mode: str = "beta"
+    mistral_agent_sentinelle_id: str = ""
+    mistral_agent_tower_id: str = ""
+    mistral_agent_forge_id: str = ""
+    mistral_agent_devstral_id: str = ""
     litellm_proxy_enabled: bool = False
     litellm_enabled: bool = False
     litellm_base_url: str = "http://litellm:4000"
