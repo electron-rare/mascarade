@@ -1,1 +1,1 @@
-declare module 'dmx' { const dmx: any; export default dmx; }
+declare module 'dmx' { const x: any; export = x; }
