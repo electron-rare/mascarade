@@ -18,7 +18,6 @@
 {"id": "spice-008", "domain": "spice", "prompt": "Create a PlatformIO project structure for a DMX512 lighting controller using RS485 transceiver on Arduino Mega", "expected_keywords": ["DMX512", "RS485", "Serial", "universe", "channel", "platformio", "lib"]}
 {"id": "spice-009", "domain": "spice", "prompt": "Write a SPICE Monte Carlo analysis for component tolerance effects on a bandpass filter center frequency", "expected_keywords": [".mc", "tolerance", "bandpass", "frequency", "deviation", "resistor", "capacitor"]}
 {"id": "spice-010", "domain": "spice", "prompt": "Generate an embedded C implementation of a WS2812B LED strip driver using DMA and timer on STM32, supporting 300 LEDs", "expected_keywords": ["WS2812", "DMA", "timer", "PWM", "LED", "STM32", "buffer"]}
-```jsonl
 {"id": "kicad_001", "domain": "kicad", "prompt": "Comment creer un symbole de composant personnalise dans KiCAD avec plusieurs unites (par exemple un CI avec 2 amplis operationnels)? Quels parametres sont essentiels a definir?", "expected_keywords": ["unites", "proprietes", "pins", "reference", "symbole personnalise", "librairie"]}
 {"id": "kicad_002", "domain": "kicad", "prompt": "Quelle est la meilleure strategie pour organiser une librairie KiCAD modulaire et reutilisable? Comment eviter les doublons et maintenir la coherence?", "expected_keywords": ["hierarchie", "conventions", "naming", "versioning", "maintenance", "template"]}
 {"id": "kicad_003", "domain": "kicad", "prompt": "Comment configurer les regles de design (Design Rules) dans KiCAD pour une PCB haute densite avec traces de 0.15mm? Quels parametres critiques?", "expected_keywords": ["trace_width", "clearance", "via_size", "annulus", "design_rules", "constraints"]}
@@ -99,4 +98,3 @@
 {"id": "mixed_008", "domain": "mixed", "prompt": "Comment optimiser le rendement d'un convertisseur buck pour 12V->3.3V 3A avec PCB layout optimal?", "expected_keywords": ["buck", "rendement", "efficacite", "layout", "thermique", "pertes"]}
 {"id": "mixed_009", "domain": "mixed", "prompt": "Decrivez comment faire une analyse de cout et volume de production pour une carte IoT prototype a production?", "expected_keywords": ["cout", "volume", "production", "BOM", "fournisseur", "scalabilite"]}
 {"id": "mixed_010", "domain": "mixed", "prompt": "Comment faire une strategie de test en production pour detecter 99.9% des defauts assembles sur PCB complexe?", "expected_keywords": ["test", "production", "ICT", "AOI", "functional", "defauts"]}
-```
