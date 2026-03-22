@@ -52,6 +52,7 @@ from mascarade.routers.mistral_studio import router as mistral_studio_router
 from mascarade.routers.xcode import router as xcode_router
 from mascarade.routers.cluster import router as cluster_router
 from mascarade.routers.voice import router as voice_router
+from mascarade.routers.rag import router as rag_router
 from mascarade.routers.knowledge_base import (
     knowledge_base_auth_configured,
     router as knowledge_base_router,
@@ -116,6 +117,13 @@ async def lifespan(app: FastAPI):
             scheduler.register_worker(worker)
         logger.info("Scheduler enabled with %d workers", len(scheduler.workers))
 
+    # Initialize auto-scaler if enabled
+    autoscaler = None
+    if settings.autoscaling_enabled:
+        from mascarade.scheduler.autoscaler import AutoScaler
+        autoscaler = AutoScaler(scheduler)
+        logger.info("Auto-scaler enabled")
+
     heartbeat = HeartbeatMonitor(
         scheduler.workers,
         interval=settings.scheduler_heartbeat_interval,
@@ -147,6 +155,8 @@ async def lifespan(app: FastAPI):
         app.state.scheduler = scheduler
     if not hasattr(app.state, "heartbeat_monitor") or app.state.heartbeat_monitor is None:
         app.state.heartbeat_monitor = heartbeat
+    if not hasattr(app.state, "autoscaler") or app.state.autoscaler is None:
+        app.state.autoscaler = autoscaler
 
     # Load persisted data
     registry.load()
@@ -175,6 +185,12 @@ async def lifespan(app: FastAPI):
         # Wire scheduler into router for distributed dispatch
         router.scheduler = scheduler
         logger.info("Distributed scheduler heartbeat started")
+
+    # Start auto-scaler monitoring
+    if settings.autoscaling_enabled and autoscaler:
+        # In a real implementation, this would be a background task
+        # For now, we'll just log that it's ready
+        logger.info("Auto-scaler monitoring ready")
 
     yield
 
@@ -287,6 +303,7 @@ def create_app() -> FastAPI:
     app.include_router(xcode_router)
     app.include_router(cluster_router)
     app.include_router(voice_router)
+    app.include_router(rag_router)
 
     # Mount Gradio UI for fine-tuning (if available)
     if GRADIO_AVAILABLE:
