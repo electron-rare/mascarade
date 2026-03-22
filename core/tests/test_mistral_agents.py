@@ -18,6 +18,16 @@ from mascarade.router.router import Strategy
 _FAKE_API_KEY = SecretStr("test-mistral-key-12345678")
 
 
+def _configure_settings(mock_settings) -> None:
+    mock_settings.mistral_api_key = _FAKE_API_KEY
+    mock_settings.mistral_api_base = "https://api.mistral.ai/v1"
+    mock_settings.mistral_agents_api_mode = "beta"
+    mock_settings.mistral_agent_devstral_id = ""
+    mock_settings.mistral_agent_forge_id = ""
+    mock_settings.mistral_agent_tower_id = ""
+    mock_settings.mistral_agent_sentinelle_id = ""
+
+
 def test_mistral_remote_agent_attributes():
     agent = MistralRemoteAgent(
         name="test-agent",
@@ -62,7 +72,7 @@ async def test_run_new_conversation():
 
     with patch("mascarade.agents.mistral_agents.settings") as mock_settings, \
          patch("httpx.AsyncClient") as mock_client_cls:
-        mock_settings.mistral_api_key = _FAKE_API_KEY
+        _configure_settings(mock_settings)
         mock_client = AsyncMock()
         mock_client.post = AsyncMock(return_value=mock_response)
         mock_client.__aenter__ = AsyncMock(return_value=mock_client)
@@ -102,7 +112,7 @@ async def test_run_continue_conversation():
 
     with patch("mascarade.agents.mistral_agents.settings") as mock_settings, \
          patch("httpx.AsyncClient") as mock_client_cls:
-        mock_settings.mistral_api_key = _FAKE_API_KEY
+        _configure_settings(mock_settings)
         mock_client = AsyncMock()
         mock_client.post = AsyncMock(return_value=mock_response)
         mock_client.__aenter__ = AsyncMock(return_value=mock_client)
@@ -127,6 +137,8 @@ async def test_run_no_api_key():
 
     with patch("mascarade.agents.mistral_agents.settings") as mock_settings:
         mock_settings.mistral_api_key = SecretStr("")
+        mock_settings.mistral_api_base = "https://api.mistral.ai/v1"
+        mock_settings.mistral_agents_api_mode = "beta"
         with pytest.raises(RuntimeError, match="MISTRAL_API_KEY"):
             await agent.run("test")
 
@@ -135,6 +147,7 @@ async def test_run_no_api_key():
 async def test_discover_no_api_key():
     with patch("mascarade.agents.mistral_agents.settings") as mock_settings:
         mock_settings.mistral_api_key = SecretStr("")
+        mock_settings.mistral_api_base = "https://api.mistral.ai/v1"
         result = await discover_mistral_agents()
         assert result == []
 
@@ -143,7 +156,7 @@ def test_register_default_agents():
     registry = MagicMock()
 
     with patch("mascarade.agents.mistral_agents.settings") as mock_settings:
-        mock_settings.mistral_api_key = _FAKE_API_KEY
+        _configure_settings(mock_settings)
         register_mistral_agents(registry)
 
     # 4 default agents registered
@@ -155,11 +168,30 @@ def test_register_default_agents():
     assert "sentinelle" in names
 
 
+def test_register_default_agents_uses_configured_ids():
+    registry = MagicMock()
+
+    with patch("mascarade.agents.mistral_agents.settings") as mock_settings:
+        _configure_settings(mock_settings)
+        mock_settings.mistral_agent_devstral_id = "ag-dev"
+        mock_settings.mistral_agent_forge_id = "ag-forge"
+        mock_settings.mistral_agent_tower_id = "ag-tower"
+        mock_settings.mistral_agent_sentinelle_id = "ag-sentinelle"
+        register_mistral_agents(registry)
+
+    registered = {call[0][0].name: call[0][0].agent_id for call in registry.register.call_args_list}
+    assert registered["devstral-code"] == "ag-dev"
+    assert registered["forge"] == "ag-forge"
+    assert registered["tower-commercial"] == "ag-tower"
+    assert registered["sentinelle"] == "ag-sentinelle"
+
+
 def test_register_no_api_key():
     registry = MagicMock()
 
     with patch("mascarade.agents.mistral_agents.settings") as mock_settings:
         mock_settings.mistral_api_key = SecretStr("")
+        mock_settings.mistral_api_base = "https://api.mistral.ai/v1"
         register_mistral_agents(registry)
 
     assert registry.register.call_count == 0

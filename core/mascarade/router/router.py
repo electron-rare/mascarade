@@ -165,6 +165,7 @@ class Router:
             ("mascarade.router.providers.claude", "ClaudeProvider"),
             ("mascarade.router.providers.openai", "OpenAIProvider"),
             ("mascarade.router.providers.mistral", "MistralProvider"),
+            ("mascarade.router.providers.mistral_agents", "MistralAgentsProvider"),
             ("mascarade.router.providers.bedrock", "BedrockProvider"),
             ("mascarade.router.providers.google", "GoogleProvider"),
             ("mascarade.router.providers.huggingface", "HuggingFaceProvider"),

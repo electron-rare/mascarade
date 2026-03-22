@@ -40,7 +40,34 @@ Dans `core/mascarade/config.py`, les paramètres suivants ont été ajoutés :
 # Mistral Studio
 mistral_api_base: str = "https://api.mistral.ai/v1"
 mistral_default_model: str = "mistral-large-latest"
+mistral_agents_api_mode: str = "beta"
+mistral_agent_sentinelle_id: str = ""
+mistral_agent_tower_id: str = ""
+mistral_agent_forge_id: str = ""
+mistral_agent_devstral_id: str = ""
 ```
+
+### 4. Configuration des agents distants Mistral
+
+Le repo actif supporte maintenant un provider routeur dédié `mistral-agents` et un bridge
+`agents.mistral_agents` pour les agents distants AI Studio.
+
+Variables à définir dans l’environnement actif du core:
+
+```env
+MISTRAL_AGENTS_API_MODE=beta
+MISTRAL_AGENT_SENTINELLE_ID=ag_xxx
+MISTRAL_AGENT_TOWER_ID=ag_xxx
+MISTRAL_AGENT_FORGE_ID=ag_xxx
+MISTRAL_AGENT_DEVSTRAL_ID=ag_xxx
+```
+
+Contraintes:
+- ne pas commiter les IDs réels ni les clés API dans le repo
+- `mistral-agents` n’est enregistré par le routeur que si `MISTRAL_API_KEY` est présent
+  et qu’au moins un `MISTRAL_AGENT_*_ID` est configuré
+- le mode recommandé est `beta`; le code garde un fallback vers l’endpoint deprecated
+  `/v1/agents/{id}/completions` pour la reprise
 
 ## Utilisation des modèles Mistral
 
@@ -63,6 +90,25 @@ response = await router.send(
     model="mistral-large-latest"
 )
 ```
+
+### Utilisation des agents Mistral distants via le router
+
+```python
+from mascarade.router import Router
+
+router = Router()
+response = await router.send(
+    messages=[{"role": "user", "content": "Diagnostique ce cluster"}],
+    provider="mistral-agents",
+    model="agent:sentinelle",
+)
+```
+
+Le provider routeur dédié est implémenté dans:
+- `/Users/electron/Documents/Projets/mascarade/core/mascarade/router/providers/mistral_agents.py`
+
+Le bridge d’agents distants est implémenté dans:
+- `/Users/electron/Documents/Projets/mascarade/core/mascarade/agents/mistral_agents.py`
 
 ## Fine-tuning avec Mistral Studio
 
