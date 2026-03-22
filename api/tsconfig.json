@@ -13,5 +13,12 @@
     "lib": ["ES2022", "DOM"]
   },
   "include": ["src"],
-  "exclude": ["node_modules", "dist", "src/**/__tests__/**", "src/**/*.test.*"]
+  "exclude": [
+    "node_modules",
+    "dist",
+    "src/**/__tests__/**",
+    "src/**/*.test.*",
+    "src/node-engine/plugins/categories/Audio/**",
+    "src/node-engine/plugins/categories/Hardware/**"
+  ]
 }

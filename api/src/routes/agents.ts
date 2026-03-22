@@ -646,8 +646,8 @@ agents.put("/:name", async (c) => {
         })),
       }, 400);
     }
-    const body = parsed.data as Record<string, unknown>;
-    const result = await coreClient.updateAgent(name, body);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const result = await coreClient.updateAgent(name, parsed.data as any);
     return c.json(result);
   } catch (error) {
     const { status, body } = handleCoreError(error);
