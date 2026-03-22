@@ -1,0 +1,84 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: clickhouse
+  namespace: mascarade
+  labels:
+    app: clickhouse
+    tier: database
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: clickhouse
+      tier: database
+  template:
+    metadata:
+      labels:
+        app: clickhouse
+        tier: database
+    spec:
+      containers:
+      - name: clickhouse
+        image: clickhouse/clickhouse-server:22.8
+        ports:
+        - containerPort: 8123
+          name: http
+          protocol: TCP
+        - containerPort: 9000
+          name: native
+          protocol: TCP
+        resources:
+          requests:
+            cpu: "1000m"
+            memory: "2Gi"
+          limits:
+            cpu: "2000m"
+            memory: "4Gi"
+        volumeMounts:
+        - name: clickhouse-data
+          mountPath: /var/lib/clickhouse
+      volumes:
+      - name: clickhouse-data
+        persistentVolumeClaim:
+          claimName: clickhouse-data-pvc
+
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: clickhouse
+  namespace: mascarade
+  labels:
+    app: clickhouse
+    tier: database
+spec:
+  type: ClusterIP
+  ports:
+  - port: 8123
+    targetPort: 8123
+    name: http
+    protocol: TCP
+  - port: 9000
+    targetPort: 9000
+    name: native
+    protocol: TCP
+  selector:
+    app: clickhouse
+    tier: database
+
+---
+
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: clickhouse-data-pvc
+  namespace: mascarade
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 50Gi
+  storageClassName: standard
