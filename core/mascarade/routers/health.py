@@ -31,7 +31,7 @@ async def version():
     return {
         "version": "v1",
         "service": "mascarade-core",
-        "api_version": "2.0.0"
+        "api_version": "0.2.0"
     }
 
 

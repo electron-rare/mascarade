@@ -195,7 +195,7 @@ def create_app() -> FastAPI:
     """Create and configure the FastAPI application."""
     app = FastAPI(
         title="Mascarade Core",
-        version="2.0.0",
+        version="0.2.0",
         description=(
             "Personal agentic orchestration system - Python core API\n\n"
             "Provides LLM routing, agent orchestration, memory management, "

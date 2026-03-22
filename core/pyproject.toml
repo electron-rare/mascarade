@@ -1,6 +1,6 @@
 [project]
 name = "mascarade-core"
-version = "2.0.0"
+version = "0.2.0"
 description = "Mascarade Core - LLM Orchestration Engine"
 authors = [
     {name = "Mascarade Team", email = "team@mascarade.ai"}
