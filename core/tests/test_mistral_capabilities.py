@@ -347,3 +347,366 @@ class TestMistralCapabilitiesRouter:
             )
 
         assert resp.status_code == 503
+
+
+# ---------------------------------------------------------------------------
+# MistralEmbeddings
+# ---------------------------------------------------------------------------
+
+
+class TestMistralEmbeddings:
+    """Tests for the Embeddings integration."""
+
+    @pytest.mark.asyncio
+    async def test_embed_single_text(self):
+        """Embed a single text returns embedding vector."""
+        from mascarade.integrations.mistral_capabilities import MistralEmbeddings
+
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.raise_for_status = MagicMock()
+        mock_resp.json.return_value = {
+            "object": "list",
+            "data": [{"object": "embedding", "embedding": [0.1, 0.2, 0.3], "index": 0}],
+            "model": "mistral-embed",
+            "usage": {"prompt_tokens": 5, "total_tokens": 5},
+        }
+
+        with patch("mascarade.integrations.mistral_capabilities.settings") as ms, \
+             patch("httpx.AsyncClient") as mock_cls:
+            ms.mistral_api_key = _FAKE_API_KEY
+            mock_client = AsyncMock()
+            mock_client.post = AsyncMock(return_value=mock_resp)
+            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_client.__aexit__ = AsyncMock(return_value=False)
+            mock_cls.return_value = mock_client
+
+            embedder = MistralEmbeddings()
+            result = await embedder.embed(["hello world"])
+
+        assert len(result["data"]) == 1
+        assert result["data"][0]["embedding"] == [0.1, 0.2, 0.3]
+        assert result["data"][0]["index"] == 0
+
+    @pytest.mark.asyncio
+    async def test_embed_multiple_texts(self):
+        """Embed multiple texts returns multiple embedding vectors."""
+        from mascarade.integrations.mistral_capabilities import MistralEmbeddings
+
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.raise_for_status = MagicMock()
+        mock_resp.json.return_value = {
+            "object": "list",
+            "data": [
+                {"object": "embedding", "embedding": [0.1, 0.2], "index": 0},
+                {"object": "embedding", "embedding": [0.3, 0.4], "index": 1},
+            ],
+            "model": "mistral-embed",
+            "usage": {"prompt_tokens": 10, "total_tokens": 10},
+        }
+
+        with patch("mascarade.integrations.mistral_capabilities.settings") as ms, \
+             patch("httpx.AsyncClient") as mock_cls:
+            ms.mistral_api_key = _FAKE_API_KEY
+            mock_client = AsyncMock()
+            mock_client.post = AsyncMock(return_value=mock_resp)
+            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_client.__aexit__ = AsyncMock(return_value=False)
+            mock_cls.return_value = mock_client
+
+            embedder = MistralEmbeddings()
+            result = await embedder.embed(["text one", "text two"])
+
+        assert len(result["data"]) == 2
+
+    @pytest.mark.asyncio
+    async def test_embed_no_api_key(self):
+        """Raise RuntimeError when API key not configured."""
+        from mascarade.integrations.mistral_capabilities import MistralEmbeddings
+
+        with patch("mascarade.integrations.mistral_capabilities.settings") as ms:
+            ms.mistral_api_key = SecretStr("")
+
+            embedder = MistralEmbeddings()
+            with pytest.raises(RuntimeError, match="MISTRAL_API_KEY"):
+                await embedder.embed(["hello"])
+
+
+# ---------------------------------------------------------------------------
+# MistralClassifier
+# ---------------------------------------------------------------------------
+
+
+class TestMistralClassifier:
+    """Tests for the Classifier / Moderation integration."""
+
+    @pytest.mark.asyncio
+    async def test_moderate(self):
+        """Moderate text returns category flags."""
+        from mascarade.integrations.mistral_capabilities import MistralClassifier
+
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.raise_for_status = MagicMock()
+        mock_resp.json.return_value = {
+            "id": "mod-123",
+            "model": "mistral-moderation-latest",
+            "results": [
+                {
+                    "categories": {
+                        "sexual": False,
+                        "hate_and_discrimination": False,
+                        "violence_and_threats": False,
+                        "dangerous_and_criminal_content": False,
+                        "selfharm": False,
+                        "health": False,
+                        "financial": False,
+                        "law": False,
+                        "pii": False,
+                    },
+                    "category_scores": {
+                        "sexual": 0.01,
+                        "hate_and_discrimination": 0.02,
+                    },
+                }
+            ],
+        }
+
+        with patch("mascarade.integrations.mistral_capabilities.settings") as ms, \
+             patch("httpx.AsyncClient") as mock_cls:
+            ms.mistral_api_key = _FAKE_API_KEY
+            mock_client = AsyncMock()
+            mock_client.post = AsyncMock(return_value=mock_resp)
+            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_client.__aexit__ = AsyncMock(return_value=False)
+            mock_cls.return_value = mock_client
+
+            classifier = MistralClassifier()
+            result = await classifier.moderate(["This is a safe text."])
+
+        assert len(result["results"]) == 1
+        assert result["results"][0]["categories"]["sexual"] is False
+
+    @pytest.mark.asyncio
+    async def test_classify(self):
+        """Classify text returns classification results."""
+        from mascarade.integrations.mistral_capabilities import MistralClassifier
+
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.raise_for_status = MagicMock()
+        mock_resp.json.return_value = {
+            "id": "cls-456",
+            "model": "mistral-moderation-latest",
+            "results": [{"categories": {"pii": True}}],
+        }
+
+        with patch("mascarade.integrations.mistral_capabilities.settings") as ms, \
+             patch("httpx.AsyncClient") as mock_cls:
+            ms.mistral_api_key = _FAKE_API_KEY
+            mock_client = AsyncMock()
+            mock_client.post = AsyncMock(return_value=mock_resp)
+            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_client.__aexit__ = AsyncMock(return_value=False)
+            mock_cls.return_value = mock_client
+
+            classifier = MistralClassifier()
+            result = await classifier.classify(["My email is test@example.com"])
+
+        assert result["results"][0]["categories"]["pii"] is True
+
+    @pytest.mark.asyncio
+    async def test_moderate_no_api_key(self):
+        """Raise RuntimeError when API key not configured."""
+        from mascarade.integrations.mistral_capabilities import MistralClassifier
+
+        with patch("mascarade.integrations.mistral_capabilities.settings") as ms:
+            ms.mistral_api_key = SecretStr("")
+
+            classifier = MistralClassifier()
+            with pytest.raises(RuntimeError, match="MISTRAL_API_KEY"):
+                await classifier.moderate(["text"])
+
+
+# ---------------------------------------------------------------------------
+# Router endpoints for Embeddings, Moderation, Classification
+# ---------------------------------------------------------------------------
+
+
+class TestMistralNewEndpoints:
+    """Tests for the new FastAPI router endpoints."""
+
+    @pytest.fixture
+    def client(self):
+        """Create a test client with auth disabled."""
+        from fastapi.testclient import TestClient
+        from mascarade.routers.mistral_capabilities import router
+        from fastapi import FastAPI
+
+        app = FastAPI()
+        app.include_router(router)
+
+        from mascarade.auth import require_auth
+        app.dependency_overrides[require_auth] = lambda: None
+
+        return TestClient(app)
+
+    def test_embeddings_endpoint(self, client):
+        """POST /v1/api/mistral/embeddings returns embeddings."""
+        with patch(
+            "mascarade.integrations.mistral_capabilities.MistralEmbeddings.embed",
+            new_callable=AsyncMock,
+            return_value={
+                "data": [{"embedding": [0.1, 0.2], "index": 0}],
+                "model": "mistral-embed",
+                "usage": {"prompt_tokens": 3, "total_tokens": 3},
+            },
+        ):
+            resp = client.post(
+                "/v1/api/mistral/embeddings",
+                json={"texts": ["hello world"]},
+            )
+
+        assert resp.status_code == 200
+        assert len(resp.json()["data"]) == 1
+
+    def test_embeddings_empty_texts(self, client):
+        """400 when texts list is empty."""
+        resp = client.post(
+            "/v1/api/mistral/embeddings",
+            json={"texts": []},
+        )
+        assert resp.status_code == 400
+
+    def test_moderate_endpoint(self, client):
+        """POST /v1/api/mistral/moderate returns moderation results."""
+        with patch(
+            "mascarade.integrations.mistral_capabilities.MistralClassifier.moderate",
+            new_callable=AsyncMock,
+            return_value={
+                "results": [{"categories": {"sexual": False, "pii": False}}],
+            },
+        ):
+            resp = client.post(
+                "/v1/api/mistral/moderate",
+                json={"inputs": ["safe text"]},
+            )
+
+        assert resp.status_code == 200
+        assert "results" in resp.json()
+
+    def test_moderate_empty_inputs(self, client):
+        """400 when inputs list is empty."""
+        resp = client.post(
+            "/v1/api/mistral/moderate",
+            json={"inputs": []},
+        )
+        assert resp.status_code == 400
+
+    def test_classify_endpoint(self, client):
+        """POST /v1/api/mistral/classify returns classification results."""
+        with patch(
+            "mascarade.integrations.mistral_capabilities.MistralClassifier.classify",
+            new_callable=AsyncMock,
+            return_value={
+                "results": [{"categories": {"pii": True}}],
+            },
+        ):
+            resp = client.post(
+                "/v1/api/mistral/classify",
+                json={"inputs": ["email: test@example.com"]},
+            )
+
+        assert resp.status_code == 200
+        assert resp.json()["results"][0]["categories"]["pii"] is True
+
+    def test_classify_no_api_key(self, client):
+        """503 when API key not configured."""
+        with patch(
+            "mascarade.integrations.mistral_capabilities.MistralClassifier.classify",
+            new_callable=AsyncMock,
+            side_effect=RuntimeError("MISTRAL_API_KEY not configured"),
+        ):
+            resp = client.post(
+                "/v1/api/mistral/classify",
+                json={"inputs": ["text"]},
+            )
+
+        assert resp.status_code == 503
+
+
+# ---------------------------------------------------------------------------
+# MistralRemoteAgent.register_mcp_tools
+# ---------------------------------------------------------------------------
+
+
+class TestMistralRemoteAgentMCP:
+    """Tests for MCP tool registration on MistralRemoteAgent."""
+
+    @pytest.mark.asyncio
+    async def test_register_mcp_tools(self):
+        """register_mcp_tools sends PATCH to Mistral API."""
+        from mascarade.agents.mistral_agents import MistralRemoteAgent
+
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.raise_for_status = MagicMock()
+
+        with patch("mascarade.agents.mistral_agents.settings") as ms, \
+             patch("httpx.AsyncClient") as mock_cls:
+            ms.mistral_api_key = _FAKE_API_KEY
+            mock_client = AsyncMock()
+            mock_client.patch = AsyncMock(return_value=mock_resp)
+            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_client.__aexit__ = AsyncMock(return_value=False)
+            mock_cls.return_value = mock_client
+
+            agent = MistralRemoteAgent(
+                name="test-agent",
+                description="test",
+                system_prompt="",
+                agent_id="ag:test-123",
+            )
+            await agent.register_mcp_tools("http://localhost:8100/v1/mcp")
+
+        # Verify PATCH was called with correct URL and payload
+        call_args = mock_client.patch.call_args
+        assert "ag:test-123" in call_args.args[0]
+        payload = call_args.kwargs["json"]
+        assert payload["tools"][0]["type"] == "mcp"
+        assert payload["tools"][0]["mcp"]["url"] == "http://localhost:8100/v1/mcp"
+
+    @pytest.mark.asyncio
+    async def test_register_mcp_tools_no_agent_id(self):
+        """Raise ValueError when agent_id is empty."""
+        from mascarade.agents.mistral_agents import MistralRemoteAgent
+
+        with patch("mascarade.agents.mistral_agents.settings") as ms:
+            ms.mistral_api_key = _FAKE_API_KEY
+
+            agent = MistralRemoteAgent(
+                name="test-agent",
+                description="test",
+                system_prompt="",
+                agent_id="",
+            )
+            with pytest.raises(ValueError, match="agent_id"):
+                await agent.register_mcp_tools("http://localhost:8100/v1/mcp")
+
+    @pytest.mark.asyncio
+    async def test_register_mcp_tools_no_api_key(self):
+        """Raise RuntimeError when API key not configured."""
+        from mascarade.agents.mistral_agents import MistralRemoteAgent
+
+        with patch("mascarade.agents.mistral_agents.settings") as ms:
+            ms.mistral_api_key = SecretStr("")
+
+            agent = MistralRemoteAgent(
+                name="test-agent",
+                description="test",
+                system_prompt="",
+                agent_id="ag:test-123",
+            )
+            with pytest.raises(RuntimeError, match="MISTRAL_API_KEY"):
+                await agent.register_mcp_tools("http://localhost:8100/v1/mcp")

@@ -1,12 +1,17 @@
-"""Mistral Document AI (OCR) and Audio Transcription capabilities.
+"""Mistral Document AI (OCR), Audio Transcription, Embeddings, and Classification capabilities.
 
 Uses the Mistral API endpoints:
 - POST /v1/ocr — OCR and document understanding (model: mistral-ocr-latest)
 - POST /v1/audio/transcriptions — Audio transcription (model: voxtral-mini-latest)
+- POST /v1/embeddings — Text embeddings (model: mistral-embed)
+- POST /v1/moderations — Content moderation (model: mistral-moderation-latest)
+- POST /v1/classifications — Text classification (model: mistral-moderation-latest)
 
 Reference:
 - https://docs.mistral.ai/capabilities/document_ai
 - https://docs.mistral.ai/capabilities/audio_transcription
+- https://docs.mistral.ai/capabilities/embeddings
+- https://docs.mistral.ai/capabilities/guardrailing
 """
 
 from __future__ import annotations
@@ -291,5 +296,161 @@ class MistralAudioTranscription:
             "Transcription completed — %d chars, file=%s",
             len(result.get("text", "")),
             filename,
+        )
+        return result
+
+
+# ---------------------------------------------------------------------------
+# Embeddings
+# ---------------------------------------------------------------------------
+
+_EMBED_MODEL = "mistral-embed"
+
+
+class MistralEmbeddings:
+    """Mistral Embeddings API.
+
+    Wraps the ``POST /v1/embeddings`` endpoint using *mistral-embed*.
+    """
+
+    async def embed(
+        self,
+        texts: list[str],
+        model: str = _EMBED_MODEL,
+    ) -> dict[str, Any]:
+        """Generate embeddings for a list of texts.
+
+        Parameters
+        ----------
+        texts:
+            List of text strings to embed.
+        model:
+            Embedding model to use (default ``"mistral-embed"``).
+
+        Returns
+        -------
+        dict with ``data`` (list of embedding objects), ``model``, and ``usage``.
+        Each embedding object has ``embedding`` (list[float]) and ``index`` (int).
+        """
+        api_key = _get_api_key()
+
+        payload: dict[str, Any] = {
+            "model": model,
+            "input": texts,
+        }
+
+        async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+            resp = await client.post(
+                f"{_API_BASE}/embeddings",
+                json=payload,
+                headers={**_auth_headers(api_key), "Content-Type": "application/json"},
+            )
+            resp.raise_for_status()
+            result = resp.json()
+
+        n_embeddings = len(result.get("data", []))
+        logger.info("Embeddings generated — %d vector(s), model=%s", n_embeddings, model)
+        return result
+
+
+# ---------------------------------------------------------------------------
+# Classification / Moderation
+# ---------------------------------------------------------------------------
+
+_MODERATION_MODEL = "mistral-moderation-latest"
+
+
+class MistralClassifier:
+    """Mistral content classification and moderation.
+
+    Wraps the ``POST /v1/moderations`` and ``POST /v1/classifications``
+    endpoints using *mistral-moderation-latest*.
+
+    Moderation categories: sexual, hate_and_discrimination,
+    violence_and_threats, dangerous_and_criminal_content, selfharm,
+    health, financial, law, pii.
+    """
+
+    async def moderate(
+        self,
+        inputs: list[str],
+        model: str = _MODERATION_MODEL,
+    ) -> dict[str, Any]:
+        """Run content moderation on a list of texts.
+
+        Parameters
+        ----------
+        inputs:
+            List of text strings to moderate.
+        model:
+            Moderation model to use (default ``"mistral-moderation-latest"``).
+
+        Returns
+        -------
+        dict with ``results`` — each result contains ``categories`` (dict of
+        category name to bool) and ``category_scores`` (dict of category name
+        to float).
+        """
+        api_key = _get_api_key()
+
+        payload: dict[str, Any] = {
+            "model": model,
+            "input": inputs,
+        }
+
+        async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+            resp = await client.post(
+                f"{_API_BASE}/moderations",
+                json=payload,
+                headers={**_auth_headers(api_key), "Content-Type": "application/json"},
+            )
+            resp.raise_for_status()
+            result = resp.json()
+
+        logger.info(
+            "Moderation completed — %d input(s), model=%s",
+            len(inputs),
+            model,
+        )
+        return result
+
+    async def classify(
+        self,
+        inputs: list[str],
+        model: str = _MODERATION_MODEL,
+    ) -> dict[str, Any]:
+        """Classify text content.
+
+        Parameters
+        ----------
+        inputs:
+            List of text strings to classify.
+        model:
+            Classification model to use (default ``"mistral-moderation-latest"``).
+
+        Returns
+        -------
+        dict with classification results.
+        """
+        api_key = _get_api_key()
+
+        payload: dict[str, Any] = {
+            "model": model,
+            "input": inputs,
+        }
+
+        async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+            resp = await client.post(
+                f"{_API_BASE}/classifications",
+                json=payload,
+                headers={**_auth_headers(api_key), "Content-Type": "application/json"},
+            )
+            resp.raise_for_status()
+            result = resp.json()
+
+        logger.info(
+            "Classification completed — %d input(s), model=%s",
+            len(inputs),
+            model,
         )
         return result

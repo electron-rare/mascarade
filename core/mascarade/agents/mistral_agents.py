@@ -98,6 +98,62 @@ class MistralRemoteAgent(Agent):
         """Reset conversation state for a fresh start."""
         self.conversation_id = None
 
+    async def register_mcp_tools(self, mcp_server_url: str) -> None:
+        """Register mascarade's MCP server as a tool source for this Mistral agent.
+
+        This allows the Mistral agent to call back into mascarade tools
+        via the MCP (Model Context Protocol) integration.
+
+        The MCP server URL is sent to the Mistral agent configuration so that
+        tool calls from the agent are routed back to mascarade's MCP endpoint.
+
+        Parameters
+        ----------
+        mcp_server_url:
+            Full URL of the mascarade MCP server
+            (e.g. ``"http://localhost:8100/v1/mcp"``).
+        """
+        import httpx
+
+        api_key = secret_value(settings.mistral_api_key).strip()
+        if not is_secret_configured(api_key):
+            raise RuntimeError("MISTRAL_API_KEY not configured")
+
+        if not self.agent_id:
+            raise ValueError("agent_id must be set before registering MCP tools")
+
+        headers = {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+        }
+
+        payload: dict[str, Any] = {
+            "tools": [
+                {
+                    "type": "mcp",
+                    "mcp": {
+                        "url": mcp_server_url,
+                        "type": "sse",
+                    },
+                }
+            ],
+        }
+
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            resp = await client.patch(
+                f"https://api.mistral.ai/v1/agents/{self.agent_id}",
+                json=payload,
+                headers=headers,
+            )
+            resp.raise_for_status()
+
+        logger.info(
+            "MCP tools registered for agent %s (%s) -> %s",
+            self.name,
+            self.agent_id,
+            mcp_server_url,
+        )
+
 
 async def discover_mistral_agents() -> list[dict[str, str]]:
     """Discover agents from Mistral AI Studio API.

@@ -1,4 +1,4 @@
-"""FastAPI router for Mistral Document AI and Audio Transcription."""
+"""FastAPI router for Mistral Document AI, Audio, Embeddings, and Classification."""
 
 from __future__ import annotations
 
@@ -6,6 +6,7 @@ import logging
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from pydantic import BaseModel, Field
 
 from mascarade.auth import require_auth
 
@@ -141,4 +142,111 @@ async def transcribe_audio(
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     except Exception as exc:
         logger.exception("Transcription failed")
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+
+# ---------------------------------------------------------------------------
+# Embeddings
+# ---------------------------------------------------------------------------
+
+
+class EmbeddingsRequest(BaseModel):
+    """Request body for the embeddings endpoint."""
+
+    texts: list[str] = Field(..., description="List of texts to embed")
+    model: str = Field(default="mistral-embed", description="Embedding model")
+
+
+@router.post("/embeddings")
+async def generate_embeddings(body: EmbeddingsRequest):
+    """Generate text embeddings using Mistral Embeddings API.
+
+    Returns embedding vectors for each input text.
+    """
+    from mascarade.integrations.mistral_capabilities import MistralEmbeddings
+
+    if not body.texts:
+        raise HTTPException(status_code=400, detail="texts must not be empty")
+
+    try:
+        embedder = MistralEmbeddings()
+        result = await embedder.embed(body.texts, model=body.model)
+        return result
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except Exception as exc:
+        logger.exception("Embeddings generation failed")
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+
+# ---------------------------------------------------------------------------
+# Moderation
+# ---------------------------------------------------------------------------
+
+
+class ModerationRequest(BaseModel):
+    """Request body for the moderation endpoint."""
+
+    inputs: list[str] = Field(..., description="List of texts to moderate")
+    model: str = Field(
+        default="mistral-moderation-latest",
+        description="Moderation model",
+    )
+
+
+@router.post("/moderate")
+async def moderate_content(body: ModerationRequest):
+    """Run content moderation using Mistral Moderation API.
+
+    Returns flagged categories: sexual, hate_and_discrimination,
+    violence_and_threats, dangerous_and_criminal_content, selfharm,
+    health, financial, law, pii.
+    """
+    from mascarade.integrations.mistral_capabilities import MistralClassifier
+
+    if not body.inputs:
+        raise HTTPException(status_code=400, detail="inputs must not be empty")
+
+    try:
+        classifier = MistralClassifier()
+        result = await classifier.moderate(body.inputs, model=body.model)
+        return result
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except Exception as exc:
+        logger.exception("Moderation failed")
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+
+# ---------------------------------------------------------------------------
+# Classification
+# ---------------------------------------------------------------------------
+
+
+class ClassificationRequest(BaseModel):
+    """Request body for the classification endpoint."""
+
+    inputs: list[str] = Field(..., description="List of texts to classify")
+    model: str = Field(
+        default="mistral-moderation-latest",
+        description="Classification model",
+    )
+
+
+@router.post("/classify")
+async def classify_content(body: ClassificationRequest):
+    """Classify text content using Mistral Classification API."""
+    from mascarade.integrations.mistral_capabilities import MistralClassifier
+
+    if not body.inputs:
+        raise HTTPException(status_code=400, detail="inputs must not be empty")
+
+    try:
+        classifier = MistralClassifier()
+        result = await classifier.classify(body.inputs, model=body.model)
+        return result
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except Exception as exc:
+        logger.exception("Classification failed")
         raise HTTPException(status_code=502, detail=str(exc)) from exc
