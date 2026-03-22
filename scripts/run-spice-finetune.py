@@ -18,7 +18,7 @@ os.makedirs(RUN_DIR, exist_ok=True)
 
 # Load Codestral with QLoRA 4-bit
 model, tokenizer = FastLanguageModel.from_pretrained(
-    model_name="unsloth/codestral-22B-v0.1-bnb-4bit",
+    model_name="unsloth/Mistral-Small-3.1-24B-Instruct-2503-unsloth-bnb-4bit",
     max_seq_length=4096,
     load_in_4bit=True,
 )
