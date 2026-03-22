@@ -352,24 +352,6 @@ export default function Agents() {
                     <p className="text-[11px] uppercase tracking-[0.18em] text-amber-100/34">
                       open detail
                     </p>
-                  ) : (
-                    <p className="text-[11px] uppercase tracking-[0.18em] text-[#82ffc1]">
-                      dynamic editable agent
-                    </p>
-                  )}
-                  <p className="text-sm leading-7 text-amber-100/56">
-                    {a.description || "No description provided for this registry entry."}
-                  </p>
-                  <div className="flex flex-wrap gap-2">
-                    {a.preferred_role ? <Badge color="warning">role {a.preferred_role}</Badge> : null}
-                    {a.preferred_provider ? (
-                      <Badge color="muted">{a.preferred_provider}</Badge>
-                    ) : null}
-                    {a.preferred_model ? (
-                      <Badge color="muted">{a.preferred_model}</Badge>
-                    ) : null}
-                    {a.strategy ? <Badge color="muted">{a.strategy}</Badge> : null}
-                    {a.routing_policy ? <Badge color="muted">policy {a.routing_policy}</Badge> : null}
                   </div>
                 </Card>
               </Link>
