@@ -150,11 +150,12 @@ def test_register_default_skills_v2():
     reg = SkillRegistry(storage_path=None)
     register_default_skills_v2(reg)
     assert len(reg) > 0
-    assert "summarizer" in reg
-    assert "coder" in reg
-    skill = reg.get("coder")
-    assert skill.category == "code"
-    assert reg.is_builtin("coder") is True
+    # Test the actual skills that are registered in register_default_skills_v2
+    assert "structured-output" in reg
+    assert "chain-of-thought" in reg
+    skill = reg.get("structured-output")
+    assert skill.category == "output"
+    assert reg.is_builtin("structured-output") is True
 
 
 # --- Agent.get_enhanced_system_prompt ---

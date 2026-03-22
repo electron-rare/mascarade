@@ -3,6 +3,7 @@
 from mascarade.scheduler.worker_state import WorkerState
 from mascarade.scheduler.heartbeat import HeartbeatMonitor
 from mascarade.scheduler.scheduler import ResourceAwareScheduler
+from mascarade.scheduler.autoscaler import AutoScaler
 
 # vLLM support is optional in this workspace. Importing the scheduler package
 # must not break the core API surface when the extra dependency is absent.
@@ -11,4 +12,4 @@ try:
 except ModuleNotFoundError:
     VLLMScheduler = None  # type: ignore[assignment]
 
-__all__ = ["WorkerState", "HeartbeatMonitor", "ResourceAwareScheduler", "VLLMScheduler"]
+__all__ = ["WorkerState", "HeartbeatMonitor", "ResourceAwareScheduler", "VLLMScheduler", "AutoScaler"]

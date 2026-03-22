@@ -26,15 +26,15 @@ graph TD
 | **LLM Providers** | 13 providers — Claude, OpenAI, Mistral, Google, HuggingFace, Bedrock, Ollama, llama.cpp, CoreML, MLX, LiteLLM, Exo, KiCad Router |
 | **Agents** | 12 built-in + 4 domain agents (FreeCAD, KiCad, Spice, Components) |
 | **Skills** | 10 composable skills — chain-of-thought, structured-output, electronics-domain, etc. |
-| **Routing** | ML routing classifier + rule-based fallback |
-| **P2P Mesh** | DHT, PubSub, Relay, distributed task queue |
-| **Scheduler** | Distributed scheduler with resource-aware scoring |
-| **Fine-tuning** | 8-phase pipeline (DPO, SimPO, KTO, RLVR) |
-| **MCP** | Server (5 tools) + Client (7+ industrial servers) |
-| **A2A** | Agent Card + task delegation protocol |
-| **Real-time** | WebSocket event streams |
-| **API Compat** | OpenAI-compatible `/v1/chat/completions` endpoint |
-| **Observability** | Grafana, Prometheus, Loki, Tempo, OTEL, Langfuse, ClickHouse |
+| **Routing** | ML routing classifier + rule-based fallback with BERT-based domain classification |
+| **P2P Mesh** | DHT, PubSub, Relay, distributed task queue with NAT traversal |
+| **Scheduler** | Distributed scheduler with resource-aware scoring and predictive load balancing |
+| **Fine-tuning** | 8-phase pipeline (DPO, SimPO, KTO, RLVR) with LoRA/QLoRA optimization |
+| **MCP** | Server (5 tools) + Client (7+ industrial servers) with stateful protocol |
+| **A2A** | Agent Card + task delegation protocol with capability negotiation |
+| **Real-time** | WebSocket event streams with backpressure handling |
+| **API Compat** | OpenAI-compatible `/v1/chat/completions` endpoint with streaming support |
+| **Observability** | Grafana, Prometheus, Loki, Tempo, OTEL, Langfuse, ClickHouse with distributed tracing |
 
 ## Quick Start
 
@@ -113,6 +113,8 @@ A2A_ENABLED=true
 - [Cluster & P2P Sequences](docs/CLUSTER_P2P_REMOTE_SEND_SEQUENCE_2026-03-11.md)
 - [API-Core-Provider Sequence](docs/API_CORE_PROVIDER_SEQUENCE_2026-03-11.md)
 - [Specifications Techniques](docs/SPECIFICATIONS_TECHNIQUES.md)
+- [Optimization Roadmap](docs/OPTIMIZATION_ROADMAP_2026.md)
+- [Agent Architecture](docs/AGENT_ARCHITECTURE_ADVANCED.md)
 
 ## Ecosystem
 
