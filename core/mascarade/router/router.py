@@ -16,13 +16,14 @@ from mascarade.analytics import COST_METRICS
 from mascarade.analytics.clickhouse_logger import get_cost_logger
 from mascarade.analytics.cost_calculator import get_cost_calculator
 from mascarade.cache.multi_tier_cache import MultiTierCache
-from mascarade.config import settings
+from mascarade.config import settings, secret_value
 from mascarade.load_balancer.balancer import LoadBalancer
 from mascarade.metrics.tracker import MetricsTracker
 from mascarade.observability.langfuse import (
     start_langfuse_generation,
     update_langfuse_generation,
 )
+from mascarade.project_scope import normalize_scope
 from mascarade.router.circuit_breaker import CircuitBreaker
 from mascarade.router.fallback import FallbackState
 from mascarade.router.model_registry import ModelRegistry
@@ -154,6 +155,27 @@ class Router:
                 logger.warning("Failed to initialize BERT classifier: %s", exc)
                 self.use_bert_classifier = False
 
+        # ML routing classifier for tier prediction (strong/cheap/fast)
+        self.routing_classifier = None
+        if settings.ml_routing_classifier_enabled and get_routing_classifier is not None:
+            try:
+                from pathlib import Path
+
+                model_path = (
+                    Path(settings.ml_routing_classifier_path)
+                    if settings.ml_routing_classifier_path.strip()
+                    else None
+                )
+                self.routing_classifier = get_routing_classifier(model_path)
+                logger.info(
+                    "ML routing classifier initialised (loaded=%s)",
+                    self.routing_classifier.is_loaded,
+                )
+            except Exception as exc:
+                logger.warning("Failed to initialize ML routing classifier: %s", exc)
+
+        self._register_defaults()
+
     def _initialize_cache(self) -> MultiTierCache:
         """
         Initialize the multi-tier cache with configuration from settings.
@@ -199,27 +221,6 @@ class Router:
                    "enabled" if l2 else "disabled", "enabled" if l3 else "disabled")
         
         return cache
-
-        # ML routing classifier for tier prediction (strong/cheap/fast)
-        self.routing_classifier = None
-        if settings.ml_routing_classifier_enabled and get_routing_classifier is not None:
-            try:
-                from pathlib import Path
-
-                model_path = (
-                    Path(settings.ml_routing_classifier_path)
-                    if settings.ml_routing_classifier_path.strip()
-                    else None
-                )
-                self.routing_classifier = get_routing_classifier(model_path)
-                logger.info(
-                    "ML routing classifier initialised (loaded=%s)",
-                    self.routing_classifier.is_loaded,
-                )
-            except Exception as exc:
-                logger.warning("Failed to initialize ML routing classifier: %s", exc)
-
-        self._register_defaults()
 
     def _register_defaults(self) -> None:
         provider_specs = [
@@ -570,24 +571,11 @@ class Router:
         federation_scope: list[str] | tuple[str, ...] | None,
         knowledge_scope: str,
     ) -> tuple[str, tuple[str, ...], str]:
-        normalized_project = (project_id or settings.mascarade_project_id).strip() or "default"
-        normalized_scope = (knowledge_scope or "project").strip().lower() or "project"
-        if normalized_scope not in {"project", "federated"}:
-            raise ValueError(f"Unsupported knowledge_scope: {knowledge_scope}")
-
-        normalized_federation = tuple(
-            sorted(
-                {
-                    item.strip()
-                    for item in (federation_scope or [])
-                    if isinstance(item, str) and item.strip()
-                }
-            )
+        return normalize_scope(
+            project_id=project_id,
+            federation_scope=federation_scope,
+            knowledge_scope=knowledge_scope,
         )
-        if normalized_scope == "federated" and not normalized_federation:
-            raise ValueError("federation_scope is required when knowledge_scope is federated")
-
-        return normalized_project, normalized_federation, normalized_scope
 
     def _resolve_routellm_target(
         self,
@@ -1180,6 +1168,62 @@ class Router:
             worker.request_completed(latency_ms=elapsed_ms, success=False)
             logger.warning("Distributed send to %s failed: %s", worker.node_id, exc)
             return None  # fall back to local
+
+    async def fill_in_middle(
+        self,
+        prompt: str,
+        *,
+        suffix: str = "",
+        provider: str = "codestral",
+        model: str | None = None,
+        temperature: float = 0.0,
+        max_tokens: int = 1024,
+        stop: list[str] | None = None,
+    ) -> LLMResponse:
+        """Expose provider-native Fill-in-the-Middle without duplicating providers."""
+        if not prompt.strip():
+            raise ValueError("prompt is required")
+
+        selected = self._providers.get(provider)
+        if selected is None:
+            raise ValueError(f"Provider '{provider}' is not available")
+
+        fill_in_middle = getattr(selected, "fill_in_middle", None)
+        if not callable(fill_in_middle):
+            raise ValueError(f"Provider '{provider}' does not support fill-in-the-middle")
+
+        started_at = time.perf_counter()
+        self.load_balancer.request_started(selected.name)
+        try:
+            content = await fill_in_middle(
+                prompt=prompt,
+                suffix=suffix,
+                model=model,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                stop=stop,
+            )
+        except Exception:
+            elapsed = time.perf_counter() - started_at
+            self.load_balancer.request_completed(
+                selected.name,
+                response_time=elapsed,
+                success=False,
+            )
+            raise
+
+        elapsed = time.perf_counter() - started_at
+        self.load_balancer.request_completed(
+            selected.name,
+            response_time=elapsed,
+            success=True,
+        )
+        return LLMResponse(
+            content=content,
+            model=model or getattr(selected, "default_model", provider),
+            provider=selected.name,
+            usage={},
+        )
 
     async def stream(
         self,
