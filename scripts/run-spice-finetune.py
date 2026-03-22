@@ -19,7 +19,7 @@ os.makedirs(RUN_DIR, exist_ok=True)
 # Load Codestral with QLoRA 4-bit
 model, tokenizer = FastLanguageModel.from_pretrained(
     model_name="unsloth/Mistral-Small-3.1-24B-Instruct-2503-unsloth-bnb-4bit",
-    max_seq_length=4096,
+    max_seq_length=2048,
     load_in_4bit=True,
 )
 
@@ -77,7 +77,7 @@ training_args = SFTConfig(
     warmup_steps=100,
     logging_steps=25,
     save_steps=500,
-    max_seq_length=4096,
+    max_seq_length=2048,
     dataset_text_field="text",
     bf16=True,
     seed=42,
