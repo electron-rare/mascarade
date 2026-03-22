@@ -21,18 +21,34 @@ class RedisCache(CacheBackend):
 
     def __init__(
         self,
-        redis_url: str | None = None,
+        host: str = "localhost",
+        port: int = 6379,
+        password: str | None = None,
+        db: int = 0,
         default_ttl: int = 3600,
         key_prefix: str = "mascarade:cache:",
     ) -> None:
         """Initialize Redis cache.
 
         Args:
-            redis_url: Redis connection URL (default: from REDIS_URL env var)
+            host: Redis host (default: localhost)
+            port: Redis port (default: 6379)
+            password: Redis password (optional)
+            db: Redis database (default: 0)
             default_ttl: Default TTL in seconds (default: 3600 = 1 hour)
             key_prefix: Prefix for all Redis keys (default: "mascarade:cache:")
         """
-        self.redis_url = redis_url or os.getenv("REDIS_URL", "redis://localhost:6379/0")
+        redis_url = os.getenv("REDIS_URL")
+        if redis_url:
+            self.redis_url = redis_url
+        else:
+            redis_parts = []
+            if password:
+                redis_parts.append(f":{password}@")
+            redis_parts.append(f"{host}:{port}")
+            redis_parts.append(f"/{db}")
+            self.redis_url = "redis://" + "".join(redis_parts)
+        
         self.default_ttl = default_ttl
         self.key_prefix = key_prefix
         self._redis: aioredis.Redis | None = None

@@ -110,7 +110,7 @@ class Router:
 
     def __init__(self) -> None:
         self._providers: dict[str, LLMProvider] = {}
-        self.cache = MultiTierCache()
+        self.cache = self._initialize_cache()
         self.metrics = MetricsTracker()
         self.load_balancer = LoadBalancer()
         self.fallback = FallbackState(max_attempts=3)
@@ -138,6 +138,67 @@ class Router:
             except Exception as exc:
                 logger.warning("Failed to initialize ML classifier: %s", exc)
                 self.use_classifier = False
+
+        # BERT classifier for domain detection (optional)
+        self.use_bert_classifier = settings.use_bert_classifier
+        self.bert_classifier = None
+        if self.use_bert_classifier:
+            try:
+                from mascarade.router.bert_classifier import get_bert_classifier
+                self.bert_classifier = get_bert_classifier()
+                if self.bert_classifier.is_loaded:
+                    logger.info("BERT classifier loaded for domain detection")
+                else:
+                    logger.info("BERT classifier enabled but model not trained/loaded")
+            except Exception as exc:
+                logger.warning("Failed to initialize BERT classifier: %s", exc)
+                self.use_bert_classifier = False
+
+    def _initialize_cache(self) -> MultiTierCache:
+        """
+        Initialize the multi-tier cache with configuration from settings.
+
+        Returns:
+            Configured MultiTierCache instance
+        """
+        from mascarade.cache import InMemoryCache
+        from mascarade.cache.redis_cache import RedisCache
+        from mascarade.cache.semantic_cache import SemanticCache
+
+        # L1: In-memory cache (always enabled)
+        l1 = InMemoryCache(max_size=settings.cache_l1_size)
+
+        # L2: Redis cache (optional)
+        l2 = None
+        if settings.cache_l2_enabled:
+            try:
+                l2 = RedisCache(
+                    host=settings.cache_l2_host,
+                    port=settings.cache_l2_port,
+                    password=secret_value(settings.cache_l2_password),
+                    db=settings.cache_l2_db,
+                )
+                logger.info("L2 Redis cache enabled")
+            except Exception as exc:
+                logger.warning("Failed to initialize L2 Redis cache: %s", exc)
+                l2 = None
+
+        # L3: Semantic cache (optional)
+        l3 = None
+        if settings.cache_l3_enabled:
+            try:
+                l3 = SemanticCache(similarity_threshold=settings.cache_l3_similarity_threshold)
+                logger.info("L3 Semantic cache enabled")
+            except Exception as exc:
+                logger.warning("Failed to initialize L3 Semantic cache: %s", exc)
+                l3 = None
+
+        # Create and return multi-tier cache
+        cache = MultiTierCache(l1=l1, l2=l2, l3=l3)
+        logger.info("Multi-tier cache initialized: L1=enabled, L2=%s, L3=%s", 
+                   "enabled" if l2 else "disabled", "enabled" if l3 else "disabled")
+        
+        return cache
 
         # ML routing classifier for tier prediction (strong/cheap/fast)
         self.routing_classifier = None
@@ -410,7 +471,17 @@ class Router:
         if not content.strip():
             return None
 
-        # Try ML classifier first if enabled
+        # Try BERT classifier first if enabled
+        if self.use_bert_classifier and self.bert_classifier is not None:
+            try:
+                domain = self.bert_classifier.predict(content)
+                if domain:
+                    logger.debug("BERT classifier detected domain: %s", domain)
+                    return domain
+            except Exception as exc:
+                logger.warning("BERT classifier prediction failed: %s, falling back to ML classifier", exc)
+
+        # Try ML classifier if enabled
         if self.use_classifier and self.classifier is not None:
             try:
                 domain = self.classifier.predict(content)
