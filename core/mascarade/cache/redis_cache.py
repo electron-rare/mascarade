@@ -9,7 +9,10 @@ import os
 import time
 from typing import Any
 
-import redis.asyncio as aioredis
+try:
+    import redis.asyncio as aioredis
+except ImportError:
+    aioredis = None  # type: ignore[assignment]
 
 from mascarade.cache.cache import CacheBackend, CacheEntry
 
@@ -38,6 +41,11 @@ class RedisCache(CacheBackend):
             default_ttl: Default TTL in seconds (default: 3600 = 1 hour)
             key_prefix: Prefix for all Redis keys (default: "mascarade:cache:")
         """
+        if aioredis is None:
+            raise ImportError(
+                "redis package is required for RedisCache. "
+                "Install with: pip install redis"
+            )
         redis_url = os.getenv("REDIS_URL")
         if redis_url:
             self.redis_url = redis_url

@@ -424,14 +424,24 @@ class AIWorker(NodeWorker):
         Raises:
             NotImplementedError: Embedding support pending provider implementation
         """
-        # Extract inputs and config (for future implementation)
         text = inputs["text"]
-        provider_name = config.get("provider")
-        model = config.get("model")
+        model = config.get("model", "text-embedding-3-small")
 
-        # Implementation depends on provider embedding API
-        # This will be implemented when provider embedding support is added
-        raise NotImplementedError("Embedding support pending provider implementation")
+        from mascarade.rag.embeddings import EmbeddingProvider
+
+        provider = EmbeddingProvider()
+        try:
+            vector = await provider.embed_query(text, model=model)
+            dimensions = provider.dimension_for_model(model)
+            return {
+                "vector": {
+                    "values": vector,
+                    "model": model,
+                    "dimensions": dimensions,
+                },
+            }
+        finally:
+            await provider.close()
 
     def _validate_llm_inference(
         self,

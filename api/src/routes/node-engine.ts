@@ -365,4 +365,100 @@ nodeEngine.delete("/graphs/:id", async (c: Context) => {
   }
 });
 
+// POST /graphs/:id/execute - Execute a saved graph via core runtime
+const CORE_URL = (process.env.CORE_URL || "http://localhost:8100").replace(/\/+$/, "");
+
+nodeEngine.post("/graphs/:id/execute", async (c: Context) => {
+  const id = c.req.param("id") ?? "";
+
+  if (!validateGraphId(id)) {
+    return c.json({ error: "Invalid graph ID" }, 400);
+  }
+
+  let body: Record<string, unknown> = {};
+  try {
+    body = await c.req.json();
+  } catch {
+    // Empty body is fine — inputs are optional
+  }
+
+  try {
+    const res = await fetch(`${CORE_URL}/api/node-engine/graphs/${id}/execute`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+
+    const data = await res.json();
+
+    emitStructuredLog({
+      service: "api",
+      severity: res.ok ? "info" : "error",
+      message: res.ok ? "Executed node engine graph" : "Graph execution failed",
+      graph_id: id,
+      status: res.status,
+    });
+
+    return c.json(data, res.status as 200);
+  } catch (err: unknown) {
+    emitStructuredLog({
+      service: "api",
+      severity: "error",
+      message: "Failed to proxy graph execution to core",
+      graph_id: id,
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return c.json({ error: "Failed to execute graph" }, 502);
+  }
+});
+
+// POST /graphs/execute-inline - Execute a graph definition directly
+nodeEngine.post("/graphs/execute-inline", async (c: Context) => {
+  let body: Record<string, unknown>;
+
+  try {
+    body = await c.req.json();
+  } catch {
+    return c.json({ error: "Invalid JSON body" }, 400);
+  }
+
+  try {
+    const res = await fetch(`${CORE_URL}/api/node-engine/graphs/execute-inline`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+
+    const data = await res.json();
+
+    emitStructuredLog({
+      service: "api",
+      severity: res.ok ? "info" : "error",
+      message: res.ok ? "Executed inline graph" : "Inline graph execution failed",
+      status: res.status,
+    });
+
+    return c.json(data, res.status as 200);
+  } catch (err: unknown) {
+    emitStructuredLog({
+      service: "api",
+      severity: "error",
+      message: "Failed to proxy inline graph execution to core",
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return c.json({ error: "Failed to execute graph" }, 502);
+  }
+});
+
+// GET /runtime/status - Get node engine runtime status
+nodeEngine.get("/runtime/status", async (c: Context) => {
+  try {
+    const res = await fetch(`${CORE_URL}/api/node-engine/runtime/status`);
+    const data = await res.json();
+    return c.json(data, res.status as 200);
+  } catch (err: unknown) {
+    return c.json({ error: "Core runtime unreachable" }, 502);
+  }
+});
+
 export { nodeEngine };
