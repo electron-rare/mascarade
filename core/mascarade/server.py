@@ -48,6 +48,7 @@ from mascarade.routers.ws import router as ws_router
 from mascarade.routers.cli_agents import router as cli_agents_router
 from mascarade.routers.mistral_agents import router as mistral_agents_router
 from mascarade.routers.mistral_capabilities import router as mistral_capabilities_router
+from mascarade.routers.mistral_studio import router as mistral_studio_router
 from mascarade.routers.knowledge_base import (
     knowledge_base_auth_configured,
     router as knowledge_base_router,
@@ -279,6 +280,7 @@ def create_app() -> FastAPI:
     app.include_router(cli_agents_router)
     app.include_router(mistral_agents_router)
     app.include_router(mistral_capabilities_router)
+    app.include_router(mistral_studio_router)
 
     # Mount Gradio UI for fine-tuning (if available)
     if GRADIO_AVAILABLE:
