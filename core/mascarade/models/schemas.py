@@ -4,7 +4,30 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from typing import Any
+
+from pydantic import BaseModel, Field, model_validator
+
+
+def _normalize_content(v: Any) -> str | None:
+    """Normalize content field: accept str, list of parts, or None.
+
+    Xcode Intelligence sends content as a list of parts:
+    [{"text": "...", "type": "text"}] instead of a plain string.
+    """
+    if v is None:
+        return None
+    if isinstance(v, str):
+        return v
+    if isinstance(v, list):
+        parts = []
+        for item in v:
+            if isinstance(item, dict):
+                parts.append(item.get("text", str(item)))
+            elif isinstance(item, str):
+                parts.append(item)
+        return "\n".join(parts) if parts else None
+    return str(v)
 
 
 # --- Chat Completion Models (OpenAI-compatible) ---
@@ -16,12 +39,17 @@ class ChatMessage(BaseModel):
     role: Literal["system", "user", "assistant", "tool", "function"] = Field(
         description="The role of the message author"
     )
-    content: str | None = Field(
+    content: Any = Field(
         default=None,
-        min_length=1,
-        max_length=100_000,
-        description="The content of the message",
+        description="The content of the message (string or array of content parts)",
     )
+
+    @model_validator(mode="before")
+    @classmethod
+    def _normalize_content_field(cls, values: Any) -> Any:
+        if isinstance(values, dict) and "content" in values:
+            values["content"] = _normalize_content(values["content"])
+        return values
     name: str | None = Field(
         default=None, max_length=100, description="Optional name for the participant"
     )
@@ -139,9 +167,16 @@ class ChatCompletionMessage(BaseModel):
     role: Literal["assistant", "system", "user", "tool", "function"] = Field(
         description="The role of the message author"
     )
-    content: str | None = Field(
+    content: Any = Field(
         default=None, description="The content of the message"
     )
+
+    @model_validator(mode="before")
+    @classmethod
+    def _normalize_content_field(cls, values: Any) -> Any:
+        if isinstance(values, dict) and "content" in values:
+            values["content"] = _normalize_content(values["content"])
+        return values
     tool_calls: list[ToolCall] | None = Field(
         default=None, description="Tool calls made by the assistant"
     )
