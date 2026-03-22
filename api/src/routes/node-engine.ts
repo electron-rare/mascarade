@@ -138,7 +138,7 @@ nodeEngine.get("/graphs", async (c: Context) => {
 
 // GET /graphs/:id - Get a specific graph
 nodeEngine.get("/graphs/:id", async (c: Context) => {
-  const id = c.req.param("id");
+  const id = c.req.param("id") ?? "";
 
   if (!validateGraphId(id)) {
     return c.json({ error: "Invalid graph ID" }, 400);
@@ -250,7 +250,7 @@ nodeEngine.post("/graphs", async (c: Context) => {
 
 // PUT /graphs/:id - Update an existing graph
 nodeEngine.put("/graphs/:id", async (c: Context) => {
-  const id = c.req.param("id");
+  const id = c.req.param("id") ?? "";
 
   if (!validateGraphId(id)) {
     return c.json({ error: "Invalid graph ID" }, 400);
@@ -326,7 +326,7 @@ nodeEngine.put("/graphs/:id", async (c: Context) => {
 
 // DELETE /graphs/:id - Delete a graph
 nodeEngine.delete("/graphs/:id", async (c: Context) => {
-  const id = c.req.param("id");
+  const id = c.req.param("id") ?? "";
 
   if (!validateGraphId(id)) {
     return c.json({ error: "Invalid graph ID" }, 400);

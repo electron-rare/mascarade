@@ -1,4 +1,4 @@
-type Severity = "debug" | "info" | "warning" | "error" | "critical";
+type Severity = "debug" | "info" | "warn" | "warning" | "error" | "critical";
 
 function severityNumber(severity: Severity): number {
   switch (severity) {
