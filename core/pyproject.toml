@@ -43,7 +43,6 @@ libp2p = [
     "libp2p>=0.6.0,<1",
     "trio>=0.29,<1",
     "multiaddr>=0.0.9,<1",
-    "redis[hiredis]>=7.1.1,<8",
     "tiktoken>=0.9,<1",
 ]
 finetune = [

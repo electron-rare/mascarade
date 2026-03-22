@@ -52,6 +52,7 @@ from mascarade.routers.mistral_studio import router as mistral_studio_router
 from mascarade.routers.xcode import router as xcode_router
 from mascarade.routers.cluster import router as cluster_router
 from mascarade.routers.voice import router as voice_router
+from mascarade.routers.hints import router as hints_router
 from mascarade.routers.rag import router as rag_router
 from mascarade.routers.node_engine import router as node_engine_router
 from mascarade.routers.knowledge_base import (
@@ -304,6 +305,7 @@ def create_app() -> FastAPI:
     app.include_router(xcode_router)
     app.include_router(cluster_router)
     app.include_router(voice_router)
+    app.include_router(hints_router)
     app.include_router(rag_router)
     app.include_router(node_engine_router)
 
