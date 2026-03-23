@@ -6,8 +6,9 @@ import os
 import httpx
 import random
 
-CODESTRAL_URL = "https://codestral.mistral.ai/v1/chat/completions"
-CODESTRAL_KEY = os.environ.get("CODESTRAL_API_KEY", "JbYYQUUpHOOFjpV5UuSct6QM4cT6otEl")
+MASCARADE_URL = os.environ.get("MASCARADE_URL", "http://127.0.0.1:8100/v1/chat/completions")
+MASCARADE_KEY = os.environ.get("MASCARADE_API_KEY", "")
+MODEL = os.environ.get("DISTILL_MODEL", "mistral:codestral-latest")
 OUTPUT = "finetune/datasets/ipc_jlcpcb_standards.jsonl"
 
 # Categories of questions to generate
@@ -219,16 +220,18 @@ Reply ONLY in JSON format:
 {{"question": "...", "answer": "..."}}"""
 
     try:
-        with httpx.Client(timeout=30.0) as client:
-            resp = client.post(CODESTRAL_URL, headers={
-                "Authorization": f"Bearer {CODESTRAL_KEY}",
-                "Content-Type": "application/json",
-            }, json={
-                "model": "codestral-latest",
+        headers = {"Content-Type": "application/json"}
+        if MASCARADE_KEY:
+            headers["Authorization"] = f"Bearer {MASCARADE_KEY}"
+        with httpx.Client(timeout=60.0) as client:
+            resp = client.post(MASCARADE_URL, headers=headers, json={
+                "model": MODEL,
                 "messages": [{"role": "user", "content": prompt}],
                 "response_format": {"type": "json_object"},
                 "temperature": 0.7,
                 "max_tokens": 600,
+                "stream": False,
+                "project_id": "dataset-ipc",
             })
             resp.raise_for_status()
             content = resp.json()["choices"][0]["message"]["content"]
