@@ -31,6 +31,7 @@ class Agent:
     temperature: float = 0.7
     max_tokens: int = 4096
     skills: list[str] = field(default_factory=list)  # assigned skill names
+    category: str | None = None  # grouping: domain, code, creative, etc.
     retry_config: dict | None = None
     prompt_versions: list[dict] = field(default_factory=list)
 
