@@ -521,6 +521,7 @@ class TestSummarize:
         assert isinstance(result["summary"], str)
         assert len(result["summary"]) > 0
 
+
 class TestAgentDispatch:
     """Test suite for ai.agent-dispatch execution."""
 
@@ -614,7 +615,7 @@ class TestOrchestrate:
 
         mock_cluster = MagicMock()
         mock_cluster.ClusterManager = MagicMock
-        sys.modules['mascarade.cluster'] = mock_cluster
+        sys.modules["mascarade.cluster"] = mock_cluster
 
         from mascarade.orchestrator.engine import Orchestrator
 
@@ -636,7 +637,9 @@ class TestOrchestrate:
 
         # Create orchestrator and AI worker
         orchestrator = Orchestrator(router=mock_router, registry=mock_registry)
-        ai_worker = AIWorker(router=mock_router, registry=mock_registry, orchestrator=orchestrator)
+        ai_worker = AIWorker(
+            router=mock_router, registry=mock_registry, orchestrator=orchestrator
+        )
 
         # Execute sequential orchestration
         result = await ai_worker.execute(
@@ -683,7 +686,7 @@ class TestOrchestrate:
 
         mock_cluster = MagicMock()
         mock_cluster.ClusterManager = MagicMock
-        sys.modules['mascarade.cluster'] = mock_cluster
+        sys.modules["mascarade.cluster"] = mock_cluster
 
         from mascarade.orchestrator.engine import Orchestrator
 
@@ -705,7 +708,9 @@ class TestOrchestrate:
 
         # Create orchestrator and AI worker
         orchestrator = Orchestrator(router=mock_router, registry=mock_registry)
-        ai_worker = AIWorker(router=mock_router, registry=mock_registry, orchestrator=orchestrator)
+        ai_worker = AIWorker(
+            router=mock_router, registry=mock_registry, orchestrator=orchestrator
+        )
 
         # Execute parallel orchestration
         result = await ai_worker.execute(
@@ -745,7 +750,7 @@ class TestOrchestrate:
 
         mock_cluster = MagicMock()
         mock_cluster.ClusterManager = MagicMock
-        sys.modules['mascarade.cluster'] = mock_cluster
+        sys.modules["mascarade.cluster"] = mock_cluster
 
         from mascarade.orchestrator.engine import Orchestrator
 
@@ -767,7 +772,9 @@ class TestOrchestrate:
 
         # Create orchestrator and AI worker
         orchestrator = Orchestrator(router=mock_router, registry=mock_registry)
-        ai_worker = AIWorker(router=mock_router, registry=mock_registry, orchestrator=orchestrator)
+        ai_worker = AIWorker(
+            router=mock_router, registry=mock_registry, orchestrator=orchestrator
+        )
 
         # Execute pipeline orchestration
         result = await ai_worker.execute(
@@ -807,7 +814,7 @@ class TestOrchestrate:
 
         mock_cluster = MagicMock()
         mock_cluster.ClusterManager = MagicMock
-        sys.modules['mascarade.cluster'] = mock_cluster
+        sys.modules["mascarade.cluster"] = mock_cluster
 
         from mascarade.orchestrator.engine import Orchestrator
 
@@ -822,7 +829,9 @@ class TestOrchestrate:
 
         # Create orchestrator and AI worker
         orchestrator = Orchestrator(router=mock_router, registry=mock_registry)
-        ai_worker = AIWorker(router=mock_router, registry=mock_registry, orchestrator=orchestrator)
+        ai_worker = AIWorker(
+            router=mock_router, registry=mock_registry, orchestrator=orchestrator
+        )
 
         # Execute orchestration without specifying mode
         result = await ai_worker.execute(
@@ -864,7 +873,7 @@ async def test_orchestrate(mock_router, mock_registry, monkeypatch):
     # Create mock module for cluster
     mock_cluster = MagicMock()
     mock_cluster.ClusterManager = MagicMock
-    sys.modules['mascarade.cluster'] = mock_cluster
+    sys.modules["mascarade.cluster"] = mock_cluster
 
     from mascarade.orchestrator.engine import Orchestrator
 
@@ -886,7 +895,9 @@ async def test_orchestrate(mock_router, mock_registry, monkeypatch):
 
     # Create orchestrator and AI worker
     orchestrator = Orchestrator(router=mock_router, registry=mock_registry)
-    ai_worker = AIWorker(router=mock_router, registry=mock_registry, orchestrator=orchestrator)
+    ai_worker = AIWorker(
+        router=mock_router, registry=mock_registry, orchestrator=orchestrator
+    )
 
     # Test sequential mode
     result = await ai_worker.execute(
@@ -935,7 +946,9 @@ async def test_router_select(mock_router, mock_registry):
 
     # Mock the router's _select_provider method
     mock_provider = MockProvider()
-    mock_router._select_provider = lambda strategy, provider_name=None, domain=None: mock_provider
+    mock_router._select_provider = (
+        lambda strategy, provider_name=None, domain=None: mock_provider
+    )
 
     # Test basic provider selection
     result = await ai_worker.execute(
@@ -998,7 +1011,7 @@ class TestRouterSelect:
         monkeypatch.setattr(
             ai_worker.router,
             "_select_provider",
-            lambda strategy, provider_name=None, domain=None: mock_provider
+            lambda strategy, provider_name=None, domain=None: mock_provider,
         )
 
         # Execute router-select node
@@ -1044,7 +1057,7 @@ class TestRouterSelect:
         monkeypatch.setattr(
             ai_worker.router,
             "_select_provider",
-            lambda strategy, provider_name=None, domain=None: mock_provider
+            lambda strategy, provider_name=None, domain=None: mock_provider,
         )
 
         # Execute router-select with specific strategy
@@ -1127,7 +1140,7 @@ class TestRouterSelect:
         monkeypatch.setattr(
             ai_worker.router,
             "_select_provider",
-            lambda strategy, provider_name=None, domain=None: mock_provider
+            lambda strategy, provider_name=None, domain=None: mock_provider,
         )
 
         # Execute router-select with domain

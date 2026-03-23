@@ -379,7 +379,8 @@ class GraphRuntime:
         )
         if validation_errors:
             raise ValueError(
-                "Node validation failed:\n" + "\n".join(f"  - {e}" for e in validation_errors)
+                "Node validation failed:\n"
+                + "\n".join(f"  - {e}" for e in validation_errors)
             )
 
         # Execute

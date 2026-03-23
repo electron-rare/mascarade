@@ -35,7 +35,9 @@ class CircuitBreaker:
     half_open_max_calls: int = 3
 
     # Per-provider circuit states
-    _provider_states: dict[str, ProviderCircuitState] = field(default_factory=dict, init=False)
+    _provider_states: dict[str, ProviderCircuitState] = field(
+        default_factory=dict, init=False
+    )
 
     # Legacy global state (deprecated, kept for backward compatibility)
     _state: CircuitState = field(default=CircuitState.CLOSED, init=False)

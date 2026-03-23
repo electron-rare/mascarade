@@ -178,10 +178,34 @@ CATEGORIES = [
 ]
 
 VARS = {
-    "topology": ["inverting", "non-inverting", "differential", "transimpedance", "summing", "integrator", "differentiator"],
+    "topology": [
+        "inverting",
+        "non-inverting",
+        "differential",
+        "transimpedance",
+        "summing",
+        "integrator",
+        "differentiator",
+    ],
     "gain": ["10", "20", "40", "60", "80"],
-    "opamp": ["TL072", "NE5532", "OPA2134", "LM358", "AD8620", "OPA1612", "LM741", "OP07"],
-    "application": ["audio preamplifier", "sensor interface", "instrumentation", "active filter", "voltage reference", "DAC output"],
+    "opamp": [
+        "TL072",
+        "NE5532",
+        "OPA2134",
+        "LM358",
+        "AD8620",
+        "OPA1612",
+        "LM741",
+        "OP07",
+    ],
+    "application": [
+        "audio preamplifier",
+        "sensor interface",
+        "instrumentation",
+        "active filter",
+        "voltage reference",
+        "DAC output",
+    ],
     "cmrr": ["80", "100", "120"],
     "filter_type": ["low-pass", "high-pass", "band-pass", "band-stop"],
     "response": ["Butterworth", "Chebyshev (0.5dB)", "Bessel", "Linkwitz-Riley"],
@@ -197,7 +221,12 @@ VARS = {
     "class": ["A", "AB", "B", "D", "H"],
     "power": ["1", "5", "10", "25", "50", "100", "250"],
     "impedance": ["8", "16", "32", "50", "150", "300", "600"],
-    "tubes": ["12AX7 single stage", "12AX7 cascaded", "12AU7 cathode follower", "EL84 push-pull"],
+    "tubes": [
+        "12AX7 single stage",
+        "12AX7 cascaded",
+        "12AU7 cathode follower",
+        "EL84 push-pull",
+    ],
     "ic": ["TPA3116", "TPA3255", "MAX98357", "PAM8403", "IRS2092"],
     "cartridge": ["moving magnet (MM)", "moving coil (MC)"],
     "channels": ["4", "8", "16", "32"],
@@ -216,15 +245,45 @@ VARS = {
     "ref_freq": ["10MHz", "25MHz", "50MHz"],
     "out_freq": ["100MHz", "200MHz", "500MHz"],
     "component": ["comparator", "Schmitt trigger", "current mirror"],
-    "module_type": ["VCO", "VCF", "VCA", "LFO", "ADSR", "mixer", "sequencer", "noise", "S&H"],
+    "module_type": [
+        "VCO",
+        "VCF",
+        "VCA",
+        "LFO",
+        "ADSR",
+        "mixer",
+        "sequencer",
+        "noise",
+        "S&H",
+    ],
     "cv_range": ["-5 to +5", "0 to +5", "0 to +10"],
     "filter_ic": ["CEM3320", "AS3320", "SSI2164", "OTA (LM13700)"],
     "source": ["USB 5V", "wall adapter 12V", "eurorack bus"],
-    "effect_type": ["overdrive", "fuzz", "distortion", "delay", "reverb", "chorus", "phaser", "flanger", "tremolo", "octave"],
+    "effect_type": [
+        "overdrive",
+        "fuzz",
+        "distortion",
+        "delay",
+        "reverb",
+        "chorus",
+        "phaser",
+        "flanger",
+        "tremolo",
+        "octave",
+    ],
     "clipping": ["silicon (1N4148)", "germanium (1N34A)", "LED", "MOSFET", "Schottky"],
     "stages": ["4", "6", "8", "12"],
     "inductor": ["500mH Halo", "Fasel", "custom toroid"],
-    "circuit": ["common-emitter amplifier", "differential pair", "current mirror", "Sallen-Key filter", "buck converter", "Class AB output stage", "Wien bridge oscillator", "audio mixer"],
+    "circuit": [
+        "common-emitter amplifier",
+        "differential pair",
+        "current mirror",
+        "Sallen-Key filter",
+        "buck converter",
+        "Class AB output stage",
+        "Wien bridge oscillator",
+        "audio mixer",
+    ],
     "analysis": [".ac", ".tran", ".dc", ".noise", ".tf"],
     "tolerance": ["1", "5", "10", "20"],
     "parameter": ["resistance", "capacitance", "supply voltage", "temperature"],
@@ -259,22 +318,29 @@ Reply ONLY JSON: {{"question": "...", "answer": "..."}}"""
 
     try:
         with httpx.Client(timeout=30.0) as client:
-            resp = client.post(CODESTRAL_URL, headers={
-                "Authorization": f"Bearer {CODESTRAL_KEY}",
-                "Content-Type": "application/json",
-            }, json={
-                "model": "codestral-latest",
-                "messages": [{"role": "user", "content": prompt}],
-                "response_format": {"type": "json_object"},
-                "temperature": 0.7,
-                "max_tokens": 800,
-            })
+            resp = client.post(
+                CODESTRAL_URL,
+                headers={
+                    "Authorization": f"Bearer {CODESTRAL_KEY}",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "model": "codestral-latest",
+                    "messages": [{"role": "user", "content": prompt}],
+                    "response_format": {"type": "json_object"},
+                    "temperature": 0.7,
+                    "max_tokens": 800,
+                },
+            )
             resp.raise_for_status()
             data = json.loads(resp.json()["choices"][0]["message"]["content"])
             if "question" in data and "answer" in data:
                 return {
                     "conversations": [
-                        {"from": "system", "value": f"You are an expert analog electronics and audio engineer specializing in {category_name}."},
+                        {
+                            "from": "system",
+                            "value": f"You are an expert analog electronics and audio engineer specializing in {category_name}.",
+                        },
                         {"from": "human", "value": data["question"]},
                         {"from": "gpt", "value": data["answer"]},
                     ],
@@ -310,7 +376,9 @@ def main():
                 else:
                     errors += 1
                 if (i + 1) % 50 == 0:
-                    print(f"  [{i+1}/{cat['count']}] generated={cat_count} errors={errors}")
+                    print(
+                        f"  [{i+1}/{cat['count']}] generated={cat_count} errors={errors}"
+                    )
                 time.sleep(0.5)
             print(f"  DONE: {cat_count} pairs")
 

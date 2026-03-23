@@ -99,7 +99,9 @@ async def test_gpt53_codex_function_calling(mock_openai, mock_response):
     provider = GPT53CodexProvider(api_key="test-key")
     fc = GPT53CodexFunctionCalling(provider)
 
-    functions = [{"name": "get_weather", "description": "Get weather", "parameters": {}}]
+    functions = [
+        {"name": "get_weather", "description": "Get weather", "parameters": {}}
+    ]
     response = await fc.call_with_functions(
         [{"role": "user", "content": "weather?"}], functions
     )

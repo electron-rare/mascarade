@@ -29,6 +29,7 @@ logger = logging.getLogger("mascarade.a2a")
 # Task storage (in-memory)
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class A2ATask:
     """Represents a single A2A task through its lifecycle."""
@@ -62,12 +63,15 @@ async def _get_task(task_id: str) -> A2ATask:
 # Request / Response models
 # ---------------------------------------------------------------------------
 
+
 class TaskInput(BaseModel):
     text: str = Field(..., min_length=1, description="Input text for the task")
 
 
 class TaskSubmitRequest(BaseModel):
-    skill_id: str = Field(..., min_length=1, description="Skill (agent) to route the task to")
+    skill_id: str = Field(
+        ..., min_length=1, description="Skill (agent) to route the task to"
+    )
     input: TaskInput
 
 
@@ -106,24 +110,34 @@ async def agent_card(request: Request):
     skills: list[dict] = []
 
     # Populate from AgentRegistry (agents as high-level skills)
-    if hasattr(request.app.state, "registry") and request.app.state.registry is not None:
+    if (
+        hasattr(request.app.state, "registry")
+        and request.app.state.registry is not None
+    ):
         for agent in request.app.state.registry.list():
-            skills.append({
-                "id": agent.name,
-                "name": agent.name,
-                "description": agent.description or "",
-                "tags": agent.tools[:5] if agent.tools else [],
-            })
+            skills.append(
+                {
+                    "id": agent.name,
+                    "name": agent.name,
+                    "description": agent.description or "",
+                    "tags": agent.tools[:5] if agent.tools else [],
+                }
+            )
 
     # Populate from SkillRegistry (v2 fine-grained skills)
-    if hasattr(request.app.state, "skill_registry") and request.app.state.skill_registry is not None:
+    if (
+        hasattr(request.app.state, "skill_registry")
+        and request.app.state.skill_registry is not None
+    ):
         for skill in request.app.state.skill_registry.list():
-            skills.append({
-                "id": skill.name,
-                "name": skill.name,
-                "description": skill.description or "",
-                "tags": [skill.category] if skill.category else [],
-            })
+            skills.append(
+                {
+                    "id": skill.name,
+                    "name": skill.name,
+                    "description": skill.description or "",
+                    "tags": [skill.category] if skill.category else [],
+                }
+            )
 
     # Determine capabilities from settings
     capabilities = {
@@ -156,10 +170,17 @@ async def submit_task(req: TaskSubmitRequest, request: Request):
 
     # Validate that the skill/agent exists
     agent_found = False
-    if hasattr(request.app.state, "registry") and request.app.state.registry is not None:
+    if (
+        hasattr(request.app.state, "registry")
+        and request.app.state.registry is not None
+    ):
         if req.skill_id in request.app.state.registry:
             agent_found = True
-    if not agent_found and hasattr(request.app.state, "skill_registry") and request.app.state.skill_registry is not None:
+    if (
+        not agent_found
+        and hasattr(request.app.state, "skill_registry")
+        and request.app.state.skill_registry is not None
+    ):
         if req.skill_id in request.app.state.skill_registry:
             agent_found = True
 
@@ -196,6 +217,7 @@ async def get_task_status(task_id: str):
 # ---------------------------------------------------------------------------
 # Background execution
 # ---------------------------------------------------------------------------
+
 
 async def _execute_task(task: A2ATask, request: Request) -> None:
     """Run the task against the orchestrator in the background."""

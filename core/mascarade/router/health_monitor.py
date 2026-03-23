@@ -201,9 +201,7 @@ class HealthMonitor:
             try:
                 await self._probe_provider(provider)
             except Exception as exc:
-                logger.debug(
-                    "Health probe failed for %s: %s", provider.name, exc
-                )
+                logger.debug("Health probe failed for %s: %s", provider.name, exc)
 
     async def _probe_provider(self, provider: LLMProvider) -> None:
         """Execute a lightweight health probe for a single provider."""

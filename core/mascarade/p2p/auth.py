@@ -34,9 +34,15 @@ def verify_message(msg: P2PMessage, *, reject_unsigned: bool = False) -> bool:
     """
     if not msg.signature or not msg.public_key:
         if reject_unsigned:
-            logger.warning("Rejecting unsigned message type=%s from %s", msg.type, msg.sender)
+            logger.warning(
+                "Rejecting unsigned message type=%s from %s", msg.type, msg.sender
+            )
             return False
-        logger.debug("Accepting unsigned message type=%s from %s (backwards compat)", msg.type, msg.sender)
+        logger.debug(
+            "Accepting unsigned message type=%s from %s (backwards compat)",
+            msg.type,
+            msg.sender,
+        )
         return True
 
     try:
@@ -44,7 +50,9 @@ def verify_message(msg: P2PMessage, *, reject_unsigned: bool = False) -> bool:
         pub_bytes = base64.b64decode(msg.public_key)
         data = msg.signing_payload()
         if not PeerIdentity.verify(pub_bytes, sig, data):
-            logger.warning("Invalid signature on message type=%s from %s", msg.type, msg.sender)
+            logger.warning(
+                "Invalid signature on message type=%s from %s", msg.type, msg.sender
+            )
             return False
 
         # Verify sender matches the public key (prevent impersonation)
@@ -58,7 +66,9 @@ def verify_message(msg: P2PMessage, *, reject_unsigned: bool = False) -> bool:
         if msg.sender and expected_peer_id != msg.sender:
             logger.warning(
                 "Sender mismatch: claimed %s but key derives %s (type=%s)",
-                msg.sender, expected_peer_id, msg.type,
+                msg.sender,
+                expected_peer_id,
+                msg.type,
             )
             return False
 
@@ -110,6 +120,7 @@ class MessageAuthenticator:
 
     def verified(self, handler: MessageHandler) -> MessageHandler:
         """Decorator that drops messages with invalid signatures."""
+
         async def wrapper(msg: P2PMessage, conn: Any) -> None:
             if not self.verify(msg):
                 logger.warning(

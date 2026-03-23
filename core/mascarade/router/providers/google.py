@@ -70,7 +70,9 @@ class GoogleProvider(LLMProvider):
 
     def __init__(self) -> None:
         if settings.google_application_credentials:
-            os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = settings.google_application_credentials
+            os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = (
+                settings.google_application_credentials
+            )
 
         self._client: genai.Client | None = None
         self._client_token = ""
@@ -126,7 +128,9 @@ class GoogleProvider(LLMProvider):
             raise RuntimeError("Google OAuth client id is missing")
         if not is_secret_configured(client_secret):
             raise RuntimeError("Google OAuth client secret is missing")
-        if not is_secret_configured(access_token) and not is_secret_configured(refresh_token):
+        if not is_secret_configured(access_token) and not is_secret_configured(
+            refresh_token
+        ):
             raise RuntimeError("Google OAuth access token or refresh token is missing")
 
         scopes = [
@@ -225,7 +229,8 @@ class GoogleProvider(LLMProvider):
             [
                 settings.google_cloud_project.strip(),
                 settings.google_cloud_location.strip(),
-                adc_path or os.environ.get("GOOGLE_APPLICATION_CREDENTIALS", "").strip(),
+                adc_path
+                or os.environ.get("GOOGLE_APPLICATION_CREDENTIALS", "").strip(),
             ]
         )
         if (
@@ -277,15 +282,21 @@ class GoogleProvider(LLMProvider):
                 temperature=temperature,
             )
             if not response.choices:
-                raise RuntimeError(f"LiteLLM returned empty choices for model {model_id}")
+                raise RuntimeError(
+                    f"LiteLLM returned empty choices for model {model_id}"
+                )
             choice = response.choices[0]
             return LLMResponse(
                 content=choice.message.content or "",
                 model=model_id,
                 provider=self.name,
                 usage={
-                    "input_tokens": response.usage.prompt_tokens if response.usage else 0,
-                    "output_tokens": (response.usage.completion_tokens if response.usage else 0),
+                    "input_tokens": (
+                        response.usage.prompt_tokens if response.usage else 0
+                    ),
+                    "output_tokens": (
+                        response.usage.completion_tokens if response.usage else 0
+                    ),
                 },
             )
 
@@ -308,7 +319,9 @@ class GoogleProvider(LLMProvider):
             provider=self.name,
             usage={
                 "input_tokens": int(getattr(usage_meta, "prompt_token_count", 0) or 0),
-                "output_tokens": int(getattr(usage_meta, "candidates_token_count", 0) or 0),
+                "output_tokens": int(
+                    getattr(usage_meta, "candidates_token_count", 0) or 0
+                ),
             },
         )
 
@@ -358,6 +371,7 @@ class GoogleProvider(LLMProvider):
                     if text:
                         queue.put_nowait(text)
                 queue.put_nowait(None)
+
             await asyncio.to_thread(_run)
 
         drain_task = asyncio.create_task(_drain())

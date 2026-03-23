@@ -20,6 +20,7 @@ logger = logging.getLogger("mascarade.scheduler.autoscaler")
 @dataclass
 class ScalingDecision:
     """Decision to scale worker pool."""
+
     action: str  # "scale_up", "scale_down", or "no_op"
     target_workers: int  # Target number of workers
     reason: str  # Human-readable reason
@@ -201,8 +202,11 @@ class AutoScaler:
 
         if decision.action == "scale_up":
             if decision.target_workers <= current_workers:
-                logger.warning("Cannot scale up: target (%d) <= current (%d)",
-                             decision.target_workers, current_workers)
+                logger.warning(
+                    "Cannot scale up: target (%d) <= current (%d)",
+                    decision.target_workers,
+                    current_workers,
+                )
                 return False
 
             # Add new workers
@@ -210,13 +214,20 @@ class AutoScaler:
             for _i in range(workers_to_add):
                 self._add_worker()
 
-            logger.info("Scaled up from %d to %d workers: %s",
-                       current_workers, decision.target_workers, decision.reason)
+            logger.info(
+                "Scaled up from %d to %d workers: %s",
+                current_workers,
+                decision.target_workers,
+                decision.reason,
+            )
 
         elif decision.action == "scale_down":
             if decision.target_workers >= current_workers:
-                logger.warning("Cannot scale down: target (%d) >= current (%d)",
-                             decision.target_workers, current_workers)
+                logger.warning(
+                    "Cannot scale down: target (%d) >= current (%d)",
+                    decision.target_workers,
+                    current_workers,
+                )
                 return False
 
             # Remove workers
@@ -224,8 +235,12 @@ class AutoScaler:
             for _i in range(workers_to_remove):
                 self._remove_worker()
 
-            logger.info("Scaled down from %d to %d workers: %s",
-                       current_workers, decision.target_workers, decision.reason)
+            logger.info(
+                "Scaled down from %d to %d workers: %s",
+                current_workers,
+                decision.target_workers,
+                decision.reason,
+            )
 
         # Update last scale time
         self.last_scale_time = time.time()

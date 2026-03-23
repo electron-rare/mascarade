@@ -4,7 +4,9 @@ Stage 1 of 3: CPT -> SFT -> RLVR
 This teaches the model Verilog/KiCad/SPICE syntax by exposure to real code.
 Uses causal LM objective (next token prediction), NOT instruction tuning."""
 
-import json, time, os
+import json
+import time
+import os
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 os.environ["WANDB_DISABLED"] = "true"
@@ -27,12 +29,26 @@ RUN = f"{RUNS}/cpt-code-{time.strftime('%Y%m%d-%H%M%S')}"
 os.makedirs(RUN, exist_ok=True)
 
 model, tokenizer = FastLanguageModel.from_pretrained(
-    BASE_MODEL, max_seq_length=SEQ, load_in_4bit=True,
+    BASE_MODEL,
+    max_seq_length=SEQ,
+    load_in_4bit=True,
 )
 model = FastLanguageModel.get_peft_model(
-    model, r=32, lora_alpha=64, lora_dropout=0, bias="none",
+    model,
+    r=32,
+    lora_alpha=64,
+    lora_dropout=0,
+    bias="none",
     use_gradient_checkpointing="unsloth",
-    target_modules=["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"],
+    target_modules=[
+        "q_proj",
+        "k_proj",
+        "v_proj",
+        "o_proj",
+        "gate_proj",
+        "up_proj",
+        "down_proj",
+    ],
 )
 
 ds = load_dataset("json", data_files=DATASET, split="train")
@@ -91,4 +107,4 @@ manifest = {
 }
 json.dump(manifest, open(f"{RUN}/manifest.json", "w"), indent=2)
 print(f"Output: {RUN}")
-print(f"Next: use this LoRA as base for SFT mini-models")
+print("Next: use this LoRA as base for SFT mini-models")

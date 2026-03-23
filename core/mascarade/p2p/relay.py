@@ -30,9 +30,11 @@ RELAY_CAPABILITY = "p2p-relay"
 # Data structures
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class RelayCircuit:
     """A virtual circuit between two peers through this relay."""
+
     peer_a: str
     peer_b: str
     created: float = field(default_factory=time.monotonic)
@@ -42,6 +44,7 @@ class RelayCircuit:
 # ---------------------------------------------------------------------------
 # P2PRelay — runs on the relay node
 # ---------------------------------------------------------------------------
+
 
 class P2PRelay:
     """Relay service that forwards traffic between peers that cannot reach
@@ -120,7 +123,9 @@ class P2PRelay:
         self._circuits[key] = RelayCircuit(peer_a=msg.sender, peer_b=target)
         logger.info(
             "Relay circuit created: %s <-> %s (via %s)",
-            msg.sender, target, self._local_peer_id,
+            msg.sender,
+            target,
+            self._local_peer_id,
         )
 
         # ACK back to the requester
@@ -147,7 +152,8 @@ class P2PRelay:
         if not circuit:
             logger.warning(
                 "No relay circuit for %s <-> %s — send relay:connect first",
-                msg.sender, target,
+                msg.sender,
+                target,
             )
             return
 
@@ -193,17 +199,21 @@ class P2PRelay:
                 await asyncio.sleep(self.CLEANUP_INTERVAL)
                 now = time.monotonic()
                 stale_keys = [
-                    key for key, circuit in self._circuits.items()
+                    key
+                    for key, circuit in self._circuits.items()
                     if (now - circuit.last_active) > self.CIRCUIT_TTL
                 ]
                 for key in stale_keys:
                     circuit = self._circuits.pop(key)
                     logger.info(
                         "Relay circuit expired (TTL): %s <-> %s",
-                        circuit.peer_a, circuit.peer_b,
+                        circuit.peer_a,
+                        circuit.peer_b,
                     )
                 if stale_keys:
-                    logger.debug("Relay cleanup: evicted %d stale circuits", len(stale_keys))
+                    logger.debug(
+                        "Relay cleanup: evicted %d stale circuits", len(stale_keys)
+                    )
         except asyncio.CancelledError:
             pass
 
@@ -211,6 +221,7 @@ class P2PRelay:
 # ---------------------------------------------------------------------------
 # RelayClient — used by peers that need to reach others via a relay
 # ---------------------------------------------------------------------------
+
 
 class RelayClient:
     """Helper for peers that need to send messages through a relay node
@@ -270,7 +281,9 @@ class RelayClient:
             self._known_relays.insert(0, relay_peer_id)
 
     async def connect_via_relay(
-        self, target_peer_id: str, relay_peer_id: str | None = None,
+        self,
+        target_peer_id: str,
+        relay_peer_id: str | None = None,
     ) -> bool:
         """Request a relay circuit to *target_peer_id*.
 
@@ -291,7 +304,9 @@ class RelayClient:
         if ok:
             self._relay_routes[target_peer_id] = relay_peer_id
             logger.info(
-                "Requested relay circuit to %s via %s", target_peer_id, relay_peer_id,
+                "Requested relay circuit to %s via %s",
+                target_peer_id,
+                relay_peer_id,
             )
         return ok
 
@@ -324,7 +339,9 @@ class RelayClient:
             signature=inner_signature,
             public_key=inner_public_key,
         )
-        if (not inner_msg.signature or not inner_msg.public_key) and hasattr(self._transport, "_prepare_outgoing"):
+        if (not inner_msg.signature or not inner_msg.public_key) and hasattr(
+            self._transport, "_prepare_outgoing"
+        ):
             inner_msg = self._transport._prepare_outgoing(inner_msg)
 
         msg = P2PMessage(
@@ -399,5 +416,6 @@ class RelayClient:
         else:
             logger.debug(
                 "No handler for relayed message type=%s from %s",
-                inner_type, origin,
+                inner_type,
+                origin,
             )

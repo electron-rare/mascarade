@@ -66,9 +66,8 @@ def _usable_state_dir(path: Path) -> bool:
 
 
 def _resolve_state_dir() -> Path:
-    explicit = (
-        os.environ.get("MODEL_SELECTOR_STATE_DIR")
-        or os.environ.get("MASCARADE_FINETUNE_STATE_DIR")
+    explicit = os.environ.get("MODEL_SELECTOR_STATE_DIR") or os.environ.get(
+        "MASCARADE_FINETUNE_STATE_DIR"
     )
     candidates: list[Path] = []
     if explicit:
@@ -619,7 +618,9 @@ def _is_watch_relevant(model_id: str, tags: list[str], task: str, author: str) -
     tokens = _watch_tokens(blob)
     model_id_lower = model_id.lower()
     author_patterns = WATCH_AUTHOR_PATTERNS.get(author)
-    if author_patterns and not any(pattern in model_id_lower for pattern in author_patterns):
+    if author_patterns and not any(
+        pattern in model_id_lower for pattern in author_patterns
+    ):
         return False
     author_excludes = WATCH_AUTHOR_EXCLUDES.get(author, ())
     if any(pattern in model_id_lower for pattern in author_excludes):
@@ -647,20 +648,41 @@ def _watch_lane(
             "recent FP8/int checkpoint: keep as teacher/manual watch candidate",
         )
     if _is_moe(model_id, tags):
-        return "teacher_watch", "sparse/MoE checkpoint: keep as teacher-only watch candidate"
+        return (
+            "teacher_watch",
+            "sparse/MoE checkpoint: keep as teacher-only watch candidate",
+        )
     if param_b is None:
         return "manual_review", "parameter count unknown: keep for manual review"
     if param_b > max(16.0, max_params_b):
-        return "teacher_watch", "too large for current student lane; watch as teacher/manual candidate"
+        return (
+            "teacher_watch",
+            "too large for current student lane; watch as teacher/manual candidate",
+        )
     if "deepseek-r1-distill" in lowered:
-        return "student_watch", "distilled DeepSeek checkpoint compatible with the student lane"
+        return (
+            "student_watch",
+            "distilled DeepSeek checkpoint compatible with the student lane",
+        )
     if "mellum" in lowered:
-        return "student_watch", "recent code-specialized dense base worth benchmarking as a student"
+        return (
+            "student_watch",
+            "recent code-specialized dense base worth benchmarking as a student",
+        )
     if "base" in lowered:
-        return "student_watch", "recent dense base checkpoint aligned with local fine-tuning"
+        return (
+            "student_watch",
+            "recent dense base checkpoint aligned with local fine-tuning",
+        )
     if "instruct" in lowered or "chat" in lowered:
-        return "manual_review", "recent instruct checkpoint worth manual distillation/teacher review"
-    return "manual_review", "recent trusted release outside the current automatic policy"
+        return (
+            "manual_review",
+            "recent instruct checkpoint worth manual distillation/teacher review",
+        )
+    return (
+        "manual_review",
+        "recent trusted release outside the current automatic policy",
+    )
 
 
 def watch_recent_releases(
@@ -696,7 +718,8 @@ def watch_recent_releases(
             continue
         models.sort(
             key=lambda model: (
-                _parse_last_modified(getattr(model, "lastModified", "")) or datetime.min.replace(tzinfo=timezone.utc)
+                _parse_last_modified(getattr(model, "lastModified", ""))
+                or datetime.min.replace(tzinfo=timezone.utc)
             ),
             reverse=True,
         )
@@ -740,7 +763,8 @@ def watch_recent_releases(
 
     candidates.sort(
         key=lambda item: (
-            _parse_last_modified(item.last_modified) or datetime.min.replace(tzinfo=timezone.utc),
+            _parse_last_modified(item.last_modified)
+            or datetime.min.replace(tzinfo=timezone.utc),
             item.suggested_lane == "student_watch",
             item.cached_locally,
         ),
@@ -1142,9 +1166,21 @@ def ensure_model_selection(
 
 def write_watch_report(entries: list[WatchCandidate]) -> Path:
     grouped = {
-        "student_watch": [asdict(entry) for entry in entries if entry.suggested_lane == "student_watch"],
-        "teacher_watch": [asdict(entry) for entry in entries if entry.suggested_lane == "teacher_watch"],
-        "manual_review": [asdict(entry) for entry in entries if entry.suggested_lane == "manual_review"],
+        "student_watch": [
+            asdict(entry)
+            for entry in entries
+            if entry.suggested_lane == "student_watch"
+        ],
+        "teacher_watch": [
+            asdict(entry)
+            for entry in entries
+            if entry.suggested_lane == "teacher_watch"
+        ],
+        "manual_review": [
+            asdict(entry)
+            for entry in entries
+            if entry.suggested_lane == "manual_review"
+        ],
     }
     payload = {
         "generated_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
@@ -1210,9 +1246,11 @@ def protected_models() -> set[str]:
     selection, _selection_path = _load_selection_record()
     if selection is not None:
         model_id = str(selection.get("model_id") or "").strip()
-        selected_status = str(
-            (registry_models.get(model_id) or {}).get("status") or ""
-        ).strip().lower()
+        selected_status = (
+            str((registry_models.get(model_id) or {}).get("status") or "")
+            .strip()
+            .lower()
+        )
         if model_id and selected_status != "rejected":
             protected.add(model_id)
     return protected
@@ -1627,7 +1665,9 @@ def main() -> None:
                     {
                         "ranked": [asdict(c) for c in top],
                         "watch_report_path": (
-                            None if watch_report_path is None else str(watch_report_path)
+                            None
+                            if watch_report_path is None
+                            else str(watch_report_path)
                         ),
                     },
                     indent=2,
@@ -1707,7 +1747,9 @@ def main() -> None:
             final_mark_reason = final_mark_reason or validation_error
         elif args.download:
             final_mark_status = "pending_review"
-            final_mark_reason = final_mark_reason or "downloaded for testing; awaiting validation"
+            final_mark_reason = (
+                final_mark_reason or "downloaded for testing; awaiting validation"
+            )
 
     if final_mark_status is not None:
         entry = mark_model_validation(

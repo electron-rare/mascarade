@@ -35,11 +35,13 @@ class IntegrationTestProvider(LLMProvider):
         content = messages[-1]["content"] if messages else ""
 
         # Record the call
-        self.call_history.append({
-            "messages": messages,
-            "kwargs": kwargs,
-            "call_number": self.call_count,
-        })
+        self.call_history.append(
+            {
+                "messages": messages,
+                "kwargs": kwargs,
+                "call_number": self.call_count,
+            }
+        )
 
         # Simulate network delay
         await asyncio.sleep(0.01)
@@ -97,7 +99,9 @@ class FailingIntegrationProvider(LLMProvider):
         self.attempt_count += 1
         if self.attempt_count <= self.fail_count:
             await asyncio.sleep(0.01)
-            raise RuntimeError(f"Integration test failure (attempt {self.attempt_count})")
+            raise RuntimeError(
+                f"Integration test failure (attempt {self.attempt_count})"
+            )
 
         # Success after fail_count attempts
         return LLMResponse(
@@ -661,7 +665,10 @@ async def test_pipeline_chain_with_context_accumulation():
 
     # Each agent should see the output from the previous one
     # First sees initial input
-    assert "Initial topic: Python testing" in provider.call_history[0]["messages"][-1]["content"]
+    assert (
+        "Initial topic: Python testing"
+        in provider.call_history[0]["messages"][-1]["content"]
+    )
 
     # Second sees first's output
     second_input = provider.call_history[1]["messages"][-1]["content"]

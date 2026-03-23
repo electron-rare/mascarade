@@ -165,9 +165,7 @@ async def test_migrate_legacy_keys_invalid_keys():
     mock_pool.acquire.return_value.__aenter__.return_value = mock_conn
 
     # Mock admin role query
-    mock_conn.fetchrow = AsyncMock(
-        return_value={"id": 1}  # admin role id
-    )
+    mock_conn.fetchrow = AsyncMock(return_value={"id": 1})  # admin role id
 
     with patch("mascarade.auth.get_db_pool", return_value=mock_pool):
         with patch("mascarade.config.settings") as mock_settings:

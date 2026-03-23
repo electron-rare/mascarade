@@ -246,7 +246,10 @@ async def test_chat_flow_multiple_messages():
                 "model": "fake-provider:fake-model",
                 "messages": [
                     {"role": "user", "content": "What is Python?"},
-                    {"role": "assistant", "content": "Python is a programming language."},
+                    {
+                        "role": "assistant",
+                        "content": "Python is a programming language.",
+                    },
                     {"role": "user", "content": "Tell me more about it."},
                 ],
             },

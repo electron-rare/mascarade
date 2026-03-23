@@ -9,6 +9,7 @@ try:
     # Note: These are placeholder imports - actual quantum libraries
     # would be imported here when available
     import qiskit  # type: ignore
+
     QUANTUM_AVAILABLE = True
 except ImportError:
     QUANTUM_AVAILABLE = False
@@ -30,8 +31,10 @@ class QuantumAIProvider:
     def __init__(self, api_key: str | None = None):
         """Initialize Quantum-AI provider."""
         if not QUANTUM_AVAILABLE:
-            logger.warning("Quantum computing libraries not available. "
-                         "Install with: pip install qiskit")
+            logger.warning(
+                "Quantum computing libraries not available. "
+                "Install with: pip install qiskit"
+            )
 
         self.api_key = api_key
         self.quantum_backend = None
@@ -49,10 +52,7 @@ class QuantumAIProvider:
             logger.info("Running in classical-only mode")
 
     async def hybrid_inference(
-        self,
-        prompt: str,
-        quantum_task: dict | None = None,
-        **kwargs
+        self, prompt: str, quantum_task: dict | None = None, **kwargs
     ) -> dict:
         """Perform hybrid quantum-classical inference."""
         result = {"response": "", "quantum_used": False}
@@ -63,7 +63,9 @@ class QuantumAIProvider:
                 quantum_result = await self._execute_quantum_task(quantum_task)
 
                 # Combine with classical processing
-                result["response"] = f"Quantum result: {quantum_result}\nClassical processing: {prompt}"
+                result["response"] = (
+                    f"Quantum result: {quantum_result}\nClassical processing: {prompt}"
+                )
                 result["quantum_used"] = True
 
                 return result
@@ -103,16 +105,11 @@ class QuantumAIProvider:
 
     def available_quantum_tasks(self) -> list[str]:
         """List available quantum-enhanced tasks."""
-        return [
-            "optimization",
-            "sampling",
-            "feature_extraction",
-            "complex_simulation"
-        ]
+        return ["optimization", "sampling", "feature_extraction", "complex_simulation"]
 
     async def close(self) -> None:
         """Clean up resources."""
-        if hasattr(self, 'quantum_backend') and self.quantum_backend:
+        if hasattr(self, "quantum_backend") and self.quantum_backend:
             # Cleanup quantum resources
             pass
 
@@ -124,54 +121,45 @@ class QuantumClassicalHybrid:
         self.provider = provider
 
     async def optimize_with_quantum(
-        self,
-        problem: dict,
-        max_iterations: int = 10
+        self, problem: dict, max_iterations: int = 10
     ) -> dict:
         """Optimize using quantum-enhanced algorithms."""
         quantum_task = {
             "type": "optimization",
             "problem": problem,
-            "iterations": max_iterations
+            "iterations": max_iterations,
         }
 
         return await self.provider.hybrid_inference(
-            "Solving optimization problem",
-            quantum_task
+            "Solving optimization problem", quantum_task
         )
 
     async def sample_with_quantum(
-        self,
-        distribution: dict,
-        samples: int = 1000
+        self, distribution: dict, samples: int = 1000
     ) -> dict:
         """Generate samples using quantum-enhanced sampling."""
         quantum_task = {
             "type": "sampling",
             "distribution": distribution,
-            "samples": samples
+            "samples": samples,
         }
 
         return await self.provider.hybrid_inference(
-            "Generating quantum samples",
-            quantum_task
+            "Generating quantum samples", quantum_task
         )
 
     async def extract_quantum_features(
-        self,
-        data: list[dict],
-        feature_dim: int = 128
+        self, data: list[dict], feature_dim: int = 128
     ) -> dict:
         """Extract features using quantum algorithms."""
         quantum_task = {
             "type": "feature_extraction",
             "data": data,
-            "dimensions": feature_dim
+            "dimensions": feature_dim,
         }
 
         return await self.provider.hybrid_inference(
-            "Extracting quantum features",
-            quantum_task
+            "Extracting quantum features", quantum_task
         )
 
 
@@ -182,21 +170,18 @@ class QuantumReadiness:
         "Level 1: Classical-only",
         "Level 2: Quantum-ready (simulation)",
         "Level 3: Hybrid cloud quantum",
-        "Level 4: Full quantum integration"
+        "Level 4: Full quantum integration",
     ]
 
     @staticmethod
     def assess_readiness() -> dict:
         """Assess quantum computing readiness."""
-        assessment = {
-            "level": 1,
-            "criteria": {},
-            "recommendations": []
-        }
+        assessment = {"level": 1, "criteria": {}, "recommendations": []}
 
         # Check if quantum libraries are available
         try:
             import qiskit  # type: ignore
+
             assessment["criteria"]["quantum_libraries"] = True
             assessment["level"] = max(assessment["level"], 2)
         except ImportError:
@@ -214,11 +199,9 @@ class QuantumReadiness:
         assessment["level"] = max(assessment["level"], 2)
 
         # Determine readiness level
-        assessment["readiness_level"] = (
-            QuantumReadiness.QUANTUM_READINESS_LEVELS[
-                min(assessment["level"] - 1, 3)
-            ]
-        )
+        assessment["readiness_level"] = QuantumReadiness.QUANTUM_READINESS_LEVELS[
+            min(assessment["level"] - 1, 3)
+        ]
 
         return assessment
 
@@ -228,7 +211,7 @@ class QuantumReadiness:
         plan = {
             "current_level": QuantumReadiness.QUANTUM_READINESS_LEVELS[level - 1],
             "next_level": QuantumReadiness.QUANTUM_READINESS_LEVELS[min(level, 3)],
-            "steps": []
+            "steps": [],
         }
 
         if level == 1:
@@ -236,7 +219,7 @@ class QuantumReadiness:
                 "Install quantum computing libraries (qiskit, cirq)",
                 "Set up quantum simulation environment",
                 "Train team on quantum basics",
-                "Identify quantum-suitable use cases"
+                "Identify quantum-suitable use cases",
             ]
 
         elif level == 2:
@@ -244,7 +227,7 @@ class QuantumReadiness:
                 "Connect to quantum cloud providers (IBM, AWS, etc.)",
                 "Develop hybrid quantum-classical algorithms",
                 "Test quantum subroutines on real hardware",
-                "Optimize classical-quantum data pipelines"
+                "Optimize classical-quantum data pipelines",
             ]
 
         elif level == 3:
@@ -252,7 +235,7 @@ class QuantumReadiness:
                 "Deploy hybrid cloud quantum solutions",
                 "Integrate with existing AI infrastructure",
                 "Monitor quantum performance metrics",
-                "Scale quantum-enhanced applications"
+                "Scale quantum-enhanced applications",
             ]
 
         elif level == 4:
@@ -260,7 +243,7 @@ class QuantumReadiness:
                 "Optimize quantum resource allocation",
                 "Implement quantum error correction",
                 "Expand quantum applications portfolio",
-                "Stay updated with quantum advancements"
+                "Stay updated with quantum advancements",
             ]
 
         return plan
@@ -272,17 +255,13 @@ class QuantumSecurity:
     @staticmethod
     def assess_quantum_security() -> dict:
         """Assess security implications of quantum computing."""
-        assessment = {
-            "risks": {},
-            "mitigations": {},
-            "recommendations": []
-        }
+        assessment = {"risks": {}, "mitigations": {}, "recommendations": []}
 
         # Current encryption risk
         assessment["risks"]["current_encryption"] = {
             "level": "high",
             "description": "Quantum computers threaten RSA/ECC encryption",
-            "impact": "All current public key infrastructure at risk"
+            "impact": "All current public key infrastructure at risk",
         }
 
         assessment["mitigations"]["current_encryption"] = {
@@ -290,15 +269,15 @@ class QuantumSecurity:
             "actions": [
                 "Migrate to post-quantum cryptography (PQC)",
                 "Implement hybrid encryption models",
-                "Test quantum-resistant algorithms"
-            ]
+                "Test quantum-resistant algorithms",
+            ],
         }
 
         # Quantum key distribution
         assessment["risks"]["quantum_key_distribution"] = {
             "level": "medium",
             "description": "QKD implementation challenges",
-            "impact": "Network security vulnerabilities"
+            "impact": "Network security vulnerabilities",
         }
 
         assessment["mitigations"]["quantum_key_distribution"] = {
@@ -306,8 +285,8 @@ class QuantumSecurity:
             "actions": [
                 "Evaluate QKD solutions",
                 "Pilot quantum network segments",
-                "Train security team on QKD"
-            ]
+                "Train security team on QKD",
+            ],
         }
 
         # Generate recommendations
@@ -316,7 +295,10 @@ class QuantumSecurity:
                 "URGENT: Begin migration to post-quantum cryptography"
             )
 
-        if assessment["mitigations"]["quantum_key_distribution"]["status"] != "complete":
+        if (
+            assessment["mitigations"]["quantum_key_distribution"]["status"]
+            != "complete"
+        ):
             assessment["recommendations"].append(
                 "Evaluate Quantum Key Distribution for critical networks"
             )
@@ -330,20 +312,20 @@ class QuantumSecurity:
             "encryption": {
                 "standard": "NIST PQC Standards",
                 "algorithms": ["CRYSTALS-Kyber", "CRYSTALS-Dilithium", "SPHINCS+"],
-                "implementation": "Hybrid (classical + PQC)"
+                "implementation": "Hybrid (classical + PQC)",
             },
             "network": {
                 "qkd": "Optional for high-security segments",
                 "protocols": "TLS 1.3 with PQC cipher suites",
-                "monitoring": "Quantum threat detection"
+                "monitoring": "Quantum threat detection",
             },
             "data": {
                 "storage": "PQC-encrypted at rest",
                 "transit": "PQC-encrypted in transit",
-                "access": "Quantum-resistant authentication"
+                "access": "Quantum-resistant authentication",
             },
             "compliance": {
                 "standards": ["NIST IR 8105", "ISO/IEC 23831"],
-                "audit": "Quarterly quantum security review"
-            }
+                "audit": "Quarterly quantum security review",
+            },
         }

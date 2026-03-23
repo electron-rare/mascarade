@@ -12,7 +12,9 @@ from pydantic import BaseModel, Field
 from mascarade.auth import require_auth
 from mascarade.finetune.registry import FinetuneRegistry, RunEntry
 
-router = APIRouter(prefix="/v1/api", dependencies=[Depends(require_auth)], tags=["finetune"])
+router = APIRouter(
+    prefix="/v1/api", dependencies=[Depends(require_auth)], tags=["finetune"]
+)
 
 
 # --- Models ---
@@ -170,9 +172,7 @@ async def get_job(job_id: str, request: Request):
     entry = registry.runs.get(job_id)
 
     if entry is None:
-        raise HTTPException(
-            status_code=404, detail=f"Job '{job_id}' not found"
-        )
+        raise HTTPException(status_code=404, detail=f"Job '{job_id}' not found")
 
     return _serialize_job(entry)
 
@@ -197,9 +197,7 @@ async def update_job(job_id: str, req: JobUpdate, request: Request):
     entry = registry.runs.get(job_id)
 
     if entry is None:
-        raise HTTPException(
-            status_code=404, detail=f"Job '{job_id}' not found"
-        )
+        raise HTTPException(status_code=404, detail=f"Job '{job_id}' not found")
 
     # Update job fields
     entry.status = req.status
@@ -235,9 +233,7 @@ async def delete_job(job_id: str, request: Request):
     entry = registry.runs.get(job_id)
 
     if entry is None:
-        raise HTTPException(
-            status_code=404, detail=f"Job '{job_id}' not found"
-        )
+        raise HTTPException(status_code=404, detail=f"Job '{job_id}' not found")
 
     # Only allow deletion of non-completed jobs
     if entry.status in ("completed", "failed"):

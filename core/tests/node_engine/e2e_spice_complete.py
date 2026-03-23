@@ -9,17 +9,20 @@ import asyncio
 import logging
 import sys
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(levelname)s - %(message)s"
-)
+logging.basicConfig(level=logging.INFO, format="%(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
 
 async def run_complete_spice_workflow():
     """Run complete SPICE workflow with a valid RC circuit."""
-    from mascarade.node_engine.domains.electronics.types import NETLIST_TYPE, WAVEFORM_TYPE
-    from mascarade.node_engine.workers.electronics.spice_nodes import SimulateConfig, SimulateNode
+    from mascarade.node_engine.domains.electronics.types import (
+        NETLIST_TYPE,
+        WAVEFORM_TYPE,
+    )
+    from mascarade.node_engine.workers.electronics.spice_nodes import (
+        SimulateConfig,
+        SimulateNode,
+    )
 
     logger.info("=" * 80)
     logger.info("COMPLETE SPICE WORKFLOW TEST - RC Low-Pass Filter")
@@ -52,7 +55,7 @@ C1 out 0 1u
 .end
 """,
         "components": ["Vin", "R1", "C1"],
-        "analyses": ["ac"]
+        "analyses": ["ac"],
     }
 
     # Validate netlist structure
@@ -68,11 +71,7 @@ C1 out 0 1u
     # Step 2: Run simulation
     logger.info("\n[STEP 2] Running SPICE simulation with ngspice")
 
-    config = SimulateConfig(
-        ngspice_path="ngspice",
-        timeout_seconds=30,
-        batch_mode=True
-    )
+    config = SimulateConfig(ngspice_path="ngspice", timeout_seconds=30, batch_mode=True)
     sim_node = SimulateNode(config)
 
     try:
@@ -106,17 +105,23 @@ C1 out 0 1u
 
             if "convergence_info" in results:
                 conv = results["convergence_info"]
-                logger.info(f"  Convergence iterations: {conv.get('iterations', 'N/A')}")
+                logger.info(
+                    f"  Convergence iterations: {conv.get('iterations', 'N/A')}"
+                )
                 if conv.get("warnings"):
                     logger.info(f"  Convergence warnings: {len(conv['warnings'])}")
 
         # Display some output
         if stdout:
             logger.info("\n  Simulation output (excerpt):")
-            lines = stdout.split('\n')
+            lines = stdout.split("\n")
             # Find interesting lines (frequency, voltage data)
             for line in lines[:50]:
-                if 'frequency' in line.lower() or 'vdb' in line.lower() or 'Index' in line:
+                if (
+                    "frequency" in line.lower()
+                    or "vdb" in line.lower()
+                    or "Index" in line
+                ):
                     logger.info(f"    {line}")
 
     except Exception as e:
@@ -130,9 +135,27 @@ C1 out 0 1u
     sample_waveform = {
         "signals": {
             "vdb(out)": [-0.0, -0.4, -1.2, -3.0, -6.0, -12.0, -18.0, -24.0],  # dB
-            "vp(out)": [0.0, -10.0, -30.0, -45.0, -60.0, -75.0, -85.0, -89.0],  # phase in degrees
+            "vp(out)": [
+                0.0,
+                -10.0,
+                -30.0,
+                -45.0,
+                -60.0,
+                -75.0,
+                -85.0,
+                -89.0,
+            ],  # phase in degrees
         },
-        "time_axis": [1.0, 10.0, 100.0, 500.0, 1000.0, 5000.0, 10000.0, 100000.0],  # frequency in Hz
+        "time_axis": [
+            1.0,
+            10.0,
+            100.0,
+            500.0,
+            1000.0,
+            5000.0,
+            10000.0,
+            100000.0,
+        ],  # frequency in Hz
         "units": {
             "vdb(out)": "dB",
             "vp(out)": "degrees",

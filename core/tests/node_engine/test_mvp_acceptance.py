@@ -158,7 +158,7 @@ def runtime_with_ai_worker(router_with_multiple_providers, registry_with_test_ag
     # Mock ClusterManager to avoid FastAPI dependency
     mock_cluster = MagicMock()
     mock_cluster.ClusterManager = MagicMock
-    sys.modules['mascarade.cluster'] = mock_cluster
+    sys.modules["mascarade.cluster"] = mock_cluster
 
     from mascarade.orchestrator.engine import Orchestrator
 
@@ -809,7 +809,7 @@ class TestMVPCriterion6_ErrorPropagation:
         # Mock ClusterManager
         mock_cluster = MagicMock()
         mock_cluster.ClusterManager = MagicMock
-        sys.modules['mascarade.cluster'] = mock_cluster
+        sys.modules["mascarade.cluster"] = mock_cluster
 
         from mascarade.orchestrator.engine import Orchestrator
 

@@ -6,6 +6,7 @@ import logging
 
 try:
     from mistralai.client import MistralClient
+
     MISTRAL_EMBEDDINGS_AVAILABLE = True
 except ImportError:
     MISTRAL_EMBEDDINGS_AVAILABLE = False

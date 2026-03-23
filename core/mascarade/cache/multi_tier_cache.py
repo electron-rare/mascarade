@@ -123,7 +123,9 @@ class MultiTierCache:
                 await self.l2.store(messages, response, tokens, cost, ttl, **kwargs)
                 logger.debug("MultiTierCache: stored in L2 (Redis)")
             except Exception as e:
-                logger.warning(f"MultiTierCache: L2 store failed, degrading to L1 only: {e}")
+                logger.warning(
+                    f"MultiTierCache: L2 store failed, degrading to L1 only: {e}"
+                )
                 self.l2_available = False
 
         # Store in L3 (async, if available)

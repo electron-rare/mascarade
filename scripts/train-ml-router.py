@@ -1,6 +1,9 @@
 """Train the ML routing classifier from benchmark v3 results."""
 
-import json, os, sys
+import json
+import os
+import sys
+
 sys.path.insert(0, "core")
 
 from mascarade.router.ml_classifier import PromptFeatureExtractor, RoutingClassifier
@@ -24,7 +27,9 @@ def main():
     # Find benchmark results
     bench_path = find_latest_benchmark()
     if not bench_path:
-        print("ERROR: No benchmark v3 results found. Run benchmark-v3-all-models.py first.")
+        print(
+            "ERROR: No benchmark v3 results found. Run benchmark-v3-all-models.py first."
+        )
         return
 
     with open(bench_path) as f:
@@ -35,7 +40,10 @@ def main():
 
     # Load prompts
     prompts = []
-    for pf in ["finetune/eval/benchmark_prompts.jsonl", "finetune/eval/adversarial_prompts.jsonl"]:
+    for pf in [
+        "finetune/eval/benchmark_prompts.jsonl",
+        "finetune/eval/adversarial_prompts.jsonl",
+    ]:
         if os.path.exists(pf):
             with open(pf) as f:
                 for line in f:

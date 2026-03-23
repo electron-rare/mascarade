@@ -18,7 +18,11 @@ class FakeRouter:
     """Fake router for testing provider endpoints."""
 
     def __init__(self, available_providers: list[str] | None = None):
-        self.available_providers = available_providers or ["openai", "anthropic", "ollama"]
+        self.available_providers = available_providers or [
+            "openai",
+            "anthropic",
+            "ollama",
+        ]
         self._providers = {}
         self.fill_in_middle = AsyncMock(
             return_value=type(
@@ -299,7 +303,9 @@ async def test_codestral_fim_validation_error():
 @pytest.mark.asyncio
 async def test_list_providers_multiple():
     """Test listing multiple providers."""
-    fake_router = FakeRouter(available_providers=["openai", "anthropic", "ollama", "bedrock"])
+    fake_router = FakeRouter(
+        available_providers=["openai", "anthropic", "ollama", "bedrock"]
+    )
 
     async with _client(fake_router) as client:
         response = await client.get(

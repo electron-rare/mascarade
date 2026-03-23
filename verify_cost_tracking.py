@@ -14,7 +14,8 @@ import sys
 import os
 
 # Add core to path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'core'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "core"))
+
 
 def verify_imports():
     """Verify all analytics modules can be imported."""
@@ -63,7 +64,9 @@ def verify_cost_calculator():
         if abs(cost - expected) < 0.0001:
             print(f"✅ Cost calculation correct: ${cost:.6f}")
         else:
-            print(f"❌ Cost calculation incorrect: got ${cost:.6f}, expected ${expected:.6f}")
+            print(
+                f"❌ Cost calculation incorrect: got ${cost:.6f}, expected ${expected:.6f}"
+            )
             return False
 
         # Test singleton pattern
@@ -78,6 +81,7 @@ def verify_cost_calculator():
     except Exception as e:
         print(f"❌ Cost calculator verification failed: {e}")
         import traceback
+
         traceback.print_exc()
         return False
 
@@ -94,21 +98,21 @@ def verify_router_integration():
         router = Router()
 
         # Check cost_logger attribute
-        if hasattr(router, 'cost_logger'):
+        if hasattr(router, "cost_logger"):
             print("✅ Router has cost_logger attribute")
         else:
             print("❌ Router missing cost_logger attribute")
             return False
 
         # Check cost_calculator attribute
-        if hasattr(router, 'cost_calculator'):
+        if hasattr(router, "cost_calculator"):
             print("✅ Router has cost_calculator attribute")
         else:
             print("❌ Router missing cost_calculator attribute")
             return False
 
         # Check _get_effective_cost method exists
-        if hasattr(router, '_get_effective_cost'):
+        if hasattr(router, "_get_effective_cost"):
             print("✅ Router has _get_effective_cost method")
         else:
             print("❌ Router missing _get_effective_cost method")
@@ -118,6 +122,7 @@ def verify_router_integration():
     except Exception as e:
         print(f"❌ Router integration verification failed: {e}")
         import traceback
+
         traceback.print_exc()
         return False
 
@@ -130,12 +135,21 @@ def verify_clickhouse_table():
 
     try:
         import subprocess
+
         result = subprocess.run(
-            ['docker', 'compose', 'exec', '-T', 'clickhouse', 'clickhouse-client',
-             '--query', 'DESCRIBE mascarade.cost_events'],
+            [
+                "docker",
+                "compose",
+                "exec",
+                "-T",
+                "clickhouse",
+                "clickhouse-client",
+                "--query",
+                "DESCRIBE mascarade.cost_events",
+            ],
             capture_output=True,
             text=True,
-            timeout=10
+            timeout=10,
         )
 
         if result.returncode == 0:
@@ -143,9 +157,15 @@ def verify_clickhouse_table():
 
             # Check for required columns
             required_columns = [
-                'timestamp', 'provider', 'model', 'agent',
-                'input_tokens', 'output_tokens', 'cost',
-                'strategy', 'success'
+                "timestamp",
+                "provider",
+                "model",
+                "agent",
+                "input_tokens",
+                "output_tokens",
+                "cost",
+                "strategy",
+                "success",
             ]
 
             output = result.stdout
@@ -164,6 +184,7 @@ def verify_clickhouse_table():
     except Exception as e:
         print(f"❌ ClickHouse verification failed: {e}")
         import traceback
+
         traceback.print_exc()
         return False
 
@@ -176,17 +197,19 @@ def verify_server_endpoints():
 
     try:
         # Read server.py and check for endpoints
-        server_path = os.path.join(os.path.dirname(__file__), 'core', 'mascarade', 'server.py')
-        with open(server_path, 'r') as f:
+        server_path = os.path.join(
+            os.path.dirname(__file__), "core", "mascarade", "server.py"
+        )
+        with open(server_path, "r") as f:
             content = f.read()
 
-        if '/v1/analytics/cost' in content:
+        if "/v1/analytics/cost" in content:
             print("✅ /v1/analytics/cost endpoint defined")
         else:
             print("❌ /v1/analytics/cost endpoint missing")
             return False
 
-        if '@app.get("/metrics")' in content or '@app.get(\'/metrics\')' in content:
+        if '@app.get("/metrics")' in content or "@app.get('/metrics')" in content:
             print("✅ /metrics endpoint defined")
         else:
             print("❌ /metrics endpoint missing")
@@ -196,6 +219,7 @@ def verify_server_endpoints():
     except Exception as e:
         print(f"❌ Server endpoint verification failed: {e}")
         import traceback
+
         traceback.print_exc()
         return False
 
@@ -208,14 +232,13 @@ def verify_prometheus_config():
 
     try:
         prom_config = os.path.join(
-            os.path.dirname(__file__),
-            'deploy', 'prometheus', 'prometheus.yml'
+            os.path.dirname(__file__), "deploy", "prometheus", "prometheus.yml"
         )
 
-        with open(prom_config, 'r') as f:
+        with open(prom_config, "r") as f:
             content = f.read()
 
-        if 'mascarade-core' in content and '/metrics' in content:
+        if "mascarade-core" in content and "/metrics" in content:
             print("✅ Prometheus configured to scrape mascarade-core")
             return True
         else:
@@ -235,8 +258,12 @@ def verify_grafana_dashboard():
     try:
         dashboard_path = os.path.join(
             os.path.dirname(__file__),
-            'deploy', 'grafana', 'provisioning', 'dashboards', 'json',
-            'mascarade-cost-tracking.json'
+            "deploy",
+            "grafana",
+            "provisioning",
+            "dashboards",
+            "json",
+            "mascarade-cost-tracking.json",
         )
 
         if os.path.exists(dashboard_path):
@@ -244,16 +271,17 @@ def verify_grafana_dashboard():
 
             # Check if it's valid JSON and has the right structure
             import json
-            with open(dashboard_path, 'r') as f:
+
+            with open(dashboard_path, "r") as f:
                 dashboard = json.load(f)
 
-            if dashboard.get('title') == 'Mascarade Cost Tracking':
+            if dashboard.get("title") == "Mascarade Cost Tracking":
                 print("✅ Dashboard has correct title")
             else:
                 print(f"❌ Dashboard title incorrect: {dashboard.get('title')}")
                 return False
 
-            panels = dashboard.get('panels', [])
+            panels = dashboard.get("panels", [])
             if len(panels) > 0:
                 print(f"✅ Dashboard has {len(panels)} panels")
             else:
@@ -267,6 +295,7 @@ def verify_grafana_dashboard():
     except Exception as e:
         print(f"❌ Grafana dashboard verification failed: {e}")
         import traceback
+
         traceback.print_exc()
         return False
 
@@ -280,13 +309,13 @@ def main():
     print()
 
     results = {
-        'Module Imports': verify_imports(),
-        'Cost Calculator': verify_cost_calculator(),
-        'Router Integration': verify_router_integration(),
-        'ClickHouse Schema': verify_clickhouse_table(),
-        'Server Endpoints': verify_server_endpoints(),
-        'Prometheus Config': verify_prometheus_config(),
-        'Grafana Dashboard': verify_grafana_dashboard(),
+        "Module Imports": verify_imports(),
+        "Cost Calculator": verify_cost_calculator(),
+        "Router Integration": verify_router_integration(),
+        "ClickHouse Schema": verify_clickhouse_table(),
+        "Server Endpoints": verify_server_endpoints(),
+        "Prometheus Config": verify_prometheus_config(),
+        "Grafana Dashboard": verify_grafana_dashboard(),
     }
 
     # Summary
@@ -321,5 +350,5 @@ def main():
         return 1
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     sys.exit(main())

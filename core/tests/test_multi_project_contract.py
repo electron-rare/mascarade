@@ -148,7 +148,9 @@ async def test_v1_chat_completion_requires_project_scope():
 
 
 @pytest.mark.asyncio
-async def test_knowledge_base_search_requires_project_scope(monkeypatch: pytest.MonkeyPatch):
+async def test_knowledge_base_search_requires_project_scope(
+    monkeypatch: pytest.MonkeyPatch,
+):
     add_api_key(TEST_API_KEY)
     fake_mcp = AsyncMock()
     fake_mcp.knowledge_base_search.return_value = {"results": []}

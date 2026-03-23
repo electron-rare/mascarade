@@ -110,6 +110,7 @@ def load_and_merge_datasets(config):
 
 def format_for_training(dataset):
     """Convert conversations format to text for SFT."""
+
     def format_chat(example):
         convs = example.get("conversations", [])
         text = ""
@@ -179,7 +180,15 @@ def train_mini_model(name, config):
         lora_dropout=0,
         bias="none",
         use_gradient_checkpointing="unsloth",
-        target_modules=["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"],
+        target_modules=[
+            "q_proj",
+            "k_proj",
+            "v_proj",
+            "o_proj",
+            "gate_proj",
+            "up_proj",
+            "down_proj",
+        ],
         random_state=42,
     )
 

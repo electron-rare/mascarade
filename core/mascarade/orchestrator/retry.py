@@ -56,7 +56,9 @@ class RetryConfig:
         """Déterminer si l'erreur justifie un retry."""
         error_msg = str(error).lower()
 
-        if self.retry_on_timeout and ("timeout" in error_msg or "timed out" in error_msg):
+        if self.retry_on_timeout and (
+            "timeout" in error_msg or "timed out" in error_msg
+        ):
             return True
 
         if self.retry_on_rate_limit and (
@@ -174,9 +176,7 @@ class RetryExecutor:
             state = self.states.get(agent_name)
             return state.get_stats() if state else {}
 
-        return {
-            name: state.get_stats() for name, state in self.states.items()
-        }
+        return {name: state.get_stats() for name, state in self.states.items()}
 
     def reset(self, agent_name: str | None = None) -> None:
         """Réinitialiser les statistiques."""

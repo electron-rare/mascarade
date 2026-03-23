@@ -166,9 +166,7 @@ async def test_max_hints_reached():
 async def test_session_tracking():
     """Hints should be tracked per puzzle per session."""
     async with _client() as client:
-        with patch.object(
-            app.state.router, "send", _mock_send()
-        ):
+        with patch.object(app.state.router, "send", _mock_send()):
             # Ask two hints for different puzzles
             await client.post(
                 "/hints/ask",
@@ -223,9 +221,7 @@ async def test_puzzle_list():
 @pytest.mark.asyncio
 async def test_session_reset():
     """POST /hints/reset/{session_id} should clear session data."""
-    _sessions["test-reset"] = {
-        "LA_440": [{"level": 1, "timestamp": 1.0}]
-    }
+    _sessions["test-reset"] = {"LA_440": [{"level": 1, "timestamp": 1.0}]}
     async with _client() as client:
         resp = await client.post("/hints/reset/test-reset")
 

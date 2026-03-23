@@ -10,13 +10,19 @@ async def test_two_nodes_discover_and_exchange_capabilities():
     """Two nodes start, discover via bootstrap, exchange capabilities."""
     with tempfile.TemporaryDirectory() as dir_a, tempfile.TemporaryDirectory() as dir_b:
         node_a = MascaradeP2PNode(
-            listen_host="127.0.0.1", listen_port=0, key_dir=dir_a,
+            listen_host="127.0.0.1",
+            listen_port=0,
+            key_dir=dir_a,
         )
         await node_a.start()
 
         node_b = MascaradeP2PNode(
-            listen_host="127.0.0.1", listen_port=0, key_dir=dir_b,
-            bootstrap_peers=[(node_a.peer_id, "127.0.0.1", node_a.transport.listen_port)],
+            listen_host="127.0.0.1",
+            listen_port=0,
+            key_dir=dir_b,
+            bootstrap_peers=[
+                (node_a.peer_id, "127.0.0.1", node_a.transport.listen_port)
+            ],
         )
         await node_b.start()
 
@@ -38,7 +44,8 @@ async def test_two_nodes_discover_and_exchange_capabilities():
             assert caps[node_a.peer_id].role == "gpu"
 
             await node_b.advertise_capabilities(
-                capabilities=["mcp-host"], role="worker",
+                capabilities=["mcp-host"],
+                role="worker",
             )
             await asyncio.sleep(0.5)
 
@@ -54,13 +61,19 @@ async def test_find_capable_peers():
     """Search for peers with a specific capability."""
     with tempfile.TemporaryDirectory() as dir_a, tempfile.TemporaryDirectory() as dir_b:
         node_a = MascaradeP2PNode(
-            listen_host="127.0.0.1", listen_port=0, key_dir=dir_a,
+            listen_host="127.0.0.1",
+            listen_port=0,
+            key_dir=dir_a,
         )
         await node_a.start()
 
         node_b = MascaradeP2PNode(
-            listen_host="127.0.0.1", listen_port=0, key_dir=dir_b,
-            bootstrap_peers=[(node_a.peer_id, "127.0.0.1", node_a.transport.listen_port)],
+            listen_host="127.0.0.1",
+            listen_port=0,
+            key_dir=dir_b,
+            bootstrap_peers=[
+                (node_a.peer_id, "127.0.0.1", node_a.transport.listen_port)
+            ],
         )
         await node_b.start()
 
@@ -91,13 +104,17 @@ async def test_three_node_mesh():
         await a.start()
 
         b = MascaradeP2PNode(
-            listen_host="127.0.0.1", listen_port=0, key_dir=db,
+            listen_host="127.0.0.1",
+            listen_port=0,
+            key_dir=db,
             bootstrap_peers=[(a.peer_id, "127.0.0.1", a.transport.listen_port)],
         )
         await b.start()
 
         c = MascaradeP2PNode(
-            listen_host="127.0.0.1", listen_port=0, key_dir=dc,
+            listen_host="127.0.0.1",
+            listen_port=0,
+            key_dir=dc,
             bootstrap_peers=[(a.peer_id, "127.0.0.1", a.transport.listen_port)],
         )
         await c.start()
@@ -113,7 +130,9 @@ async def test_three_node_mesh():
             # Each node should see the other two
             for node in [a, b, c]:
                 caps = node.capabilities.all_capabilities()
-                assert len(caps) >= 2, f"Node {node.peer_id[:10]} sees only {len(caps)} caps"
+                assert (
+                    len(caps) >= 2
+                ), f"Node {node.peer_id[:10]} sees only {len(caps)} caps"
 
             # Capability search
             llm_peers = await c.find_capable_peers("llm")

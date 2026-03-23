@@ -24,6 +24,7 @@ router = APIRouter(tags=["websocket"])
 # Auth helper
 # ---------------------------------------------------------------------------
 
+
 async def _ws_auth(websocket: WebSocket) -> bool:
     """Validate an optional bearer token supplied as a query parameter.
 
@@ -58,6 +59,7 @@ def _json_payload(event_type: str, data: object) -> str:
 # WS /ws/traces — real-time agent trace events
 # ---------------------------------------------------------------------------
 
+
 @router.websocket("/ws/traces")
 async def ws_traces(
     websocket: WebSocket,
@@ -77,16 +79,25 @@ async def ws_traces(
         return
 
     await websocket.accept()
-    logger.info("WS /ws/traces connected (run_id=%s agent=%s type=%s)", run_id, agent_name, event_type)
+    logger.info(
+        "WS /ws/traces connected (run_id=%s agent=%s type=%s)",
+        run_id,
+        agent_name,
+        event_type,
+    )
 
     trace_buffer = websocket.app.state.trace_buffer
     if trace_buffer is None:
-        await websocket.send_text(_json_payload("error", {"detail": "Trace buffer not initialized"}))
+        await websocket.send_text(
+            _json_payload("error", {"detail": "Trace buffer not initialized"})
+        )
         await websocket.close(code=1011)
         return
 
     # Send recent events as initial burst.
-    recent = trace_buffer.recent(limit=20, run_id=run_id, agent_name=agent_name, event_type=event_type)
+    recent = trace_buffer.recent(
+        limit=20, run_id=run_id, agent_name=agent_name, event_type=event_type
+    )
     for evt in recent:
         await websocket.send_text(_json_payload("trace", evt.to_dict()))
 
@@ -104,7 +115,9 @@ async def ws_traces(
                 await websocket.send_text(_json_payload("trace", event.to_dict()))
             except TimeoutError:
                 # No event within the heartbeat window — send a keepalive ping.
-                await websocket.send_text(_json_payload("ping", {"ts": datetime.now(UTC).isoformat()}))
+                await websocket.send_text(
+                    _json_payload("ping", {"ts": datetime.now(UTC).isoformat()})
+                )
     except WebSocketDisconnect:
         logger.info("WS /ws/traces disconnected")
     except Exception:
@@ -116,6 +129,7 @@ async def ws_traces(
 # ---------------------------------------------------------------------------
 # WS /ws/p2p — real-time P2P mesh events
 # ---------------------------------------------------------------------------
+
 
 @router.websocket("/ws/p2p")
 async def ws_p2p(websocket: WebSocket):
@@ -129,7 +143,9 @@ async def ws_p2p(websocket: WebSocket):
 
     cluster: object | None = getattr(websocket.app.state, "cluster", None)
     if cluster is None:
-        await websocket.send_text(_json_payload("error", {"detail": "Cluster manager not initialized"}))
+        await websocket.send_text(
+            _json_payload("error", {"detail": "Cluster manager not initialized"})
+        )
         await websocket.close(code=1011)
         return
 
@@ -137,11 +153,16 @@ async def ws_p2p(websocket: WebSocket):
     try:
         peers = [asdict(p) for p in cluster.peers]
         p2p_status = cluster.p2p_status()
-        await websocket.send_text(_json_payload("p2p_snapshot", {
-            "peers": peers,
-            "p2p_status": p2p_status,
-            "node_id": cluster.node_id,
-        }))
+        await websocket.send_text(
+            _json_payload(
+                "p2p_snapshot",
+                {
+                    "peers": peers,
+                    "p2p_status": p2p_status,
+                    "node_id": cluster.node_id,
+                },
+            )
+        )
     except Exception:
         logger.exception("WS /ws/p2p failed to build initial snapshot")
 
@@ -161,15 +182,22 @@ async def ws_p2p(websocket: WebSocket):
             left = last_peer_ids - current_ids
 
             if joined or left:
-                await websocket.send_text(_json_payload("p2p_update", {
-                    "peers": [asdict(p) for p in current_peers],
-                    "joined": list(joined),
-                    "left": list(left),
-                }))
+                await websocket.send_text(
+                    _json_payload(
+                        "p2p_update",
+                        {
+                            "peers": [asdict(p) for p in current_peers],
+                            "joined": list(joined),
+                            "left": list(left),
+                        },
+                    )
+                )
                 last_peer_ids = current_ids
             else:
                 # Keepalive
-                await websocket.send_text(_json_payload("ping", {"ts": datetime.now(UTC).isoformat()}))
+                await websocket.send_text(
+                    _json_payload("ping", {"ts": datetime.now(UTC).isoformat()})
+                )
     except WebSocketDisconnect:
         logger.info("WS /ws/p2p disconnected")
     except Exception:
@@ -179,6 +207,7 @@ async def ws_p2p(websocket: WebSocket):
 # ---------------------------------------------------------------------------
 # WS /ws/health — periodic health updates
 # ---------------------------------------------------------------------------
+
 
 @router.websocket("/ws/health")
 async def ws_health(websocket: WebSocket):

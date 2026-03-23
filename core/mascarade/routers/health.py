@@ -27,11 +27,7 @@ async def health(request: Request):
 @router.get("/v1/version")
 async def version():
     """Version endpoint - returns API version and service information."""
-    return {
-        "version": "v1",
-        "service": "mascarade-core",
-        "api_version": "0.2.0"
-    }
+    return {"version": "v1", "service": "mascarade-core", "api_version": "0.2.0"}
 
 
 @router.get("/v1/models")
@@ -46,33 +42,39 @@ async def list_models(request: Request):
     if hasattr(request.app.state, "router"):
         router_inst = request.app.state.router
         for name in router_inst.available_providers:
-            models.append({
-                "id": name,
-                "object": "model",
-                "created": 1700000000,
-                "owned_by": "mascarade",
-            })
+            models.append(
+                {
+                    "id": name,
+                    "object": "model",
+                    "created": 1700000000,
+                    "owned_by": "mascarade",
+                }
+            )
             # Expose individual models per provider (e.g. ollama:qwen2.5:7b)
             provider = router_inst._providers.get(name)
             if provider:
                 try:
                     for model_id in provider.available_models():
-                        models.append({
-                            "id": f"{name}:{model_id}",
-                            "object": "model",
-                            "created": 1700000000,
-                            "owned_by": name,
-                        })
+                        models.append(
+                            {
+                                "id": f"{name}:{model_id}",
+                                "object": "model",
+                                "created": 1700000000,
+                                "owned_by": name,
+                            }
+                        )
                 except Exception:
                     pass
     if hasattr(request.app.state, "registry"):
         for agent in request.app.state.registry.list():
-            models.append({
-                "id": f"agent:{agent.name}",
-                "object": "model",
-                "created": 1700000000,
-                "owned_by": "mascarade",
-            })
+            models.append(
+                {
+                    "id": f"agent:{agent.name}",
+                    "object": "model",
+                    "created": 1700000000,
+                    "owned_by": "mascarade",
+                }
+            )
     return {"object": "list", "data": models}
 
 
@@ -96,7 +98,11 @@ async def get_provider_health(request: Request):
 
     return {
         "providers": providers_health,
-        "timestamp": health_monitor.last_check_time.isoformat() if health_monitor.last_check_time else None
+        "timestamp": (
+            health_monitor.last_check_time.isoformat()
+            if health_monitor.last_check_time
+            else None
+        ),
     }
 
 

@@ -88,7 +88,9 @@ async def test_google_provider_refreshes_oauth_token(monkeypatch):
     settings.google_oauth_refresh_token = "1//refresh-token-123456789"  # noqa: S105
     settings.google_oauth_client_id = "google-client-id"
     settings.google_oauth_client_secret = "google-client-secret-123456"  # noqa: S105
-    settings.google_oauth_token_endpoint = "https://oauth2.googleapis.com/token"  # noqa: S105
+    settings.google_oauth_token_endpoint = (
+        "https://oauth2.googleapis.com/token"  # noqa: S105
+    )
     _FakeGenAIClient.created.clear()
     monkeypatch.setattr(
         "mascarade.router.providers.google.genai.Client",
@@ -109,7 +111,9 @@ async def test_google_provider_refreshes_oauth_token(monkeypatch):
     client = provider._ensure_client()
     credentials = client.kwargs["credentials"]
     assert credentials.token == "ya29.refreshed_access_987654321"  # noqa: S105
-    assert settings.google_oauth_access_token == "ya29.refreshed_access_987654321"  # noqa: S105
+    assert (
+        settings.google_oauth_access_token == "ya29.refreshed_access_987654321"
+    )  # noqa: S105
     assert settings.google_oauth_expires_at
 
 

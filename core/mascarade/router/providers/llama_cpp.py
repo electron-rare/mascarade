@@ -29,7 +29,9 @@ class LlamaCppProvider(LLMProvider):
     quality_rank = 1
 
     def __init__(self) -> None:
-        self._base_url = getattr(settings, "llama_cpp_base_url", "http://localhost:8081/v1").rstrip("/")
+        self._base_url = getattr(
+            settings, "llama_cpp_base_url", "http://localhost:8081/v1"
+        ).rstrip("/")
         self._enabled = getattr(settings, "llama_cpp_enabled", False)
         self._timeout = getattr(settings, "llama_cpp_timeout_seconds", 120.0)
         self._client = httpx.AsyncClient(

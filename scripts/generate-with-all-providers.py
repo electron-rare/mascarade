@@ -29,10 +29,14 @@ lock = threading.Lock()
 def call_mistral_agent(agent_id, prompt, timeout=60.0):
     try:
         with httpx.Client(timeout=timeout) as c:
-            r = c.post("https://api.mistral.ai/v1/conversations", headers={
-                "Authorization": f"Bearer {MISTRAL_KEY}",
-                "Content-Type": "application/json",
-            }, json={"agent_id": agent_id, "inputs": prompt, "stream": False})
+            r = c.post(
+                "https://api.mistral.ai/v1/conversations",
+                headers={
+                    "Authorization": f"Bearer {MISTRAL_KEY}",
+                    "Content-Type": "application/json",
+                },
+                json={"agent_id": agent_id, "inputs": prompt, "stream": False},
+            )
             r.raise_for_status()
             return r.json().get("outputs", [{}])[0].get("content", "")
     except Exception:
@@ -42,17 +46,21 @@ def call_mistral_agent(agent_id, prompt, timeout=60.0):
 def call_anthropic(system, prompt, timeout=60.0):
     try:
         with httpx.Client(timeout=timeout) as c:
-            r = c.post("https://api.anthropic.com/v1/messages", headers={
-                "x-api-key": ANTHROPIC_KEY,
-                "anthropic-version": "2023-06-01",
-                "content-type": "application/json",
-            }, json={
-                "model": "claude-sonnet-4-20250514",
-                "max_tokens": 700,
-                "temperature": 0.3,
-                "system": system,
-                "messages": [{"role": "user", "content": prompt}],
-            })
+            r = c.post(
+                "https://api.anthropic.com/v1/messages",
+                headers={
+                    "x-api-key": ANTHROPIC_KEY,
+                    "anthropic-version": "2023-06-01",
+                    "content-type": "application/json",
+                },
+                json={
+                    "model": "claude-sonnet-4-20250514",
+                    "max_tokens": 700,
+                    "temperature": 0.3,
+                    "system": system,
+                    "messages": [{"role": "user", "content": prompt}],
+                },
+            )
             r.raise_for_status()
             return r.json()["content"][0]["text"]
     except Exception:
@@ -62,15 +70,22 @@ def call_anthropic(system, prompt, timeout=60.0):
 def call_codestral(system, prompt, timeout=30.0):
     try:
         with httpx.Client(timeout=timeout) as c:
-            r = c.post("https://codestral.mistral.ai/v1/chat/completions", headers={
-                "Authorization": f"Bearer {CODESTRAL_KEY}",
-                "Content-Type": "application/json",
-            }, json={
-                "model": "codestral-latest",
-                "messages": [{"role": "system", "content": system}, {"role": "user", "content": prompt}],
-                "temperature": 0.3,
-                "max_tokens": 700,
-            })
+            r = c.post(
+                "https://codestral.mistral.ai/v1/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {CODESTRAL_KEY}",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "model": "codestral-latest",
+                    "messages": [
+                        {"role": "system", "content": system},
+                        {"role": "user", "content": prompt},
+                    ],
+                    "temperature": 0.3,
+                    "max_tokens": 700,
+                },
+            )
             r.raise_for_status()
             return r.json()["choices"][0]["message"]["content"]
     except Exception:
@@ -80,15 +95,22 @@ def call_codestral(system, prompt, timeout=30.0):
 def call_openai(system, prompt, timeout=30.0):
     try:
         with httpx.Client(timeout=timeout) as c:
-            r = c.post("https://api.openai.com/v1/chat/completions", headers={
-                "Authorization": f"Bearer {OPENAI_KEY}",
-                "Content-Type": "application/json",
-            }, json={
-                "model": "gpt-4o-mini",
-                "messages": [{"role": "system", "content": system}, {"role": "user", "content": prompt}],
-                "temperature": 0.3,
-                "max_tokens": 700,
-            })
+            r = c.post(
+                "https://api.openai.com/v1/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {OPENAI_KEY}",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "model": "gpt-4o-mini",
+                    "messages": [
+                        {"role": "system", "content": system},
+                        {"role": "user", "content": prompt},
+                    ],
+                    "temperature": 0.3,
+                    "max_tokens": 700,
+                },
+            )
             r.raise_for_status()
             return r.json()["choices"][0]["message"]["content"]
     except Exception:
@@ -99,10 +121,13 @@ def call_gemini(prompt, timeout=30.0):
     try:
         url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={GOOGLE_KEY}"
         with httpx.Client(timeout=timeout) as c:
-            r = c.post(url, json={
-                "contents": [{"parts": [{"text": prompt}]}],
-                "generationConfig": {"temperature": 0.3, "maxOutputTokens": 700},
-            })
+            r = c.post(
+                url,
+                json={
+                    "contents": [{"parts": [{"text": prompt}]}],
+                    "generationConfig": {"temperature": 0.3, "maxOutputTokens": 700},
+                },
+            )
             r.raise_for_status()
             return r.json()["candidates"][0]["content"]["parts"][0]["text"]
     except Exception:
@@ -112,11 +137,26 @@ def call_gemini(prompt, timeout=30.0):
 # Build provider list
 PROVIDERS = []
 if AGENT_IDS.get("mascarade-kicad-teacher"):
-    PROVIDERS.append(("mistral-kicad-agent", lambda s, p: call_mistral_agent(AGENT_IDS["mascarade-kicad-teacher"], p)))
+    PROVIDERS.append(
+        (
+            "mistral-kicad-agent",
+            lambda s, p: call_mistral_agent(AGENT_IDS["mascarade-kicad-teacher"], p),
+        )
+    )
 if AGENT_IDS.get("mascarade-embedded-teacher"):
-    PROVIDERS.append(("mistral-embedded-agent", lambda s, p: call_mistral_agent(AGENT_IDS["mascarade-embedded-teacher"], p)))
+    PROVIDERS.append(
+        (
+            "mistral-embedded-agent",
+            lambda s, p: call_mistral_agent(AGENT_IDS["mascarade-embedded-teacher"], p),
+        )
+    )
 if AGENT_IDS.get("mascarade-analog-teacher"):
-    PROVIDERS.append(("mistral-analog-agent", lambda s, p: call_mistral_agent(AGENT_IDS["mascarade-analog-teacher"], p)))
+    PROVIDERS.append(
+        (
+            "mistral-analog-agent",
+            lambda s, p: call_mistral_agent(AGENT_IDS["mascarade-analog-teacher"], p),
+        )
+    )
 if ANTHROPIC_KEY and len(ANTHROPIC_KEY) > 20:
     PROVIDERS.append(("claude-sonnet", call_anthropic))
 if CODESTRAL_KEY and len(CODESTRAL_KEY) > 10:
@@ -162,11 +202,13 @@ def load_schematics(max_count=5000):
                 comps = r.get("components_used") or []
                 name = r.get("name", "")
                 if desc and len(desc) > 50 and len(comps) >= 3 and name:
-                    schematics.append({
-                        "name": name,
-                        "description": desc[:500],
-                        "components": ", ".join(comps[:15]),
-                    })
+                    schematics.append(
+                        {
+                            "name": name,
+                            "description": desc[:500],
+                            "components": ", ".join(comps[:15]),
+                        }
+                    )
             except json.JSONDecodeError:
                 continue
             if len(schematics) >= max_count:
@@ -197,18 +239,49 @@ EMBEDDED_TEMPLATES = [
 ]
 
 EMBEDDED_VARS = {
-    "board": ["esp32dev", "esp32-s3-devkitc-1", "nucleo_f446re", "nucleo_h743zi", "pico", "teensy41", "adafruit_feather_nrf52840"],
-    "peripheral": ["UART DMA", "SPI with CS", "I2C multi-device", "ADC continuous", "Timer PWM", "CAN bus", "USB CDC"],
+    "board": [
+        "esp32dev",
+        "esp32-s3-devkitc-1",
+        "nucleo_f446re",
+        "nucleo_h743zi",
+        "pico",
+        "teensy41",
+        "adafruit_feather_nrf52840",
+    ],
+    "peripheral": [
+        "UART DMA",
+        "SPI with CS",
+        "I2C multi-device",
+        "ADC continuous",
+        "Timer PWM",
+        "CAN bus",
+        "USB CDC",
+    ],
     "stm32": ["STM32F446RE", "STM32H743ZI", "STM32L476RG", "STM32G431KB"],
     "chip": ["ESP32-S3", "ESP32-C3", "ESP32-C6"],
-    "feature": ["WiFi station + MQTT + TLS", "BLE GATT server", "OTA update with rollback", "deep sleep + ULP"],
+    "feature": [
+        "WiFi station + MQTT + TLS",
+        "BLE GATT server",
+        "OTA update with rollback",
+        "deep sleep + ULP",
+    ],
     "protocol": ["Modbus RTU", "CAN 2.0B", "RS-485", "MIDI", "DMX512", "1-Wire"],
     "mcu": ["STM32F446", "ESP32", "nRF52840", "RP2040", "ATtiny1614"],
     "wakeup": ["RTC alarm", "GPIO interrupt", "timer", "touch pad"],
     "sensor": ["BME280", "MPU6050", "ADS1115", "VL53L1X"],
     "radio": ["LoRa SX1262", "BLE", "WiFi MQTT", "ESP-NOW"],
-    "application": ["motor controller", "data logger", "sensor node", "audio processor"],
-    "problem": ["HardFault on SPI DMA transfer", "I2C hangs after NAK", "ADC reading noisy", "timer interrupt not firing"],
+    "application": [
+        "motor controller",
+        "data logger",
+        "sensor node",
+        "audio processor",
+    ],
+    "problem": [
+        "HardFault on SPI DMA transfer",
+        "I2C hangs after NAK",
+        "ADC reading noisy",
+        "timer interrupt not firing",
+    ],
 }
 
 

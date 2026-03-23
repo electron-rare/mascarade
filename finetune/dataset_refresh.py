@@ -22,7 +22,11 @@ import time
 from pathlib import Path
 
 from dataset_bootstrap import seed_builder_for_domain
-from dataset_quality import DatasetQualityError, enforce_dataset_quality, summarize_quality_report
+from dataset_quality import (
+    DatasetQualityError,
+    enforce_dataset_quality,
+    summarize_quality_report,
+)
 from sharegpt_utils import (
     dedupe_rows_with_stats,
     ensure_row_ids_with_stats,
@@ -73,9 +77,18 @@ EMBEDDED_FORUM_URLS = [
     ("ARM Community Forums", "https://community.arm.com/support-forums/"),
     ("Arduino Forum", "https://forum.arduino.cc/"),
     ("EmbeddedRelated Forum", "https://www.embeddedrelated.com/forum.php"),
-    ("Electronics StackExchange STM32", "https://electronics.stackexchange.com/questions/tagged/stm32"),
-    ("Electronics StackExchange Embedded", "https://electronics.stackexchange.com/questions/tagged/embedded"),
-    ("All About Circuits Embedded Systems", "https://forum.allaboutcircuits.com/forums/embedded-systems-and-microcontrollers.13/"),
+    (
+        "Electronics StackExchange STM32",
+        "https://electronics.stackexchange.com/questions/tagged/stm32",
+    ),
+    (
+        "Electronics StackExchange Embedded",
+        "https://electronics.stackexchange.com/questions/tagged/embedded",
+    ),
+    (
+        "All About Circuits Embedded Systems",
+        "https://forum.allaboutcircuits.com/forums/embedded-systems-and-microcontrollers.13/",
+    ),
 ]
 
 ELECTRONICS_SIM_FORUM_URLS = [
@@ -86,8 +99,14 @@ ELECTRONICS_SIM_FORUM_URLS = [
     ("TI E2E", "https://e2e.ti.com/"),
     ("All About Circuits Forum", "https://forum.allaboutcircuits.com/"),
     ("EEVblog Forum", "https://www.eevblog.com/forum/"),
-    ("Electronics StackExchange SPICE", "https://electronics.stackexchange.com/questions/tagged/spice"),
-    ("Electronics StackExchange LTspice", "https://electronics.stackexchange.com/questions/tagged/ltspice"),
+    (
+        "Electronics StackExchange SPICE",
+        "https://electronics.stackexchange.com/questions/tagged/spice",
+    ),
+    (
+        "Electronics StackExchange LTspice",
+        "https://electronics.stackexchange.com/questions/tagged/ltspice",
+    ),
     ("PSMA Technical Forums", "https://psma.com/technical-forums/"),
 ]
 
@@ -113,7 +132,10 @@ DSP_FORUM_URLS = [
     ("EmbeddedRelated Forum", "https://www.embeddedrelated.com/forum.php"),
     ("NI Forums", "https://forums.ni.com/"),
     ("Scientific Python Discourse", "https://discuss.scientific-python.org/"),
-    ("Julia Discourse Signal Processing", "https://discourse.julialang.org/tag/signal-processing"),
+    (
+        "Julia Discourse Signal Processing",
+        "https://discourse.julialang.org/tag/signal-processing",
+    ),
     ("EEVblog Forum", "https://www.eevblog.com/forum/"),
 ]
 
@@ -121,7 +143,10 @@ EDA_FORUM_URLS = [
     ("KiCad.info Forums", "https://forum.kicad.info/"),
     ("KiCad Community Forums", "https://www.kicad.org/community/forums/"),
     ("EEVblog Forum", "https://www.eevblog.com/forum/"),
-    ("Electronics StackExchange PCB Design", "https://electronics.stackexchange.com/questions/tagged/pcb-design"),
+    (
+        "Electronics StackExchange PCB Design",
+        "https://electronics.stackexchange.com/questions/tagged/pcb-design",
+    ),
     ("EDAboard", "https://www.edaboard.com/"),
     ("EasyEDA Forum", "https://easyeda.com/forum/"),
     ("Altium Forum", "https://forum.live.altium.com/"),
@@ -181,6 +206,7 @@ def _ensure_research_probe(domain: str, probes_dir: Path | None = None) -> dict 
     if not probe_path.exists():
         return None
     return json.loads(probe_path.read_text(encoding="utf-8"))
+
 
 DOMAIN_RESEARCH = {
     "stm32": {
@@ -271,8 +297,14 @@ DOMAIN_RESEARCH = {
             ("home-assistant core", "https://github.com/home-assistant/core"),
         ],
         "software_sources": [
-            ("ESP-IDF product page", "https://www.espressif.com/en/products/sdks/esp-idf"),
-            ("Home Assistant developer portal", "https://developers.home-assistant.io/"),
+            (
+                "ESP-IDF product page",
+                "https://www.espressif.com/en/products/sdks/esp-idf",
+            ),
+            (
+                "Home Assistant developer portal",
+                "https://developers.home-assistant.io/",
+            ),
         ],
         "datasheet_roots": [
             (
@@ -302,17 +334,35 @@ DOMAIN_RESEARCH = {
         "minimum_web_roots": 8,
         "forum_urls": ELECTRONICS_FORUM_URLS,
         "authoritative_urls": [
-            ("TI power management docs", "https://www.ti.com/power-management/overview.html"),
-            ("Analog Devices technical articles", "https://www.analog.com/en/technical-articles.html"),
+            (
+                "TI power management docs",
+                "https://www.ti.com/power-management/overview.html",
+            ),
+            (
+                "Analog Devices technical articles",
+                "https://www.analog.com/en/technical-articles.html",
+            ),
         ],
         "github_repos": [],
         "software_sources": [
-            ("ADI Power Studio", "https://www.analog.com/en/resources/evaluation-hardware-and-software/embedded-development-software/power-studio-designer.html"),
-            ("TI power management hub", "https://www.ti.com/power-management/overview.html"),
+            (
+                "ADI Power Studio",
+                "https://www.analog.com/en/resources/evaluation-hardware-and-software/embedded-development-software/power-studio-designer.html",
+            ),
+            (
+                "TI power management hub",
+                "https://www.ti.com/power-management/overview.html",
+            ),
         ],
         "datasheet_roots": [
-            ("Analog Devices technical articles", "https://www.analog.com/en/technical-articles.html"),
-            ("TI power management documentation", "https://www.ti.com/power-management/overview.html"),
+            (
+                "Analog Devices technical articles",
+                "https://www.analog.com/en/technical-articles.html",
+            ),
+            (
+                "TI power management documentation",
+                "https://www.ti.com/power-management/overview.html",
+            ),
         ],
         "hf_sources": [
             "ksabeh/electronics-dataset",
@@ -335,17 +385,29 @@ DOMAIN_RESEARCH = {
                 "CMSIS-DSP docs",
                 "https://arm-software.github.io/CMSIS_5/DSP/html/index.html",
             ),
-            ("MathWorks signal processing docs", "https://www.mathworks.com/help/signal/"),
+            (
+                "MathWorks signal processing docs",
+                "https://www.mathworks.com/help/signal/",
+            ),
         ],
         "github_repos": [
             ("CMSIS_5", "https://github.com/ARM-software/CMSIS_5"),
         ],
         "software_sources": [
-            ("CMSIS-DSP docs", "https://arm-software.github.io/CMSIS_5/DSP/html/index.html"),
-            ("MathWorks signal processing docs", "https://www.mathworks.com/help/signal/"),
+            (
+                "CMSIS-DSP docs",
+                "https://arm-software.github.io/CMSIS_5/DSP/html/index.html",
+            ),
+            (
+                "MathWorks signal processing docs",
+                "https://www.mathworks.com/help/signal/",
+            ),
         ],
         "datasheet_roots": [
-            ("CMSIS-DSP docs", "https://arm-software.github.io/CMSIS_5/DSP/html/index.html"),
+            (
+                "CMSIS-DSP docs",
+                "https://arm-software.github.io/CMSIS_5/DSP/html/index.html",
+            ),
         ],
         "hf_sources": [
             "bshada/electronics.stackexchange.com",
@@ -357,7 +419,11 @@ DOMAIN_RESEARCH = {
             "site:mathworks.com help signal filter design fixed point",
             "site:huggingface.co/datasets dsp stackexchange dataset",
         ],
-        "trusted_domains": ["arm-software.github.io", "mathworks.com", "huggingface.co"],
+        "trusted_domains": [
+            "arm-software.github.io",
+            "mathworks.com",
+            "huggingface.co",
+        ],
     },
     "emc": {
         "topic": "EMC / EMI / ESD",
@@ -365,16 +431,25 @@ DOMAIN_RESEARCH = {
         "forum_urls": ELECTRONICS_FORUM_URLS,
         "authoritative_urls": [
             ("TI EMC overview", "https://www.ti.com/interface/emc-overview.html"),
-            ("Infineon EMC resources", "https://www.infineon.com/cms/en/design-support/"),
+            (
+                "Infineon EMC resources",
+                "https://www.infineon.com/cms/en/design-support/",
+            ),
         ],
         "github_repos": [],
         "software_sources": [
             ("TI EMC overview", "https://www.ti.com/interface/emc-overview.html"),
-            ("Infineon design support", "https://www.infineon.com/cms/en/design-support/"),
+            (
+                "Infineon design support",
+                "https://www.infineon.com/cms/en/design-support/",
+            ),
         ],
         "datasheet_roots": [
             ("TI EMC overview", "https://www.ti.com/interface/emc-overview.html"),
-            ("Infineon design support", "https://www.infineon.com/cms/en/design-support/"),
+            (
+                "Infineon design support",
+                "https://www.infineon.com/cms/en/design-support/",
+            ),
         ],
         "hf_sources": [
             "bshada/electronics.stackexchange.com",
@@ -411,7 +486,10 @@ DOMAIN_RESEARCH = {
         "datasheet_roots": [
             ("KiCad library conventions", "https://klc.kicad.org/"),
             ("KiCad libraries", "https://kicad.github.io/"),
-            ("EasyEDA libraries management", "https://docs.easyeda.com/en/Introduction/Libraries-Management/"),
+            (
+                "EasyEDA libraries management",
+                "https://docs.easyeda.com/en/Introduction/Libraries-Management/",
+            ),
         ],
         "hf_sources": [
             "STEM-AI-mtl/Electrical-engineering",
@@ -441,7 +519,10 @@ DOMAIN_RESEARCH = {
             ("STMicroelectronics org", "https://github.com/STMicroelectronics"),
         ],
         "software_sources": [
-            ("ESP-IDF product page", "https://www.espressif.com/en/products/sdks/esp-idf"),
+            (
+                "ESP-IDF product page",
+                "https://www.espressif.com/en/products/sdks/esp-idf",
+            ),
             ("STM32Cube docs", "https://dev.st.com/stm32cube-docs/"),
         ],
         "datasheet_roots": [
@@ -480,13 +561,19 @@ DOMAIN_RESEARCH = {
         "github_repos": [
             ("platformio-core", "https://github.com/platformio/platformio-core"),
             ("platformio docs", "https://github.com/platformio/platformio-docs"),
-            ("platform-espressif32", "https://github.com/platformio/platform-espressif32"),
+            (
+                "platform-espressif32",
+                "https://github.com/platformio/platform-espressif32",
+            ),
             ("esp-idf", "https://github.com/espressif/esp-idf"),
         ],
         "software_sources": [
             ("PlatformIO org", "https://github.com/platformio"),
             ("PlatformIO docs", "https://docs.platformio.org/"),
-            ("PlatformIO examples", "https://github.com/platformio/platformio-examples"),
+            (
+                "PlatformIO examples",
+                "https://github.com/platformio/platformio-examples",
+            ),
         ],
         "datasheet_roots": [
             (
@@ -504,7 +591,11 @@ DOMAIN_RESEARCH = {
             "site:docs.espressif.com esp32 ota mqtt platformio",
             "site:huggingface.co/datasets arduino stackexchange dataset",
         ],
-        "trusted_domains": ["docs.platformio.org", "docs.espressif.com", "huggingface.co"],
+        "trusted_domains": [
+            "docs.platformio.org",
+            "docs.espressif.com",
+            "huggingface.co",
+        ],
     },
     "freecad": {
         "topic": "FreeCAD / parametric CAD",
@@ -515,7 +606,10 @@ DOMAIN_RESEARCH = {
             ("FreeCAD project", "https://www.freecad.org/"),
             ("OpenSCAD documentation", "https://openscad.org/documentation.html"),
             ("SOLIDWORKS API Help", "https://help.solidworks.com/"),
-            ("Fusion 360 API what's new", "https://help.autodesk.com/cloudhelp/ENU/Fusion-360-API/files/WhatsNew.htm"),
+            (
+                "Fusion 360 API what's new",
+                "https://help.autodesk.com/cloudhelp/ENU/Fusion-360-API/files/WhatsNew.htm",
+            ),
         ],
         "github_repos": [
             ("FreeCAD", "https://github.com/FreeCAD/FreeCAD"),
@@ -528,14 +622,23 @@ DOMAIN_RESEARCH = {
             ("FreeCAD wiki", "https://wiki.freecad.org/"),
             ("OpenSCAD project", "https://openscad.org/"),
             ("CadQuery docs", "https://cadquery.readthedocs.io/"),
-            ("Fusion 360 product", "https://www.autodesk.com/products/fusion-360/overview"),
+            (
+                "Fusion 360 product",
+                "https://www.autodesk.com/products/fusion-360/overview",
+            ),
             ("SOLIDWORKS Web Help", "https://help.solidworks.com/"),
         ],
         "datasheet_roots": [
             ("FreeCAD wiki", "https://wiki.freecad.org/"),
             ("OpenSCAD user manual", "https://openscad.org/documentation.html"),
-            ("Fusion 360 API reference", "https://help.autodesk.com/cloudhelp/ENU/Fusion-360-API/"),
-            ("SOLIDWORKS API Help", "https://help.solidworks.com/2024/english/api/sldworksapiprogguide/Welcome.htm"),
+            (
+                "Fusion 360 API reference",
+                "https://help.autodesk.com/cloudhelp/ENU/Fusion-360-API/",
+            ),
+            (
+                "SOLIDWORKS API Help",
+                "https://help.solidworks.com/2024/english/api/sldworksapiprogguide/Welcome.htm",
+            ),
         ],
         "hf_sources": ["STEM-AI-mtl/Electrical-engineering"],
         "queries": [
@@ -552,12 +655,21 @@ DOMAIN_RESEARCH = {
         "minimum_web_roots": 10,
         "forum_urls": ELECTRONICS_FORUM_URLS,
         "authoritative_urls": [
-            ("Mouser search help", "https://www.mouser.com/help/search/how-to-search-for-products/"),
+            (
+                "Mouser search help",
+                "https://www.mouser.com/help/search/how-to-search-for-products/",
+            ),
             ("Farnell global", "https://www.farnell.com/"),
-            ("element14 product search help", "https://in.element14.com/help-searching-for-products"),
+            (
+                "element14 product search help",
+                "https://in.element14.com/help-searching-for-products",
+            ),
             ("DigiKey help", "https://www.digikey.com/en/resources/help"),
             ("Altium documentation", "https://www.altium.com/documentation/"),
-            ("EasyEDA libraries management", "https://docs.easyeda.com/en/Introduction/Libraries-Management/"),
+            (
+                "EasyEDA libraries management",
+                "https://docs.easyeda.com/en/Introduction/Libraries-Management/",
+            ),
         ],
         "github_repos": [],
         "software_sources": [
@@ -577,8 +689,14 @@ DOMAIN_RESEARCH = {
         "datasheet_roots": [
             ("Mouser datasheet-oriented search", "https://www.mouser.com/help/search/"),
             ("Farnell datasheets", "https://www.farnell.com/italy/datasheets.html"),
-            ("element14 product info and datasheet search", "https://in.element14.com/help-searching-for-products"),
-            ("DigiKey datasheets and technical resources", "https://www.digikey.com/en/resources/"),
+            (
+                "element14 product info and datasheet search",
+                "https://in.element14.com/help-searching-for-products",
+            ),
+            (
+                "DigiKey datasheets and technical resources",
+                "https://www.digikey.com/en/resources/",
+            ),
             ("SnapEDA search", "https://www.snapeda.com/"),
             ("Ultra Librarian search", "https://www.ultralibrarian.com/"),
         ],
@@ -644,8 +762,12 @@ def _load_domain_research_overrides(root: Path) -> dict[str, dict]:
 
 
 def _merge_domain_research_sources(base: dict[str, dict]) -> dict[str, dict]:
-    merged: dict[str, dict] = {domain: dict(metadata) for domain, metadata in base.items()}
-    for domain, override in _load_domain_research_overrides(RESEARCH_SOURCES_DIR).items():
+    merged: dict[str, dict] = {
+        domain: dict(metadata) for domain, metadata in base.items()
+    }
+    for domain, override in _load_domain_research_overrides(
+        RESEARCH_SOURCES_DIR
+    ).items():
         current = dict(merged.get(domain, {}))
         current.update(override)
         merged[domain] = current
@@ -703,7 +825,9 @@ def _run_builder(domain: str, *, with_hf: bool, max_samples: int | None) -> Path
             command.extend(["--max-samples", str(max_samples)])
     completed = subprocess.run(command, cwd=SCRIPT_DIR.parent)
     if completed.returncode != 0:
-        raise RuntimeError(f"Dataset refresh builder failed for {domain}: {builder.name}")
+        raise RuntimeError(
+            f"Dataset refresh builder failed for {domain}: {builder.name}"
+        )
     return builder
 
 
@@ -716,7 +840,9 @@ def _source_mode_for_copy(source_path: Path, target_path: Path) -> str:
     return "full_dataset_sync"
 
 
-def _refresh_from_full_dataset(domain: str, *, target_path: Path, full_datasets_root: Path) -> dict:
+def _refresh_from_full_dataset(
+    domain: str, *, target_path: Path, full_datasets_root: Path
+) -> dict:
     source_path = full_dataset_path_for(domain, full_datasets_root)
     if not source_path.exists():
         raise FileNotFoundError(source_path)
@@ -733,8 +859,12 @@ def _refresh_from_full_dataset(domain: str, *, target_path: Path, full_datasets_
 
 def _quality_report_for(path: Path, *, domain: str) -> tuple[dict, int, int]:
     raw_rows = load_jsonl(path)
-    normalized_rows, ids_fixed = ensure_row_ids_with_stats(raw_rows, f"{domain}-refresh")
-    trimmed_rows, trimmed_assistant_rows = _trim_oversized_assistant_messages(normalized_rows)
+    normalized_rows, ids_fixed = ensure_row_ids_with_stats(
+        raw_rows, f"{domain}-refresh"
+    )
+    trimmed_rows, trimmed_assistant_rows = _trim_oversized_assistant_messages(
+        normalized_rows
+    )
     deduped_rows, duplicates_removed = dedupe_rows_with_stats(trimmed_rows)
     if duplicates_removed or trimmed_assistant_rows:
         write_jsonl(path, deduped_rows)
@@ -773,8 +903,15 @@ def _trim_oversized_assistant_messages(
             msg = dict(message)
             role = str(msg.get("from") or "").strip().lower()
             value = msg.get("value")
-            if role in {"gpt", "assistant"} and isinstance(value, str) and len(value) > hard_limit:
-                msg["value"] = value[:trim_target].rstrip() + "\n\n[truncated during dataset refresh]"
+            if (
+                role in {"gpt", "assistant"}
+                and isinstance(value, str)
+                and len(value) > hard_limit
+            ):
+                msg["value"] = (
+                    value[:trim_target].rstrip()
+                    + "\n\n[truncated during dataset refresh]"
+                )
                 trimmed_count += 1
             conversations.append(msg)
         current["conversations"] = conversations
@@ -864,7 +1001,8 @@ def _validate_research_payload(payload: dict) -> dict:
         "query_coverage": len(queries) >= 3,
         "trusted_domains_coverage": len(trusted_domains) >= 3,
         "web_root_depth": web_roots_count >= minimum_web_roots,
-        "live_web_probe": bool(web_probe) and web_probe.get("status") in {"ok", "partial"},
+        "live_web_probe": bool(web_probe)
+        and web_probe.get("status") in {"ok", "partial"},
     }
     quality_score = sum(1 for value in quality_checks.values() if value)
     valid = bool(
@@ -890,12 +1028,18 @@ def _validate_research_payload(payload: dict) -> dict:
         "minimum_quality_score": minimum_quality_score,
         "quality_checks": quality_checks,
         "web_probe_status": web_probe.get("status"),
-        "web_probe_reachable_count": int(web_probe.get("reachable_count", 0)) if web_probe else 0,
-        "web_probe_total_count": int(web_probe.get("total_count", 0)) if web_probe else 0,
+        "web_probe_reachable_count": (
+            int(web_probe.get("reachable_count", 0)) if web_probe else 0
+        ),
+        "web_probe_total_count": (
+            int(web_probe.get("total_count", 0)) if web_probe else 0
+        ),
     }
 
 
-def _write_research_brief(domain: str, research_dir: Path, payload: dict) -> tuple[Path, Path]:
+def _write_research_brief(
+    domain: str, research_dir: Path, payload: dict
+) -> tuple[Path, Path]:
     research_dir.mkdir(parents=True, exist_ok=True)
     markdown_path = research_dir / f"{domain}_refresh.md"
     json_path = research_dir / f"{domain}_refresh.json"
@@ -953,17 +1097,21 @@ def _write_research_brief(domain: str, research_dir: Path, payload: dict) -> tup
         lines.append(
             f"- reachable: `{payload['web_probe'].get('reachable_count', 0)}/{payload['web_probe'].get('total_count', 0)}`"
         )
-    lines.extend([
-        "",
-        "## Legacy ignored by this workflow",
-    ])
+    lines.extend(
+        [
+            "",
+            "## Legacy ignored by this workflow",
+        ]
+    )
     for path in payload["legacy_ignored_paths"]:
         lines.append(f"- `{path}`")
     lines.extend(["", "## Operator checklist"])
     for item in payload["operator_checklist"]:
         lines.append(f"- {item}")
     markdown_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
-    json_path.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    json_path.write_text(
+        json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
+    )
     return markdown_path, json_path
 
 
@@ -1006,7 +1154,9 @@ def refresh_dataset(
             "builder": builder.name,
         }
 
-    quality_report, row_count, ids_fixed = _quality_report_for(target_path, domain=domain)
+    quality_report, row_count, ids_fixed = _quality_report_for(
+        target_path, domain=domain
+    )
     report = {
         "domain": domain,
         "generated_at": now_ts(),
@@ -1016,7 +1166,9 @@ def refresh_dataset(
         "builder": refresh_meta["builder"],
         "row_count": row_count,
         "ids_fixed": ids_fixed,
-        "duplicates_removed": quality_report.get("duplicates_removed_during_refresh", 0),
+        "duplicates_removed": quality_report.get(
+            "duplicates_removed_during_refresh", 0
+        ),
         "quality": quality_report,
         "legacy_ignored_paths": LEGACY_IGNORED_PATHS,
     }
@@ -1028,7 +1180,9 @@ def refresh_dataset(
         )
 
     if emit_research_brief:
-        payload = _research_payload(domain, dataset_path=target_path, refresh_report=report)
+        payload = _research_payload(
+            domain, dataset_path=target_path, refresh_report=report
+        )
         payload["research_validation"] = _validate_research_payload(payload)
         if not payload["research_validation"]["valid"]:
             raise RuntimeError(
@@ -1099,7 +1253,9 @@ def build_parser() -> argparse.ArgumentParser:
         description="Refresh fine-tuning datasets and emit associated web-research briefs"
     )
     parser.add_argument("domains", nargs="*", help="Supported domains to refresh")
-    parser.add_argument("--all", action="store_true", help="Refresh all supported domains")
+    parser.add_argument(
+        "--all", action="store_true", help="Refresh all supported domains"
+    )
     parser.add_argument(
         "--dataset-dir",
         default=None,
@@ -1157,9 +1313,13 @@ def main() -> int:
     args = parser.parse_args()
     dataset_dir = None if args.dataset_dir is None else Path(args.dataset_dir).resolve()
     full_datasets_root = (
-        None if args.full_datasets_root is None else Path(args.full_datasets_root).resolve()
+        None
+        if args.full_datasets_root is None
+        else Path(args.full_datasets_root).resolve()
     )
-    research_dir = None if args.research_dir is None else Path(args.research_dir).resolve()
+    research_dir = (
+        None if args.research_dir is None else Path(args.research_dir).resolve()
+    )
     domains = canonical_domains(args.domains, all_domains=args.all)
     try:
         reports = refresh_domains(

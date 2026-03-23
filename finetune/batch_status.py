@@ -7,7 +7,6 @@ import argparse
 import json
 from pathlib import Path
 
-
 SCRIPT_DIR = Path(__file__).resolve().parent
 DEFAULT_RUNS_DIR = SCRIPT_DIR / "runs"
 
@@ -17,7 +16,9 @@ def load_manifest(path: Path) -> dict:
 
 
 def find_manifests(runs_dir: Path) -> list[Path]:
-    return sorted(runs_dir.glob("*/manifest.json"), key=lambda p: p.stat().st_mtime, reverse=True)
+    return sorted(
+        runs_dir.glob("*/manifest.json"), key=lambda p: p.stat().st_mtime, reverse=True
+    )
 
 
 def compact_status(payload: dict) -> str:
@@ -80,10 +81,14 @@ def format_overview(items: list[dict]) -> str:
             widths[idx] = max(widths[idx], len(str(value)))
 
     lines = []
-    lines.append("  ".join(header.ljust(widths[idx]) for idx, header in enumerate(headers)))
+    lines.append(
+        "  ".join(header.ljust(widths[idx]) for idx, header in enumerate(headers))
+    )
     lines.append("  ".join("-" * widths[idx] for idx in range(len(headers))))
     for row in rows:
-        lines.append("  ".join(str(value).ljust(widths[idx]) for idx, value in enumerate(row)))
+        lines.append(
+            "  ".join(str(value).ljust(widths[idx]) for idx, value in enumerate(row))
+        )
     return "\n".join(lines)
 
 
@@ -119,8 +124,12 @@ def resolve_manifest_target(run_arg: str) -> Path:
 def main() -> int:
     parser = argparse.ArgumentParser(description="Summarize finetune batch manifests")
     parser.add_argument("--runs-dir", default=str(DEFAULT_RUNS_DIR))
-    parser.add_argument("--latest", type=int, default=5, help="Number of latest runs to show")
-    parser.add_argument("--run", default=None, help="Specific run dir or manifest.json to inspect")
+    parser.add_argument(
+        "--latest", type=int, default=5, help="Number of latest runs to show"
+    )
+    parser.add_argument(
+        "--run", default=None, help="Specific run dir or manifest.json to inspect"
+    )
     parser.add_argument("--json", action="store_true", help="Emit raw JSON summary")
     args = parser.parse_args()
 

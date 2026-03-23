@@ -79,15 +79,21 @@ class ClaudeProvider(LLMProvider):
                 temperature=temperature,
             )
             if not response.choices:
-                raise RuntimeError(f"Claude proxy returned empty choices for model {model}")
+                raise RuntimeError(
+                    f"Claude proxy returned empty choices for model {model}"
+                )
             choice = response.choices[0]
             return LLMResponse(
                 content=choice.message.content or "",
                 model=model,
                 provider=self.name,
                 usage={
-                    "input_tokens": response.usage.prompt_tokens if response.usage else 0,
-                    "output_tokens": response.usage.completion_tokens if response.usage else 0,
+                    "input_tokens": (
+                        response.usage.prompt_tokens if response.usage else 0
+                    ),
+                    "output_tokens": (
+                        response.usage.completion_tokens if response.usage else 0
+                    ),
                 },
             )
 

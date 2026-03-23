@@ -132,7 +132,10 @@ class HuggingFaceProvider(LLMProvider):
         access_token = settings.huggingface_oauth_access_token.strip()
         expires_at = _parse_expires_at(settings.huggingface_oauth_expires_at)
         if is_secret_configured(access_token):
-            if expires_at is None or expires_at > datetime.now(tz=UTC) + _OAUTH_REFRESH_SKEW:
+            if (
+                expires_at is None
+                or expires_at > datetime.now(tz=UTC) + _OAUTH_REFRESH_SKEW
+            ):
                 return access_token
         return await self._refresh_oauth_access_token()
 
@@ -207,7 +210,9 @@ class HuggingFaceProvider(LLMProvider):
             provider=self.name,
             usage={
                 "input_tokens": response.usage.prompt_tokens if response.usage else 0,
-                "output_tokens": (response.usage.completion_tokens if response.usage else 0),
+                "output_tokens": (
+                    response.usage.completion_tokens if response.usage else 0
+                ),
             },
         )
 

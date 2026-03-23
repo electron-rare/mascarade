@@ -15,7 +15,12 @@ from mascarade.middleware.rate_limit import RateLimitMiddleware
 # Helpers
 # ---------------------------------------------------------------------------
 
-def _make_request(path: str = "/api/chat", client_ip: str = "127.0.0.1", content_length: str | None = None):
+
+def _make_request(
+    path: str = "/api/chat",
+    client_ip: str = "127.0.0.1",
+    content_length: str | None = None,
+):
     """Build a minimal mock Starlette Request."""
     req = MagicMock()
     req.url.path = path
@@ -30,6 +35,7 @@ def _make_request(path: str = "/api/chat", client_ip: str = "127.0.0.1", content
 # ---------------------------------------------------------------------------
 # RateLimitMiddleware
 # ---------------------------------------------------------------------------
+
 
 class TestRateLimitMiddleware:
     @pytest.mark.asyncio
@@ -85,6 +91,7 @@ class TestRateLimitMiddleware:
 # BodySizeLimitMiddleware
 # ---------------------------------------------------------------------------
 
+
 class TestBodySizeLimitMiddleware:
     @pytest.mark.asyncio
     async def test_allow_small_body(self):
@@ -120,6 +127,7 @@ class TestBodySizeLimitMiddleware:
 # ---------------------------------------------------------------------------
 # mask_secrets
 # ---------------------------------------------------------------------------
+
 
 class TestMaskSecrets:
     def test_mask_sk_key(self):
@@ -165,13 +173,18 @@ class TestMaskSecrets:
 # SecretMaskingFilter
 # ---------------------------------------------------------------------------
 
+
 class TestSecretMaskingFilter:
     def test_filter_masks_msg(self):
         f = SecretMaskingFilter()
         record = logging.LogRecord(
-            name="test", level=logging.INFO, pathname="", lineno=0,
+            name="test",
+            level=logging.INFO,
+            pathname="",
+            lineno=0,
             msg="API key sk-abcdefghijklmnopqrstuvwxyz found",
-            args=None, exc_info=None,
+            args=None,
+            exc_info=None,
         )
         f.filter(record)
         assert "sk-***" in record.msg
@@ -179,7 +192,10 @@ class TestSecretMaskingFilter:
     def test_filter_masks_tuple_args(self):
         f = SecretMaskingFilter()
         record = logging.LogRecord(
-            name="test", level=logging.INFO, pathname="", lineno=0,
+            name="test",
+            level=logging.INFO,
+            pathname="",
+            lineno=0,
             msg="key=%s",
             args=("sk-abcdefghijklmnopqrstuvwxyz",),
             exc_info=None,
@@ -190,7 +206,10 @@ class TestSecretMaskingFilter:
     def test_filter_masks_dict_args(self):
         f = SecretMaskingFilter()
         record = logging.LogRecord(
-            name="test", level=logging.INFO, pathname="", lineno=0,
+            name="test",
+            level=logging.INFO,
+            pathname="",
+            lineno=0,
             msg="safe message",
             args=None,
             exc_info=None,
@@ -204,7 +223,12 @@ class TestSecretMaskingFilter:
     def test_filter_returns_true(self):
         f = SecretMaskingFilter()
         record = logging.LogRecord(
-            name="test", level=logging.INFO, pathname="", lineno=0,
-            msg="safe", args=None, exc_info=None,
+            name="test",
+            level=logging.INFO,
+            pathname="",
+            lineno=0,
+            msg="safe",
+            args=None,
+            exc_info=None,
         )
         assert f.filter(record) is True

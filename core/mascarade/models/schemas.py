@@ -48,6 +48,7 @@ class ChatMessage(BaseModel):
         if isinstance(values, dict) and "content" in values:
             values["content"] = _normalize_content(values["content"])
         return values
+
     name: str | None = Field(
         default=None, max_length=100, description="Optional name for the participant"
     )
@@ -156,9 +157,9 @@ class ChatCompletionRequest(BaseModel):
     response_format: ResponseFormat | None = Field(
         default=None, description="Response format configuration"
     )
-    strategy: Literal[
-        "best", "cheapest", "domain", "fastest", "specific", "routellm"
-    ] | None = Field(
+    strategy: (
+        Literal["best", "cheapest", "domain", "fastest", "specific", "routellm"] | None
+    ) = Field(
         default=None,
         description="Optional routing strategy override",
     )
@@ -190,9 +191,7 @@ class ChatCompletionMessage(BaseModel):
     role: Literal["assistant", "system", "user", "tool", "function"] = Field(
         description="The role of the message author"
     )
-    content: Any = Field(
-        default=None, description="The content of the message"
-    )
+    content: Any = Field(default=None, description="The content of the message")
 
     @model_validator(mode="before")
     @classmethod
@@ -200,6 +199,7 @@ class ChatCompletionMessage(BaseModel):
         if isinstance(values, dict) and "content" in values:
             values["content"] = _normalize_content(values["content"])
         return values
+
     tool_calls: list[ToolCall] | None = Field(
         default=None, description="Tool calls made by the assistant"
     )
@@ -213,9 +213,12 @@ class ChatCompletionChoice(BaseModel):
 
     index: int = Field(ge=0, description="The index of this choice")
     message: ChatCompletionMessage = Field(description="The completion message")
-    finish_reason: Literal[
-        "stop", "length", "tool_calls", "content_filter", "function_call", "null"
-    ] | None = Field(default=None, description="Why the completion finished")
+    finish_reason: (
+        Literal[
+            "stop", "length", "tool_calls", "content_filter", "function_call", "null"
+        ]
+        | None
+    ) = Field(default=None, description="Why the completion finished")
     logprobs: dict | None = Field(
         default=None, description="Log probabilities (if requested)"
     )
@@ -267,10 +270,12 @@ class OllamaChatRequest(BaseModel):
     project_id: str | None = Field(default=None, min_length=1, max_length=256)
     knowledge_scope: Literal["project", "federated"] = Field(default="project")
     federation_scope: list[str] | None = Field(default=None)
-    strategy: Literal[
-        "best", "cheapest", "domain", "fastest", "specific", "routellm"
-    ] | None = Field(default=None)
-    routing_policy: Literal["auto", "strong", "cheap", "fast"] | None = Field(default=None)
+    strategy: (
+        Literal["best", "cheapest", "domain", "fastest", "specific", "routellm"] | None
+    ) = Field(default=None)
+    routing_policy: Literal["auto", "strong", "cheap", "fast"] | None = Field(
+        default=None
+    )
 
 
 class OllamaGenerateRequest(BaseModel):
@@ -285,7 +290,9 @@ class OllamaGenerateRequest(BaseModel):
     project_id: str | None = Field(default=None, min_length=1, max_length=256)
     knowledge_scope: Literal["project", "federated"] = Field(default="project")
     federation_scope: list[str] | None = Field(default=None)
-    strategy: Literal[
-        "best", "cheapest", "domain", "fastest", "specific", "routellm"
-    ] | None = Field(default=None)
-    routing_policy: Literal["auto", "strong", "cheap", "fast"] | None = Field(default=None)
+    strategy: (
+        Literal["best", "cheapest", "domain", "fastest", "specific", "routellm"] | None
+    ) = Field(default=None)
+    routing_policy: Literal["auto", "strong", "cheap", "fast"] | None = Field(
+        default=None
+    )

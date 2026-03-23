@@ -103,9 +103,7 @@ class DeviceRegistry:
         Returns:
             List of matching device descriptors
         """
-        return [
-            d for d in self._devices.values() if capability in d.capabilities
-        ]
+        return [d for d in self._devices.values() if capability in d.capabilities]
 
     def remove(self, device_id: str) -> None:
         """Remove a device from the registry.
@@ -151,9 +149,7 @@ class DeviceRegistry:
             if device.online and (current_time_ms - device.last_seen_ms) > self._ttl_ms:
                 device.online = False
                 expired.append(device_id)
-                logger.warning(
-                    "Device expired (TTL=%dms): %s", self._ttl_ms, device_id
-                )
+                logger.warning("Device expired (TTL=%dms): %s", self._ttl_ms, device_id)
 
         return expired
 

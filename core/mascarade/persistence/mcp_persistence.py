@@ -27,7 +27,7 @@ class PersistentModelContext(BaseModel):
     persistence_flags: dict[str, bool] = {
         "persist_across_sessions": False,
         "shareable": False,
-        "versioned": False
+        "versioned": False,
     }
 
     class Config:
@@ -45,8 +45,8 @@ class PersistentModelContext(BaseModel):
                     "persistence_flags": {
                         "persist_across_sessions": True,
                         "shareable": False,
-                        "versioned": True
-                    }
+                        "versioned": True,
+                    },
                 }
             ]
         }
@@ -57,7 +57,7 @@ class PersistentModelContext(BaseModel):
         mcp_context: dict[str, Any],
         context_id: str,
         created_at: str,
-        updated_at: str
+        updated_at: str,
     ) -> PersistentModelContext:
         """Create persistent context from MCP context."""
         return cls(
@@ -68,7 +68,7 @@ class PersistentModelContext(BaseModel):
             parameters=mcp_context["parameters"],
             metadata=mcp_context.get("metadata", {}),
             created_at=created_at,
-            updated_at=updated_at
+            updated_at=updated_at,
         )
 
     def to_mcp_context(self) -> dict[str, Any]:
@@ -77,7 +77,7 @@ class PersistentModelContext(BaseModel):
             model_id=self.model_id,
             session_id=self.session_id,
             parameters=self.parameters,
-            metadata=self.metadata
+            metadata=self.metadata,
         )
 
 
@@ -85,9 +85,7 @@ class MCPPersistenceManager:
     """Persistence manager for Model Context Protocol contexts."""
 
     def __init__(
-        self,
-        redis_url: str = "redis://localhost:6379",
-        default_ttl: int = 86400
+        self, redis_url: str = "redis://localhost:6379", default_ttl: int = 86400
     ) -> None:
         """Initialize MCP persistence manager.
 
@@ -131,9 +129,7 @@ class MCPPersistenceManager:
         return f"mcp:model:{model_id}:contexts"
 
     async def save_context(
-        self,
-        context: PersistentModelContext,
-        ttl: int | None = None
+        self, context: PersistentModelContext, ttl: int | None = None
     ) -> str:
         """Save MCP context to persistence layer.
 
@@ -170,8 +166,10 @@ class MCPPersistenceManager:
 
         await pipeline.execute()
 
-        logger.info(f"Saved MCP context {context.context_id} "
-                   f"(model: {context.model_id}, session: {context.session_id})")
+        logger.info(
+            f"Saved MCP context {context.context_id} "
+            f"(model: {context.model_id}, session: {context.session_id})"
+        )
 
         return context.context_id
 
@@ -203,9 +201,7 @@ class MCPPersistenceManager:
             return None
 
     async def update_context(
-        self,
-        context_id: str,
-        update_data: dict[str, Any]
+        self, context_id: str, update_data: dict[str, Any]
     ) -> bool:
         """Update existing MCP context.
 
@@ -231,6 +227,7 @@ class MCPPersistenceManager:
 
         # Update timestamp
         from datetime import datetime
+
         existing_context.updated_at = datetime.utcnow().isoformat() + "Z"
 
         # Save updated context
@@ -280,7 +277,9 @@ class MCPPersistenceManager:
 
     # --- Session Management ---
 
-    async def get_session_contexts(self, session_id: str) -> list[PersistentModelContext]:
+    async def get_session_contexts(
+        self, session_id: str
+    ) -> list[PersistentModelContext]:
         """Get all contexts for a session.
 
         Args:
@@ -334,7 +333,7 @@ class MCPPersistenceManager:
         self,
         mcp_context: dict[str, Any],
         persistence_flags: dict[str, bool] = None,
-        ttl: int | None = None
+        ttl: int | None = None,
     ) -> str:
         """Create a new persistent MCP context.
 
@@ -360,7 +359,7 @@ class MCPPersistenceManager:
             metadata=mcp_context.get("metadata", {}),
             created_at=now,
             updated_at=now,
-            persistence_flags=persistence_flags or {}
+            persistence_flags=persistence_flags or {},
         )
 
         return await self.save_context(persistent_context, ttl)
@@ -370,7 +369,7 @@ class MCPPersistenceManager:
         model_id: str | None = None,
         session_id: str | None = None,
         persist_across_sessions: bool | None = None,
-        limit: int = 10
+        limit: int = 10,
     ) -> list[PersistentModelContext]:
         """Search MCP contexts with advanced filters.
 
@@ -403,8 +402,11 @@ class MCPPersistenceManager:
             if session_id and context.session_id != session_id:
                 continue
 
-            if persist_across_sessions is not None and \
-               context.persistence_flags.get("persist_across_sessions") != persist_across_sessions:
+            if (
+                persist_across_sessions is not None
+                and context.persistence_flags.get("persist_across_sessions")
+                != persist_across_sessions
+            ):
                 continue
 
             results.append(context)
@@ -447,15 +449,13 @@ class MCPPersistenceManager:
             "models": model_stats,
             "sessions": session_stats,
             "model_count": len(model_stats),
-            "session_count": len(session_stats)
+            "session_count": len(session_stats),
         }
 
     # --- Context Versioning ---
 
     async def version_context(
-        self,
-        context_id: str,
-        version_notes: str = ""
+        self, context_id: str, version_notes: str = ""
     ) -> str | None:
         """Create a new version of an existing context.
 
@@ -496,11 +496,11 @@ class MCPPersistenceManager:
                 **original.metadata,
                 "version_of": context_id,
                 "version_notes": version_notes,
-                "version_timestamp": now
+                "version_timestamp": now,
             },
             created_at=now,
             updated_at=now,
-            persistence_flags=dict(original.persistence_flags)
+            persistence_flags=dict(original.persistence_flags),
         )
 
         # Save new version
@@ -509,7 +509,9 @@ class MCPPersistenceManager:
         logger.info(f"Created version {new_context_id} of context {context_id}")
         return new_context_id
 
-    async def get_context_versions(self, context_id: str) -> list[PersistentModelContext]:
+    async def get_context_versions(
+        self, context_id: str
+    ) -> list[PersistentModelContext]:
         """Get all versions of a context.
 
         Args:
@@ -604,6 +606,7 @@ class MCPPersistenceManager:
 
 # Utility functions for MCP persistence
 
+
 async def create_persistent_mcp_context(
     manager: MCPPersistenceManager,
     model_id: str,
@@ -611,7 +614,7 @@ async def create_persistent_mcp_context(
     parameters: dict[str, Any],
     metadata: dict[str, Any] | None = None,
     persistence_flags: dict[str, bool] | None = None,
-    ttl: int | None = None
+    ttl: int | None = None,
 ) -> str:
     """Create a new persistent MCP context with automatic IDs."""
     # Create standard MCP context
@@ -619,20 +622,17 @@ async def create_persistent_mcp_context(
         model_id=model_id,
         session_id=session_id,
         parameters=parameters,
-        metadata=metadata
+        metadata=metadata,
     )
 
     # Create persistent version
     return await manager.create_persistent_context(
-        mcp_context=mcp_context,
-        persistence_flags=persistence_flags,
-        ttl=ttl
+        mcp_context=mcp_context, persistence_flags=persistence_flags, ttl=ttl
     )
 
 
 async def load_mcp_context_with_persistence(
-    manager: MCPPersistenceManager,
-    context_id: str
+    manager: MCPPersistenceManager, context_id: str
 ) -> dict[str, Any] | None:
     """Load MCP context from persistence, falling back to standard format."""
     persistent_context = await manager.get_context(context_id)
@@ -643,7 +643,7 @@ async def update_mcp_context_with_persistence(
     manager: MCPPersistenceManager,
     context_id: str,
     parameters: dict[str, Any] | None = None,
-    metadata: dict[str, Any] | None = None
+    metadata: dict[str, Any] | None = None,
 ) -> bool:
     """Update MCP context parameters and metadata with persistence."""
     update_data = {}

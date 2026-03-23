@@ -8,6 +8,7 @@ import logging
 
 try:
     import openai
+
     GPT53_CODEX_AVAILABLE = True
 except ImportError:
     GPT53_CODEX_AVAILABLE = False
@@ -38,10 +39,7 @@ class GPT53CodexProvider(LLMProvider):
                 "Install with: pip install openai"
             )
 
-        self.client = openai.AsyncOpenAI(
-            api_key=api_key,
-            organization=organization
-        )
+        self.client = openai.AsyncOpenAI(api_key=api_key, organization=organization)
         logger.info("GPT-5.3 Codex provider initialized")
 
     async def send(
@@ -135,33 +133,18 @@ class GPT53CodexFunctionCalling:
         self.provider = provider
 
     async def call_with_functions(
-        self,
-        messages: list[dict],
-        functions: list[dict],
-        **kwargs
+        self, messages: list[dict], functions: list[dict], **kwargs
     ) -> LLMResponse:
         """Call model with function calling capabilities."""
         # Convert functions to tools format
-        tools = [
-            {
-                "type": "function",
-                "function": func
-            }
-            for func in functions
-        ]
+        tools = [{"type": "function", "function": func} for func in functions]
 
         return await self.provider.send(
-            messages=messages,
-            tools=tools,
-            tool_choice="auto",
-            **kwargs
+            messages=messages, tools=tools, tool_choice="auto", **kwargs
         )
 
     async def call_with_interactive_workflow(
-        self,
-        messages: list[dict],
-        functions: list[dict],
-        max_turns: int = 5
+        self, messages: list[dict], functions: list[dict], max_turns: int = 5
     ) -> list[LLMResponse]:
         """Handle multi-turn function calling workflow."""
         responses = []
@@ -169,29 +152,28 @@ class GPT53CodexFunctionCalling:
 
         for _ in range(max_turns):
             # Get response with function calls
-            response = await self.call_with_functions(
-                current_messages,
-                functions
-            )
+            response = await self.call_with_functions(current_messages, functions)
             responses.append(response)
 
             # Check if function needs to be called
-            if hasattr(response, 'tool_calls'):
+            if hasattr(response, "tool_calls"):
                 # Execute functions and add results to messages
                 for tool_call in response.tool_calls:
                     func_name = tool_call.function.name
                     func_args = json.loads(tool_call.function.arguments)
 
                     # Find and execute the function
-                    func = next(f for f in functions if f['name'] == func_name)
-                    func_result = func['implementation'](**func_args)
+                    func = next(f for f in functions if f["name"] == func_name)
+                    func_result = func["implementation"](**func_args)
 
                     # Add function result to messages
-                    current_messages.append({
-                        "role": "tool",
-                        "content": json.dumps(func_result),
-                        "tool_call_id": tool_call.id
-                    })
+                    current_messages.append(
+                        {
+                            "role": "tool",
+                            "content": json.dumps(func_result),
+                            "tool_call_id": tool_call.id,
+                        }
+                    )
             else:
                 break
 

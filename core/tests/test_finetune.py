@@ -10,15 +10,28 @@ from mascarade.config import settings
 from mascarade.finetune.agents.analyst import AnalystAgent
 from mascarade.finetune.agents.archivist import ArchivistAgent
 from mascarade.finetune.agents.documentalist import DocumentalistAgent
-from mascarade.finetune.agents.reinforcer import DPOPair, ReinforcementResult, ReinforcerAgent
+from mascarade.finetune.agents.reinforcer import (
+    DPOPair,
+    ReinforcementResult,
+    ReinforcerAgent,
+)
 from mascarade.finetune.agents.researcher import ResearcherAgent
 from mascarade.finetune.agents.student import LoRAConfig, StudentAgent
 from mascarade.finetune.agents.teacher import TeacherAgent
 from mascarade.finetune.agents.validator import ValidatorAgent
-from mascarade.finetune.orchestrator import FinetuneOrchestrator, PipelineConfig, PipelineState
+from mascarade.finetune.orchestrator import (
+    FinetuneOrchestrator,
+    PipelineConfig,
+    PipelineState,
+)
 from mascarade.finetune.p2p.capabilities import CAPABILITY_NODE_MAP, FT_CAPABILITIES
 from mascarade.finetune.p2p.task_handlers import handle_ft_task
-from mascarade.finetune.registry import DatasetEntry, FinetuneRegistry, ModelEntry, RunEntry
+from mascarade.finetune.registry import (
+    DatasetEntry,
+    FinetuneRegistry,
+    ModelEntry,
+    RunEntry,
+)
 
 
 class _FakeResponse:
@@ -51,8 +64,14 @@ class TestImports:
     def test_capabilities_defined(self):
         assert len(FT_CAPABILITIES) == 8
         expected = {
-            "ft-research", "ft-dataset", "ft-archive", "ft-analysis",
-            "ft-teacher", "ft-student", "ft-reinforcement", "ft-validation",
+            "ft-research",
+            "ft-dataset",
+            "ft-archive",
+            "ft-analysis",
+            "ft-teacher",
+            "ft-student",
+            "ft-reinforcement",
+            "ft-validation",
         }
         assert set(FT_CAPABILITIES.keys()) == expected
 
@@ -72,10 +91,15 @@ class TestRegistry:
     def test_add_model_persists(self, tmp_path):
         path = tmp_path / "reg.json"
         reg = FinetuneRegistry(path)
-        reg.add_model(ModelEntry(
-            model_id="test/model-1", source="huggingface",
-            task="code", size_gb=1.5, license="apache-2.0",
-        ))
+        reg.add_model(
+            ModelEntry(
+                model_id="test/model-1",
+                source="huggingface",
+                task="code",
+                size_gb=1.5,
+                license="apache-2.0",
+            )
+        )
         assert "test/model-1" in reg.models
         assert path.exists()
 
@@ -86,32 +110,53 @@ class TestRegistry:
 
     def test_add_dataset_persists(self, tmp_path):
         reg = FinetuneRegistry(tmp_path / "reg.json")
-        reg.add_dataset(DatasetEntry(
-            dataset_id="test/ds-1", source="huggingface",
-            domain="code", rows=5000, license="mit",
-        ))
+        reg.add_dataset(
+            DatasetEntry(
+                dataset_id="test/ds-1",
+                source="huggingface",
+                domain="code",
+                rows=5000,
+                license="mit",
+            )
+        )
         assert "test/ds-1" in reg.datasets
 
     def test_add_run(self, tmp_path):
         reg = FinetuneRegistry(tmp_path / "reg.json")
-        reg.add_run(RunEntry(
-            run_id="run-001", base_model="test/m", dataset="test/d",
-            method="qlora-4bit", node="KXKM", status="completed",
-            metrics={"loss": 1.5},
-        ))
+        reg.add_run(
+            RunEntry(
+                run_id="run-001",
+                base_model="test/m",
+                dataset="test/d",
+                method="qlora-4bit",
+                node="KXKM",
+                status="completed",
+                metrics={"loss": 1.5},
+            )
+        )
         assert "run-001" in reg.runs
         assert reg.runs["run-001"].status == "completed"
 
     def test_best_model_for_task(self, tmp_path):
         reg = FinetuneRegistry(tmp_path / "reg.json")
-        reg.add_model(ModelEntry(
-            model_id="big/model", source="hf", task="code",
-            size_gb=10.0, downloads=1000,
-        ))
-        reg.add_model(ModelEntry(
-            model_id="small/model", source="hf", task="code",
-            size_gb=1.0, downloads=500,
-        ))
+        reg.add_model(
+            ModelEntry(
+                model_id="big/model",
+                source="hf",
+                task="code",
+                size_gb=10.0,
+                downloads=1000,
+            )
+        )
+        reg.add_model(
+            ModelEntry(
+                model_id="small/model",
+                source="hf",
+                task="code",
+                size_gb=1.0,
+                downloads=500,
+            )
+        )
         best = reg.best_model_for_task("code", max_size_gb=4.0)
         assert best is not None
         assert best.model_id == "small/model"
@@ -146,11 +191,16 @@ class TestAgentLogic:
 
     def test_validator_red_team_prompts(self):
         from mascarade.finetune.agents.validator import RED_TEAM_PROMPTS
+
         assert len(RED_TEAM_PROMPTS) >= 5
 
     def test_reinforcer_repetition_check(self):
-        assert ReinforcerAgent._is_repetitive("the the the the the the the the the the the the")
-        assert not ReinforcerAgent._is_repetitive("This is a normal sentence with varied words and good content.")
+        assert ReinforcerAgent._is_repetitive(
+            "the the the the the the the the the the the the"
+        )
+        assert not ReinforcerAgent._is_repetitive(
+            "This is a normal sentence with varied words and good content."
+        )
 
     def test_teacher_format_chatml(self):
         entry = TeacherAgent._format_entry("prompt", "response", "chatml")
@@ -281,9 +331,14 @@ class TestRegistryAtomicSave:
     def test_atomic_save_creates_file(self, tmp_path):
         path = tmp_path / "reg.json"
         reg = FinetuneRegistry(path)
-        reg.add_model(ModelEntry(
-            model_id="test/m", source="hf", task="code", size_gb=1.0,
-        ))
+        reg.add_model(
+            ModelEntry(
+                model_id="test/m",
+                source="hf",
+                task="code",
+                size_gb=1.0,
+            )
+        )
         assert path.exists()
         # Ensure no .tmp file lingers
         assert not path.with_suffix(".tmp").exists()
@@ -293,7 +348,11 @@ class TestRegistryAtomicSave:
         reg = FinetuneRegistry(path)
         reg.add_model(ModelEntry(model_id="m1", source="hf", task="code", size_gb=1.0))
         reg.add_dataset(DatasetEntry(dataset_id="d1", source="hf", domain="code"))
-        reg.add_run(RunEntry(run_id="r1", base_model="m1", dataset="d1", method="lora", node="test"))
+        reg.add_run(
+            RunEntry(
+                run_id="r1", base_model="m1", dataset="d1", method="lora", node="test"
+            )
+        )
 
         reg2 = FinetuneRegistry(path)
         assert "m1" in reg2.models
@@ -344,7 +403,10 @@ class TestStudentBackend:
 class TestReinforcerSimPO:
     def test_reinforcement_result_method_field(self):
         from mascarade.finetune.agents.reinforcer import ReinforcementResult
-        r = ReinforcementResult(dataset_path="/tmp/test.jsonl", total_pairs=10, method="simpo")
+
+        r = ReinforcementResult(
+            dataset_path="/tmp/test.jsonl", total_pairs=10, method="simpo"
+        )
         assert r.method == "simpo"
         assert r.ready_for_training
 
@@ -399,7 +461,9 @@ class TestReinforcerKxkm:
         settings.kxkm_rag_url = "http://localhost:3333"
         settings.kxkm_dpo_persona = "pharmacius"
 
-        with patch("mascarade.finetune.agents.reinforcer.httpx.AsyncClient") as async_client_cls:
+        with patch(
+            "mascarade.finetune.agents.reinforcer.httpx.AsyncClient"
+        ) as async_client_cls:
             ctx = AsyncMock()
             ctx.get = AsyncMock(
                 return_value=_FakeResponse(
@@ -442,7 +506,9 @@ class TestReinforcerKxkm:
         assert kwargs["headers"]["x-mascarade-federation-scope"] == "project-alpha"
 
     @pytest.mark.asyncio
-    async def test_generate_dpo_pairs_dedupes_kxkm_feedback(self, tmp_path, monkeypatch):
+    async def test_generate_dpo_pairs_dedupes_kxkm_feedback(
+        self, tmp_path, monkeypatch
+    ):
         settings.mascarade_project_id = "project-alpha"
         agent = ReinforcerAgent(output_dir=tmp_path)
         duplicate = DPOPair(
@@ -480,9 +546,11 @@ class TestPubSubThreadSafety:
         from unittest.mock import MagicMock
 
         from mascarade.p2p.pubsub import P2PPubSub
+
         transport = MagicMock()
         transport.on_message = MagicMock()
         ps = P2PPubSub(local_peer_id="test", transport=transport)
         assert hasattr(ps, "_seen_lock")
         import asyncio
+
         assert isinstance(ps._seen_lock, asyncio.Lock)

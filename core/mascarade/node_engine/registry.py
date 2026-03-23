@@ -47,10 +47,11 @@ class NodeTypeRegistry:
                 self._builtin_names.add(item.id)
         elif isinstance(item, DomainType):
             qualified_name = item.qualified_name
-            if qualified_name in self._types and qualified_name not in self._builtin_names:
-                logger.warning(
-                    "Overwriting existing domain type: %s", qualified_name
-                )
+            if (
+                qualified_name in self._types
+                and qualified_name not in self._builtin_names
+            ):
+                logger.warning("Overwriting existing domain type: %s", qualified_name)
             self._types[qualified_name] = item
             if builtin:
                 self._builtin_names.add(qualified_name)
@@ -91,9 +92,11 @@ class NodeTypeRegistry:
         Returns:
             List of all registered types
         """
-        all_items: list[DomainType | NodeType] = list(self._types.values()) + list(self._node_types.values())
+        all_items: list[DomainType | NodeType] = list(self._types.values()) + list(
+            self._node_types.values()
+        )
         if domain:
-            return [item for item in all_items if getattr(item, 'domain', '') == domain]
+            return [item for item in all_items if getattr(item, "domain", "") == domain]
         return all_items
 
     def domains(self) -> list[str]:
@@ -129,7 +132,9 @@ class NodeTypeRegistry:
 
     # --- Worker management ---
 
-    def register_type(self, item: DomainType | NodeType, *, builtin: bool = False) -> None:
+    def register_type(
+        self, item: DomainType | NodeType, *, builtin: bool = False
+    ) -> None:
         """Alias for register() for backward compatibility."""
         self.register(item, builtin=builtin)
 
@@ -237,9 +242,7 @@ class NodeTypeRegistry:
         try:
             raw = json.loads(self._storage_path.read_text(encoding="utf-8"))
         except (json.JSONDecodeError, OSError) as exc:
-            logger.error(
-                "Failed to load types from %s: %s", self._storage_path, exc
-            )
+            logger.error("Failed to load types from %s: %s", self._storage_path, exc)
             return
 
         for data in raw:

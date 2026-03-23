@@ -75,7 +75,9 @@ class ProviderBenchmarkStats:
     def get_summary(self) -> dict:
         """Obtenir un résumé des statistiques."""
         success_rate = (
-            (self.successful_runs / self.total_runs * 100) if self.total_runs > 0 else 0.0
+            (self.successful_runs / self.total_runs * 100)
+            if self.total_runs > 0
+            else 0.0
         )
 
         return {
@@ -85,7 +87,9 @@ class ProviderBenchmarkStats:
             "failed_runs": self.failed_runs,
             "success_rate": round(success_rate, 2),
             "avg_latency": round(self.avg_latency, 2),
-            "min_latency": round(self.min_latency, 2) if self.min_latency != float("inf") else 0,
+            "min_latency": (
+                round(self.min_latency, 2) if self.min_latency != float("inf") else 0
+            ),
             "max_latency": round(self.max_latency, 2),
             "total_tokens": self.total_tokens,
             "total_cost": round(self.total_cost, 4),
@@ -105,7 +109,9 @@ class BenchmarkRunner:
         self.router = router or Router()
         self.results: list[BenchmarkResult] = []
         self.provider_stats: dict[str, ProviderBenchmarkStats] = {}
-        self.domain_stats: dict[str, dict] = defaultdict(lambda: {"total": 0, "success": 0})
+        self.domain_stats: dict[str, dict] = defaultdict(
+            lambda: {"total": 0, "success": 0}
+        )
 
     def _get_provider_stats(self, provider_name: str) -> ProviderBenchmarkStats:
         """Obtenir ou créer les statistiques pour un provider."""
@@ -165,7 +171,9 @@ class BenchmarkRunner:
                 input_tokens = response.usage.get("input_tokens", 0)
                 output_tokens = response.usage.get("output_tokens", 0)
                 in_cost, out_cost = provider.cost_per_million
-                cost = ((input_tokens * in_cost) + (output_tokens * out_cost)) / 1_000_000
+                cost = (
+                    (input_tokens * in_cost) + (output_tokens * out_cost)
+                ) / 1_000_000
 
         except Exception as exc:
             latency = time.perf_counter() - start_time
@@ -324,8 +332,7 @@ class BenchmarkRunner:
             "successful_benchmarks": sum(1 for r in self.results if r.success),
             "failed_benchmarks": sum(1 for r in self.results if not r.success),
             "providers": {
-                name: stats.get_summary()
-                for name, stats in self.provider_stats.items()
+                name: stats.get_summary() for name, stats in self.provider_stats.items()
             },
             "domains": dict(self.domain_stats),
         }
@@ -342,7 +349,9 @@ class BenchmarkRunner:
 
         fastest = min(
             self.provider_stats.items(),
-            key=lambda x: x[1].avg_latency if x[1].successful_runs > 0 else float("inf"),
+            key=lambda x: (
+                x[1].avg_latency if x[1].successful_runs > 0 else float("inf")
+            ),
         )
 
         return fastest[0] if fastest[1].successful_runs > 0 else None

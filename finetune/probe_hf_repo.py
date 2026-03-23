@@ -21,7 +21,9 @@ def probe(repo_type: str, repo_id: str, timeout: float) -> dict:
     )
     context = ssl.create_default_context()
     try:
-        with urllib.request.urlopen(request, timeout=timeout, context=context) as response:
+        with urllib.request.urlopen(
+            request, timeout=timeout, context=context
+        ) as response:
             payload = json.loads(response.read().decode("utf-8"))
             return {
                 "ok": True,

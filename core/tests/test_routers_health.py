@@ -85,7 +85,9 @@ class FakeRegistry:
 
 
 @asynccontextmanager
-async def _client(fake_router: FakeRouter | None = None, fake_registry: FakeRegistry | None = None):
+async def _client(
+    fake_router: FakeRouter | None = None, fake_registry: FakeRegistry | None = None
+):
     """Create test client with optional fake router and registry."""
     async with app.router.lifespan_context(app):
         original_router = None
@@ -96,7 +98,9 @@ async def _client(fake_router: FakeRouter | None = None, fake_registry: FakeRegi
             app.state.router = fake_router
 
         if fake_registry is not None:
-            original_registry = app.state.registry if hasattr(app.state, "registry") else None
+            original_registry = (
+                app.state.registry if hasattr(app.state, "registry") else None
+            )
             app.state.registry = fake_registry
 
         try:
@@ -373,12 +377,17 @@ async def test_provider_health_all_healthy():
 
     class AllHealthyMonitor:
         last_check_time = datetime.now()
+
         def get_all_health(self):
             return {
                 "openai": FakeProviderHealth(
-                    is_healthy=True, success_rate=1.0, avg_latency_ms=100.0,
-                    total_requests=200, failed_requests=0,
-                    last_success=datetime.now(), last_failure=None,
+                    is_healthy=True,
+                    success_rate=1.0,
+                    avg_latency_ms=100.0,
+                    total_requests=200,
+                    failed_requests=0,
+                    last_success=datetime.now(),
+                    last_failure=None,
                     consecutive_failures=0,
                 ),
             }

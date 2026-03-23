@@ -21,14 +21,14 @@ class MistralRoutingOptimizer:
         try:
             response = await self.client.get(f"{self.api_base_url}/metrics")
             response.raise_for_status()
-            
+
             metrics = {}
-            for line in response.text.split('\n'):
-                if line.startswith('mistral_'):
+            for line in response.text.split("\n"):
+                if line.startswith("mistral_"):
                     parts = line.split()
                     if len(parts) >= 2:
                         metrics[parts[0]] = float(parts[1])
-            
+
             return metrics
         except Exception as e:
             print(f"Error fetching metrics: {e}")
@@ -37,7 +37,7 @@ class MistralRoutingOptimizer:
     async def analyze_performance(self):
         """Analyze current performance and suggest optimizations."""
         metrics = await self.fetch_metrics()
-        
+
         if not metrics:
             print("No metrics available for analysis.")
             return
@@ -62,8 +62,8 @@ class MistralRoutingOptimizer:
         recommendations = []
 
         # Latency analysis
-        if 'mistral_latency' in metrics:
-            latency = metrics['mistral_latency']
+        if "mistral_latency" in metrics:
+            latency = metrics["mistral_latency"]
             if latency > 200:  # P95 target
                 recommendations.append(
                     f"⚠️ High latency detected: {latency:.0f}ms (target < 200ms). "
@@ -75,8 +75,10 @@ class MistralRoutingOptimizer:
                 )
 
         # Error rate analysis
-        if 'mistral_errors' in metrics and 'mistral_requests_total' in metrics:
-            error_rate = metrics['mistral_errors'] / max(metrics['mistral_requests_total'], 1)
+        if "mistral_errors" in metrics and "mistral_requests_total" in metrics:
+            error_rate = metrics["mistral_errors"] / max(
+                metrics["mistral_requests_total"], 1
+            )
             if error_rate > 0.01:  # 1% threshold
                 recommendations.append(
                     f"⚠️ High error rate: {error_rate:.2%}. "
@@ -88,8 +90,8 @@ class MistralRoutingOptimizer:
                 )
 
         # Throughput analysis
-        if 'mistral_throughput' in metrics:
-            throughput = metrics['mistral_throughput']
+        if "mistral_throughput" in metrics:
+            throughput = metrics["mistral_throughput"]
             if throughput < 500:  # Target: 500+ req/s
                 recommendations.append(
                     f"⚠️ Low throughput: {throughput:.0f} req/s (target > 500). "
@@ -101,8 +103,8 @@ class MistralRoutingOptimizer:
                 )
 
         # Cost analysis
-        if 'mistral_cost' in metrics:
-            cost = metrics['mistral_cost']
+        if "mistral_cost" in metrics:
+            cost = metrics["mistral_cost"]
             if cost > 0.30:  # $0.30 per 1M tokens threshold
                 recommendations.append(
                     f"⚠️ High cost: ${cost:.2f} per 1M tokens (target < $0.30). "
@@ -114,41 +116,41 @@ class MistralRoutingOptimizer:
                 )
 
         # Print recommendations
-        print("\n" + "="*60)
+        print("\n" + "=" * 60)
         print("Mistral Routing Optimization Report")
-        print("="*60)
+        print("=" * 60)
         print(f"Generated: {time.strftime('%Y-%m-%d %H:%M:%S')}")
         print("\nCurrent Metrics:")
         for key, value in metrics.items():
             print(f"  {key}: {value:.2f}")
-        
+
         print("\nRecommendations:")
         for rec in recommendations:
             print(f"  {rec}")
-        
+
         print("\nTrends (last 10 samples):")
         for key, trend in trends.items():
             direction = "↑" if trend > 0 else "↓"
             print(f"  {key}: {direction} {abs(trend):.2f}")
-        
-        print("="*60 + "\n")
+
+        print("=" * 60 + "\n")
 
     async def optimize_routing(self):
         """Apply routing optimizations."""
         # This would interact with the scheduler API
         # to adjust routing parameters
         print("Applying routing optimizations...")
-        
+
         # Example: Adjust worker weights based on performance
         # This is a placeholder - actual implementation would
         # call the scheduler's optimization endpoints
-        
+
         print("✅ Routing optimization applied")
 
     async def run(self):
         """Main optimization loop."""
         print("Starting Mistral Routing Optimizer...")
-        
+
         try:
             while True:
                 await self.analyze_performance()

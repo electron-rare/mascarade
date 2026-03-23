@@ -151,16 +151,22 @@ class MeshWorker(NodeWorker):
             raise ValueError("mesh is required for mesh simplify")
 
         if not 0.0 <= target_ratio <= 1.0:
-            raise ValueError(f"target_ratio must be between 0.0 and 1.0, got {target_ratio}")
+            raise ValueError(
+                f"target_ratio must be between 0.0 and 1.0, got {target_ratio}"
+            )
 
         # Simplify the mesh
         original_face_count = len(mesh.get("faces", []))
-        simplified_mesh = await self._simplify_mesh(mesh, target_ratio, preserve_boundaries)
+        simplified_mesh = await self._simplify_mesh(
+            mesh, target_ratio, preserve_boundaries
+        )
         simplified_face_count = len(simplified_mesh.get("faces", []))
 
         # Calculate reduction percentage
         if original_face_count > 0:
-            reduction_pct = ((original_face_count - simplified_face_count) / original_face_count) * 100
+            reduction_pct = (
+                (original_face_count - simplified_face_count) / original_face_count
+            ) * 100
         else:
             reduction_pct = 0.0
 
@@ -360,7 +366,9 @@ class MeshWorker(NodeWorker):
                     parts = line.split()
                     # First number is vertex count, rest are indices
                     num_vertices = int(parts[0])
-                    face_indices = [int(parts[i + 1]) for i in range(min(num_vertices, 3))]
+                    face_indices = [
+                        int(parts[i + 1]) for i in range(min(num_vertices, 3))
+                    ]
                     faces.append(face_indices)
 
         return {
@@ -370,7 +378,9 @@ class MeshWorker(NodeWorker):
             "format": "ply",
         }
 
-    async def _export_mesh(self, mesh: dict[str, Any], format_type: str, options: dict[str, Any]) -> str:
+    async def _export_mesh(
+        self, mesh: dict[str, Any], format_type: str, options: dict[str, Any]
+    ) -> str:
         """Export mesh to target format.
 
         Args:
@@ -413,7 +423,9 @@ class MeshWorker(NodeWorker):
             else:
                 normal = self._calculate_face_normal(vertices, face)
 
-            lines.append(f"  facet normal {normal[0]:.6f} {normal[1]:.6f} {normal[2]:.6f}")
+            lines.append(
+                f"  facet normal {normal[0]:.6f} {normal[1]:.6f} {normal[2]:.6f}"
+            )
             lines.append("    outer loop")
 
             for vertex_idx in face:
@@ -577,7 +589,9 @@ class MeshWorker(NodeWorker):
         if operation == "union":
             # Simple concatenation (not a true union)
             result_vertices = vertices_a + vertices_b
-            result_faces = faces_a + [[idx + len(vertices_a) for idx in face] for face in faces_b]
+            result_faces = faces_a + [
+                [idx + len(vertices_a) for idx in face] for face in faces_b
+            ]
 
         elif operation == "intersection":
             # Placeholder: return smaller mesh
@@ -651,7 +665,9 @@ class MeshWorker(NodeWorker):
             "is_manifold": is_manifold,
         }
 
-    def _calculate_face_normal(self, vertices: list[list[float]], face: list[int]) -> list[float]:
+    def _calculate_face_normal(
+        self, vertices: list[list[float]], face: list[int]
+    ) -> list[float]:
         """Calculate normal vector for a triangle face.
 
         Args:
@@ -687,7 +703,9 @@ class MeshWorker(NodeWorker):
 
         return normal
 
-    def _calculate_triangle_area(self, vertices: list[list[float]], face: list[int]) -> float:
+    def _calculate_triangle_area(
+        self, vertices: list[list[float]], face: list[int]
+    ) -> float:
         """Calculate area of a triangle face.
 
         Args:
@@ -719,7 +737,9 @@ class MeshWorker(NodeWorker):
 
         return area
 
-    def _calculate_mesh_volume(self, vertices: list[list[float]], faces: list[list[int]]) -> float:
+    def _calculate_mesh_volume(
+        self, vertices: list[list[float]], faces: list[list[int]]
+    ) -> float:
         """Calculate signed volume of mesh using divergence theorem.
 
         Args:

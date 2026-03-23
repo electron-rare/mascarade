@@ -10,7 +10,10 @@ HALLUCINATION_PATTERNS = [
     (r"IPC-\d{5,}", "fake_ipc_number"),
     (r"(?:exactly|precisely)\s+\d+\.\d{3,}", "over_precise_value"),
     (r"(?:Go to|Navigate to|Open)\s+'[^']{50,}'", "invented_menu_path"),
-    (r"(?:must be|should be|is)\s+exactly\s+\d+(?:\.\d+)?\s*(?:mm|mil|ohm|V|A|Hz|dB)", "suspiciously_exact_spec"),
+    (
+        r"(?:must be|should be|is)\s+exactly\s+\d+(?:\.\d+)?\s*(?:mm|mil|ohm|V|A|Hz|dB)",
+        "suspiciously_exact_spec",
+    ),
 ]
 
 datasets = [
@@ -66,7 +69,10 @@ for path, label in datasets:
                     flags.append("repetitive")
 
             # Generic refusal
-            if any(text.strip().startswith(g) for g in ["I'm sorry", "I cannot", "As an AI"]):
+            if any(
+                text.strip().startswith(g)
+                for g in ["I'm sorry", "I cannot", "As an AI"]
+            ):
                 flags.append("refusal")
 
             # Answer too short
@@ -91,7 +97,9 @@ for path, label in datasets:
     with open(out, "w") as f:
         f.write("\n".join(kept) + "\n")
 
-    print(f"{label}: {total} total, {flagged} flagged, {removed} removed, {len(kept)} kept")
+    print(
+        f"{label}: {total} total, {flagged} flagged, {removed} removed, {len(kept)} kept"
+    )
     if reasons:
         print(f"  Flags: {reasons}")
     print(f"  Output: {out}")

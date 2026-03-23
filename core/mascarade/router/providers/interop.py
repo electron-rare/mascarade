@@ -13,10 +13,7 @@ class ModelContextProtocol:
 
     @staticmethod
     def create_context(
-        model_id: str,
-        session_id: str,
-        parameters: dict,
-        metadata: dict | None = None
+        model_id: str, session_id: str, parameters: dict, metadata: dict | None = None
     ) -> dict:
         """Create a standard MCP context."""
         context = {
@@ -24,7 +21,7 @@ class ModelContextProtocol:
             "model_id": model_id,
             "session_id": session_id,
             "parameters": parameters,
-            "metadata": metadata or {}
+            "metadata": metadata or {},
         }
         return context
 
@@ -52,7 +49,7 @@ class AgentCommunicationProtocol:
         receiver: str,
         message_type: str,
         content: dict | str | list,
-        protocol: str = "ACP/1.0"
+        protocol: str = "ACP/1.0",
     ) -> dict:
         """Create a standard ACP message."""
         return {
@@ -61,13 +58,20 @@ class AgentCommunicationProtocol:
             "receiver": receiver,
             "message_type": message_type,
             "timestamp": int(time.time()),
-            "content": content
+            "content": content,
         }
 
     @staticmethod
     def validate_message(message: dict) -> bool:
         """Validate ACP message format."""
-        required_fields = ["protocol", "sender", "receiver", "message_type", "timestamp", "content"]
+        required_fields = [
+            "protocol",
+            "sender",
+            "receiver",
+            "message_type",
+            "timestamp",
+            "content",
+        ]
         return all(field in message for field in required_fields)
 
     @staticmethod
@@ -75,7 +79,7 @@ class AgentCommunicationProtocol:
         original_message: dict,
         content: dict | str | list,
         success: bool = True,
-        error: str | None = None
+        error: str | None = None,
     ) -> dict:
         """Create a response to an ACP message."""
         response = {
@@ -85,7 +89,7 @@ class AgentCommunicationProtocol:
             "message_type": "response",
             "timestamp": int(time.time()),
             "content": content,
-            "success": success
+            "success": success,
         }
 
         if error:
@@ -103,11 +107,7 @@ class InteropManager:
     def __init__(self):
         self.supported_protocols = ["MCP/1.0", "ACP/1.0"]
 
-    def create_interop_context(
-        self,
-        protocol: str,
-        **kwargs
-    ) -> dict:
+    def create_interop_context(self, protocol: str, **kwargs) -> dict:
         """Create context for the specified protocol."""
         if protocol == "MCP/1.0":
             return ModelContextProtocol.create_context(**kwargs)
@@ -117,9 +117,7 @@ class InteropManager:
             raise ValueError(f"Unsupported protocol: {protocol}")
 
     def validate_interop_message(
-        self,
-        message: dict,
-        protocol: str | None = None
+        self, message: dict, protocol: str | None = None
     ) -> bool:
         """Validate interoperability message."""
         if protocol:
@@ -134,11 +132,7 @@ class InteropManager:
 
         return False
 
-    def translate_protocol(
-        self,
-        message: dict,
-        target_protocol: str
-    ) -> dict:
+    def translate_protocol(self, message: dict, target_protocol: str) -> dict:
         """Translate between interoperability protocols."""
         source_protocol = message.get("protocol")
 
@@ -151,7 +145,7 @@ class InteropManager:
                 sender=message.get("model_id", "unknown"),
                 receiver="interop_gateway",
                 message_type="context",
-                content=message
+                content=message,
             )
 
         elif source_protocol == "ACP/1.0" and target_protocol == "MCP/1.0":
@@ -159,7 +153,9 @@ class InteropManager:
             if "content" in message and isinstance(message["content"], dict):
                 return message["content"]
 
-        raise ValueError(f"Translation from {source_protocol} to {target_protocol} not supported")
+        raise ValueError(
+            f"Translation from {source_protocol} to {target_protocol} not supported"
+        )
 
 
 class NISTCompliance:
@@ -169,7 +165,7 @@ class NISTCompliance:
         "NIST.AI-1.0",  # Secure AI Agent Communication
         "NIST.AI-2.0",  # Data Integrity
         "NIST.AI-3.0",  # Access Control
-        "NIST.AI-4.0"   # Audit Logging
+        "NIST.AI-4.0",  # Audit Logging
     ]
 
     @staticmethod
@@ -178,7 +174,7 @@ class NISTCompliance:
         compliance = {
             "standard": "NIST AI Agent Standards Initiative",
             "version": "2026",
-            "checks": {}
+            "checks": {},
         }
 
         # Check for security metadata
@@ -188,36 +184,38 @@ class NISTCompliance:
             # Check encryption
             compliance["checks"]["encryption"] = {
                 "status": "pass" if security.get("encryption") else "fail",
-                "standard": "NIST.AI-1.0"
+                "standard": "NIST.AI-1.0",
             }
 
             # Check data integrity
             compliance["checks"]["integrity"] = {
                 "status": "pass" if security.get("integrity_check") else "fail",
-                "standard": "NIST.AI-2.0"
+                "standard": "NIST.AI-2.0",
             }
 
             # Check access control
             compliance["checks"]["access_control"] = {
                 "status": "pass" if security.get("access_control") else "fail",
-                "standard": "NIST.AI-3.0"
+                "standard": "NIST.AI-3.0",
             }
 
             # Check audit logging
             compliance["checks"]["audit_logging"] = {
                 "status": "pass" if security.get("audit_log") else "fail",
-                "standard": "NIST.AI-4.0"
+                "standard": "NIST.AI-4.0",
             }
         else:
             for standard in NISTCompliance.SECURITY_STANDARDS:
                 compliance["checks"][standard.split(".")[1]] = {
                     "status": "fail",
                     "standard": standard,
-                    "reason": "Security metadata missing"
+                    "reason": "Security metadata missing",
                 }
 
         # Calculate compliance score
-        passed = sum(1 for check in compliance["checks"].values() if check["status"] == "pass")
+        passed = sum(
+            1 for check in compliance["checks"].values() if check["status"] == "pass"
+        )
         total = len(compliance["checks"])
         compliance["score"] = (passed / total * 100) if total > 0 else 0
 
@@ -246,7 +244,7 @@ class FinancialServicesInterop:
         "Level 1: Basic Connectivity",
         "Level 2: Data Standardization",
         "Level 3: Shared Industry Standards",
-        "Level 4: Full Interoperability"
+        "Level 4: Full Interoperability",
     ]
 
     @staticmethod
@@ -255,7 +253,7 @@ class FinancialServicesInterop:
         assessment = {
             "model": "FSI Interoperability Maturity",
             "level": 1,
-            "criteria": {}
+            "criteria": {},
         }
 
         # Level 1: Basic Connectivity
@@ -278,7 +276,9 @@ class FinancialServicesInterop:
             assessment["criteria"]["full_interoperability"] = True
             assessment["level"] = max(assessment["level"], 4)
 
-        assessment["maturity_level"] = FinancialServicesInterop.MATURITY_MODEL[assessment["level"] - 1]
+        assessment["maturity_level"] = FinancialServicesInterop.MATURITY_MODEL[
+            assessment["level"] - 1
+        ]
 
         return assessment
 
@@ -287,7 +287,7 @@ class FinancialServicesInterop:
         protocol: str,
         data_standard: str,
         industry_standards: list[str],
-        interoperability: bool = True
+        interoperability: bool = True,
     ) -> dict:
         """Create FSI-compliant interoperability context."""
         return {
@@ -295,10 +295,12 @@ class FinancialServicesInterop:
             "data_standard": data_standard,
             "industry_standards": industry_standards,
             "interoperability": interoperability,
-            "maturity": FinancialServicesInterop.assess_maturity({
-                "protocol": protocol,
-                "data_standard": data_standard,
-                "industry_standards": industry_standards,
-                "interoperability": interoperability
-            })
+            "maturity": FinancialServicesInterop.assess_maturity(
+                {
+                    "protocol": protocol,
+                    "data_standard": data_standard,
+                    "industry_standards": industry_standards,
+                    "interoperability": interoperability,
+                }
+            ),
         }

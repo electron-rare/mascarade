@@ -304,7 +304,9 @@ def test_rate_limiting():
     limiter8.check_rate_limit(ip_address="10.0.0.2")
 
     # Test 10: Window expiration (requests outside window don't count)
-    limiter9 = RateLimiter(per_user_limit=2, per_ip_limit=2, window_seconds=1)  # 1 second window
+    limiter9 = RateLimiter(
+        per_user_limit=2, per_ip_limit=2, window_seconds=1
+    )  # 1 second window
     user_key_expiry = "user_expiry"
 
     # Make 2 requests (at limit)
@@ -414,7 +416,9 @@ async def test_rate_limiting_per_ip():
             "/v1/api-keys",
             headers={"Authorization": f"Bearer {TEST_ADMIN_KEY}"},
         )
-        assert response3.status_code == 429, "3rd request from same IP should be rate limited"
+        assert (
+            response3.status_code == 429
+        ), "3rd request from same IP should be rate limited"
         assert "Rate limit exceeded" in response3.json()["detail"]
 
     # Restore defaults

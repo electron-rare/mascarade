@@ -47,11 +47,7 @@ def manual_review_domains() -> set[str]:
     explicit = os.environ.get("MASCARADE_PROMOTION_MANUAL_REVIEW_DOMAINS")
     if explicit is None:
         return set(MANUAL_REVIEW_DOMAINS)
-    return {
-        item.strip()
-        for item in explicit.split(",")
-        if item.strip()
-    }
+    return {item.strip() for item in explicit.split(",") if item.strip()}
 
 
 def domain_requires_manual_review(domain: str) -> bool:
@@ -76,12 +72,10 @@ def _now_ts() -> str:
     return time.strftime("%Y-%m-%dT%H:%M:%S")
 
 
-
 def _load_json(path: Path) -> dict | None:
     if not path.exists():
         return None
     return json.loads(path.read_text(encoding="utf-8"))
-
 
 
 def load_registry(path: Path | None = None) -> dict:
@@ -90,7 +84,6 @@ def load_registry(path: Path | None = None) -> dict:
     if payload is not None:
         return payload
     return {"version": 1, "updated_at": _now_ts(), "domains": {}}
-
 
 
 def write_registry(payload: dict, path: Path | None = None) -> Path:
@@ -103,7 +96,6 @@ def write_registry(payload: dict, path: Path | None = None) -> Path:
     return registry_path
 
 
-
 def training_loss(training_info: dict | None) -> float | None:
     if not training_info:
         return None
@@ -112,7 +104,6 @@ def training_loss(training_info: dict | None) -> float | None:
         return float(value)
     except (TypeError, ValueError):
         return None
-
 
 
 def should_promote(existing: dict | None, candidate: dict) -> tuple[bool, str]:
@@ -136,8 +127,14 @@ def should_promote(existing: dict | None, candidate: dict) -> tuple[bool, str]:
 
     if candidate_loss is not None and existing_loss is not None:
         if candidate_loss < existing_loss:
-            return True, f"better training loss ({candidate_loss:.4f} < {existing_loss:.4f})"
-        return False, f"existing live loss is already better ({existing_loss:.4f} <= {candidate_loss:.4f})"
+            return (
+                True,
+                f"better training loss ({candidate_loss:.4f} < {existing_loss:.4f})",
+            )
+        return (
+            False,
+            f"existing live loss is already better ({existing_loss:.4f} <= {candidate_loss:.4f})",
+        )
 
     existing_ts = str(existing.get("promoted_at") or "")
     candidate_ts = str(candidate.get("completed_at") or "")
@@ -146,8 +143,9 @@ def should_promote(existing: dict | None, candidate: dict) -> tuple[bool, str]:
     return False, "existing live candidate is at least as recent"
 
 
-
-def _replace_directory_from_source(source_dir: Path, target_dir: Path, *, backup_folder: str) -> Path | None:
+def _replace_directory_from_source(
+    source_dir: Path, target_dir: Path, *, backup_folder: str
+) -> Path | None:
     if source_dir.resolve() == target_dir.resolve():
         return None
     backup_dir = None
@@ -193,8 +191,12 @@ def _prepare_promotion_workspace(
         backup_dir = _replace_directory_from_source(
             run_output_dir, live_dir, backup_folder=".promotion_backups"
         )
-        return live_root, live_dir, backup_dir, "live", (
-            f"using live workspace under {live_root} (free={live_free} bytes)"
+        return (
+            live_root,
+            live_dir,
+            backup_dir,
+            "live",
+            (f"using live workspace under {live_root} (free={live_free} bytes)"),
         )
 
     scratch_root = Path(
@@ -208,14 +210,21 @@ def _prepare_promotion_workspace(
             f"live_free={live_free}, scratch_free={scratch_free}"
         )
 
-    workspace_root = scratch_root / f"{canonical_domain}_{time.strftime('%Y%m%d_%H%M%S')}"
+    workspace_root = (
+        scratch_root / f"{canonical_domain}_{time.strftime('%Y%m%d_%H%M%S')}"
+    )
     workspace_root.mkdir(parents=True, exist_ok=True)
     workspace_dir = workspace_root / canonical_domain
     shutil.copytree(run_output_dir, workspace_dir)
-    return workspace_root, workspace_dir, None, "scratch", (
-        f"using scratch workspace under {workspace_root} because live_free={live_free} bytes"
+    return (
+        workspace_root,
+        workspace_dir,
+        None,
+        "scratch",
+        (
+            f"using scratch workspace under {workspace_root} because live_free={live_free} bytes"
+        ),
     )
-
 
 
 def _restore_backup(backup_dir: Path | None, live_dir: Path) -> None:
@@ -240,10 +249,12 @@ def _prepare_manual_review_workspace(
         review_dir,
         backup_folder=".review_backups",
     )
-    return review_root, review_dir, backup_dir, (
-        f"staged manual-review workspace under {review_dir}"
+    return (
+        review_root,
+        review_dir,
+        backup_dir,
+        (f"staged manual-review workspace under {review_dir}"),
     )
-
 
 
 def _run_pipeline_step(
@@ -276,7 +287,6 @@ def _run_pipeline_step(
     return completed.returncode == 0, combined[-4000:]
 
 
-
 def _smoke_alias(domain: str, *, model_name: str | None = None) -> tuple[bool, str]:
     resolved_model_name = model_name or f"mascarade-{domain}"
     prompt = SMOKE_PROMPTS.get(domain, "Describe your specialty in one paragraph.")
@@ -284,10 +294,11 @@ def _smoke_alias(domain: str, *, model_name: str | None = None) -> tuple[bool, s
         runtime = resolve_ollama_runtime()
     except OllamaRuntimeError as exc:
         return False, str(exc)
-    completed = run_model(runtime, model_name=resolved_model_name, prompt=prompt, timeout=180)
+    completed = run_model(
+        runtime, model_name=resolved_model_name, prompt=prompt, timeout=180
+    )
     output = ((completed.stdout or "") + (completed.stderr or "")).strip()
     return completed.returncode == 0, output[:600]
-
 
 
 def promote_domain_run(
@@ -310,7 +321,9 @@ def promote_domain_run(
         "canonical_domain": canonical_domain,
         "student_model": student_model,
         "run_output_dir": str(run_output_dir),
-        "run_manifest_path": None if run_manifest_path is None else str(run_manifest_path),
+        "run_manifest_path": (
+            None if run_manifest_path is None else str(run_manifest_path)
+        ),
         "loss": training_loss(training_info),
         "completed_at": _now_ts(),
         "promotion_quant": promotion_quant,
@@ -341,9 +354,13 @@ def promote_domain_run(
             )
             workspace_mode = "review"
         else:
-            workspace_root, workspace_dir, backup_dir, workspace_mode, workspace_reason = (
-                _prepare_promotion_workspace(run_output_dir, live_dir, canonical_domain)
-            )
+            (
+                workspace_root,
+                workspace_dir,
+                backup_dir,
+                workspace_mode,
+                workspace_reason,
+            ) = _prepare_promotion_workspace(run_output_dir, live_dir, canonical_domain)
         for step in ("merge", "gguf", "deploy"):
             ok, log_tail = _run_pipeline_step(
                 canonical_domain,
@@ -351,7 +368,9 @@ def promote_domain_run(
                 base_model=student_model,
                 quant=promotion_quant,
                 models_dir=workspace_root,
-                deploy_alias=review_alias if review_required and step == "deploy" else None,
+                deploy_alias=(
+                    review_alias if review_required and step == "deploy" else None
+                ),
             )
             step_logs[step] = log_tail
             if not ok:
@@ -499,10 +518,14 @@ def approve_reviewed_domain(
 
 
 def _build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Promotion helpers for fine-tune outputs")
+    parser = argparse.ArgumentParser(
+        description="Promotion helpers for fine-tune outputs"
+    )
     subparsers = parser.add_subparsers(dest="command", required=True)
 
-    stage = subparsers.add_parser("stage", help="Stage a run for live promotion or manual review")
+    stage = subparsers.add_parser(
+        "stage", help="Stage a run for live promotion or manual review"
+    )
     stage.add_argument("domain", help="Canonical domain name")
     stage.add_argument("--run-output-dir", required=True)
     stage.add_argument("--student-model", required=True)
@@ -511,11 +534,15 @@ def _build_parser() -> argparse.ArgumentParser:
     stage.add_argument("--promotion-quant", default=DEFAULT_PROMOTION_QUANT)
     stage.add_argument("--registry-path", default=None)
 
-    approve = subparsers.add_parser("approve", help="Approve a staged manual-review promotion")
+    approve = subparsers.add_parser(
+        "approve", help="Approve a staged manual-review promotion"
+    )
     approve.add_argument("domain", help="Canonical domain name")
     approve.add_argument("--registry-path", default=None)
 
-    status = subparsers.add_parser("status", help="Show the promotion registry entry for a domain")
+    status = subparsers.add_parser(
+        "status", help="Show the promotion registry entry for a domain"
+    )
     status.add_argument("domain", help="Canonical domain name")
     status.add_argument("--registry-path", default=None)
     return parser
@@ -545,7 +572,9 @@ def main() -> int:
             registry_path=registry_path,
         )
         print(json.dumps(result, indent=2, ensure_ascii=False))
-        return 0 if result.get("status") in {"completed", "pending_manual_review"} else 1
+        return (
+            0 if result.get("status") in {"completed", "pending_manual_review"} else 1
+        )
 
     if args.command == "approve":
         result = approve_reviewed_domain(args.domain, registry_path=registry_path)

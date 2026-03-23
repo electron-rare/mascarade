@@ -38,5 +38,7 @@ async def read_msg(stream: INetStream) -> dict:
         raise ValueError(f"Message too large: {length} bytes")
     payload = await stream.read(length)
     if len(payload) < length:
-        raise ValueError(f"Incomplete message body: expected {length}, got {len(payload)}")
+        raise ValueError(
+            f"Incomplete message body: expected {length}, got {len(payload)}"
+        )
     return json.loads(payload)

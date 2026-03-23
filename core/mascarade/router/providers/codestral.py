@@ -120,7 +120,9 @@ class CodestralProvider(LLMProvider):
             "stream": True,
         }
 
-        async with self._client.stream("POST", _CODESTRAL_CHAT_URL, json=payload) as resp:
+        async with self._client.stream(
+            "POST", _CODESTRAL_CHAT_URL, json=payload
+        ) as resp:
             resp.raise_for_status()
             async for line in resp.aiter_lines():
                 if not line.startswith("data: "):
@@ -177,4 +179,6 @@ class CodestralProvider(LLMProvider):
         choices = data.get("choices", [])
         if not choices:
             return ""
-        return choices[0].get("text", "") or choices[0].get("message", {}).get("content", "")
+        return choices[0].get("text", "") or choices[0].get("message", {}).get(
+            "content", ""
+        )

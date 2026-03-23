@@ -50,7 +50,9 @@ class P2PPubSub:
         *,
         reject_unsigned: bool = True,
     ) -> None:
-        self._authenticator = MessageAuthenticator(identity, reject_unsigned=reject_unsigned)
+        self._authenticator = MessageAuthenticator(
+            identity, reject_unsigned=reject_unsigned
+        )
 
     def subscribe(self, topic: str, handler: TopicHandler) -> None:
         self._subscriptions[topic].append(handler)
@@ -73,11 +75,16 @@ class P2PPubSub:
 
     async def _handle_publish(self, msg: P2PMessage, conn: PeerConnection) -> None:
         if self._authenticator is not None and not self._authenticator.verify(msg):
-            logger.warning("Dropping unsigned/invalid pubsub message topic=%s from=%s", msg.payload.get("topic", ""), msg.sender)
+            logger.warning(
+                "Dropping unsigned/invalid pubsub message topic=%s from=%s",
+                msg.payload.get("topic", ""),
+                msg.sender,
+            )
             return
 
         nonce = msg.nonce or self._make_nonce(
-            msg.payload.get("topic", ""), msg.payload.get("data", {}),
+            msg.payload.get("topic", ""),
+            msg.payload.get("data", {}),
         )
 
         async with self._seen_lock:
@@ -113,7 +120,9 @@ class P2PPubSub:
         if sends:
             logger.info(
                 "PubSub relay topic=%s from=%s to %d peers: %s",
-                topic, origin, len(sends),
+                topic,
+                origin,
+                len(sends),
                 [pid[:15] for pid, _ in sends],
             )
             task = asyncio.create_task(self._relay_publish(relay, sends))

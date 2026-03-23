@@ -32,6 +32,7 @@ _DEFAULT_MAX_TURNS = 20
 # Shared CLI execution helpers
 # ---------------------------------------------------------------------------
 
+
 async def _run_cli(
     cmd: list[str],
     *,
@@ -72,6 +73,7 @@ def _cli_available(binary: str) -> bool:
 # ---------------------------------------------------------------------------
 # Mistral Vibe Agent
 # ---------------------------------------------------------------------------
+
 
 class VibeAgent(Agent):
     """Mistral Vibe CLI coding agent.
@@ -117,14 +119,20 @@ class VibeAgent(Agent):
     ) -> LLMResponse:
         """Execute Vibe in programmatic mode."""
         if not self.is_available:
-            raise RuntimeError("vibe CLI not found. Install: curl -LsSf https://mistral.ai/vibe/install.sh | bash")
+            raise RuntimeError(
+                "vibe CLI not found. Install: curl -LsSf https://mistral.ai/vibe/install.sh | bash"
+            )
 
         cmd = [
             "vibe",
-            "--prompt", prompt,
-            "--output", "json",
-            "--max-turns", str(self._max_turns),
-            "--max-price", str(self._max_price),
+            "--prompt",
+            prompt,
+            "--output",
+            "json",
+            "--max-turns",
+            str(self._max_turns),
+            "--max-price",
+            str(self._max_price),
         ]
         if self._workdir:
             cmd.extend(["--workdir", self._workdir])
@@ -158,6 +166,7 @@ class VibeAgent(Agent):
 # ---------------------------------------------------------------------------
 # OpenAI Codex CLI Agent
 # ---------------------------------------------------------------------------
+
 
 class CodexAgent(Agent):
     """OpenAI Codex CLI coding agent.
@@ -200,7 +209,9 @@ class CodexAgent(Agent):
     ) -> LLMResponse:
         """Execute Codex CLI in non-interactive mode."""
         if not self.is_available:
-            raise RuntimeError("codex CLI not found. Install: npm install -g @openai/codex")
+            raise RuntimeError(
+                "codex CLI not found. Install: npm install -g @openai/codex"
+            )
 
         cmd = ["codex", "exec"]
         if self._full_auto:
@@ -222,6 +233,7 @@ class CodexAgent(Agent):
 # ---------------------------------------------------------------------------
 # Claude Code CLI Agent
 # ---------------------------------------------------------------------------
+
 
 class ClaudeCodeAgent(Agent):
     """Claude Code CLI coding agent.
@@ -267,13 +279,17 @@ class ClaudeCodeAgent(Agent):
     ) -> LLMResponse:
         """Execute Claude Code in print mode."""
         if not self.is_available:
-            raise RuntimeError("claude CLI not found. Install: npm install -g @anthropic-ai/claude-code")
+            raise RuntimeError(
+                "claude CLI not found. Install: npm install -g @anthropic-ai/claude-code"
+            )
 
         cmd = [
             "claude",
             "--print",
-            "--output-format", "json",
-            "--model", self._model,
+            "--output-format",
+            "json",
+            "--model",
+            self._model,
             "--verbose",
         ]
         if self._workdir:
@@ -316,6 +332,7 @@ class ClaudeCodeAgent(Agent):
 # ---------------------------------------------------------------------------
 # Registration helper
 # ---------------------------------------------------------------------------
+
 
 def register_cli_agents(registry) -> None:
     """Register available CLI agents in the agent registry."""

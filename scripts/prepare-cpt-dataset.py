@@ -5,7 +5,9 @@ CPT teaches the model the SYNTAX of Verilog, KiCad, SPICE, embedded C.
 SFT teaches it to ANSWER questions.
 RLVR teaches it to generate CORRECT code."""
 
-import json, os, hashlib, random
+import json
+import os
+import hashlib
 
 BASE = "finetune/datasets"
 HF = f"{BASE}/hf_imports"
@@ -43,10 +45,14 @@ def extract_for_cpt(record, fmt, domain):
         if not code or len(code) < 50:
             return None
         # For mg_verilog, include the summary as context
-        summary = record.get("detailed_global_summary", "") or record.get("block_summary", "")
+        summary = record.get("detailed_global_summary", "") or record.get(
+            "block_summary", ""
+        )
         header = record.get("module_header", "")
         if summary:
-            return f"// {summary}\n{header}\n{code}" if header else f"// {summary}\n{code}"
+            return (
+                f"// {summary}\n{header}\n{code}" if header else f"// {summary}\n{code}"
+            )
         return code
 
     elif fmt == "text":
@@ -144,18 +150,26 @@ with open(OUTPUT, "w") as f:
                     text = text[:50000]  # Truncate very long files
 
                 # Write as simple text for CPT
-                f.write(json.dumps({
-                    "text": text,
-                    "domain": domain,
-                }, ensure_ascii=False) + "\n")
+                f.write(
+                    json.dumps(
+                        {
+                            "text": text,
+                            "domain": domain,
+                        },
+                        ensure_ascii=False,
+                    )
+                    + "\n"
+                )
                 count += 1
                 total += 1
 
         by_domain[domain] = by_domain.get(domain, 0) + count
-        print(f"{os.path.basename(path)}: {count} kept, {dupes} dupes, {filtered} filtered")
+        print(
+            f"{os.path.basename(path)}: {count} kept, {dupes} dupes, {filtered} filtered"
+        )
 
 size_mb = os.path.getsize(OUTPUT) / 1024**2
-print(f"\n=== CPT DATASET ===")
+print("\n=== CPT DATASET ===")
 print(f"Total: {total} examples")
 print(f"Size: {size_mb:.1f} MB")
 print(f"Domains: {json.dumps(by_domain, indent=2)}")

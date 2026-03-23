@@ -37,13 +37,17 @@ class TestVoiceWsAuth:
     @pytest.mark.asyncio
     async def test_auth_valid_token(self):
         ws = _make_ws(token="good-key")
-        with patch("mascarade.routers.voice.get_active_api_keys", return_value=["good-key"]):
+        with patch(
+            "mascarade.routers.voice.get_active_api_keys", return_value=["good-key"]
+        ):
             assert await _ws_auth(ws) is True
 
     @pytest.mark.asyncio
     async def test_auth_invalid_token(self):
         ws = _make_ws(token="bad-key")
-        with patch("mascarade.routers.voice.get_active_api_keys", return_value=["good-key"]):
+        with patch(
+            "mascarade.routers.voice.get_active_api_keys", return_value=["good-key"]
+        ):
             assert await _ws_auth(ws) is False
 
     @pytest.mark.asyncio
@@ -133,8 +137,9 @@ class TestTextToSpeech:
             request=httpx.Request("POST", "http://test"),
         )
 
-        with patch("mascarade.routers.voice.settings") as mock_settings, \
-             patch("mascarade.routers.voice.httpx.AsyncClient") as mock_client_cls:
+        with patch("mascarade.routers.voice.settings") as mock_settings, patch(
+            "mascarade.routers.voice.httpx.AsyncClient"
+        ) as mock_client_cls:
             mock_settings.voice_bridge_tts_url = "http://fake:8000/v1/audio/speech"
             mock_settings.voice_bridge_tts_voice = "alloy"
 
@@ -154,8 +159,9 @@ class TestTextToSpeech:
             request=httpx.Request("POST", "http://test"),
         )
 
-        with patch("mascarade.routers.voice.settings") as mock_settings, \
-             patch("mascarade.routers.voice.httpx.AsyncClient") as mock_client_cls:
+        with patch("mascarade.routers.voice.settings") as mock_settings, patch(
+            "mascarade.routers.voice.httpx.AsyncClient"
+        ) as mock_client_cls:
             mock_settings.voice_bridge_tts_url = "http://fake:8000/v1/audio/speech"
             mock_settings.voice_bridge_tts_voice = "alloy"
 

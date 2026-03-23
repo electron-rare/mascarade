@@ -392,15 +392,66 @@ CATEGORIES = [
 ]
 
 VARS = {
-    "board": ["esp32dev", "esp32-s3-devkitc-1", "esp32-c3-devkitm-1", "nucleo_f446re", "nucleo_f103rb", "nucleo_h743zi", "nucleo_l476rg", "pico", "teensy41", "adafruit_feather_nrf52840", "seeed_xiao_esp32s3", "arduino_nano_33_ble"],
+    "board": [
+        "esp32dev",
+        "esp32-s3-devkitc-1",
+        "esp32-c3-devkitm-1",
+        "nucleo_f446re",
+        "nucleo_f103rb",
+        "nucleo_h743zi",
+        "nucleo_l476rg",
+        "pico",
+        "teensy41",
+        "adafruit_feather_nrf52840",
+        "seeed_xiao_esp32s3",
+        "arduino_nano_33_ble",
+    ],
     "board1": ["esp32dev", "nucleo_f446re"],
     "board2": ["esp32-s3-devkitc-1", "nucleo_h743zi"],
     "framework": ["arduino", "espidf", "stm32cube", "zephyr", "mbed"],
-    "libs": ["WiFi + MQTT + ArduinoJSON", "Adafruit_SSD1306 + Wire", "FastLED + WiFi", "TFT_eSPI + LVGL"],
-    "mcu": ["STM32F446RE", "STM32H743", "STM32L476RG", "STM32F103C8", "STM32G431", "ESP32-S3", "ESP32-C3", "nRF52840", "RP2040", "GD32VF103"],
-    "stm32": ["STM32F446RE", "STM32H743ZI", "STM32L476RG", "STM32F103C8T6", "STM32G431KB", "STM32F407VG", "STM32L031K6"],
+    "libs": [
+        "WiFi + MQTT + ArduinoJSON",
+        "Adafruit_SSD1306 + Wire",
+        "FastLED + WiFi",
+        "TFT_eSPI + LVGL",
+    ],
+    "mcu": [
+        "STM32F446RE",
+        "STM32H743",
+        "STM32L476RG",
+        "STM32F103C8",
+        "STM32G431",
+        "ESP32-S3",
+        "ESP32-C3",
+        "nRF52840",
+        "RP2040",
+        "GD32VF103",
+    ],
+    "stm32": [
+        "STM32F446RE",
+        "STM32H743ZI",
+        "STM32L476RG",
+        "STM32F103C8T6",
+        "STM32G431KB",
+        "STM32F407VG",
+        "STM32L031K6",
+    ],
     "chip": ["ESP32", "ESP32-S2", "ESP32-S3", "ESP32-C3", "ESP32-C6", "ESP32-H2"],
-    "peripheral": ["USART", "SPI", "I2C", "TIM (timer)", "ADC", "DAC", "DMA", "GPIO EXTI", "CAN", "USB", "SDMMC", "QSPI", "SAI (audio)"],
+    "peripheral": [
+        "USART",
+        "SPI",
+        "I2C",
+        "TIM (timer)",
+        "ADC",
+        "DAC",
+        "DMA",
+        "GPIO EXTI",
+        "CAN",
+        "USB",
+        "SDMMC",
+        "QSPI",
+        "SAI (audio)",
+    ],
     "mode": ["Stop 1", "Stop 2", "Standby", "Shutdown"],
     "source": ["RTC alarm", "EXTI pin", "UART", "comparator"],
     "freq": ["8", "16", "25", "32"],
@@ -408,14 +459,39 @@ VARS = {
     "channels": ["2", "4", "8", "16"],
     "speed": ["100kHz standard", "400kHz fast", "1MHz fast-plus"],
     "baudrate": ["9600", "115200", "460800", "921600", "1000000"],
-    "device": ["BME280 sensor", "MPU6050 IMU", "ADS1115 ADC", "MCP4725 DAC", "OLED SSD1306", "EEPROM AT24C256"],
-    "application": ["data logger", "motor controller", "audio processor", "sensor node", "LED controller", "robot controller"],
+    "device": [
+        "BME280 sensor",
+        "MPU6050 IMU",
+        "ADS1115 ADC",
+        "MCP4725 DAC",
+        "OLED SSD1306",
+        "EEPROM AT24C256",
+    ],
+    "application": [
+        "data logger",
+        "motor controller",
+        "audio processor",
+        "sensor node",
+        "LED controller",
+        "robot controller",
+    ],
     "method": ["ST-Link", "J-Link", "DFU", "serial bootloader", "WiFi OTA"],
     "optimization": ["size (-Os)", "speed (-O2)", "debug (-Og)", "LTO"],
-    "display": ["SSD1306 OLED 128x64", "ILI9341 TFT 320x240", "ST7789 TFT 240x240", "SH1106 OLED", "e-paper 2.9in"],
+    "display": [
+        "SSD1306 OLED 128x64",
+        "ILI9341 TFT 320x240",
+        "ST7789 TFT 240x240",
+        "SH1106 OLED",
+        "e-paper 2.9in",
+    ],
     "library": ["Adafruit_GFX", "TFT_eSPI", "U8g2", "LVGL"],
     "protocol": ["MQTT", "HTTP REST", "WebSocket", "CoAP", "Modbus RTU"],
-    "data_type": ["float sensor reading", "uint8_t command", "struct telemetry packet", "char string"],
+    "data_type": [
+        "float sensor reading",
+        "uint8_t command",
+        "struct telemetry packet",
+        "char string",
+    ],
     "sensor": ["DHT22", "BME280", "BMP390", "SHT40", "AHT20"],
     "pressure": ["BMP280", "BMP390", "LPS22HB", "MS5611"],
     "distance": ["HC-SR04 ultrasonic", "VL53L1X ToF", "TFmini LiDAR"],
@@ -428,18 +504,57 @@ VARS = {
     "transport": ["WiFi HTTPS", "BLE", "LoRaWAN", "USB", "UART"],
     "stack": ["512", "1024", "2048", "4096"],
     "task": ["LED blink", "sensor read", "data logging", "watchdog feed"],
-    "priority": ["low (1)", "normal (5)", "high (10)", "realtime (configMAX_PRIORITIES-1)"],
+    "priority": [
+        "low (1)",
+        "normal (5)",
+        "high (10)",
+        "realtime (configMAX_PRIORITIES-1)",
+    ],
     "feature": ["BLE", "USB", "logging", "shell", "networking"],
     "profile": ["Heart Rate", "Battery", "Environmental Sensing", "custom GATT"],
-    "wakeup_source": ["timer", "ext0 GPIO", "ext1 GPIO bitmask", "touch pad", "ULP coprocessor"],
+    "wakeup_source": [
+        "timer",
+        "ext0 GPIO",
+        "ext1 GPIO bitmask",
+        "touch pad",
+        "ULP coprocessor",
+    ],
     "sample_rate": ["1kHz", "10kHz", "44.1kHz", "100kHz"],
-    "layout": ["factory + 2 OTA + NVS + SPIFFS", "single app + NVS", "dual app + coredump"],
+    "layout": [
+        "factory + 2 OTA + NVS + SPIFFS",
+        "single app + NVS",
+        "dual app + coredump",
+    ],
     "node_count": ["5", "10", "50", "100"],
     "resolution": ["8", "10", "12", "16"],
-    "libs_specific": ["PubSubClient", "ArduinoOTA", "ESPAsyncWebServer", "AccelStepper"],
-    "asm_task": ["bit manipulation", "interrupt vector table", "delay loop", "stack frame setup", "memory copy", "CRC calculation"],
-    "avr_task": ["LED blink with timer interrupt", "UART transmit", "ADC read", "PWM generation", "watchdog reset"],
-    "riscv_task": ["GPIO toggle", "timer interrupt handler", "UART polling", "CSR read/write", "trap handler"],
+    "libs_specific": [
+        "PubSubClient",
+        "ArduinoOTA",
+        "ESPAsyncWebServer",
+        "AccelStepper",
+    ],
+    "asm_task": [
+        "bit manipulation",
+        "interrupt vector table",
+        "delay loop",
+        "stack frame setup",
+        "memory copy",
+        "CRC calculation",
+    ],
+    "avr_task": [
+        "LED blink with timer interrupt",
+        "UART transmit",
+        "ADC read",
+        "PWM generation",
+        "watchdog reset",
+    ],
+    "riscv_task": [
+        "GPIO toggle",
+        "timer interrupt handler",
+        "UART polling",
+        "CSR read/write",
+        "trap handler",
+    ],
     "pic_family": ["PIC18F", "PIC24F", "dsPIC33", "PIC32MZ", "SAMD21"],
     "variant": ["46K22", "25K50", "27J53"],
     "source": ["piezoelectric", "thermoelectric", "RF", "solar indoor"],
@@ -470,22 +585,29 @@ Reply ONLY JSON: {{"question": "...", "answer": "..."}}"""
 
     try:
         with httpx.Client(timeout=30.0) as client:
-            resp = client.post(CODESTRAL_URL, headers={
-                "Authorization": f"Bearer {CODESTRAL_KEY}",
-                "Content-Type": "application/json",
-            }, json={
-                "model": "codestral-latest",
-                "messages": [{"role": "user", "content": prompt}],
-                "response_format": {"type": "json_object"},
-                "temperature": 0.7,
-                "max_tokens": 1000,
-            })
+            resp = client.post(
+                CODESTRAL_URL,
+                headers={
+                    "Authorization": f"Bearer {CODESTRAL_KEY}",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "model": "codestral-latest",
+                    "messages": [{"role": "user", "content": prompt}],
+                    "response_format": {"type": "json_object"},
+                    "temperature": 0.7,
+                    "max_tokens": 1000,
+                },
+            )
             resp.raise_for_status()
             data = json.loads(resp.json()["choices"][0]["message"]["content"])
             if "question" in data and "answer" in data:
                 return {
                     "conversations": [
-                        {"from": "system", "value": f"You are an expert embedded systems engineer specializing in {category_name}. You write production-grade firmware code."},
+                        {
+                            "from": "system",
+                            "value": f"You are an expert embedded systems engineer specializing in {category_name}. You write production-grade firmware code.",
+                        },
                         {"from": "human", "value": data["question"]},
                         {"from": "gpt", "value": data["answer"]},
                     ],
@@ -521,7 +643,9 @@ def main():
                 else:
                     errors += 1
                 if (i + 1) % 50 == 0:
-                    print(f"  [{i+1}/{cat['count']}] generated={cat_count} errors={errors}")
+                    print(
+                        f"  [{i+1}/{cat['count']}] generated={cat_count} errors={errors}"
+                    )
                 time.sleep(0.5)
             print(f"  DONE: {cat_count} pairs")
 

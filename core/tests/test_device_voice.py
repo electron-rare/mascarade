@@ -215,7 +215,11 @@ async def test_service_falls_back_from_claude_to_local_provider():
     result = await service.handle_session(
         device_id="round-box-1",
         mode="radio",
-        current_media_payload={"mode": "radio", "playing": True, "station": "BBC World Service"},
+        current_media_payload={
+            "mode": "radio",
+            "playing": True,
+            "station": "BBC World Service",
+        },
         audio_bytes=b"RIFF\x00\x00news",
         filename="audio.wav",
         content_type="audio/wav",

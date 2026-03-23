@@ -40,7 +40,9 @@ async def main() -> None:
     registry = AgentRegistry()
     ai_worker = AIWorker(router=router, registry=registry)
     runtime.register_worker(ai_worker)
-    print(f"✓ Registered AI Worker (supports {len(ai_worker.capabilities()['node_types'])} node types)")
+    print(
+        f"✓ Registered AI Worker (supports {len(ai_worker.capabilities()['node_types'])} node types)"
+    )
     print()
 
     # Step 2: Build the graph
@@ -125,7 +127,9 @@ async def main() -> None:
                 print("Node: template1 (ai.prompt-template)")
                 print(f"  Status: {template_result.status}")
                 print(f"  Execution time: {template_result.execution_time_ms:.2f}ms")
-                print(f"  Output prompt: {template_result.outputs.get('prompt', 'N/A')[:100]}...")
+                print(
+                    f"  Output prompt: {template_result.outputs.get('prompt', 'N/A')[:100]}..."
+                )
                 print()
 
             # Show LLM inference result
@@ -160,6 +164,7 @@ async def main() -> None:
     except Exception as exc:
         print(f"✗ Execution error: {exc}")
         import traceback
+
         traceback.print_exc()
 
 

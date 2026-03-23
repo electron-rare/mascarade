@@ -19,7 +19,9 @@ VALID_PERMISSIONS = {
 }
 
 
-def check_permission(permissions: dict[str, list[str]], resource: str, action: str) -> bool:
+def check_permission(
+    permissions: dict[str, list[str]], resource: str, action: str
+) -> bool:
     """
     Check if a permission set allows a specific action on a resource.
 
@@ -54,7 +56,11 @@ def check_permission(permissions: dict[str, list[str]], resource: str, action: s
 
     resource_permissions = permissions.get(resource, [])
     if not isinstance(resource_permissions, list):
-        logger.debug("Invalid permissions for resource '%s': %s", resource, type(resource_permissions))
+        logger.debug(
+            "Invalid permissions for resource '%s': %s",
+            resource,
+            type(resource_permissions),
+        )
         return False
 
     has_permission = action in resource_permissions
@@ -116,11 +122,17 @@ def validate_permissions(permissions: dict[str, list[str]]) -> tuple[bool, str |
             return False, f"Unknown resource: {resource}"
 
         if not isinstance(actions, list):
-            return False, f"Actions for {resource} must be a list, got {type(actions).__name__}"
+            return (
+                False,
+                f"Actions for {resource} must be a list, got {type(actions).__name__}",
+            )
 
         for action in actions:
             if action not in VALID_PERMISSIONS[resource]:
-                return False, f"Invalid action '{action}' for resource '{resource}'. Valid actions: {VALID_PERMISSIONS[resource]}"
+                return (
+                    False,
+                    f"Invalid action '{action}' for resource '{resource}'. Valid actions: {VALID_PERMISSIONS[resource]}",
+                )
 
     return True, None
 
@@ -142,7 +154,9 @@ def get_default_permissions(role_name: str | RoleName) -> dict[str, list[str]]:
         try:
             role_name = RoleName(role_name)
         except ValueError:
-            raise ValueError(f"Invalid role name: {role_name}. Valid roles: {[r.value for r in RoleName]}")
+            raise ValueError(
+                f"Invalid role name: {role_name}. Valid roles: {[r.value for r in RoleName]}"
+            )
 
     if role_name == RoleName.ADMIN:
         return {

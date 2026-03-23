@@ -35,7 +35,11 @@ class OpenAIProvider(LLMProvider):
             and is_secret_configured(settings.litellm_master_key)
         )
         self._client = openai.AsyncOpenAI(
-            api_key=(settings.litellm_master_key if self._proxy_enabled else settings.openai_api_key),
+            api_key=(
+                settings.litellm_master_key
+                if self._proxy_enabled
+                else settings.openai_api_key
+            ),
             base_url=(settings.litellm_base_url if self._proxy_enabled else None),
             timeout=30.0,
         )

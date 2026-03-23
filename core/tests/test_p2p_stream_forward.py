@@ -13,8 +13,12 @@ async def test_stream_forward_between_nodes():
         await node_a.start()
 
         node_b = MascaradeP2PNode(
-            listen_host="127.0.0.1", listen_port=0, key_dir=db,
-            bootstrap_peers=[(node_a.peer_id, "127.0.0.1", node_a.transport.listen_port)],
+            listen_host="127.0.0.1",
+            listen_port=0,
+            key_dir=db,
+            bootstrap_peers=[
+                (node_a.peer_id, "127.0.0.1", node_a.transport.listen_port)
+            ],
         )
         await node_b.start()
 
@@ -57,8 +61,12 @@ async def test_stream_forward_timeout():
         await node_a.start()
 
         node_b = MascaradeP2PNode(
-            listen_host="127.0.0.1", listen_port=0, key_dir=db,
-            bootstrap_peers=[(node_a.peer_id, "127.0.0.1", node_a.transport.listen_port)],
+            listen_host="127.0.0.1",
+            listen_port=0,
+            key_dir=db,
+            bootstrap_peers=[
+                (node_a.peer_id, "127.0.0.1", node_a.transport.listen_port)
+            ],
         )
         await node_b.start()
 
@@ -73,7 +81,9 @@ async def test_stream_forward_timeout():
 
             try:
                 await node_b.forwarder.forward_request(
-                    node_a.peer_id, {"messages": []}, timeout=0.5,
+                    node_a.peer_id,
+                    {"messages": []},
+                    timeout=0.5,
                 )
                 assert False, "Should have raised TimeoutError"
             except TimeoutError:
@@ -91,8 +101,12 @@ async def test_stream_forward_error():
         await node_a.start()
 
         node_b = MascaradeP2PNode(
-            listen_host="127.0.0.1", listen_port=0, key_dir=db,
-            bootstrap_peers=[(node_a.peer_id, "127.0.0.1", node_a.transport.listen_port)],
+            listen_host="127.0.0.1",
+            listen_port=0,
+            key_dir=db,
+            bootstrap_peers=[
+                (node_a.peer_id, "127.0.0.1", node_a.transport.listen_port)
+            ],
         )
         await node_b.start()
 
@@ -106,7 +120,9 @@ async def test_stream_forward_error():
 
             try:
                 await node_b.forwarder.forward_request(
-                    node_a.peer_id, {"messages": []}, timeout=5.0,
+                    node_a.peer_id,
+                    {"messages": []},
+                    timeout=5.0,
                 )
                 assert False, "Should have raised RuntimeError"
             except RuntimeError as exc:
@@ -124,8 +140,12 @@ async def test_can_forward():
         await node_a.start()
 
         node_b = MascaradeP2PNode(
-            listen_host="127.0.0.1", listen_port=0, key_dir=db,
-            bootstrap_peers=[(node_a.peer_id, "127.0.0.1", node_a.transport.listen_port)],
+            listen_host="127.0.0.1",
+            listen_port=0,
+            key_dir=db,
+            bootstrap_peers=[
+                (node_a.peer_id, "127.0.0.1", node_a.transport.listen_port)
+            ],
         )
         await node_b.start()
 

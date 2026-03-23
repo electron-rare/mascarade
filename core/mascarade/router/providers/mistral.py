@@ -37,6 +37,7 @@ class MistralProvider(LLMProvider):
         )
         if self._proxy_enabled:
             import openai
+
             self._client = openai.AsyncOpenAI(
                 api_key=secret_value(settings.litellm_master_key),
                 base_url=settings.litellm_base_url,
@@ -87,8 +88,12 @@ class MistralProvider(LLMProvider):
                 model=model,
                 provider=self.name,
                 usage={
-                    "input_tokens": response.usage.prompt_tokens if response.usage else 0,
-                    "output_tokens": (response.usage.completion_tokens if response.usage else 0),
+                    "input_tokens": (
+                        response.usage.prompt_tokens if response.usage else 0
+                    ),
+                    "output_tokens": (
+                        response.usage.completion_tokens if response.usage else 0
+                    ),
                 },
             )
 
@@ -108,7 +113,9 @@ class MistralProvider(LLMProvider):
             provider=self.name,
             usage={
                 "input_tokens": response.usage.prompt_tokens if response.usage else 0,
-                "output_tokens": (response.usage.completion_tokens if response.usage else 0),
+                "output_tokens": (
+                    response.usage.completion_tokens if response.usage else 0
+                ),
             },
         )
 

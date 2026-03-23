@@ -63,7 +63,9 @@ def test_registry_save_and_load(tmp_path):
 
 def test_registry_is_builtin_tracks_builtin_entries():
     reg = AgentRegistry(storage_path=None)
-    reg.register(Agent(name="builtin", description="B", system_prompt="B"), builtin=True)
+    reg.register(
+        Agent(name="builtin", description="B", system_prompt="B"), builtin=True
+    )
     reg.register(Agent(name="dynamic", description="D", system_prompt="D"))
 
     assert reg.is_builtin("builtin") is True

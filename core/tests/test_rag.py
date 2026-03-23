@@ -50,7 +50,9 @@ class TestEmbeddingProvider:
         ep.embed = AsyncMock(return_value=[[0.5, 0.6]])
         result = await ep.embed_query("test query")
         assert result == [0.5, 0.6]
-        ep.embed.assert_awaited_once_with(["test query"], model="text-embedding-3-small")
+        ep.embed.assert_awaited_once_with(
+            ["test query"], model="text-embedding-3-small"
+        )
 
     @pytest.mark.asyncio
     async def test_embed_fallback_chain(self):
@@ -101,7 +103,9 @@ class TestQdrantVectorStore:
 class TestRAGPipeline:
     """Tests for the RAGPipeline class."""
 
-    def _make_llm_response(self, text: str = "answer", provider: str = "mock", model: str = "mock-model"):
+    def _make_llm_response(
+        self, text: str = "answer", provider: str = "mock", model: str = "mock-model"
+    ):
         resp = MagicMock()
         resp.text = text
         resp.provider = provider
@@ -114,10 +118,12 @@ class TestRAGPipeline:
         """Full RAG flow: classify -> embed -> search -> generate."""
         mock_router = AsyncMock()
         # First call: classification; second call: generation
-        mock_router.send = AsyncMock(side_effect=[
-            self._make_llm_response(text="rag"),
-            self._make_llm_response(text="Here is the answer based on context."),
-        ])
+        mock_router.send = AsyncMock(
+            side_effect=[
+                self._make_llm_response(text="rag"),
+                self._make_llm_response(text="Here is the answer based on context."),
+            ]
+        )
 
         mock_embeddings = AsyncMock(spec=EmbeddingProvider)
         mock_embeddings.embed_query = AsyncMock(return_value=[0.1, 0.2, 0.3])
@@ -126,11 +132,21 @@ class TestRAGPipeline:
         mock_vs = AsyncMock(spec=QdrantVectorStore)
         mock_vs.collection = "mascarade-rag"
         mock_vs.base_url = "http://qdrant:6333"
-        mock_vs.search = AsyncMock(return_value=[
-            {"id": "1", "score": 0.95, "text": "Doc content", "source": "test.md", "metadata": {}},
-        ])
+        mock_vs.search = AsyncMock(
+            return_value=[
+                {
+                    "id": "1",
+                    "score": 0.95,
+                    "text": "Doc content",
+                    "source": "test.md",
+                    "metadata": {},
+                },
+            ]
+        )
 
-        pipeline = RAGPipeline(router=mock_router, vectorstore=mock_vs, embeddings=mock_embeddings)
+        pipeline = RAGPipeline(
+            router=mock_router, vectorstore=mock_vs, embeddings=mock_embeddings
+        )
         result = await pipeline.query("What is mascarade?")
 
         assert result["intent"] == "rag"
@@ -143,7 +159,9 @@ class TestRAGPipeline:
     async def test_query_skip_classification(self):
         """When skip_classification=True, go straight to RAG."""
         mock_router = AsyncMock()
-        mock_router.send = AsyncMock(return_value=self._make_llm_response(text="Direct RAG answer"))
+        mock_router.send = AsyncMock(
+            return_value=self._make_llm_response(text="Direct RAG answer")
+        )
 
         mock_embeddings = AsyncMock(spec=EmbeddingProvider)
         mock_embeddings.embed_query = AsyncMock(return_value=[0.1])
@@ -153,7 +171,9 @@ class TestRAGPipeline:
         mock_vs.base_url = "http://qdrant:6333"
         mock_vs.search = AsyncMock(return_value=[])
 
-        pipeline = RAGPipeline(router=mock_router, vectorstore=mock_vs, embeddings=mock_embeddings)
+        pipeline = RAGPipeline(
+            router=mock_router, vectorstore=mock_vs, embeddings=mock_embeddings
+        )
         result = await pipeline.query("test", skip_classification=True)
 
         assert result["intent"] == "rag"
@@ -164,17 +184,21 @@ class TestRAGPipeline:
     async def test_query_general_intent(self):
         """When intent is general, no vector search happens."""
         mock_router = AsyncMock()
-        mock_router.send = AsyncMock(side_effect=[
-            self._make_llm_response(text="general"),
-            self._make_llm_response(text="General answer"),
-        ])
+        mock_router.send = AsyncMock(
+            side_effect=[
+                self._make_llm_response(text="general"),
+                self._make_llm_response(text="General answer"),
+            ]
+        )
 
         mock_embeddings = AsyncMock(spec=EmbeddingProvider)
         mock_vs = AsyncMock(spec=QdrantVectorStore)
         mock_vs.collection = "mascarade-rag"
         mock_vs.base_url = "http://qdrant:6333"
 
-        pipeline = RAGPipeline(router=mock_router, vectorstore=mock_vs, embeddings=mock_embeddings)
+        pipeline = RAGPipeline(
+            router=mock_router, vectorstore=mock_vs, embeddings=mock_embeddings
+        )
         result = await pipeline.query("Hello, how are you?")
 
         assert result["intent"] == "general"
@@ -195,7 +219,9 @@ class TestRAGPipeline:
         mock_vs.base_url = "http://qdrant:6333"
         mock_vs.upsert = AsyncMock(return_value=2)
 
-        pipeline = RAGPipeline(router=mock_router, vectorstore=mock_vs, embeddings=mock_embeddings)
+        pipeline = RAGPipeline(
+            router=mock_router, vectorstore=mock_vs, embeddings=mock_embeddings
+        )
         docs = [{"text": "Doc 1"}, {"text": "Doc 2"}]
         count = await pipeline.ingest(docs)
 
@@ -207,6 +233,8 @@ class TestRAGPipeline:
     @pytest.mark.asyncio
     async def test_ingest_empty(self):
         """Ingesting nothing returns 0."""
-        pipeline = RAGPipeline(router=AsyncMock(), vectorstore=AsyncMock(), embeddings=AsyncMock())
+        pipeline = RAGPipeline(
+            router=AsyncMock(), vectorstore=AsyncMock(), embeddings=AsyncMock()
+        )
         count = await pipeline.ingest([])
         assert count == 0

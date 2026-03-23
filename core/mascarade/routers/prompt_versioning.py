@@ -48,9 +48,7 @@ async def rollback_prompt(name: str, version: int, request: Request):
         ) from None
 
     if version < 1:
-        raise HTTPException(
-            status_code=400, detail=f"Invalid version: {version}"
-        )
+        raise HTTPException(status_code=400, detail=f"Invalid version: {version}")
 
     # Find the version to rollback to
     target_version = None
@@ -60,9 +58,7 @@ async def rollback_prompt(name: str, version: int, request: Request):
             break
 
     if target_version is None:
-        raise HTTPException(
-            status_code=400, detail=f"Invalid version: {version}"
-        )
+        raise HTTPException(status_code=400, detail=f"Invalid version: {version}")
 
     # Store old prompt before rollback
     old_prompt = agent.system_prompt

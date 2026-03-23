@@ -69,8 +69,9 @@ async def test_run_new_conversation():
         "usage": {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15},
     }
 
-    with patch("mascarade.agents.mistral_agents.settings") as mock_settings, \
-         patch("httpx.AsyncClient") as mock_client_cls:
+    with patch("mascarade.agents.mistral_agents.settings") as mock_settings, patch(
+        "httpx.AsyncClient"
+    ) as mock_client_cls:
         _configure_settings(mock_settings)
         mock_client = AsyncMock()
         mock_client.post = AsyncMock(return_value=mock_response)
@@ -109,8 +110,9 @@ async def test_run_continue_conversation():
         "usage": {},
     }
 
-    with patch("mascarade.agents.mistral_agents.settings") as mock_settings, \
-         patch("httpx.AsyncClient") as mock_client_cls:
+    with patch("mascarade.agents.mistral_agents.settings") as mock_settings, patch(
+        "httpx.AsyncClient"
+    ) as mock_client_cls:
         _configure_settings(mock_settings)
         mock_client = AsyncMock()
         mock_client.post = AsyncMock(return_value=mock_response)
@@ -178,7 +180,10 @@ def test_register_default_agents_uses_configured_ids():
         mock_settings.mistral_agent_sentinelle_id = "ag-sentinelle"
         register_mistral_agents(registry)
 
-    registered = {call[0][0].name: call[0][0].agent_id for call in registry.register.call_args_list}
+    registered = {
+        call[0][0].name: call[0][0].agent_id
+        for call in registry.register.call_args_list
+    }
     assert registered["devstral-code"] == "ag-dev"
     assert registered["forge"] == "ag-forge"
     assert registered["tower-commercial"] == "ag-tower"

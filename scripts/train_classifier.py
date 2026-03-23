@@ -61,7 +61,9 @@ def load_dataset(dataset_path: Path) -> tuple[list[str], list[str]]:
                 domain = sample.get("domain", "").strip()
 
                 if not text or not domain:
-                    logger.warning("Line %d: missing text or domain, skipping", line_num)
+                    logger.warning(
+                        "Line %d: missing text or domain, skipping", line_num
+                    )
                     continue
 
                 texts.append(text)
@@ -82,7 +84,9 @@ def load_dataset(dataset_path: Path) -> tuple[list[str], list[str]]:
     domain_counts = Counter(labels)
     logger.info("Domain distribution:")
     for domain, count in domain_counts.most_common():
-        logger.info("  %s: %d samples (%.1f%%)", domain, count, 100 * count / len(labels))
+        logger.info(
+            "  %s: %d samples (%.1f%%)", domain, count, 100 * count / len(labels)
+        )
 
     return texts, labels
 
@@ -112,7 +116,9 @@ def split_dataset(
             "scikit-learn is required for training. Install with: pip install scikit-learn"
         ) from exc
 
-    return train_test_split(texts, labels, test_size=test_size, random_state=random_state)
+    return train_test_split(
+        texts, labels, test_size=test_size, random_state=random_state
+    )
 
 
 def evaluate_classifier(
@@ -151,7 +157,9 @@ def evaluate_classifier(
     logger.info("Weighted F1 Score: %.3f", f1)
 
     # Show detailed classification report
-    logger.info("\nClassification Report:\n%s", classification_report(labels, predictions))
+    logger.info(
+        "\nClassification Report:\n%s", classification_report(labels, predictions)
+    )
 
     return {
         "accuracy": accuracy,
@@ -222,7 +230,9 @@ def train_classifier(
     # Calculate performance improvement over baseline (keyword matching)
     # Keyword matching baseline is typically 60-70% accurate
     baseline_accuracy = 0.65
-    improvement = (test_metrics["accuracy"] - baseline_accuracy) / baseline_accuracy * 100
+    improvement = (
+        (test_metrics["accuracy"] - baseline_accuracy) / baseline_accuracy * 100
+    )
 
     logger.info("\nPerformance vs Baseline:")
     logger.info("  Baseline (keyword matching): %.1f%%", baseline_accuracy * 100)
@@ -333,9 +343,7 @@ def main() -> int:
 
                 logger.info("Dataset generated successfully")
             else:
-                logger.error(
-                    "Dataset preparation script not found: %s", prepare_script
-                )
+                logger.error("Dataset preparation script not found: %s", prepare_script)
                 return 1
 
         train_classifier(

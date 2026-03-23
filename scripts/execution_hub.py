@@ -12,7 +12,6 @@ from datetime import date
 from pathlib import Path
 from typing import NoReturn
 
-
 DEFAULT_HUB = Path("/mascarade/docs/EXECUTION_HUB.md")
 DEFAULT_MACHINE_PROFILES = Path("/mascarade/docs/MACHINE_PROFILES.json")
 VALID_STATUSES = {"PENDING", "IN_PROGRESS", "BLOCKED", "DONE", "DEFERRED"}
@@ -88,7 +87,9 @@ def _replace_section(text: str, heading: str, body: str) -> str:
     )
     if not pattern.search(text):
         _fail(f"section introuvable: {heading}")
-    return pattern.sub(lambda match: f"{match.group(1)}{body.rstrip()}\n\n", text, count=1)
+    return pattern.sub(
+        lambda match: f"{match.group(1)}{body.rstrip()}\n\n", text, count=1
+    )
 
 
 def _table_bounds(text: str) -> tuple[int, int]:
@@ -190,13 +191,17 @@ def load_machine_profile(machine_name: str, profiles_path: Path) -> MachineProfi
             raw_aliases = set(profile_data.get("aliases", []))
             raw_aliases.add(profile_name)
             if machine_name == profile_name or machine_name in raw_aliases:
-                aliases = {str(item).strip() for item in raw_aliases if str(item).strip()}
+                aliases = {
+                    str(item).strip() for item in raw_aliases if str(item).strip()
+                }
                 capabilities = {
                     str(item).strip()
                     for item in profile_data.get("capabilities", [])
                     if str(item).strip()
                 }
-                return MachineProfile(name=profile_name, aliases=aliases, capabilities=capabilities)
+                return MachineProfile(
+                    name=profile_name, aliases=aliases, capabilities=capabilities
+                )
     return MachineProfile(name=machine_name, aliases=aliases, capabilities=capabilities)
 
 
@@ -242,7 +247,9 @@ def load_known_machine_profiles(
     return profiles
 
 
-def scope_matches(lot: Lot, profile: MachineProfile, include_foreign: bool = False) -> bool:
+def scope_matches(
+    lot: Lot, profile: MachineProfile, include_foreign: bool = False
+) -> bool:
     if include_foreign:
         return True
     for token in lot.scope_tokens():
@@ -259,7 +266,11 @@ def scope_matches(lot: Lot, profile: MachineProfile, include_foreign: bool = Fal
             if capability in profile.capabilities:
                 return True
             continue
-        if token == profile.name or token in profile.aliases or token in profile.capabilities:
+        if (
+            token == profile.name
+            or token in profile.aliases
+            or token in profile.capabilities
+        ):
             return True
     return False
 
@@ -270,10 +281,16 @@ def relevant_lots(
     *,
     include_foreign: bool = False,
 ) -> list[Lot]:
-    return [lot for lot in lots if scope_matches(lot, profile, include_foreign=include_foreign)]
+    return [
+        lot
+        for lot in lots
+        if scope_matches(lot, profile, include_foreign=include_foreign)
+    ]
 
 
-def first_runnable_lot(candidates: list[Lot], all_lots: list[Lot] | None = None) -> Lot | None:
+def first_runnable_lot(
+    candidates: list[Lot], all_lots: list[Lot] | None = None
+) -> Lot | None:
     indexed = lot_map(all_lots or candidates)
     for lot in candidates:
         if lot.status == "IN_PROGRESS":
@@ -281,7 +298,10 @@ def first_runnable_lot(candidates: list[Lot], all_lots: list[Lot] | None = None)
     for lot in candidates:
         if lot.status != "PENDING":
             continue
-        if all(indexed.get(dep) and indexed[dep].status == "DONE" for dep in lot.dependencies()):
+        if all(
+            indexed.get(dep) and indexed[dep].status == "DONE"
+            for dep in lot.dependencies()
+        ):
             return lot
     return None
 
@@ -292,7 +312,10 @@ def pending_lots(candidates: list[Lot], all_lots: list[Lot] | None = None) -> li
     for lot in candidates:
         if lot.status != "PENDING":
             continue
-        if all(indexed.get(dep) and indexed[dep].status == "DONE" for dep in lot.dependencies()):
+        if all(
+            indexed.get(dep) and indexed[dep].status == "DONE"
+            for dep in lot.dependencies()
+        ):
             ordered.append(lot)
     for lot in candidates:
         if lot.status == "PENDING" and lot not in ordered:
@@ -313,7 +336,9 @@ def context_lines(profile: MachineProfile, include_foreign: bool) -> list[str]:
     return lines
 
 
-def refresh_sections(text: str, profile: MachineProfile, include_foreign: bool = False) -> str:
+def refresh_sections(
+    text: str, profile: MachineProfile, include_foreign: bool = False
+) -> str:
     all_lots = parse_lots(text)
     lots = relevant_lots(all_lots, profile, include_foreign=include_foreign)
     current = [lot for lot in lots if lot.status == "IN_PROGRESS"]
@@ -340,11 +365,18 @@ def refresh_sections(text: str, profile: MachineProfile, include_foreign: bool =
             ]
         )
     elif blocked:
-        lines = base_lines + ["", "Aucun lot runnable detecte automatiquement.", "", "Bloquants connus:"]
+        lines = base_lines + [
+            "",
+            "Aucun lot runnable detecte automatiquement.",
+            "",
+            "Bloquants connus:",
+        ]
         lines.extend(f"- `{lot.lot_id}` - {lot.title}" for lot in blocked[:3])
         current_body = "\n".join(lines)
     else:
-        current_body = "\n".join(base_lines + ["", "Aucun lot runnable detecte automatiquement."])
+        current_body = "\n".join(
+            base_lines + ["", "Aucun lot runnable detecte automatiquement."]
+        )
 
     if pending:
         next_body = "\n".join(
@@ -390,7 +422,9 @@ def get_profile(args: argparse.Namespace) -> MachineProfile:
     return load_machine_profile(machine_name_for_args(args), args.machine_profiles)
 
 
-def filtered_lots(args: argparse.Namespace) -> tuple[MachineProfile, list[Lot], list[Lot]]:
+def filtered_lots(
+    args: argparse.Namespace,
+) -> tuple[MachineProfile, list[Lot], list[Lot]]:
     profile = get_profile(args)
     all_lots = parse_lots(_load_text(args.hub))
     visible_lots = relevant_lots(all_lots, profile, include_foreign=args.all_scopes)
@@ -533,7 +567,9 @@ def cmd_set_status(args: argparse.Namespace) -> int:
         _fail(f"lot introuvable: {args.lot_id}")
     text = write_lots(text, lots)
     if args.refresh:
-        text = refresh_sections(text, get_profile(args), include_foreign=args.all_scopes)
+        text = refresh_sections(
+            text, get_profile(args), include_foreign=args.all_scopes
+        )
     if args.journal:
         text = append_journal(text, args.journal)
     args.hub.write_text(text, encoding="utf-8")
@@ -569,7 +605,9 @@ def cmd_add_lot(args: argparse.Namespace) -> int:
         lots.append(new_lot)
     text = write_lots(text, lots)
     if args.refresh:
-        text = refresh_sections(text, get_profile(args), include_foreign=args.all_scopes)
+        text = refresh_sections(
+            text, get_profile(args), include_foreign=args.all_scopes
+        )
     if args.journal:
         text = append_journal(text, args.journal)
     args.hub.write_text(text, encoding="utf-8")
@@ -578,7 +616,9 @@ def cmd_add_lot(args: argparse.Namespace) -> int:
 
 def cmd_refresh(args: argparse.Namespace) -> int:
     text = _load_text(args.hub)
-    refreshed = refresh_sections(text, get_profile(args), include_foreign=args.all_scopes)
+    refreshed = refresh_sections(
+        text, get_profile(args), include_foreign=args.all_scopes
+    )
     args.hub.write_text(refreshed, encoding="utf-8")
     return 0
 
@@ -591,7 +631,9 @@ def cmd_journal(args: argparse.Namespace) -> int:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Pilotage du hub d'execution Mascarade")
+    parser = argparse.ArgumentParser(
+        description="Pilotage du hub d'execution Mascarade"
+    )
     parser.add_argument(
         "--hub",
         type=Path,
@@ -616,7 +658,9 @@ def build_parser() -> argparse.ArgumentParser:
     )
     sub = parser.add_subparsers(dest="command", required=True)
 
-    context_parser = sub.add_parser("context", help="Afficher le contexte machine courant")
+    context_parser = sub.add_parser(
+        "context", help="Afficher le contexte machine courant"
+    )
     context_parser.add_argument("--json", action="store_true")
     context_parser.set_defaults(func=cmd_context)
 
@@ -654,7 +698,9 @@ def build_parser() -> argparse.ArgumentParser:
     add_parser.add_argument("--journal", help="Ajouter une ligne de journal")
     add_parser.set_defaults(func=cmd_add_lot)
 
-    refresh_parser = sub.add_parser("refresh", help="Recalculer les sections derivees du hub")
+    refresh_parser = sub.add_parser(
+        "refresh", help="Recalculer les sections derivees du hub"
+    )
     refresh_parser.set_defaults(func=cmd_refresh)
 
     journal_parser = sub.add_parser("journal", help="Ajouter une ligne au journal")

@@ -174,7 +174,10 @@ class DomainType(BaseModel):
                 prop_schema = properties[key]
                 # Check enum constraints
                 if "enum" in prop_schema and value not in prop_schema["enum"]:
-                    return False, f"Invalid value for {key}: {value}. enum constraint violated, must be one of {prop_schema['enum']}"
+                    return (
+                        False,
+                        f"Invalid value for {key}: {value}. enum constraint violated, must be one of {prop_schema['enum']}",
+                    )
 
         return True, None
 
@@ -188,8 +191,13 @@ class DomainType(BaseModel):
 # --- PortType Union (for rich type descriptors) ---
 
 PortTypeUnion = Union[
-    PrimitiveType, ArrayType, MapType, OptionalType,
-    UnionType, StreamType, DomainType,
+    PrimitiveType,
+    ArrayType,
+    MapType,
+    OptionalType,
+    UnionType,
+    StreamType,
+    DomainType,
 ]
 
 # Required for Pydantic forward reference resolution
@@ -234,7 +242,13 @@ class PortType(BaseModel):
 
         # Only validate as a port definition when kind is DATA/CONTROL/TRIGGER
         # Type descriptors use kind=PRIMITIVE/DOMAIN/ARRAY/MAP/STREAM
-        is_type_descriptor = kind in (PortKind.PRIMITIVE, PortKind.DOMAIN, PortKind.ARRAY, PortKind.MAP, PortKind.STREAM)
+        is_type_descriptor = kind in (
+            PortKind.PRIMITIVE,
+            PortKind.DOMAIN,
+            PortKind.ARRAY,
+            PortKind.MAP,
+            PortKind.STREAM,
+        )
         if is_type_descriptor:
             return self
 
@@ -251,6 +265,7 @@ class PortType(BaseModel):
                     raise ValueError("Port type cannot be empty")
 
         return self
+
     required: bool = Field(
         default=True,
         description="Whether this port must be connected (inputs) or always produces a value (outputs)",
@@ -370,8 +385,12 @@ class NodeType(BaseModel):
     label: str = Field(default="", description="Human-readable label")
     description: str = Field(default="", description="Description of this node type")
     category: str = Field(default="", description="Category within the domain")
-    inputs: list[PortType] = Field(default_factory=list, description="Input port definitions")
-    outputs: list[PortType] = Field(default_factory=list, description="Output port definitions")
+    inputs: list[PortType] = Field(
+        default_factory=list, description="Input port definitions"
+    )
+    outputs: list[PortType] = Field(
+        default_factory=list, description="Output port definitions"
+    )
 
     model_config = ConfigDict(frozen=True, protected_namespaces=())
 
@@ -402,7 +421,9 @@ def primitive_port(
     actual_type = primitive_type or ptype
 
     # Handle swapped positional args: (name, PrimitiveType, PortDirection)
-    if isinstance(direction, (PrimitiveType, str)) and not isinstance(direction, PortDirection):
+    if isinstance(direction, (PrimitiveType, str)) and not isinstance(
+        direction, PortDirection
+    ):
         if isinstance(primitive_type, PortDirection):
             actual_direction = primitive_type
             actual_type = direction
@@ -415,8 +436,16 @@ def primitive_port(
     if actual_type is None:
         actual_type = PrimitiveType.STRING
 
-    t = actual_type.value if isinstance(actual_type, PrimitiveType) else str(actual_type)
-    d = actual_direction if isinstance(actual_direction, PortDirection) else PortDirection(actual_direction)
+    t = (
+        actual_type.value
+        if isinstance(actual_type, PrimitiveType)
+        else str(actual_type)
+    )
+    d = (
+        actual_direction
+        if isinstance(actual_direction, PortDirection)
+        else PortDirection(actual_direction)
+    )
 
     return PortType(
         name=name,

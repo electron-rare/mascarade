@@ -36,7 +36,7 @@ class MemoryEntry(BaseModel):
                     "created_at": "2024-01-01T00:00:00Z",
                     "updated_at": "2024-01-01T00:00:00Z",
                     "metadata": {"user_id": "user_123"},
-                    "tags": ["important", "recent"]
+                    "tags": ["important", "recent"],
                 }
             ]
         }
@@ -46,9 +46,7 @@ class MultiBackendMemoryManager:
     """Multi-backend memory manager supporting Redis and other backends."""
 
     def __init__(
-        self,
-        redis_url: str = "redis://localhost:6379",
-        default_ttl: int = 86400
+        self, redis_url: str = "redis://localhost:6379", default_ttl: int = 86400
     ) -> None:
         """Initialize multi-backend memory manager.
 
@@ -73,8 +71,7 @@ class MultiBackendMemoryManager:
 
         if self._conversation_memory is None:
             self._conversation_memory = ConversationMemory(
-                redis_url=self.redis_url,
-                default_ttl=self.default_ttl
+                redis_url=self.redis_url, default_ttl=self.default_ttl
             )
             await self._conversation_memory.connect()
             logger.info("Connected to ConversationMemory backend")
@@ -119,12 +116,16 @@ class MultiBackendMemoryManager:
             project_id=project_id or str(memory_entry.metadata.get("project_id") or ""),
         )
         memory_entry.metadata["project_id"] = normalized_project
-        key = self._get_memory_key(memory_entry.memory_id, project_id=normalized_project)
+        key = self._get_memory_key(
+            memory_entry.memory_id, project_id=normalized_project
+        )
         value = memory_entry.json()
         ttl_seconds = ttl or self.default_ttl
 
         await self._redis.set(key, value, ex=ttl_seconds)
-        logger.info(f"Stored memory {memory_entry.memory_id} (type: {memory_entry.memory_type})")
+        logger.info(
+            f"Stored memory {memory_entry.memory_id} (type: {memory_entry.memory_type})"
+        )
 
         return memory_entry.memory_id
 
@@ -190,6 +191,7 @@ class MultiBackendMemoryManager:
 
         # Update timestamp
         from datetime import datetime
+
         existing_memory.updated_at = datetime.utcnow().isoformat() + "Z"
 
         # Save updated memory
@@ -255,7 +257,9 @@ class MultiBackendMemoryManager:
 
         async for key in self._redis.scan_iter(match=pattern):
             memory_id = str(key).replace(f"memory:{normalized_project}:", "")
-            memory_entry = await self.retrieve_memory(memory_id, project_id=normalized_project)
+            memory_entry = await self.retrieve_memory(
+                memory_id, project_id=normalized_project
+            )
 
             if memory_entry is None:
                 continue
@@ -304,7 +308,9 @@ class MultiBackendMemoryManager:
 
         async for key in self._redis.scan_iter(match=pattern):
             memory_id = str(key).replace(f"memory:{normalized_project}:", "")
-            memory_entry = await self.retrieve_memory(memory_id, project_id=normalized_project)
+            memory_entry = await self.retrieve_memory(
+                memory_id, project_id=normalized_project
+            )
 
             if memory_entry is None:
                 continue
@@ -351,7 +357,7 @@ class MultiBackendMemoryManager:
                 "created_at": memory_data["created_at"],
                 "updated_at": memory_data["updated_at"],
                 "metadata": memory_data.get("metadata", {}),
-                "tags": memory_data.get("tags", [])
+                "tags": memory_data.get("tags", []),
             }
         except Exception as e:
             logger.error(f"Failed to get metadata for memory {memory_id}: {e}")
@@ -498,12 +504,13 @@ class MultiBackendMemoryManager:
 
 # Utility functions for common memory operations
 
+
 async def create_memory_entry(
     content: str | dict[str, Any],
     memory_type: str = "generic",
     memory_id: str | None = None,
     metadata: dict[str, Any] | None = None,
-    tags: list[str] | None = None
+    tags: list[str] | None = None,
 ) -> MemoryEntry:
     """Create a new MemoryEntry with automatic IDs and timestamps."""
     import uuid
@@ -518,7 +525,7 @@ async def create_memory_entry(
         created_at=now,
         updated_at=now,
         metadata=metadata or {},
-        tags=tags or []
+        tags=tags or [],
     )
 
 
@@ -532,14 +539,19 @@ async def create_conversation_memory(
 ) -> str:
     """Create a new conversation with initial memory."""
     from mascarade.conversation.models import ConversationMessage
+
     normalized_project, _, _ = normalize_scope(project_id=project_id)
 
     # Create conversation memory entry
     memory_entry = await create_memory_entry(
         content={"initial_message": initial_message},
         memory_type="conversation",
-        metadata={"user_id": user_id, "project_id": normalized_project, **(metadata or {})},
-        tags=["conversation", "active"]
+        metadata={
+            "user_id": user_id,
+            "project_id": normalized_project,
+            **(metadata or {}),
+        },
+        tags=["conversation", "active"],
     )
 
     # Store in memory system
@@ -547,9 +559,7 @@ async def create_conversation_memory(
 
     # Create initial conversation message
     message = ConversationMessage(
-        role="user",
-        content=initial_message,
-        timestamp=memory_entry.created_at
+        role="user", content=initial_message, timestamp=memory_entry.created_at
     )
 
     # Store in conversation system

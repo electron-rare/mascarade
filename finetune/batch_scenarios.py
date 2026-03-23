@@ -61,7 +61,9 @@ def resolve_passes(pass_selector: str) -> list:
     return [PASS_SPECS[pass_selector]]
 
 
-def resolve_domains(explicit_domains: list[str], scenario_domains: tuple[str, ...]) -> list[str]:
+def resolve_domains(
+    explicit_domains: list[str], scenario_domains: tuple[str, ...]
+) -> list[str]:
     if not explicit_domains:
         return list(scenario_domains)
     resolved = [canonical_domain(domain) for domain in explicit_domains]
@@ -74,7 +76,10 @@ def resolve_domains(explicit_domains: list[str], scenario_domains: tuple[str, ..
 
 
 def assert_scenario_supported(spec) -> None:
-    if spec.teacher_model in GPU_STUDENT_MODELS or spec.teacher_model in CPU_STUDENT_MODELS:
+    if (
+        spec.teacher_model in GPU_STUDENT_MODELS
+        or spec.teacher_model in CPU_STUDENT_MODELS
+    ):
         return
     if spec.teacher_model in TEACHER_ONLY_MODELS:
         return
@@ -472,9 +477,7 @@ def main() -> int:
             refresh_manifest_summary(manifest)
             write_manifest(manifest_path, manifest)
             log_file = logs_dir / f"{job['id']}.log"
-            raise SystemExit(
-                f"Scenario job failed: {job['id']} (see {log_file})"
-            )
+            raise SystemExit(f"Scenario job failed: {job['id']} (see {log_file})")
         refresh_manifest_summary(manifest)
         write_manifest(manifest_path, manifest)
 

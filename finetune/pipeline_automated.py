@@ -38,7 +38,9 @@ def _get_pipeline_module():
 
     # Set a temporary LLM dir to avoid permission issues during import
     if "MASCARADE_LLM_DIR" not in os.environ:
-        os.environ["MASCARADE_LLM_DIR"] = str(Path.home() / ".cache" / "mascarade" / "llm")
+        os.environ["MASCARADE_LLM_DIR"] = str(
+            Path.home() / ".cache" / "mascarade" / "llm"
+        )
 
     try:
         from . import pipeline as _pipeline_module
@@ -54,13 +56,29 @@ def _get_pipeline_module():
 
 # Default domains list (avoid importing pipeline at module level)
 DOMAINS = [
-    "stm32", "spice", "iot", "power", "dsp", "emc", "kicad",
-    "embedded", "platformio", "freecad", "components"
+    "stm32",
+    "spice",
+    "iot",
+    "power",
+    "dsp",
+    "emc",
+    "kicad",
+    "embedded",
+    "platformio",
+    "freecad",
+    "components",
 ]
 
 
 StepName = Literal["train", "merge", "gguf", "deploy", "register", "verify"]
-EventType = Literal["pipeline_start", "step_start", "step_complete", "step_failed", "pipeline_complete", "pipeline_failed"]
+EventType = Literal[
+    "pipeline_start",
+    "step_start",
+    "step_complete",
+    "step_failed",
+    "pipeline_complete",
+    "pipeline_failed",
+]
 Severity = Literal["debug", "info", "warning", "error", "critical"]
 
 # Default base model (matches pipeline.py)
@@ -86,7 +104,9 @@ def _otel_enabled() -> bool:
 
 def _collector_endpoint() -> str:
     """Get OpenTelemetry collector HTTP endpoint"""
-    endpoint = os.environ.get("OTEL_COLLECTOR_HTTP_ENDPOINT", "http://otel-collector:4318")
+    endpoint = os.environ.get(
+        "OTEL_COLLECTOR_HTTP_ENDPOINT", "http://otel-collector:4318"
+    )
     return endpoint.rstrip("/")
 
 
@@ -100,7 +120,7 @@ def emit_structured_log(
     event_type: str | None = None,
     step: str | None = None,
     duration_seconds: float | None = None,
-    **extra_attrs: Any
+    **extra_attrs: Any,
 ) -> None:
     """
     Emit structured log for Grafana/Langfuse observability.
@@ -156,20 +176,14 @@ def emit_structured_log(
         attributes = []
         for key, value in entry.items():
             if key not in ("message", "severity", "service") and value is not None:
-                attributes.append({
-                    "key": key,
-                    "value": {"stringValue": str(value)}
-                })
+                attributes.append({"key": key, "value": {"stringValue": str(value)}})
 
         payload = {
             "resourceLogs": [
                 {
                     "resource": {
                         "attributes": [
-                            {
-                                "key": "service.name",
-                                "value": {"stringValue": service}
-                            }
+                            {"key": "service.name", "value": {"stringValue": service}}
                         ]
                     },
                     "scopeLogs": [
@@ -208,6 +222,7 @@ def emit_structured_log(
 @dataclass
 class PipelineEvent:
     """Structured event for observability (Grafana/Langfuse)"""
+
     event_type: EventType
     timestamp: str
     domain: str
@@ -330,7 +345,7 @@ class PipelineRunner:
             status=event.status,
             error=event.error,
             timestamp=event.timestamp,
-            **metadata_attrs
+            **metadata_attrs,
         )
 
     def _get_state_path(self) -> Path:
@@ -373,7 +388,7 @@ class PipelineRunner:
                     "epochs": self.epochs,
                     "train_quant": self.train_quant,
                     "gguf_quant": self.gguf_quant,
-                }
+                },
             )
 
             logger.info(f"Successfully registered model: {model_id}")
@@ -438,11 +453,13 @@ class PipelineRunner:
             return {}
 
         try:
-            with open(state_path, 'r') as f:
+            with open(state_path, "r") as f:
                 state = json.load(f)
             return state
         except (json.JSONDecodeError, IOError) as e:
-            print(f"Warning: Could not load state from {state_path}: {e}", file=sys.stderr)
+            print(
+                f"Warning: Could not load state from {state_path}: {e}", file=sys.stderr
+            )
             return {}
 
     def _save_state(self, completed_step: str) -> None:
@@ -467,10 +484,12 @@ class PipelineRunner:
 
         state_path = self._get_state_path()
         try:
-            with open(state_path, 'w') as f:
+            with open(state_path, "w") as f:
                 json.dump(state, f, indent=2)
         except IOError as e:
-            print(f"Warning: Could not save state to {state_path}: {e}", file=sys.stderr)
+            print(
+                f"Warning: Could not save state to {state_path}: {e}", file=sys.stderr
+            )
 
     def _run_step(self, step: StepName) -> bool:
         """
@@ -484,18 +503,20 @@ class PipelineRunner:
         """
         self._step_start_time = time.time()
 
-        self._emit_event(PipelineEvent(
-            event_type="step_start",
-            timestamp=datetime.now(timezone.utc).isoformat(),
-            domain=self.domain,
-            severity="info",
-            step=step,
-            status="running",
-            metadata={
-                "base_model": self.base_model,
-                "dry_run": self.dry_run,
-            }
-        ))
+        self._emit_event(
+            PipelineEvent(
+                event_type="step_start",
+                timestamp=datetime.now(timezone.utc).isoformat(),
+                domain=self.domain,
+                severity="info",
+                step=step,
+                status="running",
+                metadata={
+                    "base_model": self.base_model,
+                    "dry_run": self.dry_run,
+                },
+            )
+        )
 
         if self.dry_run:
             print(f"\n[DRY RUN] Would execute step: {step}")
@@ -507,7 +528,9 @@ class PipelineRunner:
             elif step == "gguf":
                 print(f"  GGUF quant: {self.gguf_quant}")
             elif step == "deploy":
-                print(f"  Deploy alias: {self.deploy_alias or f'mascarade-{self.domain}'}")
+                print(
+                    f"  Deploy alias: {self.deploy_alias or f'mascarade-{self.domain}'}"
+                )
             elif step == "register":
                 print(f"  Model ID: {self.deploy_alias or f'mascarade-{self.domain}'}")
                 print(f"  Domain: {self.domain}")
@@ -537,7 +560,9 @@ class PipelineRunner:
                 elif step == "gguf":
                     success = pipeline.step_gguf(self.domain, self.gguf_quant)
                 elif step == "deploy":
-                    success = pipeline.step_deploy(self.domain, deploy_alias=self.deploy_alias)
+                    success = pipeline.step_deploy(
+                        self.domain, deploy_alias=self.deploy_alias
+                    )
                 elif step == "register":
                     success = self._step_register()
                 elif step == "verify":
@@ -546,7 +571,37 @@ class PipelineRunner:
                     raise ValueError(f"Unknown step: {step}")
             except Exception as exc:
                 duration = time.time() - self._step_start_time
-                self._emit_event(PipelineEvent(
+                self._emit_event(
+                    PipelineEvent(
+                        event_type="step_failed",
+                        timestamp=datetime.now(timezone.utc).isoformat(),
+                        domain=self.domain,
+                        severity="error",
+                        step=step,
+                        status="failed",
+                        duration_seconds=duration,
+                        error=str(exc),
+                    )
+                )
+                raise
+
+        duration = time.time() - self._step_start_time
+
+        if success:
+            self._emit_event(
+                PipelineEvent(
+                    event_type="step_complete",
+                    timestamp=datetime.now(timezone.utc).isoformat(),
+                    domain=self.domain,
+                    severity="info",
+                    step=step,
+                    status="completed",
+                    duration_seconds=duration,
+                )
+            )
+        else:
+            self._emit_event(
+                PipelineEvent(
                     event_type="step_failed",
                     timestamp=datetime.now(timezone.utc).isoformat(),
                     domain=self.domain,
@@ -554,33 +609,9 @@ class PipelineRunner:
                     step=step,
                     status="failed",
                     duration_seconds=duration,
-                    error=str(exc),
-                ))
-                raise
-
-        duration = time.time() - self._step_start_time
-
-        if success:
-            self._emit_event(PipelineEvent(
-                event_type="step_complete",
-                timestamp=datetime.now(timezone.utc).isoformat(),
-                domain=self.domain,
-                severity="info",
-                step=step,
-                status="completed",
-                duration_seconds=duration,
-            ))
-        else:
-            self._emit_event(PipelineEvent(
-                event_type="step_failed",
-                timestamp=datetime.now(timezone.utc).isoformat(),
-                domain=self.domain,
-                severity="error",
-                step=step,
-                status="failed",
-                duration_seconds=duration,
-                error="Step returned False",
-            ))
+                    error="Step returned False",
+                )
+            )
 
         return success
 
@@ -598,24 +629,26 @@ class PipelineRunner:
             state = self._load_state()
             self._completed_steps = state.get("completed_steps", [])
 
-        self._emit_event(PipelineEvent(
-            event_type="pipeline_start",
-            timestamp=datetime.now(timezone.utc).isoformat(),
-            domain=self.domain,
-            severity="info",
-            status="running",
-            metadata={
-                "steps": self.steps,
-                "base_model": self.base_model,
-                "dry_run": self.dry_run,
-                "epochs": self.epochs,
-                "train_quant": self.train_quant,
-                "gguf_quant": self.gguf_quant,
-                "resume": self.resume,
-                "state_file": self.state_file,
-                "completed_steps": self._completed_steps,
-            }
-        ))
+        self._emit_event(
+            PipelineEvent(
+                event_type="pipeline_start",
+                timestamp=datetime.now(timezone.utc).isoformat(),
+                domain=self.domain,
+                severity="info",
+                status="running",
+                metadata={
+                    "steps": self.steps,
+                    "base_model": self.base_model,
+                    "dry_run": self.dry_run,
+                    "epochs": self.epochs,
+                    "train_quant": self.train_quant,
+                    "gguf_quant": self.gguf_quant,
+                    "resume": self.resume,
+                    "state_file": self.state_file,
+                    "completed_steps": self._completed_steps,
+                },
+            )
+        )
 
         print(f"\n{'='*60}")
         print(f"  AUTOMATED PIPELINE: {self.domain}")
@@ -626,7 +659,9 @@ class PipelineRunner:
         if self.resume:
             print(f"  State file: {self.state_file}")
             if self._completed_steps:
-                print(f"  Resume: Skipping completed steps: {', '.join(self._completed_steps)}")
+                print(
+                    f"  Resume: Skipping completed steps: {', '.join(self._completed_steps)}"
+                )
         print(f"{'='*60}\n")
 
         try:
@@ -645,31 +680,35 @@ class PipelineRunner:
                 success = self._run_step(step)
                 if not success:
                     total_duration = time.time() - self._start_time
-                    self._emit_event(PipelineEvent(
-                        event_type="pipeline_failed",
-                        timestamp=datetime.now(timezone.utc).isoformat(),
-                        domain=self.domain,
-                        severity="error",
-                        status="failed",
-                        duration_seconds=total_duration,
-                        error=f"Step {step} failed",
-                        metadata={"failed_step": step}
-                    ))
+                    self._emit_event(
+                        PipelineEvent(
+                            event_type="pipeline_failed",
+                            timestamp=datetime.now(timezone.utc).isoformat(),
+                            domain=self.domain,
+                            severity="error",
+                            status="failed",
+                            duration_seconds=total_duration,
+                            error=f"Step {step} failed",
+                            metadata={"failed_step": step},
+                        )
+                    )
                     return False
 
                 # Save state after successful step
                 self._save_state(step)
 
             total_duration = time.time() - self._start_time
-            self._emit_event(PipelineEvent(
-                event_type="pipeline_complete",
-                timestamp=datetime.now(timezone.utc).isoformat(),
-                domain=self.domain,
-                severity="info",
-                status="completed",
-                duration_seconds=total_duration,
-                metadata={"steps_completed": len(self.steps)}
-            ))
+            self._emit_event(
+                PipelineEvent(
+                    event_type="pipeline_complete",
+                    timestamp=datetime.now(timezone.utc).isoformat(),
+                    domain=self.domain,
+                    severity="info",
+                    status="completed",
+                    duration_seconds=total_duration,
+                    metadata={"steps_completed": len(self.steps)},
+                )
+            )
 
             print(f"\n{'='*60}")
             print(f"  Pipeline complete for {self.domain}!")
@@ -680,15 +719,17 @@ class PipelineRunner:
 
         except Exception as exc:
             total_duration = time.time() - self._start_time
-            self._emit_event(PipelineEvent(
-                event_type="pipeline_failed",
-                timestamp=datetime.now(timezone.utc).isoformat(),
-                domain=self.domain,
-                severity="error",
-                status="failed",
-                duration_seconds=total_duration,
-                error=str(exc),
-            ))
+            self._emit_event(
+                PipelineEvent(
+                    event_type="pipeline_failed",
+                    timestamp=datetime.now(timezone.utc).isoformat(),
+                    domain=self.domain,
+                    severity="error",
+                    status="failed",
+                    duration_seconds=total_duration,
+                    error=str(exc),
+                )
+            )
             raise
 
 
@@ -703,9 +744,15 @@ def main():
     parser.add_argument("domain", choices=DOMAINS, help="Domain to fine-tune")
     parser.add_argument("--base", default=DEFAULT_BASE, help="Base model")
     parser.add_argument("--epochs", type=int, default=3, help="Training epochs")
-    parser.add_argument("--dry-run", action="store_true", help="Preview mode (don't execute)")
-    parser.add_argument("--no-events", action="store_true", help="Disable event emission")
-    parser.add_argument("--no-resume", action="store_true", help="Disable resume from saved state")
+    parser.add_argument(
+        "--dry-run", action="store_true", help="Preview mode (don't execute)"
+    )
+    parser.add_argument(
+        "--no-events", action="store_true", help="Disable event emission"
+    )
+    parser.add_argument(
+        "--no-resume", action="store_true", help="Disable resume from saved state"
+    )
     parser.add_argument("--state-file", help="Custom state file path")
 
     args = parser.parse_args()

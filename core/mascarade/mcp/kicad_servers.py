@@ -27,7 +27,13 @@ KICAD_MCP_SERVERS: dict[str, KiCadMcpServer] = {
         repo="https://github.com/Seeed-Studio/kicad-mcp-server",
         command=("npx", "-y", "@anthropic-ai/kicad-mcp-server"),
         install_cmd="npm install -g @anthropic-ai/kicad-mcp-server",
-        tools=["analyze_schematic", "trace_connections", "list_components", "check_drc", "export_bom"],
+        tools=[
+            "analyze_schematic",
+            "trace_connections",
+            "list_components",
+            "check_drc",
+            "export_bom",
+        ],
     ),
     "circuit-synth": KiCadMcpServer(
         key="circuit-synth",
@@ -35,7 +41,13 @@ KICAD_MCP_SERVERS: dict[str, KiCadMcpServer] = {
         repo="https://github.com/circuit-synth/mcp-kicad-sch-api",
         command=("npx", "-y", "mcp-kicad-sch-api"),
         install_cmd="npm install -g mcp-kicad-sch-api",
-        tools=["read_schematic", "write_schematic", "add_component", "add_wire", "validate_schematic"],
+        tools=[
+            "read_schematic",
+            "write_schematic",
+            "add_component",
+            "add_wire",
+            "validate_schematic",
+        ],
     ),
     "kicad-happy": KiCadMcpServer(
         key="kicad-happy",
@@ -43,7 +55,12 @@ KICAD_MCP_SERVERS: dict[str, KiCadMcpServer] = {
         repo="https://github.com/aklofas/kicad-happy",
         command=("python3", "-m", "kicad_happy.mcp_server"),
         install_cmd="pip install kicad-happy",
-        tools=["analyze_pcb_layout", "review_schematic", "suggest_drc_fixes", "check_manufacturing_constraints"],
+        tools=[
+            "analyze_pcb_layout",
+            "review_schematic",
+            "suggest_drc_fixes",
+            "check_manufacturing_constraints",
+        ],
     ),
     "mixelpixx-kicad": KiCadMcpServer(
         key="mixelpixx-kicad",
@@ -51,7 +68,13 @@ KICAD_MCP_SERVERS: dict[str, KiCadMcpServer] = {
         repo="https://github.com/mixelpixx/KiCAD-MCP-Server",
         command=("python3", "-m", "kicad_mcp_server"),
         install_cmd="pip install kicad-mcp-server",
-        tools=["open_project", "run_drc", "export_gerbers", "place_component", "route_trace"],
+        tools=[
+            "open_project",
+            "run_drc",
+            "export_gerbers",
+            "place_component",
+            "route_trace",
+        ],
     ),
     "spicebridge": KiCadMcpServer(
         key="spicebridge",
@@ -60,11 +83,22 @@ KICAD_MCP_SERVERS: dict[str, KiCadMcpServer] = {
         command=("python3", "-m", "spicebridge.server"),
         install_cmd="pip install spicebridge",
         tools=[
-            "create_circuit", "validate_netlist", "run_ac_analysis", "run_dc_analysis",
-            "run_transient_analysis", "measure_bandwidth", "measure_gain",
-            "measure_power", "measure_time_domain", "monte_carlo_analysis",
-            "worst_case_analysis", "export_kicad", "export_png", "export_svg",
-            "connect_stages", "create_from_template",
+            "create_circuit",
+            "validate_netlist",
+            "run_ac_analysis",
+            "run_dc_analysis",
+            "run_transient_analysis",
+            "measure_bandwidth",
+            "measure_gain",
+            "measure_power",
+            "measure_time_domain",
+            "monte_carlo_analysis",
+            "worst_case_analysis",
+            "export_kicad",
+            "export_png",
+            "export_svg",
+            "connect_stages",
+            "create_from_template",
         ],
     ),
 }
@@ -86,12 +120,26 @@ def get_server_config(key: str, project_path: str | None = None) -> dict:
     env = {}
     if project_path:
         env["KICAD_PROJECT_PATH"] = project_path
-    return {"key": server.key, "command": server.command, "transport": server.transport, "env": env, "timeout_s": 45.0}
+    return {
+        "key": server.key,
+        "command": server.command,
+        "transport": server.transport,
+        "env": env,
+        "timeout_s": 45.0,
+    }
 
 
 def log_available() -> None:
     installed = discover_installed()
     if installed:
-        logger.info("KiCad MCP servers: %s/%s — %s", len(installed), len(KICAD_MCP_SERVERS), installed)
+        logger.info(
+            "KiCad MCP servers: %s/%s — %s",
+            len(installed),
+            len(KICAD_MCP_SERVERS),
+            installed,
+        )
     else:
-        logger.info("No KiCad MCP servers installed. Available: %s", list(KICAD_MCP_SERVERS.keys()))
+        logger.info(
+            "No KiCad MCP servers installed. Available: %s",
+            list(KICAD_MCP_SERVERS.keys()),
+        )
