@@ -2,6 +2,22 @@
 
 Ce guide explique comment intégrer Mistral Studio avec le framework Mascarade pour le finetuning et l'utilisation de modèles spécialisés.
 
+## Décision d'architecture verrouillée
+
+Séparation opératoire retenue à partir du `2026-03-22`:
+
+- `Kill_LIFE` cockpit opérateur reste en appels directs vers l'API Mistral pour:
+  - health Studio
+  - handoff opérateur
+  - administration agents / fichiers / fine-tune
+- le runtime `Mascarade` dans le repo actif `/Users/electron/Documents/Projets/mascarade`
+  utilise le provider routeur `mistral-agents` pour les appels applicatifs aux agents distants
+- le repo historique `mascarade-main` reste une référence de lecture uniquement, jamais une cible d'implémentation
+
+Conséquence:
+- la configuration Mistral de runtime est documentée ici, une seule fois
+- aucun secret ni ID réel ne doit être recopié dans le repo actif
+
 ## Configuration
 
 ### 1. Configuration de l'API Mistral Studio
@@ -68,6 +84,8 @@ Contraintes:
   et qu’au moins un `MISTRAL_AGENT_*_ID` est configuré
 - le mode recommandé est `beta`; le code garde un fallback vers l’endpoint deprecated
   `/v1/agents/{id}/completions` pour la reprise
+- le cockpit `Kill_LIFE` peut utiliser les mêmes IDs, mais il continue d'appeler Mistral en direct;
+  le runtime `Mascarade` passe par `mistral-agents`
 
 ## Utilisation des modèles Mistral
 
@@ -109,6 +127,32 @@ Le provider routeur dédié est implémenté dans:
 
 Le bridge d’agents distants est implémenté dans:
 - `/Users/electron/Documents/Projets/mascarade/core/mascarade/agents/mistral_agents.py`
+
+## Codestral FIM dans le repo actif
+
+La fermeture de `T-MS-023` est faite dans le repo actif sans créer un second provider.
+
+Décision retenue:
+- ne pas créer `codestral_fim.py`
+- conserver `core/mascarade/router/providers/codestral.py` comme surface unique pour le chat code + le FIM
+- exposer le FIM via les routes:
+  - core: `/v1/api/providers/codestral/fim`
+  - gateway TypeScript: `/api/providers/codestral/fim`
+
+Exemple d'appel core:
+
+```bash
+curl -X POST http://localhost:8100/v1/api/providers/codestral/fim \
+  -H "Authorization: Bearer $MASCARADE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "prompt": "def add(a, b):\n",
+    "suffix": "\nresult = add(1, 2)\n",
+    "max_tokens": 64
+  }'
+```
+
+Ce chemin remplace explicitement l'idée d'un provider `codestral_fim` séparé.
 
 ## Fine-tuning avec Mistral Studio
 

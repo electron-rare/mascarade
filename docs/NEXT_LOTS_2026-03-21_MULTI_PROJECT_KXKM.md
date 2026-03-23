@@ -115,16 +115,20 @@ bash scripts/monitor.sh --help
 
 ### P0 — Finir le lot Mistral réellement exploitable
 - [x] porter `T-MA-038` dans le repo actif `mascarade`
-- [ ] documenter le mapping `.env` des IDs `mistral_agent_*` sans recopier les secrets dans le repo
-- [ ] décider si le cockpit opérateur doit appeler le provider routeur `mistral-agents` ou rester sur l’API Mistral directe
-- [ ] brancher `T-MS-023` Codestral FIM sur le routeur actif, pas sur la copie historique `mascarade-main`
+- [x] documenter le mapping `.env` des IDs `mistral_agent_*` sans recopier les secrets dans le repo
+- [x] verrouiller la séparation cockpit direct Mistral / runtime `mistral-agents`
+- [x] brancher `T-MS-023` Codestral FIM sur le routeur actif, pas sur la copie historique `mascarade-main`
 - [ ] garder `T-MA-016/017/021` explicitement bloqués tant que la VM datasets/fine-tune n’est pas disponible
 
 ### P0 — Consolider le contrat multi-projet réel
-- [ ] rendre `project_id` obligatoire sur les enveloppes de requête exposées aux agents
+- [~] rendre `project_id` obligatoire sur les enveloppes de requête exposées aux agents
+  - `chat`, `agents/run`, `agents/send`, `knowledge-scribe/run-and-push`, `knowledge-base/search`, `memory` sont maintenant rejetés sans `project_id`
+  - les appels internes restants hors périmètre immédiat doivent encore être relus (`a2a`, surfaces non routées, certains jobs out-of-band)
 - [~] scoper explicitement mémoire, cache et RAG par projet
   - cache `Router.send()/stream()` maintenant scoppé
-  - mémoire/conversation/orchestrator/p2p restent à faire
+  - mémoire conversationnelle Redis et persistance mémoire sont maintenant scoppées
+  - orchestrator local et worker AI propagent désormais `project_id / knowledge_scope / federation_scope`
+  - P2P/discovery et certains stores annexes restent à relire
 - [ ] interdire par défaut toute fédération cross-project sans liste explicite
 - [ ] vérifier les routes UI/API qui consomment encore un état non scoppé
 
@@ -150,7 +154,7 @@ bash scripts/monitor.sh --help
 - `api npm run build` reste rouge sur le `node-engine` React/TSX et des dépendances manquantes; ce n’est pas causé par le lot `kxkm`, mais le package n’est pas globalement propre.
 - `docker-compose.yml` a un chantier concurrent de segmentation réseau en cours.
 - Les artefacts `vllm` présents dans le repo ne sont pas au niveau de qualité requis pour une intégration immédiate.
-- le scoping multi-projet n’est encore complet ni pour la mémoire Redis, ni pour l’orchestrator, ni pour le bus P2P.
+- le scoping multi-projet reste incomplet sur certaines surfaces annexes (`a2a`, discovery, stores fichiers, quelques chemins UI/API historiques).
 
 ## Décisions prises
 

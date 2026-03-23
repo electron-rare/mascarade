@@ -4,8 +4,9 @@ set -euo pipefail
 
 # Configuration
 SYNC_PORT=8730
-SECRETS_DIR="/opt/mascarade/secrets"
-API_KEYS_DIR="/opt/mascarade/api_keys"
+BASE_DIR="$HOME/mascarade_data"
+SECRETS_DIR="$BASE_DIR/secrets"
+API_KEYS_DIR="$BASE_DIR/api_keys"
 KNOWN_HOSTS_FILE="$SECRETS_DIR/known_hosts"
 AUTH_TOKEN_FILE="$SECRETS_DIR/auth_token"
 PUBLIC_KEY_FILE="$SECRETS_DIR/public_key"

@@ -74,3 +74,16 @@ Sources officielles utilisées:
 
 - La doc `vLLM` officielle est utile comme référence de capacités, pas comme justification de l’implémentation locale actuelle.
 - La doc MCP officielle confirme que le protocole couvre outils, ressources, prompts et transports, mais pas la politique de placement multi-machine elle-même.
+
+## Revalidation 2026-03-22
+
+Points revalidés sur les sources officielles:
+
+- **Ray Serve** confirme une séparation nette `Controller / Proxy / Replicas`, ce qui reste cohérent avec notre choix `gateway / scheduler / workers` pour `mascarade`.
+- **Qdrant** recommande, pour la plupart des cas, une collection par modèle d'embeddings avec partitionnement par payload tenant, et précise que l'option `is_tenant=true` améliore la colocalisation des vecteurs d'un même tenant.
+- **Mem0 OSS** se présente comme une mémoire self-hosted avec contrôle complet de l'infrastructure et des données; ses composants par défaut (`Qdrant` local + `SQLite`) renforcent l'idée qu'il faut scoper explicitement par `project_id` au-dessus de la stack.
+- **MCP** confirme une architecture `host -> client -> server`, avec une connexion dédiée par client/serveur, et rappelle que le protocole ne décide pas du scheduling applicatif ni du placement distribué.
+
+Conséquence directe pour les vagues en cours:
+- le `project_id` doit rester la frontière logique commune entre cache, mémoire, RAG et exécution
+- le contrôle-plane `mascarade` doit consommer MCP comme protocole d'outils/contexte, pas comme scheduler multi-machine

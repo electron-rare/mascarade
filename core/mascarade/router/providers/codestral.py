@@ -7,7 +7,7 @@ from collections.abc import AsyncIterator
 
 import httpx
 
-from mascarade.config import is_secret_configured, settings
+from mascarade.config import is_secret_configured, secret_value, settings
 from mascarade.router.providers.base import (
     LLMProvider,
     LLMResponse,
@@ -34,7 +34,7 @@ class CodestralProvider(LLMProvider):
     quality_rank = 3  # High quality for code tasks
 
     def __init__(self) -> None:
-        api_key = getattr(settings, "codestral_api_key", "") or ""
+        api_key = secret_value(getattr(settings, "codestral_api_key", "") or "")
         self._api_key = api_key.strip()
         timeout = getattr(settings, "codestral_timeout_seconds", 120.0)
         self._client = httpx.AsyncClient(

@@ -14,6 +14,14 @@ afterEach(() => {
 });
 
 describe("knowledge base routes", () => {
+  it("requires project_id on search", async () => {
+    const res = await makeApp().request("/api/knowledge-base/search?q=musique&limit=5");
+
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.error).toBe("Query validation failed");
+  });
+
   it("forwards multi-project scope to the core search route", async () => {
     const searchSpy = vi.spyOn(coreClient, "knowledgeBaseSearch").mockResolvedValue({
       results: [],

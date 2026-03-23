@@ -58,6 +58,13 @@ export const LLMInferenceNode: NodePlugin = {
       description: 'User prompt for the LLM',
     },
     {
+      id: 'project_id',
+      label: 'Project ID',
+      type: 'string',
+      required: true,
+      description: 'Logical project scope used for cache, memory, and retrieval isolation',
+    },
+    {
       id: 'system',
       label: 'System Prompt',
       type: 'string',
@@ -157,6 +164,11 @@ export const LLMInferenceNode: NodePlugin = {
       errors.push('Prompt must be a non-empty string');
     }
 
+    const projectId = inputs.project_id;
+    if (typeof projectId !== 'string' || projectId.trim().length === 0) {
+      errors.push('Project ID must be a non-empty string');
+    }
+
     // Validate temperature
     const temperature = inputs.temperature;
     if (temperature !== undefined) {
@@ -216,6 +228,7 @@ export const LLMInferenceNode: NodePlugin = {
   ): Promise<NodeExecutionResult> => {
     // Extract inputs with type safety
     const prompt = String(inputs.prompt || '');
+    const projectId = String(inputs.project_id || '').trim();
     const system = inputs.system ? String(inputs.system) : undefined;
     const strategy = inputs.strategy ? String(inputs.strategy) : undefined;
     const provider = inputs.provider ? String(inputs.provider) : undefined;
@@ -243,6 +256,7 @@ export const LLMInferenceNode: NodePlugin = {
       // Call Mascarade router
       const response = await coreClient.send({
         messages: [{ role: 'user', content: prompt }],
+        project_id: projectId,
         system,
         strategy,
         provider,

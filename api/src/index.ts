@@ -28,6 +28,10 @@ import { users } from "./routes/users.js";
 import { p2p } from "./routes/p2p.js";
 import { finetune } from "./routes/finetune.js";
 import { llmProviders } from "./routes/llmProviders.js";
+import { providers } from "./routes/providers.js";
+import { cliAgents } from "./routes/cliAgents.js";
+import { models } from "./routes/models.js";
+import { ollama } from "./routes/ollama.js";
 
 const app = new Hono();
 const hasFrontend = existsSync("./public/index.html");
@@ -56,6 +60,9 @@ app.route("/v1/api/industrial", industrial);
 app.route("/v1/api/mcp/industrial", industrialMcp);
 app.route("/v1/api/killlife", killlife);
 app.route("/v1/api/settings", settings);
+app.route("/v1/api/providers", providers);
+app.route("/v1/api/cli-agents", cliAgents);
+app.route("/v1/api/models", models);
 app.use("/api/auth/*", rateLimitMiddleware);
 app.route("/api/auth", auth);
 // Auth first — reject unauthenticated before consuming rate-limit quota
@@ -72,13 +79,17 @@ app.route("/api/industrial", industrial);
 app.route("/api/mcp/industrial", industrialMcp);
 app.route("/api/killlife", killlife);
 app.route("/api/settings", settings);
+app.route("/api/providers", providers);
+app.route("/api/cli-agents", cliAgents);
 app.route("/api/v1/chat", chat);
+app.route("/api/v1/models", models);
 app.route("/api/pipeline", pipeline);
 app.route("/api/analytics", analytics);
 app.route("/api/users", users);
 app.route("/api/p2p", p2p);
 app.route("/api/finetune", finetune);
 app.route("/api/v2/llm-providers", llmProviders);
+app.route("/api", ollama);
 
 if (hasFrontend) {
   app.use("/assets/*", serveStatic({ root: "./public" }));

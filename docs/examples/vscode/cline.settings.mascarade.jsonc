@@ -1,0 +1,13 @@
+{
+  "cline.mcpServers": {
+    "mascarade": {
+      "command": "node",
+      "args": [
+        "/ABS/PATH/TO/mascarade/scripts/vscode/mascarade_mcp_stdio.js"
+      ],
+      "env": {
+        "MASCARADE_PROJECT_ID": "default"
+      }
+    }
+  }
+}
