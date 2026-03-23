@@ -606,6 +606,23 @@ async def test_chat_completions_contract_multiple_choices():
             provider="openai",
             usage={"input_tokens": 20, "output_tokens": 10},
         ),
+    )
+
+    async with _client(fake_router) as client:
+        response = await client.post(
+            "/v1/chat/completions",
+            json={
+                "model": "openai:gpt-4",
+                "messages": [{"role": "user", "content": "test"}],
+            },
+        )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert len(body["choices"]) == 1
+    assert body["choices"][0]["message"]["content"] == "single choice test"
+
+
 @pytest.mark.asyncio
 async def test_chat_completions_streaming():
     import json as json_module
@@ -838,17 +855,6 @@ async def test_chat_completions_contract_model_prefix_stability():
     assert fake_router.calls[0]["model"] == "llama2"
     body = response.json()
     assert body["model"] == "ollama:llama2"
-                "model": "ollama:qwen3.5:9b",
-                "messages": [{"role": "user", "content": "hello"}],
-                "stream": True,
-            },
-        )
-
-    assert response.status_code == 503
-    assert response.json()["detail"] == {
-        "error": "Provider 'ollama' is not configured or unavailable.",
-        "providers": ["apple-coreml"],
-    }
 
 
 @pytest.mark.asyncio
