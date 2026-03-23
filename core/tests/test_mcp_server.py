@@ -9,12 +9,12 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from mascarade.mcp.server import (
-    McpServer,
+    _TOOL_NAMES,
     PROTOCOL_VERSION,
     SERVER_NAME,
     SERVER_VERSION,
     TOOLS,
-    _TOOL_NAMES,
+    McpServer,
     _jsonrpc_error,
     _jsonrpc_response,
     _register_initial_agents,
@@ -23,7 +23,6 @@ from mascarade.mcp.server import (
 )
 from mascarade.router.providers.base import LLMResponse
 from mascarade.router.router import Strategy
-
 
 # ---------------------------------------------------------------------------
 # Fixtures and helpers

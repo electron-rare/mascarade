@@ -101,7 +101,7 @@ class QdrantVectorStore:
             raise ValueError("documents and embeddings must have the same length")
 
         points: list[dict[str, Any]] = []
-        for doc, vector in zip(documents, embeddings):
+        for doc, vector in zip(documents, embeddings, strict=False):
             point_id = doc.get("id", str(uuid.uuid4()))
             payload: dict[str, Any] = {
                 "text": doc.get("text", ""),

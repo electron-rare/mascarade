@@ -102,7 +102,7 @@ async def ws_traces(
             try:
                 event = await asyncio.wait_for(queue.get(), timeout=_HEARTBEAT_INTERVAL)
                 await websocket.send_text(_json_payload("trace", event.to_dict()))
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 # No event within the heartbeat window — send a keepalive ping.
                 await websocket.send_text(_json_payload("ping", {"ts": datetime.now(UTC).isoformat()}))
     except WebSocketDisconnect:

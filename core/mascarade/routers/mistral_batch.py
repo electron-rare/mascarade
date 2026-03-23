@@ -7,11 +7,11 @@ import logging
 import time
 from typing import Any, Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
 from mascarade.auth import require_auth
-from mascarade.config import settings, is_secret_configured, secret_value
+from mascarade.config import is_secret_configured, secret_value, settings
 
 logger = logging.getLogger("mascarade.routers.mistral_batch")
 

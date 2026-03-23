@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
-import asyncio
 import json
 import logging
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any
 
 from mascarade.node_engine.types import PortDirection, PortType
@@ -234,7 +233,7 @@ class LookupNode(BaseNode):
 
         # Simulate component lookup (in production, this would query LCSC/JLCPCB API)
         # Parse component spec to extract basic info
-        spec_parts = component_spec.lower().split()
+        component_spec.lower().split()
 
         # Generate mock alternatives based on the spec
         alternatives = []

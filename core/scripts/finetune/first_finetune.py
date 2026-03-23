@@ -22,9 +22,9 @@ import time
 
 sys.path.insert(0, os.environ.get("PYTHONPATH", os.path.expanduser("~/mascarade/core")))
 
-from mascarade.finetune.agents.researcher import ResearcherAgent
 from mascarade.finetune.agents.documentalist import DocumentalistAgent
-from mascarade.finetune.registry import FinetuneRegistry, ModelEntry, DatasetEntry, RunEntry
+from mascarade.finetune.agents.researcher import ResearcherAgent
+from mascarade.finetune.registry import FinetuneRegistry, RunEntry
 
 # ANSI
 BOLD = "\033[1m"
@@ -237,7 +237,7 @@ print("RESULT_JSON:" + json.dumps(result))
 '''
 
     # Write script to KXKM
-    step(1, f"Deploying training script to KXKM-AI...")
+    step(1, "Deploying training script to KXKM-AI...")
     script_path = "/tmp/mascarade_train.py"
     # Write via stdin
     proc = subprocess.run(
@@ -278,7 +278,7 @@ print("RESULT_JSON:" + json.dumps(result))
                 return data
 
         if result.returncode != 0:
-            fail(f"Training failed")
+            fail("Training failed")
             for line in result.stderr.split("\n")[-10:]:
                 if line.strip():
                     print(f"    {RED}{line}{RESET}")
@@ -306,7 +306,7 @@ async def main():
     print(f"  Task: {args.task}")
     print(f"  Domain: {args.domain}")
     print(f"  Max size: {args.max_size}GB")
-    print(f"  Training node: KXKM-AI (RTX 4090)")
+    print("  Training node: KXKM-AI (RTX 4090)")
 
     registry = FinetuneRegistry()
     run_id = f"ft-{args.task}-{int(time.time())}"

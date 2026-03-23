@@ -59,6 +59,6 @@ class CrossDomainEnvelope:
         raise NotImplementedError(f"Format {self.serialization_format} not yet implemented")
 
     @classmethod
-    def deserialize(cls, data: bytes) -> "CrossDomainEnvelope":
+    def deserialize(cls, data: bytes) -> CrossDomainEnvelope:
         parsed = json.loads(data)
         return cls(**parsed)

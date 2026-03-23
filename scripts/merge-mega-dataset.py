@@ -125,7 +125,7 @@ def to_unified(record: dict, fmt: str, domain: str) -> dict | None:
         name = record.get("name", "")
         comps = record.get("components_used") or []
         snippet = record.get("schematic_snippet", "") or ""
-        json_struct = record.get("json_structure", "") or ""
+        record.get("json_structure", "") or ""
         if not desc or len(desc) < 20:
             return None
         question = f"Describe the KiCad schematic project '{name}'. What components are used and what is its purpose?"
@@ -256,13 +256,13 @@ def main():
     with open(STATS_FILE, "w") as f:
         json.dump(summary, f, indent=2, ensure_ascii=False)
 
-    print(f"\n=== MEGA DATASET v2 ===")
+    print("\n=== MEGA DATASET v2 ===")
     print(f"Total: {len(all_records)} examples")
     print(f"Size: {summary['file_size_mb']} MB")
-    print(f"\nDomains:")
+    print("\nDomains:")
     for d, c in sorted(domains.items(), key=lambda x: -x[1]):
         print(f"  {d}: {c}")
-    print(f"\nSources:")
+    print("\nSources:")
     for s, c in sorted(sources.items(), key=lambda x: -x[1]):
         print(f"  {s}: {c}")
     print(f"\nOutput: {OUTPUT}")

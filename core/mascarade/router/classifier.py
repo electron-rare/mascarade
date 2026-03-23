@@ -118,7 +118,7 @@ class DomainClassifier:
             probas = self.model.predict_proba(features)[0]
 
             # Create domain -> probability mapping
-            result = {domain: float(proba) for domain, proba in zip(self.domains, probas)}
+            result = {domain: float(proba) for domain, proba in zip(self.domains, probas, strict=False)}
 
             logger.debug(
                 "Domain probabilities for '%s...': %s",

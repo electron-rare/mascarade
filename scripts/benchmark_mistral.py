@@ -3,7 +3,7 @@
 
 import asyncio
 import time
-from typing import Dict, List
+from typing import Dict
 
 import httpx
 
@@ -28,7 +28,7 @@ class MistralBenchmark:
             async with semaphore:
                 start = time.time()
                 try:
-                    response = await self.client.post(
+                    await self.client.post(
                         f"{self.api_base_url}/api/agents/send",
                         json={
                             "messages": [{"role": "user", "content": "Benchmark test"}],
@@ -71,7 +71,7 @@ class MistralBenchmark:
         
         while time.time() < end_time:
             try:
-                response = await self.client.post(
+                await self.client.post(
                     f"{self.api_base_url}/api/agents/send",
                     json={
                         "messages": [{"role": "user", "content": "Throughput test"}],
@@ -169,7 +169,7 @@ class MistralBenchmark:
         # Overall score
         overall_score = (latency_score * 0.4 + throughput_score * 0.4 + reliability_score * 0.2)
         
-        print(f"\nScores:")
+        print("\nScores:")
         print(f"  Latency: {latency_score:.0f}/100")
         print(f"  Throughput: {throughput_score:.0f}/100")
         print(f"  Reliability: {reliability_score:.0f}/100")

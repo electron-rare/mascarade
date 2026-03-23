@@ -7,8 +7,9 @@ import logging
 import time
 import uuid
 from collections import defaultdict
+from collections.abc import Callable, Coroutine
 from dataclasses import dataclass
-from typing import Any, Callable, Coroutine
+from typing import Any
 
 from mascarade.p2p.auth import MessageAuthenticator
 from mascarade.p2p.identity import PeerIdentity

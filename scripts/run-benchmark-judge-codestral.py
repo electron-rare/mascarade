@@ -88,7 +88,7 @@ def query_ollama(model: str, prompt: str) -> str:
 
 def main():
     print("=== T-MA-021c: Codestral API Judge Benchmark ===")
-    print(f"Judge: Codestral API (JSON mode)")
+    print("Judge: Codestral API (JSON mode)")
 
     # Load prompts
     prompts = []
@@ -199,7 +199,7 @@ def main():
     # Generate report
     report = "# T-MA-021c: Codestral API Judge Benchmark\n\n"
     report += f"Date: {time.strftime('%Y-%m-%d %H:%M')}\n"
-    report += f"Judge: Codestral API (JSON mode)\n"
+    report += "Judge: Codestral API (JSON mode)\n"
     report += f"Prompts: {len(prompts)}\n\n"
     report += "## Summary (Score /10)\n\n"
     report += "| Model | Score | KiCad | SPICE | Embedded | Mixed |\n"

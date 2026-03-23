@@ -3,13 +3,13 @@
 Domain-specific reward functions and GRPO/DAPO trainer for mascarade finetune pipeline.
 """
 
+from mascarade.finetune.rlvr.kicad_verifier import KiCadDRCReward
 from mascarade.finetune.rlvr.reward_functions import (
-    RewardFunction,
-    RewardResult,
     CodeCompilationReward,
     JSONValidationReward,
+    RewardFunction,
+    RewardResult,
 )
-from mascarade.finetune.rlvr.kicad_verifier import KiCadDRCReward
 from mascarade.finetune.rlvr.trainer import RLVRConfig, RLVRResult, RLVRTrainer
 
 __all__ = [

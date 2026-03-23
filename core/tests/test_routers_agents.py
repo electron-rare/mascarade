@@ -8,11 +8,8 @@ from uuid import uuid4
 import httpx
 import pytest
 
-from mascarade.agents import Agent
-from mascarade.agents.registry import AgentRegistry
 from mascarade.auth import add_api_key, get_active_api_keys, remove_api_key
 from mascarade.router.providers.base import LLMResponse
-from mascarade.router.router import Strategy
 from mascarade.server import app
 
 TEST_API_KEY = "test-agent-key-001"

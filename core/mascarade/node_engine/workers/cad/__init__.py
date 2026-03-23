@@ -266,8 +266,8 @@ def register_cad_workers(registry: NodeTypeRegistry) -> None:
     from mascarade.node_engine.types import NodeType, PortType
     from mascarade.node_engine.workers.cad.freecad_worker import FreeCADWorker
     from mascarade.node_engine.workers.cad.kicad_worker import KiCadWorker
-    from mascarade.node_engine.workers.cad.toolpath_worker import ToolpathWorker
     from mascarade.node_engine.workers.cad.mesh_worker import MeshWorker
+    from mascarade.node_engine.workers.cad.toolpath_worker import ToolpathWorker
 
     # First register CAD domain types
     register_cad_types(registry)

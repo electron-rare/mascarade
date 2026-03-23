@@ -110,7 +110,7 @@ class PromptFeatureExtractor:
         lines = text.split("\n")
         words = text.split()
         word_count = len(words) or 1
-        unique_words = set(w.lower() for w in words)
+        unique_words = {w.lower() for w in words}
 
         code_lines = sum(1 for ln in lines if _CODE_LINE_RE.match(ln))
         line_count = len(lines) or 1
@@ -180,7 +180,7 @@ class RoutingClassifier:
         self._weights: dict[str, dict[str, float]] = {
             tier: {} for tier in TIERS
         }
-        self._bias: dict[str, float] = {tier: 0.0 for tier in TIERS}
+        self._bias: dict[str, float] = dict.fromkeys(TIERS, 0.0)
         self._feature_extractor = PromptFeatureExtractor()
         self._model_path = model_path
         self._training_data: list[dict[str, Any]] = []
@@ -291,11 +291,11 @@ class RoutingClassifier:
             all_keys.update(sample["features"].keys())
 
         # Re-initialise weights to zero
-        self._weights = {tier: {k: 0.0 for k in all_keys} for tier in TIERS}
-        self._bias = {tier: 0.0 for tier in TIERS}
+        self._weights = {tier: dict.fromkeys(all_keys, 0.0) for tier in TIERS}
+        self._bias = dict.fromkeys(TIERS, 0.0)
 
         total_loss = 0.0
-        for epoch in range(epochs):
+        for _epoch in range(epochs):
             epoch_loss = 0.0
             for sample in positives:
                 fv = sample["features"]

@@ -5,14 +5,10 @@ Lot 24: T-MS-002 to T-MS-033
 
 from __future__ import annotations
 
-import json
-import tempfile
-from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import httpx
 import pytest
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -254,9 +250,10 @@ async def test_http_error_propagation():
 @pytest.mark.asyncio
 async def test_router_upload_dataset():
     """T-MS-005: router upload endpoint validates file extension."""
-    from fastapi.testclient import TestClient
-    from mascarade.routers.mistral_studio import router
     from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+
+    from mascarade.routers.mistral_studio import router
 
     app = FastAPI()
     app.include_router(router)

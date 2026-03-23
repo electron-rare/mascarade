@@ -4,7 +4,6 @@ import json
 import time
 import os
 import httpx
-import random
 
 MISTRAL_URL = "https://api.mistral.ai/v1"
 MISTRAL_KEY = os.environ.get("MISTRAL_API_KEY", "")
@@ -120,7 +119,7 @@ def run_agent(agent_id, prompt, max_retries=2):
                 resp.raise_for_status()
                 data = resp.json()
                 return data["choices"][0]["message"]["content"]
-        except Exception as e:
+        except Exception:
             if attempt < max_retries - 1:
                 time.sleep(2)
             else:

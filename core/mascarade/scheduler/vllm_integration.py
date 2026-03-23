@@ -4,11 +4,10 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import Dict, List, Optional
 
+from mascarade.router.providers.vllm_provider import VLLMProvider
 from mascarade.scheduler.scheduler import ResourceAwareScheduler, ScheduledRequest
 from mascarade.scheduler.worker_state import WorkerState
-from mascarade.router.providers.vllm_provider import VLLMProvider
 
 logger = logging.getLogger("mascarade.scheduler.vllm")
 
@@ -29,7 +28,7 @@ class VLLMWorker:
             tensor_parallel_size=tensor_parallel_size,
             gpu_memory_utilization=gpu_memory_utilization,
         )
-        self.current_requests: Dict[str, ScheduledRequest] = {}
+        self.current_requests: dict[str, ScheduledRequest] = {}
         self.batch_queue: asyncio.Queue[ScheduledRequest] = asyncio.Queue()
         self.processing = False
 
@@ -67,7 +66,7 @@ class VLLMWorker:
         finally:
             self.processing = False
 
-    async def get_status(self) -> Dict:
+    async def get_status(self) -> dict:
         """Get worker status."""
         return {
             "node_id": self.node_id,
@@ -86,8 +85,8 @@ class VLLMScheduler(ResourceAwareScheduler):
 
     def __init__(self):
         super().__init__()
-        self.vllm_workers: Dict[str, VLLMWorker] = {}
-        self.mlx_workers: Dict[str, MLXWorker] = {}
+        self.vllm_workers: dict[str, VLLMWorker] = {}
+        self.mlx_workers: dict[str, MLXWorker] = {}
 
     async def register_vllm_worker(
         self,
@@ -128,7 +127,7 @@ class VLLMScheduler(ResourceAwareScheduler):
     ) -> None:
         """Register an MLX worker for Apple Silicon."""
         from mascarade.router.providers.mlx_provider import MLXWorker
-        
+
         worker = MLXWorker(
             node_id=node_id,
             model_path=model_path,
@@ -157,7 +156,7 @@ class VLLMScheduler(ResourceAwareScheduler):
         best_worker = None
         best_score = -1
 
-        for worker_id, worker in self.vllm_workers.items():
+        for _worker_id, worker in self.vllm_workers.items():
             if request.model in worker.provider.model_path:
                 score = self._score_vllm_worker(worker, request)
                 if score > best_score:
@@ -176,7 +175,7 @@ class VLLMScheduler(ResourceAwareScheduler):
         best_worker = None
         best_score = -1
 
-        for worker_id, worker in self.mlx_workers.items():
+        for _worker_id, worker in self.mlx_workers.items():
             if request.model in worker.provider.model_path:
                 score = self._score_mlx_worker(worker, request)
                 if score > best_score:
@@ -224,14 +223,14 @@ class VLLMScheduler(ResourceAwareScheduler):
 
         return score
 
-    async def get_vllm_status(self) -> Dict:
+    async def get_vllm_status(self) -> dict:
         """Get status of all vLLM workers."""
         status = {}
         for worker_id, worker in self.vllm_workers.items():
             status[worker_id] = await worker.get_status()
         return status
 
-    async def get_mlx_status(self) -> Dict:
+    async def get_mlx_status(self) -> dict:
         """Get status of all MLX workers."""
         status = {}
         for worker_id, worker in self.mlx_workers.items():
@@ -244,7 +243,7 @@ class VLLMScheduler(ResourceAwareScheduler):
         for worker in self.vllm_workers.values():
             await worker.close()
         self.vllm_workers.clear()
-        
+
         # Close MLX workers
         for worker in self.mlx_workers.values():
             await worker.close()

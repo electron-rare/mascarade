@@ -4,10 +4,8 @@
 Usage:
     python scripts/p2p/mesh_tui.py
 """
-import json
 import os
 import subprocess
-import sys
 import time
 
 # ANSI
@@ -147,7 +145,7 @@ def start_node(name, info):
     print(f"  {DIM}Starting {name}...{RESET}")
     # Build the start command based on node type
     if "bootstrap" in name.lower():
-        cmd = f"cd ~/mascarade/core && nohup python3 scripts/p2p/node_start_bootstrap.py > /tmp/p2p.log 2>&1 &"
+        cmd = "cd ~/mascarade/core && nohup python3 scripts/p2p/node_start_bootstrap.py > /tmp/p2p.log 2>&1 &"
     else:
         caps = ",".join(info["caps"])
         cmd = (f"cd ~/mascarade/core && "
@@ -201,7 +199,7 @@ def main_menu():
         print(f"  {BOLD}0{RESET}. Quitter")
 
         try:
-            choice = input(f"\n  Choix > ").strip()
+            choice = input("\n  Choix > ").strip()
         except (EOFError, KeyboardInterrupt):
             break
 
@@ -215,7 +213,7 @@ def main_menu():
             for i, n in enumerate(names, 1):
                 print(f"  {BOLD}{i}{RESET}. {n}")
             try:
-                idx = int(input(f"\n  Nœud > ").strip()) - 1
+                idx = int(input("\n  Nœud > ").strip()) - 1
                 if 0 <= idx < len(names):
                     show_node_detail(names[idx], NODES[names[idx]])
             except (ValueError, EOFError):
@@ -226,7 +224,7 @@ def main_menu():
             for i, n in enumerate(names, 1):
                 print(f"  {BOLD}{i}{RESET}. {n}")
             try:
-                idx = int(input(f"\n  Nœud > ").strip()) - 1
+                idx = int(input("\n  Nœud > ").strip()) - 1
                 if 0 <= idx < len(names):
                     start_node(names[idx], NODES[names[idx]])
             except (ValueError, EOFError):
@@ -237,7 +235,7 @@ def main_menu():
             for i, n in enumerate(names, 1):
                 print(f"  {BOLD}{i}{RESET}. {n}")
             try:
-                idx = int(input(f"\n  Nœud > ").strip()) - 1
+                idx = int(input("\n  Nœud > ").strip()) - 1
                 if 0 <= idx < len(names):
                     stop_node(names[idx], NODES[names[idx]])
             except (ValueError, EOFError):

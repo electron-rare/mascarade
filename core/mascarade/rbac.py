@@ -3,9 +3,8 @@
 from __future__ import annotations
 
 import logging
-from typing import Any
 
-from mascarade.db.models import Role, RoleName
+from mascarade.db.models import RoleName
 
 logger = logging.getLogger("mascarade.rbac")
 

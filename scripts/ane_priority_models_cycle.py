@@ -6,7 +6,6 @@ Tests the local Apple CoreML reference model end-to-end.
 """
 
 import json
-import sys
 import time
 
 import httpx
@@ -159,7 +158,7 @@ if gate:
         print(f"  Gate verdict: {gate_verdict}")
         print(f"  Scores: clarity={gdata.get('clarity')}, engagement={gdata.get('engagement')}, originality={gdata.get('originality')}")
     except json.JSONDecodeError:
-        print(f"  Gate JSON invalid")
+        print("  Gate JSON invalid")
 
 results[-1]["gate_valid"] = gate_valid
 results[-1]["gate_verdict"] = gate_verdict

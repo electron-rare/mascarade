@@ -1,6 +1,11 @@
 #!/usr/bin/env python3
 """P2P worker node. Configure via environment variables."""
-import asyncio, os, sys, json, signal
+import asyncio
+import json
+import os
+import signal
+import sys
+
 sys.path.insert(0, os.environ.get('PYTHONPATH', os.path.expanduser('~/mascarade/core')))
 
 from mascarade.p2p.asyncio_node import MascaradeP2PNode

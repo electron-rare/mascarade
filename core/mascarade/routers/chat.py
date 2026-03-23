@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
 import json
 import secrets
 import time
+from datetime import UTC, datetime
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request
@@ -59,7 +59,7 @@ def _default_project_id() -> str:
 
 
 def _utc_now_iso() -> str:
-    return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    return datetime.now(UTC).isoformat().replace("+00:00", "Z")
 
 
 def _normalize_model_name(model: str | None) -> str | None:
@@ -175,11 +175,11 @@ def _parse_model_string(
 def _message_to_dict(message: Any) -> dict[str, Any]:
     content = getattr(message, "content", None)
     return {
-        "role": getattr(message, "role"),
+        "role": message.role,
         "content": content or "",
-        **({"name": getattr(message, "name")} if getattr(message, "name", None) else {}),
+        **({"name": message.name} if getattr(message, "name", None) else {}),
         **(
-            {"tool_call_id": getattr(message, "tool_call_id")}
+            {"tool_call_id": message.tool_call_id}
             if getattr(message, "tool_call_id", None)
             else {}
         ),

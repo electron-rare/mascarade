@@ -10,7 +10,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from mascarade.finetune.rlvr.reward_functions import RewardFunction, RewardResult
+from mascarade.finetune.rlvr.reward_functions import RewardFunction
 
 logger = logging.getLogger("mascarade.finetune.rlvr.trainer")
 
@@ -22,12 +22,12 @@ def _populate_registry() -> None:
     """Lazily populate the reward function registry."""
     if _REWARD_REGISTRY:
         return
+    from mascarade.finetune.rlvr.kicad_verifier import KiCadDRCReward
     from mascarade.finetune.rlvr.reward_functions import (
         CodeCompilationReward,
-        JSONValidationReward,
         CompositeReward,
+        JSONValidationReward,
     )
-    from mascarade.finetune.rlvr.kicad_verifier import KiCadDRCReward
 
     _REWARD_REGISTRY.update({
         "code_compilation": CodeCompilationReward,
@@ -297,7 +297,7 @@ class RLVRTrainer:
             scores: list[float] = []
             loop = asyncio.new_event_loop()
             try:
-                for completion_group, prompt in zip(completions, prompts):
+                for completion_group, prompt in zip(completions, prompts, strict=False):
                     text = completion_group[0].get("content", "") if completion_group else ""
                     # Average score across all reward functions
                     fn_scores: list[float] = []

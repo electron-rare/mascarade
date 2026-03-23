@@ -3,12 +3,12 @@
 from __future__ import annotations
 
 from mascarade.hardware.types import (
+    HARDWARE_DOMAIN_TYPES,
     DMXFrame,
     GPIODirection,
     GPIOPull,
     GPIOState,
     HardwareDeviceDescriptor,
-    HARDWARE_DOMAIN_TYPES,
     MIDIMessage,
     MIDIStatus,
     SensorReading,

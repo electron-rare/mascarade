@@ -6,7 +6,6 @@ import asyncio
 import base64
 
 import httpx
-import pytest
 from pydantic import ValidationError
 
 from mascarade.hardware.nodes.esp32 import (
@@ -20,9 +19,8 @@ from mascarade.hardware.nodes.esp32 import (
     execute_ota_node,
     execute_sensor_node,
 )
-from mascarade.hardware.types import GPIODirection, GPIOPull, GPIOState, SensorReading
-from mascarade.node_engine.base import NodeExecutionContext, NodeExecutionResult
-
+from mascarade.hardware.types import GPIODirection, GPIOPull, GPIOState
+from mascarade.node_engine.base import NodeExecutionContext
 
 # --- ESP32ConnectionConfig Tests ---
 

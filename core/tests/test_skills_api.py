@@ -10,13 +10,11 @@ import httpx
 import pytest
 
 from mascarade.agents.base import Agent
-from mascarade.agents.registry import AgentRegistry
 from mascarade.agents.skill import Skill
 from mascarade.agents.skill_registry import SkillRegistry
 from mascarade.agents.skills import register_default_skills_v2
 from mascarade.auth import get_active_api_keys, remove_api_key
 from mascarade.server import app
-
 
 # --- Fixtures ---
 

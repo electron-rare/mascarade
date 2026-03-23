@@ -3,11 +3,10 @@
 from __future__ import annotations
 
 import logging
-from typing import Any
 
 import httpx
 
-from mascarade.config import settings, is_secret_configured, secret_value
+from mascarade.config import is_secret_configured, secret_value, settings
 
 logger = logging.getLogger("mascarade.rag.embeddings")
 

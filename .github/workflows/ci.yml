@@ -102,7 +102,7 @@ jobs:
         with:
           python-version: "3.11"
       - run: pip install ruff black
-      - run: ruff check .
+      - run: ruff check . --config ruff.toml
       - run: black --check .
 
   compose:

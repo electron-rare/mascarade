@@ -20,7 +20,7 @@ import time
 from dataclasses import dataclass, asdict
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Literal, Any, Callable
+from typing import Literal, Any
 from urllib.request import Request, urlopen
 from urllib.error import URLError
 
@@ -511,10 +511,10 @@ class PipelineRunner:
             elif step == "register":
                 print(f"  Model ID: {self.deploy_alias or f'mascarade-{self.domain}'}")
                 print(f"  Domain: {self.domain}")
-                print(f"  Provider: ollama")
+                print("  Provider: ollama")
             elif step == "verify":
                 print(f"  Model ID: {self.deploy_alias or f'mascarade-{self.domain}'}")
-                print(f"  Health check URL: http://192.168.0.119:11434")
+                print("  Health check URL: http://192.168.0.119:11434")
             print(f"  Would save state to: {self.state_file}")
 
             success = True
@@ -622,7 +622,7 @@ class PipelineRunner:
         print(f"  Base model: {self.base_model}")
         print(f"  Steps: {' → '.join(self.steps)}")
         if self.dry_run:
-            print(f"  Mode: DRY RUN (preview only)")
+            print("  Mode: DRY RUN (preview only)")
         if self.resume:
             print(f"  State file: {self.state_file}")
             if self._completed_steps:

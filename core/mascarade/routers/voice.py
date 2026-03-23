@@ -109,7 +109,7 @@ async def voice_websocket(websocket: WebSocket):
 
     except WebSocketDisconnect:
         logger.info("[VOICE] Client disconnected: %s", client_info)
-    except asyncio.TimeoutError:
+    except TimeoutError:
         logger.warning("[VOICE] Handshake timeout from %s", client_info)
         if websocket.client_state == WebSocketState.CONNECTED:
             await websocket.close(code=4002, reason="timeout")

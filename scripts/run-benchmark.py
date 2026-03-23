@@ -182,7 +182,7 @@ def main():
     with open(f"{OUTPUT_DIR}/BENCHMARK_REPORT.md", "w") as f:
         f.write(report)
 
-    print(f"\n=== REPORT ===")
+    print("\n=== REPORT ===")
     print(report)
     print(f"\nResults saved to: {OUTPUT_DIR}/")
 

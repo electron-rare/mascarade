@@ -122,7 +122,7 @@ async def main() -> None:
             # Show template node result
             template_result = context.node_results.get("template1")
             if template_result:
-                print(f"Node: template1 (ai.prompt-template)")
+                print("Node: template1 (ai.prompt-template)")
                 print(f"  Status: {template_result.status}")
                 print(f"  Execution time: {template_result.execution_time_ms:.2f}ms")
                 print(f"  Output prompt: {template_result.outputs.get('prompt', 'N/A')[:100]}...")
@@ -131,7 +131,7 @@ async def main() -> None:
             # Show LLM inference result
             llm_result = context.node_results.get("llm1")
             if llm_result:
-                print(f"Node: llm1 (ai.llm-inference)")
+                print("Node: llm1 (ai.llm-inference)")
                 print(f"  Status: {llm_result.status}")
                 print(f"  Execution time: {llm_result.execution_time_ms:.2f}ms")
 
@@ -145,7 +145,7 @@ async def main() -> None:
 
                 usage = llm_result.outputs.get("usage", {})
                 if usage:
-                    print(f"  Token usage:")
+                    print("  Token usage:")
                     print(f"    Input: {usage.get('input_tokens', 0)}")
                     print(f"    Output: {usage.get('output_tokens', 0)}")
                     print(f"    Total: {usage.get('total_tokens', 0)}")

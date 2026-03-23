@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-from typing import Dict, List, Optional, Union
 
 try:
     # Try to import quantum computing libraries
@@ -28,12 +27,12 @@ class QuantumAIProvider:
     speed_rank: int = 1  # Fastest for specific tasks
     quality_rank: int = 5  # Highest quality for quantum-enhanced tasks
 
-    def __init__(self, api_key: Optional[str] = None):
+    def __init__(self, api_key: str | None = None):
         """Initialize Quantum-AI provider."""
         if not QUANTUM_AVAILABLE:
             logger.warning("Quantum computing libraries not available. "
                          "Install with: pip install qiskit")
-        
+
         self.api_key = api_key
         self.quantum_backend = None
         self.classical_fallback = True
@@ -52,57 +51,57 @@ class QuantumAIProvider:
     async def hybrid_inference(
         self,
         prompt: str,
-        quantum_task: Optional[Dict] = None,
+        quantum_task: dict | None = None,
         **kwargs
-    ) -> Dict:
+    ) -> dict:
         """Perform hybrid quantum-classical inference."""
         result = {"response": "", "quantum_used": False}
-        
+
         if QUANTUM_AVAILABLE and quantum_task and self.quantum_backend:
             try:
                 # Execute quantum subroutine
                 quantum_result = await self._execute_quantum_task(quantum_task)
-                
+
                 # Combine with classical processing
                 result["response"] = f"Quantum result: {quantum_result}\nClassical processing: {prompt}"
                 result["quantum_used"] = True
-                
+
                 return result
             except Exception as e:
                 logger.error("Quantum execution failed: %s", e)
                 # Fallback to classical
                 result["response"] = f"Classical processing: {prompt}"
                 return result
-        
+
         # Classical-only processing
         result["response"] = f"Classical processing: {prompt}"
         return result
 
-    async def _execute_quantum_task(self, task: Dict) -> str:
+    async def _execute_quantum_task(self, task: dict) -> str:
         """Execute a quantum computing task."""
         # This is a placeholder implementation
         # In a real scenario, this would:
         # 1. Translate task to quantum circuits
         # 2. Execute on quantum backend
         # 3. Return results
-        
+
         task_type = task.get("type", "unknown")
-        
+
         if task_type == "optimization":
             # Simulate quantum optimization result
-            return f"Optimized solution found (quantum-enhanced)"
-        
+            return "Optimized solution found (quantum-enhanced)"
+
         elif task_type == "sampling":
             # Simulate quantum sampling result
-            return f"Quantum samples generated"
-        
+            return "Quantum samples generated"
+
         elif task_type == "feature_extraction":
             # Simulate quantum feature extraction
-            return f"Quantum features extracted"
-        
+            return "Quantum features extracted"
+
         return f"Quantum task executed: {task_type}"
 
-    def available_quantum_tasks(self) -> List[str]:
+    def available_quantum_tasks(self) -> list[str]:
         """List available quantum-enhanced tasks."""
         return [
             "optimization",
@@ -126,16 +125,16 @@ class QuantumClassicalHybrid:
 
     async def optimize_with_quantum(
         self,
-        problem: Dict,
+        problem: dict,
         max_iterations: int = 10
-    ) -> Dict:
+    ) -> dict:
         """Optimize using quantum-enhanced algorithms."""
         quantum_task = {
             "type": "optimization",
             "problem": problem,
             "iterations": max_iterations
         }
-        
+
         return await self.provider.hybrid_inference(
             "Solving optimization problem",
             quantum_task
@@ -143,16 +142,16 @@ class QuantumClassicalHybrid:
 
     async def sample_with_quantum(
         self,
-        distribution: Dict,
+        distribution: dict,
         samples: int = 1000
-    ) -> Dict:
+    ) -> dict:
         """Generate samples using quantum-enhanced sampling."""
         quantum_task = {
             "type": "sampling",
             "distribution": distribution,
             "samples": samples
         }
-        
+
         return await self.provider.hybrid_inference(
             "Generating quantum samples",
             quantum_task
@@ -160,16 +159,16 @@ class QuantumClassicalHybrid:
 
     async def extract_quantum_features(
         self,
-        data: List[Dict],
+        data: list[dict],
         feature_dim: int = 128
-    ) -> Dict:
+    ) -> dict:
         """Extract features using quantum algorithms."""
         quantum_task = {
             "type": "feature_extraction",
             "data": data,
             "dimensions": feature_dim
         }
-        
+
         return await self.provider.hybrid_inference(
             "Extracting quantum features",
             quantum_task
@@ -187,7 +186,7 @@ class QuantumReadiness:
     ]
 
     @staticmethod
-    def assess_readiness() -> Dict:
+    def assess_readiness() -> dict:
         """Assess quantum computing readiness."""
         assessment = {
             "level": 1,
@@ -209,7 +208,7 @@ class QuantumReadiness:
         # Check for quantum backend access
         # In a real implementation, this would check actual backend availability
         assessment["criteria"]["quantum_backend"] = False  # Placeholder
-        
+
         # Check hybrid integration capabilities
         assessment["criteria"]["hybrid_integration"] = True
         assessment["level"] = max(assessment["level"], 2)
@@ -224,7 +223,7 @@ class QuantumReadiness:
         return assessment
 
     @staticmethod
-    def quantum_preparation_plan(level: int) -> Dict:
+    def quantum_preparation_plan(level: int) -> dict:
         """Generate preparation plan based on current readiness."""
         plan = {
             "current_level": QuantumReadiness.QUANTUM_READINESS_LEVELS[level - 1],
@@ -239,7 +238,7 @@ class QuantumReadiness:
                 "Train team on quantum basics",
                 "Identify quantum-suitable use cases"
             ]
-        
+
         elif level == 2:
             plan["steps"] = [
                 "Connect to quantum cloud providers (IBM, AWS, etc.)",
@@ -247,7 +246,7 @@ class QuantumReadiness:
                 "Test quantum subroutines on real hardware",
                 "Optimize classical-quantum data pipelines"
             ]
-        
+
         elif level == 3:
             plan["steps"] = [
                 "Deploy hybrid cloud quantum solutions",
@@ -255,7 +254,7 @@ class QuantumReadiness:
                 "Monitor quantum performance metrics",
                 "Scale quantum-enhanced applications"
             ]
-        
+
         elif level == 4:
             plan["steps"] = [
                 "Optimize quantum resource allocation",
@@ -263,7 +262,7 @@ class QuantumReadiness:
                 "Expand quantum applications portfolio",
                 "Stay updated with quantum advancements"
             ]
-        
+
         return plan
 
 
@@ -271,7 +270,7 @@ class QuantumSecurity:
     """Manages security for quantum-enhanced systems."""
 
     @staticmethod
-    def assess_quantum_security() -> Dict:
+    def assess_quantum_security() -> dict:
         """Assess security implications of quantum computing."""
         assessment = {
             "risks": {},
@@ -325,7 +324,7 @@ class QuantumSecurity:
         return assessment
 
     @staticmethod
-    def quantum_secure_architecture() -> Dict:
+    def quantum_secure_architecture() -> dict:
         """Design quantum-secure architecture."""
         return {
             "encryption": {

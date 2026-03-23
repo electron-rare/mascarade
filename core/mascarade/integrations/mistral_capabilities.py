@@ -277,7 +277,7 @@ class MistralAudioTranscription:
         if diarize:
             data["diarize"] = "true"
         if timestamp_granularities:
-            for gran in timestamp_granularities:
+            for _gran in timestamp_granularities:
                 data.setdefault("timestamp_granularities[]", [])
                 # httpx handles list values in data as repeated keys
             data["timestamp_granularities[]"] = timestamp_granularities

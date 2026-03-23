@@ -2,7 +2,6 @@
 
 import os
 from contextlib import asynccontextmanager
-from datetime import datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx

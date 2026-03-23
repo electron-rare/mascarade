@@ -1,23 +1,23 @@
+
 import uvicorn
-from fastapi import FastAPI, Request
+from fastapi import FastAPI
 from pydantic import BaseModel
-from typing import List, Optional
 
 app = FastAPI()
 
 # Modèle de réponse pour /api/models
 class ModelInfo(BaseModel):
     name: str
-    description: Optional[str] = None
-    size: Optional[int] = None
-    quantization_level: Optional[str] = None
+    description: str | None = None
+    size: int | None = None
+    quantization_level: str | None = None
 
 # Modèle de requête pour /api/generate
 class GenerateRequest(BaseModel):
     model: str
     prompt: str
-    stream: Optional[bool] = False
-    options: Optional[dict] = None
+    stream: bool | None = False
+    options: dict | None = None
 
 # Modèle de réponse pour /api/generate
 class GenerateResponse(BaseModel):

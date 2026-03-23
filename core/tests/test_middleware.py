@@ -3,15 +3,13 @@
 from __future__ import annotations
 
 import logging
-import time
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from mascarade.middleware.body_limit import BodySizeLimitMiddleware, MAX_BODY_BYTES
+from mascarade.middleware.body_limit import BodySizeLimitMiddleware
 from mascarade.middleware.log_filter import SecretMaskingFilter, mask_secrets
 from mascarade.middleware.rate_limit import RateLimitMiddleware
-
 
 # ---------------------------------------------------------------------------
 # Helpers

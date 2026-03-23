@@ -3,7 +3,7 @@
 import json
 import os
 import hashlib
-from collections import defaultdict, Counter
+from collections import Counter
 import re
 
 BASE = "/ai/saisail/mascarade/finetune/datasets"

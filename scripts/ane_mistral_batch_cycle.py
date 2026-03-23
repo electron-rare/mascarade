@@ -218,11 +218,11 @@ def cmd_results(job_id: str) -> list[dict]:
                 if clean.startswith("```"):
                     clean = clean.split("\n", 1)[-1].rsplit("```", 1)[0]
                 parsed = json.loads(clean)
-                print(f"JSON valid: YES")
+                print("JSON valid: YES")
                 if cid == "gate":
                     print(f"Verdict: {parsed.get('verdict', '?')}")
             except json.JSONDecodeError:
-                print(f"JSON valid: NO")
+                print("JSON valid: NO")
 
         results.append({"custom_id": cid, "content": content, "usage": usage})
 

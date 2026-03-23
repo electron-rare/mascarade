@@ -9,8 +9,8 @@ from mascarade.node_engine.types import (
     MapType,
     NodePortDefinition,
     OptionalType,
-    PrimitiveType,
     PortType,
+    PrimitiveType,
     StreamType,
     UnionType,
 )
@@ -287,12 +287,10 @@ class TestPortType:
         assert pt.is_primitive is False
 
     def test_empty_name_with_type_raises(self):
-        from pydantic import ValidationError
         with pytest.raises(ValidationError):
             PortType(name="", type="string")
 
     def test_empty_type_with_name_raises(self):
-        from pydantic import ValidationError
         with pytest.raises(ValidationError):
             PortType(name="foo", type="")
 
@@ -343,12 +341,10 @@ class TestDomainTypeValidation:
         assert valid is True
 
     def test_domain_empty_name_rejected(self):
-        from pydantic import ValidationError
         with pytest.raises(ValidationError):
             DomainType(domain="", name="Foo", schema={})
 
     def test_name_empty_rejected(self):
-        from pydantic import ValidationError
         with pytest.raises(ValidationError):
             DomainType(domain="ai", name="", schema={})
 
@@ -391,20 +387,23 @@ class TestPortTypeUnion:
     """Test PortTypeUnion encompasses all expected types."""
 
     def test_primitive_in_union(self):
-        from mascarade.node_engine.types import PortTypeUnion
         import typing
+
+        from mascarade.node_engine.types import PortTypeUnion
         args = typing.get_args(PortTypeUnion)
         assert PrimitiveType in args
 
     def test_array_type_in_union(self):
-        from mascarade.node_engine.types import PortTypeUnion
         import typing
+
+        from mascarade.node_engine.types import PortTypeUnion
         args = typing.get_args(PortTypeUnion)
         assert ArrayType in args
 
     def test_domain_type_in_union(self):
-        from mascarade.node_engine.types import PortTypeUnion
         import typing
+
+        from mascarade.node_engine.types import PortTypeUnion
         args = typing.get_args(PortTypeUnion)
         assert DomainType in args
 

@@ -2,15 +2,13 @@
 
 from __future__ import annotations
 
-import types
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 from mascarade.rag.embeddings import EmbeddingProvider
-from mascarade.rag.vectorstore import QdrantVectorStore
 from mascarade.rag.pipeline import RAGPipeline
-
+from mascarade.rag.vectorstore import QdrantVectorStore
 
 # ---------------------------------------------------------------------------
 # EmbeddingProvider

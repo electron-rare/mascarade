@@ -5,7 +5,6 @@ from __future__ import annotations
 import asyncio
 import time
 
-import pytest
 from pydantic import ValidationError
 
 from mascarade.hardware.nodes.midi import (
@@ -17,8 +16,7 @@ from mascarade.hardware.nodes.midi import (
     execute_midi_output,
 )
 from mascarade.hardware.types import MIDIMessage, MIDIStatus
-from mascarade.node_engine.base import NodeExecutionContext, NodeExecutionResult
-
+from mascarade.node_engine.base import NodeExecutionContext
 
 # --- MIDIClient Tests ---
 

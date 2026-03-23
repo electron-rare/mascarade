@@ -7,15 +7,13 @@ import logging
 import time
 from collections import defaultdict
 from dataclasses import dataclass, field
-from enum import Enum
+from enum import StrEnum
 from typing import Any
-
-from mascarade.node_engine.types import NodeType, PortType
 
 logger = logging.getLogger("mascarade.node_engine")
 
 
-class ExecutionStatus(str, Enum):
+class ExecutionStatus(StrEnum):
     """Execution status enum."""
 
     PENDING = "pending"
@@ -210,7 +208,7 @@ class GraphExecutor:
                         self._execute_graph_inner(graph, result, capabilities),
                         timeout=timeout_seconds,
                     )
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     result.status = ExecutionStatus.TIMEOUT
                     result.error = f"Graph execution timed out after {timeout_seconds}s"
             else:
@@ -232,7 +230,7 @@ class GraphExecutor:
         """Inner graph execution logic."""
         sorted_nodes = self._topological_sort(graph)
         node_outputs: dict[str, dict[str, Any]] = {}
-        connections = getattr(graph, 'connections', [])
+        getattr(graph, 'connections', [])
 
         for node in sorted_nodes:
             node_id = getattr(node, 'node_id', getattr(node, 'id', ''))

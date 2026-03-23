@@ -6,7 +6,6 @@ from mascarade.node_engine.types import PortDirection
 from mascarade.node_engine.workers.electronics.component_nodes import (
     AvailabilityCheckConfig,
     AvailabilityCheckNode,
-    BomGenerateNode,
     BomGeneratorConfig,
     BomGeneratorNode,
     CplGeneratorConfig,
@@ -21,7 +20,6 @@ from mascarade.node_engine.workers.electronics.component_nodes import (
     LookupNode,
     NodeConfig,
 )
-
 
 # Tests pour NodeConfig et ses sous-classes
 

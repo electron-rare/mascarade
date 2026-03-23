@@ -222,7 +222,7 @@ def fill_vars(template, vars_dict):
 
 
 def main():
-    print(f"=== Multi-Provider Dataset Generator ===")
+    print("=== Multi-Provider Dataset Generator ===")
     print(f"Providers: {[p[0] for p in PROVIDERS]}")
 
     schematics = load_schematics(5000)

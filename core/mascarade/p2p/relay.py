@@ -16,9 +16,8 @@ import time
 from dataclasses import dataclass, field
 from typing import Any
 
-from mascarade.config import settings
 from mascarade.p2p.auth import verify_message
-from mascarade.p2p.dht import P2PDHT, DHTEntry
+from mascarade.p2p.dht import P2PDHT
 from mascarade.p2p.protocol import P2PMessage
 from mascarade.p2p.transport import P2PTransport, PeerConnection
 

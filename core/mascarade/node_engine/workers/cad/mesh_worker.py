@@ -2,13 +2,10 @@
 
 from __future__ import annotations
 
-import base64
-import struct
 from typing import Any
 
 from mascarade.mcp import McpRuntimeClient
 from mascarade.node_engine.worker import NodeWorker, WorkerCapabilities
-from mascarade.observability import new_run_id
 
 
 class MeshWorker(NodeWorker):

@@ -362,8 +362,8 @@ async def execute_dmx_universe(ctx: NodeExecutionContext) -> NodeExecutionResult
     """
     # Extract inputs
     universe_id = ctx.inputs.get("universe_id")
-    protocol = ctx.inputs.get("protocol", "sacn")
-    interface = ctx.inputs.get("interface")
+    ctx.inputs.get("protocol", "sacn")
+    ctx.inputs.get("interface")
     input_frame = ctx.inputs.get("frame")
 
     # Validate inputs

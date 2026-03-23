@@ -1,0 +1,14 @@
+[lint]
+ignore = [
+  "S108",   # hardcoded-temp-file (we use /tmp intentionally)
+  "S607",   # start-process-with-partial-path (known scripts)
+  "S603",   # subprocess-without-shell (intentional)
+  "S110",   # try-except-pass (some are intentional)
+  "S106",   # hardcoded-password (test fixtures)
+  "E402",   # module-import-not-at-top (conditional imports)
+  "B017",   # assert-raises-exception (test patterns)
+]
+
+[lint.per-file-ignores]
+"tests/*" = ["F841", "B007", "B904"]
+"scripts/*" = ["E402"]

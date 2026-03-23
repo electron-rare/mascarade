@@ -302,7 +302,7 @@ async def execute_discover_node(context: NodeExecutionContext) -> NodeExecutionR
             devices=devices,
             count=len(devices),
         )
-    except Exception as exc:
+    except Exception:
         logger.exception("ESP32 discovery failed")
         # Graceful degradation: return empty list instead of error
         return NodeExecutionResult.ok(devices=[], count=0)

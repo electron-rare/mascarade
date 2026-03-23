@@ -5,9 +5,14 @@ from contextlib import asynccontextmanager
 import httpx
 import pytest
 
-from mascarade.cluster import ClusterManager, ClusterPeer, _mdns_peer_matches_local_fingerprint, parse_cluster_peers
-from mascarade.config import settings
 from mascarade.auth import add_api_key, get_active_api_keys, remove_api_key
+from mascarade.cluster import (
+    ClusterManager,
+    ClusterPeer,
+    _mdns_peer_matches_local_fingerprint,
+    parse_cluster_peers,
+)
+from mascarade.config import settings
 from mascarade.server import app
 
 
@@ -548,5 +553,5 @@ def test_mdns_peer_matches_local_cluster_key():
     )
     from hashlib import sha256
 
-    expected = sha256("cluster-shared-key".encode("utf-8")).hexdigest()
+    expected = sha256(b"cluster-shared-key").hexdigest()
     assert _mdns_peer_matches_local_fingerprint(expected) is True

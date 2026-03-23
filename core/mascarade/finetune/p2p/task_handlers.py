@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 import logging
 from typing import Any
 
@@ -11,7 +10,7 @@ logger = logging.getLogger("mascarade.finetune.p2p.handlers")
 
 async def handle_ft_task(payload: dict[str, Any], capability: str) -> dict:
     """Route fine-tuning tasks to the appropriate agent."""
-    action = payload.get("action", "")
+    payload.get("action", "")
 
     if capability == "ft-research":
         return await _handle_research(payload)
@@ -93,8 +92,8 @@ async def _handle_dataset(payload: dict) -> dict:
 async def _handle_teacher(payload: dict) -> dict:
     """Handle teacher data generation. Creates Router locally."""
     try:
-        from mascarade.router import Router
         from mascarade.finetune.agents.teacher import TeacherAgent, TeacherConfig
+        from mascarade.router import Router
 
         router = Router()
         if not router._providers:
@@ -177,9 +176,9 @@ async def _handle_analysis(payload: dict) -> dict:
 async def _handle_reinforcement(payload: dict) -> dict:
     """Handle reinforcement (DPO) tasks. Creates Router + Teacher + Reinforcer locally."""
     try:
-        from mascarade.router import Router
-        from mascarade.finetune.agents.teacher import TeacherAgent
         from mascarade.finetune.agents.reinforcer import ReinforcerAgent
+        from mascarade.finetune.agents.teacher import TeacherAgent
+        from mascarade.router import Router
 
         action = payload.get("action", "collect_errors")
 

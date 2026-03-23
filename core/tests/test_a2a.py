@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
-import asyncio
 from dataclasses import dataclass, field
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 from fastapi import FastAPI
@@ -13,11 +12,9 @@ from fastapi.testclient import TestClient
 from mascarade.routers.a2a import (
     A2ATask,
     _tasks,
-    _tasks_lock,
     authed_router,
     public_router,
 )
-
 
 # ---------------------------------------------------------------------------
 # Helpers

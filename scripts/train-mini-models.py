@@ -6,7 +6,6 @@ The mascarade router dispatches to the right mini-model per query."""
 import json
 import time
 import os
-import subprocess
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 os.environ["WANDB_DISABLED"] = "true"
@@ -153,7 +152,7 @@ def train_mini_model(name, config):
     # Load datasets
     dataset = load_and_merge_datasets(config)
     if dataset is None or len(dataset) < 10:
-        print(f"  SKIP — not enough data")
+        print("  SKIP — not enough data")
         return None
 
     # Format
@@ -163,7 +162,7 @@ def train_mini_model(name, config):
     # Cap at 10K for mini-models (more would take too long)
     if len(dataset) > 10000:
         dataset = dataset.shuffle(seed=42).select(range(10000))
-        print(f"  Capped to 10000 examples")
+        print("  Capped to 10000 examples")
 
     # Load model
     print(f"  Loading {BASE_MODEL}...")
@@ -232,7 +231,7 @@ def train_mini_model(name, config):
 
 
 def main():
-    print(f"=== Mini-Model Training Pipeline ===")
+    print("=== Mini-Model Training Pipeline ===")
     print(f"Base model: {BASE_MODEL}")
     print(f"Models to train: {len(MINI_MODELS)}\n")
 
@@ -252,7 +251,7 @@ def main():
             results[name] = {"status": "failed", "error": str(e)}
 
     print(f"\n{'='*60}")
-    print(f"RESULTS")
+    print("RESULTS")
     print(f"{'='*60}")
     for name, r in results.items():
         print(f"  {name}: {r['status']}")

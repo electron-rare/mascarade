@@ -6,17 +6,15 @@ that form the foundation for domain-specific type registration and node port val
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from enum import Enum
+from enum import StrEnum
 from typing import Any, Union
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-
 # --- Enums ---
 
 
-class PrimitiveType(str, Enum):
+class PrimitiveType(StrEnum):
     """Primitive port types."""
 
     STRING = "string"
@@ -28,14 +26,14 @@ class PrimitiveType(str, Enum):
     VOID = "void"
 
 
-class PortDirection(str, Enum):
+class PortDirection(StrEnum):
     """Port direction enum."""
 
     INPUT = "input"
     OUTPUT = "output"
 
 
-class PortKind(str, Enum):
+class PortKind(StrEnum):
     """Port kind enum."""
 
     DATA = "data"
@@ -228,7 +226,7 @@ class PortType(BaseModel):
     )
 
     @model_validator(mode="after")
-    def validate_port_fields(self) -> "PortType":
+    def validate_port_fields(self) -> PortType:
         """Validate port name and type when used as a port definition."""
         name = self.name
         typ = self.type

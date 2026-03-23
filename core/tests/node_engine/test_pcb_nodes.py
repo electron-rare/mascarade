@@ -13,7 +13,6 @@ from mascarade.node_engine.workers.electronics.pcb_nodes import (
     ViolationReporterNode,
 )
 
-
 # Tests pour NodeConfig et ses sous-classes
 
 

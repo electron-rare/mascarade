@@ -3,7 +3,6 @@
 Verify templates structure without running full services
 """
 import sys
-import json
 from pathlib import Path
 
 # Add core to path
@@ -95,7 +94,7 @@ if electronics:
     if expected_agents == actual_agents:
         print(f"✓ PASS: Electronics template uses correct agents: {', '.join(expected_agents)}")
     else:
-        print(f"✗ FAIL: Electronics agents mismatch")
+        print("✗ FAIL: Electronics agents mismatch")
         print(f"  Expected: {expected_agents}")
         print(f"  Actual: {actual_agents}")
         sys.exit(1)
@@ -120,11 +119,11 @@ else:
     sys.exit(1)
 
 print("\n=== All Checks Passed ✓ ===")
-print(f"\nSummary:")
+print("\nSummary:")
 print(f"  Total templates: {len(builtin_templates)}")
-print(f"  Required templates: All present")
-print(f"  Electronics agents: Correct (kicad-designer, spice-expert, components-expert)")
-print(f"  Documentation: All templates documented")
+print("  Required templates: All present")
+print("  Electronics agents: Correct (kicad-designer, spice-expert, components-expert)")
+print("  Documentation: All templates documented")
 
 print("\n=== Next Steps ===")
 print("To test deployment, start the services:")

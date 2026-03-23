@@ -68,7 +68,7 @@ async def require_admin(*args, **kwargs) -> User:
 # --- Application state dependencies ---
 
 
-def get_router(request: Request) -> "Router":
+def get_router(request: Request) -> Router:
     """Get the Router instance from application state.
 
     Args:
@@ -80,7 +80,7 @@ def get_router(request: Request) -> "Router":
     return request.app.state.router
 
 
-def get_registry(request: Request) -> "AgentRegistry":
+def get_registry(request: Request) -> AgentRegistry:
     """Get the AgentRegistry instance from application state.
 
     Args:
@@ -92,7 +92,7 @@ def get_registry(request: Request) -> "AgentRegistry":
     return request.app.state.registry
 
 
-def get_orchestrator(request: Request) -> "Orchestrator":
+def get_orchestrator(request: Request) -> Orchestrator:
     """Get the Orchestrator instance from application state.
 
     Args:
@@ -104,7 +104,7 @@ def get_orchestrator(request: Request) -> "Orchestrator":
     return request.app.state.orchestrator
 
 
-def get_cluster(request: Request) -> "ClusterManager":
+def get_cluster(request: Request) -> ClusterManager:
     """Get the ClusterManager instance from application state.
 
     Args:
@@ -116,7 +116,7 @@ def get_cluster(request: Request) -> "ClusterManager":
     return request.app.state.cluster
 
 
-def get_trace_buffer(request: Request) -> "AgentTraceBuffer":
+def get_trace_buffer(request: Request) -> AgentTraceBuffer:
     """Get the AgentTraceBuffer instance from application state.
 
     Args:
@@ -128,7 +128,7 @@ def get_trace_buffer(request: Request) -> "AgentTraceBuffer":
     return request.app.state.trace_buffer
 
 
-def get_template_registry(request: Request) -> "TemplateRegistry":
+def get_template_registry(request: Request) -> TemplateRegistry:
     """Get the TemplateRegistry instance from application state.
 
     Args:
@@ -140,7 +140,7 @@ def get_template_registry(request: Request) -> "TemplateRegistry":
     return request.app.state.template_registry
 
 
-def get_mcp_client(request: Request) -> "McpRuntimeClient":
+def get_mcp_client(request: Request) -> McpRuntimeClient:
     """Get the McpRuntimeClient instance from application state.
 
     Args:

@@ -8,10 +8,11 @@ for production use with optimized inference speed and memory footprint.
 from __future__ import annotations
 
 import logging
-import torch
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
-from transformers import BertTokenizer, BertForSequenceClassification
+from typing import Any
+
+import torch
+from transformers import BertForSequenceClassification, BertTokenizer
 
 logger = logging.getLogger("mascarade.router.bert_classifier")
 
@@ -49,7 +50,7 @@ class BertDomainClassifier:
         self.model: BertForSequenceClassification | None = None
         self.tokenizer: BertTokenizer | None = None
         self.device = torch.device("cuda" if use_gpu and torch.cuda.is_available() else "cpu")
-        self.domains: List[str] = []
+        self.domains: list[str] = []
         self.is_loaded = False
         self.max_length = max_length
 
@@ -70,7 +71,7 @@ class BertDomainClassifier:
                     exc,
                 )
 
-    def predict(self, text: str) -> Optional[str]:
+    def predict(self, text: str) -> str | None:
         """
         Predict the domain for a given text.
 
@@ -112,7 +113,7 @@ class BertDomainClassifier:
             logger.warning("BERT prediction failed: %s", exc)
             return None
 
-    def predict_proba(self, text: str) -> Optional[Dict[str, float]]:
+    def predict_proba(self, text: str) -> dict[str, float] | None:
         """
         Predict domain probabilities for a given text.
 
@@ -145,7 +146,7 @@ class BertDomainClassifier:
                 probs = torch.nn.functional.softmax(outputs.logits, dim=1)[0]
 
             # Create domain -> probability mapping
-            result = {domain: float(prob) for domain, prob in zip(self.domains, probs)}
+            result = {domain: float(prob) for domain, prob in zip(self.domains, probs, strict=False)}
 
             logger.debug(
                 "BERT domain probabilities for '%s...': %s",
@@ -227,14 +228,14 @@ class BertDomainClassifier:
 
     def train(
         self,
-        texts: List[str],
-        labels: List[str],
+        texts: list[str],
+        labels: list[str],
         model_name: str = "bert-base-uncased",
         num_train_epochs: int = 3,
         per_device_train_batch_size: int = 8,
         learning_rate: float = 2e-5,
         **trainer_kwargs,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Train the BERT classifier on labeled data.
 
@@ -260,9 +261,9 @@ class BertDomainClassifier:
             raise ValueError("No training data provided")
 
         try:
-            from transformers import TrainingArguments, Trainer
             from sklearn.model_selection import train_test_split
             from sklearn.preprocessing import LabelEncoder
+            from transformers import Trainer, TrainingArguments
         except ImportError as exc:
             raise ImportError(
                 "Required packages not installed. Install with: pip install transformers scikit-learn"

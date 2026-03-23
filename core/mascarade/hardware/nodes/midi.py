@@ -7,17 +7,12 @@ graceful degradation model defined in SPEC-029-P4 section 4.
 
 from __future__ import annotations
 
-import asyncio
 import logging
-import time
 from typing import Any
 
-from pydantic import BaseModel, Field
-
-from mascarade.hardware.types import MIDIMessage, MIDIStatus
+from mascarade.hardware.types import MIDIMessage
 from mascarade.node_engine.base import NodeDefinition, NodeExecutionContext, NodeExecutionResult
 from mascarade.node_engine.types import (
-    NodePort,
     PortDirection,
     PortKind,
     PortType,
@@ -25,7 +20,6 @@ from mascarade.node_engine.types import (
     array_port,
     domain_port,
     primitive_port,
-    void_port,
 )
 
 logger = logging.getLogger("mascarade.hardware.midi")

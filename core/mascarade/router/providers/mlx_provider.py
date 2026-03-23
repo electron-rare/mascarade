@@ -3,12 +3,12 @@
 from __future__ import annotations
 
 import logging
-from typing import AsyncIterator, Optional
+from collections.abc import AsyncIterator
 
 try:
     import mlx.core as mx
     import mlx.loss
-    from mlx_lm import load, generate
+    from mlx_lm import generate, load
     MLX_AVAILABLE = True
 except ImportError:
     MLX_AVAILABLE = False
@@ -17,7 +17,6 @@ except ImportError:
 from mascarade.router.providers.base import (
     LLMProvider,
     LLMResponse,
-    LLMStreamChunk,
 )
 from mascarade.scheduler.scheduler import ScheduledRequest
 
@@ -35,7 +34,7 @@ class MLXProvider(LLMProvider):
         model_path: str,
         device: str = "mps",
         max_tokens: int = 4096,
-        quantization: Optional[str] = None,
+        quantization: str | None = None,
         **kwargs,
     ):
         if not MLX_AVAILABLE:
@@ -162,10 +161,10 @@ class MLXWorker:
     async def process_request(self, request: ScheduledRequest):
         """Process a single request."""
         response = await self.provider.generate(request)
-        
+
         if hasattr(request, 'complete_callback'):
             await request.complete_callback(response)
-        
+
         return response
 
     async def get_status(self) -> dict:

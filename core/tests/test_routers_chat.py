@@ -7,7 +7,7 @@ from contextlib import asynccontextmanager
 import httpx
 import pytest
 
-from mascarade.auth import add_api_key, get_active_api_keys, remove_api_key
+from mascarade.auth import get_active_api_keys, remove_api_key
 from mascarade.router.providers.base import LLMResponse
 from mascarade.server import app
 

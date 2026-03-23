@@ -8,11 +8,11 @@ import os
 from collections.abc import AsyncIterator
 from datetime import UTC, datetime, timedelta
 
+import openai
 from google import genai
 from google.auth.transport.requests import Request
 from google.genai import types as genai_types
 from google.oauth2.credentials import Credentials
-import openai
 
 from mascarade.config import is_secret_configured, settings
 from mascarade.router.providers.base import (

@@ -17,51 +17,52 @@ from mascarade.device_voice import DeviceVoiceService
 from mascarade.integrations.comfyui import ComfyUIClient
 from mascarade.mcp import McpRuntimeClient
 from mascarade.mcp.kicad_servers import log_available as log_kicad_mcp
+from mascarade.middleware.body_limit import BodySizeLimitMiddleware
+from mascarade.middleware.log_filter import install_secret_masking
+from mascarade.middleware.rate_limit import RateLimitMiddleware
 from mascarade.observability import AgentTraceBuffer
 from mascarade.orchestrator import Orchestrator
 from mascarade.orchestrator.templates import (
     TemplateRegistry,
     register_builtin_templates,
 )
-from mascarade.middleware.log_filter import install_secret_masking
-from mascarade.middleware.body_limit import BodySizeLimitMiddleware
-from mascarade.middleware.rate_limit import RateLimitMiddleware
 from mascarade.router import Router
-from mascarade.scheduler import ResourceAwareScheduler, HeartbeatMonitor, WorkerState
+from mascarade.scheduler import HeartbeatMonitor, ResourceAwareScheduler, WorkerState
 
 install_secret_masking()
+from mascarade.benchmarks.storage import BenchmarkStorage  # noqa: F401 — used by tests via patch
+from mascarade.routers.a2a import authed_router as a2a_authed_router
+from mascarade.routers.a2a import public_router as a2a_public_router
+from mascarade.routers.admin import router as admin_router
 from mascarade.routers.agents import router as agents_router
-from mascarade.routers.skills import router as skills_router
+from mascarade.routers.analytics import router as analytics_router
 from mascarade.routers.auth import router as auth_router
-from mascarade.routers.chat import router as chat_router, ollama_router as ollama_chat_router
+from mascarade.routers.cad_mcp import router as cad_mcp_router
+from mascarade.routers.chat import ollama_router as ollama_chat_router
+from mascarade.routers.chat import router as chat_router
+from mascarade.routers.cli_agents import router as cli_agents_router
+from mascarade.routers.cluster import router as cluster_router
 from mascarade.routers.finetune import router as finetune_router
 from mascarade.routers.health import router as health_router
-from mascarade.routers.memory import router as memory_router
-from mascarade.routers.providers import router as providers_router
-from mascarade.routers.prompt_versioning import router as prompt_versioning_router
-from mascarade.routers.cad_mcp import router as cad_mcp_router
-from mascarade.routers.admin import router as admin_router
-from mascarade.routers.scheduler import router as scheduler_router
-from mascarade.scheduler.metrics_exporter import router as metrics_router
-from mascarade.routers.analytics import router as analytics_router
-from mascarade.routers.a2a import public_router as a2a_public_router, authed_router as a2a_authed_router
-from mascarade.routers.ws import router as ws_router
-from mascarade.routers.cli_agents import router as cli_agents_router
-from mascarade.routers.mistral_agents import router as mistral_agents_router
-from mascarade.routers.mistral_capabilities import router as mistral_capabilities_router
-from mascarade.routers.mistral_studio import router as mistral_studio_router
-from mascarade.routers.mistral_batch import router as mistral_batch_router
-from mascarade.routers.xcode import router as xcode_router
-from mascarade.routers.cluster import router as cluster_router
-from mascarade.routers.voice import router as voice_router
 from mascarade.routers.hints import router as hints_router
-from mascarade.routers.rag import router as rag_router
-from mascarade.routers.node_engine import router as node_engine_router
 from mascarade.routers.knowledge_base import (
-    knowledge_base_auth_configured,
     router as knowledge_base_router,
 )
-from mascarade.benchmarks.storage import BenchmarkStorage  # noqa: F401 — used by tests via patch
+from mascarade.routers.memory import router as memory_router
+from mascarade.routers.mistral_agents import router as mistral_agents_router
+from mascarade.routers.mistral_batch import router as mistral_batch_router
+from mascarade.routers.mistral_capabilities import router as mistral_capabilities_router
+from mascarade.routers.mistral_studio import router as mistral_studio_router
+from mascarade.routers.node_engine import router as node_engine_router
+from mascarade.routers.prompt_versioning import router as prompt_versioning_router
+from mascarade.routers.providers import router as providers_router
+from mascarade.routers.rag import router as rag_router
+from mascarade.routers.scheduler import router as scheduler_router
+from mascarade.routers.skills import router as skills_router
+from mascarade.routers.voice import router as voice_router
+from mascarade.routers.ws import router as ws_router
+from mascarade.routers.xcode import router as xcode_router
+from mascarade.scheduler.metrics_exporter import router as metrics_router
 
 logger = logging.getLogger("mascarade.server")
 
@@ -182,7 +183,7 @@ async def lifespan(app: FastAPI):
 
     # Start health checks for all registered providers
     router.health_monitor.start_health_checks(list(router._providers.values()))
-    
+
     # Initialize health endpoint response
     app.state.health_status = "healthy"
 

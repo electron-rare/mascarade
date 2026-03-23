@@ -5,17 +5,15 @@ Usage:
     python scripts/finetune/tui.py
 """
 import asyncio
-import json
 import os
 import subprocess
 import sys
-import time
 
 sys.path.insert(0, os.environ.get("PYTHONPATH", os.path.expanduser("~/mascarade/core")))
 
-from mascarade.finetune.agents.researcher import ResearcherAgent
 from mascarade.finetune.agents.documentalist import DocumentalistAgent
-from mascarade.finetune.registry import FinetuneRegistry, ModelEntry, DatasetEntry
+from mascarade.finetune.agents.researcher import ResearcherAgent
+from mascarade.finetune.registry import DatasetEntry, FinetuneRegistry, ModelEntry
 
 HF_TOKEN = os.environ.get("HUGGINGFACE_API_KEY", "")
 

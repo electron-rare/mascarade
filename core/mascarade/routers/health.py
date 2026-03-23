@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from dataclasses import asdict
-from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import PlainTextResponse
@@ -42,7 +41,6 @@ async def list_models(request: Request):
     Returns the list of available providers and agents as selectable models.
     Format: {"object": "list", "data": [{"id": "...", "object": "model", ...}]}
     """
-    import time
 
     models = []
     if hasattr(request.app.state, "router"):

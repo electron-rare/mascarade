@@ -12,7 +12,6 @@ if _monorepo_root not in sys.path:
     sys.path.insert(0, _monorepo_root)
 
 from deploy.ops_agent.app import (  # noqa: E402
-    build_runtime_secret_group_status,
     provider_clear_updates,
 )
 

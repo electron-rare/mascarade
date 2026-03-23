@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
-import json
-import sys
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
 
 from mascarade.router.providers.gpt53_codex import GPT53_CODEX_AVAILABLE
 
@@ -90,8 +89,8 @@ async def test_gpt53_codex_stream(mock_openai):
 @pytest.mark.asyncio
 async def test_gpt53_codex_function_calling(mock_openai, mock_response):
     from mascarade.router.providers.gpt53_codex import (
-        GPT53CodexProvider,
         GPT53CodexFunctionCalling,
+        GPT53CodexProvider,
     )
 
     mock_response.choices[0].message.content = "Function called"

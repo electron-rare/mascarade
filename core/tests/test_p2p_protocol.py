@@ -3,7 +3,7 @@
 import asyncio
 import struct
 
-from mascarade.p2p.protocol import P2PMessage, _HEADER_FMT, read_message, write_message
+from mascarade.p2p.protocol import _HEADER_FMT, P2PMessage, read_message, write_message
 
 
 def test_message_encode_decode():

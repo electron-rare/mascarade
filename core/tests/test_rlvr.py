@@ -12,7 +12,6 @@ from mascarade.finetune.rlvr.reward_functions import (
 )
 from mascarade.finetune.rlvr.trainer import RLVRConfig, RLVRResult
 
-
 # ---------------------------------------------------------------------------
 # RewardResult dataclass
 # ---------------------------------------------------------------------------

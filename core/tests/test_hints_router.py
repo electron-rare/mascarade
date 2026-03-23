@@ -9,7 +9,7 @@ import httpx
 import pytest
 
 from mascarade.router.providers.base import LLMResponse
-from mascarade.routers.hints import PUZZLES, _sessions
+from mascarade.routers.hints import _sessions
 from mascarade.server import app
 
 

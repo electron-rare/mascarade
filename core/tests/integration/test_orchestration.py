@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-from unittest.mock import AsyncMock
 
 import pytest
 
@@ -477,7 +476,7 @@ async def test_multi_agent_pipeline_with_system_prompts():
     assert provider.call_count == 2
 
     # Verify each call had system context
-    for i, call in enumerate(provider.call_history):
+    for _i, call in enumerate(provider.call_history):
         assert "kwargs" in call
         # Verify system prompt was passed
         assert "system" in call["kwargs"]

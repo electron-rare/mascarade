@@ -1,9 +1,9 @@
+import json
 """GPT-5.3 Codex Provider - Advanced agentic coding model."""
 
 from __future__ import annotations
 
 import logging
-from typing import Dict, List, Optional
 
 try:
     import openai
@@ -30,7 +30,7 @@ class GPT53CodexProvider(LLMProvider):
     speed_rank: int = 1  # Fastest available
     quality_rank: int = 5  # Highest quality
 
-    def __init__(self, api_key: str, organization: Optional[str] = None):
+    def __init__(self, api_key: str, organization: str | None = None):
         if not GPT53_CODEX_AVAILABLE:
             raise RuntimeError(
                 "OpenAI Python library not available. "
@@ -45,21 +45,21 @@ class GPT53CodexProvider(LLMProvider):
 
     async def send(
         self,
-        messages: List[Dict],
+        messages: list[dict],
         *,
-        model: Optional[str] = None,
-        system: Optional[str] = None,
+        model: str | None = None,
+        system: str | None = None,
         temperature: float = 0.7,
         max_tokens: int = 4096,
-        tools: Optional[List[Dict]] = None,
-        tool_choice: Optional[str] = "auto",
+        tools: list[dict] | None = None,
+        tool_choice: str | None = "auto",
     ) -> LLMResponse:
         """Send request to GPT-5.3 Codex API."""
         # Prepare messages
         chat_messages = []
         if system:
             chat_messages.append({"role": "system", "content": system})
-        
+
         chat_messages.extend(messages)
 
         # Call API
@@ -86,21 +86,21 @@ class GPT53CodexProvider(LLMProvider):
 
     async def stream(
         self,
-        messages: List[Dict],
+        messages: list[dict],
         *,
-        model: Optional[str] = None,
-        system: Optional[str] = None,
+        model: str | None = None,
+        system: str | None = None,
         temperature: float = 0.7,
         max_tokens: int = None,
-        tools: Optional[List[Dict]] = None,
-        tool_choice: Optional[str] = "auto",
+        tools: list[dict] | None = None,
+        tool_choice: str | None = "auto",
     ) -> str:
         """Stream response from GPT-5.3 Codex."""
         # Prepare messages
         chat_messages = []
         if system:
             chat_messages.append({"role": "system", "content": system})
-        
+
         chat_messages.extend(messages)
 
         # Stream from API
@@ -118,7 +118,7 @@ class GPT53CodexProvider(LLMProvider):
             if chunk.choices and chunk.choices[0].delta.content:
                 yield chunk.choices[0].delta.content
 
-    def available_models(self) -> List[str]:
+    def available_models(self) -> list[str]:
         """Available GPT-5.3 Codex models."""
         return ["gpt-5.3-codex"]
 
@@ -135,8 +135,8 @@ class GPT53CodexFunctionCalling:
 
     async def call_with_functions(
         self,
-        messages: List[Dict],
-        functions: List[Dict],
+        messages: list[dict],
+        functions: list[dict],
         **kwargs
     ) -> LLMResponse:
         """Call model with function calling capabilities."""
@@ -158,14 +158,14 @@ class GPT53CodexFunctionCalling:
 
     async def call_with_interactive_workflow(
         self,
-        messages: List[Dict],
-        functions: List[Dict],
+        messages: list[dict],
+        functions: list[dict],
         max_turns: int = 5
-    ) -> List[LLMResponse]:
+    ) -> list[LLMResponse]:
         """Handle multi-turn function calling workflow."""
         responses = []
         current_messages = messages.copy()
-        
+
         for _ in range(max_turns):
             # Get response with function calls
             response = await self.call_with_functions(
@@ -173,18 +173,18 @@ class GPT53CodexFunctionCalling:
                 functions
             )
             responses.append(response)
-            
+
             # Check if function needs to be called
             if hasattr(response, 'tool_calls'):
                 # Execute functions and add results to messages
                 for tool_call in response.tool_calls:
                     func_name = tool_call.function.name
                     func_args = json.loads(tool_call.function.arguments)
-                    
+
                     # Find and execute the function
                     func = next(f for f in functions if f['name'] == func_name)
                     func_result = func['implementation'](**func_args)
-                    
+
                     # Add function result to messages
                     current_messages.append({
                         "role": "tool",
@@ -193,5 +193,5 @@ class GPT53CodexFunctionCalling:
                     })
             else:
                 break
-        
+
         return responses

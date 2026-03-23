@@ -447,7 +447,7 @@ class SimulateNode(BaseNode):
                 stdout_bytes, stderr_bytes = await asyncio.wait_for(
                     process.communicate(), timeout=config.timeout_seconds
                 )
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 process.kill()
                 await process.wait()
                 raise TimeoutError(

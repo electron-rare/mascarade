@@ -2,16 +2,15 @@
 
 from __future__ import annotations
 
+import sys
 from contextlib import asynccontextmanager
 from importlib.util import module_from_spec, spec_from_file_location
 from pathlib import Path
-import sys
 from types import ModuleType
 
 import httpx
 import pytest
 from fastapi import HTTPException
-
 
 SERVICE_PATH = Path(__file__).resolve().parents[2] / "deploy" / "audio_gen_api" / "app.py"
 
