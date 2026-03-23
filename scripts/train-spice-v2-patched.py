@@ -1,10 +1,13 @@
 """mascarade-spice-v2 finetune with LoraConfig monkey-patch."""
-import os, json, time
+import os
+import json
+import time
 os.environ["WANDB_DISABLED"] = "true"
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 # Monkey-patch: Unsloth 2026.3.8 passes unknown kwargs to peft LoraConfig
-import peft, inspect
+import peft
+import inspect
 _orig = peft.LoraConfig.__init__
 _valid_params = set(inspect.signature(_orig).parameters.keys())
 def _patched(self, *a, **kw):

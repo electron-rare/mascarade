@@ -1,5 +1,7 @@
 """Auto-queue: train ALL mini-models sequentially."""
-import json, time, os
+import json
+import time
+import os
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 os.environ["WANDB_DISABLED"] = "true"
 
