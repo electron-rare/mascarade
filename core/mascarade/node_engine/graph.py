@@ -1,7 +1,3 @@
-"""Graph representation for the Universal Node Engine.
-
-Modeled on the Orchestrator's TaskResult/OrchestrationRun pattern
-but extended for arbitrary DAG execution.
 """Graph data model and validation for the Universal Node Engine.
 
 Defines Graph, Node, and Edge models with type compatibility validation.
