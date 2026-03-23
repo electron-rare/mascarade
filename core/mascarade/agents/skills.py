@@ -292,6 +292,82 @@ pcb_routing_kicad = Agent(
     max_tokens=4096,
 )
 
+# --- Nouveaux agents (modeles mars 2026) ---
+
+industrial_coder = Agent(
+    name="industrial-coder",
+    description="IndustrialCoder — Verilog, SystemVerilog, CUDA, embedded C (STM32/ARM), CAD (CadQuery/OpenCascade)",
+    system_prompt=(
+        "You are IndustrialCoder, an expert in industrial code generation. "
+        "You specialize in: Verilog/SystemVerilog RTL design, CUDA/Triton kernel optimization, "
+        "embedded C/C++ (ARM Cortex-M, STM32, ESP32), compiler optimization (x86-64 ASM, LLVM-IR), "
+        "and CAD scripting (CadQuery, OpenCascade). "
+        "You write correct, synthesizable, production-grade code."
+    ),
+    strategy=Strategy.SPECIFIC,
+    preferred_provider="ollama",
+    preferred_model="qwen3-coder",
+    category="domain",
+    temperature=0.2,
+    max_tokens=4096,
+)
+
+verilog_expert = Agent(
+    name="verilog-expert",
+    description="Verilog/RTL expert — digital design, synthesis, testbenches, verification",
+    system_prompt=(
+        "You are an expert Verilog and digital design engineer. "
+        "You write synthesizable RTL code (Verilog, SystemVerilog), create testbenches, "
+        "perform formal verification, and optimize for FPGA/ASIC targets. "
+        "You follow best practices: clock domain crossing, reset strategies, "
+        "FSM coding styles, pipelining, and timing closure. "
+        "You can generate modules, testbenches, and constraints files."
+    ),
+    strategy=Strategy.SPECIFIC,
+    preferred_provider="ollama",
+    preferred_model="qwen3-coder",
+    category="domain",
+    temperature=0.1,
+    max_tokens=4096,
+)
+
+mistral_small_coder = Agent(
+    name="mistral-coder",
+    description="Mistral Small 4 — fast code generation (6B active MoE, Apache 2.0)",
+    system_prompt=(
+        "You are a fast, accurate code generation assistant powered by Mistral Small 4. "
+        "You write clean, efficient code in Python, TypeScript, C/C++, Rust, and more. "
+        "You focus on correctness, readability, and best practices."
+    ),
+    strategy=Strategy.SPECIFIC,
+    preferred_provider="ollama",
+    preferred_model="mistral-small",
+    category="code",
+    temperature=0.2,
+    max_tokens=4096,
+)
+
+kicad10_expert = Agent(
+    name="kicad10-expert",
+    description="KiCad 10 expert — new features (graphical DRC, time-domain tuning, variants, design blocks)",
+    system_prompt=(
+        "You are an expert in KiCad 10.0.0 (released March 20, 2026). "
+        "You know all new features: graphical DRC rule editor, time-domain track tuning with tuning profiles, "
+        "board variants system, PCB design blocks library, 3 new importers (Allegro, PADS, gEDA/Lepton), "
+        "pin/gate swap with annotation, suggested DRC fixes, 3D PDF export, barcodes, "
+        "lasso selection, dark mode, customizable toolbars. "
+        "You also know KiCad 10 Python scripting API, IPC-2581 export, and JLCPCB workflow. "
+        "You provide step-by-step instructions with screenshots descriptions."
+    ),
+    strategy=Strategy.ROUTELLM,
+    routing_policy="strong",
+    preferred_provider="ollama",
+    preferred_model="mascarade-kicad",
+    category="domain",
+    temperature=0.2,
+    max_tokens=4096,
+)
+
 # --- Registre complet ---
 
 ALL_SKILLS: list[Agent] = [
@@ -307,6 +383,10 @@ ALL_SKILLS: list[Agent] = [
     classifier,
     image_generator,
     pcb_routing_kicad,
+    industrial_coder,
+    verilog_expert,
+    mistral_small_coder,
+    kicad10_expert,
 ]
 
 # --- Mapping agents -> skill categories ---

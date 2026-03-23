@@ -16,6 +16,7 @@ from mascarade.db.connection import close_db_pool, init_db_pool
 from mascarade.device_voice import DeviceVoiceService
 from mascarade.integrations.comfyui import ComfyUIClient
 from mascarade.mcp import McpRuntimeClient
+from mascarade.mcp.kicad_servers import log_available as log_kicad_mcp
 from mascarade.observability import AgentTraceBuffer
 from mascarade.orchestrator import Orchestrator
 from mascarade.orchestrator.templates import (
@@ -163,6 +164,9 @@ async def lifespan(app: FastAPI):
     # Load persisted data
     registry.load()
     skill_registry.load()
+
+    # Discover KiCad MCP servers
+    log_kicad_mcp()
 
     # Initialize database pool if configured
     if settings.database_url:
