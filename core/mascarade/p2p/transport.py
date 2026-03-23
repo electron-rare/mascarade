@@ -5,8 +5,9 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
+from collections.abc import Callable, Coroutine
 from dataclasses import dataclass, field
-from typing import Any, Callable, Coroutine
+from typing import Any
 
 from mascarade.p2p.auth import MessageAuthenticator
 from mascarade.p2p.identity import PeerIdentity
@@ -46,7 +47,7 @@ class PeerConnection:
             self._reconnect_backoff = 1.0
             logger.info("Connected to peer %s at %s:%d", self.peer_id, self.host, self.port)
             return True
-        except (OSError, asyncio.TimeoutError) as exc:
+        except (TimeoutError, OSError) as exc:
             logger.debug("Failed to connect to %s: %s", self.peer_id, exc)
             self._reconnect_backoff = min(self._reconnect_backoff * 2, 60.0)
             return False
@@ -54,7 +55,7 @@ class PeerConnection:
     async def send(self, msg: P2PMessage) -> bool:
         try:
             return await asyncio.wait_for(self._send_impl(msg), timeout=_SEND_TIMEOUT_SECONDS)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             logger.debug("Timed out sending to peer %s at %s:%d", self.peer_id, self.host, self.port)
             await self.disconnect()
             return False
@@ -321,7 +322,7 @@ class P2PTransport:
             while conn.connected and conn.reader is not None:
                 try:
                     msg = await asyncio.wait_for(read_message(conn.reader), timeout=120.0)
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     continue
                 if msg is None:
                     break
@@ -378,7 +379,7 @@ class P2PTransport:
             while True:
                 try:
                     msg = await asyncio.wait_for(read_message(reader), timeout=120.0)
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     continue
                 if msg is None:
                     break

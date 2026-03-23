@@ -1,10 +1,11 @@
 """Tests for Mistral Studio Provider."""
 
-import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
-from mascarade.router.providers.mistral_studio import MistralStudioProvider
+import pytest
+
 from mascarade.router.providers.base import LLMResponse
+from mascarade.router.providers.mistral_studio import MistralStudioProvider
 
 
 @pytest.mark.asyncio
@@ -22,7 +23,7 @@ async def test_mistral_studio_send():
     """Test Mistral Studio send method."""
     # Create mock ChatMessage class
     mock_chat_message_class = MagicMock()
-    
+
     with patch('mascarade.router.providers.mistral_studio.MISTRAL_STUDIO_AVAILABLE', True), \
          patch('mascarade.router.providers.mistral_studio.MistralClient') as mock_client, \
          patch('mascarade.router.providers.mistral_studio.ChatMessage', mock_chat_message_class):
@@ -36,15 +37,15 @@ async def test_mistral_studio_send():
         mock_response.usage.prompt_tokens = 10
         mock_response.usage.completion_tokens = 20
         mock_response.usage.total_tokens = 30
-        
+
         mock_client.return_value.chat.return_value = mock_response
-        
+
         provider = MistralStudioProvider(api_key="test-key")
-        
+
         # Test send
         messages = [{"role": "user", "content": "test"}]
         response = await provider.send(messages)
-        
+
         # Verify
         assert isinstance(response, LLMResponse)
         assert response.content == "test response"
@@ -57,7 +58,7 @@ async def test_mistral_studio_stream():
     """Test Mistral Studio stream method."""
     # Create mock ChatMessage class
     mock_chat_message_class = MagicMock()
-    
+
     with patch('mascarade.router.providers.mistral_studio.MISTRAL_STUDIO_AVAILABLE', True), \
          patch('mascarade.router.providers.mistral_studio.MistralClient') as mock_client, \
          patch('mascarade.router.providers.mistral_studio.ChatMessage', mock_chat_message_class):
@@ -66,22 +67,22 @@ async def test_mistral_studio_stream():
         mock_chunk1.choices = [MagicMock()]
         mock_chunk1.choices[0].delta = MagicMock()
         mock_chunk1.choices[0].delta.content = "chunk1"
-        
+
         mock_chunk2 = MagicMock()
         mock_chunk2.choices = [MagicMock()]
         mock_chunk2.choices[0].delta = MagicMock()
         mock_chunk2.choices[0].delta.content = "chunk2"
-        
+
         mock_client.return_value.chat_stream.return_value = [mock_chunk1, mock_chunk2]
-        
+
         provider = MistralStudioProvider(api_key="test-key")
-        
+
         # Test stream
         messages = [{"role": "user", "content": "test"}]
         chunks = []
         async for chunk in provider.stream(messages):
             chunks.append(chunk)
-        
+
         # Verify
         assert chunks == ["chunk1", "chunk2"]
 
@@ -92,7 +93,7 @@ def test_mistral_studio_models():
          patch('mascarade.router.providers.mistral_studio.MistralClient'):
         provider = MistralStudioProvider(api_key="test-key")
         models = provider.available_models()
-        
+
         assert "mistral-tiny" in models
         assert "mistral-small" in models
         assert "mistral-medium" in models

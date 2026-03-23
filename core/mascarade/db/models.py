@@ -3,16 +3,15 @@
 from __future__ import annotations
 
 from datetime import datetime
-from enum import Enum
+from enum import StrEnum
 from typing import TypedDict
 
 from pydantic import BaseModel, Field
 
-
 # --- Enums ---
 
 
-class RoleName(str, Enum):
+class RoleName(StrEnum):
     """User role types."""
 
     ADMIN = "admin"

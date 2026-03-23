@@ -2,7 +2,6 @@
 
 import tempfile
 from pathlib import Path
-from unittest.mock import AsyncMock
 
 from mascarade.router.model_registry import ModelRegistry
 from mascarade.router.providers.base import LLMProvider, LLMResponse

@@ -6,15 +6,14 @@ Usage:
     python scripts/finetune/run_research.py --task code --max-size 3.0 --languages en,fr
 """
 import asyncio
-import json
 import os
 import sys
 
 sys.path.insert(0, os.environ.get("PYTHONPATH", os.path.expanduser("~/mascarade/core")))
 
-from mascarade.finetune.agents.researcher import ResearcherAgent
 from mascarade.finetune.agents.documentalist import DocumentalistAgent
-from mascarade.finetune.registry import FinetuneRegistry, ModelEntry, DatasetEntry
+from mascarade.finetune.agents.researcher import ResearcherAgent
+from mascarade.finetune.registry import DatasetEntry, FinetuneRegistry, ModelEntry
 
 
 async def main():
@@ -49,7 +48,7 @@ async def main():
         ))
 
     if report["papers"]:
-        print(f"\n  Papers:")
+        print("\n  Papers:")
         for p in report["papers"]:
             print(f"    - {p['title'][:80]}")
 
@@ -71,7 +70,7 @@ async def main():
 
     # Summary
     print(f"\n{'='*60}")
-    print(f"RÉSUMÉ")
+    print("RÉSUMÉ")
     print(f"{'='*60}")
     print(f"  Modèles trouvés: {len(report['candidates'])}")
     print(f"  Datasets trouvés: {len(ds_report['candidates'])}")

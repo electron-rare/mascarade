@@ -16,9 +16,9 @@ logger = logging.getLogger("mascarade.p2p")
 # Detect available backend
 _LIBP2P_AVAILABLE = False
 try:
-    import trio  # noqa: F401
     import libp2p  # noqa: F401
     import multiaddr  # noqa: F401
+    import trio  # noqa: F401
 
     _LIBP2P_AVAILABLE = True
 except ImportError:

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from typing import AsyncIterator, Optional
+from collections.abc import AsyncIterator
 
 try:
     from vllm import AsyncLLMEngine, SamplingParams
@@ -48,7 +48,7 @@ class VLLMProvider(LLMProvider):
         self.tensor_parallel_size = tensor_parallel_size
         self.gpu_memory_utilization = gpu_memory_utilization
         self.max_model_len = max_model_len
-        self.engine: Optional[AsyncLLMEngine] = None
+        self.engine: AsyncLLMEngine | None = None
         self.engine_args = AsyncEngineArgs(
             model=model_path,
             tensor_parallel_size=tensor_parallel_size,
@@ -92,7 +92,7 @@ class VLLMProvider(LLMProvider):
 
     async def _get_full_response(self, request_id: str) -> LLMResponse:
         """Get the complete response for a request."""
-        output: Optional[RequestOutput] = None
+        output: RequestOutput | None = None
         async for request_output in self.engine.stream_results(request_id):
             output = request_output
 

@@ -207,7 +207,7 @@ class AutoScaler:
 
             # Add new workers
             workers_to_add = decision.target_workers - current_workers
-            for i in range(workers_to_add):
+            for _i in range(workers_to_add):
                 self._add_worker()
 
             logger.info("Scaled up from %d to %d workers: %s",
@@ -221,7 +221,7 @@ class AutoScaler:
 
             # Remove workers
             workers_to_remove = current_workers - decision.target_workers
-            for i in range(workers_to_remove):
+            for _i in range(workers_to_remove):
                 self._remove_worker()
 
             logger.info("Scaled down from %d to %d workers: %s",
@@ -242,11 +242,11 @@ class AutoScaler:
         # 1. Launch a new worker instance
         # 2. Wait for it to become healthy
         # 3. Register it with the scheduler
-        
+
         # For now, we'll simulate by adding a dummy worker
         worker_id = f"auto-worker-{len(self.scheduler.workers) + 1}"
         from mascarade.scheduler.worker_state import WorkerState, WorkerStatus
-        
+
         dummy_worker = WorkerState(
             node_id=worker_id,
             url=f"http://{worker_id}:8201",
@@ -254,7 +254,7 @@ class AutoScaler:
             vram_total_mb=24000,
             status=WorkerStatus.ALIVE,
         )
-        
+
         self.scheduler.register_worker(dummy_worker)
         logger.info("Added worker: %s", worker_id)
 

@@ -7,7 +7,6 @@ import json
 import logging
 import os
 import time
-from typing import Any
 
 try:
     import redis.asyncio as aioredis
@@ -56,7 +55,7 @@ class RedisCache(CacheBackend):
             redis_parts.append(f"{host}:{port}")
             redis_parts.append(f"/{db}")
             self.redis_url = "redis://" + "".join(redis_parts)
-        
+
         self.default_ttl = default_ttl
         self.key_prefix = key_prefix
         self._redis: aioredis.Redis | None = None

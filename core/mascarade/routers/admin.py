@@ -12,13 +12,11 @@ from __future__ import annotations
 import json
 import logging
 import secrets
-from datetime import datetime
 
 from fastapi import APIRouter, HTTPException, Request
-from pydantic import BaseModel
 
 import mascarade.auth as auth_module
-from mascarade.db.models import ApiKey, ApiKeyCreate, User, UserCreate, UserUpdate
+from mascarade.db.models import User
 from mascarade.project_scope import normalize_scope
 
 logger = logging.getLogger("mascarade.admin")
@@ -111,7 +109,7 @@ async def _find_user_by_id(conn, user_id: int):
 @router.post("/users")
 async def create_user(request: Request):
     """Create a new user (admin only)."""
-    user = await _require_admin(request)
+    await _require_admin(request)
     body = await request.json()
     pool = auth_module.get_db_pool()
     async with pool.acquire() as conn:
@@ -146,7 +144,7 @@ async def create_user(request: Request):
 @router.get("/users")
 async def list_users(request: Request):
     """List all users (admin only)."""
-    user = await _require_admin(request)
+    await _require_admin(request)
     pool = auth_module.get_db_pool()
     async with pool.acquire() as conn:
         records = await conn.fetch(
@@ -158,7 +156,7 @@ async def list_users(request: Request):
 @router.get("/users/{user_id}")
 async def get_user(user_id: int, request: Request):
     """Get user by ID (admin only)."""
-    user = await _require_admin(request)
+    await _require_admin(request)
     pool = auth_module.get_db_pool()
     async with pool.acquire() as conn:
         record = await conn.fetchrow(
@@ -173,7 +171,7 @@ async def get_user(user_id: int, request: Request):
 @router.put("/users/{user_id}")
 async def update_user(user_id: int, request: Request):
     """Update a user (admin only)."""
-    user = await _require_admin(request)
+    await _require_admin(request)
     body = await request.json()
     pool = auth_module.get_db_pool()
     async with pool.acquire() as conn:
@@ -213,7 +211,7 @@ async def update_user(user_id: int, request: Request):
 @router.delete("/users/{user_id}")
 async def delete_user(user_id: int, request: Request):
     """Delete a user (admin only)."""
-    user = await _require_admin(request)
+    await _require_admin(request)
     pool = auth_module.get_db_pool()
     async with pool.acquire() as conn:
         existing = await _find_user_by_id(conn, user_id)
@@ -230,7 +228,7 @@ async def delete_user(user_id: int, request: Request):
 @router.post("/users/{user_id}/api-keys", status_code=201)
 async def create_api_key(user_id: int, request: Request):
     """Create an API key for a user (admin only)."""
-    user = await _require_admin(request)
+    await _require_admin(request)
     body = await request.json()
     pool = auth_module.get_db_pool()
 
@@ -269,7 +267,7 @@ async def create_api_key(user_id: int, request: Request):
 @router.get("/users/{user_id}/api-keys")
 async def list_api_keys(user_id: int, request: Request):
     """List API keys for a user (admin only)."""
-    user = await _require_admin(request)
+    await _require_admin(request)
     pool = auth_module.get_db_pool()
     async with pool.acquire() as conn:
         existing = await _find_user_by_id(conn, user_id)
@@ -299,7 +297,7 @@ async def list_api_keys(user_id: int, request: Request):
 @router.delete("/users/{user_id}/api-keys/{key_id}")
 async def revoke_api_key(user_id: int, key_id: int, request: Request):
     """Revoke (delete) an API key (admin only)."""
-    user = await _require_admin(request)
+    await _require_admin(request)
     pool = auth_module.get_db_pool()
     async with pool.acquire() as conn:
         existing = await conn.fetchrow(
@@ -320,7 +318,7 @@ async def revoke_api_key(user_id: int, key_id: int, request: Request):
 @router.put("/users/{user_id}/rate-limit")
 async def update_rate_limit(user_id: int, request: Request):
     """Update rate limits for a user (admin only)."""
-    user = await _require_admin(request)
+    await _require_admin(request)
     body = await request.json()
     pool = auth_module.get_db_pool()
     async with pool.acquire() as conn:
@@ -362,7 +360,7 @@ async def update_rate_limit(user_id: int, request: Request):
 @router.get("/admin/usage/stats")
 async def get_usage_stats(request: Request):
     """Get usage statistics (admin only)."""
-    user = await _require_admin(request)
+    await _require_admin(request)
     pool = auth_module.get_db_pool()
     async with pool.acquire() as conn:
         # Get distinct users with usage
@@ -413,8 +411,8 @@ async def get_usage_stats(request: Request):
 @router.put("/providers/{provider_name}/key")
 async def update_provider_key(provider_name: str, request: Request):
     """Update a provider's API key (admin only)."""
-    user = await _require_admin(request)
-    body = await request.json()
+    await _require_admin(request)
+    await request.json()
     return {"status": "ok", "provider": provider_name, "message": "Key updated"}
 
 
@@ -424,14 +422,14 @@ async def update_provider_key(provider_name: str, request: Request):
 @router.post("/metrics/reset")
 async def reset_metrics(request: Request):
     """Reset metrics (admin only)."""
-    user = await _require_admin(request)
+    await _require_admin(request)
     return {"status": "ok", "message": "Metrics reset"}
 
 
 @router.post("/cache/reset")
 async def reset_cache(request: Request):
     """Reset cache (admin only)."""
-    user = await _require_admin(request)
+    await _require_admin(request)
     return {"status": "ok", "message": "Cache reset"}
 
 
@@ -455,35 +453,35 @@ async def list_providers_view(request: Request):
 @router.get("/v1/providers/status")
 async def get_providers_status(request: Request):
     """Get provider status (all authenticated users)."""
-    user = await _get_authenticated_user(request)
+    await _get_authenticated_user(request)
     return {"providers": []}
 
 
 @router.get("/metrics")
 async def get_metrics(request: Request):
     """Get system metrics (all authenticated users)."""
-    user = await _get_authenticated_user(request)
+    await _get_authenticated_user(request)
     return {"health": {}, "providers": {}, "requests": {}}
 
 
 @router.get("/cache/stats")
 async def get_cache_stats(request: Request):
     """Get cache statistics (all authenticated users)."""
-    user = await _get_authenticated_user(request)
+    await _get_authenticated_user(request)
     return {"hits": 0, "misses": 0, "size": 0}
 
 
 @router.get("/load-balancer/stats")
 async def get_load_balancer_stats(request: Request):
     """Get load balancer statistics (all authenticated users)."""
-    user = await _get_authenticated_user(request)
+    await _get_authenticated_user(request)
     return {"active_connections": 0, "requests_per_second": 0}
 
 
 @router.get("/dashboards")
 async def get_dashboards(request: Request):
     """Get dashboards (all authenticated users)."""
-    user = await _get_authenticated_user(request)
+    await _get_authenticated_user(request)
     return {"dashboards": []}
 
 
@@ -500,7 +498,7 @@ async def list_legacy_api_keys(request: Request):
     token = auth_header.removeprefix("Bearer ").strip()
 
     # Check legacy in-memory keys first
-    from mascarade.auth import is_valid_api_key, get_active_api_keys
+    from mascarade.auth import get_active_api_keys, is_valid_api_key
     if is_valid_api_key(token):
         pool = auth_module.get_db_pool()
         if pool is None:

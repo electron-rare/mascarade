@@ -421,7 +421,7 @@ async def test_get_user_usage_stats_with_date_filters():
         start_date = datetime(2024, 1, 1)
         end_date = datetime(2024, 12, 31)
 
-        stats = await get_user_usage_stats(
+        await get_user_usage_stats(
             user_id=42, start_date=start_date, end_date=end_date
         )
 

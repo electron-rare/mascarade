@@ -9,7 +9,7 @@ from mascarade.node_engine.domains.electronics import ELECTRONICS_DOMAIN_TYPES
 from mascarade.node_engine.worker import NodeWorker, WorkerCapabilities
 
 if TYPE_CHECKING:
-    from mascarade.node_engine.registry import NodeRegistry
+    pass
 
 logger = logging.getLogger("mascarade.node_engine.workers.electronics")
 

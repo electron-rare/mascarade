@@ -153,7 +153,7 @@ def resolve_ollama_runtime(
         if container_ok and store_readonly:
             reason += f" because {container} uses a read-only store"
         elif container_ok:
-            reason += f" because host Ollama is healthy"
+            reason += " because host Ollama is healthy"
         else:
             reason += f" because the container path is unavailable ({container_reason})"
         return {

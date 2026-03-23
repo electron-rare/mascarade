@@ -1,3 +1,4 @@
+from typing import Any
 """End-to-end verification for SPICE netlist generation and simulation.
 
 This script verifies the complete SPICE workflow:
@@ -13,7 +14,6 @@ from __future__ import annotations
 import asyncio
 import logging
 import sys
-from pathlib import Path
 
 # Setup logging
 logging.basicConfig(
@@ -40,8 +40,8 @@ async def check_ngspice_available() -> bool:
 async def test_netlist_generation():
     """Test Step 1: Create RC circuit and generate netlist."""
     from mascarade.node_engine.workers.electronics.spice_nodes import (
-        NetlistGeneratorNode,
         NetlistGeneratorConfig,
+        NetlistGeneratorNode,
     )
 
     logger.info("=" * 60)
@@ -105,8 +105,8 @@ async def test_netlist_generation():
 async def test_simulation(netlist: dict[str, Any], ngspice_available: bool):
     """Test Step 2: Simulate the netlist using ngspice."""
     from mascarade.node_engine.workers.electronics.spice_nodes import (
-        SimulateNode,
         SimulateConfig,
+        SimulateNode,
     )
 
     logger.info("\n" + "=" * 60)
@@ -167,7 +167,7 @@ async def test_simulation(netlist: dict[str, Any], ngspice_available: bool):
         return outputs
     else:
         stderr = outputs.get("stderr", "")
-        logger.warning(f"✗ Simulation failed")
+        logger.warning("✗ Simulation failed")
         logger.warning(f"Exit code: {outputs.get('exit_code', 'unknown')}")
         logger.warning(f"Error output: {stderr[:200]}")
 

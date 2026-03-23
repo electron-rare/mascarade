@@ -3,7 +3,6 @@
 import os
 from unittest.mock import patch
 
-import pytest
 from pydantic import SecretStr
 
 from mascarade.config import Settings, is_secret_configured

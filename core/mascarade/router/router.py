@@ -7,16 +7,16 @@ import re
 import time
 from collections.abc import AsyncIterator
 from enum import StrEnum
-from typing import Any, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from mascarade.scheduler.scheduler import ResourceAwareScheduler
+    pass
 
 from mascarade.analytics import COST_METRICS
 from mascarade.analytics.clickhouse_logger import get_cost_logger
 from mascarade.analytics.cost_calculator import get_cost_calculator
 from mascarade.cache.multi_tier_cache import MultiTierCache
-from mascarade.config import settings, secret_value
+from mascarade.config import secret_value, settings
 from mascarade.load_balancer.balancer import LoadBalancer
 from mascarade.metrics.tracker import MetricsTracker
 from mascarade.observability.langfuse import (
@@ -26,10 +26,9 @@ from mascarade.observability.langfuse import (
 from mascarade.project_scope import normalize_scope
 from mascarade.router.circuit_breaker import CircuitBreaker
 from mascarade.router.fallback import FallbackState
-from mascarade.router.model_registry import ModelRegistry
 from mascarade.router.health_monitor import HealthMonitor
+from mascarade.router.model_registry import ModelRegistry
 from mascarade.router.providers.base import LLMProvider, LLMResponse
-from mascarade.usage_tracking import track_usage
 
 try:
     from mascarade.router.classifier import get_classifier
@@ -217,9 +216,9 @@ class Router:
 
         # Create and return multi-tier cache
         cache = MultiTierCache(l1=l1, l2=l2, l3=l3)
-        logger.info("Multi-tier cache initialized: L1=enabled, L2=%s, L3=%s", 
+        logger.info("Multi-tier cache initialized: L1=enabled, L2=%s, L3=%s",
                    "enabled" if l2 else "disabled", "enabled" if l3 else "disabled")
-        
+
         return cache
 
     def _register_defaults(self) -> None:
@@ -1171,6 +1170,7 @@ class Router:
         Returns LLMResponse if successful, None to fall back to local provider.
         """
         import httpx
+
         from mascarade.scheduler.scheduler import ScheduledRequest
 
         req = ScheduledRequest(

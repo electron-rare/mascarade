@@ -4,12 +4,9 @@ from __future__ import annotations
 
 import asyncio
 import base64
-import json
 import logging
-import os
 import re
-import tempfile
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -422,7 +419,7 @@ class CompileNode(BaseNode):
                 "success": True,
             }
 
-        except asyncio.TimeoutError:
+        except TimeoutError:
             build_log = "\n".join(build_log_lines) + "\n\nError: Build timeout"
             logger.error(f"Build timeout after {config.timeout_seconds} seconds")
             return {
@@ -563,7 +560,7 @@ class CompileNode(BaseNode):
                 "success": True,
             }
 
-        except asyncio.TimeoutError:
+        except TimeoutError:
             build_log = "\n".join(build_log_lines) + "\n\nError: Build timeout"
             logger.error(f"Build timeout after {config.timeout_seconds} seconds")
             return {
@@ -784,7 +781,7 @@ class FlashPrepareNode(BaseNode):
             f"--port {config['port']}",
             f"--baud {config['baud']}",
             "write_flash",
-            f"-z",
+            "-z",
             f"--flash_mode {config['flash_mode']}",
             f"--flash_freq {config['flash_freq']}",
             f"--flash_size {config['flash_size']}",

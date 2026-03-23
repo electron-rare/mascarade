@@ -3,24 +3,18 @@
 from __future__ import annotations
 
 import asyncio
-import time
 
-import pytest
 from pydantic import ValidationError
 
 from mascarade.hardware.nodes.dmx import (
     DMXClient,
-    DMXError,
-    DMXFixtureError,
     DMXOutputConfig,
-    DMXProtocolError,
     execute_dmx_fixture,
     execute_dmx_scene,
     execute_dmx_universe,
 )
 from mascarade.hardware.types import DMXFrame
-from mascarade.node_engine.base import NodeExecutionContext, NodeExecutionResult
-
+from mascarade.node_engine.base import NodeExecutionContext
 
 # --- DMXOutputConfig Tests ---
 

@@ -11,7 +11,6 @@ from abc import abstractmethod
 from dataclasses import dataclass
 from typing import Any
 
-from mascarade.node_engine.types import DomainType, PortType
 from mascarade.node_engine.worker import ExecutionContext, NodeResult, NodeWorker
 
 logger = logging.getLogger("mascarade.node_engine.cross_domain")

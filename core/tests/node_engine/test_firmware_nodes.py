@@ -1,6 +1,7 @@
 """Tests pour les nœuds firmware du domaine electronics."""
 
 import base64
+
 import pytest
 
 from mascarade.node_engine.types import PortDirection
@@ -13,7 +14,6 @@ from mascarade.node_engine.workers.electronics.firmware_nodes import (
     SizeAnalysisConfig,
     SizeAnalysisNode,
 )
-
 
 # Tests pour NodeConfig et ses sous-classes
 

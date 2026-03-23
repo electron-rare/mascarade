@@ -5,7 +5,6 @@ suitable for CI environments where external services are not available.
 """
 
 import asyncio
-from unittest.mock import AsyncMock, MagicMock
 
 from mascarade.router.providers.base import LLMProvider, LLMResponse
 from mascarade.router.router import Router, Strategy
@@ -114,7 +113,7 @@ def test_e2e_agent_with_tool_use():
     # Second call - agent provides final answer
     messages.append({"role": "assistant", "content": response_1.content})
     messages.append({"role": "user", "content": "Continue"})
-    response_2 = asyncio.run(router.send(messages, strategy=Strategy.BEST))
+    asyncio.run(router.send(messages, strategy=Strategy.BEST))
 
     assert agent.call_count == 2
 
@@ -133,7 +132,7 @@ def test_e2e_agent_state_preservation():
 
     messages.append({"role": "assistant", "content": response_1.content})
     messages.append({"role": "user", "content": "What number did I tell you?"})
-    response_2 = asyncio.run(router.send(messages, strategy=Strategy.BEST))
+    asyncio.run(router.send(messages, strategy=Strategy.BEST))
 
     # Verify call count increased
     assert agent.call_count == 2
@@ -317,15 +316,15 @@ def test_e2e_agent_workflow_sequential_calls():
 
     # Call 1
     messages = [{"role": "user", "content": "First call"}]
-    response_1 = asyncio.run(router.send(messages, strategy=Strategy.BEST))
+    asyncio.run(router.send(messages, strategy=Strategy.BEST))
     assert agent.call_count == 1
 
     # Call 2
-    response_2 = asyncio.run(router.send(messages, strategy=Strategy.BEST))
+    asyncio.run(router.send(messages, strategy=Strategy.BEST))
     assert agent.call_count == 2
 
     # Call 3
-    response_3 = asyncio.run(router.send(messages, strategy=Strategy.BEST))
+    asyncio.run(router.send(messages, strategy=Strategy.BEST))
     assert agent.call_count == 3
 
 

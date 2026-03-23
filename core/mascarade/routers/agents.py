@@ -269,7 +269,7 @@ async def update_agent(name: str, req: AgentUpdate, request: Request):
         ]
 
         # Add new version
-        new_version = prompt_history.add_version(
+        prompt_history.add_version(
             content=req.system_prompt,
             author_hash=author_hash,
             note=req.version_note,
@@ -298,7 +298,7 @@ async def delete_agent(name: str, request: Request):
         HTTPException: If agent is not found (404) or is a built-in agent (403)
     """
     try:
-        agent = request.app.state.registry.get(name)
+        request.app.state.registry.get(name)
     except KeyError:
         raise HTTPException(
             status_code=404, detail=f"Agent '{name}' not found"
@@ -394,7 +394,7 @@ async def get_agent_metrics(name: str, request: Request):
         HTTPException: If agent with the specified name is not found (404)
     """
     try:
-        agent = request.app.state.registry.get(name)
+        request.app.state.registry.get(name)
     except KeyError:
         raise HTTPException(
             status_code=404, detail=f"Agent '{name}' not found"
@@ -485,7 +485,6 @@ async def agent_zero_copilot(req: CopilotRequest, request: Request):
     context_block = "\n".join(context_parts) if context_parts else "(aucun contexte fourni)"
     full_prompt = f"{req.prompt}\n\n{context_block}"
 
-    messages = [{"role": "user", "content": full_prompt}]
 
     try:
         response = await agent.run(

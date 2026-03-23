@@ -9,7 +9,7 @@ This test suite verifies the complete end-to-end RBAC workflow:
 """
 
 from contextlib import asynccontextmanager
-from datetime import datetime, timedelta
+from datetime import datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
@@ -1869,7 +1869,7 @@ async def test_complete_read_only_user_workflow():
                 "created_at": datetime.now(),
                 "updated_at": datetime.now(),
             }
-            return f"INSERT 0 1"
+            return "INSERT 0 1"
 
         # API key creation
         if "INSERT INTO api_keys" in query:
@@ -2611,7 +2611,7 @@ async def test_complete_usage_tracking_and_rate_limiting_workflow():
 
     async def mock_fetch(query, *args):
         if "SELECT DISTINCT user_id FROM usage_records" in query:
-            unique_users = list(set(r["user_id"] for r in usage_records))
+            unique_users = list({r["user_id"] for r in usage_records})
             return [{"user_id": uid} for uid in unique_users]
         elif "SELECT provider, COUNT(*)" in query:
             user_id = args[0]

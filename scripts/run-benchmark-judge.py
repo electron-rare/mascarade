@@ -77,7 +77,7 @@ def judge_response(question: str, response: str) -> dict:
 
 
 def main():
-    print(f"=== T-MA-021b: LLM Judge Benchmark ===")
+    print("=== T-MA-021b: LLM Judge Benchmark ===")
     print(f"Judge model: {JUDGE_MODEL}")
 
     # Load previous results

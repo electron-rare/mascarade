@@ -6,7 +6,6 @@ from typing import Any
 
 from mascarade.mcp import McpRuntimeClient
 from mascarade.node_engine.worker import NodeWorker, WorkerCapabilities
-from mascarade.observability import new_run_id
 
 
 class ToolpathWorker(NodeWorker):
@@ -223,7 +222,7 @@ class ToolpathWorker(NodeWorker):
         """
         # Extract tool parameters
         tool_diameter = tool.get("diameter", 6.0)
-        tool_flute_count = tool.get("flute_count", 2)
+        tool.get("flute_count", 2)
         tool_material = tool.get("material", "carbide")
 
         # Calculate bounds from mesh or stock
@@ -525,32 +524,28 @@ class ToolpathWorker(NodeWorker):
         """
         moves = toolpath.get("moves", [])
         tool_id = toolpath.get("tool_id", "tool_0")
-        unit = toolpath.get("unit", "mm")
+        toolpath.get("unit", "mm")
 
         if not moves:
             raise ValueError("Toolpath has no moves to optimize")
 
         # Calculate original metrics
         original_time = self._calculate_machining_time(moves)
-        original_rapid_moves = sum(1 for m in moves if m.get("type") == "rapid")
+        sum(1 for m in moves if m.get("type") == "rapid")
 
         # Apply objective-specific optimization
         if objective == "time":
             optimized_moves = self._optimize_for_time(moves, constraints)
-            improvement_metric = "time"
         elif objective == "finish":
             optimized_moves = self._optimize_for_finish(moves, constraints)
-            improvement_metric = "surface_quality"
         elif objective == "tool_life":
             optimized_moves = self._optimize_for_tool_life(moves, constraints)
-            improvement_metric = "tool_wear"
         else:
             optimized_moves = moves
-            improvement_metric = "unknown"
 
         # Calculate optimized metrics
         optimized_time = self._calculate_machining_time(optimized_moves)
-        optimized_rapid_moves = sum(1 for m in optimized_moves if m.get("type") == "rapid")
+        sum(1 for m in optimized_moves if m.get("type") == "rapid")
 
         # Calculate improvement percentage based on objective
         if objective == "time":

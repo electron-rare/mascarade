@@ -1,7 +1,5 @@
 """Test prompts suite for benchmarking model performance across different domains."""
 
-from typing import List, Dict, Optional
-
 
 # Domain-specific test prompts
 TEST_PROMPTS = {
@@ -218,7 +216,7 @@ TEST_PROMPTS = {
 }
 
 
-def get_test_prompts(domain: str, difficulty: Optional[str] = None) -> List[Dict[str, str]]:
+def get_test_prompts(domain: str, difficulty: str | None = None) -> list[dict[str, str]]:
     """
     Retrieve test prompts for a specific domain.
 
@@ -245,7 +243,7 @@ def get_test_prompts(domain: str, difficulty: Optional[str] = None) -> List[Dict
     return prompts
 
 
-def get_all_domains() -> List[str]:
+def get_all_domains() -> list[str]:
     """
     Get list of all available benchmark domains.
 
@@ -255,7 +253,7 @@ def get_all_domains() -> List[str]:
     return list(TEST_PROMPTS.keys())
 
 
-def get_prompt_by_id(prompt_id: str) -> Optional[Dict[str, str]]:
+def get_prompt_by_id(prompt_id: str) -> dict[str, str] | None:
     """
     Retrieve a specific test prompt by its ID.
 
@@ -272,7 +270,7 @@ def get_prompt_by_id(prompt_id: str) -> Optional[Dict[str, str]]:
     return None
 
 
-def get_all_prompts() -> List[Dict[str, str]]:
+def get_all_prompts() -> list[dict[str, str]]:
     """
     Retrieve all test prompts across all domains.
 
@@ -285,7 +283,7 @@ def get_all_prompts() -> List[Dict[str, str]]:
     return all_prompts
 
 
-def get_prompts_by_difficulty(difficulty: str) -> List[Dict[str, str]]:
+def get_prompts_by_difficulty(difficulty: str) -> list[dict[str, str]]:
     """
     Retrieve all prompts matching a specific difficulty level.
 

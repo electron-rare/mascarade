@@ -1,6 +1,5 @@
 """Multi-provider dataset generator — uses ALL available APIs in round-robin."""
 
-import json
 import time
 import os
 import httpx
@@ -147,7 +146,7 @@ def call_provider(provider: Provider, system: str, prompt: str, temperature: flo
             provider.success += 1
             return answer
 
-    except Exception as e:
+    except Exception:
         provider.errors += 1
         return None
 

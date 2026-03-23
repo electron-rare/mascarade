@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-from typing import Optional
 
 try:
     from mistralai.client import MistralClient
@@ -46,8 +45,8 @@ class MistralStudioProvider(LLMProvider):
         self,
         messages: list[dict],
         *,
-        model: Optional[str] = None,
-        system: Optional[str] = None,
+        model: str | None = None,
+        system: str | None = None,
         temperature: float = 0.7,
         max_tokens: int = 4096,
     ) -> LLMResponse:
@@ -56,7 +55,7 @@ class MistralStudioProvider(LLMProvider):
         chat_messages = []
         if system:
             chat_messages.append(ChatMessage(role="system", content=system))
-        
+
         for msg in messages:
             chat_messages.append(ChatMessage(
                 role=msg["role"],
@@ -87,8 +86,8 @@ class MistralStudioProvider(LLMProvider):
         self,
         messages: list[dict],
         *,
-        model: Optional[str] = None,
-        system: Optional[str] = None,
+        model: str | None = None,
+        system: str | None = None,
         temperature: float = 0.7,
         max_tokens: int = None,
     ) -> str:
@@ -97,7 +96,7 @@ class MistralStudioProvider(LLMProvider):
         chat_messages = []
         if system:
             chat_messages.append(ChatMessage(role="system", content=system))
-        
+
         for msg in messages:
             chat_messages.append(ChatMessage(
                 role=msg["role"],

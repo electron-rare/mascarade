@@ -19,10 +19,10 @@ from pathlib import Path
 
 sys.path.insert(0, os.environ.get("PYTHONPATH", os.path.expanduser("~/mascarade/core")))
 
-from mascarade.finetune.agents.researcher import ResearcherAgent
 from mascarade.finetune.agents.documentalist import DocumentalistAgent
+from mascarade.finetune.agents.researcher import ResearcherAgent
 from mascarade.finetune.agents.teacher import TeacherAgent, TeacherConfig
-from mascarade.finetune.registry import FinetuneRegistry, ModelEntry, DatasetEntry, RunEntry
+from mascarade.finetune.registry import DatasetEntry, FinetuneRegistry, ModelEntry, RunEntry
 
 # ANSI
 BOLD = "\033[1m"
@@ -253,7 +253,7 @@ def phase_check_kxkm(log: PipelineLogger) -> bool:
 
 def phase_train(log: PipelineLogger, base_model: str, dataset_id: str, run_id: str,
                 max_steps: int = 50, batch_size: int = 2) -> dict:
-    log.phase(f"TRAINING SUR KXKM-AI")
+    log.phase("TRAINING SUR KXKM-AI")
     log.info(f"Model: {base_model}")
     log.info(f"Dataset: {dataset_id}")
     log.info(f"Config: QLoRA 4bit, {max_steps} steps, batch={batch_size}, lr=2e-4")
@@ -438,13 +438,13 @@ def show_logs():
 
     print(f"\n  {BOLD}v{RESET}=voir  {BOLD}d{RESET}=supprimer  {BOLD}D{RESET}=tout supprimer  {BOLD}0{RESET}=retour")
     try:
-        choice = input(f"\n  Action > ").strip().lower()
+        choice = input("\n  Action > ").strip().lower()
     except (EOFError, KeyboardInterrupt):
         return
 
     if choice == "d":
         try:
-            idx = int(input(f"  Numéro > ").strip()) - 1
+            idx = int(input("  Numéro > ").strip()) - 1
             if 0 <= idx < len(logs[:10]):
                 logs[idx].unlink()
                 print(f"  {GREEN}✓ Supprimé: {logs[idx].name}{RESET}")
@@ -458,7 +458,7 @@ def show_logs():
             print(f"  {GREEN}✓ {len(logs)} logs supprimés{RESET}")
     elif choice == "v":
         try:
-            idx = int(input(f"  Numéro > ").strip()) - 1
+            idx = int(input("  Numéro > ").strip()) - 1
             if 0 <= idx < len(logs[:10]):
                 content = logs[idx].read_text()
                 print(f"\n{DIM}{'─'*60}{RESET}")
@@ -536,7 +536,7 @@ async def run_pipeline():
     # Phase 4: Check KXKM
     if not phase_check_kxkm(log):
         log.warn("KXKM-AI non disponible")
-        dry = input(f"  Continuer en dry-run ? (y/n) > ").strip()
+        dry = input("  Continuer en dry-run ? (y/n) > ").strip()
         if dry != "y":
             log.close("aborted")
             return
@@ -597,7 +597,7 @@ async def main_loop():
         print(f"  {BOLD}0{RESET}. Quitter")
 
         try:
-            choice = input(f"\n  Choix > ").strip()
+            choice = input("\n  Choix > ").strip()
         except (EOFError, KeyboardInterrupt):
             break
 

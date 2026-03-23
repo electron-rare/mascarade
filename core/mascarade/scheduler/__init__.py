@@ -1,9 +1,9 @@
 """Distributed scheduler for multi-machine inference."""
 
-from mascarade.scheduler.worker_state import WorkerState
+from mascarade.scheduler.autoscaler import AutoScaler
 from mascarade.scheduler.heartbeat import HeartbeatMonitor
 from mascarade.scheduler.scheduler import ResourceAwareScheduler
-from mascarade.scheduler.autoscaler import AutoScaler
+from mascarade.scheduler.worker_state import WorkerState
 
 # vLLM support is optional in this workspace. Importing the scheduler package
 # must not break the core API surface when the extra dependency is absent.

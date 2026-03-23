@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import pytest
 from pydantic import SecretStr
 
 from mascarade.agents.mistral_agents import (
@@ -12,7 +12,6 @@ from mascarade.agents.mistral_agents import (
     discover_mistral_agents,
     register_mistral_agents,
 )
-from mascarade.router.router import Strategy
 
 # A valid-looking SecretStr that passes is_secret_configured
 _FAKE_API_KEY = SecretStr("test-mistral-key-12345678")
@@ -119,7 +118,7 @@ async def test_run_continue_conversation():
         mock_client.__aexit__ = AsyncMock(return_value=False)
         mock_client_cls.return_value = mock_client
 
-        response = await agent.run("Continue")
+        await agent.run("Continue")
 
         # Verify URL includes conversation_id
         call_args = mock_client.post.call_args

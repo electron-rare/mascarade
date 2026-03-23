@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 import logging
 from collections import defaultdict
 from dataclasses import dataclass, field
@@ -139,7 +138,7 @@ class BenchmarkSuite:
             run.failed_benchmarks = sum(1 for r in results if not r.success)
 
             # Collecter les domaines testés
-            domains = set(r.domain for r in results)
+            domains = {r.domain for r in results}
             run.domains_tested = sorted(domains)
 
         except Exception as exc:
@@ -211,7 +210,7 @@ class BenchmarkSuite:
             run.providers_tested = sorted(providers_tested)
 
             # Collecter les domaines testés
-            domains = set(r.domain for r in all_results)
+            domains = {r.domain for r in all_results}
             run.domains_tested = sorted(domains)
 
         except Exception as exc:
@@ -483,7 +482,7 @@ class BenchmarkSuite:
                 stats["failed"] += 1
 
         # Calculer les moyennes
-        for domain, stats in domain_stats.items():
+        for _domain, stats in domain_stats.items():
             if stats["successful"] > 0:
                 stats["avg_latency"] /= stats["successful"]
                 stats["success_rate"] = (stats["successful"] / stats["total"]) * 100

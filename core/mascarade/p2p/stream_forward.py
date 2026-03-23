@@ -114,7 +114,7 @@ class P2PStreamForwarder:
         try:
             result = await asyncio.wait_for(future, timeout=timeout)
             return result
-        except asyncio.TimeoutError:
+        except TimeoutError:
             raise TimeoutError(
                 f"P2P request {request_id} to {peer_id} timed out after {timeout}s"
             )

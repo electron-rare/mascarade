@@ -284,7 +284,7 @@ def main():
 
             print(f"  DONE: {cat_count} pairs")
 
-    print(f"\n=== SUMMARY ===")
+    print("\n=== SUMMARY ===")
     print(f"Total: {total} Q&A pairs")
     print(f"Errors: {errors}")
     print(f"Output: {OUTPUT}")

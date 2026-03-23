@@ -339,15 +339,15 @@ def print_summary(pairs: list[dict], dataset: list[dict]) -> None:
     print(f"  Min gap:          {min(gaps):.2f}")
     print(f"  Max gap:          {max(gaps):.2f}")
 
-    print(f"\n  By domain:")
+    print("\n  By domain:")
     for d, count in sorted(domains.items()):
         print(f"    {d:12s}  {count}")
 
-    print(f"\n  Chosen (best) model frequency:")
+    print("\n  Chosen (best) model frequency:")
     for m, count in sorted(chosen_counts.items(), key=lambda x: -x[1]):
         print(f"    {m:40s}  {count}")
 
-    print(f"\n  Rejected (worst) model frequency:")
+    print("\n  Rejected (worst) model frequency:")
     for m, count in sorted(rejected_counts.items(), key=lambda x: -x[1]):
         print(f"    {m:40s}  {count}")
     print()
@@ -440,7 +440,7 @@ def main() -> None:
     print(f"  Models in results: {model_labels}")
 
     # --- Build score map and select pairs ---
-    print(f"\nBuilding per-prompt score map ...")
+    print("\nBuilding per-prompt score map ...")
     prompt_scores = build_prompt_score_map(judge_results, prompts)
     print(f"  {len(prompt_scores)} prompts have scores from multiple models")
 
@@ -454,7 +454,7 @@ def main() -> None:
 
     # Show top pairs
     pairs.sort(key=lambda x: x["gap"], reverse=True)
-    print(f"\n  Top 5 pairs by gap:")
+    print("\n  Top 5 pairs by gap:")
     for p in pairs[:5]:
         print(f"    {p['prompt_id']:20s}  {p['chosen_label']} ({p['chosen_score']}) vs {p['rejected_label']} ({p['rejected_score']})  gap={p['gap']}")
 

@@ -6,7 +6,6 @@ for typical operations, ensuring the system remains responsive under load.
 
 import asyncio
 import time
-from typing import List
 from unittest.mock import AsyncMock
 
 from mascarade.router.providers.base import LLMProvider, LLMResponse
@@ -55,7 +54,7 @@ class ControlledLatencyProvider(LLMProvider):
         return sorted_times[p95_idx] if p95_idx < len(sorted_times) else sorted_times[-1]
 
 
-def calculate_p95(latencies: List[float]) -> float:
+def calculate_p95(latencies: list[float]) -> float:
     """Calculate p95 from a list of latencies."""
     if not latencies:
         return 0
@@ -151,7 +150,7 @@ def test_e2e_perf_concurrent_requests():
 
     async def run_concurrent():
         tasks = []
-        for i in range(10):
+        for _i in range(10):
             tasks.append(router.send(messages, strategy=Strategy.FASTEST))
 
         start = time.perf_counter()
@@ -182,7 +181,7 @@ def test_e2e_perf_streaming_latency():
         start = time.perf_counter()
         first_token_time = None
 
-        async for token in router.stream(messages, strategy=Strategy.FASTEST):
+        async for _token in router.stream(messages, strategy=Strategy.FASTEST):
             if first_token_time is None:
                 first_token_time = (time.perf_counter() - start) * 1000
             break
@@ -336,7 +335,7 @@ def test_e2e_perf_sequential_requests_no_degradation():
     latencies = []
 
     # Run 50 sequential requests
-    for i in range(50):
+    for _i in range(50):
         start = time.perf_counter()
         asyncio.run(router.send(messages, strategy=Strategy.FASTEST))
         elapsed_ms = (time.perf_counter() - start) * 1000

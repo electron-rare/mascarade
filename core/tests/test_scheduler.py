@@ -5,10 +5,9 @@ from __future__ import annotations
 import pytest
 from fastapi import HTTPException
 
-from mascarade.scheduler.worker_state import WorkerState, WorkerStatus, WorkerRuntime
-from mascarade.scheduler.scheduler import ResourceAwareScheduler, ScheduledRequest
 from mascarade.scheduler.heartbeat import HeartbeatMonitor
-
+from mascarade.scheduler.scheduler import ResourceAwareScheduler, ScheduledRequest
+from mascarade.scheduler.worker_state import WorkerRuntime, WorkerState, WorkerStatus
 
 # --- WorkerState ---
 

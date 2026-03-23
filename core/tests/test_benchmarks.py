@@ -1,6 +1,5 @@
 """Tests for benchmark system."""
 
-import asyncio
 from datetime import datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -786,7 +785,7 @@ def test_storage_sql_injection_prevention_domain():
     malicious_domain = "general' OR '1'='1"
 
     # Should safely use parameterized query
-    result = storage.query_leaderboard(domain=malicious_domain)
+    storage.query_leaderboard(domain=malicious_domain)
 
     # Verify the query was called with parameters (not direct string interpolation)
     assert mock_client.query.called
@@ -823,7 +822,7 @@ def test_storage_sql_injection_prevention_provider():
     malicious_provider = "anthropic' OR '1'='1"
 
     # Should safely use parameterized query
-    result = storage.query_provider_stats(malicious_provider)
+    storage.query_provider_stats(malicious_provider)
 
     # Verify parameterized query was used
     assert mock_client.query.called
@@ -859,7 +858,7 @@ def test_storage_sql_injection_prevention_combined():
     malicious_domain = "general' UNION SELECT * FROM users --"
 
     # Should safely use parameterized query
-    result = storage.query_provider_stats(malicious_provider, domain=malicious_domain)
+    storage.query_provider_stats(malicious_provider, domain=malicious_domain)
 
     # Verify both parameters were safely parameterized
     assert mock_client.query.called
@@ -896,7 +895,7 @@ def test_storage_sql_injection_prevention_domain_stats():
     malicious_domain = "electronics'; DELETE FROM benchmarks WHERE '1'='1"
 
     # Should safely use parameterized query
-    result = storage.query_domain_stats(malicious_domain)
+    storage.query_domain_stats(malicious_domain)
 
     # Verify parameterized query was used
     assert mock_client.query.called

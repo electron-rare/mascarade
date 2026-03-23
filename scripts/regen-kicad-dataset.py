@@ -152,7 +152,7 @@ def main():
 
             time.sleep(0.5)
 
-    print(f"\n=== DONE ===")
+    print("\n=== DONE ===")
     print(f"Total: {total} Q&A pairs (grounded)")
     print(f"Output: {OUTPUT}")
     print(f"Size: {os.path.getsize(OUTPUT) / 1024**2:.1f} MB")

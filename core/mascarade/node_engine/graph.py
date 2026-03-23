@@ -7,16 +7,15 @@ with type compatibility validation.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 
-from pydantic import BaseModel, Field, ValidationError, field_validator, model_validator
-
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 # --- GraphStatus enum ---
 
 
-class GraphStatus(str, Enum):
+class GraphStatus(StrEnum):
     """Lifecycle status for a graph."""
 
     DRAFT = "draft"

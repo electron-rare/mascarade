@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import tempfile
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -267,9 +266,10 @@ class TestMistralCapabilitiesRouter:
     @pytest.fixture
     def client(self):
         """Create a test client with auth disabled."""
-        from fastapi.testclient import TestClient
-        from mascarade.routers.mistral_capabilities import router
         from fastapi import FastAPI
+        from fastapi.testclient import TestClient
+
+        from mascarade.routers.mistral_capabilities import router
 
         app = FastAPI()
         app.include_router(router)
@@ -540,9 +540,10 @@ class TestMistralNewEndpoints:
     @pytest.fixture
     def client(self):
         """Create a test client with auth disabled."""
-        from fastapi.testclient import TestClient
-        from mascarade.routers.mistral_capabilities import router
         from fastapi import FastAPI
+        from fastapi.testclient import TestClient
+
+        from mascarade.routers.mistral_capabilities import router
 
         app = FastAPI()
         app.include_router(router)

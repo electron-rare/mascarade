@@ -154,7 +154,7 @@ class FreeCADWorker(NodeWorker):
         """
         document = inputs.get("document", {})
         script = inputs.get("script", "")
-        timeout_s = inputs.get("timeout_s", 60)
+        inputs.get("timeout_s", 60)
 
         if not script:
             raise ValueError("Script is required for run_script node")

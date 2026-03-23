@@ -3,9 +3,6 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
-
-import pytest
 
 from mascarade.router.ml_classifier import (
     TIERS,
@@ -14,7 +11,6 @@ from mascarade.router.ml_classifier import (
     RoutingClassifier,
     _softmax,
 )
-
 
 # ---------------------------------------------------------------------------
 # PromptFeatureExtractor.extract()

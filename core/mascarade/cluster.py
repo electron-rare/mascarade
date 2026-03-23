@@ -6,13 +6,12 @@ import asyncio
 import hashlib
 import hmac
 import logging
+import socket
 import time
 from dataclasses import dataclass
 from socket import AF_INET, AF_INET6, inet_aton, inet_ntop
-from urllib.parse import urlparse
 from typing import Any
-
-import socket
+from urllib.parse import urlparse
 
 try:
     from zeroconf import ServiceBrowser, ServiceInfo, ServiceListener, Zeroconf

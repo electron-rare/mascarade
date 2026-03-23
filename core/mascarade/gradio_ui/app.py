@@ -5,8 +5,6 @@ from __future__ import annotations
 import logging
 import os
 import shutil
-import time
-import uuid
 from pathlib import Path
 from typing import Any
 
@@ -202,7 +200,7 @@ async def refresh_jobs_handler() -> list[list[Any]]:
             logger.debug("Jobs list refreshed: %d jobs", len(rows))
             return rows
 
-    except Exception as e:
+    except Exception:
         logger.exception("Failed to refresh jobs")
         return []
 

@@ -6,7 +6,6 @@ nodes to domain workers.
 
 from __future__ import annotations
 
-import asyncio
 import logging
 from dataclasses import dataclass, field
 from enum import StrEnum
@@ -380,7 +379,7 @@ class GraphRuntime:
         )
         if validation_errors:
             raise ValueError(
-                f"Node validation failed:\n" + "\n".join(f"  - {e}" for e in validation_errors)
+                "Node validation failed:\n" + "\n".join(f"  - {e}" for e in validation_errors)
             )
 
         # Execute

@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import math
 import secrets
-from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
@@ -107,7 +106,7 @@ async def toolpath_generate(req: ToolpathGenerateRequest, request: Request):
 
     run_id = req.run_id or f"run-{secrets.token_hex(8)}"
     tool_id = req.tool.get("id", "tool_0")
-    tool_diameter = req.tool.get("diameter", 6.0)
+    req.tool.get("diameter", 6.0)
 
     # Generate a basic toolpath and G-code
     gcode_program = _generate_gcode(req.mesh, req.tool, req.strategy)

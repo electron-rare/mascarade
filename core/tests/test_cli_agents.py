@@ -2,17 +2,17 @@
 
 from __future__ import annotations
 
+from unittest.mock import AsyncMock, MagicMock, patch
+
 import pytest
-from unittest.mock import AsyncMock, patch, MagicMock
 
 from mascarade.agents.cli_agents import (
-    VibeAgent,
-    CodexAgent,
     ClaudeCodeAgent,
+    CodexAgent,
+    VibeAgent,
     _cli_available,
     register_cli_agents,
 )
-
 
 # --- Availability ---
 

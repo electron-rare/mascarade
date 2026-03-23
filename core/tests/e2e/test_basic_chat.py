@@ -33,7 +33,7 @@ class MockOpenAIProvider(LLMProvider):
         )
 
     async def stream(self, messages, **kwargs):
-        model = kwargs.get("model", self.default_model)
+        kwargs.get("model", self.default_model)
         for token in ["Hello", " from", " OpenAI"]:
             yield token
 
@@ -272,7 +272,7 @@ def test_e2e_temperature_control():
     messages = [{"role": "user", "content": "Creative writing task"}]
 
     # High temperature for creative output
-    response = asyncio.run(
+    asyncio.run(
         router.send(
             messages,
             temperature=1.2,
@@ -293,7 +293,7 @@ def test_e2e_max_tokens_limit():
 
     messages = [{"role": "user", "content": "Short answer please"}]
 
-    response = asyncio.run(
+    asyncio.run(
         router.send(
             messages,
             max_tokens=50,

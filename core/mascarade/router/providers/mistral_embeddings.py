@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-from typing import List
 
 try:
     from mistralai.client import MistralClient
@@ -30,17 +29,17 @@ class MistralEmbeddingsProvider:
 
     async def embed(
         self,
-        texts: List[str],
+        texts: list[str],
         model: str = "mistral-embed",
         dimensions: int = 1024,
-    ) -> List[List[float]]:
+    ) -> list[list[float]]:
         """Generate embeddings for texts."""
         response = self.client.embeddings(
             model=model,
             input=texts,
             dimensions=dimensions,
         )
-        
+
         return [data.embedding for data in response.data]
 
     async def embed_query(
@@ -48,12 +47,12 @@ class MistralEmbeddingsProvider:
         text: str,
         model: str = "mistral-embed",
         dimensions: int = 1024,
-    ) -> List[float]:
+    ) -> list[float]:
         """Generate embedding for a single query."""
         embeddings = await self.embed([text], model=model, dimensions=dimensions)
         return embeddings[0]
 
-    def available_models(self) -> List[str]:
+    def available_models(self) -> list[str]:
         """Available embedding models."""
         return ["mistral-embed"]
 

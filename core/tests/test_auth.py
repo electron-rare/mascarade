@@ -163,7 +163,7 @@ def test_rate_limiting():
     user_key = "test_user_123"
 
     # Should allow up to the limit
-    for i in range(5):
+    for _i in range(5):
         limiter.check_rate_limit(user_key=user_key)
 
     # 6th request should fail
@@ -177,7 +177,7 @@ def test_rate_limiting():
     ip_address = "192.168.1.100"
 
     # Should allow up to the limit
-    for i in range(3):
+    for _i in range(3):
         limiter2.check_rate_limit(ip_address=ip_address)
 
     # 4th request should fail
@@ -192,7 +192,7 @@ def test_rate_limiting():
     ip_address2 = "192.168.1.200"
 
     # Make 3 requests (both limits should track)
-    for i in range(3):
+    for _i in range(3):
         limiter3.check_rate_limit(user_key=user_key2, ip_address=ip_address2)
 
     # Verify both user and IP are being tracked
@@ -207,7 +207,7 @@ def test_rate_limiting():
     user_key3 = "test_user_789"
 
     # Use up the limit
-    for i in range(2):
+    for _i in range(2):
         limiter4.check_rate_limit(user_key=user_key3)
 
     # Should be rate limited
@@ -226,7 +226,7 @@ def test_rate_limiting():
     ip_address3 = "192.168.1.300"
 
     # Use up the limit
-    for i in range(2):
+    for _i in range(2):
         limiter5.check_rate_limit(ip_address=ip_address3)
 
     # Should be rate limited
@@ -334,10 +334,10 @@ async def test_rate_limiting_per_user():
 
     # Need to reload the module to pick up new env vars
     from importlib import reload
+
     from mascarade import auth as auth_module
 
     reload(auth_module)
-    from mascarade.auth import reset_rate_limit
 
     add_api_key(TEST_ADMIN_KEY)
 
@@ -387,10 +387,10 @@ async def test_rate_limiting_per_ip():
     os.environ["MASCARADE_RATE_LIMIT_WINDOW"] = "60"
 
     from importlib import reload
+
     from mascarade import auth as auth_module
 
     reload(auth_module)
-    from mascarade.auth import reset_rate_limit
 
     add_api_key(TEST_ADMIN_KEY)
     add_api_key(TEST_OPERATOR_KEY)

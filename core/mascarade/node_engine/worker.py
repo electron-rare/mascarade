@@ -20,7 +20,6 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
@@ -35,7 +34,6 @@ from tenacity import (
 if TYPE_CHECKING:
     from aiobreaker import CircuitBreaker
 
-    from mascarade.node_engine.graph import ExecutionContext
 
 logger = logging.getLogger("mascarade.node_engine")
 
@@ -136,7 +134,7 @@ class NodeWorker:
     registry: Any = None
 
     # Circuit breaker instance (set by Node Engine or CircuitBreakerManager)
-    circuit_breaker: "CircuitBreaker | None" = None
+    circuit_breaker: CircuitBreaker | None = None
 
     async def execute(
         self,
@@ -263,4 +261,3 @@ class NodeWorker:
 
 # Re-export ExecutionContext and NodeResult for convenience
 # (some code imports them from worker module)
-from mascarade.node_engine.graph import ExecutionContext, NodeResult  # noqa: E402

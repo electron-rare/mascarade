@@ -2,7 +2,6 @@
 """Mascarade Monitoring TUI — Real-time system monitoring and control."""
 
 import asyncio
-import curses
 import json
 import logging
 import time
@@ -296,7 +295,7 @@ async def main():
     api_client = APIClient(base_url=config["api_url"], api_key=config["api_key"])
     monitor = SystemMonitor(api_client)
     tui = TUI(monitor)
-    log_manager = LogManager()
+    LogManager()
     
     # Start monitoring
     logger.info("Starting Mascarade Monitoring TUI")

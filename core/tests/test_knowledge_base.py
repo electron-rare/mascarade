@@ -7,8 +7,8 @@ import pytest
 from mascarade.config import settings
 from mascarade.integrations.knowledge_base import (
     DocmostClient,
-    KxkmClient,
     KnowledgeBaseClient,
+    KxkmClient,
     MemosClient,
     knowledge_base_auth_configured,
 )

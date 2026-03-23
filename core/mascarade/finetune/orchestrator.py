@@ -2,14 +2,13 @@
 
 from __future__ import annotations
 
-import json
 import logging
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
 from mascarade.finetune.agents.teacher import TeacherAgent, TeacherConfig
-from mascarade.finetune.registry import FinetuneRegistry, ModelEntry, DatasetEntry, RunEntry
+from mascarade.finetune.registry import DatasetEntry, FinetuneRegistry, ModelEntry, RunEntry
 
 logger = logging.getLogger("mascarade.finetune.orchestrator")
 

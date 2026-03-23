@@ -18,8 +18,8 @@ logger = logging.getLogger(__name__)
 
 async def run_complete_spice_workflow():
     """Run complete SPICE workflow with a valid RC circuit."""
-    from mascarade.node_engine.workers.electronics.spice_nodes import SimulateNode, SimulateConfig
-    from mascarade.node_engine.domains.electronics.types import WAVEFORM_TYPE, NETLIST_TYPE
+    from mascarade.node_engine.domains.electronics.types import NETLIST_TYPE, WAVEFORM_TYPE
+    from mascarade.node_engine.workers.electronics.spice_nodes import SimulateConfig, SimulateNode
 
     logger.info("=" * 80)
     logger.info("COMPLETE SPICE WORKFLOW TEST - RC Low-Pass Filter")

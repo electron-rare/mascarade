@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import logging
 from collections import OrderedDict
-from typing import Dict, List, Optional, Tuple
 
 import torch
 
@@ -16,9 +15,9 @@ class BlockTable:
 
     def __init__(self, block_size: int = 16):
         self.block_size = block_size
-        self.blocks: Dict[int, torch.Tensor] = {}
+        self.blocks: dict[int, torch.Tensor] = {}
         self.next_block_id = 0
-        self.free_blocks: List[int] = []
+        self.free_blocks: list[int] = []
 
     def allocate_block(self) -> int:
         """Allocate a new block."""
@@ -71,7 +70,7 @@ class PagedAttentionManager:
         self.cpu_lru: OrderedDict[int, int] = OrderedDict()
 
         # Mapping from logical to physical blocks
-        self.logical_to_physical: Dict[int, Tuple[str, int]] = {}
+        self.logical_to_physical: dict[int, tuple[str, int]] = {}
         self.next_logical_id = 0
 
     def allocate_sequence(self, sequence_length: int) -> int:
@@ -140,7 +139,7 @@ class PagedAttentionManager:
 
         return torch.cat(result) if result else torch.empty(0)
 
-    def _get_block(self, location: str, block_id: int) -> Optional[torch.Tensor]:
+    def _get_block(self, location: str, block_id: int) -> torch.Tensor | None:
         """Get a block from the appropriate table."""
         if location == "gpu":
             block = self.gpu_table.get_block(block_id)
@@ -176,7 +175,7 @@ class PagedAttentionManager:
             if k[0] != logical_id
         }
 
-    def get_memory_stats(self) -> Dict:
+    def get_memory_stats(self) -> dict:
         """Get memory usage statistics."""
         return {
             "gpu_blocks": {
@@ -189,7 +188,7 @@ class PagedAttentionManager:
                 "max": self.max_cpu_blocks,
                 "usage_pct": self.cpu_table.num_allocated_blocks() / self.max_cpu_blocks * 100
             },
-            "total_sequences": len(set(k[0] for k in self.logical_to_physical.keys()))
+            "total_sequences": len({k[0] for k in self.logical_to_physical.keys()})
         }
 
 
@@ -204,7 +203,7 @@ class PagedAttentionOptimizer:
         # Implementation would consolidate partially used blocks
         pass
 
-    def prefetch_to_gpu(self, logical_ids: List[int]) -> None:
+    def prefetch_to_gpu(self, logical_ids: list[int]) -> None:
         """Prefetch sequences to GPU."""
         for logical_id in logical_ids:
             # Check if sequence is on CPU
@@ -220,10 +219,10 @@ class PagedAttentionOptimizer:
                     if cpu_block is not None:
                         gpu_block_id = self.manager.gpu_table.allocate_block()
                         self.manager.gpu_table.blocks[gpu_block_id] = cpu_block.cuda()
-                        
+
                         # Update mappings
                         for (lid, idx), (loc, bid) in self.manager.logical_to_physical.items():
                             if loc == "cpu" and bid == block_id:
                                 self.manager.logical_to_physical[(lid, idx)] = ("gpu", gpu_block_id)
-                        
+
                         self.manager.cpu_table.free_block(block_id)

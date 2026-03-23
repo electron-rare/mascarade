@@ -327,7 +327,7 @@ Reply ONLY JSON: {{"question": "...", "answer": "..."}}"""
 
 def main():
     total_target = sum(c["count"] for c in CATEGORIES)
-    print(f"=== Missing Domains Dataset Generator ===")
+    print("=== Missing Domains Dataset Generator ===")
     print(f"Target: {total_target} Q&A pairs ({len(CATEGORIES)} categories)\n")
 
     os.makedirs(os.path.dirname(OUTPUT), exist_ok=True)
@@ -352,7 +352,7 @@ def main():
                 time.sleep(0.5)
             print(f"  DONE: {cat_count} pairs")
 
-    print(f"\n=== SUMMARY ===")
+    print("\n=== SUMMARY ===")
     print(f"Total: {total} Q&A pairs")
     print(f"Errors: {errors}")
     print(f"Output: {OUTPUT}")

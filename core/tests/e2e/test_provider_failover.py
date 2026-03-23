@@ -300,7 +300,7 @@ def test_e2e_failover_tracks_failed_attempts():
     messages = [{"role": "user", "content": "Track attempts"}]
 
     try:
-        response = asyncio.run(router.send(messages, strategy=Strategy.BEST))
+        asyncio.run(router.send(messages, strategy=Strategy.BEST))
         # Verify providers were tried
         assert failing_1.call_count >= 0
         assert failing_2.call_count >= 0

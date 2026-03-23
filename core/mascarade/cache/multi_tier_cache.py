@@ -121,7 +121,7 @@ class MultiTierCache:
         if self.l2_available and self.l2:
             try:
                 await self.l2.store(messages, response, tokens, cost, ttl, **kwargs)
-                logger.debug(f"MultiTierCache: stored in L2 (Redis)")
+                logger.debug("MultiTierCache: stored in L2 (Redis)")
             except Exception as e:
                 logger.warning(f"MultiTierCache: L2 store failed, degrading to L1 only: {e}")
                 self.l2_available = False
@@ -130,7 +130,7 @@ class MultiTierCache:
         if self.l3_available and self.l3:
             try:
                 await self.l3.store(messages, response, tokens, cost, ttl, **kwargs)
-                logger.debug(f"MultiTierCache: stored in L3 (Semantic)")
+                logger.debug("MultiTierCache: stored in L3 (Semantic)")
             except Exception as e:
                 logger.warning(f"MultiTierCache: L3 store failed: {e}")
                 # L3 failures are expected (optional), don't disable tier
@@ -385,8 +385,8 @@ class MultiTierCache:
         # But call if method exists for future compatibility
         if self.l3_available and self.l3 and hasattr(self.l3, "close"):
             try:
-                close_method = getattr(self.l3, "close")
-                if hasattr(close_method, "__call__"):
+                close_method = self.l3.close
+                if callable(close_method):
                     # Check if async
                     import inspect
 

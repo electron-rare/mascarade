@@ -12,7 +12,7 @@ import json
 import logging
 import sys
 import traceback
-from typing import Any, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from mascarade.agents.registry import AgentRegistry

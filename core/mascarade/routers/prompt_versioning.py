@@ -2,11 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import asdict
-
 from fastapi import APIRouter, HTTPException, Request
-
-from mascarade.agents.prompt_versioning import PromptHistory, PromptVersion
 
 router = APIRouter(tags=["agents"])
 

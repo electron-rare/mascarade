@@ -1,25 +1,24 @@
 """Tests for the finetune module — imports, registry, and agent logic."""
 
 import json
-import tempfile
 from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
 import pytest
 
 from mascarade.config import settings
-from mascarade.finetune.agents.researcher import ResearcherAgent, ModelCandidate
-from mascarade.finetune.agents.documentalist import DocumentalistAgent, DatasetCandidate
-from mascarade.finetune.agents.teacher import TeacherAgent, TeacherConfig
+from mascarade.finetune.agents.analyst import AnalystAgent
 from mascarade.finetune.agents.archivist import ArchivistAgent
-from mascarade.finetune.agents.student import StudentAgent, LoRAConfig, TrainingResult
-from mascarade.finetune.agents.analyst import AnalystAgent, EvalReport
-from mascarade.finetune.agents.reinforcer import DPOPair, ReinforcerAgent, ReinforcementResult
-from mascarade.finetune.agents.validator import ValidatorAgent, ValidationResult
-from mascarade.finetune.registry import FinetuneRegistry, ModelEntry, DatasetEntry, RunEntry
+from mascarade.finetune.agents.documentalist import DocumentalistAgent
+from mascarade.finetune.agents.reinforcer import DPOPair, ReinforcementResult, ReinforcerAgent
+from mascarade.finetune.agents.researcher import ResearcherAgent
+from mascarade.finetune.agents.student import LoRAConfig, StudentAgent
+from mascarade.finetune.agents.teacher import TeacherAgent
+from mascarade.finetune.agents.validator import ValidatorAgent
 from mascarade.finetune.orchestrator import FinetuneOrchestrator, PipelineConfig, PipelineState
-from mascarade.finetune.p2p.capabilities import FT_CAPABILITIES, CAPABILITY_NODE_MAP
+from mascarade.finetune.p2p.capabilities import CAPABILITY_NODE_MAP, FT_CAPABILITIES
 from mascarade.finetune.p2p.task_handlers import handle_ft_task
+from mascarade.finetune.registry import DatasetEntry, FinetuneRegistry, ModelEntry, RunEntry
 
 
 class _FakeResponse:
@@ -478,8 +477,9 @@ class TestReinforcerKxkm:
 
 class TestPubSubThreadSafety:
     def test_pubsub_has_seen_lock(self):
-        from mascarade.p2p.pubsub import P2PPubSub
         from unittest.mock import MagicMock
+
+        from mascarade.p2p.pubsub import P2PPubSub
         transport = MagicMock()
         transport.on_message = MagicMock()
         ps = P2PPubSub(local_peer_id="test", transport=transport)

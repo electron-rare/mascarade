@@ -18,7 +18,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 import mascarade.config as _config_module
 from mascarade.db.connection import get_db_pool
-from mascarade.db.models import ApiKeyRecord, RoleRecord, User, UserRecord
+from mascarade.db.models import User, UserRecord
 
 logger = logging.getLogger("mascarade.auth")
 
@@ -894,7 +894,7 @@ async def migrate_legacy_keys() -> dict:
                         "api_key",
                         key_prefix,
                         user_id,
-                        f"Migrated from MASCARADE_API_KEY environment variable",
+                        "Migrated from MASCARADE_API_KEY environment variable",
                     )
 
                     logger.info(

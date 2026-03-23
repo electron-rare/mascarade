@@ -2,7 +2,6 @@
 
 import json
 
-import pytest
 from pydantic import ValidationError
 
 from mascarade.hardware.types import (
@@ -16,7 +15,6 @@ from mascarade.hardware.types import (
     SerialData,
     SerialParity,
 )
-
 
 # --- GPIOState Tests ---
 

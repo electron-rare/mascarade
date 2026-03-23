@@ -19,7 +19,6 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import sys
 import time
 from pathlib import Path
 
@@ -69,7 +68,6 @@ def train_dpo(
     """Run DPO or ORPO training."""
     import torch
     from peft import LoraConfig
-    from transformers import AutoTokenizer
 
     print(f"Loading dataset from {dataset_path}...")
     dataset = load_dpo_dataset(dataset_path)

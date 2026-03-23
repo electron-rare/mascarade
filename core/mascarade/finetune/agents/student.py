@@ -105,8 +105,8 @@ class StudentAgent:
         run_id: str | None = None,
     ) -> TrainingResult:
         """Train using Unsloth — 2-5x faster, 70% less VRAM than trl."""
-        from unsloth import FastLanguageModel
         from trl import SFTConfig, SFTTrainer
+        from unsloth import FastLanguageModel
 
         run_id = run_id or f"unsloth-{int(time.time())}"
         output_dir = self.output_base / run_id

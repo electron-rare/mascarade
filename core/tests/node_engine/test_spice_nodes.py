@@ -15,7 +15,6 @@ from mascarade.node_engine.workers.electronics.spice_nodes import (
     SimulateNode,
 )
 
-
 # Tests pour NodeConfig et ses sous-classes
 
 

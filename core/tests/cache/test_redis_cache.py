@@ -2,11 +2,10 @@
 
 import asyncio
 import time
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from mascarade.cache.cache import CacheEntry
 from mascarade.cache.redis_cache import RedisCache
 
 

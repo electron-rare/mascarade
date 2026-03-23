@@ -2,8 +2,6 @@
 
 import asyncio
 
-import pytest
-
 from mascarade.node_engine.base import (
     NodeDefinition,
     NodeExecutionContext,

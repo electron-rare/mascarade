@@ -29,7 +29,6 @@ from mascarade.router import Router
 from mascarade.router.providers.base import LLMProvider, LLMResponse
 from mascarade.router.router import Strategy
 
-
 # ============================================================================
 # Mock Providers for Testing
 # ============================================================================

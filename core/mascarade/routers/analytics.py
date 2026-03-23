@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Query
 
@@ -18,7 +17,7 @@ VALID_ORDER_BY = {"quality_score", "latency_p50", "latency_p95", "cost", "error_
 
 @router.get("/benchmarks")
 async def get_benchmarks(
-    domain: Optional[str] = Query(None, description="Filter by domain"),
+    domain: str | None = Query(None, description="Filter by domain"),
     limit: int = Query(10, ge=1, le=100, description="Max results"),
     order_by: str = Query("quality_score", description="Column to order by"),
 ):

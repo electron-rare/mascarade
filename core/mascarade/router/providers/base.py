@@ -6,7 +6,7 @@ import logging
 from abc import ABC, abstractmethod
 from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
 from tenacity import (
     before_sleep_log,
@@ -94,7 +94,7 @@ class LLMProvider(ABC):
     quality_rank: int = 0
 
     # Circuit breaker instance (set by Router or CircuitBreakerManager)
-    circuit_breaker: "CircuitBreaker | None" = None
+    circuit_breaker: CircuitBreaker | None = None
 
     @abstractmethod
     async def send(

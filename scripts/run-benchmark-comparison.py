@@ -41,7 +41,7 @@ def query_ollama(model, prompt, timeout=120.0):
             r.raise_for_status()
             d = r.json()
             return d.get("response", ""), d.get("eval_count", 0), r.elapsed.total_seconds()
-    except Exception as e:
+    except Exception:
         return "", 0, 0
 
 
@@ -123,7 +123,7 @@ def main():
     # Report
     report = "# Mascarade vs HuggingFace — Benchmark Comparison\n\n"
     report += f"Date: {time.strftime('%Y-%m-%d %H:%M')}\n"
-    report += f"Judge: Codestral API (JSON mode)\n"
+    report += "Judge: Codestral API (JSON mode)\n"
     report += f"Prompts: {len(prompts)}\n\n"
     report += "## Results\n\n"
     report += "| Model | Score /10 | Latency | KiCad | SPICE | Embedded | Mixed |\n"
@@ -133,7 +133,7 @@ def main():
         dm = d["domains"]
         report += f"| {label} | **{d['score']}** | {d['latency_ms']}ms | {dm.get('kicad','-')} | {dm.get('spice','-')} | {dm.get('embedded','-')} | {dm.get('mixed','-')} |\n"
 
-    report += f"\n## Key Finding\n\n"
+    report += "\n## Key Finding\n\n"
     our_best = max((v["score"], k) for k, v in results.items() if "ours" in k)
     hf_best = max((v["score"], k) for k, v in results.items() if "HF" in k or "stem" in k.lower() or "phi2" in k.lower())
     if our_best[0] > hf_best[0]:

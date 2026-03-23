@@ -7,7 +7,6 @@ import logging
 from pathlib import Path
 from typing import Any
 
-from mascarade.config import settings
 from mascarade.p2p.capabilities import P2PCapabilityExchange
 from mascarade.p2p.dht import P2PDHT
 from mascarade.p2p.discovery import P2PDiscovery
@@ -22,7 +21,7 @@ from mascarade.p2p.events import (
     P2PEventBus,
 )
 from mascarade.p2p.identity import PeerIdentity
-from mascarade.p2p.metrics import P2PMetricsCollector, P2PNodeMetrics
+from mascarade.p2p.metrics import P2PMetricsCollector
 from mascarade.p2p.pubsub import P2PPubSub
 from mascarade.p2p.stream_forward import P2PStreamForwarder
 from mascarade.p2p.tasks import P2PTaskDistribution

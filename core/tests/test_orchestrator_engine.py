@@ -2,8 +2,7 @@
 
 from __future__ import annotations
 
-import asyncio
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -18,7 +17,6 @@ from mascarade.orchestrator.engine import (
 )
 from mascarade.orchestrator.retry import RetryConfig, RetryExecutor
 from mascarade.router.providers.base import LLMResponse
-
 
 # ---------------------------------------------------------------------------
 # Helpers
