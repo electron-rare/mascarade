@@ -323,32 +323,3 @@ class WorkerRegistry:
 
     def __len__(self) -> int:
         return len(self._workers)
-            if os.path.exists(tmp_path):
-                os.unlink(tmp_path)
-            raise
-
-    def load(self) -> None:
-        """Load custom domain types from JSON file.
-
-        Builtin types are not loaded from storage. Invalid entries are skipped
-        with a warning.
-        """
-        if self._storage_path is None or not self._storage_path.exists():
-            return
-
-        try:
-            raw = json.loads(self._storage_path.read_text(encoding="utf-8"))
-        except (json.JSONDecodeError, OSError) as exc:
-            logger.error(
-                "Failed to load domain types from %s: %s",
-                self._storage_path,
-                exc
-            )
-            return
-
-        for data in raw:
-            try:
-                domain_type = DomainType(**data)
-                self.register(domain_type)
-            except (KeyError, TypeError, ValueError) as exc:
-                logger.warning("Skipping invalid domain type entry: %s", exc)
