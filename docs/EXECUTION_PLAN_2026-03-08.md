@@ -46,7 +46,7 @@ Pilotage operationnel:
 
 ## Auto-sync
 <!-- AUTO-SYNC:MASCARADE-PLAN:START -->
-- dernier cycle ANE automatise: 2026-03-17T09:44:06+00:00
-- reference locale ANE: apple-coreml:qwen3.5-4b-onnx-q4f16
-- prochain lot ANE a servir: Reference locale reconfirmee; resserrer rewrite/repair sur les modeles deja bloques a gate.
+- dernier cycle ANE automatise: 2026-03-23T15:52:31+00:00
+- reference locale ANE: mistral:mistral-large-latest
+- prochain lot ANE a servir: Reference locale reconfirmee; retablir le runtime des modeles provider_failed puis reprendre rewrite/repair sur les modeles bloques a gate.
 <!-- AUTO-SYNC:MASCARADE-PLAN:END -->

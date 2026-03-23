@@ -55,8 +55,8 @@ def verify_message(msg: P2PMessage, *, reject_unsigned: bool = False) -> bool:
         )
         if msg.sender and expected_peer_id != msg.sender:
             logger.warning(
-                "Sender mismatch: claimed %s but key derives %s",
-                msg.sender, expected_peer_id,
+                "Sender mismatch: claimed %s but key derives %s (type=%s)",
+                msg.sender, expected_peer_id, msg.type,
             )
             return False
 
