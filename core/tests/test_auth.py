@@ -8,7 +8,6 @@ import pytest
 from mascarade.auth import (
     add_api_key,
     get_active_api_keys,
-    is_valid_api_key,
     remove_api_key,
 )
 from mascarade.server import app

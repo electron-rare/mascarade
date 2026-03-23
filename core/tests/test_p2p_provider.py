@@ -12,7 +12,9 @@ try:
 except ImportError:
     P2PProvider = None  # type: ignore[assignment,misc]
 
-pytestmark = pytest.mark.skipif(P2PProvider is None, reason="P2P provider not yet implemented")
+pytestmark = pytest.mark.skipif(
+    P2PProvider is None, reason="P2P provider not yet implemented"
+)
 
 
 # ── Fakes ────────────────────────────────────────────────────────────
@@ -38,7 +40,8 @@ class FakeCapabilityExchange:
 
     def peers_with_model(self, provider: str, model: str) -> list:
         return [
-            p for p in self._peers.values()
+            p
+            for p in self._peers.values()
             if model in p.provider_models.get(provider, [])
         ]
 
@@ -62,7 +65,9 @@ class FakeForwarder:
     def can_forward(self, peer_id: str) -> bool:
         return peer_id in self._reachable
 
-    async def forward_request(self, peer_id: str, data: dict, timeout: float = 120.0) -> dict:
+    async def forward_request(
+        self, peer_id: str, data: dict, timeout: float = 120.0
+    ) -> dict:
         self.calls.append({"peer_id": peer_id, "data": data, "timeout": timeout})
         return dict(self._response)
 
@@ -114,18 +119,20 @@ class TestAvailableModels:
 
     def test_aggregates_peer_models(self):
         prov = _make_provider()
-        caps = FakeCapabilityExchange([
-            FakePeerCapabilities(
-                peer_id="peer-a",
-                providers=["claude"],
-                provider_models={"claude": ["claude-3-5-sonnet"]},
-            ),
-            FakePeerCapabilities(
-                peer_id="peer-b",
-                providers=["ollama"],
-                provider_models={"ollama": ["qwen2.5:7b", "llama3:8b"]},
-            ),
-        ])
+        caps = FakeCapabilityExchange(
+            [
+                FakePeerCapabilities(
+                    peer_id="peer-a",
+                    providers=["claude"],
+                    provider_models={"claude": ["claude-3-5-sonnet"]},
+                ),
+                FakePeerCapabilities(
+                    peer_id="peer-b",
+                    providers=["ollama"],
+                    provider_models={"ollama": ["qwen2.5:7b", "llama3:8b"]},
+                ),
+            ]
+        )
         prov.attach_p2p(FakeForwarder(), caps)
         models = prov.available_models()
         assert "claude:claude-3-5-sonnet" in models
@@ -191,14 +198,16 @@ class TestSend:
     async def test_send_forwards_to_peer(self):
         prov = _make_provider()
         forwarder = FakeForwarder(reachable={"peer-a"})
-        caps = FakeCapabilityExchange([
-            FakePeerCapabilities(
-                peer_id="peer-a",
-                capabilities=["llm-inference"],
-                providers=["claude"],
-                provider_models={"claude": ["sonnet"]},
-            ),
-        ])
+        caps = FakeCapabilityExchange(
+            [
+                FakePeerCapabilities(
+                    peer_id="peer-a",
+                    capabilities=["llm-inference"],
+                    providers=["claude"],
+                    provider_models={"claude": ["sonnet"]},
+                ),
+            ]
+        )
         prov.attach_p2p(forwarder, caps)
 
         resp = await prov.send(
@@ -217,14 +226,16 @@ class TestSend:
     async def test_stream_yields_content(self):
         prov = _make_provider()
         forwarder = FakeForwarder(reachable={"peer-a"})
-        caps = FakeCapabilityExchange([
-            FakePeerCapabilities(
-                peer_id="peer-a",
-                capabilities=["llm-inference"],
-                providers=["claude"],
-                provider_models={"claude": ["sonnet"]},
-            ),
-        ])
+        caps = FakeCapabilityExchange(
+            [
+                FakePeerCapabilities(
+                    peer_id="peer-a",
+                    capabilities=["llm-inference"],
+                    providers=["claude"],
+                    provider_models={"claude": ["sonnet"]},
+                ),
+            ]
+        )
         prov.attach_p2p(forwarder, caps)
 
         tokens = []
