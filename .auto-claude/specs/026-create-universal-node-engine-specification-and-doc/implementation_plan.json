@@ -1,0 +1,438 @@
+{
+  "feature": "Create Universal Node Engine Specification and Documentation (SPEC-029)",
+  "workflow_type": "feature",
+  "workflow_rationale": "This is a specification and documentation authoring task producing 9 net-new files. While no functional code is modified, the deliverables span multiple output locations (docs/ and .auto-claude/specs/029-*/) and have internal content dependencies: the main architecture report defines the shared design that all phase specs reference, Phase 0 defines core abstractions that Phases 1-4 extend, and Phase 5 + Roadmap depend on all domain specs being complete. The feature workflow provides the right phase structure to respect these content dependencies.",
+  "phases": [
+    {
+      "id": "phase-1-core-architecture",
+      "name": "Core Architecture Report",
+      "type": "implementation",
+      "description": "Write the comprehensive ~15,000-word architectural specification document that serves as the reference for all subsequent phase specs. This is the foundational deliverable: it defines the Universal Node Engine vision, type system, execution model, all 4 domain workers, cross-domain integration, phasing strategy, and integration with the existing Mascarade ecosystem.",
+      "depends_on": [],
+      "parallel_safe": false,
+      "subtasks": [
+        {
+          "id": "subtask-1-1",
+          "description": "Create docs/UNIVERSAL_NODE_ENGINE_SPECIFICATION_2026-03-15.md — the comprehensive ~15,000-word architectural report covering: Executive Summary, Architecture Overview, Core Abstractions (Phase 0 type system, graph execution runtime, plugin API, node registry, persistence layer), Domain Workers (AI, CAD, Electronics, Hardware Runtime), Cross-Domain Integration, Phasing Strategy, Mascarade Ecosystem Integration, Security Considerations, Performance Considerations. Must include TypeScript interface and Python abstract class code examples. Must reference SPEC-025 as predecessor and clearly delineate evolution vs. supersession.",
+          "service": "docs",
+          "files_to_modify": [],
+          "files_to_create": [
+            "docs/UNIVERSAL_NODE_ENGINE_SPECIFICATION_2026-03-15.md"
+          ],
+          "patterns_from": [
+            "core/mascarade/router/providers/base.py",
+            "core/mascarade/agents/registry.py",
+            "core/mascarade/orchestrator/engine.py",
+            "core/mascarade/agents/kicad_agent.py",
+            "core/mascarade/agents/freecad_agent.py",
+            "core/mascarade/agents/spice_agent.py",
+            "api/src/lib/killlife.ts",
+            "docs/ARCHITECTURE_ETAT_MACHINE_PROJET_2026-03-05.md"
+          ],
+          "verification": {
+            "type": "command",
+            "command": "test -f docs/UNIVERSAL_NODE_ENGINE_SPECIFICATION_2026-03-15.md && wc -w docs/UNIVERSAL_NODE_ENGINE_SPECIFICATION_2026-03-15.md | awk '{print ($1 >= 10000) ? \"OK: \" $1 \" words\" : \"FAIL: only \" $1 \" words\"}'",
+            "expected": "OK"
+          },
+          "status": "completed",
+          "notes": "Created docs/UNIVERSAL_NODE_ENGINE_SPECIFICATION_2026-03-15.md — 12,384 words covering all 9 required sections. Includes TypeScript interfaces, Python abstract classes, code examples modeled on existing LLMProvider/AgentRegistry/Orchestrator patterns. References SPEC-025 as predecessor with clear evolution vs. supersession table. Verification passes (OK: 12384 words).",
+          "updated_at": "2026-03-15T22:17:31.988582+00:00"
+        }
+      ]
+    },
+    {
+      "id": "phase-2-master-and-foundation",
+      "name": "Master Spec & Foundation Phase Spec",
+      "type": "implementation",
+      "description": "Create the master SPEC-029 specification and the Phase 0 Foundations sub-spec. These define the overall initiative scope and the core abstractions that all domain workers build upon. They must be consistent with the architecture report from Phase 1.",
+      "depends_on": [
+        "phase-1-core-architecture"
+      ],
+      "parallel_safe": false,
+      "subtasks": [
+        {
+          "id": "subtask-2-1",
+          "description": "Create .auto-claude/specs/029-universal-node-engine/spec.md — the master SPEC-029 specification following the established spec template format (Overview, Workflow Type, Task Scope, Service Context, Files to Create/Modify/Reference, Patterns, Requirements, Success Criteria, QA sections). Must define: overall initiative scope, 4-domain decomposition rationale, 6-phase rollout strategy with dependency graph, Phase 0-1 as MVP gate with explicit validation criteria, relationship to SPEC-025 (what's superseded vs. extended), and success criteria per phase.",
+          "service": "specs",
+          "files_to_modify": [],
+          "files_to_create": [
+            ".auto-claude/specs/029-universal-node-engine/spec.md"
+          ],
+          "patterns_from": [
+            "docs/UNIVERSAL_NODE_ENGINE_SPECIFICATION_2026-03-15.md"
+          ],
+          "verification": {
+            "type": "command",
+            "command": "test -f .auto-claude/specs/029-universal-node-engine/spec.md && grep -c 'SPEC-025' .auto-claude/specs/029-universal-node-engine/spec.md | awk '{print ($1 >= 1) ? \"OK: references SPEC-025\" : \"FAIL: no SPEC-025 reference\"}'",
+            "expected": "OK: references SPEC-025"
+          },
+          "status": "completed",
+          "notes": "File already exists and passes verification. Committed in 83a037c.",
+          "updated_at": "2026-03-15T23:40:32.815077+00:00"
+        },
+        {
+          "id": "subtask-2-2",
+          "description": "Create .auto-claude/specs/029-phase-0-foundations/spec.md — Phase 0 Foundation specification covering: Universal Node Type System (port types including domain-specific extensions, type coercion rules), Graph Execution Runtime (topological sort, parallel branches, cycle detection, execution context), Plugin API (NodeWorker interface with execute/validate/capabilities abstract methods, lifecycle hooks, capability declarations), Node Registry (NodeTypeRegistry and WorkerRegistry with registration, discovery, versioning, dependency resolution), Persistence Layer (graph serialization format, versioning, migration strategy). Must include concrete Python abstract class and TypeScript interface code examples modeled on LLMProvider and AgentRegistry patterns.",
+          "service": "specs",
+          "files_to_modify": [],
+          "files_to_create": [
+            ".auto-claude/specs/029-phase-0-foundations/spec.md"
+          ],
+          "patterns_from": [
+            "docs/UNIVERSAL_NODE_ENGINE_SPECIFICATION_2026-03-15.md",
+            "core/mascarade/router/providers/base.py",
+            "core/mascarade/agents/registry.py",
+            "core/mascarade/orchestrator/engine.py"
+          ],
+          "verification": {
+            "type": "command",
+            "command": "test -f .auto-claude/specs/029-phase-0-foundations/spec.md && grep -c 'NodeWorker' .auto-claude/specs/029-phase-0-foundations/spec.md | awk '{print ($1 >= 1) ? \"OK: defines NodeWorker\" : \"FAIL: no NodeWorker definition\"}'",
+            "expected": "OK: defines NodeWorker"
+          },
+          "status": "completed",
+          "notes": "Created Phase 0 Foundation spec with all required sections: Universal Node Type System, Graph Execution Runtime, Plugin API (NodeWorker), Node Registry, Persistence Layer. Includes concrete Python ABC and TypeScript interface code examples modeled on LLMProvider and AgentRegistry patterns.",
+          "updated_at": "2026-03-15T23:44:01.924017+00:00"
+        }
+      ]
+    },
+    {
+      "id": "phase-3-domain-workers-ai-cad",
+      "name": "Domain Worker Specs: AI & CAD",
+      "type": "implementation",
+      "description": "Write the Phase 1 (AI Worker) and Phase 2 (CAD Worker) sub-specifications. These define domain-specific nodes that extend the Phase 0 foundation abstractions. AI Worker is part of the MVP (Phase 0-1), while CAD Worker leverages existing FreeCAD/KiCad agent patterns.",
+      "depends_on": [
+        "phase-2-master-and-foundation"
+      ],
+      "parallel_safe": true,
+      "subtasks": [
+        {
+          "id": "subtask-3-1",
+          "description": "Create .auto-claude/specs/029-phase-1-ai-worker/spec.md — Phase 1 AI Worker specification covering: LLM Inference Nodes (prompt input, model selection, temperature, response output — integrating with existing LLMProvider infrastructure), Embedding Nodes (text/image embedding via Mascarade's provider system), Reasoning Chain Nodes (chain-of-thought, multi-step reasoning, conditional branching), Prompt Template Nodes (variable substitution, template management), Router Integration Nodes (strategy selection — cheapest/fastest/best/specific), Orchestrator Nodes (sequential/parallel/pipeline execution modes). Must define AI-specific port types (LLMResponse, EmbeddingVector, PromptTemplate, ChatMessage). Must reference integration with existing Router, Orchestrator, and AgentRegistry. Mark as part of MVP (Phase 0-1).",
+          "service": "specs",
+          "files_to_modify": [],
+          "files_to_create": [
+            ".auto-claude/specs/029-phase-1-ai-worker/spec.md"
+          ],
+          "patterns_from": [
+            "docs/UNIVERSAL_NODE_ENGINE_SPECIFICATION_2026-03-15.md",
+            ".auto-claude/specs/029-phase-0-foundations/spec.md",
+            "core/mascarade/router/providers/base.py",
+            "core/mascarade/agents/base.py",
+            "core/mascarade/orchestrator/engine.py"
+          ],
+          "verification": {
+            "type": "command",
+            "command": "test -f .auto-claude/specs/029-phase-1-ai-worker/spec.md && grep -c 'MVP' .auto-claude/specs/029-phase-1-ai-worker/spec.md | awk '{print ($1 >= 1) ? \"OK: references MVP\" : \"FAIL: no MVP reference\"}'",
+            "expected": "OK: references MVP"
+          },
+          "status": "completed",
+          "notes": "Created .auto-claude/specs/029-phase-1-ai-worker/spec.md with full Phase 1 AI Worker specification covering all required node types, AI-specific port types, and integration with Router/Orchestrator/AgentRegistry.",
+          "updated_at": "2026-03-15T23:47:42.672519+00:00"
+        },
+        {
+          "id": "subtask-3-2",
+          "description": "Create .auto-claude/specs/029-phase-2-cad-worker/spec.md — Phase 2 CAD Worker specification covering: FreeCAD Nodes (document creation, script execution, parametric modeling, export — integrating with existing freecad_agent patterns), KiCad Nodes (schematic generation, PCB layout optimization, footprint creation, DRC checking, manufacturing file export — integrating with existing kicad_agent patterns), Toolpath Generation Nodes (G-code generation, CNC toolpath optimization), Mesh Operation Nodes (STL import/export, mesh simplification, boolean operations). Must define CAD-specific port types (MeshData, Toolpath, BOM, GCode, SchematicData, PCBLayout). Must reference existing cad.ts API routes as integration surface.",
+          "service": "specs",
+          "files_to_modify": [],
+          "files_to_create": [
+            ".auto-claude/specs/029-phase-2-cad-worker/spec.md"
+          ],
+          "patterns_from": [
+            "docs/UNIVERSAL_NODE_ENGINE_SPECIFICATION_2026-03-15.md",
+            ".auto-claude/specs/029-phase-0-foundations/spec.md",
+            "core/mascarade/agents/kicad_agent.py",
+            "core/mascarade/agents/freecad_agent.py",
+            "api/src/routes/cad.ts"
+          ],
+          "verification": {
+            "type": "command",
+            "command": "test -f .auto-claude/specs/029-phase-2-cad-worker/spec.md && grep -c 'FreeCAD\\|KiCad' .auto-claude/specs/029-phase-2-cad-worker/spec.md | awk '{print ($1 >= 2) ? \"OK: covers FreeCAD and KiCad\" : \"FAIL: missing FreeCAD/KiCad coverage\"}'",
+            "expected": "OK: covers FreeCAD and KiCad"
+          },
+          "status": "completed",
+          "notes": "Leverage existing kicad_agent.py and freecad_agent.py patterns. The CAD Worker wraps these agent capabilities into composable graph nodes. Reference the cad.ts API routes for the TypeScript API surface."
+        }
+      ]
+    },
+    {
+      "id": "phase-4-domain-workers-electronics-hardware",
+      "name": "Domain Worker Specs: Electronics & Hardware Runtime",
+      "type": "implementation",
+      "description": "Write the Phase 3 (Electronics Worker) and Phase 4 (Hardware Runtime Worker) sub-specifications. Electronics leverages existing SPICE agent patterns. Hardware Runtime covers real-time control with ESP32, MIDI, DMX — areas with specific timing and safety constraints.",
+      "depends_on": [
+        "phase-2-master-and-foundation"
+      ],
+      "parallel_safe": true,
+      "subtasks": [
+        {
+          "id": "subtask-4-1",
+          "description": "Create .auto-claude/specs/029-phase-3-electronics-worker/spec.md — Phase 3 Electronics Worker specification covering: SPICE Simulation Nodes (netlist generation, transient/AC/DC analysis, convergence debugging — integrating with existing spice_agent patterns), PCB Design Rule Checking Nodes (DRC execution, rule definition, violation reporting), Firmware Compilation Nodes (ESP-IDF/PlatformIO build, target selection, flash preparation), Component Library Nodes (part lookup, datasheet retrieval, BOM management). Must define electronics-specific port types (Netlist, Schematic, Waveform, FirmwareBinary, ComponentSpec). Must address which SPICE simulator to target (ngspice recommended based on existing spice_agent).",
+          "service": "specs",
+          "files_to_modify": [],
+          "files_to_create": [
+            ".auto-claude/specs/029-phase-3-electronics-worker/spec.md"
+          ],
+          "patterns_from": [
+            "docs/UNIVERSAL_NODE_ENGINE_SPECIFICATION_2026-03-15.md",
+            ".auto-claude/specs/029-phase-0-foundations/spec.md",
+            "core/mascarade/agents/spice_agent.py",
+            "core/mascarade/agents/components_agent.py"
+          ],
+          "verification": {
+            "type": "command",
+            "command": "test -f .auto-claude/specs/029-phase-3-electronics-worker/spec.md && grep -c 'SPICE\\|netlist\\|Netlist' .auto-claude/specs/029-phase-3-electronics-worker/spec.md | awk '{print ($1 >= 2) ? \"OK: covers SPICE simulation\" : \"FAIL: missing SPICE coverage\"}'",
+            "expected": "OK: covers SPICE simulation"
+          },
+          "status": "completed",
+          "notes": "Created Phase 3 Electronics Worker spec covering SPICE simulation nodes (netlist generation, transient/AC/DC/OP/noise analysis, convergence debugging targeting ngspice), PCB DRC nodes (KiCad CLI integration, JLCPCB presets), firmware compilation nodes (ESP-IDF/PlatformIO), and component library nodes (LCSC/JLCPCB lookup, BOM generation, alternatives). Defined all electronics-specific port types: Netlist, Schematic, Waveform, FirmwareBinary, ComponentSpec.",
+          "updated_at": "2026-03-15T23:53:14.858336+00:00"
+        },
+        {
+          "id": "subtask-4-2",
+          "description": "Create .auto-claude/specs/029-phase-4-hardware-worker/spec.md — Phase 4 Hardware Runtime Worker specification covering: ESP32 Control Nodes (device discovery, GPIO control, sensor reading, OTA updates via HTTP/WebSocket/MQTT), MIDI I/O Nodes (input/output, CC mapping, note triggering, clock sync), DMX Lighting Nodes (universe management, fixture control, scene programming), Serial Communication Nodes (protocol adapters, baud rate config, data parsing), Real-Time Control Loop Nodes (PID controllers, timing constraints, safety interlocks). Must define hardware-specific port types (MIDIMessage, DMXFrame, SerialData, GPIOState, SensorReading). Must address: device discovery protocol, graceful degradation when hardware absent, real-time scheduling constraints on resource-limited VM (4 vCPU, 6.8 GiB RAM), safety constraints for hardware control.",
+          "service": "specs",
+          "files_to_modify": [],
+          "files_to_create": [
+            ".auto-claude/specs/029-phase-4-hardware-worker/spec.md"
+          ],
+          "patterns_from": [
+            "docs/UNIVERSAL_NODE_ENGINE_SPECIFICATION_2026-03-15.md",
+            ".auto-claude/specs/029-phase-0-foundations/spec.md",
+            "api/src/lib/killlife.ts",
+            "docs/ARCHITECTURE_ETAT_MACHINE_PROJET_2026-03-05.md"
+          ],
+          "verification": {
+            "type": "command",
+            "command": "test -f .auto-claude/specs/029-phase-4-hardware-worker/spec.md && grep -c 'ESP32\\|MIDI\\|DMX' .auto-claude/specs/029-phase-4-hardware-worker/spec.md | awk '{print ($1 >= 3) ? \"OK: covers ESP32, MIDI, DMX\" : \"FAIL: missing hardware coverage\"}'",
+            "expected": "OK: covers ESP32, MIDI, DMX"
+          },
+          "status": "completed",
+          "notes": "Created Phase 4 Hardware Runtime Worker spec covering ESP32, MIDI, DMX, Serial, and Real-Time Control nodes with hardware-specific port types, device discovery, resource constraints, and safety interlocks.",
+          "updated_at": "2026-03-15T23:56:46.633156+00:00"
+        }
+      ]
+    },
+    {
+      "id": "phase-5-cross-domain-and-roadmap",
+      "name": "Cross-Domain Integration & Roadmap",
+      "type": "implementation",
+      "description": "Write the Phase 5 (Cross-Domain Integration) sub-spec and the updated project roadmap. These are the final deliverables that depend on all domain worker specs being complete, as they reference and synthesize cross-cutting concerns.",
+      "depends_on": [
+        "phase-3-domain-workers-ai-cad",
+        "phase-4-domain-workers-electronics-hardware"
+      ],
+      "parallel_safe": false,
+      "subtasks": [
+        {
+          "id": "subtask-5-1",
+          "description": "Create .auto-claude/specs/029-phase-5-cross-domain/spec.md — Phase 5 Cross-Domain Integration specification covering: Cross-Domain Type Adapters (conversion between domain port types — e.g., AI LLMResponse → CAD design parameters, Electronics Netlist → Hardware firmware config), Unified Orchestration Pipeline (multi-domain graph execution where nodes from different domains compose into a single workflow), Federated Graph Execution (multi-service, multi-machine execution leveraging Ray and P2P cluster infrastructure), Example End-to-End Workflows (AI-designed CAD part → electronics validation → hardware deployment, AI prompt → SPICE simulation → results analysis). Must address data serialization between domains, error propagation across domain boundaries, and observability for cross-domain flows.",
+          "service": "specs",
+          "files_to_modify": [],
+          "files_to_create": [
+            ".auto-claude/specs/029-phase-5-cross-domain/spec.md"
+          ],
+          "patterns_from": [
+            "docs/UNIVERSAL_NODE_ENGINE_SPECIFICATION_2026-03-15.md",
+            ".auto-claude/specs/029-phase-0-foundations/spec.md",
+            ".auto-claude/specs/029-phase-1-ai-worker/spec.md",
+            ".auto-claude/specs/029-phase-2-cad-worker/spec.md",
+            ".auto-claude/specs/029-phase-3-electronics-worker/spec.md",
+            ".auto-claude/specs/029-phase-4-hardware-worker/spec.md",
+            "core/mascarade/orchestrator/engine.py"
+          ],
+          "verification": {
+            "type": "command",
+            "command": "test -f .auto-claude/specs/029-phase-5-cross-domain/spec.md && grep -c 'cross-domain\\|Cross-Domain\\|adapter\\|federated' .auto-claude/specs/029-phase-5-cross-domain/spec.md | awk '{print ($1 >= 3) ? \"OK: covers cross-domain integration\" : \"FAIL: missing cross-domain content\"}'",
+            "expected": "OK: covers cross-domain integration"
+          },
+          "status": "completed",
+          "notes": "Created Phase 5 Cross-Domain Integration spec covering: type adapters (AI↔CAD, AI↔Electronics, CAD↔Electronics, Electronics↔Hardware, Hardware↔AI), unified orchestration pipeline with domain-aware scheduling, federated graph execution via Ray/P2P, CrossDomainEnvelope serialization, error propagation model, observability with distributed tracing, and 3 end-to-end workflow examples.",
+          "updated_at": "2026-03-16T00:01:08.899964+00:00"
+        },
+        {
+          "id": "subtask-5-2",
+          "description": "Create docs/ROADMAP_UPDATED_2026-03-15.md — updated project roadmap incorporating the SPEC-029 Universal Node Engine initiative. Must include: all 6 phases (Phase 0-5) with relative duration estimates (weeks, not dates), phase dependency graph, Phase 0-1 as MVP gate with explicit go/no-go criteria, M-009 (AI Novel Engine) dependency with both sequential and parallel start options, milestones per phase, risk factors per phase, parallelism opportunities between phases. Must reference infrastructure constraints (VM resources, Docker deployment model). Must list all 5 ecosystem repos and their roles in the Node Engine initiative.",
+          "service": "docs",
+          "files_to_modify": [],
+          "files_to_create": [
+            "docs/ROADMAP_UPDATED_2026-03-15.md"
+          ],
+          "patterns_from": [
+            "docs/UNIVERSAL_NODE_ENGINE_SPECIFICATION_2026-03-15.md",
+            ".auto-claude/specs/029-universal-node-engine/spec.md",
+            "docs/ARCHITECTURE_ETAT_MACHINE_PROJET_2026-03-05.md"
+          ],
+          "verification": {
+            "type": "command",
+            "command": "test -f docs/ROADMAP_UPDATED_2026-03-15.md && grep -c 'M-009\\|Phase 0\\|Phase 1\\|MVP' docs/ROADMAP_UPDATED_2026-03-15.md | awk '{print ($1 >= 3) ? \"OK: covers M-009, phases, MVP\" : \"FAIL: missing roadmap content\"}'",
+            "expected": "OK: covers M-009, phases, MVP"
+          },
+          "status": "completed",
+          "notes": "Created docs/ROADMAP_UPDATED_2026-03-15.md with all 6 phases (Phase 0-5), duration estimates in weeks, dependency graph, MVP gate with 7 go/no-go criteria, M-009 dependency with sequential and parallel options, milestones and risks per phase, parallelism opportunities, infrastructure constraints, and all 5 ecosystem repos.",
+          "updated_at": "2026-03-16T00:10:00.000000+00:00"
+        }
+      ]
+    },
+    {
+      "id": "phase-6-validation",
+      "name": "Final Validation",
+      "type": "integration",
+      "description": "Verify all 9 output files exist, are non-empty, cross-reference correctly, and no existing repository files were modified. This is the QA acceptance check.",
+      "depends_on": [
+        "phase-5-cross-domain-and-roadmap"
+      ],
+      "parallel_safe": false,
+      "subtasks": [
+        {
+          "id": "subtask-6-1",
+          "description": "Run final validation: (1) Verify all 9 files exist and are non-empty, (2) Verify main spec report is approximately 15,000 words (minimum 10,000), (3) Verify SPEC-025 is referenced in all relevant specs, (4) Verify Phase 0-1 MVP gate is defined in master spec, (5) Verify phase numbering (0-5) is consistent across all specs and roadmap, (6) Verify domain port types are defined in each Phase 1-4 spec, (7) Verify M-009 dependency is addressed in roadmap, (8) Verify no existing files were modified (git diff shows only additions), (9) Verify markdown formatting is valid (no broken tables or code blocks).",
+          "all_services": true,
+          "files_to_modify": [],
+          "files_to_create": [],
+          "patterns_from": [],
+          "verification": {
+            "type": "command",
+            "command": "echo 'Checking all 9 files...' && test -f docs/UNIVERSAL_NODE_ENGINE_SPECIFICATION_2026-03-15.md && test -f .auto-claude/specs/029-universal-node-engine/spec.md && test -f .auto-claude/specs/029-phase-0-foundations/spec.md && test -f .auto-claude/specs/029-phase-1-ai-worker/spec.md && test -f .auto-claude/specs/029-phase-2-cad-worker/spec.md && test -f .auto-claude/specs/029-phase-3-electronics-worker/spec.md && test -f .auto-claude/specs/029-phase-4-hardware-worker/spec.md && test -f .auto-claude/specs/029-phase-5-cross-domain/spec.md && test -f docs/ROADMAP_UPDATED_2026-03-15.md && echo 'ALL 9 FILES EXIST - OK' || echo 'FAIL: missing files'",
+            "expected": "ALL 9 FILES EXIST - OK"
+          },
+          "status": "completed",
+          "notes": "Final validation passed. All 9 files exist. Word count: 12,384 (above 10,000 minimum). SPEC-025 referenced in all specs (added to phases 1-5). MVP gate defined (35 refs). M-009 addressed in roadmap (17 refs). Phase numbering consistent. Domain port types defined in all phase 1-4 specs. Code fences all even. Only pre-existing .gitignore and README.md show as modified (not from this task)."
+        }
+      ]
+    }
+  ],
+  "summary": {
+    "total_phases": 6,
+    "total_subtasks": 10,
+    "services_involved": [
+      "docs",
+      "specs"
+    ],
+    "estimated_output": "~25,000-30,000 total words across 9 documentation files",
+    "parallelism": {
+      "max_parallel_phases": 2,
+      "parallel_groups": [
+        {
+          "phases": [
+            "phase-3-domain-workers-ai-cad",
+            "phase-4-domain-workers-electronics-hardware"
+          ],
+          "reason": "Both depend only on phase-2-master-and-foundation, produce independent domain specs in different files with no content overlap"
+        }
+      ],
+      "recommended_workers": 2,
+      "speedup_estimate": "1.3x faster than sequential — phases 3 and 4 can run in parallel (4 domain specs simultaneously)"
+    },
+    "startup_command": "source auto-claude/.venv/bin/activate && python auto-claude/run.py --spec 026 --parallel 2"
+  },
+  "verification_strategy": {
+    "risk_level": "trivial",
+    "skip_validation": false,
+    "test_creation_phase": "none",
+    "test_types_required": [],
+    "security_scanning_required": false,
+    "staging_deployment_required": false,
+    "acceptance_criteria": [
+      "All 9 output files exist and are non-empty",
+      "Main specification report is approximately 15,000 words (minimum 10,000)",
+      "All specs reference SPEC-025 as predecessor",
+      "Phase 0-1 MVP gate is explicitly defined with validation criteria",
+      "All 4 domains have domain-specific port types defined",
+      "Cross-domain integration strategy is specified",
+      "M-009 dependency is addressed with sequential and parallel options",
+      "No existing repository files are modified",
+      "Markdown formatting is valid across all documents",
+      "Code examples (TypeScript interfaces, Python abstract classes) are syntactically correct",
+      "Architecture aligns with existing Mascarade patterns"
+    ],
+    "verification_steps": [
+      {
+        "name": "File Existence Check",
+        "command": "for f in docs/UNIVERSAL_NODE_ENGINE_SPECIFICATION_2026-03-15.md .auto-claude/specs/029-universal-node-engine/spec.md .auto-claude/specs/029-phase-0-foundations/spec.md .auto-claude/specs/029-phase-1-ai-worker/spec.md .auto-claude/specs/029-phase-2-cad-worker/spec.md .auto-claude/specs/029-phase-3-electronics-worker/spec.md .auto-claude/specs/029-phase-4-hardware-worker/spec.md .auto-claude/specs/029-phase-5-cross-domain/spec.md docs/ROADMAP_UPDATED_2026-03-15.md; do test -f \"$f\" && echo \"OK: $f\" || echo \"MISSING: $f\"; done",
+        "expected_outcome": "All 9 files report OK",
+        "type": "structural",
+        "required": true,
+        "blocking": true
+      },
+      {
+        "name": "Word Count Check",
+        "command": "wc -w docs/UNIVERSAL_NODE_ENGINE_SPECIFICATION_2026-03-15.md",
+        "expected_outcome": "At least 10,000 words",
+        "type": "structural",
+        "required": true,
+        "blocking": true
+      },
+      {
+        "name": "No Existing Files Modified",
+        "command": "git diff --name-only HEAD | grep -v '^docs/UNIVERSAL_NODE_ENGINE\\|^docs/ROADMAP_UPDATED\\|^\\.auto-claude/specs/029-' | head -5",
+        "expected_outcome": "No output (only new files in allowed paths)",
+        "type": "structural",
+        "required": true,
+        "blocking": true
+      },
+      {
+        "name": "SPEC-025 Cross-References",
+        "command": "for f in .auto-claude/specs/029-*/spec.md; do echo -n \"$f: \"; grep -c 'SPEC-025' \"$f\"; done",
+        "expected_outcome": "All spec files reference SPEC-025 at least once",
+        "type": "content",
+        "required": true,
+        "blocking": false
+      },
+      {
+        "name": "MVP Gate Defined",
+        "command": "grep -l 'MVP' .auto-claude/specs/029-universal-node-engine/spec.md .auto-claude/specs/029-phase-0-foundations/spec.md .auto-claude/specs/029-phase-1-ai-worker/spec.md",
+        "expected_outcome": "All three files contain MVP references",
+        "type": "content",
+        "required": true,
+        "blocking": false
+      }
+    ],
+    "reasoning": "Documentation-only task with trivial functional risk. No code is modified, no APIs change, no security-sensitive areas are touched. Validation focuses on structural completeness (file existence, word count, cross-references) rather than functional correctness."
+  },
+  "qa_acceptance": {
+    "unit_tests": {
+      "required": false,
+      "commands": [],
+      "minimum_coverage": null
+    },
+    "integration_tests": {
+      "required": false,
+      "commands": [],
+      "services_to_test": []
+    },
+    "e2e_tests": {
+      "required": false,
+      "commands": [],
+      "flows": []
+    },
+    "browser_verification": {
+      "required": false,
+      "pages": []
+    },
+    "database_verification": {
+      "required": false,
+      "checks": []
+    },
+    "custom_checks": [
+      {
+        "name": "Document Structure Validation",
+        "description": "Verify all 9 files exist, main report is ~15,000 words, all phase specs follow template format",
+        "command": "test -f docs/UNIVERSAL_NODE_ENGINE_SPECIFICATION_2026-03-15.md && test -f docs/ROADMAP_UPDATED_2026-03-15.md && ls .auto-claude/specs/029-*/spec.md | wc -l | awk '{print ($1 == 7) ? \"OK: 7 spec files\" : \"FAIL: expected 7 spec files, got \" $1}'",
+        "required": true
+      },
+      {
+        "name": "Content Coherence Check",
+        "description": "Verify phase numbering, domain coverage, and cross-references are consistent",
+        "command": "grep -r 'Phase 0\\|Phase 1\\|Phase 2\\|Phase 3\\|Phase 4\\|Phase 5' .auto-claude/specs/029-*/spec.md | wc -l | awk '{print ($1 >= 12) ? \"OK: sufficient phase references\" : \"WARN: low phase cross-references\"}'",
+        "required": true
+      }
+    ]
+  },
+  "qa_signoff": null,
+  "executionPhase": "complete",
+  "status": "done",
+  "planStatus": "completed",
+  "updated_at": "2026-03-16T00:40:39.548Z",
+  "last_updated": "2026-03-16T00:01:08.899971+00:00",
+  "xstateState": "done"
+}

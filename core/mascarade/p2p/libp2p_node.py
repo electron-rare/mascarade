@@ -14,16 +14,15 @@ import json
 import logging
 import os
 import secrets
-import struct
 import threading
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 import trio
 import trio.from_thread
-
 from libp2p import new_host
 from libp2p.crypto.secp256k1 import create_new_key_pair
 from libp2p.custom_types import TProtocol

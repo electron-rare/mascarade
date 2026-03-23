@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import base64
 import logging
-from typing import Any, Callable, Awaitable
+from collections.abc import Awaitable, Callable
+from typing import Any
 
 from mascarade.p2p.identity import PeerIdentity
 from mascarade.p2p.protocol import P2PMessage
@@ -47,16 +48,17 @@ def verify_message(msg: P2PMessage, *, reject_unsigned: bool = False) -> bool:
             return False
 
         # Verify sender matches the public key (prevent impersonation)
-        from mascarade.p2p.identity import _peer_id_from_public_key
         from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
+
+        from mascarade.p2p.identity import _peer_id_from_public_key
 
         expected_peer_id = _peer_id_from_public_key(
             Ed25519PublicKey.from_public_bytes(pub_bytes)
         )
         if msg.sender and expected_peer_id != msg.sender:
             logger.warning(
-                "Sender mismatch: claimed %s but key derives %s",
-                msg.sender, expected_peer_id,
+                "Sender mismatch: claimed %s but key derives %s (type=%s)",
+                msg.sender, expected_peer_id, msg.type,
             )
             return False
 

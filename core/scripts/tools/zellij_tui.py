@@ -9,7 +9,7 @@ import cmd
 import sys
 
 sys.path.insert(0, ".")
-from mascarade.tools.zellij import ZellijAgent, NODES
+from mascarade.tools.zellij import NODES, ZellijAgent
 
 
 class ZellijTUI(cmd.Cmd):
@@ -102,7 +102,7 @@ class ZellijTUI(cmd.Cmd):
         if ok:
             print(f"  ✓ Sent to {self.current_node}/{self.current_session}")
         else:
-            print(f"  ✗ Failed to send")
+            print("  ✗ Failed to send")
 
     def do_enter(self, _arg):
         """Send Enter key to current session pane"""
@@ -119,7 +119,7 @@ class ZellijTUI(cmd.Cmd):
         if ok1 and ok2:
             print(f"  ✓ Ran on {self.current_node}/{self.current_session}: {arg.strip()}")
         else:
-            print(f"  ✗ Failed")
+            print("  ✗ Failed")
 
     def do_kill(self, arg):
         """Kill a session: kill [session_name]"""

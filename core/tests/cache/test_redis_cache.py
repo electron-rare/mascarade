@@ -2,11 +2,10 @@
 
 import asyncio
 import time
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from mascarade.cache.cache import CacheEntry
 from mascarade.cache.redis_cache import RedisCache
 
 
@@ -32,6 +31,7 @@ async def redis_cache(mock_redis):
         return mock_redis
 
     cache._get_redis = get_mock_redis
+    cache._redis = mock_redis
     yield cache
 
     # Cleanup

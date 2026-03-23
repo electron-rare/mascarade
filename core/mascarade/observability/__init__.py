@@ -1,4 +1,12 @@
-"""Observability helpers for Mascarade."""
+"""Observability helpers for Mascarade.
+
+Includes:
+- AgentTraceBuffer / AgentTraceEvent: in-process trace ring buffer
+- OTLP log export via schedule_otlp_log
+- OpenLLMetry (traceloop-sdk): auto-instruments LLM provider calls (Anthropic,
+  OpenAI, Mistral, etc.) via OpenTelemetry. Initialized in server.py at startup.
+  Install with: pip install mascarade-core[observability]
+"""
 
 from mascarade.observability.agent_trace import (
     AgentTraceBuffer,

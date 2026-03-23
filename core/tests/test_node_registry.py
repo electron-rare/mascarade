@@ -3,7 +3,6 @@
 from mascarade.node_engine.registry import NodeType, NodeTypeRegistry, WorkerRegistry
 from mascarade.node_engine.worker import NodeCapability, NodeWorker
 
-
 # --- Mock Worker for testing ---
 
 class MockNodeWorker(NodeWorker):

@@ -40,7 +40,7 @@ async def main() -> None:
     registry = AgentRegistry()
     ai_worker = AIWorker(router=router, registry=registry)
     runtime.register_worker(ai_worker)
-    print(f"✓ Registered AI Worker")
+    print("✓ Registered AI Worker")
     print()
 
     # Step 2: Build the graph
@@ -115,7 +115,7 @@ async def main() -> None:
             # Show chain-of-thought result
             cot_result = context.node_results.get("cot1")
             if cot_result:
-                print(f"Node: cot1 (ai.chain-of-thought)")
+                print("Node: cot1 (ai.chain-of-thought)")
                 print(f"  Status: {cot_result.status}")
                 print(f"  Execution time: {cot_result.execution_time_ms:.2f}ms")
                 print()
@@ -136,7 +136,7 @@ async def main() -> None:
                 # Display token usage
                 usage = cot_result.outputs.get("usage", {})
                 if usage:
-                    print(f"  Total Token Usage (all steps):")
+                    print("  Total Token Usage (all steps):")
                     print(f"    Input: {usage.get('input_tokens', 0)}")
                     print(f"    Output: {usage.get('output_tokens', 0)}")
                     print(f"    Total: {usage.get('total_tokens', 0)}")

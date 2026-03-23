@@ -7,10 +7,10 @@ from pathlib import Path
 import pytest
 
 from mascarade.orchestrator.templates import (
+    BUILTIN_TEMPLATES,
     ExecutionMode,
     TemplateRegistry,
     WorkflowTemplate,
-    BUILTIN_TEMPLATES,
     register_builtin_templates,
 )
 

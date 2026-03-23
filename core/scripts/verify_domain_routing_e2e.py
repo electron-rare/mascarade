@@ -12,7 +12,6 @@ import asyncio
 import logging
 import sys
 import time
-from typing import Dict
 
 import httpx
 
@@ -35,7 +34,7 @@ class E2EVerifier:
     def __init__(self):
         self.router = Router()
         self.detector = DomainDetector()
-        self.results: Dict[str, bool] = {}
+        self.results: dict[str, bool] = {}
         self.ollama_base_url = "http://localhost:11434"
 
     async def check_ollama_service(self) -> bool:

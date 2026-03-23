@@ -20,22 +20,34 @@ except ImportError:  # pragma: no cover - handled at runtime
 
 def _resolve_host() -> str:
     """Resolve ClickHouse host URL."""
-    return settings.clickhouse_host.strip() or "http://clickhouse:8123"
+    host = settings.clickhouse_host
+    if isinstance(host, str):
+        return host.strip() or "http://clickhouse:8123"
+    return host.get_secret_value().strip() or "http://clickhouse:8123"
 
 
 def _resolve_user() -> str:
     """Resolve ClickHouse username."""
-    return settings.clickhouse_user.strip() or "langfuse"
+    user = settings.clickhouse_user
+    if isinstance(user, str):
+        return user.strip() or "langfuse"
+    return user.get_secret_value().strip() or "langfuse"
 
 
 def _resolve_password() -> str:
     """Resolve ClickHouse password."""
-    return settings.clickhouse_password.strip()
+    password = settings.clickhouse_password
+    if isinstance(password, str):
+        return password.strip()
+    return password.get_secret_value().strip()
 
 
 def _resolve_database() -> str:
     """Resolve ClickHouse database name."""
-    return settings.clickhouse_database.strip() or "default"
+    db = settings.clickhouse_database
+    if isinstance(db, str):
+        return db.strip() or "default"
+    return db.get_secret_value().strip() or "default"
 
 
 def clickhouse_storage_configured() -> bool:

@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
+from mascarade.config import settings
 from mascarade.mcp import McpCallError, McpRuntimeClient, McpServerUnavailable
 from mascarade.observability import AgentTraceBuffer
 
@@ -216,6 +217,19 @@ class _FakeResponse:
         return self._json
 
 
+@pytest.fixture(autouse=True)
+def restore_kxkm_settings():
+    snapshot = {
+        "knowledge_base_provider": settings.knowledge_base_provider,
+        "mascarade_project_id": settings.mascarade_project_id,
+        "kxkm_rag_url": settings.kxkm_rag_url,
+        "kxkm_timeout_seconds": settings.kxkm_timeout_seconds,
+    }
+    yield
+    for name, value in snapshot.items():
+        setattr(settings, name, value)
+
+
 @pytest.mark.asyncio
 async def test_call_tool_http_success():
     with patch.dict(os.environ, {"GRAPHITI_ENABLED": "true"}):
@@ -409,3 +423,89 @@ async def test_graphiti_get_entity_convenience():
     assert call_args[0][0] == "graphiti"
     assert call_args[0][1] == "get_entity"
     assert call_args[0][2] == {"name": "Alice"}
+
+
+@pytest.mark.asyncio
+async def test_kxkm_rag_search_normalizes_results_and_scope():
+    settings.kxkm_rag_url = "http://localhost:3333"
+    settings.mascarade_project_id = "project-alpha"
+    trace_buffer = AgentTraceBuffer()
+    client = McpRuntimeClient(trace_buffer=trace_buffer)
+
+    response_body = {
+        "ok": True,
+        "data": {
+            "results": [
+                {
+                    "id": "chunk-1",
+                    "text": "Musique concrete\nPierre Schaeffer",
+                    "score": 0.91,
+                    "source_url": "http://kxkm/chunk-1",
+                }
+            ],
+            "total": 1,
+        },
+    }
+
+    mock_post = AsyncMock(return_value=_FakeResponse(response_body))
+    with patch("httpx.AsyncClient") as mock_client_cls:
+        ctx = AsyncMock()
+        ctx.post = mock_post
+        ctx.__aenter__ = AsyncMock(return_value=ctx)
+        ctx.__aexit__ = AsyncMock(return_value=False)
+        mock_client_cls.return_value = ctx
+
+        result = await client.kxkm_rag_search(
+            "musique concrete",
+            limit=5,
+            project_id="project-alpha",
+            run_id="run-kxkm-1",
+        )
+
+    assert result["provider"] == "kxkm"
+    assert result["project_id"] == "project-alpha"
+    assert result["knowledge_scope"] == "project"
+    assert result["total"] == 1
+    assert result["results"][0]["text"] == "Musique concrete\nPierre Schaeffer"
+    assert result["results"][0]["metadata"]["project_id"] == "project-alpha"
+
+    _, kwargs = mock_post.await_args
+    assert kwargs["json"]["project_id"] == "project-alpha"
+    assert kwargs["headers"]["x-mascarade-project-id"] == "project-alpha"
+    assert kwargs["headers"]["x-mascarade-federation-scope"] == "project-alpha"
+
+    events = trace_buffer.run_events("run-kxkm-1")
+    assert [event.event_type for event in events][-2:] == [
+        "mcp_call_started",
+        "mcp_call_completed",
+    ]
+    assert events[-1].mcp_server == "kxkm"
+    assert events[-1].mcp_tool == "kxkm_rag_search"
+    assert events[-1].mcp_transport == "http-rest"
+
+
+@pytest.mark.asyncio
+async def test_knowledge_base_search_dispatches_to_kxkm():
+    settings.knowledge_base_provider = "kxkm"
+    client = McpRuntimeClient()
+    client.kxkm_rag_search = AsyncMock(return_value={"provider": "kxkm", "results": []})  # type: ignore[method-assign]
+
+    result = await client.knowledge_base_search(
+        "hello",
+        limit=3,
+        project_id="project-beta",
+        federation_scope=["project-beta"],
+    )
+
+    assert result["provider"] == "kxkm"
+    client.kxkm_rag_search.assert_awaited_once_with(
+        "hello",
+        limit=3,
+        project_id="project-beta",
+        federation_scope=["project-beta"],
+        knowledge_scope="project",
+        run_id=None,
+        mode="internal",
+        step=0,
+        agent_name=None,
+    )

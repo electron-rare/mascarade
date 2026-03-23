@@ -8,9 +8,8 @@ import pytest
 from mascarade.p2p.dht import P2PDHT, DHTEntry
 from mascarade.p2p.identity import PeerIdentity
 from mascarade.p2p.protocol import P2PMessage
-from mascarade.p2p.relay import P2PRelay, RelayCircuit, RelayClient, RELAY_CAPABILITY
+from mascarade.p2p.relay import RELAY_CAPABILITY, P2PRelay, RelayCircuit, RelayClient
 from mascarade.p2p.transport import P2PTransport
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -204,7 +203,7 @@ async def test_transport_send_to_via_relay():
         node_relay.add_peer(id_b.peer_id, "127.0.0.1", node_b.listen_port)
         node_relay.add_peer(id_a.peer_id, "127.0.0.1", node_a.listen_port)
 
-        relay = P2PRelay(
+        P2PRelay(
             local_peer_id=id_relay.peer_id,
             transport=node_relay,
         )

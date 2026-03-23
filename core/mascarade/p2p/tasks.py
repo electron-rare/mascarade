@@ -7,10 +7,10 @@ import logging
 import time
 import uuid
 from dataclasses import dataclass, field
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 
-from mascarade.p2p.capabilities import P2PCapabilityExchange, PeerCapabilities
+from mascarade.p2p.capabilities import P2PCapabilityExchange
 from mascarade.p2p.pubsub import P2PPubSub
 
 logger = logging.getLogger("mascarade.p2p.tasks")
@@ -20,7 +20,7 @@ _TOPIC_TASK_RESULT = "mascarade:task:result"
 _TOPIC_TASK_CLAIM = "mascarade:task:claim"
 
 
-class TaskStatus(str, Enum):
+class TaskStatus(StrEnum):
     PENDING = "pending"
     CLAIMED = "claimed"
     RUNNING = "running"
@@ -132,7 +132,7 @@ class P2PTaskDistribution:
             task.status = TaskStatus.COMPLETED
             task.result = result
             task.completed_at = time.time()
-        except asyncio.TimeoutError:
+        except TimeoutError:
             task.status = TaskStatus.TIMEOUT
             task.error = f"Task timed out after {timeout}s"
             logger.warning("Task %s timed out", task_id)

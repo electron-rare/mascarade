@@ -17,6 +17,15 @@ _retry = make_retry(httpx.ConnectError)
 
 
 class AppleCoreMLProvider(LLMProvider):
+    """Apple CoreML/ANE local inference provider.
+
+    IMPORTANT: Only one model can be loaded at a time on the Apple LLM
+    service (port 8201). Requesting a different model will unload the
+    current one first, adding several seconds of latency for the swap.
+    Fallback between two Apple models within a single request pipeline
+    will NOT work reliably — use a non-Apple fallback instead.
+    """
+
     name = "apple-coreml"
     default_model = "apple-local"
     cost_per_million = (0.0, 0.0)
@@ -33,6 +42,7 @@ class AppleCoreMLProvider(LLMProvider):
         self._models_cache: list[str] | None = None
         self._models_cache_time: float = 0.0
         self._models_cache_ttl: float = 60.0  # Cache for 60 seconds
+        self._last_loaded_model: str | None = None
 
     @property
     def is_configured(self) -> bool:
@@ -41,6 +51,11 @@ class AppleCoreMLProvider(LLMProvider):
         if settings.apple_llm_enabled:
             return True
         return self._base_url != "http://apple-llm:8201"
+
+    @property
+    def loaded_model(self) -> str | None:
+        """Return the last known loaded model (may be stale)."""
+        return self._last_loaded_model
 
     @_retry
     async def send(
@@ -53,6 +68,16 @@ class AppleCoreMLProvider(LLMProvider):
         max_tokens: int = 4096,
     ) -> LLMResponse:
         model = model or self.default_model
+
+        # Warn about model switch — the Apple service can only serve one model
+        if self._last_loaded_model and self._last_loaded_model != model:
+            logger.warning(
+                "Apple CoreML model switch: '%s' -> '%s'. "
+                "The previous model will be unloaded (single-model constraint). "
+                "Expect additional latency for the cold-start.",
+                self._last_loaded_model,
+                model,
+            )
 
         payload = {
             "messages": messages,
@@ -82,6 +107,8 @@ class AppleCoreMLProvider(LLMProvider):
             raise RuntimeError(
                 f"Apple local request failed for model '{model}': {exc}"
             ) from exc
+
+        self._last_loaded_model = model
 
         return LLMResponse(
             content=data.get("content", ""),

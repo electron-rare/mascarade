@@ -7,7 +7,6 @@ import logging
 from pathlib import Path
 from typing import Any
 
-from mascarade.config import settings
 from mascarade.p2p.capabilities import P2PCapabilityExchange
 from mascarade.p2p.dht import P2PDHT
 from mascarade.p2p.discovery import P2PDiscovery
@@ -22,7 +21,7 @@ from mascarade.p2p.events import (
     P2PEventBus,
 )
 from mascarade.p2p.identity import PeerIdentity
-from mascarade.p2p.metrics import P2PMetricsCollector, P2PNodeMetrics
+from mascarade.p2p.metrics import P2PMetricsCollector
 from mascarade.p2p.pubsub import P2PPubSub
 from mascarade.p2p.stream_forward import P2PStreamForwarder
 from mascarade.p2p.tasks import P2PTaskDistribution
@@ -54,11 +53,6 @@ class MascaradeP2PNode:
             self._identity,
             reject_unsigned=True,
         )
-        self._dht = P2PDHT(
-            local_peer_id=self._identity.peer_id,
-            transport=self._transport,
-            bootstrap_peers=bootstrap_peers,
-        )
         self._pubsub = P2PPubSub(
             local_peer_id=self._identity.peer_id,
             transport=self._transport,
@@ -66,6 +60,12 @@ class MascaradeP2PNode:
         self._pubsub.enable_authentication(
             self._identity,
             reject_unsigned=True,
+        )
+        self._dht = P2PDHT(
+            local_peer_id=self._identity.peer_id,
+            transport=self._transport,
+            bootstrap_peers=bootstrap_peers,
+            pubsub=self._pubsub,
         )
         self._discovery = P2PDiscovery(
             dht=self._dht,
@@ -307,6 +307,8 @@ class MascaradeP2PNode:
                     )
                 # Discover new peers via DHT
                 await self._dht.find_node(self.peer_id)
+                # Re-request capabilities from newly discovered peers
+                await self._capabilities.request_all()
                 # Update Prometheus gauges
                 connected = sum(1 for c in self._transport.peers.values() if c.connected)
                 self._metrics.update_gauges(

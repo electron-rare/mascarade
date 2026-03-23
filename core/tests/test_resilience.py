@@ -60,7 +60,10 @@ def test_fallback_cache_metrics_and_lb_stats():
     fallback_stats = router.fallback.get_failure_stats()
     assert fallback_stats["total_failures"] >= 1
 
-    cache_stats = asyncio.run(router.cache.get_stats())
+    cache_stats = router.cache.get_stats()
+    # If get_stats returns a coroutine, await it
+    if asyncio.iscoroutine(cache_stats):
+        cache_stats = asyncio.run(cache_stats)
     assert cache_stats["overall"]["total_hits"] >= 1
 
     metrics = asyncio.run(router.metrics_summary())
@@ -71,6 +74,8 @@ def test_fallback_cache_metrics_and_lb_stats():
 
     # Reset endpoints logic support
     asyncio.run(router.reset_metrics())
-    cache_stats_after_reset = asyncio.run(router.cache.get_stats())
+    cache_stats_after_reset = router.cache.get_stats()
+    if asyncio.iscoroutine(cache_stats_after_reset):
+        cache_stats_after_reset = asyncio.run(cache_stats_after_reset)
     assert cache_stats_after_reset["tiers"]["L1"]["entries"] == 0
     assert router.fallback.get_failure_stats()["total_failures"] == 0

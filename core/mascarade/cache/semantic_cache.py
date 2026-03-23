@@ -237,7 +237,7 @@ class SemanticCache(CacheBackend):
 
             if result is None:
                 self.miss_count += 1
-                logger.debug(f"SemanticCache miss: no similar prompt found")
+                logger.debug("SemanticCache miss: no similar prompt found")
                 return None
 
             # Parse cached data
@@ -257,7 +257,7 @@ class SemanticCache(CacheBackend):
                 # Check if expired
                 if entry.is_expired():
                     self.miss_count += 1
-                    logger.debug(f"SemanticCache miss: entry expired")
+                    logger.debug("SemanticCache miss: entry expired")
                     return None
 
                 self.hit_count += 1

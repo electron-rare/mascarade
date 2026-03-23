@@ -8,7 +8,6 @@ import os
 import tempfile
 from enum import StrEnum
 from pathlib import Path
-from typing import Any
 
 from pydantic import BaseModel, Field
 

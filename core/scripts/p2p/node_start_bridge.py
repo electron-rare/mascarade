@@ -4,7 +4,12 @@
 Runs on GrosMac which has visibility on both networks and hosts the
 fine-tune research/archive capabilities that require local internet access.
 """
-import asyncio, os, sys, json, signal
+import asyncio
+import json
+import os
+import signal
+import sys
+
 sys.path.insert(0, os.environ.get('PYTHONPATH', os.path.expanduser('~/mascarade/core')))
 
 from mascarade.p2p.asyncio_node import MascaradeP2PNode

@@ -1,0 +1,14 @@
+exclude = ["finetune/notebooks"]
+
+[lint]
+ignore = [
+  "E501", "E701", "E702", "E741", "E722", "E402",
+  "S108", "S607", "S603", "S110", "S106", "S104", "S105", "S310", "S608", "S301", "S311", "S605", "S112", "S101",
+  "B017", "B904", "B007", "B023",
+  "F821", "F601", "F811", "F404",
+  "UP007",
+]
+
+[lint.per-file-ignores]
+"tests/*" = ["F841", "F401"]
+"finetune/notebooks/*" = ["ALL"]

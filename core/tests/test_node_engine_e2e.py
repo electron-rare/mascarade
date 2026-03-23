@@ -1,7 +1,6 @@
 """End-to-end integration tests for Universal Node Engine."""
 
 import asyncio
-from pathlib import Path
 
 import pytest
 
@@ -10,7 +9,6 @@ from mascarade.node_engine.graph import Graph, GraphEdge, GraphNode, GraphStatus
 from mascarade.node_engine.persistence import GraphSerializer
 from mascarade.node_engine.registry import NodeType, NodeTypeRegistry, WorkerRegistry
 from mascarade.node_engine.worker import NodeCapability, NodeWorker
-
 
 # --- Mock Worker Implementation ---
 

@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import List
 
 import asyncpg
 
@@ -32,7 +31,7 @@ async def _ensure_migrations_table(conn: asyncpg.Connection) -> None:
     )
 
 
-async def _get_applied_migrations(conn: asyncpg.Connection) -> List[str]:
+async def _get_applied_migrations(conn: asyncpg.Connection) -> list[str]:
     """Get list of already applied migration names.
 
     Args:
@@ -47,7 +46,7 @@ async def _get_applied_migrations(conn: asyncpg.Connection) -> List[str]:
     return [row["migration_name"] for row in rows]
 
 
-async def _get_pending_migrations(applied: List[str]) -> List[Path]:
+async def _get_pending_migrations(applied: list[str]) -> list[Path]:
     """Get list of pending migration files.
 
     Args:

@@ -6,8 +6,8 @@ Each protocol uses length-prefixed framing: 4-byte big-endian length + payload.
 from __future__ import annotations
 
 import json
-import struct
 import logging
+import struct
 
 from libp2p.custom_types import TProtocol
 from libp2p.network.stream.net_stream import INetStream

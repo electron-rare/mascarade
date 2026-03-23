@@ -7,8 +7,9 @@ import logging
 import time
 import uuid
 from collections import defaultdict
+from collections.abc import Callable, Coroutine
 from dataclasses import dataclass
-from typing import Any, Callable, Coroutine
+from typing import Any
 
 from mascarade.p2p.auth import MessageAuthenticator
 from mascarade.p2p.identity import PeerIdentity
@@ -110,6 +111,11 @@ class P2PPubSub:
             if peer_id != msg.sender and peer_id != self._local_peer_id:
                 sends.append((peer_id, peer_conn))
         if sends:
+            logger.info(
+                "PubSub relay topic=%s from=%s to %d peers: %s",
+                topic, origin, len(sends),
+                [pid[:15] for pid, _ in sends],
+            )
             task = asyncio.create_task(self._relay_publish(relay, sends))
             self._relay_tasks.add(task)
             task.add_done_callback(self._relay_tasks.discard)

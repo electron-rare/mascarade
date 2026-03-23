@@ -3,9 +3,8 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Callable
-from dataclasses import dataclass, field
-from enum import Enum
+from dataclasses import dataclass
+from enum import StrEnum
 from typing import Any, ParamSpec, TypeVar
 
 from aiobreaker import CircuitBreaker, CircuitBreakerListener, CircuitBreakerState
@@ -16,7 +15,7 @@ P = ParamSpec("P")
 T = TypeVar("T")
 
 
-class CircuitState(str, Enum):
+class CircuitState(StrEnum):
     """États possibles d'un circuit breaker."""
 
     CLOSED = "closed"  # Fonctionnement normal

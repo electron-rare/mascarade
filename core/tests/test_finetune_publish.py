@@ -1,6 +1,5 @@
 """Tests for finetune/publish.py — Ollama auto-registration."""
 
-import asyncio
 import tempfile
 from pathlib import Path
 from unittest.mock import AsyncMock, patch

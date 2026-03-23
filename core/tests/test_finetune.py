@@ -1,23 +1,35 @@
 """Tests for the finetune module — imports, registry, and agent logic."""
 
 import json
-import tempfile
 from pathlib import Path
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from mascarade.finetune.agents.researcher import ResearcherAgent, ModelCandidate
-from mascarade.finetune.agents.documentalist import DocumentalistAgent, DatasetCandidate
-from mascarade.finetune.agents.teacher import TeacherAgent, TeacherConfig
+from mascarade.config import settings
+from mascarade.finetune.agents.analyst import AnalystAgent
 from mascarade.finetune.agents.archivist import ArchivistAgent
-from mascarade.finetune.agents.student import StudentAgent, LoRAConfig, TrainingResult
-from mascarade.finetune.agents.analyst import AnalystAgent, EvalReport
-from mascarade.finetune.agents.reinforcer import ReinforcerAgent
-from mascarade.finetune.agents.validator import ValidatorAgent, ValidationResult
-from mascarade.finetune.registry import FinetuneRegistry, ModelEntry, DatasetEntry, RunEntry
+from mascarade.finetune.agents.documentalist import DocumentalistAgent
+from mascarade.finetune.agents.reinforcer import DPOPair, ReinforcementResult, ReinforcerAgent
+from mascarade.finetune.agents.researcher import ResearcherAgent
+from mascarade.finetune.agents.student import LoRAConfig, StudentAgent
+from mascarade.finetune.agents.teacher import TeacherAgent
+from mascarade.finetune.agents.validator import ValidatorAgent
 from mascarade.finetune.orchestrator import FinetuneOrchestrator, PipelineConfig, PipelineState
-from mascarade.finetune.p2p.capabilities import FT_CAPABILITIES, CAPABILITY_NODE_MAP
+from mascarade.finetune.p2p.capabilities import CAPABILITY_NODE_MAP, FT_CAPABILITIES
 from mascarade.finetune.p2p.task_handlers import handle_ft_task
+from mascarade.finetune.registry import DatasetEntry, FinetuneRegistry, ModelEntry, RunEntry
+
+
+class _FakeResponse:
+    def __init__(self, payload):
+        self._payload = payload
+
+    def json(self):
+        return self._payload
+
+    def raise_for_status(self):
+        return None
 
 
 class TestImports:
@@ -239,9 +251,30 @@ class TestTaskHandlers:
         assert "error" in result
 
     @pytest.mark.asyncio
-    async def test_reinforcement_dpo_no_errors(self):
-        result = await handle_ft_task({"action": "generate_dpo"}, "ft-reinforcement")
-        assert "error" in result
+    async def test_reinforcement_dpo_no_errors_uses_kxkm_feedback(self, monkeypatch):
+        expected = ReinforcementResult("/tmp/dpo.jsonl", total_pairs=2)
+
+        async def fake_generate(self, errors, **kwargs):
+            assert errors == []
+            assert kwargs["include_kxkm_feedback"] is True
+            return expected
+
+        monkeypatch.setattr(
+            "mascarade.finetune.agents.reinforcer.ReinforcerAgent.generate_dpo_pairs",
+            fake_generate,
+        )
+
+        result = await handle_ft_task(
+            {
+                "action": "generate_dpo",
+                "run_id": "run-kxkm-dpo",
+                "persona": "pharmacius",
+                "project_id": "project-alpha",
+            },
+            "ft-reinforcement",
+        )
+        assert result["dataset_path"] == "/tmp/dpo.jsonl"
+        assert result["total_pairs"] == 2
 
 
 class TestRegistryAtomicSave:
@@ -347,10 +380,106 @@ class TestReinforcerGRPO:
         assert rewards[0] < 0.5
 
 
+class TestReinforcerKxkm:
+    @pytest.fixture(autouse=True)
+    def _restore_settings(self):
+        snapshot = {
+            "mascarade_project_id": settings.mascarade_project_id,
+            "kxkm_rag_url": settings.kxkm_rag_url,
+            "kxkm_timeout_seconds": settings.kxkm_timeout_seconds,
+            "kxkm_dpo_persona": settings.kxkm_dpo_persona,
+        }
+        yield
+        for name, value in snapshot.items():
+            setattr(settings, name, value)
+
+    @pytest.mark.asyncio
+    async def test_collect_kxkm_feedback_normalizes_pairs(self):
+        settings.mascarade_project_id = "project-alpha"
+        settings.kxkm_rag_url = "http://localhost:3333"
+        settings.kxkm_dpo_persona = "pharmacius"
+
+        with patch("mascarade.finetune.agents.reinforcer.httpx.AsyncClient") as async_client_cls:
+            ctx = AsyncMock()
+            ctx.get = AsyncMock(
+                return_value=_FakeResponse(
+                    {
+                        "ok": True,
+                        "data": {
+                            "pairs": [
+                                {
+                                    "prompt": "Question",
+                                    "chosen": "Bonne reponse",
+                                    "rejected": "Mauvaise reponse",
+                                    "persona": "pharmacius",
+                                }
+                            ],
+                            "total": 1,
+                        },
+                    }
+                )
+            )
+            ctx.__aenter__ = AsyncMock(return_value=ctx)
+            ctx.__aexit__ = AsyncMock(return_value=False)
+            async_client_cls.return_value = ctx
+
+            agent = ReinforcerAgent()
+            pairs = await agent.collect_kxkm_feedback(project_id="project-alpha")
+
+        assert pairs == [
+            DPOPair(
+                prompt="Question",
+                chosen="Bonne reponse",
+                rejected="Mauvaise reponse",
+                persona="pharmacius",
+                project_id="project-alpha",
+                source="kxkm",
+            )
+        ]
+        _, kwargs = ctx.get.await_args
+        assert kwargs["params"]["project_id"] == "project-alpha"
+        assert kwargs["headers"]["x-mascarade-project-id"] == "project-alpha"
+        assert kwargs["headers"]["x-mascarade-federation-scope"] == "project-alpha"
+
+    @pytest.mark.asyncio
+    async def test_generate_dpo_pairs_dedupes_kxkm_feedback(self, tmp_path, monkeypatch):
+        settings.mascarade_project_id = "project-alpha"
+        agent = ReinforcerAgent(output_dir=tmp_path)
+        duplicate = DPOPair(
+            prompt="Question",
+            chosen="Bonne reponse",
+            rejected="Mauvaise reponse",
+            persona="pharmacius",
+            project_id="project-alpha",
+            source="kxkm",
+        )
+        monkeypatch.setattr(
+            agent,
+            "collect_kxkm_feedback",
+            AsyncMock(return_value=[duplicate, duplicate]),
+        )
+
+        result = await agent.generate_dpo_pairs(
+            [],
+            run_id="run-kxkm-1",
+            project_id="project-alpha",
+        )
+
+        assert result.total_pairs == 1
+        dataset_path = Path(result.dataset_path)
+        assert dataset_path.exists()
+        lines = dataset_path.read_text(encoding="utf-8").splitlines()
+        assert len(lines) == 1
+        payload = json.loads(lines[0])
+        assert payload["source"] == "kxkm"
+        assert payload["project_id"] == "project-alpha"
+
+
 class TestPubSubThreadSafety:
     def test_pubsub_has_seen_lock(self):
-        from mascarade.p2p.pubsub import P2PPubSub
         from unittest.mock import MagicMock
+
+        from mascarade.p2p.pubsub import P2PPubSub
         transport = MagicMock()
         transport.on_message = MagicMock()
         ps = P2PPubSub(local_peer_id="test", transport=transport)

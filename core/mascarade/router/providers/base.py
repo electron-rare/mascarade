@@ -55,6 +55,15 @@ class LLMResponse:
     usage: dict[str, int] = field(default_factory=dict)
 
 
+@dataclass
+class LLMStreamChunk:
+    """Chunk de streaming pour les réponses LLM."""
+
+    content: str
+    model: str
+    finish_reason: str | None = None
+
+
 class LLMProvider(ABC):
     """
     Interface commune pour tous les providers LLM.
@@ -85,7 +94,7 @@ class LLMProvider(ABC):
     quality_rank: int = 0
 
     # Circuit breaker instance (set by Router or CircuitBreakerManager)
-    circuit_breaker: "CircuitBreaker | None" = None
+    circuit_breaker: CircuitBreaker | None = None
 
     @abstractmethod
     async def send(

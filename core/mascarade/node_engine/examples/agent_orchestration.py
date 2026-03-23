@@ -86,7 +86,7 @@ async def main() -> None:
     ai_worker = AIWorker(router=router, registry=registry)
     runtime.register_worker(ai_worker)
 
-    print(f"✓ Registered AI Worker")
+    print("✓ Registered AI Worker")
     print(f"✓ Registered {len(registry.list())} agents:")
     for agent in registry.list():
         print(f"    - {agent.name}: {agent.description}")

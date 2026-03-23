@@ -1,78 +1,68 @@
 #!/usr/bin/env python3
-"""Prometheus exporter for fine-tuning pipeline metrics.
-
-Reads finetune/runs/*/manifest.json files and exposes metrics for Prometheus.
-"""
+"""Prometheus exporter for fine-tuning pipeline metrics."""
 
 from __future__ import annotations
 
 import argparse
 import json
 import logging
-import sys
 import time
 from pathlib import Path
 from typing import Any
 
-try:
-    from prometheus_client import Gauge, Info, start_http_server
-except ImportError:
-    print(
-        "Error: prometheus_client not installed. Run: pip install prometheus_client",
-        file=sys.stderr,
-    )
-    sys.exit(1)
+from prometheus_client import Gauge, Info, start_http_server
 
-
-DEFAULT_PORT = 9101
-DEFAULT_INTERVAL = 15
-DEFAULT_RUNS_DIR = Path(__file__).resolve().parent.parent.parent / "finetune" / "runs"
-
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(message)s",
-)
 logger = logging.getLogger(__name__)
 
-
-# Prometheus metrics
-run_status = Gauge(
+# Metrics
+finetune_run_status = Gauge(
     "finetune_run_status",
-    "Status of fine-tuning run per domain (1=running, 2=completed, 3=error, 0=unknown)",
-    ["run_label", "domain", "phase"],
-)
-
-domain_rows = Gauge(
-    "finetune_domain_rows",
-    "Number of rows processed per domain",
-    ["run_label", "domain", "row_type"],
-)
-
-run_updated_timestamp = Gauge(
-    "finetune_run_updated_timestamp",
-    "Last update timestamp of the run manifest (unix epoch seconds)",
+    "Fine-tuning run status (1=running, 2=completed, 3=failed, 0=idle)",
     ["run_label"],
 )
 
-run_info = Info(
+finetune_domain_rows = Gauge(
+    "finetune_domain_rows",
+    "Number of rows for domain processing",
+    ["run_label", "domain", "row_type"],
+)
+
+finetune_domain_status = Gauge(
+    "finetune_domain_status",
+    "Domain processing status (0=pending, 1=running, 2=completed, 3=failed)",
+    ["run_label", "domain", "phase"],
+)
+
+finetune_run_updated = Gauge(
+    "finetune_run_updated_timestamp",
+    "Unix timestamp of last manifest update",
+    ["run_label"],
+)
+
+finetune_run_info = Info(
     "finetune_run",
-    "Information about the fine-tuning run",
+    "Fine-tuning run metadata",
+)
+
+finetune_active_jobs = Gauge(
+    "finetune_active_jobs",
+    "Number of currently running fine-tuning jobs",
 )
 
 
 def load_manifest(path: Path) -> dict[str, Any] | None:
-    """Load and parse a manifest JSON file."""
+    """Load manifest JSON file."""
     try:
         return json.loads(path.read_text(encoding="utf-8"))
-    except (FileNotFoundError, json.JSONDecodeError) as exc:
-        logger.warning("Failed to load manifest %s: %s", path, exc)
+    except Exception as e:
+        logger.warning(f"Failed to load manifest {path}: {e}")
         return None
 
 
 def find_manifests(runs_dir: Path) -> list[Path]:
-    """Find all manifest.json files in the runs directory."""
+    """Find all manifest.json files in runs directory."""
     if not runs_dir.exists():
-        logger.warning("Runs directory does not exist: %s", runs_dir)
+        logger.warning(f"Runs directory does not exist: {runs_dir}")
         return []
     return sorted(
         runs_dir.glob("*/manifest.json"),
@@ -81,91 +71,130 @@ def find_manifests(runs_dir: Path) -> list[Path]:
     )
 
 
-def status_to_value(status: str) -> float:
-    """Convert status string to numeric value for Gauge metric."""
+def status_to_value(status: str | None) -> float:
+    """Convert status string to numeric value for Prometheus."""
+    if status is None:
+        return 0.0
     status_map = {
+        "idle": 0.0,
+        "pending": 0.0,
         "running": 1.0,
         "completed": 2.0,
-        "error": 3.0,
         "failed": 3.0,
-        "pending": 0.0,
+        "error": 3.0,
     }
     return status_map.get(status.lower(), 0.0)
 
 
-def parse_timestamp(ts_str: str) -> float:
-    """Parse ISO timestamp string to unix epoch seconds."""
+def parse_timestamp(ts_str: str | None) -> float:
+    """Parse timestamp string to Unix timestamp."""
+    if not ts_str:
+        return 0.0
     try:
-        # Handle format: 2024-03-13T14:30:45
-        from datetime import datetime
-
-        dt = datetime.fromisoformat(ts_str.replace("Z", "+00:00"))
-        return dt.timestamp()
-    except (ValueError, AttributeError):
-        logger.warning("Failed to parse timestamp: %s", ts_str)
+        # Parse format like "2026-03-13T02:06:45"
+        return time.mktime(time.strptime(ts_str, "%Y-%m-%dT%H:%M:%S"))
+    except Exception as e:
+        logger.warning(f"Failed to parse timestamp '{ts_str}': {e}")
         return 0.0
 
 
-def update_metrics_from_manifest(manifest_path: Path) -> None:
-    """Parse a manifest file and update Prometheus metrics."""
-    manifest = load_manifest(manifest_path)
-    if manifest is None:
-        return
+def update_metrics(runs_dir: Path) -> None:
+    """Update Prometheus metrics from manifest files."""
+    manifests = find_manifests(runs_dir)
 
-    run_label = manifest.get("run_label", manifest_path.parent.name)
-    domains = manifest.get("domains", {})
-    updated_at = manifest.get("updated_at", "")
+    # Track which runs we've seen and count active jobs
+    seen_runs = set()
+    active_jobs_count = 0
 
-    # Update run timestamp metric
-    if updated_at:
-        timestamp = parse_timestamp(updated_at)
-        if timestamp > 0:
-            run_updated_timestamp.labels(run_label=run_label).set(timestamp)
+    for manifest_path in manifests:
+        manifest = load_manifest(manifest_path)
+        if not manifest:
+            continue
 
-    # Update domain-level metrics
-    for domain_label, domain_data in domains.items():
-        # Distill phase status
-        distill_status = domain_data.get("distill", {}).get("status", "unknown")
-        run_status.labels(
-            run_label=run_label,
-            domain=domain_label,
-            phase="distill",
-        ).set(status_to_value(distill_status))
+        run_label = manifest.get("run_label", manifest_path.parent.name)
+        seen_runs.add(run_label)
 
-        # Train phase status
-        train_status = domain_data.get("train", {}).get("status", "unknown")
-        run_status.labels(
-            run_label=run_label,
-            domain=domain_label,
-            phase="train",
-        ).set(status_to_value(train_status))
+        # Update run-level metrics
+        updated_at = manifest.get("updated_at", "")
+        finetune_run_updated.labels(run_label=run_label).set(
+            parse_timestamp(updated_at)
+        )
 
-        # Row counts
-        merged_rows = domain_data.get("distill", {}).get("merged_rows", 0)
-        distilled_rows = domain_data.get("distill", {}).get("distilled_rows", 0)
+        # Overall run status (derived from domains)
+        domains = manifest.get("domains", {})
+        if not domains:
+            finetune_run_status.labels(run_label=run_label).set(0.0)
+        else:
+            # Check if any domain is running/failed
+            has_running = False
+            has_failed = False
+            all_completed = True
 
-        if merged_rows:
-            domain_rows.labels(
+            for domain_label, domain_data in domains.items():
+                distill_status = domain_data.get("distill", {}).get("status", "pending")
+                train_status = domain_data.get("train", {}).get("status", "pending")
+
+                for status in [distill_status, train_status]:
+                    if status in ("running",):
+                        has_running = True
+                        all_completed = False
+                    elif status in ("failed", "error"):
+                        has_failed = True
+                        all_completed = False
+                    elif status not in ("completed",):
+                        all_completed = False
+
+            if has_failed:
+                run_status = 3.0  # failed
+            elif has_running:
+                run_status = 1.0  # running
+            elif all_completed:
+                run_status = 2.0  # completed
+            else:
+                run_status = 0.0  # idle/pending
+
+            finetune_run_status.labels(run_label=run_label).set(run_status)
+
+            # Count active jobs
+            if run_status == 1.0:
+                active_jobs_count += 1
+
+        # Domain-level metrics
+        for domain_label, domain_data in domains.items():
+            # Row counts
+            merged_rows = domain_data.get("distill", {}).get("merged_rows", 0) or 0
+            distilled_rows = domain_data.get("distill", {}).get("distilled_rows", 0) or 0
+
+            finetune_domain_rows.labels(
                 run_label=run_label,
                 domain=domain_label,
                 row_type="merged",
             ).set(merged_rows)
 
-        if distilled_rows:
-            domain_rows.labels(
+            finetune_domain_rows.labels(
                 run_label=run_label,
                 domain=domain_label,
                 row_type="distilled",
             ).set(distilled_rows)
 
+            # Phase status
+            distill_status = domain_data.get("distill", {}).get("status", "pending")
+            train_status = domain_data.get("train", {}).get("status", "pending")
 
-def collect_metrics(runs_dir: Path) -> None:
-    """Scan all manifests and update metrics."""
-    manifests = find_manifests(runs_dir)
-    logger.info("Found %d manifest(s) in %s", len(manifests), runs_dir)
+            finetune_domain_status.labels(
+                run_label=run_label,
+                domain=domain_label,
+                phase="distill",
+            ).set(status_to_value(distill_status))
 
-    for manifest_path in manifests:
-        update_metrics_from_manifest(manifest_path)
+            finetune_domain_status.labels(
+                run_label=run_label,
+                domain=domain_label,
+                phase="train",
+            ).set(status_to_value(train_status))
+
+    # Update active jobs count
+    finetune_active_jobs.set(active_jobs_count)
 
 
 def main() -> int:
@@ -176,46 +205,58 @@ def main() -> int:
     parser.add_argument(
         "--port",
         type=int,
-        default=DEFAULT_PORT,
-        help=f"Port to expose metrics on (default: {DEFAULT_PORT})",
+        default=9101,
+        help="Port to expose metrics on (default: 9101)",
     )
     parser.add_argument(
         "--runs-dir",
-        type=Path,
-        default=DEFAULT_RUNS_DIR,
-        help=f"Path to finetune runs directory (default: {DEFAULT_RUNS_DIR})",
+        default="/workspace/finetune/runs",
+        help="Directory containing finetune runs (default: /workspace/finetune/runs)",
     )
     parser.add_argument(
         "--interval",
         type=int,
-        default=DEFAULT_INTERVAL,
-        help=f"Scrape interval in seconds (default: {DEFAULT_INTERVAL})",
+        default=15,
+        help="Scrape interval in seconds (default: 15)",
     )
     parser.add_argument(
         "--once",
         action="store_true",
-        help="Collect metrics once and exit (for testing)",
+        help="Run once and exit (for testing)",
+    )
+    parser.add_argument(
+        "-v",
+        "--verbose",
+        action="store_true",
+        help="Enable verbose logging",
     )
     args = parser.parse_args()
 
-    logger.info("Starting finetune metrics exporter on port %d", args.port)
-    logger.info("Monitoring runs directory: %s", args.runs_dir)
+    logging.basicConfig(
+        level=logging.DEBUG if args.verbose else logging.INFO,
+        format="%(asctime)s [%(levelname)s] %(message)s",
+    )
 
-    # Start HTTP server for Prometheus to scrape
+    runs_dir = Path(args.runs_dir)
+    logger.info(f"Starting metrics exporter on port {args.port}")
+    logger.info(f"Monitoring runs directory: {runs_dir}")
+    logger.info(f"Scrape interval: {args.interval}s")
+
+    # Start HTTP server for Prometheus
     start_http_server(args.port)
 
     if args.once:
-        collect_metrics(args.runs_dir)
-        logger.info("Single collection complete")
+        update_metrics(runs_dir)
+        logger.info("Single scrape completed, exiting")
         return 0
 
-    # Continuous collection loop
+    # Continuous scraping
     try:
         while True:
-            collect_metrics(args.runs_dir)
+            update_metrics(runs_dir)
             time.sleep(args.interval)
     except KeyboardInterrupt:
-        logger.info("Exporter shutting down")
+        logger.info("Exporter stopped by user")
         return 0
 
 

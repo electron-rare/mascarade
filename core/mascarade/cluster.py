@@ -6,13 +6,12 @@ import asyncio
 import hashlib
 import hmac
 import logging
+import socket
 import time
 from dataclasses import dataclass
 from socket import AF_INET, AF_INET6, inet_aton, inet_ntop
-from urllib.parse import urlparse
 from typing import Any
-
-import socket
+from urllib.parse import urlparse
 
 try:
     from zeroconf import ServiceBrowser, ServiceInfo, ServiceListener, Zeroconf
@@ -780,9 +779,8 @@ class ClusterManager:
 
         logger.info("cluster forward send -> %s", peer.peer_id)
         started = time.perf_counter()
-        remote = await self._request_json(peer, "POST", "/v1/cluster/node/send", json=payload)
 
-        # Try P2P stream forwarding first (lower latency, no HTTP overhead)
+        # Try P2P forwarding first (lower latency, no HTTP overhead)
         p2p_result = await self._try_p2p_forward(peer.peer_id, payload)
         if p2p_result is not None:
             latency_ms = int((time.perf_counter() - started) * 1000)
@@ -797,8 +795,8 @@ class ClusterManager:
                 **p2p_result,
             }
 
-        # Fallback to HTTP forwarding
-        remote = await self._request_json(peer, "POST", "/cluster/node/send", json=payload)
+        # Fallback to HTTP forwarding (only if P2P unavailable/failed)
+        remote = await self._request_json(peer, "POST", "/v1/cluster/node/send", json=payload)
         latency_ms = int((time.perf_counter() - started) * 1000)
         logger.info("cluster HTTP forward <- %s (%d ms)", peer.peer_id, latency_ms)
         return {
@@ -960,6 +958,9 @@ class ClusterManager:
                 system=self._coerce_optional_string(payload.get("system")),
                 temperature=float(payload.get("temperature", 0.7)),
                 max_tokens=int(payload.get("max_tokens", 4096)),
+                project_id=self._coerce_optional_string(payload.get("project_id")),
+                federation_scope=payload.get("federation_scope"),
+                knowledge_scope=str(payload.get("knowledge_scope", "project")),
             )
         except ValueError as exc:
             raise HTTPException(status_code=400, detail="Invalid request parameters") from exc
@@ -1019,7 +1020,13 @@ class ClusterManager:
         payload = dict(request_data)
         provided_token = str(payload.pop("__cluster_token", "")).strip()
         expected_token = settings.cluster_shared_key.strip()
-        if expected_token:
+        # SEC-01: Reject if a token was provided but cluster_shared_key is unconfigured
+        # (prevents auth bypass when key is accidentally empty)
+        if not expected_token:
+            if provided_token:
+                raise HTTPException(status_code=401, detail="Cluster auth not configured on this node")
+            logger.warning("P2P send handler: no cluster_shared_key configured, accepting unauthenticated request")
+        else:
             if not provided_token or not hmac.compare_digest(
                 provided_token.encode(), expected_token.encode(),
             ):

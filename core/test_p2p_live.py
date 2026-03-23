@@ -3,7 +3,6 @@
 
 import asyncio
 import tempfile
-import sys
 
 from mascarade.p2p.asyncio_node import MascaradeP2PNode
 

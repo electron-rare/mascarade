@@ -19,7 +19,6 @@ from mascarade.agents.registry import AgentRegistry
 from mascarade.router.router import Strategy
 from mascarade.server import app
 
-
 # =============================================================================
 # Unit tests for PromptVersion and PromptHistory classes
 # =============================================================================
@@ -131,9 +130,9 @@ def test_get_history_with_limit():
 def test_get_history_with_since():
     """Récupérer l'historique depuis un timestamp."""
     history = PromptHistory(storage_path=None)
-    v1 = history.add_version(content="v1", author_hash="a")
+    history.add_version(content="v1", author_hash="a")
     v2 = history.add_version(content="v2", author_hash="a")
-    v3 = history.add_version(content="v3", author_hash="a")
+    history.add_version(content="v3", author_hash="a")
 
     versions = history.get_history(since=v2.timestamp)
     assert len(versions) == 2
@@ -185,7 +184,7 @@ def test_get_diff_invalid_to_version():
 def test_rollback():
     """Rollback vers une version précédente."""
     history = PromptHistory(storage_path=None)
-    v1 = history.add_version(content="Original content", author_hash="a")
+    history.add_version(content="Original content", author_hash="a")
     history.add_version(content="Modified content", author_hash="a")
 
     rollback_version = history.rollback(1)

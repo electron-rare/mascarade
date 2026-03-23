@@ -37,14 +37,14 @@ def test_domain_type_qualified_name():
 
 
 def test_domain_type_validation_missing_type():
-    """Test schema validation requires 'type' field."""
-    with pytest.raises(ValidationError) as exc_info:
-        DomainType(
-            domain="ai",
-            name="Invalid",
-            schema={"properties": {}},  # Missing 'type'
-        )
-    assert "schema must include a 'type' field" in str(exc_info.value)
+    """Test schema without 'type' field is accepted (rich type system uses arbitrary schemas)."""
+    dt = DomainType(
+        domain="ai",
+        name="Flexible",
+        schema={"properties": {}},  # No 'type' — accepted by relaxed validator
+    )
+    assert dt.schema_def == {"properties": {}}
+    assert dt.qualified_name == "ai.Flexible"
 
 
 def test_domain_type_validation_empty_domain():

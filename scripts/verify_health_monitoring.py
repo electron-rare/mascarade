@@ -19,8 +19,6 @@ Requirements:
 
 import asyncio
 import sys
-import time
-from typing import Any
 
 try:
     import httpx
@@ -51,7 +49,7 @@ class HealthMonitorVerifier:
             response.raise_for_status()
             data = response.json()
 
-            print(f"✓ Endpoint accessible: GET /health/providers")
+            print("✓ Endpoint accessible: GET /health/providers")
             print(f"  Status: {response.status_code}")
             print(f"  Providers found: {len(data)}")
 
@@ -93,7 +91,7 @@ class HealthMonitorVerifier:
             response.raise_for_status()
             data = response.json()
 
-            print(f"✓ Endpoint accessible: GET /api/ops/summary")
+            print("✓ Endpoint accessible: GET /api/ops/summary")
             print(f"  Status: {response.status_code}")
 
             # Verify provider_health field exists
@@ -101,7 +99,7 @@ class HealthMonitorVerifier:
                 print("✗ Missing 'provider_health' field in ops summary")
                 return False
 
-            print(f"✓ Provider health included in ops summary")
+            print("✓ Provider health included in ops summary")
             print(f"  Providers: {len(data['provider_health'])}")
 
             for provider_name in data["provider_health"]:

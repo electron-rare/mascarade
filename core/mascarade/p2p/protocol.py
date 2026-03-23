@@ -107,5 +107,5 @@ async def write_message(writer: asyncio.StreamWriter, msg: P2PMessage) -> bool:
         writer.write(msg.encode())
         await asyncio.wait_for(writer.drain(), timeout=_WRITE_TIMEOUT_SECONDS)
         return True
-    except (ConnectionError, OSError, asyncio.TimeoutError):
+    except (TimeoutError, ConnectionError, OSError):
         return False

@@ -89,18 +89,24 @@ class P2PDHT:
         transport: P2PTransport,
         bootstrap_peers: list[tuple[str, str, int]] | None = None,
         public_key: str = "",
+        pubsub: Any | None = None,
     ) -> None:
         self._local_peer_id = local_peer_id
         self._transport = transport
         self._public_key = public_key
+        self._pubsub = pubsub
         self._table = DHTRoutingTable(local_peer_id)
         self._bootstrap_peers = bootstrap_peers or []
+        self._seen_announces: dict[str, float] = {}
 
         transport.on_message("dht:find_node", self._handle_find_node)
         transport.on_message("dht:find_node_reply", self._handle_find_node_reply)
         transport.on_message("dht:announce", self._handle_announce)
         transport.on_message("dht:ping", self._handle_ping)
         transport.on_message("dht:pong", self._handle_pong)
+
+        if pubsub is not None:
+            pubsub.subscribe("dht:peer_discovered", self._handle_peer_discovered)
 
     @property
     def routing_table(self) -> DHTRoutingTable:
@@ -161,7 +167,7 @@ class P2PDHT:
     @staticmethod
     def _resolve_host(announced_host: str, conn_host: str) -> str:
         """Use the connection's real IP if the announced host is unroutable."""
-        if announced_host in ("0.0.0.0", "::", "::0", "", "localhost"):
+        if announced_host in ("0.0.0.0", "::", "::0", "", "localhost", "127.0.0.1"):
             return conn_host
         return announced_host
 
@@ -258,6 +264,46 @@ class P2PDHT:
         logger.info(
             "DHT: peer %s announced at %s:%d caps=%s",
             msg.sender, host, port, capabilities,
+        )
+
+        # Re-broadcast discovery info via PubSub (which handles signature
+        # relay correctly) so peers behind different network segments discover
+        # each other through intermediate bridge nodes.
+        announce_key = f"{msg.sender}:{msg.ts}"
+        if announce_key in self._seen_announces:
+            return
+        self._seen_announces[announce_key] = time.monotonic()
+        if len(self._seen_announces) > 500:
+            cutoff = time.monotonic() - 120.0
+            self._seen_announces = {
+                k: v for k, v in self._seen_announces.items() if v > cutoff
+            }
+
+        if self._pubsub is not None:
+            await self._pubsub.publish("dht:peer_discovered", {
+                "peer_id": msg.sender,
+                "host": host,
+                "port": port,
+                "capabilities": capabilities,
+            })
+
+    async def _handle_peer_discovered(
+        self, topic: str, data: dict[str, Any], origin: str,
+    ) -> None:
+        """Handle a peer discovery event relayed via PubSub."""
+        peer_id = data.get("peer_id", "")
+        host = data.get("host", "")
+        port = data.get("port", 0)
+        capabilities = data.get("capabilities", [])
+        if not peer_id or peer_id == self._local_peer_id or not host or not port:
+            return
+        self._table.upsert(DHTEntry(
+            peer_id=peer_id, host=host, port=port, capabilities=capabilities,
+        ))
+        self._transport.add_peer(peer_id, host, port)
+        logger.info(
+            "DHT: discovered peer %s at %s:%d via PubSub caps=%s",
+            peer_id, host, port, capabilities,
         )
 
     async def _handle_ping(self, msg: P2PMessage, conn: PeerConnection) -> None:

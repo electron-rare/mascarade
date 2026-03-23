@@ -63,8 +63,8 @@ class GraphExecutionEngine:
     and cross-domain type adaptation.
     """
 
-    worker_registry: "WorkerRegistry" = field(default_factory=lambda: None)
-    node_registry: "NodeTypeRegistry" = field(default_factory=lambda: None)
+    worker_registry: WorkerRegistry = field(default_factory=lambda: None)
+    node_registry: NodeTypeRegistry = field(default_factory=lambda: None)
 
     def __post_init__(self) -> None:
         """Initialize registries if not provided."""
@@ -75,7 +75,7 @@ class GraphExecutionEngine:
             from mascarade.node_engine.registry import NodeTypeRegistry
             self.node_registry = NodeTypeRegistry()
 
-    def _topological_sort(self, graph: "Graph") -> list[list[str]]:
+    def _topological_sort(self, graph: Graph) -> list[list[str]]:
         """
         Compute execution levels via Kahn's algorithm.
 
@@ -121,7 +121,7 @@ class GraphExecutionEngine:
 
         return levels
 
-    async def execute(self, graph: "Graph", run_id: str) -> list[NodeResult]:
+    async def execute(self, graph: Graph, run_id: str) -> list[NodeResult]:
         """
         Execute a graph by processing levels in order, parallelizing within levels.
         """
@@ -162,7 +162,7 @@ class GraphExecutionEngine:
         return all_results
 
     def _collect_inputs(
-        self, graph: "Graph", node_id: str, port_data: dict[str, dict[str, Any]]
+        self, graph: Graph, node_id: str, port_data: dict[str, dict[str, Any]]
     ) -> dict[str, Any]:
         """Gather input values from upstream node outputs."""
         inputs: dict[str, Any] = {}
@@ -174,7 +174,7 @@ class GraphExecutionEngine:
         return inputs
 
     async def _execute_node(
-        self, node: "GraphNode", inputs: dict[str, Any], ctx: ExecutionContext
+        self, node: GraphNode, inputs: dict[str, Any], ctx: ExecutionContext
     ) -> NodeResult:
         """Execute a single node using its registered worker."""
         import time

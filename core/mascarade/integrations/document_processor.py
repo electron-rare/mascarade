@@ -296,7 +296,7 @@ class DocumentProcessor:
                 embeddings = await self.generate_embeddings_batch(texts)
 
                 # Ajouter les embeddings aux chunks
-                for chunk, embedding in zip(chunks, embeddings):
+                for chunk, embedding in zip(chunks, embeddings, strict=False):
                     chunk["embedding"] = embedding
 
             except Exception as e:

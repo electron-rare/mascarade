@@ -2,13 +2,11 @@
 
 from __future__ import annotations
 
-from typing import Optional
-
 import asyncpg
 
 from mascarade.config import settings
 
-_pool: Optional[asyncpg.Pool] = None
+_pool: asyncpg.Pool | None = None
 
 
 async def init_db_pool() -> asyncpg.Pool:
@@ -36,7 +34,7 @@ async def close_db_pool() -> None:
         _pool = None
 
 
-def get_db_pool() -> Optional[asyncpg.Pool]:
+def get_db_pool() -> asyncpg.Pool | None:
     """Get the current database connection pool.
 
     Returns:

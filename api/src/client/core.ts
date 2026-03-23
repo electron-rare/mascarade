@@ -108,6 +108,15 @@ export interface ClusterPeerStatus {
   last_seen?: string | null;
 }
 
+export interface SchedulerStatus {
+  enabled: boolean;
+  workers: Record<string, Record<string, unknown>>;
+  total_queue_depth?: number;
+  total_dispatched?: number;
+  alive_workers?: number;
+  dead_workers?: number;
+}
+
 export interface ProviderFieldStatus {
   env: string;
   label: string;
@@ -145,6 +154,13 @@ export interface ProviderHealthMetrics {
   last_check?: string;
 }
 
+export interface KnowledgeBaseSearchOptions {
+  limit?: number;
+  projectId?: string;
+  federationScope?: string[];
+  knowledgeScope?: string;
+}
+
 export interface AgentTemplate {
   id: string;
   name: string;
@@ -158,6 +174,38 @@ export interface AgentTemplate {
   max_tokens?: number;
   category?: string;
   tags?: string[];
+}
+
+export type CliAgentName = "vibe" | "codex" | "claude-code";
+
+export interface CliAgentDescriptor {
+  available: boolean;
+  binary: string;
+  provider: string;
+  modes: string[];
+}
+
+export interface CliAgentsStatusResponse {
+  agents: Record<CliAgentName, CliAgentDescriptor>;
+}
+
+export interface CliAgentRunRequest {
+  prompt: string;
+  workdir?: string;
+  agent?: CliAgentName;
+  max_turns?: number;
+  max_price?: number;
+  model?: string;
+  allowed_tools?: string[];
+  full_auto?: boolean;
+}
+
+export interface CliAgentRunResponse {
+  agent: CliAgentName;
+  content: string;
+  model: string;
+  provider: string;
+  usage: Record<string, unknown>;
 }
 
 const REQUEST_TIMEOUT_MS = parseInt(process.env.CORE_TIMEOUT_MS || "30000", 10);
@@ -200,8 +248,22 @@ export const coreClient = {
     return request<{ status: string; providers: string[]; agents: number }>("/health");
   },
 
+  cliAgentsStatus() {
+    return request<CliAgentsStatusResponse>("/v1/api/cli-agents/status");
+  },
+
+  runCliAgent(body: CliAgentRunRequest) {
+    return request<CliAgentRunResponse>("/v1/api/cli-agents/run", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+
   send(body: {
     messages: { role: string; content: string }[];
+    project_id: string;
+    knowledge_scope?: string;
+    federation_scope?: string[];
     strategy?: string;
     routing_policy?: string;
     provider?: string;
@@ -217,15 +279,15 @@ export const coreClient = {
   },
 
   listProviders() {
-    return request<{ providers: string[] }>("/providers");
+    return request<{ providers: string[] }>("/v1/api/providers");
   },
 
   providersStatus() {
-    return request<{ providers: ProviderStatus[] }>("/providers/status");
+    return request<{ providers: ProviderStatus[] }>("/v1/api/providers/status");
   },
 
   providerHealth() {
-    return request<Record<string, ProviderHealthMetrics>>("/health/providers");
+    return request<Record<string, unknown>>("/health/providers");
   },
 
   updateProviderKey(name: string, keys: Record<string, string>) {
@@ -294,11 +356,11 @@ export const coreClient = {
   },
 
   listAgents() {
-    return request<{ agents: AgentInfo[] }>("/agents");
+    return request<{ agents: AgentInfo[]; total?: number; limit?: number; offset?: number }>("/v1/api/v1/agents");
   },
 
   getAgent(name: string) {
-    return request<AgentInfo>(`/agents/${encodeURIComponent(name)}`);
+    return request<AgentInfo>(`/v1/api/v1/agents/${encodeURIComponent(name)}`);
   },
 
   updateAgent(
@@ -327,10 +389,23 @@ export const coreClient = {
     });
   },
 
-  runAgent(name: string, messages: { role: string; content: string }[]) {
+  runAgent(
+    name: string,
+    messages: { role: string; content: string }[],
+    scope: {
+      projectId: string;
+      knowledgeScope?: string;
+      federationScope?: string[];
+    },
+  ) {
     return request<LLMResponse>(`/agents/${encodeURIComponent(name)}/run`, {
       method: "POST",
-      body: JSON.stringify({ messages }),
+      body: JSON.stringify({
+        messages,
+        project_id: scope.projectId,
+        knowledge_scope: scope.knowledgeScope,
+        federation_scope: scope.federationScope,
+      }),
     });
   },
 
@@ -402,6 +477,10 @@ export const coreClient = {
     return request<{ node: ClusterIdentity; peers: ClusterPeerStatus[] }>("/cluster/peers");
   },
 
+  schedulerStatus() {
+    return request<SchedulerStatus>("/api/scheduler/status");
+  },
+
   clusterForwardSend(body: {
     peer_id?: string;
     preferred_role?: string;
@@ -414,6 +493,9 @@ export const coreClient = {
     system?: string | null;
     temperature?: number;
     max_tokens?: number;
+    project_id?: string;
+    knowledge_scope?: string;
+    federation_scope?: string[];
   }) {
     return request<{
       peer_id: string | null;
@@ -434,10 +516,38 @@ export const coreClient = {
 
   // --- Knowledge Base ---
 
-  knowledgeBaseSearch(query: string) {
-    return request<{ results: { id: string; title: string; url: string }[] }>(
-      `/knowledge-base/search?q=${encodeURIComponent(query)}`,
-    );
+  knowledgeBaseSearch(query: string, options: KnowledgeBaseSearchOptions = {}) {
+    const search = new URLSearchParams({ q: query });
+    if (options.limit !== undefined) {
+      search.set("limit", String(options.limit));
+    }
+    if (options.projectId) {
+      search.set("project_id", options.projectId);
+    }
+    if (options.knowledgeScope) {
+      search.set("knowledge_scope", options.knowledgeScope);
+    }
+    if (options.federationScope && options.federationScope.length > 0) {
+      search.set("federation_scope", options.federationScope.join(","));
+    }
+
+    return request<{
+      results: {
+        id: string;
+        title: string;
+        url: string;
+        provider?: string;
+        text?: string;
+        score?: number | null;
+        metadata?: Record<string, unknown>;
+      }[];
+      provider?: string;
+      provider_label?: string;
+      project_id?: string;
+      knowledge_scope?: string;
+      federation_scope?: string[];
+      total?: number;
+    }>(`/knowledge-base/search?${search.toString()}`);
   },
 
   knowledgeBaseReadPage(pageId: string) {
@@ -455,6 +565,25 @@ export const coreClient = {
 
   knowledgeBaseCreatePage(body: { parent_id: string; title: string; content?: string }) {
     return request<{ page_id: string }>("/knowledge-base/pages", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+
+  codestralFillInMiddle(body: {
+    prompt: string;
+    suffix?: string;
+    model?: string;
+    temperature?: number;
+    max_tokens?: number;
+    stop?: string[];
+  }) {
+    return request<{
+      content: string;
+      model: string;
+      provider: string;
+      usage?: Record<string, unknown>;
+    }>("/providers/codestral/fim", {
       method: "POST",
       body: JSON.stringify(body),
     });
@@ -525,6 +654,9 @@ export const coreClient = {
 
   knowledgeScribeRunAndPush(body: {
     messages: { role: string; content: string }[];
+    project_id: string;
+    knowledge_scope?: string;
+    federation_scope?: string[];
     push_to?: string;
     run_id?: string;
   }) {
@@ -682,6 +814,88 @@ export const coreClient = {
       size_bytes?: number;
       run_id: string;
     }>("/mcp/openscad/export", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+
+  kicadGenerateSchematic(body: {
+    requirements: string;
+    library?: string;
+    run_id?: string;
+  }) {
+    return request<{
+      ok: boolean;
+      schematic_path?: string;
+      component_count?: number;
+      net_count?: number;
+      run_id: string;
+    }>("/mcp/kicad/schematic", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+
+  kicadOptimizeLayout(body: {
+    schematic_data: Record<string, unknown>;
+    constraints?: Record<string, unknown>;
+    run_id?: string;
+  }) {
+    return request<{
+      ok: boolean;
+      layout_path?: string;
+      optimization_score?: number;
+      run_id: string;
+    }>("/mcp/kicad/layout", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+
+  kicadCreateFootprint(body: {
+    component_description: string;
+    datasheet_url?: string;
+    run_id?: string;
+  }) {
+    return request<{
+      ok: boolean;
+      footprint_path?: string;
+      pad_count?: number;
+      run_id: string;
+    }>("/mcp/kicad/footprint", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+
+  kicadCheckDRC(body: {
+    layout_data: Record<string, unknown>;
+    rules?: Record<string, unknown>;
+    run_id?: string;
+  }) {
+    return request<{
+      ok: boolean;
+      violations?: Array<Record<string, unknown>>;
+      violation_count?: number;
+      run_id: string;
+    }>("/mcp/kicad/drc", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+
+  kicadExportManufacturing(body: {
+    layout_data: Record<string, unknown>;
+    bom_data?: Record<string, unknown>;
+    format?: string;
+    run_id?: string;
+  }) {
+    return request<{
+      ok: boolean;
+      output_files?: string[];
+      format?: string;
+      run_id: string;
+    }>("/mcp/kicad/manufacturing", {
       method: "POST",
       body: JSON.stringify(body),
     });
@@ -1055,6 +1269,135 @@ export const coreClient = {
       model: string;
       provider: string;
     }>(`/qdrant/collections/${encodeURIComponent(collectionName)}/rag-query`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+
+  // --- Mesh Operations ---
+
+  meshImport(body: { data: string; format: string; run_id?: string }) {
+    return request<{
+      ok: boolean;
+      run_id: string;
+      protocol_version?: string;
+      server_name?: string;
+      message: string;
+      payload: Record<string, unknown>;
+    }>("/mcp/mesh/import", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+
+  meshExport(body: {
+    mesh: Record<string, unknown>;
+    format: string;
+    options?: Record<string, unknown>;
+    run_id?: string;
+  }) {
+    return request<{
+      ok: boolean;
+      run_id: string;
+      protocol_version?: string;
+      server_name?: string;
+      message: string;
+      payload: Record<string, unknown>;
+    }>("/mcp/mesh/export", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+
+  meshSimplify(body: {
+    mesh: Record<string, unknown>;
+    target_ratio: number;
+    preserve_boundaries?: boolean;
+    run_id?: string;
+  }) {
+    return request<{
+      ok: boolean;
+      run_id: string;
+      protocol_version?: string;
+      server_name?: string;
+      message: string;
+      payload: Record<string, unknown>;
+    }>("/mcp/mesh/simplify", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+
+  meshBoolean(body: {
+    mesh_a: Record<string, unknown>;
+    mesh_b: Record<string, unknown>;
+    operation: string;
+    run_id?: string;
+  }) {
+    return request<{
+      ok: boolean;
+      run_id: string;
+      protocol_version?: string;
+      server_name?: string;
+      message: string;
+      payload: Record<string, unknown>;
+    }>("/mcp/mesh/boolean", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+
+  // --- Toolpath Operations ---
+
+  toolpathGenerate(body: {
+    mesh: Record<string, unknown>;
+    tool: Record<string, unknown>;
+    strategy: string;
+    stock?: Record<string, unknown>;
+    run_id?: string;
+  }) {
+    return request<{
+      ok: boolean;
+      run_id: string;
+      gcode: {
+        program: string;
+        estimated_time_s: number;
+        bounds: Record<string, number>;
+        tool_changes: number;
+      };
+      toolpath: {
+        moves: Array<Record<string, unknown>>;
+        unit: string;
+        tool_id: string;
+      };
+    }>("/mcp/toolpath/generate", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+
+  toolpathOptimize(body: {
+    toolpath: Record<string, unknown>;
+    objective: string;
+    constraints?: Record<string, unknown>;
+    run_id?: string;
+  }) {
+    return request<{
+      ok: boolean;
+      run_id: string;
+      toolpath: {
+        moves: Array<Record<string, unknown>>;
+        unit: string;
+        tool_id: string;
+      };
+      gcode: {
+        program: string;
+        estimated_time_s: number;
+        bounds: Record<string, number>;
+        tool_changes: number;
+      };
+      improvement_pct: number;
+    }>("/mcp/toolpath/optimize", {
       method: "POST",
       body: JSON.stringify(body),
     });

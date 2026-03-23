@@ -1,8 +1,6 @@
 """Tests pour le mécanisme de retry de l'orchestrateur."""
 
-import asyncio
 import time
-from unittest.mock import MagicMock
 
 import pytest
 

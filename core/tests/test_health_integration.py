@@ -6,7 +6,6 @@ import time
 import pytest
 
 from mascarade.router.circuit_breaker import CircuitBreaker, CircuitState
-from mascarade.router.health_monitor import HealthMonitor
 from mascarade.router.providers.base import LLMProvider, LLMResponse
 from mascarade.router.router import Router
 
@@ -108,7 +107,7 @@ def test_circuit_breaker_opens_on_failures():
     payload = [{"role": "user", "content": "test"}]
 
     # Send requests that will fail
-    for i in range(5):
+    for _i in range(5):
         try:
             asyncio.run(router.send(payload, strategy="specific", provider="failing"))
         except Exception:
@@ -120,7 +119,7 @@ def test_circuit_breaker_opens_on_failures():
 
     # Additional requests should be blocked
     try:
-        result = asyncio.run(
+        asyncio.run(
             router.send(payload, strategy="specific", provider="failing")
         )
         # If we get here, the circuit didn't block - but router might fallback
@@ -182,7 +181,7 @@ def test_circuit_breaker_recovery():
 
     # Send successful requests - circuit should close
     try:
-        result = asyncio.run(
+        asyncio.run(
             router.send(payload, strategy="specific", provider="recoverable")
         )
         # After successful request in HALF_OPEN, should transition to CLOSED
