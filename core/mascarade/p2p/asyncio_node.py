@@ -54,11 +54,6 @@ class MascaradeP2PNode:
             self._identity,
             reject_unsigned=True,
         )
-        self._dht = P2PDHT(
-            local_peer_id=self._identity.peer_id,
-            transport=self._transport,
-            bootstrap_peers=bootstrap_peers,
-        )
         self._pubsub = P2PPubSub(
             local_peer_id=self._identity.peer_id,
             transport=self._transport,
@@ -66,6 +61,12 @@ class MascaradeP2PNode:
         self._pubsub.enable_authentication(
             self._identity,
             reject_unsigned=True,
+        )
+        self._dht = P2PDHT(
+            local_peer_id=self._identity.peer_id,
+            transport=self._transport,
+            bootstrap_peers=bootstrap_peers,
+            pubsub=self._pubsub,
         )
         self._discovery = P2PDiscovery(
             dht=self._dht,

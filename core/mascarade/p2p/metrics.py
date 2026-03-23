@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import time
 from dataclasses import dataclass, field
@@ -94,6 +95,7 @@ class P2PMetricsCollector:
     def __init__(self, local_peer_id: str) -> None:
         self._local_peer_id = local_peer_id
         self._start_time = time.monotonic()
+        self._lock = asyncio.Lock()
         self._messages_sent = 0
         self._messages_received = 0
         self._bytes_sent = 0
