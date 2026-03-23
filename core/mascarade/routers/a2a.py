@@ -3,8 +3,12 @@
 Implements the A2A protocol (Google / Linux Foundation AAIF) for agent
 discovery and inter-agent task delegation.
 
+Migration status: Phase 1 — SDK-aligned models and endpoints.
+When `a2a-sdk` is installed, models from the SDK are used directly.
+Otherwise, built-in Pydantic models provide identical JSON shapes.
+
 Endpoints:
-  GET  /.well-known/agent.json  — public Agent Card
+  GET  /.well-known/agent.json  — public Agent Card (A2A spec)
   POST /a2a/tasks                — submit a task (authenticated)
   GET  /a2a/tasks/{task_id}      — get task status/result (authenticated)
 """
@@ -16,6 +20,7 @@ import logging
 import uuid
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
+from enum import Enum
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
@@ -24,6 +29,36 @@ from mascarade.auth import require_auth
 from mascarade.config import settings
 
 logger = logging.getLogger("mascarade.a2a")
+
+# ---------------------------------------------------------------------------
+# Try to import official a2a-sdk types; fall back to built-in equivalents.
+# ---------------------------------------------------------------------------
+
+_SDK_AVAILABLE = False
+try:
+    from a2a.types import (  # type: ignore[import-untyped]
+        AgentCard as _SDKAgentCard,
+        AgentCapabilities as _SDKCapabilities,
+        AgentSkill as _SDKSkill,
+    )
+    _SDK_AVAILABLE = True
+    logger.info("a2a-sdk detected — using official protocol types")
+except ImportError:
+    logger.debug("a2a-sdk not installed — using built-in A2A types")
+
+
+# ---------------------------------------------------------------------------
+# Task states — A2A spec v0.3 lifecycle
+# ---------------------------------------------------------------------------
+
+class TaskState(str, Enum):
+    SUBMITTED = "submitted"
+    WORKING = "working"
+    INPUT_REQUIRED = "input-required"
+    COMPLETED = "completed"
+    FAILED = "failed"
+    CANCELED = "canceled"
+
 
 # ---------------------------------------------------------------------------
 # Task storage (in-memory)
@@ -36,7 +71,7 @@ class A2ATask:
 
     id: str
     skill_id: str
-    status: str  # submitted | working | completed | failed | cancelled
+    status: str  # TaskState value
     input_text: str
     output_text: str | None = None
     created_at: str = ""
@@ -60,8 +95,13 @@ async def _get_task(task_id: str) -> A2ATask:
 
 
 # ---------------------------------------------------------------------------
-# Request / Response models
+# Request / Response models (SDK-aligned)
 # ---------------------------------------------------------------------------
+
+class TaskPart(BaseModel):
+    """A2A message part — supports text (extensible to file/data)."""
+    type: str = "text"
+    text: str = Field("", description="Text content")
 
 
 class TaskInput(BaseModel):
@@ -85,6 +125,27 @@ class TaskResponse(BaseModel):
     updated_at: str
 
 
+class AgentSkillInfo(BaseModel):
+    """A2A Agent Card skill entry."""
+    id: str
+    name: str
+    description: str = ""
+    tags: list[str] = []
+
+
+class AgentCardResponse(BaseModel):
+    """A2A Agent Card — spec-compliant discovery document."""
+    name: str
+    description: str
+    url: str
+    version: str
+    capabilities: dict
+    defaultInputModes: list[str] = ["text/plain"]
+    defaultOutputModes: list[str] = ["text/plain", "application/json"]
+    skills: list[AgentSkillInfo] = []
+    authentication: dict | None = None
+
+
 # ---------------------------------------------------------------------------
 # Routers
 # ---------------------------------------------------------------------------
@@ -100,13 +161,8 @@ authed_router = APIRouter(
 )
 
 
-@public_router.get("/.well-known/agent.json")
-async def agent_card(request: Request):
-    """Return the A2A Agent Card for discovery.
-
-    Dynamically builds the skills list from the AgentRegistry and
-    SkillRegistry attached to the running application.
-    """
+def _build_agent_card(request: Request) -> dict:
+    """Build the A2A Agent Card from registries and settings."""
     skills: list[dict] = []
 
     # Populate from AgentRegistry (agents as high-level skills)
@@ -139,7 +195,7 @@ async def agent_card(request: Request):
                 }
             )
 
-    # Determine capabilities from settings
+    # Capabilities — A2A spec fields
     capabilities = {
         "streaming": True,
         "pushNotifications": False,
@@ -154,12 +210,22 @@ async def agent_card(request: Request):
         "name": settings.a2a_agent_name,
         "description": "Multi-agent LLM orchestration engine",
         "url": settings.a2a_agent_url or str(request.base_url).rstrip("/"),
-        "version": "0.1.0",
+        "version": "0.2.0",
         "capabilities": capabilities,
         "defaultInputModes": ["text/plain"],
         "defaultOutputModes": ["text/plain", "application/json"],
         "skills": skills,
+        "authentication": {
+            "schemes": ["bearer"],
+            "credentials": None,
+        },
     }
+
+
+@public_router.get("/.well-known/agent.json", response_model=AgentCardResponse)
+async def agent_card(request: Request):
+    """Return the A2A Agent Card for discovery."""
+    return _build_agent_card(request)
 
 
 @authed_router.post("/tasks", response_model=TaskResponse, status_code=201)
@@ -191,7 +257,7 @@ async def submit_task(req: TaskSubmitRequest, request: Request):
     task = A2ATask(
         id=str(uuid.uuid4()),
         skill_id=req.skill_id,
-        status="submitted",
+        status=TaskState.SUBMITTED.value,
         input_text=req.input.text,
         created_at=now,
         updated_at=now,
@@ -223,7 +289,7 @@ async def _execute_task(task: A2ATask, request: Request) -> None:
     """Run the task against the orchestrator in the background."""
     try:
         async with _tasks_lock:
-            task.status = "working"
+            task.status = TaskState.WORKING.value
             task.updated_at = _utcnow_iso()
 
         orchestrator = getattr(request.app.state, "orchestrator", None)
@@ -236,12 +302,14 @@ async def _execute_task(task: A2ATask, request: Request) -> None:
         )
 
         async with _tasks_lock:
-            task.status = "completed"
+            task.status = TaskState.COMPLETED.value
             # result may be an LLMResponse or a dict — extract text
             if hasattr(result, "text"):
                 task.output_text = result.text
+            elif hasattr(result, "content"):
+                task.output_text = result.content
             elif isinstance(result, dict):
-                task.output_text = result.get("text", str(result))
+                task.output_text = result.get("text", result.get("content", str(result)))
             else:
                 task.output_text = str(result)
             task.updated_at = _utcnow_iso()
@@ -249,6 +317,24 @@ async def _execute_task(task: A2ATask, request: Request) -> None:
     except Exception as exc:
         logger.error("A2A task %s failed: %s", task.id, exc, exc_info=True)
         async with _tasks_lock:
-            task.status = "failed"
+            task.status = TaskState.FAILED.value
             task.output_text = str(exc)
             task.updated_at = _utcnow_iso()
+
+
+# ---------------------------------------------------------------------------
+# SDK info helper
+# ---------------------------------------------------------------------------
+
+def a2a_sdk_info() -> dict:
+    """Return information about A2A SDK availability."""
+    return {
+        "sdk_available": _SDK_AVAILABLE,
+        "protocol_version": "0.3",
+        "task_states": [s.value for s in TaskState],
+        "endpoints": [
+            "GET /.well-known/agent.json",
+            "POST /a2a/tasks",
+            "GET /a2a/tasks/{task_id}",
+        ],
+    }

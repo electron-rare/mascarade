@@ -2849,6 +2849,10 @@ async def device_voice_reply_audio(reply_id: str, request: Request):
 app.include_router(protected)
 app.include_router(cluster_protected)
 
+# OpenAI-compatible audio endpoints for ESP32-S3-BOX-3 (no auth required)
+from mascarade.routers.openai_audio import router as openai_audio_router
+app.include_router(openai_audio_router)
+
 # Mount Ollama-compatible API (fake Ollama backed by Mascarade Router + P2P)
 mount_ollama_compat(app)
 

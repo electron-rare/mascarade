@@ -317,6 +317,8 @@ class McpRuntimeClient:
         }
         self._register_industrial_servers()
         self._register_graphiti_server()
+        self._register_n8n_server()
+        self._register_erpnext_server()
 
     def _register_industrial_servers(self) -> None:
         if not self.agent_factory_cockpit_dir.exists():
@@ -384,6 +386,34 @@ class McpRuntimeClient:
             timeout_s=30.0,
             label="Graphiti Knowledge Graph",
             description="Semantic knowledge graph for entity relationships and episodic memory.",
+        )
+
+    def _register_n8n_server(self) -> None:
+        """Register n8n MCP server if N8N_BASE_URL is set."""
+        n8n_url = os.getenv("N8N_BASE_URL", "")
+        if not n8n_url:
+            return
+        self._servers["n8n"] = McpServerDefinition(
+            key="n8n",
+            transport="http",
+            url=n8n_url.rstrip("/"),
+            timeout_s=30.0,
+            label="n8n Workflow Automation",
+            description="Trigger and manage n8n workflows for lead processing, notifications, and data pipelines.",
+        )
+
+    def _register_erpnext_server(self) -> None:
+        """Register ERPNext MCP server if FRAPPE_URL is set."""
+        frappe_url = os.getenv("FRAPPE_URL", "")
+        if not frappe_url:
+            return
+        self._servers["erpnext"] = McpServerDefinition(
+            key="erpnext",
+            transport="http",
+            url=frappe_url.rstrip("/"),
+            timeout_s=30.0,
+            label="ERPNext CRM",
+            description="CRM and ERP operations: leads, quotations, invoices via Frappe REST API.",
         )
 
     def _server(self, server_key: str) -> McpServerDefinition:

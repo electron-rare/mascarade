@@ -42,7 +42,6 @@ class DomainType(BaseModel):
     def qualified_name(self) -> str:
         return f"{self.domain}.{self.name}"
 
-<<<<<<< HEAD
     @property
     def full_name(self) -> str:
         """Alias for qualified_name."""
@@ -81,15 +80,12 @@ class DomainType(BaseModel):
 
         return True, None
 
-=======
->>>>>>> 5f665b4e0aa455089cb9c38daf63172572990e1c
     model_config = ConfigDict(
         frozen=True,
         protected_namespaces=(),
     )
 
 
-<<<<<<< HEAD
 # --- PortType Union (for rich type descriptors) ---
 
 PortTypeUnion = Union[
@@ -113,8 +109,6 @@ StreamType.model_rebuild()
 # --- PortType (extended to support direction, port_type, optional, default_value) ---
 
 
-=======
->>>>>>> 5f665b4e0aa455089cb9c38daf63172572990e1c
 class PortType(BaseModel):
     """Port type definition for node inputs and outputs."""
 
@@ -128,7 +122,6 @@ class PortType(BaseModel):
         description="Port data type (primitive or domain-specific)",
         min_length=1,
     )
-<<<<<<< HEAD
 
     @model_validator(mode="after")
     def validate_port_fields(self) -> PortType:
@@ -163,8 +156,6 @@ class PortType(BaseModel):
 
         return self
 
-=======
->>>>>>> 5f665b4e0aa455089cb9c38daf63172572990e1c
     required: bool = Field(
         default=True,
         description="Whether this port must be connected",
@@ -200,7 +191,6 @@ class PortType(BaseModel):
         return self.type.startswith("map<")
 
     model_config = ConfigDict(frozen=True)
-<<<<<<< HEAD
 
 
 # --- NodeType (used by executor.py and registry.py) ---
@@ -373,5 +363,3 @@ def void_port(
         optional=optional,
         kind=kind,
     )
-=======
->>>>>>> 5f665b4e0aa455089cb9c38daf63172572990e1c

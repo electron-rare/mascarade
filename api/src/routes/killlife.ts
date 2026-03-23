@@ -8,6 +8,8 @@ import {
   saveWorkflow,
   validateWorkflowDocument,
 } from "../lib/killlife.js";
+import { validate } from "../validation/index.js";
+import { WorkflowRunRequestSchema, type WorkflowRunRequest } from "../validation/schemas.js";
 
 const killlife = new Hono();
 
@@ -69,16 +71,9 @@ killlife.post("/workflows/:id/validate", async (c) => {
   }
 });
 
-killlife.post("/workflows/:id/run", async (c) => {
+killlife.post("/workflows/:id/run", validate(WorkflowRunRequestSchema), async (c) => {
   try {
-    const body = (await c.req.json().catch(() => ({}))) as {
-      mode?: "local" | "github";
-      dry_run?: boolean;
-      inputs?: Record<string, unknown>;
-    };
-    if (!body.mode) {
-      return c.json(badRequest("Field 'mode' is required"), 400);
-    }
+    const body = c.get("validated" as never) as WorkflowRunRequest;
     const result = await runWorkflow(c.req.param("id"), {
       mode: body.mode,
       dry_run: body.dry_run,

@@ -223,3 +223,71 @@ export const PipelineRunRequestSchema = z.object({
 });
 
 export type PipelineRunRequest = z.infer<typeof PipelineRunRequestSchema>;
+
+// ---------------------------------------------------------------------------
+// POST /api/v1/users  (create)
+// ---------------------------------------------------------------------------
+
+export const UserCreateRequestSchema = z.object({
+  username: z.string().min(1).max(128),
+  email: z.string().email().max(256),
+  role_id: z.number().int().min(1).max(10).optional(),
+  password: z.string().min(8).max(256).optional(),
+});
+
+export type UserCreateRequest = z.infer<typeof UserCreateRequestSchema>;
+
+// ---------------------------------------------------------------------------
+// PUT /api/v1/users/:userId  (update)
+// ---------------------------------------------------------------------------
+
+export const UserUpdateRequestSchema = UserCreateRequestSchema.partial();
+
+export type UserUpdateRequest = z.infer<typeof UserUpdateRequestSchema>;
+
+// ---------------------------------------------------------------------------
+// POST /api/v1/users/:userId/api-keys
+// ---------------------------------------------------------------------------
+
+export const ApiKeyCreateRequestSchema = z.object({
+  name: z.string().min(1).max(128).optional(),
+  expires_in_days: z.number().int().min(1).max(365).optional(),
+});
+
+export type ApiKeyCreateRequest = z.infer<typeof ApiKeyCreateRequestSchema>;
+
+// ---------------------------------------------------------------------------
+// POST /api/killlife/workflows/:id/run
+// ---------------------------------------------------------------------------
+
+export const WorkflowRunRequestSchema = z.object({
+  mode: z.enum(["local", "github"]),
+  dry_run: z.boolean().default(false),
+  inputs: z.record(z.string(), z.unknown()).optional(),
+});
+
+export type WorkflowRunRequest = z.infer<typeof WorkflowRunRequestSchema>;
+
+// ---------------------------------------------------------------------------
+// POST /api/v1/finetune/pipeline
+// ---------------------------------------------------------------------------
+
+export const FinetuneRunRequestSchema = z.object({
+  task: z.string().min(1).max(256),
+  domain: z.string().min(1).max(128).optional(),
+  max_model_size_gb: z.coerce.number().positive().finite().optional(),
+});
+
+export type FinetuneRunRequest = z.infer<typeof FinetuneRunRequestSchema>;
+
+// ---------------------------------------------------------------------------
+// POST /api/cluster/forward/send
+// ---------------------------------------------------------------------------
+
+export const ClusterForwardSendRequestSchema = z.object({
+  messages: z.array(MessageSchema).min(1).max(200),
+  target_node: z.string().max(256).optional(),
+  strategy: z.string().max(50).optional(),
+  model: z.string().max(100).optional(),
+  provider: z.string().max(100).optional(),
+});

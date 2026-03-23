@@ -135,6 +135,13 @@ class Settings(BaseSettings):
     apple_llm_timeout_seconds: float = 300.0
     apple_llm_models_json: str = ""
 
+    # Apple Foundation Models (on-device 3B via Swift bridge)
+    afm_enabled: bool = False
+    afm_bridge_url: str = "http://localhost:8090"
+    afm_default_model: str = "apple-fm-3b"
+    afm_timeout_seconds: float = 60.0
+    afm_bridge_path: str = "/usr/local/bin/afm-bridge"
+
     # ComfyUI
     comfyui_url: str = ""
 
@@ -286,10 +293,11 @@ class Settings(BaseSettings):
     dead_letter_max_entries: int = 1000
     dead_letter_retention_seconds: int = 86400
 
-    # A2A (Agent-to-Agent) protocol
+    # A2A (Agent-to-Agent) protocol — spec v0.3
     a2a_enabled: bool = False
     a2a_agent_name: str = "mascarade"
     a2a_agent_url: str = ""
+    a2a_auth_method: str = "bearer"  # bearer | oauth2
 
     # Defaults
     default_provider: str = "claude"
