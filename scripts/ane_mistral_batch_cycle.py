@@ -31,10 +31,13 @@ import time
 from pathlib import Path
 
 try:
-    from mistralai import Mistral
+    from mistralai.client import Mistral
 except ImportError:
-    print("Install mistralai: pip install mistralai")
-    sys.exit(1)
+    try:
+        from mistralai import Mistral
+    except ImportError:
+        print("Install mistralai: pip install mistralai")
+        sys.exit(1)
 
 API_KEY = os.environ.get("MISTRAL_API_KEY", "")
 MODEL = os.environ.get("MISTRAL_MODEL", "mistral-large-latest")
@@ -130,22 +133,11 @@ def cmd_submit() -> str:
     """Submit batch job and return job ID."""
     client = get_client()
 
-    # Write JSONL input
-    input_path = OUTPUT_DIR / "batch_input.jsonl"
-    with open(input_path, "w") as f:
-        for stage in STAGES:
-            f.write(json.dumps(stage) + "\n")
-    print(f"Input written to {input_path} ({len(STAGES)} requests)")
+    print(f"Submitting {len(STAGES)} requests as inline batch")
 
-    # Upload input file
-    with open(input_path, "rb") as f:
-        uploaded = client.files.upload(file={"file_name": "ane_batch_input.jsonl", "content": f})
-    file_id = uploaded.id
-    print(f"Uploaded file: {file_id}")
-
-    # Create batch job
+    # Create batch job with inline requests (no file upload)
     job = client.batch.jobs.create(
-        input_files=[file_id],
+        requests=STAGES,
         model=MODEL,
         endpoint="/v1/chat/completions",
         metadata={"project": "ane-priority-models", "cycle": "priority_models"},
@@ -156,7 +148,7 @@ def cmd_submit() -> str:
     # Save job ID
     state_path = OUTPUT_DIR / "batch_state.json"
     with open(state_path, "w") as f:
-        json.dump({"job_id": job.id, "file_id": file_id, "model": MODEL, "created": time.strftime("%Y-%m-%dT%H:%M:%S")}, f, indent=2)
+        json.dump({"job_id": job.id, "model": MODEL, "created": time.strftime("%Y-%m-%dT%H:%M:%S")}, f, indent=2)
     print(f"State saved to {state_path}")
 
     return job.id
