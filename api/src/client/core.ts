@@ -176,6 +176,38 @@ export interface AgentTemplate {
   tags?: string[];
 }
 
+export type CliAgentName = "vibe" | "codex" | "claude-code";
+
+export interface CliAgentDescriptor {
+  available: boolean;
+  binary: string;
+  provider: string;
+  modes: string[];
+}
+
+export interface CliAgentsStatusResponse {
+  agents: Record<CliAgentName, CliAgentDescriptor>;
+}
+
+export interface CliAgentRunRequest {
+  prompt: string;
+  workdir?: string;
+  agent?: CliAgentName;
+  max_turns?: number;
+  max_price?: number;
+  model?: string;
+  allowed_tools?: string[];
+  full_auto?: boolean;
+}
+
+export interface CliAgentRunResponse {
+  agent: CliAgentName;
+  content: string;
+  model: string;
+  provider: string;
+  usage: Record<string, unknown>;
+}
+
 const REQUEST_TIMEOUT_MS = parseInt(process.env.CORE_TIMEOUT_MS || "30000", 10);
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
@@ -216,8 +248,22 @@ export const coreClient = {
     return request<{ status: string; providers: string[]; agents: number }>("/health");
   },
 
+  cliAgentsStatus() {
+    return request<CliAgentsStatusResponse>("/v1/api/cli-agents/status");
+  },
+
+  runCliAgent(body: CliAgentRunRequest) {
+    return request<CliAgentRunResponse>("/v1/api/cli-agents/run", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+
   send(body: {
     messages: { role: string; content: string }[];
+    project_id: string;
+    knowledge_scope?: string;
+    federation_scope?: string[];
     strategy?: string;
     routing_policy?: string;
     provider?: string;
@@ -233,11 +279,11 @@ export const coreClient = {
   },
 
   listProviders() {
-    return request<{ providers: string[] }>("/providers");
+    return request<{ providers: string[] }>("/v1/api/providers");
   },
 
   providersStatus() {
-    return request<{ providers: ProviderStatus[] }>("/providers/status");
+    return request<{ providers: ProviderStatus[] }>("/v1/api/providers/status");
   },
 
   providerHealth() {
@@ -310,11 +356,11 @@ export const coreClient = {
   },
 
   listAgents() {
-    return request<{ agents: AgentInfo[] }>("/agents");
+    return request<{ agents: AgentInfo[]; total?: number; limit?: number; offset?: number }>("/v1/api/v1/agents");
   },
 
   getAgent(name: string) {
-    return request<AgentInfo>(`/agents/${encodeURIComponent(name)}`);
+    return request<AgentInfo>(`/v1/api/v1/agents/${encodeURIComponent(name)}`);
   },
 
   updateAgent(
@@ -343,10 +389,23 @@ export const coreClient = {
     });
   },
 
-  runAgent(name: string, messages: { role: string; content: string }[]) {
+  runAgent(
+    name: string,
+    messages: { role: string; content: string }[],
+    scope: {
+      projectId: string;
+      knowledgeScope?: string;
+      federationScope?: string[];
+    },
+  ) {
     return request<LLMResponse>(`/agents/${encodeURIComponent(name)}/run`, {
       method: "POST",
-      body: JSON.stringify({ messages }),
+      body: JSON.stringify({
+        messages,
+        project_id: scope.projectId,
+        knowledge_scope: scope.knowledgeScope,
+        federation_scope: scope.federationScope,
+      }),
     });
   },
 
@@ -434,6 +493,9 @@ export const coreClient = {
     system?: string | null;
     temperature?: number;
     max_tokens?: number;
+    project_id?: string;
+    knowledge_scope?: string;
+    federation_scope?: string[];
   }) {
     return request<{
       peer_id: string | null;
@@ -508,6 +570,25 @@ export const coreClient = {
     });
   },
 
+  codestralFillInMiddle(body: {
+    prompt: string;
+    suffix?: string;
+    model?: string;
+    temperature?: number;
+    max_tokens?: number;
+    stop?: string[];
+  }) {
+    return request<{
+      content: string;
+      model: string;
+      provider: string;
+      usage?: Record<string, unknown>;
+    }>("/providers/codestral/fim", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+
   // --- ComfyUI ---
 
   comfyuiStatus() {
@@ -573,6 +654,9 @@ export const coreClient = {
 
   knowledgeScribeRunAndPush(body: {
     messages: { role: string; content: string }[];
+    project_id: string;
+    knowledge_scope?: string;
+    federation_scope?: string[];
     push_to?: string;
     run_id?: string;
   }) {

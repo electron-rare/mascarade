@@ -269,6 +269,9 @@ class AIWorker(NodeWorker):
         max_tokens = config.get("max_tokens", 4096)
         strategy = config.get("strategy", "best")
         routing_policy = config.get("routing_policy")
+        project_id = config.get("project_id") or inputs.get("project_id")
+        federation_scope = config.get("federation_scope") or inputs.get("federation_scope")
+        knowledge_scope = config.get("knowledge_scope") or inputs.get("knowledge_scope", "project")
 
         # Build messages list (simple user message)
         messages = [{"role": "user", "content": prompt}]
@@ -283,6 +286,9 @@ class AIWorker(NodeWorker):
             system=system,
             temperature=temperature,
             max_tokens=max_tokens,
+            project_id=project_id,
+            federation_scope=federation_scope,
+            knowledge_scope=knowledge_scope,
         )
 
         # Return response wrapped in output dict
@@ -319,6 +325,9 @@ class AIWorker(NodeWorker):
 
         # Extract optional inputs
         message_context = inputs.get("context")
+        project_id = config.get("project_id") or inputs.get("project_id")
+        federation_scope = config.get("federation_scope") or inputs.get("federation_scope")
+        knowledge_scope = config.get("knowledge_scope") or inputs.get("knowledge_scope", "project")
 
         # Get agent from registry (raises KeyError if not found)
         agent = self.registry.get(agent_name)
@@ -329,6 +338,9 @@ class AIWorker(NodeWorker):
             router=self.router,
             context=message_context,
             registry=self.registry,
+            project_id=project_id,
+            federation_scope=federation_scope,
+            knowledge_scope=knowledge_scope,
         )
 
         # Return response wrapped in output dict
@@ -376,6 +388,9 @@ class AIWorker(NodeWorker):
         strategy = config.get("strategy", "best")
         routing_policy = config.get("routing_policy")
         domain = config.get("domain")
+        project_id = config.get("project_id") or inputs.get("project_id")
+        federation_scope = config.get("federation_scope") or inputs.get("federation_scope")
+        knowledge_scope = config.get("knowledge_scope") or inputs.get("knowledge_scope", "project")
 
         # Build messages list (simple user message)
         messages = [{"role": "user", "content": prompt}]
@@ -391,6 +406,9 @@ class AIWorker(NodeWorker):
             temperature=temperature,
             max_tokens=max_tokens,
             domain=domain,
+            project_id=project_id,
+            federation_scope=federation_scope,
+            knowledge_scope=knowledge_scope,
         )
 
         # Return stream wrapped in output dict

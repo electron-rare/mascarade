@@ -25,6 +25,7 @@ graph TD
 |----------|---------|
 | **LLM Providers** | 13 providers — Claude, OpenAI, Mistral, Google, HuggingFace, Bedrock, Ollama, llama.cpp, CoreML, MLX, LiteLLM, Exo, KiCad Router |
 | **Agents** | 12 built-in + 4 domain agents (FreeCAD, KiCad, Spice, Components) |
+| **CLI Coding Agents** | Vibe, Codex, Claude Code exposed in the core and API gateway |
 | **Skills** | 10 composable skills — chain-of-thought, structured-output, electronics-domain, etc. |
 | **Routing** | ML routing classifier + rule-based fallback with BERT-based domain classification |
 | **P2P Mesh** | DHT, PubSub, Relay, distributed task queue with NAT traversal |
@@ -78,8 +79,10 @@ mascarade/
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
+| `GET`  | `/api/v1/models` | OpenAI-compatible model catalog |
 | `POST` | `/v1/chat/completions` | OpenAI-compatible chat completions |
 | `POST` | `/api/agents` | Agent CRUD |
+| `GET/POST` | `/api/cli-agents/*` | Status and execution for Vibe, Codex, Claude Code |
 | `POST` | `/api/orchestrate` | Multi-agent orchestration |
 | `GET`  | `/.well-known/agent.json` | A2A Agent Card |
 | `WS`   | `/ws/traces` | Real-time trace stream |
@@ -115,6 +118,8 @@ A2A_ENABLED=true
 - [Specifications Techniques](docs/SPECIFICATIONS_TECHNIQUES.md)
 - [Optimization Roadmap](docs/OPTIMIZATION_ROADMAP_2026.md)
 - [Agent Architecture](docs/AGENT_ARCHITECTURE_ADVANCED.md)
+- [VS Code Assistants Guide](docs/VSCODE_ASSISTANTS_2026-03-22.md)
+- [VS Code Cline + Cody MCP Guide](docs/VSCODE_CLINE_CODY_MCP_2026-03-22.md)
 
 ## Ecosystem
 

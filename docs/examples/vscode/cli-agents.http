@@ -1,0 +1,30 @@
+@baseUrl = http://localhost:3000
+@apiKey = CHANGE_ME
+
+### Statut des assistants CLI
+GET {{baseUrl}}/api/cli-agents/status
+Authorization: Bearer {{apiKey}}
+
+### Lancer Vibe sur le repo courant
+POST {{baseUrl}}/api/cli-agents/run
+Authorization: Bearer {{apiKey}}
+Content-Type: application/json
+
+{
+  "agent": "vibe",
+  "prompt": "Passe en revue le dépôt et propose un petit correctif sûr pour reprendre le chantier.",
+  "workdir": "/Users/electron/Documents/Projets/mascarade",
+  "max_turns": 3
+}
+
+### Lancer Codex sur le repo courant
+POST {{baseUrl}}/api/cli-agents/run
+Authorization: Bearer {{apiKey}}
+Content-Type: application/json
+
+{
+  "agent": "codex",
+  "prompt": "Repère le prochain changement utile pour reprendre l'assistant VS Code et implémente-le proprement.",
+  "workdir": "/Users/electron/Documents/Projets/mascarade",
+  "full_auto": true
+}
