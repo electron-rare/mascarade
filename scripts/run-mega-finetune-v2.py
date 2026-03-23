@@ -28,10 +28,10 @@ model, tokenizer = FastLanguageModel.from_pretrained(
 
 model = FastLanguageModel.get_peft_model(
     model,
-    r=32,  # Higher rank for multi-domain
+    r=32,
     target_modules=["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"],
     lora_alpha=64,
-    lora_dropout=0.05,
+    lora_dropout=0,
     bias="none",
     use_gradient_checkpointing="unsloth",
 )
