@@ -19,6 +19,7 @@ from pydantic import BaseModel
 
 import mascarade.auth as auth_module
 from mascarade.db.models import ApiKey, ApiKeyCreate, User, UserCreate, UserUpdate
+from mascarade.project_scope import normalize_scope
 
 logger = logging.getLogger("mascarade.admin")
 
@@ -555,6 +556,15 @@ async def send_message(request: Request):
     body = await request.json()
     messages = body.get("messages", [])
     strategy = body.get("strategy", "best")
+    try:
+        normalized_project, normalized_federation, normalized_scope = normalize_scope(
+            project_id=body.get("project_id"),
+            federation_scope=body.get("federation_scope"),
+            knowledge_scope=str(body.get("knowledge_scope", "project")),
+            require_project_id=True,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     # Use the app's router to send the message
     app_router = request.app.state.router
@@ -562,5 +572,11 @@ async def send_message(request: Request):
     from mascarade.router.router import Strategy
     strategy_enum = Strategy(strategy) if isinstance(strategy, str) else strategy
 
-    response = await app_router.send(messages, strategy=strategy_enum)
+    response = await app_router.send(
+        messages,
+        strategy=strategy_enum,
+        project_id=normalized_project,
+        federation_scope=normalized_federation,
+        knowledge_scope=normalized_scope,
+    )
     return response

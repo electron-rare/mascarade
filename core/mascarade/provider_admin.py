@@ -65,6 +65,24 @@ PROVIDER_REGISTRY: dict[str, dict] = {
             },
         ],
     },
+    "codestral": {
+        "label": "Mistral Codestral",
+        "classification": "provider-credential",
+        "criticality": "feature-required",
+        "required_when": "Requis seulement si Codestral est active comme provider code/FIM.",
+        "used_by": ["core", "cli-agents", "fim"],
+        "module": "mascarade.router.providers.codestral",
+        "class": "CodestralProvider",
+        "fields": [
+            {
+                "env": "CODESTRAL_API_KEY",
+                "attr": "codestral_api_key",
+                "label": "API Key",
+                "secret": True,
+                "classification": "provider-credential",
+            },
+        ],
+    },
     "google": {
         "label": "Google Gemini",
         "classification": "provider-credential",

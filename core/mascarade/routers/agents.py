@@ -12,6 +12,7 @@ from pydantic import BaseModel, Field
 from mascarade.agents import Agent
 from mascarade.agents.prompt_versioning import PromptHistory, PromptVersion
 from mascarade.auth import require_auth
+from mascarade.project_scope import normalize_scope
 from mascarade.router.router import Strategy
 
 router = APIRouter(prefix="/v1/api", dependencies=[Depends(require_auth)], tags=["agents"])
@@ -72,6 +73,9 @@ class SendRequest(BaseModel):
     response_format: dict | None = Field(default=None)
     temperature: float = Field(default=0.7, ge=0.0, le=2.0)
     max_tokens: int = Field(default=4096, gt=0, le=128000)
+    project_id: str | None = Field(default=None, max_length=256)
+    federation_scope: list[str] | None = None
+    knowledge_scope: Literal["project", "federated"] = "project"
 
 
 # --- Helper functions ---
@@ -336,6 +340,16 @@ async def run_agent(name: str, req: SendRequest, request: Request):
             status_code=404, detail=f"Agent '{name}' not found"
         ) from None
 
+    try:
+        normalized_project, normalized_federation, normalized_scope = normalize_scope(
+            project_id=req.project_id,
+            federation_scope=req.federation_scope,
+            knowledge_scope=req.knowledge_scope,
+            require_project_id=True,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
     messages = [m.model_dump() for m in req.messages]
     prompt = messages[-1]["content"]
     context = messages[:-1] if len(messages) > 1 else None
@@ -345,6 +359,9 @@ async def run_agent(name: str, req: SendRequest, request: Request):
             router=request.app.state.router,
             context=context,
             skill_registry=getattr(request.app.state, "skill_registry", None),
+            project_id=normalized_project,
+            federation_scope=normalized_federation,
+            knowledge_scope=normalized_scope,
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
