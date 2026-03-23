@@ -344,6 +344,7 @@ async def test_run_agent(request, _clean_registry):
             "/api/agents/test-agent/run",
             headers={"Authorization": f"Bearer {TEST_API_KEY}"},
             json={
+                "project_id": "project-alpha",
                 "messages": [
                     {"role": "user", "content": "Hello"}
                 ],
@@ -357,6 +358,7 @@ async def test_run_agent(request, _clean_registry):
     assert body["provider"] == "openai"
     assert body["usage"]["input_tokens"] == 10
     assert body["usage"]["output_tokens"] == 5
+    assert fake_router.calls[0]["project_id"] == "project-alpha"
 
 
 @pytest.mark.asyncio
@@ -381,6 +383,7 @@ async def test_run_agent_with_context(request, _clean_registry):
             "/api/agents/test-agent/run",
             headers={"Authorization": f"Bearer {TEST_API_KEY}"},
             json={
+                "project_id": "project-alpha",
                 "messages": [
                     {"role": "user", "content": "What is 2+2?"},
                     {"role": "assistant", "content": "4"},
@@ -400,6 +403,7 @@ async def test_run_agent_no_messages():
             "/api/agents/test-agent/run",
             headers={"Authorization": f"Bearer {TEST_API_KEY}"},
             json={
+                "project_id": "project-alpha",
                 "messages": [],
             },
         )
@@ -416,6 +420,7 @@ async def test_run_nonexistent_agent():
             "/api/agents/nonexistent-agent/run",
             headers={"Authorization": f"Bearer {TEST_API_KEY}"},
             json={
+                "project_id": "project-alpha",
                 "messages": [
                     {"role": "user", "content": "Hello"}
                 ],
@@ -592,11 +597,39 @@ async def test_run_agent_router_error(request, _clean_registry):
             "/api/agents/error-agent/run",
             headers={"Authorization": f"Bearer {TEST_API_KEY}"},
             json={
+                "project_id": "project-alpha",
                 "messages": [{"role": "user", "content": "Hello"}],
             },
         )
 
     assert response.status_code == 503
+
+
+@pytest.mark.asyncio
+async def test_run_agent_requires_project_id(request, _clean_registry):
+    fake_router = FakeRouter()
+
+    async with _client(fake_router) as client:
+        await client.post(
+            "/api/agents",
+            headers={"Authorization": f"Bearer {TEST_API_KEY}"},
+            json={
+                "name": "test-agent-project",
+                "description": "Test",
+                "system_prompt": "You are helpful",
+            },
+        )
+
+        response = await client.post(
+            "/api/agents/test-agent-project/run",
+            headers={"Authorization": f"Bearer {TEST_API_KEY}"},
+            json={
+                "messages": [{"role": "user", "content": "Hello"}],
+            },
+        )
+
+    assert response.status_code == 400
+    assert "project_id is required" in response.json()["detail"]
 
 
 @pytest.mark.asyncio

@@ -24,6 +24,17 @@ class ProviderKeyUpdate(BaseModel):
     keys: dict[str, str] = Field(description="Map ENV_VAR -> value")
 
 
+class CodestralFIMRequest(BaseModel):
+    """Request model for Codestral Fill-in-the-Middle completions."""
+
+    prompt: str = Field(min_length=1, max_length=200_000)
+    suffix: str = Field(default="", max_length=200_000)
+    model: str | None = Field(default=None, max_length=100)
+    temperature: float = Field(default=0.0, ge=0.0, le=2.0)
+    max_tokens: int = Field(default=1024, ge=1, le=32_768)
+    stop: list[str] | None = Field(default=None, max_length=16)
+
+
 # --- Endpoints ---
 
 
@@ -54,6 +65,32 @@ async def providers_status(request: Request):
         including API key configuration, model availability, and health status
     """
     return {"providers": get_providers_status(request.app.state.router)}
+
+
+@router.post("/providers/codestral/fim")
+async def codestral_fill_in_middle(req: CodestralFIMRequest, request: Request):
+    """Run a Codestral FIM completion through the active router."""
+    try:
+        response = await request.app.state.router.fill_in_middle(
+            req.prompt,
+            suffix=req.suffix,
+            provider="codestral",
+            model=req.model,
+            temperature=req.temperature,
+            max_tokens=req.max_tokens,
+            stop=req.stop,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+    return {
+        "content": response.content,
+        "model": response.model,
+        "provider": response.provider,
+        "usage": response.usage,
+    }
 
 
 @router.put("/providers/{name}/key")

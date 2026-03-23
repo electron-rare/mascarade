@@ -158,6 +158,30 @@ paths:
                 $ref: "#/components/schemas/StatusOk"
 
   # ── Chat Completions ───────────────────────────────────────────────
+  /api/v1/models:
+    get:
+      operationId: listModels
+      tags: [chat]
+      summary: OpenAI-compatible model catalog
+      description: |
+        Returns an OpenAI-style model list built from the live Mascarade
+        provider catalog. This is useful for OpenAI-compatible clients
+        that want to enumerate available model IDs before calling
+        `/api/v1/chat/completions`.
+      responses:
+        "200":
+          description: Available models
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ModelListResponse"
+        "502":
+          description: Core request failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
   /api/v1/chat/completions:
     post:
       operationId: chatCompletions
@@ -166,6 +190,8 @@ paths:
       description: |
         Proxies to the core engine. Supports both synchronous JSON
         responses and Server-Sent Events streaming (`stream: true`).
+        When `project_id` is omitted, the gateway defaults it from
+        `MASCARADE_PROJECT_ID` or falls back to `default`.
       requestBody:
         required: true
         content:
@@ -207,6 +233,30 @@ paths:
                 $ref: "#/components/schemas/Error"
 
   # ── Agents CRUD ────────────────────────────────────────────────────
+  /api/agents/catalog:
+    get:
+      operationId: listAgentCatalog
+      tags: [agents]
+      summary: Unified agent catalog
+      description: |
+        Returns a unified catalog combining Mascarade agents and CLI
+        coding agents. Entries use stable synthetic IDs such as
+        `agent:agent-zero` or `cli-agent:vibe` so clients can render a
+        single picker without merging multiple APIs themselves.
+      responses:
+        "200":
+          description: Available agents
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AgentCatalogResponse"
+        "502":
+          description: Core request failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
   /api/agents:
     get:
       operationId: listAgents
@@ -858,6 +908,99 @@ components:
               type: integer
             total_tokens:
               type: integer
+
+    Model:
+      type: object
+      description: OpenAI-compatible model descriptor enriched with Mascarade metadata
+      properties:
+        id:
+          type: string
+        object:
+          type: string
+          enum: [model]
+        created:
+          type: integer
+        owned_by:
+          type: string
+        provider:
+          type: string
+        providers:
+          type: array
+          items:
+            type: string
+        active:
+          type: boolean
+        configured:
+          type: boolean
+        default:
+          type: boolean
+
+    ModelListResponse:
+      type: object
+      properties:
+        object:
+          type: string
+          enum: [list]
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Model"
+
+    AgentCatalogEntry:
+      type: object
+      properties:
+        id:
+          type: string
+        object:
+          type: string
+          enum: [agent]
+        kind:
+          type: string
+          enum: [mascarade-agent, cli-agent]
+        name:
+          type: string
+        label:
+          type: string
+        description:
+          type: string
+          nullable: true
+        builtin:
+          type: boolean
+        available:
+          type: boolean
+        provider:
+          type: string
+          nullable: true
+        model:
+          type: string
+          nullable: true
+        preferred_provider:
+          type: string
+          nullable: true
+        preferred_model:
+          type: string
+          nullable: true
+        preferred_role:
+          type: string
+          nullable: true
+        binary:
+          type: string
+          nullable: true
+        modes:
+          type: array
+          items:
+            type: string
+
+    AgentCatalogResponse:
+      type: object
+      properties:
+        object:
+          type: string
+          enum: [list]
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/AgentCatalogEntry"
 
     # ── Agents ─────────────────────────────────────────────────────
     Agent:

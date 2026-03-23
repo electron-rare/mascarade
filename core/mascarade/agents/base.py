@@ -56,6 +56,9 @@ class Agent:
         *,
         context: list[dict] | None = None,
         skill_registry: SkillRegistry | None = None,
+        project_id: str | None = None,
+        federation_scope: list[str] | tuple[str, ...] | None = None,
+        knowledge_scope: str = "project",
     ) -> dict[str, object]:
         messages = list(context) if context else []
         messages.append({"role": "user", "content": prompt})
@@ -68,6 +71,9 @@ class Agent:
             "system": self._resolve_system_prompt(skill_registry),
             "temperature": self.temperature,
             "max_tokens": self.max_tokens,
+            "project_id": project_id,
+            "federation_scope": list(federation_scope or []),
+            "knowledge_scope": knowledge_scope,
         }
 
     def _resolve_system_prompt(
@@ -86,6 +92,9 @@ class Agent:
         context: list[dict] | None = None,
         registry: AgentRegistry | None = None,
         skill_registry: SkillRegistry | None = None,
+        project_id: str | None = None,
+        federation_scope: list[str] | tuple[str, ...] | None = None,
+        knowledge_scope: str = "project",
     ) -> LLMResponse:
         """Exécuter l'agent avec un prompt donné."""
         system = self._resolve_system_prompt(skill_registry)
@@ -100,6 +109,9 @@ class Agent:
             system=system,
             temperature=self.temperature,
             max_tokens=self.max_tokens,
+            project_id=project_id,
+            federation_scope=federation_scope,
+            knowledge_scope=knowledge_scope,
         )
 
     async def run_with_history(
@@ -109,6 +121,9 @@ class Agent:
         router: Router,
         registry: AgentRegistry | None = None,
         skill_registry: SkillRegistry | None = None,
+        project_id: str | None = None,
+        federation_scope: list[str] | tuple[str, ...] | None = None,
+        knowledge_scope: str = "project",
     ) -> LLMResponse:
         """Exécuter l'agent avec un historique de messages complet."""
         system = self._resolve_system_prompt(skill_registry)
@@ -121,4 +136,7 @@ class Agent:
             system=system,
             temperature=self.temperature,
             max_tokens=self.max_tokens,
+            project_id=project_id,
+            federation_scope=federation_scope,
+            knowledge_scope=knowledge_scope,
         )

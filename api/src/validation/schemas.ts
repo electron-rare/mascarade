@@ -11,19 +11,87 @@ export const MessageSchema = z.object({
 
 export type Message = z.infer<typeof MessageSchema>;
 
+const KnowledgeScopeSchema = z.enum(["project", "federated"]).default("project");
+const FederationScopeSchema = z.array(z.string().min(1).max(256)).max(32).optional();
+const DEFAULT_PROJECT_ID = (process.env.MASCARADE_PROJECT_ID || "default").trim() || "default";
+
+function withProjectScope<T extends z.ZodRawShape>(shape: T, options?: { defaultProjectId?: string }) {
+  return z.object({
+    ...shape,
+    project_id: options?.defaultProjectId
+      ? z.string().min(1).max(256).default(options.defaultProjectId)
+      : z.string().min(1).max(256),
+    knowledge_scope: KnowledgeScopeSchema,
+    federation_scope: FederationScopeSchema,
+  }).superRefine((value, ctx) => {
+    if (value.knowledge_scope === "federated" && (!value.federation_scope || value.federation_scope.length === 0)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["federation_scope"],
+        message: "federation_scope is required when knowledge_scope is federated",
+      });
+    }
+  });
+}
+
 // ---------------------------------------------------------------------------
 // POST /api/v1/chat/completions
 // ---------------------------------------------------------------------------
 
-export const ChatCompletionRequestSchema = z.object({
-  model: z.string().max(100).optional(),
-  messages: z.array(MessageSchema).min(1).max(200),
-  temperature: z.number().min(0).max(2).default(0.7),
-  max_tokens: z.number().int().min(1).max(128_000).default(4096),
-  stream: z.boolean().default(false),
-});
+export const ChatCompletionRequestSchema = withProjectScope(
+  {
+    model: z.string().max(100).optional(),
+    messages: z.array(MessageSchema).min(1).max(200),
+    strategy: z.enum(["best", "cheapest", "domain", "fastest", "specific", "routellm"]).optional(),
+    routing_policy: z.enum(["auto", "strong", "cheap", "fast"]).optional(),
+    temperature: z.number().min(0).max(2).default(0.7),
+    max_tokens: z.number().int().min(1).max(128_000).default(4096),
+    stream: z.boolean().default(false),
+  },
+  { defaultProjectId: DEFAULT_PROJECT_ID },
+);
 
 export type ChatCompletionRequest = z.infer<typeof ChatCompletionRequestSchema>;
+
+// ---------------------------------------------------------------------------
+// Ollama-compatible shims
+// ---------------------------------------------------------------------------
+
+const OllamaOptionsSchema = z.object({
+  temperature: z.number().min(0).max(2).optional(),
+  num_predict: z.number().int().min(1).max(128_000).optional(),
+}).passthrough();
+
+export const OllamaChatRequestSchema = withProjectScope(
+  {
+    model: z.string().max(100).optional(),
+    messages: z.array(MessageSchema).min(1).max(200),
+    stream: z.boolean().default(true),
+    format: z.union([z.literal("json"), z.record(z.string(), z.unknown())]).optional(),
+    options: OllamaOptionsSchema.optional(),
+    strategy: z.enum(["best", "cheapest", "domain", "fastest", "specific", "routellm"]).optional(),
+    routing_policy: z.enum(["auto", "strong", "cheap", "fast"]).optional(),
+  },
+  { defaultProjectId: DEFAULT_PROJECT_ID },
+);
+
+export type OllamaChatRequest = z.infer<typeof OllamaChatRequestSchema>;
+
+export const OllamaGenerateRequestSchema = withProjectScope(
+  {
+    model: z.string().max(100).optional(),
+    prompt: z.string().min(1).max(100_000),
+    system: z.string().max(10_000).optional(),
+    stream: z.boolean().default(true),
+    format: z.union([z.literal("json"), z.record(z.string(), z.unknown())]).optional(),
+    options: OllamaOptionsSchema.optional(),
+    strategy: z.enum(["best", "cheapest", "domain", "fastest", "specific", "routellm"]).optional(),
+    routing_policy: z.enum(["auto", "strong", "cheap", "fast"]).optional(),
+  },
+  { defaultProjectId: DEFAULT_PROJECT_ID },
+);
+
+export type OllamaGenerateRequest = z.infer<typeof OllamaGenerateRequestSchema>;
 
 // ---------------------------------------------------------------------------
 // POST /api/v1/agents  (create)
@@ -56,7 +124,7 @@ export type AgentUpdateRequest = z.infer<typeof AgentUpdateRequestSchema>;
 // POST /api/v1/agents/send
 // ---------------------------------------------------------------------------
 
-export const SendRequestSchema = z.object({
+export const SendRequestSchema = withProjectScope({
   messages: z.array(MessageSchema).min(1).max(200),
   strategy: z.string().max(50).optional(),
   routing_policy: z.string().max(50).optional(),
@@ -75,10 +143,18 @@ export type SendRequest = z.infer<typeof SendRequestSchema>;
 
 export const KnowledgeBaseSearchSchema = z.object({
   q: z.string().min(1).max(1000),
-  limit: z.number().int().min(1).max(200).optional(),
-  project_id: z.string().max(256).optional(),
-  knowledge_scope: z.string().max(256).optional(),
+  limit: z.coerce.number().int().min(1).max(200).optional(),
+  project_id: z.string().min(1).max(256),
+  knowledge_scope: KnowledgeScopeSchema,
   federation_scope: z.string().max(1000).optional(),
+}).superRefine((value, ctx) => {
+  if (value.knowledge_scope === "federated" && !value.federation_scope?.trim()) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["federation_scope"],
+      message: "federation_scope is required when knowledge_scope is federated",
+    });
+  }
 });
 
 export type KnowledgeBaseSearch = z.infer<typeof KnowledgeBaseSearchSchema>;
@@ -87,11 +163,55 @@ export type KnowledgeBaseSearch = z.infer<typeof KnowledgeBaseSearchSchema>;
 // POST /api/v1/agents/:name/run
 // ---------------------------------------------------------------------------
 
-export const AgentRunRequestSchema = z.object({
+export const AgentRunRequestSchema = withProjectScope({
   messages: z.array(MessageSchema).min(1).max(200),
 });
 
 export type AgentRunRequest = z.infer<typeof AgentRunRequestSchema>;
+
+// ---------------------------------------------------------------------------
+// POST /api/cli-agents/run
+// ---------------------------------------------------------------------------
+
+export const CliAgentNameSchema = z.enum(["vibe", "codex", "claude-code"]);
+
+export type CliAgentName = z.infer<typeof CliAgentNameSchema>;
+
+export const CliAgentRunRequestSchema = z.object({
+  prompt: z.string().min(1).max(100_000),
+  workdir: z.string().max(500).optional(),
+  agent: CliAgentNameSchema.default("claude-code"),
+  max_turns: z.number().int().min(1).max(100).default(20),
+  max_price: z.number().min(0).max(50).default(2),
+  model: z.string().max(50).default("sonnet"),
+  allowed_tools: z.array(z.string().min(1).max(100)).max(64).optional(),
+  full_auto: z.boolean().default(true),
+});
+
+export type CliAgentRunRequest = z.infer<typeof CliAgentRunRequestSchema>;
+
+// ---------------------------------------------------------------------------
+// POST /api/providers/codestral/fim
+// ---------------------------------------------------------------------------
+
+export const CodestralFIMRequestSchema = z.object({
+  prompt: z.string().min(1).max(200_000),
+  suffix: z.string().max(200_000).default(""),
+  model: z.string().max(100).optional(),
+  temperature: z.number().min(0).max(2).default(0),
+  max_tokens: z.number().int().min(1).max(32_768).default(1024),
+  stop: z.array(z.string().min(1).max(200)).max(16).optional(),
+});
+
+export type CodestralFIMRequest = z.infer<typeof CodestralFIMRequestSchema>;
+
+export const KnowledgeScribeRunAndPushRequestSchema = withProjectScope({
+  messages: z.array(MessageSchema).min(1).max(200),
+  push_to: z.string().max(512).optional(),
+  run_id: z.string().max(256).optional(),
+});
+
+export type KnowledgeScribeRunAndPushRequest = z.infer<typeof KnowledgeScribeRunAndPushRequestSchema>;
 
 // ---------------------------------------------------------------------------
 // POST /api/v1/pipeline/run

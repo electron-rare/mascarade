@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 import httpx
 import pytest
@@ -20,6 +20,18 @@ class FakeRouter:
     def __init__(self, available_providers: list[str] | None = None):
         self.available_providers = available_providers or ["openai", "anthropic", "ollama"]
         self._providers = {}
+        self.fill_in_middle = AsyncMock(
+            return_value=type(
+                "Response",
+                (),
+                {
+                    "content": "    return total\n",
+                    "model": "codestral-latest",
+                    "provider": "codestral",
+                    "usage": {},
+                },
+            )()
+        )
 
     def get_provider(self, name: str):
         """Get a provider by name."""
@@ -246,6 +258,42 @@ async def test_provider_endpoints_require_auth():
         response = await client.get("/api/providers")
 
     assert response.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_codestral_fim_endpoint():
+    fake_router = FakeRouter(available_providers=["codestral"])
+
+    async with _client(fake_router) as client:
+        response = await client.post(
+            "/api/providers/codestral/fim",
+            headers={"Authorization": f"Bearer {TEST_API_KEY}"},
+            json={
+                "prompt": "def add(a, b):\n",
+                "suffix": "\nresult = add(1, 2)\n",
+                "max_tokens": 64,
+            },
+        )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["provider"] == "codestral"
+    assert "return total" in body["content"]
+    fake_router.fill_in_middle.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_codestral_fim_validation_error():
+    fake_router = FakeRouter(available_providers=["codestral"])
+
+    async with _client(fake_router) as client:
+        response = await client.post(
+            "/api/providers/codestral/fim",
+            headers={"Authorization": f"Bearer {TEST_API_KEY}"},
+            json={"prompt": "", "suffix": ""},
+        )
+
+    assert response.status_code == 422
 
 
 @pytest.mark.asyncio
