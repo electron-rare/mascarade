@@ -7,16 +7,13 @@ import hashlib
 import json
 import logging
 import secrets
-from contextlib import asynccontextmanager
-from datetime import datetime
 import time
 from contextlib import asynccontextmanager
 from dataclasses import asdict
+from datetime import datetime
 from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, FastAPI, HTTPException, Query, Request
-from fastapi.responses import StreamingResponse
-from pydantic import BaseModel, ConfigDict, Field
 from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel, Field
 
@@ -43,15 +40,18 @@ from mascarade.db.models import (
     UserCreate,
     UserUpdate,
 )
+from mascarade.device_voice import (
+    DeviceVoiceService,
+)
 from mascarade.integrations.comfyui import ComfyUIClient
 from mascarade.integrations.knowledge_base import (
     knowledge_base_auth_configured,
     knowledge_base_status_detail,
 )
-from mascarade.integrations.qdrant_client import QdrantClient
 from mascarade.mcp import McpCallError, McpRuntimeClient, McpServerUnavailable
 from mascarade.mcp.client import McpError
 from mascarade.observability import AgentTraceBuffer, iso_utc_now, new_run_id
+from mascarade.ollama_compat import mount_ollama_compat
 from mascarade.orchestrator import Orchestrator
 from mascarade.orchestrator.engine import ExecutionMode
 from mascarade.orchestrator.templates import (
@@ -63,11 +63,6 @@ from mascarade.provider_admin import (
     get_providers_status,
     update_provider_keys,
 )
-from mascarade.device_voice import (
-    DevicePlayerEvent,
-    DeviceVoiceService,
-)
-from mascarade.ollama_compat import mount_ollama_compat
 from mascarade.router import Router
 from mascarade.router.router import Strategy
 from mascarade.usage_tracking import get_all_usage_stats
@@ -668,7 +663,9 @@ async def chat_completions(req: ChatCompletionRequest):
                 logger.warning("Chat completions streaming failed: %s", exc)
                 # For streaming errors, we can't raise HTTPException
                 # Send an error in SSE format
-                error_data = {"error": {"message": str(exc), "type": "invalid_request_error"}}
+                error_data = {
+                    "error": {"message": str(exc), "type": "invalid_request_error"}
+                }
                 yield f"data: {json.dumps(error_data)}\n\n"
 
             # Send [DONE] marker
@@ -1038,7 +1035,7 @@ async def update_user(
                 )
 
             # Always update updated_at
-            updates.append(f"updated_at = NOW()")
+            updates.append("updated_at = NOW()")
             params.append(user_id)
 
             query = f"""
@@ -1367,7 +1364,9 @@ async def send(req: SendRequest):
         )
     except ValueError as exc:
         logger.warning("Send request rejected: %s", exc)
-        raise HTTPException(status_code=400, detail="Invalid request parameters") from exc
+        raise HTTPException(
+            status_code=400, detail="Invalid request parameters"
+        ) from exc
     return {
         "content": response.content,
         "model": response.model,
@@ -1454,7 +1453,6 @@ async def prometheus_metrics():
     """Expose Prometheus metrics for scraping — no auth required."""
     try:
         from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
-
         from starlette.responses import Response
 
         return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
@@ -1539,7 +1537,9 @@ async def get_agent(name: str):
     try:
         agent = app.state.registry.get(name)
     except KeyError:
-        raise HTTPException(status_code=404, detail=f"Agent '{name}' not found") from None
+        raise HTTPException(
+            status_code=404, detail=f"Agent '{name}' not found"
+        ) from None
     return _serialize_agent(agent)
 
 
@@ -1548,7 +1548,9 @@ async def update_agent(name: str, req: AgentUpdate, request: Request):
     try:
         agent = app.state.registry.get(name)
     except KeyError:
-        raise HTTPException(status_code=404, detail=f"Agent '{name}' not found") from None
+        raise HTTPException(
+            status_code=404, detail=f"Agent '{name}' not found"
+        ) from None
     if app.state.registry.is_builtin(name):
         raise HTTPException(
             status_code=403,
@@ -1602,7 +1604,9 @@ async def delete_agent(name: str):
     try:
         agent = app.state.registry.get(name)
     except KeyError:
-        raise HTTPException(status_code=404, detail=f"Agent '{name}' not found") from None
+        raise HTTPException(
+            status_code=404, detail=f"Agent '{name}' not found"
+        ) from None
     if app.state.registry.is_builtin(name):
         raise HTTPException(
             status_code=403,
@@ -1622,7 +1626,9 @@ async def run_agent(name: str, req: SendRequest):
     try:
         agent = app.state.registry.get(name)
     except KeyError:
-        raise HTTPException(status_code=404, detail=f"Agent '{name}' not found") from None
+        raise HTTPException(
+            status_code=404, detail=f"Agent '{name}' not found"
+        ) from None
 
     messages = [m.model_dump() for m in req.messages]
     prompt = messages[-1]["content"]
@@ -1641,7 +1647,9 @@ async def get_agent_metrics(name: str):
     try:
         agent = app.state.registry.get(name)
     except KeyError:
-        raise HTTPException(status_code=404, detail=f"Agent '{name}' not found") from None
+        raise HTTPException(
+            status_code=404, detail=f"Agent '{name}' not found"
+        ) from None
     return app.state.registry.agent_metrics(name)
 
 
@@ -1708,7 +1716,9 @@ async def get_template(template_id: str):
     try:
         template = app.state.template_registry.get(template_id)
     except KeyError as exc:
-        raise HTTPException(status_code=404, detail=f"Template not found: {template_id}") from exc
+        raise HTTPException(
+            status_code=404, detail=f"Template not found: {template_id}"
+        ) from exc
     return {
         "id": template.id,
         "name": template.name,
@@ -1727,7 +1737,9 @@ async def deploy_template(template_id: str, req: TemplateDeployRequest):
     try:
         template = app.state.template_registry.get(template_id)
     except KeyError as exc:
-        raise HTTPException(status_code=404, detail=f"Template not found: {template_id}") from exc
+        raise HTTPException(
+            status_code=404, detail=f"Template not found: {template_id}"
+        ) from exc
 
     # Merge template routing_overrides with request overrides (request takes precedence)
     routing_overrides = {}
@@ -1824,7 +1836,9 @@ async def cluster_node_send(req: SendRequest):
         )
     except ValueError as exc:
         logger.warning("Cluster send request rejected: %s", exc)
-        raise HTTPException(status_code=400, detail="Invalid request parameters") from exc
+        raise HTTPException(
+            status_code=400, detail="Invalid request parameters"
+        ) from exc
 
     return {
         "node_id": settings.node_id,
@@ -1900,12 +1914,12 @@ async def get_cost_analytics(
                 "request_count": 0,
             }
 
-        input_tokens = event.token_usage.get("input_tokens", 0) or event.token_usage.get(
-            "prompt_tokens", 0
-        )
-        output_tokens = event.token_usage.get("output_tokens", 0) or event.token_usage.get(
-            "completion_tokens", 0
-        )
+        input_tokens = event.token_usage.get(
+            "input_tokens", 0
+        ) or event.token_usage.get("prompt_tokens", 0)
+        output_tokens = event.token_usage.get(
+            "output_tokens", 0
+        ) or event.token_usage.get("completion_tokens", 0)
 
         # Calculate cost for this event
         cost = cost_calc.calculate_cost(
@@ -2041,7 +2055,9 @@ def _require_knowledge_base() -> McpRuntimeClient:
 @protected.get("/knowledge-base/search")
 async def knowledge_base_search(q: str):
     if len(q) > 1000:
-        raise HTTPException(status_code=400, detail="Search query too long (max 1000 chars)")
+        raise HTTPException(
+            status_code=400, detail="Search query too long (max 1000 chars)"
+        )
     client = _require_knowledge_base()
     try:
         payload = await client.knowledge_base_search(
@@ -2122,7 +2138,9 @@ async def run_knowledge_scribe_and_push(req: KnowledgeScribeRequest):
     try:
         agent = app.state.registry.get("knowledge-scribe")
     except KeyError:
-        raise HTTPException(status_code=404, detail="Agent 'knowledge-scribe' not found") from None
+        raise HTTPException(
+            status_code=404, detail="Agent 'knowledge-scribe' not found"
+        ) from None
 
     messages = [m.model_dump() for m in req.messages]
     prompt = messages[-1]["content"]
@@ -2290,7 +2308,9 @@ async def freecad_run_script(req: FreeCADRunScriptRequest):
 
 
 @protected.get("/mcp/openscad/runtime")
-async def openscad_runtime_info(run_id: str | None = Query(default=None, max_length=64)):
+async def openscad_runtime_info(
+    run_id: str | None = Query(default=None, max_length=64)
+):
     client = _require_mcp_client()
     trace_run_id = run_id or new_run_id()
     try:
@@ -2363,7 +2383,9 @@ async def industrial_mcp_servers():
     client = _require_mcp_client()
     return {
         "items": [
-            item for item in client.list_servers() if item.get("key") in INDUSTRIAL_MCP_SERVER_KEYS
+            item
+            for item in client.list_servers()
+            if item.get("key") in INDUSTRIAL_MCP_SERVER_KEYS
         ]
     }
 
@@ -2371,7 +2393,9 @@ async def industrial_mcp_servers():
 @protected.get("/mcp/industrial/{server_key}/runtime")
 async def industrial_mcp_runtime(server_key: str):
     if server_key not in INDUSTRIAL_MCP_SERVER_KEYS:
-        raise HTTPException(status_code=404, detail=f"Unknown industrial MCP server '{server_key}'")
+        raise HTTPException(
+            status_code=404, detail=f"Unknown industrial MCP server '{server_key}'"
+        )
     client = _require_mcp_client()
     try:
         payload = await _industrial_runtime_payload(client, server_key)
@@ -2383,7 +2407,9 @@ async def industrial_mcp_runtime(server_key: str):
 @protected.get("/mcp/industrial/{server_key}/resource")
 async def industrial_mcp_resource(server_key: str, uri: str = Query(..., min_length=1)):
     if server_key not in INDUSTRIAL_MCP_SERVER_KEYS:
-        raise HTTPException(status_code=404, detail=f"Unknown industrial MCP server '{server_key}'")
+        raise HTTPException(
+            status_code=404, detail=f"Unknown industrial MCP server '{server_key}'"
+        )
     client = _require_mcp_client()
     try:
         return await client.read_resource(server_key, uri)
@@ -2395,10 +2421,15 @@ async def industrial_mcp_resource(server_key: str, uri: str = Query(..., min_len
 async def industrial_mcp_platform():
     client = _require_mcp_client()
     inventory = [
-        item for item in client.list_servers() if item.get("key") in INDUSTRIAL_MCP_SERVER_KEYS
+        item
+        for item in client.list_servers()
+        if item.get("key") in INDUSTRIAL_MCP_SERVER_KEYS
     ]
     runtime_results = await asyncio.gather(
-        *(_industrial_runtime_payload(client, str(item.get("key", ""))) for item in inventory),
+        *(
+            _industrial_runtime_payload(client, str(item.get("key", "")))
+            for item in inventory
+        ),
         return_exceptions=True,
     )
     servers: list[dict[str, Any]] = []
@@ -2441,13 +2472,19 @@ async def industrial_mcp_platform():
 
     try:
         topology = await client.read_resource("cockpit-ops", "cockpit://topology")
-        topology_payload = topology.get("payload", {}) if isinstance(topology, dict) else {}
+        topology_payload = (
+            topology.get("payload", {}) if isinstance(topology, dict) else {}
+        )
     except (McpCallError, McpServerUnavailable):
         topology_payload = {}
     try:
-        vendor_contracts = await client.read_resource("cockpit-ops", "cockpit://vendor-contracts")
+        vendor_contracts = await client.read_resource(
+            "cockpit-ops", "cockpit://vendor-contracts"
+        )
         vendor_contracts_payload = (
-            vendor_contracts.get("payload", {}) if isinstance(vendor_contracts, dict) else {}
+            vendor_contracts.get("payload", {})
+            if isinstance(vendor_contracts, dict)
+            else {}
         )
     except (McpCallError, McpServerUnavailable):
         vendor_contracts_payload = {}
@@ -2457,7 +2494,9 @@ async def industrial_mcp_platform():
         "summary": {
             "server_count": len(servers),
             "runtime_ok_count": sum(1 for item in servers if item.get("runtime_ok")),
-            "runtime_error_count": sum(1 for item in servers if not item.get("runtime_ok")),
+            "runtime_error_count": sum(
+                1 for item in servers if not item.get("runtime_ok")
+            ),
             "topology_valid": bool(topology_payload.get("valid", False)),
             "vendor_contract_ready_count": int(
                 vendor_contracts_payload.get("summary", {}).get("ready_count", 0) or 0
@@ -2483,7 +2522,9 @@ def _industrial_contract_uri(server_key: str) -> str | None:
     return f"{server_key}://contract"
 
 
-async def _industrial_runtime_payload(client: McpRuntimeClient, server_key: str) -> dict[str, Any]:
+async def _industrial_runtime_payload(
+    client: McpRuntimeClient, server_key: str
+) -> dict[str, Any]:
     payload = await client.describe_server(server_key)
     health_uri = _industrial_health_uri(server_key)
     try:
@@ -2498,7 +2539,9 @@ async def _industrial_runtime_payload(client: McpRuntimeClient, server_key: str)
     if contract_uri:
         try:
             contract = await client.read_resource(server_key, contract_uri)
-            contract_payload = contract.get("payload") if isinstance(contract, dict) else None
+            contract_payload = (
+                contract.get("payload") if isinstance(contract, dict) else None
+            )
             if isinstance(contract_payload, dict):
                 payload["contract"] = contract_payload
         except (McpCallError, McpServerUnavailable):
@@ -2507,9 +2550,13 @@ async def _industrial_runtime_payload(client: McpRuntimeClient, server_key: str)
 
 
 @protected.post("/mcp/industrial/{server_key}/tools/{tool_name}")
-async def industrial_mcp_tool(server_key: str, tool_name: str, req: IndustrialMcpToolRequest):
+async def industrial_mcp_tool(
+    server_key: str, tool_name: str, req: IndustrialMcpToolRequest
+):
     if server_key not in INDUSTRIAL_MCP_SERVER_KEYS:
-        raise HTTPException(status_code=404, detail=f"Unknown industrial MCP server '{server_key}'")
+        raise HTTPException(
+            status_code=404, detail=f"Unknown industrial MCP server '{server_key}'"
+        )
     client = _require_mcp_client()
     trace_run_id = req.run_id or new_run_id()
     try:
@@ -2541,7 +2588,9 @@ async def industrial_mcp_tool(server_key: str, tool_name: str, req: IndustrialMc
 
 def _require_comfyui() -> ComfyUIClient:
     if app.state.comfyui is None:
-        raise HTTPException(status_code=503, detail="ComfyUI non configure (COMFYUI_URL manquant)")
+        raise HTTPException(
+            status_code=503, detail="ComfyUI non configure (COMFYUI_URL manquant)"
+        )
     return app.state.comfyui
 
 
@@ -2583,7 +2632,9 @@ async def comfyui_generate(req: ComfyUIGenerateRequest):
 @protected.post("/comfyui/workflow")
 async def comfyui_workflow(req: ComfyUIWorkflowRequest):
     if not req.workflow or not isinstance(req.workflow, dict):
-        raise HTTPException(status_code=400, detail="Workflow must be a non-empty object")
+        raise HTTPException(
+            status_code=400, detail="Workflow must be a non-empty object"
+        )
     if len(str(req.workflow)) > 500_000:
         raise HTTPException(status_code=400, detail="Workflow payload too large")
     client = _require_comfyui()
@@ -2599,13 +2650,14 @@ async def comfyui_history(prompt_id: str):
 
 @protected.get("/comfyui/image")
 async def comfyui_image(filename: str, subfolder: str = "", type: str = "output"):
-    from fastapi.responses import Response
 
     client = _require_comfyui()
     try:
         image_data = await client.get_image(filename, subfolder, type)
     except ValueError:
-        raise HTTPException(status_code=400, detail="Invalid image path parameters") from None
+        raise HTTPException(
+            status_code=400, detail="Invalid image path parameters"
+        ) from None
     return Response(content=image_data, media_type="image/png")
 
 
@@ -2829,7 +2881,8 @@ async def metrics():
         from starlette.responses import Response as _RawResponse
 
         return _RawResponse(
-            content=generate_latest(REGISTRY), media_type="text/plain; version=0.0.4; charset=utf-8"
+            content=generate_latest(REGISTRY),
+            media_type="text/plain; version=0.0.4; charset=utf-8",
         )
     except ImportError:
         raise HTTPException(status_code=501, detail="prometheus_client not installed")

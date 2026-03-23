@@ -32,11 +32,7 @@ ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 
 # P2P peers to forward to when model is unavailable locally
-P2P_PEERS = [
-    p.strip()
-    for p in os.getenv("P2P_PEERS", "").split(",")
-    if p.strip()
-]
+P2P_PEERS = [p.strip() for p in os.getenv("P2P_PEERS", "").split(",") if p.strip()]
 
 # ── Provider registry ────────────────────────────────────────────────
 
@@ -46,15 +42,24 @@ if MISTRAL_API_KEY:
     PROVIDERS["mistral"] = {
         "base_url": MISTRAL_BASE_URL,
         "api_key": MISTRAL_API_KEY,
-        "models": ["mistral-large-latest", "mistral-small-latest", "codestral-latest",
-                    "mistral-medium-latest", "devstral-latest", "magistral-medium-latest"],
+        "models": [
+            "mistral-large-latest",
+            "mistral-small-latest",
+            "codestral-latest",
+            "mistral-medium-latest",
+            "devstral-latest",
+            "magistral-medium-latest",
+        ],
     }
 if ANTHROPIC_API_KEY:
     PROVIDERS["claude"] = {
         "base_url": "https://api.anthropic.com",
         "api_key": ANTHROPIC_API_KEY,
-        "models": ["claude-sonnet-4-20250514", "claude-opus-4-20250514",
-                    "claude-3-5-sonnet-20241022"],
+        "models": [
+            "claude-sonnet-4-20250514",
+            "claude-opus-4-20250514",
+            "claude-3-5-sonnet-20241022",
+        ],
     }
 if OPENAI_API_KEY:
     PROVIDERS["openai"] = {
@@ -67,6 +72,7 @@ logger.info("Providers: %s", list(PROVIDERS.keys()))
 
 
 # ── Mistral HTTP client (no SDK) ────────────────────────────────────
+
 
 async def mistral_chat(
     messages: list[dict],
@@ -122,6 +128,7 @@ async def mistral_chat(
 
 # ── P2P forwarding ──────────────────────────────────────────────────
 
+
 async def try_p2p_forward(
     messages: list[dict],
     model: str,
@@ -138,7 +145,10 @@ async def try_p2p_forward(
                         "model": model,
                         "messages": messages,
                         "stream": False,
-                        "options": {"temperature": temperature, "num_predict": max_tokens},
+                        "options": {
+                            "temperature": temperature,
+                            "num_predict": max_tokens,
+                        },
                     },
                 )
                 if resp.status_code == 200:
@@ -151,6 +161,7 @@ async def try_p2p_forward(
 
 
 # ── Resolve model to provider ───────────────────────────────────────
+
 
 def resolve_model(model_name: str) -> tuple[str, str]:
     """Resolve 'provider:model' or plain model name → (provider, model)."""
@@ -186,6 +197,7 @@ async def health():
 
 # ── Ollama-compatible API ───────────────────────────────────────────
 
+
 @app.get("/api/tags")
 @app.get("/ollama/api/tags")
 async def ollama_tags():
@@ -193,20 +205,22 @@ async def ollama_tags():
     models = []
     for pname, pinfo in PROVIDERS.items():
         for model in pinfo["models"]:
-            models.append({
-                "name": f"{pname}:{model}",
-                "model": model,
-                "modified_at": "2026-01-01T00:00:00Z",
-                "size": 0,
-                "digest": "",
-                "details": {
-                    "parent_model": "",
-                    "format": "gguf",
-                    "family": pname,
-                    "parameter_size": "unknown",
-                    "quantization_level": "none",
-                },
-            })
+            models.append(
+                {
+                    "name": f"{pname}:{model}",
+                    "model": model,
+                    "modified_at": "2026-01-01T00:00:00Z",
+                    "size": 0,
+                    "digest": "",
+                    "details": {
+                        "parent_model": "",
+                        "format": "gguf",
+                        "family": pname,
+                        "parameter_size": "unknown",
+                        "quantization_level": "none",
+                    },
+                }
+            )
     return {"models": models}
 
 
@@ -235,29 +249,44 @@ async def ollama_chat(request: Request):
 
     if provider == "mistral":
         if stream:
-            data = await mistral_chat(messages, model, temperature, max_tokens, stream=True)
+            data = await mistral_chat(
+                messages, model, temperature, max_tokens, stream=True
+            )
 
             async def _ollama_stream():
                 async for chunk in data:
                     try:
                         parsed = json.loads(chunk)
-                        content = parsed.get("choices", [{}])[0].get("delta", {}).get("content", "")
+                        content = (
+                            parsed.get("choices", [{}])[0]
+                            .get("delta", {})
+                            .get("content", "")
+                        )
                         if content:
-                            yield json.dumps({
-                                "model": model,
-                                "message": {"role": "assistant", "content": content},
-                                "done": False,
-                            }) + "\n"
+                            yield json.dumps(
+                                {
+                                    "model": model,
+                                    "message": {
+                                        "role": "assistant",
+                                        "content": content,
+                                    },
+                                    "done": False,
+                                }
+                            ) + "\n"
                     except json.JSONDecodeError:
                         continue
-                yield json.dumps({
-                    "model": model,
-                    "message": {"role": "assistant", "content": ""},
-                    "done": True,
-                    "total_duration": int((time.time() - t0) * 1e9),
-                }) + "\n"
+                yield json.dumps(
+                    {
+                        "model": model,
+                        "message": {"role": "assistant", "content": ""},
+                        "done": True,
+                        "total_duration": int((time.time() - t0) * 1e9),
+                    }
+                ) + "\n"
 
-            return StreamingResponse(_ollama_stream(), media_type="application/x-ndjson")
+            return StreamingResponse(
+                _ollama_stream(), media_type="application/x-ndjson"
+            )
 
         data = await mistral_chat(messages, model, temperature, max_tokens)
         choice = data.get("choices", [{}])[0]
@@ -279,7 +308,9 @@ async def ollama_chat(request: Request):
     if result:
         return result
 
-    raise HTTPException(503, f"Provider '{provider}' chat not implemented locally. Use P2P.")
+    raise HTTPException(
+        503, f"Provider '{provider}' chat not implemented locally. Use P2P."
+    )
 
 
 @app.post("/api/generate")
@@ -300,16 +331,19 @@ async def ollama_version():
 
 # ── OpenAI-compatible API (bonus) ───────────────────────────────────
 
+
 @app.get("/v1/models")
 async def openai_models():
     models = []
     for pname, pinfo in PROVIDERS.items():
         for model in pinfo["models"]:
-            models.append({
-                "id": f"{pname}:{model}",
-                "object": "model",
-                "owned_by": pname,
-            })
+            models.append(
+                {
+                    "id": f"{pname}:{model}",
+                    "object": "model",
+                    "owned_by": pname,
+                }
+            )
     return {"object": "list", "data": models}
 
 

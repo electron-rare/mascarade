@@ -31,6 +31,7 @@ ollama_router = APIRouter(prefix="/ollama", tags=["ollama-compat"])
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _get_router(request: Request):
     """Get the Mascarade Router from app state."""
     return request.app.state.router
@@ -84,6 +85,7 @@ def _extract_options(body: dict) -> dict[str, Any]:
 # / — health check (Ollama returns "Ollama is running")
 # ---------------------------------------------------------------------------
 
+
 @ollama_router.get("/")
 async def root():
     return PlainTextResponse("Ollama is running")
@@ -98,6 +100,7 @@ async def version():
 # /api/tags — list models
 # ---------------------------------------------------------------------------
 
+
 @ollama_router.get("/api/tags")
 async def list_models(request: Request):
     """Return available models in Ollama ``/api/tags`` format."""
@@ -105,26 +108,29 @@ async def list_models(request: Request):
     models: list[dict] = []
     for provider_name, provider_models in router.provider_model_map().items():
         for m in provider_models:
-            models.append({
-                "name": f"{provider_name}:{m}" if provider_name != "ollama" else m,
-                "model": m,
-                "modified_at": "2026-01-01T00:00:00Z",
-                "size": 0,
-                "digest": "",
-                "details": {
-                    "parent_model": "",
-                    "format": "gguf",
-                    "family": provider_name,
-                    "parameter_size": "",
-                    "quantization_level": "",
-                },
-            })
+            models.append(
+                {
+                    "name": f"{provider_name}:{m}" if provider_name != "ollama" else m,
+                    "model": m,
+                    "modified_at": "2026-01-01T00:00:00Z",
+                    "size": 0,
+                    "digest": "",
+                    "details": {
+                        "parent_model": "",
+                        "format": "gguf",
+                        "family": provider_name,
+                        "parameter_size": "",
+                        "quantization_level": "",
+                    },
+                }
+            )
     return {"models": models}
 
 
 # ---------------------------------------------------------------------------
 # /api/chat — chat completion
 # ---------------------------------------------------------------------------
+
 
 @ollama_router.post("/api/chat")
 async def chat_completion(request: Request):
@@ -159,22 +165,24 @@ async def chat_completion(request: Request):
 
     # Non-streaming
     response = await router.send(**send_kwargs)
-    return JSONResponse({
-        "model": model_spec,
-        "created_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-        "message": {
-            "role": "assistant",
-            "content": response.content,
-        },
-        "done": True,
-        "done_reason": "stop",
-        "total_duration": 0,
-        "load_duration": 0,
-        "prompt_eval_count": response.usage.get("input_tokens", 0),
-        "prompt_eval_duration": 0,
-        "eval_count": response.usage.get("output_tokens", 0),
-        "eval_duration": 0,
-    })
+    return JSONResponse(
+        {
+            "model": model_spec,
+            "created_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            "message": {
+                "role": "assistant",
+                "content": response.content,
+            },
+            "done": True,
+            "done_reason": "stop",
+            "total_duration": 0,
+            "load_duration": 0,
+            "prompt_eval_count": response.usage.get("input_tokens", 0),
+            "prompt_eval_duration": 0,
+            "eval_count": response.usage.get("output_tokens", 0),
+            "eval_duration": 0,
+        }
+    )
 
 
 async def _stream_chat(router, send_kwargs: dict, model_spec: str):
@@ -222,6 +230,7 @@ async def _stream_chat(router, send_kwargs: dict, model_spec: str):
 # /api/generate — text completion (legacy)
 # ---------------------------------------------------------------------------
 
+
 @ollama_router.post("/api/generate")
 async def generate_completion(request: Request):
     """Ollama-compatible ``/api/generate`` endpoint."""
@@ -252,18 +261,20 @@ async def generate_completion(request: Request):
         )
 
     response = await router.send(**send_kwargs)
-    return JSONResponse({
-        "model": model_spec,
-        "created_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-        "response": response.content,
-        "done": True,
-        "done_reason": "stop",
-        "context": [],
-        "total_duration": 0,
-        "load_duration": 0,
-        "prompt_eval_count": response.usage.get("input_tokens", 0),
-        "eval_count": response.usage.get("output_tokens", 0),
-    })
+    return JSONResponse(
+        {
+            "model": model_spec,
+            "created_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            "response": response.content,
+            "done": True,
+            "done_reason": "stop",
+            "context": [],
+            "total_duration": 0,
+            "load_duration": 0,
+            "prompt_eval_count": response.usage.get("input_tokens", 0),
+            "eval_count": response.usage.get("output_tokens", 0),
+        }
+    )
 
 
 async def _stream_generate(router, send_kwargs: dict, model_spec: str):
@@ -282,41 +293,47 @@ async def _stream_generate(router, send_kwargs: dict, model_spec: str):
         yield json.dumps({"error": str(exc), "done": True}) + "\n"
         return
 
-    yield json.dumps({
-        "model": model_spec,
-        "created_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-        "response": "",
-        "done": True,
-        "done_reason": "stop",
-    }) + "\n"
+    yield json.dumps(
+        {
+            "model": model_spec,
+            "created_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            "response": "",
+            "done": True,
+            "done_reason": "stop",
+        }
+    ) + "\n"
 
 
 # ---------------------------------------------------------------------------
 # /api/show — model info (stub)
 # ---------------------------------------------------------------------------
 
+
 @ollama_router.post("/api/show")
 async def show_model(request: Request):
     body = await request.json()
     model = body.get("name", body.get("model", "unknown"))
-    return JSONResponse({
-        "modelfile": f"# Mascarade proxy for {model}",
-        "parameters": "",
-        "template": "",
-        "details": {
-            "parent_model": "",
-            "format": "mascarade",
-            "family": "mascarade",
-            "parameter_size": "varies",
-            "quantization_level": "N/A",
-        },
-        "model_info": {},
-    })
+    return JSONResponse(
+        {
+            "modelfile": f"# Mascarade proxy for {model}",
+            "parameters": "",
+            "template": "",
+            "details": {
+                "parent_model": "",
+                "format": "mascarade",
+                "family": "mascarade",
+                "parameter_size": "varies",
+                "quantization_level": "N/A",
+            },
+            "model_info": {},
+        }
+    )
 
 
 # ---------------------------------------------------------------------------
 # /api/pull, /api/delete — no-ops
 # ---------------------------------------------------------------------------
+
 
 @ollama_router.post("/api/pull")
 async def pull_model(request: Request):
@@ -334,6 +351,7 @@ async def delete_model(request: Request):
 # ---------------------------------------------------------------------------
 # Mount helper & standalone mode
 # ---------------------------------------------------------------------------
+
 
 def mount_ollama_compat(app: FastAPI) -> None:
     """Include the Ollama-compat router in the main FastAPI app.

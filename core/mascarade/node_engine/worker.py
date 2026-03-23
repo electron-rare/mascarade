@@ -1,4 +1,8 @@
-"""Interface abstraite pour les workers Node."""
+"""Abstract interface for Node Engine domain workers.
+
+Each domain worker (AI, CAD, Electronics, Hardware) implements this interface
+to provide graph-executable node types within their domain.
+"""
 
 from __future__ import annotations
 
@@ -22,18 +26,15 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger("mascarade.node_engine")
 
-# Exceptions transitoires communes pour workers
 RETRYABLE_WORKER_EXCEPTIONS = (ConnectionError, TimeoutError, OSError)
 
 
 def make_worker_retry(*extra_exceptions: type[BaseException]):
-    """Créer un décorateur retry avec exceptions spécifiques au worker."""
+    """Create a retry decorator with worker-specific exceptions."""
     return retry(
         stop=stop_after_attempt(3),
         wait=wait_exponential(multiplier=1, min=1, max=10),
-        retry=retry_if_exception_type(
-            RETRYABLE_WORKER_EXCEPTIONS + tuple(extra_exceptions)
-        ),
+        retry=retry_if_exception_type(RETRYABLE_WORKER_EXCEPTIONS + tuple(extra_exceptions)),
         before_sleep=before_sleep_log(logger, logging.WARNING),
         reraise=True,
     )
@@ -41,7 +42,7 @@ def make_worker_retry(*extra_exceptions: type[BaseException]):
 
 @dataclass
 class NodeCapability:
-    """Declares what a worker can do — used for routing and scheduling."""
+    """Declares what a worker can do -- used for routing and scheduling."""
 
     node_types: list[str]
     domain: str
@@ -51,81 +52,19 @@ class NodeCapability:
     requires_gpu: bool = False
     requires_hardware: bool = False
     estimated_memory_mb: int = 256
-"""Abstract interface for Node Engine domain workers.
-
-Each domain worker (AI, CAD, Electronics, Hardware) implements this interface
-to provide graph-executable node types within their domain.
-"""
-
-from __future__ import annotations
-
-from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Any
-
-if TYPE_CHECKING:
-    pass
 
 
 class NodeWorker(ABC):
-    """
-    Interface commune pour tous les workers Node.
-
-    Circuit Breaker Support:
-        Les méthodes execute() sont protégées par un circuit breaker
-        pour prévenir les pannes en cascade. Le circuit breaker est automatiquement
-        appliqué par le Node Engine lors des appels aux workers.
-
-        États du circuit breaker:
-        - CLOSED: Fonctionnement normal
-        - OPEN: Échecs répétés, appels rejetés immédiatement
-        - HALF_OPEN: Test de récupération
-
-        Configuration par défaut: fail_max=5, timeout=60s
-    Abstract interface for domain-specific node workers.
+    """Abstract interface for domain-specific node workers.
 
     Domain workers execute nodes within the graph runtime. Each worker is responsible
     for a specific domain (e.g., "ai", "cad", "electronics") and provides a set of
     node types that can be composed into graphs.
-
-    Workers are registered with the GraphRuntime via the NodeWorkerRegistry.
-    At execution time, the runtime dispatches node execution requests to the
-    appropriate worker based on the node's domain.
-
-    Attributes:
-        name: Unique identifier for this worker (e.g., "ai-worker")
-        domain: Domain this worker handles (e.g., "ai", "cad")
-
-    Example:
-        ```python
-        class AIWorker(NodeWorker):
-            name = "ai-worker"
-            domain = "ai"
-
-            async def execute(self, node_type, inputs, config, context):
-                if node_type == "ai.llm-inference":
-                    return await self._llm_inference(inputs, config)
-                raise ValueError(f"Unknown node type: {node_type}")
-
-            async def validate(self, node_type, inputs, config):
-                errors = []
-                if node_type == "ai.llm-inference" and "prompt" not in inputs:
-                    errors.append("Missing required input: prompt")
-                return errors
-
-            def capabilities(self):
-                return {
-                    "node_types": ["ai.llm-inference", "ai.llm-stream"],
-                    "domain": "ai",
-                    "supports_streaming": True,
-                    "max_concurrent": 10,
-                }
-        ```
     """
 
     name: str
     domain: str
 
-    # Circuit breaker instance (set by Node Engine or CircuitBreakerManager)
     circuit_breaker: "CircuitBreaker | None" = None
 
     @abstractmethod
@@ -136,36 +75,20 @@ class NodeWorker(ABC):
         config: dict[str, Any],
         context: "ExecutionContext",
     ) -> dict[str, Any]:
-        """
-        Exécuter un node avec les inputs fournis.
-
-        Note: Cette méthode est protégée par un circuit breaker au niveau
-        du Node Engine pour prévenir les pannes en cascade. Le circuit s'ouvre
-        après 5 échecs consécutifs et rejette les appels pendant 60s avant
-        de tester la récupération.
+        """Execute a node of the given type with provided inputs and configuration.
 
         Args:
-            node_type: Identifiant du type de node
-            inputs: Valeurs des ports d'entrée (par ID de port)
-            config: Configuration spécifique au node
-            context: Contexte d'exécution avec métadonnées et annulation
+            node_type: Fully qualified node type (e.g., "ai.llm-inference")
+            inputs: Dictionary of input port values keyed by port name
+            config: Node configuration parameters
+            context: Execution context for the current graph run
 
         Returns:
-            Valeurs des ports de sortie (par ID de port)
-
-        Raises:
-            CircuitBreakerError: Si le circuit breaker est ouvert
-            ConnectionError: Erreur de connexion
-            TimeoutError: Timeout de l'exécution
-            ValueError: Inputs ou configuration invalides
-        context: Any,
-    ) -> dict[str, Any]:
+            Dictionary of output port values keyed by port name
         """
-<<<<<<< HEAD
-        raise NotImplementedError(
-            f"execute() not implemented for {self.__class__.__name__}"
-        )
+        ...
 
+    @abstractmethod
     async def validate(
         self,
         node_type: str,
@@ -174,97 +97,25 @@ class NodeWorker(ABC):
     ) -> list[str]:
         """Validate node inputs and configuration before execution.
 
-        Called during graph validation to catch errors early. This allows
-        validation errors to be reported before execution begins.
-
-        Args:
-            node_type: Fully qualified node type (e.g., "ai.agent-dispatch")
-            inputs: Dictionary of input port values to validate
-            config: Node configuration parameters to validate
-
         Returns:
             List of validation error messages. Empty list if validation passes.
         """
-        return []
+        ...
 
-    def capabilities(self) -> NodeCapability | WorkerCapabilities | dict[str, Any]:
-        """Declare worker capabilities for the registry.
-
-        The runtime uses this information for scheduling, resource management,
-        and feature discovery.
-
-        Returns:
-            NodeCapability, WorkerCapabilities, or dict with capability metadata.
-            Required keys (if dict): node_types (list[str]), domain (str).
-        """
-        raise NotImplementedError(
-            f"capabilities() not implemented for {self.__class__.__name__}"
-        )
+    @abstractmethod
+    def capabilities(self) -> NodeCapability:
+        """Declare worker capabilities for the registry."""
+        ...
 
     @property
     def is_available(self) -> bool:
-        """Check if the worker is available for execution.
-
-        The runtime uses this to determine whether to include this worker
-        in the active worker pool. Workers may be unavailable due to
-        missing API keys, required services being offline, or hardware
-        not connected.
-
-        Returns:
-            True if worker is ready to execute nodes, False otherwise.
-        """
+        """Check if the worker is available for execution."""
         return True
 
-    def on_init(self, context: Any) -> None:
-        """Lifecycle hook: called when a graph execution starts.
-
-        Optional override for workers that need to initialize resources,
-        establish connections, or load models at the start of execution.
-
-        Args:
-            context: Execution context with graph/run metadata
-        """
+    def on_init(self, context: "ExecutionContext") -> None:
+        """Lifecycle hook: called when a graph execution starts."""
         pass
 
-    def on_destroy(self, context: Any) -> None:
-        """Lifecycle hook: called when a graph execution completes.
-
-        Optional override for workers that need to release resources,
-        close connections, or flush buffers at the end of execution.
-
-        Args:
-            context: Execution context with graph/run metadata
-        """
+    def on_destroy(self, context: "ExecutionContext") -> None:
+        """Lifecycle hook: called when a graph execution completes."""
         pass
-
-    async def initialize(self) -> None:
-        """Initialize the worker (optional override)."""
-        raise NotImplementedError(
-            f"initialize() not implemented for {self.__class__.__name__}"
-        )
-
-    async def shutdown(self) -> None:
-        """Shutdown the worker (optional override)."""
-        raise NotImplementedError(
-            f"shutdown() not implemented for {self.__class__.__name__}"
-        )
-
-    async def _check_tool(self, tool_name: str) -> bool:
-        """Check if an external tool is available in PATH."""
-        try:
-            proc = await asyncio.create_subprocess_exec(
-                "which",
-                tool_name,
-                stdout=asyncio.subprocess.DEVNULL,
-                stderr=asyncio.subprocess.DEVNULL,
-            )
-            await proc.wait()
-            return proc.returncode == 0
-        except Exception:
-            return False
-
-
-# Re-export ExecutionContext and NodeResult for convenience
-# (some code imports them from worker module)
-=======
->>>>>>> 5f665b4e0aa455089cb9c38daf63172572990e1c
