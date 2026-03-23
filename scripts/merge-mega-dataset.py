@@ -41,6 +41,21 @@ DATASETS = [
     (f"{HF}/eda_verilog_200k.jsonl", "verilog-eda", "raw"),
     (f"{HF}/verilog_github.jsonl", "verilog-github", "raw"),
     (f"{HF}/simple_circuit_schematic.jsonl", "circuit-theory", "raw"),
+    # New batch — semiconductor, datasheet, FPGA, RTLCoder
+    (f"{HF}/semiconductor_instructions.jsonl", "semiconductor", "raw"),
+    (f"{HF}/semiconductor_chat.jsonl", "semiconductor", "raw"),
+    (f"{HF}/wipo_semiconductors.jsonl", "semiconductor-patents", "raw"),
+    (f"{HF}/electronic_datasheet.jsonl", "datasheet", "raw"),
+    (f"{HF}/semiconductor_datasheet_json.jsonl", "datasheet", "raw"),
+    (f"{HF}/fpga_verilog_qa.jsonl", "fpga", "raw"),
+    (f"{HF}/fpga_general.jsonl", "fpga", "raw"),
+    (f"{HF}/hls_fpga.jsonl", "fpga-hls", "raw"),
+    (f"{HF}/fpga_designs.jsonl", "fpga", "raw"),
+    (f"{HF}/lasers_semiconductors_physics.jsonl", "semiconductor-physics", "raw"),
+    (f"{HF}/semiconductor_scirepeval.jsonl", "semiconductor", "raw"),
+    (f"{HF}/rtlcoder2.jsonl", "verilog", "raw"),
+    (f"{HF}/rtlcoder3.jsonl", "verilog", "instruction"),
+    (f"{HF}/verireason_combined.jsonl", "verilog-reasoning", "instruction"),
 ]
 
 
