@@ -1,4 +1,4 @@
-"""KiCad MCP server definitions for external tool integration."""
+"""KiCad + SPICE MCP server definitions for external tool integration."""
 
 from __future__ import annotations
 
@@ -52,6 +52,20 @@ KICAD_MCP_SERVERS: dict[str, KiCadMcpServer] = {
         command=("python3", "-m", "kicad_mcp_server"),
         install_cmd="pip install kicad-mcp-server",
         tools=["open_project", "run_drc", "export_gerbers", "place_component", "route_trace"],
+    ),
+    "spicebridge": KiCadMcpServer(
+        key="spicebridge",
+        description="SPICEBridge — 28 tools for ngspice simulation, netlist creation, analysis, Monte Carlo",
+        repo="https://github.com/clanker-lover/spicebridge",
+        command=("python3", "-m", "spicebridge.server"),
+        install_cmd="pip install spicebridge",
+        tools=[
+            "create_circuit", "validate_netlist", "run_ac_analysis", "run_dc_analysis",
+            "run_transient_analysis", "measure_bandwidth", "measure_gain",
+            "measure_power", "measure_time_domain", "monte_carlo_analysis",
+            "worst_case_analysis", "export_kicad", "export_png", "export_svg",
+            "connect_stages", "create_from_template",
+        ],
     ),
 }
 
