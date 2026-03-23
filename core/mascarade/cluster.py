@@ -1021,7 +1021,13 @@ class ClusterManager:
         payload = dict(request_data)
         provided_token = str(payload.pop("__cluster_token", "")).strip()
         expected_token = settings.cluster_shared_key.strip()
-        if expected_token:
+        # SEC-01: Reject if a token was provided but cluster_shared_key is unconfigured
+        # (prevents auth bypass when key is accidentally empty)
+        if not expected_token:
+            if provided_token:
+                raise HTTPException(status_code=401, detail="Cluster auth not configured on this node")
+            logger.warning("P2P send handler: no cluster_shared_key configured, accepting unauthenticated request")
+        else:
             if not provided_token or not hmac.compare_digest(
                 provided_token.encode(), expected_token.encode(),
             ):

@@ -540,6 +540,15 @@ def update_provider_keys(
 
 
 def _persist_env(updates: dict[str, str]) -> None:
+    # SEC-02: Re-validate each key against the global provider allowlist
+    # to prevent .env writes of arbitrary env vars via crafted payloads.
+    all_valid_envs: set[str] = set()
+    for meta in PROVIDER_REGISTRY.values():
+        all_valid_envs |= valid_provider_envs(meta)
+    for key in updates:
+        if key not in all_valid_envs:
+            raise ValueError(f"Refusing to persist unknown env key: {key}")
+
     env_path = Path(".env")
     lines: list[str] = []
 
