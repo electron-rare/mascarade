@@ -1,7 +1,3 @@
-"""Universal Node Engine — Core type system.
-
-Defines the port type hierarchy used across all domain workers.
-Modeled on the Pydantic validation patterns used throughout Mascarade core.
 """Core type system for the Universal Node Engine.
 
 Defines DomainType and PortType models that form the foundation for
@@ -10,106 +6,13 @@ domain-specific type registration and node port validation.
 
 from __future__ import annotations
 
-from enum import StrEnum
-from typing import Any, Literal, Union
-
-from pydantic import BaseModel, Field
-
-
-class PrimitiveType(StrEnum):
-    STRING = "string"
-    NUMBER = "number"
-    INTEGER = "integer"
-    BOOLEAN = "boolean"
-    BINARY = "binary"
-    JSON = "json"
-    VOID = "void"
-
-
-class ArrayType(BaseModel):
-    kind: Literal["array"] = "array"
-    element: "PortType"
-
-
-class MapType(BaseModel):
-    kind: Literal["map"] = "map"
-    key: PrimitiveType
-    value: "PortType"
-
-
-class OptionalType(BaseModel):
-    kind: Literal["optional"] = "optional"
-    inner: "PortType"
-
-
-class UnionType(BaseModel):
-    kind: Literal["union"] = "union"
-    variants: list["PortType"]
-
-
-class StreamType(BaseModel):
-    kind: Literal["stream"] = "stream"
-    element: "PortType"
-
-
-class DomainType(BaseModel):
-    model_config = {"populate_by_name": True}
-
-    kind: Literal["domain"] = "domain"
-    domain: str
-    name: str
-    schema_def: dict[str, Any] = Field(default_factory=dict, alias="schema")
-
-
-PortType = Union[
-    PrimitiveType, ArrayType, MapType, OptionalType,
-    UnionType, StreamType, DomainType,
-]
-
-# Required for Pydantic forward reference resolution
-ArrayType.model_rebuild()
-MapType.model_rebuild()
-OptionalType.model_rebuild()
-UnionType.model_rebuild()
-StreamType.model_rebuild()
-
-
-class NodePortDefinition(BaseModel):
-    """Definition of a single input or output port on a node."""
-
-    id: str
-    label: str
-    type: PortType
-    required: bool = True
-    default: Any = None
-    description: str = ""
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class DomainType(BaseModel):
-    """Domain-specific type definition with JSON schema validation.
-
-    Domain types extend the base type system with domain-specific structures
-    (e.g., "ai" domain defines LLMResponse, EmbeddingVector, etc.). They are
-    registered with the NodeTypeRegistry at worker startup.
-
-    Example:
-        >>> domain_type = DomainType(
-        ...     domain="ai",
-        ...     name="LLMResponse",
-        ...     schema={
-        ...         "type": "object",
-        ...         "properties": {
-        ...             "content": {"type": "string"},
-        ...             "model": {"type": "string"},
-        ...             "provider": {"type": "string"},
-        ...         },
-        ...         "required": ["content", "model", "provider"],
-        ...     },
-        ... )
-    """
+    """Domain-specific type definition with JSON schema validation."""
 
     domain: str = Field(
         ...,
@@ -118,7 +21,7 @@ class DomainType(BaseModel):
     )
     name: str = Field(
         ...,
-        description="Type name within the domain (e.g., 'LLMResponse', 'EmbeddingVector')",
+        description="Type name within the domain (e.g., 'LLMResponse')",
         min_length=1,
     )
     schema: dict[str, Any] = Field(
@@ -129,7 +32,6 @@ class DomainType(BaseModel):
     @field_validator("schema")
     @classmethod
     def validate_schema(cls, v: dict[str, Any]) -> dict[str, Any]:
-        """Validate that schema is a valid JSON Schema object."""
         if not isinstance(v, dict):
             raise ValueError("schema must be a dictionary")
         if "type" not in v:
@@ -138,36 +40,16 @@ class DomainType(BaseModel):
 
     @property
     def qualified_name(self) -> str:
-        """Return the fully qualified type name (domain.name)."""
         return f"{self.domain}.{self.name}"
 
     model_config = ConfigDict(
-        frozen=True,  # Make instances immutable
-        protected_namespaces=(),  # Allow 'schema' field (shadows BaseModel.schema)
+        frozen=True,
+        protected_namespaces=(),
     )
 
 
 class PortType(BaseModel):
-    """Port type definition for node inputs and outputs.
-
-    Ports define the data interface of a node. Each port has a type
-    (primitive like 'string' or domain-specific like 'ai.LLMResponse'),
-    a name, and validation constraints.
-
-    Example:
-        >>> input_port = PortType(
-        ...     name="prompt",
-        ...     type="string",
-        ...     required=True,
-        ...     description="The user prompt to send to the LLM",
-        ... )
-        >>> output_port = PortType(
-        ...     name="response",
-        ...     type="ai.LLMResponse",
-        ...     required=True,
-        ...     description="Complete LLM response with metadata",
-        ... )
-    """
+    """Port type definition for node inputs and outputs."""
 
     name: str = Field(
         ...,
@@ -176,51 +58,41 @@ class PortType(BaseModel):
     )
     type: str = Field(
         ...,
-        description=(
-            "Port data type. Can be primitive (string, number, boolean, array<T>, "
-            "map<K,V>) or domain-specific (domain.TypeName, e.g., 'ai.LLMResponse')"
-        ),
+        description="Port data type (primitive or domain-specific)",
         min_length=1,
     )
     required: bool = Field(
         default=True,
-        description="Whether this port must be connected (inputs) or always produces a value (outputs)",
+        description="Whether this port must be connected",
     )
     description: str | None = Field(
         default=None,
-        description="Human-readable description of the port's purpose",
+        description="Human-readable description of the port",
     )
 
     @field_validator("type")
     @classmethod
     def validate_type(cls, v: str) -> str:
-        """Validate port type format."""
         if not v or not v.strip():
             raise ValueError("type cannot be empty")
-        # Basic validation — detailed type checking happens at graph validation time
         return v.strip()
 
     @property
     def is_primitive(self) -> bool:
-        """Check if this port uses a primitive type (not domain-specific)."""
         primitives = {"string", "number", "integer", "boolean", "json", "void"}
-        # Check for base type (before generics like array<T>)
         base_type = self.type.split("<")[0].split(".")[0]
         return base_type in primitives
 
     @property
     def is_stream(self) -> bool:
-        """Check if this port is a stream type."""
         return self.type.startswith("stream<")
 
     @property
     def is_array(self) -> bool:
-        """Check if this port is an array type."""
         return self.type.startswith("array<")
 
     @property
     def is_map(self) -> bool:
-        """Check if this port is a map type."""
         return self.type.startswith("map<")
 
-    model_config = ConfigDict(frozen=True)  # Make instances immutable
+    model_config = ConfigDict(frozen=True)
