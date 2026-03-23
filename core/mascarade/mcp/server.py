@@ -196,6 +196,23 @@ def _tool_result_json(obj: Any, *, is_error: bool = False) -> dict[str, Any]:
 # Server
 # ---------------------------------------------------------------------------
 
+def _register_initial_agents(
+    registry: AgentRegistry,
+    register_defaults: Any | None = None,
+) -> int:
+    """Populate the registry with the built-in agents exposed over MCP."""
+    if register_defaults is None:
+        try:
+            from mascarade.agents.skills import register_default_skills
+        except ImportError:
+            logger.debug("No default skills module found — starting with empty registry")
+            return 0
+        register_defaults = register_default_skills
+
+    register_defaults(registry)
+    return len(registry.list())
+
+
 class McpServer:
     """Stdio-based MCP server exposing mascarade capabilities.
 
@@ -609,12 +626,7 @@ def main() -> None:
     router = Router()
     registry = AgentRegistry()
 
-    # Auto-register builtin agents if the helper exists
-    try:
-        from mascarade.agents.builtins import register_builtins
-        register_builtins(registry)
-    except ImportError:
-        logger.debug("No builtin agents module found — starting with empty registry")
+    agent_count = _register_initial_agents(registry)
 
     orchestrator = Orchestrator(router=router, registry=registry)
 
@@ -625,10 +637,11 @@ def main() -> None:
     )
 
     logger.info(
-        "Starting %s v%s (protocol %s)",
+        "Starting %s v%s (protocol %s, agents=%s)",
         SERVER_NAME,
         SERVER_VERSION,
         PROTOCOL_VERSION,
+        agent_count,
     )
 
     asyncio.run(server.run_stdio())

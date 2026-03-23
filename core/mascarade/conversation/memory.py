@@ -7,6 +7,8 @@ from typing import TYPE_CHECKING
 
 import redis.asyncio as redis
 
+from mascarade.project_scope import normalize_scope, scoped_resource_key
+
 if TYPE_CHECKING:
     from mascarade.conversation.models import Conversation, ConversationMessage
 
@@ -28,7 +30,7 @@ class ConversationMemory:
     async def connect(self) -> None:
         """Establish Redis connection."""
         if self._redis is None:
-            self._redis = await redis.from_url(
+            self._redis = redis.from_url(
                 self.redis_url,
                 encoding="utf-8",
                 decode_responses=True,
@@ -40,15 +42,20 @@ class ConversationMemory:
             await self._redis.aclose()
             self._redis = None
 
-    def _conversation_key(self, conversation_id: str) -> str:
+    def _conversation_key(self, conversation_id: str, *, project_id: str | None = None) -> str:
         """Generate Redis key for a conversation."""
-        return f"conversation:{conversation_id}"
+        return scoped_resource_key(
+            "conversation",
+            conversation_id,
+            project_id=project_id,
+        )
 
     async def store_message(
         self,
         conversation_id: str,
         message: ConversationMessage,
         ttl: int | None = None,
+        project_id: str | None = None,
     ) -> None:
         """Store a message in a conversation.
 
@@ -63,7 +70,8 @@ class ConversationMemory:
         from mascarade.conversation.models import Conversation
 
         # Get existing conversation or create new one
-        conversation = await self.get_conversation(conversation_id)
+        normalized_project, _, _ = normalize_scope(project_id=project_id)
+        conversation = await self.get_conversation(conversation_id, project_id=normalized_project)
         if conversation is None:
             conversation = Conversation(
                 id=conversation_id,
@@ -74,13 +82,18 @@ class ConversationMemory:
         conversation.add_message(message)
 
         # Store in Redis
-        key = self._conversation_key(conversation_id)
+        key = self._conversation_key(conversation_id, project_id=normalized_project)
         value = json.dumps(conversation.to_dict())
         ttl_seconds = int(ttl or conversation.ttl)
 
         await self._redis.set(key, value, ex=ttl_seconds)
 
-    async def get_conversation(self, conversation_id: str) -> Conversation | None:
+    async def get_conversation(
+        self,
+        conversation_id: str,
+        *,
+        project_id: str | None = None,
+    ) -> Conversation | None:
         """Retrieve a conversation by ID.
 
         Args:
@@ -94,7 +107,8 @@ class ConversationMemory:
 
         from mascarade.conversation.models import Conversation
 
-        key = self._conversation_key(conversation_id)
+        normalized_project, _, _ = normalize_scope(project_id=project_id)
+        key = self._conversation_key(conversation_id, project_id=normalized_project)
         value = await self._redis.get(key)
 
         if value is None:
@@ -103,7 +117,12 @@ class ConversationMemory:
         data = json.loads(value)
         return Conversation.from_dict(data)
 
-    async def delete_conversation(self, conversation_id: str) -> bool:
+    async def delete_conversation(
+        self,
+        conversation_id: str,
+        *,
+        project_id: str | None = None,
+    ) -> bool:
         """Delete a conversation.
 
         Args:
@@ -115,11 +134,12 @@ class ConversationMemory:
         if self._redis is None:
             await self.connect()
 
-        key = self._conversation_key(conversation_id)
+        normalized_project, _, _ = normalize_scope(project_id=project_id)
+        key = self._conversation_key(conversation_id, project_id=normalized_project)
         result = await self._redis.delete(key)
         return result > 0
 
-    async def list_conversations(self) -> list[str]:
+    async def list_conversations(self, *, project_id: str | None = None) -> list[str]:
         """List all conversation IDs.
 
         Returns:
@@ -129,17 +149,23 @@ class ConversationMemory:
             await self.connect()
 
         # Scan for all conversation keys
-        pattern = "conversation:*"
+        normalized_project, _, _ = normalize_scope(project_id=project_id)
+        pattern = f"conversation:{normalized_project}:*"
         conversation_ids = []
 
         async for key in self._redis.scan_iter(match=pattern):
             # Extract conversation ID from key
-            conversation_id = key.replace("conversation:", "")
+            conversation_id = key.replace(f"conversation:{normalized_project}:", "")
             conversation_ids.append(conversation_id)
 
         return sorted(conversation_ids)
 
-    async def get_conversation_metadata(self, conversation_id: str) -> dict | None:
+    async def get_conversation_metadata(
+        self,
+        conversation_id: str,
+        *,
+        project_id: str | None = None,
+    ) -> dict | None:
         """Get conversation metadata without loading full message history.
 
         Args:
@@ -148,7 +174,7 @@ class ConversationMemory:
         Returns:
             Dictionary with metadata (id, message_count, created_at, updated_at, ttl)
         """
-        conversation = await self.get_conversation(conversation_id)
+        conversation = await self.get_conversation(conversation_id, project_id=project_id)
         if conversation is None:
             return None
 
@@ -161,7 +187,7 @@ class ConversationMemory:
             "total_tokens": conversation.get_total_tokens(),
         }
 
-    async def clear_all(self) -> int:
+    async def clear_all(self, *, project_id: str | None = None) -> int:
         """Clear all conversations (for testing/debugging).
 
         Returns:
@@ -170,8 +196,9 @@ class ConversationMemory:
         if self._redis is None:
             await self.connect()
 
+        normalized_project, _, _ = normalize_scope(project_id=project_id)
         keys = []
-        async for key in self._redis.scan_iter(match="conversation:*"):
+        async for key in self._redis.scan_iter(match=f"conversation:{normalized_project}:*"):
             keys.append(key)
 
         if keys:

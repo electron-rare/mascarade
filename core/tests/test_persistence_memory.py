@@ -1,7 +1,7 @@
 """Tests for Multi-Backend Memory Manager."""
 
 import pytest
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 from mascarade.persistence.memory_manager import (
     MultiBackendMemoryManager,
@@ -9,6 +9,11 @@ from mascarade.persistence.memory_manager import (
     create_memory_entry,
     create_conversation_memory
 )
+
+
+async def _async_iter(items):
+    for item in items:
+        yield item
 
 
 @pytest.mark.asyncio
@@ -19,6 +24,13 @@ async def test_memory_manager_initialization():
     assert manager.default_ttl == 86400
     assert manager._redis is None
     assert manager._conversation_memory is None
+
+
+@pytest.mark.asyncio
+async def test_memory_keys_are_scoped_by_project():
+    manager = MultiBackendMemoryManager(redis_url="redis://test:6379")
+    assert manager._get_memory_key("mem-1", project_id="project-a") == "memory:project-a:mem-1"
+    assert manager._get_memory_key("mem-1", project_id="project-b") == "memory:project-b:mem-1"
 
 
 @pytest.mark.asyncio
@@ -103,7 +115,8 @@ async def test_memory_update():
         result = await manager.update_memory("test_mem", update_data)
         
         assert result == True
-        assert memory.content == "updated content"
+        stored_payload = mock_redis_client.set.await_args.args[1]
+        assert "updated content" in stored_payload
 
 
 @pytest.mark.asyncio
@@ -137,10 +150,14 @@ async def test_memory_search():
         await manager.connect()
         
         # Mock scan results
-        mock_redis_client.scan_iter.return_value = [
-            b"memory:mem1",
-            b"memory:mem2"
-        ]
+        mock_redis_client.scan_iter = MagicMock(
+            return_value=_async_iter(
+                [
+                    b"memory:default:mem1",
+                    b"memory:default:mem2",
+                ]
+            )
+        )
         
         # Mock memory retrieval
         memory1 = MemoryEntry(
@@ -202,8 +219,9 @@ async def test_batch_operations():
         ]
         
         # Mock Redis operations
-        mock_redis_client.pipeline.return_value = mock_redis_client
-        mock_redis_client.execute.return_value = None
+        pipeline = MagicMock()
+        pipeline.execute = AsyncMock(return_value=None)
+        mock_redis_client.pipeline = MagicMock(return_value=pipeline)
         
         # Batch store
         stored_ids = await manager.batch_store_memories(memories)
@@ -246,9 +264,11 @@ async def test_utility_functions():
         mock_redis_client.set.return_value = True
         mock_redis_client.lpush.return_value = True
         mock_redis_client.expire.return_value = True
-        
-        with patch('mascarade.persistence.memory_manager.ConversationMessage') as mock_message:
-            mock_message_instance = AsyncMock()
+        manager.store_memory = AsyncMock(return_value=memory.memory_id)
+        manager.store_conversation_message = AsyncMock()
+
+        with patch('mascarade.conversation.models.ConversationMessage') as mock_message:
+            mock_message_instance = MagicMock()
             mock_message.return_value = mock_message_instance
             
             with patch('mascarade.persistence.memory_manager.create_memory_entry') as mock_create:
@@ -260,5 +280,7 @@ async def test_utility_functions():
                     user_id="user1",
                     initial_message="hello"
                 )
-                
+
                 assert result == memory.memory_id
+                manager.store_memory.assert_awaited_once()
+                manager.store_conversation_message.assert_awaited_once()

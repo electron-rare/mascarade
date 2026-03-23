@@ -44,14 +44,37 @@ async def test_knowledge_base_search_route_uses_mcp_client(monkeypatch: pytest.M
     async with _client() as client:
         app.state.mcp = fake_mcp
         response = await client.get(
-            "/knowledge-base/search?q=release",
+            "/knowledge-base/search?q=release&project_id=project-alpha",
             headers={"Authorization": "Bearer test-key-001"},
         )
 
     assert response.status_code == 200
     payload = response.json()
     assert payload["provider"] == "memos"
-    fake_mcp.knowledge_base_search.assert_awaited_once()
+    fake_mcp.knowledge_base_search.assert_awaited_once_with(
+        "release",
+        limit=10,
+        project_id="project-alpha",
+        federation_scope=(),
+        knowledge_scope="project",
+    )
+
+
+@pytest.mark.asyncio
+async def test_knowledge_base_search_route_rejects_missing_project_id(monkeypatch: pytest.MonkeyPatch):
+    add_api_key("test-key-001")
+    fake_mcp = AsyncMock()
+    monkeypatch.setattr("mascarade.server.knowledge_base_auth_configured", lambda: True)
+
+    async with _client() as client:
+        app.state.mcp = fake_mcp
+        response = await client.get(
+            "/knowledge-base/search?q=release",
+            headers={"Authorization": "Bearer test-key-001"},
+        )
+
+    assert response.status_code == 422
+    fake_mcp.knowledge_base_search.assert_not_awaited()
 
 
 @pytest.mark.asyncio
@@ -79,7 +102,7 @@ async def test_knowledge_base_search_route_forwards_project_scope(
         "musique",
         limit=5,
         project_id="project-alpha",
-        federation_scope=["project-alpha", "project-beta"],
+        federation_scope=("project-alpha", "project-beta"),
         knowledge_scope="federated",
     )
 
@@ -97,7 +120,16 @@ async def test_knowledge_scribe_push_uses_mcp_and_preserves_run_id(
     monkeypatch.setattr("mascarade.server.knowledge_base_auth_configured", lambda: True)
 
     class _FakeAgent:
-        async def run(self, prompt, *, router, context=None):
+        async def run(
+            self,
+            prompt,
+            *,
+            router,
+            context=None,
+            project_id=None,
+            federation_scope=None,
+            knowledge_scope="project",
+        ):
             return type(
                 "Response",
                 (),
@@ -119,6 +151,7 @@ async def test_knowledge_scribe_push_uses_mcp_and_preserves_run_id(
                 "messages": [{"role": "user", "content": "Draft the release note"}],
                 "push_to": "memo-7",
                 "run_id": "run-kb-007",
+                "project_id": "project-alpha",
             },
         )
 

@@ -17,6 +17,7 @@ from mascarade.mcp.server import (
     _TOOL_NAMES,
     _jsonrpc_error,
     _jsonrpc_response,
+    _register_initial_agents,
     _tool_result_json,
     _tool_result_text,
 )
@@ -178,6 +179,21 @@ def test_server_tool_dispatch(server):
     assert "search_knowledge_base" in server._tool_dispatch
     assert "list_providers" in server._tool_dispatch
     assert "orchestrate" in server._tool_dispatch
+
+
+def test_register_initial_agents_uses_default_registration():
+    """The MCP bootstrap should register the default built-in agents."""
+    registry = FakeRegistry()
+
+    def fake_register_defaults(target_registry):
+        target_registry._agents["coder"] = FakeAgent(name="coder")
+        target_registry._builtins.add("coder")
+
+    count = _register_initial_agents(registry, register_defaults=fake_register_defaults)
+
+    assert count == 1
+    assert "coder" in registry
+    assert registry.is_builtin("coder") is True
 
 
 # ---------------------------------------------------------------------------

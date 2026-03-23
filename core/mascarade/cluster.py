@@ -959,6 +959,9 @@ class ClusterManager:
                 system=self._coerce_optional_string(payload.get("system")),
                 temperature=float(payload.get("temperature", 0.7)),
                 max_tokens=int(payload.get("max_tokens", 4096)),
+                project_id=self._coerce_optional_string(payload.get("project_id")),
+                federation_scope=payload.get("federation_scope"),
+                knowledge_scope=str(payload.get("knowledge_scope", "project")),
             )
         except ValueError as exc:
             raise HTTPException(status_code=400, detail="Invalid request parameters") from exc

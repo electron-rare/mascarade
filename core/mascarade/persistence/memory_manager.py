@@ -10,6 +10,7 @@ import redis.asyncio as redis
 from pydantic import BaseModel
 
 from mascarade.conversation.memory import ConversationMemory
+from mascarade.project_scope import normalize_scope, scoped_resource_key
 
 logger = logging.getLogger("mascarade.persistence.memory")
 
@@ -63,7 +64,7 @@ class MultiBackendMemoryManager:
     async def connect(self) -> None:
         """Establish connections to all backends."""
         if self._redis is None:
-            self._redis = await redis.from_url(
+            self._redis = redis.from_url(
                 self.redis_url,
                 encoding="utf-8",
                 decode_responses=True,
@@ -92,14 +93,15 @@ class MultiBackendMemoryManager:
     
     # --- Generic Memory Operations ---
     
-    def _get_memory_key(self, memory_id: str) -> str:
+    def _get_memory_key(self, memory_id: str, *, project_id: str | None = None) -> str:
         """Generate Redis key for memory storage."""
-        return f"memory:{memory_id}"
+        return scoped_resource_key("memory", memory_id, project_id=project_id)
     
     async def store_memory(
         self,
         memory_entry: MemoryEntry,
-        ttl: Optional[int] = None
+        ttl: Optional[int] = None,
+        project_id: Optional[str] = None,
     ) -> str:
         """Store memory in persistence layer.
         
@@ -113,7 +115,11 @@ class MultiBackendMemoryManager:
         if self._redis is None:
             await self.connect()
         
-        key = self._get_memory_key(memory_entry.memory_id)
+        normalized_project, _, _ = normalize_scope(
+            project_id=project_id or str(memory_entry.metadata.get("project_id") or ""),
+        )
+        memory_entry.metadata["project_id"] = normalized_project
+        key = self._get_memory_key(memory_entry.memory_id, project_id=normalized_project)
         value = memory_entry.json()
         ttl_seconds = ttl or self.default_ttl
         
@@ -122,7 +128,11 @@ class MultiBackendMemoryManager:
         
         return memory_entry.memory_id
     
-    async def retrieve_memory(self, memory_id: str) -> Optional[MemoryEntry]:
+    async def retrieve_memory(
+        self,
+        memory_id: str,
+        project_id: Optional[str] = None,
+    ) -> Optional[MemoryEntry]:
         """Retrieve memory from persistence layer.
         
         Args:
@@ -134,7 +144,8 @@ class MultiBackendMemoryManager:
         if self._redis is None:
             await self.connect()
         
-        key = self._get_memory_key(memory_id)
+        normalized_project, _, _ = normalize_scope(project_id=project_id)
+        key = self._get_memory_key(memory_id, project_id=normalized_project)
         value = await self._redis.get(key)
         
         if value is None:
@@ -152,7 +163,8 @@ class MultiBackendMemoryManager:
     async def update_memory(
         self,
         memory_id: str,
-        update_data: Dict[str, Any]
+        update_data: Dict[str, Any],
+        project_id: Optional[str] = None,
     ) -> bool:
         """Update existing memory.
         
@@ -167,7 +179,7 @@ class MultiBackendMemoryManager:
             await self.connect()
         
         # Retrieve existing memory
-        existing_memory = await self.retrieve_memory(memory_id)
+        existing_memory = await self.retrieve_memory(memory_id, project_id=project_id)
         if existing_memory is None:
             return False
         
@@ -181,12 +193,16 @@ class MultiBackendMemoryManager:
         existing_memory.updated_at = datetime.utcnow().isoformat() + "Z"
         
         # Save updated memory
-        await self.store_memory(existing_memory)
+        await self.store_memory(existing_memory, project_id=project_id)
         logger.info(f"Updated memory {memory_id}")
         
         return True
     
-    async def delete_memory(self, memory_id: str) -> bool:
+    async def delete_memory(
+        self,
+        memory_id: str,
+        project_id: Optional[str] = None,
+    ) -> bool:
         """Delete memory from persistence layer.
         
         Args:
@@ -198,7 +214,8 @@ class MultiBackendMemoryManager:
         if self._redis is None:
             await self.connect()
         
-        key = self._get_memory_key(memory_id)
+        normalized_project, _, _ = normalize_scope(project_id=project_id)
+        key = self._get_memory_key(memory_id, project_id=normalized_project)
         result = await self._redis.delete(key)
         
         if result > 0:
@@ -215,7 +232,8 @@ class MultiBackendMemoryManager:
         query: str,
         memory_type: Optional[str] = None,
         tags: Optional[List[str]] = None,
-        limit: int = 10
+        limit: int = 10,
+        project_id: Optional[str] = None,
     ) -> List[MemoryEntry]:
         """Search memories using metadata and tags.
         
@@ -231,12 +249,13 @@ class MultiBackendMemoryManager:
         if self._redis is None:
             await self.connect()
         
-        pattern = "memory:*"
+        normalized_project, _, _ = normalize_scope(project_id=project_id)
+        pattern = f"memory:{normalized_project}:*"
         results = []
         
         async for key in self._redis.scan_iter(match=pattern):
-            memory_id = key.replace("memory:", "")
-            memory_entry = await self.retrieve_memory(memory_id)
+            memory_id = str(key).replace(f"memory:{normalized_project}:", "")
+            memory_entry = await self.retrieve_memory(memory_id, project_id=normalized_project)
             
             if memory_entry is None:
                 continue
@@ -264,7 +283,8 @@ class MultiBackendMemoryManager:
     async def list_memories(
         self,
         memory_type: Optional[str] = None,
-        tags: Optional[List[str]] = None
+        tags: Optional[List[str]] = None,
+        project_id: Optional[str] = None,
     ) -> List[str]:
         """List all memory IDs, optionally filtered.
         
@@ -278,12 +298,13 @@ class MultiBackendMemoryManager:
         if self._redis is None:
             await self.connect()
         
-        pattern = "memory:*"
+        normalized_project, _, _ = normalize_scope(project_id=project_id)
+        pattern = f"memory:{normalized_project}:*"
         memory_ids = []
         
         async for key in self._redis.scan_iter(match=pattern):
-            memory_id = key.replace("memory:", "")
-            memory_entry = await self.retrieve_memory(memory_id)
+            memory_id = str(key).replace(f"memory:{normalized_project}:", "")
+            memory_entry = await self.retrieve_memory(memory_id, project_id=normalized_project)
             
             if memory_entry is None:
                 continue
@@ -299,7 +320,11 @@ class MultiBackendMemoryManager:
         
         return sorted(memory_ids)
     
-    async def get_memory_metadata(self, memory_id: str) -> Optional[Dict[str, Any]]:
+    async def get_memory_metadata(
+        self,
+        memory_id: str,
+        project_id: Optional[str] = None,
+    ) -> Optional[Dict[str, Any]]:
         """Get memory metadata without loading full content.
         
         Args:
@@ -311,7 +336,8 @@ class MultiBackendMemoryManager:
         if self._redis is None:
             await self.connect()
         
-        key = self._get_memory_key(memory_id)
+        normalized_project, _, _ = normalize_scope(project_id=project_id)
+        key = self._get_memory_key(memory_id, project_id=normalized_project)
         value = await self._redis.get(key)
         
         if value is None:
@@ -337,7 +363,8 @@ class MultiBackendMemoryManager:
         self,
         conversation_id: str,
         message: Any,
-        ttl: Optional[int] = None
+        ttl: Optional[int] = None,
+        project_id: Optional[str] = None,
     ) -> None:
         """Store conversation message using ConversationMemory backend."""
         if self._conversation_memory is None:
@@ -346,31 +373,47 @@ class MultiBackendMemoryManager:
         await self._conversation_memory.store_message(
             conversation_id=conversation_id,
             message=message,
-            ttl=ttl
+            ttl=ttl,
+            project_id=project_id,
         )
         
         logger.info(f"Stored conversation message for {conversation_id}")
     
-    async def get_conversation(self, conversation_id: str) -> Optional[Any]:
+    async def get_conversation(
+        self,
+        conversation_id: str,
+        project_id: Optional[str] = None,
+    ) -> Optional[Any]:
         """Retrieve conversation using ConversationMemory backend."""
         if self._conversation_memory is None:
             await self.connect()
         
-        return await self._conversation_memory.get_conversation(conversation_id)
-    
-    async def delete_conversation(self, conversation_id: str) -> bool:
+        return await self._conversation_memory.get_conversation(
+            conversation_id,
+            project_id=project_id,
+        )
+
+    async def delete_conversation(
+        self,
+        conversation_id: str,
+        project_id: Optional[str] = None,
+    ) -> bool:
         """Delete conversation using ConversationMemory backend."""
         if self._conversation_memory is None:
             await self.connect()
         
-        return await self._conversation_memory.delete_conversation(conversation_id)
+        return await self._conversation_memory.delete_conversation(
+            conversation_id,
+            project_id=project_id,
+        )
     
     # --- Batch Operations ---
     
     async def batch_store_memories(
         self,
         memories: List[MemoryEntry],
-        ttl: Optional[int] = None
+        ttl: Optional[int] = None,
+        project_id: Optional[str] = None,
     ) -> List[str]:
         """Store multiple memories in a batch operation.
         
@@ -384,11 +427,13 @@ class MultiBackendMemoryManager:
         if self._redis is None:
             await self.connect()
         
+        normalized_project, _, _ = normalize_scope(project_id=project_id)
         pipeline = self._redis.pipeline()
         stored_ids = []
         
         for memory in memories:
-            key = self._get_memory_key(memory.memory_id)
+            memory.metadata["project_id"] = normalized_project
+            key = self._get_memory_key(memory.memory_id, project_id=normalized_project)
             value = memory.json()
             ttl_seconds = ttl or self.default_ttl
             
@@ -400,7 +445,11 @@ class MultiBackendMemoryManager:
         
         return stored_ids
     
-    async def batch_delete_memories(self, memory_ids: List[str]) -> int:
+    async def batch_delete_memories(
+        self,
+        memory_ids: List[str],
+        project_id: Optional[str] = None,
+    ) -> int:
         """Delete multiple memories in a batch operation.
         
         Args:
@@ -415,13 +464,17 @@ class MultiBackendMemoryManager:
         if not memory_ids:
             return 0
         
-        keys = [self._get_memory_key(memory_id) for memory_id in memory_ids]
+        normalized_project, _, _ = normalize_scope(project_id=project_id)
+        keys = [
+            self._get_memory_key(memory_id, project_id=normalized_project)
+            for memory_id in memory_ids
+        ]
         result = await self._redis.delete(*keys)
         
         logger.info(f"Batch deleted {result} memories")
         return result
     
-    async def clear_all_memories(self) -> int:
+    async def clear_all_memories(self, project_id: Optional[str] = None) -> int:
         """Clear all memories (for testing/debugging).
         
         Returns:
@@ -430,8 +483,9 @@ class MultiBackendMemoryManager:
         if self._redis is None:
             await self.connect()
         
+        normalized_project, _, _ = normalize_scope(project_id=project_id)
         keys = []
-        async for key in self._redis.scan_iter(match="memory:*"):
+        async for key in self._redis.scan_iter(match=f"memory:{normalized_project}:*"):
             keys.append(key)
         
         if keys:
@@ -473,21 +527,23 @@ async def create_conversation_memory(
     conversation_id: str,
     user_id: str,
     initial_message: str,
-    metadata: Optional[Dict[str, Any]] = None
+    metadata: Optional[Dict[str, Any]] = None,
+    project_id: Optional[str] = None,
 ) -> str:
     """Create a new conversation with initial memory."""
     from mascarade.conversation.models import ConversationMessage
+    normalized_project, _, _ = normalize_scope(project_id=project_id)
     
     # Create conversation memory entry
     memory_entry = await create_memory_entry(
         content={"initial_message": initial_message},
         memory_type="conversation",
-        metadata={"user_id": user_id, **(metadata or {})},
+        metadata={"user_id": user_id, "project_id": normalized_project, **(metadata or {})},
         tags=["conversation", "active"]
     )
     
     # Store in memory system
-    await manager.store_memory(memory_entry)
+    await manager.store_memory(memory_entry, project_id=normalized_project)
     
     # Create initial conversation message
     message = ConversationMessage(
@@ -497,6 +553,10 @@ async def create_conversation_memory(
     )
     
     # Store in conversation system
-    await manager.store_conversation_message(conversation_id, message)
+    await manager.store_conversation_message(
+        conversation_id,
+        message,
+        project_id=normalized_project,
+    )
     
     return memory_entry.memory_id
