@@ -108,13 +108,13 @@ def to_unified(record: dict, fmt: str, domain: str) -> dict | None:
     elif fmt == "open_schematics":
         desc = record.get("description", "")
         name = record.get("name", "")
-        comps = record.get("components_used", [])
-        snippet = record.get("schematic_snippet", "")
-        json_struct = record.get("json_structure", "")
+        comps = record.get("components_used") or []
+        snippet = record.get("schematic_snippet", "") or ""
+        json_struct = record.get("json_structure", "") or ""
         if not desc or len(desc) < 20:
             return None
         question = f"Describe the KiCad schematic project '{name}'. What components are used and what is its purpose?"
-        answer = f"{desc}\n\nComponents used: {', '.join(comps[:20])}"
+        answer = f"{desc}\n\nComponents used: {', '.join(comps[:20]) if comps else 'not specified'}"
         if snippet:
             answer += f"\n\nSchematic structure (KiCad format):\n{snippet[:500]}"
         return {
