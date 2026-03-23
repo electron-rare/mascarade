@@ -48,7 +48,12 @@ Regle:
 ## Actif
 - [x] P0 Garder l'installation/staging Apple de `qwen2.5-0.5b-instruct-onnx`, `qwen3.5-4b-onnx-q4f16` et `stateful-mistral7b-instruct-int4-coreml` comme prerequis explicite du cycle ANE
 - [x] P0 Finir le lot `baselines` pour `qwen2.5-0.5b-instruct-onnx` et `qwen2.5:1.5b`
-- [ ] P0 Stabiliser un second modele local autour de la reference Apple 4B; la cible prioritaire est un modele ONNX 4B+ compatible ANE
+- [x] P0 Stabiliser un second modele local autour de la reference Apple 4B; la cible prioritaire est un modele ONNX 4B+ compatible ANE
+  - `onnx-community/Qwen3-4B-Instruct-2507-ONNX` q4f16 telecharge et valide le 2026-03-23
+  - Baselines: inference PASS 38s/71tok, structure PASS (tronque), rewrite PASS 21s/150tok
+  - ~3.9 tok/s vs ~1.5 tok/s pour l'ancienne ref — **3x plus rapide, meilleure qualite prose**
+  - Fix tokenizer: `extra_special_tokens` converti de list en dict (incompatibilite transformers)
+  - **Nouveau modele de reference locale**: `qwen3-4b-instruct-2507-q4f16`
 - [ ] P1 Faire passer au moins un cycle `python3 scripts/run_next_lots.py --lot priority_models` sans checkpoint runtime inattendu
 - [x] P1 Rendre explicite dans le runtime Apple qu'un seul `model_id` est servi a la fois
 - [x] P1 Fixer ou contourner proprement le crash Metal du host `ollama` natif quand `qwen2.5:1.5b` est charge directement sur cette machine
@@ -65,18 +70,20 @@ Regle:
 - [x] `ollama:qwen2.5:1.5b` reste a requalifier -> Ollama delegue au P2P, pas en local
 
 ## Prochain ordre
-- [ ] P0 Garder `apple-coreml:qwen3.5-4b-onnx-q4f16` comme unique reference ANE locale
-- [ ] P1 Chercher un modele ONNX 7B+ compatible CoreML plus rapide que mistral-7b (ex: Qwen3.5-7B-ONNX si dispo)
-- [ ] P1 Laisser `ai-novel-engine` finir `priority_models` avec la reference 4B
+- [x] P0 Garder `apple-coreml:qwen3.5-4b-onnx-q4f16` comme unique reference ANE locale
+  - Remplace par `apple-coreml:qwen3-4b-instruct-2507-q4f16` (3x plus rapide, meilleure qualite)
+- [ ] P1 Laisser `ai-novel-engine` finir `priority_models` avec la nouvelle reference 4B
+- [ ] P1 Chercher un modele ONNX 7B+ compatible CoreML plus rapide que mistral-7b (ex: Phi-3.5-mini-instruct-onnx en backup)
 - [ ] P2 Tester un modele 1-2B ONNX de meilleure qualite que qwen2.5-0.5b pour les baselines vitesse
 
 ## Auto-sync
 <!-- AUTO-SYNC:MASCARADE-TODO:START -->
-- dernier cycle ANE automatise: 2026-03-23T00:00:00+00:00
-- accepted via runtime local: apple-coreml:qwen3.5-4b-onnx-q4f16
+- dernier cycle ANE automatise: 2026-03-23T12:14:00+00:00
+- reference locale: apple-coreml:qwen3-4b-instruct-2507-q4f16 (**nouveau**, 3x plus rapide)
+- ancienne reference: apple-coreml:qwen3.5-4b-onnx-q4f16 (remplacee)
 - quality_blocked: apple-coreml:qwen2.5-0.5b-instruct-onnx (hallucinations, JSON markdown wrap)
 - disqualifie: apple-coreml:stateful-mistral7b-instruct-int4-coreml (timeout >300s)
-- blocage runtime principal: aucun — reference locale confirmee
-- checkpoint runtime manuel: Le runtime Apple sert `qwen3.5-4b-onnx-q4f16` sur `:8201`.
+- blocage runtime principal: aucun — nouvelle reference validee
+- checkpoint runtime manuel: runtime Apple arrete, modeles decharges.
 - ollama: delegue au P2P (VM 192.168.0.119), pas en local (Metal crash)
 <!-- AUTO-SYNC:MASCARADE-TODO:END -->
