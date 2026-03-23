@@ -200,6 +200,13 @@ class Settings(BaseSettings):
     p2p_peer_ttl_seconds: int = 90
     p2p_pubsub_enabled: bool = False
     p2p_require_signatures: bool = True
+    # P2P as LLM provider (route requests to peers)
+    p2p_provider_enabled: bool = False
+    p2p_provider_timeout_seconds: float = 120.0
+    # Fake Ollama server (Ollama-compatible API backed by router)
+    fake_ollama_enabled: bool = False
+    fake_ollama_port: int = 11434
+    fake_ollama_host: str = "0.0.0.0"
     # Device voice sessions
     device_stt_model: str = "gpt-4o-mini-transcribe"
     device_stt_language: str = "fr"
