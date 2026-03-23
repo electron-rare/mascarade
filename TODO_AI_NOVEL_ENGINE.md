@@ -83,9 +83,9 @@ Regle:
 
 ## Auto-sync
 <!-- AUTO-SYNC:MASCARADE-TODO:START -->
-- dernier cycle ANE automatise: 2026-03-23T15:52:31+00:00
+- dernier cycle ANE automatise: 2026-03-23T21:34:05+00:00
 - accepted via runtime local: mistral:mistral-large-latest
-- gate atteint via runtime local: mistral:mistral-large-latest, ollama:mistral-nemo:latest
-- blocage runtime principal: Reference locale reconfirmee; retablir le runtime des modeles provider_failed puis reprendre rewrite/repair sur les modeles bloques a gate.
+- gate atteint via runtime local: mistral:mistral-large-latest
+- blocage runtime principal: Reference locale reconfirmee; retablir le runtime des modeles provider_failed avant de poursuivre.
 - checkpoint runtime manuel: Le runtime Apple sert `aucun modèle` au lieu de `qwen3-4b-instruct-2507-q4f16`.
 <!-- AUTO-SYNC:MASCARADE-TODO:END -->

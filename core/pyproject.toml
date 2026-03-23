@@ -62,7 +62,7 @@ rlvr = [
     "kibot>=1.8",
 ]
 observability = [
-    "openllmetry-sdk>=0.33",
+    "openllmetry-sdk>=0.33; python_version < '3.14'",
 ]
 dev = [
     "numpy>=2.3,<3",

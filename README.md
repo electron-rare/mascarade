@@ -135,7 +135,7 @@ MIT
 
 ## Etat auto-synchronise
 <!-- AUTO-SYNC:MASCARADE-README:START -->
-- dernier cycle ANE automatise: 2026-03-23T15:52:31+00:00
+- dernier cycle ANE automatise: 2026-03-23T21:34:05+00:00
 - etat de reference ANE: mistral:mistral-large-latest
-- prochain lot utile cote pipeline: Reference locale reconfirmee; retablir le runtime des modeles provider_failed puis reprendre rewrite/repair sur les modeles bloques a gate.
+- prochain lot utile cote pipeline: Reference locale reconfirmee; retablir le runtime des modeles provider_failed avant de poursuivre.
 <!-- AUTO-SYNC:MASCARADE-README:END -->
