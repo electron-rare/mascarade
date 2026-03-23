@@ -5,8 +5,11 @@ from __future__ import annotations
 from collections.abc import AsyncIterator
 
 import httpx
-import openai
-from mistralai import Mistral
+
+try:
+    from mistralai.client import Mistral
+except ImportError:
+    from mistralai import Mistral
 
 from mascarade.config import is_secret_configured, secret_value, settings
 from mascarade.router.providers.base import (
@@ -33,6 +36,7 @@ class MistralProvider(LLMProvider):
             and is_secret_configured(settings.litellm_master_key)
         )
         if self._proxy_enabled:
+            import openai
             self._client = openai.AsyncOpenAI(
                 api_key=secret_value(settings.litellm_master_key),
                 base_url=settings.litellm_base_url,
