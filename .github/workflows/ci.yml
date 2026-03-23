@@ -28,9 +28,6 @@ env:
   CORE_IMAGE: ghcr.io/${{ github.repository }}/core
   API_IMAGE: ghcr.io/${{ github.repository }}/api
 
-permissions:
-  contents: read
-
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
