@@ -18,8 +18,7 @@ import sys
 
 # Setup logging
 logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
 
@@ -28,9 +27,10 @@ async def check_ngspice_available() -> bool:
     """Check if ngspice is available on the system."""
     try:
         proc = await asyncio.create_subprocess_exec(
-            "ngspice", "--version",
+            "ngspice",
+            "--version",
             stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE
+            stderr=asyncio.subprocess.PIPE,
         )
         await proc.communicate()
         return proc.returncode == 0
@@ -63,8 +63,7 @@ async def test_netlist_generation():
 
     # Create netlist generator node
     config = NetlistGeneratorConfig(
-        include_control_section=True,
-        default_analyses=["ac"]
+        include_control_section=True, default_analyses=["ac"]
     )
     node = NetlistGeneratorNode(config)
 
@@ -73,10 +72,7 @@ async def test_netlist_generation():
     logger.info(f"Output ports: {len(node.output_ports)}")
 
     # Execute the node
-    inputs = {
-        "circuit_description": circuit_description,
-        "target_simulator": "ngspice"
-    }
+    inputs = {"circuit_description": circuit_description, "target_simulator": "ngspice"}
 
     logger.info("Executing netlist generation...")
     outputs = await node.execute(inputs)
@@ -116,15 +112,13 @@ async def test_simulation(netlist: dict[str, Any], ngspice_available: bool):
 
     if not ngspice_available:
         logger.warning("⚠️  ngspice not available - skipping simulation test")
-        logger.info("✓ Graceful degradation verified (simulation node available but tool missing)")
+        logger.info(
+            "✓ Graceful degradation verified (simulation node available but tool missing)"
+        )
         return None
 
     # Create simulation node
-    config = SimulateConfig(
-        ngspice_path="ngspice",
-        timeout_seconds=60,
-        batch_mode=True
-    )
+    config = SimulateConfig(ngspice_path="ngspice", timeout_seconds=60, batch_mode=True)
     node = SimulateNode(config)
 
     logger.info(f"Node type: {node.node_type}")
@@ -156,7 +150,9 @@ async def test_simulation(netlist: dict[str, Any], ngspice_available: bool):
 
             if "convergence_info" in results:
                 conv_info = results["convergence_info"]
-                logger.info(f"Convergence iterations: {conv_info.get('iterations', 'N/A')}")
+                logger.info(
+                    f"Convergence iterations: {conv_info.get('iterations', 'N/A')}"
+                )
                 logger.info(f"Convergence errors: {conv_info.get('errors', [])}")
 
         # Display simulation output
@@ -184,7 +180,9 @@ async def test_waveform_structure(simulation_outputs: dict[str, Any] | None):
     logger.info("=" * 60)
 
     if simulation_outputs is None:
-        logger.warning("⚠️  No simulation outputs available - skipping waveform verification")
+        logger.warning(
+            "⚠️  No simulation outputs available - skipping waveform verification"
+        )
         return None
 
     # For this test, we'll verify the expected waveform structure
@@ -297,7 +295,9 @@ async def run_e2e_verification():
         logger.info(" " * 25 + "VERIFICATION SUMMARY")
         logger.info("=" * 80)
         logger.info("✓ Netlist generation: PASSED")
-        logger.info(f"✓ Simulation execution: {'PASSED' if ngspice_available else 'SKIPPED (ngspice not available)'}")
+        logger.info(
+            f"✓ Simulation execution: {'PASSED' if ngspice_available else 'SKIPPED (ngspice not available)'}"
+        )
         logger.info("✓ Waveform structure: PASSED")
         logger.info("✓ Result parsing: PASSED")
         logger.info("✓ Graceful degradation: VERIFIED")

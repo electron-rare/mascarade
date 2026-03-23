@@ -11,7 +11,11 @@ import logging
 from typing import Any
 
 from mascarade.hardware.types import MIDIMessage
-from mascarade.node_engine.base import NodeDefinition, NodeExecutionContext, NodeExecutionResult
+from mascarade.node_engine.base import (
+    NodeDefinition,
+    NodeExecutionContext,
+    NodeExecutionResult,
+)
 from mascarade.node_engine.types import (
     PortDirection,
     PortKind,
@@ -287,7 +291,9 @@ async def execute_midi_output(ctx: NodeExecutionContext) -> NodeExecutionResult:
                 message = MIDIMessage(**message)
             sent = await client.send_message(port_name, message)
         else:
-            return NodeExecutionResult.error("Either message or batch is required", "ValueError")
+            return NodeExecutionResult.error(
+                "Either message or batch is required", "ValueError"
+            )
 
         return NodeExecutionResult.ok(sent=sent)
 

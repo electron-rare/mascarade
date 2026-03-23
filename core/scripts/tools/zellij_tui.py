@@ -98,7 +98,11 @@ class ZellijTUI(cmd.Cmd):
         if not arg.strip():
             print("  Usage: send <text>")
             return
-        ok = self._run(self.agent.send_to_pane(self.current_node, self.current_session, arg.strip()))
+        ok = self._run(
+            self.agent.send_to_pane(
+                self.current_node, self.current_session, arg.strip()
+            )
+        )
         if ok:
             print(f"  ✓ Sent to {self.current_node}/{self.current_session}")
         else:
@@ -114,10 +118,16 @@ class ZellijTUI(cmd.Cmd):
         if not arg.strip():
             print("  Usage: run <command>")
             return
-        ok1 = self._run(self.agent.send_to_pane(self.current_node, self.current_session, arg.strip()))
+        ok1 = self._run(
+            self.agent.send_to_pane(
+                self.current_node, self.current_session, arg.strip()
+            )
+        )
         ok2 = self._run(self.agent.send_enter(self.current_node, self.current_session))
         if ok1 and ok2:
-            print(f"  ✓ Ran on {self.current_node}/{self.current_session}: {arg.strip()}")
+            print(
+                f"  ✓ Ran on {self.current_node}/{self.current_session}: {arg.strip()}"
+            )
         else:
             print("  ✗ Failed")
 
@@ -133,7 +143,9 @@ class ZellijTUI(cmd.Cmd):
 
     def do_status(self, _arg):
         """Show current node/session selection"""
-        print(f"  Node:    {self.current_node} ({NODES.get(self.current_node, {}).get('name', '?')})")
+        print(
+            f"  Node:    {self.current_node} ({NODES.get(self.current_node, {}).get('name', '?')})"
+        )
         print(f"  Session: {self.current_session}")
 
     def do_quit(self, _arg):

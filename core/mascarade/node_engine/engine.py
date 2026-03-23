@@ -70,9 +70,11 @@ class GraphExecutionEngine:
         """Initialize registries if not provided."""
         if self.worker_registry is None:
             from mascarade.node_engine.registry import WorkerRegistry
+
             self.worker_registry = WorkerRegistry()
         if self.node_registry is None:
             from mascarade.node_engine.registry import NodeTypeRegistry
+
             self.node_registry = NodeTypeRegistry()
 
     def _topological_sort(self, graph: Graph) -> list[list[str]]:
@@ -151,7 +153,9 @@ class GraphExecutionEngine:
             for i, result in enumerate(results):
                 if isinstance(result, Exception):
                     # Defensive: _execute_node should catch exceptions, but handle edge cases
-                    logger.error("Unexpected exception for node %s: %s", node_ids[i], result)
+                    logger.error(
+                        "Unexpected exception for node %s: %s", node_ids[i], result
+                    )
                     all_results.append(
                         NodeResult(node_id=node_ids[i], error=str(result))
                     )

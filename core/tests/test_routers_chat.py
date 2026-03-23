@@ -429,9 +429,7 @@ async def test_chat_completion_message_with_name():
             "/v1/chat/completions",
             json={
                 "model": "gpt-4",
-                "messages": [
-                    {"role": "user", "content": "test", "name": "Alice"}
-                ],
+                "messages": [{"role": "user", "content": "test", "name": "Alice"}],
             },
         )
 
@@ -565,7 +563,11 @@ async def test_chat_completion_streaming_contains_content_chunks():
         )
 
     assert response.status_code == 200
-    lines = [l for l in response.text.strip().split("\n") if l.startswith("data:") and l != "data: [DONE]"]
+    lines = [
+        l
+        for l in response.text.strip().split("\n")
+        if l.startswith("data:") and l != "data: [DONE]"
+    ]
     # First chunk is role, then content chunks, then finish chunk
     assert len(lines) >= 3  # role + 2 content + finish
     # Check a content chunk
@@ -592,7 +594,10 @@ async def test_chat_completion_provider_not_available():
 
     assert response.status_code == 503
     body = response.json()
-    assert "not configured" in body["detail"]["error"] or "unavailable" in body["detail"]["error"]
+    assert (
+        "not configured" in body["detail"]["error"]
+        or "unavailable" in body["detail"]["error"]
+    )
 
 
 @pytest.mark.asyncio
@@ -624,7 +629,9 @@ async def test_parse_model_string_ollama_with_tag():
     class FakeRouterInstance:
         available_providers = ["ollama"]
 
-    provider, model, display = _parse_model_string("ollama:qwen3.5:9b", FakeRouterInstance())
+    provider, model, display = _parse_model_string(
+        "ollama:qwen3.5:9b", FakeRouterInstance()
+    )
     assert provider == "ollama"
     assert model == "qwen3.5:9b"
     assert display == "ollama:qwen3.5:9b"

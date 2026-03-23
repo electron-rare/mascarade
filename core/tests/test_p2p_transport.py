@@ -10,8 +10,12 @@ async def test_two_nodes_connect_and_exchange():
     """Two P2P transport nodes connect via TCP and exchange a message."""
     received = []
 
-    node_a = P2PTransport(local_peer_id="QmNodeA", listen_host="127.0.0.1", listen_port=0)
-    node_b = P2PTransport(local_peer_id="QmNodeB", listen_host="127.0.0.1", listen_port=0)
+    node_a = P2PTransport(
+        local_peer_id="QmNodeA", listen_host="127.0.0.1", listen_port=0
+    )
+    node_b = P2PTransport(
+        local_peer_id="QmNodeB", listen_host="127.0.0.1", listen_port=0
+    )
 
     async def handler(msg: P2PMessage, conn):
         received.append(msg)
@@ -124,7 +128,9 @@ async def test_send_to_prefers_live_inbound_peer_over_stale_outbound():
 
     try:
         node_b.add_peer("QmA", "127.0.0.1", node_a.listen_port)
-        ok = await node_b.send_to("QmA", P2PMessage(type="probe", sender="QmB", payload={}))
+        ok = await node_b.send_to(
+            "QmA", P2PMessage(type="probe", sender="QmB", payload={})
+        )
         assert ok
         await asyncio.sleep(0.2)
 
@@ -134,7 +140,10 @@ async def test_send_to_prefers_live_inbound_peer_over_stale_outbound():
         # healthy inbound socket.
         node_a.add_peer("QmB", "203.0.113.77", 65500)
 
-        ok = await node_a.send_to("QmB", P2PMessage(type="ping", sender="QmA", payload={"value": "inbound-ok"}))
+        ok = await node_a.send_to(
+            "QmB",
+            P2PMessage(type="ping", sender="QmA", payload={"value": "inbound-ok"}),
+        )
         assert ok
         await asyncio.sleep(0.2)
 
@@ -173,14 +182,20 @@ async def test_broadcast_prefers_live_inbound_peers_over_stale_outbound():
     try:
         node_b.add_peer("QmA", "127.0.0.1", node_a.listen_port)
         node_c.add_peer("QmA", "127.0.0.1", node_a.listen_port)
-        assert await node_b.send_to("QmA", P2PMessage(type="probe", sender="QmB", payload={}))
-        assert await node_c.send_to("QmA", P2PMessage(type="probe", sender="QmC", payload={}))
+        assert await node_b.send_to(
+            "QmA", P2PMessage(type="probe", sender="QmB", payload={})
+        )
+        assert await node_c.send_to(
+            "QmA", P2PMessage(type="probe", sender="QmC", payload={})
+        )
         await asyncio.sleep(0.2)
 
         node_a.add_peer("QmB", "203.0.113.10", 65501)
         node_a.add_peer("QmC", "203.0.113.11", 65502)
 
-        sent = await node_a.broadcast(P2PMessage(type="announce", sender="QmA", payload={"value": "fanout"}))
+        sent = await node_a.broadcast(
+            P2PMessage(type="announce", sender="QmA", payload={"value": "fanout"})
+        )
         assert sent == 2
         await asyncio.sleep(0.2)
 

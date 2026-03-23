@@ -69,9 +69,7 @@ class TestGraphNode:
 
     def test_graph_node_with_domain(self):
         """GraphNode should support domain specification."""
-        node = GraphNode(
-            id="n4", node_type="ai.llm", label="AI Node", domain="ai"
-        )
+        node = GraphNode(id="n4", node_type="ai.llm", label="AI Node", domain="ai")
         assert node.domain == "ai"
 
     def test_graph_node_defaults(self):
@@ -361,8 +359,7 @@ class TestGraphStructures:
     def test_linear_pipeline(self):
         """Build a linear pipeline graph."""
         nodes = [
-            GraphNode(id=f"n{i}", node_type="step", label=f"Step {i}")
-            for i in range(5)
+            GraphNode(id=f"n{i}", node_type="step", label=f"Step {i}") for i in range(5)
         ]
         edges = [
             GraphEdge(
@@ -460,7 +457,9 @@ class TestPydanticNode:
             Node(id="n1", type="")
 
     def test_node_with_inputs_and_config(self):
-        n = Node(id="n1", type="ai.embed", inputs={"text": "hello"}, config={"dim": 768})
+        n = Node(
+            id="n1", type="ai.embed", inputs={"text": "hello"}, config={"dim": 768}
+        )
         assert n.inputs["text"] == "hello"
         assert n.config["dim"] == 768
 
@@ -512,22 +511,55 @@ class TestGraphMethods:
         assert g.get_node("missing") is None
 
     def test_get_incoming_edges(self):
-        nodes = [GraphNode(id="a", node_type="ai.x"), GraphNode(id="b", node_type="ai.y")]
-        edges = [GraphEdge(id="e1", source_node="a", source_port="o", target_node="b", target_port="i")]
+        nodes = [
+            GraphNode(id="a", node_type="ai.x"),
+            GraphNode(id="b", node_type="ai.y"),
+        ]
+        edges = [
+            GraphEdge(
+                id="e1",
+                source_node="a",
+                source_port="o",
+                target_node="b",
+                target_port="i",
+            )
+        ]
         g = Graph(id="g", nodes=nodes, edges=edges)
         assert len(g.get_incoming_edges("b")) == 1
         assert len(g.get_incoming_edges("a")) == 0
 
     def test_get_outgoing_edges(self):
-        nodes = [GraphNode(id="a", node_type="ai.x"), GraphNode(id="b", node_type="ai.y")]
-        edges = [GraphEdge(id="e1", source_node="a", source_port="o", target_node="b", target_port="i")]
+        nodes = [
+            GraphNode(id="a", node_type="ai.x"),
+            GraphNode(id="b", node_type="ai.y"),
+        ]
+        edges = [
+            GraphEdge(
+                id="e1",
+                source_node="a",
+                source_port="o",
+                target_node="b",
+                target_port="i",
+            )
+        ]
         g = Graph(id="g", nodes=nodes, edges=edges)
         assert len(g.get_outgoing_edges("a")) == 1
         assert len(g.get_outgoing_edges("b")) == 0
 
     def test_topological_sort_order(self):
-        nodes = [GraphNode(id="a", node_type="ai.x"), GraphNode(id="b", node_type="ai.y")]
-        edges = [GraphEdge(id="e1", source_node="a", source_port="o", target_node="b", target_port="i")]
+        nodes = [
+            GraphNode(id="a", node_type="ai.x"),
+            GraphNode(id="b", node_type="ai.y"),
+        ]
+        edges = [
+            GraphEdge(
+                id="e1",
+                source_node="a",
+                source_port="o",
+                target_node="b",
+                target_port="i",
+            )
+        ]
         g = Graph(id="g", nodes=nodes, edges=edges)
         order = g.topological_sort()
         ids = [n.id for n in order]
@@ -541,10 +573,34 @@ class TestGraphMethods:
             GraphNode(id="t", node_type="x"),
         ]
         edges = [
-            GraphEdge(id="e1", source_node="s", source_port="o", target_node="l", target_port="i"),
-            GraphEdge(id="e2", source_node="s", source_port="o", target_node="r", target_port="i"),
-            GraphEdge(id="e3", source_node="l", source_port="o", target_node="t", target_port="i"),
-            GraphEdge(id="e4", source_node="r", source_port="o", target_node="t", target_port="i"),
+            GraphEdge(
+                id="e1",
+                source_node="s",
+                source_port="o",
+                target_node="l",
+                target_port="i",
+            ),
+            GraphEdge(
+                id="e2",
+                source_node="s",
+                source_port="o",
+                target_node="r",
+                target_port="i",
+            ),
+            GraphEdge(
+                id="e3",
+                source_node="l",
+                source_port="o",
+                target_node="t",
+                target_port="i",
+            ),
+            GraphEdge(
+                id="e4",
+                source_node="r",
+                source_port="o",
+                target_node="t",
+                target_port="i",
+            ),
         ]
         g = Graph(id="g", nodes=nodes, edges=edges)
         order = g.topological_sort()
@@ -554,7 +610,15 @@ class TestGraphMethods:
 
     def test_node_count_and_edge_count(self):
         nodes = [GraphNode(id="a", node_type="x"), GraphNode(id="b", node_type="y")]
-        edges = [GraphEdge(id="e1", source_node="a", source_port="o", target_node="b", target_port="i")]
+        edges = [
+            GraphEdge(
+                id="e1",
+                source_node="a",
+                source_port="o",
+                target_node="b",
+                target_port="i",
+            )
+        ]
         g = Graph(id="g", nodes=nodes, edges=edges)
         assert g.node_count == 2
         assert g.edge_count == 1
@@ -569,7 +633,9 @@ class TestConnection:
     """Test Connection dataclass."""
 
     def test_aliases(self):
-        c = Connection(source_node_id="a", source_port="o", target_node_id="b", target_port="i")
+        c = Connection(
+            source_node_id="a", source_port="o", target_node_id="b", target_port="i"
+        )
         assert c.source_node == "a"
         assert c.target_node == "b"
 

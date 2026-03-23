@@ -29,7 +29,9 @@ class CircuitBreaker:
     success_count: int = field(default=0, init=False)
     last_failure_time: float | None = field(default=None, init=False)
     last_state_change: float = field(default_factory=time.time, init=False)
-    on_state_change: Callable[[CircuitState, CircuitState], None] | None = field(default=None, init=False, repr=False)
+    on_state_change: Callable[[CircuitState, CircuitState], None] | None = field(
+        default=None, init=False, repr=False
+    )
 
     def record_success(self) -> None:
         """Enregistrer un succès d'exécution."""
@@ -60,7 +62,10 @@ class CircuitBreaker:
 
         if self.state == CircuitState.OPEN:
             # Vérifier si le timeout est écoulé pour passer en half-open
-            if self.last_failure_time and (time.time() - self.last_failure_time) >= self.timeout:
+            if (
+                self.last_failure_time
+                and (time.time() - self.last_failure_time) >= self.timeout
+            ):
                 self._transition_to_half_open()
                 return True
             return False

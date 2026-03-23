@@ -741,7 +741,9 @@ async def test_chat_completions_streaming():
             },
         ) as response:
             assert response.status_code == 200
-            assert response.headers["content-type"] == "text/event-stream; charset=utf-8"
+            assert (
+                response.headers["content-type"] == "text/event-stream; charset=utf-8"
+            )
 
             chunks = []
             async for line in response.aiter_lines():
@@ -798,7 +800,9 @@ async def test_chat_completions_streaming_with_apple_coreml():
             },
         ) as response:
             assert response.status_code == 200
-            assert response.headers["content-type"] == "text/event-stream; charset=utf-8"
+            assert (
+                response.headers["content-type"] == "text/event-stream; charset=utf-8"
+            )
 
             chunks = []
             async for line in response.aiter_lines():
@@ -836,7 +840,9 @@ async def test_chat_completions_streaming_with_default_provider(
     import json as json_module
 
     monkeypatch.setattr("mascarade.server.settings.default_provider", "apple-coreml")
-    monkeypatch.setattr("mascarade.server.settings.default_model", "qwen3.5-4b-onnx-q4f16")
+    monkeypatch.setattr(
+        "mascarade.server.settings.default_model", "qwen3.5-4b-onnx-q4f16"
+    )
 
     fake_router = FakeRouter(
         available_providers=["apple-coreml"],
@@ -991,4 +997,7 @@ async def test_chat_completions_streaming_with_system_prompt():
     # Verify system message was included in messages array
     assert len(fake_router.stream_calls) == 1
     assert fake_router.stream_calls[0]["messages"][0]["role"] == "system"
-    assert fake_router.stream_calls[0]["messages"][0]["content"] == "You are a helpful assistant"
+    assert (
+        fake_router.stream_calls[0]["messages"][0]["content"]
+        == "You are a helpful assistant"
+    )

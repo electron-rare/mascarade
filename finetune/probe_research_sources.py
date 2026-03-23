@@ -33,7 +33,9 @@ def _http_probe(url: str, timeout: float) -> dict:
     for method in methods:
         request = urllib.request.Request(url, headers=headers, method=method)
         try:
-            with urllib.request.urlopen(request, timeout=timeout, context=context) as response:
+            with urllib.request.urlopen(
+                request, timeout=timeout, context=context
+            ) as response:
                 return {
                     "ok": True,
                     "status": getattr(response, "status", 200),
@@ -57,7 +59,13 @@ def _http_probe(url: str, timeout: float) -> dict:
             if method == "HEAD":
                 continue
             break
-    return {"ok": False, "status": None, "final_url": url, "method": "GET", "error": last_error}
+    return {
+        "ok": False,
+        "status": None,
+        "final_url": url,
+        "method": "GET",
+        "error": last_error,
+    }
 
 
 def _probe_entry(item: dict, group: str, timeout: float) -> dict | None:
@@ -100,7 +108,11 @@ def probe_domain(path: Path, output_dir: Path, timeout: float) -> dict:
         "domain": domain,
         "generated_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
         "source_file": str(path),
-        "status": "ok" if total > 0 and ok_count == total else ("partial" if ok_count else "failed"),
+        "status": (
+            "ok"
+            if total > 0 and ok_count == total
+            else ("partial" if ok_count else "failed")
+        ),
         "reachable_count": ok_count,
         "total_count": total,
         "reachable_ratio": (ok_count / total) if total else 0.0,

@@ -171,7 +171,12 @@ class BenchmarkStorage:
                     "notes",
                 ],
             )
-            logger.debug("Benchmark result written to ClickHouse: %s/%s/%s", provider, model, domain)
+            logger.debug(
+                "Benchmark result written to ClickHouse: %s/%s/%s",
+                provider,
+                model,
+                domain,
+            )
             return True
         except Exception as exc:  # pragma: no cover - best effort only
             logger.warning("Failed to write benchmark result: %s", exc)

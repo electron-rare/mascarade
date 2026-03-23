@@ -80,9 +80,7 @@ class ResourceAwareScheduler:
         # No capable worker
         capable = self.workers_for_model(request.model)
         if not capable:
-            raise HTTPException(
-                503, f"No worker available for model '{request.model}'"
-            )
+            raise HTTPException(503, f"No worker available for model '{request.model}'")
 
         # Wait time too long
         est_wait = self.estimate_wait(request)
@@ -96,11 +94,7 @@ class ResourceAwareScheduler:
         """Select the best worker for a request based on scoring."""
         self.admit(request)
 
-        candidates = [
-            w
-            for w in self.workers.values()
-            if w.alive and w.has_capacity()
-        ]
+        candidates = [w for w in self.workers.values() if w.alive and w.has_capacity()]
 
         if not candidates:
             # Fallback: pick any alive worker even if at capacity
@@ -156,16 +150,14 @@ class ResourceAwareScheduler:
 
         # Penalty for high error rate
         if worker.error_rate > 0.1:
-            score *= (1.0 - worker.error_rate)
+            score *= 1.0 - worker.error_rate
 
         return score
 
     def get_status(self) -> dict:
         """Get scheduler status for the API."""
         return {
-            "workers": {
-                node_id: w.to_dict() for node_id, w in self.workers.items()
-            },
+            "workers": {node_id: w.to_dict() for node_id, w in self.workers.items()},
             "total_queue_depth": self.total_queue_depth,
             "total_dispatched": self._dispatch_count,
             "alive_workers": len([w for w in self.workers.values() if w.alive]),

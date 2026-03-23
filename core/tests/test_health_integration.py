@@ -119,9 +119,7 @@ def test_circuit_breaker_opens_on_failures():
 
     # Additional requests should be blocked
     try:
-        asyncio.run(
-            router.send(payload, strategy="specific", provider="failing")
-        )
+        asyncio.run(router.send(payload, strategy="specific", provider="failing"))
         # If we get here, the circuit didn't block - but router might fallback
         # In strict mode with only one provider, it should fail
     except ValueError as e:
@@ -151,7 +149,9 @@ def test_circuit_breaker_recovery():
     # Trigger failures to open circuit
     for _ in range(4):
         try:
-            asyncio.run(router.send(payload, strategy="specific", provider="recoverable"))
+            asyncio.run(
+                router.send(payload, strategy="specific", provider="recoverable")
+            )
         except Exception:
             pass
 
@@ -181,9 +181,7 @@ def test_circuit_breaker_recovery():
 
     # Send successful requests - circuit should close
     try:
-        asyncio.run(
-            router.send(payload, strategy="specific", provider="recoverable")
-        )
+        asyncio.run(router.send(payload, strategy="specific", provider="recoverable"))
         # After successful request in HALF_OPEN, should transition to CLOSED
         final_state = router.circuit_breaker.get_state("recoverable")
         assert final_state == CircuitState.CLOSED, f"Expected CLOSED, got {final_state}"
@@ -216,9 +214,7 @@ def test_health_aware_routing():
     # Trigger failures on failing provider to open its circuit
     for _ in range(5):
         try:
-            asyncio.run(
-                router.send(payload, strategy="specific", provider="failing")
-            )
+            asyncio.run(router.send(payload, strategy="specific", provider="failing"))
         except Exception:
             pass
 
@@ -399,7 +395,9 @@ def test_end_to_end_health_workflow():
     for i in range(5):
         result = asyncio.run(router.send(payload, strategy="best"))
         print(f"Request {i+1}: routed to {result.provider}")
-        assert result.provider == "backup", "Should route to backup when primary is down"
+        assert (
+            result.provider == "backup"
+        ), "Should route to backup when primary is down"
 
     # Phase 4: Provider recovery
     print("\n=== Phase 4: Provider Recovery ===")

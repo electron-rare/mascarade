@@ -232,6 +232,7 @@ class BedrockProvider(LLMProvider):
                 for text in _iter_stream():
                     queue.put_nowait(text)
                 queue.put_nowait(None)
+
             await asyncio.to_thread(_run)
 
         drain_task = asyncio.create_task(_drain())

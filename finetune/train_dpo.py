@@ -25,8 +25,16 @@ from pathlib import Path
 SCRIPT_DIR = Path(__file__).resolve().parent
 
 DOMAINS = [
-    "stm32", "spice", "iot", "power", "dsp", "emc",
-    "kicad", "embedded", "platformio", "freecad",
+    "stm32",
+    "spice",
+    "iot",
+    "power",
+    "dsp",
+    "emc",
+    "kicad",
+    "embedded",
+    "platformio",
+    "freecad",
 ]
 
 
@@ -42,11 +50,13 @@ def load_dpo_dataset(path: str):
             prompt_msgs = row.get("prompt", [])
             chosen_msgs = row.get("chosen", [])
             rejected_msgs = row.get("rejected", [])
-            rows.append({
-                "prompt": prompt_msgs,
-                "chosen": chosen_msgs,
-                "rejected": rejected_msgs,
-            })
+            rows.append(
+                {
+                    "prompt": prompt_msgs,
+                    "chosen": chosen_msgs,
+                    "rejected": rejected_msgs,
+                }
+            )
 
     return Dataset.from_list(rows)
 
@@ -192,7 +202,9 @@ def train_dpo(
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="DPO/ORPO training on preference pairs")
+    parser = argparse.ArgumentParser(
+        description="DPO/ORPO training on preference pairs"
+    )
     parser.add_argument("domain", choices=DOMAINS)
     parser.add_argument("--model", required=True, help="Base model or SFT adapter path")
     parser.add_argument("--dpo-dataset", required=True, help="DPO pairs JSONL file")
@@ -208,7 +220,9 @@ def main() -> int:
     args = parser.parse_args()
 
     output_dir = args.output_dir or str(
-        SCRIPT_DIR / "runs" / f"{args.method}_{args.domain}_{time.strftime('%Y%m%d_%H%M%S')}"
+        SCRIPT_DIR
+        / "runs"
+        / f"{args.method}_{args.domain}_{time.strftime('%Y%m%d_%H%M%S')}"
     )
 
     print("=" * 60)

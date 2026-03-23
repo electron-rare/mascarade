@@ -91,7 +91,9 @@ class RAGPipeline:
         if skip_classification:
             intent = "rag"
         else:
-            intent = await self._classify_intent(user_query, provider=provider, model=model)
+            intent = await self._classify_intent(
+                user_query, provider=provider, model=model
+            )
         tool_calls.append(f"classify:{intent}")
 
         # Step 2 — retrieve context if RAG
@@ -118,10 +120,14 @@ class RAGPipeline:
 
         elif intent == "web":
             tool_calls.append("web_search:placeholder")
-            context_text = "(Web search is not yet implemented. Answering from general knowledge.)"
+            context_text = (
+                "(Web search is not yet implemented. Answering from general knowledge.)"
+            )
 
         # Step 3 — generate
-        system_prompt = _RAG_SYSTEM_PROMPT.format(context=context_text) if context_text else None
+        system_prompt = (
+            _RAG_SYSTEM_PROMPT.format(context=context_text) if context_text else None
+        )
         messages = [{"role": "user", "content": user_query}]
 
         llm_response = await self.router.send(
@@ -142,8 +148,16 @@ class RAGPipeline:
             "provider": llm_response.provider,
             "model": llm_response.model,
             "usage": {
-                "prompt_tokens": llm_response.usage.get("prompt_tokens", 0) if llm_response.usage else 0,
-                "completion_tokens": llm_response.usage.get("completion_tokens", 0) if llm_response.usage else 0,
+                "prompt_tokens": (
+                    llm_response.usage.get("prompt_tokens", 0)
+                    if llm_response.usage
+                    else 0
+                ),
+                "completion_tokens": (
+                    llm_response.usage.get("completion_tokens", 0)
+                    if llm_response.usage
+                    else 0
+                ),
             },
             "elapsed_seconds": round(elapsed, 3),
         }
@@ -205,7 +219,9 @@ class RAGPipeline:
             intent = resp.text.strip().lower()
             if intent in {"rag", "web", "general"}:
                 return intent
-            logger.debug("Unexpected intent classification %r, defaulting to rag", intent)
+            logger.debug(
+                "Unexpected intent classification %r, defaulting to rag", intent
+            )
             return "rag"
         except Exception as exc:
             logger.warning("Intent classification failed (%s), defaulting to rag", exc)

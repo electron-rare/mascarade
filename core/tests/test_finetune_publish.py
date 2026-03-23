@@ -67,8 +67,14 @@ class TestRegisterOllamaModel:
         mock_proc.communicate = AsyncMock(return_value=(b"success\n", b""))
 
         try:
-            with patch("mascarade.finetune.publish.shutil.which", return_value="/usr/bin/ollama"):
-                with patch("mascarade.finetune.publish.asyncio.create_subprocess_exec", return_value=mock_proc):
+            with patch(
+                "mascarade.finetune.publish.shutil.which",
+                return_value="/usr/bin/ollama",
+            ):
+                with patch(
+                    "mascarade.finetune.publish.asyncio.create_subprocess_exec",
+                    return_value=mock_proc,
+                ):
                     result = await register_ollama_model(gguf_path, "test-model")
                     assert result["status"] == "registered"
                     assert result["model_name"] == "test-model"
@@ -86,8 +92,14 @@ class TestRegisterOllamaModel:
         mock_proc.communicate = AsyncMock(return_value=(b"", b"model error"))
 
         try:
-            with patch("mascarade.finetune.publish.shutil.which", return_value="/usr/bin/ollama"):
-                with patch("mascarade.finetune.publish.asyncio.create_subprocess_exec", return_value=mock_proc):
+            with patch(
+                "mascarade.finetune.publish.shutil.which",
+                return_value="/usr/bin/ollama",
+            ):
+                with patch(
+                    "mascarade.finetune.publish.asyncio.create_subprocess_exec",
+                    return_value=mock_proc,
+                ):
                     result = await register_ollama_model(gguf_path, "test-model")
                     assert result["status"] == "error"
                     assert "model error" in result["error"]

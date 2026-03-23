@@ -20,8 +20,21 @@ for d in [BASE, HF]:
 
 def detect_language(text):
     """Simple language detection."""
-    fr_words = {"est", "les", "des", "une", "pour", "dans", "avec", "sont", "pas", "qui", "vous", "nous"}
-    zh_markers = re.findall(r'[\u4e00-\u9fff]', text[:500])
+    fr_words = {
+        "est",
+        "les",
+        "des",
+        "une",
+        "pour",
+        "dans",
+        "avec",
+        "sont",
+        "pas",
+        "qui",
+        "vous",
+        "nous",
+    }
+    zh_markers = re.findall(r"[\u4e00-\u9fff]", text[:500])
     if len(zh_markers) > 5:
         return "zh"
     words = set(text[:500].lower().split())
@@ -33,7 +46,11 @@ def detect_language(text):
 def extract_text(record):
     """Extract main text from any format."""
     if "conversations" in record:
-        return " ".join(c.get("value", c.get("content", "")) for c in record["conversations"] if c.get("value") or c.get("content"))
+        return " ".join(
+            c.get("value", c.get("content", ""))
+            for c in record["conversations"]
+            if c.get("value") or c.get("content")
+        )
     if "text" in record:
         return record["text"]
     if "output" in record:
@@ -45,8 +62,25 @@ def extract_text(record):
 
 def has_code(text):
     """Detect if text contains code."""
-    code_markers = ["def ", "class ", "import ", "include", "#define", "void ", "int ", "module ", "always @",
-                    "assign ", "wire ", "reg ", ".begin", ".end", "pinMode", "digitalWrite", "Serial."]
+    code_markers = [
+        "def ",
+        "class ",
+        "import ",
+        "include",
+        "#define",
+        "void ",
+        "int ",
+        "module ",
+        "always @",
+        "assign ",
+        "wire ",
+        "reg ",
+        ".begin",
+        ".end",
+        "pinMode",
+        "digitalWrite",
+        "Serial.",
+    ]
     return any(m in text for m in code_markers)
 
 
@@ -75,10 +109,35 @@ def quality_score(text):
         score += 1
 
     # Has technical content
-    tech_terms = ["voltage", "current", "resistor", "capacitor", "circuit", "signal", "frequency",
-                  "module", "register", "interrupt", "timer", "GPIO", "SPI", "I2C", "UART",
-                  "schematic", "PCB", "footprint", "netlist", "simulation", "SPICE",
-                  "KiCad", "STM32", "ESP32", "Arduino", "Verilog", "FPGA"]
+    tech_terms = [
+        "voltage",
+        "current",
+        "resistor",
+        "capacitor",
+        "circuit",
+        "signal",
+        "frequency",
+        "module",
+        "register",
+        "interrupt",
+        "timer",
+        "GPIO",
+        "SPI",
+        "I2C",
+        "UART",
+        "schematic",
+        "PCB",
+        "footprint",
+        "netlist",
+        "simulation",
+        "SPICE",
+        "KiCad",
+        "STM32",
+        "ESP32",
+        "Arduino",
+        "Verilog",
+        "FPGA",
+    ]
     tech_count = sum(1 for t in tech_terms if t.lower() in text.lower())
     if tech_count > 0:
         score += 1
@@ -208,8 +267,14 @@ def main():
     for s in all_stats:
         if s["quality_scores"]:
             s["avg_quality"] = sum(s["quality_scores"]) / len(s["quality_scores"])
-            s["median_length"] = sorted(s["lengths"])[len(s["lengths"]) // 2] if s["lengths"] else 0
-            s["pct_good"] = sum(1 for q in s["quality_scores"] if q >= 5) / len(s["quality_scores"]) * 100
+            s["median_length"] = (
+                sorted(s["lengths"])[len(s["lengths"]) // 2] if s["lengths"] else 0
+            )
+            s["pct_good"] = (
+                sum(1 for q in s["quality_scores"] if q >= 5)
+                / len(s["quality_scores"])
+                * 100
+            )
             s["pct_code"] = s["has_code"] / max(s["valid_json"], 1) * 100
             s["dupe_pct"] = s["internal_dupes"] / max(s["valid_json"], 1) * 100
         else:
@@ -222,12 +287,16 @@ def main():
     all_stats.sort(key=lambda x: -x["avg_quality"])
 
     # Print report
-    print(f"\n{'Dataset':<45} {'Lines':>7} {'Valid':>7} {'Quality':>8} {'Good%':>6} {'Med.Len':>8} {'Code%':>6} {'Dupe%':>6} {'Lang':>5}")
+    print(
+        f"\n{'Dataset':<45} {'Lines':>7} {'Valid':>7} {'Quality':>8} {'Good%':>6} {'Med.Len':>8} {'Code%':>6} {'Dupe%':>6} {'Lang':>5}"
+    )
     print("-" * 120)
 
     for s in all_stats:
         lang = s["languages"].most_common(1)[0][0] if s["languages"] else "?"
-        print(f"{s['name']:<45} {s['total_lines']:>7} {s['valid_json']:>7} {s['avg_quality']:>7.1f}/10 {s['pct_good']:>5.1f}% {s['median_length']:>7} {s['pct_code']:>5.1f}% {s['dupe_pct']:>5.1f}% {lang:>5}")
+        print(
+            f"{s['name']:<45} {s['total_lines']:>7} {s['valid_json']:>7} {s['avg_quality']:>7.1f}/10 {s['pct_good']:>5.1f}% {s['median_length']:>7} {s['pct_code']:>5.1f}% {s['dupe_pct']:>5.1f}% {lang:>5}"
+        )
         total_examples += s["valid_json"]
         total_quality.extend(s["quality_scores"])
 
@@ -271,30 +340,35 @@ def main():
     if tier_d:
         print("\nTier D — Skip:")
         for s in tier_d:
-            print(f"  {s['name']} ({s['valid_json']} examples, {s['avg_quality']:.1f}/10)")
+            print(
+                f"  {s['name']} ({s['valid_json']} examples, {s['avg_quality']:.1f}/10)"
+            )
 
     # Save detailed report
     report = {
         "total_datasets": len(all_stats),
         "total_examples": total_examples,
         "avg_quality": round(avg_q, 2) if total_quality else 0,
-        "datasets": [{
-            "name": s["name"],
-            "lines": s["total_lines"],
-            "valid": s["valid_json"],
-            "invalid_json": s["invalid_json"],
-            "empty": s["empty_content"],
-            "avg_quality": round(s["avg_quality"], 2),
-            "pct_good": round(s["pct_good"], 1),
-            "median_length": s["median_length"],
-            "pct_code": round(s["pct_code"], 1),
-            "internal_dupes_pct": round(s["dupe_pct"], 1),
-            "formats": dict(s["formats"]),
-            "languages": dict(s["languages"]),
-            "domains": dict(s["domains"].most_common(5)),
-            "sample_good": s["sample_good"],
-            "sample_bad": s["sample_bad"],
-        } for s in all_stats]
+        "datasets": [
+            {
+                "name": s["name"],
+                "lines": s["total_lines"],
+                "valid": s["valid_json"],
+                "invalid_json": s["invalid_json"],
+                "empty": s["empty_content"],
+                "avg_quality": round(s["avg_quality"], 2),
+                "pct_good": round(s["pct_good"], 1),
+                "median_length": s["median_length"],
+                "pct_code": round(s["pct_code"], 1),
+                "internal_dupes_pct": round(s["dupe_pct"], 1),
+                "formats": dict(s["formats"]),
+                "languages": dict(s["languages"]),
+                "domains": dict(s["domains"].most_common(5)),
+                "sample_good": s["sample_good"],
+                "sample_bad": s["sample_bad"],
+            }
+            for s in all_stats
+        ],
     }
 
     report_path = f"{BASE}/QUALITY_ANALYSIS.json"

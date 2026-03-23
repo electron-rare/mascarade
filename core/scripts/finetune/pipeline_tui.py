@@ -8,6 +8,7 @@ Usage:
     python scripts/finetune/pipeline_tui.py
     python scripts/finetune/pipeline_tui.py --task code --domain code-generation
 """
+
 import asyncio
 import json
 import os
@@ -22,7 +23,12 @@ sys.path.insert(0, os.environ.get("PYTHONPATH", os.path.expanduser("~/mascarade/
 from mascarade.finetune.agents.documentalist import DocumentalistAgent
 from mascarade.finetune.agents.researcher import ResearcherAgent
 from mascarade.finetune.agents.teacher import TeacherAgent, TeacherConfig
-from mascarade.finetune.registry import DatasetEntry, FinetuneRegistry, ModelEntry, RunEntry
+from mascarade.finetune.registry import (
+    DatasetEntry,
+    FinetuneRegistry,
+    ModelEntry,
+    RunEntry,
+)
 
 # ANSI
 BOLD = "\033[1m"
@@ -101,7 +107,9 @@ def ssh_cmd(cmd: str, timeout: int = 300) -> tuple[int, str]:
     """Run command on KXKM-AI via SSH."""
     result = subprocess.run(
         ["ssh", "-o", "ConnectTimeout=5", KXKM_SSH, cmd],
-        capture_output=True, text=True, timeout=timeout,
+        capture_output=True,
+        text=True,
+        timeout=timeout,
     )
     return result.returncode, result.stdout + result.stderr
 
@@ -139,7 +147,9 @@ def input_int(prompt: str, default: int) -> int:
         return default
 
 
-async def phase_research(log: PipelineLogger, task: str, max_size: float, top_k: int) -> dict | None:
+async def phase_research(
+    log: PipelineLogger, task: str, max_size: float, top_k: int
+) -> dict | None:
     log.phase("RECHERCHE MODÈLES")
     researcher = ResearcherAgent(hf_token=HF_TOKEN)
     try:
@@ -153,7 +163,9 @@ async def phase_research(log: PipelineLogger, task: str, max_size: float, top_k:
         return None
 
     for i, m in enumerate(report["candidates"], 1):
-        log.info(f"  {i}. {CYAN}{m['model_id']}{RESET}  ↓{m['downloads']:,}  ♥{m['likes']:,}  {m['license']}")
+        log.info(
+            f"  {i}. {CYAN}{m['model_id']}{RESET}  ↓{m['downloads']:,}  ♥{m['likes']:,}  {m['license']}"
+        )
     log.data("model_candidates", [c["model_id"] for c in report["candidates"]])
 
     if report.get("papers"):
@@ -189,6 +201,7 @@ async def phase_teacher(log: PipelineLogger, domain: str) -> str | None:
     log.phase("GÉNÉRATION TEACHER DATA")
     try:
         from mascarade.router import Router
+
         router = Router()
         if not router._providers:
             log.warn("Aucun provider LLM configuré, skip teacher")
@@ -207,10 +220,14 @@ async def phase_teacher(log: PipelineLogger, domain: str) -> str | None:
             f"Create an advanced {domain} problem and its optimal solution.",
         ]
 
-        output_path = Path(f"~/.mascarade/finetune/teacher/{domain}/train.jsonl").expanduser()
+        output_path = Path(
+            f"~/.mascarade/finetune/teacher/{domain}/train.jsonl"
+        ).expanduser()
         output_path.parent.mkdir(parents=True, exist_ok=True)
 
-        log.info(f"Génération de {len(prompts)} samples via {router._providers.keys()}...")
+        log.info(
+            f"Génération de {len(prompts)} samples via {router._providers.keys()}..."
+        )
         result = await teacher.generate_from_prompts(prompts, config, output_path)
         log.ok(f"{result['total']} samples générés → {result['output_path']}")
         log.data("teacher_result", result)
@@ -235,14 +252,20 @@ def phase_check_kxkm(log: PipelineLogger) -> bool:
     log.ok("SSH OK")
 
     log.info("GPU check...")
-    rc, out = ssh_cmd(f"{KXKM_VENV} -c 'import torch; print(torch.cuda.get_device_name(0))'", timeout=15)
+    rc, out = ssh_cmd(
+        f"{KXKM_VENV} -c 'import torch; print(torch.cuda.get_device_name(0))'",
+        timeout=15,
+    )
     if rc != 0:
         log.fail(f"GPU check failed: {out.strip()}")
         return False
     log.ok(f"GPU: {out.strip()}")
 
     log.info("Packages check...")
-    rc, out = ssh_cmd(f"{KXKM_VENV} -c 'import trl, peft; print(f\"trl={{trl.__version__}} peft={{peft.__version__}}\")'", timeout=15)
+    rc, out = ssh_cmd(
+        f"{KXKM_VENV} -c 'import trl, peft; print(f\"trl={{trl.__version__}} peft={{peft.__version__}}\")'",
+        timeout=15,
+    )
     if rc != 0:
         log.fail(f"Packages missing: {out.strip()}")
         return False
@@ -251,14 +274,20 @@ def phase_check_kxkm(log: PipelineLogger) -> bool:
     return True
 
 
-def phase_train(log: PipelineLogger, base_model: str, dataset_id: str, run_id: str,
-                max_steps: int = 50, batch_size: int = 2) -> dict:
+def phase_train(
+    log: PipelineLogger,
+    base_model: str,
+    dataset_id: str,
+    run_id: str,
+    max_steps: int = 50,
+    batch_size: int = 2,
+) -> dict:
     log.phase("TRAINING SUR KXKM-AI")
     log.info(f"Model: {base_model}")
     log.info(f"Dataset: {dataset_id}")
     log.info(f"Config: QLoRA 4bit, {max_steps} steps, batch={batch_size}, lr=2e-4")
 
-    train_script = f'''
+    train_script = f"""
 import json, time, torch
 from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
 from peft import LoraConfig
@@ -361,14 +390,16 @@ result = {{
     "status": "completed",
 }}
 print("RESULT_JSON:" + json.dumps(result))
-'''
+"""
 
     # Deploy script
     log.info("Deploying training script...")
     script_path = "/tmp/mascarade_train.py"
     proc = subprocess.run(
         ["ssh", KXKM_SSH, f"cat > {script_path}"],
-        input=train_script, text=True, timeout=10,
+        input=train_script,
+        text=True,
+        timeout=10,
     )
     if proc.returncode != 0:
         log.fail("Failed to deploy script")
@@ -380,7 +411,9 @@ print("RESULT_JSON:" + json.dumps(result))
     try:
         result = subprocess.run(
             ["ssh", KXKM_SSH, f"{KXKM_VENV} {script_path}"],
-            capture_output=True, text=True, timeout=1800,
+            capture_output=True,
+            text=True,
+            timeout=1800,
         )
 
         for line in result.stdout.split("\n"):
@@ -394,7 +427,9 @@ print("RESULT_JSON:" + json.dumps(result))
                 except json.JSONDecodeError as e:
                     log.fail(f"JSON parse error: {e}")
                     return {"status": "failed", "error": f"JSON parse error: {e}"}
-                log.ok(f"Training terminé en {data['training_time_seconds']}s, loss={data['final_loss']}")
+                log.ok(
+                    f"Training terminé en {data['training_time_seconds']}s, loss={data['final_loss']}"
+                )
                 log.data("training_result", data)
                 return data
 
@@ -422,7 +457,9 @@ def show_logs():
     print(f"  {BOLD}Logs ({len(logs)}):{RESET}\n")
     for i, log_path in enumerate(logs[:10], 1):
         size = log_path.stat().st_size
-        mtime = datetime.fromtimestamp(log_path.stat().st_mtime).strftime("%Y-%m-%d %H:%M")
+        mtime = datetime.fromtimestamp(log_path.stat().st_mtime).strftime(
+            "%Y-%m-%d %H:%M"
+        )
         # Read first and last lines for status
         lines = log_path.read_text().strip().split("\n")
         status = "..."
@@ -436,7 +473,9 @@ def show_logs():
 
         print(f"  {BOLD}{i}{RESET}. {log_path.name:40s} {mtime}  {size:>6d}B  {status}")
 
-    print(f"\n  {BOLD}v{RESET}=voir  {BOLD}d{RESET}=supprimer  {BOLD}D{RESET}=tout supprimer  {BOLD}0{RESET}=retour")
+    print(
+        f"\n  {BOLD}v{RESET}=voir  {BOLD}d{RESET}=supprimer  {BOLD}D{RESET}=tout supprimer  {BOLD}0{RESET}=retour"
+    )
     try:
         choice = input("\n  Action > ").strip().lower()
     except (EOFError, KeyboardInterrupt):
@@ -451,7 +490,9 @@ def show_logs():
         except (ValueError, EOFError):
             pass
     elif choice.upper() == "D":
-        confirm = input(f"  {RED}Supprimer {len(logs)} logs ? (oui/non) > {RESET}").strip()
+        confirm = input(
+            f"  {RED}Supprimer {len(logs)} logs ? (oui/non) > {RESET}"
+        ).strip()
         if confirm == "oui":
             for log_path in logs:
                 log_path.unlink()
@@ -485,7 +526,9 @@ async def run_pipeline():
     log = PipelineLogger(run_id)
 
     log.info(f"Run ID: {run_id}")
-    log.info(f"Config: task={task} domain={domain} max_size={max_size}GB steps={max_steps}")
+    log.info(
+        f"Config: task={task} domain={domain} max_size={max_size}GB steps={max_steps}"
+    )
 
     # Phase 1: Research
     model_report = await phase_research(log, task, max_size, top_k)
@@ -495,18 +538,25 @@ async def run_pipeline():
 
     selected_model = model_report["candidates"][0]["model_id"]
     # Allow override
-    override = input(f"\n  Modèle [{CYAN}{selected_model}{RESET}] (entrée=garder) > ").strip()
+    override = input(
+        f"\n  Modèle [{CYAN}{selected_model}{RESET}] (entrée=garder) > "
+    ).strip()
     if override:
         selected_model = override
     log.ok(f"Modèle: {selected_model}")
 
     # Save to registry
     best = model_report["candidates"][0]
-    registry.add_model(ModelEntry(
-        model_id=selected_model, source="huggingface", task=task,
-        size_gb=best.get("size_gb", 0), license=best.get("license", ""),
-        downloads=best.get("downloads", 0),
-    ))
+    registry.add_model(
+        ModelEntry(
+            model_id=selected_model,
+            source="huggingface",
+            task=task,
+            size_gb=best.get("size_gb", 0),
+            license=best.get("license", ""),
+            downloads=best.get("downloads", 0),
+        )
+    )
 
     # Phase 2: Dataset
     ds_report = await phase_dataset(log, domain, top_k)
@@ -515,15 +565,21 @@ async def run_pipeline():
         return
 
     selected_dataset = ds_report["candidates"][0]["dataset_id"]
-    override = input(f"\n  Dataset [{CYAN}{selected_dataset}{RESET}] (entrée=garder) > ").strip()
+    override = input(
+        f"\n  Dataset [{CYAN}{selected_dataset}{RESET}] (entrée=garder) > "
+    ).strip()
     if override:
         selected_dataset = override
     log.ok(f"Dataset: {selected_dataset}")
 
-    registry.add_dataset(DatasetEntry(
-        dataset_id=selected_dataset, source="huggingface", domain=domain,
-        license=ds_report["candidates"][0].get("license", ""),
-    ))
+    registry.add_dataset(
+        DatasetEntry(
+            dataset_id=selected_dataset,
+            source="huggingface",
+            domain=domain,
+            license=ds_report["candidates"][0].get("license", ""),
+        )
+    )
 
     # Phase 3: Teacher (optional)
     if not skip_teacher:
@@ -545,24 +601,32 @@ async def run_pipeline():
         return
 
     # Phase 5: Training
-    result = phase_train(log, selected_model, selected_dataset, run_id,
-                         max_steps=max_steps, batch_size=batch_size)
+    result = phase_train(
+        log,
+        selected_model,
+        selected_dataset,
+        run_id,
+        max_steps=max_steps,
+        batch_size=batch_size,
+    )
 
     # Phase 6: Save to registry
     log.phase("SAUVEGARDE REGISTRE")
-    registry.add_run(RunEntry(
-        run_id=run_id,
-        base_model=selected_model,
-        dataset=selected_dataset,
-        method=result.get("method", "qlora-4bit"),
-        node="KXKM-AI",
-        status=result.get("status", "failed"),
-        metrics={
-            "final_loss": result.get("final_loss", 0),
-            "training_time": result.get("training_time_seconds", 0),
-            "max_steps": result.get("max_steps", 0),
-        },
-    ))
+    registry.add_run(
+        RunEntry(
+            run_id=run_id,
+            base_model=selected_model,
+            dataset=selected_dataset,
+            method=result.get("method", "qlora-4bit"),
+            node="KXKM-AI",
+            status=result.get("status", "failed"),
+            metrics={
+                "final_loss": result.get("final_loss", 0),
+                "training_time": result.get("training_time_seconds", 0),
+                "max_steps": result.get("max_steps", 0),
+            },
+        )
+    )
     log.ok(f"Run {run_id} saved")
 
     # Summary

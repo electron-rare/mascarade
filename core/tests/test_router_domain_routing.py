@@ -65,8 +65,7 @@ def test_router_domain_filtering():
 
         # Mark model as healthy (simulate successful deployment)
         router.model_registry.register_model(
-            "test-stm32-model:latest",
-            {"health_status": "healthy"}
+            "test-stm32-model:latest", {"health_status": "healthy"}
         )
 
         # Verify health status updated
@@ -104,12 +103,10 @@ def test_router_lists_domain_models():
 
         # Mark stm32 and spice models as healthy
         router.model_registry.register_model(
-            "model-stm32:v1",
-            {"health_status": "healthy"}
+            "model-stm32:v1", {"health_status": "healthy"}
         )
         router.model_registry.register_model(
-            "model-spice:v1",
-            {"health_status": "healthy"}
+            "model-spice:v1", {"health_status": "healthy"}
         )
 
         # Get all models
@@ -117,11 +114,19 @@ def test_router_lists_domain_models():
         assert len(all_models) == 3
 
         # Filter by domain
-        stm32_models = [m for m in all_models if m.domain == "stm32" and m.health_status == "healthy"]
+        stm32_models = [
+            m
+            for m in all_models
+            if m.domain == "stm32" and m.health_status == "healthy"
+        ]
         assert len(stm32_models) == 1
         assert stm32_models[0].model_id == "model-stm32:v1"
 
-        spice_models = [m for m in all_models if m.domain == "spice" and m.health_status == "healthy"]
+        spice_models = [
+            m
+            for m in all_models
+            if m.domain == "spice" and m.health_status == "healthy"
+        ]
         assert len(spice_models) == 1
         assert spice_models[0].model_id == "model-spice:v1"
 
@@ -151,8 +156,7 @@ def test_router_domain_provider_filtering():
 
         # Mark as healthy
         router.model_registry.register_model(
-            "test-electronics:v1",
-            {"health_status": "healthy"}
+            "test-electronics:v1", {"health_status": "healthy"}
         )
 
         # Get initial provider count (should have 2 mock providers)
@@ -192,8 +196,7 @@ def test_router_domain_filtering_fallback():
         )
 
         router.model_registry.register_model(
-            "test-electronics:v1",
-            {"health_status": "unhealthy"}
+            "test-electronics:v1", {"health_status": "unhealthy"}
         )
 
         # When no healthy domain models exist, should fall back to all providers

@@ -73,9 +73,11 @@ class P2PTaskDistribution:
     def prune_old_tasks(self) -> int:
         """Remove completed/failed tasks older than max_task_age. Call from heartbeat."""
         import time as _time
+
         cutoff = _time.time() - self._max_task_age
         to_remove = [
-            tid for tid, t in self._tasks.items()
+            tid
+            for tid, t in self._tasks.items()
             if t.status in (TaskStatus.COMPLETED, TaskStatus.FAILED, TaskStatus.TIMEOUT)
             and (t.completed_at or t.submitted_at) < cutoff
         ]
@@ -115,17 +117,21 @@ class P2PTaskDistribution:
             if not caps or capability not in caps.capabilities:
                 logger.warning(
                     "Target peer %s doesn't have capability %s",
-                    target_peer, capability,
+                    target_peer,
+                    capability,
                 )
 
-        await self._pubsub.publish(_TOPIC_TASK_SUBMIT, {
-            "task_id": task_id,
-            "capability": capability,
-            "payload": payload,
-            "submitter": self._local_peer_id,
-            "timeout": timeout,
-            "target_peer": target_peer,
-        })
+        await self._pubsub.publish(
+            _TOPIC_TASK_SUBMIT,
+            {
+                "task_id": task_id,
+                "capability": capability,
+                "payload": payload,
+                "submitter": self._local_peer_id,
+                "timeout": timeout,
+                "target_peer": target_peer,
+            },
+        )
 
         try:
             result = await asyncio.wait_for(future, timeout=timeout)
@@ -146,7 +152,10 @@ class P2PTaskDistribution:
         return task
 
     async def _handle_task_submit(
-        self, topic: str, data: dict[str, Any], origin: str,
+        self,
+        topic: str,
+        data: dict[str, Any],
+        origin: str,
     ) -> None:
         task_id = data.get("task_id", "")
         capability = data.get("capability", "")
@@ -191,10 +200,13 @@ class P2PTaskDistribution:
         task.claimed_by = self._local_peer_id
 
         # Broadcast the claim so the submitter (and other workers) know.
-        await self._pubsub.publish(_TOPIC_TASK_CLAIM, {
-            "task_id": task_id,
-            "claimer": self._local_peer_id,
-        })
+        await self._pubsub.publish(
+            _TOPIC_TASK_CLAIM,
+            {
+                "task_id": task_id,
+                "claimer": self._local_peer_id,
+            },
+        )
 
         # Give network a brief moment to deliver competing claims that were sent
         # at nearly the same time.  If a claim from a peer with a lexicographically
@@ -205,12 +217,15 @@ class P2PTaskDistribution:
         if task is None or task.claimed_by != self._local_peer_id:
             logger.debug(
                 "Task %s: lost claim race, deferring to %s",
-                task_id, task.claimed_by if task else "unknown",
+                task_id,
+                task.claimed_by if task else "unknown",
             )
             return
 
         if not self._task_handler:
-            logger.warning("No task handler registered, cannot process task %s", task_id)
+            logger.warning(
+                "No task handler registered, cannot process task %s", task_id
+            )
             return
 
         task.status = TaskStatus.RUNNING
@@ -218,23 +233,32 @@ class P2PTaskDistribution:
         # Execute
         try:
             result = await self._task_handler(data.get("payload", {}), capability)
-            await self._pubsub.publish(_TOPIC_TASK_RESULT, {
-                "task_id": task_id,
-                "executor": self._local_peer_id,
-                "status": "completed",
-                "result": result,
-            })
+            await self._pubsub.publish(
+                _TOPIC_TASK_RESULT,
+                {
+                    "task_id": task_id,
+                    "executor": self._local_peer_id,
+                    "status": "completed",
+                    "result": result,
+                },
+            )
         except Exception as exc:
             logger.exception("Task %s failed", task_id)
-            await self._pubsub.publish(_TOPIC_TASK_RESULT, {
-                "task_id": task_id,
-                "executor": self._local_peer_id,
-                "status": "failed",
-                "error": str(exc),
-            })
+            await self._pubsub.publish(
+                _TOPIC_TASK_RESULT,
+                {
+                    "task_id": task_id,
+                    "executor": self._local_peer_id,
+                    "status": "failed",
+                    "error": str(exc),
+                },
+            )
 
     async def _handle_task_result(
-        self, topic: str, data: dict[str, Any], origin: str,
+        self,
+        topic: str,
+        data: dict[str, Any],
+        origin: str,
     ) -> None:
         task_id = data.get("task_id", "")
         future = self._result_futures.get(task_id)
@@ -250,10 +274,15 @@ class P2PTaskDistribution:
         task = self._tasks.get(task_id)
         if task:
             task.claimed_by = data.get("executor")
-            task.status = TaskStatus.COMPLETED if status == "completed" else TaskStatus.FAILED
+            task.status = (
+                TaskStatus.COMPLETED if status == "completed" else TaskStatus.FAILED
+            )
 
     async def _handle_task_claim(
-        self, topic: str, data: dict[str, Any], origin: str,
+        self,
+        topic: str,
+        data: dict[str, Any],
+        origin: str,
     ) -> None:
         task_id = data.get("task_id", "")
         claimer = data.get("claimer", "")
@@ -271,7 +300,9 @@ class P2PTaskDistribution:
             if claimer < task.claimed_by:
                 logger.debug(
                     "Task %s: claim superseded by %s (was %s)",
-                    task_id, claimer, task.claimed_by,
+                    task_id,
+                    claimer,
+                    task.claimed_by,
                 )
                 task.claimed_by = claimer
 

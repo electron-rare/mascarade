@@ -88,17 +88,21 @@ RULES:
 def create_agent(agent_def):
     """Create a Mistral agent via API."""
     with httpx.Client(timeout=30.0) as client:
-        resp = client.post(f"{MISTRAL_URL}/agents", headers={
-            "Authorization": f"Bearer {MISTRAL_KEY}",
-            "Content-Type": "application/json",
-        }, json={
-            "model": agent_def["model"],
-            "name": agent_def["name"],
-            "description": agent_def["description"],
-            "instructions": agent_def["instructions"],
-            "tools": agent_def.get("tools", []),
-            "completion_args": agent_def.get("completion_args", {}),
-        })
+        resp = client.post(
+            f"{MISTRAL_URL}/agents",
+            headers={
+                "Authorization": f"Bearer {MISTRAL_KEY}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "model": agent_def["model"],
+                "name": agent_def["name"],
+                "description": agent_def["description"],
+                "instructions": agent_def["instructions"],
+                "tools": agent_def.get("tools", []),
+                "completion_args": agent_def.get("completion_args", {}),
+            },
+        )
         resp.raise_for_status()
         data = resp.json()
         return data["id"]
@@ -109,13 +113,17 @@ def run_agent(agent_id, prompt, max_retries=2):
     for attempt in range(max_retries):
         try:
             with httpx.Client(timeout=60.0) as client:
-                resp = client.post(f"{MISTRAL_URL}/agents/completions", headers={
-                    "Authorization": f"Bearer {MISTRAL_KEY}",
-                    "Content-Type": "application/json",
-                }, json={
-                    "agent_id": agent_id,
-                    "messages": [{"role": "user", "content": prompt}],
-                })
+                resp = client.post(
+                    f"{MISTRAL_URL}/agents/completions",
+                    headers={
+                        "Authorization": f"Bearer {MISTRAL_KEY}",
+                        "Content-Type": "application/json",
+                    },
+                    json={
+                        "agent_id": agent_id,
+                        "messages": [{"role": "user", "content": prompt}],
+                    },
+                )
                 resp.raise_for_status()
                 data = resp.json()
                 return data["choices"][0]["message"]["content"]

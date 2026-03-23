@@ -31,6 +31,7 @@ class DPOPair:
 @dataclass
 class KTOExample:
     """Single example for KTO training (binary feedback, no pairs needed)."""
+
     prompt: str
     completion: str
     label: bool  # True = desirable, False = undesirable
@@ -66,7 +67,9 @@ class ReinforcerAgent:
     P2P capability: ft-reinforcement
     """
 
-    def __init__(self, *, teacher=None, output_dir: Path | str = "~/.mascarade/finetune/dpo"):
+    def __init__(
+        self, *, teacher=None, output_dir: Path | str = "~/.mascarade/finetune/dpo"
+    ):
         self.teacher = teacher
         self.output_dir = Path(output_dir).expanduser()
         self.output_dir.mkdir(parents=True, exist_ok=True)
@@ -78,24 +81,30 @@ class ReinforcerAgent:
         federation_scope: list[str] | tuple[str, ...] | None = None,
         knowledge_scope: str = "project",
     ) -> tuple[str, list[str], str]:
-        normalized_project = (project_id or settings.mascarade_project_id).strip() or "default"
+        normalized_project = (
+            project_id or settings.mascarade_project_id
+        ).strip() or "default"
         normalized_scope = (knowledge_scope or "project").strip().lower() or "project"
         if normalized_scope not in {"project", "federated"}:
             raise ValueError(f"Unsupported knowledge_scope: {knowledge_scope}")
 
         cleaned_federation = [
-            item.strip()
-            for item in (federation_scope or [])
-            if str(item).strip()
+            item.strip() for item in (federation_scope or []) if str(item).strip()
         ]
         if normalized_scope == "project":
             cleaned_federation = [normalized_project]
         elif not cleaned_federation:
-            raise ValueError("federation_scope is required when knowledge_scope is federated")
+            raise ValueError(
+                "federation_scope is required when knowledge_scope is federated"
+            )
         elif normalized_project not in cleaned_federation:
             cleaned_federation = [normalized_project, *cleaned_federation]
 
-        return normalized_project, list(dict.fromkeys(cleaned_federation)), normalized_scope
+        return (
+            normalized_project,
+            list(dict.fromkeys(cleaned_federation)),
+            normalized_scope,
+        )
 
     async def collect_kxkm_feedback(
         self,
@@ -105,10 +114,12 @@ class ReinforcerAgent:
         federation_scope: list[str] | tuple[str, ...] | None = None,
         knowledge_scope: str = "project",
     ) -> list[DPOPair]:
-        normalized_project, normalized_federation, normalized_scope = self._normalize_scope(
-            project_id=project_id,
-            federation_scope=federation_scope,
-            knowledge_scope=knowledge_scope,
+        normalized_project, normalized_federation, normalized_scope = (
+            self._normalize_scope(
+                project_id=project_id,
+                federation_scope=federation_scope,
+                knowledge_scope=knowledge_scope,
+            )
         )
         selected_persona = (persona or settings.kxkm_dpo_persona).strip()
         if not selected_persona:
@@ -154,7 +165,8 @@ class ReinforcerAgent:
                     chosen=chosen,
                     rejected=rejected,
                     persona=str(pair.get("persona") or selected_persona).strip(),
-                    project_id=str(pair.get("project_id") or normalized_project).strip() or normalized_project,
+                    project_id=str(pair.get("project_id") or normalized_project).strip()
+                    or normalized_project,
                     source="kxkm",
                 )
             )
@@ -168,6 +180,7 @@ class ReinforcerAgent:
     ) -> list[dict]:
         """Identify errors by running model on test prompts and checking quality."""
         import subprocess
+
         if not shutil.which("llama-cli"):
             logger.warning("llama-cli not found in PATH, cannot collect errors")
             return []
@@ -175,22 +188,38 @@ class ReinforcerAgent:
         for prompt in test_prompts:
             try:
                 result = subprocess.run(
-                    ["llama-cli", "--model", model_path, "--prompt", prompt,
-                     "--n-predict", "256", "--threads", "4", "--no-display-prompt"],
-                    capture_output=True, text=True, timeout=60,
+                    [
+                        "llama-cli",
+                        "--model",
+                        model_path,
+                        "--prompt",
+                        prompt,
+                        "--n-predict",
+                        "256",
+                        "--threads",
+                        "4",
+                        "--no-display-prompt",
+                    ],
+                    capture_output=True,
+                    text=True,
+                    timeout=60,
                 )
                 response = result.stdout.strip()
                 # Simple quality heuristic: too short, repetitive, or empty
                 if len(response) < 20 or self._is_repetitive(response):
-                    errors.append({
-                        "prompt": prompt,
-                        "bad_response": response,
-                        "error_description": "low quality or repetitive",
-                    })
+                    errors.append(
+                        {
+                            "prompt": prompt,
+                            "bad_response": response,
+                            "error_description": "low quality or repetitive",
+                        }
+                    )
             except Exception as e:
                 logger.warning("Error collecting: %s", e)
 
-        logger.info("Collected %d errors from %d prompts", len(errors), len(test_prompts))
+        logger.info(
+            "Collected %d errors from %d prompts", len(errors), len(test_prompts)
+        )
         return errors
 
     async def generate_dpo_pairs(
@@ -215,12 +244,17 @@ class ReinforcerAgent:
 
         if errors:
             if self.teacher is None:
-                raise RuntimeError("ReinforcerAgent requires a TeacherAgent for DPO pair generation")
+                raise RuntimeError(
+                    "ReinforcerAgent requires a TeacherAgent for DPO pair generation"
+                )
 
             from mascarade.finetune.agents.teacher import TeacherConfig
+
             await self.teacher.generate_corrections(
                 errors=errors,
-                config=TeacherConfig(task_description="Generate correct response for DPO training"),
+                config=TeacherConfig(
+                    task_description="Generate correct response for DPO training"
+                ),
                 output_path=output_path,
             )
             combined_pairs.extend(self._load_pairs(output_path, source="teacher"))
@@ -267,8 +301,12 @@ class ReinforcerAgent:
                     prompt=prompt,
                     chosen=chosen,
                     rejected=rejected,
-                    persona=str(data.get("persona") or settings.kxkm_dpo_persona).strip(),
-                    project_id=str(data.get("project_id") or settings.mascarade_project_id).strip(),
+                    persona=str(
+                        data.get("persona") or settings.kxkm_dpo_persona
+                    ).strip(),
+                    project_id=str(
+                        data.get("project_id") or settings.mascarade_project_id
+                    ).strip(),
                     source=str(data.get("source") or source).strip() or source,
                 )
             )
@@ -333,11 +371,14 @@ class ReinforcerAgent:
         """
         valid_methods = {"dpo", "simpo", "kto", "rlvr"}
         if method not in valid_methods:
-            raise ValueError(f"Unknown alignment method '{method}', must be one of {valid_methods}")
+            raise ValueError(
+                f"Unknown alignment method '{method}', must be one of {valid_methods}"
+            )
 
         if method == "rlvr":
             return await self._train_rlvr(
-                model_path, dataset_path,
+                model_path,
+                dataset_path,
                 run_id=run_id,
                 learning_rate=learning_rate,
                 num_epochs=num_epochs,
@@ -347,7 +388,8 @@ class ReinforcerAgent:
 
         if method == "kto":
             return await self._train_kto(
-                model_path, dataset_path,
+                model_path,
+                dataset_path,
                 run_id=run_id,
                 beta=beta if beta is not None else 0.1,
                 learning_rate=learning_rate,
@@ -359,7 +401,8 @@ class ReinforcerAgent:
 
         if method == "simpo":
             return await self._train_simpo(
-                model_path, dataset_path,
+                model_path,
+                dataset_path,
                 run_id=run_id,
                 beta=beta if beta is not None else 2.0,
                 gamma=gamma,
@@ -370,7 +413,8 @@ class ReinforcerAgent:
 
         # Default: DPO
         return await self._train_dpo(
-            model_path, dataset_path,
+            model_path,
+            dataset_path,
             run_id=run_id,
             beta=beta if beta is not None else 0.1,
             learning_rate=learning_rate,
@@ -445,7 +489,9 @@ class ReinforcerAgent:
         output_dir = Path(f"~/.mascarade/finetune/runs/{run_id}").expanduser()
         output_dir.mkdir(parents=True, exist_ok=True)
 
-        logger.info("Starting DPO alignment: model=%s dataset=%s", model_path, dataset_path)
+        logger.info(
+            "Starting DPO alignment: model=%s dataset=%s", model_path, dataset_path
+        )
         start = time.time()
 
         dataset = self._load_alignment_dataset(dataset_path)
@@ -474,7 +520,9 @@ class ReinforcerAgent:
             tokenizer.pad_token = tokenizer.eos_token
 
         model = AutoModelForCausalLM.from_pretrained(
-            model_path, torch_dtype=torch.bfloat16, device_map="auto",
+            model_path,
+            torch_dtype=torch.bfloat16,
+            device_map="auto",
         )
 
         trainer = DPOTrainer(
@@ -513,8 +561,13 @@ class ReinforcerAgent:
         output_dir = Path(f"~/.mascarade/finetune/runs/{run_id}").expanduser()
         output_dir.mkdir(parents=True, exist_ok=True)
 
-        logger.info("Starting SimPO alignment: model=%s dataset=%s beta=%.1f gamma=%.1f",
-                     model_path, dataset_path, beta, gamma)
+        logger.info(
+            "Starting SimPO alignment: model=%s dataset=%s beta=%.1f gamma=%.1f",
+            model_path,
+            dataset_path,
+            beta,
+            gamma,
+        )
         start = time.time()
 
         dataset = self._load_alignment_dataset(dataset_path)
@@ -527,7 +580,9 @@ class ReinforcerAgent:
             tokenizer.pad_token = tokenizer.eos_token
 
         model = AutoModelForCausalLM.from_pretrained(
-            model_path, torch_dtype=torch.bfloat16, device_map="auto",
+            model_path,
+            torch_dtype=torch.bfloat16,
+            device_map="auto",
         )
 
         # Try dedicated SimPOTrainer first (trl >= 0.25)
@@ -562,7 +617,9 @@ class ReinforcerAgent:
             # Fallback: DPOTrainer with loss_type="simpo"
             from trl import DPOConfig, DPOTrainer
 
-            logger.info("SimPOTrainer not available, falling back to DPOTrainer(loss_type='simpo')")
+            logger.info(
+                "SimPOTrainer not available, falling back to DPOTrainer(loss_type='simpo')"
+            )
 
             training_args = DPOConfig(
                 output_dir=str(output_dir),
@@ -627,7 +684,11 @@ class ReinforcerAgent:
 
         logger.info(
             "Starting KTO alignment: model=%s dataset=%s beta=%.2f desirable_w=%.1f undesirable_w=%.1f",
-            model_path, dataset_path, beta, desirable_weight, undesirable_weight,
+            model_path,
+            dataset_path,
+            beta,
+            desirable_weight,
+            undesirable_weight,
         )
         start = time.time()
 
@@ -641,7 +702,9 @@ class ReinforcerAgent:
             tokenizer.pad_token = tokenizer.eos_token
 
         model = AutoModelForCausalLM.from_pretrained(
-            model_path, torch_dtype=torch.bfloat16, device_map="auto",
+            model_path,
+            torch_dtype=torch.bfloat16,
+            device_map="auto",
         )
 
         training_args = KTOConfig(
@@ -674,11 +737,14 @@ class ReinforcerAgent:
     def _load_alignment_dataset(dataset_path: str):
         """Load alignment dataset from local file or HuggingFace Hub."""
         from datasets import load_dataset as _load_dataset
+
         if Path(dataset_path).exists():
             return _load_dataset("json", data_files=dataset_path, split="train")
         return _load_dataset(dataset_path, split="train")
 
-    def _run_trainer(self, trainer, tokenizer, output_dir: Path, method: str, start: float) -> dict:
+    def _run_trainer(
+        self, trainer, tokenizer, output_dir: Path, method: str, start: float
+    ) -> dict:
         """Execute training and return standardized result dict."""
         trainer.train()
         trainer.save_model(str(output_dir / "aligned"))
@@ -695,8 +761,16 @@ class ReinforcerAgent:
             "final_loss": round(final_loss, 4),
             "model_path": str(output_dir / "aligned"),
         }
-        (output_dir / "alignment_result.json").write_text(json.dumps(result, indent=2, default=str))
-        logger.info("%s alignment complete in %.0fs, loss=%.4f → %s", method, elapsed, final_loss, output_dir)
+        (output_dir / "alignment_result.json").write_text(
+            json.dumps(result, indent=2, default=str)
+        )
+        logger.info(
+            "%s alignment complete in %.0fs, loss=%.4f → %s",
+            method,
+            elapsed,
+            final_loss,
+            output_dir,
+        )
         return result
 
     async def train_grpo(
@@ -722,13 +796,17 @@ class ReinforcerAgent:
         output_dir = Path(f"~/.mascarade/finetune/runs/{run_id}").expanduser()
         output_dir.mkdir(parents=True, exist_ok=True)
 
-        logger.info("Starting GRPO training: model=%s, %d prompts", model_path, len(prompts))
+        logger.info(
+            "Starting GRPO training: model=%s, %d prompts", model_path, len(prompts)
+        )
         start = time.time()
 
         try:
             from trl import GRPOConfig, GRPOTrainer
         except ImportError:
-            raise RuntimeError("GRPO requires trl >= 0.24. Install with: pip install trl>=0.24")
+            raise RuntimeError(
+                "GRPO requires trl >= 0.24. Install with: pip install trl>=0.24"
+            )
 
         from datasets import Dataset
 
@@ -753,13 +831,17 @@ class ReinforcerAgent:
 
         try:
             from unsloth import FastLanguageModel
+
             model, tokenizer = FastLanguageModel.from_pretrained(
                 model_name=model_path,
                 max_seq_length=max_length * 2,
                 load_in_4bit=True,
             )
             model = FastLanguageModel.get_peft_model(
-                model, r=16, lora_alpha=32, lora_dropout=0.05,
+                model,
+                r=16,
+                lora_alpha=32,
+                lora_dropout=0.05,
                 target_modules=["q_proj", "v_proj"],
                 use_gradient_checkpointing="unsloth",
             )
@@ -767,8 +849,11 @@ class ReinforcerAgent:
         except ImportError:
             import torch
             from transformers import AutoModelForCausalLM, AutoTokenizer
+
             model = AutoModelForCausalLM.from_pretrained(
-                model_path, torch_dtype=torch.bfloat16, device_map="auto",
+                model_path,
+                torch_dtype=torch.bfloat16,
+                device_map="auto",
             )
             tokenizer = AutoTokenizer.from_pretrained(model_path)
             if tokenizer.pad_token is None:
@@ -798,12 +883,21 @@ class ReinforcerAgent:
             "final_loss": round(final_loss, 4),
             "model_path": str(output_dir / "grpo"),
         }
-        (output_dir / "grpo_result.json").write_text(json.dumps(result, indent=2, default=str))
-        logger.info("GRPO training complete in %.0fs, loss=%.4f → %s", elapsed, final_loss, output_dir)
+        (output_dir / "grpo_result.json").write_text(
+            json.dumps(result, indent=2, default=str)
+        )
+        logger.info(
+            "GRPO training complete in %.0fs, loss=%.4f → %s",
+            elapsed,
+            final_loss,
+            output_dir,
+        )
         return result
 
     @staticmethod
-    def _default_code_reward(completions: list[list[dict]], prompts: list[str], **kwargs) -> list[float]:
+    def _default_code_reward(
+        completions: list[list[dict]], prompts: list[str], **kwargs
+    ) -> list[float]:
         """Simple reward function for code generation quality."""
         rewards = []
         for completion_group in completions:
@@ -826,6 +920,6 @@ class ReinforcerAgent:
         words = text.split()
         if len(words) < 10:
             return False
-        trigrams = [" ".join(words[i:i+3]) for i in range(len(words)-2)]
+        trigrams = [" ".join(words[i : i + 3]) for i in range(len(words) - 2)]
         unique_ratio = len(set(trigrams)) / len(trigrams) if trigrams else 1.0
         return unique_ratio < threshold

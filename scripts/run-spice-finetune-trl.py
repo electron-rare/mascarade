@@ -47,7 +47,15 @@ model = prepare_model_for_kbit_training(model)
 lora_config = LoraConfig(
     r=16,
     lora_alpha=32,
-    target_modules=["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"],
+    target_modules=[
+        "q_proj",
+        "k_proj",
+        "v_proj",
+        "o_proj",
+        "gate_proj",
+        "up_proj",
+        "down_proj",
+    ],
     lora_dropout=0.05,
     bias="none",
     task_type="CAUSAL_LM",
@@ -74,6 +82,7 @@ for f in datasets_files:
 dataset = concatenate_datasets(all_datasets)
 print(f"Total dataset: {len(dataset)} examples")
 
+
 # Format conversations
 def format_chat(example):
     convs = example.get("conversations", [])
@@ -86,6 +95,7 @@ def format_chat(example):
         elif role in ("assistant", "gpt"):
             text += f"<|im_start|>assistant\n{content}<|im_end|>\n"
     return {"text": text}
+
 
 dataset = dataset.map(format_chat)
 

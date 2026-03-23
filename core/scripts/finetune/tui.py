@@ -4,6 +4,7 @@
 Usage:
     python scripts/finetune/tui.py
 """
+
 import asyncio
 import os
 import subprocess
@@ -69,8 +70,18 @@ def menu_choice(options: list[str], prompt: str = "Choix") -> int:
 
 async def do_research():
     header("RECHERCHE — Modèles & Datasets")
-    task = input(f"  Task (text-generation/code/embeddings) [{CYAN}code{RESET}] > ").strip() or "code"
-    domain = input(f"  Domain (code-generation/electronics/french) [{CYAN}code-generation{RESET}] > ").strip() or "code-generation"
+    task = (
+        input(
+            f"  Task (text-generation/code/embeddings) [{CYAN}code{RESET}] > "
+        ).strip()
+        or "code"
+    )
+    domain = (
+        input(
+            f"  Domain (code-generation/electronics/french) [{CYAN}code-generation{RESET}] > "
+        ).strip()
+        or "code-generation"
+    )
     try:
         max_size = float(input(f"  Max size GB [{CYAN}4.0{RESET}] > ").strip() or "4.0")
     except ValueError:
@@ -92,11 +103,19 @@ async def do_research():
     print(f"\n  {BOLD}Modèles trouvés:{RESET}")
     for i, m in enumerate(model_report["candidates"], 1):
         dl = f"{m['downloads']:,}"
-        print(f"    {BOLD}{i}{RESET}. {CYAN}{m['model_id']}{RESET}  ↓{dl}  ♥{m['likes']:,}  {m['license']}")
-        registry.add_model(ModelEntry(
-            model_id=m["model_id"], source="huggingface", task=task,
-            size_gb=m["size_gb"], license=m["license"], downloads=m["downloads"],
-        ))
+        print(
+            f"    {BOLD}{i}{RESET}. {CYAN}{m['model_id']}{RESET}  ↓{dl}  ♥{m['likes']:,}  {m['license']}"
+        )
+        registry.add_model(
+            ModelEntry(
+                model_id=m["model_id"],
+                source="huggingface",
+                task=task,
+                size_gb=m["size_gb"],
+                license=m["license"],
+                downloads=m["downloads"],
+            )
+        )
 
     if model_report["papers"]:
         print(f"\n  {BOLD}Papers:{RESET}")
@@ -109,11 +128,17 @@ async def do_research():
     print(f"\n  {BOLD}Datasets trouvés:{RESET}")
     for i, d in enumerate(ds_report["candidates"], 1):
         dl = f"{d['downloads']:,}"
-        print(f"    {BOLD}{i}{RESET}. {CYAN}{d['dataset_id']}{RESET}  ↓{dl}  ♥{d['likes']:,}")
-        registry.add_dataset(DatasetEntry(
-            dataset_id=d["dataset_id"], source="huggingface", domain=domain,
-            license=d["license"],
-        ))
+        print(
+            f"    {BOLD}{i}{RESET}. {CYAN}{d['dataset_id']}{RESET}  ↓{dl}  ♥{d['likes']:,}"
+        )
+        registry.add_dataset(
+            DatasetEntry(
+                dataset_id=d["dataset_id"],
+                source="huggingface",
+                domain=domain,
+                license=d["license"],
+            )
+        )
 
     success(f"Registry mis à jour: {registry.path}")
 
@@ -125,7 +150,9 @@ async def do_registry():
     if registry.models:
         print(f"  {BOLD}Modèles ({len(registry.models)}):{RESET}")
         for mid, m in registry.models.items():
-            print(f"    {CYAN}{mid}{RESET}  task={m.task}  size={m.size_gb}GB  dl={m.downloads:,}")
+            print(
+                f"    {CYAN}{mid}{RESET}  task={m.task}  size={m.size_gb}GB  dl={m.downloads:,}"
+            )
     else:
         warn("Aucun modèle enregistré")
 
@@ -139,8 +166,14 @@ async def do_registry():
     if registry.runs:
         print(f"\n  {BOLD}Runs ({len(registry.runs)}):{RESET}")
         for rid, r in registry.runs.items():
-            status_color = GREEN if r.status == "completed" else (RED if r.status == "failed" else YELLOW)
-            print(f"    {status_color}{r.status}{RESET}  {rid}  {r.base_model} + {r.dataset}  method={r.method}")
+            status_color = (
+                GREEN
+                if r.status == "completed"
+                else (RED if r.status == "failed" else YELLOW)
+            )
+            print(
+                f"    {status_color}{r.status}{RESET}  {rid}  {r.base_model} + {r.dataset}  method={r.method}"
+            )
     else:
         info("Aucun run enregistré")
 
@@ -162,11 +195,24 @@ async def do_mesh_status():
         else:
             try:
                 result = subprocess.run(
-                    ["ssh", "-o", "ConnectTimeout=2", "-o", "BatchMode=yes", host,
-                     f"lsof -ti:{port}"],
-                    capture_output=True, text=True, timeout=5,
+                    [
+                        "ssh",
+                        "-o",
+                        "ConnectTimeout=2",
+                        "-o",
+                        "BatchMode=yes",
+                        host,
+                        f"lsof -ti:{port}",
+                    ],
+                    capture_output=True,
+                    text=True,
+                    timeout=5,
                 )
-                status = f"{GREEN}UP{RESET}" if result.returncode == 0 and result.stdout.strip() else f"{RED}DOWN{RESET}"
+                status = (
+                    f"{GREEN}UP{RESET}"
+                    if result.returncode == 0 and result.stdout.strip()
+                    else f"{RED}DOWN{RESET}"
+                )
             except Exception:
                 status = f"{RED}DOWN{RESET}"
         print(f"  {status:>20s}  {BOLD}{name:20s}{RESET} :{port}  [{caps}]")
@@ -177,15 +223,22 @@ async def do_train_info():
     print(f"  {DIM}Vérification GPU et packages...{RESET}")
     try:
         result = subprocess.run(
-            ["ssh", "-o", "ConnectTimeout=5", "kxkm@kxkm-ai",
-             "cd ~/mascarade/core && .venv/bin/python -c \""
-             "import torch; "
-             "print(f'GPU: {torch.cuda.get_device_name(0)}'); "
-             "print(f'CUDA: {torch.version.cuda}'); "
-             "import trl, peft; "
-             "print(f'trl={trl.__version__} peft={peft.__version__}'); "
-             "\""],
-            capture_output=True, text=True, timeout=15,
+            [
+                "ssh",
+                "-o",
+                "ConnectTimeout=5",
+                "kxkm@kxkm-ai",
+                'cd ~/mascarade/core && .venv/bin/python -c "'
+                "import torch; "
+                "print(f'GPU: {torch.cuda.get_device_name(0)}'); "
+                "print(f'CUDA: {torch.version.cuda}'); "
+                "import trl, peft; "
+                "print(f'trl={trl.__version__} peft={peft.__version__}'); "
+                '"',
+            ],
+            capture_output=True,
+            text=True,
+            timeout=15,
         )
         output = result.stdout.strip() or result.stderr.strip()
         for line in output.split("\n"):
@@ -202,12 +255,14 @@ async def main_loop():
 
     while True:
         header("MENU PRINCIPAL")
-        choice = menu_choice([
-            "Recherche modèles & datasets (HuggingFace)",
-            "Voir registre local",
-            "Status mesh P2P",
-            "Info training node (KXKM-AI)",
-        ])
+        choice = menu_choice(
+            [
+                "Recherche modèles & datasets (HuggingFace)",
+                "Voir registre local",
+                "Status mesh P2P",
+                "Info training node (KXKM-AI)",
+            ]
+        )
 
         if choice == 0:
             print(f"\n  {DIM}Au revoir!{RESET}\n")

@@ -133,7 +133,9 @@ class ModelRegistry:
             with os.fdopen(fd, "w", encoding="utf-8") as f:
                 json.dump(models_data, f, indent=2, ensure_ascii=False)
             os.replace(tmp_path, str(self._storage_path))
-            logger.debug("Saved %d model(s) to %s", len(models_data), self._storage_path)
+            logger.debug(
+                "Saved %d model(s) to %s", len(models_data), self._storage_path
+            )
         except BaseException:
             os.unlink(tmp_path)
             raise
@@ -156,4 +158,6 @@ class ModelRegistry:
             except (KeyError, TypeError, ValueError) as exc:
                 logger.warning("Skipping invalid model entry: %s", exc)
 
-        logger.debug("Loaded %d model(s) from %s", len(self._models), self._storage_path)
+        logger.debug(
+            "Loaded %d model(s) from %s", len(self._models), self._storage_path
+        )

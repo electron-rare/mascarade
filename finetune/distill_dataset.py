@@ -18,7 +18,11 @@ from dataclasses import dataclass
 from importlib.util import find_spec
 from pathlib import Path
 
-from dataset_quality import DatasetQualityError, enforce_dataset_quality, summarize_quality_report
+from dataset_quality import (
+    DatasetQualityError,
+    enforce_dataset_quality,
+    summarize_quality_report,
+)
 from llm_paths import configure_hf_env, hf_cache_roots
 from sharegpt_utils import (
     dedupe_rows_with_stats,
@@ -90,11 +94,15 @@ def resolve_local_hf_model_path(model_name: str) -> str:
 
 
 def supports_bf16(torch_module) -> bool:
-    return bool(torch_module.cuda.is_available() and torch_module.cuda.is_bf16_supported())
+    return bool(
+        torch_module.cuda.is_available() and torch_module.cuda.is_bf16_supported()
+    )
 
 
 def resolve_local_hf_compute_dtype(torch_module):
-    return torch_module.bfloat16 if supports_bf16(torch_module) else torch_module.float16
+    return (
+        torch_module.bfloat16 if supports_bf16(torch_module) else torch_module.float16
+    )
 
 
 def resolve_local_hf_attention_implementation(torch_module) -> str | None:
@@ -215,9 +223,7 @@ class LocalHFTeacher:
             messages.append({"role": "user", "content": user_prompt})
         return messages
 
-    def _apply_chat_template(
-        self, teacher_system: str, user_prompt: str
-    ) -> str:
+    def _apply_chat_template(self, teacher_system: str, user_prompt: str) -> str:
         messages = self._build_messages(teacher_system, user_prompt)
         if hasattr(self.tokenizer, "apply_chat_template") and getattr(
             self.tokenizer, "chat_template", None
@@ -252,7 +258,12 @@ class LocalHFTeacher:
         return self.tokenizer(prompt, return_tensors="pt")
 
     def generate_json(
-        self, *, teacher_system: str, user_prompt: str, max_tokens: int, temperature: float
+        self,
+        *,
+        teacher_system: str,
+        user_prompt: str,
+        max_tokens: int,
+        temperature: float,
     ) -> str:
         inputs = self._prepare_inputs(teacher_system, user_prompt)
         inputs = {
@@ -271,9 +282,9 @@ class LocalHFTeacher:
             output_ids = self.model.generate(**inputs, **generate_kwargs)
         prompt_length = inputs["input_ids"].shape[1]
         generated_ids = output_ids[:, prompt_length:]
-        return self.tokenizer.batch_decode(
-            generated_ids, skip_special_tokens=True
-        )[0].strip()
+        return self.tokenizer.batch_decode(generated_ids, skip_special_tokens=True)[
+            0
+        ].strip()
 
 
 def get_local_hf_teacher(model_name: str) -> LocalHFTeacher:
@@ -906,9 +917,7 @@ def distill_source_row(
                 if attempt < attempts - 1:
                     time.sleep(min(2**attempt, 8))
                     continue
-                raise ValueError(
-                    f"{exc} | raw={shorten(repair_raw, 1200)}"
-                ) from exc
+                raise ValueError(f"{exc} | raw={shorten(repair_raw, 1200)}") from exc
         provider_used = LOCAL_HF_PROVIDER
         model_used = teacher_model
     else:

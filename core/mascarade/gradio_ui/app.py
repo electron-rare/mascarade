@@ -136,7 +136,12 @@ async def submit_training_handler(
 
     except httpx.HTTPStatusError as e:
         logger.exception("Failed to submit job")
-        return "", f"❌ API error: {e.response.status_code} - {e.response.text}", "error", {}
+        return (
+            "",
+            f"❌ API error: {e.response.status_code} - {e.response.text}",
+            "error",
+            {},
+        )
     except Exception as e:
         logger.exception("Failed to submit job")
         return "", f"❌ Submission failed: {e}", "error", {}
@@ -216,14 +221,12 @@ def create_gradio_app() -> gr.Blocks:
         title="Mascarade Fine-Tuning",
         theme=gr.themes.Soft(),
     ) as app:
-        gr.Markdown(
-            """
+        gr.Markdown("""
             # 🎭 Mascarade Fine-Tuning WebUI
 
             Upload datasets, configure hyperparameters, and launch fine-tuning jobs
             using Unsloth-accelerated training on GPU.
-            """
-        )
+            """)
 
         # State to hold current job ID
         current_job_id = gr.State("")
@@ -258,7 +261,9 @@ def create_gradio_app() -> gr.Blocks:
                     lora_alpha,
                 ) = create_hyperparameter_form()
 
-                submit_button = gr.Button("🚀 Launch Training", variant="primary", size="lg")
+                submit_button = gr.Button(
+                    "🚀 Launch Training", variant="primary", size="lg"
+                )
                 submit_status = gr.Textbox(
                     label="Submission Status",
                     interactive=False,

@@ -21,7 +21,9 @@ class TestWorkerState:
         assert w.error_rate == 0.0
 
     def test_alive_status(self):
-        w = WorkerState(node_id="test", url="http://localhost:8201", status=WorkerStatus.ALIVE)
+        w = WorkerState(
+            node_id="test", url="http://localhost:8201", status=WorkerStatus.ALIVE
+        )
         assert w.alive
         w.status = WorkerStatus.SLOW
         assert w.alive
@@ -71,14 +73,16 @@ class TestWorkerState:
 
     def test_update_from_health(self):
         w = WorkerState(node_id="test", url="http://localhost:8201")
-        w.update_from_health({
-            "vram_total_mb": 24000,
-            "vram_free_mb": 18000,
-            "cpu_percent": 45.0,
-            "loaded_models": ["llama-8b", "qwen-1.5b"],
-            "runtime": "ollama",
-            "max_concurrent": 4,
-        })
+        w.update_from_health(
+            {
+                "vram_total_mb": 24000,
+                "vram_free_mb": 18000,
+                "cpu_percent": 45.0,
+                "loaded_models": ["llama-8b", "qwen-1.5b"],
+                "runtime": "ollama",
+                "max_concurrent": 4,
+            }
+        )
         assert w.vram_total_mb == 24000
         assert w.vram_free_mb == 18000
         assert w.cpu_percent == 45.0
@@ -127,7 +131,9 @@ class TestScheduler:
     def test_select_only_worker(self):
         s = ResourceAwareScheduler()
         s.register_worker(self._make_worker("kxkm", loaded_models=["llama-8b"]))
-        req = ScheduledRequest(model="llama-8b", messages=[{"role": "user", "content": "hi"}])
+        req = ScheduledRequest(
+            model="llama-8b", messages=[{"role": "user", "content": "hi"}]
+        )
         result = s.select_worker(req)
         assert result.node_id == "kxkm"
 
@@ -136,7 +142,9 @@ class TestScheduler:
         s.register_worker(self._make_worker("kxkm", loaded_models=["llama-8b"]))
         s.register_worker(self._make_worker("tower", loaded_models=["qwen-1.5b"]))
 
-        req = ScheduledRequest(model="llama-8b", messages=[{"role": "user", "content": "hi"}])
+        req = ScheduledRequest(
+            model="llama-8b", messages=[{"role": "user", "content": "hi"}]
+        )
         result = s.select_worker(req)
         assert result.node_id == "kxkm"  # has the model
 
@@ -150,7 +158,9 @@ class TestScheduler:
         w2.current_load = 0  # empty
         s.register_worker(w2)
 
-        req = ScheduledRequest(model="llama-8b", messages=[{"role": "user", "content": "hi"}])
+        req = ScheduledRequest(
+            model="llama-8b", messages=[{"role": "user", "content": "hi"}]
+        )
         result = s.select_worker(req)
         assert result.node_id == "tower"  # less loaded
 
@@ -158,7 +168,9 @@ class TestScheduler:
         s = ResourceAwareScheduler()
         s.register_worker(self._make_worker("dead", status=WorkerStatus.DEAD))
 
-        req = ScheduledRequest(model="any", messages=[{"role": "user", "content": "hi"}])
+        req = ScheduledRequest(
+            model="any", messages=[{"role": "user", "content": "hi"}]
+        )
         with pytest.raises(HTTPException) as exc_info:
             s.select_worker(req)
         assert exc_info.value.status_code == 503
@@ -169,7 +181,9 @@ class TestScheduler:
         w.queue_depth = 200
         s.register_worker(w)
 
-        req = ScheduledRequest(model="any", messages=[{"role": "user", "content": "hi"}])
+        req = ScheduledRequest(
+            model="any", messages=[{"role": "user", "content": "hi"}]
+        )
         with pytest.raises(HTTPException) as exc_info:
             s.admit(req)
         assert exc_info.value.status_code == 429
@@ -307,10 +321,26 @@ class TestWorkerStateExtended:
         w = WorkerState(node_id="test", url="http://localhost:8201")
         d = w.to_dict()
         expected_keys = {
-            "node_id", "url", "runtime", "status", "vram_total_mb", "vram_free_mb",
-            "vram_usage_pct", "ram_total_mb", "ram_free_mb", "cpu_percent", "gpu_percent",
-            "current_load", "max_concurrent", "queue_depth", "loaded_models",
-            "avg_latency_ms", "p95_latency_ms", "error_rate", "total_requests", "alive",
+            "node_id",
+            "url",
+            "runtime",
+            "status",
+            "vram_total_mb",
+            "vram_free_mb",
+            "vram_usage_pct",
+            "ram_total_mb",
+            "ram_free_mb",
+            "cpu_percent",
+            "gpu_percent",
+            "current_load",
+            "max_concurrent",
+            "queue_depth",
+            "loaded_models",
+            "avg_latency_ms",
+            "p95_latency_ms",
+            "error_rate",
+            "total_requests",
+            "alive",
         }
         assert set(d.keys()) == expected_keys
 
@@ -362,14 +392,18 @@ class TestSchedulerExtended:
 
     def test_estimate_wait_no_workers(self):
         s = ResourceAwareScheduler()
-        req = ScheduledRequest(model="any", messages=[{"role": "user", "content": "hi"}])
+        req = ScheduledRequest(
+            model="any", messages=[{"role": "user", "content": "hi"}]
+        )
         assert s.estimate_wait(req) == float("inf")
 
     def test_admit_no_capable_worker(self):
         s = ResourceAwareScheduler()
         # Only dead workers
         s.register_worker(self._make_worker("dead", status=WorkerStatus.DEAD))
-        req = ScheduledRequest(model="any", messages=[{"role": "user", "content": "hi"}])
+        req = ScheduledRequest(
+            model="any", messages=[{"role": "user", "content": "hi"}]
+        )
         with pytest.raises(HTTPException) as exc_info:
             s.admit(req)
         assert exc_info.value.status_code == 503
@@ -377,10 +411,16 @@ class TestSchedulerExtended:
     def test_vram_scoring_prefers_more_free_vram(self):
         s = ResourceAwareScheduler()
         low_vram = self._make_worker(
-            "low", loaded_models=["m"], vram_total_mb=24000, vram_free_mb=2000,
+            "low",
+            loaded_models=["m"],
+            vram_total_mb=24000,
+            vram_free_mb=2000,
         )
         high_vram = self._make_worker(
-            "high", loaded_models=["m"], vram_total_mb=24000, vram_free_mb=20000,
+            "high",
+            loaded_models=["m"],
+            vram_total_mb=24000,
+            vram_free_mb=20000,
         )
         s.register_worker(low_vram)
         s.register_worker(high_vram)

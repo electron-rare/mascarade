@@ -30,7 +30,6 @@ from mascarade.router import Router
 from mascarade.scheduler import HeartbeatMonitor, ResourceAwareScheduler, WorkerState
 
 install_secret_masking()
-from mascarade.benchmarks.storage import BenchmarkStorage  # noqa: F401 — used by tests via patch
 from mascarade.routers.a2a import authed_router as a2a_authed_router
 from mascarade.routers.a2a import public_router as a2a_public_router
 from mascarade.routers.admin import router as admin_router
@@ -70,6 +69,7 @@ logger = logging.getLogger("mascarade.server")
 # Install with: uv pip install -e '.[observability]'
 try:
     from traceloop.sdk import Traceloop
+
     Traceloop.init(disable_batch=False)
     logger.info("OpenLLMetry auto-instrumentation enabled")
 except ImportError:
@@ -78,10 +78,13 @@ except ImportError:
 # Import Gradio UI (lazy import to avoid loading gradio if not using finetune extras)
 try:
     from mascarade.gradio_ui import create_gradio_app
+
     GRADIO_AVAILABLE = True
 except ImportError:
     GRADIO_AVAILABLE = False
-    logger.warning("Gradio not available. Install with: uv pip install -e '.[finetune]'")
+    logger.warning(
+        "Gradio not available. Install with: uv pip install -e '.[finetune]'"
+    )
 
 
 @asynccontextmanager
@@ -118,7 +121,10 @@ async def lifespan(app: FastAPI):
             parts = entry.split(":")
             node_id = parts[0]
             port = parts[1] if len(parts) > 1 else "8201"
-            worker = WorkerState(node_id=node_id, url=f"http://{entry}" if ":" in entry else f"http://{entry}:{port}")
+            worker = WorkerState(
+                node_id=node_id,
+                url=f"http://{entry}" if ":" in entry else f"http://{entry}:{port}",
+            )
             scheduler.register_worker(worker)
         logger.info("Scheduler enabled with %d workers", len(scheduler.workers))
 
@@ -126,6 +132,7 @@ async def lifespan(app: FastAPI):
     autoscaler = None
     if settings.autoscaling_enabled:
         from mascarade.scheduler.autoscaler import AutoScaler
+
         autoscaler = AutoScaler(scheduler)
         logger.info("Auto-scaler enabled")
 
@@ -148,7 +155,10 @@ async def lifespan(app: FastAPI):
         app.state.cluster = cluster
     if not hasattr(app.state, "skill_registry") or app.state.skill_registry is None:
         app.state.skill_registry = skill_registry
-    if not hasattr(app.state, "template_registry") or app.state.template_registry is None:
+    if (
+        not hasattr(app.state, "template_registry")
+        or app.state.template_registry is None
+    ):
         app.state.template_registry = template_registry
     if not hasattr(app.state, "mcp") or app.state.mcp is None:
         app.state.mcp = McpRuntimeClient(trace_buffer=trace_buffer)
@@ -158,7 +168,10 @@ async def lifespan(app: FastAPI):
         app.state.device_voice = DeviceVoiceService(router=router)
     if not hasattr(app.state, "scheduler") or app.state.scheduler is None:
         app.state.scheduler = scheduler
-    if not hasattr(app.state, "heartbeat_monitor") or app.state.heartbeat_monitor is None:
+    if (
+        not hasattr(app.state, "heartbeat_monitor")
+        or app.state.heartbeat_monitor is None
+    ):
         app.state.heartbeat_monitor = heartbeat
     if not hasattr(app.state, "autoscaler") or app.state.autoscaler is None:
         app.state.autoscaler = autoscaler
@@ -321,6 +334,7 @@ def create_app() -> FastAPI:
     if GRADIO_AVAILABLE:
         try:
             import gradio as gr
+
             gradio_app = create_gradio_app()
             app = gr.mount_gradio_app(app, gradio_app, path="/finetune")
             logger.info("Gradio fine-tuning UI mounted at /finetune")

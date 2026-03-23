@@ -51,9 +51,7 @@ def test_redis_cache_initialization():
 def test_redis_cache_custom_config():
     """RedisCache accepts custom configuration."""
     cache = RedisCache(
-        redis_url="redis://custom:6379/1",
-        default_ttl=7200,
-        key_prefix="test:cache:"
+        redis_url="redis://custom:6379/1", default_ttl=7200, key_prefix="test:cache:"
     )
     assert cache.redis_url == "redis://custom:6379/1"
     assert cache.default_ttl == 7200
@@ -77,8 +75,12 @@ def test_generate_key_excludes_provider_strategy():
     cache = RedisCache()
     messages = [{"role": "user", "content": "hello"}]
 
-    key1 = cache._generate_key(messages, provider="openai", strategy="best", model="gpt-4")
-    key2 = cache._generate_key(messages, provider="anthropic", strategy="cheapest", model="claude-3")
+    key1 = cache._generate_key(
+        messages, provider="openai", strategy="best", model="gpt-4"
+    )
+    key2 = cache._generate_key(
+        messages, provider="anthropic", strategy="cheapest", model="claude-3"
+    )
 
     # Keys should be identical since provider/strategy/model are excluded
     assert key1 == key2
@@ -110,7 +112,7 @@ async def test_store_success(redis_cache, mock_redis):
         ttl=3600,
         strategy="best",
         provider="openai",
-        model="gpt-4"
+        model="gpt-4",
     )
 
     assert key.startswith("mascarade:cache:")
@@ -132,10 +134,7 @@ async def test_store_failure_handled_gracefully(redis_cache, mock_redis):
 
     # Should not raise, just log warning
     key = await redis_cache.store(
-        messages=messages,
-        response="test",
-        tokens=10,
-        cost=0.001
+        messages=messages, response="test", tokens=10, cost=0.001
     )
 
     assert key.startswith("mascarade:cache:")
@@ -155,10 +154,11 @@ async def test_retrieve_hit(redis_cache, mock_redis):
         "ttl": 3600,
         "strategy": "best",
         "provider": "openai",
-        "model": "gpt-4"
+        "model": "gpt-4",
     }
 
     import json
+
     mock_redis.get.return_value = json.dumps(cached_data)
 
     entry = await redis_cache.retrieve(messages)
@@ -202,10 +202,11 @@ async def test_retrieve_expired_entry(redis_cache, mock_redis):
         "ttl": 3600,  # 1 hour TTL, so expired
         "strategy": "best",
         "provider": "openai",
-        "model": "gpt-4"
+        "model": "gpt-4",
     }
 
     import json
+
     mock_redis.get.return_value = json.dumps(cached_data)
 
     entry = await redis_cache.retrieve(messages)
@@ -235,7 +236,7 @@ async def test_get_stats(redis_cache, mock_redis):
     mock_redis.keys.return_value = [
         "mascarade:cache:key1",
         "mascarade:cache:key2",
-        "mascarade:cache:key3"
+        "mascarade:cache:key3",
     ]
     mock_redis.get.return_value = '{"response": "test", "tokens": 10}'
 
@@ -280,10 +281,7 @@ async def test_get_stats_connection_failure(redis_cache, mock_redis):
 @pytest.mark.asyncio
 async def test_clear(redis_cache, mock_redis):
     """RedisCache clears all entries successfully."""
-    mock_redis.keys.return_value = [
-        "mascarade:cache:key1",
-        "mascarade:cache:key2"
-    ]
+    mock_redis.keys.return_value = ["mascarade:cache:key1", "mascarade:cache:key2"]
 
     redis_cache.hit_count = 10
     redis_cache.miss_count = 5
@@ -344,7 +342,7 @@ async def test_hit_rate_calculation():
     cache.miss_count = 25
 
     # Use mock to avoid actual Redis connection
-    with patch.object(cache, '_get_redis') as mock_get_redis:
+    with patch.object(cache, "_get_redis") as mock_get_redis:
         mock_redis = AsyncMock()
         mock_redis.keys = AsyncMock(return_value=[])
         mock_get_redis.return_value = mock_redis
@@ -360,10 +358,7 @@ async def test_concurrent_operations(redis_cache, mock_redis):
     messages = [{"role": "user", "content": "test"}]
 
     # Simulate concurrent store operations
-    tasks = [
-        redis_cache.store(messages, f"response{i}", 10, 0.001)
-        for i in range(10)
-    ]
+    tasks = [redis_cache.store(messages, f"response{i}", 10, 0.001) for i in range(10)]
 
     keys = await asyncio.gather(*tasks)
 

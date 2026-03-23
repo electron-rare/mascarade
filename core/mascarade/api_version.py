@@ -19,7 +19,5 @@ def get_version_info() -> dict[str, Any]:
     return {
         "api_version": API_VERSION,
         "stability": "stable",
-        "frozen_contracts": [
-            "/v1/chat/completions"
-        ],
+        "frozen_contracts": ["/v1/chat/completions"],
     }

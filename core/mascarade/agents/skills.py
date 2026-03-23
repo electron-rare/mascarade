@@ -426,7 +426,10 @@ def register_default_skills_v2(skill_registry: SkillRegistry) -> None:
                 "Valide mentalement ton JSON avant de repondre."
             ),
             examples=[
-                {"input": "Liste 3 fruits", "output": '{"fruits": ["pomme", "banane", "orange"]}'},
+                {
+                    "input": "Liste 3 fruits",
+                    "output": '{"fruits": ["pomme", "banane", "orange"]}',
+                },
             ],
         ),
         Skill(

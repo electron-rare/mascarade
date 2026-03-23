@@ -10,7 +10,9 @@ from mascarade.router.providers.apple_coreml import AppleCoreMLProvider
 
 
 def test_apple_provider_is_configured_when_explicitly_enabled(monkeypatch):
-    monkeypatch.setattr("mascarade.router.providers.apple_coreml.settings.apple_llm_enabled", True)
+    monkeypatch.setattr(
+        "mascarade.router.providers.apple_coreml.settings.apple_llm_enabled", True
+    )
     monkeypatch.setattr(
         "mascarade.router.providers.apple_coreml.settings.apple_llm_base_url",
         "http://host.docker.internal:8201",
@@ -31,7 +33,9 @@ def test_apple_provider_is_configured_when_explicitly_enabled(monkeypatch):
 
 
 def test_apple_provider_send(monkeypatch):
-    monkeypatch.setattr("mascarade.router.providers.apple_coreml.settings.apple_llm_enabled", True)
+    monkeypatch.setattr(
+        "mascarade.router.providers.apple_coreml.settings.apple_llm_enabled", True
+    )
     monkeypatch.setattr(
         "mascarade.router.providers.apple_coreml.settings.apple_llm_base_url",
         "http://host.docker.internal:8201",
@@ -85,7 +89,9 @@ def test_apple_provider_send(monkeypatch):
 
 
 def test_apple_provider_send_timeout_is_explicit(monkeypatch):
-    monkeypatch.setattr("mascarade.router.providers.apple_coreml.settings.apple_llm_enabled", True)
+    monkeypatch.setattr(
+        "mascarade.router.providers.apple_coreml.settings.apple_llm_enabled", True
+    )
     monkeypatch.setattr(
         "mascarade.router.providers.apple_coreml.settings.apple_llm_base_url",
         "http://host.docker.internal:8201",
@@ -128,7 +134,9 @@ def test_apple_provider_send_timeout_is_explicit(monkeypatch):
 
 
 def test_apple_provider_available_models(monkeypatch):
-    monkeypatch.setattr("mascarade.router.providers.apple_coreml.settings.apple_llm_enabled", True)
+    monkeypatch.setattr(
+        "mascarade.router.providers.apple_coreml.settings.apple_llm_enabled", True
+    )
     monkeypatch.setattr(
         "mascarade.router.providers.apple_coreml.settings.apple_llm_base_url",
         "http://host.docker.internal:8201",
@@ -163,7 +171,9 @@ def test_apple_provider_available_models(monkeypatch):
             assert path == "/models"
             return _FakeResponse()
 
-    monkeypatch.setattr("mascarade.router.providers.apple_coreml.httpx.Client", _FakeClient)
+    monkeypatch.setattr(
+        "mascarade.router.providers.apple_coreml.httpx.Client", _FakeClient
+    )
 
     provider = AppleCoreMLProvider()
 

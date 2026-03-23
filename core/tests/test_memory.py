@@ -508,9 +508,7 @@ async def test_mem0_request_handles_various_response_formats():
         mock_instance = AsyncMock()
         mock_client.return_value.__aenter__.return_value = mock_instance
         mock_resp = MagicMock()
-        mock_resp.json.return_value = {
-            "results": [{"id": "mem-1"}, {"id": "mem-2"}]
-        }
+        mock_resp.json.return_value = {"results": [{"id": "mem-1"}, {"id": "mem-2"}]}
         mock_resp.raise_for_status = MagicMock()
         mock_instance.get = AsyncMock(return_value=mock_resp)
 

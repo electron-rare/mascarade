@@ -9,6 +9,7 @@ try:
     import mlx.core as mx
     import mlx.loss
     from mlx_lm import generate, load
+
     MLX_AVAILABLE = True
 except ImportError:
     MLX_AVAILABLE = False
@@ -53,9 +54,7 @@ class MLXProvider(LLMProvider):
         if self.model is None:
             logger.info(f"Loading MLX model: {self.model_path}")
             self.model, self.tokenizer = load(
-                self.model_path,
-                device=self.device,
-                **self.kwargs
+                self.model_path, device=self.device, **self.kwargs
             )
             logger.info("MLX model loaded successfully")
 
@@ -136,7 +135,13 @@ class MLXProvider(LLMProvider):
     ) -> AsyncIterator[str]:
         """Streamer la réponse token par token."""
         # MLX doesn't support streaming yet
-        response = await self.send(messages, model=model, system=system, temperature=temperature, max_tokens=max_tokens)
+        response = await self.send(
+            messages,
+            model=model,
+            system=system,
+            temperature=temperature,
+            max_tokens=max_tokens,
+        )
         yield response.content
 
 
@@ -162,7 +167,7 @@ class MLXWorker:
         """Process a single request."""
         response = await self.provider.generate(request)
 
-        if hasattr(request, 'complete_callback'):
+        if hasattr(request, "complete_callback"):
             await request.complete_callback(response)
 
         return response

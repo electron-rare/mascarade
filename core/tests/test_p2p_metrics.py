@@ -54,11 +54,15 @@ async def test_transport_metrics_wiring():
     received = []
 
     node_a = P2PTransport(
-        local_peer_id="QmSender", listen_host="127.0.0.1", listen_port=0,
+        local_peer_id="QmSender",
+        listen_host="127.0.0.1",
+        listen_port=0,
         metrics=mc,
     )
     node_b = P2PTransport(
-        local_peer_id="QmReceiver", listen_host="127.0.0.1", listen_port=0,
+        local_peer_id="QmReceiver",
+        listen_host="127.0.0.1",
+        listen_port=0,
         metrics=P2PMetricsCollector("QmReceiver"),
     )
 

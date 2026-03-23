@@ -413,7 +413,9 @@ async def test_bom_generator_node_execute_empty_circuit_description():
 async def test_bom_generator_node_execute_basic():
     """BomGeneratorNode génère un BOM de base."""
     node = BomGeneratorNode()
-    inputs = {"circuit_description": "Simple LED circuit with 3 resistors and 2 capacitors"}
+    inputs = {
+        "circuit_description": "Simple LED circuit with 3 resistors and 2 capacitors"
+    }
 
     result = await node.execute(inputs)
 

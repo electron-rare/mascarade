@@ -132,11 +132,23 @@ class TestPromptFeatureExtractor:
         features = self.extractor.extract("Hello world")
         vec = features.to_vector()
         expected_keys = {
-            "token_count_norm", "char_count_norm", "word_count_norm",
-            "line_count_norm", "code_ratio", "question_marks_norm",
-            "avg_word_length_norm", "vocab_diversity", "has_json",
-            "has_code_block", "lang_en", "lang_fr", "lang_code",
-            "domain_electronics", "domain_cad", "domain_code", "domain_math",
+            "token_count_norm",
+            "char_count_norm",
+            "word_count_norm",
+            "line_count_norm",
+            "code_ratio",
+            "question_marks_norm",
+            "avg_word_length_norm",
+            "vocab_diversity",
+            "has_json",
+            "has_code_block",
+            "lang_en",
+            "lang_fr",
+            "lang_code",
+            "domain_electronics",
+            "domain_cad",
+            "domain_code",
+            "domain_math",
         }
         assert set(vec.keys()) == expected_keys
 
@@ -201,7 +213,9 @@ class TestRoutingClassifier:
         clf = RoutingClassifier()
         # Record 15 samples across tiers
         for i in range(6):
-            clf.record_outcome(f"complex code with function class {i}", "strong", True, 200.0, 0.05)
+            clf.record_outcome(
+                f"complex code with function class {i}", "strong", True, 200.0, 0.05
+            )
         for i in range(5):
             clf.record_outcome(f"simple question {i}", "cheap", True, 50.0, 0.001)
         for i in range(4):

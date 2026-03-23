@@ -85,37 +85,45 @@ class P2PCapabilityExchange:
         )
 
         # Publish to PubSub for gossip
-        return await self._pubsub.publish(_TOPIC_CAPABILITIES, {
-            "peer_id": self._local_peer_id,
-            "capabilities": capabilities,
-            "providers": providers or [],
-            "provider_models": provider_models or {},
-            "role": role,
-            "label": label,
-            "http_base_url": http_base_url or "",
-        })
+        return await self._pubsub.publish(
+            _TOPIC_CAPABILITIES,
+            {
+                "peer_id": self._local_peer_id,
+                "capabilities": capabilities,
+                "providers": providers or [],
+                "provider_models": provider_models or {},
+                "role": role,
+                "label": label,
+                "http_base_url": http_base_url or "",
+            },
+        )
 
     async def request_all(self) -> None:
         """Ask all connected peers to re-announce their capabilities."""
-        await self._pubsub.publish(_TOPIC_CAPABILITY_REQUEST, {
-            "requested_by": self._local_peer_id,
-            "capability": "*",
-        })
+        await self._pubsub.publish(
+            _TOPIC_CAPABILITY_REQUEST,
+            {
+                "requested_by": self._local_peer_id,
+                "capability": "*",
+            },
+        )
 
     async def request_capability(self, capability: str) -> list[PeerCapabilities]:
         # Check local cache first
         cached = [
-            caps for caps in self._peer_caps.values()
-            if capability in caps.capabilities
+            caps for caps in self._peer_caps.values() if capability in caps.capabilities
         ]
         if cached:
             return cached
 
         # Ask the network
-        await self._pubsub.publish(_TOPIC_CAPABILITY_REQUEST, {
-            "requested_by": self._local_peer_id,
-            "capability": capability,
-        })
+        await self._pubsub.publish(
+            _TOPIC_CAPABILITY_REQUEST,
+            {
+                "requested_by": self._local_peer_id,
+                "capability": capability,
+            },
+        )
 
         # Also check DHT
         dht_matches = self._dht.routing_table.find_by_capability(capability)
@@ -133,8 +141,7 @@ class P2PCapabilityExchange:
                 )
 
         return [
-            caps for caps in self._peer_caps.values()
-            if capability in caps.capabilities
+            caps for caps in self._peer_caps.values() if capability in caps.capabilities
         ]
 
     def get_peer_capabilities(self, peer_id: str) -> PeerCapabilities | None:
@@ -151,8 +158,7 @@ class P2PCapabilityExchange:
         """
         cutoff = time.monotonic() - max_age
         stale = [
-            pid for pid, caps in self._peer_caps.items()
-            if caps.last_updated < cutoff
+            pid for pid, caps in self._peer_caps.items() if caps.last_updated < cutoff
         ]
         for pid in stale:
             del self._peer_caps[pid]
@@ -165,12 +171,16 @@ class P2PCapabilityExchange:
 
     def peers_with_model(self, provider: str, model: str) -> list[PeerCapabilities]:
         return [
-            c for c in self._peer_caps.values()
+            c
+            for c in self._peer_caps.values()
             if model in c.provider_models.get(provider, [])
         ]
 
     async def _handle_capabilities(
-        self, topic: str, data: dict[str, Any], origin: str,
+        self,
+        topic: str,
+        data: dict[str, Any],
+        origin: str,
     ) -> None:
         peer_id = data.get("peer_id", origin)
         if peer_id == self._local_peer_id:
@@ -198,10 +208,15 @@ class P2PCapabilityExchange:
             http_base_url=data.get("http_base_url"),
             last_updated=time.monotonic(),
         )
-        logger.info("Updated capabilities for peer %s: %s", peer_id, data.get("capabilities"))
+        logger.info(
+            "Updated capabilities for peer %s: %s", peer_id, data.get("capabilities")
+        )
 
     async def _handle_request(
-        self, topic: str, data: dict[str, Any], origin: str,
+        self,
+        topic: str,
+        data: dict[str, Any],
+        origin: str,
     ) -> None:
         capability = data.get("capability", "")
         if not capability or not self._local_caps:

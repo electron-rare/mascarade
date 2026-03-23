@@ -15,7 +15,9 @@ import httpx
 
 from mascarade.config import is_secret_configured
 
-DEFAULT_KILL_LIFE_ROOT = Path(os.getenv("KILL_LIFE_ROOT", "/home/clems/Kill_LIFE")).resolve()
+DEFAULT_KILL_LIFE_ROOT = Path(
+    os.getenv("KILL_LIFE_ROOT", "/home/clems/Kill_LIFE")
+).resolve()
 DEFAULT_GITHUB_REPO = os.getenv("KILL_LIFE_GITHUB_REPO", "electron-rare/Kill_LIFE")
 DEFAULT_GITHUB_REF = os.getenv("KILL_LIFE_GITHUB_REF", "main")
 DEFAULT_MASCARADE_API_BASE_URL = os.getenv(
@@ -127,7 +129,9 @@ class GitHubDispatchClient:
     ) -> None:
         self.auth_mode = normalized_github_dispatch_auth_mode()
         self.api_token = (
-            api_token or os.getenv("KILL_LIFE_GITHUB_TOKEN") or os.getenv("GITHUB_TOKEN", "")
+            api_token
+            or os.getenv("KILL_LIFE_GITHUB_TOKEN")
+            or os.getenv("GITHUB_TOKEN", "")
         ).strip()
         self.api_base_url = DEFAULT_MASCARADE_API_BASE_URL
         self.repo = repo
@@ -156,7 +160,9 @@ class GitHubDispatchClient:
         candidates: list[Path] = []
         if DEFAULT_GITHUB_DISPATCH_STATE_DIR:
             candidates.append(Path(DEFAULT_GITHUB_DISPATCH_STATE_DIR).expanduser())
-        candidates.append(DEFAULT_KILL_LIFE_ROOT / ".mascarade" / "mcp" / "github-dispatch")
+        candidates.append(
+            DEFAULT_KILL_LIFE_ROOT / ".mascarade" / "mcp" / "github-dispatch"
+        )
 
         xdg_state_home = os.getenv("XDG_STATE_HOME", "").strip()
         if xdg_state_home:
@@ -165,7 +171,11 @@ class GitHubDispatchClient:
         home = os.getenv("HOME", "").strip()
         if home:
             candidates.append(
-                Path(home).expanduser() / ".local" / "state" / "mascarade" / "github-dispatch"
+                Path(home).expanduser()
+                / ".local"
+                / "state"
+                / "mascarade"
+                / "github-dispatch"
             )
 
         candidates.append(Path(tempfile.gettempdir()) / "mascarade" / "github-dispatch")
@@ -232,7 +242,9 @@ class GitHubDispatchClient:
             )
         payload = response.json()
         if not isinstance(payload, dict):
-            raise GitHubDispatchAuthError("GitHub App token refresh returned invalid payload")
+            raise GitHubDispatchAuthError(
+                "GitHub App token refresh returned invalid payload"
+            )
         return payload
 
     def _record_path(self, dispatch_id: str) -> Path:
@@ -265,7 +277,9 @@ class GitHubDispatchClient:
     ) -> dict[str, Any]:
         await self._resolve_api_token()
         safe_workflow = ensure_allowlisted_workflow(workflow_file)
-        target_ref = ref.strip() if isinstance(ref, str) and ref.strip() else self.default_ref
+        target_ref = (
+            ref.strip() if isinstance(ref, str) and ref.strip() else self.default_ref
+        )
         payload = {
             "ref": target_ref,
             "inputs": sanitize_github_inputs(inputs),
@@ -311,7 +325,9 @@ class GitHubDispatchClient:
         self._write_record(record)
         return record
 
-    async def _refresh_workflow_run(self, record: dict[str, Any]) -> dict[str, Any] | None:
+    async def _refresh_workflow_run(
+        self, record: dict[str, Any]
+    ) -> dict[str, Any] | None:
         if not self._auth_configured():
             return record.get("workflow_run")
 
@@ -356,7 +372,9 @@ class GitHubDispatchClient:
             return None
 
         candidates.sort(
-            key=lambda run: _parse_iso(str(run.get("created_at") or run.get("run_started_at"))),
+            key=lambda run: _parse_iso(
+                str(run.get("created_at") or run.get("run_started_at"))
+            ),
             reverse=True,
         )
         return self._normalize_run(candidates[0])

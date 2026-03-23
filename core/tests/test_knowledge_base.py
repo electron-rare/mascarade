@@ -81,7 +81,9 @@ async def test_memos_client_maps_search_results():
 
     with (
         patch("mascarade.integrations.knowledge_base._url_host_resolves") as resolves,
-        patch("mascarade.integrations.knowledge_base.httpx.AsyncClient") as async_client_cls,
+        patch(
+            "mascarade.integrations.knowledge_base.httpx.AsyncClient"
+        ) as async_client_cls,
     ):
         resolves.side_effect = lambda url: url.startswith("http://127.0.0.1:")
         fake_client = async_client_cls.return_value
@@ -118,13 +120,17 @@ async def test_memos_client_append_updates_content_mask():
     settings.memos_base_url = "http://memos:5230"
     settings.memos_access_token = "memos_pat_123456"  # noqa: S105
 
-    with patch("mascarade.integrations.knowledge_base.httpx.AsyncClient") as async_client_cls:
+    with patch(
+        "mascarade.integrations.knowledge_base.httpx.AsyncClient"
+    ) as async_client_cls:
         fake_client = async_client_cls.return_value
         fake_client.aclose = AsyncMock()
         fake_client.get = AsyncMock(
             return_value=_FakeResponse({"name": "memos/abc123", "content": "before"})
         )
-        fake_client.patch = AsyncMock(return_value=_FakeResponse({"name": "memos/abc123"}))
+        fake_client.patch = AsyncMock(
+            return_value=_FakeResponse({"name": "memos/abc123"})
+        )
         client = MemosClient()
         try:
             await client.append_to_page("abc123", "after")
@@ -144,7 +150,9 @@ async def test_docmost_client_create_page_uses_parent_space():
     settings.docmost_email = "ops@example.test"
     settings.docmost_password = "docmost-secret-123456"  # noqa: S105
 
-    with patch("mascarade.integrations.knowledge_base.httpx.AsyncClient") as async_client_cls:
+    with patch(
+        "mascarade.integrations.knowledge_base.httpx.AsyncClient"
+    ) as async_client_cls:
         fake_client = async_client_cls.return_value
         fake_client.aclose = AsyncMock()
         fake_client.post = AsyncMock(
@@ -186,7 +194,9 @@ async def test_kxkm_client_search_propagates_project_scope():
     settings.kxkm_rag_url = "http://localhost:3333"
     settings.mascarade_project_id = "project-alpha"
 
-    with patch("mascarade.integrations.knowledge_base.httpx.AsyncClient") as async_client_cls:
+    with patch(
+        "mascarade.integrations.knowledge_base.httpx.AsyncClient"
+    ) as async_client_cls:
         fake_client = async_client_cls.return_value
         fake_client.aclose = AsyncMock()
         fake_client.post = AsyncMock(

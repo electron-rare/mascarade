@@ -15,9 +15,12 @@ from mascarade.p2p.transport import P2PTransport
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 async def _make_node() -> tuple[PeerIdentity, P2PTransport]:
     identity = PeerIdentity.generate()
-    t = P2PTransport(local_peer_id=identity.peer_id, listen_host="127.0.0.1", listen_port=0)
+    t = P2PTransport(
+        local_peer_id=identity.peer_id, listen_host="127.0.0.1", listen_port=0
+    )
     t.enable_authentication(identity)
     await t.start()
     return identity, t
@@ -26,6 +29,7 @@ async def _make_node() -> tuple[PeerIdentity, P2PTransport]:
 # ---------------------------------------------------------------------------
 # Tests
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.asyncio
 async def test_relay_forward():
@@ -71,7 +75,9 @@ async def test_relay_forward():
         client_b.on_relayed_message("hello", on_hello)
 
         # A requests a circuit to B through Relay
-        ok = await client_a.connect_via_relay(id_b.peer_id, relay_peer_id=id_relay.peer_id)
+        ok = await client_a.connect_via_relay(
+            id_b.peer_id, relay_peer_id=id_relay.peer_id
+        )
         assert ok
 
         await asyncio.sleep(0.3)
@@ -119,12 +125,14 @@ async def test_relay_discovery():
             transport=node_a,
         )
         # Manually insert Relay with the relay capability
-        dht_a.routing_table.upsert(DHTEntry(
-            peer_id=id_relay.peer_id,
-            host="127.0.0.1",
-            port=node_relay.listen_port,
-            capabilities=[RELAY_CAPABILITY],
-        ))
+        dht_a.routing_table.upsert(
+            DHTEntry(
+                peer_id=id_relay.peer_id,
+                host="127.0.0.1",
+                port=node_relay.listen_port,
+                capabilities=[RELAY_CAPABILITY],
+            )
+        )
 
         # Relay client on A with DHT
         client_a = RelayClient(
@@ -169,7 +177,9 @@ async def test_relay_disconnect():
         client_a.add_known_relay(id_relay.peer_id)
 
         # Create circuit
-        ok = await client_a.connect_via_relay(id_b.peer_id, relay_peer_id=id_relay.peer_id)
+        ok = await client_a.connect_via_relay(
+            id_b.peer_id, relay_peer_id=id_relay.peer_id
+        )
         assert ok
         await asyncio.sleep(0.3)
         assert len(relay.circuits) == 1
@@ -225,13 +235,17 @@ async def test_transport_send_to_via_relay():
         client_b.on_relayed_message("ping", on_ping)
 
         # Establish the relay circuit first (required after removing auto-create)
-        connected = await client_a.connect_via_relay(id_b.peer_id, relay_peer_id=id_relay.peer_id)
+        connected = await client_a.connect_via_relay(
+            id_b.peer_id, relay_peer_id=id_relay.peer_id
+        )
         assert connected
         await asyncio.sleep(0.2)
 
         # Use the transport-level relay method
         msg = P2PMessage(type="ping", sender=id_a.peer_id, payload={"v": 1})
-        ok = await node_a.send_to_via_relay(id_b.peer_id, msg, relay_peer_id=id_relay.peer_id)
+        ok = await node_a.send_to_via_relay(
+            id_b.peer_id, msg, relay_peer_id=id_relay.peer_id
+        )
         assert ok
 
         await asyncio.sleep(0.5)
@@ -266,6 +280,7 @@ async def test_relay_connect_rejects_unsigned():
         )
         # Call the handler directly — it should reject the unsigned message
         from mascarade.p2p.transport import PeerConnection
+
         fake_conn = PeerConnection(peer_id="QmAttacker", host="127.0.0.1", port=9999)
         await relay._handle_connect(unsigned_msg, fake_conn)
 

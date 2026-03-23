@@ -67,7 +67,10 @@ def _clean_registry():
     if hasattr(app.state, "registry"):
         # Remove any test agents
         for agent in list(app.state.registry.list()):
-            if not app.state.registry.is_builtin(agent.name) and agent.name not in original_agents:
+            if (
+                not app.state.registry.is_builtin(agent.name)
+                and agent.name not in original_agents
+            ):
                 try:
                     app.state.registry.remove(agent.name)
                 except KeyError:
@@ -342,9 +345,7 @@ async def test_run_agent(request, _clean_registry):
             headers={"Authorization": f"Bearer {TEST_API_KEY}"},
             json={
                 "project_id": "project-alpha",
-                "messages": [
-                    {"role": "user", "content": "Hello"}
-                ],
+                "messages": [{"role": "user", "content": "Hello"}],
             },
         )
 
@@ -418,9 +419,7 @@ async def test_run_nonexistent_agent():
             headers={"Authorization": f"Bearer {TEST_API_KEY}"},
             json={
                 "project_id": "project-alpha",
-                "messages": [
-                    {"role": "user", "content": "Hello"}
-                ],
+                "messages": [{"role": "user", "content": "Hello"}],
             },
         )
 

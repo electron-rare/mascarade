@@ -234,9 +234,7 @@ def test_send_cache_hit():
     r.register(CountProvider())
 
     payload = [{"role": "user", "content": "cache-me"}]
-    first = asyncio.run(
-        r.send(payload, strategy="routellm", routing_policy="strong")
-    )
+    first = asyncio.run(r.send(payload, strategy="routellm", routing_policy="strong"))
     # Force same provider selection for cache hit
     second = asyncio.run(r.send(payload, strategy="specific", provider="count"))
     assert first.content == second.content == "cached-response"
@@ -364,7 +362,9 @@ def test_select_provider_called_once_with_domain():
     original = r._select_provider
 
     def tracking_select(strategy, provider_name=None, domain=None):
-        call_log.append({"strategy": strategy, "provider_name": provider_name, "domain": domain})
+        call_log.append(
+            {"strategy": strategy, "provider_name": provider_name, "domain": domain}
+        )
         return original(strategy, provider_name, domain)
 
     r._select_provider = tracking_select
@@ -380,9 +380,9 @@ def test_select_provider_called_once_with_domain():
     # Should be called once per attempt in the fallback sequence, each with domain
     assert len(call_log) >= 1
     for call in call_log:
-        assert call["domain"] == "electronics", (
-            f"_select_provider called with domain={call['domain']!r}, expected 'electronics'"
-        )
+        assert (
+            call["domain"] == "electronics"
+        ), f"_select_provider called with domain={call['domain']!r}, expected 'electronics'"
 
 
 def test_select_provider_called_once_with_domain_in_stream():
@@ -392,7 +392,9 @@ def test_select_provider_called_once_with_domain_in_stream():
     original = r._select_provider
 
     def tracking_select(strategy, provider_name=None, domain=None):
-        call_log.append({"strategy": strategy, "provider_name": provider_name, "domain": domain})
+        call_log.append(
+            {"strategy": strategy, "provider_name": provider_name, "domain": domain}
+        )
         return original(strategy, provider_name, domain)
 
     r._select_provider = tracking_select
@@ -411,9 +413,9 @@ def test_select_provider_called_once_with_domain_in_stream():
 
     assert len(call_log) >= 1
     for call in call_log:
-        assert call["domain"] == "electronics", (
-            f"_select_provider called with domain={call['domain']!r}, expected 'electronics'"
-        )
+        assert (
+            call["domain"] == "electronics"
+        ), f"_select_provider called with domain={call['domain']!r}, expected 'electronics'"
 
 
 def test_stream_cache_retrieve_is_awaited():

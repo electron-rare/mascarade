@@ -11,6 +11,7 @@ try:
     from vllm.engine.async_llm_engine import AsyncLLMEngine
     from vllm.outputs import RequestOutput
     from vllm.sampling_params import SamplingParams as VLLMSamplingParams
+
     VLLM_AVAILABLE = True
 except ImportError:
     VLLM_AVAILABLE = False
@@ -105,7 +106,8 @@ class VLLMProvider(LLMProvider):
             usage={
                 "prompt_tokens": output.prompt_token_ids.shape[0],
                 "completion_tokens": output.outputs[0].token_ids.shape[0],
-                "total_tokens": output.prompt_token_ids.shape[0] + output.outputs[0].token_ids.shape[0],
+                "total_tokens": output.prompt_token_ids.shape[0]
+                + output.outputs[0].token_ids.shape[0],
             },
         )
 
@@ -127,10 +129,10 @@ class VLLMProvider(LLMProvider):
         """Create vLLM sampling parameters."""
         return VLLMSamplingParams(
             temperature=request.temperature,
-            top_p=request.top_p if hasattr(request, 'top_p') else 0.95,
+            top_p=request.top_p if hasattr(request, "top_p") else 0.95,
             max_tokens=request.max_tokens,
-            presence_penalty=getattr(request, 'presence_penalty', 0.0),
-            frequency_penalty=getattr(request, 'frequency_penalty', 0.0),
+            presence_penalty=getattr(request, "presence_penalty", 0.0),
+            frequency_penalty=getattr(request, "frequency_penalty", 0.0),
         )
 
     async def close(self) -> None:

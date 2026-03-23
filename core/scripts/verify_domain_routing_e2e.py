@@ -45,12 +45,16 @@ class E2EVerifier:
                 response = await client.get(f"{self.ollama_base_url}/api/tags")
                 if response.status_code == 200:
                     models = response.json().get("models", [])
-                    logger.info(f"✓ Ollama service is running with {len(models)} models")
+                    logger.info(
+                        f"✓ Ollama service is running with {len(models)} models"
+                    )
                     for model in models:
                         logger.info(f"  - {model.get('name', 'unknown')}")
                     return True
                 else:
-                    logger.warning(f"✗ Ollama service returned status {response.status_code}")
+                    logger.warning(
+                        f"✗ Ollama service returned status {response.status_code}"
+                    )
                     return False
         except Exception as e:
             logger.warning(f"✗ Ollama service not available: {e}")
@@ -74,7 +78,9 @@ class E2EVerifier:
             detected = self.detector.detect_domain(query)
             passed = detected == expected_domain
             status = "✓" if passed else "✗"
-            logger.info(f"{status} Query: '{query[:50]}...' -> {detected} (expected: {expected_domain})")
+            logger.info(
+                f"{status} Query: '{query[:50]}...' -> {detected} (expected: {expected_domain})"
+            )
             all_passed = all_passed and passed
 
         self.results["domain_detection"] = all_passed
@@ -117,7 +123,9 @@ class E2EVerifier:
                 )
 
                 if not passed:
-                    logger.warning(f"  Expected provider='ollama', got '{response.provider}'")
+                    logger.warning(
+                        f"  Expected provider='ollama', got '{response.provider}'"
+                    )
 
                 all_passed = all_passed and passed
 
@@ -183,7 +191,9 @@ class E2EVerifier:
             model = self.detector.get_model_for_domain(domain)
             passed = model == expected_model
             status = "✓" if passed else "✗"
-            logger.info(f"{status} Domain '{domain}' -> model='{model}' (expected: '{expected_model}')")
+            logger.info(
+                f"{status} Domain '{domain}' -> model='{model}' (expected: '{expected_model}')"
+            )
             all_passed = all_passed and passed
 
         self.results["model_selection"] = all_passed
@@ -229,7 +239,9 @@ class E2EVerifier:
         """Verify domain detection performance is <50ms."""
         logger.info("\n=== Testing Detection Performance ===")
 
-        query = "How do I design a PCB in KiCad with complex routing and multiple layers?"
+        query = (
+            "How do I design a PCB in KiCad with complex routing and multiple layers?"
+        )
 
         # Warm-up
         self.detector.detect_domain(query)
@@ -244,7 +256,9 @@ class E2EVerifier:
         avg_time = elapsed / iterations
         passed = avg_time < 50.0
         status = "✓" if passed else "✗"
-        logger.info(f"{status} Average detection time: {avg_time:.2f}ms (target: <50ms)")
+        logger.info(
+            f"{status} Average detection time: {avg_time:.2f}ms (target: <50ms)"
+        )
 
         self.results["performance"] = passed
         return passed
@@ -269,10 +283,17 @@ class E2EVerifier:
 
         # Only run Ollama-specific tests if Ollama is available
         if ollama_available:
-            tests.insert(3, ("Domain Routing with Ollama", self.verify_domain_routing_with_ollama))
+            tests.insert(
+                3,
+                ("Domain Routing with Ollama", self.verify_domain_routing_with_ollama),
+            )
         else:
-            logger.warning("\n⚠️  Ollama service not available - skipping Ollama-specific tests")
-            logger.warning("   To test with Ollama, start the service with: ollama serve")
+            logger.warning(
+                "\n⚠️  Ollama service not available - skipping Ollama-specific tests"
+            )
+            logger.warning(
+                "   To test with Ollama, start the service with: ollama serve"
+            )
             logger.warning("   And ensure mascarade-* models are loaded")
 
         all_passed = True

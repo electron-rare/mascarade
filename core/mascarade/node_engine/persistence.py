@@ -34,7 +34,9 @@ class MigrationRegistry:
     """Registre de migrations pour les mises à jour de schéma."""
 
     def __init__(self) -> None:
-        self._migrations: dict[tuple[str, str], Callable[[dict[str, Any]], dict[str, Any]]] = {}
+        self._migrations: dict[
+            tuple[str, str], Callable[[dict[str, Any]], dict[str, Any]]
+        ] = {}
 
     def register(
         self,
@@ -144,6 +146,7 @@ class MigrationRegistry:
 def _obj_to_dict(obj: Any) -> Any:
     """Convert a dataclass or object to a dict recursively."""
     import dataclasses
+
     if dataclasses.is_dataclass(obj) and not isinstance(obj, type):
         return asdict(obj)
     elif isinstance(obj, dict):
@@ -165,29 +168,37 @@ def _graph_to_dict(graph: Graph) -> dict[str, Any]:
         if dataclasses.is_dataclass(node) and not isinstance(node, type):
             nodes_data.append(asdict(node))
         else:
-            nodes_data.append({
-                "id": getattr(node, "id", ""),
-                "node_type": getattr(node, "node_type", ""),
-                "label": getattr(node, "label", ""),
-                "config": getattr(node, "config", {}),
-                "position": getattr(node, "position", (0.0, 0.0)),
-                "domain": getattr(node, "domain", None),
-            })
+            nodes_data.append(
+                {
+                    "id": getattr(node, "id", ""),
+                    "node_type": getattr(node, "node_type", ""),
+                    "label": getattr(node, "label", ""),
+                    "config": getattr(node, "config", {}),
+                    "position": getattr(node, "position", (0.0, 0.0)),
+                    "domain": getattr(node, "domain", None),
+                }
+            )
 
     edges_data = []
     for edge in graph.edges:
         if dataclasses.is_dataclass(edge) and not isinstance(edge, type):
             edges_data.append(asdict(edge))
         else:
-            edges_data.append({
-                "id": getattr(edge, "id", ""),
-                "source_node": getattr(edge, "source_node", ""),
-                "source_port": getattr(edge, "source_port", ""),
-                "target_node": getattr(edge, "target_node", ""),
-                "target_port": getattr(edge, "target_port", ""),
-            })
+            edges_data.append(
+                {
+                    "id": getattr(edge, "id", ""),
+                    "source_node": getattr(edge, "source_node", ""),
+                    "source_port": getattr(edge, "source_port", ""),
+                    "target_node": getattr(edge, "target_node", ""),
+                    "target_port": getattr(edge, "target_port", ""),
+                }
+            )
 
-    status_val = graph.status.value if isinstance(graph.status, GraphStatus) else str(graph.status)
+    status_val = (
+        graph.status.value
+        if isinstance(graph.status, GraphStatus)
+        else str(graph.status)
+    )
 
     return {
         "id": graph.id,
@@ -318,9 +329,7 @@ class GraphSerializer:
         serialized = self.serialize(graph)
 
         # Atomic write: write to temp file, then rename
-        fd, tmp_path = tempfile.mkstemp(
-            dir=str(path.parent), suffix=".tmp"
-        )
+        fd, tmp_path = tempfile.mkstemp(dir=str(path.parent), suffix=".tmp")
         try:
             with os.fdopen(fd, "w", encoding="utf-8") as f:
                 json.dump(serialized, f, indent=2, ensure_ascii=False)

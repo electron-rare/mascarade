@@ -69,7 +69,9 @@ class PeerIdentity:
 
     def _save_to_file(self, path: Path) -> None:
         path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
-        raw = self.private_key.private_bytes(Encoding.Raw, PrivateFormat.Raw, NoEncryption())
+        raw = self.private_key.private_bytes(
+            Encoding.Raw, PrivateFormat.Raw, NoEncryption()
+        )
         path.write_bytes(raw)
         os.chmod(path, 0o600)
 

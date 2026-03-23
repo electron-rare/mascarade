@@ -16,13 +16,17 @@ router = APIRouter(dependencies=[Depends(require_auth)])
 def knowledge_base_auth_configured() -> bool:
     """Check if knowledge base authentication is configured."""
     from mascarade.config import settings
+
     return bool(getattr(settings, "knowledge_base_provider", ""))
 
 
 def _check_kb_auth() -> bool:
     """Check KB auth using the function from mascarade.server (supports monkeypatching)."""
     import mascarade.server as server_mod
-    fn = getattr(server_mod, "knowledge_base_auth_configured", knowledge_base_auth_configured)
+
+    fn = getattr(
+        server_mod, "knowledge_base_auth_configured", knowledge_base_auth_configured
+    )
     return fn()
 
 

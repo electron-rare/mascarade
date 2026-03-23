@@ -67,10 +67,14 @@ class KiCadDRCReward(RewardFunction):
 
         cmd = [
             self._kibot,
-            "-e", str(filepath) if filepath.suffix == ".kicad_sch" else "",
-            "-b", str(filepath) if filepath.suffix == ".kicad_pcb" else "",
-            "-s", "all",  # skip all outputs
-            "-d", str(filepath.parent),
+            "-e",
+            str(filepath) if filepath.suffix == ".kicad_sch" else "",
+            "-b",
+            str(filepath) if filepath.suffix == ".kicad_pcb" else "",
+            "-s",
+            "all",  # skip all outputs
+            "-d",
+            str(filepath.parent),
             "--drc",
         ]
         # Remove empty args

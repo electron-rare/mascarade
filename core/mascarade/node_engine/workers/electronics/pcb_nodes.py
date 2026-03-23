@@ -310,16 +310,18 @@ class DrcCheckNode(BaseNode):
                 severity_level = severity_levels.get(severity, 2)
 
                 if severity_level >= threshold_level:
-                    violations.append({
-                        "rule": violation.get("rule", "unknown"),
-                        "severity": severity,
-                        "location": {
-                            "x": violation.get("x", 0),
-                            "y": violation.get("y", 0),
-                            "layer": violation.get("layer", "unknown"),
-                        },
-                        "message": violation.get("message", ""),
-                    })
+                    violations.append(
+                        {
+                            "rule": violation.get("rule", "unknown"),
+                            "severity": severity,
+                            "location": {
+                                "x": violation.get("x", 0),
+                                "y": violation.get("y", 0),
+                                "layer": violation.get("layer", "unknown"),
+                            },
+                            "message": violation.get("message", ""),
+                        }
+                    )
 
         return violations
 
@@ -475,7 +477,9 @@ class ViolationReporterNode(BaseNode):
     """
 
     node_type = "electronics.pcb.violation_reporter"
-    description = "Formats DRC violations into human-readable or machine-parsable reports"
+    description = (
+        "Formats DRC violations into human-readable or machine-parsable reports"
+    )
 
     def _default_config(self) -> ViolationReporterConfig:
         """Return default configuration for violation reporter."""
@@ -608,7 +612,9 @@ class ViolationReporterNode(BaseNode):
                     severity, "⚪"
                 )
 
-                lines.append(f"### {i}. {severity_emoji} {violation.get('rule', 'Unknown Rule')}")
+                lines.append(
+                    f"### {i}. {severity_emoji} {violation.get('rule', 'Unknown Rule')}"
+                )
                 lines.append(f"**Severity:** {severity}")
                 lines.append(f"**Message:** {violation.get('message', 'No message')}")
 

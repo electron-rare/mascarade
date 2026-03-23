@@ -22,15 +22,29 @@ def estimate_tokens(text: str) -> int:
 def complexity_score(prompt: str) -> float:
     text = prompt or ""
     length_score = min(len(text) / 6000.0, 1.0)
-    code_score = 0.25 if re.search(r"```|class\\s+|def\\s+|function\\s+", text, re.I) else 0.0
-    math_score = 0.20 if re.search(r"\\b(O\\(|NP|FFT|integral|derive|proof)\\b", text, re.I) else 0.0
-    multilingual_score = 0.10 if re.search(r"[\\u0400-\\u04FF\\u4E00-\\u9FFF]", text) else 0.0
-    planning_score = 0.15 if re.search(r"\\b(plan|todo|roadmap|architecture|threat model)\\b", text, re.I) else 0.0
+    code_score = (
+        0.25 if re.search(r"```|class\\s+|def\\s+|function\\s+", text, re.I) else 0.0
+    )
+    math_score = (
+        0.20
+        if re.search(r"\\b(O\\(|NP|FFT|integral|derive|proof)\\b", text, re.I)
+        else 0.0
+    )
+    multilingual_score = (
+        0.10 if re.search(r"[\\u0400-\\u04FF\\u4E00-\\u9FFF]", text) else 0.0
+    )
+    planning_score = (
+        0.15
+        if re.search(r"\\b(plan|todo|roadmap|architecture|threat model)\\b", text, re.I)
+        else 0.0
+    )
     raw = length_score + code_score + math_score + multilingual_score + planning_score
     return max(0.0, min(raw, 1.0))
 
 
-def estimate_cost_usd(tokens_in: int, tokens_out: int, cost_in: float, cost_out: float) -> float:
+def estimate_cost_usd(
+    tokens_in: int, tokens_out: int, cost_in: float, cost_out: float
+) -> float:
     return ((tokens_in * cost_in) + (tokens_out * cost_out)) / 1_000_000.0
 
 
@@ -50,18 +64,28 @@ class RouteChoice:
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser()
     p.add_argument("--prompt", required=True, help="Prompt to route")
-    p.add_argument("--threshold", type=float, default=0.58, help="Strong-model threshold [0..1]")
-    p.add_argument("--output-tokens", type=int, default=700, help="Expected output tokens")
+    p.add_argument(
+        "--threshold", type=float, default=0.58, help="Strong-model threshold [0..1]"
+    )
+    p.add_argument(
+        "--output-tokens", type=int, default=700, help="Expected output tokens"
+    )
 
     p.add_argument("--cheap-provider", default="openai")
     p.add_argument("--cheap-model", default="gpt-4o-mini")
     p.add_argument("--cheap-in", type=float, default=0.15, help="USD / 1M input tokens")
-    p.add_argument("--cheap-out", type=float, default=0.60, help="USD / 1M output tokens")
+    p.add_argument(
+        "--cheap-out", type=float, default=0.60, help="USD / 1M output tokens"
+    )
 
     p.add_argument("--strong-provider", default="openai")
     p.add_argument("--strong-model", default="gpt-4.1")
-    p.add_argument("--strong-in", type=float, default=2.00, help="USD / 1M input tokens")
-    p.add_argument("--strong-out", type=float, default=8.00, help="USD / 1M output tokens")
+    p.add_argument(
+        "--strong-in", type=float, default=2.00, help="USD / 1M input tokens"
+    )
+    p.add_argument(
+        "--strong-out", type=float, default=8.00, help="USD / 1M output tokens"
+    )
 
     p.add_argument("--json", action="store_true", help="Emit JSON output")
     return p.parse_args()
@@ -74,7 +98,9 @@ def main() -> int:
     tokens_out = max(1, int(args.output_tokens))
 
     cheap_cost = estimate_cost_usd(tokens_in, tokens_out, args.cheap_in, args.cheap_out)
-    strong_cost = estimate_cost_usd(tokens_in, tokens_out, args.strong_in, args.strong_out)
+    strong_cost = estimate_cost_usd(
+        tokens_in, tokens_out, args.strong_in, args.strong_out
+    )
     choose_strong = score >= max(0.0, min(float(args.threshold), 1.0))
 
     choice = RouteChoice(

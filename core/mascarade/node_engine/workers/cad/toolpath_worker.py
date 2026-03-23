@@ -316,9 +316,20 @@ class ToolpathWorker(NodeWorker):
             for i in range(num_contours):
                 inset = i * offset
                 moves.append({"x": inset, "y": inset, "z": 0.0, "type": "linear"})
-                moves.append({"x": bounds["x"] - inset, "y": inset, "z": 0.0, "type": "linear"})
-                moves.append({"x": bounds["x"] - inset, "y": bounds["y"] - inset, "z": 0.0, "type": "linear"})
-                moves.append({"x": inset, "y": bounds["y"] - inset, "z": 0.0, "type": "linear"})
+                moves.append(
+                    {"x": bounds["x"] - inset, "y": inset, "z": 0.0, "type": "linear"}
+                )
+                moves.append(
+                    {
+                        "x": bounds["x"] - inset,
+                        "y": bounds["y"] - inset,
+                        "z": 0.0,
+                        "type": "linear",
+                    }
+                )
+                moves.append(
+                    {"x": inset, "y": bounds["y"] - inset, "z": 0.0, "type": "linear"}
+                )
                 moves.append({"x": inset, "y": inset, "z": 0.0, "type": "linear"})
 
         elif strategy == "pocket":
@@ -403,9 +414,7 @@ class ToolpathWorker(NodeWorker):
 
         return base_rate * factor * diameter_factor
 
-    def _calculate_spindle_speed(
-        self, tool_diameter: float, tool_material: str
-    ) -> int:
+    def _calculate_spindle_speed(self, tool_diameter: float, tool_material: str) -> int:
         """Calculate appropriate spindle speed (RPM) based on tool."""
         # Cutting speed in m/min
         cutting_speeds = {
@@ -418,6 +427,7 @@ class ToolpathWorker(NodeWorker):
 
         # Calculate RPM: (cutting_speed * 1000) / (pi * diameter)
         import math
+
         rpm = (cutting_speed * 1000.0) / (math.pi * tool_diameter)
 
         # Clamp to reasonable range
@@ -439,6 +449,7 @@ class ToolpathWorker(NodeWorker):
             dz = move.get("z", 0.0) - prev.get("z", 0.0)
 
             import math
+
             distance = math.sqrt(dx**2 + dy**2 + dz**2)
 
             # Calculate time (distance / feed_rate, convert mm/min to mm/s)
@@ -493,12 +504,14 @@ class ToolpathWorker(NodeWorker):
                 lines.append(f"G3 X{x:.3f} Y{y:.3f} Z{z:.3f} F{feed_rate:.0f}")
 
         # Program end
-        lines.extend([
-            "",
-            "M5 ; Stop spindle",
-            "G0 Z50 ; Retract to safe height",
-            "M30 ; End program and reset",
-        ])
+        lines.extend(
+            [
+                "",
+                "M5 ; Stop spindle",
+                "G0 Z50 ; Retract to safe height",
+                "M30 ; End program and reset",
+            ]
+        )
 
         return "\n".join(lines)
 
@@ -552,14 +565,36 @@ class ToolpathWorker(NodeWorker):
             improvement_pct = ((original_time - optimized_time) / original_time) * 100
         elif objective == "finish":
             # For finish, improvement is based on feed rate reduction and move smoothness
-            avg_original_feed = sum(m.get("feed_rate", 0) for m in moves if m.get("type") != "rapid") / max(1, len([m for m in moves if m.get("type") != "rapid"]))
-            avg_optimized_feed = sum(m.get("feed_rate", 0) for m in optimized_moves if m.get("type") != "rapid") / max(1, len([m for m in optimized_moves if m.get("type") != "rapid"]))
-            improvement_pct = ((avg_original_feed - avg_optimized_feed) / avg_original_feed) * 100
+            avg_original_feed = sum(
+                m.get("feed_rate", 0) for m in moves if m.get("type") != "rapid"
+            ) / max(1, len([m for m in moves if m.get("type") != "rapid"]))
+            avg_optimized_feed = sum(
+                m.get("feed_rate", 0)
+                for m in optimized_moves
+                if m.get("type") != "rapid"
+            ) / max(1, len([m for m in optimized_moves if m.get("type") != "rapid"]))
+            improvement_pct = (
+                (avg_original_feed - avg_optimized_feed) / avg_original_feed
+            ) * 100
         elif objective == "tool_life":
             # For tool life, improvement is based on reduced peak loads
-            max_original_feed = max((m.get("feed_rate", 0) for m in moves if m.get("type") != "rapid"), default=0)
-            max_optimized_feed = max((m.get("feed_rate", 0) for m in optimized_moves if m.get("type") != "rapid"), default=0)
-            improvement_pct = ((max_original_feed - max_optimized_feed) / max_original_feed) * 100 if max_original_feed > 0 else 0
+            max_original_feed = max(
+                (m.get("feed_rate", 0) for m in moves if m.get("type") != "rapid"),
+                default=0,
+            )
+            max_optimized_feed = max(
+                (
+                    m.get("feed_rate", 0)
+                    for m in optimized_moves
+                    if m.get("type") != "rapid"
+                ),
+                default=0,
+            )
+            improvement_pct = (
+                ((max_original_feed - max_optimized_feed) / max_original_feed) * 100
+                if max_original_feed > 0
+                else 0
+            )
         else:
             improvement_pct = 0.0
 
@@ -596,7 +631,12 @@ class ToolpathWorker(NodeWorker):
                 optimized_move["feed_rate"] = min(current_feed * 1.25, max_feed_rate)
 
             # Consolidate consecutive rapid moves
-            if i > 0 and move.get("type") == "rapid" and optimized and optimized[-1].get("type") == "rapid":
+            if (
+                i > 0
+                and move.get("type") == "rapid"
+                and optimized
+                and optimized[-1].get("type") == "rapid"
+            ):
                 # Skip intermediate rapid moves
                 optimized[-1] = optimized_move
                 continue
@@ -618,8 +658,7 @@ class ToolpathWorker(NodeWorker):
             # Reduce feed rates for cutting moves to improve finish
             if move.get("type") != "rapid":
                 optimized_move["feed_rate"] = min(
-                    move.get("feed_rate", 500.0) * 0.7,
-                    target_feed_rate
+                    move.get("feed_rate", 500.0) * 0.7, target_feed_rate
                 )
 
             optimized.append(optimized_move)
@@ -658,8 +697,7 @@ class ToolpathWorker(NodeWorker):
             # Reduce feed rates to decrease tool wear
             if move.get("type") != "rapid":
                 optimized_move["feed_rate"] = min(
-                    move.get("feed_rate", 800.0) * 0.75,
-                    conservative_feed_rate
+                    move.get("feed_rate", 800.0) * 0.75, conservative_feed_rate
                 )
 
             # Add climb milling preference (reverse direction for some passes)
@@ -719,11 +757,13 @@ class ToolpathWorker(NodeWorker):
             lines.append("; Optimized for tool longevity")
             lines.append("G64 P0.1 ; Balanced path mode")
 
-        lines.extend([
-            "M3 S12000 ; Start spindle",
-            "G4 P2 ; Dwell 2 seconds",
-            "",
-        ])
+        lines.extend(
+            [
+                "M3 S12000 ; Start spindle",
+                "G4 P2 ; Dwell 2 seconds",
+                "",
+            ]
+        )
 
         # Generate move commands
         for move in moves:
@@ -739,11 +779,13 @@ class ToolpathWorker(NodeWorker):
                 lines.append(f"G1 X{x:.3f} Y{y:.3f} Z{z:.3f} F{feed_rate:.0f}")
 
         # Program end
-        lines.extend([
-            "",
-            "M5 ; Stop spindle",
-            "G0 Z50 ; Retract",
-            "M30 ; End program",
-        ])
+        lines.extend(
+            [
+                "",
+                "M5 ; Stop spindle",
+                "G0 Z50 ; Retract",
+                "M30 ; End program",
+            ]
+        )
 
         return "\n".join(lines)

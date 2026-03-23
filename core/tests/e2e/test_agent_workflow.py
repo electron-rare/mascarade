@@ -294,15 +294,11 @@ def test_e2e_agent_workflow_with_routing_strategy():
     messages = [{"role": "user", "content": "Route me"}]
 
     # Test FASTEST strategy
-    response_fast = asyncio.run(
-        router.send(messages, strategy=Strategy.FASTEST)
-    )
+    response_fast = asyncio.run(router.send(messages, strategy=Strategy.FASTEST))
     assert response_fast.provider == "fast_agent"
 
     # Test BEST strategy
-    response_best = asyncio.run(
-        router.send(messages, strategy=Strategy.BEST)
-    )
+    response_best = asyncio.run(router.send(messages, strategy=Strategy.BEST))
     assert response_best.provider == "best_agent"
 
 

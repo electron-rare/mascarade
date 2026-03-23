@@ -824,7 +824,10 @@ async def test_complete_admin_workflow():
 
     async def mock_fetch(query, *args):
         # List users
-        if "SELECT id, username, email, role_id, is_active" in query and "FROM users" in query:
+        if (
+            "SELECT id, username, email, role_id, is_active" in query
+            and "FROM users" in query
+        ):
             return list(users_db.values())
         # List API keys
         elif "SELECT id, user_id, key_hash, key_prefix, name, is_active" in query:
@@ -978,7 +981,11 @@ async def test_regular_user_can_make_llm_requests():
                     "content": "Hello! How can I help you today?",
                     "model": "gpt-4",
                     "provider": "openai",
-                    "usage": {"input_tokens": 10, "output_tokens": 8, "total_tokens": 18},
+                    "usage": {
+                        "input_tokens": 10,
+                        "output_tokens": 8,
+                        "total_tokens": 18,
+                    },
                 }
 
                 async with _client() as client:
@@ -1383,7 +1390,11 @@ async def test_complete_regular_user_workflow():
                     "content": "Hello from regular user!",
                     "model": "gpt-4",
                     "provider": "openai",
-                    "usage": {"input_tokens": 10, "output_tokens": 6, "total_tokens": 16},
+                    "usage": {
+                        "input_tokens": 10,
+                        "output_tokens": 6,
+                        "total_tokens": 16,
+                    },
                 }
 
                 async with _client() as client:
@@ -1593,7 +1604,10 @@ async def test_read_only_user_cannot_make_llm_requests():
                 # Should be forbidden (403) because read-only users can't make LLM requests
                 # This depends on the endpoint having proper RBAC checks
                 # For now, we expect 403 if RBAC is enforced, or we may need to update server.py
-                assert response.status_code in [200, 403]  # TODO: Should be 403 once RBAC is enforced
+                assert response.status_code in [
+                    200,
+                    403,
+                ]  # TODO: Should be 403 once RBAC is enforced
 
 
 @pytest.mark.asyncio
@@ -1659,21 +1673,30 @@ async def test_read_only_user_cannot_modify_anything():
                 )
                 # Should be forbidden (403) because read-only users can't modify config
                 # For now, expecting 200/403 until RBAC is fully enforced
-                assert response.status_code in [200, 403]  # TODO: Should be 403 once RBAC is enforced
+                assert response.status_code in [
+                    200,
+                    403,
+                ]  # TODO: Should be 403 once RBAC is enforced
 
                 # Read-only user CANNOT reset metrics
                 response = await client.post(
                     "/metrics/reset",
                     headers={"Authorization": "Bearer readonly-key"},
                 )
-                assert response.status_code in [200, 403]  # TODO: Should be 403 once RBAC is enforced
+                assert response.status_code in [
+                    200,
+                    403,
+                ]  # TODO: Should be 403 once RBAC is enforced
 
                 # Read-only user CANNOT reset cache
                 response = await client.post(
                     "/cache/reset",
                     headers={"Authorization": "Bearer readonly-key"},
                 )
-                assert response.status_code in [200, 403]  # TODO: Should be 403 once RBAC is enforced
+                assert response.status_code in [
+                    200,
+                    403,
+                ]  # TODO: Should be 403 once RBAC is enforced
 
 
 @pytest.mark.asyncio
@@ -1942,7 +1965,8 @@ async def test_complete_read_only_user_workflow():
             return None
 
         with patch(
-            "mascarade.auth.authenticate_user", side_effect=lambda t: auth_side_effect(t)
+            "mascarade.auth.authenticate_user",
+            side_effect=lambda t: auth_side_effect(t),
         ):
             async with _client() as client:
                 # Step 1: Read-only user can view dashboards
@@ -2043,15 +2067,17 @@ async def test_usage_tracking_records_llm_requests():
     async def mock_execute(query, *args):
         # Track INSERT INTO usage_records
         if "INSERT INTO usage_records" in query:
-            usage_records.append({
-                "user_id": args[0],
-                "provider": args[1],
-                "model": args[2],
-                "input_tokens": args[3],
-                "output_tokens": args[4],
-                "total_tokens": args[5],
-                "cost": args[6],
-            })
+            usage_records.append(
+                {
+                    "user_id": args[0],
+                    "provider": args[1],
+                    "model": args[2],
+                    "input_tokens": args[3],
+                    "output_tokens": args[4],
+                    "total_tokens": args[5],
+                    "cost": args[6],
+                }
+            )
 
     mock_conn.fetchrow.side_effect = mock_fetchrow
     mock_conn.execute.side_effect = mock_execute
@@ -2166,7 +2192,10 @@ async def test_usage_stats_appear_in_admin_dashboard():
         if "SELECT DISTINCT user_id FROM usage_records" in query:
             return [{"user_id": 10}, {"user_id": 11}]
         elif "SELECT provider, COUNT(*)" in query:
-            return [{"provider": "claude", "count": 3}, {"provider": "openai", "count": 2}]
+            return [
+                {"provider": "claude", "count": 3},
+                {"provider": "openai", "count": 2},
+            ]
         elif "SELECT model, COUNT(*)" in query:
             return [{"model": "claude-3-5-sonnet-20241022", "count": 5}]
         return []
@@ -2553,7 +2582,10 @@ async def test_complete_usage_tracking_and_rate_limiting_workflow():
             return {"id": args[0]}
 
         # User creation checks
-        if "SELECT id FROM users WHERE username" in query or "SELECT id FROM users WHERE email" in query:
+        if (
+            "SELECT id FROM users WHERE username" in query
+            or "SELECT id FROM users WHERE email" in query
+        ):
             return None  # Username/email not taken
 
         # User creation
@@ -2631,15 +2663,17 @@ async def test_complete_usage_tracking_and_rate_limiting_workflow():
 
     async def mock_execute(query, *args):
         if "INSERT INTO usage_records" in query:
-            usage_records.append({
-                "user_id": args[0],
-                "provider": args[1],
-                "model": args[2],
-                "input_tokens": args[3],
-                "output_tokens": args[4],
-                "total_tokens": args[5],
-                "cost": args[6],
-            })
+            usage_records.append(
+                {
+                    "user_id": args[0],
+                    "provider": args[1],
+                    "model": args[2],
+                    "input_tokens": args[3],
+                    "output_tokens": args[4],
+                    "total_tokens": args[5],
+                    "cost": args[6],
+                }
+            )
         elif "UPDATE api_keys SET last_used_at" in query:
             pass  # Ignore last_used_at updates
 
@@ -2686,14 +2720,22 @@ async def test_complete_usage_tracking_and_rate_limiting_workflow():
                     user_id=user_id,
                     provider="claude",
                     model="claude-3-5-sonnet-20241022",
-                    usage={"input_tokens": 200, "output_tokens": 100, "total_tokens": 300},
+                    usage={
+                        "input_tokens": 200,
+                        "output_tokens": 100,
+                        "total_tokens": 300,
+                    },
                     cost=0.003,
                 )
                 await track_usage(
                     user_id=user_id,
                     provider="openai",
                     model="gpt-4",
-                    usage={"input_tokens": 150, "output_tokens": 75, "total_tokens": 225},
+                    usage={
+                        "input_tokens": 150,
+                        "output_tokens": 75,
+                        "total_tokens": 225,
+                    },
                     cost=0.002,
                 )
 

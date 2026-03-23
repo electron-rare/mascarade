@@ -15,7 +15,11 @@ from typing import Any, Literal
 from pydantic import BaseModel, Field
 
 from mascarade.hardware.types import DMXFrame
-from mascarade.node_engine.base import NodeDefinition, NodeExecutionContext, NodeExecutionResult
+from mascarade.node_engine.base import (
+    NodeDefinition,
+    NodeExecutionContext,
+    NodeExecutionResult,
+)
 from mascarade.node_engine.types import (
     NodePort,
     PortDirection,
@@ -54,10 +58,16 @@ class DMXOutputConfig(BaseModel):
     """
 
     protocol: Literal["sacn", "artnet"] = "sacn"
-    interface: str | None = Field(None, description="Network interface to bind (default: auto)")
-    source_name: str = Field("mascarade-hardware-worker", description="sACN source name")
+    interface: str | None = Field(
+        None, description="Network interface to bind (default: auto)"
+    )
+    source_name: str = Field(
+        "mascarade-hardware-worker", description="sACN source name"
+    )
     fps: int = Field(40, ge=1, le=44, description="Frame rate (1-44 Hz, DMX spec max)")
-    simulation_mode: bool = Field(False, description="Simulate output without network transmission")
+    simulation_mode: bool = Field(
+        False, description="Simulate output without network transmission"
+    )
 
 
 class DMXClient:
@@ -91,13 +101,19 @@ class DMXClient:
                         # Note: sacn library uses source_name parameter
                         pass
                     self._sacn_sender.start()
-                    logger.info(f"DMX client initialized with sACN protocol on interface={config.interface}")
+                    logger.info(
+                        f"DMX client initialized with sACN protocol on interface={config.interface}"
+                    )
                 except ImportError:
-                    logger.warning("sacn library not installed, falling back to simulation mode")
+                    logger.warning(
+                        "sacn library not installed, falling back to simulation mode"
+                    )
                     self.config.simulation_mode = True
             elif config.protocol == "artnet":
                 # Art-Net implementation would go here
-                logger.warning("Art-Net protocol not yet implemented, falling back to simulation mode")
+                logger.warning(
+                    "Art-Net protocol not yet implemented, falling back to simulation mode"
+                )
                 self.config.simulation_mode = True
 
         if config.simulation_mode:
@@ -143,8 +159,13 @@ class DMXClient:
             return
 
         # Activate sACN universe if needed
-        if self._sacn_sender and universe_id not in self._sacn_sender.get_active_universes():
-            self._sacn_sender.activate_output(universe_id + 1)  # sACN uses 1-indexed universes
+        if (
+            self._sacn_sender
+            and universe_id not in self._sacn_sender.get_active_universes()
+        ):
+            self._sacn_sender.activate_output(
+                universe_id + 1
+            )  # sACN uses 1-indexed universes
             self._sacn_sender[universe_id + 1].multicast = True
 
     def get_universe(self, universe_id: int) -> DMXFrame:
@@ -197,7 +218,9 @@ class DMXClient:
                 # Priority is set per-universe in sACN
                 self._sacn_sender[sacn_universe].priority = frame.priority
             except Exception as exc:
-                logger.error(f"Failed to transmit sACN frame for universe {universe_id}: {exc}")
+                logger.error(
+                    f"Failed to transmit sACN frame for universe {universe_id}: {exc}"
+                )
 
 
 # --- DMX Nodes ---
@@ -388,9 +411,18 @@ async def execute_dmx_universe(ctx: NodeExecutionContext) -> NodeExecutionResult
             # Try to construct from dict
             if isinstance(input_frame, dict):
                 # Validate that the dict looks like a DMX frame
-                valid_keys = {"kind", "domain", "name", "universe", "channels", "timestamp_ms"}
+                valid_keys = {
+                    "kind",
+                    "domain",
+                    "name",
+                    "universe",
+                    "channels",
+                    "timestamp_ms",
+                }
                 unknown_keys = set(input_frame.keys()) - valid_keys
-                if unknown_keys and not any(k in input_frame for k in ("universe", "channels")):
+                if unknown_keys and not any(
+                    k in input_frame for k in ("universe", "channels")
+                ):
                     return NodeExecutionResult(
                         success=False,
                         error=f"Invalid DMX frame: unrecognized keys {unknown_keys}",
@@ -435,13 +467,21 @@ async def execute_dmx_fixture(ctx: NodeExecutionContext) -> NodeExecutionResult:
 
     # Validate inputs
     if universe is None:
-        return NodeExecutionResult(success=False, error="Missing required input: universe")
+        return NodeExecutionResult(
+            success=False, error="Missing required input: universe"
+        )
     if start_channel is None:
-        return NodeExecutionResult(success=False, error="Missing required input: start_channel")
+        return NodeExecutionResult(
+            success=False, error="Missing required input: start_channel"
+        )
     if profile is None:
-        return NodeExecutionResult(success=False, error="Missing required input: profile")
+        return NodeExecutionResult(
+            success=False, error="Missing required input: profile"
+        )
     if values is None:
-        return NodeExecutionResult(success=False, error="Missing required input: values")
+        return NodeExecutionResult(
+            success=False, error="Missing required input: values"
+        )
 
     # Validate universe and channel
     if not isinstance(universe, int) or not (0 <= universe <= 32767):
@@ -468,7 +508,9 @@ async def execute_dmx_fixture(ctx: NodeExecutionContext) -> NodeExecutionResult:
 
         for attr_name, attr_value in values.items():
             if attr_name not in profile:
-                logger.warning(f"Attribute '{attr_name}' not in fixture profile, skipping")
+                logger.warning(
+                    f"Attribute '{attr_name}' not in fixture profile, skipping"
+                )
                 continue
 
             # Get channel offset from profile
@@ -488,7 +530,9 @@ async def execute_dmx_fixture(ctx: NodeExecutionContext) -> NodeExecutionResult:
 
             # Convert normalized value (0.0-1.0) to DMX value (0-255)
             if not isinstance(attr_value, (int, float)):
-                raise DMXFixtureError(f"Attribute value must be numeric, got {type(attr_value)} for '{attr_name}'")
+                raise DMXFixtureError(
+                    f"Attribute value must be numeric, got {type(attr_value)} for '{attr_name}'"
+                )
 
             # Clamp to 0.0-1.0 range
             normalized_value = max(0.0, min(1.0, float(attr_value)))
@@ -532,9 +576,13 @@ async def execute_dmx_scene(ctx: NodeExecutionContext) -> NodeExecutionResult:
 
     # Validate inputs
     if not scene_id:
-        return NodeExecutionResult(success=False, error="Missing required input: scene_id")
+        return NodeExecutionResult(
+            success=False, error="Missing required input: scene_id"
+        )
     if not action:
-        return NodeExecutionResult(success=False, error="Missing required input: action")
+        return NodeExecutionResult(
+            success=False, error="Missing required input: action"
+        )
 
     if action not in ("store", "recall", "crossfade"):
         return NodeExecutionResult(

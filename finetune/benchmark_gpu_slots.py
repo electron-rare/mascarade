@@ -12,7 +12,6 @@ import time
 from collections import deque
 from pathlib import Path
 
-
 SCRIPT_DIR = Path(__file__).resolve().parent
 RUN_LOCAL_SCRIPT = SCRIPT_DIR / "run_local.py"
 RUNS_DIR = SCRIPT_DIR / "runs"
@@ -40,7 +39,9 @@ def write_json(path: Path, payload: dict) -> None:
 def normalize_label(raw: str) -> str:
     safe = "".join(ch if ch.isalnum() or ch in "-._" else "-" for ch in raw).strip(".-")
     if not safe:
-        raise SystemExit("Benchmark label must contain at least one alphanumeric character")
+        raise SystemExit(
+            "Benchmark label must contain at least one alphanumeric character"
+        )
     return safe
 
 
@@ -92,7 +93,7 @@ def start_gpu_sampler(samples_path: Path) -> subprocess.Popen | None:
         "ts=$(date -Iseconds); "
         "nvidia-smi --query-gpu=memory.used,memory.total,utilization.gpu "
         "--format=csv,noheader,nounits | "
-        "awk -F', ' -v ts=\"$ts\" '{print ts\",\"$1\",\"$2\",\"$3}'; "
+        'awk -F\', \' -v ts="$ts" \'{print ts","$1","$2","$3}\'; '
         "sleep 2; "
         "done"
     )
@@ -364,10 +365,14 @@ def run_slot_benchmark(
     manifest["summary"] = {
         "domains_total": len(domains),
         "trains_completed": sum(
-            1 for payload in manifest["domains"].values() if payload["status"] == "completed"
+            1
+            for payload in manifest["domains"].values()
+            if payload["status"] == "completed"
         ),
         "trains_failed": sum(
-            1 for payload in manifest["domains"].values() if payload["status"] == "failed"
+            1
+            for payload in manifest["domains"].values()
+            if payload["status"] == "failed"
         ),
     }
     write_json(manifest_path, manifest)

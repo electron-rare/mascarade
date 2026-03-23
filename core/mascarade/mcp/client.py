@@ -18,6 +18,8 @@ from mascarade.observability import AgentTraceBuffer
 logger = logging.getLogger("mascarade.mcp.client")
 
 DEFAULT_PROTOCOL_VERSION = "2025-03-26"
+
+
 def _resolve_default_dir(env_var: str, fallback_name: str) -> Path:
     """Resolve a directory from env var, falling back to ~/fallback_name."""
     raw = os.getenv(env_var, "")
@@ -153,20 +155,22 @@ def _normalize_scope(
     federation_scope: list[str] | tuple[str, ...] | None = None,
     knowledge_scope: str = "project",
 ) -> tuple[str, list[str], str]:
-    normalized_project = (project_id or settings.mascarade_project_id).strip() or "default"
+    normalized_project = (
+        project_id or settings.mascarade_project_id
+    ).strip() or "default"
     normalized_scope = (knowledge_scope or "project").strip().lower() or "project"
     if normalized_scope not in {"project", "federated"}:
         raise ValueError(f"Unsupported knowledge_scope: {knowledge_scope}")
 
     cleaned_federation = [
-        item.strip()
-        for item in (federation_scope or [])
-        if str(item).strip()
+        item.strip() for item in (federation_scope or []) if str(item).strip()
     ]
     if normalized_scope == "project":
         cleaned_federation = [normalized_project]
     elif not cleaned_federation:
-        raise ValueError("federation_scope is required when knowledge_scope is federated")
+        raise ValueError(
+            "federation_scope is required when knowledge_scope is federated"
+        )
     elif normalized_project not in cleaned_federation:
         cleaned_federation = [normalized_project, *cleaned_federation]
 
@@ -233,15 +237,29 @@ def _validate_freecad_script(script: str) -> None:
             module = (node.module or "").strip()
             root = module.split(".", 1)[0] if module else ""
             if node.level != 0 or root not in _FREECAD_ALLOWED_IMPORT_ROOTS:
-                raise ValueError(f"FreeCAD script blocked import-from: {module or '<relative>'}")
+                raise ValueError(
+                    f"FreeCAD script blocked import-from: {module or '<relative>'}"
+                )
         elif isinstance(node, ast.Call):
-            if isinstance(node.func, ast.Name) and node.func.id in _FREECAD_BLOCKED_CALLS:
-                raise ValueError(f"FreeCAD script blocked function call: {node.func.id}")
+            if (
+                isinstance(node.func, ast.Name)
+                and node.func.id in _FREECAD_BLOCKED_CALLS
+            ):
+                raise ValueError(
+                    f"FreeCAD script blocked function call: {node.func.id}"
+                )
         elif isinstance(node, ast.Attribute):
             if node.attr.startswith("__"):
-                raise ValueError(f"FreeCAD script blocked dunder attribute: {node.attr}")
-            if isinstance(node.value, ast.Name) and node.value.id in _FREECAD_BLOCKED_MODULE_NAMES:
-                raise ValueError(f"FreeCAD script blocked module access: {node.value.id}.{node.attr}")
+                raise ValueError(
+                    f"FreeCAD script blocked dunder attribute: {node.attr}"
+                )
+            if (
+                isinstance(node.value, ast.Name)
+                and node.value.id in _FREECAD_BLOCKED_MODULE_NAMES
+            ):
+                raise ValueError(
+                    f"FreeCAD script blocked module access: {node.value.id}.{node.attr}"
+                )
         elif isinstance(node, ast.Name):
             if isinstance(node.ctx, ast.Load) and (
                 node.id in _FREECAD_BLOCKED_MODULE_NAMES or node.id.startswith("__")
@@ -267,7 +285,9 @@ class McpRuntimeClient:
         self.agent_factory_cockpit_dir = (
             agent_factory_cockpit_dir or DEFAULT_AGENT_FACTORY_COCKPIT_DIR
         ).resolve()
-        self.mascarade_env_file = (mascarade_env_file or DEFAULT_MASCARADE_ENV_FILE).resolve()
+        self.mascarade_env_file = (
+            mascarade_env_file or DEFAULT_MASCARADE_ENV_FILE
+        ).resolve()
         self._servers: dict[str, McpServerDefinition] = {
             "knowledge-base": McpServerDefinition(
                 key="knowledge-base",
@@ -375,7 +395,9 @@ class McpRuntimeClient:
                 server_key=server_key,
             ) from exc
 
-    def _server_command(self, server: McpServerDefinition) -> tuple[tuple[str, ...], Path]:
+    def _server_command(
+        self, server: McpServerDefinition
+    ) -> tuple[tuple[str, ...], Path]:
         if server.command:
             return tuple(server.command), (server.cwd or self.mascarade_dir)
         launcher = server.launcher
@@ -513,7 +535,9 @@ class McpRuntimeClient:
                     transport=server.transport,
                 )
             await _write_message(proc.stdin, message)
-            response = await asyncio.wait_for(_read_message(proc.stdout), timeout=timeout)
+            response = await asyncio.wait_for(
+                _read_message(proc.stdout), timeout=timeout
+            )
             if response is None:
                 stderr_excerpt = ""
                 try:
@@ -522,7 +546,9 @@ class McpRuntimeClient:
                     pass
                 if proc.stderr is not None:
                     stderr_excerpt = (
-                        (await proc.stderr.read()).decode("utf-8", errors="replace").strip()
+                        (await proc.stderr.read())
+                        .decode("utf-8", errors="replace")
+                        .strip()
                     )
                 detail = f"MCP server '{server_key}' returned EOF"
                 if stderr_excerpt:
@@ -599,7 +625,9 @@ class McpRuntimeClient:
             if is_error:
                 error_code = None
                 if isinstance(structured.get("error"), dict):
-                    error_code = str(structured["error"].get("code") or "").strip() or None
+                    error_code = (
+                        str(structured["error"].get("code") or "").strip() or None
+                    )
                 self._trace(
                     run_id=run_id,
                     mode=mode,
@@ -688,7 +716,9 @@ class McpRuntimeClient:
                 proc.kill()
                 await proc.wait()
             if proc.stderr is not None:
-                stderr_text = (await proc.stderr.read()).decode("utf-8", errors="replace").strip()
+                stderr_text = (
+                    (await proc.stderr.read()).decode("utf-8", errors="replace").strip()
+                )
             if proc.returncode not in (0, None) and not stderr_text:
                 stderr_text = f"launcher exited with code {proc.returncode}"
             if proc.returncode not in (0, None) and stderr_text:
@@ -911,7 +941,9 @@ class McpRuntimeClient:
                     transport=server.transport,
                 )
             await _write_message(proc.stdin, message)
-            response = await asyncio.wait_for(_read_message(proc.stdout), timeout=timeout)
+            response = await asyncio.wait_for(
+                _read_message(proc.stdout), timeout=timeout
+            )
             if response is None:
                 raise McpServerUnavailable(
                     f"MCP server '{server_key}' returned EOF",
@@ -938,18 +970,31 @@ class McpRuntimeClient:
             if proc.stdin is not None:
                 await _write_message(
                     proc.stdin,
-                    {"jsonrpc": "2.0", "method": "notifications/initialized", "params": {}},
+                    {
+                        "jsonrpc": "2.0",
+                        "method": "notifications/initialized",
+                        "params": {},
+                    },
                 )
             tools = (
-                await _request({"jsonrpc": "2.0", "id": 2, "method": "tools/list", "params": {}})
+                await _request(
+                    {"jsonrpc": "2.0", "id": 2, "method": "tools/list", "params": {}}
+                )
             ).get("result", {})
             resources = (
                 await _request(
-                    {"jsonrpc": "2.0", "id": 3, "method": "resources/list", "params": {}}
+                    {
+                        "jsonrpc": "2.0",
+                        "id": 3,
+                        "method": "resources/list",
+                        "params": {},
+                    }
                 )
             ).get("result", {})
             prompts = (
-                await _request({"jsonrpc": "2.0", "id": 4, "method": "prompts/list", "params": {}})
+                await _request(
+                    {"jsonrpc": "2.0", "id": 4, "method": "prompts/list", "params": {}}
+                )
             ).get("result", {})
             return {
                 "ok": True,
@@ -959,7 +1004,9 @@ class McpRuntimeClient:
                 "protocol_version": protocol_version,
                 "server_info": server_info,
                 "tool_count": len(
-                    tools.get("tools", []) if isinstance(tools.get("tools", []), list) else []
+                    tools.get("tools", [])
+                    if isinstance(tools.get("tools", []), list)
+                    else []
                 ),
                 "resource_count": len(
                     resources.get("resources", [])
@@ -1020,7 +1067,9 @@ class McpRuntimeClient:
                     transport=server.transport,
                 )
             await _write_message(proc.stdin, message)
-            response = await asyncio.wait_for(_read_message(proc.stdout), timeout=timeout)
+            response = await asyncio.wait_for(
+                _read_message(proc.stdout), timeout=timeout
+            )
             if response is None:
                 raise McpServerUnavailable(
                     f"MCP server '{server_key}' returned EOF",
@@ -1038,11 +1087,17 @@ class McpRuntimeClient:
             return response
 
         try:
-            await _request({"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {}})
+            await _request(
+                {"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {}}
+            )
             if proc.stdin is not None:
                 await _write_message(
                     proc.stdin,
-                    {"jsonrpc": "2.0", "method": "notifications/initialized", "params": {}},
+                    {
+                        "jsonrpc": "2.0",
+                        "method": "notifications/initialized",
+                        "params": {},
+                    },
                 )
             response = await _request(
                 {
@@ -1243,11 +1298,17 @@ class McpRuntimeClient:
         for index, item in enumerate(raw_results[:limit]):
             if not isinstance(item, dict):
                 item = {"text": str(item)}
-            text = str(item.get("text") or item.get("content") or item.get("chunk") or "").strip()
+            text = str(
+                item.get("text") or item.get("content") or item.get("chunk") or ""
+            ).strip()
             results.append(
                 {
-                    "id": str(item.get("id") or item.get("chunk_id") or f"kxkm-{index + 1}"),
-                    "title": text.splitlines()[0][:140] if text else f"kxkm-{index + 1}",
+                    "id": str(
+                        item.get("id") or item.get("chunk_id") or f"kxkm-{index + 1}"
+                    ),
+                    "title": (
+                        text.splitlines()[0][:140] if text else f"kxkm-{index + 1}"
+                    ),
                     "url": str(item.get("url") or item.get("source_url") or ""),
                     "provider": "kxkm",
                     "text": text,
@@ -1259,7 +1320,17 @@ class McpRuntimeClient:
                         **{
                             key: value
                             for key, value in item.items()
-                            if key not in {"id", "chunk_id", "text", "content", "chunk", "url", "source_url", "score"}
+                            if key
+                            not in {
+                                "id",
+                                "chunk_id",
+                                "text",
+                                "content",
+                                "chunk",
+                                "url",
+                                "source_url",
+                                "score",
+                            }
                         },
                     },
                 }
@@ -1273,7 +1344,11 @@ class McpRuntimeClient:
             "knowledge_scope": normalized_scope,
             "federation_scope": normalized_federation,
             "results": results,
-            "total": int(data.get("total", len(results))) if isinstance(data, dict) else len(results),
+            "total": (
+                int(data.get("total", len(results)))
+                if isinstance(data, dict)
+                else len(results)
+            ),
         }
         self._trace(
             run_id=run_id,

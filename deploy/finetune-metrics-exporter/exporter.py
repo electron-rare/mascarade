@@ -163,7 +163,9 @@ def update_metrics(runs_dir: Path) -> None:
         for domain_label, domain_data in domains.items():
             # Row counts
             merged_rows = domain_data.get("distill", {}).get("merged_rows", 0) or 0
-            distilled_rows = domain_data.get("distill", {}).get("distilled_rows", 0) or 0
+            distilled_rows = (
+                domain_data.get("distill", {}).get("distilled_rows", 0) or 0
+            )
 
             finetune_domain_rows.labels(
                 run_label=run_label,

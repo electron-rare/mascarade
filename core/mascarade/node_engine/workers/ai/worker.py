@@ -95,7 +95,12 @@ class AIWorker(NodeWorker):
             ValueError: If node_type is not supported by this worker
             RuntimeError: If execution fails due to worker-specific errors
         """
-        logger.debug("Executing node_type=%s with inputs=%s, config=%s", node_type, inputs, config)
+        logger.debug(
+            "Executing node_type=%s with inputs=%s, config=%s",
+            node_type,
+            inputs,
+            config,
+        )
 
         # Dispatch to node type handlers (to be implemented in future subtasks)
         if node_type == "ai.llm-inference":
@@ -270,8 +275,12 @@ class AIWorker(NodeWorker):
         strategy = config.get("strategy", "best")
         routing_policy = config.get("routing_policy")
         project_id = config.get("project_id") or inputs.get("project_id")
-        federation_scope = config.get("federation_scope") or inputs.get("federation_scope")
-        knowledge_scope = config.get("knowledge_scope") or inputs.get("knowledge_scope", "project")
+        federation_scope = config.get("federation_scope") or inputs.get(
+            "federation_scope"
+        )
+        knowledge_scope = config.get("knowledge_scope") or inputs.get(
+            "knowledge_scope", "project"
+        )
 
         # Build messages list (simple user message)
         messages = [{"role": "user", "content": prompt}]
@@ -326,8 +335,12 @@ class AIWorker(NodeWorker):
         # Extract optional inputs
         message_context = inputs.get("context")
         project_id = config.get("project_id") or inputs.get("project_id")
-        federation_scope = config.get("federation_scope") or inputs.get("federation_scope")
-        knowledge_scope = config.get("knowledge_scope") or inputs.get("knowledge_scope", "project")
+        federation_scope = config.get("federation_scope") or inputs.get(
+            "federation_scope"
+        )
+        knowledge_scope = config.get("knowledge_scope") or inputs.get(
+            "knowledge_scope", "project"
+        )
 
         # Get agent from registry (raises KeyError if not found)
         agent = self.registry.get(agent_name)
@@ -389,8 +402,12 @@ class AIWorker(NodeWorker):
         routing_policy = config.get("routing_policy")
         domain = config.get("domain")
         project_id = config.get("project_id") or inputs.get("project_id")
-        federation_scope = config.get("federation_scope") or inputs.get("federation_scope")
-        knowledge_scope = config.get("knowledge_scope") or inputs.get("knowledge_scope", "project")
+        federation_scope = config.get("federation_scope") or inputs.get(
+            "federation_scope"
+        )
+        knowledge_scope = config.get("knowledge_scope") or inputs.get(
+            "knowledge_scope", "project"
+        )
 
         # Build messages list (simple user message)
         messages = [{"role": "user", "content": prompt}]
@@ -653,8 +670,10 @@ class AIWorker(NodeWorker):
             # Process in batches to respect max_concurrent limit
             responses = []
             for i in range(0, len(prompts), max_concurrent):
-                batch = prompts[i:i + max_concurrent]
-                batch_responses = await asyncio.gather(*[_process_prompt(p) for p in batch])
+                batch = prompts[i : i + max_concurrent]
+                batch_responses = await asyncio.gather(
+                    *[_process_prompt(p) for p in batch]
+                )
                 responses.extend(batch_responses)
 
         # Return responses wrapped in output dict
@@ -802,7 +821,9 @@ class AIWorker(NodeWorker):
             reasoning.append(step_output)
 
             # Update context for next step
-            current_context = f"{question}\n\nPrevious reasoning:\n" + "\n".join(reasoning)
+            current_context = f"{question}\n\nPrevious reasoning:\n" + "\n".join(
+                reasoning
+            )
 
         # Final synthesis
         synthesis_prompt = (
@@ -1064,7 +1085,9 @@ class AIWorker(NodeWorker):
 
         # Check if orchestrator is available
         if self.orchestrator is None:
-            raise RuntimeError("Orchestrator not available - AIWorker was initialized without orchestrator")
+            raise RuntimeError(
+                "Orchestrator not available - AIWorker was initialized without orchestrator"
+            )
 
         # Extract required inputs
         agent_names = inputs["agent_names"]
@@ -1150,7 +1173,9 @@ class AIWorker(NodeWorker):
 
         # Check if orchestrator is available
         if self.orchestrator is None:
-            errors.append("Orchestrator not available - AIWorker requires orchestrator for ai.orchestrate nodes")
+            errors.append(
+                "Orchestrator not available - AIWorker requires orchestrator for ai.orchestrate nodes"
+            )
             return errors
 
         # Validate agent_names
@@ -1164,7 +1189,9 @@ class AIWorker(NodeWorker):
             # Validate each agent exists in registry
             for agent_name in inputs["agent_names"]:
                 if not isinstance(agent_name, str):
-                    errors.append(f"Agent name must be a string, got: {type(agent_name).__name__}")
+                    errors.append(
+                        f"Agent name must be a string, got: {type(agent_name).__name__}"
+                    )
                     continue
                 try:
                     self.registry.get(agent_name)
@@ -1183,7 +1210,9 @@ class AIWorker(NodeWorker):
             if not isinstance(mode, str):
                 errors.append("Input 'mode' must be a string")
             elif mode not in {"sequential", "parallel", "pipeline"}:
-                errors.append(f"Input 'mode' must be one of: sequential, parallel, pipeline. Got: {mode}")
+                errors.append(
+                    f"Input 'mode' must be one of: sequential, parallel, pipeline. Got: {mode}"
+                )
 
         return errors
 
@@ -1280,7 +1309,9 @@ class AIWorker(NodeWorker):
 
             # If strategy is "specific", provider_name is required
             if strategy == "specific" and "provider_name" not in inputs:
-                errors.append("Input 'provider_name' is required when strategy is 'specific'")
+                errors.append(
+                    "Input 'provider_name' is required when strategy is 'specific'"
+                )
 
         # Validate provider_name if provided
         if "provider_name" in inputs:

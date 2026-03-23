@@ -53,12 +53,14 @@ def load_schematics(max_count=5000):
                 comps = r.get("components_used") or []
                 name = r.get("name", "")
                 if desc and len(desc) > 50 and len(comps) >= 3 and name:
-                    schematics.append({
-                        "name": name,
-                        "description": desc[:500],
-                        "components": ", ".join(comps[:15]),
-                        "snippet": (r.get("schematic_snippet", "") or "")[:500],
-                    })
+                    schematics.append(
+                        {
+                            "name": name,
+                            "description": desc[:500],
+                            "components": ", ".join(comps[:15]),
+                            "snippet": (r.get("schematic_snippet", "") or "")[:500],
+                        }
+                    )
             except json.JSONDecodeError:
                 continue
             if len(schematics) >= max_count:
@@ -95,24 +97,31 @@ Answer as a KiCad expert:"""
 
     try:
         with httpx.Client(timeout=60.0) as client:
-            resp = client.post(ANTHROPIC_URL, headers={
-                "x-api-key": ANTHROPIC_KEY,
-                "anthropic-version": "2023-06-01",
-                "content-type": "application/json",
-            }, json={
-                "model": MODEL,
-                "max_tokens": 700,
-                "temperature": 0.3,
-                "system": "You are an expert KiCad PCB designer. You review real schematics and provide accurate, datasheet-referenced advice. If you don't know a specific value, say 'check the datasheet' instead of guessing.",
-                "messages": [{"role": "user", "content": prompt}],
-            })
+            resp = client.post(
+                ANTHROPIC_URL,
+                headers={
+                    "x-api-key": ANTHROPIC_KEY,
+                    "anthropic-version": "2023-06-01",
+                    "content-type": "application/json",
+                },
+                json={
+                    "model": MODEL,
+                    "max_tokens": 700,
+                    "temperature": 0.3,
+                    "system": "You are an expert KiCad PCB designer. You review real schematics and provide accurate, datasheet-referenced advice. If you don't know a specific value, say 'check the datasheet' instead of guessing.",
+                    "messages": [{"role": "user", "content": prompt}],
+                },
+            )
             resp.raise_for_status()
             answer = resp.json()["content"][0]["text"]
 
             if answer and len(answer) > 100:
                 return {
                     "conversations": [
-                        {"from": "system", "value": "You are an expert KiCad PCB designer. You review real schematics and provide accurate, datasheet-referenced advice."},
+                        {
+                            "from": "system",
+                            "value": "You are an expert KiCad PCB designer. You review real schematics and provide accurate, datasheet-referenced advice.",
+                        },
                         {"from": "human", "value": question},
                         {"from": "gpt", "value": answer},
                     ],

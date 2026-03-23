@@ -53,7 +53,9 @@ async def test_vibe_agent_run():
     mock_output = '{"result": {"text": "def hello(): pass"}, "model": "devstral-small-2505", "usage": {"input_tokens": 10, "output_tokens": 5, "total_tokens": 15}}'
 
     with patch("shutil.which", return_value="/usr/local/bin/vibe"):
-        with patch("mascarade.agents.cli_agents._run_cli", new_callable=AsyncMock) as mock_run:
+        with patch(
+            "mascarade.agents.cli_agents._run_cli", new_callable=AsyncMock
+        ) as mock_run:
             mock_run.return_value = (mock_output, "", 0)
             response = await agent.run("Write hello function")
 
@@ -84,7 +86,9 @@ async def test_codex_agent_run():
     agent = CodexAgent()
 
     with patch("shutil.which", return_value="/usr/local/bin/codex"):
-        with patch("mascarade.agents.cli_agents._run_cli", new_callable=AsyncMock) as mock_run:
+        with patch(
+            "mascarade.agents.cli_agents._run_cli", new_callable=AsyncMock
+        ) as mock_run:
             mock_run.return_value = ("Fixed the bug in line 42", "", 0)
             response = await agent.run("Fix the bug")
 
@@ -107,7 +111,9 @@ async def test_claude_code_agent_run():
     mock_output = '{"result": "Refactored the module", "model": "claude-sonnet-4-6", "usage": {"input_tokens": 100, "output_tokens": 50, "total_tokens": 150}}'
 
     with patch("shutil.which", return_value="/usr/local/bin/claude"):
-        with patch("mascarade.agents.cli_agents._run_cli", new_callable=AsyncMock) as mock_run:
+        with patch(
+            "mascarade.agents.cli_agents._run_cli", new_callable=AsyncMock
+        ) as mock_run:
             mock_run.return_value = (mock_output, "", 0)
             response = await agent.run("Refactor the module")
 
@@ -121,7 +127,9 @@ async def test_claude_code_with_tools():
     agent = ClaudeCodeAgent(allowed_tools=["Read", "Edit", "Bash"])
 
     with patch("shutil.which", return_value="/usr/local/bin/claude"):
-        with patch("mascarade.agents.cli_agents._run_cli", new_callable=AsyncMock) as mock_run:
+        with patch(
+            "mascarade.agents.cli_agents._run_cli", new_callable=AsyncMock
+        ) as mock_run:
             mock_run.return_value = ("done", "", 0)
             await agent.run("Fix it")
 
@@ -136,7 +144,12 @@ async def test_claude_code_with_tools():
 def test_register_cli_agents():
     registry = MagicMock()
 
-    with patch("shutil.which", side_effect=lambda b: f"/usr/local/bin/{b}" if b in ("vibe", "codex", "claude") else None):
+    with patch(
+        "shutil.which",
+        side_effect=lambda b: (
+            f"/usr/local/bin/{b}" if b in ("vibe", "codex", "claude") else None
+        ),
+    ):
         register_cli_agents(registry)
 
     # All 3 should be registered

@@ -43,7 +43,10 @@ class LoggingListener(CircuitBreakerListener):
         self.name = name
 
     def state_change(
-        self, cb: CircuitBreaker, old_state: CircuitBreakerState, new_state: CircuitBreakerState
+        self,
+        cb: CircuitBreaker,
+        old_state: CircuitBreakerState,
+        new_state: CircuitBreakerState,
     ) -> None:
         """Log les changements d'état."""
         logger.warning(
@@ -52,7 +55,9 @@ class LoggingListener(CircuitBreakerListener):
 
     def failure(self, cb: CircuitBreaker, exc: BaseException) -> None:
         """Log les échecs."""
-        logger.debug(f"Circuit breaker '{self.name}' recorded failure: {exc.__class__.__name__}")
+        logger.debug(
+            f"Circuit breaker '{self.name}' recorded failure: {exc.__class__.__name__}"
+        )
 
     def success(self, cb: CircuitBreaker) -> None:
         """Log les succès."""

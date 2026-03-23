@@ -38,9 +38,7 @@ def test_metrics_endpoint_includes_classifier_metrics(client):
 
     tracker = MetricsTracker()
     tracker.track_classifier_prediction(
-        latency=0.025,
-        predicted_domain="kicad",
-        was_correct=True
+        latency=0.025, predicted_domain="kicad", was_correct=True
     )
 
     # Now check the metrics endpoint
@@ -52,4 +50,6 @@ def test_metrics_endpoint_includes_classifier_metrics(client):
 
     # Check for classifier metrics (they should be present even if not tracked yet)
     # The metric names should appear in the output
-    assert "classifier_latency" in text or "mascarade_classifier" in text or len(text) > 0
+    assert (
+        "classifier_latency" in text or "mascarade_classifier" in text or len(text) > 0
+    )

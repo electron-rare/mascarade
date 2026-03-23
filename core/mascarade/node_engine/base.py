@@ -16,7 +16,14 @@ from mascarade.node_engine.types import NodePort, PortDirection
 logger = logging.getLogger("mascarade.node_engine")
 
 # Re-export for convenience
-__all__ = ["NodeWorker", "NodeDefinition", "NodeExecutionContext", "NodeExecutionResult", "NodePort", "PortDirection"]
+__all__ = [
+    "NodeWorker",
+    "NodeDefinition",
+    "NodeExecutionContext",
+    "NodeExecutionResult",
+    "NodePort",
+    "PortDirection",
+]
 
 
 @dataclass
@@ -31,7 +38,9 @@ class NodeDefinition:
     """
 
     node_type: str = field(
-        metadata={"description": "Fully qualified node type (e.g., hardware.esp32.gpio)"}
+        metadata={
+            "description": "Fully qualified node type (e.g., hardware.esp32.gpio)"
+        }
     )
     description: str = ""
     input_ports: list[NodePort] = field(default_factory=list)
@@ -74,7 +83,9 @@ class NodeExecutionContext:
     - Capability grants (permissions)
     """
 
-    node_id: str = field(default="", metadata={"description": "Unique node instance ID"})
+    node_id: str = field(
+        default="", metadata={"description": "Unique node instance ID"}
+    )
     graph_id: str = field(default="", metadata={"description": "Parent graph ID"})
     node_type: str = field(default="", metadata={"description": "Node type identifier"})
     inputs: dict[str, Any] = field(default_factory=dict)

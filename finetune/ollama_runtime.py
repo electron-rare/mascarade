@@ -35,7 +35,9 @@ def _run_command(
     )
 
 
-def _failed_process(command: list[str], message: str) -> subprocess.CompletedProcess[str]:
+def _failed_process(
+    command: list[str], message: str
+) -> subprocess.CompletedProcess[str]:
     return subprocess.CompletedProcess(
         command,
         1,
@@ -53,7 +55,9 @@ def probe_host_ollama() -> tuple[bool, str]:
     return False, _combined_output(completed) or "host Ollama list failed"
 
 
-def inspect_container_mounts(container: str = DEFAULT_OLLAMA_CONTAINER) -> tuple[bool, str, list[dict[str, str | bool]]]:
+def inspect_container_mounts(
+    container: str = DEFAULT_OLLAMA_CONTAINER,
+) -> tuple[bool, str, list[dict[str, str | bool]]]:
     completed = _run_command(
         [
             "docker",
@@ -65,7 +69,11 @@ def inspect_container_mounts(container: str = DEFAULT_OLLAMA_CONTAINER) -> tuple
         timeout=30,
     )
     if completed.returncode != 0:
-        return False, _combined_output(completed) or f"docker inspect failed for {container}", []
+        return (
+            False,
+            _combined_output(completed) or f"docker inspect failed for {container}",
+            [],
+        )
 
     mounts: list[dict[str, str | bool]] = []
     for raw_line in (completed.stdout or "").splitlines():
@@ -80,13 +88,19 @@ def inspect_container_mounts(container: str = DEFAULT_OLLAMA_CONTAINER) -> tuple
     return True, "container is inspectable", mounts
 
 
-def probe_container_ollama(container: str = DEFAULT_OLLAMA_CONTAINER) -> tuple[bool, str, dict]:
+def probe_container_ollama(
+    container: str = DEFAULT_OLLAMA_CONTAINER,
+) -> tuple[bool, str, dict]:
     ok, reason, mounts = inspect_container_mounts(container)
     if not ok:
         return False, reason, {"store_readonly": None, "mounts": mounts}
 
     store_mount = next(
-        (mount for mount in mounts if mount.get("destination") == DEFAULT_OLLAMA_STORE_DEST),
+        (
+            mount
+            for mount in mounts
+            if mount.get("destination") == DEFAULT_OLLAMA_STORE_DEST
+        ),
         None,
     )
     store_readonly = False
@@ -94,16 +108,28 @@ def probe_container_ollama(container: str = DEFAULT_OLLAMA_CONTAINER) -> tuple[b
         store_readonly = not bool(store_mount.get("rw"))
 
     if store_mount is None:
-        return True, "container is available and uses its own writable store", {
-            "store_readonly": False,
-            "mounts": mounts,
-        }
+        return (
+            True,
+            "container is available and uses its own writable store",
+            {
+                "store_readonly": False,
+                "mounts": mounts,
+            },
+        )
     if store_readonly:
-        return True, "container store is mounted read-only", {
-            "store_readonly": True,
-            "mounts": mounts,
-        }
-    return True, "container store is writable", {"store_readonly": False, "mounts": mounts}
+        return (
+            True,
+            "container store is mounted read-only",
+            {
+                "store_readonly": True,
+                "mounts": mounts,
+            },
+        )
+    return (
+        True,
+        "container store is writable",
+        {"store_readonly": False, "mounts": mounts},
+    )
 
 
 def resolve_ollama_runtime(
@@ -111,7 +137,9 @@ def resolve_ollama_runtime(
     *,
     container: str = DEFAULT_OLLAMA_CONTAINER,
 ) -> dict:
-    requested_mode = (mode or os.getenv(DEPLOY_MODE_ENV, DEFAULT_DEPLOY_MODE)).strip().lower()
+    requested_mode = (
+        (mode or os.getenv(DEPLOY_MODE_ENV, DEFAULT_DEPLOY_MODE)).strip().lower()
+    )
     if requested_mode not in {"auto", "host", "container"}:
         raise OllamaRuntimeError(
             f"unsupported Ollama deploy mode '{requested_mode}' "
@@ -124,7 +152,9 @@ def resolve_ollama_runtime(
 
     if requested_mode == "host":
         if not host_ok:
-            raise OllamaRuntimeError(f"forced host mode but host Ollama is unavailable: {host_reason}")
+            raise OllamaRuntimeError(
+                f"forced host mode but host Ollama is unavailable: {host_reason}"
+            )
         return {
             "mode": "host",
             "reason": host_reason,
@@ -189,16 +219,22 @@ def create_model(
     gguf_path: Path,
 ) -> subprocess.CompletedProcess[str]:
     if runtime["mode"] == "host":
-        return _run_command(["ollama", "create", model_name, "-f", str(modelfile_path)], timeout=900)
+        return _run_command(
+            ["ollama", "create", model_name, "-f", str(modelfile_path)], timeout=900
+        )
 
     container = str(runtime["container"])
     copy_model = _run_command(
-        ["docker", "cp", str(gguf_path), f"{container}:/tmp/{gguf_path.name}"], timeout=300
+        ["docker", "cp", str(gguf_path), f"{container}:/tmp/{gguf_path.name}"],
+        timeout=300,
     )
     if copy_model.returncode != 0:
-        return _failed_process(copy_model.args, _combined_output(copy_model) or "docker cp GGUF failed")
+        return _failed_process(
+            copy_model.args, _combined_output(copy_model) or "docker cp GGUF failed"
+        )
     copy_modelfile = _run_command(
-        ["docker", "cp", str(modelfile_path), f"{container}:/tmp/Modelfile"], timeout=300
+        ["docker", "cp", str(modelfile_path), f"{container}:/tmp/Modelfile"],
+        timeout=300,
     )
     if copy_modelfile.returncode != 0:
         return _failed_process(
@@ -220,10 +256,20 @@ def create_model(
     if rewrite_from.returncode != 0:
         return _failed_process(
             rewrite_from.args,
-            _combined_output(rewrite_from) or "failed to rewrite Modelfile inside container",
+            _combined_output(rewrite_from)
+            or "failed to rewrite Modelfile inside container",
         )
     return _run_command(
-        ["docker", "exec", container, "ollama", "create", model_name, "-f", "/tmp/Modelfile"],
+        [
+            "docker",
+            "exec",
+            container,
+            "ollama",
+            "create",
+            model_name,
+            "-f",
+            "/tmp/Modelfile",
+        ],
         timeout=900,
     )
 

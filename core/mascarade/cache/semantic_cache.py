@@ -88,9 +88,7 @@ class SemanticCache(CacheBackend):
             # Use manager factory for SQLite storage
             data_manager = manager_factory(
                 "sqlite",
-                scalar_params={
-                    "sql_url": f"sqlite:///{self.storage_path}/gptcache.db"
-                },
+                scalar_params={"sql_url": f"sqlite:///{self.storage_path}/gptcache.db"},
             )
 
             # Initialize with similarity evaluation
@@ -202,7 +200,9 @@ class SemanticCache(CacheBackend):
             )
 
             key = self._generate_key(messages, **kwargs)
-            logger.debug(f"SemanticCache stored: key={key[:8]}..., prompt_len={len(prompt)}")
+            logger.debug(
+                f"SemanticCache stored: key={key[:8]}..., prompt_len={len(prompt)}"
+            )
             return key
 
         except Exception as e:

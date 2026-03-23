@@ -50,11 +50,17 @@ def verify_cache_logic():
     stream_start = content.find("async def stream(")
     cache_check_start = content.find("cached = self.cache.retrieve(", stream_start)
     cache_check_end = content.find(")", cache_check_start)
-    cache_section = content[cache_check_start:cache_check_end + 200]
+    cache_section = content[cache_check_start : cache_check_end + 200]
 
-    required_params = ["messages", "strategy=strategy.value", "provider=provider",
-                      "model=model", "system=system", "temperature=temperature",
-                      "max_tokens=max_tokens"]
+    required_params = [
+        "messages",
+        "strategy=strategy.value",
+        "provider=provider",
+        "model=model",
+        "system=system",
+        "temperature=temperature",
+        "max_tokens=max_tokens",
+    ]
 
     missing_params = [p for p in required_params if p not in cache_section]
     if not missing_params:

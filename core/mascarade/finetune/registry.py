@@ -76,8 +76,12 @@ class FinetuneRegistry:
                     self.datasets[k] = DatasetEntry(**v)
                 for k, v in data.get("runs", {}).items():
                     self.runs[k] = RunEntry(**v)
-                logger.info("Loaded registry: %d models, %d datasets, %d runs",
-                            len(self.models), len(self.datasets), len(self.runs))
+                logger.info(
+                    "Loaded registry: %d models, %d datasets, %d runs",
+                    len(self.models),
+                    len(self.datasets),
+                    len(self.runs),
+                )
             except Exception:
                 logger.exception("Failed to load registry from %s", self.path)
 
@@ -109,9 +113,12 @@ class FinetuneRegistry:
         self.runs[entry.run_id] = entry
         self.save()
 
-    def best_model_for_task(self, task: str, max_size_gb: float = 4.0) -> ModelEntry | None:
+    def best_model_for_task(
+        self, task: str, max_size_gb: float = 4.0
+    ) -> ModelEntry | None:
         candidates = [
-            m for m in self.models.values()
+            m
+            for m in self.models.values()
             if m.task == task and m.size_gb <= max_size_gb
         ]
         if not candidates:
