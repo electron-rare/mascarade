@@ -67,6 +67,9 @@ def _ray_router_send(payload: dict[str, Any]) -> dict[str, Any]:
             system=payload.get("system"),
             temperature=payload.get("temperature"),
             max_tokens=payload.get("max_tokens"),
+            project_id=payload.get("project_id"),
+            federation_scope=payload.get("federation_scope"),
+            knowledge_scope=payload.get("knowledge_scope", "project"),
         )
     )
     return {
@@ -255,6 +258,9 @@ class Orchestrator:
             "system": payload.get("system"),
             "temperature": payload.get("temperature"),
             "max_tokens": payload.get("max_tokens"),
+            "project_id": payload.get("project_id"),
+            "federation_scope": payload.get("federation_scope"),
+            "knowledge_scope": payload.get("knowledge_scope", "project"),
         }
         try:
             routed = await asyncio.wait_for(
@@ -310,6 +316,9 @@ class Orchestrator:
         mode: ExecutionMode,
         routing_overrides: dict[str, dict[str, str | None]] | None = None,
         skip_on_error: bool = False,
+        project_id: str | None = None,
+        federation_scope: list[str] | tuple[str, ...] | None = None,
+        knowledge_scope: str = "project",
     ) -> list[TaskResult]:
         """Exécuter des agents séquentiellement, chacun avec le prompt original."""
         results = []
@@ -350,6 +359,9 @@ class Orchestrator:
                     routing_override=override,
                     run_id=run_id,
                     mode=mode,
+                    project_id=project_id,
+                    federation_scope=federation_scope,
+                    knowledge_scope=knowledge_scope,
                 )
             except Exception as exc:
                 error_msg = str(exc)
@@ -407,6 +419,9 @@ class Orchestrator:
         mode: ExecutionMode,
         routing_overrides: dict[str, dict[str, str | None]] | None = None,
         timeout: float = 120.0,
+        project_id: str | None = None,
+        federation_scope: list[str] | tuple[str, ...] | None = None,
+        knowledge_scope: str = "project",
     ) -> list[TaskResult]:
         """Exécuter des agents en parallèle sur le même prompt."""
 
@@ -446,6 +461,9 @@ class Orchestrator:
                 routing_override=override,
                 run_id=run_id,
                 mode=mode,
+                project_id=project_id,
+                federation_scope=federation_scope,
+                knowledge_scope=knowledge_scope,
             )
             self._trace(
                 run_id=run_id,
@@ -509,6 +527,9 @@ class Orchestrator:
         routing_overrides: dict[str, dict[str, str | None]] | None = None,
         skip_on_error: bool = False,
         fallback_map: dict[str, str] | None = None,
+        project_id: str | None = None,
+        federation_scope: list[str] | tuple[str, ...] | None = None,
+        knowledge_scope: str = "project",
     ) -> list[TaskResult]:
         """Pipeline : la sortie d'un agent devient l'entrée du suivant.
 
@@ -563,6 +584,9 @@ class Orchestrator:
                     routing_override=override,
                     run_id=run_id,
                     mode=mode,
+                    project_id=project_id,
+                    federation_scope=federation_scope,
+                    knowledge_scope=knowledge_scope,
                 )
             except Exception as exc:
                 error_msg = str(exc)
@@ -586,6 +610,9 @@ class Orchestrator:
                             routing_override=fallback_override,
                             run_id=run_id,
                             mode=mode,
+                            project_id=project_id,
+                            federation_scope=federation_scope,
+                            knowledge_scope=knowledge_scope,
                         )
                         result.fallback_used = True
                         result.fallback_agent = fallback_name
@@ -684,8 +711,17 @@ class Orchestrator:
         run_id: str | None = None,
         mode: ExecutionMode | None = None,
         fallback_agent_name: str | None = None,
+        project_id: str | None = None,
+        federation_scope: list[str] | tuple[str, ...] | None = None,
+        knowledge_scope: str = "project",
     ) -> TaskResult:
-        payload = agent.build_send_payload(prompt, skill_registry=self.skill_registry)
+        payload = agent.build_send_payload(
+            prompt,
+            skill_registry=self.skill_registry,
+            project_id=project_id,
+            federation_scope=federation_scope,
+            knowledge_scope=knowledge_scope,
+        )
         if routing_override:
             if routing_override.get("preferred_provider"):
                 payload["provider"] = routing_override["preferred_provider"]
@@ -794,6 +830,9 @@ class Orchestrator:
                 system=payload["system"],
                 temperature=payload["temperature"],
                 max_tokens=payload["max_tokens"],
+                project_id=payload.get("project_id"),
+                federation_scope=payload.get("federation_scope"),
+                knowledge_scope=str(payload.get("knowledge_scope") or "project"),
             )
             return TaskResult(
                 agent_name=agent.name,
@@ -842,6 +881,9 @@ class Orchestrator:
         routing_overrides: dict[str, dict[str, str | None]] | None = None,
         skip_on_error: bool = False,
         fallback_map: dict[str, str] | None = None,
+        project_id: str | None = None,
+        federation_scope: list[str] | tuple[str, ...] | None = None,
+        knowledge_scope: str = "project",
     ) -> OrchestrationRun:
         """Point d'entrée principal — choisir le mode d'exécution."""
         mode = ExecutionMode(mode)
@@ -864,6 +906,9 @@ class Orchestrator:
                     mode=mode,
                     routing_overrides=routing_overrides,
                     skip_on_error=skip_on_error,
+                    project_id=project_id,
+                    federation_scope=federation_scope,
+                    knowledge_scope=knowledge_scope,
                 )
             elif mode == ExecutionMode.PARALLEL:
                 results = await self.run_parallel(
@@ -872,6 +917,9 @@ class Orchestrator:
                     run_id=run_id,
                     mode=mode,
                     routing_overrides=routing_overrides,
+                    project_id=project_id,
+                    federation_scope=federation_scope,
+                    knowledge_scope=knowledge_scope,
                 )
             else:
                 results = await self.run_pipeline(
@@ -882,6 +930,9 @@ class Orchestrator:
                     routing_overrides=routing_overrides,
                     skip_on_error=skip_on_error,
                     fallback_map=fallback_map,
+                    project_id=project_id,
+                    federation_scope=federation_scope,
+                    knowledge_scope=knowledge_scope,
                 )
         except Exception as exc:
             error_msg = str(exc)

@@ -36,7 +36,8 @@ async def test_memory_add_returns_201():
                 "/api/memory/add",
                 json={
                     "messages": [{"role": "user", "content": "test message"}],
-                    "user_id": "test-user"
+                    "user_id": "test-user",
+                    "project_id": "project-alpha",
                 }
             )
 
@@ -46,6 +47,7 @@ async def test_memory_add_returns_201():
     assert "status" in body
     assert "user_id" in body
     assert body["user_id"] == "test-user"
+    assert body["project_id"] == "project-alpha"
     assert body["status"] == "created"
 
 
@@ -53,7 +55,10 @@ async def test_memory_add_returns_201():
 async def test_memory_add_with_agent_id():
     """Test POST /api/memory/add with agent_id scoping."""
 
+    calls = []
+
     async def mock_mem0_request(*args, **kwargs):
+        calls.append((args, kwargs))
         return {"id": "mem-67890", "status": "created"}
 
     with patch('mascarade.routers.memory._mem0_request', side_effect=mock_mem0_request):
@@ -63,6 +68,7 @@ async def test_memory_add_with_agent_id():
                 json={
                     "messages": [{"role": "user", "content": "test message"}],
                     "user_id": "test-user",
+                    "project_id": "project-alpha",
                     "agent_id": "test-agent"
                 }
             )
@@ -70,6 +76,10 @@ async def test_memory_add_with_agent_id():
     assert response.status_code == 201
     body = response.json()
     assert body["agent_id"] == "test-agent"
+    payload = calls[0][1]["json_data"]
+    assert payload["user_id"] == "project-alpha:test-user"
+    assert payload["metadata"]["project_id"] == "project-alpha"
+    assert payload["metadata"]["agent_id"] == "test-agent"
 
 
 @pytest.mark.asyncio
@@ -91,6 +101,7 @@ async def test_memory_search():
                 json={
                     "query": "test query",
                     "user_id": "test-user",
+                    "project_id": "project-alpha",
                     "limit": 10
                 }
             )
@@ -101,6 +112,7 @@ async def test_memory_search():
     assert "count" in body
     assert body["count"] == 2
     assert len(body["memories"]) == 2
+    assert body["project_id"] == "project-alpha"
 
 
 @pytest.mark.asyncio
@@ -121,7 +133,8 @@ async def test_memory_get_all():
             response = await client.post(
                 "/api/memory/get",
                 json={
-                    "user_id": "test-user"
+                    "user_id": "test-user",
+                    "project_id": "project-alpha",
                 }
             )
 
@@ -130,6 +143,7 @@ async def test_memory_get_all():
     assert "memories" in body
     assert "count" in body
     assert body["count"] == 3
+    assert body["project_id"] == "project-alpha"
 
 
 @pytest.mark.asyncio
@@ -147,7 +161,8 @@ async def test_memory_delete():
                 "/api/memory/delete",
                 json={
                     "memory_id": "mem-12345",
-                    "user_id": "test-user"
+                    "user_id": "test-user",
+                    "project_id": "project-alpha",
                 }
             )
 
@@ -156,6 +171,7 @@ async def test_memory_delete():
     assert "message" in body
     assert "memory_id" in body
     assert body["memory_id"] == "mem-12345"
+    assert body["project_id"] == "project-alpha"
 
 
 @pytest.mark.asyncio
@@ -166,7 +182,8 @@ async def test_memory_add_validation_error():
         response = await client.post(
             "/api/memory/add",
             json={
-                "messages": [{"role": "user", "content": "test"}]
+                "messages": [{"role": "user", "content": "test"}],
+                "project_id": "project-alpha",
             }
         )
 
@@ -181,7 +198,8 @@ async def test_memory_add_empty_messages():
             "/api/memory/add",
             json={
                 "messages": [],
-                "user_id": "test-user"
+                "user_id": "test-user",
+                "project_id": "project-alpha",
             }
         )
 
@@ -205,7 +223,8 @@ async def test_memory_service_unavailable():
                 "/api/memory/add",
                 json={
                     "messages": [{"role": "user", "content": "test"}],
-                    "user_id": "test-user"
+                    "user_id": "test-user",
+                    "project_id": "project-alpha",
                 }
             )
 

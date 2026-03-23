@@ -10,6 +10,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, Field
 
 from mascarade.auth import require_auth
+from mascarade.project_scope import normalize_scope, scoped_principal_id
 
 logger = logging.getLogger("mascarade.routers.memory")
 
@@ -31,6 +32,7 @@ class MemoryAddRequest(BaseModel):
 
     messages: list[Message] = Field(min_length=1, max_length=200)
     user_id: str = Field(min_length=1, max_length=100)
+    project_id: str = Field(min_length=1, max_length=256)
     metadata: dict[str, Any] | None = None
     agent_id: str | None = Field(default=None, max_length=100)
 
@@ -40,6 +42,7 @@ class MemorySearchRequest(BaseModel):
 
     query: str = Field(min_length=1, max_length=1000)
     user_id: str = Field(min_length=1, max_length=100)
+    project_id: str = Field(min_length=1, max_length=256)
     limit: int = Field(default=10, ge=1, le=100)
     agent_id: str | None = Field(default=None, max_length=100)
 
@@ -48,6 +51,7 @@ class MemoryGetRequest(BaseModel):
     """Request model for retrieving all memories."""
 
     user_id: str = Field(min_length=1, max_length=100)
+    project_id: str = Field(min_length=1, max_length=256)
     agent_id: str | None = Field(default=None, max_length=100)
 
 
@@ -56,6 +60,7 @@ class MemoryDeleteRequest(BaseModel):
 
     memory_id: str = Field(min_length=1, max_length=100)
     user_id: str = Field(min_length=1, max_length=100)
+    project_id: str = Field(min_length=1, max_length=256)
 
 
 # --- Helper functions ---
@@ -178,6 +183,8 @@ async def add_memory(req: MemoryAddRequest, request: Request) -> dict[str, Any]:
         HTTPException: If Mem0 service is unavailable (503) or returns an error
     """
     mem0_url = _get_mem0_url(request)
+    normalized_project, _, _ = normalize_scope(project_id=req.project_id, require_project_id=True)
+    scoped_user_id = scoped_principal_id(normalized_project, req.user_id)
 
     # Convert messages to Mem0 format
     messages_data = [{"role": msg.role, "content": msg.content} for msg in req.messages]
@@ -185,27 +192,31 @@ async def add_memory(req: MemoryAddRequest, request: Request) -> dict[str, Any]:
     # Build request payload
     payload = {
         "messages": messages_data,
-        "user_id": req.user_id,
+        "user_id": scoped_user_id,
     }
 
     if req.metadata:
-        payload["metadata"] = req.metadata
+        payload["metadata"] = dict(req.metadata)
 
     if req.agent_id:
         # Add agent_id to metadata for scoping
         if "metadata" not in payload:
             payload["metadata"] = {}
         payload["metadata"]["agent_id"] = req.agent_id
+    if "metadata" not in payload:
+        payload["metadata"] = {}
+    payload["metadata"]["project_id"] = normalized_project
 
     # Call Mem0 service
     result = await _mem0_request(f"{mem0_url}/memories", method="POST", json_data=payload)
 
-    logger.info(f"Added memory for user_id={req.user_id}, agent_id={req.agent_id}")
+    logger.info("Added memory for project_id=%s user_id=%s agent_id=%s", normalized_project, req.user_id, req.agent_id)
 
     return {
         "memory_id": result.get("id", result.get("memory_id", "unknown")),
         "status": "created",
         "user_id": req.user_id,
+        "project_id": normalized_project,
         "agent_id": req.agent_id,
     }
 
@@ -229,11 +240,13 @@ async def search_memory(req: MemorySearchRequest, request: Request) -> dict[str,
         HTTPException: If Mem0 service is unavailable (503) or returns an error
     """
     mem0_url = _get_mem0_url(request)
+    normalized_project, _, _ = normalize_scope(project_id=req.project_id, require_project_id=True)
+    scoped_user_id = scoped_principal_id(normalized_project, req.user_id)
 
     # Build query parameters
     params = {
         "query": req.query,
-        "user_id": req.user_id,
+        "user_id": scoped_user_id,
         "limit": req.limit,
     }
 
@@ -243,12 +256,13 @@ async def search_memory(req: MemorySearchRequest, request: Request) -> dict[str,
     # Call Mem0 service
     result = await _mem0_request(f"{mem0_url}/memories/search", json_data=params)
 
-    logger.info(f"Searched memories for user_id={req.user_id}, query='{req.query[:50]}...'")
+    logger.info("Searched memories for project_id=%s user_id=%s", normalized_project, req.user_id)
 
     return {
         "memories": result.get("results", result.get("memories", [])),
         "count": len(result.get("results", result.get("memories", []))),
         "user_id": req.user_id,
+        "project_id": normalized_project,
         "agent_id": req.agent_id,
     }
 
@@ -271,10 +285,12 @@ async def get_all_memories(req: MemoryGetRequest, request: Request) -> dict[str,
         HTTPException: If Mem0 service is unavailable (503) or returns an error
     """
     mem0_url = _get_mem0_url(request)
+    normalized_project, _, _ = normalize_scope(project_id=req.project_id, require_project_id=True)
+    scoped_user_id = scoped_principal_id(normalized_project, req.user_id)
 
     # Build query parameters
     params = {
-        "user_id": req.user_id,
+        "user_id": scoped_user_id,
     }
 
     if req.agent_id:
@@ -283,12 +299,13 @@ async def get_all_memories(req: MemoryGetRequest, request: Request) -> dict[str,
     # Call Mem0 service
     result = await _mem0_request(f"{mem0_url}/memories", json_data=params)
 
-    logger.info(f"Retrieved all memories for user_id={req.user_id}, agent_id={req.agent_id}")
+    logger.info("Retrieved memories for project_id=%s user_id=%s", normalized_project, req.user_id)
 
     return {
         "memories": result.get("results", result.get("memories", [])),
         "count": len(result.get("results", result.get("memories", []))),
         "user_id": req.user_id,
+        "project_id": normalized_project,
         "agent_id": req.agent_id,
     }
 
@@ -311,20 +328,23 @@ async def delete_memory(req: MemoryDeleteRequest, request: Request) -> dict[str,
         HTTPException: If Mem0 service is unavailable (503) or memory not found (404)
     """
     mem0_url = _get_mem0_url(request)
+    normalized_project, _, _ = normalize_scope(project_id=req.project_id, require_project_id=True)
+    scoped_user_id = scoped_principal_id(normalized_project, req.user_id)
 
     # Build request payload
     payload = {
         "memory_id": req.memory_id,
-        "user_id": req.user_id,
+        "user_id": scoped_user_id,
     }
 
     # Call Mem0 service
     await _mem0_request(f"{mem0_url}/memories/{req.memory_id}", method="DELETE", json_data=payload)
 
-    logger.info(f"Deleted memory_id={req.memory_id} for user_id={req.user_id}")
+    logger.info("Deleted memory_id=%s for project_id=%s user_id=%s", req.memory_id, normalized_project, req.user_id)
 
     return {
         "message": f"Memory {req.memory_id} deleted successfully",
         "memory_id": req.memory_id,
         "user_id": req.user_id,
+        "project_id": normalized_project,
     }

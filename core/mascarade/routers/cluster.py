@@ -31,6 +31,9 @@ class ClusterForwardRequest(BaseModel):
     system: str | None = None
     temperature: float = 0.7
     max_tokens: int = 4096
+    project_id: str | None = Field(default=None, max_length=256)
+    federation_scope: list[str] | None = None
+    knowledge_scope: str = "project"
     peer_id: str | None = None
     preferred_role: str | None = None
     allow_local: bool = True

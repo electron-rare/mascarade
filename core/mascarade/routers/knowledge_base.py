@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from mascarade.auth import require_auth
+from mascarade.project_scope import normalize_scope
 
 router = APIRouter(dependencies=[Depends(require_auth)])
 
@@ -37,8 +38,8 @@ def _parse_federation_scope(raw_scope: str | None) -> list[str] | None:
 async def knowledge_base_search(
     q: str,
     request: Request,
+    project_id: str,
     limit: int = 10,
-    project_id: str | None = None,
     federation_scope: str | None = None,
     knowledge_scope: str = "project",
 ):
@@ -50,12 +51,22 @@ async def knowledge_base_search(
     if mcp is None:
         raise HTTPException(status_code=503, detail="MCP client not available")
 
+    try:
+        normalized_project, normalized_federation, normalized_scope = normalize_scope(
+            project_id=project_id,
+            federation_scope=_parse_federation_scope(federation_scope),
+            knowledge_scope=knowledge_scope,
+            require_project_id=True,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
     result = await mcp.knowledge_base_search(
         q,
         limit=max(1, min(limit, 50)),
-        project_id=project_id,
-        federation_scope=_parse_federation_scope(federation_scope),
-        knowledge_scope=knowledge_scope,
+        project_id=normalized_project,
+        federation_scope=normalized_federation,
+        knowledge_scope=normalized_scope,
     )
     return result
 
@@ -64,6 +75,9 @@ class RunAndPushRequest(BaseModel):
     messages: list[dict] = Field(default_factory=list)
     push_to: str | None = None
     run_id: str | None = None
+    project_id: str | None = Field(default=None, max_length=256)
+    federation_scope: list[str] | None = None
+    knowledge_scope: str = "project"
 
 
 @router.post("/agents/{agent_name}/run-and-push")
@@ -77,6 +91,15 @@ async def run_and_push(agent_name: str, req: RunAndPushRequest, request: Request
         raise HTTPException(status_code=503, detail="MCP client not available")
 
     run_id = req.run_id or f"run-{secrets.token_hex(8)}"
+    try:
+        normalized_project, normalized_federation, normalized_scope = normalize_scope(
+            project_id=req.project_id,
+            federation_scope=req.federation_scope,
+            knowledge_scope=req.knowledge_scope,
+            require_project_id=True,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     # Get the agent and run it
     try:
@@ -88,7 +111,14 @@ async def run_and_push(agent_name: str, req: RunAndPushRequest, request: Request
 
     # Run the agent
     prompt = req.messages[-1]["content"] if req.messages else ""
-    response = await agent.run(prompt, router=request.app.state.router)
+    response = await agent.run(
+        prompt,
+        router=request.app.state.router,
+        context=req.messages[:-1] if len(req.messages) > 1 else None,
+        project_id=normalized_project,
+        federation_scope=normalized_federation,
+        knowledge_scope=normalized_scope,
+    )
 
     # Push to knowledge base
     pushed = False
