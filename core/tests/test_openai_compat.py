@@ -19,7 +19,6 @@ class FakeRouter:
         *,
         available_providers: list[str],
         supported_provider_names: list[str] | None = None,
-        provider_models: dict[str, list[str]] | None = None,
         response: LLMResponse | None = None,
         error: Exception | None = None,
         stream_tokens: list[str] | None = None,
@@ -30,7 +29,6 @@ class FakeRouter:
             if supported_provider_names is not None
             else ["apple-coreml", "ollama", "openai", "claude", "mistral"]
         )
-        self._provider_models = provider_models or {}
         self._response = response or LLMResponse(
             content="ok",
             model="fake-model",
@@ -47,28 +45,25 @@ class FakeRouter:
         messages: list[dict],
         *,
         strategy: Strategy | str,
-        routing_policy: str | None = None,
         provider: str | None = None,
         model: str | None = None,
         system: str | None = None,
         response_format: dict | None = None,
         temperature: float = 0.7,
         max_tokens: int = 4096,
-        **_: object,
     ) -> LLMResponse:
-        call = {
-            "messages": messages,
-            "strategy": strategy,
-            "provider": provider,
-            "model": model,
-            "system": system,
-            "response_format": response_format,
-            "temperature": temperature,
-            "max_tokens": max_tokens,
-        }
-        if routing_policy is not None:
-            call["routing_policy"] = routing_policy
-        self.calls.append(call)
+        self.calls.append(
+            {
+                "messages": messages,
+                "strategy": strategy,
+                "provider": provider,
+                "model": model,
+                "system": system,
+                "response_format": response_format,
+                "temperature": temperature,
+                "max_tokens": max_tokens,
+            }
+        )
         if self._error is not None:
             raise self._error
         return self._response
@@ -78,33 +73,27 @@ class FakeRouter:
         messages: list[dict],
         *,
         strategy: Strategy | str,
-        routing_policy: str | None = None,
         provider: str | None = None,
         model: str | None = None,
         system: str | None = None,
         temperature: float = 0.7,
         max_tokens: int = 4096,
-        **_: object,
     ):
-        call = {
-            "messages": messages,
-            "strategy": strategy,
-            "provider": provider,
-            "model": model,
-            "system": system,
-            "temperature": temperature,
-            "max_tokens": max_tokens,
-        }
-        if routing_policy is not None:
-            call["routing_policy"] = routing_policy
-        self.stream_calls.append(call)
+        self.stream_calls.append(
+            {
+                "messages": messages,
+                "strategy": strategy,
+                "provider": provider,
+                "model": model,
+                "system": system,
+                "temperature": temperature,
+                "max_tokens": max_tokens,
+            }
+        )
         if self._error is not None:
             raise self._error
         for token in self._stream_tokens:
             yield token
-
-    def provider_model_map(self) -> dict[str, list[str]]:
-        return self._provider_models
 
 
 @pytest.fixture(autouse=True)
@@ -277,93 +266,6 @@ async def test_chat_completions_returns_openai_shape(
         "completion_tokens": 0,
         "total_tokens": 7,
     }
-
-
-@pytest.mark.asyncio
-async def test_chat_completions_routes_auto_model_to_routellm():
-    fake_router = FakeRouter(
-        available_providers=["apple-coreml", "ollama"],
-        response=LLMResponse(
-            content="auto route",
-            model="qwen3.5-4b-onnx-q4f16",
-            provider="apple-coreml",
-            usage={"input_tokens": 11, "output_tokens": 5},
-        ),
-    )
-
-    async with _client(fake_router) as client:
-        response = await client.post(
-            "/v1/chat/completions",
-            json={
-                "model": "auto",
-                "messages": [{"role": "user", "content": "pick the best route"}],
-            },
-        )
-
-    assert response.status_code == 200
-    assert fake_router.calls[0]["strategy"] == Strategy.ROUTELLM
-    assert fake_router.calls[0]["model"] is None
-    assert fake_router.calls[0]["provider"] is None
-    assert fake_router.calls[0]["routing_policy"] == "auto"
-    assert response.json()["model"] == "apple-coreml:qwen3.5-4b-onnx-q4f16"
-
-
-@pytest.mark.asyncio
-async def test_chat_completions_routes_auto_policy_variant():
-    fake_router = FakeRouter(
-        available_providers=["openai", "ollama"],
-        response=LLMResponse(
-            content="strong route",
-            model="gpt-4.1",
-            provider="openai",
-            usage={"input_tokens": 14, "output_tokens": 6},
-        ),
-    )
-
-    async with _client(fake_router) as client:
-        response = await client.post(
-            "/v1/chat/completions",
-            json={
-                "model": "auto:strong",
-                "messages": [{"role": "user", "content": "deep analysis"}],
-            },
-        )
-
-    assert response.status_code == 200
-    assert fake_router.calls[0]["strategy"] == Strategy.ROUTELLM
-    assert fake_router.calls[0]["routing_policy"] == "strong"
-    assert response.json()["model"] == "openai:gpt-4.1"
-
-
-@pytest.mark.asyncio
-async def test_chat_completions_infers_provider_for_raw_model_with_colon():
-    fake_router = FakeRouter(
-        available_providers=["apple-coreml", "ollama"],
-        provider_models={
-            "ollama": ["qwen3.5:9b"],
-            "apple-coreml": ["qwen3.5-4b-onnx-q4f16"],
-        },
-        response=LLMResponse(
-            content="inferred owner",
-            model="qwen3.5:9b",
-            provider="ollama",
-            usage={"input_tokens": 7, "output_tokens": 3},
-        ),
-    )
-
-    async with _client(fake_router) as client:
-        response = await client.post(
-            "/v1/chat/completions",
-            json={
-                "model": "qwen3.5:9b",
-                "messages": [{"role": "user", "content": "hello"}],
-            },
-        )
-
-    assert response.status_code == 200
-    assert fake_router.calls[0]["strategy"] == Strategy.SPECIFIC
-    assert fake_router.calls[0]["provider"] == "ollama"
-    assert fake_router.calls[0]["model"] == "qwen3.5:9b"
 
 
 @pytest.mark.asyncio
@@ -710,15 +612,15 @@ async def test_chat_completions_contract_multiple_choices():
         response = await client.post(
             "/v1/chat/completions",
             json={
-                "model": "gpt-4",
+                "model": "openai:gpt-4",
                 "messages": [{"role": "user", "content": "test"}],
             },
         )
 
     assert response.status_code == 200
     body = response.json()
-    assert isinstance(body["choices"], list)
     assert len(body["choices"]) == 1
+    assert body["choices"][0]["message"]["content"] == "single choice test"
 
 
 @pytest.mark.asyncio
@@ -741,9 +643,7 @@ async def test_chat_completions_streaming():
             },
         ) as response:
             assert response.status_code == 200
-            assert (
-                response.headers["content-type"] == "text/event-stream; charset=utf-8"
-            )
+            assert response.headers["content-type"] == "text/event-stream; charset=utf-8"
 
             chunks = []
             async for line in response.aiter_lines():
@@ -800,9 +700,7 @@ async def test_chat_completions_streaming_with_apple_coreml():
             },
         ) as response:
             assert response.status_code == 200
-            assert (
-                response.headers["content-type"] == "text/event-stream; charset=utf-8"
-            )
+            assert response.headers["content-type"] == "text/event-stream; charset=utf-8"
 
             chunks = []
             async for line in response.aiter_lines():
@@ -840,9 +738,7 @@ async def test_chat_completions_streaming_with_default_provider(
     import json as json_module
 
     monkeypatch.setattr("mascarade.server.settings.default_provider", "apple-coreml")
-    monkeypatch.setattr(
-        "mascarade.server.settings.default_model", "qwen3.5-4b-onnx-q4f16"
-    )
+    monkeypatch.setattr("mascarade.server.settings.default_model", "qwen3.5-4b-onnx-q4f16")
 
     fake_router = FakeRouter(
         available_providers=["apple-coreml"],
@@ -997,7 +893,4 @@ async def test_chat_completions_streaming_with_system_prompt():
     # Verify system message was included in messages array
     assert len(fake_router.stream_calls) == 1
     assert fake_router.stream_calls[0]["messages"][0]["role"] == "system"
-    assert (
-        fake_router.stream_calls[0]["messages"][0]["content"]
-        == "You are a helpful assistant"
-    )
+    assert fake_router.stream_calls[0]["messages"][0]["content"] == "You are a helpful assistant"

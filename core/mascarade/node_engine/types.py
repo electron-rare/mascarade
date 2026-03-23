@@ -1,116 +1,19 @@
 """Core type system for the Universal Node Engine.
 
-Defines DomainType, PortType, NodePort, NodeType, and composite type models
-that form the foundation for domain-specific type registration and node port validation.
+Defines DomainType and PortType models that form the foundation for
+domain-specific type registration and node port validation.
 """
 
 from __future__ import annotations
 
-from enum import StrEnum
-from typing import Any, Union
+from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
-
-# --- Enums ---
-
-
-class PrimitiveType(StrEnum):
-    """Primitive port types."""
-
-    STRING = "string"
-    NUMBER = "number"
-    INTEGER = "integer"
-    BOOLEAN = "boolean"
-    BINARY = "binary"
-    JSON = "json"
-    VOID = "void"
-
-
-class PortDirection(StrEnum):
-    """Port direction enum."""
-
-    INPUT = "input"
-    OUTPUT = "output"
-
-
-class PortKind(StrEnum):
-    """Port kind enum."""
-
-    DATA = "data"
-    CONTROL = "control"
-    TRIGGER = "trigger"
-    PRIMITIVE = "primitive"
-    DOMAIN = "domain"
-    ARRAY = "array"
-    MAP = "map"
-    STREAM = "stream"
-
-
-# --- Composite Types (for rich type system used by test_node_engine_types) ---
-
-
-class ArrayType(BaseModel):
-    """Array type wrapping an element type."""
-
-    kind: str = "array"
-    element: Any
-
-    model_config = ConfigDict(frozen=True)
-
-
-class MapType(BaseModel):
-    """Map type with key and value types."""
-
-    kind: str = "map"
-    key: Any
-    value: Any
-
-    model_config = ConfigDict(frozen=True)
-
-
-class OptionalType(BaseModel):
-    """Optional type wrapping an inner type."""
-
-    kind: str = "optional"
-    inner: Any
-
-    model_config = ConfigDict(frozen=True)
-
-
-class UnionType(BaseModel):
-    """Union type with multiple variants."""
-
-    kind: str = "union"
-    variants: list[Any]
-
-    model_config = ConfigDict(frozen=True)
-
-
-class StreamType(BaseModel):
-    """Stream type wrapping an element type."""
-
-    kind: str = "stream"
-    element: Any
-
-    model_config = ConfigDict(frozen=True)
-
-
-# --- DomainType ---
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class DomainType(BaseModel):
-    """Domain-specific type definition with JSON schema validation.
+    """Domain-specific type definition with JSON schema validation."""
 
-    Domain types extend the base type system with domain-specific structures
-    (e.g., "ai" domain defines LLMResponse, EmbeddingVector, etc.). They are
-    registered with the NodeTypeRegistry at worker startup.
-
-    Supports two construction patterns:
-    - With ``schema`` dict (original API, requires 'type' key)
-    - With ``schema_def`` dict (rich type system API, no 'type' key required)
-    """
-
-    kind: str = "domain"
     domain: str = Field(
         ...,
         description="Domain identifier (e.g., 'ai', 'cad', 'electronics')",
@@ -118,31 +21,28 @@ class DomainType(BaseModel):
     )
     name: str = Field(
         ...,
-        description="Type name within the domain (e.g., 'LLMResponse', 'EmbeddingVector')",
+        description="Type name within the domain (e.g., 'LLMResponse')",
         min_length=1,
     )
-    schema_def: dict[str, Any] = Field(
-        default_factory=dict,
-        alias="schema",
+    schema: dict[str, Any] = Field(
+        ...,
         description="JSON Schema definition for this type",
     )
 
-    @field_validator("schema_def", mode="before")
+    @field_validator("schema")
     @classmethod
-    def validate_schema_field(cls, v: dict[str, Any]) -> dict[str, Any]:
-        """Accept any dict as schema_def (rich type system uses arbitrary schemas)."""
+    def validate_schema(cls, v: dict[str, Any]) -> dict[str, Any]:
+        if not isinstance(v, dict):
+            raise ValueError("schema must be a dictionary")
+        if "type" not in v:
+            raise ValueError("schema must include a 'type' field")
         return v
 
     @property
-    def schema(self) -> dict[str, Any]:
-        """Access schema_def via the 'schema' name."""
-        return self.schema_def
-
-    @property
     def qualified_name(self) -> str:
-        """Return the fully qualified type name (domain.name)."""
         return f"{self.domain}.{self.name}"
 
+<<<<<<< HEAD
     @property
     def full_name(self) -> str:
         """Alias for qualified_name."""
@@ -181,13 +81,15 @@ class DomainType(BaseModel):
 
         return True, None
 
+=======
+>>>>>>> 5f665b4e0aa455089cb9c38daf63172572990e1c
     model_config = ConfigDict(
         frozen=True,
         protected_namespaces=(),
-        populate_by_name=True,
     )
 
 
+<<<<<<< HEAD
 # --- PortType Union (for rich type descriptors) ---
 
 PortTypeUnion = Union[
@@ -211,27 +113,22 @@ StreamType.model_rebuild()
 # --- PortType (extended to support direction, port_type, optional, default_value) ---
 
 
+=======
+>>>>>>> 5f665b4e0aa455089cb9c38daf63172572990e1c
 class PortType(BaseModel):
-    """Port type definition for node inputs and outputs.
+    """Port type definition for node inputs and outputs."""
 
-    Supports both the minimal API (name + type) and the extended API
-    (direction, port_type, optional, default_value) used by electronics workers.
-
-    Also serves as a recursive type descriptor when used with kind=PortKind.PRIMITIVE,
-    kind=PortKind.ARRAY, or kind=PortKind.DOMAIN.
-    """
-
-    name: Any = Field(
-        default="",
-        description="Port name (must be unique within the node), or PrimitiveType for type descriptors",
+    name: str = Field(
+        ...,
+        description="Port name (must be unique within the node)",
+        min_length=1,
     )
     type: str = Field(
-        default="",
-        description=(
-            "Port data type. Can be primitive (string, number, boolean, array<T>, "
-            "map<K,V>) or domain-specific (domain.TypeName, e.g., 'ai.LLMResponse')"
-        ),
+        ...,
+        description="Port data type (primitive or domain-specific)",
+        min_length=1,
     )
+<<<<<<< HEAD
 
     @model_validator(mode="after")
     def validate_port_fields(self) -> PortType:
@@ -266,112 +163,44 @@ class PortType(BaseModel):
 
         return self
 
+=======
+>>>>>>> 5f665b4e0aa455089cb9c38daf63172572990e1c
     required: bool = Field(
         default=True,
-        description="Whether this port must be connected (inputs) or always produces a value (outputs)",
+        description="Whether this port must be connected",
     )
     description: str | None = Field(
         default=None,
-        description="Human-readable description of the port's purpose",
+        description="Human-readable description of the port",
     )
 
-    # Extended fields for electronics/hardware workers
-    direction: PortDirection | None = Field(
-        default=None,
-        description="Port direction (input/output)",
-    )
-    port_type: Any = Field(
-        default="",
-        description="Alternative type field used by electronics workers (str or PortType)",
-    )
-    optional: bool = Field(
-        default=False,
-        description="Whether this port is optional",
-    )
-    default_value: Any = Field(
-        default=None,
-        description="Default value for this port",
-    )
-    kind: PortKind = Field(
-        default=PortKind.DATA,
-        description="Port kind (data, control, trigger, primitive, domain, array)",
-    )
-
-    # Fields for recursive type descriptors
-    element_type: Any = Field(
-        default=None,
-        description="Element type for array type descriptors",
-    )
-    key_type: Any = Field(
-        default=None,
-        description="Key type for map type descriptors",
-    )
-    value_type: Any = Field(
-        default=None,
-        description="Value type for map type descriptors",
-    )
-    domain: str = Field(
-        default="",
-        description="Domain for domain type descriptors",
-    )
-
-    @property
-    def effective_type(self) -> str:
-        """Return the effective type string (prefers 'type' then 'port_type')."""
-        t = self.type
-        if t:
-            return t
-        pt = self.port_type
-        if isinstance(pt, str) and pt:
-            return pt
-        return ""
+    @field_validator("type")
+    @classmethod
+    def validate_type(cls, v: str) -> str:
+        if not v or not v.strip():
+            raise ValueError("type cannot be empty")
+        return v.strip()
 
     @property
     def is_primitive(self) -> bool:
-        """Check if this port uses a primitive type (not domain-specific)."""
         primitives = {"string", "number", "integer", "boolean", "json", "void"}
-        t = self.effective_type
-        if not t:
-            return False
-        base_type = t.split("<")[0].split(".")[0]
+        base_type = self.type.split("<")[0].split(".")[0]
         return base_type in primitives
 
     @property
     def is_stream(self) -> bool:
-        """Check if this port is a stream type."""
-        return self.effective_type.startswith("stream<")
+        return self.type.startswith("stream<")
 
     @property
     def is_array(self) -> bool:
-        """Check if this port is an array type."""
-        return self.effective_type.startswith("array<")
+        return self.type.startswith("array<")
 
     @property
     def is_map(self) -> bool:
-        """Check if this port is a map type."""
-        return self.effective_type.startswith("map<")
-
-    model_config = ConfigDict(frozen=True, arbitrary_types_allowed=True)
-
-
-# Alias for NodePort — used by base.py and hardware nodes
-NodePort = PortType
-
-
-# --- NodePortDefinition (rich port definition used by test_node_engine_types) ---
-
-
-class NodePortDefinition(BaseModel):
-    """Rich port definition for node inputs and outputs."""
-
-    id: str
-    label: str
-    type: Any  # Can be PrimitiveType, ArrayType, etc.
-    required: bool = True
-    default: Any = None
-    description: str = ""
+        return self.type.startswith("map<")
 
     model_config = ConfigDict(frozen=True)
+<<<<<<< HEAD
 
 
 # --- NodeType (used by executor.py and registry.py) ---
@@ -544,3 +373,5 @@ def void_port(
         optional=optional,
         kind=kind,
     )
+=======
+>>>>>>> 5f665b4e0aa455089cb9c38daf63172572990e1c
