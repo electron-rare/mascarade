@@ -67,6 +67,7 @@ from mascarade.device_voice import (
     DevicePlayerEvent,
     DeviceVoiceService,
 )
+from mascarade.ollama_compat import mount_ollama_compat
 from mascarade.router import Router
 from mascarade.router.router import Strategy
 from mascarade.usage_tracking import get_all_usage_stats
@@ -161,6 +162,79 @@ app = FastAPI(title="Mascarade Core", version="0.1.0", lifespan=lifespan)
 class Message(BaseModel):
     role: Literal["system", "user", "assistant", "tool"]
     content: str = Field(min_length=1, max_length=100_000)
+
+
+# --- OpenAI-compatible models ---
+
+
+class ChatCompletionMessageParam(BaseModel):
+    role: str
+    content: str
+
+
+class ChatCompletionRequest(BaseModel):
+    model: str | None = None
+    messages: list[ChatCompletionMessageParam]
+    stream: bool = False
+    temperature: float | None = Field(default=None, ge=0.0, le=2.0)
+    max_tokens: int | None = Field(default=None, gt=0, le=128000)
+
+
+class ChatCompletionMessage(BaseModel):
+    role: str = "assistant"
+    content: str
+
+
+class ChatCompletionChoice(BaseModel):
+    index: int = 0
+    message: ChatCompletionMessage
+    finish_reason: str | None = "stop"
+
+
+class ChatCompletionUsage(BaseModel):
+    prompt_tokens: int = 0
+    completion_tokens: int = 0
+    total_tokens: int = 0
+
+
+class ChatCompletionResponse(BaseModel):
+    id: str
+    object: str = "chat.completion"
+    created: int
+    model: str
+    choices: list[ChatCompletionChoice]
+    usage: ChatCompletionUsage
+
+
+class ChatCompletionChunkDelta(BaseModel):
+    role: str | None = None
+    content: str | None = None
+
+
+class ChatCompletionChunkChoice(BaseModel):
+    index: int = 0
+    delta: ChatCompletionChunkDelta
+    finish_reason: str | None = None
+
+
+class ChatCompletionChunk(BaseModel):
+    id: str
+    object: str = "chat.completion.chunk"
+    created: int
+    model: str
+    choices: list[ChatCompletionChunkChoice]
+
+
+class ModelObject(BaseModel):
+    id: str
+    object: str = "model"
+    created: int = 0
+    owned_by: str = "mascarade"
+
+
+class ModelListResponse(BaseModel):
+    object: str = "list"
+    data: list[ModelObject]
 
 
 RoutingPolicy = Literal["auto", "strong", "cheap", "fast"]
@@ -416,7 +490,35 @@ async def version():
         "service": "mascarade-core",
         "api_version": "0.1.0"
     }
-@app.post("/v1/chat/completions", response_model_exclude_unset=True)
+
+
+@app.get("/v1/models")
+async def list_models():
+    """OpenAI-compatible models list endpoint."""
+    if not hasattr(app.state, "router"):
+        raise HTTPException(status_code=503, detail="Router not initialized")
+
+    models: list[ModelObject] = []
+    for provider_name, model_list in app.state.router.provider_model_map().items():
+        for model_id in model_list:
+            models.append(
+                ModelObject(
+                    id=f"{provider_name}:{model_id}",
+                    owned_by=provider_name,
+                )
+            )
+            # Also expose without prefix for the default provider
+            if provider_name == settings.default_provider:
+                models.append(
+                    ModelObject(
+                        id=model_id,
+                        owned_by=provider_name,
+                    )
+                )
+
+    return ModelListResponse(data=models)
+
+
 @app.get("/health/providers")
 async def get_provider_health():
     """Provider health metrics endpoint - returns detailed health statistics for all providers."""
@@ -2724,6 +2826,10 @@ async def metrics():
     """Expose Prometheus metrics for scraping."""
     try:
         from prometheus_client import REGISTRY, generate_latest
+        from starlette.responses import Response as _RawResponse
+        return _RawResponse(content=generate_latest(REGISTRY), media_type="text/plain; version=0.0.4; charset=utf-8")
+    except ImportError:
+        raise HTTPException(status_code=501, detail="prometheus_client not installed")
 
 
 @protected.get("/device/v1/voice/replies/{reply_id}.wav")
@@ -2739,6 +2845,9 @@ async def device_voice_reply_audio(reply_id: str, request: Request):
 
 app.include_router(protected)
 app.include_router(cluster_protected)
+
+# Mount Ollama-compatible API (fake Ollama backed by Mascarade Router + P2P)
+mount_ollama_compat(app)
 
 
 def start():
