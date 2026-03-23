@@ -46,7 +46,8 @@ Le lot local est stable; ce fichier ne porte plus de blocage critique.
 
 - [ ] Etendre Grafana seulement si un nouveau domaine le justifie
 - [ ] Recueillir des retours UX a froid sur `Logs` et `OpsHub`
-- [ ] Etendre les actions operateur d'`Agent Zero` uniquement si un usage concret depasse le mode copilot actuel
+- [x] Etendre les actions operateur d'`Agent Zero` uniquement si un usage concret depasse le mode copilot actuel
+  - Copilot Tier 1 implemente (commit `ef07b5b`, endpoint `/v1/api/agents/agent-zero/copilot`)
 - [ ] N'etendre la stack `phase2` (`SearXNG`, `Paperless-ngx`, `Karakeep`) que si un workflow documentaire/recherche concret le justifie
 - [ ] Etendre le cockpit industriel seulement si un besoin reel depasse l'inventaire/runtime/tool-proxy actuel
 - [ ] Ne rouvrir `DCS` live externe qu'avec un vrai runtime/contrat OT; `WMS` est deja qualifie en `generic-rest` live-ready et reste volontairement `simulated` sur cette VM tant que le sandbox n'est pas configure
