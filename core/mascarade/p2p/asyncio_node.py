@@ -308,6 +308,8 @@ class MascaradeP2PNode:
                     )
                 # Discover new peers via DHT
                 await self._dht.find_node(self.peer_id)
+                # Re-request capabilities from newly discovered peers
+                await self._capabilities.request_all()
                 # Update Prometheus gauges
                 connected = sum(1 for c in self._transport.peers.values() if c.connected)
                 self._metrics.update_gauges(

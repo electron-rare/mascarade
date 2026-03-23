@@ -764,23 +764,31 @@ class Router:
             health_status = self.model_registry.verify_health(model_id)
             logger.info("Health check for %s: %s", model_id, health_status)
 
-    async def send(
+    # ------------------------------------------------------------------
+    # Shared helpers for send() / stream() to avoid code duplication
+    # ------------------------------------------------------------------
+
+    async def _prepare_request(
         self,
         messages: list[dict],
         *,
-        strategy: Strategy | str = Strategy.BEST,
-        routing_policy: str | None = None,
-        provider: str | None = None,
-        model: str | None = None,
-        system: str | None = None,
-        response_format: dict | None = None,
-        temperature: float = 0.7,
-        max_tokens: int = 4096,
-        domain: str | None = None,
-        project_id: str | None = None,
-        federation_scope: list[str] | tuple[str, ...] | None = None,
-        knowledge_scope: str = "project",
-    ) -> LLMResponse:
+        strategy: Strategy | str,
+        routing_policy: str | None,
+        provider: str | None,
+        model: str | None,
+        system: str | None,
+        response_format: dict | None,
+        temperature: float,
+        max_tokens: int,
+        domain: str | None,
+        project_id: str | None,
+        federation_scope: list[str] | tuple[str, ...] | None,
+        knowledge_scope: str,
+    ) -> dict[str, Any]:
+        """Resolve routing parameters, check cache, build fallback sequence.
+
+        Returns a dict with all resolved parameters needed by send()/stream().
+        """
         normalized_project, normalized_federation, normalized_scope = self._normalize_scope(
             project_id=project_id,
             federation_scope=federation_scope,
@@ -829,15 +837,7 @@ class Router:
             domain=domain,
             **cache_scope,
         )
-        if cached and (not strict_provider or cached.provider == effective_provider):
-            return LLMResponse(
-                content=cached.response,
-                model=cached.model,
-                provider=cached.provider,
-                usage={"total_tokens": cached.tokens},
-            )
 
-        last_error: Exception | None = None
         if strict_provider:
             sequence = [(effective_strategy.value, effective_provider)]
         else:
@@ -847,17 +847,175 @@ class Router:
                 available_providers=self.available_providers,
             )
 
-        # Detect domain for domain-aware routing
         detected_domain = self._detect_domain(messages) if strategy == Strategy.BEST else None
 
-        for attempt_strategy, attempt_provider in sequence:
-            attempt_enum = Strategy(attempt_strategy)
-            selected = self._select_provider(attempt_enum, attempt_provider, domain or detected_domain)
+        return {
+            "normalized_project": normalized_project,
+            "normalized_federation": normalized_federation,
+            "normalized_scope": normalized_scope,
+            "cache_scope": cache_scope,
+            "cache_strategy": cache_strategy,
+            "effective_strategy": effective_strategy,
+            "effective_provider": effective_provider,
+            "effective_model": effective_model,
+            "strict_provider": strict_provider,
+            "cached": cached,
+            "sequence": sequence,
+            "detected_domain": detected_domain,
+        }
 
-            # Check circuit breaker for this specific provider
+    def _track_failure(
+        self,
+        *,
+        provider_name: str,
+        model_name: str,
+        elapsed: float,
+        attempt_strategy: str,
+        record_fallback: bool = True,
+    ) -> None:
+        """Record a failed attempt across all tracking systems."""
+        self.load_balancer.request_completed(
+            provider_name, response_time=elapsed, success=False,
+        )
+        self.metrics.track_request(
+            provider_name=provider_name,
+            tokens=0,
+            cost=0.0,
+            response_time=elapsed,
+            success=False,
+        )
+        COST_METRICS.track_request(
+            provider=provider_name,
+            model=model_name,
+            input_tokens=0,
+            output_tokens=0,
+            cost=0.0,
+            duration=elapsed,
+            strategy=attempt_strategy,
+            success=False,
+        )
+        if self.cost_logger:
+            self.cost_logger.log_event(
+                provider=provider_name,
+                model=model_name,
+                agent="",
+                input_tokens=0,
+                output_tokens=0,
+                cost=0.0,
+                strategy=attempt_strategy,
+                success=False,
+            )
+        if record_fallback:
+            self.fallback.record_failure(provider_name)
+        self.circuit_breaker.record_failure(provider_name)
+
+    def _track_success(
+        self,
+        *,
+        provider_name: str,
+        model_name: str,
+        elapsed: float,
+        attempt_strategy: str,
+        usage: dict[str, int],
+        cost: float,
+    ) -> None:
+        """Record a successful attempt across all tracking systems."""
+        self.load_balancer.request_completed(
+            provider_name, response_time=elapsed, success=True,
+        )
+        self.circuit_breaker.record_success(provider_name)
+        self.metrics.track_request(
+            provider_name=provider_name,
+            tokens=self._usage_tokens(usage),
+            cost=cost,
+            response_time=elapsed,
+            success=True,
+        )
+        COST_METRICS.track_request(
+            provider=provider_name,
+            model=model_name,
+            input_tokens=usage.get("input_tokens", 0),
+            output_tokens=usage.get("output_tokens", 0),
+            cost=cost,
+            duration=elapsed,
+            strategy=attempt_strategy,
+            success=True,
+        )
+        if self.cost_logger:
+            self.cost_logger.log_event(
+                provider=provider_name,
+                model=model_name,
+                agent="",
+                input_tokens=usage.get("input_tokens", 0),
+                output_tokens=usage.get("output_tokens", 0),
+                cost=cost,
+                strategy=attempt_strategy,
+                success=True,
+            )
+
+    # ------------------------------------------------------------------
+    # Public API
+    # ------------------------------------------------------------------
+
+    async def send(
+        self,
+        messages: list[dict],
+        *,
+        strategy: Strategy | str = Strategy.BEST,
+        routing_policy: str | None = None,
+        provider: str | None = None,
+        model: str | None = None,
+        system: str | None = None,
+        response_format: dict | None = None,
+        temperature: float = 0.7,
+        max_tokens: int = 4096,
+        domain: str | None = None,
+        project_id: str | None = None,
+        federation_scope: list[str] | tuple[str, ...] | None = None,
+        knowledge_scope: str = "project",
+    ) -> LLMResponse:
+        ctx = await self._prepare_request(
+            messages,
+            strategy=strategy,
+            routing_policy=routing_policy,
+            provider=provider,
+            model=model,
+            system=system,
+            response_format=response_format,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            domain=domain,
+            project_id=project_id,
+            federation_scope=federation_scope,
+            knowledge_scope=knowledge_scope,
+        )
+
+        cached = ctx["cached"]
+        strict_provider = ctx["strict_provider"]
+        effective_provider = ctx["effective_provider"]
+        effective_model = ctx["effective_model"]
+        effective_strategy = ctx["effective_strategy"]
+        cache_strategy = ctx["cache_strategy"]
+        cache_scope = ctx["cache_scope"]
+
+        if cached and (not strict_provider or cached.provider == effective_provider):
+            return LLMResponse(
+                content=cached.response,
+                model=cached.model,
+                provider=cached.provider,
+                usage={"total_tokens": cached.tokens},
+            )
+
+        last_error: Exception | None = None
+        for attempt_strategy, attempt_provider in ctx["sequence"]:
+            attempt_enum = Strategy(attempt_strategy)
+            selected = self._select_provider(
+                attempt_enum, attempt_provider, domain or ctx["detected_domain"],
+            )
+
             if not self.circuit_breaker.can_execute(selected.name):
                 logger.warning(
-                    "Circuit breaker is open for provider %s, skipping", selected.name
+                    "Circuit breaker is open for provider %s, skipping", selected.name,
                 )
                 last_error = RuntimeError(f"Circuit breaker is open for provider {selected.name}")
                 continue
@@ -865,8 +1023,7 @@ class Router:
             started_at = time.perf_counter()
             self.load_balancer.request_started(selected.name)
 
-            # Distributed scheduling: if scheduler is active and provider is local,
-            # route to the best worker in the cluster instead of local-only.
+            # Distributed scheduling
             if (
                 self.scheduler is not None
                 and selected.name in ("ollama", "mlx_lm", "llama_cpp")
@@ -875,7 +1032,8 @@ class Router:
                 distributed = await self._try_distributed_send(
                     selected, messages, effective_model, system,
                     temperature, max_tokens, response_format,
-                    normalized_project, normalized_federation, normalized_scope,
+                    ctx["normalized_project"], ctx["normalized_federation"],
+                    ctx["normalized_scope"],
                 )
                 if distributed is not None:
                     elapsed = time.perf_counter() - started_at
@@ -885,7 +1043,7 @@ class Router:
                     return distributed
 
             try:
-                send_kwargs = {
+                send_kwargs: dict[str, Any] = {
                     "model": effective_model,
                     "system": system,
                     "temperature": temperature,
@@ -910,41 +1068,14 @@ class Router:
             except Exception as exc:
                 elapsed = time.perf_counter() - started_at
                 logger.warning(
-                    "Provider %s failed (%.2fs): %s", selected.name, elapsed, exc
+                    "Provider %s failed (%.2fs): %s", selected.name, elapsed, exc,
                 )
-                self.load_balancer.request_completed(
-                    selected.name, response_time=elapsed, success=False
-                )
-                self.metrics.track_request(
+                self._track_failure(
                     provider_name=selected.name,
-                    tokens=0,
-                    cost=0.0,
-                    response_time=elapsed,
-                    success=False,
+                    model_name=model or "unknown",
+                    elapsed=elapsed,
+                    attempt_strategy=attempt_strategy,
                 )
-                COST_METRICS.track_request(
-                    provider=selected.name,
-                    model=model or "unknown",
-                    input_tokens=0,
-                    output_tokens=0,
-                    cost=0.0,
-                    duration=elapsed,
-                    strategy=attempt_strategy,
-                    success=False,
-                )
-                if self.cost_logger:
-                    self.cost_logger.log_event(
-                        provider=selected.name,
-                        model=model or "unknown",
-                        agent="",
-                        input_tokens=0,
-                        output_tokens=0,
-                        cost=0.0,
-                        strategy=attempt_strategy,
-                        success=False,
-                    )
-                self.fallback.record_failure(selected.name)
-                self.circuit_breaker.record_failure(selected.name)
                 last_error = exc
                 continue
 
@@ -955,79 +1086,30 @@ class Router:
                     effective_provider,
                     response.provider,
                 )
-                self.load_balancer.request_completed(
-                    selected.name, response_time=elapsed, success=False
-                )
-                self.metrics.track_request(
+                self._track_failure(
                     provider_name=selected.name,
-                    tokens=0,
-                    cost=0.0,
-                    response_time=elapsed,
-                    success=False,
+                    model_name=model or "unknown",
+                    elapsed=elapsed,
+                    attempt_strategy=attempt_strategy,
+                    record_fallback=False,
                 )
-                self.circuit_breaker.record_failure(selected.name)
-                COST_METRICS.track_request(
-                    provider=selected.name,
-                    model=model or "unknown",
-                    input_tokens=0,
-                    output_tokens=0,
-                    cost=0.0,
-                    duration=elapsed,
-                    strategy=attempt_strategy,
-                    success=False,
-                )
-                if self.cost_logger:
-                    self.cost_logger.log_event(
-                        provider=selected.name,
-                        model=model or "unknown",
-                        agent="",
-                        input_tokens=0,
-                        output_tokens=0,
-                        cost=0.0,
-                        strategy=attempt_strategy,
-                        success=False,
-                    )
                 last_error = RuntimeError(
                     f"Strict provider mismatch: requested {effective_provider}, got {response.provider}"
                 )
                 continue
 
             elapsed = time.perf_counter() - started_at
-            self.load_balancer.request_completed(
-                selected.name, response_time=elapsed, success=True
-            )
-            self.circuit_breaker.record_success(selected.name)
-
             usage = response.usage or {}
             cost = self._calculate_cost(selected, usage)
-            self.metrics.track_request(
+
+            self._track_success(
                 provider_name=selected.name,
-                tokens=self._usage_tokens(usage),
+                model_name=response.model,
+                elapsed=elapsed,
+                attempt_strategy=attempt_strategy,
+                usage=usage,
                 cost=cost,
-                response_time=elapsed,
-                success=True,
             )
-            COST_METRICS.track_request(
-                provider=selected.name,
-                model=response.model,
-                input_tokens=usage.get("input_tokens", 0),
-                output_tokens=usage.get("output_tokens", 0),
-                cost=cost,
-                duration=elapsed,
-                strategy=attempt_strategy,
-                success=True,
-            )
-            if self.cost_logger:
-                self.cost_logger.log_event(
-                    provider=selected.name,
-                    model=response.model,
-                    agent="",
-                    input_tokens=usage.get("input_tokens", 0),
-                    output_tokens=usage.get("output_tokens", 0),
-                    cost=cost,
-                    strategy=attempt_strategy,
-                    success=True,
-                )
 
             update_langfuse_generation(
                 generation,
@@ -1041,7 +1123,7 @@ class Router:
                     "provider": response.provider,
                     "model": response.model,
                     "response_time_s": round(elapsed, 3),
-                    "cost": self._calculate_cost(selected, usage),
+                    "cost": cost,
                 },
             )
 
@@ -1050,7 +1132,7 @@ class Router:
                     messages,
                     response.content,
                     tokens=self._usage_tokens(usage),
-                    cost=self._calculate_cost(selected, usage),
+                    cost=cost,
                     ttl=3600,
                     strategy=cache_strategy,
                     provider=selected.name,
@@ -1062,16 +1144,6 @@ class Router:
                     domain=domain,
                     **cache_scope,
                 )
-
-            # TODO: Add user_id parameter if needed for usage tracking
-            # if user_id is not None:
-            #     await track_usage(
-            #         user_id=user_id,
-            #         provider=selected.name,
-            #         model=response.model,
-            #         usage=response.usage or {},
-            #         cost=self._calculate_cost(selected, response.usage or {}),
-            #     )
 
             return response
 
@@ -1241,67 +1313,41 @@ class Router:
         federation_scope: list[str] | tuple[str, ...] | None = None,
         knowledge_scope: str = "project",
     ) -> AsyncIterator[str]:
-        normalized_project, normalized_federation, normalized_scope = self._normalize_scope(
-            project_id=project_id,
-            federation_scope=federation_scope,
-            knowledge_scope=knowledge_scope,
-        )
-        requested_strategy = Strategy(strategy)
-        effective_strategy = requested_strategy
-        effective_provider = provider
-        effective_model = model
-        if requested_strategy == Strategy.ROUTELLM:
-            (
-                effective_strategy,
-                effective_provider,
-                effective_model,
-            ) = self._resolve_routellm_target(
-                messages=messages,
-                system=system,
-                provider=provider,
-                model=model,
-                routing_policy=routing_policy,
-            )
-        strict_provider = effective_strategy == Strategy.SPECIFIC and effective_provider is not None
-
-        cached = await self.cache.retrieve(
+        ctx = await self._prepare_request(
             messages,
-            strategy=requested_strategy.value,
+            strategy=strategy,
+            routing_policy=routing_policy,
             provider=provider,
             model=model,
             system=system,
             response_format=None,
             temperature=temperature,
             max_tokens=max_tokens,
-            project_id=normalized_project,
-            knowledge_scope=normalized_scope,
-            federation_scope=",".join(normalized_federation),
+            domain=domain,
+            project_id=project_id,
+            federation_scope=federation_scope,
+            knowledge_scope=knowledge_scope,
         )
-        if cached and (not strict_provider or cached.provider == provider):
+
+        cached = ctx["cached"]
+        strict_provider = ctx["strict_provider"]
+        effective_provider = ctx["effective_provider"]
+        effective_model = ctx["effective_model"]
+
+        if cached and (not strict_provider or cached.provider == effective_provider):
             yield cached.response
             return
 
-        if strict_provider:
-            sequence = [(effective_strategy.value, effective_provider)]
-        else:
-            sequence = self.fallback.build_sequence(
-                strategy=effective_strategy.value,
-                provider=effective_provider,
-                available_providers=self.available_providers,
+        last_error: Exception | None = None
+        for attempt_strategy, attempt_provider in ctx["sequence"]:
+            attempt_enum = Strategy(attempt_strategy)
+            selected = self._select_provider(
+                attempt_enum, attempt_provider, domain or ctx["detected_domain"],
             )
 
-        # Detect domain for domain-aware routing
-        detected_domain = self._detect_domain(messages) if strategy == Strategy.BEST else None
-
-        last_error: Exception | None = None
-        for attempt_strategy, attempt_provider in sequence:
-            attempt_enum = Strategy(attempt_strategy)
-            selected = self._select_provider(attempt_enum, attempt_provider, domain or detected_domain)
-
-            # Check circuit breaker for this specific provider
             if not self.circuit_breaker.can_execute(selected.name):
                 logger.warning(
-                    "Circuit breaker is open for provider %s, skipping", selected.name
+                    "Circuit breaker is open for provider %s, skipping", selected.name,
                 )
                 last_error = RuntimeError(f"Circuit breaker is open for provider {selected.name}")
                 continue
@@ -1322,41 +1368,13 @@ class Router:
                     yield token
             except Exception as exc:
                 elapsed = time.perf_counter() - started_at
-                self.load_balancer.request_completed(
-                    selected.name, response_time=elapsed, success=False
-                )
-                self.metrics.track_request(
+                self._track_failure(
                     provider_name=selected.name,
-                    tokens=0,
-                    cost=0.0,
-                    response_time=elapsed,
-                    success=False,
+                    model_name=model or "unknown",
+                    elapsed=elapsed,
+                    attempt_strategy=attempt_strategy,
                 )
-                COST_METRICS.track_request(
-                    provider=selected.name,
-                    model=model or "unknown",
-                    input_tokens=0,
-                    output_tokens=0,
-                    cost=0.0,
-                    duration=elapsed,
-                    strategy=attempt_strategy,
-                    success=False,
-                )
-                if self.cost_logger:
-                    self.cost_logger.log_event(
-                        provider=selected.name,
-                        model=model or "unknown",
-                        agent="",
-                        input_tokens=0,
-                        output_tokens=0,
-                        cost=0.0,
-                        strategy=attempt_strategy,
-                        success=False,
-                    )
-                self.fallback.record_failure(selected.name)
-                self.circuit_breaker.record_failure(selected.name)
                 if started_streaming:
-                    # Already yielded tokens — cannot fallback without data corruption
                     logger.error(
                         "Provider %s stream failed mid-stream (%.2fs): %s — cannot fallback",
                         selected.name, elapsed, exc,
@@ -1370,50 +1388,18 @@ class Router:
                 continue
 
             elapsed = time.perf_counter() - started_at
-            self.load_balancer.request_completed(
-                selected.name, response_time=elapsed, success=True
+            # Streaming doesn't provide token counts, so track with zero usage
+            stream_model = (
+                model or (selected.available_models()[0] if selected.available_models() else "unknown")
             )
-            self.circuit_breaker.record_success(selected.name)
-            self.metrics.track_request(
+            self._track_success(
                 provider_name=selected.name,
-                tokens=0,
+                model_name=stream_model,
+                elapsed=elapsed,
+                attempt_strategy=attempt_strategy,
+                usage={},
                 cost=0.0,
-                response_time=elapsed,
-                success=True,
             )
-
-            # TODO: Add user_id parameter if needed for usage tracking
-            # Note: streaming doesn't provide token counts, so we track 0 tokens
-            # if user_id is not None:
-            #     await track_usage(
-            #         user_id=user_id,
-            #         provider=selected.name,
-            #         model=model or selected.default_model,
-            #         usage={},
-            #         cost=0.0,
-            #     )
-
-            COST_METRICS.track_request(
-                provider=selected.name,
-                model=model or selected.available_models()[0] if selected.available_models() else "unknown",
-                input_tokens=0,
-                output_tokens=0,
-                cost=0.0,
-                duration=elapsed,
-                strategy=attempt_strategy,
-                success=True,
-            )
-            if self.cost_logger:
-                self.cost_logger.log_event(
-                    provider=selected.name,
-                    model=model or selected.available_models()[0] if selected.available_models() else "unknown",
-                    agent="",
-                    input_tokens=0,
-                    output_tokens=0,
-                    cost=0.0,
-                    strategy=attempt_strategy,
-                    success=True,
-                )
             return
 
         raise RuntimeError(

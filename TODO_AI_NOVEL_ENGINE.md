@@ -83,12 +83,9 @@ Regle:
 
 ## Auto-sync
 <!-- AUTO-SYNC:MASCARADE-TODO:START -->
-- dernier cycle ANE automatise: 2026-03-23T12:14:00+00:00
-- reference locale: apple-coreml:qwen3-4b-instruct-2507-q4f16 (**nouveau**, 3x plus rapide)
-- ancienne reference: apple-coreml:qwen3.5-4b-onnx-q4f16 (remplacee)
-- quality_blocked: apple-coreml:qwen2.5-0.5b-instruct-onnx (hallucinations, JSON markdown wrap)
-- disqualifie: apple-coreml:stateful-mistral7b-instruct-int4-coreml (timeout >300s)
-- blocage runtime principal: aucun — nouvelle reference validee
-- checkpoint runtime manuel: runtime Apple arrete, modeles decharges.
-- ollama: delegue au P2P (VM 192.168.0.119), pas en local (Metal crash)
+- dernier cycle ANE automatise: 2026-03-23T15:52:31+00:00
+- accepted via runtime local: mistral:mistral-large-latest
+- gate atteint via runtime local: mistral:mistral-large-latest, ollama:mistral-nemo:latest
+- blocage runtime principal: Reference locale reconfirmee; retablir le runtime des modeles provider_failed puis reprendre rewrite/repair sur les modeles bloques a gate.
+- checkpoint runtime manuel: Le runtime Apple sert `aucun modèle` au lieu de `qwen3-4b-instruct-2507-q4f16`.
 <!-- AUTO-SYNC:MASCARADE-TODO:END -->
