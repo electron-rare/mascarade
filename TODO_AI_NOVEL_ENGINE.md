@@ -73,8 +73,13 @@ Regle:
 - [x] P0 Garder `apple-coreml:qwen3.5-4b-onnx-q4f16` comme unique reference ANE locale
   - Remplace par `apple-coreml:qwen3-4b-instruct-2507-q4f16` (3x plus rapide, meilleure qualite)
 - [ ] P1 Laisser `ai-novel-engine` finir `priority_models` avec la nouvelle reference 4B
-- [ ] P1 Chercher un modele ONNX 7B+ compatible CoreML plus rapide que mistral-7b (ex: Phi-3.5-mini-instruct-onnx en backup)
-- [ ] P2 Tester un modele 1-2B ONNX de meilleure qualite que qwen2.5-0.5b pour les baselines vitesse
+- [x] P1 Chercher un modele ONNX 7B+ compatible CoreML plus rapide que mistral-7b
+  - Telecharge: `microsoft/Phi-3.5-mini-instruct-onnx` (3.8B, int4-AWQ, ~2.5 GB) — a tester
+  - Backup: `onnx-community/Phi-4-mini-instruct-ONNX` si Phi-3.5 ne convient pas
+- [x] P2 Tester un modele 1-2B ONNX de meilleure qualite que qwen2.5-0.5b pour les baselines vitesse
+  - Telecharge: `onnx-community/Qwen2.5-1.5B-Instruct` (1.5B, q4f16) — a tester
+  - 3x plus gros que 0.5B, meme famille Qwen, tokenizer compatible
+  - Autres candidats identifies: Llama-3.2-1B-Instruct-q4f16, granite-3.0-2b
 
 ## Auto-sync
 <!-- AUTO-SYNC:MASCARADE-TODO:START -->
