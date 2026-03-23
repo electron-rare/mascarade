@@ -1096,6 +1096,92 @@ services:
     networks:
       - backend
 
+  # ── CAD / Electronics ──────────────────────────────────────────────
+
+  kicad-headless:
+    profiles:
+      - cad
+    image: kicad/kicad:${KICAD_IMAGE_TAG:-10.0}
+    container_name: mascarade-kicad-headless
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 2G
+    working_dir: /workspace
+    command: ["sleep", "infinity"]
+    volumes:
+      - ${CAD_WORKSPACE_DIR:-.}:/workspace
+    networks:
+      - backend
+
+  kicad-mcp:
+    profiles:
+      - cad
+    build:
+      context: finetune/kicad_mcp_server
+      dockerfile: ../../deploy/cad/Dockerfile.kicad-mcp
+    container_name: mascarade-kicad-mcp
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+    ports:
+      - "${PUBLISH_BIND_HOST:-127.0.0.1}:${KICAD_MCP_PORT:-8300}:8300"
+    working_dir: /workspace
+    environment:
+      KICAD_PYTHON: /usr/bin/python3
+      MCP_TRANSPORT: ${KICAD_MCP_TRANSPORT:-stdio}
+      MCP_HTTP_PORT: 8300
+    volumes:
+      - ${CAD_WORKSPACE_DIR:-.}:/workspace
+      - ./deploy/cad/mcp-http-bridge.js:/opt/kicad-mcp/mcp-http-bridge.js:ro
+    networks:
+      - backend
+
+  freecad-headless:
+    profiles:
+      - cad
+    build:
+      context: deploy/cad
+      dockerfile: Dockerfile.freecad-headless
+    container_name: mascarade-freecad-headless
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 2G
+    working_dir: /workspace
+    command: ["sleep", "infinity"]
+    volumes:
+      - ${CAD_WORKSPACE_DIR:-.}:/workspace
+    networks:
+      - backend
+
+  platformio:
+    profiles:
+      - cad
+    build:
+      context: deploy/cad
+      dockerfile: Dockerfile.platformio
+    container_name: mascarade-platformio
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+    working_dir: /workspace
+    command: ["sleep", "infinity"]
+    volumes:
+      - ${CAD_WORKSPACE_DIR:-.}:/workspace
+    networks:
+      - backend
+
 networks:
   frontend:
     driver: bridge
