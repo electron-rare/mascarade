@@ -1,6 +1,15 @@
 import { Hono } from "hono";
 import { coreClient } from "../client/core.js";
 import { handleCoreError } from "../middleware/error.js";
+import { validate } from "../validation/index.js";
+import {
+  UserCreateRequestSchema,
+  UserUpdateRequestSchema,
+  ApiKeyCreateRequestSchema,
+  type UserCreateRequest,
+  type UserUpdateRequest,
+  type ApiKeyCreateRequest,
+} from "../validation/schemas.js";
 
 const users = new Hono();
 
@@ -16,10 +25,10 @@ users.get("/", async (c) => {
 });
 
 /** Create a new user (admin only) */
-users.post("/", async (c) => {
+users.post("/", validate(UserCreateRequestSchema), async (c) => {
   try {
-    const body = await c.req.json();
-    const result = await coreClient.createUser(body);
+    const body = c.get("validated" as never) as UserCreateRequest;
+    const result = await coreClient.createUser(body as any);
     return c.json(result, 201);
   } catch (error) {
     const { status, body } = handleCoreError(error);
@@ -43,14 +52,14 @@ users.get("/:userId", async (c) => {
 });
 
 /** Update a user (admin only) */
-users.put("/:userId", async (c) => {
+users.put("/:userId", validate(UserUpdateRequestSchema), async (c) => {
   try {
     const userId = parseInt(c.req.param("userId"), 10);
     if (isNaN(userId) || userId <= 0) {
       return c.json({ error: "Invalid user ID" }, 400);
     }
-    const body = await c.req.json();
-    const result = await coreClient.updateUser(userId, body);
+    const body = c.get("validated" as never) as UserUpdateRequest;
+    const result = await coreClient.updateUser(userId, body as any);
     return c.json(result);
   } catch (error) {
     const { status, body } = handleCoreError(error);
@@ -74,14 +83,14 @@ users.delete("/:userId", async (c) => {
 });
 
 /** Create API key for a user (admin only) */
-users.post("/:userId/api-keys", async (c) => {
+users.post("/:userId/api-keys", validate(ApiKeyCreateRequestSchema), async (c) => {
   try {
     const userId = parseInt(c.req.param("userId"), 10);
     if (isNaN(userId) || userId <= 0) {
       return c.json({ error: "Invalid user ID" }, 400);
     }
-    const body = await c.req.json();
-    const result = await coreClient.createApiKey(userId, body);
+    const body = c.get("validated" as never) as ApiKeyCreateRequest;
+    const result = await coreClient.createApiKey(userId, body as any);
     return c.json(result, 201);
   } catch (error) {
     const { status, body } = handleCoreError(error);

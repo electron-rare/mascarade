@@ -134,7 +134,6 @@ class NodeTypeRegistry:
         Args:
             domain_type: The DomainType instance to register
             builtin: Whether this is a builtin type (not persisted)
-<<<<<<< HEAD
         """
         if isinstance(item, NodeType):
             self._node_types[item.id] = item
@@ -152,8 +151,6 @@ class NodeTypeRegistry:
                 self._builtin_names.add(qualified_name)
         else:
             raise TypeError(f"Cannot register {type(item).__name__}")
-=======
->>>>>>> 5f665b4e0aa455089cb9c38daf63172572990e1c
 
         Raises:
             ValueError: If a type with the same qualified name is already registered
@@ -195,16 +192,12 @@ class NodeTypeRegistry:
         Returns:
             List of DomainType instances for the specified domain
         """
-<<<<<<< HEAD
         all_items: list[DomainType | NodeType] = list(self._types.values()) + list(
             self._node_types.values()
         )
         if domain:
             return [item for item in all_items if getattr(item, "domain", "") == domain]
         return all_items
-=======
-        return [dt for dt in self._types.values() if dt.domain == domain]
->>>>>>> 5f665b4e0aa455089cb9c38daf63172572990e1c
 
     def list(self) -> list[DomainType]:
         """List all registered domain types.
@@ -224,7 +217,6 @@ class NodeTypeRegistry:
         self._builtin_names.discard(qualified_name)
 
     def __contains__(self, qualified_name: str) -> bool:
-<<<<<<< HEAD
         """Check if a type is registered."""
         return qualified_name in self._types or qualified_name in self._node_types
 
@@ -250,9 +242,6 @@ class NodeTypeRegistry:
 
     def register_worker(self, worker: Any) -> None:
         """Register a worker and set its registry reference.
-=======
-        """Check if a domain type is registered.
->>>>>>> 5f665b4e0aa455089cb9c38daf63172572990e1c
 
         Args:
             qualified_name: The qualified type name to check
@@ -336,11 +325,7 @@ class NodeTypeRegistry:
         try:
             raw = json.loads(self._storage_path.read_text(encoding="utf-8"))
         except (json.JSONDecodeError, OSError) as exc:
-<<<<<<< HEAD
             logger.error("Failed to load types from %s: %s", self._storage_path, exc)
-=======
-            logger.error("Failed to load node types from %s: %s", self._storage_path, exc)
->>>>>>> 5f665b4e0aa455089cb9c38daf63172572990e1c
             return
         for data in raw:
             try:

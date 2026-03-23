@@ -3,6 +3,8 @@ import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { Hono, type Context } from "hono";
 import { emitStructuredLog } from "../lib/otel.js";
+import { validate } from "../validation/index.js";
+import { PipelineRunRequestSchema, type PipelineRunRequest } from "../validation/schemas.js";
 
 const pipeline = new Hono();
 
@@ -16,11 +18,11 @@ const VALID_DOMAINS = [
  * Body: { domain: string, dry_run?: boolean }
  * Returns: { status: string, run_id: string, domain: string, dry_run: boolean }
  */
-pipeline.post("/run", async (c: Context) => {
+pipeline.post("/run", validate(PipelineRunRequestSchema), async (c: Context) => {
   try {
-    const body = await c.req.json();
-    const domain = typeof body.domain === "string" ? body.domain.trim() : null;
-    const dryRun = body.dry_run === true;
+    const body = c.get("validated" as never) as PipelineRunRequest;
+    const domain = body.domain.trim();
+    const dryRun = body.dry_run;
 
     // Validate domain
     if (!domain || !VALID_DOMAINS.includes(domain)) {

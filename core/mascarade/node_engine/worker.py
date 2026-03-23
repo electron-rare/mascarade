@@ -161,7 +161,6 @@ class NodeWorker(ABC):
         context: Any,
     ) -> dict[str, Any]:
         """
-<<<<<<< HEAD
         raise NotImplementedError(
             f"execute() not implemented for {self.__class__.__name__}"
         )
@@ -266,5 +265,3 @@ class NodeWorker(ABC):
 
 # Re-export ExecutionContext and NodeResult for convenience
 # (some code imports them from worker module)
-=======
->>>>>>> 5f665b4e0aa455089cb9c38daf63172572990e1c
