@@ -95,20 +95,24 @@ Etat de reference du chantier fine-tuning/distillation local au 6 mars 2026.
 
 Objectif: cadrer si `Agent Zero` doit rester un sujet d'etude, un outil de debug, ou une vraie brique d'orchestration dans Mascarade.
 
-- [ ] Identifier precisement le perimetre `Agent Zero` vise ici
-- [ ] Comparer `Agent Zero` avec l'orchestrateur local deja implemente dans `finetune/batch_local.py`
-- [ ] Definir si `Agent Zero` sert a:
-  - orchestration multi-agents
-  - planification de jobs
-  - supervision d'execution
-  - experimentation locale
-- [ ] Faire un POC isole, sans melanger tout de suite la chaine de fine-tuning existante
-- [ ] Evaluer le cout de maintenance avant integration repo
-- [ ] Definir les garde-fous:
-  - isolation des secrets
-  - limites CPU/GPU
-  - timeout des jobs
-  - logs et reprise
+- [x] Identifier precisement le perimetre `Agent Zero` vise ici
+  - Cadrage fait le 2026-03-23: 3 tiers identifies (copilot, orchestration, batch)
+- [x] Comparer `Agent Zero` avec l'orchestrateur local deja implemente dans `finetune/batch_local.py`
+  - Conclusion: complementaires, pas concurrents. Agent Zero = decision support, Batch = execution pipeline
+- [x] Definir si `Agent Zero` sert a:
+  - Tier 1 (implemente): operator copilot — analyse incidents/logs, propose next action manuelle
+  - Tier 2 (design): orchestration initiator — decompose demande → selectionne template → lance agents
+  - Tier 3 (exploratoire): batch coordination — supervise fine-tuning (read-only, approval-gated)
+- [x] Faire un POC isole, sans melanger tout de suite la chaine de fine-tuning existante
+  - Endpoint `/v1/api/agents/agent-zero/copilot` implemente (commit `ef07b5b`)
+  - Isole du pipeline fine-tuning, read-only
+- [x] Evaluer le cout de maintenance avant integration repo
+  - Cout faible: ~110 lignes dans routers/agents.py + 1 param dans base.py
+- [x] Definir les garde-fous:
+  - isolation des secrets: redaction automatique (_redact_secrets) avant envoi LLM
+  - limites CPU/GPU: CPU-only inference, routing_policy=strong, pas de GPU
+  - timeout des jobs: max_tokens=4096, temperature=0.2
+  - logs et reprise: trace complete via AgentTraceBuffer existant
 
 ## 5. Prochain ordre de travail recommande
 
