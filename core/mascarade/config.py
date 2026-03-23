@@ -99,7 +99,7 @@ class Settings(BaseSettings):
     github_app_installation_id: str = ""
 
     # Codestral (Mistral code model — FIM + chat)
-    codestral_api_key: str = ""
+    codestral_api_key: SecretStr = Field(default=SecretStr(""), repr=False)
     codestral_timeout_seconds: float = 120.0
 
     # Ollama

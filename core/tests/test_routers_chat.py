@@ -41,6 +41,9 @@ class FakeRouter:
         response_format: dict | None = None,
         temperature: float = 0.7,
         max_tokens: int = 4096,
+        project_id: str | None = None,
+        federation_scope: list[str] | tuple[str, ...] | None = None,
+        knowledge_scope: str = "project",
     ) -> LLMResponse:
         self.calls.append(
             {
@@ -52,11 +55,18 @@ class FakeRouter:
                 "response_format": response_format,
                 "temperature": temperature,
                 "max_tokens": max_tokens,
+                "project_id": project_id,
+                "federation_scope": list(federation_scope or []),
+                "knowledge_scope": knowledge_scope,
             }
         )
         if self._error is not None:
             raise self._error
         return self._response
+
+    async def stream(self, messages: list[dict], **kwargs):
+        self.calls.append({"messages": messages, **kwargs, "stream": True})
+        yield "chunk"
 
 
 @pytest.fixture(autouse=True)
@@ -237,6 +247,47 @@ async def test_chat_completion_with_response_format():
 
     assert response.status_code == 200
     assert fake_router.calls[0]["response_format"] == {"type": "json_object"}
+
+
+@pytest.mark.asyncio
+async def test_chat_completion_forwards_project_scope():
+    fake_router = FakeRouter()
+
+    async with _client(fake_router) as client:
+        response = await client.post(
+            "/v1/chat/completions",
+            json={
+                "model": "gpt-4",
+                "project_id": "project-alpha",
+                "knowledge_scope": "federated",
+                "federation_scope": ["project-alpha", "project-beta"],
+                "messages": [{"role": "user", "content": "test"}],
+            },
+        )
+
+    assert response.status_code == 200
+    assert fake_router.calls[0]["project_id"] == "project-alpha"
+    assert fake_router.calls[0]["knowledge_scope"] == "federated"
+    assert fake_router.calls[0]["federation_scope"] == ["project-alpha", "project-beta"]
+
+
+@pytest.mark.asyncio
+async def test_chat_completion_rejects_missing_federation_scope():
+    fake_router = FakeRouter()
+
+    async with _client(fake_router) as client:
+        response = await client.post(
+            "/v1/chat/completions",
+            json={
+                "model": "gpt-4",
+                "project_id": "project-alpha",
+                "knowledge_scope": "federated",
+                "messages": [{"role": "user", "content": "test"}],
+            },
+        )
+
+    assert response.status_code == 400
+    assert "federation_scope is required" in response.json()["detail"]
 
 
 @pytest.mark.asyncio

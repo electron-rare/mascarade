@@ -91,9 +91,24 @@ class ChatCompletionRequest(BaseModel):
     messages: list[ChatMessage] = Field(
         min_length=1, max_length=200, description="List of messages in the conversation"
     )
-    model: str = Field(
+    model: str | None = Field(
+        default=None,
         max_length=100,
         description="Model to use (e.g., 'gpt-4', 'claude-3-5-sonnet-20241022')",
+    )
+    project_id: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=256,
+        description="Logical project scope for cache, memory, and retrieval isolation",
+    )
+    knowledge_scope: Literal["project", "federated"] = Field(
+        default="project",
+        description="Knowledge namespace scope",
+    )
+    federation_scope: list[str] | None = Field(
+        default=None,
+        description="Explicit cross-project scope list when knowledge_scope=federated",
     )
     temperature: float = Field(
         default=0.7,
@@ -142,6 +157,16 @@ class ChatCompletionRequest(BaseModel):
     )
     response_format: ResponseFormat | None = Field(
         default=None, description="Response format configuration"
+    )
+    strategy: Literal[
+        "best", "cheapest", "domain", "fastest", "specific", "routellm"
+    ] | None = Field(
+        default=None,
+        description="Optional routing strategy override",
+    )
+    routing_policy: Literal["auto", "strong", "cheap", "fast"] | None = Field(
+        default=None,
+        description="Optional RouteLLM policy when strategy=routellm or model=auto*",
     )
     tools: list[dict] | None = Field(
         default=None, max_length=20, description="Available tools/functions"
@@ -231,3 +256,38 @@ class ChatCompletionChunk(BaseModel):
     system_fingerprint: str | None = Field(
         default=None, max_length=100, description="System fingerprint"
     )
+
+
+class OllamaChatRequest(BaseModel):
+    """Subset of Ollama chat request supported by the Mascarade compatibility shim."""
+
+    model: str | None = Field(default=None, max_length=100)
+    messages: list[ChatMessage] = Field(min_length=1, max_length=200)
+    stream: bool = Field(default=True)
+    format: str | dict[str, Any] | None = Field(default=None)
+    options: dict[str, Any] | None = Field(default=None)
+    project_id: str | None = Field(default=None, min_length=1, max_length=256)
+    knowledge_scope: Literal["project", "federated"] = Field(default="project")
+    federation_scope: list[str] | None = Field(default=None)
+    strategy: Literal[
+        "best", "cheapest", "domain", "fastest", "specific", "routellm"
+    ] | None = Field(default=None)
+    routing_policy: Literal["auto", "strong", "cheap", "fast"] | None = Field(default=None)
+
+
+class OllamaGenerateRequest(BaseModel):
+    """Subset of Ollama generate request supported by the Mascarade compatibility shim."""
+
+    model: str | None = Field(default=None, max_length=100)
+    prompt: str = Field(min_length=1, max_length=100_000)
+    system: str | None = Field(default=None, max_length=10_000)
+    stream: bool = Field(default=True)
+    format: str | dict[str, Any] | None = Field(default=None)
+    options: dict[str, Any] | None = Field(default=None)
+    project_id: str | None = Field(default=None, min_length=1, max_length=256)
+    knowledge_scope: Literal["project", "federated"] = Field(default="project")
+    federation_scope: list[str] | None = Field(default=None)
+    strategy: Literal[
+        "best", "cheapest", "domain", "fastest", "specific", "routellm"
+    ] | None = Field(default=None)
+    routing_policy: Literal["auto", "strong", "cheap", "fast"] | None = Field(default=None)
