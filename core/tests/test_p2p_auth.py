@@ -2,13 +2,13 @@
 
 import base64
 
-from mascarade.p2p.auth import sign_message, verify_message, MessageAuthenticator
+from mascarade.p2p.auth import MessageAuthenticator, sign_message, verify_message
 from mascarade.p2p.identity import PeerIdentity
 from mascarade.p2p.protocol import P2PMessage
 
 
 def _make_msg(**overrides) -> P2PMessage:
-    defaults = dict(type="test", sender="QmABC123", payload={"data": "hello"}, ts=1000.0)
+    defaults = {"type": "test", "sender": "QmABC123", "payload": {"data": "hello"}, "ts": 1000.0}
     defaults.update(overrides)
     return P2PMessage(**defaults)
 
@@ -83,6 +83,7 @@ def test_message_encode_decode_preserves_signature():
     # Round-trip through encode/decode
     raw = msg.encode()
     import struct
+
     from mascarade.p2p.protocol import _HEADER_FMT
     body = raw[struct.calcsize(_HEADER_FMT):]
     decoded = P2PMessage.decode(body)

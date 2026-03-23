@@ -1,11 +1,18 @@
 """Tests for graph representation in the Universal Node Engine."""
 
+import pytest
+from pydantic import ValidationError
+
 from mascarade.node_engine.graph import (
+    Connection,
+    Edge,
     ExecutionContext,
     Graph,
     GraphEdge,
     GraphNode,
     GraphStatus,
+    Node,
+    NodeInstance,
     NodeResult,
 )
 
@@ -426,3 +433,150 @@ class TestGraphStructures:
         # Each output is different
         output_nodes = {e.target_node for e in proc_outputs}
         assert len(output_nodes) == 3
+
+
+class TestPydanticNode:
+    """Test suite for Pydantic Node model."""
+
+    def test_valid_node(self):
+        n = Node(id="node-1", type="ai.chat")
+        assert n.id == "node-1"
+        assert n.domain == "ai"
+
+    def test_empty_id_rejected(self):
+        with pytest.raises(ValidationError):
+            Node(id="", type="ai.chat")
+
+    def test_invalid_id_chars(self):
+        with pytest.raises(ValidationError):
+            Node(id="node 1!", type="ai.chat")
+
+    def test_unqualified_type_rejected(self):
+        with pytest.raises(ValidationError):
+            Node(id="n1", type="chat")
+
+    def test_empty_type_rejected(self):
+        with pytest.raises(ValidationError):
+            Node(id="n1", type="")
+
+    def test_node_with_inputs_and_config(self):
+        n = Node(id="n1", type="ai.embed", inputs={"text": "hello"}, config={"dim": 768})
+        assert n.inputs["text"] == "hello"
+        assert n.config["dim"] == 768
+
+
+class TestPydanticEdge:
+    """Test suite for Pydantic Edge model."""
+
+    def test_valid_edge(self):
+        e = Edge(from_node="n1", from_port="out", to_node="n2", to_port="in")
+        assert e.source == ("n1", "out")
+        assert e.destination == ("n2", "in")
+
+    def test_self_loop_rejected(self):
+        with pytest.raises(ValidationError, match="Self-loop"):
+            Edge(from_node="n1", from_port="out", to_node="n1", to_port="in")
+
+
+class TestGraphValidation:
+    """Pydantic graph-level validation (duplicates, bad refs, cycles)."""
+
+    def test_duplicate_node_ids_rejected(self):
+        n1 = Node(id="dup", type="ai.chat")
+        n2 = Node(id="dup", type="ai.embed")
+        with pytest.raises(ValidationError):
+            Graph(id="g", nodes=[n1, n2], edges=[])
+
+    def test_edge_bad_reference_rejected(self):
+        n1 = Node(id="a", type="ai.chat")
+        e = Edge(from_node="a", from_port="out", to_node="missing", to_port="in")
+        with pytest.raises(ValidationError):
+            Graph(id="g", nodes=[n1], edges=[e])
+
+    def test_cycle_detection(self):
+        n1 = Node(id="a", type="ai.x")
+        n2 = Node(id="b", type="ai.y")
+        e1 = Edge(from_node="a", from_port="o", to_node="b", to_port="i")
+        e2 = Edge(from_node="b", from_port="o", to_node="a", to_port="i")
+        with pytest.raises(ValidationError, match="cycle"):
+            Graph(id="g", nodes=[n1, n2], edges=[e1, e2])
+
+
+class TestGraphMethods:
+    """Test Graph helper methods (get_node, edges, topological sort)."""
+
+    def test_get_node(self):
+        nodes = [GraphNode(id="x", node_type="ai.chat")]
+        g = Graph(id="g", nodes=nodes)
+        assert g.get_node("x") is not None
+        assert g.get_node("missing") is None
+
+    def test_get_incoming_edges(self):
+        nodes = [GraphNode(id="a", node_type="ai.x"), GraphNode(id="b", node_type="ai.y")]
+        edges = [GraphEdge(id="e1", source_node="a", source_port="o", target_node="b", target_port="i")]
+        g = Graph(id="g", nodes=nodes, edges=edges)
+        assert len(g.get_incoming_edges("b")) == 1
+        assert len(g.get_incoming_edges("a")) == 0
+
+    def test_get_outgoing_edges(self):
+        nodes = [GraphNode(id="a", node_type="ai.x"), GraphNode(id="b", node_type="ai.y")]
+        edges = [GraphEdge(id="e1", source_node="a", source_port="o", target_node="b", target_port="i")]
+        g = Graph(id="g", nodes=nodes, edges=edges)
+        assert len(g.get_outgoing_edges("a")) == 1
+        assert len(g.get_outgoing_edges("b")) == 0
+
+    def test_topological_sort_order(self):
+        nodes = [GraphNode(id="a", node_type="ai.x"), GraphNode(id="b", node_type="ai.y")]
+        edges = [GraphEdge(id="e1", source_node="a", source_port="o", target_node="b", target_port="i")]
+        g = Graph(id="g", nodes=nodes, edges=edges)
+        order = g.topological_sort()
+        ids = [n.id for n in order]
+        assert ids.index("a") < ids.index("b")
+
+    def test_topological_sort_diamond(self):
+        nodes = [
+            GraphNode(id="s", node_type="x"),
+            GraphNode(id="l", node_type="x"),
+            GraphNode(id="r", node_type="x"),
+            GraphNode(id="t", node_type="x"),
+        ]
+        edges = [
+            GraphEdge(id="e1", source_node="s", source_port="o", target_node="l", target_port="i"),
+            GraphEdge(id="e2", source_node="s", source_port="o", target_node="r", target_port="i"),
+            GraphEdge(id="e3", source_node="l", source_port="o", target_node="t", target_port="i"),
+            GraphEdge(id="e4", source_node="r", source_port="o", target_node="t", target_port="i"),
+        ]
+        g = Graph(id="g", nodes=nodes, edges=edges)
+        order = g.topological_sort()
+        ids = [n.id for n in order]
+        assert ids[0] == "s"
+        assert ids[-1] == "t"
+
+    def test_node_count_and_edge_count(self):
+        nodes = [GraphNode(id="a", node_type="x"), GraphNode(id="b", node_type="y")]
+        edges = [GraphEdge(id="e1", source_node="a", source_port="o", target_node="b", target_port="i")]
+        g = Graph(id="g", nodes=nodes, edges=edges)
+        assert g.node_count == 2
+        assert g.edge_count == 1
+
+    def test_graph_id_alias(self):
+        g = Graph(graph_id="gx", name="alias")
+        assert g.graph_id == "gx"
+        assert g.id == "gx"
+
+
+class TestConnection:
+    """Test Connection dataclass."""
+
+    def test_aliases(self):
+        c = Connection(source_node_id="a", source_port="o", target_node_id="b", target_port="i")
+        assert c.source_node == "a"
+        assert c.target_node == "b"
+
+
+class TestNodeInstance:
+    """Test NodeInstance dataclass."""
+
+    def test_id_alias(self):
+        ni = NodeInstance(node_id="n1", node_type="ai.chat")
+        assert ni.id == "n1"

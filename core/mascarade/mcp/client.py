@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-import asyncio
 import ast
+import asyncio
 import json
 import logging
 import os
@@ -12,18 +12,27 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from mascarade.config import settings
 from mascarade.observability import AgentTraceBuffer
 
 logger = logging.getLogger("mascarade.mcp.client")
 
 DEFAULT_PROTOCOL_VERSION = "2025-03-26"
-DEFAULT_MASCARADE_DIR = Path(os.getenv("MASCARADE_DIR", "/home/clems/mascarade")).resolve()
-DEFAULT_KILL_LIFE_ROOT = Path(os.getenv("KILL_LIFE_ROOT", "/home/clems/Kill_LIFE")).resolve()
-DEFAULT_AGENT_FACTORY_COCKPIT_DIR = Path(
-    os.getenv("AGENT_FACTORY_COCKPIT_DIR", "/home/clems/agent-factory-cockpit")
-).resolve()
+def _resolve_default_dir(env_var: str, fallback_name: str) -> Path:
+    """Resolve a directory from env var, falling back to ~/fallback_name."""
+    raw = os.getenv(env_var, "")
+    if raw:
+        return Path(raw).resolve()
+    return Path.home().joinpath(fallback_name).resolve()
+
+
+DEFAULT_MASCARADE_DIR = _resolve_default_dir("MASCARADE_DIR", "mascarade")
+DEFAULT_KILL_LIFE_ROOT = _resolve_default_dir("KILL_LIFE_ROOT", "Kill_LIFE")
+DEFAULT_AGENT_FACTORY_COCKPIT_DIR = _resolve_default_dir(
+    "AGENT_FACTORY_COCKPIT_DIR", "agent-factory-cockpit"
+)
 DEFAULT_MASCARADE_ENV_FILE = Path(
-    os.getenv("MASCARADE_ENV_FILE", DEFAULT_MASCARADE_DIR / ".env")
+    os.getenv("MASCARADE_ENV_FILE", str(DEFAULT_MASCARADE_DIR / ".env"))
 ).resolve()
 _FREECAD_BLOCKED_SNIPPETS = (
     "import os",
@@ -136,6 +145,32 @@ def _message_text(payload: dict[str, Any]) -> str:
                 if text:
                     return text
     return ""
+
+
+def _normalize_scope(
+    *,
+    project_id: str | None = None,
+    federation_scope: list[str] | tuple[str, ...] | None = None,
+    knowledge_scope: str = "project",
+) -> tuple[str, list[str], str]:
+    normalized_project = (project_id or settings.mascarade_project_id).strip() or "default"
+    normalized_scope = (knowledge_scope or "project").strip().lower() or "project"
+    if normalized_scope not in {"project", "federated"}:
+        raise ValueError(f"Unsupported knowledge_scope: {knowledge_scope}")
+
+    cleaned_federation = [
+        item.strip()
+        for item in (federation_scope or [])
+        if str(item).strip()
+    ]
+    if normalized_scope == "project":
+        cleaned_federation = [normalized_project]
+    elif not cleaned_federation:
+        raise ValueError("federation_scope is required when knowledge_scope is federated")
+    elif normalized_project not in cleaned_federation:
+        cleaned_federation = [normalized_project, *cleaned_federation]
+
+    return normalized_project, list(dict.fromkeys(cleaned_federation)), normalized_scope
 
 
 async def _read_message(
@@ -385,6 +420,7 @@ class McpRuntimeClient:
         protocol_version: str | None = None,
         error: str | None = None,
         content_excerpt: str | None = None,
+        transport: str = "stdio",
     ) -> None:
         if not self.trace_buffer or not run_id:
             return
@@ -400,7 +436,7 @@ class McpRuntimeClient:
             mcp_server=server_key,
             mcp_tool=tool_name,
             mcp_status=status,
-            mcp_transport="stdio",
+            mcp_transport=transport,
             mcp_latency_ms=latency_ms,
             mcp_protocol_version=protocol_version,
         )
@@ -453,6 +489,7 @@ class McpRuntimeClient:
             server_key=server_key,
             tool_name=tool_name,
             status="started",
+            transport="http",
         )
         proc = await asyncio.create_subprocess_exec(
             *command,
@@ -721,6 +758,7 @@ class McpRuntimeClient:
                 severity="error",
                 latency_ms=latency_ms,
                 error=f"HTTP timeout after {timeout:.1f}s",
+                transport="http",
             )
             raise McpServerUnavailable(
                 f"HTTP timeout after {timeout:.1f}s",
@@ -744,6 +782,7 @@ class McpRuntimeClient:
                 severity="error",
                 latency_ms=latency_ms,
                 error=str(exc),
+                transport="http",
             )
             raise McpServerUnavailable(
                 f"HTTP error calling '{server_key}': {exc}",
@@ -770,6 +809,7 @@ class McpRuntimeClient:
                 severity="error",
                 latency_ms=latency_ms,
                 error=error_msg,
+                transport="http",
             )
             raise McpServerUnavailable(
                 error_msg,
@@ -803,6 +843,7 @@ class McpRuntimeClient:
                 severity="error",
                 latency_ms=latency_ms,
                 error=message,
+                transport="http",
             )
             raise McpCallError(
                 message,
@@ -825,6 +866,7 @@ class McpRuntimeClient:
             status="ok",
             latency_ms=latency_ms,
             content_excerpt=message,
+            transport="http",
         )
         return McpToolResult(
             server_key=server_key,
@@ -1044,11 +1086,26 @@ class McpRuntimeClient:
         query: str,
         *,
         limit: int = 10,
+        project_id: str | None = None,
+        federation_scope: list[str] | tuple[str, ...] | None = None,
+        knowledge_scope: str = "project",
         run_id: str | None = None,
         mode: str = "internal",
         step: int = 0,
         agent_name: str | None = None,
     ) -> dict[str, Any]:
+        if settings.knowledge_base_provider.strip().lower() == "kxkm":
+            return await self.kxkm_rag_search(
+                query,
+                limit=limit,
+                project_id=project_id,
+                federation_scope=federation_scope,
+                knowledge_scope=knowledge_scope,
+                run_id=run_id,
+                mode=mode,
+                step=step,
+                agent_name=agent_name,
+            )
         result = await self.call_tool(
             "knowledge-base",
             "search_pages",
@@ -1059,6 +1116,179 @@ class McpRuntimeClient:
             agent_name=agent_name,
         )
         return result.structured_content
+
+    async def kxkm_rag_search(
+        self,
+        query: str,
+        *,
+        limit: int = 10,
+        project_id: str | None = None,
+        federation_scope: list[str] | tuple[str, ...] | None = None,
+        knowledge_scope: str = "project",
+        run_id: str | None = None,
+        mode: str = "internal",
+        step: int = 0,
+        agent_name: str | None = None,
+    ) -> dict[str, Any]:
+        import httpx
+
+        if not query.strip():
+            return {
+                "ok": True,
+                "provider": "kxkm",
+                "provider_label": "kxkm",
+                "results": [],
+                "total": 0,
+            }
+
+        normalized_project, normalized_federation, normalized_scope = _normalize_scope(
+            project_id=project_id,
+            federation_scope=federation_scope,
+            knowledge_scope=knowledge_scope,
+        )
+        base_url = settings.kxkm_rag_url.strip().rstrip("/")
+        if not base_url:
+            raise McpServerUnavailable(
+                "kxkm RAG URL is not configured",
+                server_key="kxkm",
+                tool_name="kxkm_rag_search",
+                transport="http-rest",
+                error_code="missing_base_url",
+            )
+
+        started = time.perf_counter()
+        self._trace(
+            run_id=run_id,
+            mode=mode,
+            step=step,
+            agent_name=agent_name,
+            event_type="mcp_call_started",
+            server_key="kxkm",
+            tool_name="kxkm_rag_search",
+            status="started",
+            transport="http-rest",
+        )
+
+        try:
+            async with httpx.AsyncClient(timeout=settings.kxkm_timeout_seconds) as http:
+                response = await http.post(
+                    f"{base_url}/api/v2/rag/search",
+                    headers={
+                        "x-mascarade-project-id": normalized_project,
+                        "x-mascarade-knowledge-scope": normalized_scope,
+                        "x-mascarade-federation-scope": ",".join(normalized_federation),
+                    },
+                    json={
+                        "query": query.strip(),
+                        "limit": max(1, min(limit, 50)),
+                        "project_id": normalized_project,
+                        "federation_scope": normalized_federation,
+                        "knowledge_scope": normalized_scope,
+                    },
+                )
+                response.raise_for_status()
+                payload = response.json()
+        except httpx.TimeoutException as exc:
+            latency_ms = (time.perf_counter() - started) * 1000
+            self._trace(
+                run_id=run_id,
+                mode=mode,
+                step=step,
+                agent_name=agent_name,
+                event_type="mcp_call_failed",
+                server_key="kxkm",
+                tool_name="kxkm_rag_search",
+                status="timeout",
+                severity="error",
+                latency_ms=latency_ms,
+                error="kxkm RAG timeout",
+                transport="http-rest",
+            )
+            raise McpServerUnavailable(
+                "kxkm RAG timeout",
+                server_key="kxkm",
+                tool_name="kxkm_rag_search",
+                transport="http-rest",
+                latency_ms=latency_ms,
+                error_code="timeout",
+            ) from exc
+        except httpx.HTTPError as exc:
+            latency_ms = (time.perf_counter() - started) * 1000
+            self._trace(
+                run_id=run_id,
+                mode=mode,
+                step=step,
+                agent_name=agent_name,
+                event_type="mcp_call_failed",
+                server_key="kxkm",
+                tool_name="kxkm_rag_search",
+                status="error",
+                severity="error",
+                latency_ms=latency_ms,
+                error=str(exc),
+                transport="http-rest",
+            )
+            raise McpServerUnavailable(
+                f"kxkm RAG HTTP error: {exc}",
+                server_key="kxkm",
+                tool_name="kxkm_rag_search",
+                transport="http-rest",
+                latency_ms=latency_ms,
+            ) from exc
+
+        latency_ms = (time.perf_counter() - started) * 1000
+        data = payload.get("data", payload) if isinstance(payload, dict) else {}
+        raw_results = data.get("results") or []
+        results: list[dict[str, Any]] = []
+        for index, item in enumerate(raw_results[:limit]):
+            if not isinstance(item, dict):
+                item = {"text": str(item)}
+            text = str(item.get("text") or item.get("content") or item.get("chunk") or "").strip()
+            results.append(
+                {
+                    "id": str(item.get("id") or item.get("chunk_id") or f"kxkm-{index + 1}"),
+                    "title": text.splitlines()[0][:140] if text else f"kxkm-{index + 1}",
+                    "url": str(item.get("url") or item.get("source_url") or ""),
+                    "provider": "kxkm",
+                    "text": text,
+                    "score": item.get("score"),
+                    "metadata": {
+                        "project_id": normalized_project,
+                        "knowledge_scope": normalized_scope,
+                        "federation_scope": normalized_federation,
+                        **{
+                            key: value
+                            for key, value in item.items()
+                            if key not in {"id", "chunk_id", "text", "content", "chunk", "url", "source_url", "score"}
+                        },
+                    },
+                }
+            )
+
+        result_payload = {
+            "ok": bool(payload.get("ok", True)) if isinstance(payload, dict) else True,
+            "provider": "kxkm",
+            "provider_label": "kxkm",
+            "project_id": normalized_project,
+            "knowledge_scope": normalized_scope,
+            "federation_scope": normalized_federation,
+            "results": results,
+            "total": int(data.get("total", len(results))) if isinstance(data, dict) else len(results),
+        }
+        self._trace(
+            run_id=run_id,
+            mode=mode,
+            step=step,
+            agent_name=agent_name,
+            event_type="mcp_call_completed",
+            server_key="kxkm",
+            tool_name="kxkm_rag_search",
+            status="ok",
+            latency_ms=latency_ms,
+            content_excerpt=f"kxkm results={result_payload['total']}",
+            transport="http-rest",
+        )
+        return result_payload
 
     async def knowledge_base_read_page(
         self,

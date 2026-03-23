@@ -30,6 +30,12 @@ Etat de reference au 7 mars 2026.
 
 ## 4. Hors scope immediat
 
-- [ ] Integrer la stack CAD dans le `docker-compose.yml` principal
-- [ ] Exposer le serveur MCP KiCad sur un transport HTTP reseau
+- [x] Integrer la stack CAD dans le `docker-compose.yml` principal
+  - 4 services (kicad-headless, kicad-mcp, freecad-headless, platformio) sous profile `cad`
+  - Resource limits et network backend configures
+- [x] Exposer le serveur MCP KiCad sur un transport HTTP reseau
+  - `deploy/cad/mcp-http-bridge.js` : bridge HTTP ↔ MCP stdio
+  - Endpoints: POST /mcp, GET /health, GET /tools
+  - Port configurable via `KICAD_MCP_PORT` (defaut 8300)
+  - `MCP_TRANSPORT=http` active le bridge, `stdio` reste le defaut
 - [ ] Ajouter une UI cockpit pour piloter la stack CAD

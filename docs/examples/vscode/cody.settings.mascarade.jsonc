@@ -1,0 +1,8 @@
+{
+  "openctx.providers": {
+    "https://openctx.org/npm/@openctx/provider-modelcontextprotocol?mascarade": {
+      "nodeCommand": "node",
+      "mcp.provider.uri": "file:///ABS/PATH/TO/mascarade/scripts/vscode/mascarade_mcp_stdio.js"
+    }
+  }
+}

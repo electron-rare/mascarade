@@ -1,6 +1,5 @@
 """Tests for P2P DHT — address validation and routing table."""
 
-import asyncio
 
 import pytest
 

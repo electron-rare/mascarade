@@ -1,6 +1,6 @@
 """Provider-aware knowledge base integration facade.
 
-Runtime selection is limited to self-hosted providers: Memos and Docmost.
+Runtime selection supports self-hosted providers plus the kxkm RAG bridge.
 """
 
 from __future__ import annotations
@@ -24,7 +24,7 @@ _DOCMOST_SESSION_SKEW = timedelta(seconds=30)
 
 def normalized_knowledge_base_provider() -> str:
     provider = settings.knowledge_base_provider.strip().lower()
-    return provider if provider in {"memos", "docmost"} else "memos"
+    return provider if provider in {"memos", "docmost", "kxkm"} else "memos"
 
 
 def knowledge_base_provider_label(provider: str | None = None) -> str:
@@ -33,6 +33,8 @@ def knowledge_base_provider_label(provider: str | None = None) -> str:
         return "Memos"
     if selected == "docmost":
         return "Docmost"
+    if selected == "kxkm":
+        return "kxkm"
     return "Knowledge Base"
 
 
@@ -52,6 +54,8 @@ def knowledge_base_auth_configured(provider: str | None = None) -> bool:
             and settings.docmost_email.strip()
             and is_secret_configured(settings.docmost_password)
         )
+    if selected == "kxkm":
+        return bool(settings.kxkm_rag_url.strip())
     return False
 
 
@@ -65,6 +69,8 @@ def knowledge_base_status_detail(provider: str | None = None) -> str:
             f"{label} non configure "
             "(DOCMOST_BASE_URL, DOCMOST_EMAIL ou DOCMOST_PASSWORD manquant)"
         )
+    if selected == "kxkm":
+        return f"{label} non configure (KXKM_RAG_URL manquant)"
     return f"{label} non configure (provider actif non supporte)"
 
 
@@ -77,7 +83,15 @@ class KnowledgeBaseAdapter(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    async def search(self, query: str, limit: int = 10) -> list[dict[str, Any]]:
+    async def search(
+        self,
+        query: str,
+        limit: int = 10,
+        *,
+        project_id: str | None = None,
+        federation_scope: list[str] | tuple[str, ...] | None = None,
+        knowledge_scope: str = "project",
+    ) -> list[dict[str, Any]]:
         raise NotImplementedError
 
     @abstractmethod
@@ -171,7 +185,15 @@ class MemosClient(KnowledgeBaseAdapter):
     async def close(self) -> None:
         await self._client.aclose()
 
-    async def search(self, query: str, limit: int = 10) -> list[dict[str, Any]]:
+    async def search(
+        self,
+        query: str,
+        limit: int = 10,
+        *,
+        project_id: str | None = None,
+        federation_scope: list[str] | tuple[str, ...] | None = None,
+        knowledge_scope: str = "project",
+    ) -> list[dict[str, Any]]:
         if not query.strip():
             return []
         response = await self._client.get(
@@ -310,7 +332,15 @@ class DocmostClient(KnowledgeBaseAdapter):
         response.raise_for_status()
         return response.json()
 
-    async def search(self, query: str, limit: int = 10) -> list[dict[str, Any]]:
+    async def search(
+        self,
+        query: str,
+        limit: int = 10,
+        *,
+        project_id: str | None = None,
+        federation_scope: list[str] | tuple[str, ...] | None = None,
+        knowledge_scope: str = "project",
+    ) -> list[dict[str, Any]]:
         await self._ensure_session()
         if not query.strip():
             return []
@@ -373,6 +403,124 @@ class DocmostClient(KnowledgeBaseAdapter):
         return str(payload.get("id") or "").strip()
 
 
+def _normalize_scope(
+    *,
+    project_id: str | None = None,
+    federation_scope: list[str] | tuple[str, ...] | None = None,
+    knowledge_scope: str = "project",
+) -> tuple[str, list[str], str]:
+    normalized_project = (project_id or settings.mascarade_project_id).strip() or "default"
+    normalized_scope = (knowledge_scope or "project").strip().lower() or "project"
+    if normalized_scope not in {"project", "federated"}:
+        raise RuntimeError(f"Unsupported knowledge scope: {knowledge_scope}")
+
+    cleaned_federation = [
+        item.strip()
+        for item in (federation_scope or [])
+        if str(item).strip()
+    ]
+    if normalized_scope == "project":
+        cleaned_federation = [normalized_project]
+    elif not cleaned_federation:
+        raise RuntimeError("federation_scope is required when knowledge_scope is federated")
+    elif normalized_project not in cleaned_federation:
+        cleaned_federation = [normalized_project, *cleaned_federation]
+
+    return normalized_project, list(dict.fromkeys(cleaned_federation)), normalized_scope
+
+
+class KxkmClient(KnowledgeBaseAdapter):
+    provider = "kxkm"
+    label = "kxkm"
+
+    def __init__(self) -> None:
+        base_url = settings.kxkm_rag_url.strip().rstrip("/")
+        if not base_url:
+            raise RuntimeError("kxkm RAG base URL is missing")
+        self._base_url = base_url
+        self._client = httpx.AsyncClient(
+            base_url=base_url,
+            headers={"Accept": "application/json"},
+            timeout=settings.kxkm_timeout_seconds,
+        )
+
+    async def close(self) -> None:
+        await self._client.aclose()
+
+    async def search(
+        self,
+        query: str,
+        limit: int = 10,
+        *,
+        project_id: str | None = None,
+        federation_scope: list[str] | tuple[str, ...] | None = None,
+        knowledge_scope: str = "project",
+    ) -> list[dict[str, Any]]:
+        normalized_project, normalized_federation, normalized_scope = _normalize_scope(
+            project_id=project_id,
+            federation_scope=federation_scope,
+            knowledge_scope=knowledge_scope,
+        )
+        if not query.strip():
+            return []
+
+        response = await self._client.post(
+            "/api/v2/rag/search",
+            headers={
+                "x-mascarade-project-id": normalized_project,
+                "x-mascarade-knowledge-scope": normalized_scope,
+                "x-mascarade-federation-scope": ",".join(normalized_federation),
+            },
+            json={
+                "query": query.strip(),
+                "limit": max(1, min(limit, 50)),
+                "project_id": normalized_project,
+                "federation_scope": normalized_federation,
+                "knowledge_scope": normalized_scope,
+            },
+        )
+        response.raise_for_status()
+        payload = response.json()
+        data = payload.get("data", payload) if isinstance(payload, dict) else {}
+        items = data.get("results") or []
+        results: list[dict[str, Any]] = []
+        for index, item in enumerate(items[:limit]):
+            if not isinstance(item, dict):
+                item = {"text": str(item)}
+            text = str(item.get("text") or item.get("content") or item.get("chunk") or "").strip()
+            title = _extract_first_line_title(text, f"kxkm-{index + 1}")
+            results.append(
+                {
+                    "id": str(item.get("id") or item.get("chunk_id") or f"kxkm-{index + 1}"),
+                    "title": title,
+                    "url": str(item.get("url") or item.get("source_url") or ""),
+                    "provider": self.provider,
+                    "text": text,
+                    "score": item.get("score"),
+                    "metadata": {
+                        "project_id": normalized_project,
+                        "knowledge_scope": normalized_scope,
+                        "federation_scope": normalized_federation,
+                        **{
+                            key: value
+                            for key, value in item.items()
+                            if key not in {"id", "chunk_id", "text", "content", "chunk", "url", "source_url", "score"}
+                        },
+                    },
+                }
+            )
+        return results
+
+    async def read_page(self, page_id: str) -> str:
+        raise RuntimeError("kxkm knowledge provider is search-only")
+
+    async def append_to_page(self, page_id: str, content: str) -> None:
+        raise RuntimeError("kxkm knowledge provider is search-only")
+
+    async def create_page(self, parent_id: str, title: str, content: str = "") -> str:
+        raise RuntimeError("kxkm knowledge provider is search-only")
+
+
 class KnowledgeBaseClient(KnowledgeBaseAdapter):
     def __init__(self, provider: str | None = None) -> None:
         self.provider = provider or normalized_knowledge_base_provider()
@@ -381,14 +529,30 @@ class KnowledgeBaseClient(KnowledgeBaseAdapter):
             self._client: KnowledgeBaseAdapter = MemosClient()
         elif self.provider == "docmost":
             self._client = DocmostClient()
+        elif self.provider == "kxkm":
+            self._client = KxkmClient()
         else:
             raise RuntimeError(f"Unsupported knowledge base provider: {self.provider}")
 
     async def close(self) -> None:
         await self._client.close()
 
-    async def search(self, query: str, limit: int = 10) -> list[dict[str, Any]]:
-        return await self._client.search(query, limit=limit)
+    async def search(
+        self,
+        query: str,
+        limit: int = 10,
+        *,
+        project_id: str | None = None,
+        federation_scope: list[str] | tuple[str, ...] | None = None,
+        knowledge_scope: str = "project",
+    ) -> list[dict[str, Any]]:
+        return await self._client.search(
+            query,
+            limit=limit,
+            project_id=project_id,
+            federation_scope=federation_scope,
+            knowledge_scope=knowledge_scope,
+        )
 
     async def read_page(self, page_id: str) -> str:
         return await self._client.read_page(page_id)

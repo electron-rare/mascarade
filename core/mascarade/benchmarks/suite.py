@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 import logging
 from collections import defaultdict
 from dataclasses import dataclass, field
@@ -64,6 +63,7 @@ class BenchmarkSuite:
     runner: BenchmarkRunner | None = None
     run_history: list[BenchmarkRun] = field(default_factory=list)
     max_history: int = 100
+    _run_counter: int = field(default=0, repr=False)
 
     def __post_init__(self) -> None:
         """Initialiser les composants après création."""
@@ -75,7 +75,8 @@ class BenchmarkSuite:
     def _generate_run_id(self) -> str:
         """Générer un ID unique pour une exécution de benchmark."""
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        return f"bench_{timestamp}_{len(self.run_history)}"
+        self._run_counter += 1
+        return f"bench_{timestamp}_{self._run_counter}"
 
     def _record_run(self, run: BenchmarkRun) -> None:
         """Enregistrer une exécution dans l'historique."""
@@ -137,7 +138,7 @@ class BenchmarkSuite:
             run.failed_benchmarks = sum(1 for r in results if not r.success)
 
             # Collecter les domaines testés
-            domains = set(r.domain for r in results)
+            domains = {r.domain for r in results}
             run.domains_tested = sorted(domains)
 
         except Exception as exc:
@@ -209,7 +210,7 @@ class BenchmarkSuite:
             run.providers_tested = sorted(providers_tested)
 
             # Collecter les domaines testés
-            domains = set(r.domain for r in all_results)
+            domains = {r.domain for r in all_results}
             run.domains_tested = sorted(domains)
 
         except Exception as exc:
@@ -481,7 +482,7 @@ class BenchmarkSuite:
                 stats["failed"] += 1
 
         # Calculer les moyennes
-        for domain, stats in domain_stats.items():
+        for _domain, stats in domain_stats.items():
             if stats["successful"] > 0:
                 stats["avg_latency"] /= stats["successful"]
                 stats["success_rate"] = (stats["successful"] / stats["total"]) * 100

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import inspect
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import StrEnum
@@ -139,7 +140,7 @@ class RetryExecutor:
         for attempt in range(max_attempts):
             try:
                 # Tenter d'exécuter la fonction
-                if asyncio.iscoroutinefunction(fn):
+                if inspect.iscoroutinefunction(fn):
                     result = await fn()
                 else:
                     result = fn()

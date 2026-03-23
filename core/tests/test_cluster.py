@@ -5,9 +5,14 @@ from contextlib import asynccontextmanager
 import httpx
 import pytest
 
-from mascarade.cluster import ClusterManager, ClusterPeer, _mdns_peer_matches_local_fingerprint, parse_cluster_peers
-from mascarade.config import settings
 from mascarade.auth import add_api_key, get_active_api_keys, remove_api_key
+from mascarade.cluster import (
+    ClusterManager,
+    ClusterPeer,
+    _mdns_peer_matches_local_fingerprint,
+    parse_cluster_peers,
+)
+from mascarade.config import settings
 from mascarade.server import app
 
 
@@ -226,6 +231,56 @@ async def test_cluster_manager_forward_send_returns_remote_payload(monkeypatch):
     assert result["peer_id"] == "node-gpu"
     assert result["node_id"] == "node-gpu"
     assert result["content"] == "remote hello"
+
+
+@pytest.mark.asyncio
+async def test_cluster_manager_forward_send_no_double_execution(monkeypatch):
+    """Bug fix: forward_send must NOT fire two HTTP requests.
+    It should try P2P first, then fall back to HTTP only if P2P fails."""
+    settings.cluster_enabled = True
+    settings.cluster_shared_key = "cluster-key-123456"
+    settings.node_id = "node-1"
+    settings.node_role = "general"
+    settings.node_label = "Node One"
+    settings.cluster_request_timeout_ms = 5000
+    settings.cluster_peers = "node-gpu|gpu|http://100.64.0.20:8100"
+
+    manager = ClusterManager(router=_RouterLike(), agents_count_provider=lambda: 1)
+
+    http_call_count = 0
+
+    async def counting_request_json(peer, method, path, *, json=None):
+        nonlocal http_call_count
+        http_call_count += 1
+        return {
+            "node_id": "node-gpu",
+            "content": "remote hello",
+            "model": "llama3.2:3b",
+            "provider": "ollama",
+            "usage": {"input_tokens": 2, "output_tokens": 3},
+        }
+
+    monkeypatch.setattr(manager, "_request_json", counting_request_json)
+
+    await manager.forward_send(
+        peer_id="node-gpu",
+        payload={
+            "messages": [{"role": "user", "content": "hello"}],
+            "strategy": "routellm",
+            "routing_policy": "strong",
+            "provider": "ollama",
+            "model": "llama3.2:3b",
+            "system": None,
+            "temperature": 0.7,
+            "max_tokens": 2048,
+        },
+    )
+
+    # Without fix: http_call_count == 2 (pre-P2P + fallback)
+    # With fix: http_call_count == 1 (only fallback after P2P returns None)
+    assert http_call_count == 1, (
+        f"Expected exactly 1 HTTP call (fallback), got {http_call_count}"
+    )
 
 
 @pytest.mark.asyncio
@@ -498,5 +553,5 @@ def test_mdns_peer_matches_local_cluster_key():
     )
     from hashlib import sha256
 
-    expected = sha256("cluster-shared-key".encode("utf-8")).hexdigest()
+    expected = sha256(b"cluster-shared-key").hexdigest()
     assert _mdns_peer_matches_local_fingerprint(expected) is True

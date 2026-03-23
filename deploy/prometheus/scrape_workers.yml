@@ -1,0 +1,30 @@
+# MascaradeGrid worker metrics scrape configuration
+# Include this in prometheus.yml via scrape_configs or file_sd_configs.
+#
+# The mascarade-core service exposes /metrics with all scheduler + worker
+# gauges.  Individual worker agents can also expose /metrics if running
+# the prometheus_client HTTP server (port 9102 by default).
+
+scrape_configs:
+  # Scrape scheduler metrics from the mascarade-core API
+  - job_name: mascarade-grid-scheduler
+    metrics_path: /metrics
+    scrape_interval: 10s
+    static_configs:
+      - targets: ['mascarade-core:8100']
+        labels:
+          component: scheduler
+
+  # Scrape individual worker agents (add/remove entries as workers join)
+  # Each worker-agent can run a lightweight prometheus_client HTTP server.
+  - job_name: mascarade-grid-workers
+    metrics_path: /metrics
+    scrape_interval: 10s
+    static_configs:
+      - targets:
+          - '192.168.0.119:9102'   # VM worker
+          - '192.168.0.120:9102'   # Tower worker
+          - '192.168.0.210:9102'   # CILS worker
+          - 'kxkm-ai:9102'        # KXKM-AI worker (via Tailscale)
+        labels:
+          component: worker

@@ -5,10 +5,10 @@ import time
 
 import pytest
 
-from mascarade.node_engine.engine import GraphExecutionEngine, NodeResult
+from mascarade.node_engine.engine import GraphExecutionEngine
 from mascarade.node_engine.graph import ExecutionContext, Graph, GraphEdge, GraphNode
-from mascarade.node_engine.registry import NodeTypeRegistry, NodeType, WorkerRegistry
-from mascarade.node_engine.worker import NodeWorker, NodeCapability
+from mascarade.node_engine.registry import NodeType, NodeTypeRegistry, WorkerRegistry
+from mascarade.node_engine.worker import NodeCapability, NodeWorker
 
 
 class MockWorker(NodeWorker):

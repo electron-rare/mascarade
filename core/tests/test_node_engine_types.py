@@ -1,13 +1,16 @@
 """Tests for Universal Node Engine type system."""
 
+import pytest
+from pydantic import ValidationError
+
 from mascarade.node_engine.types import (
     ArrayType,
     DomainType,
     MapType,
     NodePortDefinition,
     OptionalType,
-    PrimitiveType,
     PortType,
+    PrimitiveType,
     StreamType,
     UnionType,
 )
@@ -255,6 +258,154 @@ class TestNodePortDefinition:
         assert data["type"] == "boolean"
         assert data["required"] is True
         assert data["description"] == "Boolean output"
+
+
+class TestPortType:
+    """Test suite for PortType model."""
+
+    def test_basic_data_port(self):
+        pt = PortType(name="prompt", type="string")
+        assert pt.name == "prompt"
+        assert pt.effective_type == "string"
+        assert pt.is_primitive is True
+
+    def test_is_array(self):
+        pt = PortType(name="items", type="array<string>")
+        assert pt.is_array is True
+        assert pt.is_primitive is False
+
+    def test_is_map(self):
+        pt = PortType(name="kv", type="map<string,number>")
+        assert pt.is_map is True
+
+    def test_is_stream(self):
+        pt = PortType(name="events", type="stream<json>")
+        assert pt.is_stream is True
+
+    def test_domain_type_port(self):
+        pt = PortType(name="resp", type="ai.LLMResponse")
+        assert pt.is_primitive is False
+
+    def test_empty_name_with_type_raises(self):
+        with pytest.raises(ValidationError):
+            PortType(name="", type="string")
+
+    def test_empty_type_with_name_raises(self):
+        with pytest.raises(ValidationError):
+            PortType(name="foo", type="")
+
+    def test_type_descriptor_primitive_kind_bypasses_validation(self):
+        from mascarade.node_engine.types import PortKind
+        pt = PortType(name=PrimitiveType.STRING, type="", kind=PortKind.PRIMITIVE)
+        assert pt.kind == PortKind.PRIMITIVE
+
+
+class TestDomainTypeValidation:
+    """Additional DomainType validation tests."""
+
+    def test_qualified_name(self):
+        dt = DomainType(domain="electronics", name="PCBLayout", schema={})
+        assert dt.qualified_name == "electronics.PCBLayout"
+        assert dt.full_name == "electronics.PCBLayout"
+
+    def test_validate_schema_empty(self):
+        dt = DomainType(domain="ai", name="X", schema={})
+        valid, err = dt.validate_schema({"anything": 1})
+        assert valid is True
+        assert err is None
+
+    def test_validate_schema_required_field_missing(self):
+        dt = DomainType(
+            domain="ai", name="Y",
+            schema={"required": ["name"], "properties": {}},
+        )
+        valid, err = dt.validate_schema({})
+        assert valid is False
+        assert "name" in err
+
+    def test_validate_schema_enum_violation(self):
+        dt = DomainType(
+            domain="ai", name="Z",
+            schema={"properties": {"status": {"enum": ["ok", "error"]}}},
+        )
+        valid, err = dt.validate_schema({"status": "unknown"})
+        assert valid is False
+        assert "enum" in err
+
+    def test_validate_schema_enum_ok(self):
+        dt = DomainType(
+            domain="ai", name="Z",
+            schema={"properties": {"status": {"enum": ["ok", "error"]}}},
+        )
+        valid, err = dt.validate_schema({"status": "ok"})
+        assert valid is True
+
+    def test_domain_empty_name_rejected(self):
+        with pytest.raises(ValidationError):
+            DomainType(domain="", name="Foo", schema={})
+
+    def test_name_empty_rejected(self):
+        with pytest.raises(ValidationError):
+            DomainType(domain="ai", name="", schema={})
+
+
+class TestHelperFunctions:
+    """Test port helper functions."""
+
+    def test_primitive_port(self):
+        from mascarade.node_engine.types import PortDirection, primitive_port
+        p = primitive_port("voltage", PortDirection.INPUT, PrimitiveType.NUMBER)
+        assert p.name == "voltage"
+        assert p.effective_type == "number"
+        assert p.direction == PortDirection.INPUT
+
+    def test_primitive_port_swapped_args(self):
+        from mascarade.node_engine.types import PortDirection, primitive_port
+        p = primitive_port("temp", PrimitiveType.STRING, PortDirection.OUTPUT)
+        assert p.direction == PortDirection.OUTPUT
+        assert p.effective_type == "string"
+
+    def test_domain_port(self):
+        from mascarade.node_engine.types import PortDirection, domain_port
+        p = domain_port("output", PortDirection.OUTPUT, "ai", "LLMResponse")
+        assert p.effective_type == "ai.LLMResponse"
+
+    def test_array_port_string_element(self):
+        from mascarade.node_engine.types import PortDirection, array_port
+        p = array_port("items", PortDirection.INPUT, "string")
+        assert p.effective_type == "array<string>"
+        assert p.is_array is True
+
+    def test_void_port(self):
+        from mascarade.node_engine.types import PortDirection, void_port
+        p = void_port("done", PortDirection.OUTPUT)
+        assert p.effective_type == "void"
+        assert p.is_primitive is True
+
+
+class TestPortTypeUnion:
+    """Test PortTypeUnion encompasses all expected types."""
+
+    def test_primitive_in_union(self):
+        import typing
+
+        from mascarade.node_engine.types import PortTypeUnion
+        args = typing.get_args(PortTypeUnion)
+        assert PrimitiveType in args
+
+    def test_array_type_in_union(self):
+        import typing
+
+        from mascarade.node_engine.types import PortTypeUnion
+        args = typing.get_args(PortTypeUnion)
+        assert ArrayType in args
+
+    def test_domain_type_in_union(self):
+        import typing
+
+        from mascarade.node_engine.types import PortTypeUnion
+        args = typing.get_args(PortTypeUnion)
+        assert DomainType in args
 
 
 class TestTypeSystemIntegration:

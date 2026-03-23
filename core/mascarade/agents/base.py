@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import time
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
@@ -12,6 +11,7 @@ from mascarade.router.router import Strategy
 
 if TYPE_CHECKING:
     from mascarade.agents.registry import AgentRegistry
+    from mascarade.agents.skill_registry import SkillRegistry
 
 
 @dataclass
@@ -29,13 +29,36 @@ class Agent:
     tools: list[str] = field(default_factory=list)
     temperature: float = 0.7
     max_tokens: int = 4096
+    skills: list[str] = field(default_factory=list)  # assigned skill names
+    category: str | None = None  # grouping: domain, code, creative, etc.
     retry_config: dict | None = None
+    prompt_versions: list[dict] = field(default_factory=list)
+
+    def get_enhanced_system_prompt(self, skill_registry: SkillRegistry) -> str:
+        """Build system prompt enhanced with assigned skills.
+
+        Concatenates the agent's base system_prompt with instruction fragments
+        from all assigned and enabled skills.
+        """
+        parts = [self.system_prompt]
+        for skill_name in self.skills:
+            try:
+                skill = skill_registry.get(skill_name)
+            except KeyError:
+                continue
+            if skill.enabled and skill.instruction:
+                parts.append(skill.instruction)
+        return "\n\n".join(parts)
 
     def build_send_payload(
         self,
         prompt: str,
         *,
         context: list[dict] | None = None,
+        skill_registry: SkillRegistry | None = None,
+        project_id: str | None = None,
+        federation_scope: list[str] | tuple[str, ...] | None = None,
+        knowledge_scope: str = "project",
     ) -> dict[str, object]:
         messages = list(context) if context else []
         messages.append({"role": "user", "content": prompt})
@@ -45,10 +68,21 @@ class Agent:
             "routing_policy": self.routing_policy,
             "provider": self.preferred_provider,
             "model": self.preferred_model,
-            "system": self.system_prompt,
+            "system": self._resolve_system_prompt(skill_registry),
             "temperature": self.temperature,
             "max_tokens": self.max_tokens,
+            "project_id": project_id,
+            "federation_scope": list(federation_scope or []),
+            "knowledge_scope": knowledge_scope,
         }
+
+    def _resolve_system_prompt(
+        self, skill_registry: SkillRegistry | None = None
+    ) -> str:
+        """Return the effective system prompt, enhanced with skills if available."""
+        if skill_registry and self.skills:
+            return self.get_enhanced_system_prompt(skill_registry)
+        return self.system_prompt
 
     async def run(
         self,
@@ -57,18 +91,28 @@ class Agent:
         router: Router,
         context: list[dict] | None = None,
         registry: AgentRegistry | None = None,
+        skill_registry: SkillRegistry | None = None,
+        project_id: str | None = None,
+        federation_scope: list[str] | tuple[str, ...] | None = None,
+        knowledge_scope: str = "project",
+        system_override: str | None = None,
     ) -> LLMResponse:
         """Exécuter l'agent avec un prompt donné."""
-        payload = self.build_send_payload(prompt, context=context)
+        system = system_override or self._resolve_system_prompt(skill_registry)
+        messages = list(context) if context else []
+        messages.append({"role": "user", "content": prompt})
         return await router.send(
-            payload["messages"],
-            strategy=payload["strategy"],
-            routing_policy=payload.get("routing_policy"),
-            provider=payload["provider"],
-            model=payload["model"],
-            system=payload["system"],
-            temperature=payload["temperature"],
-            max_tokens=payload["max_tokens"],
+            messages,
+            strategy=self.strategy,
+            routing_policy=self.routing_policy,
+            provider=self.preferred_provider,
+            model=self.preferred_model,
+            system=system,
+            temperature=self.temperature,
+            max_tokens=self.max_tokens,
+            project_id=project_id,
+            federation_scope=federation_scope,
+            knowledge_scope=knowledge_scope,
         )
 
     async def run_with_history(
@@ -77,15 +121,23 @@ class Agent:
         *,
         router: Router,
         registry: AgentRegistry | None = None,
+        skill_registry: SkillRegistry | None = None,
+        project_id: str | None = None,
+        federation_scope: list[str] | tuple[str, ...] | None = None,
+        knowledge_scope: str = "project",
     ) -> LLMResponse:
         """Exécuter l'agent avec un historique de messages complet."""
+        system = self._resolve_system_prompt(skill_registry)
         return await router.send(
             messages,
             strategy=self.strategy,
             routing_policy=self.routing_policy,
             provider=self.preferred_provider,
             model=self.preferred_model,
-            system=self.system_prompt,
+            system=system,
             temperature=self.temperature,
             max_tokens=self.max_tokens,
+            project_id=project_id,
+            federation_scope=federation_scope,
+            knowledge_scope=knowledge_scope,
         )

@@ -3,8 +3,8 @@
 import asyncio
 import json
 import os
-import sys
 import signal
+import sys
 
 _core_dir = os.environ.get('PYTHONPATH', os.path.expanduser('~/mascarade/core'))
 if _core_dir not in sys.path:
@@ -26,7 +26,6 @@ USE_RELAY = os.environ.get('P2P_USE_RELAY', 'false').lower() == 'true'
 
 async def _run_finetune(payload: dict) -> dict:
     """Run a fine-tuning job using Unsloth on this node."""
-    import subprocess
     model = payload.get('model', 'Qwen/Qwen2.5-Coder-1.5B-Instruct')
     dataset = payload.get('dataset', 'ise-uiuc/Magicoder-OSS-Instruct-75K')
     max_examples = payload.get('max_examples', 5000)

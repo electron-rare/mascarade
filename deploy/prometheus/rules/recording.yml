@@ -1,0 +1,15 @@
+groups:
+  - name: mascarade_recording_rules
+    interval: 30s
+    rules:
+      # Request rate: per-second average over a 5-minute window
+      - record: mascarade:request_rate:5m
+        expr: sum(rate(http_requests_total{job=~"ops-agent|mascarade"}[5m]))
+
+      # Error rate: per-second 5xx error average over a 5-minute window
+      - record: mascarade:error_rate:5m
+        expr: sum(rate(http_requests_total{job=~"ops-agent|mascarade", status=~"5.."}[5m]))
+
+      # P95 latency: 95th percentile request duration over a 5-minute window
+      - record: mascarade:p95_latency:5m
+        expr: histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{job=~"ops-agent|mascarade"}[5m])) by (le))

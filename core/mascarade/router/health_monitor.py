@@ -216,7 +216,7 @@ class HealthMonitor:
 
             # Try to get a simple completion as a health probe
             # Use the provider's send method with a minimal message
-            response = await provider.send(
+            await provider.send(
                 messages=[{"role": "user", "content": "ping"}],
                 model=None,  # Let provider choose default model
                 max_tokens=1,
@@ -227,7 +227,7 @@ class HealthMonitor:
 
             # Successful probe - update health cache with good latency
             if provider.name in self._health_cache:
-                cached = self._health_cache[provider.name]
+                self._health_cache[provider.name]
                 # Keep existing health score but note the successful probe
                 logger.debug(
                     "Health probe success — provider=%s latency=%.3fs",

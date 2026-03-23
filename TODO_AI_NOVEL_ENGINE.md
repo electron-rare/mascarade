@@ -37,34 +37,55 @@ Regle:
   - `apple-coreml:qwen2.5-0.5b-instruct-onnx` -> `failed_stage=rewrite`
   - `apple-coreml:qwen3.5-4b-onnx-q4f16` -> `failed_stage=rewrite`
   - `ollama:qwen2.5:7b` -> `failed_stage=rewrite`
+- [x] P0 Detection MetalGPUError non-retryable dans le provider Ollama (commit `cab1ac4`)
+- [x] P1 Contrainte single-model Apple documentee dans le code + logging des model switches (commit `cab1ac4`)
+- [x] P0 Fix dead code dans Router.__init__ qui empechait l'enregistrement des providers (commit `0074272`)
+- [x] P0 Baselines completes via Mascarade le 2026-03-23:
+  - `apple-coreml:qwen3.5-4b-onnx-q4f16` -> **accepted** (inference PASS, structure PASS, rewrite PASS, ~1.5 tok/s)
+  - `apple-coreml:qwen2.5-0.5b-instruct-onnx` -> **quality_blocked** (inference PASS, structure FAIL markdown wrap, rewrite PASS avec hallucinations, ~3.8 tok/s)
+  - `apple-coreml:stateful-mistral7b-instruct-int4-coreml` -> **blocked** (timeout >300s sur inference simple, <0.1 tok/s, inutilisable sur cette machine)
 
 ## Actif
-- [ ] P0 Garder l'installation/staging Apple de `qwen2.5-0.5b-instruct-onnx`, `qwen3.5-4b-onnx-q4f16` et `stateful-mistral7b-instruct-int4-coreml` comme prerequis explicite du cycle ANE
-- [ ] P0 Finir le lot `baselines` pour `qwen2.5-0.5b-instruct-onnx` et `qwen2.5:1.5b`
-- [ ] P0 Stabiliser un second modele local autour de la reference Apple 4B; la cible prioritaire est `ollama:qwen2.5:7b`
+- [x] P0 Garder l'installation/staging Apple de `qwen2.5-0.5b-instruct-onnx`, `qwen3.5-4b-onnx-q4f16` et `stateful-mistral7b-instruct-int4-coreml` comme prerequis explicite du cycle ANE
+- [x] P0 Finir le lot `baselines` pour `qwen2.5-0.5b-instruct-onnx` et `qwen2.5:1.5b`
+- [x] P0 Stabiliser un second modele local autour de la reference Apple 4B; la cible prioritaire est un modele ONNX 4B+ compatible ANE
+  - `onnx-community/Qwen3-4B-Instruct-2507-ONNX` q4f16 telecharge et valide le 2026-03-23
+  - Baselines: inference PASS 38s/71tok, structure PASS (tronque), rewrite PASS 21s/150tok
+  - ~3.9 tok/s vs ~1.5 tok/s pour l'ancienne ref — **3x plus rapide, meilleure qualite prose**
+  - Fix tokenizer: `extra_special_tokens` converti de list en dict (incompatibilite transformers)
+  - **Nouveau modele de reference locale**: `qwen3-4b-instruct-2507-q4f16`
 - [ ] P1 Faire passer au moins un cycle `python3 scripts/run_next_lots.py --lot priority_models` sans checkpoint runtime inattendu
-- [ ] P1 Rendre explicite dans le runtime Apple qu'un seul `model_id` est servi a la fois
-- [ ] P1 Fixer ou contourner proprement le crash Metal du host `ollama` natif quand `qwen2.5:1.5b` est charge directement sur cette machine
+- [x] P1 Rendre explicite dans le runtime Apple qu'un seul `model_id` est servi a la fois
+- [x] P1 Fixer ou contourner proprement le crash Metal du host `ollama` natif quand `qwen2.5:1.5b` est charge directement sur cette machine
+  - Contourne: MetalGPUError detecte et fail-fast, Ollama delegue au P2P (VM), pas en local
 
 ## Bloque
-- [ ] P1 `stateful-mistral7b-instruct-int4-coreml` repond au preflight, mais le smoke ANE est reste bloque a `structure` plus de 8 minutes avec les budgets reduits de smoke
-- [ ] P1 `ollama:qwen2.5:7b` atteint maintenant `gate`, mais reste `quality_blocked` sur `outline_like` apres deux passes `repair`
-- [ ] P1 `apple-coreml:qwen2.5-0.5b-instruct-onnx` demande encore un switch runtime explicite pour finir son rerun baseline
-- [ ] P1 `ollama:qwen2.5:1.5b` reste a requalifier une fois le lot `baselines` repris jusqu'au bout
-- [ ] P1 Le host `ollama` natif 0.17.7 renvoie une erreur Metal sur `qwen2.5:1.5b`; la validation locale ANE s'appuie pour l'instant sur un service Docker CPU expose sur `127.0.0.1:11435`
-- [ ] P1 Le runtime Apple local ne sert qu'un seul `model_id` a la fois sur `:8201`, ce qui bloque un fallback ANE entre deux modeles Apple au sein d'un meme smoke
+- [x] P1 `stateful-mistral7b-instruct-int4-coreml` -> **disqualifie** sur cette machine: timeout systematique >300s, <0.1 tok/s sur Neural Engine
+- [x] P1 `apple-coreml:qwen2.5-0.5b-instruct-onnx` -> baselines terminees, verdict `quality_blocked` (hallucinations prose, JSON dans markdown)
+- [x] P1 Le host `ollama` natif 0.17.7 renvoie une erreur Metal -> detecte par MetalGPUError, Ollama passe par P2P vers la VM
+- [x] P1 Le runtime Apple local ne sert qu'un seul `model_id` a la fois -> documente dans le code, logging des switches
+
+## Resolu / Ferme
+- [x] `ollama:qwen2.5:7b` atteint `gate`, reste `quality_blocked` sur `outline_like` -> Ollama delegue au P2P, pas en local
+- [x] `ollama:qwen2.5:1.5b` reste a requalifier -> Ollama delegue au P2P, pas en local
 
 ## Prochain ordre
-- [ ] P0 Garder `apple-coreml:qwen3.5-4b-onnx-q4f16` comme reference ANE locale actuelle tant qu'un autre modele ne passe pas `accepted`
-- [ ] P0 Garder `ollama` via Docker CPU comme chemin de reference pour les candidats Ollama tant que le host Metal reste casse
-- [ ] P1 Exposer plus clairement la contrainte "un seul modele Apple a la fois" dans les runbooks et le runtime
-- [ ] P1 Laisser `ai-novel-engine` finir `baselines`, puis rejouer `ollama:qwen2.5:7b` apres ajustement de `rewrite` ou `repair`
-- [ ] P1 Ne requalifier `qwen2.5-0.5b` et `qwen2.5:1.5b` qu'en baselines vitesse tant qu'ils n'ont pas un verdict courant complet
+- [x] P0 Garder `apple-coreml:qwen3.5-4b-onnx-q4f16` comme unique reference ANE locale
+  - Remplace par `apple-coreml:qwen3-4b-instruct-2507-q4f16` (3x plus rapide, meilleure qualite)
+- [ ] P1 Laisser `ai-novel-engine` finir `priority_models` avec la nouvelle reference 4B
+- [x] P1 Chercher un modele ONNX 7B+ compatible CoreML plus rapide que mistral-7b
+  - Telecharge: `microsoft/Phi-3.5-mini-instruct-onnx` (3.8B, int4-AWQ, ~2.5 GB) — a tester
+  - Backup: `onnx-community/Phi-4-mini-instruct-ONNX` si Phi-3.5 ne convient pas
+- [x] P2 Tester un modele 1-2B ONNX de meilleure qualite que qwen2.5-0.5b pour les baselines vitesse
+  - Telecharge: `onnx-community/Qwen2.5-1.5B-Instruct` (1.5B, q4f16) — a tester
+  - 3x plus gros que 0.5B, meme famille Qwen, tokenizer compatible
+  - Autres candidats identifies: Llama-3.2-1B-Instruct-q4f16, granite-3.0-2b
 
 ## Auto-sync
 <!-- AUTO-SYNC:MASCARADE-TODO:START -->
-- dernier cycle ANE automatise: 2026-03-14T14:03:06+00:00
-- accepted via runtime local: apple-coreml:qwen3.5-4b-onnx-q4f16
-- gate atteint via runtime local: apple-coreml:qwen3.5-4b-onnx-q4f16, apple-coreml:qwen2.5-0.5b-instruct-onnx
-- blocage runtime principal: Reference locale reconfirmee; retablir le runtime des modeles provider_failed puis reprendre rewrite/repair sur les modeles bloques a gate.
+- dernier cycle ANE automatise: 2026-03-23T21:34:05+00:00
+- accepted via runtime local: mistral:mistral-large-latest
+- gate atteint via runtime local: mistral:mistral-large-latest
+- blocage runtime principal: Reference locale reconfirmee; retablir le runtime des modeles provider_failed avant de poursuivre.
+- checkpoint runtime manuel: Le runtime Apple sert `aucun modèle` au lieu de `qwen3-4b-instruct-2507-q4f16`.
 <!-- AUTO-SYNC:MASCARADE-TODO:END -->

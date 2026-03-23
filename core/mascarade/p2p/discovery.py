@@ -2,13 +2,12 @@
 
 from __future__ import annotations
 
-import asyncio
 import logging
 import time
 from dataclasses import dataclass, field
 from typing import Any
 
-from mascarade.p2p.dht import DHTEntry, P2PDHT
+from mascarade.p2p.dht import P2PDHT
 
 logger = logging.getLogger("mascarade.p2p.discovery")
 

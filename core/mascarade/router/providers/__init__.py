@@ -24,6 +24,71 @@ except ImportError:
     pass
 
 try:
+    from mascarade.router.providers.mistral_agents import MistralAgentsProvider
+
+    __all__.append("MistralAgentsProvider")
+except ImportError:
+    pass
+
+try:
+    from mascarade.router.providers.mistral_studio import MistralStudioProvider
+
+    __all__.append("MistralStudioProvider")
+except ImportError:
+    pass
+
+try:
+    from mascarade.router.providers.mistral_embeddings import MistralEmbeddingsProvider
+
+    __all__.append("MistralEmbeddingsProvider")
+except ImportError:
+    pass
+
+try:
+    from mascarade.router.providers.gpt53_codex import GPT53CodexFunctionCalling, GPT53CodexProvider
+
+    __all__.append("GPT53CodexProvider")
+    __all__.append("GPT53CodexFunctionCalling")
+except ImportError:
+    pass
+
+try:
+    from mascarade.router.providers.interop import (
+        AgentCommunicationProtocol,
+        FinancialServicesInterop,
+        InteropManager,
+        ModelContextProtocol,
+        NISTCompliance,
+    )
+
+    __all__.extend([
+        "ModelContextProtocol",
+        "AgentCommunicationProtocol",
+        "InteropManager",
+        "NISTCompliance",
+        "FinancialServicesInterop"
+    ])
+except ImportError:
+    pass
+
+try:
+    from mascarade.router.providers.quantum import (
+        QuantumAIProvider,
+        QuantumClassicalHybrid,
+        QuantumReadiness,
+        QuantumSecurity,
+    )
+
+    __all__.extend([
+        "QuantumAIProvider",
+        "QuantumClassicalHybrid",
+        "QuantumReadiness",
+        "QuantumSecurity"
+    ])
+except ImportError:
+    pass
+
+try:
     from mascarade.router.providers.bedrock import BedrockProvider
 
     __all__.append("BedrockProvider")
@@ -52,9 +117,30 @@ except ImportError:
     pass
 
 try:
+    from mascarade.router.providers.mlx_lm import MLXLMProvider
+
+    __all__.append("MLXLMProvider")
+except ImportError:
+    pass
+
+try:
     from mascarade.router.providers.apple_coreml import AppleCoreMLProvider
 
     __all__.append("AppleCoreMLProvider")
+except ImportError:
+    pass
+
+try:
+    from mascarade.router.providers.exo import ExoProvider
+
+    __all__.append("ExoProvider")
+except ImportError:
+    pass
+
+try:
+    from mascarade.router.providers.litellm import LiteLLMProvider
+
+    __all__.append("LiteLLMProvider")
 except ImportError:
     pass
 

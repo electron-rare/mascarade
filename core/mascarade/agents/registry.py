@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import difflib
 import json
 import logging
@@ -11,6 +12,7 @@ from dataclasses import asdict
 from pathlib import Path
 
 from mascarade.agents.base import Agent
+from mascarade.agents.prompt_versioning import iso_utc_now
 from mascarade.metrics.tracker import MetricsTracker
 from mascarade.router.router import Strategy
 
@@ -27,11 +29,17 @@ class AgentRegistry:
         self._builtin_names: set[str] = set()
         self._storage_path = storage_path
         self.metrics = MetricsTracker()
+        self._lock = asyncio.Lock()
 
     def register(self, agent: Agent, *, builtin: bool = False) -> None:
         self._agents[agent.name] = agent
         if builtin:
             self._builtin_names.add(agent.name)
+
+    async def async_register(self, agent: Agent, *, builtin: bool = False) -> None:
+        """Thread-safe register for use from async contexts."""
+        async with self._lock:
+            self.register(agent, builtin=builtin)
 
     def get(self, name: str) -> Agent:
         if name not in self._agents:
@@ -46,6 +54,11 @@ class AgentRegistry:
     def remove(self, name: str) -> None:
         self._agents.pop(name, None)
         self._builtin_names.discard(name)
+
+    async def async_remove(self, name: str) -> None:
+        """Thread-safe remove for use from async contexts."""
+        async with self._lock:
+            self.remove(name)
 
     def __contains__(self, name: str) -> bool:
         return name in self._agents
@@ -88,6 +101,16 @@ class AgentRegistry:
         self.metrics.reset()
 
     # --- Persistance ---
+
+    async def async_save(self) -> None:
+        """Thread-safe save for use from async contexts."""
+        async with self._lock:
+            self.save()
+
+    async def async_load(self) -> None:
+        """Thread-safe load for use from async contexts."""
+        async with self._lock:
+            self.load()
 
     def save(self) -> None:
         """Sauvegarder les agents dynamiques dans un fichier JSON."""

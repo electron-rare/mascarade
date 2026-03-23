@@ -2,7 +2,6 @@
 
 import json
 import tempfile
-from datetime import UTC, datetime
 from pathlib import Path
 from uuid import uuid4
 
@@ -10,14 +9,11 @@ import pytest
 
 from mascarade.dispatch.dispatcher import (
     Dispatcher,
-    DispatchError,
-    MachineCandidate,
     MachineProfile,
     NoMachineAvailableError,
 )
 from mascarade.dispatch.job_queue import JobNotFoundError, JobQueue, JobQueueError
 from mascarade.dispatch.models import Job, JobRequirements, JobStatus
-
 
 # ===========================
 # JobQueue Tests

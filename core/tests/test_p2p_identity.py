@@ -1,7 +1,6 @@
 """Tests for P2P identity (Ed25519 keypair + PeerID)."""
 
 import tempfile
-from pathlib import Path
 
 from mascarade.p2p.identity import PeerIdentity
 
@@ -16,11 +15,10 @@ def test_generate_identity():
 
 def test_deterministic_peer_id():
     identity = PeerIdentity.generate()
-    pub_bytes = identity.public_key_bytes()
+    identity.public_key_bytes()
     # Same key should always produce the same peer_id
+
     from mascarade.p2p.identity import _peer_id_from_public_key
-    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
-    from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
 
     pub = identity.public_key
     pid1 = _peer_id_from_public_key(pub)

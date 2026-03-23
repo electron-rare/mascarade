@@ -23,8 +23,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
-import sys
 import time
 from pathlib import Path
 
@@ -281,7 +279,7 @@ def main() -> int:
         json.dump(stats, f, indent=2)
 
     print(f"\n{'=' * 60}")
-    print(f"Results:")
+    print("Results:")
     print(f"  Prompts processed:  {stats['total']}")
     print(f"  Valid DPO pairs:    {stats['valid_pairs']} ({stats['valid_pairs'] * 100 // max(1, stats['total'])}%)")
     print(f"  No passing cand.:   {stats['no_pass']}")

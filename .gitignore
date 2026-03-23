@@ -87,3 +87,9 @@ vendors/kicadrouterai/
 .worktrees/
 .security-key
 logs/security/
+
+# Machine inventory and local ops
+machine_info_*.txt
+MACHINE_INVENTORY.md
+.ops/
+.venv-*/

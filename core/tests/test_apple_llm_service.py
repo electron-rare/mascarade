@@ -2,15 +2,14 @@
 
 from __future__ import annotations
 
+import sys
 from contextlib import asynccontextmanager
 from importlib.util import module_from_spec, spec_from_file_location
 from pathlib import Path
-import sys
 from types import SimpleNamespace
 
 import httpx
 import pytest
-
 
 SERVICE_PATH = Path(__file__).resolve().parents[2] / "deploy" / "apple_llm_api" / "app.py"
 

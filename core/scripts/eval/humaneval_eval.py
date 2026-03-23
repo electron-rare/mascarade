@@ -10,7 +10,6 @@ import json
 import subprocess
 import sys
 import tempfile
-import textwrap
 import time
 import urllib.request
 from pathlib import Path
@@ -247,10 +246,10 @@ def main():
     print()
     score = passed / total * 100 if total else 0
     avg_time = sum(times) / len(times) if times else 0
-    print(f"=== Results ===")
+    print("=== Results ===")
     print(f"  pass@1: {passed}/{total} = {score:.1f}%")
     print(f"  Avg time/problem: {avg_time:.1f}s")
-    print(f"  Baseline Qwen2.5-Coder-1.5B-Instruct: 61.6%")
+    print("  Baseline Qwen2.5-Coder-1.5B-Instruct: 61.6%")
     print(f"  Delta: {score - 61.6:+.1f}pp")
 
 

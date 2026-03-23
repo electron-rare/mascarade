@@ -1,12 +1,21 @@
 import { Hono, type Context } from "hono";
 import { CoreApiError, coreClient } from "../client/core.js";
+import { buildAgentCatalog } from "../lib/agentCatalog.js";
 import { emitStructuredLog } from "../lib/otel.js";
 import { handleCoreError } from "../middleware/error.js";
+import {
+  AgentCreateRequestSchema,
+  AgentRunRequestSchema,
+  AgentUpdateRequestSchema,
+  KnowledgeScribeRunAndPushRequestSchema,
+  SendRequestSchema,
+} from "../validation/index.js";
 
 const agents = new Hono();
 const SAFE_NAME_RE = /^[\w.-]+$/;
 const OPS_AGENT_URL = (process.env.OPS_AGENT_URL || "http://ops-agent:9200").replace(/\/+$/, "");
 const REQUEST_TIMEOUT_MS = 15_000;
+const DEFAULT_PROJECT_ID = (process.env.MASCARADE_PROJECT_ID || "default").trim() || "default";
 
 type JsonBody = Record<string, unknown> | null;
 type ProviderMutationResponse = {
@@ -263,10 +272,41 @@ agents.get("/", async (c) => {
   }
 });
 
+/** Publier un catalogue unifie des agents Mascarade et CLI */
+agents.get("/catalog", async (c) => {
+  try {
+    const [agentResult, cliAgentResult] = await Promise.all([
+      coreClient.listAgents(),
+      coreClient.cliAgentsStatus(),
+    ]);
+    return c.json(buildAgentCatalog(agentResult.agents, cliAgentResult.agents));
+  } catch (error) {
+    const { status, body } = handleCoreError(error);
+    return c.json(body, status);
+  }
+});
+
 /** Creer un agent */
 agents.post("/", async (c) => {
   try {
-    const body = await c.req.json();
+    let raw: unknown;
+    try {
+      raw = await c.req.json();
+    } catch {
+      return c.json({ error: "Validation failed", details: [{ message: "Request body is not valid JSON" }] }, 400);
+    }
+    const parsed = AgentCreateRequestSchema.safeParse(raw);
+    if (!parsed.success) {
+      return c.json({
+        error: "Validation failed",
+        details: parsed.error.issues.map((issue: { path: (string | number)[]; message: string; code: string }) => ({
+          path: issue.path.join("."),
+          message: issue.message,
+          code: issue.code,
+        })),
+      }, 400);
+    }
+    const body = parsed.data;
     const result = await coreClient.createAgent(body);
     return c.json(result, 201);
   } catch (error) {
@@ -282,8 +322,23 @@ agents.post("/:name/run", async (c) => {
     if (!name || !SAFE_NAME_RE.test(name)) {
       return c.json({ error: "Invalid agent name" }, 400);
     }
-    const { messages } = await c.req.json();
-    const result = await coreClient.runAgent(name, messages);
+    const raw = await c.req.json();
+    const parsed = AgentRunRequestSchema.safeParse(raw);
+    if (!parsed.success) {
+      return c.json({
+        error: "Validation failed",
+        details: parsed.error.issues.map((issue: { path: (string | number)[]; message: string; code: string }) => ({
+          path: issue.path.join("."),
+          message: issue.message,
+          code: issue.code,
+        })),
+      }, 400);
+    }
+    const result = await coreClient.runAgent(name, parsed.data.messages, {
+      projectId: parsed.data.project_id,
+      knowledgeScope: parsed.data.knowledge_scope,
+      federationScope: parsed.data.federation_scope,
+    });
     return c.json(result);
   } catch (error) {
     const { status, body } = handleCoreError(error);
@@ -295,7 +350,11 @@ agents.post("/agent-zero/copilot", async (c) => {
   try {
     const body = (await c.req.json()) as OperatorCopilotRequest;
     const prompt = buildOperatorCopilotPrompt(body);
-    const result = await coreClient.runAgent("agent-zero", [{ role: "user", content: prompt }]);
+    const result = await coreClient.runAgent(
+      "agent-zero",
+      [{ role: "user", content: prompt }],
+      { projectId: DEFAULT_PROJECT_ID },
+    );
     emitStructuredLog({
       source: "agent-trace",
       service: "api",
@@ -336,8 +395,25 @@ agents.post("/agent-zero/copilot", async (c) => {
 /** Envoyer un prompt avec routage */
 agents.post("/send", async (c) => {
   try {
-    const body = await c.req.json();
-    const result = await coreClient.send(body);
+    let raw: unknown;
+    try {
+      raw = await c.req.json();
+    } catch {
+      return c.json({ error: "Validation failed", details: [{ message: "Request body is not valid JSON" }] }, 400);
+    }
+    const parsed = SendRequestSchema.safeParse(raw);
+    if (!parsed.success) {
+      return c.json({
+        error: "Validation failed",
+        details: parsed.error.issues.map((issue: { path: (string | number)[]; message: string; code: string }) => ({
+          path: issue.path.join("."),
+          message: issue.message,
+          code: issue.code,
+        })),
+      }, 400);
+    }
+
+    const result = await coreClient.send(parsed.data);
     return c.json(result);
   } catch (error) {
     const { status, body } = handleCoreError(error);
@@ -562,8 +638,25 @@ agents.post("/fallback/reset", async (c) => {
 /** Knowledge Scribe : executer puis pousser dans la knowledge base */
 agents.post("/knowledge-scribe/run-and-push", async (c) => {
   try {
-    const body = await c.req.json();
-    const result = await coreClient.knowledgeScribeRunAndPush(body);
+    let raw: unknown;
+    try {
+      raw = await c.req.json();
+    } catch {
+      return c.json({ error: "Validation failed", details: [{ message: "Request body is not valid JSON" }] }, 400);
+    }
+    const parsed = KnowledgeScribeRunAndPushRequestSchema.safeParse(raw);
+    if (!parsed.success) {
+      return c.json({
+        error: "Validation failed",
+        details: parsed.error.issues.map((issue: { path: (string | number)[]; message: string; code: string }) => ({
+          path: issue.path.join("."),
+          message: issue.message,
+          code: issue.code,
+        })),
+      }, 400);
+    }
+
+    const result = await coreClient.knowledgeScribeRunAndPush(parsed.data);
     return c.json(result);
   } catch (error) {
     const { status, body } = handleCoreError(error);
@@ -608,8 +701,25 @@ agents.put("/:name", async (c) => {
     if (!name || !SAFE_NAME_RE.test(name)) {
       return c.json({ error: "Invalid agent name" }, 400);
     }
-    const body = await c.req.json();
-    const result = await coreClient.updateAgent(name, body);
+    let raw: unknown;
+    try {
+      raw = await c.req.json();
+    } catch {
+      return c.json({ error: "Validation failed", details: [{ message: "Request body is not valid JSON" }] }, 400);
+    }
+    const parsed = AgentUpdateRequestSchema.safeParse(raw);
+    if (!parsed.success) {
+      return c.json({
+        error: "Validation failed",
+        details: parsed.error.issues.map((issue: { path: (string | number)[]; message: string; code: string }) => ({
+          path: issue.path.join("."),
+          message: issue.message,
+          code: issue.code,
+        })),
+      }, 400);
+    }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const result = await coreClient.updateAgent(name, parsed.data as any);
     return c.json(result);
   } catch (error) {
     const { status, body } = handleCoreError(error);

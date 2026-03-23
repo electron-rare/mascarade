@@ -7,7 +7,7 @@ import logging
 import os
 import tempfile
 from dataclasses import asdict, dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -55,7 +55,7 @@ class ModelRegistry:
 
         # Create timestamp if not provided
         if "created_at" not in metadata and "created_at" not in existing_metadata:
-            metadata["created_at"] = datetime.now(timezone.utc).isoformat()
+            metadata["created_at"] = datetime.now(UTC).isoformat()
 
         # Merge metadata
         merged = {**existing_metadata, **metadata, "model_id": model_id}

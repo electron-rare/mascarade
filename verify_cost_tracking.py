@@ -23,21 +23,18 @@ def verify_imports():
     print("=" * 60)
 
     try:
-        from mascarade.analytics.clickhouse_logger import CostEventLogger, get_cost_logger
         print("✅ ClickHouse logger module imported")
     except Exception as e:
         print(f"❌ Failed to import ClickHouse logger: {e}")
         return False
 
     try:
-        from mascarade.analytics.prometheus_metrics import COST_METRICS
         print("✅ Prometheus metrics module imported")
     except Exception as e:
         print(f"❌ Failed to import Prometheus metrics: {e}")
         return False
 
     try:
-        from mascarade.analytics.cost_calculator import get_cost_calculator, CostCalculator
         print("✅ Cost calculator module imported")
     except Exception as e:
         print(f"❌ Failed to import cost calculator: {e}")

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 import logging
 from typing import Any
 
@@ -11,7 +10,7 @@ logger = logging.getLogger("mascarade.finetune.p2p.handlers")
 
 async def handle_ft_task(payload: dict[str, Any], capability: str) -> dict:
     """Route fine-tuning tasks to the appropriate agent."""
-    action = payload.get("action", "")
+    payload.get("action", "")
 
     if capability == "ft-research":
         return await _handle_research(payload)
@@ -93,8 +92,8 @@ async def _handle_dataset(payload: dict) -> dict:
 async def _handle_teacher(payload: dict) -> dict:
     """Handle teacher data generation. Creates Router locally."""
     try:
-        from mascarade.router import Router
         from mascarade.finetune.agents.teacher import TeacherAgent, TeacherConfig
+        from mascarade.router import Router
 
         router = Router()
         if not router._providers:
@@ -177,19 +176,19 @@ async def _handle_analysis(payload: dict) -> dict:
 async def _handle_reinforcement(payload: dict) -> dict:
     """Handle reinforcement (DPO) tasks. Creates Router + Teacher + Reinforcer locally."""
     try:
-        from mascarade.router import Router
-        from mascarade.finetune.agents.teacher import TeacherAgent
         from mascarade.finetune.agents.reinforcer import ReinforcerAgent
+        from mascarade.finetune.agents.teacher import TeacherAgent
+        from mascarade.router import Router
 
-        router = Router()
-        if not router._providers:
-            return {"error": "No LLM providers configured (check API keys)"}
-
-        teacher = TeacherAgent(router=router)
-        agent = ReinforcerAgent(teacher=teacher)
         action = payload.get("action", "collect_errors")
 
         if action == "collect_errors":
+            router = Router()
+            if not router._providers:
+                return {"error": "No LLM providers configured (check API keys)"}
+
+            teacher = TeacherAgent(router=router)
+            agent = ReinforcerAgent(teacher=teacher)
             model_path = payload.get("model_path")
             test_prompts = payload.get("test_prompts")
             if not model_path or not test_prompts:
@@ -201,12 +200,23 @@ async def _handle_reinforcement(payload: dict) -> dict:
             )
             return {"errors": errors, "total": len(errors)}
         elif action == "generate_dpo":
-            errors = payload.get("errors")
-            if not errors:
-                return {"error": "Missing required field: errors"}
+            errors = payload.get("errors") or []
+            teacher = None
+            if errors:
+                router = Router()
+                if not router._providers:
+                    return {"error": "No LLM providers configured (check API keys)"}
+                teacher = TeacherAgent(router=router)
+
+            agent = ReinforcerAgent(teacher=teacher)
             result = await agent.generate_dpo_pairs(
                 errors,
                 run_id=payload.get("run_id"),
+                persona=payload.get("persona"),
+                project_id=payload.get("project_id"),
+                federation_scope=payload.get("federation_scope"),
+                knowledge_scope=payload.get("knowledge_scope", "project"),
+                include_kxkm_feedback=payload.get("include_kxkm_feedback", True),
             )
             return result.__dict__
 

@@ -8,6 +8,7 @@ from mascarade.config import settings
 from mascarade.integrations.knowledge_base import (
     DocmostClient,
     KnowledgeBaseClient,
+    KxkmClient,
     MemosClient,
     knowledge_base_auth_configured,
 )
@@ -23,6 +24,9 @@ KB_SETTING_NAMES = [
     "docmost_email",
     "docmost_password",
     "docmost_space_id",
+    "mascarade_project_id",
+    "kxkm_rag_url",
+    "kxkm_timeout_seconds",
 ]
 
 
@@ -58,6 +62,13 @@ def test_knowledge_base_auth_configured_for_docmost():
     settings.docmost_base_url = "https://docmost.example.test"
     settings.docmost_email = "ops@example.test"
     settings.docmost_password = "docmost-secret-123456"  # noqa: S105
+
+    assert knowledge_base_auth_configured() is True
+
+
+def test_knowledge_base_auth_configured_for_kxkm():
+    settings.knowledge_base_provider = "kxkm"
+    settings.kxkm_rag_url = "http://localhost:3333"
 
     assert knowledge_base_auth_configured() is True
 
@@ -168,3 +179,72 @@ def test_knowledge_base_client_dispatches_to_memos():
     assert client.provider == "memos"
     assert client.label == "Memos"
     memos_cls.assert_called_once_with()
+
+
+@pytest.mark.asyncio
+async def test_kxkm_client_search_propagates_project_scope():
+    settings.kxkm_rag_url = "http://localhost:3333"
+    settings.mascarade_project_id = "project-alpha"
+
+    with patch("mascarade.integrations.knowledge_base.httpx.AsyncClient") as async_client_cls:
+        fake_client = async_client_cls.return_value
+        fake_client.aclose = AsyncMock()
+        fake_client.post = AsyncMock(
+            return_value=_FakeResponse(
+                {
+                    "ok": True,
+                    "data": {
+                        "results": [
+                            {
+                                "id": "chunk-1",
+                                "text": "Musique concrete\nPierre Schaeffer",
+                                "score": 0.91,
+                                "source_url": "http://kxkm/chunk-1",
+                            }
+                        ],
+                        "total": 1,
+                    },
+                }
+            )
+        )
+        client = KxkmClient()
+        try:
+            results = await client.search(
+                "musique concrete",
+                limit=5,
+                project_id="project-alpha",
+            )
+        finally:
+            await client.close()
+
+    _, kwargs = fake_client.post.await_args
+    assert kwargs["json"]["project_id"] == "project-alpha"
+    assert kwargs["headers"]["x-mascarade-project-id"] == "project-alpha"
+    assert kwargs["headers"]["x-mascarade-federation-scope"] == "project-alpha"
+    assert results == [
+        {
+            "id": "chunk-1",
+            "title": "Musique concrete",
+            "url": "http://kxkm/chunk-1",
+            "provider": "kxkm",
+            "text": "Musique concrete\nPierre Schaeffer",
+            "score": 0.91,
+            "metadata": {
+                "project_id": "project-alpha",
+                "knowledge_scope": "project",
+                "federation_scope": ["project-alpha"],
+            },
+        }
+    ]
+
+
+def test_knowledge_base_client_dispatches_to_kxkm():
+    settings.knowledge_base_provider = "kxkm"
+    settings.kxkm_rag_url = "http://localhost:3333"
+
+    with patch("mascarade.integrations.knowledge_base.KxkmClient") as kxkm_cls:
+        client = KnowledgeBaseClient()
+
+    assert client.provider == "kxkm"
+    assert client.label == "kxkm"
+    kxkm_cls.assert_called_once_with()
