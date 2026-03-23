@@ -17,6 +17,15 @@ graph TD
     Core <--> MCP["MCP Server (5 tools)\nMCP Client (7+ servers)"]
     Core <--> A2A["A2A Protocol\nAgent Card · Task Delegation"]
     API --> Web["Operator Cockpit (React 19)"]
+
+    OllamaApps["Ollama Apps\nContinue.dev · VSCode Chat\nOpen WebUI · LM Studio"] --> FakeOllama
+    FakeOllama["Fake Ollama API\n/api/tags · /api/chat · /api/generate"] --> Core
+    LocalServer["Local Server\nMistral HTTP · P2P Forward"] --> Core
+    LocalServer --> P2P
+
+    style FakeOllama fill:#1a1a2e,stroke:#e94560,color:#fff
+    style LocalServer fill:#1a1a2e,stroke:#0f3460,color:#fff
+    style OllamaApps fill:#16213e,stroke:#e94560,color:#fff
 ```
 
 ## Features
@@ -34,7 +43,9 @@ graph TD
 | **MCP** | Server (5 tools) + Client (7+ industrial servers) with stateful protocol |
 | **A2A** | Agent Card + task delegation protocol with capability negotiation |
 | **Real-time** | WebSocket event streams with backpressure handling |
-| **API Compat** | OpenAI-compatible `/v1/chat/completions` endpoint with streaming support |
+| **API Compat** | OpenAI-compatible `/v1/chat/completions` + Ollama-compatible `/api/chat` endpoints with streaming |
+| **Fake Ollama** | Ollama-compatible API backed by the LLM router — any app speaking ollama:// accesses all providers |
+| **Local Server** | Lightweight Mistral HTTP + P2P forwarding server for dev machines (no heavy deps) |
 | **Observability** | Grafana, Prometheus, Loki, Tempo, OTEL, Langfuse, ClickHouse with distributed tracing |
 
 ## Quick Start
@@ -81,6 +92,9 @@ mascarade/
 |--------|----------|-------------|
 | `GET`  | `/api/v1/models` | OpenAI-compatible model catalog |
 | `POST` | `/v1/chat/completions` | OpenAI-compatible chat completions |
+| `GET`  | `/ollama/api/tags` | Ollama-compatible model list |
+| `POST` | `/ollama/api/chat` | Ollama-compatible chat (stream + sync) |
+| `POST` | `/ollama/api/generate` | Ollama-compatible text generation |
 | `POST` | `/api/agents` | Agent CRUD |
 | `GET/POST` | `/api/cli-agents/*` | Status and execution for Vibe, Codex, Claude Code |
 | `POST` | `/api/orchestrate` | Multi-agent orchestration |
@@ -106,7 +120,45 @@ DEFAULT_MODEL=claude-sonnet-4-20250514
 P2P_ENABLED=true
 CLUSTER_ENABLED=true
 A2A_ENABLED=true
+
+# Fake Ollama API
+FAKE_OLLAMA_ENABLED=true
+P2P_PROVIDER_ENABLED=true
 ```
+
+### Fake Ollama (use any Ollama app with Mascarade)
+
+Any app that speaks the Ollama protocol can connect to Mascarade:
+
+```bash
+# List all available models (Mistral, Claude, OpenAI, etc.)
+curl http://localhost:8100/ollama/api/tags
+
+# Chat via Ollama-compatible API
+curl http://localhost:8100/ollama/api/chat -d '{
+  "model": "mistral:mistral-large-latest",
+  "messages": [{"role": "user", "content": "Hello"}],
+  "stream": false
+}'
+```
+
+**VSCode integration:**
+- **VSCode Chat**: Add Ollama provider pointing to `http://localhost:8100/ollama`
+- **Continue.dev**: Set `apiBase: http://localhost:8100/ollama` in `~/.continue/config.yaml`
+- **Cline**: Use OpenAI-compatible provider with base URL `http://localhost:8100/v1`
+
+### Local lightweight server (no Docker)
+
+For dev machines without Docker, use the standalone server:
+
+```bash
+PYTHONPATH=/path/to/mascarade/core \
+  MISTRAL_API_KEY=your-key \
+  P2P_PEERS=http://192.168.0.119:8100,http://192.168.0.120:8100 \
+  python3 -m uvicorn mascarade.local_server:app --host 0.0.0.0 --port 8100
+```
+
+Only requires `fastapi`, `httpx`, `uvicorn` (no heavy deps). Routes to Mistral via HTTP, forwards unknown models to P2P peers.
 
 ## Documentation
 
@@ -132,10 +184,3 @@ A2A_ENABLED=true
 ## License
 
 MIT
-
-## Etat auto-synchronise
-<!-- AUTO-SYNC:MASCARADE-README:START -->
-- dernier cycle ANE automatise: 2026-03-23T21:34:05+00:00
-- etat de reference ANE: mistral:mistral-large-latest
-- prochain lot utile cote pipeline: Reference locale reconfirmee; retablir le runtime des modeles provider_failed avant de poursuivre.
-<!-- AUTO-SYNC:MASCARADE-README:END -->
