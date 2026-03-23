@@ -1,4 +1,5 @@
 from typing import Any
+
 """End-to-end verification for SPICE netlist generation and simulation.
 
 This script verifies the complete SPICE workflow:

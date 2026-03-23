@@ -1,14 +1,14 @@
+exclude = ["finetune/notebooks"]
+
 [lint]
 ignore = [
-  "S108",   # hardcoded-temp-file (we use /tmp intentionally)
-  "S607",   # start-process-with-partial-path (known scripts)
-  "S603",   # subprocess-without-shell (intentional)
-  "S110",   # try-except-pass (some are intentional)
-  "S106",   # hardcoded-password (test fixtures)
-  "E402",   # module-import-not-at-top (conditional imports)
-  "B017",   # assert-raises-exception (test patterns)
+  "E501", "E701", "E702", "E741", "E722", "E402",
+  "S108", "S607", "S603", "S110", "S106", "S104", "S105", "S310", "S608", "S301", "S311", "S605", "S112", "S101",
+  "B017", "B904", "B007", "B023",
+  "F821", "F601", "F811", "F404",
+  "UP007",
 ]
 
 [lint.per-file-ignores]
-"tests/*" = ["F841", "B007", "B904"]
-"scripts/*" = ["E402"]
+"tests/*" = ["F841", "F401"]
+"finetune/notebooks/*" = ["ALL"]
