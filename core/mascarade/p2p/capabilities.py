@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 import logging
 import time
 from dataclasses import dataclass, field
@@ -43,6 +45,8 @@ class P2PCapabilityExchange:
         self._dht = dht
         self._peer_caps: dict[str, PeerCapabilities] = {}
         self._local_caps: PeerCapabilities | None = None
+        # P-08: Track seen capability hashes to skip replayed/identical updates
+        self._seen_capabilities: dict[str, str] = {}  # peer_id -> hash of last update
 
         pubsub.subscribe(_TOPIC_CAPABILITIES, self._handle_capabilities)
         pubsub.subscribe(_TOPIC_CAPABILITY_REQUEST, self._handle_request)
@@ -171,6 +175,15 @@ class P2PCapabilityExchange:
         peer_id = data.get("peer_id", origin)
         if peer_id == self._local_peer_id:
             return
+
+        # P-08: Skip replayed/identical capability updates
+        cap_hash = hashlib.sha256(
+            json.dumps(data, sort_keys=True, separators=(",", ":")).encode()
+        ).hexdigest()[:16]
+        if self._seen_capabilities.get(peer_id) == cap_hash:
+            logger.debug("Skipping duplicate capability update from %s", peer_id)
+            return
+        self._seen_capabilities[peer_id] = cap_hash
 
         # Fix 2: prune stale entries on every incoming update
         self.prune_stale()
