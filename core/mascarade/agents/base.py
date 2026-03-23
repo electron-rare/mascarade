@@ -95,9 +95,10 @@ class Agent:
         project_id: str | None = None,
         federation_scope: list[str] | tuple[str, ...] | None = None,
         knowledge_scope: str = "project",
+        system_override: str | None = None,
     ) -> LLMResponse:
         """Exécuter l'agent avec un prompt donné."""
-        system = self._resolve_system_prompt(skill_registry)
+        system = system_override or self._resolve_system_prompt(skill_registry)
         messages = list(context) if context else []
         messages.append({"role": "user", "content": prompt})
         return await router.send(

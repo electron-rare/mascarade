@@ -400,3 +400,115 @@ async def get_agent_metrics(name: str, request: Request):
             status_code=404, detail=f"Agent '{name}' not found"
         ) from None
     return request.app.state.registry.agent_metrics(name)
+
+
+# ---------------------------------------------------------------------------
+# Agent Zero — Operator Copilot
+# ---------------------------------------------------------------------------
+
+_SECRET_PATTERNS = ("api_key=", "api-key:", "authorization:", "bearer ", "password=", "secret=", "token=")
+
+
+def _redact_secrets(text: str) -> str:
+    """Strip likely secret values from log/trace text before sending to LLM."""
+    import re
+    redacted = text
+    for pat in _SECRET_PATTERNS:
+        redacted = re.sub(
+            rf"({re.escape(pat)})(\S+)",
+            r"\1[REDACTED]",
+            redacted,
+            flags=re.IGNORECASE,
+        )
+    return redacted
+
+
+class CopilotRequest(BaseModel):
+    """Request model for the Agent Zero operator copilot."""
+
+    mode: Literal["logs", "traces", "incident"] = "incident"
+    prompt: str = Field(max_length=10_000, description="Operator question or context")
+    logs: list[str] = Field(default_factory=list, max_length=50, description="Recent log lines")
+    traces: list[dict] = Field(default_factory=list, max_length=20, description="Agent trace objects")
+    run_id: str | None = Field(default=None, max_length=100)
+    service: str | None = Field(default=None, max_length=100)
+    severity: Literal["debug", "info", "warning", "error", "critical"] | None = None
+    project_id: str | None = Field(default=None, max_length=256)
+
+
+@router.post("/agents/agent-zero/copilot")
+async def agent_zero_copilot(req: CopilotRequest, request: Request):
+    """Agent Zero operator copilot — incident analysis and decision support.
+
+    Accepts logs, traces, and operator context. Returns structured analysis
+    with facts, hypotheses, and recommended next action. Read-only — never
+    executes commands or modifies state.
+    """
+    try:
+        agent = request.app.state.registry.get("agent-zero")
+    except KeyError:
+        raise HTTPException(status_code=404, detail="agent-zero not registered") from None
+
+    # Build context from logs and traces
+    context_parts: list[str] = []
+
+    if req.service:
+        context_parts.append(f"Service: {req.service}")
+    if req.severity:
+        context_parts.append(f"Severity filter: {req.severity}")
+    if req.run_id:
+        context_parts.append(f"Run ID: {req.run_id}")
+
+    if req.logs:
+        redacted_logs = [_redact_secrets(line) for line in req.logs[-30:]]
+        context_parts.append("--- Recent logs ---")
+        context_parts.extend(redacted_logs)
+
+    if req.traces:
+        context_parts.append("--- Agent traces ---")
+        import json
+        for trace in req.traces[-10:]:
+            context_parts.append(_redact_secrets(json.dumps(trace, default=str)))
+
+    # Compose the prompt
+    copilot_system = (
+        "Tu es en mode Operator Copilot. "
+        "Analyse le contexte d'incident ci-dessous. "
+        "Structure ta reponse en: "
+        "1) FAITS (ce qui s'est passe, preuves dans les logs/traces), "
+        "2) HYPOTHESES (causes probables classees par confiance), "
+        "3) PROCHAINE ACTION (une seule verification manuelle precise). "
+        "Ne propose JAMAIS d'action destructive. "
+        "Sois concis et factuel."
+    )
+
+    context_block = "\n".join(context_parts) if context_parts else "(aucun contexte fourni)"
+    full_prompt = f"{req.prompt}\n\n{context_block}"
+
+    messages = [{"role": "user", "content": full_prompt}]
+
+    try:
+        response = await agent.run(
+            full_prompt,
+            router=request.app.state.router,
+            context=None,
+            skill_registry=getattr(request.app.state, "skill_registry", None),
+            system_override=copilot_system,
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail=f"Agent Zero failed: {exc}") from exc
+
+    return {
+        "content": response.content,
+        "model": response.model,
+        "provider": response.provider,
+        "usage": response.usage,
+        "operator_context": {
+            "mode": req.mode,
+            "service": req.service,
+            "severity": req.severity,
+            "run_id": req.run_id,
+            "logs_count": len(req.logs),
+            "traces_count": len(req.traces),
+        },
+    }
