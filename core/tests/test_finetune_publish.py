@@ -40,7 +40,7 @@ class TestRegisterOllamaModel:
     async def test_missing_gguf(self):
         result = await register_ollama_model("/nonexistent/model.gguf", "test-model")
         assert result["status"] == "error"
-        assert "not found" in result["error"]
+        assert "not found" in result["error"].lower()
 
     @pytest.mark.asyncio
     async def test_missing_ollama_binary(self):
@@ -52,7 +52,7 @@ class TestRegisterOllamaModel:
                 gguf_path, "test-model", ollama_binary="nonexistent-ollama-binary"
             )
             assert result["status"] == "error"
-            assert "not found" in result["error"]
+            assert "not found" in result["error"].lower()
         finally:
             Path(gguf_path).unlink(missing_ok=True)
 

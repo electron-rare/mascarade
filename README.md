@@ -16,7 +16,7 @@ Open-source AI orchestration engine specialized in electronics design (KiCad, SP
 ```mermaid
 graph TD
     Client["Clients (curl, SDK, MCP, Xcode)"] --> Proxy["Edge Proxy / Caddy"]
-    Proxy --> API["API Gateway (Hono, :3100)\nAuth - Rate Limit - OpenAI compat"]
+    Proxy --> API["API Gateway (Hono, :3100 expose / :3000 container)\nAuth - Rate Limit - OpenAI compat"]
     API --> Core["Core Engine (FastAPI, :8100)\nRouter - Agents - Orchestrator"]
     Core --> Providers["20+ LLM Providers\nClaude - OpenAI - Mistral - Codestral\nGoogle - Ollama - llama.cpp - MLX\nLiteLLM - HF - Exo - vLLM"]
     Core <--> P2P["P2P Mesh\nDHT - PubSub - Relay"]
@@ -66,6 +66,15 @@ docker compose --profile core --profile observability up -d
 # Health check
 ./scripts/mascarade-health.sh
 ```
+
+Default ports in this repository:
+
+- Core API: `8100`
+- Hono API exposed by Docker Compose: `3100` (`API_PORT` in `.env`)
+- Hono API process inside the container: `3000`
+
+For local API development outside Docker, `api/src/index.ts` defaults to `API_PORT=3100`.
+If you run legacy scripts that target `3000`, start API with `API_PORT=3000 npm run dev`.
 
 Any Ollama-compatible app (Continue.dev, Open WebUI, LM Studio) can connect directly -- Mascarade exposes a Fake Ollama API that routes to all 20+ providers.
 
@@ -122,7 +131,6 @@ Published on HuggingFace:
 | **Benchmark** | 130 | 100 standard + 30 adversarial electronics prompts |
 
 ### Data Quality Pipeline (SOTA 2026)
-
 ```text
 Sources (700K+) -> Format Audit -> Cross-Dedup (10K removed)
     -> Hallucination Cleaning -> LLM Verification (devstral judge)
@@ -148,7 +156,7 @@ P2P mesh connects all machines with HMAC-authenticated cluster communication.
 
 ## Project Structure
 
-```
+```raw
 mascarade/
   core/        Python FastAPI core (routing, agents, P2P, finetune, RAG)
   api/         Node.js API gateway (Hono, auth, rate limiting)

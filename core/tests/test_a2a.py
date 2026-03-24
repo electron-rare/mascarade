@@ -287,7 +287,7 @@ class TestTaskStatus:
             resp = client.get("/a2a/tasks/does-not-exist")
 
         assert resp.status_code == 404
-        assert "not found" in resp.json()["detail"]
+        assert "not found" in resp.json()["detail"].lower()
 
 
 # ---------------------------------------------------------------------------

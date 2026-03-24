@@ -106,7 +106,7 @@ async def test_list_providers():
 
     async with _client(fake_router) as client:
         response = await client.get(
-            "/api/providers",
+            "/v1/providers",
             headers={"Authorization": f"Bearer {TEST_API_KEY}"},
         )
 
@@ -125,7 +125,7 @@ async def test_providers_status():
 
     async with _client(fake_router) as client:
         response = await client.get(
-            "/api/providers/status",
+            "/v1/providers/status",
             headers={"Authorization": f"Bearer {TEST_API_KEY}"},
         )
 
@@ -148,7 +148,7 @@ async def test_update_provider_key():
 
     async with _client(fake_router) as client:
         response = await client.put(
-            "/api/providers/openai/key",
+            "/v1/providers/openai/key",
             headers={"Authorization": f"Bearer {TEST_API_KEY}"},
             json={
                 "keys": {
@@ -168,7 +168,7 @@ async def test_update_unknown_provider():
     """Test updating an unknown provider returns 404."""
     async with _client() as client:
         response = await client.put(
-            "/api/providers/unknown-provider/key",
+            "/v1/providers/unknown-provider/key",
             headers={"Authorization": f"Bearer {TEST_API_KEY}"},
             json={
                 "keys": {
@@ -190,7 +190,7 @@ async def test_bedrock_models():
 
     async with _client(fake_router) as client:
         response = await client.get(
-            "/api/providers/bedrock/models",
+            "/v1/providers/bedrock/models",
             headers={"Authorization": f"Bearer {TEST_API_KEY}"},
         )
 
@@ -210,7 +210,7 @@ async def test_bedrock_models_not_available():
 
     async with _client(fake_router) as client:
         response = await client.get(
-            "/api/providers/bedrock/models",
+            "/v1/providers/bedrock/models",
             headers={"Authorization": f"Bearer {TEST_API_KEY}"},
         )
 
@@ -227,7 +227,7 @@ async def test_bedrock_finetune_jobs():
 
     async with _client(fake_router) as client:
         response = await client.get(
-            "/api/providers/bedrock/finetune-jobs",
+            "/v1/providers/bedrock/finetune-jobs",
             headers={"Authorization": f"Bearer {TEST_API_KEY}"},
         )
 
@@ -247,7 +247,7 @@ async def test_bedrock_finetune_jobs_not_available():
 
     async with _client(fake_router) as client:
         response = await client.get(
-            "/api/providers/bedrock/finetune-jobs",
+            "/v1/providers/bedrock/finetune-jobs",
             headers={"Authorization": f"Bearer {TEST_API_KEY}"},
         )
 
@@ -259,7 +259,7 @@ async def test_bedrock_finetune_jobs_not_available():
 async def test_provider_endpoints_require_auth():
     """Test that provider endpoints require authentication."""
     async with _client() as client:
-        response = await client.get("/api/providers")
+        response = await client.get("/v1/providers")
 
     assert response.status_code == 401
 
@@ -270,7 +270,7 @@ async def test_codestral_fim_endpoint():
 
     async with _client(fake_router) as client:
         response = await client.post(
-            "/api/providers/codestral/fim",
+            "/v1/providers/codestral/fim",
             headers={"Authorization": f"Bearer {TEST_API_KEY}"},
             json={
                 "prompt": "def add(a, b):\n",
@@ -292,7 +292,7 @@ async def test_codestral_fim_validation_error():
 
     async with _client(fake_router) as client:
         response = await client.post(
-            "/api/providers/codestral/fim",
+            "/v1/providers/codestral/fim",
             headers={"Authorization": f"Bearer {TEST_API_KEY}"},
             json={"prompt": "", "suffix": ""},
         )
@@ -309,7 +309,7 @@ async def test_list_providers_multiple():
 
     async with _client(fake_router) as client:
         response = await client.get(
-            "/api/providers",
+            "/v1/providers",
             headers={"Authorization": f"Bearer {TEST_API_KEY}"},
         )
 
