@@ -158,6 +158,79 @@ def _handle_graphql(query: str, variables: dict | None = None) -> dict:
             }
         }
 
+    # ViewerSettings
+    if "viewersettings" in query_lower:
+        return {
+            "data": {
+                "viewerSettings": {
+                    "final": json.dumps({
+                        "cody.enabled": True,
+                        "cody.autocomplete.enabled": True,
+                        "cody.chat.enabled": True,
+                        "cody.serverEndpoint": "",
+                    }),
+                }
+            }
+        }
+
+    # Repositories
+    if "repositories" in query_lower or "repository" in query_lower:
+        return {
+            "data": {
+                "repositories": {
+                    "nodes": [],
+                    "totalCount": 0,
+                    "pageInfo": {"hasNextPage": False, "endCursor": None},
+                }
+            }
+        }
+
+    # CodeSearchEnabled
+    if "codesearchenabled" in query_lower:
+        return {
+            "data": {
+                "site": {
+                    "isCodyEnabled": True,
+                }
+            }
+        }
+
+    # SiteProductVersion
+    if "siteproductversion" in query_lower or "productversion" in query_lower:
+        return {
+            "data": {
+                "site": {
+                    "productVersion": "6.0.0",
+                    "hasCodeIntelligence": True,
+                }
+            }
+        }
+
+    # ViewerPrompts / Prompts
+    if "viewerprompts" in query_lower or "prompttags" in query_lower:
+        return {
+            "data": {
+                "prompts": {
+                    "nodes": [],
+                    "totalCount": 0,
+                    "pageInfo": {"hasNextPage": False, "endCursor": None},
+                },
+                "promptTags": [],
+            }
+        }
+
+    # ViewerBuiltinPrompts
+    if "viewerbuiltinprompts" in query_lower or "builtinprompts" in query_lower:
+        return {
+            "data": {
+                "builtinPrompts": [],
+            }
+        }
+
+    # RecordTelemetryEvents — just accept silently
+    if "recordtelemetryevents" in query_lower or "telemetry" in query_lower:
+        return {"data": {"telemetry": {"recordEvents": {"alwaysNil": None}}}}
+
     # Catch-all: return empty data
     logger.debug("Unhandled GraphQL query: %s", query[:100])
     return {"data": {}}
@@ -177,7 +250,12 @@ async def graphql(request: Request):
 
     query = body.get("query", "")
     variables = body.get("variables", {})
-    result = _handle_graphql(query, variables)
+
+    # Cody appends ?OperationName to the URL — use it as a hint
+    url_query = str(request.url.query).lower()
+    combined = f"{url_query} {query}"
+
+    result = _handle_graphql(combined, variables)
     return JSONResponse(result)
 
 
@@ -368,6 +446,320 @@ async def chat_completions(request: Request):
             "total_tokens": sum(response.usage.values()),
         },
     }
+
+
+@cody_router.get("/prompts")
+@cody_router.get("/.api/prompts")
+async def prompts(request: Request):
+    """Prompt library — reusable prompt templates for Cody."""
+    router = _get_router(request)
+    registry = getattr(request.app.state, "registry", None)
+
+    prompt_list = []
+
+    # Build prompts from registered agents
+    if registry:
+        for agent in registry.list():
+            prompt_list.append({
+                "id": f"mascarade-{agent.name}",
+                "name": agent.name.replace("-", " ").title(),
+                "description": agent.description,
+                "prompt": agent.system_prompt[:200],
+                "mode": "chat",
+                "model": f"{agent.preferred_provider or 'ollama'}/{agent.preferred_model or 'devstral'}",
+                "tags": [getattr(agent, "category", None) or "general", getattr(agent, "routing_policy", "auto")],
+                "builtin": True,
+            })
+
+    # Add curated prompts
+    _CURATED = [
+        {
+            "id": "explain-code",
+            "name": "Explain Code",
+            "description": "Explain what the selected code does in plain language",
+            "prompt": "Explain the following code step by step. Be concise and focus on the logic, not obvious syntax.\n\n```\n{selection}\n```",
+            "mode": "chat",
+            "tags": ["code", "explain"],
+        },
+        {
+            "id": "fix-bug",
+            "name": "Fix Bug",
+            "description": "Find and fix bugs in the selected code",
+            "prompt": "Find bugs in the following code. For each bug: explain what's wrong, why it's a problem, and provide the fix.\n\n```\n{selection}\n```",
+            "mode": "chat",
+            "tags": ["code", "debug"],
+        },
+        {
+            "id": "write-tests",
+            "name": "Write Tests",
+            "description": "Generate unit tests for the selected code",
+            "prompt": "Write comprehensive unit tests for the following code. Use pytest. Cover edge cases and error paths.\n\n```\n{selection}\n```",
+            "mode": "chat",
+            "tags": ["code", "test"],
+        },
+        {
+            "id": "refactor",
+            "name": "Refactor",
+            "description": "Refactor the selected code for clarity and performance",
+            "prompt": "Refactor the following code. Improve readability, reduce complexity, and follow best practices. Explain each change.\n\n```\n{selection}\n```",
+            "mode": "chat",
+            "tags": ["code", "refactor"],
+        },
+        {
+            "id": "document",
+            "name": "Document",
+            "description": "Add docstrings and comments to the selected code",
+            "prompt": "Add clear docstrings and inline comments to the following code. Use the project's style (Google/NumPy for Python, JSDoc for TS).\n\n```\n{selection}\n```",
+            "mode": "chat",
+            "tags": ["code", "docs"],
+        },
+        {
+            "id": "translate-lang",
+            "name": "Translate Code",
+            "description": "Translate code from one language to another",
+            "prompt": "Translate the following code to {language}. Preserve logic and use idiomatic patterns in the target language.\n\n```\n{selection}\n```",
+            "mode": "chat",
+            "tags": ["code", "translate"],
+        },
+        {
+            "id": "review-security",
+            "name": "Security Review",
+            "description": "Check code for security vulnerabilities (OWASP)",
+            "prompt": "Perform a security review of the following code. Check for: injection, XSS, SSRF, auth bypass, secrets exposure, and other OWASP Top 10 issues.\n\n```\n{selection}\n```",
+            "mode": "chat",
+            "tags": ["code", "security"],
+        },
+        {
+            "id": "pcb-review",
+            "name": "PCB Design Review",
+            "description": "Review KiCad PCB design for DRC, EMC, and manufacturing issues",
+            "prompt": "Review this PCB design/schematic for: DRC violations, EMC issues, thermal concerns, manufacturing constraints (JLCPCB/PCBWay), and IPC compliance.\n\n{selection}",
+            "mode": "chat",
+            "model": "ollama/mascarade-kicad",
+            "tags": ["domain", "electronics"],
+        },
+        {
+            "id": "spice-sim",
+            "name": "SPICE Simulation",
+            "description": "Generate or debug SPICE netlists",
+            "prompt": "Generate a SPICE netlist for the following circuit description. Include AC/DC/transient analysis directives.\n\n{selection}",
+            "mode": "chat",
+            "model": "ollama/mascarade-spice",
+            "tags": ["domain", "electronics"],
+        },
+        {
+            "id": "summarize-fr",
+            "name": "Résumer (FR)",
+            "description": "Résume le texte en bullet points concis",
+            "prompt": "Résume le texte suivant en bullet points clairs et concis. Conserve les informations clés.\n\n{selection}",
+            "mode": "chat",
+            "tags": ["text", "french"],
+        },
+    ]
+
+    prompt_list.extend(_CURATED)
+
+    return {
+        "prompts": prompt_list,
+        "totalCount": len(prompt_list),
+    }
+
+
+@cody_router.get("/agents")
+@cody_router.get("/v1/agents")
+async def list_agents(request: Request):
+    """List all registered agents."""
+    registry = getattr(request.app.state, "registry", None)
+    if not registry:
+        return []
+    agents = []
+    for agent in registry.list():
+        agents.append({
+            "name": agent.name,
+            "description": agent.description,
+            "strategy": str(getattr(agent, "strategy", "best")),
+            "provider": getattr(agent, "preferred_provider", None),
+            "model": getattr(agent, "preferred_model", None),
+            "temperature": getattr(agent, "temperature", 0.7),
+            "category": getattr(agent, "category", None),
+            "routing_policy": getattr(agent, "routing_policy", "auto"),
+        })
+    return agents
+
+
+@cody_router.get("/agents/{name}")
+async def get_agent(name: str, request: Request):
+    """Get a single agent by name."""
+    registry = getattr(request.app.state, "registry", None)
+    if not registry:
+        raise HTTPException(status_code=404, detail="No registry")
+    try:
+        agent = registry.get(name)
+    except KeyError:
+        raise HTTPException(status_code=404, detail=f"Agent '{name}' not found")
+    return {
+        "name": agent.name,
+        "description": agent.description,
+        "system_prompt": agent.system_prompt,
+        "strategy": str(getattr(agent, "strategy", "best")),
+        "preferred_provider": getattr(agent, "preferred_provider", None),
+        "preferred_model": getattr(agent, "preferred_model", None),
+        "temperature": getattr(agent, "temperature", 0.7),
+        "max_tokens": getattr(agent, "max_tokens", 4096),
+        "category": getattr(agent, "category", None),
+        "routing_policy": getattr(agent, "routing_policy", "auto"),
+    }
+
+
+@cody_router.post("/agents/{name}/run")
+async def run_agent(name: str, request: Request):
+    """Run an agent with messages."""
+    registry = getattr(request.app.state, "registry", None)
+    router = _get_router(request)
+    if not registry or not router:
+        raise HTTPException(status_code=503, detail="Service not ready")
+    try:
+        agent = registry.get(name)
+    except KeyError:
+        raise HTTPException(status_code=404, detail=f"Agent '{name}' not found")
+
+    body = await request.json()
+    messages = body.get("messages", [])
+    if not messages:
+        raise HTTPException(status_code=400, detail="messages required")
+
+    prompt = messages[-1].get("content", "")
+    context = messages[:-1] if len(messages) > 1 else None
+    try:
+        response = await agent.run(prompt, router=router, context=context)
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+    return {
+        "content": response.content,
+        "model": response.model,
+        "provider": response.provider,
+        "usage": response.usage,
+    }
+
+
+@cody_router.post("/agents")
+async def create_agent(request: Request):
+    """Create a new agent."""
+    from mascarade.agents.base import Agent as AgentClass
+    from mascarade.router.router import Strategy as StrategyEnum
+
+    registry = getattr(request.app.state, "registry", None)
+    if not registry:
+        raise HTTPException(status_code=503, detail="No registry")
+
+    body = await request.json()
+    name = body.get("name")
+    if not name:
+        raise HTTPException(status_code=400, detail="name required")
+
+    try:
+        strategy = StrategyEnum(body.get("strategy", "best"))
+    except ValueError:
+        strategy = StrategyEnum.BEST
+
+    agent = AgentClass(
+        name=name,
+        description=body.get("description", ""),
+        system_prompt=body.get("system_prompt", ""),
+        preferred_provider=body.get("preferred_provider"),
+        preferred_model=body.get("preferred_model"),
+        strategy=strategy,
+        routing_policy=body.get("routing_policy", "auto"),
+        temperature=body.get("temperature", 0.7),
+        max_tokens=body.get("max_tokens", 4096),
+    )
+    registry.register(agent)
+    try:
+        registry.save()
+    except Exception:
+        pass
+    return {"name": agent.name, "status": "created"}
+
+
+@cody_router.post("/prompts/{name}/run")
+async def run_prompt(name: str, request: Request):
+    """Run a prompt/agent by name — used by ops copilote."""
+    registry = getattr(request.app.state, "registry", None)
+    router = _get_router(request)
+    if not registry or not router:
+        raise HTTPException(status_code=503, detail="Service not ready")
+
+    # Try agent first, then fall back to agent-zero with the prompt name as context
+    try:
+        agent = registry.get(name)
+    except KeyError:
+        # Fall back to agent-zero
+        try:
+            agent = registry.get("agent-zero")
+        except KeyError:
+            raise HTTPException(status_code=404, detail=f"Agent '{name}' not found")
+
+    body = await request.json()
+    messages = body.get("messages", [])
+    prompt = body.get("prompt", "")
+    if not messages and prompt:
+        messages = [{"role": "user", "content": prompt}]
+    if not messages:
+        raise HTTPException(status_code=400, detail="messages or prompt required")
+
+    prompt_text = messages[-1].get("content", "")
+    context = messages[:-1] if len(messages) > 1 else None
+    try:
+        response = await agent.run(prompt_text, router=router, context=context)
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+    return {
+        "content": response.content,
+        "model": response.model,
+        "provider": response.provider,
+        "usage": response.usage,
+        "agent": agent.name,
+    }
+
+
+@cody_router.post("/send")
+async def send_message(request: Request):
+    """Direct send to the router — used by ops copilote."""
+    router = _get_router(request)
+    if not router:
+        raise HTTPException(status_code=503, detail="Router not available")
+
+    body = await request.json()
+    messages = body.get("messages", [])
+    if not messages:
+        raise HTTPException(status_code=400, detail="messages required")
+
+    try:
+        response = await router.send(
+            messages,
+            provider=body.get("provider"),
+            model=body.get("model"),
+            system=body.get("system"),
+            temperature=body.get("temperature", 0.7),
+            max_tokens=body.get("max_tokens", 4096),
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+    return {
+        "content": response.content,
+        "model": response.model,
+        "provider": response.provider,
+        "usage": response.usage,
+    }
+
+
+@cody_router.get("/healthz")
+async def healthz():
+    """Kubernetes-style health check (Cody expects this)."""
+    return {"status": "ok"}
 
 
 @cody_router.get("/.auth/callback")
