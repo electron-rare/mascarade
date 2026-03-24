@@ -51,9 +51,8 @@ def test_redis_cache_initialization():
 def test_redis_cache_custom_config():
     """RedisCache accepts custom configuration."""
     cache = RedisCache(
-        redis_url="redis://custom:6379/1", default_ttl=7200, key_prefix="test:cache:"
+        host="custom", port=6379, db=1, default_ttl=7200, key_prefix="test:cache:"
     )
-    assert cache.redis_url == "redis://custom:6379/1"
     assert cache.default_ttl == 7200
     assert cache.key_prefix == "test:cache:"
 

@@ -223,17 +223,16 @@ class PortType(BaseModel):
     """Port type definition for node inputs and outputs."""
 
     name: str = Field(
-        ...,
+        default="",
         description="Port name (must be unique within the node)",
-        min_length=1,
     )
     type: str = Field(
-        ...,
+        default="",
         description="Port data type (primitive or domain-specific)",
     )
-    port_type: str | None = Field(
+    port_type: Any = Field(
         default=None,
-        description="Explicit port type override",
+        description="Explicit port type override (str or PortType)",
     )
     direction: PortDirection = Field(
         default=PortDirection.INPUT,
@@ -320,7 +319,13 @@ class PortType(BaseModel):
     @property
     def effective_type(self) -> str:
         """Return the effective type string (port_type if set, else type)."""
-        return self.port_type or self.type
+        pt = self.port_type
+        if pt is None:
+            return self.type
+        if isinstance(pt, str):
+            return pt
+        # port_type is a PortType object — use its type/name
+        return getattr(pt, "type", None) or getattr(pt, "name", str(pt))
 
     @property
     def is_primitive(self) -> bool:

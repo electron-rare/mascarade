@@ -256,7 +256,7 @@ class ContextPersistenceManager:
                         context_json = json.loads(context_data)
                         if context_json.get("context_type") == context_type:
                             context_ids.append(context_id)
-                    except:
+                    except (json.JSONDecodeError, KeyError, TypeError):
                         continue
 
         return sorted(context_ids)
