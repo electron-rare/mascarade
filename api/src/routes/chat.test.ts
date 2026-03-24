@@ -21,6 +21,23 @@ afterEach(() => {
 });
 
 describe("chat routes", () => {
+  it("rejects oversized message arrays before proxying to core", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    const res = await makeApp().request("/api/v1/chat/completions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "openai:gpt-4.1-mini",
+        messages: Array.from({ length: 101 }, () => ({ role: "user", content: "hello" })),
+      }),
+    });
+
+    expect(res.status).toBe(400);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it("defaults project_id on chat completions when the client omits it", async () => {
     const fetchMock = vi.fn().mockResolvedValue(
       new Response(
