@@ -1,7 +1,12 @@
-"""Interface abstraite pour les workers Node."""
+"""Abstract interface for Node Engine domain workers.
+
+Each domain worker (AI, CAD, Electronics, Hardware) implements this interface
+to provide graph-executable node types within their domain.
+"""
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
@@ -43,57 +48,34 @@ def make_worker_retry(*extra_exceptions: type[BaseException]):
 class NodeCapability:
     """Declares what a worker can do — used for routing and scheduling."""
 
-    node_types: list[str]
-    domain: str
+    node_types: list[str] = field(default_factory=list)
+    domain: str = ""
     supports_streaming: bool = False
     supports_cancellation: bool = True
     max_concurrent: int = 10
     requires_gpu: bool = False
     requires_hardware: bool = False
     estimated_memory_mb: int = 256
-"""Abstract interface for Node Engine domain workers.
-
-Each domain worker (AI, CAD, Electronics, Hardware) implements this interface
-to provide graph-executable node types within their domain.
-"""
-
-from __future__ import annotations
-
-from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Any
-
-if TYPE_CHECKING:
-    pass
 
 
 class NodeWorker(ABC):
-    """
-    Interface commune pour tous les workers Node.
+    """Abstract interface for domain-specific node workers.
 
-    Circuit Breaker Support:
-        Les méthodes execute() sont protégées par un circuit breaker
-        pour prévenir les pannes en cascade. Le circuit breaker est automatiquement
-        appliqué par le Node Engine lors des appels aux workers.
-
-        États du circuit breaker:
-        - CLOSED: Fonctionnement normal
-        - OPEN: Échecs répétés, appels rejetés immédiatement
-        - HALF_OPEN: Test de récupération
-
-        Configuration par défaut: fail_max=5, timeout=60s
-    Abstract interface for domain-specific node workers.
-
-    Domain workers execute nodes within the graph runtime. Each worker is responsible
-    for a specific domain (e.g., "ai", "cad", "electronics") and provides a set of
-    node types that can be composed into graphs.
+    Domain workers execute nodes within the graph runtime. Each worker is
+    responsible for a specific domain (e.g., "ai", "cad", "electronics")
+    and provides a set of node types that can be composed into graphs.
 
     Workers are registered with the GraphRuntime via the NodeWorkerRegistry.
     At execution time, the runtime dispatches node execution requests to the
     appropriate worker based on the node's domain.
 
-    Attributes:
-        name: Unique identifier for this worker (e.g., "ai-worker")
-        domain: Domain this worker handles (e.g., "ai", "cad")
+    Circuit Breaker Support:
+        Les méthodes execute() sont protégées par un circuit breaker
+        pour prévenir les pannes en cascade. Le circuit breaker est
+        automatiquement appliqué par le Node Engine.
+
+        États: CLOSED (normal) → OPEN (échecs, rejet 60s) → HALF_OPEN (test)
+        Configuration: fail_max=5, timeout=60s
 
     Example:
         ```python
@@ -113,12 +95,12 @@ class NodeWorker(ABC):
                 return errors
 
             def capabilities(self):
-                return {
-                    "node_types": ["ai.llm-inference", "ai.llm-stream"],
-                    "domain": "ai",
-                    "supports_streaming": True,
-                    "max_concurrent": 10,
-                }
+                return NodeCapability(
+                    node_types=["ai.llm-inference", "ai.llm-stream"],
+                    domain="ai",
+                    supports_streaming=True,
+                    max_concurrent=10,
+                )
         ```
     """
 
@@ -126,7 +108,7 @@ class NodeWorker(ABC):
     domain: str
 
     # Circuit breaker instance (set by Node Engine or CircuitBreakerManager)
-    circuit_breaker: "CircuitBreaker | None" = None
+    circuit_breaker: CircuitBreaker | None = None
 
     @abstractmethod
     async def execute(
@@ -134,32 +116,26 @@ class NodeWorker(ABC):
         node_type: str,
         inputs: dict[str, Any],
         config: dict[str, Any],
-        context: "ExecutionContext",
-    ) -> dict[str, Any]:
-        """
-        Exécuter un node avec les inputs fournis.
-
-        Note: Cette méthode est protégée par un circuit breaker au niveau
-        du Node Engine pour prévenir les pannes en cascade. Le circuit s'ouvre
-        après 5 échecs consécutifs et rejette les appels pendant 60s avant
-        de tester la récupération.
-
-        Args:
-            node_type: Identifiant du type de node
-            inputs: Valeurs des ports d'entrée (par ID de port)
-            config: Configuration spécifique au node
-            context: Contexte d'exécution avec métadonnées et annulation
-
-        Returns:
-            Valeurs des ports de sortie (par ID de port)
-
-        Raises:
-            CircuitBreakerError: Si le circuit breaker est ouvert
-            ConnectionError: Erreur de connexion
-            TimeoutError: Timeout de l'exécution
-            ValueError: Inputs ou configuration invalides
         context: Any,
     ) -> dict[str, Any]:
+        """Execute a node with the given inputs.
+
+        Protected by a circuit breaker at the Node Engine level.
+
+        Args:
+            node_type: Fully qualified node type identifier
+            inputs: Input port values (by port ID)
+            config: Node-specific configuration
+            context: Execution context with metadata and cancellation
+
+        Returns:
+            Output port values (by port ID)
+
+        Raises:
+            CircuitBreakerError: If the circuit breaker is open
+            ConnectionError: Connection error
+            TimeoutError: Execution timeout
+            ValueError: Invalid inputs or configuration
         """
         raise NotImplementedError(
             f"execute() not implemented for {self.__class__.__name__}"
@@ -173,8 +149,7 @@ class NodeWorker(ABC):
     ) -> list[str]:
         """Validate node inputs and configuration before execution.
 
-        Called during graph validation to catch errors early. This allows
-        validation errors to be reported before execution begins.
+        Called during graph validation to catch errors early.
 
         Args:
             node_type: Fully qualified node type (e.g., "ai.agent-dispatch")
@@ -186,14 +161,14 @@ class NodeWorker(ABC):
         """
         return []
 
-    def capabilities(self) -> NodeCapability | WorkerCapabilities | dict[str, Any]:
+    def capabilities(self) -> NodeCapability | dict[str, Any]:
         """Declare worker capabilities for the registry.
 
         The runtime uses this information for scheduling, resource management,
         and feature discovery.
 
         Returns:
-            NodeCapability, WorkerCapabilities, or dict with capability metadata.
+            NodeCapability or dict with capability metadata.
             Required keys (if dict): node_types (list[str]), domain (str).
         """
         raise NotImplementedError(
@@ -202,38 +177,15 @@ class NodeWorker(ABC):
 
     @property
     def is_available(self) -> bool:
-        """Check if the worker is available for execution.
-
-        The runtime uses this to determine whether to include this worker
-        in the active worker pool. Workers may be unavailable due to
-        missing API keys, required services being offline, or hardware
-        not connected.
-
-        Returns:
-            True if worker is ready to execute nodes, False otherwise.
-        """
+        """Check if the worker is available for execution."""
         return True
 
     def on_init(self, context: Any) -> None:
-        """Lifecycle hook: called when a graph execution starts.
-
-        Optional override for workers that need to initialize resources,
-        establish connections, or load models at the start of execution.
-
-        Args:
-            context: Execution context with graph/run metadata
-        """
+        """Lifecycle hook: called when a graph execution starts."""
         pass
 
     def on_destroy(self, context: Any) -> None:
-        """Lifecycle hook: called when a graph execution completes.
-
-        Optional override for workers that need to release resources,
-        close connections, or flush buffers at the end of execution.
-
-        Args:
-            context: Execution context with graph/run metadata
-        """
+        """Lifecycle hook: called when a graph execution completes."""
         pass
 
     async def initialize(self) -> None:
@@ -261,7 +213,3 @@ class NodeWorker(ABC):
             return proc.returncode == 0
         except Exception:
             return False
-
-
-# Re-export ExecutionContext and NodeResult for convenience
-# (some code imports them from worker module)

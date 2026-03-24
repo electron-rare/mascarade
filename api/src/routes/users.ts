@@ -54,7 +54,9 @@ users.get("/:userId", async (c) => {
 /** Update a user (admin only) */
 users.put("/:userId", validate(UserUpdateRequestSchema), async (c) => {
   try {
-    const userId = parseInt(c.req.param("userId"), 10);
+    const raw = c.req.param("userId");
+    if (!raw) return c.json({ error: "Missing user ID" }, 400);
+    const userId = parseInt(raw, 10);
     if (isNaN(userId) || userId <= 0) {
       return c.json({ error: "Invalid user ID" }, 400);
     }
@@ -70,7 +72,9 @@ users.put("/:userId", validate(UserUpdateRequestSchema), async (c) => {
 /** Delete a user (admin only) */
 users.delete("/:userId", async (c) => {
   try {
-    const userId = parseInt(c.req.param("userId"), 10);
+    const raw = c.req.param("userId");
+    if (!raw) return c.json({ error: "Missing user ID" }, 400);
+    const userId = parseInt(raw, 10);
     if (isNaN(userId) || userId <= 0) {
       return c.json({ error: "Invalid user ID" }, 400);
     }
@@ -85,7 +89,9 @@ users.delete("/:userId", async (c) => {
 /** Create API key for a user (admin only) */
 users.post("/:userId/api-keys", validate(ApiKeyCreateRequestSchema), async (c) => {
   try {
-    const userId = parseInt(c.req.param("userId"), 10);
+    const raw = c.req.param("userId");
+    if (!raw) return c.json({ error: "Missing user ID" }, 400);
+    const userId = parseInt(raw, 10);
     if (isNaN(userId) || userId <= 0) {
       return c.json({ error: "Invalid user ID" }, 400);
     }

@@ -74,7 +74,9 @@ killlife.post("/workflows/:id/validate", async (c) => {
 killlife.post("/workflows/:id/run", validate(WorkflowRunRequestSchema), async (c) => {
   try {
     const body = c.get("validated" as never) as WorkflowRunRequest;
-    const result = await runWorkflow(c.req.param("id"), {
+    const id = c.req.param("id");
+    if (!id) return c.json(badRequest("Missing workflow id"), 400);
+    const result = await runWorkflow(id, {
       mode: body.mode,
       dry_run: body.dry_run,
       inputs: body.inputs,
