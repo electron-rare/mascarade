@@ -83,6 +83,8 @@ class Agent:
     prompt_versions: list[dict] = field(default_factory=list)
     gates: list[Gate] = field(default_factory=list)  # execution gates
     evidence_refs: list[str] = field(default_factory=list)  # evidence doc refs
+    capabilities: list[str] = field(default_factory=list)  # e.g. ["code", "pcb", "review"]
+    cluster: str | None = None  # domain cluster: general, code, electronics, ops, creative
 
     def get_enhanced_system_prompt(self, skill_registry: SkillRegistry) -> str:
         """Build system prompt enhanced with assigned skills.
