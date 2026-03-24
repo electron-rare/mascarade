@@ -2853,6 +2853,10 @@ app.include_router(cluster_protected)
 from mascarade.routers.openai_audio import router as openai_audio_router
 app.include_router(openai_audio_router)
 
+# KiCad + SPICE MCP endpoints
+from mascarade.routers.kicad_mcp import router as kicad_mcp_router
+app.include_router(kicad_mcp_router)
+
 # Mount Ollama-compatible API (fake Ollama backed by Mascarade Router + P2P)
 mount_ollama_compat(app)
 
