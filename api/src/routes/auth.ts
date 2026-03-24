@@ -1,6 +1,9 @@
 import { Hono } from "hono";
+import { validateToken } from "../lib/auth.js";
 import {
+  authUnavailableResponse,
   clearSessionCookie,
+  isAuthConfigured,
   isValidConfiguredApiKey,
   makeSessionCookie,
 } from "../middleware/auth.js";
@@ -24,7 +27,14 @@ auth.post("/session", async (c) => {
   const tokenFromHeader = authHeader.startsWith("Bearer ") ? authHeader.slice(7).trim() : "";
   const tokenFromBody = String(body.api_key || "").trim();
   const token = tokenFromBody || tokenFromHeader;
-  if (!isValidConfiguredApiKey(token)) {
+
+  if (!isAuthConfigured()) {
+    return c.json(authUnavailableResponse(), 503);
+  }
+
+  const validFromConfig = isValidConfiguredApiKey(token);
+  const validFromDatabase = validFromConfig ? false : Boolean(await validateToken(token));
+  if (!validFromConfig && !validFromDatabase) {
     return c.json({ error: "Token invalide ou manquant" }, 401);
   }
 
