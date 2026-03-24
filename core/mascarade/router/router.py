@@ -110,6 +110,7 @@ class Router:
 
     def __init__(self) -> None:
         self._providers: dict[str, LLMProvider] = {}
+        self._p2p_capabilities = None  # Set via attach_p2p()
         self.cache = self._initialize_cache()
         self.metrics = MetricsTracker()
         self.load_balancer = LoadBalancer()
@@ -311,12 +312,35 @@ class Router:
         )
         return static_cost
 
+    def attach_p2p(self, p2p_capabilities) -> None:
+        """Attach P2P capability exchange for peer-aware routing."""
+        self._p2p_capabilities = p2p_capabilities
+
+    def _inject_p2p_providers(self) -> None:
+        """Refresh P2P proxy providers from current peer capabilities."""
+        if not self._p2p_capabilities or not settings.p2p_provider_enabled:
+            return
+        from mascarade.router.providers.p2p_proxy import build_p2p_providers
+
+        # Remove stale P2P providers
+        stale = [k for k in self._providers if k.startswith("p2p/")]
+        for k in stale:
+            del self._providers[k]
+
+        # Inject fresh ones
+        peers = self._p2p_capabilities.all_capabilities()
+        for proxy in build_p2p_providers(peers):
+            self._providers[proxy.name] = proxy
+
     def _select_candidates(
         self,
         strategy: Strategy = Strategy.BEST,
         provider_name: str | None = None,
         domain: str | None = None,
     ) -> list[LLMProvider]:
+        # Refresh P2P providers before selection
+        self._inject_p2p_providers()
+
         if not self._providers:
             raise RuntimeError("Aucun provider LLM configuré. Vérifiez vos clés API.")
 
