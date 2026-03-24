@@ -63,6 +63,9 @@ dev = [
     "pre-commit>=3.7,<4",
 ]
 
+[tool.setuptools.packages.find]
+include = ["mascarade*"]
+
 [build-system]
 requires = ["setuptools>=65.0.0", "wheel"]
 build-backend = "setuptools.build_meta"
