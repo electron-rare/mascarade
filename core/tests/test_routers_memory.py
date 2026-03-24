@@ -26,7 +26,7 @@ async def _client():
 async def test_memory_status_basic():
     """Test basic memory status endpoint."""
     async with _client() as client:
-        response = await client.get("/api/memory/status")
+        response = await client.get("/v1/memory/status")
 
     assert response.status_code == 200
     body = response.json()
@@ -41,7 +41,7 @@ async def test_memory_status_basic():
 async def test_memory_status_structure():
     """Test memory status response structure."""
     async with _client() as client:
-        response = await client.get("/api/memory/status")
+        response = await client.get("/v1/memory/status")
 
     assert response.status_code == 200
     body = response.json()
@@ -60,7 +60,7 @@ async def test_memory_status_no_auth_required():
     """Test that memory status endpoint doesn't require authentication."""
     # Memory status is currently open (no auth dependency)
     async with _client() as client:
-        response = await client.get("/api/memory/status")
+        response = await client.get("/v1/memory/status")
 
     assert response.status_code == 200
 
@@ -72,7 +72,7 @@ async def test_memory_status_multiple_calls():
         # Make multiple calls
         responses = []
         for _ in range(3):
-            response = await client.get("/api/memory/status")
+            response = await client.get("/v1/memory/status")
             responses.append(response)
 
     # All should succeed

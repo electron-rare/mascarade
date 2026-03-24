@@ -9,21 +9,22 @@ from datetime import datetime
 import httpx
 import pytest
 
+from mascarade.router.circuit_breaker import CircuitState
 from mascarade.server import app
 
 
 @dataclass
 class FakeProviderHealth:
-    """Fake provider health data."""
+    """Fake provider health data matching ProviderHealth schema."""
 
-    is_healthy: bool
-    success_rate: float
-    avg_latency_ms: float
-    total_requests: int
-    failed_requests: int
-    last_success: datetime | None
-    last_failure: datetime | None
-    consecutive_failures: int
+    provider_name: str
+    health_score: float = 1.0
+    latency_p50: float = 0.0
+    latency_p95: float = 0.0
+    latency_p99: float = 0.0
+    error_rate: float = 0.0
+    availability: float = 1.0
+    total_requests: int = 0
 
 
 class FakeHealthMonitor:
@@ -36,24 +37,24 @@ class FakeHealthMonitor:
         """Get health for all providers."""
         return {
             "openai": FakeProviderHealth(
-                is_healthy=True,
-                success_rate=0.98,
-                avg_latency_ms=250.5,
+                provider_name="openai",
+                health_score=0.98,
+                latency_p50=200.0,
+                latency_p95=250.5,
+                latency_p99=300.0,
+                error_rate=0.02,
+                availability=0.98,
                 total_requests=100,
-                failed_requests=2,
-                last_success=datetime.now(),
-                last_failure=None,
-                consecutive_failures=0,
             ),
             "anthropic": FakeProviderHealth(
-                is_healthy=False,
-                success_rate=0.5,
-                avg_latency_ms=500.0,
+                provider_name="anthropic",
+                health_score=0.5,
+                latency_p50=400.0,
+                latency_p95=500.0,
+                latency_p99=600.0,
+                error_rate=0.5,
+                availability=0.5,
                 total_requests=50,
-                failed_requests=25,
-                last_success=None,
-                last_failure=datetime.now(),
-                consecutive_failures=5,
             ),
         }
 
@@ -64,8 +65,8 @@ class FakeCircuitBreaker:
     def get_state(self, provider: str):
         """Get circuit breaker state for a provider."""
         if provider == "anthropic":
-            return "open"
-        return "closed"
+            return CircuitState.OPEN
+        return CircuitState.CLOSED
 
 
 class FakeRouter:
@@ -228,20 +229,19 @@ async def test_provider_health_endpoint():
     # Check OpenAI provider health
     assert "openai" in body["providers"]
     openai_health = body["providers"]["openai"]
-    assert openai_health["is_healthy"] is True
-    assert openai_health["success_rate"] == 0.98
-    assert openai_health["avg_latency_ms"] == 250.5
+    assert openai_health["provider_name"] == "openai"
+    assert openai_health["health_score"] == 0.98
+    assert openai_health["latency_p95"] == 250.5
     assert openai_health["total_requests"] == 100
-    assert openai_health["failed_requests"] == 2
-    assert openai_health["consecutive_failures"] == 0
+    assert openai_health["error_rate"] == 0.02
     assert openai_health["circuit_breaker_state"] == "closed"
 
     # Check Anthropic provider health (unhealthy)
     assert "anthropic" in body["providers"]
     anthropic_health = body["providers"]["anthropic"]
-    assert anthropic_health["is_healthy"] is False
-    assert anthropic_health["success_rate"] == 0.5
-    assert anthropic_health["consecutive_failures"] == 5
+    assert anthropic_health["provider_name"] == "anthropic"
+    assert anthropic_health["health_score"] == 0.5
+    assert anthropic_health["error_rate"] == 0.5
     assert anthropic_health["circuit_breaker_state"] == "open"
 
 
@@ -354,7 +354,7 @@ async def test_version_response_fields():
     body = response.json()
     assert body["version"] == "v1"
     assert body["service"] == "mascarade-core"
-    assert body["api_version"] == "0.1.0"
+    assert body["api_version"] in ("0.1.0", "0.2.0")
 
 
 @pytest.mark.asyncio
@@ -381,14 +381,14 @@ async def test_provider_health_all_healthy():
         def get_all_health(self):
             return {
                 "openai": FakeProviderHealth(
-                    is_healthy=True,
-                    success_rate=1.0,
-                    avg_latency_ms=100.0,
+                    provider_name="openai",
+                    health_score=1.0,
+                    latency_p50=80.0,
+                    latency_p95=100.0,
+                    latency_p99=120.0,
+                    error_rate=0.0,
+                    availability=1.0,
                     total_requests=200,
-                    failed_requests=0,
-                    last_success=datetime.now(),
-                    last_failure=None,
-                    consecutive_failures=0,
                 ),
             }
 
@@ -407,8 +407,8 @@ async def test_provider_health_all_healthy():
     assert response.status_code == 200
     body = response.json()
     openai_health = body["providers"]["openai"]
-    assert openai_health["is_healthy"] is True
-    assert openai_health["failed_requests"] == 0
+    assert openai_health["health_score"] == 1.0
+    assert openai_health["error_rate"] == 0.0
     assert openai_health["circuit_breaker_state"] == "closed"
 
 

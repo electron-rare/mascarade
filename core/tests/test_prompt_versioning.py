@@ -515,7 +515,7 @@ async def test_history_endpoint():
         app.state.registry.save()
 
         # Test GET /agents/{name}/prompts/history
-        response = await client.get("/agents/test-agent-history/prompts/history")
+        response = await client.get("/v1/agents/test-agent-history/prompts/history")
 
         assert response.status_code == 200
         data = response.json()
@@ -532,7 +532,7 @@ async def test_history_endpoint():
 async def test_history_endpoint_agent_not_found():
     """Test GET /agents/{name}/prompts/history with non-existent agent."""
     async with _test_client() as client:
-        response = await client.get("/agents/nonexistent/prompts/history")
+        response = await client.get("/v1/agents/nonexistent/prompts/history")
 
         assert response.status_code == 404
         assert "not found" in response.json()["detail"].lower()
@@ -552,7 +552,7 @@ async def test_history_endpoint_empty():
         app.state.registry.register(agent)
         app.state.registry.save()
 
-        response = await client.get("/agents/test-agent-empty/prompts/history")
+        response = await client.get("/v1/agents/test-agent-empty/prompts/history")
 
         assert response.status_code == 200
         data = response.json()
@@ -583,7 +583,7 @@ async def test_rollback_endpoint():
         app.state.registry.save()
 
         # Rollback to version 1
-        response = await client.post("/agents/test-agent-rollback/prompts/rollback/1")
+        response = await client.post("/v1/agents/test-agent-rollback/prompts/rollback/1")
 
         assert response.status_code == 200
         data = response.json()
@@ -607,7 +607,7 @@ async def test_rollback_endpoint():
 async def test_rollback_endpoint_agent_not_found():
     """Test POST /agents/{name}/prompts/rollback/{version} with non-existent agent."""
     async with _test_client() as client:
-        response = await client.post("/agents/nonexistent/prompts/rollback/1")
+        response = await client.post("/v1/agents/nonexistent/prompts/rollback/1")
 
         assert response.status_code == 404
         assert "not found" in response.json()["detail"].lower()
@@ -632,7 +632,7 @@ async def test_rollback_endpoint_invalid_version():
         app.state.registry.save()
 
         # Try to rollback to non-existent version
-        response = await client.post("/agents/test-agent-invalid/prompts/rollback/99")
+        response = await client.post("/v1/agents/test-agent-invalid/prompts/rollback/99")
 
         assert response.status_code == 400
         assert "Invalid version" in response.json()["detail"]
@@ -653,7 +653,7 @@ async def test_rollback_endpoint_version_zero():
         app.state.registry.save()
 
         # Try to rollback to version 0 (invalid)
-        response = await client.post("/agents/test-agent-zero/prompts/rollback/0")
+        response = await client.post("/v1/agents/test-agent-zero/prompts/rollback/0")
 
         assert response.status_code == 400
         assert "Invalid version" in response.json()["detail"]

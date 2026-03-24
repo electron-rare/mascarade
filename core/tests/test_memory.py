@@ -207,12 +207,14 @@ def test_memory_add_request_valid():
             Message(role="assistant", content="Hi there!"),
         ],
         user_id="test-user",
+        project_id="project-alpha",
         metadata={"source": "test"},
         agent_id="test-agent",
     )
 
     assert len(req.messages) == 2
     assert req.user_id == "test-user"
+    assert req.project_id == "project-alpha"
     assert req.metadata == {"source": "test"}
     assert req.agent_id == "test-agent"
 
@@ -222,6 +224,7 @@ def test_memory_add_request_minimal():
     req = MemoryAddRequest(
         messages=[Message(role="user", content="Hello")],
         user_id="test-user",
+        project_id="project-alpha",
     )
 
     assert len(req.messages) == 1
@@ -234,17 +237,21 @@ def test_memory_add_request_validation():
     """Test MemoryAddRequest validation."""
     # Empty messages should fail
     with pytest.raises(Exception):
-        MemoryAddRequest(messages=[], user_id="test-user")
+        MemoryAddRequest(messages=[], user_id="test-user", project_id="project-alpha")
 
     # Missing user_id should fail
     with pytest.raises(Exception):
-        MemoryAddRequest(messages=[Message(role="user", content="test")])
+        MemoryAddRequest(
+            messages=[Message(role="user", content="test")],
+            project_id="project-alpha",
+        )
 
     # Too many messages should fail (>200)
     with pytest.raises(Exception):
         MemoryAddRequest(
             messages=[Message(role="user", content="test") for _ in range(201)],
             user_id="test-user",
+            project_id="project-alpha",
         )
 
 
@@ -253,12 +260,14 @@ def test_memory_search_request_valid():
     req = MemorySearchRequest(
         query="test query",
         user_id="test-user",
+        project_id="project-alpha",
         limit=5,
         agent_id="test-agent",
     )
 
     assert req.query == "test query"
     assert req.user_id == "test-user"
+    assert req.project_id == "project-alpha"
     assert req.limit == 5
     assert req.agent_id == "test-agent"
 
@@ -268,6 +277,7 @@ def test_memory_search_request_defaults():
     req = MemorySearchRequest(
         query="test query",
         user_id="test-user",
+        project_id="project-alpha",
     )
 
     assert req.limit == 10  # Default limit
@@ -278,31 +288,37 @@ def test_memory_search_request_validation():
     """Test MemorySearchRequest validation."""
     # Limit too low should fail
     with pytest.raises(Exception):
-        MemorySearchRequest(query="test", user_id="test-user", limit=0)
+        MemorySearchRequest(
+            query="test", user_id="test-user", project_id="project-alpha", limit=0
+        )
 
     # Limit too high should fail
     with pytest.raises(Exception):
-        MemorySearchRequest(query="test", user_id="test-user", limit=101)
+        MemorySearchRequest(
+            query="test", user_id="test-user", project_id="project-alpha", limit=101
+        )
 
     # Empty query should fail
     with pytest.raises(Exception):
-        MemorySearchRequest(query="", user_id="test-user")
+        MemorySearchRequest(query="", user_id="test-user", project_id="project-alpha")
 
 
 def test_memory_get_request_valid():
     """Test MemoryGetRequest model with valid data."""
     req = MemoryGetRequest(
         user_id="test-user",
+        project_id="project-alpha",
         agent_id="test-agent",
     )
 
     assert req.user_id == "test-user"
+    assert req.project_id == "project-alpha"
     assert req.agent_id == "test-agent"
 
 
 def test_memory_get_request_minimal():
     """Test MemoryGetRequest with minimal fields."""
-    req = MemoryGetRequest(user_id="test-user")
+    req = MemoryGetRequest(user_id="test-user", project_id="project-alpha")
 
     assert req.user_id == "test-user"
     assert req.agent_id is None
@@ -313,21 +329,23 @@ def test_memory_delete_request_valid():
     req = MemoryDeleteRequest(
         memory_id="mem-123",
         user_id="test-user",
+        project_id="project-alpha",
     )
 
     assert req.memory_id == "mem-123"
     assert req.user_id == "test-user"
+    assert req.project_id == "project-alpha"
 
 
 def test_memory_delete_request_validation():
     """Test MemoryDeleteRequest validation."""
     # Empty memory_id should fail
     with pytest.raises(Exception):
-        MemoryDeleteRequest(memory_id="", user_id="test-user")
+        MemoryDeleteRequest(memory_id="", user_id="test-user", project_id="project-alpha")
 
     # Empty user_id should fail
     with pytest.raises(Exception):
-        MemoryDeleteRequest(memory_id="mem-123", user_id="")
+        MemoryDeleteRequest(memory_id="mem-123", user_id="", project_id="project-alpha")
 
 
 # --- Tests for memory operations scenarios ---
@@ -336,17 +354,17 @@ def test_memory_delete_request_validation():
 def test_memory_privacy_scoping():
     """Test that memory requests properly scope by user_id and agent_id."""
     # User-only scoping
-    user_req = MemoryGetRequest(user_id="user-1")
+    user_req = MemoryGetRequest(user_id="user-1", project_id="project-alpha")
     assert user_req.user_id == "user-1"
     assert user_req.agent_id is None
 
     # User + agent scoping
-    agent_req = MemoryGetRequest(user_id="user-1", agent_id="agent-1")
+    agent_req = MemoryGetRequest(user_id="user-1", project_id="project-alpha", agent_id="agent-1")
     assert agent_req.user_id == "user-1"
     assert agent_req.agent_id == "agent-1"
 
     # Different users should have different scoping
-    user_req_2 = MemoryGetRequest(user_id="user-2")
+    user_req_2 = MemoryGetRequest(user_id="user-2", project_id="project-alpha")
     assert user_req.user_id != user_req_2.user_id
 
 
@@ -356,6 +374,7 @@ def test_memory_metadata_handling():
     req_with_meta = MemoryAddRequest(
         messages=[Message(role="user", content="test")],
         user_id="test-user",
+        project_id="project-alpha",
         metadata={"source": "test", "priority": "high", "tags": ["important"]},
     )
 
@@ -368,6 +387,7 @@ def test_memory_metadata_handling():
     req_no_meta = MemoryAddRequest(
         messages=[Message(role="user", content="test")],
         user_id="test-user",
+        project_id="project-alpha",
     )
 
     assert req_no_meta.metadata is None
@@ -376,15 +396,15 @@ def test_memory_metadata_handling():
 def test_memory_search_limit_ranges():
     """Test various search limit values."""
     # Minimum valid limit
-    req_min = MemorySearchRequest(query="test", user_id="user", limit=1)
+    req_min = MemorySearchRequest(query="test", user_id="user", project_id="project-alpha", limit=1)
     assert req_min.limit == 1
 
     # Maximum valid limit
-    req_max = MemorySearchRequest(query="test", user_id="user", limit=100)
+    req_max = MemorySearchRequest(query="test", user_id="user", project_id="project-alpha", limit=100)
     assert req_max.limit == 100
 
     # Default limit
-    req_default = MemorySearchRequest(query="test", user_id="user")
+    req_default = MemorySearchRequest(query="test", user_id="user", project_id="project-alpha")
     assert req_default.limit == 10
 
 
@@ -417,6 +437,7 @@ def test_memory_multi_message_conversation():
     req = MemoryAddRequest(
         messages=messages,
         user_id="test-user",
+        project_id="project-alpha",
         metadata={"conversation_type": "greeting"},
     )
 
@@ -430,10 +451,10 @@ def test_memory_multi_message_conversation():
 def test_memory_agent_scoping_isolation():
     """Test that agent scoping provides proper isolation."""
     # Agent 1 request
-    agent1_req = MemoryGetRequest(user_id="user-1", agent_id="agent-1")
+    agent1_req = MemoryGetRequest(user_id="user-1", project_id="project-alpha", agent_id="agent-1")
 
     # Agent 2 request for same user
-    agent2_req = MemoryGetRequest(user_id="user-1", agent_id="agent-2")
+    agent2_req = MemoryGetRequest(user_id="user-1", project_id="project-alpha", agent_id="agent-2")
 
     # Same user, different agents - should be isolated
     assert agent1_req.user_id == agent2_req.user_id
@@ -443,13 +464,14 @@ def test_memory_agent_scoping_isolation():
 def test_memory_search_query_formats():
     """Test various query formats for memory search."""
     # Simple query
-    simple_req = MemorySearchRequest(query="test", user_id="user")
+    simple_req = MemorySearchRequest(query="test", user_id="user", project_id="project-alpha")
     assert simple_req.query == "test"
 
     # Multi-word query
     multi_req = MemorySearchRequest(
         query="tell me about machine learning",
         user_id="user",
+        project_id="project-alpha",
     )
     assert "machine learning" in multi_req.query
 
@@ -457,6 +479,7 @@ def test_memory_search_query_formats():
     punct_req = MemorySearchRequest(
         query="What's the weather like?",
         user_id="user",
+        project_id="project-alpha",
     )
     assert "?" in punct_req.query
 

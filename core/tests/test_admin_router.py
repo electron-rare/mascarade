@@ -152,7 +152,7 @@ class TestListUsers:
         with patch("mascarade.routers.admin.auth_module.authenticate_user", new_callable=AsyncMock, return_value=admin), \
              patch("mascarade.routers.admin.auth_module.get_db_pool", return_value=pool):
             async with _client() as client:
-                resp = await client.get("/users", headers={"Authorization": "Bearer test-key"})
+                resp = await client.get("/v1/users", headers={"Authorization": "Bearer test-key"})
 
         assert resp.status_code == 200
         body = resp.json()
@@ -178,7 +178,7 @@ class TestCreateUser:
              patch("mascarade.routers.admin.auth_module.get_db_pool", return_value=pool):
             async with _client() as client:
                 resp = await client.post(
-                    "/users",
+                    "/v1/users",
                     json={"username": "newuser", "email": "new@test.com", "role_id": 2},
                     headers={"Authorization": "Bearer test-key"},
                 )
@@ -199,7 +199,7 @@ class TestCreateUser:
              patch("mascarade.routers.admin.auth_module.get_db_pool", return_value=pool):
             async with _client() as client:
                 resp = await client.post(
-                    "/users",
+                    "/v1/users",
                     json={"username": "taken", "email": "x@x.com", "role_id": 2},
                     headers={"Authorization": "Bearer test-key"},
                 )
@@ -220,7 +220,7 @@ class TestDeleteUser:
         with patch("mascarade.routers.admin.auth_module.authenticate_user", new_callable=AsyncMock, return_value=admin), \
              patch("mascarade.routers.admin.auth_module.get_db_pool", return_value=pool):
             async with _client() as client:
-                resp = await client.delete("/users/5", headers={"Authorization": "Bearer test-key"})
+                resp = await client.delete("/v1/users/5", headers={"Authorization": "Bearer test-key"})
 
         assert resp.status_code == 200
         assert resp.json()["status"] == "ok"
@@ -243,7 +243,7 @@ class TestCreateApiKey:
              patch("mascarade.routers.admin.auth_module.hash_api_key", return_value="hashed"):
             async with _client() as client:
                 resp = await client.post(
-                    "/users/2/api-keys",
+                    "/v1/users/2/api-keys",
                     json={"name": "Test Key"},
                     headers={"Authorization": "Bearer test-key"},
                 )
@@ -274,7 +274,7 @@ class TestUsageStats:
         with patch("mascarade.routers.admin.auth_module.authenticate_user", new_callable=AsyncMock, return_value=admin), \
              patch("mascarade.routers.admin.auth_module.get_db_pool", return_value=pool):
             async with _client() as client:
-                resp = await client.get("/admin/usage/stats", headers={"Authorization": "Bearer test-key"})
+                resp = await client.get("/v1/admin/usage/stats", headers={"Authorization": "Bearer test-key"})
 
         assert resp.status_code == 200
         body = resp.json()
@@ -287,6 +287,6 @@ class TestAuthRejection:
     @pytest.mark.asyncio
     async def test_no_auth_returns_401(self):
         async with _client() as client:
-            resp = await client.get("/users")
+            resp = await client.get("/v1/users")
 
         assert resp.status_code == 401

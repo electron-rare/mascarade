@@ -123,23 +123,27 @@ class TestWsHealthData:
 
         @dataclass
         class FakeProviderHealth:
-            is_healthy: bool
-            success_rate: float
-            avg_latency_ms: float
-            total_requests: int
-            failed_requests: int
-            last_success: datetime | None
-            last_failure: datetime | None
-            consecutive_failures: int
+            provider_name: str
+            health_score: float = 1.0
+            latency_p50: float = 0.0
+            latency_p95: float = 0.0
+            latency_p99: float = 0.0
+            error_rate: float = 0.0
+            availability: float = 1.0
+            total_requests: int = 0
 
         class FakeHealthMonitor:
             def get_all_health(self):
                 return {
                     "openai": FakeProviderHealth(
-                        is_healthy=True, success_rate=0.99, avg_latency_ms=100,
-                        total_requests=50, failed_requests=0,
-                        last_success=datetime.now(), last_failure=None,
-                        consecutive_failures=0,
+                        provider_name="openai",
+                        health_score=0.99,
+                        latency_p50=80.0,
+                        latency_p95=100.0,
+                        latency_p99=120.0,
+                        error_rate=0.01,
+                        availability=0.99,
+                        total_requests=50,
                     ),
                 }
 

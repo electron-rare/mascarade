@@ -11,6 +11,28 @@ LOG_FILE="$LOG_DIR/next_lot_control.log"
 ACTION="status"
 KEEP_LOG=false
 
+plan_non_empty() {
+    [[ -s "$PLAN_PATH" ]]
+}
+
+next_useful_lot_is_external() {
+    rg -q 'agent-factory-cockpit|/home/clems' "$REPO_DIR/docs/NEXT_USEFUL_LOT_STATE.md"
+}
+
+health_auth_aligned() {
+    rg -q 'import \{ isAuthConfigured \} from "\.\./middleware/auth\.js";' "$REPO_DIR/api/src/routes/health.ts" && \
+    rg -q 'const auth_required = isAuthConfigured\(\);' "$REPO_DIR/api/src/routes/health.ts"
+}
+
+frontend_reauth_guard_present() {
+    rg -q 'setAuthRequired\(true\);' "$REPO_DIR/web/src/auth/AuthContext.tsx" && \
+    rg -q 'Session gateway expiree ou invalide' "$REPO_DIR/web/src/api/client.ts"
+}
+
+auth_tests_present() {
+    [[ -f "$REPO_DIR/api/src/routes/auth.test.ts" ]] && [[ -f "$REPO_DIR/api/src/routes/health.test.ts" ]]
+}
+
 usage() {
     cat <<'EOF'
 Usage: bash scripts/tui/next_lot_control.sh [status|run|show-log|cleanup-log] [--keep-log]
@@ -37,9 +59,12 @@ print_status() {
     info "Plan actif: $PLAN_PATH"
     info "Log temporaire: $LOG_FILE"
     echo
-    printf '  %-34s %s\n' "Plan actif" "$( [[ -f "$PLAN_PATH" ]] && echo oui || echo non )"
-    printf '  %-34s %s\n' "Test circuit breaker present" "$( rg -q 'half_open_budget_is_consumed' "$REPO_DIR/core/tests/test_health_integration.py" && echo oui || echo non )"
-    printf '  %-34s %s\n' "Plan execution anchor present" "$( [[ -f "$REPO_DIR/docs/plan/2026-03-24-sota-mascarade/active_execution_plan.md" ]] && echo oui || echo non )"
+    printf '  %-34s %s\n' "Plan actif present" "$( [[ -f "$PLAN_PATH" ]] && echo oui || echo non )"
+    printf '  %-34s %s\n' "Plan actif non vide" "$( plan_non_empty && echo oui || echo non )"
+    printf '  %-34s %s\n' "Health/auth alignes" "$( health_auth_aligned && echo oui || echo non )"
+    printf '  %-34s %s\n' "Re-auth frontend presente" "$( frontend_reauth_guard_present && echo oui || echo non )"
+    printf '  %-34s %s\n' "Tests auth presents" "$( auth_tests_present && echo oui || echo non )"
+    printf '  %-34s %s\n' "NEXT_USEFUL_LOT externe" "$( next_useful_lot_is_external && echo oui || echo non )"
 }
 
 run_inspection() {
@@ -47,11 +72,15 @@ run_inspection() {
     mkdir -p "$LOG_DIR"
     : > "$LOG_FILE"
 
-    log_event "start next lot inspection"
+    log_event "start next lot inspection auth-cockpit-realignment"
     log_event "plan_exists=$( [[ -f "$PLAN_PATH" ]] && echo yes || echo no )"
-    log_event "changed_docs=$(git -C "$REPO_DIR" status --short docs scripts core/tests core/mascarade/router 2>/dev/null | wc -l | tr -d ' ')"
-    log_event "half_open_test=$(rg -n 'half_open_budget_is_consumed' "$REPO_DIR/core/tests/test_health_integration.py" | tr '\n' ' ' || true)"
-    log_event "circuit_breaker_budget=$(rg -n 'half_open_calls \+= 1' "$REPO_DIR/core/mascarade/router/circuit_breaker.py" | tr '\n' ' ' || true)"
+    log_event "plan_non_empty=$( plan_non_empty && echo yes || echo no )"
+    log_event "health_auth_aligned=$( health_auth_aligned && echo yes || echo no )"
+    log_event "frontend_reauth_guard=$( frontend_reauth_guard_present && echo yes || echo no )"
+    log_event "auth_tests_present=$( auth_tests_present && echo yes || echo no )"
+    log_event "next_useful_lot_external=$( next_useful_lot_is_external && echo yes || echo no )"
+    log_event "changed_pilotage_files=$(git -C "$REPO_DIR" status --short docs scripts api/src/routes/health.ts web/src/auth web/src/api/client.ts web/src/pages/Agents.tsx 2>/dev/null | wc -l | tr -d ' ')"
+    log_event "decision=continue only if plan_non_empty=yes and health_auth_aligned=yes and frontend_reauth_guard=yes"
 
     ok "Inspection terminee"
     info "Log ecrit: $LOG_FILE"

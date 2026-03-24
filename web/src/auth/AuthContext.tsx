@@ -74,7 +74,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   // Subscribe to 401 events from the api() client
-  useEffect(() => onAuth401(() => setAuthenticated(false)), []);
+  useEffect(() => onAuth401(() => {
+    setAuthRequired(true);
+    setAuthenticated(false);
+    setChecking(false);
+  }), []);
 
   const login = useCallback(async (key: string, persist: boolean): Promise<boolean> => {
     const valid = await setApiKey(key, persist);

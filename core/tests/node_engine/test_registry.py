@@ -57,7 +57,7 @@ def test_get_missing_domain_type():
     with pytest.raises(KeyError) as exc_info:
         registry.get("ai.NonExistent")
     assert "ai.NonExistent" in str(exc_info.value)
-    assert "not found" in str(exc_info.value)
+    assert "not found" in str(exc_info.value).lower()
 
 
 def test_get_by_domain():

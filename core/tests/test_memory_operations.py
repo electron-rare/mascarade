@@ -33,7 +33,7 @@ async def test_memory_add_returns_201():
     with patch("mascarade.routers.memory._mem0_request", side_effect=mock_mem0_request):
         async with _client() as client:
             response = await client.post(
-                "/api/memory/add",
+                "/v1/memory/add",
                 json={
                     "messages": [{"role": "user", "content": "test message"}],
                     "user_id": "test-user",
@@ -64,7 +64,7 @@ async def test_memory_add_with_agent_id():
     with patch("mascarade.routers.memory._mem0_request", side_effect=mock_mem0_request):
         async with _client() as client:
             response = await client.post(
-                "/api/memory/add",
+                "/v1/memory/add",
                 json={
                     "messages": [{"role": "user", "content": "test message"}],
                     "user_id": "test-user",
@@ -97,7 +97,7 @@ async def test_memory_search():
     with patch("mascarade.routers.memory._mem0_request", side_effect=mock_mem0_request):
         async with _client() as client:
             response = await client.post(
-                "/api/memory/search",
+                "/v1/memory/search",
                 json={
                     "query": "test query",
                     "user_id": "test-user",
@@ -131,7 +131,7 @@ async def test_memory_get_all():
     with patch("mascarade.routers.memory._mem0_request", side_effect=mock_mem0_request):
         async with _client() as client:
             response = await client.post(
-                "/api/memory/get",
+                "/v1/memory/get",
                 json={
                     "user_id": "test-user",
                     "project_id": "project-alpha",
@@ -158,7 +158,7 @@ async def test_memory_delete():
             # Use POST method with DELETE endpoint (since httpx DELETE doesn't support json body)
             response = await client.request(
                 "DELETE",
-                "/api/memory/delete",
+                "/v1/memory/delete",
                 json={
                     "memory_id": "mem-12345",
                     "user_id": "test-user",
@@ -180,7 +180,7 @@ async def test_memory_add_validation_error():
     async with _client() as client:
         # Missing required field 'user_id'
         response = await client.post(
-            "/api/memory/add",
+            "/v1/memory/add",
             json={
                 "messages": [{"role": "user", "content": "test"}],
                 "project_id": "project-alpha",
@@ -195,7 +195,7 @@ async def test_memory_add_empty_messages():
     """Test POST /api/memory/add with empty messages."""
     async with _client() as client:
         response = await client.post(
-            "/api/memory/add",
+            "/v1/memory/add",
             json={
                 "messages": [],
                 "user_id": "test-user",
@@ -221,7 +221,7 @@ async def test_memory_service_unavailable():
     with patch("mascarade.routers.memory._mem0_request", side_effect=mock_mem0_request):
         async with _client() as client:
             response = await client.post(
-                "/api/memory/add",
+                "/v1/memory/add",
                 json={
                     "messages": [{"role": "user", "content": "test"}],
                     "user_id": "test-user",

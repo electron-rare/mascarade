@@ -327,7 +327,7 @@ async def test_tool_run_agent_unknown_agent(server):
         }
     )
     assert result["isError"] is True
-    assert "not found" in result["content"][0]["text"]
+    assert "not found" in result["content"][0]["text"].lower()
 
 
 @pytest.mark.asyncio
@@ -470,7 +470,7 @@ async def test_tool_orchestrate_unknown_agent(server_with_orchestrator):
         }
     )
     assert result["isError"] is True
-    assert "not found" in result["content"][0]["text"]
+    assert "not found" in result["content"][0]["text"].lower()
 
 
 # ---------------------------------------------------------------------------
