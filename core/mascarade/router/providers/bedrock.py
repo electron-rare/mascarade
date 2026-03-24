@@ -10,7 +10,7 @@ import boto3
 from botocore.config import Config as BotoConfig
 from botocore.exceptions import BotoCoreError, ClientError
 
-from mascarade.config import is_secret_configured, settings
+from mascarade.config import is_secret_configured, secret_value, settings
 from mascarade.router.providers.base import LLMProvider, LLMResponse, make_retry
 
 logger = logging.getLogger("mascarade.bedrock")
@@ -76,17 +76,17 @@ class BedrockProvider(LLMProvider):
             return
 
         session = boto3.session.Session(
-            aws_access_key_id=settings.aws_access_key_id or None,
-            aws_secret_access_key=settings.aws_secret_access_key or None,
-            aws_session_token=settings.aws_session_token or None,
+            aws_access_key_id=secret_value(settings.aws_access_key_id) or None,
+            aws_secret_access_key=secret_value(settings.aws_secret_access_key) or None,
+            aws_session_token=secret_value(settings.aws_session_token) or None,
             region_name=settings.aws_region,
         )
         self._client = session.client("bedrock-runtime", config=_BOTO_CFG)
 
         ft_session = boto3.session.Session(
-            aws_access_key_id=settings.aws_access_key_id or None,
-            aws_secret_access_key=settings.aws_secret_access_key or None,
-            aws_session_token=settings.aws_session_token or None,
+            aws_access_key_id=secret_value(settings.aws_access_key_id) or None,
+            aws_secret_access_key=secret_value(settings.aws_secret_access_key) or None,
+            aws_session_token=secret_value(settings.aws_session_token) or None,
             region_name=FINETUNE_REGION,
         )
         self._ft_runtime = ft_session.client("bedrock-runtime", config=_BOTO_CFG)

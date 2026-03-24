@@ -6,7 +6,7 @@ from collections.abc import AsyncIterator
 
 import openai
 
-from mascarade.config import is_secret_configured, settings
+from mascarade.config import is_secret_configured, secret_value, settings
 from mascarade.router.providers.base import (
     LLMProvider,
     LLMResponse,
@@ -36,9 +36,9 @@ class OpenAIProvider(LLMProvider):
         )
         self._client = openai.AsyncOpenAI(
             api_key=(
-                settings.litellm_master_key
+                secret_value(settings.litellm_master_key)
                 if self._proxy_enabled
-                else settings.openai_api_key
+                else secret_value(settings.openai_api_key)
             ),
             base_url=(settings.litellm_base_url if self._proxy_enabled else None),
             timeout=30.0,
