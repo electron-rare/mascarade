@@ -14,8 +14,8 @@ graph TD
     Core --> Providers["LLM Providers\nClaude · OpenAI · Mistral · Gemini\nBedrock · Ollama · llama.cpp · CoreML\nMLX · LiteLLM · HuggingFace · Exo · KiCad"]
     Core <--> P2P["P2P Mesh\nDHT · PubSub · Relay · Tasks"]
     Core --> Obs["Observability\nGrafana · Prometheus · Loki\nTempo · OTEL · Langfuse · ClickHouse"]
-    Core <--> MCP["MCP Server (5 tools)\nMCP Client (7+ servers)"]
-    Core <--> A2A["A2A Protocol\nAgent Card · Task Delegation"]
+    Core <--> MCP["MCP Server (5 tools)\nMCP Client (9+ servers)\nn8n · ERPNext · Graphiti"]
+    Core <--> A2A["A2A Protocol (v0.3)\nAgent Card · Task Delegation\na2a-sdk compatible"]
     API --> Web["Operator Cockpit (React 19)"]
 
     OllamaApps["Ollama Apps\nContinue.dev · VSCode Chat\nOpen WebUI · LM Studio"] --> FakeOllama
@@ -40,8 +40,9 @@ graph TD
 | **P2P Mesh** | DHT, PubSub, Relay, distributed task queue with NAT traversal |
 | **Scheduler** | Distributed scheduler with resource-aware scoring and predictive load balancing |
 | **Fine-tuning** | 8-phase pipeline (DPO, SimPO, KTO, RLVR) with LoRA/QLoRA optimization |
-| **MCP** | Server (5 tools) + Client (7+ industrial servers) with stateful protocol |
-| **A2A** | Agent Card + task delegation protocol with capability negotiation |
+| **Agent Gates** | Pre/post execution gates with evidence tracking for audit and compliance |
+| **MCP** | Server (5 tools) + Client (9+ servers: industrial, n8n, ERPNext, Graphiti) |
+| **A2A** | Agent Card (spec v0.3) + task delegation, 6 lifecycle states, optional `a2a-sdk` |
 | **Real-time** | WebSocket event streams with backpressure handling |
 | **API Compat** | OpenAI-compatible `/v1/chat/completions` + Ollama-compatible `/api/chat` endpoints with streaming |
 | **Fake Ollama** | Ollama-compatible API backed by the LLM router — any app speaking ollama:// accesses all providers |
@@ -95,10 +96,12 @@ mascarade/
 | `GET`  | `/ollama/api/tags` | Ollama-compatible model list |
 | `POST` | `/ollama/api/chat` | Ollama-compatible chat (stream + sync) |
 | `POST` | `/ollama/api/generate` | Ollama-compatible text generation |
-| `POST` | `/api/agents` | Agent CRUD |
+| `POST` | `/api/agents` | Agent CRUD (with gate validation) |
 | `GET/POST` | `/api/cli-agents/*` | Status and execution for Vibe, Codex, Claude Code |
 | `POST` | `/api/orchestrate` | Multi-agent orchestration |
 | `GET`  | `/.well-known/agent.json` | A2A Agent Card |
+| `POST` | `/a2a/tasks` | A2A task submission (authenticated) |
+| `GET`  | `/a2a/tasks/{id}` | A2A task status and result |
 | `WS`   | `/ws/traces` | Real-time trace stream |
 
 ## Configuration
@@ -120,6 +123,13 @@ DEFAULT_MODEL=claude-sonnet-4-20250514
 P2P_ENABLED=true
 CLUSTER_ENABLED=true
 A2A_ENABLED=true
+
+# MCP integrations (auto-registered when set)
+N8N_BASE_URL=http://n8n.example.com:5678
+N8N_API_KEY=
+FRAPPE_URL=https://erp.example.com
+FRAPPE_API_KEY=
+FRAPPE_API_SECRET=
 
 # Fake Ollama API
 FAKE_OLLAMA_ENABLED=true

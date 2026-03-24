@@ -78,8 +78,19 @@ The following endpoints have frozen contracts and will not change in v1.x:
 
 ## Version History
 
-### [Unreleased]
-- No changes pending
+### [Unreleased] - 2026-03-24
+
+#### Added
+- **Agent Gates** — Pre/post execution gate system with 4 built-in checks (`has_system_prompt`, `has_skills`, `has_tools`, `is_configured`). Required and optional gates, `EvidenceRecord` for audit trails. (`core/mascarade/agents/base.py`)
+- **MCP n8n Client** — `N8nMcpClient` with 4 tools: `list_workflows`, `execute_workflow`, `get_execution`, `list_executions`. Auto-registered via `N8N_BASE_URL` env var. (`core/mascarade/mcp/n8n.py`)
+- **MCP ERPNext Client** — `ERPNextMcpClient` with 6 tools: `list_leads`, `get_lead`, `create_lead`, `list_quotations`, `create_quotation`, `list_invoices`. Auto-registered via `FRAPPE_URL` env var. (`core/mascarade/mcp/erpnext.py`)
+- **A2A SDK migration (Phase 1)** — Router aligned to A2A spec v0.3 with 6 task states (`submitted`, `working`, `input-required`, `completed`, `failed`, `canceled`), `AgentCardResponse` model, conditional `a2a-sdk` import. (`core/mascarade/routers/a2a.py`)
+- **Zod validation** — 6 new schemas (`UserCreate`, `UserUpdate`, `ApiKeyCreate`, `WorkflowRun`, `FinetuneRun`, `ClusterForwardSend`) wired into 5 API routes via `validate()` middleware. (`api/src/validation/schemas.ts`)
+- **Tests** — +107 new tests: 4 providers (Claude, OpenAI, LiteLLM, Bedrock), 4 routers (Admin, WebSocket, Analytics, Voice), agent gates (17 tests), MCP clients (21 tests)
+- **CI** — Added TypeScript type-check step (`tsc --noEmit`) and pytest coverage threshold (`--cov-fail-under=50`)
+
+#### Fixed
+- Syntax error in `gpt53_codex.py` where `import json` was placed before the docstring
 
 ---
 
