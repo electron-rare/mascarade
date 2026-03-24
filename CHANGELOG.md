@@ -88,9 +88,15 @@ The following endpoints have frozen contracts and will not change in v1.x:
 - **Zod validation** — 6 new schemas (`UserCreate`, `UserUpdate`, `ApiKeyCreate`, `WorkflowRun`, `FinetuneRun`, `ClusterForwardSend`) wired into 5 API routes via `validate()` middleware. (`api/src/validation/schemas.ts`)
 - **Tests** — +107 new tests: 4 providers (Claude, OpenAI, LiteLLM, Bedrock), 4 routers (Admin, WebSocket, Analytics, Voice), agent gates (17 tests), MCP clients (21 tests)
 - **CI** — Added TypeScript type-check step (`tsc --noEmit`) and pytest coverage threshold (`--cov-fail-under=50`)
+- **MCP SearXNG** — Web search tool for agents, auto-registered via `SEARXNG_URL` env var. (`core/mascarade/mcp/searxng.py`)
+- **RAG SOTA 2026** — Hybrid search (dense+BM25+RRF fusion), LLM reranking, CRAG pattern with SearXNG web fallback. (`core/mascarade/rag/pipeline.py`, `core/mascarade/rag/vectorstore.py`)
+- **RAG Ingestion** — Script to chunk + embed 242 docs / 853 chunks via Ollama bge-m3 into Qdrant. (`scripts/ingest-docs.py`)
 
 #### Fixed
 - Syntax error in `gpt53_codex.py` where `import json` was placed before the docstring
+- **SecretStr bug** in 5 providers (claude, openai, google, huggingface, bedrock) — all now use `secret_value()` to unwrap keys
+- **API proxy** routing `/api/ai` to correct `/prompts` endpoint on mascarade-core
+- **Frappe CRM** — removed orphan `lms` and `payments` modules from installed apps
 
 ---
 

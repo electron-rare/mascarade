@@ -41,7 +41,7 @@ graph TD
 | **Agents** | 16 pre-built -- coder, analyst, kicad-designer, spice-expert, pcb-routing, Mistral Studio (4 real agent IDs), CLI (Vibe/Codex/Claude Code) |
 | **MCP** | Server (5 tools) + Client (KiCad x5, SPICEBridge 28 tools, FreeCAD, n8n, ERPNext) |
 | **A2A** | Agent-to-Agent protocol (spec v0.3) with task delegation and lifecycle states |
-| **RAG** | Qdrant vector store, multi-provider embeddings, intent classification |
+| **RAG** | Qdrant hybrid search (dense+BM25+RRF), LLM reranking, CRAG fallback, SearXNG web search, bge-m3 embeddings |
 | **ML Router** | Softmax classifier (17 features) auto-selects best model per prompt |
 | **Fine-tuning** | 3-stage pipeline: CPT -> SFT -> RLVR. LoRA/QLoRA, DPO, SimPO, KTO, GRPO. 14 domain mini-models |
 | **Data Quality** | SOTA 2026 pipeline: SemDeDup, IFD scoring, multi-judge (3 LLMs), per-capability scoring |
