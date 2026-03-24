@@ -62,9 +62,8 @@ def chunk_text(text: str, chunk_size: int = CHUNK_SIZE, overlap: int = CHUNK_OVE
 
 
 def doc_id(path: str, chunk_idx: int) -> str:
-    """Deterministic ID for a document chunk."""
-    h = hashlib.sha256(f"{path}:{chunk_idx}".encode()).hexdigest()[:16]
-    return h
+    """Deterministic UUID for a document chunk."""
+    return str(uuid.uuid5(uuid.NAMESPACE_URL, f"{path}:{chunk_idx}"))
 
 
 # ---------------------------------------------------------------------------

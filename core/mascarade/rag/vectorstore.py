@@ -166,6 +166,67 @@ class QdrantVectorStore:
             for r in results
         ]
 
+    # ------------------------------------------------------------------
+    # Hybrid search (dense + BM25 sparse via Qdrant Query API)
+    # ------------------------------------------------------------------
+
+    async def hybrid_search(
+        self,
+        query_embedding: list[float],
+        query_text: str,
+        top_k: int = 10,
+        filters: dict[str, Any] | None = None,
+    ) -> list[dict[str, Any]]:
+        """Hybrid search using dense vectors + BM25 full-text with RRF fusion.
+
+        Requires Qdrant 1.15+ with text index on 'text' payload field.
+        Falls back to dense-only search if hybrid query fails.
+        """
+        # Qdrant Query API with prefetch (dense + BM25) + RRF fusion
+        body: dict[str, Any] = {
+            "prefetch": [
+                {
+                    "query": query_embedding,
+                    "using": "dense",
+                    "limit": top_k * 2,
+                },
+                {
+                    "query": query_text,
+                    "using": "text",
+                    "limit": top_k * 2,
+                },
+            ],
+            "query": {"fusion": "rrf"},
+            "limit": top_k,
+            "with_payload": True,
+        }
+        if filters:
+            body["filter"] = filters
+
+        client = await self._get_client()
+        try:
+            resp = await client.post(
+                f"/collections/{self.collection}/points/query",
+                json=body,
+            )
+            resp.raise_for_status()
+            results = resp.json().get("result", {}).get("points", [])
+        except Exception:
+            # Fallback to dense-only search if hybrid not supported
+            logger.debug("Hybrid search failed, falling back to dense-only")
+            return await self.search(query_embedding, top_k=top_k, filters=filters)
+
+        return [
+            {
+                "id": r["id"],
+                "score": r.get("score", 0.0),
+                "text": r.get("payload", {}).get("text", ""),
+                "source": r.get("payload", {}).get("source", ""),
+                "metadata": r.get("payload", {}).get("metadata", {}),
+            }
+            for r in results
+        ]
+
     async def delete(self, point_ids: list[str | int]) -> None:
         """Delete points by ID."""
         client = await self._get_client()
