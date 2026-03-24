@@ -7,7 +7,7 @@ from collections.abc import AsyncIterator
 import anthropic
 import openai
 
-from mascarade.config import is_secret_configured, settings
+from mascarade.config import is_secret_configured, secret_value, settings
 from mascarade.router.providers.base import (
     LLMProvider,
     LLMResponse,
@@ -40,13 +40,13 @@ class ClaudeProvider(LLMProvider):
         )
         if self._proxy_enabled:
             self._client = openai.AsyncOpenAI(
-                api_key=settings.litellm_master_key,
+                api_key=secret_value(settings.litellm_master_key),
                 base_url=settings.litellm_base_url,
                 timeout=30.0,
             )
         else:
             self._client = anthropic.AsyncAnthropic(
-                api_key=settings.anthropic_api_key,
+                api_key=secret_value(settings.anthropic_api_key),
                 timeout=30.0,
             )
 

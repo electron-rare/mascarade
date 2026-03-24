@@ -9,7 +9,7 @@ from datetime import UTC, datetime, timedelta
 import httpx
 import openai
 
-from mascarade.config import is_secret_configured, settings
+from mascarade.config import is_secret_configured, secret_value, settings
 from mascarade.router.providers.base import (
     LLMProvider,
     LLMResponse,
@@ -78,16 +78,16 @@ class HuggingFaceProvider(LLMProvider):
             is_secret_configured(settings.huggingface_oauth_access_token)
             or (
                 is_secret_configured(settings.huggingface_oauth_refresh_token)
-                and settings.huggingface_oauth_client_id.strip()
+                and secret_value(settings.huggingface_oauth_client_id).strip()
                 and is_secret_configured(settings.huggingface_oauth_client_secret)
             )
         )
 
     async def _refresh_oauth_access_token(self) -> str:
         token_endpoint = settings.huggingface_oauth_token_endpoint.strip()
-        refresh_token = settings.huggingface_oauth_refresh_token.strip()
-        client_id = settings.huggingface_oauth_client_id.strip()
-        client_secret = settings.huggingface_oauth_client_secret.strip()
+        refresh_token = secret_value(settings.huggingface_oauth_refresh_token).strip()
+        client_id = secret_value(settings.huggingface_oauth_client_id).strip()
+        client_secret = secret_value(settings.huggingface_oauth_client_secret).strip()
 
         if not token_endpoint:
             raise RuntimeError("Hugging Face OAuth token endpoint is missing")
@@ -129,7 +129,7 @@ class HuggingFaceProvider(LLMProvider):
         return access_token
 
     async def _resolve_oauth_access_token(self) -> str:
-        access_token = settings.huggingface_oauth_access_token.strip()
+        access_token = secret_value(settings.huggingface_oauth_access_token).strip()
         expires_at = _parse_expires_at(settings.huggingface_oauth_expires_at)
         if is_secret_configured(access_token):
             if (
@@ -141,7 +141,7 @@ class HuggingFaceProvider(LLMProvider):
 
     async def _resolve_access_token(self) -> str:
         if _normalized_auth_mode() == "api_key":
-            token = settings.huggingface_api_key.strip()
+            token = secret_value(settings.huggingface_api_key).strip()
             if not is_secret_configured(token):
                 raise RuntimeError("Hugging Face API key is missing")
             return token
@@ -149,7 +149,7 @@ class HuggingFaceProvider(LLMProvider):
 
     async def _ensure_client(self) -> openai.AsyncOpenAI:
         if self._proxy_enabled:
-            proxy_key = settings.litellm_master_key
+            proxy_key = secret_value(settings.litellm_master_key)
             if (
                 self._client is not None
                 and self._client_mode == "litellm"
