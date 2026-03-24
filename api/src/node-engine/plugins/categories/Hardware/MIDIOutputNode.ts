@@ -28,7 +28,13 @@ import {
   type ExecutionContext,
   type NodeExecutionResult,
 } from '../../NodePluginAPI.js';
-import * as JZZ from 'jzz';
+// Lazy-loaded: jzz is optional (hardware nodes only)
+let JZZ: typeof import('jzz') | null = null;
+try {
+  JZZ = await import('jzz');
+} catch {
+  // jzz not available — MIDI features disabled
+}
 
 /**
  * MIDI message type
