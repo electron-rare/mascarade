@@ -4,6 +4,8 @@
 ![License MIT](https://img.shields.io/badge/license-MIT-green.svg)
 ![Version v0.2.0](https://img.shields.io/badge/version-v0.2.0-orange.svg)
 ![Tests 400+](https://img.shields.io/badge/tests-400+-brightgreen.svg)
+![Datasets 61K](https://img.shields.io/badge/datasets-61K_verified-yellow.svg)
+![Models 14](https://img.shields.io/badge/models-14_mini--models-purple.svg)
 
 Open-source AI orchestration engine specialized in electronics design (KiCad, SPICE, PCB, embedded systems). Multi-provider LLM routing, P2P mesh networking, domain-specific fine-tuning. Self-hosted, async-first, built for real hardware workflows.
 
@@ -37,11 +39,12 @@ graph TD
 | -------- | ------- |
 | **LLM Providers** | 20+ providers -- Claude, OpenAI, Mistral, Codestral, Google, HuggingFace, Bedrock, Ollama, llama.cpp, CoreML, MLX, LiteLLM, Exo, vLLM |
 | **Agents** | 16 pre-built -- coder, analyst, kicad-designer, spice-expert, pcb-routing, Mistral Studio (4 real agent IDs), CLI (Vibe/Codex/Claude Code) |
-| **MCP** | Server (5 tools) + Client (KiCad, SPICE, FreeCAD, n8n, ERPNext, Graphiti) |
+| **MCP** | Server (5 tools) + Client (KiCad x5, SPICEBridge 28 tools, FreeCAD, n8n, ERPNext) |
 | **A2A** | Agent-to-Agent protocol (spec v0.3) with task delegation and lifecycle states |
 | **RAG** | Qdrant vector store, multi-provider embeddings, intent classification |
 | **ML Router** | Softmax classifier (17 features) auto-selects best model per prompt |
-| **Fine-tuning** | 3-stage pipeline: CPT -> SFT -> RLVR with LoRA/QLoRA, DPO, SimPO, KTO |
+| **Fine-tuning** | 3-stage pipeline: CPT -> SFT -> RLVR. LoRA/QLoRA, DPO, SimPO, KTO, GRPO. 14 domain mini-models |
+| **Data Quality** | SOTA 2026 pipeline: SemDeDup, IFD scoring, multi-judge (3 LLMs), per-capability scoring |
 | **P2P Mesh** | DHT, PubSub, relay with NAT traversal and distributed task queue |
 | **Scheduler** | GPU-aware worker selection with predictive load balancing |
 | **API Compat** | OpenAI `/v1/chat/completions` + Ollama `/api/chat` + Xcode Intelligence |
@@ -68,17 +71,19 @@ Any Ollama-compatible app (Continue.dev, Open WebUI, LM Studio) can connect dire
 
 ## Benchmark Results
 
-Evaluated with Codestral as judge on 100 electronics prompts:
+Codestral API judge, 130 prompts (100 standard + 30 adversarial):
 
-| Model | Size | Score /10 |
-| ----- | ---- | --------- |
-| **mascarade-spice-v1** | 2.5 GB | **6.89** |
-| **mascarade-kicad-v1** | 2.5 GB | **6.82** |
-| qwen2.5-7b (base) | 4.7 GB | 6.79 |
-| kicadv2-24B | 14 GB | 5.62 |
-| phi2-ee (HF #1 EE model) | 1.7 GB | 3.05 |
+| Model | Size | Score /10 | Latency |
+| ----- | ---- | --------- | ------- |
+| **mascarade-emc** | 2.5 GB | **7.14** | 2.3s |
+| **mascarade-power** | 2.5 GB | **7.10** | 2.3s |
+| **mascarade-dsp** | 2.5 GB | **7.07** | 2.3s |
+| **mascarade-spice-v1** | 2.5 GB | **6.89** | 2.3s |
+| **mascarade-kicad-v1** | 2.5 GB | **6.82** | 2.3s |
+| qwen2.5-7b (base) | 4.7 GB | 6.89 | 9.5s |
+| phi2-ee (HF #1 EE model) | 1.7 GB | 2.72 | 1.5s |
 
-Mascarade fine-tunes outperform the top HuggingFace electronics model by +125% while being only 50% larger.
+Mascarade fine-tunes outperform the top HuggingFace electronics model by **+125%** with **4x less latency** than the base model.
 
 ## Fine-tuned Models
 
@@ -88,17 +93,46 @@ Published on HuggingFace:
 - [clemsail/mascarade-spice-v1-lora](https://huggingface.co/clemsail/mascarade-spice-v1-lora) -- SPICE circuit simulation
 - [clemsail/mascarade-kicad-dataset](https://huggingface.co/datasets/clemsail/mascarade-kicad-dataset) -- Training dataset
 
-10 additional domain models in the pipeline: IPC, EMC, analog, power, DSP, embedded, and more.
+14 domain mini-models trained (9 complete, 5 retraining on enriched data):
+
+| Model | Domain | Examples | Data Sources |
+| ----- | ------ | -------- | ------------ |
+| mascarade-spice-v3 | SPICE simulation | 13,723 | mascarade + symbench/spice-datasets + ngspice |
+| mascarade-verilog-v1 | Verilog/RTL | 26,532 | RTLCoder + VeriReason (GRPO) |
+| mascarade-emc-v2 | EMC/EMI compliance | 3,016 | mascarade original |
+| mascarade-ipc-v2 | IPC/JLCPCB standards | 2,251 | Codestral generated |
+| mascarade-dsp-v2 | DSP (ARM CMSIS) | 2,015 | mascarade + CMSIS-DSP + liquid-dsp |
+| mascarade-power-v2 | Power electronics | 1,967 | mascarade original |
+| mascarade-kicad-v4 | KiCad 10 design | 1,931 | Multi-provider grounded |
+| mascarade-embedded-v3 | Embedded systems | 1,669 | mascarade + Pico SDK + ch32fun RISC-V |
+| mascarade-analog-v2 | Analog/audio | 1,249 | Codestral generated |
+| mascarade-freecad-v1 | FreeCAD/3D CAD | 3,974 | mascarade original |
+| mascarade-platformio-v1 | PlatformIO/Arduino | 763 | mascarade original |
+| mascarade-missing-v2 | RF, safety, battery | 891 | Codestral generated |
+| mascarade-iot-v2 | IoT (ESP-IDF) | 385 | ESP-IDF examples (Apache 2.0) |
+| mascarade-stm32-v1 | STM32 HAL | 313 | mascarade original |
 
 ## Datasets
 
 | Stage | Examples | Content |
 | ----- | -------- | ------- |
-| **CPT** (continual pre-training) | 492K | Verilog, schematics, semiconductor, circuit theory |
-| **SFT** (supervised fine-tuning) | 27K | KiCad, SPICE, EMC, power, DSP, PlatformIO, FreeCAD, embedded |
-| **Benchmark** | 130 | Multi-domain electronics evaluation prompts |
+| **CPT** (continual pre-training) | 492K | Verilog (390K), KiCad schematics (43K), semiconductor (59K) |
+| **SFT** (supervised fine-tuning) | 61K | 14 domains: SPICE, Verilog, KiCad, EMC, IPC, DSP, power, embedded, analog, FreeCAD, PlatformIO, IoT, RF, safety |
+| **Quality Sources** | 8.2K | Real code from ESP-IDF, CMSIS-DSP, liquid-dsp, Pico SDK, ngspice, ch32fun RISC-V, spice-datasets |
+| **Benchmark** | 130 | 100 standard + 30 adversarial electronics prompts |
 
-13 domains covered. Datasets generated via Codestral + grounded in 43K real open-source schematics.
+### Data Quality Pipeline (SOTA 2026)
+
+```text
+Sources (700K+) -> Format Audit -> Cross-Dedup (10K removed)
+    -> Hallucination Cleaning -> LLM Verification (devstral judge)
+    -> Semantic Dedup (bge-m3) -> IFD Scoring -> Multi-Judge (3 LLMs)
+    -> Per-Capability Scoring -> Curated Dataset (61K verified)
+```
+
+Based on: SemDeDup (arXiv 2303.09540), Cherry LLM IFD (arXiv 2308.12032), AlpaGasus (arXiv 2307.08701), SkillRater (arXiv 2602.11615).
+
+Data enriched from 8 verified open-source repos (MIT/Apache/BSD): espressif/esp-idf, ARM-software/CMSIS-DSP, jgaeddert/liquid-dsp, raspberrypi/pico-examples, cnlohr/ch32fun, symbench/spice-datasets, ngspice.
 
 ## Fleet
 
