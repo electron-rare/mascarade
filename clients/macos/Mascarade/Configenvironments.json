@@ -1,0 +1,150 @@
+{
+  "development": {
+    "name": "Development Environment",
+    "nodes": [
+      {
+        "name": "Dev Root Server",
+        "host": "localhost",
+        "port": 2222,
+        "username": "dev",
+        "authentication": "publicKey",
+        "capabilities": ["dataProcessing", "modelTraining", "inference"],
+        "description": "Local development server",
+        "maxConcurrentTasks": 2,
+        "enabled": true
+      },
+      {
+        "name": "Dev Test Node",
+        "host": "127.0.0.1",
+        "port": 2223,
+        "username": "dev",
+        "authentication": "publicKey",
+        "capabilities": ["textProcessing", "inference"],
+        "description": "Local test node",
+        "maxConcurrentTasks": 1,
+        "enabled": true
+      }
+    ],
+    "settings": {
+      "autoRefresh": true,
+      "refreshInterval": 30,
+      "connectionTimeout": 10,
+      "retryAttempts": 2,
+      "retryDelay": 3,
+      "enableLogging": true,
+      "logLevel": "DEBUG",
+      "mockMode": false,
+      "debugUI": true
+    }
+  },
+  
+  "staging": {
+    "name": "Staging Environment",
+    "nodes": [
+      {
+        "name": "Staging Root",
+        "host": "192.168.1.119",
+        "port": 22,
+        "username": "staging",
+        "authentication": "publicKey",
+        "capabilities": ["dataProcessing", "modelTraining", "inference"],
+        "description": "Staging server for testing",
+        "maxConcurrentTasks": 5,
+        "enabled": true
+      },
+      {
+        "name": "Staging Worker",
+        "host": "192.168.1.120",
+        "port": 22,
+        "username": "staging",
+        "authentication": "publicKey",
+        "capabilities": ["textProcessing", "imageAnalysis", "inference"],
+        "description": "Staging worker node",
+        "maxConcurrentTasks": 3,
+        "enabled": true
+      }
+    ],
+    "settings": {
+      "autoRefresh": true,
+      "refreshInterval": 60,
+      "connectionTimeout": 20,
+      "retryAttempts": 3,
+      "retryDelay": 5,
+      "enableLogging": true,
+      "logLevel": "INFO",
+      "mockMode": false,
+      "debugUI": false
+    }
+  },
+  
+  "production": {
+    "name": "Production Environment",
+    "nodes": [
+      {
+        "name": "Production Root Server",
+        "host": "192.168.0.119",
+        "port": 22,
+        "username": "root",
+        "authentication": "publicKey",
+        "capabilities": ["dataProcessing", "modelTraining", "inference"],
+        "description": "Production root server - High performance",
+        "maxConcurrentTasks": 10,
+        "enabled": true,
+        "priority": 1
+      },
+      {
+        "name": "Production Clems Workstation",
+        "host": "192.168.0.120",
+        "port": 22,
+        "username": "clems",
+        "authentication": "publicKey",
+        "capabilities": ["textProcessing", "imageAnalysis", "inference"],
+        "description": "Production workstation - NLP & Vision",
+        "maxConcurrentTasks": 8,
+        "enabled": true,
+        "priority": 2
+      },
+      {
+        "name": "Production KXKM AI Node",
+        "host": "kxkm-ai",
+        "port": 22,
+        "username": "kxkm",
+        "authentication": "publicKey",
+        "capabilities": ["modelTraining", "inference", "dataProcessing"],
+        "description": "Production AI dedicated node - ML/DL",
+        "maxConcurrentTasks": 12,
+        "enabled": true,
+        "priority": 1
+      },
+      {
+        "name": "Production CILS Node",
+        "host": "cils",
+        "port": 22,
+        "username": "user",
+        "authentication": "publicKey",
+        "capabilities": ["textProcessing", "inference"],
+        "description": "Production auxiliary node",
+        "maxConcurrentTasks": 5,
+        "enabled": true,
+        "priority": 3
+      }
+    ],
+    "settings": {
+      "autoRefresh": true,
+      "refreshInterval": 120,
+      "connectionTimeout": 30,
+      "retryAttempts": 5,
+      "retryDelay": 10,
+      "enableLogging": true,
+      "logLevel": "WARNING",
+      "mockMode": false,
+      "debugUI": false,
+      "enableMetrics": true,
+      "metricsInterval": 300,
+      "enableAlerts": true,
+      "alertThreshold": 0.85,
+      "enableBackup": true,
+      "backupInterval": 3600
+    }
+  }
+}
