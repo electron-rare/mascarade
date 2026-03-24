@@ -80,6 +80,9 @@ mascarade/
 ├── core/           # Python FastAPI core (LLM routing, agents, P2P, finetune)
 ├── api/            # Node.js API gateway (Hono, auth, rate limiting)
 ├── web/            # React 19 operator cockpit
+├── clients/        # Native clients
+│   ├── macos/      # Swift/Xcode macOS app (Mascarade.app)
+│   └── aperant-bridge/  # Docker bridge service (Aperant)
 ├── deploy/         # Docker, observability configs, Dockerfiles
 ├── finetune/       # Fine-tuning datasets, scripts, pipeline
 ├── scripts/        # Ops scripts (monitor, health, deploy)
