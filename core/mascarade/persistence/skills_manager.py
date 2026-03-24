@@ -473,7 +473,7 @@ class SkillsPersistenceManager:
                     execution = SkillExecutionRecord.parse_raw(exec_data)
                     if execution.skill_id == skill_id:
                         execution_count += 1
-                except:
+                except (ValueError, KeyError, TypeError):
                     continue
 
         # Get agents using this skill

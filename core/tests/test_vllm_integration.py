@@ -4,6 +4,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+torch = pytest.importorskip("torch", reason="torch not installed")
+
 from mascarade.scheduler.paged_attention import PagedAttentionManager
 from mascarade.scheduler.scheduler import ScheduledRequest
 from mascarade.scheduler.vllm_integration import VLLMScheduler, VLLMWorker

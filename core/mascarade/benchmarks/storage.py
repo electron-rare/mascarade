@@ -213,7 +213,14 @@ class BenchmarkStorage:
                 where_clause = "WHERE domain = %(domain)s"
                 params["domain"] = domain
 
-            # order_by is already validated via whitelist in server.py, safe to interpolate
+            # Whitelist order_by to prevent SQL injection
+            allowed_order = {
+                "quality_score", "latency_p50", "latency_p95",
+                "cost", "error_rate", "total_requests",
+            }
+            if order_by not in allowed_order:
+                order_by = "quality_score"
+
             query = f"""
                 SELECT
                     provider,
