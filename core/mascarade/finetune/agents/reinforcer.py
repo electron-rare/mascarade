@@ -842,7 +842,8 @@ class ReinforcerAgent:
                 r=16,
                 lora_alpha=32,
                 lora_dropout=0.05,
-                target_modules=["q_proj", "v_proj"],
+                target_modules=["all-linear"],
+                use_dora=True,
                 use_gradient_checkpointing="unsloth",
             )
             logger.info("Using Unsloth backend for GRPO")

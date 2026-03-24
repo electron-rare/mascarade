@@ -85,6 +85,7 @@ class RLVRConfig:
     lora_r: int = 16
     lora_alpha: int = 32
     lora_dropout: float = 0.05
+    use_dora: bool = True  # DoRA: Weight-Decomposed Low-Rank Adaptation (QDoRA when quantized)
 
 
 @dataclass
@@ -263,7 +264,8 @@ class RLVRTrainer:
                     r=config.lora_r,
                     lora_alpha=config.lora_alpha,
                     lora_dropout=config.lora_dropout,
-                    target_modules=["q_proj", "v_proj"],
+                    target_modules=["all-linear"],
+                    use_dora=config.use_dora,
                     use_gradient_checkpointing="unsloth",
                 )
                 logger.info("RLVR: loaded model via Unsloth QLoRA (4-bit)")

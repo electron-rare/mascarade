@@ -188,6 +188,8 @@ class TestAgentLogic:
         assert config.r == 16
         assert config.lora_alpha == 32
         assert config.quantization == "4bit"
+        assert config.use_dora is True
+        assert config.target_modules == ["all-linear"]
 
     def test_validator_red_team_prompts(self):
         from mascarade.finetune.agents.validator import RED_TEAM_PROMPTS
@@ -223,6 +225,7 @@ class TestOrchestrator:
         config = PipelineConfig(task="code", domain="code-gen")
         assert config.max_model_size_gb == 4.0
         assert config.dpo_iterations == 1
+        assert config.alignment_method == "simpo"
 
     def test_pipeline_state_init(self):
         config = PipelineConfig(task="test", domain="test")
@@ -539,6 +542,70 @@ class TestReinforcerKxkm:
         payload = json.loads(lines[0])
         assert payload["source"] == "kxkm"
         assert payload["project_id"] == "project-alpha"
+
+
+class TestQDoRADefaults:
+    """Verify QDoRA (QLoRA + DoRA) is the default adapter configuration."""
+
+    def test_lora_config_use_dora_default_true(self):
+        config = LoRAConfig()
+        assert config.use_dora is True
+
+    def test_lora_config_target_modules_all_linear(self):
+        config = LoRAConfig()
+        assert config.target_modules == ["all-linear"]
+
+    def test_lora_config_rank_16(self):
+        config = LoRAConfig()
+        assert config.r == 16
+
+    def test_lora_config_dora_can_be_disabled(self):
+        config = LoRAConfig(use_dora=False)
+        assert config.use_dora is False
+
+    def test_lora_config_legacy_target_modules(self):
+        config = LoRAConfig(target_modules=["q_proj", "v_proj"], use_dora=False)
+        assert config.target_modules == ["q_proj", "v_proj"]
+        assert config.use_dora is False
+
+    def test_rlvr_config_use_dora_default(self):
+        from mascarade.finetune.rlvr.trainer import RLVRConfig
+
+        config = RLVRConfig(
+            base_model="test/model",
+            reward_functions=["code_compilation"],
+        )
+        assert config.use_dora is True
+        assert config.lora_r == 16
+
+
+class TestSimPODefault:
+    """Verify SimPO is the default alignment method."""
+
+    def test_pipeline_config_default_simpo(self):
+        config = PipelineConfig(task="code", domain="test")
+        assert config.alignment_method == "simpo"
+
+    def test_pipeline_config_dpo_still_available(self):
+        config = PipelineConfig(task="code", domain="test", alignment_method="dpo")
+        assert config.alignment_method == "dpo"
+
+    def test_pipeline_config_kto_still_available(self):
+        config = PipelineConfig(task="code", domain="test", alignment_method="kto")
+        assert config.alignment_method == "kto"
+
+    def test_pipeline_config_rlvr_still_available(self):
+        config = PipelineConfig(task="code", domain="test", alignment_method="rlvr")
+        assert config.alignment_method == "rlvr"
+
+    def test_reinforcer_train_alignment_default_simpo(self):
+        """The train_alignment method defaults to simpo."""
+        import inspect
+
+        from mascarade.finetune.agents.reinforcer import ReinforcerAgent
+
+        sig = inspect.signature(ReinforcerAgent.train_alignment)
+        assert sig.parameters["method"].default == "simpo"
 
 
 class TestPubSubThreadSafety:

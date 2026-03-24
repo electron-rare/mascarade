@@ -32,7 +32,8 @@ class LoRAConfig:
     r: int = 16
     lora_alpha: int = 32
     lora_dropout: float = 0.05
-    target_modules: list[str] = field(default_factory=lambda: ["q_proj", "v_proj"])
+    target_modules: list[str] = field(default_factory=lambda: ["all-linear"])
+    use_dora: bool = True  # DoRA: Weight-Decomposed Low-Rank Adaptation (QDoRA when quantized)
     learning_rate: float = 2e-4
     num_epochs: int = 3
     batch_size: int = 4
@@ -139,6 +140,8 @@ class StudentAgent:
             lora_alpha=config.lora_alpha,
             lora_dropout=config.lora_dropout,
             target_modules=config.target_modules,
+            use_rslora=False,
+            use_dora=config.use_dora,
             use_gradient_checkpointing="unsloth",  # 30% less VRAM
         )
 
@@ -176,14 +179,15 @@ class StudentAgent:
         logs = trainer.state.log_history
         final_loss = logs[-1].get("loss", 0.0) if logs else 0.0
 
+        dora_tag = "dora" if config.use_dora else "lora"
         result = TrainingResult(
             output_dir=str(output_dir),
             base_model=base_model,
             dataset=dataset_path,
             method=(
-                f"unsloth-qlora-{config.quantization}"
+                f"unsloth-q{dora_tag}-{config.quantization}"
                 if load_in_4bit
-                else "unsloth-lora"
+                else f"unsloth-{dora_tag}"
             ),
             training_time_seconds=round(elapsed, 1),
             final_loss=round(final_loss, 4),
@@ -266,6 +270,7 @@ class StudentAgent:
             lora_alpha=config.lora_alpha,
             lora_dropout=config.lora_dropout,
             target_modules=config.target_modules,
+            use_dora=config.use_dora,
             task_type="CAUSAL_LM",
         )
 
@@ -301,14 +306,15 @@ class StudentAgent:
         logs = trainer.state.log_history
         final_loss = logs[-1].get("loss", 0.0) if logs else 0.0
 
+        dora_tag = "dora" if config.use_dora else "lora"
         result = TrainingResult(
             output_dir=str(output_dir),
             base_model=base_model,
             dataset=dataset_path,
             method=(
-                "lora"
+                dora_tag
                 if config.quantization == "none"
-                else f"qlora-{config.quantization}"
+                else f"q{dora_tag}-{config.quantization}"
             ),
             training_time_seconds=round(elapsed, 1),
             final_loss=round(final_loss, 4),
