@@ -91,7 +91,7 @@ def main():
 
         if best_model and best_model in model_tiers:
             tier = model_tiers[best_model]
-            classifier.record_outcome(prompt, tier, was_correct=True)
+            classifier.record_outcome(prompt, tier, success=True, latency_ms=100.0, cost=0.0)
 
     print(f"Recorded {len(prompts)} outcomes")
 
