@@ -319,6 +319,7 @@ class McpRuntimeClient:
         self._register_graphiti_server()
         self._register_n8n_server()
         self._register_erpnext_server()
+        self._register_searxng_server()
         self._register_kicad_mcp_servers()
 
     def _register_industrial_servers(self) -> None:
@@ -415,6 +416,20 @@ class McpRuntimeClient:
             timeout_s=30.0,
             label="ERPNext CRM",
             description="CRM and ERP operations: leads, quotations, invoices via Frappe REST API.",
+        )
+
+    def _register_searxng_server(self) -> None:
+        """Register SearXNG MCP server if SEARXNG_URL is set."""
+        searxng_url = os.getenv("SEARXNG_URL", "")
+        if not searxng_url:
+            return
+        self._servers["searxng"] = McpServerDefinition(
+            key="searxng",
+            transport="http",
+            url=searxng_url.rstrip("/"),
+            timeout_s=15.0,
+            label="SearXNG Web Search",
+            description="Privacy-respecting metasearch engine for web, news, science, IT, and file search.",
         )
 
     def _register_kicad_mcp_servers(self) -> None:
