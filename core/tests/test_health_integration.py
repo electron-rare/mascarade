@@ -122,9 +122,9 @@ def test_circuit_breaker_opens_on_failures():
         asyncio.run(router.send(payload, strategy="specific", provider="failing"))
         # If we get here, the circuit didn't block - but router might fallback
         # In strict mode with only one provider, it should fail
-    except ValueError as e:
-        # Expected - no available providers due to circuit being open
-        assert "failing" in str(e) or "Provider" in str(e)
+    except (ValueError, RuntimeError) as e:
+        # Expected - provider is blocked because the circuit is open
+        assert "failing" in str(e) or "Provider" in str(e) or "Circuit breaker" in str(e)
 
 
 def test_circuit_breaker_recovery():
@@ -189,6 +189,29 @@ def test_circuit_breaker_recovery():
         # If this fails, print debug info
         stats = router.circuit_breaker.get_stats("recoverable")
         pytest.fail(f"Recovery failed: {e}, stats: {stats}")
+
+
+def test_circuit_breaker_half_open_budget_is_consumed():
+    """HALF_OPEN must consume its probe budget instead of allowing infinite calls."""
+    breaker = CircuitBreaker(
+        failure_threshold=1,
+        recovery_timeout=0.05,
+        window_size=1.0,
+        half_open_max_calls=2,
+    )
+
+    breaker.record_failure("provider-a")
+    assert breaker.get_state("provider-a") == CircuitState.OPEN
+
+    time.sleep(0.06)
+
+    assert breaker.can_execute("provider-a") is True
+    assert breaker.can_execute("provider-a") is True
+    assert breaker.can_execute("provider-a") is False
+
+    stats = breaker.get_stats("provider-a")
+    assert stats["state"] == CircuitState.HALF_OPEN.value
+    assert stats["half_open_calls"] == 2
 
 
 def test_health_aware_routing():
