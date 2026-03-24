@@ -24,7 +24,7 @@ def mock_redis():
 @pytest.fixture
 async def redis_cache(mock_redis):
     """Create a RedisCache instance with mocked Redis connection."""
-    cache = RedisCache(redis_url="redis://localhost:6379/0")
+    cache = RedisCache(host="localhost", port=6379, db=0)
 
     # Mock the _get_redis method to return our mock
     async def get_mock_redis():

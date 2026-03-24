@@ -86,7 +86,7 @@ test.describe("Navigation principale", () => {
   test("charge le Dashboard à la racine /", async ({ page }) => {
     await page.goto("/");
     await expect(page).toHaveURL(/\/$/);
-    await expect(page.getByRole("heading", { name: "Dashboard" })).toBeVisible();
+    await expect(page.getByText("runtime posture")).toBeVisible();
   });
 
   test("navigue vers /playground", async ({ page }) => {

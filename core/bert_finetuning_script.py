@@ -20,9 +20,8 @@ logging.basicConfig(
 )
 logger = logging.getLogger("bert_finetuning")
 
-# Import after logging is configured
-from mascarade.analytics.clickhouse_logger import get_clickhouse_client
-from mascarade.router.bert_classifier import BertDomainClassifier
+from mascarade.analytics.clickhouse_logger import get_clickhouse_client  # noqa: E402
+from mascarade.router.bert_classifier import BertDomainClassifier  # noqa: E402
 
 
 def load_production_data(days: int = 7) -> tuple[list[str], list[str]]:
@@ -45,7 +44,7 @@ def load_production_data(days: int = 7) -> tuple[list[str], list[str]]:
         start_date = end_date - timedelta(days=days)
 
         # Query to get successful routing decisions with their domains
-        query = f"""
+        query = """
         SELECT
             query_text,
             detected_domain
@@ -53,13 +52,19 @@ def load_production_data(days: int = 7) -> tuple[list[str], list[str]]:
         WHERE
             success = 1
             AND detected_domain != ''
-            AND created_at >= '{start_date.isoformat()}'
-            AND created_at <= '{end_date.isoformat()}'
+            AND created_at >= %(start_date)s
+            AND created_at <= %(end_date)s
         ORDER BY created_at DESC
         LIMIT 10000
         """
 
-        result = client.execute(query)
+        result = client.execute(
+            query,
+            parameters={
+                "start_date": start_date.isoformat(),
+                "end_date": end_date.isoformat(),
+            },
+        )
 
         texts = []
         labels = []
