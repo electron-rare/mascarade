@@ -4,9 +4,16 @@ import { z } from "zod";
 // Shared primitives
 // ---------------------------------------------------------------------------
 
+const MAX_MESSAGE_CONTENT_LENGTH = 50_000;
+const MAX_MESSAGE_COUNT = 100;
+const MAX_COMPLETION_TOKENS = 32_768;
+const MAX_PROMPT_LENGTH = 50_000;
+const MAX_SYSTEM_PROMPT_LENGTH = 20_000;
+const MAX_CODESSTRAL_CONTEXT_LENGTH = 100_000;
+
 export const MessageSchema = z.object({
   role: z.enum(["system", "user", "assistant", "tool"]),
-  content: z.string().min(1).max(100_000),
+  content: z.string().min(1).max(MAX_MESSAGE_CONTENT_LENGTH),
 });
 
 export type Message = z.infer<typeof MessageSchema>;
@@ -45,7 +52,7 @@ export const ChatCompletionRequestSchema = withProjectScope(
     strategy: z.enum(["best", "cheapest", "domain", "fastest", "specific", "routellm"]).optional(),
     routing_policy: z.enum(["auto", "strong", "cheap", "fast"]).optional(),
     temperature: z.number().min(0).max(2).default(0.7),
-    max_tokens: z.number().int().min(1).max(128_000).default(4096),
+    max_tokens: z.number().int().min(1).max(MAX_COMPLETION_TOKENS).default(4096),
     stream: z.boolean().default(false),
   },
   { defaultProjectId: DEFAULT_PROJECT_ID },
@@ -59,7 +66,7 @@ export type ChatCompletionRequest = z.infer<typeof ChatCompletionRequestSchema>;
 
 const OllamaOptionsSchema = z.object({
   temperature: z.number().min(0).max(2).optional(),
-  num_predict: z.number().int().min(1).max(128_000).optional(),
+  num_predict: z.number().int().min(1).max(MAX_COMPLETION_TOKENS).optional(),
 }).passthrough();
 
 export const OllamaChatRequestSchema = withProjectScope(
@@ -80,8 +87,8 @@ export type OllamaChatRequest = z.infer<typeof OllamaChatRequestSchema>;
 export const OllamaGenerateRequestSchema = withProjectScope(
   {
     model: z.string().max(100).optional(),
-    prompt: z.string().min(1).max(100_000),
-    system: z.string().max(10_000).optional(),
+    prompt: z.string().min(1).max(MAX_PROMPT_LENGTH),
+    system: z.string().max(MAX_SYSTEM_PROMPT_LENGTH).optional(),
     stream: z.boolean().default(true),
     format: z.union([z.literal("json"), z.record(z.string(), z.unknown())]).optional(),
     options: OllamaOptionsSchema.optional(),
@@ -100,7 +107,7 @@ export type OllamaGenerateRequest = z.infer<typeof OllamaGenerateRequestSchema>;
 export const AgentCreateRequestSchema = z.object({
   name: z.string().min(1).max(128).regex(/^[\w.-]+$/, "Name must match [\\w.-]+"),
   description: z.string().max(2000),
-  system_prompt: z.string().min(1).max(50_000),
+  system_prompt: z.string().min(1).max(MAX_SYSTEM_PROMPT_LENGTH),
   preferred_provider: z.string().max(100).optional(),
   preferred_model: z.string().max(100).optional(),
   preferred_role: z.string().max(100).optional(),
@@ -130,7 +137,7 @@ export const SendRequestSchema = withProjectScope({
   routing_policy: z.string().max(50).optional(),
   provider: z.string().max(100).optional(),
   model: z.string().max(100).optional(),
-  system: z.string().max(50_000).optional(),
+  system: z.string().max(MAX_SYSTEM_PROMPT_LENGTH).optional(),
   temperature: z.number().min(0).max(2).optional(),
   max_tokens: z.number().int().min(1).max(128_000).optional(),
 });
@@ -181,7 +188,7 @@ export const CliAgentRunRequestSchema = z.object({
   prompt: z.string().min(1).max(100_000),
   workdir: z.string().max(500).optional(),
   agent: CliAgentNameSchema.default("claude-code"),
-  max_turns: z.number().int().min(1).max(100).default(20),
+  max_turns: z.number().int().min(1).max(40).default(20),
   max_price: z.number().min(0).max(50).default(2),
   model: z.string().max(50).default("sonnet"),
   allowed_tools: z.array(z.string().min(1).max(100)).max(64).optional(),
@@ -195,8 +202,8 @@ export type CliAgentRunRequest = z.infer<typeof CliAgentRunRequestSchema>;
 // ---------------------------------------------------------------------------
 
 export const CodestralFIMRequestSchema = z.object({
-  prompt: z.string().min(1).max(200_000),
-  suffix: z.string().max(200_000).default(""),
+  prompt: z.string().min(1).max(MAX_CODESSTRAL_CONTEXT_LENGTH),
+  suffix: z.string().max(MAX_CODESSTRAL_CONTEXT_LENGTH).default(""),
   model: z.string().max(100).optional(),
   temperature: z.number().min(0).max(2).default(0),
   max_tokens: z.number().int().min(1).max(32_768).default(1024),
