@@ -149,7 +149,7 @@ async def lifespan(app: FastAPI):
     if settings.database_url:
         await close_db_pool()
         logger.info("Database pool closed")
-    if app.state.qdrant is not None:
+    if getattr(app.state, "qdrant", None) is not None:
         await app.state.qdrant.close()
 
 

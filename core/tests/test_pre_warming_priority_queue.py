@@ -12,6 +12,8 @@ from typing import Any
 import httpx
 import pytest
 
+pytest.importorskip("psutil", reason="psutil required for apple_llm_api tests")
+
 SERVICE_PATH = (
     Path(__file__).resolve().parents[2] / "deploy" / "apple_llm_api" / "app.py"
 )
