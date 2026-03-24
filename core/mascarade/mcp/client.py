@@ -319,6 +319,7 @@ class McpRuntimeClient:
         self._register_graphiti_server()
         self._register_n8n_server()
         self._register_erpnext_server()
+        self._register_kicad_mcp_servers()
 
     def _register_industrial_servers(self) -> None:
         if not self.agent_factory_cockpit_dir.exists():
@@ -415,6 +416,29 @@ class McpRuntimeClient:
             label="ERPNext CRM",
             description="CRM and ERP operations: leads, quotations, invoices via Frappe REST API.",
         )
+
+    def _register_kicad_mcp_servers(self) -> None:
+        """Auto-discover and register installed KiCad MCP servers."""
+        from mascarade.mcp.kicad_servers import (
+            KICAD_MCP_SERVERS,
+            discover_installed,
+            log_available,
+        )
+
+        installed = discover_installed()
+        for key in installed:
+            if key in self._servers:
+                continue
+            srv = KICAD_MCP_SERVERS[key]
+            self._servers[key] = McpServerDefinition(
+                key=key,
+                command=srv.command,
+                timeout_s=45.0,
+                transport=srv.transport,
+                label=srv.description,
+                description=f"KiCad MCP: {srv.description} ({srv.repo})",
+            )
+        log_available()
 
     def _server(self, server_key: str) -> McpServerDefinition:
         try:
