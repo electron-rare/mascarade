@@ -2,11 +2,12 @@
  * Middleware d'authentification — Bearer token avec validation database et comparaison timing-safe.
  * Si DATABASE_URL est configuree, valide contre la base de donnees.
  * Sinon, utilise MASCARADE_API_KEY (backward compatibility).
- * Si aucune auth n'est configuree, desactive l'auth (warning au demarrage).
+ * Si aucune auth n'est configuree, fail-closed par defaut sauf opt-out explicite.
  */
 
 import { timingSafeEqual } from "node:crypto";
 import type { MiddlewareHandler } from "hono";
+import type { AuthUser } from "../lib/auth.js";
 import { isDatabaseAuthAvailable, validateToken } from "../lib/auth.js";
 
 const API_KEY_COOKIE = "mascarade_key";
@@ -19,6 +20,12 @@ const ROLE_RANK: Record<AuthRole, number> = {
   operator: 2,
   admin: 3,
 };
+
+const useDatabaseAuth = isDatabaseAuthAvailable();
+
+function allowPublicApi(): boolean {
+  return /^(1|true|yes)$/i.test(String(process.env.MASCARADE_ALLOW_PUBLIC_API || "").trim());
+}
 
 function configuredApiKeys(): string[] {
   return (process.env.MASCARADE_API_KEY || "")
@@ -34,12 +41,20 @@ function configuredRoleKeys(envName: string): string[] {
     .filter((key) => key.length >= MIN_KEY_LEN);
 }
 
-const useDatabaseAuth = isDatabaseAuthAvailable();
+export function isAuthConfigured(): boolean {
+  return useDatabaseAuth || configuredApiKeys().length > 0;
+}
 
-if (!useDatabaseAuth && configuredApiKeys().length === 0) {
-  console.warn(
-    "[auth] Neither DATABASE_URL nor MASCARADE_API_KEY configured — all protected routes are PUBLIC",
-  );
+if (!isAuthConfigured()) {
+  if (allowPublicApi()) {
+    console.warn(
+      "[auth] Authentication is not configured, but MASCARADE_ALLOW_PUBLIC_API=true keeps protected routes public",
+    );
+  } else {
+    console.error(
+      "[auth] Authentication is not configured — protected routes will fail closed until DATABASE_URL or MASCARADE_API_KEY is set",
+    );
+  }
 } else if (useDatabaseAuth) {
   console.info("[auth] Using database-backed authentication");
 } else {
@@ -98,6 +113,10 @@ export function isValidConfiguredApiKey(rawToken: string): boolean {
   return apiKeys.some((apiKey) => safeEqual(token, apiKey));
 }
 
+export function authUnavailableResponse(): { error: string } {
+  return { error: "Authentification non configuree" };
+}
+
 function requiredRoleForRequest(method: string, path: string): AuthRole {
   const normalizedMethod = method.toUpperCase();
   const normalizedPath = path.toLowerCase();
@@ -112,7 +131,8 @@ function requiredRoleForRequest(method: string, path: string): AuthRole {
     normalizedPath.startsWith("/api/settings/oauth") ||
     normalizedPath.startsWith("/api/mcp/industrial") ||
     normalizedPath.startsWith("/api/ops") ||
-    normalizedPath.startsWith("/api/cluster/forward")
+    normalizedPath.startsWith("/api/cluster/forward") ||
+    normalizedPath.startsWith("/api/users")
   ) {
     return "admin";
   }
@@ -131,19 +151,33 @@ function requiredRoleForRequest(method: string, path: string): AuthRole {
   return "operator";
 }
 
-function resolveRole(token: string): AuthRole | null {
+function roleFromUser(user: AuthUser | undefined): AuthRole | null {
+  if (!user) {
+    return null;
+  }
+
+  switch (user.role_id) {
+    case 1:
+      return "admin";
+    case 2:
+      return "operator";
+    case 3:
+      return "viewer";
+    default:
+      return null;
+  }
+}
+
+function resolveRole(token: string, user?: AuthUser): AuthRole | null {
+  const userRole = roleFromUser(user);
+  if (userRole) {
+    return userRole;
+  }
+
   const adminKeys = configuredRoleKeys("MASCARADE_RBAC_ADMIN_KEYS");
   const operatorKeys = configuredRoleKeys("MASCARADE_RBAC_OPERATOR_KEYS");
   const viewerKeys = configuredRoleKeys("MASCARADE_RBAC_VIEWER_KEYS");
-  const rbacEnabled =
-    /^(1|true|yes)$/i.test(String(process.env.MASCARADE_RBAC_ENABLED || "").trim()) ||
-    adminKeys.length > 0 ||
-    operatorKeys.length > 0 ||
-    viewerKeys.length > 0;
 
-  if (!rbacEnabled) {
-    return "admin";
-  }
   if (adminKeys.some((key) => safeEqual(token, key))) {
     return "admin";
   }
@@ -157,59 +191,56 @@ function resolveRole(token: string): AuthRole | null {
 }
 
 export const authMiddleware: MiddlewareHandler = async (c, next) => {
-  // Extract token from header or cookie
   const authHeader = c.req.header("Authorization");
   const headerToken =
-    authHeader && authHeader.startsWith("Bearer ")
-      ? authHeader.slice(7)
-      : null;
+    authHeader && authHeader.startsWith("Bearer ") ? authHeader.slice(7).trim() : null;
   const cookieToken = tokenFromCookie(c.req.header("Cookie"));
   const token = headerToken || cookieToken;
 
   if (!token) {
-    // No token provided
-    if (useDatabaseAuth || configuredApiKeys().length > 0) {
+    if (isAuthConfigured()) {
       return c.json({ error: "Token invalide ou manquant" }, 401);
     }
-    // No auth configured, allow through
-    return next();
+    if (allowPublicApi()) {
+      return next();
+    }
+    return c.json(authUnavailableResponse(), 503);
   }
 
-  // Validate token
   let isValid = false;
+  let user: AuthUser | undefined;
 
   if (useDatabaseAuth) {
-    // Database-backed authentication
     try {
-      const user = await validateToken(token);
-      if (user) {
+      const validatedUser = await validateToken(token);
+      if (validatedUser) {
         isValid = true;
-        // Attach user to context for downstream use
-        c.set("user", user);
+        user = validatedUser;
+        c.set("user", validatedUser);
       }
-    } catch (error) {
-      // Token validation failed
+    } catch {
       isValid = false;
     }
   } else {
-    // Legacy env variable authentication (backward compatibility)
-    const apiKeys = configuredApiKeys();
-    if (apiKeys.length === 0) {
-      // No auth configured
-      return next();
+    if (!isAuthConfigured()) {
+      if (allowPublicApi()) {
+        return next();
+      }
+      return c.json(authUnavailableResponse(), 503);
     }
-    isValid = apiKeys.some((apiKey) => safeEqual(token, apiKey));
+    isValid = isValidConfiguredApiKey(token);
   }
 
   if (!isValid) {
     return c.json({ error: "Token invalide ou manquant" }, 401);
   }
 
-  const role = resolveRole(token);
+  const role = resolveRole(token, user);
   if (!role) {
     return c.json({ error: "Role non assigne pour ce token" }, 403);
   }
-  const requiredRole = requiredRoleForRequest(c.req.method.toUpperCase(), c.req.path);
+
+  const requiredRole = requiredRoleForRequest(c.req.method, c.req.path);
   if (ROLE_RANK[role] < ROLE_RANK[requiredRole]) {
     return c.json({ error: "Permissions insuffisantes" }, 403);
   }
