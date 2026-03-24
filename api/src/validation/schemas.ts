@@ -48,7 +48,7 @@ function withProjectScope<T extends z.ZodRawShape>(shape: T, options?: { default
 export const ChatCompletionRequestSchema = withProjectScope(
   {
     model: z.string().max(100).optional(),
-    messages: z.array(MessageSchema).min(1).max(200),
+    messages: z.array(MessageSchema).min(1).max(MAX_MESSAGE_COUNT),
     strategy: z.enum(["best", "cheapest", "domain", "fastest", "specific", "routellm"]).optional(),
     routing_policy: z.enum(["auto", "strong", "cheap", "fast"]).optional(),
     temperature: z.number().min(0).max(2).default(0.7),
@@ -72,7 +72,7 @@ const OllamaOptionsSchema = z.object({
 export const OllamaChatRequestSchema = withProjectScope(
   {
     model: z.string().max(100).optional(),
-    messages: z.array(MessageSchema).min(1).max(200),
+    messages: z.array(MessageSchema).min(1).max(MAX_MESSAGE_COUNT),
     stream: z.boolean().default(true),
     format: z.union([z.literal("json"), z.record(z.string(), z.unknown())]).optional(),
     options: OllamaOptionsSchema.optional(),
@@ -114,7 +114,7 @@ export const AgentCreateRequestSchema = z.object({
   strategy: z.string().max(50).optional(),
   routing_policy: z.string().max(50).optional(),
   temperature: z.number().min(0).max(2).optional(),
-  max_tokens: z.number().int().min(1).max(128_000).optional(),
+  max_tokens: z.number().int().min(1).max(MAX_COMPLETION_TOKENS).optional(),
 });
 
 export type AgentCreateRequest = z.infer<typeof AgentCreateRequestSchema>;
@@ -132,14 +132,14 @@ export type AgentUpdateRequest = z.infer<typeof AgentUpdateRequestSchema>;
 // ---------------------------------------------------------------------------
 
 export const SendRequestSchema = withProjectScope({
-  messages: z.array(MessageSchema).min(1).max(200),
+  messages: z.array(MessageSchema).min(1).max(MAX_MESSAGE_COUNT),
   strategy: z.string().max(50).optional(),
   routing_policy: z.string().max(50).optional(),
   provider: z.string().max(100).optional(),
   model: z.string().max(100).optional(),
   system: z.string().max(MAX_SYSTEM_PROMPT_LENGTH).optional(),
   temperature: z.number().min(0).max(2).optional(),
-  max_tokens: z.number().int().min(1).max(128_000).optional(),
+  max_tokens: z.number().int().min(1).max(MAX_COMPLETION_TOKENS).optional(),
 });
 
 export type SendRequest = z.infer<typeof SendRequestSchema>;
@@ -171,7 +171,7 @@ export type KnowledgeBaseSearch = z.infer<typeof KnowledgeBaseSearchSchema>;
 // ---------------------------------------------------------------------------
 
 export const AgentRunRequestSchema = withProjectScope({
-  messages: z.array(MessageSchema).min(1).max(200),
+  messages: z.array(MessageSchema).min(1).max(MAX_MESSAGE_COUNT),
 });
 
 export type AgentRunRequest = z.infer<typeof AgentRunRequestSchema>;
@@ -185,7 +185,7 @@ export const CliAgentNameSchema = z.enum(["vibe", "codex", "claude-code"]);
 export type CliAgentName = z.infer<typeof CliAgentNameSchema>;
 
 export const CliAgentRunRequestSchema = z.object({
-  prompt: z.string().min(1).max(100_000),
+  prompt: z.string().min(1).max(MAX_PROMPT_LENGTH),
   workdir: z.string().max(500).optional(),
   agent: CliAgentNameSchema.default("claude-code"),
   max_turns: z.number().int().min(1).max(40).default(20),
@@ -213,7 +213,7 @@ export const CodestralFIMRequestSchema = z.object({
 export type CodestralFIMRequest = z.infer<typeof CodestralFIMRequestSchema>;
 
 export const KnowledgeScribeRunAndPushRequestSchema = withProjectScope({
-  messages: z.array(MessageSchema).min(1).max(200),
+  messages: z.array(MessageSchema).min(1).max(MAX_MESSAGE_COUNT),
   push_to: z.string().max(512).optional(),
   run_id: z.string().max(256).optional(),
 });
@@ -292,7 +292,7 @@ export type FinetuneRunRequest = z.infer<typeof FinetuneRunRequestSchema>;
 // ---------------------------------------------------------------------------
 
 export const ClusterForwardSendRequestSchema = z.object({
-  messages: z.array(MessageSchema).min(1).max(200),
+  messages: z.array(MessageSchema).min(1).max(MAX_MESSAGE_COUNT),
   target_node: z.string().max(256).optional(),
   strategy: z.string().max(50).optional(),
   model: z.string().max(100).optional(),

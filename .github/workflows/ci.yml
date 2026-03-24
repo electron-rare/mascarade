@@ -18,6 +18,10 @@ on:
         description: "Domain to fine-tune (leave empty to skip)"
         type: string
         default: ""
+      run_external_e2e:
+        description: "Run external Playwright smoke tests on ops.saillant.cc"
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -114,10 +118,47 @@ jobs:
       - uses: actions/checkout@v4
       - run: docker compose --env-file .env.example config >/dev/null
 
+  e2e:
+    name: E2E (Playwright web+api)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Install web dependencies
+        run: npm ci --prefix web
+      - name: Install e2e dependencies
+        run: npm ci --prefix e2e
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
+        working-directory: e2e
+      - name: Run Playwright suite (internal)
+        run: npm run test:ci --prefix e2e
+
+  e2e_external:
+    name: E2E external (ops.saillant.cc)
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.run_external_e2e == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Install e2e dependencies
+        run: npm ci --prefix e2e
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
+        working-directory: e2e
+      - name: Run external smoke tests
+        run: npm run test:ops --prefix e2e
+
   # ── Docker GHCR ──
   docker:
     name: Docker (${{ matrix.service }})
-    needs: [api, web, core, lint]
+    needs: [api, web, core, lint, e2e]
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -218,7 +259,7 @@ jobs:
   # ── Notifications ──
   notify:
     name: Notify
-    needs: [api, web, core, lint, compose, docker, deploy]
+    needs: [api, web, core, lint, compose, e2e, docker, deploy]
     if: always() && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 20

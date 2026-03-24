@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { coreClient } from "../client/core.js";
 import { cliAgents } from "./cliAgents.js";
 
@@ -8,6 +8,10 @@ function makeApp() {
   app.route("/v1/api/cli-agents", cliAgents);
   return app;
 }
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
 
 describe("cli agents routes", () => {
   it("forwards status requests to core", async () => {
@@ -85,5 +89,21 @@ describe("cli agents routes", () => {
     expect(res.status).toBe(400);
     const body = await res.json();
     expect(body.error).toBe("Validation failed");
+  });
+
+  it("rejects oversized prompts before forwarding to core", async () => {
+    const runSpy = vi.spyOn(coreClient, "runCliAgent");
+
+    const res = await makeApp().request("/v1/api/cli-agents/run", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        agent: "vibe",
+        prompt: "x".repeat(50_001),
+      }),
+    });
+
+    expect(res.status).toBe(400);
+    expect(runSpy).not.toHaveBeenCalled();
   });
 });
