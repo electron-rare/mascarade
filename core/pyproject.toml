@@ -70,7 +70,7 @@ dev = [
     "ruff>=0.15,<1",
     "black>=26.0,<27",
     "mypy>=1.19,<2",
-    "pre-commit>=3.7,<4",
+    "pre-commit>=3.7,<5",
 ]
 
 [tool.setuptools.packages.find]
