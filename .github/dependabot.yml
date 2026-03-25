@@ -1,0 +1,73 @@
+version: 2
+updates:
+  # Python (core)
+  - package-ecosystem: pip
+    directory: /core
+    schedule:
+      interval: weekly
+    target-branch: main
+    groups:
+      minor-and-patch:
+        update-types:
+          - minor
+          - patch
+
+  # Node — API
+  - package-ecosystem: npm
+    directory: /api
+    schedule:
+      interval: weekly
+    target-branch: main
+    groups:
+      minor-and-patch:
+        update-types:
+          - minor
+          - patch
+
+  # Node — Web
+  - package-ecosystem: npm
+    directory: /web
+    schedule:
+      interval: weekly
+    target-branch: main
+    groups:
+      minor-and-patch:
+        update-types:
+          - minor
+          - patch
+
+  # Node — E2E
+  - package-ecosystem: npm
+    directory: /e2e
+    schedule:
+      interval: weekly
+    target-branch: main
+    groups:
+      minor-and-patch:
+        update-types:
+          - minor
+          - patch
+
+  # Docker images
+  - package-ecosystem: docker
+    directory: /deploy
+    schedule:
+      interval: weekly
+    target-branch: main
+    groups:
+      minor-and-patch:
+        update-types:
+          - minor
+          - patch
+
+  # GitHub Actions
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    target-branch: main
+    groups:
+      minor-and-patch:
+        update-types:
+          - minor
+          - patch
