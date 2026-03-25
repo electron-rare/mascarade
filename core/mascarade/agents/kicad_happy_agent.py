@@ -411,14 +411,14 @@ class KiCadHappyAgent(Agent):
                 for c in components
             ],
             "net_labels": [n.name for n in nets],
-            "unique_nets": len(set(n.name for n in nets)),
+            "unique_nets": len({n.name for n in nets}),
         }
 
         if router:
             prompt = (
                 f"Analyze this KiCad schematic summary and provide insights:\n\n"
                 f"Components: {len(components)}\n"
-                f"Nets: {len(set(n.name for n in nets))}\n"
+                f"Nets: {len({n.name for n in nets})}\n"
                 f"Component list: {', '.join(c.reference + '=' + c.value for c in components[:20])}\n\n"
                 f"Provide: design quality assessment, potential issues, improvement suggestions."
             )

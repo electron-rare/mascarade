@@ -2,7 +2,7 @@ import json
 
 """Tests for Context Persistence Manager."""
 
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
@@ -10,8 +10,8 @@ from mascarade.orchestrator.context import OrchestrationContext
 from mascarade.persistence.context_manager import (
     ContextPersistenceManager,
     PersistentOrchestrationContext,
-    save_orchestration_context,
     load_orchestration_context,
+    save_orchestration_context,
 )
 
 

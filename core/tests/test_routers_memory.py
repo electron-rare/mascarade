@@ -3,13 +3,13 @@
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
+from unittest.mock import patch
 
 import httpx
 import pytest
-from unittest.mock import patch
 
-from mascarade.server import app
 from mascarade.routers.memory import router as memory_router
+from mascarade.server import app
 
 # Ensure the memory router is registered (it may not be included by default)
 app.include_router(memory_router)

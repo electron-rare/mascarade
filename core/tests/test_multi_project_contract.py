@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
-from unittest.mock import AsyncMock, patch
+from unittest.mock import patch
 from uuid import uuid4
 
 import httpx
@@ -114,6 +114,7 @@ async def test_v1_api_memory_add_scopes_user_to_project():
     so we build a standalone FastAPI app that includes it.
     """
     from fastapi import FastAPI
+
     from mascarade.routers.memory import router as memory_router
 
     test_app = FastAPI()
@@ -190,6 +191,7 @@ async def test_knowledge_base_search_requires_project_scope(
 async def test_v1_api_codestral_fim_uses_router_surface():
     """Test that the codestral FIM endpoint works via a standalone test app."""
     from fastapi import FastAPI
+
     from mascarade.routers.providers import router as providers_router
 
     fake_router = _FakeRouter()
@@ -226,6 +228,7 @@ async def test_v1_api_codestral_fim_uses_router_surface():
 async def test_v1_api_codestral_fim_requires_prompt():
     """Test that the codestral FIM endpoint rejects empty prompts."""
     from fastapi import FastAPI
+
     from mascarade.routers.providers import router as providers_router
 
     test_app = FastAPI()

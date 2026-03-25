@@ -1,8 +1,6 @@
 """Tests for Agent gate system and evidence tracking."""
 from __future__ import annotations
 
-import pytest
-
 from mascarade.agents.base import Agent, EvidenceRecord, Gate, GateStatus
 from mascarade.router.router import Strategy
 

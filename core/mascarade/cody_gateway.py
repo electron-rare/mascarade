@@ -341,7 +341,7 @@ async def completions_stream(request: Request):
 
             # SSE format Cody expects
             yield f"event: completion\ndata: {json.dumps({'completion': content})}\n\n"
-            yield f"event: done\ndata: {{}}\n\n"
+            yield "event: done\ndata: {}\n\n"
 
         except Exception as exc:
             logger.error("Completions error: %s", exc)
@@ -452,7 +452,7 @@ async def chat_completions(request: Request):
 @cody_router.get("/.api/prompts")
 async def prompts(request: Request):
     """Prompt library — reusable prompt templates for Cody."""
-    router = _get_router(request)
+    _get_router(request)
     registry = getattr(request.app.state, "registry", None)
 
     prompt_list = []

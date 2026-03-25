@@ -8,7 +8,11 @@ from mascarade.mcp.client import (
 )
 from mascarade.mcp.kicad_servers import (
     KICAD_MCP_SERVERS,
+)
+from mascarade.mcp.kicad_servers import (
     discover_installed as discover_kicad_servers,
+)
+from mascarade.mcp.kicad_servers import (
     get_server_config as get_kicad_server_config,
 )
 from mascarade.mcp.server import McpServer

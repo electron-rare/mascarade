@@ -12,7 +12,6 @@ from mascarade.auth import require_auth
 from mascarade.mcp.kicad_servers import (
     KICAD_MCP_SERVERS,
     discover_installed,
-    get_server_config,
 )
 
 router = APIRouter(

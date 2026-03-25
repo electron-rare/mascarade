@@ -5,10 +5,10 @@ from __future__ import annotations
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from datetime import datetime
+from unittest.mock import patch
 
 import httpx
 import pytest
-from unittest.mock import patch
 from fastapi import FastAPI
 
 from mascarade.router.circuit_breaker import CircuitState

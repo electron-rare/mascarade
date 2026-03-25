@@ -8,7 +8,6 @@ from pathlib import Path
 
 import httpx
 import pytest
-
 from fastapi import FastAPI
 
 from mascarade.agents.base import Agent
@@ -16,8 +15,6 @@ from mascarade.agents.registry import AgentRegistry
 from mascarade.agents.skill import Skill
 from mascarade.agents.skill_registry import SkillRegistry
 from mascarade.agents.skills import register_default_skills_v2
-from mascarade.routers.skills import router as skills_router
-
 
 # --- Standalone test app ---
 
@@ -34,14 +31,14 @@ def _build_test_app(skill_reg: SkillRegistry, agent_reg: AgentRegistry) -> FastA
 
     # Re-register each endpoint from the skills router onto our test router
     from mascarade.routers.skills import (
-        create_skill,
-        list_skills,
-        get_skill,
-        update_skill,
-        delete_skill,
         assign_skill,
-        unassign_skill,
+        create_skill,
+        delete_skill,
+        get_skill,
         list_agent_skills,
+        list_skills,
+        unassign_skill,
+        update_skill,
     )
 
     test_router.add_api_route("/skills", create_skill, methods=["POST"])

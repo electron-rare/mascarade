@@ -7,16 +7,13 @@ import hashlib
 import json
 import logging
 import secrets
-from contextlib import asynccontextmanager
-from datetime import datetime
 import time
 from contextlib import asynccontextmanager
 from dataclasses import asdict
+from datetime import datetime
 from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, FastAPI, HTTPException, Query, Request
-from fastapi.responses import StreamingResponse
-from pydantic import BaseModel, ConfigDict, Field
 from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel, Field
 
@@ -27,7 +24,6 @@ from mascarade.auth import (
     add_api_key,
     get_active_api_keys,
     get_current_user,
-    hash_api_key,
     remove_api_key,
     require_admin,
     require_auth,
@@ -43,15 +39,18 @@ from mascarade.db.models import (
     UserCreate,
     UserUpdate,
 )
+from mascarade.device_voice import (
+    DeviceVoiceService,
+)
 from mascarade.integrations.comfyui import ComfyUIClient
 from mascarade.integrations.knowledge_base import (
     knowledge_base_auth_configured,
     knowledge_base_status_detail,
 )
-from mascarade.integrations.qdrant_client import QdrantClient
 from mascarade.mcp import McpCallError, McpRuntimeClient, McpServerUnavailable
 from mascarade.mcp.client import McpError
 from mascarade.observability import AgentTraceBuffer, iso_utc_now, new_run_id
+from mascarade.ollama_compat import mount_ollama_compat
 from mascarade.orchestrator import Orchestrator
 from mascarade.orchestrator.engine import ExecutionMode
 from mascarade.orchestrator.templates import (
@@ -63,11 +62,6 @@ from mascarade.provider_admin import (
     get_providers_status,
     update_provider_keys,
 )
-from mascarade.device_voice import (
-    DevicePlayerEvent,
-    DeviceVoiceService,
-)
-from mascarade.ollama_compat import mount_ollama_compat
 from mascarade.router import Router
 from mascarade.router.router import Strategy
 from mascarade.usage_tracking import get_all_usage_stats
@@ -1035,7 +1029,7 @@ async def update_user(
                 )
 
             # Always update updated_at
-            updates.append(f"updated_at = NOW()")
+            updates.append("updated_at = NOW()")
             params.append(user_id)
 
             query = f"""
@@ -1451,7 +1445,6 @@ async def prometheus_metrics():
     """Expose Prometheus metrics for scraping — no auth required."""
     try:
         from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
-
         from starlette.responses import Response
 
         return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
@@ -1581,7 +1574,7 @@ async def update_agent(name: str, req: AgentUpdate, request: Request):
         prompt_history._versions = [PromptVersion(**v) for v in agent.prompt_versions]
 
         # Add new version
-        new_version = prompt_history.add_version(
+        prompt_history.add_version(
             content=req.system_prompt,
             author_hash=author_hash,
             note=req.version_note,
@@ -1597,7 +1590,7 @@ async def update_agent(name: str, req: AgentUpdate, request: Request):
 @protected.delete("/agents/{name}")
 async def delete_agent(name: str):
     try:
-        agent = app.state.registry.get(name)
+        app.state.registry.get(name)
     except KeyError:
         raise HTTPException(status_code=404, detail=f"Agent '{name}' not found") from None
     if app.state.registry.is_builtin(name):
@@ -1636,7 +1629,7 @@ async def run_agent(name: str, req: SendRequest):
 @protected.get("/agents/{name}/metrics")
 async def get_agent_metrics(name: str):
     try:
-        agent = app.state.registry.get(name)
+        app.state.registry.get(name)
     except KeyError:
         raise HTTPException(status_code=404, detail=f"Agent '{name}' not found") from None
     return app.state.registry.agent_metrics(name)
@@ -2596,7 +2589,6 @@ async def comfyui_history(prompt_id: str):
 
 @protected.get("/comfyui/image")
 async def comfyui_image(filename: str, subfolder: str = "", type: str = "output"):
-    from fastapi.responses import Response
 
     client = _require_comfyui()
     try:
@@ -2848,10 +2840,12 @@ app.include_router(cluster_protected)
 
 # OpenAI-compatible audio endpoints for ESP32-S3-BOX-3 (no auth required)
 from mascarade.routers.openai_audio import router as openai_audio_router
+
 app.include_router(openai_audio_router)
 
 # KiCad + SPICE MCP endpoints
 from mascarade.routers.kicad_mcp import router as kicad_mcp_router
+
 app.include_router(kicad_mcp_router)
 
 # Mount Ollama-compatible API (fake Ollama backed by Mascarade Router + P2P)

@@ -36,9 +36,13 @@ logger = logging.getLogger("mascarade.a2a")
 
 _SDK_AVAILABLE = False
 try:
+    from a2a.types import (
+        AgentCapabilities as _SDKCapabilities,
+    )
     from a2a.types import (  # type: ignore[import-untyped]
         AgentCard as _SDKAgentCard,
-        AgentCapabilities as _SDKCapabilities,
+    )
+    from a2a.types import (
         AgentSkill as _SDKSkill,
     )
     _SDK_AVAILABLE = True

@@ -7,11 +7,9 @@ from unittest.mock import MagicMock, patch
 
 import httpx
 import pytest
-
 from fastapi import FastAPI
 
 from mascarade.routers.analytics import router as analytics_router
-
 
 # ---------------------------------------------------------------------------
 # Helpers

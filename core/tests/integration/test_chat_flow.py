@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
+from unittest.mock import patch
 
 import httpx
 import pytest
-from unittest.mock import patch
 
 from mascarade.auth import get_active_api_keys, remove_api_key
 from mascarade.router.providers.base import LLMProvider, LLMResponse

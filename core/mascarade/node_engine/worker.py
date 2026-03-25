@@ -23,7 +23,6 @@ from tenacity import (
 if TYPE_CHECKING:
     from aiobreaker import CircuitBreaker
 
-    from mascarade.node_engine.graph import ExecutionContext
 
 logger = logging.getLogger("mascarade.node_engine")
 

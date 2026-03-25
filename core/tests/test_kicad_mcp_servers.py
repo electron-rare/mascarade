@@ -14,7 +14,6 @@ from mascarade.mcp.kicad_servers import (
     log_available,
 )
 
-
 # ---------------------------------------------------------------------------
 # Unit tests for kicad_servers module
 # ---------------------------------------------------------------------------

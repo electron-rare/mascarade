@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import json
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
@@ -11,11 +10,9 @@ import pytest
 
 from mascarade.routers.voice import (
     _handle_json_message,
-    _query_llm,
     _text_to_speech,
     _ws_auth,
 )
-
 
 # ---------------------------------------------------------------------------
 # Helpers

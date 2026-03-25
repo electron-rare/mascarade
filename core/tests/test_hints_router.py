@@ -3,15 +3,15 @@
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock
 
 import httpx
 import pytest
-
 from fastapi import FastAPI
 
 from mascarade.router.providers.base import LLMResponse
-from mascarade.routers.hints import _sessions, router as hints_router
+from mascarade.routers.hints import _sessions
+from mascarade.routers.hints import router as hints_router
 
 
 @pytest.fixture(autouse=True)
