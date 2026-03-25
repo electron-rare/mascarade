@@ -12,14 +12,13 @@ from __future__ import annotations
 
 import json
 import logging
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from mascarade.agents.auto_pipeline import PipelineProposal, detect_pipeline
+from mascarade.agents.auto_pipeline import detect_pipeline
 from mascarade.router.router import Strategy
 
 if TYPE_CHECKING:
-    from mascarade.agents.base import Agent
     from mascarade.agents.registry import AgentRegistry
     from mascarade.agents.skill_registry import SkillRegistry
     from mascarade.router import Router

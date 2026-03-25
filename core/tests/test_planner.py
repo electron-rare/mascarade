@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
-import asyncio
 import json
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -17,7 +16,6 @@ from mascarade.orchestrator.planner import (
     TaskStatus,
 )
 from mascarade.router.providers.base import LLMResponse
-
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -476,7 +474,7 @@ class TestFullRun:
 
         mock_router.send.side_effect = multi_send
 
-        result = await orchestrator.run("Tell me about AI")
+        await orchestrator.run("Tell me about AI")
         # With 2 tasks, synthesize is called via LLM -- but we only got 3 calls
         # Actually: plan(1) + execute t1(1) + execute t2(1) = 3 calls
         # Then synthesize with 2 results = 1 more call, total 4

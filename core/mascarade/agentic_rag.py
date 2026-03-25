@@ -258,7 +258,6 @@ class AgenticRAGPipeline:
 
 def mount_agentic_rag(app: Any) -> None:
     from fastapi import Body
-    from fastapi.responses import JSONResponse
 
     pipeline = AgenticRAGPipeline()
 

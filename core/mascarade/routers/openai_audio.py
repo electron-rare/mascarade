@@ -20,7 +20,6 @@ from __future__ import annotations
 
 import io
 import logging
-import struct
 import time
 from typing import Literal
 

@@ -8,8 +8,8 @@ from unittest.mock import patch
 import httpx
 import pytest
 
-from mascarade.server import app
 from mascarade.routers.memory import router as memory_router
+from mascarade.server import app
 
 # Ensure the memory router is registered (it may not be included by default)
 app.include_router(memory_router)

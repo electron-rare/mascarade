@@ -8,7 +8,6 @@ from pathlib import Path
 
 import httpx
 import pytest
-from unittest.mock import patch
 
 from mascarade.agents.base import Agent
 from mascarade.agents.prompt_versioning import (
@@ -464,6 +463,7 @@ async def _test_client():
     the tests do not depend on whether the main server includes it.
     """
     from fastapi import FastAPI
+
     from mascarade.routers.prompt_versioning import router as pv_router
 
     test_app = FastAPI()

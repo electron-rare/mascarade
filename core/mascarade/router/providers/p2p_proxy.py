@@ -15,7 +15,7 @@ from typing import Any
 
 import httpx
 
-from mascarade.router.providers.base import LLMProvider, LLMResponse, LLMStreamChunk
+from mascarade.router.providers.base import LLMProvider, LLMResponse
 
 logger = logging.getLogger("mascarade.providers.p2p_proxy")
 

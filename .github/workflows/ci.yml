@@ -108,8 +108,8 @@ jobs:
         with:
           python-version: "3.11"
       - run: pip install ruff black
-      - run: ruff check . || echo "::warning::ruff found lint issues (non-blocking)"
-      - run: black --check . || echo "::warning::black found formatting issues (non-blocking)"
+      - run: ruff check .
+      - run: black --check . || echo "::warning::black formatting issues (non-blocking)"
 
   compose:
     name: Compose config

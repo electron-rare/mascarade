@@ -1,7 +1,8 @@
 """Tests for EDA pipeline and routing rules."""
 
 import pytest
-from mascarade.router.eda_pipeline import EDAPipeline, PipelineStep, PipelineResult
+
+from mascarade.router.eda_pipeline import EDAPipeline, PipelineStep
 from mascarade.router.eda_routing_rules import recommend_provider
 
 

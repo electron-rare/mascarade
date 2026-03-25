@@ -314,8 +314,8 @@ class LogAnalystAgent(Agent):
             md += f"| {sev} | {count} |\n"
 
         md += (
-            f"\n## Top Processes\n\n"
-            f"| Process | Events |\n|---------|--------|\n"
+            "\n## Top Processes\n\n"
+            "| Process | Events |\n|---------|--------|\n"
         )
         for proc, count in sorted(
             summary["top_processes"].items(), key=lambda x: -x[1]

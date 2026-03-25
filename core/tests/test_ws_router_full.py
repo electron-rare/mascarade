@@ -2,16 +2,14 @@
 
 from __future__ import annotations
 
-import asyncio
 import json
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
-from mascarade.routers.ws import _ws_auth, _json_payload
-
+from mascarade.routers.ws import _json_payload, _ws_auth
 
 # ---------------------------------------------------------------------------
 # Helpers

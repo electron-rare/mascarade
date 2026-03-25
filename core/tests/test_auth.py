@@ -8,7 +8,6 @@ import pytest
 from mascarade.auth import (
     add_api_key,
     get_active_api_keys,
-    is_valid_api_key,
     remove_api_key,
 )
 from mascarade.server import app
@@ -61,8 +60,8 @@ async def test_protected_routes_require_valid_bearer_token():
     add_api_key(TEST_ADMIN_KEY)
 
     async with _client() as client:
-        missing = await client.get("/v1/api-keys")
-        invalid = await client.get(
+        await client.get("/v1/api-keys")
+        await client.get(
             "/v1/api-keys",
             headers={"Authorization": "Bearer wrong-key-999"},
         )

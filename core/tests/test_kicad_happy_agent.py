@@ -6,17 +6,12 @@ import csv
 import io
 import textwrap
 from pathlib import Path
-from unittest.mock import AsyncMock, patch
 
 import pytest
 
 from mascarade.agents.kicad_happy_agent import (
-    DFM_RULES,
-    LCSC_COMPONENTS,
-    DFMViolation,
     KiCadHappyAgent,
     SchComponent,
-    SchNet,
     _bom_to_digikey_csv,
     _bom_to_jlcpcb_csv,
     _bom_to_mouser_csv,
