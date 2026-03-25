@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { type ProviderStatus, coreClient } from "../client/core.js";
+import { CoreApiError, type CoreOpenAIModel, type ProviderStatus, coreClient } from "../client/core.js";
 import { handleCoreError } from "../middleware/error.js";
 
 const models = new Hono();
@@ -110,13 +110,58 @@ function buildModelCatalog(providers: ProviderStatus[]): OpenAIModelObject[] {
   ];
 }
 
+function providerNameFromModel(model: CoreOpenAIModel) {
+  const explicit = model.owned_by?.trim() || model.provider?.trim();
+  if (explicit) {
+    return explicit;
+  }
+  const [prefix] = model.id.split(":", 1);
+  return prefix?.trim() || "unknown";
+}
+
+function synthesizeProvidersFromModelCatalog(models: CoreOpenAIModel[]): ProviderStatus[] {
+  const grouped = new Map<string, string[]>();
+
+  for (const model of models) {
+    if (!model.id?.trim()) {
+      continue;
+    }
+    const provider = providerNameFromModel(model);
+    const current = grouped.get(provider) ?? [];
+    current.push(model.id.trim());
+    grouped.set(provider, current);
+  }
+
+  return [...grouped.entries()].map(([name, modelIds]) => ({
+    name,
+    label: name,
+    configured: modelIds.length > 0,
+    active: modelIds.length > 0,
+    fields: [],
+    default_model: modelIds[0] ?? null,
+    models: modelIds,
+  }));
+}
+
 models.get("/", async (c) => {
   try {
-    const status = await coreClient.providersStatus();
-    return c.json({
-      object: "list",
-      data: buildModelCatalog(status.providers),
-    });
+    try {
+      const status = await coreClient.providersStatus();
+      return c.json({
+        object: "list",
+        data: buildModelCatalog(status.providers),
+      });
+    } catch (error) {
+      if (!(error instanceof CoreApiError) || error.status !== 404) {
+        throw error;
+      }
+
+      const catalog = await coreClient.listOpenAIModels();
+      return c.json({
+        object: "list",
+        data: buildModelCatalog(synthesizeProvidersFromModelCatalog(catalog.data)),
+      });
+    }
   } catch (error) {
     const { status, body } = handleCoreError(error);
     return c.json(body, status);

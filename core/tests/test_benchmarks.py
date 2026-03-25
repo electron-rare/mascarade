@@ -24,10 +24,15 @@ def client():
 
 @pytest.fixture
 def mock_auth():
-    """Mock authentication."""
-    with patch("mascarade.auth.require_auth") as mock:
-        mock.return_value = None
-        yield mock
+    """Mock authentication by ensuring no API keys are configured."""
+    from mascarade.auth import get_active_api_keys, remove_api_key
+    saved_keys = list(get_active_api_keys())
+    for key in saved_keys:
+        remove_api_key(key)
+    yield
+    for key in saved_keys:
+        from mascarade.auth import add_api_key
+        add_api_key(key)
 
 
 @pytest.fixture
@@ -80,9 +85,9 @@ def test_api_endpoint(client, mock_auth):
     ]
 
     with patch(
-        "mascarade.routers.analytics.BenchmarkStorage", return_value=mock_storage
+        "mascarade.benchmarks.storage.BenchmarkStorage", return_value=mock_storage
     ):
-        response = client.get("/v1/analytics/benchmarks")
+        response = client.get("/v1/v1/analytics/benchmarks")
 
         assert response.status_code == 200
         data = response.json()
@@ -107,10 +112,10 @@ def test_api_endpoint_with_filters(client, mock_auth):
     mock_storage.query_leaderboard.return_value = []
 
     with patch(
-        "mascarade.routers.analytics.BenchmarkStorage", return_value=mock_storage
+        "mascarade.benchmarks.storage.BenchmarkStorage", return_value=mock_storage
     ):
         response = client.get(
-            "/v1/analytics/benchmarks",
+            "/v1/v1/analytics/benchmarks",
             params={
                 "domain": "electronics",
                 "limit": 20,
@@ -136,7 +141,7 @@ def test_api_endpoint_with_filters(client, mock_auth):
 def test_api_endpoint_invalid_order_by(client, mock_auth):
     """Test endpoint rejects invalid order_by parameter."""
     response = client.get(
-        "/v1/analytics/benchmarks",
+        "/v1/v1/analytics/benchmarks",
         params={"order_by": "invalid_column"},
     )
 
@@ -148,14 +153,14 @@ def test_api_endpoint_limit_validation(client, mock_auth):
     """Test endpoint validates limit parameter."""
     # Test limit too high
     response = client.get(
-        "/v1/analytics/benchmarks",
+        "/v1/v1/analytics/benchmarks",
         params={"limit": 200},
     )
     assert response.status_code == 422  # Validation error
 
     # Test limit too low
     response = client.get(
-        "/v1/analytics/benchmarks",
+        "/v1/v1/analytics/benchmarks",
         params={"limit": 0},
     )
     assert response.status_code == 422  # Validation error

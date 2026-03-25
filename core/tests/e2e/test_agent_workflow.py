@@ -293,14 +293,16 @@ def test_e2e_agent_workflow_with_routing_strategy():
     router.register(fast_agent)
     router.register(best_agent)
 
-    messages = [{"role": "user", "content": "Route me"}]
+    # Use different messages per strategy to avoid cache hits
+    messages_fast = [{"role": "user", "content": "Route me fast"}]
+    messages_best = [{"role": "user", "content": "Route me best"}]
 
     # Test FASTEST strategy
-    response_fast = asyncio.run(router.send(messages, strategy=Strategy.FASTEST))
+    response_fast = asyncio.run(router.send(messages_fast, strategy=Strategy.FASTEST))
     assert response_fast.provider == "fast_agent"
 
     # Test BEST strategy
-    response_best = asyncio.run(router.send(messages, strategy=Strategy.BEST))
+    response_best = asyncio.run(router.send(messages_best, strategy=Strategy.BEST))
     assert response_best.provider == "best_agent"
 
 
@@ -312,17 +314,17 @@ def test_e2e_agent_workflow_sequential_calls():
     agent = MockAgentProvider()
     router.register(agent)
 
+    # Use different messages per call to avoid cache hits
     # Call 1
-    messages = [{"role": "user", "content": "First call"}]
-    asyncio.run(router.send(messages, strategy=Strategy.BEST))
+    asyncio.run(router.send([{"role": "user", "content": "First call"}], strategy=Strategy.BEST))
     assert agent.call_count == 1
 
     # Call 2
-    asyncio.run(router.send(messages, strategy=Strategy.BEST))
+    asyncio.run(router.send([{"role": "user", "content": "Second call"}], strategy=Strategy.BEST))
     assert agent.call_count == 2
 
     # Call 3
-    asyncio.run(router.send(messages, strategy=Strategy.BEST))
+    asyncio.run(router.send([{"role": "user", "content": "Third call"}], strategy=Strategy.BEST))
     assert agent.call_count == 3
 
 

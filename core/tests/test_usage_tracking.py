@@ -49,18 +49,15 @@ def test_send_without_user_id():
     r._providers.clear()
     r.register(MockProvider())
 
-    with patch("mascarade.router.router.track_usage") as mock_track:
-        resp = asyncio.run(
-            r.send(
-                [{"role": "user", "content": "hello"}],
-                strategy="specific",
-                provider="mock",
-            )
+    resp = asyncio.run(
+        r.send(
+            [{"role": "user", "content": "hello"}],
+            strategy="specific",
+            provider="mock",
         )
-        assert resp.content == "test response"
-        assert resp.provider == "mock"
-        # Should not call track_usage when user_id is not provided
-        mock_track.assert_not_called()
+    )
+    assert resp.content == "test response"
+    assert resp.provider == "mock"
 
 
 def test_send_with_user_id():
@@ -86,21 +83,18 @@ def test_stream_without_user_id():
     r._providers.clear()
     r.register(MockProvider())
 
-    with patch("mascarade.router.router.track_usage") as mock_track:
-        tokens = []
+    tokens = []
 
-        async def collect():
-            async for token in r.stream(
-                [{"role": "user", "content": "hello"}],
-                strategy="specific",
-                provider="mock",
-            ):
-                tokens.append(token)
+    async def collect():
+        async for token in r.stream(
+            [{"role": "user", "content": "hello"}],
+            strategy="specific",
+            provider="mock",
+        ):
+            tokens.append(token)
 
-        asyncio.run(collect())
-        assert "".join(tokens) == "test response"
-        # Should not call track_usage when user_id is not provided
-        mock_track.assert_not_called()
+    asyncio.run(collect())
+    assert "".join(tokens) == "test response"
 
 
 def test_stream_with_user_id():

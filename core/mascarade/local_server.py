@@ -17,6 +17,7 @@ import os
 import time
 from collections.abc import AsyncIterator
 
+import anthropic
 import httpx
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import StreamingResponse
@@ -30,6 +31,7 @@ MISTRAL_API_KEY = os.getenv("MISTRAL_API_KEY", "")
 MISTRAL_BASE_URL = os.getenv("MISTRAL_API_BASE", "https://api.mistral.ai/v1")
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
+OPENAI_BASE_URL = os.getenv("OPENAI_API_BASE", "https://api.openai.com/v1")
 
 # P2P peers to forward to when model is unavailable locally
 P2P_PEERS = [
@@ -53,8 +55,13 @@ if ANTHROPIC_API_KEY:
     PROVIDERS["claude"] = {
         "base_url": "https://api.anthropic.com",
         "api_key": ANTHROPIC_API_KEY,
-        "models": ["claude-sonnet-4-20250514", "claude-opus-4-20250514",
-                    "claude-3-5-sonnet-20241022"],
+        "models": [
+            "claude-sonnet-4-6",
+            "claude-opus-4-6",
+            "claude-haiku-4-5-20251001",
+            "claude-opus-4-20250514",
+            "claude-sonnet-4-20250514",
+        ],
     }
 if OPENAI_API_KEY:
     PROVIDERS["openai"] = {
@@ -64,6 +71,166 @@ if OPENAI_API_KEY:
     }
 
 logger.info("Providers: %s", list(PROVIDERS.keys()))
+
+PROVIDER_PROBE_TTL_SECONDS = 300.0
+PROVIDER_PROBE_CACHE: dict[str, dict] = {}
+PROVIDER_ENV_NAMES = {
+    "mistral": "MISTRAL_API_KEY",
+    "claude": "ANTHROPIC_API_KEY",
+    "openai": "OPENAI_API_KEY",
+}
+PROVIDER_LABELS = {
+    "mistral": "Mistral AI",
+    "claude": "Anthropic Claude",
+    "openai": "OpenAI",
+}
+SUPPORTED_LOCAL_CHAT_PROVIDERS = {"mistral", "claude", "openai"}
+
+
+async def probe_provider_status(provider_name: str, force: bool = False) -> dict:
+    """Return a cached readiness snapshot for the provider."""
+    now = time.time()
+    cached = PROVIDER_PROBE_CACHE.get(provider_name)
+    if cached and not force and (now - cached.get("checked_at", 0.0)) < PROVIDER_PROBE_TTL_SECONDS:
+        return cached
+
+    status = {
+        "name": provider_name,
+        "configured": provider_name in PROVIDERS,
+        "active": provider_name in PROVIDERS,
+        "ready": provider_name in PROVIDERS,
+        "error": None,
+        "checked_at": now,
+    }
+
+    if provider_name in PROVIDERS and provider_name not in SUPPORTED_LOCAL_CHAT_PROVIDERS:
+        status["active"] = False
+        status["ready"] = False
+        status["error"] = "unsupported_local_mode"
+    elif provider_name == "mistral" and provider_name in PROVIDERS:
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                resp = await client.get(
+                    f"{MISTRAL_BASE_URL}/models",
+                    headers={"Authorization": f"Bearer {MISTRAL_API_KEY}"},
+                )
+            if resp.status_code != 200:
+                status["active"] = False
+                status["ready"] = False
+                if resp.status_code == 401:
+                    status["error"] = "unauthorized"
+                else:
+                    status["error"] = f"http_{resp.status_code}"
+        except httpx.RequestError as exc:
+            status["active"] = False
+            status["ready"] = False
+            status["error"] = f"request_error:{exc.__class__.__name__}"
+    elif provider_name == "openai" and provider_name in PROVIDERS:
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                resp = await client.get(
+                    f"{OPENAI_BASE_URL}/models",
+                    headers={"Authorization": f"Bearer {OPENAI_API_KEY}"},
+                )
+            if resp.status_code != 200:
+                status["active"] = False
+                status["ready"] = False
+                if resp.status_code == 401:
+                    status["error"] = "unauthorized"
+                else:
+                    status["error"] = f"http_{resp.status_code}"
+        except httpx.RequestError as exc:
+            status["active"] = False
+            status["ready"] = False
+            status["error"] = f"request_error:{exc.__class__.__name__}"
+    elif provider_name == "claude" and provider_name in PROVIDERS:
+        try:
+            client = anthropic.AsyncAnthropic(api_key=ANTHROPIC_API_KEY, timeout=10.0)
+            page = await client.models.list(limit=1)
+            if not getattr(page, "data", None):
+                status["active"] = False
+                status["ready"] = False
+                status["error"] = "no_models"
+        except anthropic.AuthenticationError:
+            status["active"] = False
+            status["ready"] = False
+            status["error"] = "unauthorized"
+        except anthropic.APIConnectionError as exc:
+            status["active"] = False
+            status["ready"] = False
+            status["error"] = f"request_error:{exc.__class__.__name__}"
+        except anthropic.APITimeoutError:
+            status["active"] = False
+            status["ready"] = False
+            status["error"] = "timeout"
+        except anthropic.APIStatusError as exc:
+            status["active"] = False
+            status["ready"] = False
+            status["error"] = f"http_{exc.status_code}"
+
+    PROVIDER_PROBE_CACHE[provider_name] = status
+    return status
+
+
+async def available_provider_names() -> list[str]:
+    names: list[str] = []
+    for provider_name in PROVIDERS:
+        status = await probe_provider_status(provider_name)
+        if status["ready"]:
+            names.append(provider_name)
+    return names
+
+
+async def provider_status_payload() -> list[dict]:
+    payload: list[dict] = []
+    for provider_name, provider_info in PROVIDERS.items():
+        probe = await probe_provider_status(provider_name)
+        payload.append(
+            {
+                "name": provider_name,
+                "label": PROVIDER_LABELS.get(provider_name, provider_name.title()),
+                "configured": probe["configured"],
+                "active": probe["active"],
+                "fields": [],
+                "default_model": provider_info["models"][0] if provider_info["models"] else None,
+                "models": provider_info["models"] if probe["ready"] else [],
+                "enabled": probe["ready"],
+                "auth_mode": "api_key",
+                "auth_mode_env": PROVIDER_ENV_NAMES.get(provider_name, f"{provider_name.upper()}_API_KEY"),
+                "auth_modes": ["api_key"],
+                "classification": "provider-credential",
+                "criticality": "feature-required",
+                "error": probe["error"],
+            }
+        )
+    return payload
+
+
+def ollama_result_to_openai_chat_completion(result: dict, requested_model: str) -> dict:
+    """Convert an Ollama-style chat response into a minimal OpenAI-compatible payload."""
+    message = result.get("message", {}) if isinstance(result, dict) else {}
+    content = message.get("content", "") if isinstance(message, dict) else ""
+    return {
+        "id": f"chatcmpl-{int(time.time() * 1000)}",
+        "object": "chat.completion",
+        "created": int(time.time()),
+        "model": result.get("model") or requested_model,
+        "choices": [
+            {
+                "index": 0,
+                "message": {
+                    "role": "assistant",
+                    "content": content,
+                },
+                "finish_reason": "stop",
+            }
+        ],
+        "usage": {
+            "prompt_tokens": result.get("prompt_eval_count", 0),
+            "completion_tokens": result.get("eval_count", 0),
+            "total_tokens": result.get("prompt_eval_count", 0) + result.get("eval_count", 0),
+        },
+    }
 
 
 # ── Mistral HTTP client (no SDK) ────────────────────────────────────
@@ -90,34 +257,185 @@ async def mistral_chat(
     client = httpx.AsyncClient(timeout=180.0)
 
     if not stream:
-        resp = await client.post(
-            f"{MISTRAL_BASE_URL}/chat/completions",
-            json=payload,
-            headers={"Authorization": f"Bearer {MISTRAL_API_KEY}"},
-        )
-        resp.raise_for_status()
-        data = resp.json()
-        await client.aclose()
-        return data
-    else:
-        # Streaming
-        async def _stream():
-            async with client.stream(
-                "POST",
+        try:
+            resp = await client.post(
                 f"{MISTRAL_BASE_URL}/chat/completions",
                 json=payload,
                 headers={"Authorization": f"Bearer {MISTRAL_API_KEY}"},
-            ) as resp:
-                resp.raise_for_status()
-                async for line in resp.aiter_lines():
-                    if line.startswith("data: "):
-                        chunk = line[6:]
-                        if chunk.strip() == "[DONE]":
-                            break
-                        yield chunk
+            )
+            resp.raise_for_status()
+            return resp.json()
+        except httpx.TimeoutException as exc:
+            raise HTTPException(504, "Mistral upstream timed out") from exc
+        except httpx.HTTPStatusError as exc:
+            detail = exc.response.text.strip() or exc.response.reason_phrase
+            raise HTTPException(
+                502,
+                f"Mistral upstream returned {exc.response.status_code}: {detail[:400]}",
+            ) from exc
+        except httpx.RequestError as exc:
+            raise HTTPException(502, f"Mistral upstream request failed: {exc}") from exc
+        finally:
             await client.aclose()
+    else:
+        # Streaming
+        async def _stream():
+            try:
+                async with client.stream(
+                    "POST",
+                    f"{MISTRAL_BASE_URL}/chat/completions",
+                    json=payload,
+                    headers={"Authorization": f"Bearer {MISTRAL_API_KEY}"},
+                ) as resp:
+                    resp.raise_for_status()
+                    async for line in resp.aiter_lines():
+                        if line.startswith("data: "):
+                            chunk = line[6:]
+                            if chunk.strip() == "[DONE]":
+                                break
+                            yield chunk
+            except httpx.TimeoutException as exc:
+                raise HTTPException(504, "Mistral upstream timed out") from exc
+            except httpx.HTTPStatusError as exc:
+                detail = exc.response.text.strip() or exc.response.reason_phrase
+                raise HTTPException(
+                    502,
+                    f"Mistral upstream returned {exc.response.status_code}: {detail[:400]}",
+                ) from exc
+            except httpx.RequestError as exc:
+                raise HTTPException(502, f"Mistral upstream request failed: {exc}") from exc
+            finally:
+                await client.aclose()
 
         return _stream()
+
+
+async def openai_provider_chat(
+    messages: list[dict],
+    model: str = "gpt-4o-mini",
+    temperature: float = 0.7,
+    max_tokens: int = 4096,
+    stream: bool = False,
+) -> dict | AsyncIterator[str]:
+    """Call OpenAI Chat Completions via plain HTTP."""
+    if not OPENAI_API_KEY:
+        raise HTTPException(503, "OPENAI_API_KEY not configured")
+
+    payload = {
+        "model": model,
+        "messages": messages,
+        "temperature": temperature,
+        "max_tokens": max_tokens,
+        "stream": stream,
+    }
+
+    client = httpx.AsyncClient(timeout=180.0)
+
+    if not stream:
+        try:
+            resp = await client.post(
+                f"{OPENAI_BASE_URL}/chat/completions",
+                json=payload,
+                headers={"Authorization": f"Bearer {OPENAI_API_KEY}"},
+            )
+            resp.raise_for_status()
+            return resp.json()
+        except httpx.TimeoutException as exc:
+            raise HTTPException(504, "OpenAI upstream timed out") from exc
+        except httpx.HTTPStatusError as exc:
+            detail = exc.response.text.strip() or exc.response.reason_phrase
+            raise HTTPException(
+                502,
+                f"OpenAI upstream returned {exc.response.status_code}: {detail[:400]}",
+            ) from exc
+        except httpx.RequestError as exc:
+            raise HTTPException(502, f"OpenAI upstream request failed: {exc}") from exc
+        finally:
+            await client.aclose()
+    else:
+        async def _stream():
+            try:
+                async with client.stream(
+                    "POST",
+                    f"{OPENAI_BASE_URL}/chat/completions",
+                    json=payload,
+                    headers={"Authorization": f"Bearer {OPENAI_API_KEY}"},
+                ) as resp:
+                    resp.raise_for_status()
+                    async for chunk in resp.aiter_text():
+                        yield chunk
+            except httpx.TimeoutException as exc:
+                raise HTTPException(504, "OpenAI upstream timed out") from exc
+            except httpx.HTTPStatusError as exc:
+                detail = exc.response.text.strip() or exc.response.reason_phrase
+                raise HTTPException(
+                    502,
+                    f"OpenAI upstream returned {exc.response.status_code}: {detail[:400]}",
+                ) from exc
+            except httpx.RequestError as exc:
+                raise HTTPException(502, f"OpenAI upstream request failed: {exc}") from exc
+            finally:
+                await client.aclose()
+
+        return _stream()
+
+
+async def claude_chat(
+    messages: list[dict],
+    model: str = "claude-sonnet-4-6",
+    temperature: float = 0.7,
+    max_tokens: int = 4096,
+) -> dict:
+    """Call Anthropic Claude via the installed SDK."""
+    if not ANTHROPIC_API_KEY:
+        raise HTTPException(503, "ANTHROPIC_API_KEY not configured")
+
+    system_parts: list[str] = []
+    anthropic_messages: list[dict] = []
+    for message in messages:
+        role = message.get("role", "user")
+        content = message.get("content", "")
+        if role == "system":
+            system_parts.append(str(content))
+            continue
+        anthropic_role = "assistant" if role == "assistant" else "user"
+        anthropic_messages.append({"role": anthropic_role, "content": str(content)})
+
+    if not anthropic_messages:
+        anthropic_messages = [{"role": "user", "content": "Continue."}]
+
+    client = anthropic.AsyncAnthropic(api_key=ANTHROPIC_API_KEY, timeout=30.0)
+    try:
+        response = await client.messages.create(
+            model=model,
+            system="\n\n".join(system_parts) if system_parts else anthropic.NOT_GIVEN,
+            messages=anthropic_messages,
+            max_tokens=max_tokens,
+            temperature=temperature,
+        )
+        content = response.content[0].text if response.content else ""
+        usage = response.usage
+        return {
+            "model": model,
+            "content": content,
+            "usage": {
+                "prompt_tokens": usage.input_tokens if usage else 0,
+                "completion_tokens": usage.output_tokens if usage else 0,
+            },
+        }
+    except anthropic.AuthenticationError as exc:
+        raise HTTPException(502, f"Claude upstream returned 401: {str(exc)[:400]}") from exc
+    except anthropic.RateLimitError as exc:
+        raise HTTPException(429, f"Claude upstream rate-limited: {str(exc)[:400]}") from exc
+    except anthropic.APIConnectionError as exc:
+        raise HTTPException(502, f"Claude upstream request failed: {str(exc)[:400]}") from exc
+    except anthropic.APITimeoutError as exc:
+        raise HTTPException(504, "Claude upstream timed out") from exc
+    except anthropic.APIStatusError as exc:
+        raise HTTPException(
+            502,
+            f"Claude upstream returned {exc.status_code}: {str(exc)[:400]}",
+        ) from exc
 
 
 # ── P2P forwarding ──────────────────────────────────────────────────
@@ -177,11 +495,23 @@ app = FastAPI(title="Mascarade Local — Fake Ollama + Mistral P2P")
 
 @app.get("/health")
 async def health():
+    statuses = {
+        status["name"]: status
+        for status in await provider_status_payload()
+    }
     return {
         "status": "ok",
-        "providers": list(PROVIDERS.keys()),
+        "providers": [name for name, status in statuses.items() if status["active"]],
+        "configured_providers": list(PROVIDERS.keys()),
+        "provider_status": statuses,
         "p2p_peers": len(P2P_PEERS),
     }
+
+
+@app.get("/providers/status")
+@app.get("/v1/providers/status")
+async def providers_status():
+    return {"providers": await provider_status_payload()}
 
 
 # ── Ollama-compatible API ───────────────────────────────────────────
@@ -191,7 +521,8 @@ async def health():
 async def ollama_tags():
     """List all models in Ollama format."""
     models = []
-    for pname, pinfo in PROVIDERS.items():
+    for pname in await available_provider_names():
+        pinfo = PROVIDERS[pname]
         for model in pinfo["models"]:
             models.append({
                 "name": f"{pname}:{model}",
@@ -274,6 +605,35 @@ async def ollama_chat(request: Request):
             "eval_count": usage.get("completion_tokens", 0),
         }
 
+    if provider == "openai":
+        data = await openai_provider_chat(messages, model, temperature, max_tokens)
+        choice = data.get("choices", [{}])[0]
+        content = choice.get("message", {}).get("content", "")
+        usage = data.get("usage", {})
+
+        return {
+            "model": model,
+            "created_at": "2026-01-01T00:00:00Z",
+            "message": {"role": "assistant", "content": content},
+            "done": True,
+            "total_duration": int((time.time() - t0) * 1e9),
+            "prompt_eval_count": usage.get("prompt_tokens", 0),
+            "eval_count": usage.get("completion_tokens", 0),
+        }
+
+    if provider == "claude":
+        data = await claude_chat(messages, model, temperature, max_tokens)
+        usage = data.get("usage", {})
+        return {
+            "model": data.get("model", model),
+            "created_at": "2026-01-01T00:00:00Z",
+            "message": {"role": "assistant", "content": data.get("content", "")},
+            "done": True,
+            "total_duration": int((time.time() - t0) * 1e9),
+            "prompt_eval_count": usage.get("prompt_tokens", 0),
+            "eval_count": usage.get("completion_tokens", 0),
+        }
+
     # For other providers — try P2P
     result = await try_p2p_forward(messages, model_raw, temperature, max_tokens)
     if result:
@@ -303,7 +663,8 @@ async def ollama_version():
 @app.get("/v1/models")
 async def openai_models():
     models = []
-    for pname, pinfo in PROVIDERS.items():
+    for pname in await available_provider_names():
+        pinfo = PROVIDERS[pname]
         for model in pinfo["models"]:
             models.append({
                 "id": f"{pname}:{model}",
@@ -322,10 +683,56 @@ async def openai_chat(request: Request):
     temperature = body.get("temperature", 0.7)
     max_tokens = body.get("max_tokens", 4096)
 
-    provider, model = resolve_model(model_raw)
+    try:
+        provider, model = resolve_model(model_raw)
+    except HTTPException:
+        result = await try_p2p_forward(messages, model_raw, temperature, max_tokens)
+        if result:
+            return ollama_result_to_openai_chat_completion(result, model_raw)
+        raise
 
     if provider == "mistral":
-        data = await mistral_chat(messages, model, temperature, max_tokens)
-        return data
+        try:
+            data = await mistral_chat(messages, model, temperature, max_tokens)
+            return data
+        except HTTPException:
+            result = await try_p2p_forward(messages, model_raw, temperature, max_tokens)
+            if result:
+                return ollama_result_to_openai_chat_completion(result, model_raw)
+            raise
+
+    if provider == "openai":
+        return await openai_provider_chat(messages, model, temperature, max_tokens)
+
+    if provider == "claude":
+        data = await claude_chat(messages, model, temperature, max_tokens)
+        return {
+            "id": f"chatcmpl-{int(time.time() * 1000)}",
+            "object": "chat.completion",
+            "created": int(time.time()),
+            "model": data.get("model", model),
+            "choices": [
+                {
+                    "index": 0,
+                    "message": {
+                        "role": "assistant",
+                        "content": data.get("content", ""),
+                    },
+                    "finish_reason": "stop",
+                }
+            ],
+            "usage": {
+                "prompt_tokens": data.get("usage", {}).get("prompt_tokens", 0),
+                "completion_tokens": data.get("usage", {}).get("completion_tokens", 0),
+                "total_tokens": (
+                    data.get("usage", {}).get("prompt_tokens", 0)
+                    + data.get("usage", {}).get("completion_tokens", 0)
+                ),
+            },
+        }
+
+    result = await try_p2p_forward(messages, model_raw, temperature, max_tokens)
+    if result:
+        return ollama_result_to_openai_chat_completion(result, model_raw)
 
     raise HTTPException(503, f"Provider '{provider}' not supported in local mode")

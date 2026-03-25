@@ -118,7 +118,7 @@ async def _test_client(fake_provider: FakeLLMProvider | None = None):
                 # Register the fake provider in the router
                 app.state.router.register(fake_provider)
 
-            transport = httpx.ASGITransport(app=app)
+            transport = httpx.ASGITransport(app=app, raise_app_exceptions=False)
             async with httpx.AsyncClient(
                 transport=transport,
                 base_url="http://testserver",

@@ -47,5 +47,9 @@ def test_expected_skills_present():
         "classifier",
         "image-generator",
         "pcb-routing-kicad",
+        "industrial-coder",
+        "verilog-expert",
+        "mistral-coder",
+        "kicad10-expert",
     }
     assert expected == names

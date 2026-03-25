@@ -314,11 +314,11 @@ def test_e2e_failover_partial_failure():
     router._providers.clear()
 
     working_1 = WorkingProvider(name="healthy1")
-    working_1.quality_rank = 2
+    working_1.quality_rank = 3
     failing = FailingProvider(name="unhealthy")
-    failing.quality_rank = 3
+    failing.quality_rank = 1
     working_2 = WorkingProvider(name="healthy2")
-    working_2.quality_rank = 1
+    working_2.quality_rank = 2
 
     router.register(working_1)
     router.register(failing)
@@ -388,6 +388,7 @@ def test_e2e_failover_with_model_specific_request():
             router.send(
                 messages,
                 strategy=Strategy.SPECIFIC,
+                provider="model_working",
                 model="working-model",
             )
         )
