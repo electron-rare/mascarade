@@ -378,6 +378,157 @@ async def run_agent(name: str, req: SendRequest, request: Request):
     }
 
 
+@router.post("/triage")
+async def triage_request(req: SendRequest, request: Request):
+    """Triage a request — auto-select agent or pipeline.
+
+    Analyzes the prompt and decides whether to use a single agent or
+    chain multiple agents in a pipeline.  Uses fast heuristics first,
+    falls back to a cheap LLM classification call.
+
+    Returns the agent response(s) directly.
+    """
+    if not req.messages:
+        raise HTTPException(status_code=400, detail="At least one message is required")
+
+    from mascarade.agents.triage import TriageAgent
+
+    triage = TriageAgent(request.app.state.registry)
+    messages = [m.model_dump() for m in req.messages]
+    prompt = messages[-1]["content"]
+    context = messages[:-1] if len(messages) > 1 else None
+
+    try:
+        normalized_project, normalized_federation, normalized_scope = normalize_scope(
+            project_id=req.project_id,
+            federation_scope=req.federation_scope,
+            knowledge_scope=req.knowledge_scope,
+            require_project_id=True,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    try:
+        decision = await triage.triage(
+            prompt,
+            router=request.app.state.router,
+            skill_registry=getattr(request.app.state, "skill_registry", None),
+            project_id=normalized_project,
+            federation_scope=normalized_federation,
+            knowledge_scope=normalized_scope,
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Triage failed: {exc}") from exc
+
+    # Execute based on decision
+    try:
+        if decision.mode == "pipeline" and len(decision.agents) > 1:
+            # Pipeline execution via orchestrator
+            orchestrator = getattr(request.app.state, "orchestrator", None)
+            if orchestrator:
+                run = await orchestrator.run(
+                    agent_names=decision.agents,
+                    prompt=prompt,
+                    mode="pipeline",
+                    project_id=normalized_project,
+                    federation_scope=normalized_federation,
+                    knowledge_scope=normalized_scope,
+                )
+                return {
+                    "triage": {
+                        "mode": decision.mode,
+                        "agents": decision.agents,
+                        "reason": decision.reason,
+                        "confidence": decision.confidence,
+                        "source": decision.source,
+                    },
+                    "results": [
+                        {
+                            "agent": r.agent_name,
+                            "content": r.response.content,
+                            "model": r.response.model,
+                            "provider": r.response.provider,
+                            "step": r.step,
+                        }
+                        for r in run.results
+                    ],
+                }
+
+        # Single agent execution
+        agent_name = decision.agents[0]
+        agent = request.app.state.registry.get(agent_name)
+        response = await agent.run(
+            prompt,
+            router=request.app.state.router,
+            context=context,
+            skill_registry=getattr(request.app.state, "skill_registry", None),
+            project_id=normalized_project,
+            federation_scope=normalized_federation,
+            knowledge_scope=normalized_scope,
+        )
+        return {
+            "triage": {
+                "mode": decision.mode,
+                "agents": decision.agents,
+                "reason": decision.reason,
+                "confidence": decision.confidence,
+                "source": decision.source,
+            },
+            "content": response.content,
+            "model": response.model,
+            "provider": response.provider,
+            "usage": response.usage,
+        }
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+
+@router.post("/triage/analyze")
+async def triage_analyze(req: SendRequest, request: Request):
+    """Dry-run triage — returns the decision without executing agents.
+
+    Useful for debugging routing decisions.
+    """
+    if not req.messages:
+        raise HTTPException(status_code=400, detail="At least one message is required")
+
+    from mascarade.agents.triage import TriageAgent
+
+    triage = TriageAgent(request.app.state.registry)
+    messages = [m.model_dump() for m in req.messages]
+    prompt = messages[-1]["content"]
+
+    try:
+        normalized_project, normalized_federation, normalized_scope = normalize_scope(
+            project_id=req.project_id,
+            federation_scope=req.federation_scope,
+            knowledge_scope=req.knowledge_scope,
+            require_project_id=True,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    try:
+        decision = await triage.triage(
+            prompt,
+            router=request.app.state.router,
+            skill_registry=getattr(request.app.state, "skill_registry", None),
+            project_id=normalized_project,
+            federation_scope=normalized_federation,
+            knowledge_scope=normalized_scope,
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Triage failed: {exc}") from exc
+
+    return {
+        "mode": decision.mode,
+        "agents": decision.agents,
+        "reason": decision.reason,
+        "confidence": decision.confidence,
+        "source": decision.source,
+    }
+
+
 @router.get("/agents/{name}/metrics")
 async def get_agent_metrics(name: str, request: Request):
     """

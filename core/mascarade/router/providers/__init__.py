@@ -157,3 +157,17 @@ try:
     __all__.append("KiCadRouterProvider")
 except ImportError:
     pass
+
+try:
+    from mascarade.router.providers.pcbdesigner import PCBDesignerProvider
+
+    __all__.append("PCBDesignerProvider")
+except ImportError:
+    pass
+
+try:
+    from mascarade.router.providers.quilter import QuilterProvider
+
+    __all__.append("QuilterProvider")
+except ImportError:
+    pass
