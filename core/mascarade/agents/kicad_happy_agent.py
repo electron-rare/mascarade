@@ -383,7 +383,7 @@ class KiCadHappyAgent(Agent):
             tools=["kicad_api", "python", "filesystem"],
             temperature=0.2,
             max_tokens=4096,
-            skills=SKILLS,
+            skills=self.SKILLS,
             category="eda",
         )
 
