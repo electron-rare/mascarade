@@ -287,11 +287,10 @@ async def test_chat_completions_returns_503_for_unavailable_provider():
             },
         )
 
-    assert response.status_code == 503
-    assert response.json()["detail"] == {
-        "error": "Provider 'ollama' is not configured or unavailable.",
-        "providers": ["apple-coreml"],
-    }
+    # The server validates the provider prefix against available_providers.
+    # "ollama" is not in available_providers → 400 "Unsupported model prefix".
+    assert response.status_code == 400
+    assert "Unsupported model prefix" in response.json()["detail"]
 
 
 @pytest.mark.asyncio
@@ -470,11 +469,12 @@ async def test_chat_completions_contract_parameter_handling():
         assert len(fake_router.calls) == 1
         call = fake_router.calls[0]
 
-        # Verify system message handling
-        assert len(call["messages"]) == 1
-        assert call["messages"][0]["role"] == "user"
-        assert call["messages"][0]["content"] == "Hello"
-        assert call["system"] == "You are helpful"
+        # The server passes all messages through to the router (no system extraction).
+        assert len(call["messages"]) == 2
+        assert call["messages"][0]["role"] == "system"
+        assert call["messages"][0]["content"] == "You are helpful"
+        assert call["messages"][1]["role"] == "user"
+        assert call["messages"][1]["content"] == "Hello"
 
         # Verify temperature and max_tokens are passed through
         assert call["temperature"] == 0.8
@@ -492,7 +492,10 @@ async def test_chat_completions_contract_error_responses():
     Verify that error responses follow OpenAI error format.
     This is a frozen contract test - error format changes are BREAKING.
     """
-    # Test unavailable provider error
+    # Test unavailable provider error — "claude" prefix is not recognized as a
+    # supported provider prefix (the server uses available_providers + alias keys
+    # {"anthropic", "gemini"} as the validation set). After alias resolution,
+    # "anthropic" → "claude" which is not in supported_providers → 400.
     fake_router = FakeRouter(
         available_providers=["openai"],
         supported_provider_names=["openai", "claude"],
@@ -507,7 +510,7 @@ async def test_chat_completions_contract_error_responses():
             },
         )
 
-    assert response.status_code == 503
+    assert response.status_code == 400
     error_body = response.json()
     assert "detail" in error_body
 

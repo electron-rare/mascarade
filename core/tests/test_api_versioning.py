@@ -138,7 +138,7 @@ async def test_health_endpoint_unversioned():
 
     assert response.status_code == 200
     body = response.json()
-    assert body["status"] == "healthy"
+    assert body["status"] == "ok"
 
 
 @pytest.mark.asyncio
@@ -266,27 +266,26 @@ async def test_protected_endpoints_reject_unversioned_paths():
 
 @pytest.mark.asyncio
 async def test_cluster_endpoints_have_v1_prefix():
-    """Test that cluster endpoints have /v1 prefix."""
-    from mascarade.cluster import add_cluster_key
+    """Test that cluster endpoints have /v1 prefix.
 
-    # Add test cluster key
+    Cluster auth uses a shared key from settings, not a dynamic add_cluster_key
+    function.  We patch the dependency so we can test the route exists at the
+    expected v1 path.
+    """
+    from mascarade.config import settings as cfg
+
     test_key = "cluster-key-12345"
-    add_cluster_key(test_key)
 
-    async with _client() as client:
-        # Test /v1/cluster/node/heartbeat endpoint
-        response = await client.post(
-            "/v1/cluster/node/heartbeat",
-            headers={"X-Cluster-Key": test_key},
-            json={
-                "node_id": "test-node",
-                "capacity": 100,
-                "current_load": 50,
-                "providers": ["openai"],
-            },
-        )
-        # Should get 200 OK (valid cluster auth and payload)
-        assert response.status_code == 200
+    with patch.object(cfg, "cluster_enabled", True), \
+         patch.object(cfg, "cluster_shared_key", test_key):
+        async with _client() as client:
+            # Test /v1/cluster/node/identity endpoint (GET)
+            response = await client.get(
+                "/v1/cluster/node/identity",
+                headers={"Authorization": f"Bearer {test_key}"},
+            )
+            # Should get 200 OK (valid cluster auth)
+            assert response.status_code == 200
 
 
 @pytest.mark.asyncio

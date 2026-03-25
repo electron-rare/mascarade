@@ -5,9 +5,10 @@ from unittest.mock import AsyncMock, patch
 
 import httpx
 import pytest
+from fastapi import FastAPI
 
 from mascarade.auth import add_api_key, get_active_api_keys, remove_api_key
-from mascarade.server import app
+from mascarade.routers.cad_mcp import router as cad_mcp_router
 
 
 @pytest.fixture(autouse=True)
@@ -19,17 +20,26 @@ def _clean_api_keys():
         remove_api_key(key)
 
 
+def _make_app():
+    """Create a standalone test app with the CAD MCP router."""
+    test_app = FastAPI()
+    test_app.include_router(cad_mcp_router)
+    return test_app
+
+
 @asynccontextmanager
 async def _client():
     with patch("mascarade.auth.is_valid_api_key", return_value=True), \
          patch("mascarade.auth._resolve_role", return_value="admin"):
-        async with app.router.lifespan_context(app):
-            transport = httpx.ASGITransport(app=app)
-            async with httpx.AsyncClient(
-                transport=transport,
-                base_url="http://testserver",
-            ) as client:
-                yield client
+        test_app = _make_app()
+        transport = httpx.ASGITransport(app=test_app)
+        async with httpx.AsyncClient(
+            transport=transport,
+            base_url="http://testserver",
+        ) as client:
+            # Expose app for state manipulation
+            client._test_app = test_app
+            yield client
 
 
 @pytest.mark.asyncio
@@ -44,7 +54,7 @@ async def test_freecad_create_document_route_uses_mcp_client():
     }
 
     async with _client() as client:
-        app.state.mcp = fake_mcp
+        client._test_app.state.mcp = fake_mcp
         response = await client.post(
             "/mcp/freecad/documents",
             headers={"Authorization": "Bearer test-key-001"},
@@ -78,7 +88,7 @@ async def test_openscad_render_route_generates_run_id_when_missing():
     }
 
     async with _client() as client:
-        app.state.mcp = fake_mcp
+        client._test_app.state.mcp = fake_mcp
         response = await client.post(
             "/mcp/openscad/render",
             headers={"Authorization": "Bearer test-key-001"},

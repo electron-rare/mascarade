@@ -458,39 +458,37 @@ async def reset_registry():
 
 @asynccontextmanager
 async def _test_client():
-    """Provide an ASGI test client for API endpoint testing."""
-    from mascarade.config import settings
+    """Provide an ASGI test client for API endpoint testing.
 
-    # Temporarily disable Qdrant and ComfyUI to avoid initialization issues in tests
-    original_qdrant = settings.qdrant_url
-    original_comfyui = settings.comfyui_url
-    settings.qdrant_url = None
-    settings.comfyui_url = None
+    Mounts the prompt_versioning router on a standalone FastAPI app so
+    the tests do not depend on whether the main server includes it.
+    """
+    from fastapi import FastAPI
+    from mascarade.routers.prompt_versioning import router as pv_router
+
+    test_app = FastAPI()
+    test_app.include_router(pv_router, prefix="/v1")
 
     # Use a temporary registry for tests to avoid state persistence
     with tempfile.TemporaryDirectory() as tmpdir:
         test_storage_path = Path(tmpdir) / "test_agents.json"
+        test_app.state.registry = AgentRegistry(storage_path=test_storage_path)
+
+        # Also expose on the module-level `app` so test bodies that reference
+        # ``app.state.registry`` keep working.
         original_registry = (
             app.state.registry if hasattr(app.state, "registry") else None
         )
+        app.state.registry = test_app.state.registry
 
         try:
-            with patch("mascarade.auth.is_valid_api_key", return_value=True), \
-                 patch("mascarade.auth._resolve_role", return_value="admin"):
-                async with app.router.lifespan_context(app):
-                    # Replace the registry with a clean one for testing
-                    app.state.registry = AgentRegistry(storage_path=test_storage_path)
-
-                    transport = httpx.ASGITransport(app=app)
-                    async with httpx.AsyncClient(
-                        transport=transport,
-                        base_url="http://testserver",
-                    ) as client:
-                        yield client
+            transport = httpx.ASGITransport(app=test_app)
+            async with httpx.AsyncClient(
+                transport=transport,
+                base_url="http://testserver",
+            ) as client:
+                yield client
         finally:
-            # Restore original settings and registry
-            settings.qdrant_url = original_qdrant
-            settings.comfyui_url = original_comfyui
             if original_registry:
                 app.state.registry = original_registry
 

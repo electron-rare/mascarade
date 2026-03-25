@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
 import pytest
+from fastapi import FastAPI
 
 from mascarade.auth import add_api_key, get_active_api_keys, remove_api_key
-from mascarade.server import app
+from mascarade.routers.knowledge_base import router as kb_router
 
 
 @pytest.fixture(autouse=True)
@@ -19,17 +20,28 @@ def _clean_api_keys():
         remove_api_key(key)
 
 
+def _make_app():
+    """Create a standalone test app with the knowledge base router."""
+    test_app = FastAPI()
+    test_app.include_router(kb_router)
+    # Provide a fake router and registry on app.state
+    test_app.state.router = MagicMock()
+    test_app.state.registry = MagicMock()
+    return test_app
+
+
 @asynccontextmanager
 async def _client():
     with patch("mascarade.auth.is_valid_api_key", return_value=True), \
          patch("mascarade.auth._resolve_role", return_value="admin"):
-        async with app.router.lifespan_context(app):
-            transport = httpx.ASGITransport(app=app)
-            async with httpx.AsyncClient(
-                transport=transport,
-                base_url="http://testserver",
-            ) as client:
-                yield client
+        test_app = _make_app()
+        transport = httpx.ASGITransport(app=test_app)
+        async with httpx.AsyncClient(
+            transport=transport,
+            base_url="http://testserver",
+        ) as client:
+            client._test_app = test_app
+            yield client
 
 
 @pytest.mark.asyncio
@@ -48,7 +60,7 @@ async def test_knowledge_base_search_route_uses_mcp_client(
     monkeypatch.setattr("mascarade.server.knowledge_base_auth_configured", lambda: True)
 
     async with _client() as client:
-        app.state.mcp = fake_mcp
+        client._test_app.state.mcp = fake_mcp
         response = await client.get(
             "/knowledge-base/search?q=release&project_id=project-alpha",
             headers={"Authorization": "Bearer test-key-001"},
@@ -75,7 +87,7 @@ async def test_knowledge_base_search_route_rejects_missing_project_id(
     monkeypatch.setattr("mascarade.server.knowledge_base_auth_configured", lambda: True)
 
     async with _client() as client:
-        app.state.mcp = fake_mcp
+        client._test_app.state.mcp = fake_mcp
         response = await client.get(
             "/knowledge-base/search?q=release",
             headers={"Authorization": "Bearer test-key-001"},
@@ -101,7 +113,7 @@ async def test_knowledge_base_search_route_forwards_project_scope(
     monkeypatch.setattr("mascarade.server.knowledge_base_auth_configured", lambda: True)
 
     async with _client() as client:
-        app.state.mcp = fake_mcp
+        client._test_app.state.mcp = fake_mcp
         response = await client.get(
             "/knowledge-base/search?q=musique&limit=5&project_id=project-alpha&federation_scope=project-alpha,project-beta&knowledge_scope=federated",
             headers={"Authorization": "Bearer test-key-001"},
@@ -152,8 +164,8 @@ async def test_knowledge_scribe_push_uses_mcp_and_preserves_run_id(
             )()
 
     async with _client() as client:
-        app.state.mcp = fake_mcp
-        monkeypatch.setattr(app.state.registry, "get", lambda name: _FakeAgent())
+        client._test_app.state.mcp = fake_mcp
+        client._test_app.state.registry.get = lambda name: _FakeAgent()
         response = await client.post(
             "/agents/knowledge-scribe/run-and-push",
             headers={"Authorization": "Bearer test-key-001"},
