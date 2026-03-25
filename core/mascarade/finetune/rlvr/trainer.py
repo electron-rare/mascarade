@@ -134,7 +134,7 @@ class RLVRTrainer:
         except ImportError:
             raise RuntimeError(
                 "trl>=0.17 required for RLVR. Install with: pip install 'trl>=0.17'"
-            )
+            ) from None
 
         # Resolve reward functions
         self._reward_fns = [

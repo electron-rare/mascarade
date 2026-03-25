@@ -117,7 +117,7 @@ class P2PStreamForwarder:
         except TimeoutError:
             raise TimeoutError(
                 f"P2P request {request_id} to {peer_id} timed out after {timeout}s"
-            )
+            ) from None
         finally:
             self._pending.pop(request_id, None)
 

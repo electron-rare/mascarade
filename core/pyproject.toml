@@ -94,7 +94,6 @@ ignore = [
     "E701",  # multiple statements on one line (style choice)
     "E741",  # ambiguous variable name (context-dependent)
     "B008",  # function calls in defaults
-    "B904",  # raise without from — will fix incrementally
     "UP042", # str(Enum) pattern intentional for JSON
     "S104",  # hardcoded bind 0.0.0.0 — Docker/P2P networking
     "S105",  # hardcoded password string — config defaults, not secrets

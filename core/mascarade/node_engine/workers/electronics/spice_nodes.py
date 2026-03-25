@@ -458,7 +458,7 @@ class SimulateNode(BaseNode):
                 await process.wait()
                 raise TimeoutError(
                     f"Simulation exceeded timeout of {config.timeout_seconds} seconds"
-                )
+                ) from None
 
             # Decode output
             stdout = stdout_bytes.decode("utf-8", errors="replace")

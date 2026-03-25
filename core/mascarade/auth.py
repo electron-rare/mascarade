@@ -740,7 +740,7 @@ async def require_admin(
         raise
     except Exception as e:
         logger.error("Error checking admin privileges: %s", str(e), exc_info=True)
-        raise HTTPException(status_code=500, detail="Error checking permissions")
+        raise HTTPException(status_code=500, detail="Error checking permissions") from e
 
 
 # --- Legacy API Key Migration ---

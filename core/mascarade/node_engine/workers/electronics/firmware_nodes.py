@@ -301,7 +301,7 @@ class CompileNode(BaseNode):
             except FileNotFoundError:
                 raise RuntimeError(
                     "idf.py not found. " "Please install ESP-IDF and source export.sh."
-                )
+                ) from None
 
         build_log_lines = []
 
@@ -472,7 +472,7 @@ class CompileNode(BaseNode):
             raise RuntimeError(
                 "PlatformIO not found. "
                 "Please install PlatformIO: pip install platformio"
-            )
+            ) from None
 
         build_log_lines = []
 

@@ -91,9 +91,9 @@ async def execute_graph(graph_id: str, body: GraphExecuteRequest, request: Reque
     try:
         graph = _serializer.load(f"data/node-engine/graphs/{graph_id}.json")
     except FileNotFoundError:
-        raise HTTPException(status_code=404, detail=f"Graph '{graph_id}' not found")
+        raise HTTPException(status_code=404, detail=f"Graph '{graph_id}' not found") from None
     except Exception as exc:
-        raise HTTPException(status_code=400, detail=f"Failed to load graph: {exc}")
+        raise HTTPException(status_code=400, detail=f"Failed to load graph: {exc}") from exc
 
     # Validate
     errors = await runtime.validate_graph(graph)
@@ -105,10 +105,10 @@ async def execute_graph(graph_id: str, body: GraphExecuteRequest, request: Reque
         ctx = await runtime.execute(graph, initial_inputs=body.inputs)
         return _serialize_execution_context(graph_id, ctx)
     except ValueError as exc:
-        raise HTTPException(status_code=422, detail=str(exc))
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     except Exception as exc:
         logger.exception("Graph execution failed: %s", exc)
-        raise HTTPException(status_code=500, detail=f"Execution failed: {exc}")
+        raise HTTPException(status_code=500, detail=f"Execution failed: {exc}") from exc
 
 
 @router.post("/graphs/execute-inline")
@@ -139,10 +139,10 @@ async def execute_inline_graph(body: GraphCreateRequest, request: Request):
         ctx = await runtime.execute(graph)
         return _serialize_execution_context(graph.id, ctx)
     except ValueError as exc:
-        raise HTTPException(status_code=422, detail=str(exc))
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     except Exception as exc:
         logger.exception("Inline graph execution failed: %s", exc)
-        raise HTTPException(status_code=500, detail=f"Execution failed: {exc}")
+        raise HTTPException(status_code=500, detail=f"Execution failed: {exc}") from exc
 
 
 @router.get("/runtime/status")
