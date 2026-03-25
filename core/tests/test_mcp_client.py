@@ -298,7 +298,10 @@ async def test_call_tool_http_tool_error():
         "id": 1,
         "result": {
             "content": [{"type": "text", "text": "entity not found"}],
-            "structuredContent": {"ok": False, "error": {"code": "not_found", "message": "entity not found"}},
+            "structuredContent": {
+                "ok": False,
+                "error": {"code": "not_found", "message": "entity not found"},
+            },
             "isError": True,
         },
     }

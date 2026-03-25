@@ -33,7 +33,14 @@ class DocumentalistAgent:
     """
 
     PREFERRED_FORMATS = {"jsonl", "parquet", "json", "csv"}
-    PREFERRED_LICENSES = {"apache-2.0", "mit", "cc-by-4.0", "cc-by-sa-4.0", "cc0-1.0", "openrail"}
+    PREFERRED_LICENSES = {
+        "apache-2.0",
+        "mit",
+        "cc-by-4.0",
+        "cc-by-sa-4.0",
+        "cc0-1.0",
+        "openrail",
+    }
 
     def __init__(self, *, hf_token: str | None = None):
         self.hf_token = hf_token
@@ -50,29 +57,42 @@ class DocumentalistAgent:
         """Search HuggingFace Hub for datasets matching a domain."""
         try:
             return await self._search_via_hf_hub(
-                domain, min_downloads=min_downloads, sort=sort,
-                limit=limit, languages=languages,
+                domain,
+                min_downloads=min_downloads,
+                sort=sort,
+                limit=limit,
+                languages=languages,
             )
         except ImportError:
             logger.warning("huggingface_hub not installed, using HTTP fallback")
             return await self._search_via_http(
-                domain, min_downloads=min_downloads, sort=sort,
+                domain,
+                min_downloads=min_downloads,
+                sort=sort,
                 limit=limit,
             )
 
     async def _search_via_hf_hub(
-        self, domain: str, *, min_downloads: int, sort: str,
-        limit: int, languages: list[str] | None,
+        self,
+        domain: str,
+        *,
+        min_downloads: int,
+        sort: str,
+        limit: int,
+        languages: list[str] | None,
     ) -> list[DatasetCandidate]:
         from huggingface_hub import HfApi
+
         api = HfApi(token=self.hf_token)
 
         datasets = await asyncio.to_thread(
-            lambda: list(api.list_datasets(
-                search=domain,
-                sort=sort,
-                limit=limit * 3,
-            ))
+            lambda: list(
+                api.list_datasets(
+                    search=domain,
+                    sort=sort,
+                    limit=limit * 3,
+                )
+            )
         )
 
         candidates = []
@@ -90,29 +110,44 @@ class DocumentalistAgent:
             if languages and not any(l in langs for l in languages):
                 continue
 
-            candidates.append(DatasetCandidate(
-                dataset_id=d.id,
-                domain=domain,
-                downloads=d.downloads or 0,
-                likes=d.likes or 0,
-                license=license_tag,
-                tags=tags[:10],
-                languages=langs,
-            ))
+            candidates.append(
+                DatasetCandidate(
+                    dataset_id=d.id,
+                    domain=domain,
+                    downloads=d.downloads or 0,
+                    likes=d.likes or 0,
+                    license=license_tag,
+                    tags=tags[:10],
+                    languages=langs,
+                )
+            )
             if len(candidates) >= limit:
                 break
 
-        logger.info("Found %d dataset candidates for domain=%s", len(candidates), domain)
+        logger.info(
+            "Found %d dataset candidates for domain=%s", len(candidates), domain
+        )
         return candidates
 
     async def _search_via_http(
-        self, domain: str, *, min_downloads: int, sort: str, limit: int,
+        self,
+        domain: str,
+        *,
+        min_downloads: int,
+        sort: str,
+        limit: int,
     ) -> list[DatasetCandidate]:
         import httpx
+
         async with httpx.AsyncClient() as client:
             resp = await client.get(
                 "https://huggingface.co/api/datasets",
-                params={"search": domain, "sort": sort, "direction": "-1", "limit": limit},
+                params={
+                    "search": domain,
+                    "sort": sort,
+                    "direction": "-1",
+                    "limit": limit,
+                },
             )
             resp.raise_for_status()
             datasets = resp.json()
@@ -133,6 +168,7 @@ class DocumentalistAgent:
         """Get detailed info about a dataset (splits, row counts, formats)."""
         try:
             from huggingface_hub import HfApi
+
             api = HfApi(token=self.hf_token)
             info = await asyncio.to_thread(api.dataset_info, dataset_id)
             return {
@@ -148,11 +184,17 @@ class DocumentalistAgent:
             return {"dataset_id": dataset_id, "error": str(e)}
 
     async def recommend(
-        self, domain: str, *, top_k: int = 5, languages: list[str] | None = None,
+        self,
+        domain: str,
+        *,
+        top_k: int = 5,
+        languages: list[str] | None = None,
     ) -> dict:
         """Full dataset search with quality ranking."""
         datasets = await self.search_datasets(domain, languages=languages)
-        ranked = sorted(datasets, key=lambda d: (d.downloads * 0.7 + d.likes * 0.3), reverse=True)
+        ranked = sorted(
+            datasets, key=lambda d: (d.downloads * 0.7 + d.likes * 0.3), reverse=True
+        )
         top = ranked[:top_k]
 
         return {

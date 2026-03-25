@@ -40,7 +40,7 @@ class TestRegisterOllamaModel:
     async def test_missing_gguf(self):
         result = await register_ollama_model("/nonexistent/model.gguf", "test-model")
         assert result["status"] == "error"
-        assert "not found" in result["error"]
+        assert "not found" in result["error"].lower()
 
     @pytest.mark.asyncio
     async def test_missing_ollama_binary(self):
@@ -52,7 +52,7 @@ class TestRegisterOllamaModel:
                 gguf_path, "test-model", ollama_binary="nonexistent-ollama-binary"
             )
             assert result["status"] == "error"
-            assert "not found" in result["error"]
+            assert "not found" in result["error"].lower()
         finally:
             Path(gguf_path).unlink(missing_ok=True)
 
@@ -67,8 +67,14 @@ class TestRegisterOllamaModel:
         mock_proc.communicate = AsyncMock(return_value=(b"success\n", b""))
 
         try:
-            with patch("mascarade.finetune.publish.shutil.which", return_value="/usr/bin/ollama"):
-                with patch("mascarade.finetune.publish.asyncio.create_subprocess_exec", return_value=mock_proc):
+            with patch(
+                "mascarade.finetune.publish.shutil.which",
+                return_value="/usr/bin/ollama",
+            ):
+                with patch(
+                    "mascarade.finetune.publish.asyncio.create_subprocess_exec",
+                    return_value=mock_proc,
+                ):
                     result = await register_ollama_model(gguf_path, "test-model")
                     assert result["status"] == "registered"
                     assert result["model_name"] == "test-model"
@@ -86,8 +92,14 @@ class TestRegisterOllamaModel:
         mock_proc.communicate = AsyncMock(return_value=(b"", b"model error"))
 
         try:
-            with patch("mascarade.finetune.publish.shutil.which", return_value="/usr/bin/ollama"):
-                with patch("mascarade.finetune.publish.asyncio.create_subprocess_exec", return_value=mock_proc):
+            with patch(
+                "mascarade.finetune.publish.shutil.which",
+                return_value="/usr/bin/ollama",
+            ):
+                with patch(
+                    "mascarade.finetune.publish.asyncio.create_subprocess_exec",
+                    return_value=mock_proc,
+                ):
                     result = await register_ollama_model(gguf_path, "test-model")
                     assert result["status"] == "error"
                     assert "model error" in result["error"]

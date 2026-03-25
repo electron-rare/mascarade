@@ -85,9 +85,7 @@ class PromptFeatureExtractor:
         "electronics": re.compile(
             r"\b(pcb|schematic|kicad|resistor|capacitor|ipc|drc|stm32|spice)\b", re.I
         ),
-        "cad": re.compile(
-            r"\b(freecad|openscad|stl|3d\s*print|mesh|cad)\b", re.I
-        ),
+        "cad": re.compile(r"\b(freecad|openscad|stl|3d\s*print|mesh|cad)\b", re.I),
         "code": re.compile(
             r"\b(function|class|def |import |async|await|return|algorithm|refactor)\b"
         ),
@@ -177,9 +175,7 @@ class RoutingClassifier:
     """
 
     def __init__(self, model_path: Path | None = None) -> None:
-        self._weights: dict[str, dict[str, float]] = {
-            tier: {} for tier in TIERS
-        }
+        self._weights: dict[str, dict[str, float]] = {tier: {} for tier in TIERS}
         self._bias: dict[str, float] = dict.fromkeys(TIERS, 0.0)
         self._feature_extractor = PromptFeatureExtractor()
         self._model_path = model_path
@@ -331,9 +327,7 @@ class RoutingClassifier:
         for sample in positives:
             fv = sample["features"]
             raw_scores = {
-                tier: sum(
-                    self._weights[tier].get(k, 0.0) * v for k, v in fv.items()
-                )
+                tier: sum(self._weights[tier].get(k, 0.0) * v for k, v in fv.items())
                 + self._bias[tier]
                 for tier in TIERS
             }
@@ -387,9 +381,7 @@ class RoutingClassifier:
             }
 
         return {
-            tier: sum(
-                self._weights[tier].get(k, 0.0) * v for k, v in fv.items()
-            )
+            tier: sum(self._weights[tier].get(k, 0.0) * v for k, v in fv.items())
             + self._bias[tier]
             for tier in TIERS
         }
@@ -519,6 +511,8 @@ def get_routing_classifier(
     global _routing_classifier_instance
     if _routing_classifier_instance is None:
         if model_path is None:
-            model_path = Path.home() / ".mascarade" / "models" / "routing_classifier.json"
+            model_path = (
+                Path.home() / ".mascarade" / "models" / "routing_classifier.json"
+            )
         _routing_classifier_instance = RoutingClassifier(model_path=model_path)
     return _routing_classifier_instance

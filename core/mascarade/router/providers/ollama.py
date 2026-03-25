@@ -19,7 +19,14 @@ from mascarade.router.providers.base import (
 
 logger = logging.getLogger("mascarade.providers.ollama")
 
-_METAL_ERROR_PATTERNS = ("metal", "gpu", "mps", "ggml_metal", "device lost", "command buffer")
+_METAL_ERROR_PATTERNS = (
+    "metal",
+    "gpu",
+    "mps",
+    "ggml_metal",
+    "device lost",
+    "command buffer",
+)
 
 
 class MetalGPUError(RuntimeError):

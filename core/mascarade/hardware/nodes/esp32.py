@@ -16,7 +16,11 @@ import httpx
 from pydantic import BaseModel, Field
 
 from mascarade.hardware.types import GPIOState, SensorReading
-from mascarade.node_engine.base import NodeDefinition, NodeExecutionContext, NodeExecutionResult
+from mascarade.node_engine.base import (
+    NodeDefinition,
+    NodeExecutionContext,
+    NodeExecutionResult,
+)
 from mascarade.node_engine.types import (
     NodePort,
     PortDirection,
@@ -59,7 +63,9 @@ class ESP32ConnectionConfig(BaseModel):
     device_id: str = Field(description="mDNS hostname or IP address")
     protocol: Literal["http", "websocket", "mqtt"] = "http"
     port: int = Field(80, description="TCP port for HTTP/WS, or MQTT broker port")
-    mqtt_broker: str | None = Field(None, description="MQTT broker address if protocol=mqtt")
+    mqtt_broker: str | None = Field(
+        None, description="MQTT broker address if protocol=mqtt"
+    )
     mqtt_topic_prefix: str = Field("mascarade/esp32", description="MQTT topic prefix")
     timeout_ms: int = Field(5000, ge=100, le=30000, description="Connection timeout")
     retry_count: int = Field(3, ge=0, le=10, description="Retry attempts on failure")
@@ -140,7 +146,9 @@ class ESP32Client:
             ESP32TimeoutError: If operation times out
         """
         if self.config.protocol != "http":
-            raise ESP32Error(f"GPIO operations only supported over HTTP, got {self.config.protocol}")
+            raise ESP32Error(
+                f"GPIO operations only supported over HTTP, got {self.config.protocol}"
+            )
 
         url = f"http://{self.config.device_id}:{self.config.port}/gpio"
         payload = {
@@ -171,15 +179,27 @@ class ESP32Client:
             )
         except httpx.TimeoutException as exc:
             if retry < self.config.retry_count:
-                logger.warning("GPIO operation timed out, retrying (%d/%d)", retry + 1, self.config.retry_count)
+                logger.warning(
+                    "GPIO operation timed out, retrying (%d/%d)",
+                    retry + 1,
+                    self.config.retry_count,
+                )
                 await asyncio.sleep(0.1 * (retry + 1))
                 return await self.gpio_operation(pin_config, retry + 1)
-            raise ESP32TimeoutError(f"GPIO operation timed out after {retry + 1} attempts") from exc
+            raise ESP32TimeoutError(
+                f"GPIO operation timed out after {retry + 1} attempts"
+            ) from exc
         except httpx.HTTPStatusError as exc:
-            raise ESP32ConnectionError(f"GPIO operation failed: {exc.response.status_code}") from exc
+            raise ESP32ConnectionError(
+                f"GPIO operation failed: {exc.response.status_code}"
+            ) from exc
         except httpx.RequestError as exc:
             if retry < self.config.retry_count:
-                logger.warning("GPIO connection failed, retrying (%d/%d)", retry + 1, self.config.retry_count)
+                logger.warning(
+                    "GPIO connection failed, retrying (%d/%d)",
+                    retry + 1,
+                    self.config.retry_count,
+                )
                 await asyncio.sleep(0.1 * (retry + 1))
                 return await self.gpio_operation(pin_config, retry + 1)
             raise ESP32ConnectionError(f"Failed to connect to ESP32: {exc}") from exc
@@ -203,7 +223,9 @@ class ESP32Client:
             ESP32TimeoutError: If operation times out
         """
         if self.config.protocol != "http":
-            raise ESP32Error(f"Sensor operations only supported over HTTP, got {self.config.protocol}")
+            raise ESP32Error(
+                f"Sensor operations only supported over HTTP, got {self.config.protocol}"
+            )
 
         url = f"http://{self.config.device_id}:{self.config.port}/sensor/{sensor_id}"
 
@@ -223,15 +245,27 @@ class ESP32Client:
             )
         except httpx.TimeoutException as exc:
             if retry < self.config.retry_count:
-                logger.warning("Sensor read timed out, retrying (%d/%d)", retry + 1, self.config.retry_count)
+                logger.warning(
+                    "Sensor read timed out, retrying (%d/%d)",
+                    retry + 1,
+                    self.config.retry_count,
+                )
                 await asyncio.sleep(0.1 * (retry + 1))
                 return await self.read_sensor(sensor_id, retry + 1)
-            raise ESP32TimeoutError(f"Sensor read timed out after {retry + 1} attempts") from exc
+            raise ESP32TimeoutError(
+                f"Sensor read timed out after {retry + 1} attempts"
+            ) from exc
         except httpx.HTTPStatusError as exc:
-            raise ESP32ConnectionError(f"Sensor read failed: {exc.response.status_code}") from exc
+            raise ESP32ConnectionError(
+                f"Sensor read failed: {exc.response.status_code}"
+            ) from exc
         except httpx.RequestError as exc:
             if retry < self.config.retry_count:
-                logger.warning("Sensor connection failed, retrying (%d/%d)", retry + 1, self.config.retry_count)
+                logger.warning(
+                    "Sensor connection failed, retrying (%d/%d)",
+                    retry + 1,
+                    self.config.retry_count,
+                )
                 await asyncio.sleep(0.1 * (retry + 1))
                 return await self.read_sensor(sensor_id, retry + 1)
             raise ESP32ConnectionError(f"Failed to connect to ESP32: {exc}") from exc
@@ -251,7 +285,9 @@ class ESP32Client:
             Tuple of (success, error_message)
         """
         if self.config.protocol != "http":
-            raise ESP32Error(f"OTA updates only supported over HTTP, got {self.config.protocol}")
+            raise ESP32Error(
+                f"OTA updates only supported over HTTP, got {self.config.protocol}"
+            )
 
         url = f"http://{self.config.device_id}:{self.config.port}/ota"
 
@@ -259,7 +295,9 @@ class ESP32Client:
             # Upload firmware
             response = await self._http_client.post(
                 url,
-                files={"firmware": ("firmware.bin", firmware, "application/octet-stream")},
+                files={
+                    "firmware": ("firmware.bin", firmware, "application/octet-stream")
+                },
                 data={"verify": "true" if verify else "false"},
                 timeout=60.0,  # OTA updates can take longer
             )
@@ -329,7 +367,9 @@ async def execute_gpio_node(context: NodeExecutionContext) -> NodeExecutionResul
         device_config = ESP32ConnectionConfig(**device_config_dict)
         pin_config = GPIOState(**pin_config_dict)
     except Exception as exc:
-        return NodeExecutionResult.error(f"Invalid input configuration: {exc}", "ValidationError")
+        return NodeExecutionResult.error(
+            f"Invalid input configuration: {exc}", "ValidationError"
+        )
 
     # Check write capability
     if pin_config.direction == "output":
@@ -365,7 +405,9 @@ async def execute_sensor_node(context: NodeExecutionContext) -> NodeExecutionRes
     try:
         device_config = ESP32ConnectionConfig(**device_config_dict)
     except Exception as exc:
-        return NodeExecutionResult.error(f"Invalid device configuration: {exc}", "ValidationError")
+        return NodeExecutionResult.error(
+            f"Invalid device configuration: {exc}", "ValidationError"
+        )
 
     # Create client and read sensor
     client = ESP32Client(device_config)
@@ -404,16 +446,21 @@ async def execute_ota_node(context: NodeExecutionContext) -> NodeExecutionResult
     try:
         device_config = ESP32ConnectionConfig(**device_config_dict)
     except Exception as exc:
-        return NodeExecutionResult.error(f"Invalid device configuration: {exc}", "ValidationError")
+        return NodeExecutionResult.error(
+            f"Invalid device configuration: {exc}", "ValidationError"
+        )
 
     # Firmware should be bytes
     if isinstance(firmware, str):
         # Assume base64-encoded
         import base64
+
         try:
             firmware = base64.b64decode(firmware)
         except Exception as exc:
-            return NodeExecutionResult.error(f"Invalid firmware data: {exc}", "ValidationError")
+            return NodeExecutionResult.error(
+                f"Invalid firmware data: {exc}", "ValidationError"
+            )
 
     # Create client and perform OTA
     client = ESP32Client(device_config)
@@ -552,7 +599,9 @@ ESP32SensorNode = NodeDefinition(
             direction=PortDirection.OUTPUT,
             port_type=PortType(
                 kind=PortKind.ARRAY,
-                element_type=PortType(kind=PortKind.DOMAIN, domain="hardware", name="SensorReading"),
+                element_type=PortType(
+                    kind=PortKind.DOMAIN, domain="hardware", name="SensorReading"
+                ),
             ),
             description="Continuous sensor stream (if interval set)",
         ),

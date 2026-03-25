@@ -12,7 +12,9 @@ PREV_RESULTS = None  # Will find latest results dir
 
 # Find previous benchmark results
 for d in sorted(os.listdir("finetune/eval"), reverse=True):
-    if d.startswith("results-") and os.path.isfile(f"finetune/eval/{d}/benchmark_results.json"):
+    if d.startswith("results-") and os.path.isfile(
+        f"finetune/eval/{d}/benchmark_results.json"
+    ):
         PREV_RESULTS = f"finetune/eval/{d}/benchmark_results.json"
         break
 
@@ -36,12 +38,15 @@ def query_ollama(model: str, prompt: str, timeout: float = 120.0) -> dict:
     start = time.time()
     try:
         with httpx.Client(timeout=timeout) as client:
-            resp = client.post(f"{OLLAMA_URL}/api/generate", json={
-                "model": model,
-                "prompt": prompt,
-                "stream": False,
-                "options": {"temperature": 0.1, "num_predict": 256},
-            })
+            resp = client.post(
+                f"{OLLAMA_URL}/api/generate",
+                json={
+                    "model": model,
+                    "prompt": prompt,
+                    "stream": False,
+                    "options": {"temperature": 0.1, "num_predict": 256},
+                },
+            )
             resp.raise_for_status()
             data = resp.json()
         return {
@@ -63,8 +68,9 @@ def judge_response(question: str, response: str) -> dict:
     text = result["response"].strip()
     # Extract a number 1-10 from the response
     import re
+
     # Try to find a standalone number
-    numbers = re.findall(r'\b(\d+)\b', text)
+    numbers = re.findall(r"\b(\d+)\b", text)
     for n in numbers:
         val = int(n)
         if 1 <= val <= 10:

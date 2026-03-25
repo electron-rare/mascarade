@@ -12,70 +12,110 @@ except ImportError:
 
 
 # Request counters
-llm_requests_total = Counter(
-    "mascarade_llm_requests_total",
-    "Total number of LLM requests",
-    ["provider", "model", "strategy", "status"],
-) if Counter else None
+llm_requests_total = (
+    Counter(
+        "mascarade_llm_requests_total",
+        "Total number of LLM requests",
+        ["provider", "model", "strategy", "status"],
+    )
+    if Counter
+    else None
+)
 
 # Token counters
-llm_tokens_total = Counter(
-    "mascarade_llm_tokens_total",
-    "Total number of tokens processed",
-    ["provider", "model", "token_type"],
-) if Counter else None
+llm_tokens_total = (
+    Counter(
+        "mascarade_llm_tokens_total",
+        "Total number of tokens processed",
+        ["provider", "model", "token_type"],
+    )
+    if Counter
+    else None
+)
 
 # Cost counter
-llm_cost_total = Counter(
-    "mascarade_llm_cost_total",
-    "Total cost in USD for LLM requests",
-    ["provider", "model"],
-) if Counter else None
+llm_cost_total = (
+    Counter(
+        "mascarade_llm_cost_total",
+        "Total cost in USD for LLM requests",
+        ["provider", "model"],
+    )
+    if Counter
+    else None
+)
 
 # Response time histogram
-llm_response_duration_seconds = Histogram(
-    "mascarade_llm_response_duration_seconds",
-    "LLM request duration in seconds",
-    ["provider", "model"],
-    buckets=(0.1, 0.5, 1.0, 2.0, 5.0, 10.0, 30.0, 60.0, 120.0),
-) if Histogram else None
+llm_response_duration_seconds = (
+    Histogram(
+        "mascarade_llm_response_duration_seconds",
+        "LLM request duration in seconds",
+        ["provider", "model"],
+        buckets=(0.1, 0.5, 1.0, 2.0, 5.0, 10.0, 30.0, 60.0, 120.0),
+    )
+    if Histogram
+    else None
+)
 
 # Current provider metrics (gauges)
-llm_provider_error_rate = Gauge(
-    "mascarade_llm_provider_error_rate",
-    "Current error rate for provider (0.0 to 1.0)",
-    ["provider"],
-) if Gauge else None
+llm_provider_error_rate = (
+    Gauge(
+        "mascarade_llm_provider_error_rate",
+        "Current error rate for provider (0.0 to 1.0)",
+        ["provider"],
+    )
+    if Gauge
+    else None
+)
 
-llm_provider_avg_cost_per_request = Gauge(
-    "mascarade_llm_provider_avg_cost_per_request",
-    "Average cost per request for provider in USD",
-    ["provider"],
-) if Gauge else None
+llm_provider_avg_cost_per_request = (
+    Gauge(
+        "mascarade_llm_provider_avg_cost_per_request",
+        "Average cost per request for provider in USD",
+        ["provider"],
+    )
+    if Gauge
+    else None
+)
 
-llm_provider_avg_tokens_per_request = Gauge(
-    "mascarade_llm_provider_avg_tokens_per_request",
-    "Average tokens per request for provider",
-    ["provider", "token_type"],
-) if Gauge else None
+llm_provider_avg_tokens_per_request = (
+    Gauge(
+        "mascarade_llm_provider_avg_tokens_per_request",
+        "Average tokens per request for provider",
+        ["provider", "token_type"],
+    )
+    if Gauge
+    else None
+)
 
 # Classifier metrics
-classifier_latency = Histogram(
-    "mascarade_classifier_latency_seconds",
-    "ML classifier inference latency in seconds",
-    buckets=(0.001, 0.005, 0.010, 0.025, 0.050, 0.100, 0.250, 0.500, 1.0),
-) if Histogram else None
+classifier_latency = (
+    Histogram(
+        "mascarade_classifier_latency_seconds",
+        "ML classifier inference latency in seconds",
+        buckets=(0.001, 0.005, 0.010, 0.025, 0.050, 0.100, 0.250, 0.500, 1.0),
+    )
+    if Histogram
+    else None
+)
 
-classifier_predictions_total = Counter(
-    "mascarade_classifier_predictions_total",
-    "Total number of classifier predictions",
-    ["predicted_domain"],
-) if Counter else None
+classifier_predictions_total = (
+    Counter(
+        "mascarade_classifier_predictions_total",
+        "Total number of classifier predictions",
+        ["predicted_domain"],
+    )
+    if Counter
+    else None
+)
 
-classifier_accuracy = Gauge(
-    "mascarade_classifier_accuracy",
-    "Current classifier accuracy (0.0 to 1.0)",
-) if Gauge else None
+classifier_accuracy = (
+    Gauge(
+        "mascarade_classifier_accuracy",
+        "Current classifier accuracy (0.0 to 1.0)",
+    )
+    if Gauge
+    else None
+)
 
 
 class CostMetrics:

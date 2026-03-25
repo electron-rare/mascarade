@@ -296,6 +296,7 @@ class TestPortType:
 
     def test_type_descriptor_primitive_kind_bypasses_validation(self):
         from mascarade.node_engine.types import PortKind
+
         pt = PortType(name=PrimitiveType.STRING, type="", kind=PortKind.PRIMITIVE)
         assert pt.kind == PortKind.PRIMITIVE
 
@@ -316,7 +317,8 @@ class TestDomainTypeValidation:
 
     def test_validate_schema_required_field_missing(self):
         dt = DomainType(
-            domain="ai", name="Y",
+            domain="ai",
+            name="Y",
             schema={"required": ["name"], "properties": {}},
         )
         valid, err = dt.validate_schema({})
@@ -325,7 +327,8 @@ class TestDomainTypeValidation:
 
     def test_validate_schema_enum_violation(self):
         dt = DomainType(
-            domain="ai", name="Z",
+            domain="ai",
+            name="Z",
             schema={"properties": {"status": {"enum": ["ok", "error"]}}},
         )
         valid, err = dt.validate_schema({"status": "unknown"})
@@ -334,7 +337,8 @@ class TestDomainTypeValidation:
 
     def test_validate_schema_enum_ok(self):
         dt = DomainType(
-            domain="ai", name="Z",
+            domain="ai",
+            name="Z",
             schema={"properties": {"status": {"enum": ["ok", "error"]}}},
         )
         valid, err = dt.validate_schema({"status": "ok"})
@@ -354,6 +358,7 @@ class TestHelperFunctions:
 
     def test_primitive_port(self):
         from mascarade.node_engine.types import PortDirection, primitive_port
+
         p = primitive_port("voltage", PortDirection.INPUT, PrimitiveType.NUMBER)
         assert p.name == "voltage"
         assert p.effective_type == "number"
@@ -361,23 +366,27 @@ class TestHelperFunctions:
 
     def test_primitive_port_swapped_args(self):
         from mascarade.node_engine.types import PortDirection, primitive_port
+
         p = primitive_port("temp", PrimitiveType.STRING, PortDirection.OUTPUT)
         assert p.direction == PortDirection.OUTPUT
         assert p.effective_type == "string"
 
     def test_domain_port(self):
         from mascarade.node_engine.types import PortDirection, domain_port
+
         p = domain_port("output", PortDirection.OUTPUT, "ai", "LLMResponse")
         assert p.effective_type == "ai.LLMResponse"
 
     def test_array_port_string_element(self):
         from mascarade.node_engine.types import PortDirection, array_port
+
         p = array_port("items", PortDirection.INPUT, "string")
         assert p.effective_type == "array<string>"
         assert p.is_array is True
 
     def test_void_port(self):
         from mascarade.node_engine.types import PortDirection, void_port
+
         p = void_port("done", PortDirection.OUTPUT)
         assert p.effective_type == "void"
         assert p.is_primitive is True
@@ -390,6 +399,7 @@ class TestPortTypeUnion:
         import typing
 
         from mascarade.node_engine.types import PortTypeUnion
+
         args = typing.get_args(PortTypeUnion)
         assert PrimitiveType in args
 
@@ -397,6 +407,7 @@ class TestPortTypeUnion:
         import typing
 
         from mascarade.node_engine.types import PortTypeUnion
+
         args = typing.get_args(PortTypeUnion)
         assert ArrayType in args
 
@@ -404,6 +415,7 @@ class TestPortTypeUnion:
         import typing
 
         from mascarade.node_engine.types import PortTypeUnion
+
         args = typing.get_args(PortTypeUnion)
         assert DomainType in args
 
@@ -436,7 +448,9 @@ class TestTypeSystemIntegration:
     def test_stream_of_domain_type(self):
         """Stream type containing domain-specific type."""
         domain = DomainType(
-            domain="ai", name="ChatMessage", schema_def={"role": "string", "content": "string"}
+            domain="ai",
+            name="ChatMessage",
+            schema_def={"role": "string", "content": "string"},
         )
         stream = StreamType(element=domain)
 

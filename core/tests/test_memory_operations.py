@@ -14,13 +14,15 @@ from mascarade.server import app
 @asynccontextmanager
 async def _client():
     """Create test client."""
-    async with app.router.lifespan_context(app):
-        transport = httpx.ASGITransport(app=app)
-        async with httpx.AsyncClient(
-            transport=transport,
-            base_url="http://testserver",
-        ) as client:
-            yield client
+    with patch("mascarade.auth.is_valid_api_key", return_value=True), \
+         patch("mascarade.auth._resolve_role", return_value="admin"):
+        async with app.router.lifespan_context(app):
+            transport = httpx.ASGITransport(app=app)
+            async with httpx.AsyncClient(
+                transport=transport,
+                base_url="http://testserver",
+            ) as client:
+                yield client
 
 
 @pytest.mark.asyncio
@@ -30,15 +32,15 @@ async def test_memory_add_returns_201():
     async def mock_mem0_request(*args, **kwargs):
         return {"id": "mem-12345", "status": "created"}
 
-    with patch('mascarade.routers.memory._mem0_request', side_effect=mock_mem0_request):
+    with patch("mascarade.routers.memory._mem0_request", side_effect=mock_mem0_request):
         async with _client() as client:
             response = await client.post(
-                "/api/memory/add",
+                "/v1/memory/add",
                 json={
                     "messages": [{"role": "user", "content": "test message"}],
                     "user_id": "test-user",
                     "project_id": "project-alpha",
-                }
+                },
             )
 
     assert response.status_code == 201
@@ -61,16 +63,16 @@ async def test_memory_add_with_agent_id():
         calls.append((args, kwargs))
         return {"id": "mem-67890", "status": "created"}
 
-    with patch('mascarade.routers.memory._mem0_request', side_effect=mock_mem0_request):
+    with patch("mascarade.routers.memory._mem0_request", side_effect=mock_mem0_request):
         async with _client() as client:
             response = await client.post(
-                "/api/memory/add",
+                "/v1/memory/add",
                 json={
                     "messages": [{"role": "user", "content": "test message"}],
                     "user_id": "test-user",
                     "project_id": "project-alpha",
-                    "agent_id": "test-agent"
-                }
+                    "agent_id": "test-agent",
+                },
             )
 
     assert response.status_code == 201
@@ -90,20 +92,20 @@ async def test_memory_search():
         return {
             "results": [
                 {"id": "mem-1", "content": "relevant memory 1", "score": 0.95},
-                {"id": "mem-2", "content": "relevant memory 2", "score": 0.85}
+                {"id": "mem-2", "content": "relevant memory 2", "score": 0.85},
             ]
         }
 
-    with patch('mascarade.routers.memory._mem0_request', side_effect=mock_mem0_request):
+    with patch("mascarade.routers.memory._mem0_request", side_effect=mock_mem0_request):
         async with _client() as client:
             response = await client.post(
-                "/api/memory/search",
+                "/v1/memory/search",
                 json={
                     "query": "test query",
                     "user_id": "test-user",
                     "project_id": "project-alpha",
-                    "limit": 10
-                }
+                    "limit": 10,
+                },
             )
 
     assert response.status_code == 200
@@ -124,18 +126,18 @@ async def test_memory_get_all():
             "results": [
                 {"id": "mem-1", "content": "memory 1"},
                 {"id": "mem-2", "content": "memory 2"},
-                {"id": "mem-3", "content": "memory 3"}
+                {"id": "mem-3", "content": "memory 3"},
             ]
         }
 
-    with patch('mascarade.routers.memory._mem0_request', side_effect=mock_mem0_request):
+    with patch("mascarade.routers.memory._mem0_request", side_effect=mock_mem0_request):
         async with _client() as client:
             response = await client.post(
-                "/api/memory/get",
+                "/v1/memory/get",
                 json={
                     "user_id": "test-user",
                     "project_id": "project-alpha",
-                }
+                },
             )
 
     assert response.status_code == 200
@@ -153,17 +155,17 @@ async def test_memory_delete():
     async def mock_mem0_request(*args, **kwargs):
         return {"status": "deleted"}
 
-    with patch('mascarade.routers.memory._mem0_request', side_effect=mock_mem0_request):
+    with patch("mascarade.routers.memory._mem0_request", side_effect=mock_mem0_request):
         async with _client() as client:
             # Use POST method with DELETE endpoint (since httpx DELETE doesn't support json body)
             response = await client.request(
                 "DELETE",
-                "/api/memory/delete",
+                "/v1/memory/delete",
                 json={
                     "memory_id": "mem-12345",
                     "user_id": "test-user",
                     "project_id": "project-alpha",
-                }
+                },
             )
 
     assert response.status_code == 200
@@ -180,11 +182,11 @@ async def test_memory_add_validation_error():
     async with _client() as client:
         # Missing required field 'user_id'
         response = await client.post(
-            "/api/memory/add",
+            "/v1/memory/add",
             json={
                 "messages": [{"role": "user", "content": "test"}],
                 "project_id": "project-alpha",
-            }
+            },
         )
 
     assert response.status_code == 422  # Validation error
@@ -195,12 +197,12 @@ async def test_memory_add_empty_messages():
     """Test POST /api/memory/add with empty messages."""
     async with _client() as client:
         response = await client.post(
-            "/api/memory/add",
+            "/v1/memory/add",
             json={
                 "messages": [],
                 "user_id": "test-user",
                 "project_id": "project-alpha",
-            }
+            },
         )
 
     assert response.status_code == 422  # Validation error
@@ -212,20 +214,21 @@ async def test_memory_service_unavailable():
 
     async def mock_mem0_request(*args, **kwargs):
         from fastapi import HTTPException, status
+
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Memory service unavailable"
+            detail="Memory service unavailable",
         )
 
-    with patch('mascarade.routers.memory._mem0_request', side_effect=mock_mem0_request):
+    with patch("mascarade.routers.memory._mem0_request", side_effect=mock_mem0_request):
         async with _client() as client:
             response = await client.post(
-                "/api/memory/add",
+                "/v1/memory/add",
                 json={
                     "messages": [{"role": "user", "content": "test"}],
                     "user_id": "test-user",
                     "project_id": "project-alpha",
-                }
+                },
             )
 
     assert response.status_code == 503  # Service unavailable

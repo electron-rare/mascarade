@@ -219,6 +219,26 @@
 
 ## 3. Conclusion
 
+## 4. Affectation Active 2026-03-24
+
+Cette section sert de pont entre le catalogue générique d'agents et les lots actifs réellement exécutés dans le dépôt.
+
+| Périmètre | Agent dédié | Sous-agents / compétences à mobiliser | Livrables attendus |
+|-----------|-------------|----------------------------------------|--------------------|
+| `core/mascarade/router/*` | `agent-router` | `SE: Architect`, `SE: Security`, `Code Review` | audit routing, durcissement fallback, tests de non-régression |
+| `core/mascarade/router/providers/*` | `agent-providers` | `gem-researcher`, `Safety Review`, `French Output` | matrice providers, priorisation Apple/MLX/CoreML/AFM |
+| `core/mascarade/orchestrator/*` | `agent-orchestrator` | `Planner`, `SE: Architect`, `Task Planner Instructions` | plan-and-execute, DAG, traces, rollback |
+| `core/mascarade/agents/*` | `agent-agentics` | `Planner`, `Analyst`, `LangGraph/CrewAI comparative research` | registre de capacites, delegation, clusters |
+| `core/mascarade/p2p/*` et `cluster.py` | `agent-p2p` | `SE: Security`, `SE: DevOps/CI` | auth, signatures, observabilite, limites reseau |
+| `api/src/middleware/*` et `api/src/routes/*` | `agent-api-gateway` | `SE: Security`, `Code Review`, `vitest` | fail-closed auth, RBAC coherents, surface API stable |
+| `web/src/*` | `agent-web` | `Expert React Frontend Engineer`, `QA` | tests critiques, decomposition pages larges, UX ops |
+| `scripts/*` et `scripts/tui/*` | `agent-ops-tooling` | `gem-devops`, `Planner`, `Safety Review` | TUI operateur, logs temporaires, runbooks |
+| `docs/*.md` et `docs/plan/*` | `agent-docs` | `gem-documentation-writer`, `SE: Tech Writer` | specs, Mermaid, cartes fonctionnelles, README coherents |
+| `finetune/*` et `training/*` | `agent-finetune` | `gem-researcher`, `Analyst` | SimPO/QDoRA/GRPO roadmap, evaluation standardisee |
+| `clients/macos/*` et `tools/afm-bridge/*` | `agent-apple-runtime` | `Swift MCP Expert`, `SE: Architect` | bridge Foundation Models, runbooks Apple Intelligence |
+
+Référence d'exécution active : `docs/plan/2026-03-24-sota-mascarade/active_execution_plan.md`.
+
 Le projet Mascarade utilise une variété d'agents et de skills pour accomplir des tâches spécifiques. Chaque agent et skill est conçu pour être réutilisable et composable, permettant une orchestration flexible et puissante. Les prochaines étapes consistent à optimiser les performances, à intégrer des modèles d'IA plus avancés, et à améliorer la documentation et les tests.
 
 ---

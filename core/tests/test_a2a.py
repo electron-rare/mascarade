@@ -125,9 +125,11 @@ class TestAgentCard:
         assert data["skills"][0]["id"] == "coder"
 
     def test_agent_card_includes_skills(self):
-        skill_registry = FakeSkillRegistry([
-            FakeSkill(name="translate", category="language"),
-        ])
+        skill_registry = FakeSkillRegistry(
+            [
+                FakeSkill(name="translate", category="language"),
+            ]
+        )
         app = _make_app(skill_registry=skill_registry)
 
         with patch("mascarade.routers.a2a.settings") as mock_settings:
@@ -184,19 +186,24 @@ class TestTaskSubmission:
         registry = FakeRegistry([FakeAgent(name="coder")])
         app = _make_app(registry=registry, orchestrator=MagicMock())
 
-        with patch("mascarade.routers.a2a.settings") as mock_settings, \
-             patch("mascarade.routers.a2a.require_auth", return_value=None):
+        with patch("mascarade.routers.a2a.settings") as mock_settings, patch(
+            "mascarade.routers.a2a.require_auth", return_value=None
+        ):
             mock_settings.a2a_enabled = True
 
             # Override auth dependency
             from mascarade.auth import require_auth
+
             app.dependency_overrides[require_auth] = lambda: None
 
             client = TestClient(app)
-            resp = client.post("/a2a/tasks", json={
-                "skill_id": "coder",
-                "input": {"text": "Write a hello world function"},
-            })
+            resp = client.post(
+                "/a2a/tasks",
+                json={
+                    "skill_id": "coder",
+                    "input": {"text": "Write a hello world function"},
+                },
+            )
 
         assert resp.status_code == 201
         data = resp.json()
@@ -213,13 +220,17 @@ class TestTaskSubmission:
             mock_settings.a2a_enabled = True
 
             from mascarade.auth import require_auth
+
             app.dependency_overrides[require_auth] = lambda: None
 
             client = TestClient(app)
-            resp = client.post("/a2a/tasks", json={
-                "skill_id": "nonexistent",
-                "input": {"text": "test"},
-            })
+            resp = client.post(
+                "/a2a/tasks",
+                json={
+                    "skill_id": "nonexistent",
+                    "input": {"text": "test"},
+                },
+            )
 
         assert resp.status_code == 404
         assert "nonexistent" in resp.json()["detail"]
@@ -250,6 +261,7 @@ class TestTaskStatus:
             mock_settings.a2a_enabled = True
 
             from mascarade.auth import require_auth
+
             app.dependency_overrides[require_auth] = lambda: None
 
             client = TestClient(app)
@@ -268,13 +280,14 @@ class TestTaskStatus:
             mock_settings.a2a_enabled = True
 
             from mascarade.auth import require_auth
+
             app.dependency_overrides[require_auth] = lambda: None
 
             client = TestClient(app)
             resp = client.get("/a2a/tasks/does-not-exist")
 
         assert resp.status_code == 404
-        assert "not found" in resp.json()["detail"]
+        assert "not found" in resp.json()["detail"].lower()
 
 
 # ---------------------------------------------------------------------------
@@ -291,13 +304,17 @@ class TestA2ADisabled:
             mock_settings.a2a_enabled = False
 
             from mascarade.auth import require_auth
+
             app.dependency_overrides[require_auth] = lambda: None
 
             client = TestClient(app)
-            resp = client.post("/a2a/tasks", json={
-                "skill_id": "coder",
-                "input": {"text": "test"},
-            })
+            resp = client.post(
+                "/a2a/tasks",
+                json={
+                    "skill_id": "coder",
+                    "input": {"text": "test"},
+                },
+            )
 
         assert resp.status_code == 503
         assert "disabled" in resp.json()["detail"]
@@ -309,6 +326,7 @@ class TestA2ADisabled:
             mock_settings.a2a_enabled = False
 
             from mascarade.auth import require_auth
+
             app.dependency_overrides[require_auth] = lambda: None
 
             client = TestClient(app)

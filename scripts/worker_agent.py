@@ -40,6 +40,7 @@ def _detect_runtime() -> tuple[str, str]:
     # Check MLX-LM
     try:
         import mlx_lm  # noqa: F401
+
         return "mlx_lm", "http://localhost:8201"
     except ImportError:
         pass
@@ -51,6 +52,7 @@ def _detect_runtime() -> tuple[str, str]:
     # Check vLLM
     try:
         import vllm  # noqa: F401
+
         return "vllm", "http://localhost:8000"
     except ImportError:
         pass
@@ -63,8 +65,14 @@ def _get_vram_info() -> tuple[int, int]:
     # NVIDIA
     try:
         result = subprocess.run(
-            ["nvidia-smi", "--query-gpu=memory.total,memory.free", "--format=csv,noheader,nounits"],
-            capture_output=True, text=True, timeout=5,
+            [
+                "nvidia-smi",
+                "--query-gpu=memory.total,memory.free",
+                "--format=csv,noheader,nounits",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=5,
         )
         if result.returncode == 0:
             parts = result.stdout.strip().split(", ")
@@ -157,6 +165,7 @@ async def chat_completions(request: Request):
         target = f"{_runtime_url}/v1/chat/completions"
 
     if stream:
+
         async def stream_proxy():
             async with _client.stream("POST", target, json=body) as resp:
                 async for chunk in resp.aiter_bytes():
@@ -173,7 +182,11 @@ def main():
 
     parser = argparse.ArgumentParser(description="Mascarade Worker Agent")
     parser.add_argument("--port", type=int, default=8201)
-    parser.add_argument("--runtime", default="auto", choices=["auto", "mlx_lm", "ollama", "vllm", "llama_cpp"])
+    parser.add_argument(
+        "--runtime",
+        default="auto",
+        choices=["auto", "mlx_lm", "ollama", "vllm", "llama_cpp"],
+    )
     parser.add_argument("--ollama-url", default="http://localhost:11434")
     parser.add_argument("--mlx-url", default="http://localhost:8201")
     parser.add_argument("--vllm-url", default="http://localhost:8000")
@@ -194,7 +207,9 @@ def main():
             "llama_cpp": args.ollama_url,
         }.get(args.runtime, "")
 
-    print(f"Worker Agent starting: node={_node_id} runtime={_runtime} url={_runtime_url}")
+    print(
+        f"Worker Agent starting: node={_node_id} runtime={_runtime} url={_runtime_url}"
+    )
     uvicorn.run(app, host="0.0.0.0", port=args.port)
 
 

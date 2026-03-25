@@ -1,0 +1,295 @@
+# Makefile Multi-Environnements pour Kanban IA P2P
+
+.PHONY: help build run test clean
+
+# Variables
+APP_NAME = KanbanAI
+ENVIRONMENT ?= development
+BUILD_SCRIPT = Scripts/build.sh
+DEPLOY_SCRIPT = Scripts/deploy.sh
+
+# Couleurs
+GREEN  = \033[0;32m
+YELLOW = \033[0;33m
+NC     = \033[0m
+
+help: ## Affiche cette aide
+	@echo "$(GREEN)Kanban IA P2P - Multi-Environment Build System$(NC)"
+	@echo ""
+	@echo "Usage: make [target] [ENVIRONMENT=env]"
+	@echo ""
+	@echo "$(YELLOW)Environments:$(NC)"
+	@echo "  development (default)"
+	@echo "  staging"
+	@echo "  production"
+	@echo ""
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  $(YELLOW)%-20s$(NC) %s\n", $$1, $$2}'
+
+# Build Commands
+
+build: ## Compile l'application (ENVIRONMENT=dev|staging|prod)
+	@chmod +x $(BUILD_SCRIPT)
+	@$(BUILD_SCRIPT) $(ENVIRONMENT)
+
+build-dev: ## Build développement
+	@$(MAKE) build ENVIRONMENT=development
+
+build-staging: ## Build staging
+	@$(MAKE) build ENVIRONMENT=staging
+
+build-prod: ## Build production
+	@$(MAKE) build ENVIRONMENT=production
+
+build-all: ## Build tous les environnements
+	@echo "$(GREEN)Building all environments...$(NC)"
+	@$(MAKE) build-dev
+	@$(MAKE) build-staging
+	@$(MAKE) build-prod
+
+# Run Commands
+
+run: ## Lance l'application
+	@chmod +x $(BUILD_SCRIPT)
+	@$(BUILD_SCRIPT) $(ENVIRONMENT) --run
+
+run-dev: ## Lance en développement
+	@$(MAKE) run ENVIRONMENT=development
+
+run-staging: ## Lance en staging
+	@$(MAKE) run ENVIRONMENT=staging
+
+# Test Commands
+
+test: ## Exécute les tests
+	$(SWIFT) test
+
+test-verbose: ## Tests avec output détaillé
+	$(SWIFT) test --verbose
+
+test-parallel: ## Tests en parallèle
+	$(SWIFT) test --parallel
+
+# Clean Commands
+
+clean: ## Nettoie les fichiers de build
+	@echo "$(YELLOW)Cleaning build artifacts...$(NC)"
+	$(SWIFT) package clean
+	rm -rf .build
+	rm -f .env
+	@echo "$(GREEN)✅ Clean completed$(NC)"
+
+clean-all: clean ## Nettoie tout (build + logs + backups)
+	@echo "$(YELLOW)Cleaning all data...$(NC)"
+	rm -rf Logs/
+	rm -rf Backups/
+	rm -rf Archives/
+	@echo "$(GREEN)✅ Deep clean completed$(NC)"
+
+# Deployment Commands
+
+deploy: ## Déploie sur l'environnement spécifié
+	@chmod +x $(DEPLOY_SCRIPT)
+	@$(DEPLOY_SCRIPT) $(ENVIRONMENT)
+
+deploy-dev: ## Déploie en développement
+	@$(MAKE) deploy ENVIRONMENT=development
+
+deploy-staging: ## Déploie en staging
+	@$(MAKE) deploy ENVIRONMENT=staging
+
+deploy-prod: ## Déploie en production
+	@$(MAKE) deploy ENVIRONMENT=production
+
+deploy-prod-force: ## Déploie en production sans confirmation
+	@chmod +x $(DEPLOY_SCRIPT)
+	@$(DEPLOY_SCRIPT) production --force
+
+rollback: ## Rollback vers la version précédente
+	@chmod +x $(DEPLOY_SCRIPT)
+	@$(DEPLOY_SCRIPT) $(ENVIRONMENT) --rollback
+
+rollback-prod: ## Rollback production
+	@$(MAKE) rollback ENVIRONMENT=production
+
+# AI Scripts Deployment
+
+deploy-ai: ## Déploie uniquement les scripts IA
+	@chmod +x Scripts/deploy_mascarade.sh
+	@Scripts/deploy_mascarade.sh --all
+
+deploy-ai-check: ## Vérifie le déploiement IA
+	@chmod +x Scripts/deploy_mascarade.sh
+	@Scripts/deploy_mascarade.sh --check
+
+# Environment Management
+
+env-info: ## Affiche les infos de l'environnement actuel
+	@echo "$(GREEN)Current Environment Configuration$(NC)"
+	@echo "Environment: $(ENVIRONMENT)"
+	@echo ""
+	@if [ -f .env ]; then cat .env; else echo "No .env file found"; fi
+
+env-switch: ## Change d'environnement (ENVIRONMENT=dev|staging|prod)
+	@echo "Switching to $(ENVIRONMENT)..."
+	@$(MAKE) build ENVIRONMENT=$(ENVIRONMENT)
+
+# Status & Monitoring
+
+status: ## Statut de tous les nœuds
+	@echo "$(GREEN)Checking nodes status...$(NC)"
+	@chmod +x Scripts/deploy_mascarade.sh
+	@Scripts/deploy_mascarade.sh --check
+
+logs: ## Affiche les logs de l'application
+	@if [ -d Logs ]; then tail -f Logs/app.log; else echo "No logs found"; fi
+
+logs-all: ## Affiche les logs de tous les nœuds
+	@echo "$(GREEN)Fetching logs from all nodes...$(NC)"
+	@for node in root@192.168.0.119 clems@192.168.0.120 kxkm@kxkm-ai user@cils; do \
+		echo "\n$(YELLOW)=== $$node ===$(NC)"; \
+		ssh $$node "tail -n 20 /var/log/mascarade_ai_*.log 2>/dev/null || echo 'No logs'"; \
+	done
+
+# SSH Shortcuts
+
+ssh-root: ## SSH vers root@192.168.0.119
+	@ssh root@192.168.0.119
+
+ssh-clems: ## SSH vers clems@192.168.0.120
+	@ssh clems@192.168.0.120
+
+ssh-kxkm: ## SSH vers kxkm@kxkm-ai
+	@ssh kxkm@kxkm-ai
+
+ssh-cils: ## SSH vers cils
+	@ssh user@cils
+
+# Development Helpers
+
+dev: build-dev test ## Build + Test rapide en dev
+	@echo "$(GREEN)✅ Development build ready$(NC)"
+
+dev-run: build-dev run-dev ## Build + Run en dev
+
+staging-full: build-staging deploy-staging ## Build + Deploy staging complet
+
+prod-full: ## Build + Test + Deploy production complet
+	@echo "$(YELLOW)⚠️  Full production deployment$(NC)"
+	@$(MAKE) test
+	@$(MAKE) build-prod
+	@$(MAKE) deploy-prod
+
+# Archive Management
+
+archive: ## Crée une archive de l'environnement actuel
+	@chmod +x $(BUILD_SCRIPT)
+	@$(BUILD_SCRIPT) $(ENVIRONMENT) --archive
+
+archive-all: ## Crée des archives de tous les environnements
+	@$(MAKE) archive ENVIRONMENT=development
+	@$(MAKE) archive ENVIRONMENT=staging
+	@$(MAKE) archive ENVIRONMENT=production
+
+# Code Quality
+
+format: ## Formate le code Swift
+	@echo "$(GREEN)Formatting code...$(NC)"
+	@which swift-format > /dev/null && swift-format format -i -r Sources/ Tests/ || echo "$(YELLOW)swift-format not installed$(NC)"
+
+lint: ## Vérifie la qualité du code
+	@echo "$(GREEN)Linting code...$(NC)"
+	@which swiftlint > /dev/null && swiftlint || echo "$(YELLOW)swiftlint not installed$(NC)"
+
+# Statistics
+
+stats: ## Affiche des statistiques du projet
+	@echo "$(GREEN)📊 Project Statistics$(NC)"
+	@echo ""
+	@echo "$(YELLOW)Swift Files:$(NC)"
+	@find Sources -name "*.swift" | wc -l | xargs echo "  "
+	@echo "$(YELLOW)Lines of Swift Code:$(NC)"
+	@find Sources -name "*.swift" -exec wc -l {} + | tail -1 | awk '{print "  " $$1}'
+	@echo "$(YELLOW)Test Files:$(NC)"
+	@find Tests -name "*.swift" | wc -l | xargs echo "  "
+	@echo "$(YELLOW)Python Scripts:$(NC)"
+	@find Scripts -name "*.py" | wc -l | xargs echo "  "
+	@echo "$(YELLOW)Build Configuration:$(NC)"
+	@echo "  Current Environment: $(ENVIRONMENT)"
+	@echo ""
+
+# CI/CD Simulation
+
+ci: clean test build ## Simule un pipeline CI
+	@echo "$(GREEN)✅ CI pipeline completed$(NC)"
+
+cd-dev: ci deploy-dev ## Pipeline CD pour dev
+
+cd-staging: ci deploy-staging ## Pipeline CD pour staging
+
+cd-prod: ci ## Pipeline CD pour prod (sans auto-deploy)
+	@echo "$(YELLOW)⚠️  Production deployment requires manual approval$(NC)"
+	@echo "Run: make deploy-prod"
+
+# Demo & Examples
+
+demo: ## Lance les démos interactives
+	@python3 Scripts/demo_mascarade.py
+
+demo-quick: ## Test rapide sur un nœud
+	@ssh root@192.168.0.119 "python3 /opt/mascarade/mascarade_ai.py status"
+
+# Backup Management
+
+backup: ## Crée un backup de la configuration actuelle
+	@echo "$(YELLOW)Creating backup...$(NC)"
+	@mkdir -p Backups
+	@tar -czf Backups/backup_$(ENVIRONMENT)_$$(date +%Y%m%d_%H%M%S).tar.gz \
+		Config/ Sources/ Tests/ Scripts/ Package.swift
+	@echo "$(GREEN)✅ Backup created$(NC)"
+
+restore: ## Restaure depuis le dernier backup (BACKUP_FILE=...)
+	@if [ -z "$(BACKUP_FILE)" ]; then \
+		echo "$(YELLOW)Available backups:$(NC)"; \
+		ls -lt Backups/ | head -10; \
+		echo ""; \
+		echo "Usage: make restore BACKUP_FILE=Backups/backup_xxx.tar.gz"; \
+	else \
+		tar -xzf $(BACKUP_FILE); \
+		echo "$(GREEN)✅ Restored from $(BACKUP_FILE)$(NC)"; \
+	fi
+
+# Setup & Installation
+
+setup: ## Configuration initiale du projet
+	@echo "$(GREEN)Setting up KanbanAI...$(NC)"
+	@chmod +x Scripts/*.sh
+	@mkdir -p Logs Archives Backups
+	@echo "$(GREEN)✅ Setup completed$(NC)"
+
+install-deps: ## Installe les dépendances Python sur les nœuds
+	@echo "$(GREEN)Installing Python dependencies on nodes...$(NC)"
+	@for node in root@192.168.0.119 clems@192.168.0.120 kxkm@kxkm-ai user@cils; do \
+		echo "Installing on $$node..."; \
+		ssh $$node "pip3 install --quiet numpy pillow transformers torch 2>/dev/null || true"; \
+	done
+
+# Documentation
+
+docs: ## Ouvre la documentation
+	@echo "$(GREEN)Opening documentation...$(NC)"
+	@open README.md || cat README.md
+
+docs-serve: ## Lance un serveur de documentation (si disponible)
+	@which docc > /dev/null && swift package generate-documentation || \
+		echo "$(YELLOW)Swift-DocC not available$(NC)"
+
+# Watch & Auto-rebuild (nécessite fswatch)
+
+watch: ## Watch et rebuild automatique
+	@echo "$(GREEN)Watching for changes...$(NC)"
+	@which fswatch > /dev/null && \
+		fswatch -o Sources/ Tests/ | xargs -n1 -I{} make build || \
+		echo "$(YELLOW)fswatch not installed. Install with: brew install fswatch$(NC)"
+
+# Default target
+.DEFAULT_GOAL := help

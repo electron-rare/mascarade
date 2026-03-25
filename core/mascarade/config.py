@@ -46,9 +46,13 @@ class Settings(BaseSettings):
     huggingface_base_url: str = "https://router.huggingface.co/v1"
     huggingface_model: str = "meta-llama/Meta-Llama-3.1-8B-Instruct"
     huggingface_oauth_access_token: SecretStr = Field(default=SecretStr(""), repr=False)
-    huggingface_oauth_refresh_token: SecretStr = Field(default=SecretStr(""), repr=False)
+    huggingface_oauth_refresh_token: SecretStr = Field(
+        default=SecretStr(""), repr=False
+    )
     huggingface_oauth_client_id: SecretStr = Field(default=SecretStr(""), repr=False)
-    huggingface_oauth_client_secret: SecretStr = Field(default=SecretStr(""), repr=False)
+    huggingface_oauth_client_secret: SecretStr = Field(
+        default=SecretStr(""), repr=False
+    )
     huggingface_oauth_token_endpoint: str = "https://huggingface.co/oauth/token"
     huggingface_oauth_expires_at: str = ""
 
@@ -131,6 +135,13 @@ class Settings(BaseSettings):
     apple_llm_timeout_seconds: float = 300.0
     apple_llm_models_json: str = ""
 
+    # Apple Foundation Models (on-device 3B via Swift bridge)
+    afm_enabled: bool = False
+    afm_bridge_url: str = "http://localhost:8090"
+    afm_default_model: str = "apple-fm-3b"
+    afm_timeout_seconds: float = 60.0
+    afm_bridge_path: str = "/usr/local/bin/afm-bridge"
+
     # ComfyUI
     comfyui_url: str = ""
 
@@ -170,7 +181,9 @@ class Settings(BaseSettings):
 
     # Distributed scheduler
     scheduler_enabled: bool = False
-    scheduler_workers: str = ""  # comma-separated: "kxkm-ai:8201,tower:8201,grosmac:8201"
+    scheduler_workers: str = (
+        ""  # comma-separated: "kxkm-ai:8201,tower:8201,grosmac:8201"
+    )
     scheduler_heartbeat_interval: int = 5  # seconds
     scheduler_max_queue: int = 200
     scheduler_max_wait_s: int = 30
@@ -180,12 +193,22 @@ class Settings(BaseSettings):
     autoscaling_min_workers: int = 1  # Minimum number of workers
     autoscaling_max_workers: int = 10  # Maximum number of workers
     autoscaling_scale_up_cpu_threshold: float = 0.7  # CPU usage threshold for scale-up
-    autoscaling_scale_down_cpu_threshold: float = 0.3  # CPU usage threshold for scale-down
-    autoscaling_scale_up_memory_threshold: float = 0.8  # Memory usage threshold for scale-up
-    autoscaling_scale_down_memory_threshold: float = 0.4  # Memory usage threshold for scale-down
+    autoscaling_scale_down_cpu_threshold: float = (
+        0.3  # CPU usage threshold for scale-down
+    )
+    autoscaling_scale_up_memory_threshold: float = (
+        0.8  # Memory usage threshold for scale-up
+    )
+    autoscaling_scale_down_memory_threshold: float = (
+        0.4  # Memory usage threshold for scale-down
+    )
     autoscaling_scale_up_queue_threshold: int = 50  # Queue depth threshold for scale-up
-    autoscaling_scale_down_queue_threshold: int = 10  # Queue depth threshold for scale-down
-    autoscaling_cooldown_seconds: int = 300  # Cooldown period between scaling operations
+    autoscaling_scale_down_queue_threshold: int = (
+        10  # Queue depth threshold for scale-down
+    )
+    autoscaling_cooldown_seconds: int = (
+        300  # Cooldown period between scaling operations
+    )
 
     # P2P network
     p2p_enabled: bool = False
@@ -207,6 +230,9 @@ class Settings(BaseSettings):
     fake_ollama_enabled: bool = False
     fake_ollama_port: int = 11434
     fake_ollama_host: str = "0.0.0.0"
+    # GitHub Copilot (via copilot-api sidecar proxy)
+    github_copilot_proxy_url: str = "http://localhost:4141"
+    github_copilot_api_key: SecretStr = Field(default=SecretStr(""), repr=False)
     # Device voice sessions
     device_stt_model: str = "gpt-4o-mini-transcribe"
     device_stt_language: str = "fr"
@@ -222,6 +248,10 @@ class Settings(BaseSettings):
     # Observability
     otel_enabled: bool = False
     otel_collector_http_endpoint: str = "http://otel-collector:4318"
+    otel_exporter_protocol: str = "http/protobuf"  # or "grpc"
+    otel_exporter_headers: str = ""  # "Authorization=Bearer token"
+    otel_service_name: str = "mascarade-core"
+    otel_resource_attributes: str = ""  # "team.id=core,deployment=production"
     ops_agent_url: str = "http://ops-agent:9200"
     loki_url: str = "http://loki:3100"
 
@@ -270,10 +300,11 @@ class Settings(BaseSettings):
     dead_letter_max_entries: int = 1000
     dead_letter_retention_seconds: int = 86400
 
-    # A2A (Agent-to-Agent) protocol
+    # A2A (Agent-to-Agent) protocol — spec v0.3
     a2a_enabled: bool = False
     a2a_agent_name: str = "mascarade"
     a2a_agent_url: str = ""
+    a2a_auth_method: str = "bearer"  # bearer | oauth2
 
     # Defaults
     default_provider: str = "claude"
@@ -286,7 +317,9 @@ class Settings(BaseSettings):
 
     # ML routing classifier (tier prediction: strong/cheap/fast)
     ml_routing_classifier_enabled: bool = False
-    ml_routing_classifier_path: str = ""  # Path to model JSON; empty = default ~/.mascarade/models/
+    ml_routing_classifier_path: str = (
+        ""  # Path to model JSON; empty = default ~/.mascarade/models/
+    )
 
     # Multi-tier cache configuration
     cache_enabled: bool = True  # Enable multi-tier caching
@@ -294,10 +327,14 @@ class Settings(BaseSettings):
     cache_l2_enabled: bool = False  # Enable Redis cache (L2)
     cache_l2_host: str = "localhost"  # Redis host
     cache_l2_port: int = 6379  # Redis port
-    cache_l2_password: SecretStr = Field(default=SecretStr(""), repr=False)  # Redis password
+    cache_l2_password: SecretStr = Field(
+        default=SecretStr(""), repr=False
+    )  # Redis password
     cache_l2_db: int = 0  # Redis database
     cache_l3_enabled: bool = False  # Enable semantic cache (L3)
-    cache_l3_similarity_threshold: float = 0.85  # Similarity threshold for semantic cache
+    cache_l3_similarity_threshold: float = (
+        0.85  # Similarity threshold for semantic cache
+    )
 
 
 settings = Settings()

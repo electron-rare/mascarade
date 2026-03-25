@@ -166,8 +166,10 @@ export default function Agents() {
   if (error && !data) {
     return (
       <InlineNotice
-        title="registry error"
-        message={error}
+        title={error.toLowerCase().includes("session gateway") ? "gateway auth" : "registry error"}
+        message={error.toLowerCase().includes("session gateway")
+          ? "La session gateway n'est plus valide. Reconnectez-vous pour recharger le registre des agents."
+          : error}
         tone="error"
         className="mx-auto mt-20 max-w-3xl"
       />
@@ -193,8 +195,10 @@ export default function Agents() {
       ) : null}
       {error ? (
         <InlineNotice
-          title="registry note"
-          message={`Last refresh failed: ${error}`}
+          title={error.toLowerCase().includes("session gateway") ? "gateway auth" : "registry note"}
+          message={error.toLowerCase().includes("session gateway")
+            ? "La session gateway a expire. Reconnectez-vous, puis relancez le refresh du registre."
+            : `Last refresh failed: ${error}`}
           tone="error"
         />
       ) : null}

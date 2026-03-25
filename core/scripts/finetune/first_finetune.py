@@ -13,6 +13,7 @@ Usage:
     python scripts/finetune/first_finetune.py
     python scripts/finetune/first_finetune.py --task code --base-model Qwen/Qwen2.5-Coder-0.5B-Instruct
 """
+
 import asyncio
 import json
 import os
@@ -66,7 +67,9 @@ def ssh_cmd(cmd: str, timeout: int = 300) -> tuple[int, str]:
     """Run command on KXKM-AI via SSH."""
     result = subprocess.run(
         ["ssh", KXKM_SSH, cmd],
-        capture_output=True, text=True, timeout=timeout,
+        capture_output=True,
+        text=True,
+        timeout=timeout,
     )
     return result.returncode, result.stdout + result.stderr
 
@@ -77,7 +80,9 @@ async def phase_research(task: str, max_size_gb: float) -> dict:
     report = await researcher.recommend(task, max_size_gb=max_size_gb, top_k=5)
 
     for i, m in enumerate(report["candidates"], 1):
-        print(f"    {i}. {CYAN}{m['model_id']}{RESET}  ↓{m['downloads']:,}  ♥{m['likes']:,}")
+        print(
+            f"    {i}. {CYAN}{m['model_id']}{RESET}  ↓{m['downloads']:,}  ♥{m['likes']:,}"
+        )
 
     if report["papers"]:
         print(f"\n    {DIM}Papers:{RESET}")
@@ -108,14 +113,18 @@ def phase_check_kxkm() -> bool:
     ok("SSH OK")
 
     step(2, "GPU check...")
-    rc, out = ssh_cmd(f"{KXKM_VENV} -c 'import torch; print(torch.cuda.get_device_name(0))'")
+    rc, out = ssh_cmd(
+        f"{KXKM_VENV} -c 'import torch; print(torch.cuda.get_device_name(0))'"
+    )
     if rc != 0:
         fail(f"GPU check failed: {out}")
         return False
     ok(f"GPU: {out.strip()}")
 
     step(3, "Packages check...")
-    rc, out = ssh_cmd(f"{KXKM_VENV} -c 'import trl, peft; print(f\"trl={{trl.__version__}} peft={{peft.__version__}}\")'")
+    rc, out = ssh_cmd(
+        f"{KXKM_VENV} -c 'import trl, peft; print(f\"trl={{trl.__version__}} peft={{peft.__version__}}\")'"
+    )
     if rc != 0:
         fail(f"Packages missing: {out}")
         return False
@@ -128,7 +137,7 @@ def phase_train_remote(base_model: str, dataset_id: str, run_id: str) -> dict:
     header("PHASE 4 — TRAINING SUR KXKM-AI")
 
     # Create training script on KXKM
-    train_script = f'''
+    train_script = f"""
 import json, time, torch
 from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
 from peft import LoraConfig
@@ -234,7 +243,7 @@ result = {{
     "status": "completed",
 }}
 print("RESULT_JSON:" + json.dumps(result))
-'''
+"""
 
     # Write script to KXKM
     step(1, "Deploying training script to KXKM-AI...")
@@ -242,7 +251,9 @@ print("RESULT_JSON:" + json.dumps(result))
     # Write via stdin
     proc = subprocess.run(
         ["ssh", KXKM_SSH, f"cat > {script_path}"],
-        input=train_script, text=True, timeout=10,
+        input=train_script,
+        text=True,
+        timeout=10,
     )
     if proc.returncode != 0:
         fail("Failed to deploy script")
@@ -256,7 +267,9 @@ print("RESULT_JSON:" + json.dumps(result))
     try:
         result = subprocess.run(
             ["ssh", KXKM_SSH, f"{KXKM_VENV} {script_path}"],
-            capture_output=True, text=True, timeout=1800,
+            capture_output=True,
+            text=True,
+            timeout=1800,
         )
 
         # Print training output
@@ -274,7 +287,9 @@ print("RESULT_JSON:" + json.dumps(result))
                 except json.JSONDecodeError as e:
                     fail(f"Failed to parse training result: {e}")
                     return {"status": "failed", "error": f"JSON parse error: {e}"}
-                ok(f"Training complete in {data['training_time_seconds']}s, loss={data['final_loss']}")
+                ok(
+                    f"Training complete in {data['training_time_seconds']}s, loss={data['final_loss']}"
+                )
                 return data
 
         if result.returncode != 0:
@@ -293,12 +308,17 @@ print("RESULT_JSON:" + json.dumps(result))
 
 async def main():
     import argparse
+
     parser = argparse.ArgumentParser(description="First fine-tune pipeline")
     parser.add_argument("--task", default="code", help="Model task")
     parser.add_argument("--domain", default="code", help="Dataset domain")
     parser.add_argument("--max-size", type=float, default=3.0, help="Max model size GB")
-    parser.add_argument("--base-model", default="", help="Override base model (skip research)")
-    parser.add_argument("--dataset", default="", help="Override dataset (skip research)")
+    parser.add_argument(
+        "--base-model", default="", help="Override base model (skip research)"
+    )
+    parser.add_argument(
+        "--dataset", default="", help="Override dataset (skip research)"
+    )
     parser.add_argument("--dry-run", action="store_true", help="Skip actual training")
     args = parser.parse_args()
 
@@ -350,19 +370,21 @@ async def main():
 
     # Phase 5: Save to registry
     header("PHASE 5 — SAUVEGARDE REGISTRE")
-    registry.add_run(RunEntry(
-        run_id=run_id,
-        base_model=selected_model,
-        dataset=selected_dataset,
-        method=result.get("method", "qlora-4bit"),
-        node="KXKM-AI",
-        status=result.get("status", "failed"),
-        metrics={
-            "final_loss": result.get("final_loss", 0),
-            "training_time": result.get("training_time_seconds", 0),
-            "max_steps": result.get("max_steps", 0),
-        },
-    ))
+    registry.add_run(
+        RunEntry(
+            run_id=run_id,
+            base_model=selected_model,
+            dataset=selected_dataset,
+            method=result.get("method", "qlora-4bit"),
+            node="KXKM-AI",
+            status=result.get("status", "failed"),
+            metrics={
+                "final_loss": result.get("final_loss", 0),
+                "training_time": result.get("training_time_seconds", 0),
+                "max_steps": result.get("max_steps", 0),
+            },
+        )
+    )
     ok(f"Run {run_id} saved to registry")
 
     # Summary

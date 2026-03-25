@@ -38,6 +38,7 @@ class MockProvider(LLMProvider):
 
 class FailingProvider(LLMProvider):
     """Provider that always fails for testing error handling."""
+
     name = "failing"
     default_model = "failing-model"
     cost_per_million = (0.0, 0.0)
@@ -140,7 +141,9 @@ def _make_orchestrator() -> Orchestrator:
         Agent(name="writer", description="Writes", system_prompt="Write.")
     )
 
-    return Orchestrator(router=router, registry=registry, trace_buffer=AgentTraceBuffer())
+    return Orchestrator(
+        router=router, registry=registry, trace_buffer=AgentTraceBuffer()
+    )
 
 
 def test_sequential():
@@ -344,7 +347,12 @@ def test_skip_on_error_sequential():
 
     registry = AgentRegistry()
     registry.register(
-        Agent(name="good1", description="Good", system_prompt="Good.", preferred_provider="mock")
+        Agent(
+            name="good1",
+            description="Good",
+            system_prompt="Good.",
+            preferred_provider="mock",
+        )
     )
     registry.register(
         Agent(
@@ -357,11 +365,17 @@ def test_skip_on_error_sequential():
         )
     )
     registry.register(
-        Agent(name="good2", description="Good", system_prompt="Good.", preferred_provider="mock")
+        Agent(
+            name="good2",
+            description="Good",
+            system_prompt="Good.",
+            preferred_provider="mock",
+        )
     )
 
     # Configure retry executor with 0 retries for faster tests
     from mascarade.orchestrator.retry import RetryExecutor
+
     retry_executor = RetryExecutor(config=RetryConfig(max_retries=0))
 
     orch = Orchestrator(
@@ -372,7 +386,9 @@ def test_skip_on_error_sequential():
     )
 
     run = asyncio.run(
-        orch.run(["good1", "bad", "good2"], "test", mode="sequential", skip_on_error=True)
+        orch.run(
+            ["good1", "bad", "good2"], "test", mode="sequential", skip_on_error=True
+        )
     )
 
     # Should have 3 results: 2 successful, 1 failed
@@ -397,7 +413,12 @@ def test_sequential_stops_on_error_by_default():
 
     registry = AgentRegistry()
     registry.register(
-        Agent(name="good1", description="Good", system_prompt="Good.", preferred_provider="mock")
+        Agent(
+            name="good1",
+            description="Good",
+            system_prompt="Good.",
+            preferred_provider="mock",
+        )
     )
     registry.register(
         Agent(
@@ -410,7 +431,12 @@ def test_sequential_stops_on_error_by_default():
         )
     )
     registry.register(
-        Agent(name="good2", description="Good", system_prompt="Good.", preferred_provider="mock")
+        Agent(
+            name="good2",
+            description="Good",
+            system_prompt="Good.",
+            preferred_provider="mock",
+        )
     )
 
     retry_executor = RetryExecutor(config=RetryConfig(max_retries=0))
@@ -423,7 +449,9 @@ def test_sequential_stops_on_error_by_default():
     )
 
     run = asyncio.run(
-        orch.run(["good1", "bad", "good2"], "test", mode="sequential", skip_on_error=False)
+        orch.run(
+            ["good1", "bad", "good2"], "test", mode="sequential", skip_on_error=False
+        )
     )
 
     # Should have 2 results: 1 successful, 1 failed, and stop before good2
@@ -446,7 +474,12 @@ def test_skip_on_error_pipeline():
 
     registry = AgentRegistry()
     registry.register(
-        Agent(name="good1", description="Good", system_prompt="Good.", preferred_provider="mock")
+        Agent(
+            name="good1",
+            description="Good",
+            system_prompt="Good.",
+            preferred_provider="mock",
+        )
     )
     registry.register(
         Agent(
@@ -459,7 +492,12 @@ def test_skip_on_error_pipeline():
         )
     )
     registry.register(
-        Agent(name="good2", description="Good", system_prompt="Good.", preferred_provider="mock")
+        Agent(
+            name="good2",
+            description="Good",
+            system_prompt="Good.",
+            preferred_provider="mock",
+        )
     )
 
     retry_executor = RetryExecutor(config=RetryConfig(max_retries=0))
@@ -472,7 +510,9 @@ def test_skip_on_error_pipeline():
     )
 
     run = asyncio.run(
-        orch.run(["good1", "bad", "good2"], "initial", mode="pipeline", skip_on_error=True)
+        orch.run(
+            ["good1", "bad", "good2"], "initial", mode="pipeline", skip_on_error=True
+        )
     )
 
     # Should have 3 results: good1 succeeds, bad fails, good2 succeeds
@@ -499,7 +539,12 @@ def test_pipeline_stops_on_error_by_default():
 
     registry = AgentRegistry()
     registry.register(
-        Agent(name="good1", description="Good", system_prompt="Good.", preferred_provider="mock")
+        Agent(
+            name="good1",
+            description="Good",
+            system_prompt="Good.",
+            preferred_provider="mock",
+        )
     )
     registry.register(
         Agent(
@@ -512,7 +557,12 @@ def test_pipeline_stops_on_error_by_default():
         )
     )
     registry.register(
-        Agent(name="good2", description="Good", system_prompt="Good.", preferred_provider="mock")
+        Agent(
+            name="good2",
+            description="Good",
+            system_prompt="Good.",
+            preferred_provider="mock",
+        )
     )
 
     retry_executor = RetryExecutor(config=RetryConfig(max_retries=0))
@@ -525,7 +575,9 @@ def test_pipeline_stops_on_error_by_default():
     )
 
     run = asyncio.run(
-        orch.run(["good1", "bad", "good2"], "initial", mode="pipeline", skip_on_error=False)
+        orch.run(
+            ["good1", "bad", "good2"], "initial", mode="pipeline", skip_on_error=False
+        )
     )
 
     # Should have 2 results: good1 succeeds, bad fails, and stop before good2
@@ -547,7 +599,12 @@ def test_parallel_returns_partial_results():
 
     registry = AgentRegistry()
     registry.register(
-        Agent(name="good1", description="Good", system_prompt="Good.", preferred_provider="mock")
+        Agent(
+            name="good1",
+            description="Good",
+            system_prompt="Good.",
+            preferred_provider="mock",
+        )
     )
     registry.register(
         Agent(
@@ -560,7 +617,12 @@ def test_parallel_returns_partial_results():
         )
     )
     registry.register(
-        Agent(name="good2", description="Good", system_prompt="Good.", preferred_provider="mock")
+        Agent(
+            name="good2",
+            description="Good",
+            system_prompt="Good.",
+            preferred_provider="mock",
+        )
     )
 
     retry_executor = RetryExecutor(config=RetryConfig(max_retries=0))
@@ -572,9 +634,7 @@ def test_parallel_returns_partial_results():
         retry_executor=retry_executor,
     )
 
-    run = asyncio.run(
-        orch.run(["good1", "bad", "good2"], "test", mode="parallel")
-    )
+    run = asyncio.run(orch.run(["good1", "bad", "good2"], "test", mode="parallel"))
 
     # Should have 3 results: 2 successful, 1 failed
     assert len(run.results) == 3
@@ -623,9 +683,7 @@ def test_error_details_in_task_result():
         retry_executor=retry_executor,
     )
 
-    run = asyncio.run(
-        orch.run(["bad"], "test", mode="sequential", skip_on_error=True)
-    )
+    run = asyncio.run(orch.run(["bad"], "test", mode="sequential", skip_on_error=True))
 
     assert len(run.results) == 1
     result = run.results[0]
@@ -670,9 +728,7 @@ def test_dead_letter_store_records_failures():
         retry_executor=retry_executor,
     )
 
-    run = asyncio.run(
-        orch.run(["bad"], "test", mode="sequential", skip_on_error=True)
-    )
+    run = asyncio.run(orch.run(["bad"], "test", mode="sequential", skip_on_error=True))
 
     # Check dead letter store has the failure
     failures = orch.dead_letter_store.recent()

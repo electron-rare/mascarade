@@ -23,6 +23,7 @@ router = APIRouter(
 # Document AI
 # ---------------------------------------------------------------------------
 
+
 @router.post("/document")
 async def process_document(
     file: UploadFile = File(..., description="PDF, image, or office document"),
@@ -68,6 +69,7 @@ async def process_document(
         raise HTTPException(status_code=502, detail=str(exc)) from exc
     finally:
         import os
+
         os.unlink(tmp_path)
 
 
@@ -106,6 +108,7 @@ async def ocr_image(
         raise HTTPException(status_code=502, detail=str(exc)) from exc
     finally:
         import os
+
         os.unlink(tmp_path)
 
 
@@ -113,9 +116,12 @@ async def ocr_image(
 # Audio Transcription
 # ---------------------------------------------------------------------------
 
+
 @router.post("/transcribe")
 async def transcribe_audio(
-    file: UploadFile = File(..., description="Audio file (mp3, wav, m4a, flac, ogg, webm)"),
+    file: UploadFile = File(
+        ..., description="Audio file (mp3, wav, m4a, flac, ogg, webm)"
+    ),
     language: Annotated[str, Form()] = "fr",
     diarize: Annotated[bool, Form()] = False,
 ):

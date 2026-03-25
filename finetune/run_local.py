@@ -24,7 +24,11 @@ from pathlib import Path
 import torch
 from auto_policy import detect_machine_profile, resolve_default_student_model
 from dataset_bootstrap import ensure_seed_dataset
-from dataset_quality import DatasetQualityError, enforce_dataset_quality, summarize_quality_report
+from dataset_quality import (
+    DatasetQualityError,
+    enforce_dataset_quality,
+    summarize_quality_report,
+)
 from dataset_refresh import refresh_dataset
 from llm_paths import configure_hf_env, hf_cache_roots
 from llmfit_utils import (
@@ -145,9 +149,9 @@ def resolve_model(
     selection_info = None
     if not offline and _ensure_model_selection is not None:
         selection_info = _ensure_model_selection(
-            fallback_model=DEFAULT_GPU_MODEL
-            if resolved_device == "gpu"
-            else DEFAULT_CPU_MODEL,
+            fallback_model=(
+                DEFAULT_GPU_MODEL if resolved_device == "gpu" else DEFAULT_CPU_MODEL
+            ),
             task="code",
             seq_len=seq_len,
             watch=True,
@@ -170,7 +174,9 @@ def resolve_model(
     machine_profile = detect_machine_profile(requested_device=resolved_device)
     auto_model, auto_reason = resolve_default_student_model(
         machine_profile=machine_profile,
-        fallback_model=DEFAULT_GPU_MODEL if resolved_device == "gpu" else DEFAULT_CPU_MODEL,
+        fallback_model=(
+            DEFAULT_GPU_MODEL if resolved_device == "gpu" else DEFAULT_CPU_MODEL
+        ),
         requested_device=resolved_device,
     )
     if resolved_device == "gpu":
@@ -722,8 +728,7 @@ def main() -> int:
             print(f"[RUN_DIR] {run_dir}")
         if args.output_workspace is not None:
             print(
-                f"[OUTPUT] mode={args.output_workspace['mode']} "
-                f"path={output_dir}"
+                f"[OUTPUT] mode={args.output_workspace['mode']} " f"path={output_dir}"
             )
         if llmfit_warning:
             print(f"[WARN] {llmfit_warning}")
@@ -764,11 +769,12 @@ def main() -> int:
         print(f"Epochs:  {args.epochs}")
         if model_note:
             print(model_note)
-        if (
-            getattr(args, "model_selection", None)
-            and args.model_selection.get("watch_report_path")
+        if getattr(args, "model_selection", None) and args.model_selection.get(
+            "watch_report_path"
         ):
-            print(f"[INFO] student_watch_report: {args.model_selection['watch_report_path']}")
+            print(
+                f"[INFO] student_watch_report: {args.model_selection['watch_report_path']}"
+            )
         if llmfit_warning:
             print(f"[WARN]  {llmfit_warning}")
         if args.verbose:

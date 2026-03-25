@@ -50,8 +50,7 @@ class BaseValidator(ABC):
     domain: str = ""
 
     @abstractmethod
-    def validate(self, prompt: str, response: str) -> ValidationResult:
-        ...
+    def validate(self, prompt: str, response: str) -> ValidationResult: ...
 
     def available(self) -> bool:
         """Check if validator tools are installed."""
@@ -61,6 +60,7 @@ class BaseValidator(ABC):
 # ---------------------------------------------------------------------------
 # STM32 / Embedded C validator — uses arm-none-eabi-gcc or gcc
 # ---------------------------------------------------------------------------
+
 
 class EmbeddedCValidator(BaseValidator):
     domain = "stm32"
@@ -82,7 +82,9 @@ class EmbeddedCValidator(BaseValidator):
     def validate(self, prompt: str, response: str) -> ValidationResult:
         blocks = _extract_code_blocks(response, r"c(?:\+\+)?")
         if not blocks:
-            return ValidationResult(score=0.0, passed=False, errors=["No code block found"])
+            return ValidationResult(
+                score=0.0, passed=False, errors=["No code block found"]
+            )
 
         all_errors = []
         all_warnings = []
@@ -140,6 +142,7 @@ class EmbeddedCValidator(BaseValidator):
 # SPICE validator — uses ngspice
 # ---------------------------------------------------------------------------
 
+
 class SpiceValidator(BaseValidator):
     domain = "spice"
 
@@ -151,19 +154,29 @@ class SpiceValidator(BaseValidator):
         if not blocks:
             # Try to find raw netlist (starts with * or .)
             lines = response.strip().split("\n")
-            netlist_lines = [l for l in lines if l.strip().startswith(("*", ".", "V", "R", "C", "L", "M", "Q", "D", "X"))]
+            netlist_lines = [
+                l
+                for l in lines
+                if l.strip().startswith(
+                    ("*", ".", "V", "R", "C", "L", "M", "Q", "D", "X")
+                )
+            ]
             if len(netlist_lines) > 3:
                 blocks = ["\n".join(netlist_lines)]
 
         if not blocks:
-            return ValidationResult(score=0.0, passed=False, errors=["No SPICE netlist found"])
+            return ValidationResult(
+                score=0.0, passed=False, errors=["No SPICE netlist found"]
+            )
 
         for block in blocks:
             result = self._simulate_check(block)
             if result.passed:
                 return result
 
-        return ValidationResult(score=0.0, passed=False, errors=["No valid netlist simulated"])
+        return ValidationResult(
+            score=0.0, passed=False, errors=["No valid netlist simulated"]
+        )
 
     def _simulate_check(self, netlist: str) -> ValidationResult:
         # Ensure .end directive
@@ -177,13 +190,17 @@ class SpiceValidator(BaseValidator):
         try:
             r = subprocess.run(
                 ["ngspice", "-b", cir],
-                capture_output=True, text=True, timeout=30,
+                capture_output=True,
+                text=True,
+                timeout=30,
             )
             errors = [l for l in r.stderr.splitlines() if "error" in l.lower()]
             warnings = [l for l in r.stderr.splitlines() if "warning" in l.lower()]
 
             # ngspice returns 0 even on some errors, check stderr
-            has_fatal = any("fatal" in e.lower() or "cannot" in e.lower() for e in errors)
+            has_fatal = any(
+                "fatal" in e.lower() or "cannot" in e.lower() for e in errors
+            )
             passed = r.returncode == 0 and not has_fatal
 
             return ValidationResult(
@@ -202,6 +219,7 @@ class SpiceValidator(BaseValidator):
 # KiCad validator — uses kicad-cli DRC or S-expression parser
 # ---------------------------------------------------------------------------
 
+
 class KicadValidator(BaseValidator):
     domain = "kicad"
 
@@ -216,16 +234,34 @@ class KicadValidator(BaseValidator):
 
         for block in blocks:
             # Check if it looks like a KiCad S-expression
-            if re.search(r"\(kicad_sch|\(kicad_pcb|\(footprint|\(module|\(symbol", block):
+            if re.search(
+                r"\(kicad_sch|\(kicad_pcb|\(footprint|\(module|\(symbol", block
+            ):
                 return self._check_sexp(block)
 
         # Fallback: check if response contains meaningful KiCad keywords
-        kicad_keywords = ["footprint", "pad", "wire", "symbol", "pin", "net", "zone", "via", "segment"]
+        kicad_keywords = [
+            "footprint",
+            "pad",
+            "wire",
+            "symbol",
+            "pin",
+            "net",
+            "zone",
+            "via",
+            "segment",
+        ]
         found = sum(1 for kw in kicad_keywords if kw in response.lower())
         if found >= 3:
-            return ValidationResult(score=0.5, passed=True, warnings=["Keywords found but no parseable S-expression"])
+            return ValidationResult(
+                score=0.5,
+                passed=True,
+                warnings=["Keywords found but no parseable S-expression"],
+            )
 
-        return ValidationResult(score=0.0, passed=False, errors=["No KiCad content found"])
+        return ValidationResult(
+            score=0.0, passed=False, errors=["No KiCad content found"]
+        )
 
     def _check_sexp(self, text: str) -> ValidationResult:
         """Basic S-expression balance check."""
@@ -236,10 +272,14 @@ class KicadValidator(BaseValidator):
             elif ch == ")":
                 depth -= 1
             if depth < 0:
-                return ValidationResult(score=0.0, passed=False, errors=["Unbalanced parentheses"])
+                return ValidationResult(
+                    score=0.0, passed=False, errors=["Unbalanced parentheses"]
+                )
 
         if depth != 0:
-            return ValidationResult(score=0.0, passed=False, errors=[f"Unbalanced: {depth} unclosed parens"])
+            return ValidationResult(
+                score=0.0, passed=False, errors=[f"Unbalanced: {depth} unclosed parens"]
+            )
 
         return ValidationResult(score=1.0, passed=True)
 
@@ -247,6 +287,7 @@ class KicadValidator(BaseValidator):
 # ---------------------------------------------------------------------------
 # PlatformIO validator — uses pio run --check or syntax check
 # ---------------------------------------------------------------------------
+
 
 class PlatformIOValidator(BaseValidator):
     domain = "platformio"
@@ -264,7 +305,9 @@ class PlatformIOValidator(BaseValidator):
         if blocks:
             return self._validate_arduino_syntax(blocks[0])
 
-        return ValidationResult(score=0.0, passed=False, errors=["No PlatformIO content found"])
+        return ValidationResult(
+            score=0.0, passed=False, errors=["No PlatformIO content found"]
+        )
 
     def _validate_ini(self, text: str) -> ValidationResult:
         # Basic platformio.ini validation
@@ -275,8 +318,12 @@ class PlatformIOValidator(BaseValidator):
         if has_env and has_platform and has_board:
             return ValidationResult(score=1.0, passed=True)
         elif has_env:
-            return ValidationResult(score=0.5, passed=True, warnings=["Incomplete platformio.ini"])
-        return ValidationResult(score=0.0, passed=False, errors=["Invalid platformio.ini"])
+            return ValidationResult(
+                score=0.5, passed=True, warnings=["Incomplete platformio.ini"]
+            )
+        return ValidationResult(
+            score=0.0, passed=False, errors=["Invalid platformio.ini"]
+        )
 
     def _validate_arduino_syntax(self, code: str) -> ValidationResult:
         # Check for setup()/loop() or main()
@@ -285,13 +332,18 @@ class PlatformIOValidator(BaseValidator):
         if has_entry and has_include:
             return ValidationResult(score=0.8, passed=True)
         elif has_entry or has_include:
-            return ValidationResult(score=0.5, passed=True, warnings=["Partial Arduino structure"])
-        return ValidationResult(score=0.0, passed=False, errors=["No Arduino entry point found"])
+            return ValidationResult(
+                score=0.5, passed=True, warnings=["Partial Arduino structure"]
+            )
+        return ValidationResult(
+            score=0.0, passed=False, errors=["No Arduino entry point found"]
+        )
 
 
 # ---------------------------------------------------------------------------
 # LLM-as-Judge validator — for domains without deterministic validators
 # ---------------------------------------------------------------------------
+
 
 class LLMJudgeValidator(BaseValidator):
     """Uses a local or remote LLM to score responses.
@@ -299,7 +351,12 @@ class LLMJudgeValidator(BaseValidator):
     Requires ollama with a model loaded, or an API endpoint.
     """
 
-    def __init__(self, domain: str, ollama_model: str = "qwen3.5:9b", base_url: str = "http://127.0.0.1:11434"):
+    def __init__(
+        self,
+        domain: str,
+        ollama_model: str = "qwen3.5:9b",
+        base_url: str = "http://127.0.0.1:11434",
+    ):
         self.domain = domain
         self.ollama_model = ollama_model
         self.base_url = base_url
@@ -307,6 +364,7 @@ class LLMJudgeValidator(BaseValidator):
     def available(self) -> bool:
         try:
             import urllib.request
+
             req = urllib.request.Request(f"{self.base_url}/api/tags", method="GET")
             urllib.request.urlopen(req, timeout=5)
             return True
@@ -331,12 +389,14 @@ Reply with ONLY a JSON object: {{"accuracy": N, "completeness": N, "code_quality
             import json
             import urllib.request
 
-            payload = json.dumps({
-                "model": self.ollama_model,
-                "messages": [{"role": "user", "content": judge_prompt}],
-                "stream": False,
-                "options": {"temperature": 0.1, "num_predict": 256},
-            }).encode()
+            payload = json.dumps(
+                {
+                    "model": self.ollama_model,
+                    "messages": [{"role": "user", "content": judge_prompt}],
+                    "stream": False,
+                    "options": {"temperature": 0.1, "num_predict": 256},
+                }
+            ).encode()
 
             req = urllib.request.Request(
                 f"{self.base_url}/api/chat",
@@ -349,7 +409,7 @@ Reply with ONLY a JSON object: {{"accuracy": N, "completeness": N, "code_quality
             content = data.get("message", {}).get("content", "")
 
             # Parse score from JSON response
-            match = re.search(r'\{[^}]+\}', content)
+            match = re.search(r"\{[^}]+\}", content)
             if match:
                 scores = json.loads(match.group())
                 overall = scores.get("overall", 5) / 10.0
@@ -362,10 +422,14 @@ Reply with ONLY a JSON object: {{"accuracy": N, "completeness": N, "code_quality
                     details=scores,
                 )
 
-            return ValidationResult(score=0.5, passed=True, warnings=["Could not parse judge output"])
+            return ValidationResult(
+                score=0.5, passed=True, warnings=["Could not parse judge output"]
+            )
 
         except Exception as exc:
-            return ValidationResult(score=0.5, passed=True, warnings=[f"LLM judge unavailable: {exc}"])
+            return ValidationResult(
+                score=0.5, passed=True, warnings=[f"LLM judge unavailable: {exc}"]
+            )
 
 
 # ---------------------------------------------------------------------------
@@ -395,7 +459,9 @@ def get_validator(domain: str, **kwargs) -> BaseValidator:
     return LLMJudgeValidator(domain=domain, **kwargs)
 
 
-def validate_response(domain: str, prompt: str, response: str, **kwargs) -> ValidationResult:
+def validate_response(
+    domain: str, prompt: str, response: str, **kwargs
+) -> ValidationResult:
     """Convenience function: validate a single response."""
     v = get_validator(domain, **kwargs)
     return v.validate(prompt, response)

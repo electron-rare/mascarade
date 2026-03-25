@@ -20,15 +20,13 @@ async def _ensure_migrations_table(conn: asyncpg.Connection) -> None:
     Args:
         conn: Database connection
     """
-    await conn.execute(
-        """
+    await conn.execute("""
         CREATE TABLE IF NOT EXISTS schema_migrations (
             id SERIAL PRIMARY KEY,
             migration_name VARCHAR(255) UNIQUE NOT NULL,
             applied_at TIMESTAMP NOT NULL DEFAULT NOW()
         )
-        """
-    )
+        """)
 
 
 async def _get_applied_migrations(conn: asyncpg.Connection) -> list[str]:
@@ -98,9 +96,7 @@ async def run_migrations() -> None:
     """
     pool = get_db_pool()
     if pool is None:
-        raise RuntimeError(
-            "Database pool not initialized. Call init_db_pool() first."
-        )
+        raise RuntimeError("Database pool not initialized. Call init_db_pool() first.")
 
     async with pool.acquire() as conn:
         await _ensure_migrations_table(conn)
@@ -133,9 +129,7 @@ async def get_migration_status() -> dict:
     """
     pool = get_db_pool()
     if pool is None:
-        raise RuntimeError(
-            "Database pool not initialized. Call init_db_pool() first."
-        )
+        raise RuntimeError("Database pool not initialized. Call init_db_pool() first.")
 
     async with pool.acquire() as conn:
         await _ensure_migrations_table(conn)

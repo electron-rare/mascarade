@@ -82,21 +82,16 @@ class UnslothPipeline:
             ImportError: If required libraries are not installed
         """
         if not TORCH_AVAILABLE:
-            raise ImportError(
-                "PyTorch not found. Install with: "
-                "pip install torch"
-            )
+            raise ImportError("PyTorch not found. Install with: " "pip install torch")
 
         if not DATASETS_AVAILABLE:
             raise ImportError(
-                "Datasets library not found. Install with: "
-                "pip install datasets"
+                "Datasets library not found. Install with: " "pip install datasets"
             )
 
         if not UNSLOTH_AVAILABLE:
             raise ImportError(
-                "Unsloth library not found. Install with: "
-                "pip install unsloth"
+                "Unsloth library not found. Install with: " "pip install unsloth"
             )
 
         self.config = config
@@ -162,9 +157,7 @@ class UnslothPipeline:
         if self.model is None:
             raise RuntimeError("Model not loaded. Call load_model() first.")
         if not hasattr(self, "train_dataset"):
-            raise RuntimeError(
-                "Dataset not prepared. Call prepare_dataset() first."
-            )
+            raise RuntimeError("Dataset not prepared. Call prepare_dataset() first.")
 
         from transformers import TrainingArguments
         from trl import SFTTrainer

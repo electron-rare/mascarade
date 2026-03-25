@@ -41,19 +41,34 @@ class ArchivistAgent:
     ) -> ArtifactVersion:
         """Push a dataset directory or file to HuggingFace Hub."""
         from huggingface_hub import HfApi
+
         api = HfApi(token=self.hf_token)
 
         if version is None:
-            version = await asyncio.to_thread(self._next_version, api, "dataset", domain)
+            version = await asyncio.to_thread(
+                self._next_version, api, "dataset", domain
+            )
 
         repo_id = f"{self.namespace}/mascarade-{domain}-v{version}"
-        await asyncio.to_thread(api.create_repo, repo_id, repo_type="dataset", private=private, exist_ok=True)
+        await asyncio.to_thread(
+            api.create_repo,
+            repo_id,
+            repo_type="dataset",
+            private=private,
+            exist_ok=True,
+        )
 
         local_path = Path(local_path)
         if local_path.is_dir():
-            await asyncio.to_thread(api.upload_folder, folder_path=str(local_path), repo_id=repo_id, repo_type="dataset")
+            await asyncio.to_thread(
+                api.upload_folder,
+                folder_path=str(local_path),
+                repo_id=repo_id,
+                repo_type="dataset",
+            )
         else:
-            await asyncio.to_thread(api.upload_file,
+            await asyncio.to_thread(
+                api.upload_file,
                 path_or_fileobj=str(local_path),
                 path_in_repo=local_path.name,
                 repo_id=repo_id,
@@ -82,19 +97,30 @@ class ArchivistAgent:
     ) -> ArtifactVersion:
         """Push a model directory to HuggingFace Hub."""
         from huggingface_hub import HfApi
+
         api = HfApi(token=self.hf_token)
 
         if version is None:
-            version = await asyncio.to_thread(self._next_version, api, "model", f"{task}-{size_label}")
+            version = await asyncio.to_thread(
+                self._next_version, api, "model", f"{task}-{size_label}"
+            )
 
         repo_id = f"{self.namespace}/mascarade-{task}-{size_label}-v{version}"
-        await asyncio.to_thread(api.create_repo, repo_id, repo_type="model", private=private, exist_ok=True)
+        await asyncio.to_thread(
+            api.create_repo, repo_id, repo_type="model", private=private, exist_ok=True
+        )
 
         local_path = Path(local_path)
         if local_path.is_dir():
-            await asyncio.to_thread(api.upload_folder, folder_path=str(local_path), repo_id=repo_id, repo_type="model")
+            await asyncio.to_thread(
+                api.upload_folder,
+                folder_path=str(local_path),
+                repo_id=repo_id,
+                repo_type="model",
+            )
         else:
-            await asyncio.to_thread(api.upload_file,
+            await asyncio.to_thread(
+                api.upload_file,
                 path_or_fileobj=str(local_path),
                 path_in_repo=local_path.name,
                 repo_id=repo_id,
@@ -102,7 +128,8 @@ class ArchivistAgent:
             )
 
         if model_card:
-            await asyncio.to_thread(api.upload_file,
+            await asyncio.to_thread(
+                api.upload_file,
                 path_or_fileobj=model_card.encode(),
                 path_in_repo="README.md",
                 repo_id=repo_id,
@@ -123,9 +150,13 @@ class ArchivistAgent:
         """Find the next version number by checking existing repos."""
         try:
             if repo_type == "dataset":
-                repos = api.list_datasets(author=self.namespace, search=f"mascarade-{name_prefix}")
+                repos = api.list_datasets(
+                    author=self.namespace, search=f"mascarade-{name_prefix}"
+                )
             else:
-                repos = api.list_models(author=self.namespace, search=f"mascarade-{name_prefix}")
+                repos = api.list_models(
+                    author=self.namespace, search=f"mascarade-{name_prefix}"
+                )
 
             max_v = 0
             for r in repos:

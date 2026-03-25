@@ -1,186 +1,183 @@
-# Mascarade
+# Mascarade -- Multi-Agent LLM Orchestration for Electronics
 
-> Multi-agent LLM orchestration engine with P2P mesh, distributed scheduling, and domain-specialized fine-tuning.
+![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)
+![License MIT](https://img.shields.io/badge/license-MIT-green.svg)
+![Version v0.2.0](https://img.shields.io/badge/version-v0.2.0-orange.svg)
+![Tests 400+](https://img.shields.io/badge/tests-400+-brightgreen.svg)
+![Datasets 61K](https://img.shields.io/badge/datasets-61K_verified-yellow.svg)
+![Models 14](https://img.shields.io/badge/models-14_mini--models-purple.svg)
+
+Open-source AI orchestration engine specialized in electronics design (KiCad, SPICE, PCB, embedded systems). Multi-provider LLM routing, P2P mesh networking, domain-specific fine-tuning. Self-hosted, async-first, built for real hardware workflows.
+
+**The only multi-agent LLM orchestrator purpose-built for electronics engineering.** Mascarade fine-tunes beat the HuggingFace #1 EE model by +125%.
 
 ## Architecture
 
-Mascarade is a two-tier system: a **Node.js API gateway** (Hono) handles auth, rate limiting, and OpenAI-compatible routing, while the **Python core** (FastAPI) runs LLM routing, agent orchestration, P2P mesh, and fine-tuning pipelines. An operator cockpit (React 19) provides real-time monitoring.
-
 ```mermaid
 graph TD
-    Client["Clients (curl, SDK, MCP)"] --> Proxy["Edge Proxy / Caddy"]
-    Proxy --> API["API Gateway (Hono, :3100)\nAuth · Rate Limit · OpenAI compat"]
-    API --> Core["Core Engine (FastAPI, :8100)\nRouter · Agents · Orchestrator"]
-    Core --> Providers["LLM Providers\nClaude · OpenAI · Mistral · Gemini\nBedrock · Ollama · llama.cpp · CoreML\nMLX · LiteLLM · HuggingFace · Exo · KiCad"]
-    Core <--> P2P["P2P Mesh\nDHT · PubSub · Relay · Tasks"]
-    Core --> Obs["Observability\nGrafana · Prometheus · Loki\nTempo · OTEL · Langfuse · ClickHouse"]
-    Core <--> MCP["MCP Server (5 tools)\nMCP Client (7+ servers)"]
-    Core <--> A2A["A2A Protocol\nAgent Card · Task Delegation"]
+    Client["Clients (curl, SDK, MCP, Xcode)"] --> Proxy["Edge Proxy / Caddy"]
+    Proxy --> API["API Gateway (Hono, :3100 expose / :3000 container)\nAuth - Rate Limit - OpenAI compat"]
+    API --> Core["Core Engine (FastAPI, :8100)\nRouter - Agents - Orchestrator"]
+    Core --> Providers["20+ LLM Providers\nClaude - OpenAI - Mistral - Codestral\nGoogle - Ollama - llama.cpp - MLX\nLiteLLM - HF - Exo - vLLM"]
+    Core <--> P2P["P2P Mesh\nDHT - PubSub - Relay"]
+    Core <--> MCP["MCP Server (5 tools)\nMCP Client (KiCad, SPICE, FreeCAD)"]
+    Core <--> A2A["A2A Protocol\nAgent Card - Task Delegation"]
+    Core --> RAG["RAG Pipeline\nQdrant - Embeddings - Intent"]
+    Core --> Finetune["Finetune Pipeline\nCPT - SFT - RLVR"]
     API --> Web["Operator Cockpit (React 19)"]
 
-    OllamaApps["Ollama Apps\nContinue.dev · VSCode Chat\nOpen WebUI · LM Studio"] --> FakeOllama
-    FakeOllama["Fake Ollama API\n/api/tags · /api/chat · /api/generate"] --> Core
-    LocalServer["Local Server\nMistral HTTP · P2P Forward"] --> Core
-    LocalServer --> P2P
+    OllamaApps["Ollama Apps\nContinue.dev - VSCode Chat\nOpen WebUI - LM Studio"] --> FakeOllama
+    FakeOllama["Fake Ollama API\n/api/tags - /api/chat"] --> Core
 
     style FakeOllama fill:#1a1a2e,stroke:#e94560,color:#fff
-    style LocalServer fill:#1a1a2e,stroke:#0f3460,color:#fff
     style OllamaApps fill:#16213e,stroke:#e94560,color:#fff
 ```
 
-## Features
+## Key Features
 
 | Category | Details |
-|----------|---------|
-| **LLM Providers** | 13 providers — Claude, OpenAI, Mistral, Google, HuggingFace, Bedrock, Ollama, llama.cpp, CoreML, MLX, LiteLLM, Exo, KiCad Router |
-| **Agents** | 12 built-in + 4 domain agents (FreeCAD, KiCad, Spice, Components) |
-| **CLI Coding Agents** | Vibe, Codex, Claude Code exposed in the core and API gateway |
-| **Skills** | 10 composable skills — chain-of-thought, structured-output, electronics-domain, etc. |
-| **Routing** | ML routing classifier + rule-based fallback with BERT-based domain classification |
-| **P2P Mesh** | DHT, PubSub, Relay, distributed task queue with NAT traversal |
-| **Scheduler** | Distributed scheduler with resource-aware scoring and predictive load balancing |
-| **Fine-tuning** | 8-phase pipeline (DPO, SimPO, KTO, RLVR) with LoRA/QLoRA optimization |
-| **MCP** | Server (5 tools) + Client (7+ industrial servers) with stateful protocol |
-| **A2A** | Agent Card + task delegation protocol with capability negotiation |
-| **Real-time** | WebSocket event streams with backpressure handling |
-| **API Compat** | OpenAI-compatible `/v1/chat/completions` + Ollama-compatible `/api/chat` endpoints with streaming |
-| **Fake Ollama** | Ollama-compatible API backed by the LLM router — any app speaking ollama:// accesses all providers |
-| **Local Server** | Lightweight Mistral HTTP + P2P forwarding server for dev machines (no heavy deps) |
-| **Observability** | Grafana, Prometheus, Loki, Tempo, OTEL, Langfuse, ClickHouse with distributed tracing |
+| -------- | ------- |
+| **LLM Providers** | 20+ providers -- Claude, OpenAI, Mistral, Codestral, Google, HuggingFace, Bedrock, Ollama, llama.cpp, CoreML, MLX, LiteLLM, Exo, vLLM |
+| **Agents** | 16 pre-built -- coder, analyst, kicad-designer, spice-expert, pcb-routing, Mistral Studio (4 real agent IDs), CLI (Vibe/Codex/Claude Code) |
+| **MCP** | Server (5 tools) + Client (KiCad x5, SPICEBridge 28 tools, FreeCAD, n8n, ERPNext) |
+| **A2A** | Agent-to-Agent protocol (spec v0.3) with task delegation and lifecycle states |
+| **RAG** | Qdrant hybrid search (dense+BM25+RRF), LLM reranking, CRAG fallback, SearXNG web search, bge-m3 embeddings |
+| **ML Router** | Softmax classifier (17 features) auto-selects best model per prompt |
+| **Fine-tuning** | 3-stage pipeline: CPT -> SFT -> RLVR. LoRA/QLoRA, DPO, SimPO, KTO, GRPO. 14 domain mini-models |
+| **Data Quality** | SOTA 2026 pipeline: SemDeDup, IFD scoring, multi-judge (3 LLMs), per-capability scoring |
+| **P2P Mesh** | DHT, PubSub, relay with NAT traversal and distributed task queue |
+| **Scheduler** | GPU-aware worker selection with predictive load balancing |
+| **API Compat** | OpenAI `/v1/chat/completions` + Ollama `/api/chat` + Xcode Intelligence |
+| **Observability** | Grafana, Prometheus, Loki, Tempo, OTEL, Langfuse, ClickHouse |
 
 ## Quick Start
 
 ```bash
-# Clone
 git clone https://github.com/electron-rare/mascarade.git
 cd mascarade
+cp .env.example .env   # add your API keys
 
-# Configure
-cp .env.example .env
-# Edit .env with your API keys
-
-# Start core services
+# Core services
 docker compose --profile core up -d
 
-# Start with observability
+# With observability stack
 docker compose --profile core --profile observability up -d
 
 # Health check
 ./scripts/mascarade-health.sh
-
-# TUI monitoring
-./scripts/mascarade-monitor.sh
 ```
+
+Default ports in this repository:
+
+- Core API: `8100`
+- Hono API exposed by Docker Compose: `3100` (`API_PORT` in `.env`)
+- Hono API process inside the container: `3000`
+
+For local API development outside Docker, `api/src/index.ts` defaults to `API_PORT=3100`.
+If you run legacy scripts that target `3000`, start API with `API_PORT=3000 npm run dev`.
+
+Any Ollama-compatible app (Continue.dev, Open WebUI, LM Studio) can connect directly -- Mascarade exposes a Fake Ollama API that routes to all 20+ providers.
+
+## Benchmark Results
+
+Codestral API judge, 130 prompts (100 standard + 30 adversarial):
+
+| Model | Size | Score /10 | Latency |
+| ----- | ---- | --------- | ------- |
+| **mascarade-emc** | 2.5 GB | **7.14** | 2.3s |
+| **mascarade-power** | 2.5 GB | **7.10** | 2.3s |
+| **mascarade-dsp** | 2.5 GB | **7.07** | 2.3s |
+| **mascarade-spice-v1** | 2.5 GB | **6.89** | 2.3s |
+| **mascarade-kicad-v1** | 2.5 GB | **6.82** | 2.3s |
+| qwen2.5-7b (base) | 4.7 GB | 6.89 | 9.5s |
+| phi2-ee (HF #1 EE model) | 1.7 GB | 2.72 | 1.5s |
+
+Mascarade fine-tunes outperform the top HuggingFace electronics model by **+125%** with **4x less latency** than the base model.
+
+## Fine-tuned Models
+
+Published on HuggingFace:
+
+- [clemsail/mascarade-kicad-v2-lora](https://huggingface.co/clemsail/mascarade-kicad-v2-lora) -- KiCad schematic and PCB design
+- [clemsail/mascarade-spice-v1-lora](https://huggingface.co/clemsail/mascarade-spice-v1-lora) -- SPICE circuit simulation
+- [clemsail/mascarade-kicad-dataset](https://huggingface.co/datasets/clemsail/mascarade-kicad-dataset) -- Training dataset
+
+14 domain mini-models trained (9 complete, 5 retraining on enriched data):
+
+| Model | Domain | Examples | Data Sources |
+| ----- | ------ | -------- | ------------ |
+| mascarade-spice-v3 | SPICE simulation | 13,723 | mascarade + symbench/spice-datasets + ngspice |
+| mascarade-verilog-v1 | Verilog/RTL | 26,532 | RTLCoder + VeriReason (GRPO) |
+| mascarade-emc-v2 | EMC/EMI compliance | 3,016 | mascarade original |
+| mascarade-ipc-v2 | IPC/JLCPCB standards | 2,251 | Codestral generated |
+| mascarade-dsp-v2 | DSP (ARM CMSIS) | 2,015 | mascarade + CMSIS-DSP + liquid-dsp |
+| mascarade-power-v2 | Power electronics | 1,967 | mascarade original |
+| mascarade-kicad-v4 | KiCad 10 design | 1,931 | Multi-provider grounded |
+| mascarade-embedded-v3 | Embedded systems | 1,669 | mascarade + Pico SDK + ch32fun RISC-V |
+| mascarade-analog-v2 | Analog/audio | 1,249 | Codestral generated |
+| mascarade-freecad-v1 | FreeCAD/3D CAD | 3,974 | mascarade original |
+| mascarade-platformio-v1 | PlatformIO/Arduino | 763 | mascarade original |
+| mascarade-missing-v2 | RF, safety, battery | 891 | Codestral generated |
+| mascarade-iot-v2 | IoT (ESP-IDF) | 385 | ESP-IDF examples (Apache 2.0) |
+| mascarade-stm32-v1 | STM32 HAL | 313 | mascarade original |
+
+## Datasets
+
+| Stage | Examples | Content |
+| ----- | -------- | ------- |
+| **CPT** (continual pre-training) | 492K | Verilog (390K), KiCad schematics (43K), semiconductor (59K) |
+| **SFT** (supervised fine-tuning) | 61K | 14 domains: SPICE, Verilog, KiCad, EMC, IPC, DSP, power, embedded, analog, FreeCAD, PlatformIO, IoT, RF, safety |
+| **Quality Sources** | 8.2K | Real code from ESP-IDF, CMSIS-DSP, liquid-dsp, Pico SDK, ngspice, ch32fun RISC-V, spice-datasets |
+| **Benchmark** | 130 | 100 standard + 30 adversarial electronics prompts |
+
+### Data Quality Pipeline (SOTA 2026)
+```text
+Sources (700K+) -> Format Audit -> Cross-Dedup (10K removed)
+    -> Hallucination Cleaning -> LLM Verification (devstral judge)
+    -> Semantic Dedup (bge-m3) -> IFD Scoring -> Multi-Judge (3 LLMs)
+    -> Per-Capability Scoring -> Curated Dataset (61K verified)
+```
+
+Based on: SemDeDup (arXiv 2303.09540), Cherry LLM IFD (arXiv 2308.12032), AlpaGasus (arXiv 2307.08701), SkillRater (arXiv 2602.11615).
+
+Data enriched from 8 verified open-source repos (MIT/Apache/BSD): espressif/esp-idf, ARM-software/CMSIS-DSP, jgaeddert/liquid-dsp, raspberrypi/pico-examples, cnlohr/ch32fun, symbench/spice-datasets, ngspice.
+
+## Fleet
+
+| Machine | Role | GPU |
+| ------- | ---- | --- |
+| **photon** | Production (core + API), 18 agents live | -- |
+| **KXKM-AI** | Fine-tuning, benchmarks, 15+ Ollama models | RTX 4090 24GB |
+| **Tower** | General compute, code sync | Quadro P2000 5GB |
+| **grosmac** | Development (Apple Silicon) | -- |
+| **Cils** | macOS Intel node | -- |
+
+P2P mesh connects all machines with HMAC-authenticated cluster communication.
 
 ## Project Structure
 
-```
+```raw
 mascarade/
-├── core/           # Python FastAPI core (LLM routing, agents, P2P, finetune)
-├── api/            # Node.js API gateway (Hono, auth, rate limiting)
-├── web/            # React 19 operator cockpit
-├── deploy/         # Docker, observability configs, Dockerfiles
-├── finetune/       # Fine-tuning datasets, scripts, pipeline
-├── scripts/        # Ops scripts (monitor, health, deploy)
-├── skills/         # Skill documentation
-└── docs/           # Architecture docs, SOTA research, analysis
+  core/        Python FastAPI core (routing, agents, P2P, finetune, RAG)
+  api/         Node.js API gateway (Hono, auth, rate limiting)
+  web/         React 19 operator cockpit
+  clients/     Native clients (macOS Swift app, Docker bridge)
+  finetune/    Datasets, training scripts, pipeline configs
+  deploy/      Docker, observability, Dockerfiles
+  scripts/     Ops scripts (monitor, health, deploy)
+  docs/        Architecture docs, SOTA research
 ```
-
-## API
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `GET`  | `/api/v1/models` | OpenAI-compatible model catalog |
-| `POST` | `/v1/chat/completions` | OpenAI-compatible chat completions |
-| `GET`  | `/ollama/api/tags` | Ollama-compatible model list |
-| `POST` | `/ollama/api/chat` | Ollama-compatible chat (stream + sync) |
-| `POST` | `/ollama/api/generate` | Ollama-compatible text generation |
-| `POST` | `/api/agents` | Agent CRUD |
-| `GET/POST` | `/api/cli-agents/*` | Status and execution for Vibe, Codex, Claude Code |
-| `POST` | `/api/orchestrate` | Multi-agent orchestration |
-| `GET`  | `/.well-known/agent.json` | A2A Agent Card |
-| `WS`   | `/ws/traces` | Real-time trace stream |
-
-## Configuration
-
-Key environment variables (see `.env.example` for full list):
-
-```bash
-# Provider API keys
-ANTHROPIC_API_KEY=
-OPENAI_API_KEY=
-GOOGLE_API_KEY=
-MISTRAL_API_KEY=
-
-# Defaults
-DEFAULT_PROVIDER=anthropic
-DEFAULT_MODEL=claude-sonnet-4-20250514
-
-# Features
-P2P_ENABLED=true
-CLUSTER_ENABLED=true
-A2A_ENABLED=true
-
-# Fake Ollama API
-FAKE_OLLAMA_ENABLED=true
-P2P_PROVIDER_ENABLED=true
-```
-
-### Fake Ollama (use any Ollama app with Mascarade)
-
-Any app that speaks the Ollama protocol can connect to Mascarade:
-
-```bash
-# List all available models (Mistral, Claude, OpenAI, etc.)
-curl http://localhost:8100/ollama/api/tags
-
-# Chat via Ollama-compatible API
-curl http://localhost:8100/ollama/api/chat -d '{
-  "model": "mistral:mistral-large-latest",
-  "messages": [{"role": "user", "content": "Hello"}],
-  "stream": false
-}'
-```
-
-**VSCode integration:**
-- **VSCode Chat**: Add Ollama provider pointing to `http://localhost:8100/ollama`
-- **Continue.dev**: Set `apiBase: http://localhost:8100/ollama` in `~/.continue/config.yaml`
-- **Cline**: Use OpenAI-compatible provider with base URL `http://localhost:8100/v1`
-
-### Local lightweight server (no Docker)
-
-For dev machines without Docker, use the standalone server:
-
-```bash
-PYTHONPATH=/path/to/mascarade/core \
-  MISTRAL_API_KEY=your-key \
-  P2P_PEERS=http://192.168.0.119:8100,http://192.168.0.120:8100 \
-  python3 -m uvicorn mascarade.local_server:app --host 0.0.0.0 --port 8100
-```
-
-Only requires `fastapi`, `httpx`, `uvicorn` (no heavy deps). Routes to Mistral via HTTP, forwards unknown models to P2P peers.
-
-## Documentation
-
-- [Architecture Analysis (2026-03-21)](docs/ANALYSIS_2026-03-21.md)
-- [SOTA Research (2026-03-21)](docs/RESEARCH_SOTA_2026-03-21.md)
-- [Feature Map](docs/MASCARADE_FEATURE_MAP_2026-03-11.md)
-- [Cluster & P2P Sequences](docs/CLUSTER_P2P_REMOTE_SEND_SEQUENCE_2026-03-11.md)
-- [API-Core-Provider Sequence](docs/API_CORE_PROVIDER_SEQUENCE_2026-03-11.md)
-- [Specifications Techniques](docs/SPECIFICATIONS_TECHNIQUES.md)
-- [Optimization Roadmap](docs/OPTIMIZATION_ROADMAP_2026.md)
-- [Agent Architecture](docs/AGENT_ARCHITECTURE_ADVANCED.md)
-- [VS Code Assistants Guide](docs/VSCODE_ASSISTANTS_2026-03-22.md)
-- [VS Code Cline + Cody MCP Guide](docs/VSCODE_CLINE_CODY_MCP_2026-03-22.md)
 
 ## Ecosystem
 
 | Repo | Role |
-|------|------|
-| **[mascarade](https://github.com/electron-rare/mascarade)** | Core orchestration engine, runtime, fine-tuning |
-| **[mascarade-datasets](https://github.com/electron-rare/mascarade-datasets)** | Fine-tuning datasets (13 domains, ~74k examples) |
-| **[mascarade-cockpit](https://github.com/electron-rare/mascarade-cockpit)** | SvelteKit ops console (Docker monitoring, metrics, energy) |
+| ---- | ---- |
+| [mascarade](https://github.com/electron-rare/mascarade) | Core orchestration engine |
+| [mascarade-datasets](https://github.com/electron-rare/mascarade-datasets) | Fine-tuning datasets (13 domains) |
+| [mascarade-cockpit](https://github.com/electron-rare/mascarade-cockpit) | SvelteKit ops console |
 
 ## License
 
 MIT
+
+<iframe src="https://github.com/sponsors/electron-rare/card" title="Sponsor electron-rare" height="225" width="600" style="border: 0;"></iframe>

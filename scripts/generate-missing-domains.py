@@ -214,7 +214,14 @@ CATEGORIES = [
 VARS = {
     "chip": ["SX1276", "SX1262", "CC1310", "CC1352", "nRF52840", "ESP32-C6", "RAK4631"],
     "freq": ["433", "868", "915", "2400", "5800"],
-    "type": ["PCB trace inverted-F", "chip antenna", "PIFA", "patch", "helical", "wire monopole"],
+    "type": [
+        "PCB trace inverted-F",
+        "chip antenna",
+        "PIFA",
+        "patch",
+        "helical",
+        "wire monopole",
+    ],
     "distance": ["1", "5", "10", "50"],
     "z_source": ["50", "75"],
     "z_load": ["50", "75", "300"],
@@ -229,12 +236,35 @@ VARS = {
     "standard": ["ISO 14443A", "ISO 15693", "NFC Forum Type 2/4"],
     "parameter": ["harmonic distortion", "output power", "spurious emissions"],
     "device": ["RF PA module", "antenna", "filter", "oscillator"],
-    "application": ["IoT sensor", "automotive radar", "industrial telemetry", "medical wearable"],
-    "board": ["Raspberry Pi CM4", "BeagleBone Black", "iMX8M", "STM32MP157", "Allwinner H3"],
+    "application": [
+        "IoT sensor",
+        "automotive radar",
+        "industrial telemetry",
+        "medical wearable",
+    ],
+    "board": [
+        "Raspberry Pi CM4",
+        "BeagleBone Black",
+        "iMX8M",
+        "STM32MP157",
+        "Allwinner H3",
+    ],
     "soc": ["STM32MP157", "iMX8M Mini", "Allwinner H616", "Rockchip RK3588", "AM335x"],
     "sbc": ["Raspberry Pi 4", "BeagleBone", "Orange Pi", "NVIDIA Jetson Nano"],
-    "peripheral": ["SPI NOR flash", "MIPI DSI display", "USB gadget", "Ethernet PHY", "CAN transceiver"],
-    "driver_type": ["character device", "platform driver", "I2C client", "SPI driver", "GPIO interrupt"],
+    "peripheral": [
+        "SPI NOR flash",
+        "MIPI DSI display",
+        "USB gadget",
+        "Ethernet PHY",
+        "CAN transceiver",
+    ],
+    "driver_type": [
+        "character device",
+        "platform driver",
+        "I2C client",
+        "SPI driver",
+        "GPIO interrupt",
+    ],
     "arch": ["aarch64", "armhf", "riscv64", "mips"],
     "display": ["HDMI", "MIPI DSI", "LVDS", "RGB parallel"],
     "codec": ["WM8960", "ES8388", "SGTL5000", "TLV320AIC3206"],
@@ -245,22 +275,46 @@ VARS = {
     "asil": ["A", "B", "C", "D"],
     "dal": ["A", "B", "C", "D", "E"],
     "class": ["Class A", "Class B", "Class C"],
-    "system": ["automotive braking", "industrial valve controller", "medical infusion pump"],
-    "failure_mode": ["sensor failure", "actuator stuck", "communication loss", "power loss"],
+    "system": [
+        "automotive braking",
+        "industrial valve controller",
+        "medical infusion pump",
+    ],
+    "failure_mode": [
+        "sensor failure",
+        "actuator stuck",
+        "communication loss",
+        "power loss",
+    ],
     "cells": ["2", "3", "4", "6", "8", "12"],
     "parallel": ["1", "2", "3"],
     "method": ["passive resistor", "active buck", "active flyback"],
     "chemistry": ["Li-ion (4.2V)", "LiFePO4 (3.6V)", "Li-polymer", "NiMH"],
     "panel": ["5", "10", "50", "100"],
     "mcu": ["STM32L476", "ESP32", "ATtiny1614", "nRF52840"],
-    "source": ["piezoelectric vibration", "thermoelectric", "RF ambient", "indoor solar"],
+    "source": [
+        "piezoelectric vibration",
+        "thermoelectric",
+        "RF ambient",
+        "indoor solar",
+    ],
     "duration": ["10", "30", "60", "300"],
     "package": ["SOT-23", "DPAK", "TO-220", "TO-247", "QFN-48", "TQFP-64"],
     "ic": ["LM7805", "LM317", "TPS54331", "LT3748", "STM32H743"],
     "temp": ["40", "60", "85", "105"],
     "component": ["power MOSFET", "voltage regulator", "LED driver", "motor driver"],
-    "vco_type": ["triangle core (CEM3340/AS3340)", "sawtooth core", "relaxation", "digital (DDS)"],
-    "filter_topology": ["state-variable", "Sallen-Key", "ladder (Moog)", "Steiner-Parker"],
+    "vco_type": [
+        "triangle core (CEM3340/AS3340)",
+        "sawtooth core",
+        "relaxation",
+        "digital (DDS)",
+    ],
+    "filter_topology": [
+        "state-variable",
+        "Sallen-Key",
+        "ladder (Moog)",
+        "Steiner-Parker",
+    ],
     "filter_ic": ["CEM3320/AS3320", "SSI2164", "LM13700 OTA", "V2164"],
     "vca_type": ["SSI2164 (log)", "THAT2180 (linear)", "LM13700 OTA", "discrete JFET"],
     "cv_range": ["-5V to +5V", "0V to +5V", "0V to +10V"],
@@ -297,22 +351,29 @@ Reply ONLY JSON: {{"question": "...", "answer": "..."}}"""
 
     try:
         with httpx.Client(timeout=30.0) as client:
-            resp = client.post(CODESTRAL_URL, headers={
-                "Authorization": f"Bearer {CODESTRAL_KEY}",
-                "Content-Type": "application/json",
-            }, json={
-                "model": "codestral-latest",
-                "messages": [{"role": "user", "content": prompt}],
-                "response_format": {"type": "json_object"},
-                "temperature": 0.7,
-                "max_tokens": 900,
-            })
+            resp = client.post(
+                CODESTRAL_URL,
+                headers={
+                    "Authorization": f"Bearer {CODESTRAL_KEY}",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "model": "codestral-latest",
+                    "messages": [{"role": "user", "content": prompt}],
+                    "response_format": {"type": "json_object"},
+                    "temperature": 0.7,
+                    "max_tokens": 900,
+                },
+            )
             resp.raise_for_status()
             data = json.loads(resp.json()["choices"][0]["message"]["content"])
             if "question" in data and "answer" in data:
                 return {
                     "conversations": [
-                        {"from": "system", "value": f"You are an expert electronics engineer specializing in {category_name}."},
+                        {
+                            "from": "system",
+                            "value": f"You are an expert electronics engineer specializing in {category_name}.",
+                        },
                         {"from": "human", "value": data["question"]},
                         {"from": "gpt", "value": data["answer"]},
                     ],
@@ -348,7 +409,9 @@ def main():
                 else:
                     errors += 1
                 if (i + 1) % 50 == 0:
-                    print(f"  [{i+1}/{cat['count']}] generated={cat_count} errors={errors}")
+                    print(
+                        f"  [{i+1}/{cat['count']}] generated={cat_count} errors={errors}"
+                    )
                 time.sleep(0.5)
             print(f"  DONE: {cat_count} pairs")
 

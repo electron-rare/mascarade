@@ -214,7 +214,6 @@ def hf_model_cached(model_id: str) -> bool:
     return False
 
 
-
 def parse_param_b(model_name: str | None) -> float | None:
     if not model_name:
         return None
@@ -235,12 +234,16 @@ def resolve_teacher_objective(objective: str | None) -> str:
     resolved = (objective or "balanced").strip().lower()
     if resolved not in TEACHER_OBJECTIVES:
         supported = ", ".join(TEACHER_OBJECTIVES)
-        raise SystemExit(f"Unsupported teacher objective {objective!r}. Use one of: {supported}")
+        raise SystemExit(
+            f"Unsupported teacher objective {objective!r}. Use one of: {supported}"
+        )
     return resolved
 
 
 def normalize_domains(domains: list[str] | None) -> list[str]:
-    return [str(domain).strip().lower() for domain in (domains or []) if str(domain).strip()]
+    return [
+        str(domain).strip().lower() for domain in (domains or []) if str(domain).strip()
+    ]
 
 
 def domains_prefer_devstral(domains: list[str] | None) -> bool:
@@ -259,7 +262,6 @@ def infer_known_vram_mb(gpu_name: str | None) -> int:
         if needle in upper:
             return total_vram_mb
     return 0
-
 
 
 def detect_machine_profile(*, requested_device: str = "auto") -> dict:
@@ -366,7 +368,6 @@ def detect_machine_profile(*, requested_device: str = "auto") -> dict:
     }
 
 
-
 def resolve_requested_device(requested_device: str, machine_profile: dict) -> str:
     requested = (requested_device or "auto").strip().lower()
     if requested == "cpu":
@@ -379,8 +380,9 @@ def resolve_requested_device(requested_device: str, machine_profile: dict) -> st
 
 
 def gpu_runtime_available(machine_profile: dict) -> bool:
-    return bool(machine_profile.get("cuda_available") or machine_profile.get("gpu_present"))
-
+    return bool(
+        machine_profile.get("cuda_available") or machine_profile.get("gpu_present")
+    )
 
 
 def resolve_default_student_model(
@@ -393,8 +395,10 @@ def resolve_default_student_model(
     for candidate in CURRENT_STUDENT_CANDIDATES:
         if total_vram_mb >= int(candidate["min_vram_mb"]):
             return candidate["model"], str(candidate["reason"])
-    return fallback_model, "fallback student because no newer candidate fits the detected VRAM"
-
+    return (
+        fallback_model,
+        "fallback student because no newer candidate fits the detected VRAM",
+    )
 
 
 def infer_teacher_provider_from_model(model_name: str | None) -> str:
@@ -403,12 +407,10 @@ def infer_teacher_provider_from_model(model_name: str | None) -> str:
     return "ollama"
 
 
-
 def default_teacher_model(provider: str) -> str:
     if provider == "local-hf":
         return CURRENT_TEACHER_CANDIDATES[0]["model"]
     return "qwen2.5:14b"
-
 
 
 def probe_ollama(api_url: str | None = None) -> tuple[bool, str]:
@@ -425,7 +427,11 @@ def resolve_local_hf_teacher_runtime(
     model_name: str, machine_profile: dict
 ) -> tuple[str, bool, str]:
     if not gpu_runtime_available(machine_profile):
-        return "cpu", False, "CUDA runtime unavailable; keep the local-hf teacher on CPU"
+        return (
+            "cpu",
+            False,
+            "CUDA runtime unavailable; keep the local-hf teacher on CPU",
+        )
 
     normalized = normalize_model_name(model_name)
     if normalized in FULL_GPU_LOCAL_HF_TEACHERS:
@@ -453,7 +459,6 @@ def resolve_local_hf_teacher_runtime(
         True,
         "unknown or large local-hf teacher kept on device_map=auto by default",
     )
-
 
 
 def build_teacher_plan(
@@ -507,10 +512,9 @@ def teacher_candidate_order(
 ) -> tuple[str, ...]:
     resolved_objective = resolve_teacher_objective(objective)
     base_order = list(TEACHER_CANDIDATE_ORDERS[resolved_objective])
-    if (
-        machine_profile.get("hardware_class") == "gpu_24gb_plus"
-        and domains_prefer_devstral(domains)
-    ):
+    if machine_profile.get(
+        "hardware_class"
+    ) == "gpu_24gb_plus" and domains_prefer_devstral(domains):
         devstral_key = "local-hf:mistralai/Devstral-Small-2-24B-Instruct-2512"
         if devstral_key in base_order:
             base_order.remove(devstral_key)
@@ -522,7 +526,6 @@ def teacher_candidate_order(
                 insert_at = 2
             base_order.insert(insert_at, devstral_key)
     return tuple(base_order)
-
 
 
 def resolve_teacher_selection(
@@ -537,13 +540,17 @@ def resolve_teacher_selection(
     resolved_objective = resolve_teacher_objective(objective)
     considered: list[dict] = []
     constrained_provider = (
-        explicit_provider.strip() if explicit_provider and explicit_provider.strip() else None
+        explicit_provider.strip()
+        if explicit_provider and explicit_provider.strip()
+        else None
     )
     constrained_model = (
         explicit_model.strip() if explicit_model and explicit_model.strip() else None
     )
     if constrained_model is not None:
-        provider = constrained_provider or infer_teacher_provider_from_model(constrained_model)
+        provider = constrained_provider or infer_teacher_provider_from_model(
+            constrained_model
+        )
         model = constrained_model
         reason = f"manual override from CLI (teacher objective={resolved_objective})"
         return build_teacher_plan(
@@ -564,7 +571,10 @@ def resolve_teacher_selection(
         domains=domains,
     ):
         candidate = TEACHER_CANDIDATE_CATALOG[candidate_key]
-        if constrained_provider is not None and candidate["provider"] != constrained_provider:
+        if (
+            constrained_provider is not None
+            and candidate["provider"] != constrained_provider
+        ):
             continue
         record = {
             "provider": candidate["provider"],
@@ -648,7 +658,6 @@ def resolve_teacher_selection(
     )
 
 
-
 def resolve_autotune_plan(
     *,
     machine_profile: dict,
@@ -708,7 +717,9 @@ def resolve_autotune_plan(
         student_samples_source = "auto"
 
     if teacher_selection.get("gpu_active"):
-        reason = "teacher is scheduled on the local GPU; keep a balanced student profile"
+        reason = (
+            "teacher is scheduled on the local GPU; keep a balanced student profile"
+        )
     elif total_vram_mb >= 22000:
         reason = "24 GB class GPU detected; use the balanced high-VRAM student profile"
     elif total_vram_mb >= 12000:

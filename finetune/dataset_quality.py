@@ -47,7 +47,11 @@ def _percentile(values: list[int], q: float) -> int:
 
 
 def resolve_quality_mode(mode: str | None = None) -> str:
-    resolved = (mode or os.environ.get("MASCARADE_DATASET_QUALITY_MODE", "fail")).strip().lower()
+    resolved = (
+        (mode or os.environ.get("MASCARADE_DATASET_QUALITY_MODE", "fail"))
+        .strip()
+        .lower()
+    )
     return resolved if resolved in QUALITY_MODES else "fail"
 
 
@@ -68,9 +72,15 @@ class DatasetQualityThresholds:
     def from_env(cls) -> "DatasetQualityThresholds":
         return cls(
             min_rows_fail=_env_int("MASCARADE_DATASET_QUALITY_MIN_ROWS", 4),
-            recommended_rows_warn=_env_int("MASCARADE_DATASET_QUALITY_RECOMMENDED_ROWS", 8),
-            min_unique_users_fail=_env_int("MASCARADE_DATASET_QUALITY_MIN_UNIQUE_USERS", 4),
-            max_duplicate_ratio_fail=_env_float("MASCARADE_DATASET_QUALITY_MAX_DUP_RATIO", 0.10),
+            recommended_rows_warn=_env_int(
+                "MASCARADE_DATASET_QUALITY_RECOMMENDED_ROWS", 8
+            ),
+            min_unique_users_fail=_env_int(
+                "MASCARADE_DATASET_QUALITY_MIN_UNIQUE_USERS", 4
+            ),
+            max_duplicate_ratio_fail=_env_float(
+                "MASCARADE_DATASET_QUALITY_MAX_DUP_RATIO", 0.10
+            ),
             max_repeated_pair_ratio_fail=_env_float(
                 "MASCARADE_DATASET_QUALITY_MAX_REPEATED_PAIR_RATIO", 0.10
             ),
@@ -109,7 +119,9 @@ def analyze_dataset_quality(
 
     for row in rows:
         messages = row_messages(row)
-        system = next((m["content"] for m in messages if m["role"] == "system"), "").strip()
+        system = next(
+            (m["content"] for m in messages if m["role"] == "system"), ""
+        ).strip()
         user = next((m["content"] for m in messages if m["role"] == "user"), "").strip()
         assistant = next(
             (m["content"] for m in reversed(messages) if m["role"] == "assistant"),
@@ -122,7 +134,9 @@ def analyze_dataset_quality(
         assistant_lengths.append(len(assistant))
         if len(assistant) < resolved_thresholds.short_assistant_threshold:
             short_assistant_rows += 1
-        duplicate_pairs[(user, assistant)] = duplicate_pairs.get((user, assistant), 0) + 1
+        duplicate_pairs[(user, assistant)] = (
+            duplicate_pairs.get((user, assistant), 0) + 1
+        )
         fingerprints.append(fingerprint_row(row))
 
     row_count = len(rows)
@@ -140,7 +154,9 @@ def analyze_dataset_quality(
         "repeated_user_assistant_pairs": repeated_pairs,
         "repeated_pair_ratio": (repeated_pairs / row_count) if row_count else 0.0,
         "assistant_len_avg": (
-            sum(assistant_lengths) / len(assistant_lengths) if assistant_lengths else 0.0
+            sum(assistant_lengths) / len(assistant_lengths)
+            if assistant_lengths
+            else 0.0
         ),
         "assistant_len_p95": _percentile(assistant_lengths, 0.95),
         "assistant_len_max": max(assistant_lengths) if assistant_lengths else 0,
@@ -192,7 +208,10 @@ def evaluate_dataset_quality(
             f"{resolved_thresholds.max_duplicate_ratio_fail:.2f}"
         )
 
-    if metrics["repeated_pair_ratio"] > resolved_thresholds.max_repeated_pair_ratio_fail:
+    if (
+        metrics["repeated_pair_ratio"]
+        > resolved_thresholds.max_repeated_pair_ratio_fail
+    ):
         errors.append(
             f"too many repeated prompt/answer pairs: ratio={metrics['repeated_pair_ratio']:.2f} > "
             f"{resolved_thresholds.max_repeated_pair_ratio_fail:.2f}"
@@ -216,7 +235,10 @@ def evaluate_dataset_quality(
             f"{resolved_thresholds.max_assistant_avg_warn}"
         )
 
-    if metrics["short_assistant_ratio"] > resolved_thresholds.max_short_assistant_ratio_warn:
+    if (
+        metrics["short_assistant_ratio"]
+        > resolved_thresholds.max_short_assistant_ratio_warn
+    ):
         warnings.append(
             f"too many short assistant responses: ratio={metrics['short_assistant_ratio']:.2f} > "
             f"{resolved_thresholds.max_short_assistant_ratio_warn:.2f}"
@@ -228,8 +250,13 @@ def evaluate_dataset_quality(
             "persist ids in source JSONL for traceability"
         )
 
-    if metrics["unique_system_prompts"] <= 1 and metrics["row_count"] >= resolved_thresholds.min_rows_fail:
-        warnings.append("single system prompt across the dataset; style diversity is low")
+    if (
+        metrics["unique_system_prompts"] <= 1
+        and metrics["row_count"] >= resolved_thresholds.min_rows_fail
+    ):
+        warnings.append(
+            "single system prompt across the dataset; style diversity is low"
+        )
 
     would_fail = bool(errors)
     if resolved_mode == "off":
@@ -276,7 +303,5 @@ def enforce_dataset_quality(
         thresholds=thresholds,
     )
     if report["status"] == "failed":
-        raise DatasetQualityError(
-            f"{label}: {summarize_quality_report(report)}"
-        )
+        raise DatasetQualityError(f"{label}: {summarize_quality_report(report)}")
     return report

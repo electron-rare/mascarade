@@ -11,13 +11,10 @@ from mascarade.scheduler.scheduler import ScheduledRequest
 @pytest.mark.asyncio
 async def test_mlx_provider_initialization():
     """Test MLX provider initialization."""
-    with patch('mlx_lm.load') as mock_load:
+    with patch("mlx_lm.load") as mock_load:
         mock_load.return_value = (MagicMock(), MagicMock())
 
-        provider = MLXProvider(
-            model_path="test-model",
-            device="mps"
-        )
+        provider = MLXProvider(model_path="test-model", device="mps")
 
         await provider.initialize()
         mock_load.assert_called_once()
@@ -26,22 +23,18 @@ async def test_mlx_provider_initialization():
 @pytest.mark.asyncio
 async def test_mlx_provider_generate():
     """Test MLX provider generation."""
-    with patch('mlx_lm.load') as mock_load, \
-         patch('mlx_lm.generate') as mock_generate:
+    with patch("mlx_lm.load") as mock_load, patch("mlx_lm.generate") as mock_generate:
 
         mock_load.return_value = (MagicMock(), MagicMock())
         mock_generate.return_value = "test response"
 
-        provider = MLXProvider(
-            model_path="test-model",
-            device="mps"
-        )
+        provider = MLXProvider(model_path="test-model", device="mps")
 
         request = ScheduledRequest(
             request_id="req-1",
             model="test-model",
             messages=[{"role": "user", "content": "test"}],
-            max_tokens=100
+            max_tokens=100,
         )
 
         response = await provider.generate(request)
@@ -53,21 +46,17 @@ async def test_mlx_provider_generate():
 @pytest.mark.asyncio
 async def test_mlx_worker_processing():
     """Test MLX worker request processing."""
-    with patch('mlx_lm.load') as mock_load, \
-         patch('mlx_lm.generate') as mock_generate:
+    with patch("mlx_lm.load") as mock_load, patch("mlx_lm.generate") as mock_generate:
 
         mock_load.return_value = (MagicMock(), MagicMock())
         mock_generate.return_value = "test response"
 
-        worker = MLXWorker(
-            node_id="test-worker",
-            model_path="test-model"
-        )
+        worker = MLXWorker(node_id="test-worker", model_path="test-model")
 
         request = ScheduledRequest(
             request_id="req-1",
             model="test-model",
-            messages=[{"role": "user", "content": "test"}]
+            messages=[{"role": "user", "content": "test"}],
         )
         request.complete_callback = AsyncMock()
 
@@ -80,10 +69,7 @@ async def test_mlx_worker_processing():
 @pytest.mark.asyncio
 async def test_mlx_worker_status():
     """Test MLX worker status."""
-    worker = MLXWorker(
-        node_id="test-worker",
-        model_path="test-model"
-    )
+    worker = MLXWorker(node_id="test-worker", model_path="test-model")
 
     status = await worker.get_status()
 

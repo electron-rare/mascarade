@@ -26,10 +26,17 @@ class UnslothConfig:
     lora_r: int = 16
     lora_alpha: int = 16
     lora_dropout: float = 0.0
-    target_modules: list[str] = field(default_factory=lambda: [
-        "q_proj", "k_proj", "v_proj", "o_proj",
-        "gate_proj", "up_proj", "down_proj"
-    ])
+    target_modules: list[str] = field(
+        default_factory=lambda: [
+            "q_proj",
+            "k_proj",
+            "v_proj",
+            "o_proj",
+            "gate_proj",
+            "up_proj",
+            "down_proj",
+        ]
+    )
     use_gradient_checkpointing: bool = True
 
     # Training configuration
@@ -134,7 +141,6 @@ def get_config(model_key: str) -> UnslothConfig:
     if model_key not in UNSLOTH_MODEL_CONFIGS:
         available = ", ".join(UNSLOTH_MODEL_CONFIGS.keys())
         raise KeyError(
-            f"Unknown model key: {model_key}. "
-            f"Available models: {available}"
+            f"Unknown model key: {model_key}. " f"Available models: {available}"
         )
     return UNSLOTH_MODEL_CONFIGS[model_key]

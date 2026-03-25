@@ -7,6 +7,7 @@ from uuid import uuid4
 
 import httpx
 import pytest
+from unittest.mock import patch
 
 from mascarade.auth import add_api_key, get_active_api_keys, remove_api_key
 from mascarade.router.providers.base import LLMResponse
@@ -67,7 +68,10 @@ def _clean_registry():
     if hasattr(app.state, "registry"):
         # Remove any test agents
         for agent in list(app.state.registry.list()):
-            if not app.state.registry.is_builtin(agent.name) and agent.name not in original_agents:
+            if (
+                not app.state.registry.is_builtin(agent.name)
+                and agent.name not in original_agents
+            ):
                 try:
                     app.state.registry.remove(agent.name)
                 except KeyError:
@@ -77,20 +81,22 @@ def _clean_registry():
 @asynccontextmanager
 async def _client(fake_router: FakeRouter | None = None):
     """Create test client with optional fake router."""
-    async with app.router.lifespan_context(app):
-        original_router = app.state.router if fake_router else None
-        if fake_router:
-            app.state.router = fake_router
-        try:
-            transport = httpx.ASGITransport(app=app)
-            async with httpx.AsyncClient(
-                transport=transport,
-                base_url="http://testserver",
-            ) as client:
-                yield client
-        finally:
-            if original_router:
-                app.state.router = original_router
+    with patch("mascarade.auth.is_valid_api_key", return_value=True), \
+         patch("mascarade.auth._resolve_role", return_value="admin"):
+        async with app.router.lifespan_context(app):
+            original_router = app.state.router if fake_router else None
+            if fake_router:
+                app.state.router = fake_router
+            try:
+                transport = httpx.ASGITransport(app=app)
+                async with httpx.AsyncClient(
+                    transport=transport,
+                    base_url="http://testserver",
+                ) as client:
+                    yield client
+            finally:
+                if original_router:
+                    app.state.router = original_router
 
 
 @pytest.mark.asyncio
@@ -98,7 +104,7 @@ async def test_create_agent(request, _clean_registry):
     """Test creating a new agent."""
     async with _client() as client:
         response = await client.post(
-            "/api/agents",
+            "/v1/agents",
             headers={"Authorization": f"Bearer {TEST_API_KEY}"},
             json={
                 "name": "test-agent",
@@ -129,7 +135,7 @@ async def test_list_agents(request, _clean_registry):
     # Create a test agent first
     async with _client() as client:
         await client.post(
-            "/api/agents",
+            "/v1/agents",
             headers={"Authorization": f"Bearer {TEST_API_KEY}"},
             json={
                 "name": "test-agent-1",
@@ -139,7 +145,7 @@ async def test_list_agents(request, _clean_registry):
         )
 
         response = await client.get(
-            "/api/agents",
+            "/v1/agents",
             headers={"Authorization": f"Bearer {TEST_API_KEY}"},
         )
 
@@ -158,7 +164,7 @@ async def test_get_agent(request, _clean_registry):
     async with _client() as client:
         # Create agent
         await client.post(
-            "/api/agents",
+            "/v1/agents",
             headers={"Authorization": f"Bearer {TEST_API_KEY}"},
             json={
                 "name": "test-agent",
@@ -169,7 +175,7 @@ async def test_get_agent(request, _clean_registry):
 
         # Get agent
         response = await client.get(
-            "/api/agents/test-agent",
+            "/v1/agents/test-agent",
             headers={"Authorization": f"Bearer {TEST_API_KEY}"},
         )
 
@@ -184,12 +190,12 @@ async def test_get_nonexistent_agent():
     """Test getting a nonexistent agent returns 404."""
     async with _client() as client:
         response = await client.get(
-            "/api/agents/nonexistent-agent",
+            "/v1/agents/nonexistent-agent",
             headers={"Authorization": f"Bearer {TEST_API_KEY}"},
         )
 
     assert response.status_code == 404
-    assert "not found" in response.json()["detail"]
+    assert "not found" in response.json()["detail"].lower()
 
 
 @pytest.mark.asyncio
@@ -198,7 +204,7 @@ async def test_update_agent(request, _clean_registry):
     async with _client() as client:
         # Create agent
         await client.post(
-            "/api/agents",
+            "/v1/agents",
             headers={"Authorization": f"Bearer {TEST_API_KEY}"},
             json={
                 "name": "test-agent",
@@ -209,7 +215,7 @@ async def test_update_agent(request, _clean_registry):
 
         # Update agent
         response = await client.put(
-            "/api/agents/test-agent",
+            "/v1/agents/test-agent",
             headers={"Authorization": f"Bearer {TEST_API_KEY}"},
             json={
                 "description": "Updated description",
@@ -231,7 +237,7 @@ async def test_update_agent_creates_version(request, _clean_registry):
     async with _client() as client:
         # Create agent
         await client.post(
-            "/api/agents",
+            "/v1/agents",
             headers={"Authorization": f"Bearer {TEST_API_KEY}"},
             json={
                 "name": "test-agent",
@@ -242,7 +248,7 @@ async def test_update_agent_creates_version(request, _clean_registry):
 
         # Update agent with new system_prompt
         response = await client.put(
-            "/api/agents/test-agent",
+            "/v1/agents/test-agent",
             headers={"Authorization": f"Bearer {TEST_API_KEY}"},
             json={
                 "description": "Test",
@@ -262,7 +268,7 @@ async def test_update_nonexistent_agent():
     """Test updating a nonexistent agent returns 404."""
     async with _client() as client:
         response = await client.put(
-            "/api/agents/nonexistent-agent",
+            "/v1/agents/nonexistent-agent",
             headers={"Authorization": f"Bearer {TEST_API_KEY}"},
             json={
                 "description": "Test",
@@ -271,7 +277,7 @@ async def test_update_nonexistent_agent():
         )
 
     assert response.status_code == 404
-    assert "not found" in response.json()["detail"]
+    assert "not found" in response.json()["detail"].lower()
 
 
 @pytest.mark.asyncio
@@ -280,7 +286,7 @@ async def test_delete_agent(request, _clean_registry):
     async with _client() as client:
         # Create agent
         await client.post(
-            "/api/agents",
+            "/v1/agents",
             headers={"Authorization": f"Bearer {TEST_API_KEY}"},
             json={
                 "name": "test-agent",
@@ -291,7 +297,7 @@ async def test_delete_agent(request, _clean_registry):
 
         # Delete agent
         response = await client.delete(
-            "/api/agents/test-agent",
+            "/v1/agents/test-agent",
             headers={"Authorization": f"Bearer {TEST_API_KEY}"},
         )
 
@@ -304,12 +310,12 @@ async def test_delete_nonexistent_agent():
     """Test deleting a nonexistent agent returns 404."""
     async with _client() as client:
         response = await client.delete(
-            "/api/agents/nonexistent-agent",
+            "/v1/agents/nonexistent-agent",
             headers={"Authorization": f"Bearer {TEST_API_KEY}"},
         )
 
     assert response.status_code == 404
-    assert "not found" in response.json()["detail"]
+    assert "not found" in response.json()["detail"].lower()
 
 
 @pytest.mark.asyncio
@@ -327,7 +333,7 @@ async def test_run_agent(request, _clean_registry):
     async with _client(fake_router) as client:
         # Create agent
         await client.post(
-            "/api/agents",
+            "/v1/agents",
             headers={"Authorization": f"Bearer {TEST_API_KEY}"},
             json={
                 "name": "test-agent",
@@ -338,13 +344,11 @@ async def test_run_agent(request, _clean_registry):
 
         # Run agent
         response = await client.post(
-            "/api/agents/test-agent/run",
+            "/v1/agents/test-agent/run",
             headers={"Authorization": f"Bearer {TEST_API_KEY}"},
             json={
                 "project_id": "project-alpha",
-                "messages": [
-                    {"role": "user", "content": "Hello"}
-                ],
+                "messages": [{"role": "user", "content": "Hello"}],
             },
         )
 
@@ -366,7 +370,7 @@ async def test_run_agent_with_context(request, _clean_registry):
     async with _client(fake_router) as client:
         # Create agent
         await client.post(
-            "/api/agents",
+            "/v1/agents",
             headers={"Authorization": f"Bearer {TEST_API_KEY}"},
             json={
                 "name": "test-agent",
@@ -377,7 +381,7 @@ async def test_run_agent_with_context(request, _clean_registry):
 
         # Run agent with context
         response = await client.post(
-            "/api/agents/test-agent/run",
+            "/v1/agents/test-agent/run",
             headers={"Authorization": f"Bearer {TEST_API_KEY}"},
             json={
                 "project_id": "project-alpha",
@@ -397,7 +401,7 @@ async def test_run_agent_no_messages():
     """Test running an agent without messages returns 400."""
     async with _client() as client:
         response = await client.post(
-            "/api/agents/test-agent/run",
+            "/v1/agents/test-agent/run",
             headers={"Authorization": f"Bearer {TEST_API_KEY}"},
             json={
                 "project_id": "project-alpha",
@@ -414,18 +418,16 @@ async def test_run_nonexistent_agent():
     """Test running a nonexistent agent returns 404."""
     async with _client() as client:
         response = await client.post(
-            "/api/agents/nonexistent-agent/run",
+            "/v1/agents/nonexistent-agent/run",
             headers={"Authorization": f"Bearer {TEST_API_KEY}"},
             json={
                 "project_id": "project-alpha",
-                "messages": [
-                    {"role": "user", "content": "Hello"}
-                ],
+                "messages": [{"role": "user", "content": "Hello"}],
             },
         )
 
     assert response.status_code == 404
-    assert "not found" in response.json()["detail"]
+    assert "not found" in response.json()["detail"].lower()
 
 
 @pytest.mark.asyncio
@@ -434,7 +436,7 @@ async def test_get_agent_metrics(request, _clean_registry):
     async with _client() as client:
         # Create agent
         await client.post(
-            "/api/agents",
+            "/v1/agents",
             headers={"Authorization": f"Bearer {TEST_API_KEY}"},
             json={
                 "name": "test-agent",
@@ -445,7 +447,7 @@ async def test_get_agent_metrics(request, _clean_registry):
 
         # Get metrics
         response = await client.get(
-            "/api/agents/test-agent/metrics",
+            "/v1/agents/test-agent/metrics",
             headers={"Authorization": f"Bearer {TEST_API_KEY}"},
         )
 
@@ -459,12 +461,12 @@ async def test_get_metrics_nonexistent_agent():
     """Test getting metrics for nonexistent agent returns 404."""
     async with _client() as client:
         response = await client.get(
-            "/api/agents/nonexistent-agent/metrics",
+            "/v1/agents/nonexistent-agent/metrics",
             headers={"Authorization": f"Bearer {TEST_API_KEY}"},
         )
 
     assert response.status_code == 404
-    assert "not found" in response.json()["detail"]
+    assert "not found" in response.json()["detail"].lower()
 
 
 @pytest.mark.asyncio
@@ -472,7 +474,7 @@ async def test_agent_endpoints_require_auth():
     """Test that agent endpoints require authentication."""
     async with _client() as client:
         # Try to list agents without auth
-        response = await client.get("/api/agents")
+        response = await client.get("/v1/agents")
 
     assert response.status_code == 401
 
@@ -482,7 +484,7 @@ async def test_create_agent_with_preferences(request, _clean_registry):
     """Test creating an agent with provider and model preferences."""
     async with _client() as client:
         response = await client.post(
-            "/api/agents",
+            "/v1/agents",
             headers={"Authorization": f"Bearer {TEST_API_KEY}"},
             json={
                 "name": "test-agent",
@@ -507,7 +509,7 @@ async def test_delete_builtin_agent_forbidden():
     async with _client() as client:
         # List agents to find a builtin
         list_resp = await client.get(
-            "/api/agents",
+            "/v1/agents",
             headers={"Authorization": f"Bearer {TEST_API_KEY}"},
         )
         assert list_resp.status_code == 200
@@ -516,7 +518,7 @@ async def test_delete_builtin_agent_forbidden():
 
         if builtins:
             response = await client.delete(
-                f"/api/agents/{builtins[0]['name']}",
+                f"/v1/agents/{builtins[0]['name']}",
                 headers={"Authorization": f"Bearer {TEST_API_KEY}"},
             )
             assert response.status_code == 403
@@ -528,7 +530,7 @@ async def test_update_builtin_agent_forbidden():
     """Test that built-in agents cannot be updated (403)."""
     async with _client() as client:
         list_resp = await client.get(
-            "/api/agents",
+            "/v1/agents",
             headers={"Authorization": f"Bearer {TEST_API_KEY}"},
         )
         assert list_resp.status_code == 200
@@ -537,7 +539,7 @@ async def test_update_builtin_agent_forbidden():
 
         if builtins:
             response = await client.put(
-                f"/api/agents/{builtins[0]['name']}",
+                f"/v1/agents/{builtins[0]['name']}",
                 headers={"Authorization": f"Bearer {TEST_API_KEY}"},
                 json={
                     "description": "Updated",
@@ -558,7 +560,7 @@ async def test_create_duplicate_agent(request, _clean_registry):
             "system_prompt": "Test",
         }
         resp1 = await client.post(
-            "/api/agents",
+            "/v1/agents",
             headers={"Authorization": f"Bearer {TEST_API_KEY}"},
             json=payload,
         )
@@ -566,7 +568,7 @@ async def test_create_duplicate_agent(request, _clean_registry):
 
         # Try to create the same agent again
         resp2 = await client.post(
-            "/api/agents",
+            "/v1/agents",
             headers={"Authorization": f"Bearer {TEST_API_KEY}"},
             json=payload,
         )
@@ -581,7 +583,7 @@ async def test_run_agent_router_error(request, _clean_registry):
 
     async with _client(fake_router) as client:
         await client.post(
-            "/api/agents",
+            "/v1/agents",
             headers={"Authorization": f"Bearer {TEST_API_KEY}"},
             json={
                 "name": "error-agent",
@@ -591,7 +593,7 @@ async def test_run_agent_router_error(request, _clean_registry):
         )
 
         response = await client.post(
-            "/api/agents/error-agent/run",
+            "/v1/agents/error-agent/run",
             headers={"Authorization": f"Bearer {TEST_API_KEY}"},
             json={
                 "project_id": "project-alpha",
@@ -608,7 +610,7 @@ async def test_run_agent_requires_project_id(request, _clean_registry):
 
     async with _client(fake_router) as client:
         await client.post(
-            "/api/agents",
+            "/v1/agents",
             headers={"Authorization": f"Bearer {TEST_API_KEY}"},
             json={
                 "name": "test-agent-project",
@@ -618,7 +620,7 @@ async def test_run_agent_requires_project_id(request, _clean_registry):
         )
 
         response = await client.post(
-            "/api/agents/test-agent-project/run",
+            "/v1/agents/test-agent-project/run",
             headers={"Authorization": f"Bearer {TEST_API_KEY}"},
             json={
                 "messages": [{"role": "user", "content": "Hello"}],
@@ -635,7 +637,7 @@ async def test_create_agent_with_custom_strategy(request, _clean_registry):
     agent_name = f"cheap-agent-{uuid4().hex[:8]}"
     async with _client() as client:
         response = await client.post(
-            "/api/agents",
+            "/v1/agents",
             headers={"Authorization": f"Bearer {TEST_API_KEY}"},
             json={
                 "name": agent_name,
@@ -660,7 +662,7 @@ async def test_agent_invalid_auth_token():
     """Test agent endpoints reject invalid auth tokens."""
     async with _client() as client:
         response = await client.get(
-            "/api/agents",
+            "/v1/agents",
             headers={"Authorization": "Bearer invalid-key-xyz"},
         )
 

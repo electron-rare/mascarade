@@ -29,12 +29,14 @@ def _populate_registry() -> None:
         JSONValidationReward,
     )
 
-    _REWARD_REGISTRY.update({
-        "code_compilation": CodeCompilationReward,
-        "json_validation": JSONValidationReward,
-        "kicad_drc": KiCadDRCReward,
-        "composite": CompositeReward,
-    })
+    _REWARD_REGISTRY.update(
+        {
+            "code_compilation": CodeCompilationReward,
+            "json_validation": JSONValidationReward,
+            "kicad_drc": KiCadDRCReward,
+            "composite": CompositeReward,
+        }
+    )
 
 
 def get_reward_function(name: str) -> RewardFunction:
@@ -83,6 +85,7 @@ class RLVRConfig:
     lora_r: int = 16
     lora_alpha: int = 32
     lora_dropout: float = 0.05
+    use_dora: bool = True  # DoRA: Weight-Decomposed Low-Rank Adaptation (QDoRA when quantized)
 
 
 @dataclass
@@ -134,7 +137,9 @@ class RLVRTrainer:
             )
 
         # Resolve reward functions
-        self._reward_fns = [get_reward_function(name) for name in config.reward_functions]
+        self._reward_fns = [
+            get_reward_function(name) for name in config.reward_functions
+        ]
         logger.info(
             "RLVR: %d reward functions: %s",
             len(self._reward_fns),
@@ -180,7 +185,11 @@ class RLVRTrainer:
             reward_funcs=reward_fn,
         )
 
-        logger.info("RLVR: starting %s training on %s", config.loss_type.upper(), config.base_model)
+        logger.info(
+            "RLVR: starting %s training on %s",
+            config.loss_type.upper(),
+            config.base_model,
+        )
         trainer.train()
 
         # Save
@@ -255,7 +264,8 @@ class RLVRTrainer:
                     r=config.lora_r,
                     lora_alpha=config.lora_alpha,
                     lora_dropout=config.lora_dropout,
-                    target_modules=["q_proj", "v_proj"],
+                    target_modules=["all-linear"],
+                    use_dora=config.use_dora,
                     use_gradient_checkpointing="unsloth",
                 )
                 logger.info("RLVR: loaded model via Unsloth QLoRA (4-bit)")
@@ -293,12 +303,18 @@ class RLVRTrainer:
 
         reward_fns = self._reward_fns
 
-        def trl_reward(completions: list[list[dict]], prompts: list[str], **kwargs: Any) -> list[float]:
+        def trl_reward(
+            completions: list[list[dict]], prompts: list[str], **kwargs: Any
+        ) -> list[float]:
             scores: list[float] = []
             loop = asyncio.new_event_loop()
             try:
                 for completion_group, prompt in zip(completions, prompts, strict=False):
-                    text = completion_group[0].get("content", "") if completion_group else ""
+                    text = (
+                        completion_group[0].get("content", "")
+                        if completion_group
+                        else ""
+                    )
                     # Average score across all reward functions
                     fn_scores: list[float] = []
                     for fn in reward_fns:
@@ -327,7 +343,10 @@ class RLVRTrainer:
             logger.info("RLVR: llama-cli not found, skipping post-training reward eval")
             return 0.0
 
-        prompts = [row["prompt"] for row in dataset.select(range(min(sample_size, len(dataset))))]
+        prompts = [
+            row["prompt"]
+            for row in dataset.select(range(min(sample_size, len(dataset))))
+        ]
         total_score = 0.0
         count = 0
 
@@ -336,10 +355,14 @@ class RLVRTrainer:
                 result = subprocess.run(
                     [
                         "llama-cli",
-                        "--model", model_path,
-                        "--prompt", prompt,
-                        "--n-predict", "256",
-                        "--threads", "4",
+                        "--model",
+                        model_path,
+                        "--prompt",
+                        prompt,
+                        "--n-predict",
+                        "256",
+                        "--threads",
+                        "4",
                         "--no-display-prompt",
                     ],
                     capture_output=True,

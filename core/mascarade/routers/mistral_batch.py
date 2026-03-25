@@ -53,6 +53,7 @@ class BatchRequest(BaseModel):
 
 class BatchSubmitRequest(BaseModel):
     """Submit a batch of chat completion requests."""
+
     requests: list[BatchRequest] = Field(min_length=1, max_length=1000)
     model: str = Field(default="mistral-large-latest", max_length=100)
     endpoint: str = Field(default="/v1/chat/completions")
@@ -82,8 +83,14 @@ _PRESETS: dict[str, list[dict]] = {
                 "max_tokens": 256,
                 "temperature": 0.3,
                 "messages": [
-                    {"role": "system", "content": "You are a story planner. Create a concise outline for a short story."},
-                    {"role": "user", "content": "Create an outline for a 3-chapter mystery story set in a lighthouse. Include: premise, main character, and a brief summary of each chapter. Be concise — max 200 words."},
+                    {
+                        "role": "system",
+                        "content": "You are a story planner. Create a concise outline for a short story.",
+                    },
+                    {
+                        "role": "user",
+                        "content": "Create an outline for a 3-chapter mystery story set in a lighthouse. Include: premise, main character, and a brief summary of each chapter. Be concise — max 200 words.",
+                    },
                 ],
             },
         },
@@ -93,8 +100,14 @@ _PRESETS: dict[str, list[dict]] = {
                 "max_tokens": 512,
                 "temperature": 0.2,
                 "messages": [
-                    {"role": "system", "content": "You are a story structure assistant. Output valid JSON only, no markdown fences."},
-                    {"role": "user", "content": "Create a structured JSON for a 3-chapter mystery story set in a lighthouse. Keys: title, premise, protagonist (name, trait), chapters (array of {number, title, summary})."},
+                    {
+                        "role": "system",
+                        "content": "You are a story structure assistant. Output valid JSON only, no markdown fences.",
+                    },
+                    {
+                        "role": "user",
+                        "content": "Create a structured JSON for a 3-chapter mystery story set in a lighthouse. Keys: title, premise, protagonist (name, trait), chapters (array of {number, title, summary}).",
+                    },
                 ],
             },
         },
@@ -104,8 +117,14 @@ _PRESETS: dict[str, list[dict]] = {
                 "max_tokens": 256,
                 "temperature": 0.7,
                 "messages": [
-                    {"role": "system", "content": "You are a literary prose writer. Write vivid, engaging prose. Preserve meaning while elevating the language."},
-                    {"role": "user", "content": "Rewrite this opening paragraph into rich, literary prose:\n\n'The lighthouse keeper walked up the spiral stairs. The light was broken. He needed to fix it before the storm. The wind was getting stronger.'"},
+                    {
+                        "role": "system",
+                        "content": "You are a literary prose writer. Write vivid, engaging prose. Preserve meaning while elevating the language.",
+                    },
+                    {
+                        "role": "user",
+                        "content": "Rewrite this opening paragraph into rich, literary prose:\n\n'The lighthouse keeper walked up the spiral stairs. The light was broken. He needed to fix it before the storm. The wind was getting stronger.'",
+                    },
                 ],
             },
         },
@@ -115,8 +134,14 @@ _PRESETS: dict[str, list[dict]] = {
                 "max_tokens": 256,
                 "temperature": 0.2,
                 "messages": [
-                    {"role": "system", "content": "You are a quality reviewer for creative writing. Evaluate the prose below on: clarity (1-5), engagement (1-5), originality (1-5). Output JSON: {clarity: N, engagement: N, originality: N, verdict: 'pass'|'revise', notes: '...'}"},
-                    {"role": "user", "content": "Evaluate this prose:\n\nThe keeper climbed the spiral stairs as wind howled outside, each step a percussion against the stone, each gust a whispered threat. Above, the great lens sat dark and cold — a dead eye staring out to sea."},
+                    {
+                        "role": "system",
+                        "content": "You are a quality reviewer for creative writing. Evaluate the prose below on: clarity (1-5), engagement (1-5), originality (1-5). Output JSON: {clarity: N, engagement: N, originality: N, verdict: 'pass'|'revise', notes: '...'}",
+                    },
+                    {
+                        "role": "user",
+                        "content": "Evaluate this prose:\n\nThe keeper climbed the spiral stairs as wind howled outside, each step a percussion against the stone, each gust a whispered threat. Above, the great lens sat dark and cold — a dead eye staring out to sea.",
+                    },
                 ],
             },
         },
@@ -150,7 +175,9 @@ async def submit_batch(req: BatchSubmitRequest):
             metadata=req.metadata,
         )
     except Exception as exc:
-        raise HTTPException(status_code=502, detail=f"Mistral batch API error: {exc}") from exc
+        raise HTTPException(
+            status_code=502, detail=f"Mistral batch API error: {exc}"
+        ) from exc
 
     # Track locally
     _jobs[job.id] = {
@@ -195,7 +222,9 @@ async def submit_preset(preset_name: str, model: str = "mistral-large-latest"):
             metadata={"preset": preset_name},
         )
     except Exception as exc:
-        raise HTTPException(status_code=502, detail=f"Mistral batch API error: {exc}") from exc
+        raise HTTPException(
+            status_code=502, detail=f"Mistral batch API error: {exc}"
+        ) from exc
 
     _jobs[job.id] = {
         "model": model,
@@ -220,7 +249,9 @@ async def get_job_status(job_id: str):
     try:
         job = client.batch.jobs.get(job_id=job_id)
     except Exception as exc:
-        raise HTTPException(status_code=502, detail=f"Mistral API error: {exc}") from exc
+        raise HTTPException(
+            status_code=502, detail=f"Mistral API error: {exc}"
+        ) from exc
 
     return BatchJobResponse(
         job_id=job.id,
@@ -241,7 +272,9 @@ async def get_job_results(job_id: str):
     try:
         job = client.batch.jobs.get(job_id=job_id)
     except Exception as exc:
-        raise HTTPException(status_code=502, detail=f"Mistral API error: {exc}") from exc
+        raise HTTPException(
+            status_code=502, detail=f"Mistral API error: {exc}"
+        ) from exc
 
     if job.status != "SUCCESS":
         raise HTTPException(status_code=409, detail=f"Job not complete: {job.status}")
@@ -255,7 +288,9 @@ async def get_job_results(job_id: str):
         for chunk in content.stream:
             raw += chunk
     except Exception as exc:
-        raise HTTPException(status_code=502, detail=f"Failed to download results: {exc}") from exc
+        raise HTTPException(
+            status_code=502, detail=f"Failed to download results: {exc}"
+        ) from exc
 
     # Parse JSONL
     results = []
@@ -270,14 +305,16 @@ async def get_job_results(job_id: str):
         usage = body.get("usage", {})
         content_text = choices[0]["message"]["content"] if choices else ""
 
-        results.append({
-            "custom_id": cid,
-            "content": content_text,
-            "usage": {
-                "prompt_tokens": usage.get("prompt_tokens", 0),
-                "completion_tokens": usage.get("completion_tokens", 0),
-            },
-        })
+        results.append(
+            {
+                "custom_id": cid,
+                "content": content_text,
+                "usage": {
+                    "prompt_tokens": usage.get("prompt_tokens", 0),
+                    "completion_tokens": usage.get("completion_tokens", 0),
+                },
+            }
+        )
 
     return {
         "job_id": job_id,
@@ -294,7 +331,9 @@ async def cancel_job(job_id: str):
     try:
         job = client.batch.jobs.cancel(job_id=job_id)
     except Exception as exc:
-        raise HTTPException(status_code=502, detail=f"Mistral API error: {exc}") from exc
+        raise HTTPException(
+            status_code=502, detail=f"Mistral API error: {exc}"
+        ) from exc
 
     return {"job_id": job.id, "status": job.status}
 

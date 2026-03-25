@@ -179,7 +179,9 @@ class BenchmarkSuite:
         run_id = self._generate_run_id()
         start_time = datetime.now()
 
-        logger.info("Démarrage du benchmark suite pour tous les providers (run_id=%s)", run_id)
+        logger.info(
+            "Démarrage du benchmark suite pour tous les providers (run_id=%s)", run_id
+        )
 
         run = BenchmarkRun(
             run_id=run_id,
@@ -430,12 +432,16 @@ class BenchmarkSuite:
             entry = {
                 "provider": provider_name,
                 "avg_latency": stats.avg_latency,
-                "min_latency": stats.min_latency if stats.min_latency != float("inf") else 0,
+                "min_latency": (
+                    stats.min_latency if stats.min_latency != float("inf") else 0
+                ),
                 "max_latency": stats.max_latency,
                 "total_cost": stats.total_cost,
-                "success_rate": (stats.successful_runs / stats.total_runs * 100)
-                if stats.total_runs > 0
-                else 0,
+                "success_rate": (
+                    (stats.successful_runs / stats.total_runs * 100)
+                    if stats.total_runs > 0
+                    else 0
+                ),
                 "total_runs": stats.total_runs,
                 "successful_runs": stats.successful_runs,
             }

@@ -1,0 +1,49 @@
+version: "3.9"
+
+# Aperant Bridge — déploiement autonome sur Tower
+# Ce compose peut être placé dans le même projet que Aperant
+# ou déployé de façon indépendante.
+#
+# Usage:
+#   BRIDGE_API_KEY=ton-secret docker compose up -d
+#
+# Variables d'environnement:
+#   BRIDGE_API_KEY  — bearer token pour l'authentification (obligatoire en prod)
+#   SPECS_DIR       — chemin vers le dossier specs dans le conteneur
+#                     (mappé via le volume aperant-specs)
+#   PORT            — port d'écoute interne (3200 par défaut)
+
+services:
+  aperant-bridge:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: aperant-bridge:latest
+    container_name: aperant-bridge
+    restart: unless-stopped
+    ports:
+      - "3200:3200"
+    environment:
+      BRIDGE_API_KEY: ${BRIDGE_API_KEY:-}
+      SPECS_DIR: /workspace/.auto-claude/specs
+      PORT: "3200"
+    volumes:
+      # Monte le dossier de specs Aperant depuis l'hôte Tower.
+      # Ajuster le chemin gauche selon l'installation d'Aperant sur Tower.
+      - aperant-specs:/workspace/.auto-claude/specs
+    healthcheck:
+      test: ["CMD", "python", "-c",
+             "import urllib.request; urllib.request.urlopen('http://localhost:3200/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  aperant-specs:
+    # Volume nommé — à remplacer par un bind mount si Aperant est sur le même hôte:
+    # driver: local
+    # driver_opts:
+    #   type: none
+    #   device: /chemin/vers/aperant/.auto-claude/specs
+    #   o: bind

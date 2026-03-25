@@ -310,7 +310,10 @@ class IntentRouter:
                 resume_media_after_tts=media.playing,
             )
 
-        if any(token in normalized for token in ("suivant", "next", "station suivante", "piste suivante")):
+        if any(
+            token in normalized
+            for token in ("suivant", "next", "station suivante", "piste suivante")
+        ):
             return DeviceIntent(
                 type="next",
                 target="player",
@@ -320,7 +323,13 @@ class IntentRouter:
 
         if any(
             token in normalized
-            for token in ("precedent", "précédent", "previous", "station precedente", "station précédente")
+            for token in (
+                "precedent",
+                "précédent",
+                "previous",
+                "station precedente",
+                "station précédente",
+            )
         ):
             return DeviceIntent(
                 type="previous",
@@ -337,7 +346,9 @@ class IntentRouter:
                 resume_media_after_tts=False,
             )
 
-        if any(token in normalized for token in ("mode radio", "passe en radio", "radio")):
+        if any(
+            token in normalized for token in ("mode radio", "passe en radio", "radio")
+        ):
             return DeviceIntent(
                 type="switch_mode",
                 target="mode",
@@ -348,7 +359,13 @@ class IntentRouter:
 
         if any(
             token in normalized
-            for token in ("mode mp3", "mp3", "carte sd", "musique locale", "local files")
+            for token in (
+                "mode mp3",
+                "mp3",
+                "carte sd",
+                "musique locale",
+                "local files",
+            )
         ):
             return DeviceIntent(
                 type="switch_mode",
@@ -360,7 +377,14 @@ class IntentRouter:
 
         if any(
             token in normalized
-            for token in ("reprend", "reprends", "play", "continue", "resume", "relance")
+            for token in (
+                "reprend",
+                "reprends",
+                "play",
+                "continue",
+                "resume",
+                "relance",
+            )
         ):
             return DeviceIntent(
                 type="play",
@@ -469,10 +493,10 @@ class DeviceVoiceService:
             try:
                 audio_payload = await self._audio_bridge.synthesize(text=reply_text)
                 timings_ms["tts"] = _elapsed_ms(tts_started)
-                reply_id = self._reply_store.put(audio_payload, content_type="audio/wav")
-                reply_audio_url = (
-                    f"{request_base_url.rstrip('/')}/device/v1/voice/replies/{reply_id}.wav"
+                reply_id = self._reply_store.put(
+                    audio_payload, content_type="audio/wav"
                 )
+                reply_audio_url = f"{request_base_url.rstrip('/')}/device/v1/voice/replies/{reply_id}.wav"
             except Exception as exc:
                 tts_error = "tts_unavailable"
                 logger.warning("TTS failed for %s: %s", device_id, exc)

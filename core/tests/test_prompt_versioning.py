@@ -8,6 +8,7 @@ from pathlib import Path
 
 import httpx
 import pytest
+from unittest.mock import patch
 
 from mascarade.agents.base import Agent
 from mascarade.agents.prompt_versioning import (
@@ -369,7 +370,9 @@ def test_auto_version_on_prompt_change():
         assert len(agent.prompt_versions) == 2
         version2 = agent.prompt_versions[1]
         assert version2["version_number"] == 2
-        assert version2["content"] == "Updated prompt"  # Version stores the previous prompt
+        assert (
+            version2["content"] == "Updated prompt"
+        )  # Version stores the previous prompt
         assert version2["diff"] is not None  # Should have diff from previous
 
         # Save again without changing prompt - no new version
@@ -467,19 +470,23 @@ async def _test_client():
     # Use a temporary registry for tests to avoid state persistence
     with tempfile.TemporaryDirectory() as tmpdir:
         test_storage_path = Path(tmpdir) / "test_agents.json"
-        original_registry = app.state.registry if hasattr(app.state, "registry") else None
+        original_registry = (
+            app.state.registry if hasattr(app.state, "registry") else None
+        )
 
         try:
-            async with app.router.lifespan_context(app):
-                # Replace the registry with a clean one for testing
-                app.state.registry = AgentRegistry(storage_path=test_storage_path)
+            with patch("mascarade.auth.is_valid_api_key", return_value=True), \
+                 patch("mascarade.auth._resolve_role", return_value="admin"):
+                async with app.router.lifespan_context(app):
+                    # Replace the registry with a clean one for testing
+                    app.state.registry = AgentRegistry(storage_path=test_storage_path)
 
-                transport = httpx.ASGITransport(app=app)
-                async with httpx.AsyncClient(
-                    transport=transport,
-                    base_url="http://testserver",
-                ) as client:
-                    yield client
+                    transport = httpx.ASGITransport(app=app)
+                    async with httpx.AsyncClient(
+                        transport=transport,
+                        base_url="http://testserver",
+                    ) as client:
+                        yield client
         finally:
             # Restore original settings and registry
             settings.qdrant_url = original_qdrant
@@ -511,7 +518,7 @@ async def test_history_endpoint():
         app.state.registry.save()
 
         # Test GET /agents/{name}/prompts/history
-        response = await client.get("/agents/test-agent-history/prompts/history")
+        response = await client.get("/v1/agents/test-agent-history/prompts/history")
 
         assert response.status_code == 200
         data = response.json()
@@ -528,7 +535,7 @@ async def test_history_endpoint():
 async def test_history_endpoint_agent_not_found():
     """Test GET /agents/{name}/prompts/history with non-existent agent."""
     async with _test_client() as client:
-        response = await client.get("/agents/nonexistent/prompts/history")
+        response = await client.get("/v1/agents/nonexistent/prompts/history")
 
         assert response.status_code == 404
         assert "not found" in response.json()["detail"].lower()
@@ -548,7 +555,7 @@ async def test_history_endpoint_empty():
         app.state.registry.register(agent)
         app.state.registry.save()
 
-        response = await client.get("/agents/test-agent-empty/prompts/history")
+        response = await client.get("/v1/agents/test-agent-empty/prompts/history")
 
         assert response.status_code == 200
         data = response.json()
@@ -579,7 +586,7 @@ async def test_rollback_endpoint():
         app.state.registry.save()
 
         # Rollback to version 1
-        response = await client.post("/agents/test-agent-rollback/prompts/rollback/1")
+        response = await client.post("/v1/agents/test-agent-rollback/prompts/rollback/1")
 
         assert response.status_code == 200
         data = response.json()
@@ -603,7 +610,7 @@ async def test_rollback_endpoint():
 async def test_rollback_endpoint_agent_not_found():
     """Test POST /agents/{name}/prompts/rollback/{version} with non-existent agent."""
     async with _test_client() as client:
-        response = await client.post("/agents/nonexistent/prompts/rollback/1")
+        response = await client.post("/v1/agents/nonexistent/prompts/rollback/1")
 
         assert response.status_code == 404
         assert "not found" in response.json()["detail"].lower()
@@ -628,7 +635,7 @@ async def test_rollback_endpoint_invalid_version():
         app.state.registry.save()
 
         # Try to rollback to non-existent version
-        response = await client.post("/agents/test-agent-invalid/prompts/rollback/99")
+        response = await client.post("/v1/agents/test-agent-invalid/prompts/rollback/99")
 
         assert response.status_code == 400
         assert "Invalid version" in response.json()["detail"]
@@ -649,7 +656,7 @@ async def test_rollback_endpoint_version_zero():
         app.state.registry.save()
 
         # Try to rollback to version 0 (invalid)
-        response = await client.post("/agents/test-agent-zero/prompts/rollback/0")
+        response = await client.post("/v1/agents/test-agent-zero/prompts/rollback/0")
 
         assert response.status_code == 400
         assert "Invalid version" in response.json()["detail"]

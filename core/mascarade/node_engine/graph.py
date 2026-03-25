@@ -147,31 +147,37 @@ class Graph:
                 duplicates.add(nid)
             seen.add(nid)
         if duplicates:
-            errors.append({
-                'type': 'value_error',
-                'loc': ('nodes',),
-                'msg': f"Duplicate node IDs found: {', '.join(duplicates)}",
-                'input': ids,
-            })
+            errors.append(
+                {
+                    "type": "value_error",
+                    "loc": ("nodes",),
+                    "msg": f"Duplicate node IDs found: {', '.join(duplicates)}",
+                    "input": ids,
+                }
+            )
 
         # Check edge references
         node_ids = set(ids)
         for edge in self.edges:
             if isinstance(edge, Edge):
                 if edge.from_node not in node_ids:
-                    errors.append({
-                        'type': 'value_error',
-                        'loc': ('edges',),
-                        'msg': f"Edge references non-existent source node: {edge.from_node}",
-                        'input': edge.from_node,
-                    })
+                    errors.append(
+                        {
+                            "type": "value_error",
+                            "loc": ("edges",),
+                            "msg": f"Edge references non-existent source node: {edge.from_node}",
+                            "input": edge.from_node,
+                        }
+                    )
                 if edge.to_node not in node_ids:
-                    errors.append({
-                        'type': 'value_error',
-                        'loc': ('edges',),
-                        'msg': f"Edge references non-existent destination node: {edge.to_node}",
-                        'input': edge.to_node,
-                    })
+                    errors.append(
+                        {
+                            "type": "value_error",
+                            "loc": ("edges",),
+                            "msg": f"Edge references non-existent destination node: {edge.to_node}",
+                            "input": edge.to_node,
+                        }
+                    )
 
         # Detect cycles
         if not errors and self.edges:
@@ -198,24 +204,26 @@ class Graph:
             for nid in node_ids:
                 if nid not in visited:
                     if has_cycle(nid):
-                        errors.append({
-                            'type': 'value_error',
-                            'loc': ('edges',),
-                            'msg': "Graph contains a cycle — DAG constraint violated",
-                            'input': None,
-                        })
+                        errors.append(
+                            {
+                                "type": "value_error",
+                                "loc": ("edges",),
+                                "msg": "Graph contains a cycle — DAG constraint violated",
+                                "input": None,
+                            }
+                        )
                         break
 
         if errors:
             raise PydanticValidationError.from_exception_data(
-                title='Graph',
+                title="Graph",
                 line_errors=[
                     {
-                        'type': 'value_error',
-                        'loc': err.get('loc', ()),
-                        'msg': err['msg'],
-                        'input': err.get('input'),
-                        'ctx': {'error': ValueError(err['msg'])},
+                        "type": "value_error",
+                        "loc": err.get("loc", ()),
+                        "msg": err["msg"],
+                        "input": err.get("input"),
+                        "ctx": {"error": ValueError(err["msg"])},
                     }
                     for err in errors
                 ],
@@ -228,7 +236,7 @@ class Graph:
     def get_node(self, node_id: str) -> Any:
         """Get a node by ID."""
         for node in self.nodes:
-            if getattr(node, 'id', getattr(node, 'node_id', None)) == node_id:
+            if getattr(node, "id", getattr(node, "node_id", None)) == node_id:
                 return node
         return None
 
@@ -237,7 +245,9 @@ class Graph:
         result = []
         for edge in self.edges:
             # Handle both Edge (Pydantic: to_node) and GraphEdge (dataclass: target_node)
-            target = getattr(edge, 'to_node', None) or getattr(edge, 'target_node', None)
+            target = getattr(edge, "to_node", None) or getattr(
+                edge, "target_node", None
+            )
             if target == node_id:
                 result.append(edge)
         for conn in self.connections:
@@ -250,7 +260,9 @@ class Graph:
         result = []
         for edge in self.edges:
             # Handle both Edge (Pydantic: from_node) and GraphEdge (dataclass: source_node)
-            source = getattr(edge, 'from_node', None) or getattr(edge, 'source_node', None)
+            source = getattr(edge, "from_node", None) or getattr(
+                edge, "source_node", None
+            )
             if source == node_id:
                 result.append(edge)
         for conn in self.connections:
@@ -263,13 +275,13 @@ class Graph:
         in_degree: dict[str, int] = {}
         adjacency: dict[str, list[str]] = {}
         for node in self.nodes:
-            nid = getattr(node, 'id', getattr(node, 'node_id', ''))
+            nid = getattr(node, "id", getattr(node, "node_id", ""))
             in_degree[nid] = 0
             adjacency[nid] = []
 
         for edge in self.edges:
-            src = getattr(edge, 'from_node', None) or getattr(edge, 'source_node', '')
-            tgt = getattr(edge, 'to_node', None) or getattr(edge, 'target_node', '')
+            src = getattr(edge, "from_node", None) or getattr(edge, "source_node", "")
+            tgt = getattr(edge, "to_node", None) or getattr(edge, "target_node", "")
             adjacency[src].append(tgt)
             in_degree[tgt] += 1
         for conn in self.connections:
@@ -331,9 +343,7 @@ class Node(BaseModel):
         if not v or not v.strip():
             raise ValueError("Node type cannot be empty")
         if "." not in v:
-            raise ValueError(
-                "Node type must be fully qualified (domain.typename)"
-            )
+            raise ValueError("Node type must be fully qualified (domain.typename)")
         return v.strip()
 
     @property

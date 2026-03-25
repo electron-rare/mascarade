@@ -8,6 +8,7 @@ from pathlib import Path
 
 import httpx
 import pytest
+from unittest.mock import patch
 
 from mascarade.agents.base import Agent
 from mascarade.agents.skill import Skill
@@ -32,17 +33,25 @@ def _clean_api_keys():
 @asynccontextmanager
 async def _client():
     """Create test client with app lifespan, using temp storage for skills."""
-    async with app.router.lifespan_context(app):
-        # Override storage paths to avoid polluting real data
-        with tempfile.TemporaryDirectory() as tmpdir:
-            app.state.skill_registry._storage_path = Path(tmpdir) / "skills.json"
-            app.state.registry._storage_path = Path(tmpdir) / "agents.json"
-            transport = httpx.ASGITransport(app=app)
-            async with httpx.AsyncClient(
-                transport=transport,
-                base_url="http://testserver",
-            ) as client:
-                yield client
+    with patch("mascarade.auth.is_valid_api_key", return_value=True), \
+         patch("mascarade.auth._resolve_role", return_value="admin"):
+        async with app.router.lifespan_context(app):
+            # Override storage paths to avoid polluting real data
+            with tempfile.TemporaryDirectory() as tmpdir:
+                # Ensure skill_registry exists on app.state (server lifespan may not set it)
+                if not hasattr(app.state, "skill_registry"):
+                    skill_reg = SkillRegistry(storage_path=Path(tmpdir) / "skills.json")
+                    register_default_skills_v2(skill_reg)
+                    app.state.skill_registry = skill_reg
+                else:
+                    app.state.skill_registry._storage_path = Path(tmpdir) / "skills.json"
+                app.state.registry._storage_path = Path(tmpdir) / "agents.json"
+                transport = httpx.ASGITransport(app=app)
+                async with httpx.AsyncClient(
+                    transport=transport,
+                    base_url="http://testserver",
+                ) as client:
+                    yield client
 
 
 # --- SkillRegistry unit tests ---
@@ -77,7 +86,9 @@ def test_skill_registry_contains():
 
 def test_skill_registry_remove():
     reg = SkillRegistry(storage_path=None)
-    reg.register(Skill(name="rm", description="Remove me", category="text", instruction="RM"))
+    reg.register(
+        Skill(name="rm", description="Remove me", category="text", instruction="RM")
+    )
     reg.remove("rm")
     assert "rm" not in reg
 
@@ -94,7 +105,9 @@ def test_skill_registry_is_builtin():
         Skill(name="builtin", description="B", category="text", instruction="B"),
         builtin=True,
     )
-    reg.register(Skill(name="dynamic", description="D", category="text", instruction="D"))
+    reg.register(
+        Skill(name="dynamic", description="D", category="text", instruction="D")
+    )
     assert reg.is_builtin("builtin") is True
     assert reg.is_builtin("dynamic") is False
 
@@ -161,19 +174,23 @@ def test_register_default_skills_v2():
 
 def test_agent_enhanced_system_prompt():
     skill_reg = SkillRegistry(storage_path=None)
-    skill_reg.register(Skill(
-        name="code-review",
-        description="Code review",
-        category="code",
-        instruction="Always review code for security issues.",
-    ))
-    skill_reg.register(Skill(
-        name="disabled-skill",
-        description="Disabled",
-        category="text",
-        instruction="This should not appear.",
-        enabled=False,
-    ))
+    skill_reg.register(
+        Skill(
+            name="code-review",
+            description="Code review",
+            category="code",
+            instruction="Always review code for security issues.",
+        )
+    )
+    skill_reg.register(
+        Skill(
+            name="disabled-skill",
+            description="Disabled",
+            category="text",
+            instruction="This should not appear.",
+            enabled=False,
+        )
+    )
 
     agent = Agent(
         name="test-agent",
@@ -200,12 +217,15 @@ def test_agent_enhanced_prompt_no_skills():
 @pytest.mark.asyncio
 async def test_create_skill():
     async with _client() as client:
-        resp = await client.post("/api/skills", json={
-            "name": "my-skill",
-            "description": "A custom skill",
-            "category": "text",
-            "instruction": "Be concise.",
-        })
+        resp = await client.post(
+            "/v1/skills",
+            json={
+                "name": "my-skill",
+                "description": "A custom skill",
+                "category": "text",
+                "instruction": "Be concise.",
+            },
+        )
     assert resp.status_code == 200
     data = resp.json()
     assert data["name"] == "my-skill"
@@ -216,25 +236,31 @@ async def test_create_skill():
 @pytest.mark.asyncio
 async def test_create_duplicate_skill():
     async with _client() as client:
-        await client.post("/api/skills", json={
-            "name": "dup-skill",
-            "description": "First",
-            "category": "text",
-            "instruction": "First instruction.",
-        })
-        resp = await client.post("/api/skills", json={
-            "name": "dup-skill",
-            "description": "Second",
-            "category": "text",
-            "instruction": "Second instruction.",
-        })
+        await client.post(
+            "/v1/skills",
+            json={
+                "name": "dup-skill",
+                "description": "First",
+                "category": "text",
+                "instruction": "First instruction.",
+            },
+        )
+        resp = await client.post(
+            "/v1/skills",
+            json={
+                "name": "dup-skill",
+                "description": "Second",
+                "category": "text",
+                "instruction": "Second instruction.",
+            },
+        )
     assert resp.status_code == 409
 
 
 @pytest.mark.asyncio
 async def test_list_skills():
     async with _client() as client:
-        resp = await client.get("/api/skills")
+        resp = await client.get("/v1/skills")
     assert resp.status_code == 200
     data = resp.json()
     assert "skills" in data
@@ -247,7 +273,7 @@ async def test_list_skills():
 async def test_get_skill():
     async with _client() as client:
         # builtin "summarizer" should exist
-        resp = await client.get("/api/skills/summarizer")
+        resp = await client.get("/v1/skills/summarizer")
     assert resp.status_code == 200
     assert resp.json()["name"] == "summarizer"
     assert resp.json()["builtin"] is True
@@ -256,7 +282,7 @@ async def test_get_skill():
 @pytest.mark.asyncio
 async def test_get_skill_not_found():
     async with _client() as client:
-        resp = await client.get("/api/skills/nonexistent-skill")
+        resp = await client.get("/v1/skills/nonexistent-skill")
     assert resp.status_code == 404
 
 
@@ -264,17 +290,23 @@ async def test_get_skill_not_found():
 async def test_update_skill():
     async with _client() as client:
         # Create a dynamic skill first
-        await client.post("/api/skills", json={
-            "name": "updatable",
-            "description": "Original",
-            "category": "text",
-            "instruction": "Original instruction.",
-        })
-        resp = await client.put("/api/skills/updatable", json={
-            "description": "Updated",
-            "category": "code",
-            "instruction": "Updated instruction.",
-        })
+        await client.post(
+            "/v1/skills",
+            json={
+                "name": "updatable",
+                "description": "Original",
+                "category": "text",
+                "instruction": "Original instruction.",
+            },
+        )
+        resp = await client.put(
+            "/v1/skills/updatable",
+            json={
+                "description": "Updated",
+                "category": "code",
+                "instruction": "Updated instruction.",
+            },
+        )
     assert resp.status_code == 200
     assert resp.json()["description"] == "Updated"
     assert resp.json()["category"] == "code"
@@ -283,31 +315,37 @@ async def test_update_skill():
 @pytest.mark.asyncio
 async def test_update_builtin_skill_forbidden():
     async with _client() as client:
-        resp = await client.put("/api/skills/summarizer", json={
-            "description": "Hacked",
-            "category": "text",
-            "instruction": "Hacked instruction.",
-        })
+        resp = await client.put(
+            "/v1/skills/summarizer",
+            json={
+                "description": "Hacked",
+                "category": "text",
+                "instruction": "Hacked instruction.",
+            },
+        )
     assert resp.status_code == 403
 
 
 @pytest.mark.asyncio
 async def test_delete_skill():
     async with _client() as client:
-        await client.post("/api/skills", json={
-            "name": "deletable",
-            "description": "Delete me",
-            "category": "text",
-            "instruction": "Delete instruction.",
-        })
-        resp = await client.delete("/api/skills/deletable")
+        await client.post(
+            "/v1/skills",
+            json={
+                "name": "deletable",
+                "description": "Delete me",
+                "category": "text",
+                "instruction": "Delete instruction.",
+            },
+        )
+        resp = await client.delete("/v1/skills/deletable")
     assert resp.status_code == 200
 
 
 @pytest.mark.asyncio
 async def test_delete_builtin_skill_forbidden():
     async with _client() as client:
-        resp = await client.delete("/api/skills/summarizer")
+        resp = await client.delete("/v1/skills/summarizer")
     assert resp.status_code == 403
 
 
@@ -315,29 +353,32 @@ async def test_delete_builtin_skill_forbidden():
 async def test_assign_and_unassign_skill():
     async with _client() as client:
         # Create a dynamic skill
-        await client.post("/api/skills", json={
-            "name": "assignable",
-            "description": "Assignable skill",
-            "category": "text",
-            "instruction": "Be assignable.",
-        })
+        await client.post(
+            "/v1/skills",
+            json={
+                "name": "assignable",
+                "description": "Assignable skill",
+                "category": "text",
+                "instruction": "Be assignable.",
+            },
+        )
 
         # Assign to builtin agent "summarizer"
-        resp = await client.post("/api/skills/assignable/assign/summarizer")
+        resp = await client.post("/v1/skills/assignable/assign/summarizer")
         assert resp.status_code == 200
 
         # List agent skills
-        resp = await client.get("/api/agents/summarizer/skills")
+        resp = await client.get("/v1/agents/summarizer/skills")
         assert resp.status_code == 200
         skill_names = [s["name"] for s in resp.json()["skills"]]
         assert "assignable" in skill_names
 
         # Unassign
-        resp = await client.delete("/api/skills/assignable/assign/summarizer")
+        resp = await client.delete("/v1/skills/assignable/assign/summarizer")
         assert resp.status_code == 200
 
         # Verify removed
-        resp = await client.get("/api/agents/summarizer/skills")
+        resp = await client.get("/v1/agents/summarizer/skills")
         skill_names = [s["name"] for s in resp.json()["skills"]]
         assert "assignable" not in skill_names
 
@@ -345,41 +386,47 @@ async def test_assign_and_unassign_skill():
 @pytest.mark.asyncio
 async def test_assign_duplicate_skill():
     async with _client() as client:
-        await client.post("/api/skills", json={
-            "name": "dup-assign",
-            "description": "Dup",
-            "category": "text",
-            "instruction": "Dup.",
-        })
-        await client.post("/api/skills/dup-assign/assign/summarizer")
-        resp = await client.post("/api/skills/dup-assign/assign/summarizer")
+        await client.post(
+            "/v1/skills",
+            json={
+                "name": "dup-assign",
+                "description": "Dup",
+                "category": "text",
+                "instruction": "Dup.",
+            },
+        )
+        await client.post("/v1/skills/dup-assign/assign/summarizer")
+        resp = await client.post("/v1/skills/dup-assign/assign/summarizer")
     assert resp.status_code == 409
 
 
 @pytest.mark.asyncio
 async def test_assign_nonexistent_skill():
     async with _client() as client:
-        resp = await client.post("/api/skills/nonexistent/assign/summarizer")
+        resp = await client.post("/v1/skills/nonexistent/assign/summarizer")
     assert resp.status_code == 404
 
 
 @pytest.mark.asyncio
 async def test_assign_skill_to_nonexistent_agent():
     async with _client() as client:
-        await client.post("/api/skills", json={
-            "name": "orphan-skill",
-            "description": "Orphan",
-            "category": "text",
-            "instruction": "Orphan.",
-        })
-        resp = await client.post("/api/skills/orphan-skill/assign/nonexistent-agent")
+        await client.post(
+            "/v1/skills",
+            json={
+                "name": "orphan-skill",
+                "description": "Orphan",
+                "category": "text",
+                "instruction": "Orphan.",
+            },
+        )
+        resp = await client.post("/v1/skills/orphan-skill/assign/nonexistent-agent")
     assert resp.status_code == 404
 
 
 @pytest.mark.asyncio
 async def test_unassign_not_assigned():
     async with _client() as client:
-        resp = await client.delete("/api/skills/summarizer/assign/summarizer")
+        resp = await client.delete("/v1/skills/summarizer/assign/summarizer")
     assert resp.status_code == 404
 
 
@@ -387,7 +434,7 @@ async def test_unassign_not_assigned():
 async def test_list_agent_skills_empty():
     async with _client() as client:
         # Use "coder" agent which shouldn't have skills assigned by other tests
-        resp = await client.get("/api/agents/coder/skills")
+        resp = await client.get("/v1/agents/coder/skills")
     assert resp.status_code == 200
     assert resp.json()["skills"] == []
 
@@ -395,7 +442,7 @@ async def test_list_agent_skills_empty():
 @pytest.mark.asyncio
 async def test_list_agent_skills_nonexistent_agent():
     async with _client() as client:
-        resp = await client.get("/api/agents/nonexistent-agent/skills")
+        resp = await client.get("/v1/agents/nonexistent-agent/skills")
     assert resp.status_code == 404
 
 
@@ -403,21 +450,24 @@ async def test_list_agent_skills_nonexistent_agent():
 async def test_delete_skill_unassigns_from_agents():
     """Deleting a skill should remove it from all agents that have it assigned."""
     async with _client() as client:
-        await client.post("/api/skills", json={
-            "name": "cascade-delete",
-            "description": "Will be deleted",
-            "category": "text",
-            "instruction": "Cascade.",
-        })
-        await client.post("/api/skills/cascade-delete/assign/summarizer")
+        await client.post(
+            "/v1/skills",
+            json={
+                "name": "cascade-delete",
+                "description": "Will be deleted",
+                "category": "text",
+                "instruction": "Cascade.",
+            },
+        )
+        await client.post("/v1/skills/cascade-delete/assign/summarizer")
 
         # Verify assigned
-        resp = await client.get("/api/agents/summarizer/skills")
+        resp = await client.get("/v1/agents/summarizer/skills")
         assert any(s["name"] == "cascade-delete" for s in resp.json()["skills"])
 
         # Delete the skill
-        await client.delete("/api/skills/cascade-delete")
+        await client.delete("/v1/skills/cascade-delete")
 
         # Verify unassigned
-        resp = await client.get("/api/agents/summarizer/skills")
+        resp = await client.get("/v1/agents/summarizer/skills")
         assert all(s["name"] != "cascade-delete" for s in resp.json()["skills"])

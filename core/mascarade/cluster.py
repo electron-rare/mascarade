@@ -53,13 +53,19 @@ class _ClusterMdnsDiscoveryListener(ServiceListener):
     def __init__(self) -> None:
         self._services: set[str] = set()
 
-    def add_service(self, zc: Zeroconf, service_type: str, name: str) -> None:  # noqa: ARG002
+    def add_service(
+        self, zc: Zeroconf, service_type: str, name: str
+    ) -> None:  # noqa: ARG002
         self._services.add(name)
 
-    def remove_service(self, zc: Zeroconf, service_type: str, name: str) -> None:  # noqa: ARG002
+    def remove_service(
+        self, zc: Zeroconf, service_type: str, name: str
+    ) -> None:  # noqa: ARG002
         self._services.discard(name)
 
-    def update_service(self, zc: Zeroconf, service_type: str, name: str) -> None:  # noqa: ARG002
+    def update_service(
+        self, zc: Zeroconf, service_type: str, name: str
+    ) -> None:  # noqa: ARG002
         self._services.add(name)
 
     @property
@@ -256,7 +262,9 @@ def _cluster_url_allowed_when_insecure(parsed) -> bool:
         return True
     if not settings.cluster_require_tls:
         return True
-    if settings.cluster_allow_insecure_loopback and _is_loopback_host(parsed.hostname or ""):
+    if settings.cluster_allow_insecure_loopback and _is_loopback_host(
+        parsed.hostname or ""
+    ):
         return True
     return False
 
@@ -268,7 +276,10 @@ def advertised_base_url() -> str | None:
     host = settings.mesh_bind_host.strip()
     parsed = urlparse(f"{scheme}://{host}:{settings.core_port}")
     if not _cluster_url_allowed_when_insecure(parsed):
-        logger.warning("Cluster TLS required: refusing non-HTTPS advertised_base_url for host=%s", host)
+        logger.warning(
+            "Cluster TLS required: refusing non-HTTPS advertised_base_url for host=%s",
+            host,
+        )
         return None
     return f"{scheme}://{host}:{settings.core_port}"
 
@@ -299,7 +310,11 @@ def parse_cluster_peers(raw: str, *, node_id: str) -> list[ClusterPeer]:
             logger.warning("Ignoring invalid peer URL for %s: %s", peer_id, base_url)
             continue
         if not _cluster_url_allowed_when_insecure(parsed):
-            logger.warning("Ignoring insecure peer URL for %s while TLS is required: %s", peer_id, base_url)
+            logger.warning(
+                "Ignoring insecure peer URL for %s while TLS is required: %s",
+                peer_id,
+                base_url,
+            )
             continue
 
         peers.append(ClusterPeer(peer_id=peer_id, role=role, base_url=normalized_url))
@@ -333,8 +348,12 @@ class ClusterManager:
         self._agents_count_provider = agents_count_provider
         self._timeout_s = max(settings.cluster_request_timeout_ms, 500) / 1000
         self._http_client: httpx.AsyncClient | None = None
-        self._http_limits = httpx.Limits(max_connections=64, max_keepalive_connections=16)
-        self._peers = parse_cluster_peers(settings.cluster_peers, node_id=settings.node_id)
+        self._http_limits = httpx.Limits(
+            max_connections=64, max_keepalive_connections=16
+        )
+        self._peers = parse_cluster_peers(
+            settings.cluster_peers, node_id=settings.node_id
+        )
         self._mdns_peers: dict[str, ClusterPeer] = {}
         self._mdns_discovery_expiry = 0.0
         self._mdns_advertiser: Zeroconf | None = None
@@ -374,7 +393,9 @@ class ClusterManager:
                 node = MascaradeP2PNode(
                     listen_host=settings.p2p_listen_host,
                     listen_port=settings.p2p_listen_port,
-                    key_dir=settings.p2p_key_dir or settings.p2p_identity_key_path or None,
+                    key_dir=settings.p2p_key_dir
+                    or settings.p2p_identity_key_path
+                    or None,
                     bootstrap_peers=bootstrap,
                 )
                 await node.start()
@@ -443,7 +464,10 @@ class ClusterManager:
         if hasattr(self._p2p_node, "status"):
             info = self._p2p_node.status()
         else:
-            info = {"running": self._p2p_node.running, "peer_id": self._p2p_node.peer_id}
+            info = {
+                "running": self._p2p_node.running,
+                "peer_id": self._p2p_node.peer_id,
+            }
 
         info["backend"] = BACKEND
         return info
@@ -481,7 +505,10 @@ class ClusterManager:
         # libp2p backend: discovered_peers() → list[P2PPeer]
         if hasattr(node, "discovered_peers"):
             for p2p_peer in node.discovered_peers():
-                if p2p_peer.peer_id not in peers_by_id and p2p_peer.peer_id != settings.node_id:
+                if (
+                    p2p_peer.peer_id not in peers_by_id
+                    and p2p_peer.peer_id != settings.node_id
+                ):
                     if p2p_peer.base_url:
                         peers_by_id[p2p_peer.peer_id] = ClusterPeer(
                             peer_id=p2p_peer.peer_id,
@@ -492,7 +519,11 @@ class ClusterManager:
         # asyncio backend: capabilities.all_capabilities() → dict[str, PeerCapabilities]
         if hasattr(node, "capabilities"):
             for peer_id, caps in node.capabilities.all_capabilities().items():
-                if peer_id not in peers_by_id and peer_id != settings.node_id and caps.http_base_url:
+                if (
+                    peer_id not in peers_by_id
+                    and peer_id != settings.node_id
+                    and caps.http_base_url
+                ):
                     peers_by_id[peer_id] = ClusterPeer(
                         peer_id=peer_id,
                         role=caps.role or "general",
@@ -553,7 +584,9 @@ class ClusterManager:
 
     def _collect_known_peers(self) -> list[ClusterPeer]:
         peers_by_id: dict[str, ClusterPeer] = {}
-        for peer in parse_cluster_peers(settings.cluster_peers, node_id=settings.node_id):
+        for peer in parse_cluster_peers(
+            settings.cluster_peers, node_id=settings.node_id
+        ):
             peers_by_id[peer.peer_id] = peer
 
         for peer in self._mdns_peers.values():
@@ -626,7 +659,9 @@ class ClusterManager:
         service_name = self._mdns_service_name()
         ip_bytes, _ = _ip_from_host(host)
         if ip_bytes is None:
-            logger.warning("Cannot register mDNS service: invalid MESH_BIND_HOST=%s", host)
+            logger.warning(
+                "Cannot register mDNS service: invalid MESH_BIND_HOST=%s", host
+            )
             return
 
         properties = {
@@ -647,7 +682,9 @@ class ClusterManager:
             assert self._mdns_advertiser is not None
             assert self._mdns_service_info is not None
             self._mdns_advertiser.register_service(self._mdns_service_info)
-            logger.info("mDNS service advertised: name=%s type=%s", service_name, service_type)
+            logger.info(
+                "mDNS service advertised: name=%s type=%s", service_name, service_type
+            )
         except Exception as exc:
             self._mdns_advertiser = None
             self._mdns_service_info = None
@@ -676,7 +713,9 @@ class ClusterManager:
             self._mdns_peers = {peer.peer_id: peer for peer in discovered}
             self._mdns_discovery_expiry = time.monotonic() + self._mdns_discovery_ttl()
             return discovered
-        except Exception as exc:  # pragma: no cover - optional dependency/OS discovery failures
+        except (
+            Exception
+        ) as exc:  # pragma: no cover - optional dependency/OS discovery failures
             logger.warning("mDNS peer discovery failed: %s", exc)
             self._mdns_peers = {}
             return []
@@ -725,7 +764,9 @@ class ClusterManager:
         if parsed.scheme not in {"http", "https"} or not parsed.netloc:
             return None
         if not _cluster_url_allowed_when_insecure(parsed):
-            logger.warning("mDNS peer rejected: insecure URL while TLS required (%s)", base_url)
+            logger.warning(
+                "mDNS peer rejected: insecure URL while TLS required (%s)", base_url
+            )
             return None
         return ClusterPeer(peer_id=peer_id, role=role, base_url=base_url)
 
@@ -770,12 +811,23 @@ class ClusterManager:
             }
 
         if selection.peer_id is None:
-            raise HTTPException(status_code=500, detail="Cluster route selection failed")
+            raise HTTPException(
+                status_code=500, detail="Cluster route selection failed"
+            )
 
         peers = self._collect_known_peers()
-        peer = next((candidate for candidate in peers if candidate.peer_id == selection.peer_id), None)
+        peer = next(
+            (
+                candidate
+                for candidate in peers
+                if candidate.peer_id == selection.peer_id
+            ),
+            None,
+        )
         if peer is None:
-            raise HTTPException(status_code=404, detail=f"Unknown cluster peer: {selection.peer_id}")
+            raise HTTPException(
+                status_code=404, detail=f"Unknown cluster peer: {selection.peer_id}"
+            )
 
         logger.info("cluster forward send -> %s", peer.peer_id)
         started = time.perf_counter()
@@ -796,7 +848,9 @@ class ClusterManager:
             }
 
         # Fallback to HTTP forwarding (only if P2P unavailable/failed)
-        remote = await self._request_json(peer, "POST", "/v1/cluster/node/send", json=payload)
+        remote = await self._request_json(
+            peer, "POST", "/v1/cluster/node/send", json=payload
+        )
         latency_ms = int((time.perf_counter() - started) * 1000)
         logger.info("cluster HTTP forward <- %s (%d ms)", peer.peer_id, latency_ms)
         return {
@@ -821,9 +875,13 @@ class ClusterManager:
         await self._discover_mdns_peers()
         peers = self._collect_known_peers()
         if peer_id:
-            peer = next((candidate for candidate in peers if candidate.peer_id == peer_id), None)
+            peer = next(
+                (candidate for candidate in peers if candidate.peer_id == peer_id), None
+            )
             if peer is None:
-                raise HTTPException(status_code=404, detail=f"Unknown cluster peer: {peer_id}")
+                raise HTTPException(
+                    status_code=404, detail=f"Unknown cluster peer: {peer_id}"
+                )
             return ClusterRouteSelection(
                 selected_by="explicit-peer",
                 remote=True,
@@ -840,7 +898,11 @@ class ClusterManager:
         remote_candidates = [peer for peer in peer_statuses if peer.ok]
 
         if preferred_role:
-            if allow_local and local.role == preferred_role and self._identity_matches(local, provider=provider, model=model):
+            if (
+                allow_local
+                and local.role == preferred_role
+                and self._identity_matches(local, provider=provider, model=model)
+            ):
                 return ClusterRouteSelection(
                     selected_by="auto-local",
                     remote=False,
@@ -849,7 +911,9 @@ class ClusterManager:
                     role=local.role,
                     base_url=local.base_url,
                 )
-            remote_candidates = [peer for peer in remote_candidates if peer.role == preferred_role]
+            remote_candidates = [
+                peer for peer in remote_candidates if peer.role == preferred_role
+            ]
 
         matching_remote = [
             peer
@@ -857,7 +921,9 @@ class ClusterManager:
             if self._peer_matches(peer, provider=provider, model=model)
         ]
 
-        if allow_local and self._identity_matches(local, provider=provider, model=model):
+        if allow_local and self._identity_matches(
+            local, provider=provider, model=model
+        ):
             return ClusterRouteSelection(
                 selected_by="auto-local",
                 remote=False,
@@ -946,13 +1012,17 @@ class ClusterManager:
     async def _send_local(self, payload: dict[str, object]) -> dict[str, object]:
         messages = payload.get("messages")
         if not isinstance(messages, list):
-            raise HTTPException(status_code=400, detail="Cluster local send requires messages")
+            raise HTTPException(
+                status_code=400, detail="Cluster local send requires messages"
+            )
 
         try:
             response = await self._router.send(
                 messages,
                 strategy=payload.get("strategy", "routellm"),
-                routing_policy=self._coerce_optional_string(payload.get("routing_policy")),
+                routing_policy=self._coerce_optional_string(
+                    payload.get("routing_policy")
+                ),
                 provider=self._coerce_optional_string(payload.get("provider")),
                 model=self._coerce_optional_string(payload.get("model")),
                 system=self._coerce_optional_string(payload.get("system")),
@@ -963,7 +1033,9 @@ class ClusterManager:
                 knowledge_scope=str(payload.get("knowledge_scope", "project")),
             )
         except ValueError as exc:
-            raise HTTPException(status_code=400, detail="Invalid request parameters") from exc
+            raise HTTPException(
+                status_code=400, detail="Invalid request parameters"
+            ) from exc
 
         return {
             "content": response.content,
@@ -985,11 +1057,15 @@ class ClusterManager:
             if not isinstance(provider, str):
                 continue
             if isinstance(models, list):
-                mapped[provider] = [str(model) for model in models if isinstance(model, str)]
+                mapped[provider] = [
+                    str(model) for model in models if isinstance(model, str)
+                ]
         return mapped
 
     @staticmethod
-    def _identity_matches(identity: NodeIdentity, *, provider: str | None, model: str | None) -> bool:
+    def _identity_matches(
+        identity: NodeIdentity, *, provider: str | None, model: str | None
+    ) -> bool:
         if provider and provider not in identity.providers:
             return False
         if model:
@@ -999,7 +1075,9 @@ class ClusterManager:
         return True
 
     @staticmethod
-    def _peer_matches(peer: PeerStatus, *, provider: str | None, model: str | None) -> bool:
+    def _peer_matches(
+        peer: PeerStatus, *, provider: str | None, model: str | None
+    ) -> bool:
         peer_providers = peer.providers or []
         peer_models = peer.provider_models or {}
         if provider and provider not in peer_providers:
@@ -1024,11 +1102,16 @@ class ClusterManager:
         # (prevents auth bypass when key is accidentally empty)
         if not expected_token:
             if provided_token:
-                raise HTTPException(status_code=401, detail="Cluster auth not configured on this node")
-            logger.warning("P2P send handler: no cluster_shared_key configured, accepting unauthenticated request")
+                raise HTTPException(
+                    status_code=401, detail="Cluster auth not configured on this node"
+                )
+            logger.warning(
+                "P2P send handler: no cluster_shared_key configured, accepting unauthenticated request"
+            )
         else:
             if not provided_token or not hmac.compare_digest(
-                provided_token.encode(), expected_token.encode(),
+                provided_token.encode(),
+                expected_token.encode(),
             ):
                 raise HTTPException(status_code=401, detail="Invalid P2P cluster token")
         return await self._send_local(payload)
@@ -1055,7 +1138,9 @@ class ClusterManager:
         return peer_id
 
     async def _try_p2p_forward(
-        self, peer_id: str, payload: dict[str, object],
+        self,
+        peer_id: str,
+        payload: dict[str, object],
     ) -> dict[str, object] | None:
         """Try to forward via P2P transport. Returns None if P2P is unavailable."""
         if self._p2p_node is None:
@@ -1094,7 +1179,9 @@ class ClusterManager:
         url = f"{peer.base_url}{path}"
         parsed_url = urlparse(url)
         if not _cluster_url_allowed_when_insecure(parsed_url):
-            raise HTTPException(status_code=502, detail=f"Cluster peer requires HTTPS: {peer.peer_id}")
+            raise HTTPException(
+                status_code=502, detail=f"Cluster peer requires HTTPS: {peer.peer_id}"
+            )
         headers = {
             "Authorization": f"Bearer {settings.cluster_shared_key.strip()}",
             "X-Mascarade-Node-ID": settings.node_id,
@@ -1103,17 +1190,27 @@ class ClusterManager:
         try:
             response = await client.request(method, url, json=json, headers=headers)
         except httpx.TimeoutException as exc:
-            raise HTTPException(status_code=502, detail=f"Cluster peer timed out: {peer.peer_id}") from exc
+            raise HTTPException(
+                status_code=502, detail=f"Cluster peer timed out: {peer.peer_id}"
+            ) from exc
         except httpx.HTTPError as exc:
-            raise HTTPException(status_code=502, detail=f"Cluster peer unreachable: {peer.peer_id}") from exc
+            raise HTTPException(
+                status_code=502, detail=f"Cluster peer unreachable: {peer.peer_id}"
+            ) from exc
 
         if response.status_code in {401, 403}:
-            raise HTTPException(status_code=502, detail=f"Cluster auth failed for peer: {peer.peer_id}")
+            raise HTTPException(
+                status_code=502, detail=f"Cluster auth failed for peer: {peer.peer_id}"
+            )
         if not response.is_success:
             body = response.text.strip() or f"HTTP {response.status_code}"
-            raise HTTPException(status_code=502, detail=f"Cluster peer error {peer.peer_id}: {body}")
+            raise HTTPException(
+                status_code=502, detail=f"Cluster peer error {peer.peer_id}: {body}"
+            )
 
         parsed = response.json()
         if not isinstance(parsed, dict):
-            raise HTTPException(status_code=502, detail=f"Cluster peer invalid JSON: {peer.peer_id}")
+            raise HTTPException(
+                status_code=502, detail=f"Cluster peer invalid JSON: {peer.peer_id}"
+            )
         return parsed

@@ -42,15 +42,29 @@ _SCRIPT_DIR = str(Path(__file__).resolve().parent)
 if _SCRIPT_DIR not in sys.path:
     sys.path.insert(0, _SCRIPT_DIR)
 
-from dataset_quality import DatasetQualityError, enforce_dataset_quality, summarize_quality_report
+from dataset_quality import (
+    DatasetQualityError,
+    enforce_dataset_quality,
+    summarize_quality_report,
+)
 from llm_paths import configure_hf_env, hf_cache_roots, shared_model_cache_dir
 from runtime_compat import disable_broken_torchvision
 from sharegpt_utils import ensure_row_ids_with_stats, load_jsonl, validate_rows
 
 try:
-    from .ollama_runtime import OllamaRuntimeError, create_model, resolve_ollama_runtime, run_model
+    from .ollama_runtime import (
+        OllamaRuntimeError,
+        create_model,
+        resolve_ollama_runtime,
+        run_model,
+    )
 except ImportError:  # pragma: no cover - script execution path
-    from ollama_runtime import OllamaRuntimeError, create_model, resolve_ollama_runtime, run_model
+    from ollama_runtime import (
+        OllamaRuntimeError,
+        create_model,
+        resolve_ollama_runtime,
+        run_model,
+    )
 
 _RUNTIME_COMPAT_NOTE = disable_broken_torchvision()
 
@@ -96,7 +110,11 @@ LOCAL_QWEN25_7B = LOCAL_SHARED_MODEL_CACHE / "qwen2.5-7b"
 # Base models ranked by quality (pick first that fits in VRAM)
 # Local cache paths take priority
 BASE_MODELS = {
-    "qwen2.5-coder-7b": str(LOCAL_QWEN25_7B) if LOCAL_QWEN25_7B.exists() else "Qwen/Qwen2.5-Coder-7B-Instruct",
+    "qwen2.5-coder-7b": (
+        str(LOCAL_QWEN25_7B)
+        if LOCAL_QWEN25_7B.exists()
+        else "Qwen/Qwen2.5-Coder-7B-Instruct"
+    ),
     "qwen3-8b": "Qwen/Qwen3-8B",
     "qwen3-1.7b": "Qwen/Qwen3-1.7B",
     "deepseek-coder": "deepseek-ai/DeepSeek-Coder-V2-Lite-Instruct",
@@ -125,6 +143,7 @@ CHAT_TEMPLATES = {
         "asst": "Assistant: {}<|end▁of▁sentence|>",
     },
 }
+
 
 def resolve_local_hf_model_path(model_name: str) -> str:
     suffix = f"models--{model_name.replace('/', '--')}"
@@ -309,7 +328,7 @@ def step_train(
             "": "cuda:0",
             "model.embed_tokens": "cpu",
             "model.norm": "cpu",
-            "lm_head": "cpu"
+            "lm_head": "cpu",
         }
         model_kwargs = {
             "quantization_config": bnb_config,

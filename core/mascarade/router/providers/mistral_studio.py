@@ -7,6 +7,7 @@ import logging
 try:
     from mistralai.client import MistralClient
     from mistralai.models.chat_completion import ChatMessage
+
     MISTRAL_STUDIO_AVAILABLE = True
 except ImportError:
     MISTRAL_STUDIO_AVAILABLE = False
@@ -57,10 +58,7 @@ class MistralStudioProvider(LLMProvider):
             chat_messages.append(ChatMessage(role="system", content=system))
 
         for msg in messages:
-            chat_messages.append(ChatMessage(
-                role=msg["role"],
-                content=msg["content"]
-            ))
+            chat_messages.append(ChatMessage(role=msg["role"], content=msg["content"]))
 
         # Call Mistral Studio API
         response = self.client.chat(
@@ -98,10 +96,7 @@ class MistralStudioProvider(LLMProvider):
             chat_messages.append(ChatMessage(role="system", content=system))
 
         for msg in messages:
-            chat_messages.append(ChatMessage(
-                role=msg["role"],
-                content=msg["content"]
-            ))
+            chat_messages.append(ChatMessage(role=msg["role"], content=msg["content"]))
 
         # Stream from Mistral
         for chunk in self.client.chat_stream(

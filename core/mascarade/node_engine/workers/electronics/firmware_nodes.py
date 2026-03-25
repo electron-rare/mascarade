@@ -300,8 +300,7 @@ class CompileNode(BaseNode):
                 idf_py = "idf.py"
             except FileNotFoundError:
                 raise RuntimeError(
-                    "idf.py not found. "
-                    "Please install ESP-IDF and source export.sh."
+                    "idf.py not found. " "Please install ESP-IDF and source export.sh."
                 )
 
         build_log_lines = []
@@ -393,7 +392,8 @@ class CompileNode(BaseNode):
                 logger.error(f"Binary not found in {build_dir}")
                 return {
                     "firmware": None,
-                    "build_log": build_log + f"\n\nError: Binary not found in {build_dir}",
+                    "build_log": build_log
+                    + f"\n\nError: Binary not found in {build_dir}",
                     "success": False,
                 }
 
@@ -534,7 +534,8 @@ class CompileNode(BaseNode):
                 logger.error(f"Binary not found at {binary_path}")
                 return {
                     "firmware": None,
-                    "build_log": build_log + f"\n\nError: Binary not found at {binary_path}",
+                    "build_log": build_log
+                    + f"\n\nError: Binary not found at {binary_path}",
                     "success": False,
                 }
 

@@ -10,7 +10,9 @@ from mascarade.router.providers.ollama import OllamaProvider
 
 
 def test_ollama_provider_uses_configured_timeout(monkeypatch):
-    monkeypatch.setattr("mascarade.router.providers.ollama.settings.ollama_enabled", True)
+    monkeypatch.setattr(
+        "mascarade.router.providers.ollama.settings.ollama_enabled", True
+    )
     monkeypatch.setattr(
         "mascarade.router.providers.ollama.settings.ollama_base_url",
         "http://host.docker.internal:11435",
@@ -27,7 +29,9 @@ def test_ollama_provider_uses_configured_timeout(monkeypatch):
 
 
 def test_ollama_provider_send_timeout_is_explicit(monkeypatch):
-    monkeypatch.setattr("mascarade.router.providers.ollama.settings.ollama_enabled", True)
+    monkeypatch.setattr(
+        "mascarade.router.providers.ollama.settings.ollama_enabled", True
+    )
     monkeypatch.setattr(
         "mascarade.router.providers.ollama.settings.ollama_base_url",
         "http://host.docker.internal:11435",

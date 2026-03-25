@@ -19,17 +19,21 @@ MODELS = {
     "finetuned-mascarade-spice-v1": "mascarade-spice:latest",
 }
 
+
 def query_ollama(model: str, prompt: str, timeout: float = 120.0) -> dict:
     """Query Ollama and return response + metrics."""
     start = time.time()
     try:
         with httpx.Client(timeout=timeout) as client:
-            resp = client.post(f"{OLLAMA_URL}/api/generate", json={
-                "model": model,
-                "prompt": prompt,
-                "stream": False,
-                "options": {"temperature": 0.2, "num_predict": 512},
-            })
+            resp = client.post(
+                f"{OLLAMA_URL}/api/generate",
+                json={
+                    "model": model,
+                    "prompt": prompt,
+                    "stream": False,
+                    "options": {"temperature": 0.2, "num_predict": 512},
+                },
+            )
             resp.raise_for_status()
             data = resp.json()
         latency = time.time() - start
@@ -53,6 +57,7 @@ def query_ollama(model: str, prompt: str, timeout: float = 120.0) -> dict:
             "error": str(e),
         }
 
+
 def score_response(response: str, expected_keywords: list[str]) -> float:
     """Simple keyword-match scoring (0-1)."""
     if not response or not expected_keywords:
@@ -60,6 +65,7 @@ def score_response(response: str, expected_keywords: list[str]) -> float:
     response_lower = response.lower()
     matches = sum(1 for kw in expected_keywords if kw.lower() in response_lower)
     return round(matches / len(expected_keywords), 3)
+
 
 def main():
     # Load prompts
@@ -87,7 +93,9 @@ def main():
     # Filter to available models
     active_models = {}
     for label, model_name in MODELS.items():
-        if model_name in available or any(model_name.split(":")[0] in a for a in available):
+        if model_name in available or any(
+            model_name.split(":")[0] in a for a in available
+        ):
             active_models[label] = model_name
         else:
             print(f"  SKIP {label} ({model_name}) — not available")
@@ -110,15 +118,17 @@ def main():
             result = query_ollama(model_name, prompt_text)
             score = score_response(result["response"], expected)
 
-            model_results.append({
-                "prompt_id": prompt_data.get("id", i),
-                "domain": domain,
-                "score": score,
-                "latency_ms": result["latency_ms"],
-                "tokens": result["tokens"],
-                "tokens_per_sec": result["tokens_per_sec"],
-                "success": result["success"],
-            })
+            model_results.append(
+                {
+                    "prompt_id": prompt_data.get("id", i),
+                    "domain": domain,
+                    "score": score,
+                    "latency_ms": result["latency_ms"],
+                    "tokens": result["tokens"],
+                    "tokens_per_sec": result["tokens_per_sec"],
+                    "success": result["success"],
+                }
+            )
 
             total_score += score
             total_latency += result["latency_ms"]
@@ -126,7 +136,9 @@ def main():
 
             if (i + 1) % 10 == 0:
                 avg_score = total_score / (i + 1)
-                print(f"  [{i+1}/{len(prompts)}] avg_score={avg_score:.3f} avg_latency={total_latency/(i+1):.0f}ms")
+                print(
+                    f"  [{i+1}/{len(prompts)}] avg_score={avg_score:.3f} avg_latency={total_latency/(i+1):.0f}ms"
+                )
 
         n = len(prompts)
         summary = {
@@ -136,7 +148,9 @@ def main():
             "avg_score": round(total_score / n, 4) if n else 0,
             "avg_latency_ms": round(total_latency / n) if n else 0,
             "total_tokens": total_tokens,
-            "avg_tokens_per_sec": round(total_tokens / (total_latency / 1000)) if total_latency else 0,
+            "avg_tokens_per_sec": (
+                round(total_tokens / (total_latency / 1000)) if total_latency else 0
+            ),
         }
 
         # Domain breakdown
@@ -149,12 +163,17 @@ def main():
             domains[d]["total_score"] += r["score"]
             domains[d]["total_latency"] += r["latency_ms"]
         summary["domains"] = {
-            d: {"avg_score": round(v["total_score"] / v["count"], 4), "avg_latency_ms": round(v["total_latency"] / v["count"])}
+            d: {
+                "avg_score": round(v["total_score"] / v["count"], 4),
+                "avg_latency_ms": round(v["total_latency"] / v["count"]),
+            }
             for d, v in domains.items()
         }
 
         results[label] = {"summary": summary, "details": model_results}
-        print(f"  DONE: score={summary['avg_score']:.4f} latency={summary['avg_latency_ms']}ms tps={summary['avg_tokens_per_sec']}")
+        print(
+            f"  DONE: score={summary['avg_score']:.4f} latency={summary['avg_latency_ms']}ms tps={summary['avg_tokens_per_sec']}"
+        )
 
     # Save results
     with open(f"{OUTPUT_DIR}/benchmark_results.json", "w") as f:
@@ -185,6 +204,7 @@ def main():
     print("\n=== REPORT ===")
     print(report)
     print(f"\nResults saved to: {OUTPUT_DIR}/")
+
 
 if __name__ == "__main__":
     main()

@@ -35,7 +35,9 @@ async def _get_authenticated_user(request: Request) -> User:
     """
     auth_header = request.headers.get("Authorization", "")
     if not auth_header.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="Missing or invalid authorization header")
+        raise HTTPException(
+            status_code=401, detail="Missing or invalid authorization header"
+        )
     token = auth_header.removeprefix("Bearer ").strip()
 
     # Try full auth first
@@ -63,6 +65,7 @@ async def _get_authenticated_user(request: Request) -> User:
                     )
                     if u_row and u_row.get("is_active", True):
                         from datetime import datetime as dt
+
                         return User(
                             id=u_row["id"],
                             username=u_row["username"],
@@ -257,7 +260,11 @@ async def create_api_key(user_id: int, request: Request):
             "key_prefix": record["key_prefix"],
             "name": record["name"],
             "is_active": record["is_active"],
-            "created_at": record["created_at"].isoformat() if hasattr(record["created_at"], "isoformat") else str(record["created_at"]),
+            "created_at": (
+                record["created_at"].isoformat()
+                if hasattr(record["created_at"], "isoformat")
+                else str(record["created_at"])
+            ),
             "expires_at": record.get("expires_at"),
             "last_used_at": record.get("last_used_at"),
         }
@@ -281,16 +288,22 @@ async def list_api_keys(user_id: int, request: Request):
         )
         api_keys = []
         for r in records:
-            api_keys.append({
-                "id": r["id"],
-                "user_id": r["user_id"],
-                "key_prefix": r["key_prefix"],
-                "name": r["name"],
-                "is_active": r["is_active"],
-                "created_at": r["created_at"].isoformat() if hasattr(r["created_at"], "isoformat") else str(r["created_at"]),
-                "expires_at": r.get("expires_at"),
-                "last_used_at": r.get("last_used_at"),
-            })
+            api_keys.append(
+                {
+                    "id": r["id"],
+                    "user_id": r["user_id"],
+                    "key_prefix": r["key_prefix"],
+                    "name": r["name"],
+                    "is_active": r["is_active"],
+                    "created_at": (
+                        r["created_at"].isoformat()
+                        if hasattr(r["created_at"], "isoformat")
+                        else str(r["created_at"])
+                    ),
+                    "expires_at": r.get("expires_at"),
+                    "last_used_at": r.get("last_used_at"),
+                }
+            )
         return {"api_keys": api_keys}
 
 
@@ -309,7 +322,10 @@ async def revoke_api_key(user_id: int, key_id: int, request: Request):
             raise HTTPException(status_code=404, detail="API key not found")
 
         await conn.execute("DELETE FROM api_keys WHERE id = $1", key_id)
-        return {"status": "ok", "message": f"API key '{existing['name']}' revoked successfully"}
+        return {
+            "status": "ok",
+            "message": f"API key '{existing['name']}' revoked successfully",
+        }
 
 
 # --- Rate Limits (admin only) ---
@@ -327,9 +343,7 @@ async def update_rate_limit(user_id: int, request: Request):
         )
         if existing is None:
             # Fallback query for broader compatibility
-            existing = await conn.fetchrow(
-                "SELECT * FROM users WHERE id = $1", user_id
-            )
+            existing = await conn.fetchrow("SELECT * FROM users WHERE id = $1", user_id)
         if not existing:
             raise HTTPException(status_code=404, detail="User not found")
 
@@ -364,9 +378,7 @@ async def get_usage_stats(request: Request):
     pool = auth_module.get_db_pool()
     async with pool.acquire() as conn:
         # Get distinct users with usage
-        user_rows = await conn.fetch(
-            "SELECT DISTINCT user_id FROM usage_records"
-        )
+        user_rows = await conn.fetch("SELECT DISTINCT user_id FROM usage_records")
 
         stats = []
         for u_row in user_rows:
@@ -393,14 +405,16 @@ async def get_usage_stats(request: Request):
                 uid,
             )
 
-            stats.append({
-                "user_id": uid,
-                "total_requests": agg["total_requests"] if agg else 0,
-                "total_tokens": agg["total_tokens"] if agg else 0,
-                "total_cost": agg["total_cost"] if agg else 0.0,
-                "providers": [dict(p) for p in providers],
-                "models": [dict(m) for m in models],
-            })
+            stats.append(
+                {
+                    "user_id": uid,
+                    "total_requests": agg["total_requests"] if agg else 0,
+                    "total_tokens": agg["total_tokens"] if agg else 0,
+                    "total_cost": agg["total_cost"] if agg else 0.0,
+                    "providers": [dict(p) for p in providers],
+                    "models": [dict(m) for m in models],
+                }
+            )
 
         return {"stats": stats}
 
@@ -442,10 +456,7 @@ async def list_providers_view(request: Request):
     # Return provider list from the app state router
     try:
         app_router = request.app.state.router
-        return [
-            {"name": name, "status": "active"}
-            for name in app_router._providers
-        ]
+        return [{"name": name, "status": "active"} for name in app_router._providers]
     except Exception:
         return []
 
@@ -494,11 +505,14 @@ async def list_legacy_api_keys(request: Request):
     # Try full DB auth first
     auth_header = request.headers.get("Authorization", "")
     if not auth_header.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="Missing or invalid authorization header")
+        raise HTTPException(
+            status_code=401, detail="Missing or invalid authorization header"
+        )
     token = auth_header.removeprefix("Bearer ").strip()
 
     # Check legacy in-memory keys first
     from mascarade.auth import get_active_api_keys, is_valid_api_key
+
     if is_valid_api_key(token):
         pool = auth_module.get_db_pool()
         if pool is None:
@@ -549,7 +563,9 @@ async def send_message(request: Request):
     """Send a message to LLM (requires write access, not read_only)."""
     user = await _get_authenticated_user(request)
     if user.role_id == 3:  # read_only
-        raise HTTPException(status_code=403, detail="Read-only users cannot make LLM requests")
+        raise HTTPException(
+            status_code=403, detail="Read-only users cannot make LLM requests"
+        )
 
     body = await request.json()
     messages = body.get("messages", [])
@@ -568,6 +584,7 @@ async def send_message(request: Request):
     app_router = request.app.state.router
 
     from mascarade.router.router import Strategy
+
     strategy_enum = Strategy(strategy) if isinstance(strategy, str) else strategy
 
     response = await app_router.send(

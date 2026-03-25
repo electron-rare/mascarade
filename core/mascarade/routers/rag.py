@@ -90,7 +90,9 @@ def _get_pipeline(request: Request) -> RAGPipeline:
         raise HTTPException(status_code=503, detail="LLM router not initialised")
     embeddings = EmbeddingProvider()
     vectorstore = QdrantVectorStore()
-    return RAGPipeline(router=llm_router, vectorstore=vectorstore, embeddings=embeddings)
+    return RAGPipeline(
+        router=llm_router, vectorstore=vectorstore, embeddings=embeddings
+    )
 
 
 # ---------------------------------------------------------------------------

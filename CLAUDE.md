@@ -18,7 +18,7 @@
 
 ## Docker
 - `docker compose up` from project root
-- Core service on port 8100, API on port 3000
+- Core service on port 8100, API on port 3100
 
 ## Key patterns
 - All LLM providers implement `LLMProvider` (core/mascarade/router/providers/base.py)

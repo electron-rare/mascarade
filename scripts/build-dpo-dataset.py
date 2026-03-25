@@ -72,6 +72,7 @@ OLLAMA_GENERATE_OPTS = {
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def find_latest_judge_results() -> Path | None:
     """Find the most recent judge-codestral-*/judge_results.json."""
     candidates = sorted(
@@ -148,6 +149,7 @@ def query_ollama(model: str, prompt: str, timeout: float = 180.0) -> str:
 # Core logic
 # ---------------------------------------------------------------------------
 
+
 def build_prompt_score_map(
     judge_results: dict,
     prompts: list[dict],
@@ -199,14 +201,16 @@ def select_dpo_pairs(
         if gap < min_gap:
             continue
 
-        pairs.append({
-            "prompt_id": pid,
-            "chosen_label": best_label,
-            "rejected_label": worst_label,
-            "chosen_score": best_score,
-            "rejected_score": worst_score,
-            "gap": round(gap, 2),
-        })
+        pairs.append(
+            {
+                "prompt_id": pid,
+                "chosen_label": best_label,
+                "rejected_label": worst_label,
+                "chosen_score": best_score,
+                "rejected_score": worst_score,
+                "gap": round(gap, 2),
+            }
+        )
 
     return pairs
 
@@ -230,7 +234,9 @@ def collect_responses(
         available = check_ollama_models(needed_ollama)
         missing = needed_ollama - available
         if missing:
-            print(f"[WARN] Missing Ollama models (will skip prompts needing them): {missing}")
+            print(
+                f"[WARN] Missing Ollama models (will skip prompts needing them): {missing}"
+            )
     else:
         available = needed_ollama  # pretend everything is available
 
@@ -260,7 +266,9 @@ def collect_responses(
             chosen_resp = f"[DRY RUN — would query {chosen_model}]"
             rejected_resp = f"[DRY RUN — would query {rejected_model}]"
         else:
-            print(f"  [{i+1}/{total}] prompt={pid}  chosen={pair['chosen_label']}({pair['chosen_score']})  rejected={pair['rejected_label']}({pair['rejected_score']})  gap={pair['gap']}")
+            print(
+                f"  [{i+1}/{total}] prompt={pid}  chosen={pair['chosen_label']}({pair['chosen_score']})  rejected={pair['rejected_label']}({pair['rejected_score']})  gap={pair['gap']}"
+            )
 
             chosen_resp = query_ollama(chosen_model, prompt_text)
             if not chosen_resp:
@@ -293,7 +301,9 @@ def collect_responses(
         }
         dataset.append(record)
 
-    print(f"\n  Collected: {len(dataset)} pairs  |  Skipped: {skipped}  |  Errors: {errors}")
+    print(
+        f"\n  Collected: {len(dataset)} pairs  |  Skipped: {skipped}  |  Errors: {errors}"
+    )
     return dataset
 
 
@@ -357,6 +367,7 @@ def print_summary(pairs: list[dict], dataset: list[dict]) -> None:
 # CLI
 # ---------------------------------------------------------------------------
 
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Build DPO dataset from benchmark judge results",
@@ -415,9 +426,13 @@ def main() -> None:
         if args.auto:
             judge_path = find_latest_judge_results()
             if judge_path is None:
-                sys.exit(f"[ERROR] No judge results found in {JUDGE_DIR}/judge-codestral-*/")
+                sys.exit(
+                    f"[ERROR] No judge results found in {JUDGE_DIR}/judge-codestral-*/"
+                )
         else:
-            sys.exit("[ERROR] Provide --judge-results <path> or use --auto to detect latest")
+            sys.exit(
+                "[ERROR] Provide --judge-results <path> or use --auto to detect latest"
+            )
 
     print(f"  Judge file:  {judge_path}")
 
@@ -456,7 +471,9 @@ def main() -> None:
     pairs.sort(key=lambda x: x["gap"], reverse=True)
     print("\n  Top 5 pairs by gap:")
     for p in pairs[:5]:
-        print(f"    {p['prompt_id']:20s}  {p['chosen_label']} ({p['chosen_score']}) vs {p['rejected_label']} ({p['rejected_score']})  gap={p['gap']}")
+        print(
+            f"    {p['prompt_id']:20s}  {p['chosen_label']} ({p['chosen_score']}) vs {p['rejected_label']} ({p['rejected_score']})  gap={p['gap']}"
+        )
 
     # --- Collect responses ---
     print(f"\nCollecting responses from Ollama ({OLLAMA_URL}) ...")

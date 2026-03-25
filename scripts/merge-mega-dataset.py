@@ -84,7 +84,11 @@ def to_unified(record: dict, fmt: str, domain: str) -> dict | None:
         convs = record.get("conversations", [])
         if len(convs) < 2:
             return None
-        return {"conversations": convs, "domain": record.get("domain", domain), "source": record.get("source", "mascarade")}
+        return {
+            "conversations": convs,
+            "domain": record.get("domain", domain),
+            "source": record.get("source", "mascarade"),
+        }
 
     elif fmt == "instruction":
         instruction = record.get("instruction", "")
@@ -117,8 +121,16 @@ def to_unified(record: dict, fmt: str, domain: str) -> dict | None:
                     if a.strip():
                         convs.append({"from": "gpt", "value": a.strip()})
             if len(convs) >= 2:
-                return {"conversations": convs, "domain": domain, "source": "huggingface"}
-        return {"conversations": [{"from": "human", "value": text}], "domain": domain, "source": "huggingface"}
+                return {
+                    "conversations": convs,
+                    "domain": domain,
+                    "source": "huggingface",
+                }
+        return {
+            "conversations": [{"from": "human", "value": text}],
+            "domain": domain,
+            "source": "huggingface",
+        }
 
     elif fmt == "open_schematics":
         desc = record.get("description", "")
@@ -134,7 +146,10 @@ def to_unified(record: dict, fmt: str, domain: str) -> dict | None:
             answer += f"\n\nSchematic structure (KiCad format):\n{snippet[:500]}"
         return {
             "conversations": [
-                {"from": "system", "value": "You are an expert KiCad schematic analyst."},
+                {
+                    "from": "system",
+                    "value": "You are an expert KiCad schematic analyst.",
+                },
                 {"from": "human", "value": question},
                 {"from": "gpt", "value": answer},
             ],

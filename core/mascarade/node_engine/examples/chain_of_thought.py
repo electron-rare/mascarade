@@ -151,6 +151,7 @@ async def main() -> None:
     except Exception as exc:
         print(f"✗ Execution error: {exc}")
         import traceback
+
         traceback.print_exc()
 
 

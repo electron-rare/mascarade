@@ -160,7 +160,9 @@ class P2PStreamForwarder:
             await conn.send(response_msg)
             logger.info(
                 "P2P send:response %s → %s (%.0fms)",
-                request_id, msg.sender, elapsed_ms,
+                request_id,
+                msg.sender,
+                elapsed_ms,
             )
         except Exception as exc:
             logger.exception("P2P request handler error for %s", request_id)
@@ -195,7 +197,11 @@ class P2PStreamForwarder:
             pending.future.set_exception(RuntimeError(f"Remote peer error: {error}"))
 
     async def _send_error(
-        self, conn: PeerConnection, request_id: str, target: str, error: str,
+        self,
+        conn: PeerConnection,
+        request_id: str,
+        target: str,
+        error: str,
     ) -> None:
         msg = P2PMessage(
             type=MSG_SEND_ERROR,

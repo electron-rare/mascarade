@@ -6,6 +6,7 @@ from contextlib import asynccontextmanager
 
 import httpx
 import pytest
+from unittest.mock import patch
 
 from mascarade.auth import get_active_api_keys, remove_api_key
 from mascarade.router.providers.base import LLMResponse
@@ -82,20 +83,22 @@ def _clean_api_keys():
 @asynccontextmanager
 async def _client(fake_router: FakeRouter | None = None):
     """Create test client with optional fake router."""
-    async with app.router.lifespan_context(app):
-        original_router = app.state.router if fake_router else None
-        if fake_router:
-            app.state.router = fake_router
-        try:
-            transport = httpx.ASGITransport(app=app)
-            async with httpx.AsyncClient(
-                transport=transport,
-                base_url="http://testserver",
-            ) as client:
-                yield client
-        finally:
-            if original_router:
-                app.state.router = original_router
+    with patch("mascarade.auth.is_valid_api_key", return_value=True), \
+         patch("mascarade.auth._resolve_role", return_value="admin"):
+        async with app.router.lifespan_context(app):
+            original_router = app.state.router if fake_router else None
+            if fake_router:
+                app.state.router = fake_router
+            try:
+                transport = httpx.ASGITransport(app=app)
+                async with httpx.AsyncClient(
+                    transport=transport,
+                    base_url="http://testserver",
+                ) as client:
+                    yield client
+            finally:
+                if original_router:
+                    app.state.router = original_router
 
 
 @pytest.mark.asyncio
@@ -344,22 +347,24 @@ async def test_chat_completion_without_usage():
 @pytest.mark.asyncio
 async def test_chat_completion_router_not_initialized():
     """Test chat completion fails gracefully when router not initialized."""
-    async with app.router.lifespan_context(app):
-        # Remove router from app state
-        delattr(app.state, "router")
+    with patch("mascarade.auth.is_valid_api_key", return_value=True), \
+         patch("mascarade.auth._resolve_role", return_value="admin"):
+        async with app.router.lifespan_context(app):
+            # Remove router from app state
+            delattr(app.state, "router")
 
-        transport = httpx.ASGITransport(app=app)
-        async with httpx.AsyncClient(
-            transport=transport,
-            base_url="http://testserver",
-        ) as client:
-            response = await client.post(
-                "/v1/chat/completions",
-                json={
-                    "model": "gpt-4",
-                    "messages": [{"role": "user", "content": "test"}],
-                },
-            )
+            transport = httpx.ASGITransport(app=app)
+            async with httpx.AsyncClient(
+                transport=transport,
+                base_url="http://testserver",
+            ) as client:
+                response = await client.post(
+                    "/v1/chat/completions",
+                    json={
+                        "model": "gpt-4",
+                        "messages": [{"role": "user", "content": "test"}],
+                    },
+                )
 
     assert response.status_code == 503
     assert "Router not initialized" in response.json()["detail"]
@@ -429,9 +434,7 @@ async def test_chat_completion_message_with_name():
             "/v1/chat/completions",
             json={
                 "model": "gpt-4",
-                "messages": [
-                    {"role": "user", "content": "test", "name": "Alice"}
-                ],
+                "messages": [{"role": "user", "content": "test", "name": "Alice"}],
             },
         )
 
@@ -565,7 +568,11 @@ async def test_chat_completion_streaming_contains_content_chunks():
         )
 
     assert response.status_code == 200
-    lines = [l for l in response.text.strip().split("\n") if l.startswith("data:") and l != "data: [DONE]"]
+    lines = [
+        l
+        for l in response.text.strip().split("\n")
+        if l.startswith("data:") and l != "data: [DONE]"
+    ]
     # First chunk is role, then content chunks, then finish chunk
     assert len(lines) >= 3  # role + 2 content + finish
     # Check a content chunk
@@ -592,7 +599,10 @@ async def test_chat_completion_provider_not_available():
 
     assert response.status_code == 503
     body = response.json()
-    assert "not configured" in body["detail"]["error"] or "unavailable" in body["detail"]["error"]
+    assert (
+        "not configured" in body["detail"]["error"]
+        or "unavailable" in body["detail"]["error"]
+    )
 
 
 @pytest.mark.asyncio
@@ -624,7 +634,9 @@ async def test_parse_model_string_ollama_with_tag():
     class FakeRouterInstance:
         available_providers = ["ollama"]
 
-    provider, model, display = _parse_model_string("ollama:qwen3.5:9b", FakeRouterInstance())
+    provider, model, display = _parse_model_string(
+        "ollama:qwen3.5:9b", FakeRouterInstance()
+    )
     assert provider == "ollama"
     assert model == "qwen3.5:9b"
     assert display == "ollama:qwen3.5:9b"

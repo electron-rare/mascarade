@@ -92,7 +92,11 @@ class TemplateRegistry:
             if template.id in self._builtin_ids:
                 continue
             data = template.model_dump()
-            data["mode"] = template.mode.value if isinstance(template.mode, ExecutionMode) else str(template.mode)
+            data["mode"] = (
+                template.mode.value
+                if isinstance(template.mode, ExecutionMode)
+                else str(template.mode)
+            )
             templates_data.append(data)
         # Atomic write: write to temp file, then rename
         fd, tmp_path = tempfile.mkstemp(
@@ -113,7 +117,9 @@ class TemplateRegistry:
         try:
             raw = json.loads(self._storage_path.read_text(encoding="utf-8"))
         except (json.JSONDecodeError, OSError) as exc:
-            logger.error("Failed to load templates from %s: %s", self._storage_path, exc)
+            logger.error(
+                "Failed to load templates from %s: %s", self._storage_path, exc
+            )
             return
         for data in raw:
             try:

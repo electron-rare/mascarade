@@ -55,14 +55,26 @@ class AnalystAgent:
     ) -> float:
         """Calculate perplexity on a test set using llama.cpp perplexity tool."""
         import subprocess
+
         if not shutil.which("llama-perplexity"):
             logger.warning("llama-perplexity not found in PATH")
             return 0.0
         try:
             result = subprocess.run(
-                ["llama-perplexity", "--model", model_path, "--file", test_data_path,
-                 "--ctx-size", "2048", "--threads", "4"],
-                capture_output=True, text=True, timeout=3600,
+                [
+                    "llama-perplexity",
+                    "--model",
+                    model_path,
+                    "--file",
+                    test_data_path,
+                    "--ctx-size",
+                    "2048",
+                    "--threads",
+                    "4",
+                ],
+                capture_output=True,
+                text=True,
+                timeout=3600,
             )
             # Parse perplexity from output
             for line in result.stdout.split("\n"):
@@ -84,21 +96,36 @@ class AnalystAgent:
     ) -> dict:
         """Measure inference speed using llama.cpp."""
         import subprocess
+
         if not shutil.which("llama-cli"):
             return {"error": "llama-cli not found in PATH"}
         start = time.time()
         try:
             result = subprocess.run(
-                ["llama-cli", "--model", model_path, "--prompt", prompt,
-                 "--n-predict", str(n_tokens), "--threads", "4", "--no-display-prompt"],
-                capture_output=True, text=True, timeout=120,
+                [
+                    "llama-cli",
+                    "--model",
+                    model_path,
+                    "--prompt",
+                    prompt,
+                    "--n-predict",
+                    str(n_tokens),
+                    "--threads",
+                    "4",
+                    "--no-display-prompt",
+                ],
+                capture_output=True,
+                text=True,
+                timeout=120,
             )
             elapsed = time.time() - start
             output_tokens = len(result.stdout.split())
             return {
                 "tokens_generated": output_tokens,
                 "time_seconds": round(elapsed, 2),
-                "tokens_per_second": round(output_tokens / elapsed, 1) if elapsed > 0 else 0,
+                "tokens_per_second": (
+                    round(output_tokens / elapsed, 1) if elapsed > 0 else 0
+                ),
             }
         except Exception as e:
             return {"error": str(e)}
@@ -115,7 +142,9 @@ class AnalystAgent:
             for prompt in test_prompts[:5]:
                 speed = await self.evaluate_inference_speed(path, prompt=prompt)
                 speeds.append(speed)
-            avg_tps = sum(s.get("tokens_per_second", 0) for s in speeds) / max(len(speeds), 1)
+            avg_tps = sum(s.get("tokens_per_second", 0) for s in speeds) / max(
+                len(speeds), 1
+            )
             results[name] = {
                 "avg_tokens_per_second": round(avg_tps, 1),
                 "samples": speeds,
@@ -143,5 +172,10 @@ class AnalystAgent:
         # Save report
         report_path = self.output_dir / f"{model_id.replace('/', '_')}_eval.json"
         report_path.write_text(json.dumps(asdict(report), indent=2, default=str))
-        logger.info("Eval complete for %s: ppl=%.2f tps=%.1f", model_id, ppl, report.tokens_per_second)
+        logger.info(
+            "Eval complete for %s: ppl=%.2f tps=%.1f",
+            model_id,
+            ppl,
+            report.tokens_per_second,
+        )
         return report

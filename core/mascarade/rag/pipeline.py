@@ -91,37 +91,59 @@ class RAGPipeline:
         if skip_classification:
             intent = "rag"
         else:
-            intent = await self._classify_intent(user_query, provider=provider, model=model)
+            intent = await self._classify_intent(
+                user_query, provider=provider, model=model
+            )
         tool_calls.append(f"classify:{intent}")
 
-        # Step 2 — retrieve context if RAG
+        # Step 2 — retrieve context if RAG (hybrid search + reranking)
         context_text = ""
         if intent == "rag":
             query_embedding = await self.embeddings.embed_query(user_query)
             tool_calls.append("embed_query")
 
-            results = await vs.search(
+            # Hybrid search: dense + BM25 with RRF fusion
+            results = await vs.hybrid_search(
                 query_embedding,
-                top_k=top_k,
-                score_threshold=score_threshold,
+                query_text=user_query,
+                top_k=top_k * 2,  # over-retrieve for reranking
+                filters=None,
             )
-            tool_calls.append("vector_search")
+            tool_calls.append("hybrid_search")
 
-            sources = results
-            if results:
-                context_text = "\n\n".join(
-                    f"[{i+1}] (score={r['score']:.3f}) {r['text']}"
-                    for i, r in enumerate(results)
-                )
-            else:
-                context_text = "(No relevant documents found in the knowledge base.)"
+            # Rerank: use LLM to score relevance (lightweight CRAG pattern)
+            if results and len(results) > top_k:
+                results = await self._rerank(user_query, results, top_k=top_k)
+                tool_calls.append("rerank")
+
+            # CRAG: check if results are relevant enough
+            if results and results[0].get("score", 0) < 0.3:
+                # Low confidence — try web search fallback
+                tool_calls.append("crag:low_confidence")
+                web_context = await self._web_search_fallback(user_query)
+                if web_context:
+                    context_text = web_context
+                    tool_calls.append("web_search_fallback")
+
+            if not context_text:
+                sources = results[:top_k]
+                if sources:
+                    context_text = "\n\n".join(
+                        f"[{i+1}] (score={r['score']:.3f}) {r['text']}"
+                        for i, r in enumerate(sources)
+                    )
+                else:
+                    context_text = "(No relevant documents found in the knowledge base.)"
 
         elif intent == "web":
-            tool_calls.append("web_search:placeholder")
-            context_text = "(Web search is not yet implemented. Answering from general knowledge.)"
+            web_context = await self._web_search_fallback(user_query)
+            context_text = web_context or "(Web search returned no results.)"
+            tool_calls.append("web_search")
 
         # Step 3 — generate
-        system_prompt = _RAG_SYSTEM_PROMPT.format(context=context_text) if context_text else None
+        system_prompt = (
+            _RAG_SYSTEM_PROMPT.format(context=context_text) if context_text else None
+        )
         messages = [{"role": "user", "content": user_query}]
 
         llm_response = await self.router.send(
@@ -142,8 +164,16 @@ class RAGPipeline:
             "provider": llm_response.provider,
             "model": llm_response.model,
             "usage": {
-                "prompt_tokens": llm_response.usage.get("prompt_tokens", 0) if llm_response.usage else 0,
-                "completion_tokens": llm_response.usage.get("completion_tokens", 0) if llm_response.usage else 0,
+                "prompt_tokens": (
+                    llm_response.usage.get("prompt_tokens", 0)
+                    if llm_response.usage
+                    else 0
+                ),
+                "completion_tokens": (
+                    llm_response.usage.get("completion_tokens", 0)
+                    if llm_response.usage
+                    else 0
+                ),
             },
             "elapsed_seconds": round(elapsed, 3),
         }
@@ -186,6 +216,64 @@ class RAGPipeline:
     # Internals
     # ------------------------------------------------------------------
 
+    async def _rerank(
+        self,
+        query: str,
+        results: list[dict[str, Any]],
+        *,
+        top_k: int = 5,
+    ) -> list[dict[str, Any]]:
+        """Rerank results using LLM-based relevance scoring.
+
+        Lightweight cross-encoder approximation: asks the LLM to score
+        each result's relevance to the query on a 0-10 scale.
+        """
+        if not results:
+            return results
+
+        # Build scoring prompt
+        docs_text = "\n".join(
+            f"DOC_{i}: {r['text'][:300]}" for i, r in enumerate(results)
+        )
+        prompt = (
+            f"Rate each document's relevance to the query on a scale 0-10. "
+            f"Reply with ONLY comma-separated scores (e.g. 8,3,9,1,7).\n\n"
+            f"Query: {query}\n\n{docs_text}"
+        )
+
+        try:
+            resp = await self.router.send(
+                [{"role": "user", "content": prompt}],
+                temperature=0.0,
+                max_tokens=100,
+            )
+            scores_text = resp.text.strip()
+            scores = [float(s.strip()) for s in scores_text.split(",") if s.strip()]
+            if len(scores) == len(results):
+                for i, score in enumerate(scores):
+                    results[i]["rerank_score"] = score
+                results.sort(key=lambda r: r.get("rerank_score", 0), reverse=True)
+        except Exception as exc:
+            logger.debug("Reranking failed (%s), keeping original order", exc)
+
+        return results[:top_k]
+
+    async def _web_search_fallback(self, query: str) -> str:
+        """Search the web via SearXNG as a CRAG fallback.
+
+        Returns formatted search results text, or empty string if unavailable.
+        """
+        try:
+            from mascarade.mcp.searxng import SearXNGMcpClient
+
+            searxng = SearXNGMcpClient()
+            if not searxng.is_configured:
+                return ""
+            return await searxng.search_text(query, limit=5)
+        except Exception as exc:
+            logger.debug("Web search fallback failed: %s", exc)
+            return ""
+
     async def _classify_intent(
         self,
         query: str,
@@ -205,7 +293,9 @@ class RAGPipeline:
             intent = resp.text.strip().lower()
             if intent in {"rag", "web", "general"}:
                 return intent
-            logger.debug("Unexpected intent classification %r, defaulting to rag", intent)
+            logger.debug(
+                "Unexpected intent classification %r, defaulting to rag", intent
+            )
             return "rag"
         except Exception as exc:
             logger.warning("Intent classification failed (%s), defaulting to rag", exc)

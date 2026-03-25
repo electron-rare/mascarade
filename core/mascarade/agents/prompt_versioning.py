@@ -179,7 +179,9 @@ class PromptHistory:
         try:
             raw = json.loads(self._storage_path.read_text(encoding="utf-8"))
         except (json.JSONDecodeError, OSError) as exc:
-            logger.error("Failed to load prompt history from %s: %s", self._storage_path, exc)
+            logger.error(
+                "Failed to load prompt history from %s: %s", self._storage_path, exc
+            )
             return
 
         self._versions = []

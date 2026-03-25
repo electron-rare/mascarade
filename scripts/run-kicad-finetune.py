@@ -27,7 +27,15 @@ model, tokenizer = FastLanguageModel.from_pretrained(
 model = FastLanguageModel.get_peft_model(
     model,
     r=16,
-    target_modules=["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"],
+    target_modules=[
+        "q_proj",
+        "k_proj",
+        "v_proj",
+        "o_proj",
+        "gate_proj",
+        "up_proj",
+        "down_proj",
+    ],
     lora_alpha=32,
     lora_dropout=0.05,
     bias="none",
@@ -35,8 +43,11 @@ model = FastLanguageModel.get_peft_model(
 )
 
 # Load dataset
-dataset = load_dataset("json", data_files="finetune/datasets/kicad_chat.jsonl", split="train")
+dataset = load_dataset(
+    "json", data_files="finetune/datasets/kicad_chat.jsonl", split="train"
+)
 print(f"Dataset loaded: {len(dataset)} examples")
+
 
 # Format conversations
 def format_chat(example):
@@ -50,6 +61,7 @@ def format_chat(example):
         elif role in ("assistant", "gpt"):
             text += f" {content}</s>"
     return {"text": text}
+
 
 dataset = dataset.map(format_chat)
 

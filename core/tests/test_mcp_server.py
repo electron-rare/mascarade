@@ -87,7 +87,9 @@ class FakeRouter:
 def agents():
     return [
         FakeAgent(name="coder", description="Writes code"),
-        FakeAgent(name="reviewer", description="Reviews code", preferred_provider="anthropic"),
+        FakeAgent(
+            name="reviewer", description="Reviews code", preferred_provider="anthropic"
+        ),
     ]
 
 
@@ -203,10 +205,12 @@ def test_register_initial_agents_uses_default_registration():
 @pytest.mark.asyncio
 async def test_handle_initialize(server):
     """Test MCP initialize handshake response."""
-    result = await server._handle_initialize({
-        "protocolVersion": "2025-06-18",
-        "clientInfo": {"name": "test-client", "version": "1.0"},
-    })
+    result = await server._handle_initialize(
+        {
+            "protocolVersion": "2025-06-18",
+            "clientInfo": {"name": "test-client", "version": "1.0"},
+        }
+    )
 
     assert server._initialized is True
     assert result["protocolVersion"] == PROTOCOL_VERSION
@@ -283,10 +287,12 @@ async def test_tool_list_agents_includes_metadata(server):
 @pytest.mark.asyncio
 async def test_tool_run_agent(server):
     """Test run_agent executes agent and returns response."""
-    result = await server._tool_run_agent({
-        "agent_name": "coder",
-        "prompt": "Write a hello world",
-    })
+    result = await server._tool_run_agent(
+        {
+            "agent_name": "coder",
+            "prompt": "Write a hello world",
+        }
+    )
     assert result["isError"] is False
     content = json.loads(result["content"][0]["text"])
     assert content["agent"] == "coder"
@@ -314,24 +320,28 @@ async def test_tool_run_agent_missing_prompt(server):
 @pytest.mark.asyncio
 async def test_tool_run_agent_unknown_agent(server):
     """Test run_agent returns error for unknown agent."""
-    result = await server._tool_run_agent({
-        "agent_name": "nonexistent",
-        "prompt": "test",
-    })
+    result = await server._tool_run_agent(
+        {
+            "agent_name": "nonexistent",
+            "prompt": "test",
+        }
+    )
     assert result["isError"] is True
-    assert "not found" in result["content"][0]["text"]
+    assert "not found" in result["content"][0]["text"].lower()
 
 
 @pytest.mark.asyncio
 async def test_tool_run_agent_with_overrides(server):
     """Test run_agent passes provider/model/temperature overrides."""
-    result = await server._tool_run_agent({
-        "agent_name": "coder",
-        "prompt": "test",
-        "provider": "anthropic",
-        "model": "claude-sonnet-4-20250514",
-        "temperature": 0.2,
-    })
+    result = await server._tool_run_agent(
+        {
+            "agent_name": "coder",
+            "prompt": "test",
+            "provider": "anthropic",
+            "model": "claude-sonnet-4-20250514",
+            "temperature": 0.2,
+        }
+    )
     assert result["isError"] is False
     # Verify overrides were passed to router
     call = server.router.calls[0]
@@ -343,11 +353,13 @@ async def test_tool_run_agent_with_overrides(server):
 @pytest.mark.asyncio
 async def test_tool_run_agent_invalid_temperature(server):
     """Test run_agent handles invalid temperature gracefully."""
-    result = await server._tool_run_agent({
-        "agent_name": "coder",
-        "prompt": "test",
-        "temperature": "not_a_number",
-    })
+    result = await server._tool_run_agent(
+        {
+            "agent_name": "coder",
+            "prompt": "test",
+            "temperature": "not_a_number",
+        }
+    )
     # Should fall back to agent default, not error
     assert result["isError"] is False
     call = server.router.calls[0]
@@ -357,11 +369,13 @@ async def test_tool_run_agent_invalid_temperature(server):
 @pytest.mark.asyncio
 async def test_tool_run_agent_temperature_clamped(server):
     """Test run_agent clamps temperature to 0.0-2.0 range."""
-    result = await server._tool_run_agent({
-        "agent_name": "coder",
-        "prompt": "test",
-        "temperature": 5.0,
-    })
+    result = await server._tool_run_agent(
+        {
+            "agent_name": "coder",
+            "prompt": "test",
+            "temperature": 5.0,
+        }
+    )
     assert result["isError"] is False
     call = server.router.calls[0]
     assert call["temperature"] == 2.0
@@ -383,9 +397,11 @@ async def test_tool_list_providers_empty(server):
 @pytest.mark.asyncio
 async def test_tool_list_providers_with_providers():
     """Test list_providers returns provider details."""
+
     class FakeProvider:
         def is_available(self):
             return True
+
         def models(self):
             return ["gpt-4", "gpt-3.5"]
 
@@ -410,10 +426,12 @@ async def test_tool_list_providers_with_providers():
 @pytest.mark.asyncio
 async def test_tool_orchestrate_no_orchestrator(server):
     """Test orchestrate returns error when orchestrator is not available."""
-    result = await server._tool_orchestrate({
-        "agent_names": ["coder"],
-        "prompt": "test",
-    })
+    result = await server._tool_orchestrate(
+        {
+            "agent_names": ["coder"],
+            "prompt": "test",
+        }
+    )
     assert result["isError"] is True
     assert "not available" in result["content"][0]["text"]
 
@@ -421,9 +439,11 @@ async def test_tool_orchestrate_no_orchestrator(server):
 @pytest.mark.asyncio
 async def test_tool_orchestrate_missing_agent_names(server_with_orchestrator):
     """Test orchestrate rejects missing agent_names."""
-    result = await server_with_orchestrator._tool_orchestrate({
-        "prompt": "test",
-    })
+    result = await server_with_orchestrator._tool_orchestrate(
+        {
+            "prompt": "test",
+        }
+    )
     assert result["isError"] is True
     assert "agent_names" in result["content"][0]["text"]
 
@@ -431,9 +451,11 @@ async def test_tool_orchestrate_missing_agent_names(server_with_orchestrator):
 @pytest.mark.asyncio
 async def test_tool_orchestrate_missing_prompt(server_with_orchestrator):
     """Test orchestrate rejects missing prompt."""
-    result = await server_with_orchestrator._tool_orchestrate({
-        "agent_names": ["coder"],
-    })
+    result = await server_with_orchestrator._tool_orchestrate(
+        {
+            "agent_names": ["coder"],
+        }
+    )
     assert result["isError"] is True
     assert "prompt" in result["content"][0]["text"]
 
@@ -441,12 +463,14 @@ async def test_tool_orchestrate_missing_prompt(server_with_orchestrator):
 @pytest.mark.asyncio
 async def test_tool_orchestrate_unknown_agent(server_with_orchestrator):
     """Test orchestrate rejects unknown agent name."""
-    result = await server_with_orchestrator._tool_orchestrate({
-        "agent_names": ["nonexistent"],
-        "prompt": "test",
-    })
+    result = await server_with_orchestrator._tool_orchestrate(
+        {
+            "agent_names": ["nonexistent"],
+            "prompt": "test",
+        }
+    )
     assert result["isError"] is True
-    assert "not found" in result["content"][0]["text"]
+    assert "not found" in result["content"][0]["text"].lower()
 
 
 # ---------------------------------------------------------------------------
@@ -457,10 +481,12 @@ async def test_tool_orchestrate_unknown_agent(server_with_orchestrator):
 @pytest.mark.asyncio
 async def test_tools_call_unknown_tool(server):
     """Test tools/call with unknown tool name returns error."""
-    result = await server._handle_tools_call({
-        "name": "unknown_tool",
-        "arguments": {},
-    })
+    result = await server._handle_tools_call(
+        {
+            "name": "unknown_tool",
+            "arguments": {},
+        }
+    )
     assert result["isError"] is True
     assert "Unknown tool" in result["content"][0]["text"]
 
@@ -468,10 +494,12 @@ async def test_tools_call_unknown_tool(server):
 @pytest.mark.asyncio
 async def test_tools_call_dispatches_correctly(server):
     """Test tools/call dispatches to correct tool handler."""
-    result = await server._handle_tools_call({
-        "name": "list_agents",
-        "arguments": {},
-    })
+    result = await server._handle_tools_call(
+        {
+            "name": "list_agents",
+            "arguments": {},
+        }
+    )
     assert result["isError"] is False
     content = json.loads(result["content"][0]["text"])
     assert len(content) == 2
@@ -485,10 +513,12 @@ async def test_tools_call_handles_tool_exception(server):
     # items() will raise
     server.router._providers.items.side_effect = RuntimeError("broken")
 
-    result = await server._handle_tools_call({
-        "name": "list_providers",
-        "arguments": {},
-    })
+    result = await server._handle_tools_call(
+        {
+            "name": "list_providers",
+            "arguments": {},
+        }
+    )
     assert result["isError"] is True
     assert "Tool execution error" in result["content"][0]["text"]
 
@@ -501,12 +531,14 @@ async def test_tools_call_handles_tool_exception(server):
 @pytest.mark.asyncio
 async def test_process_message_valid_request(server):
     """Test processing a valid JSON-RPC request."""
-    raw = json.dumps({
-        "jsonrpc": "2.0",
-        "id": 1,
-        "method": "ping",
-        "params": {},
-    })
+    raw = json.dumps(
+        {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "ping",
+            "params": {},
+        }
+    )
     response = await server._process_message(raw)
     assert response["jsonrpc"] == "2.0"
     assert response["id"] == 1
@@ -530,12 +562,14 @@ async def test_process_message_not_object(server):
 @pytest.mark.asyncio
 async def test_process_message_unknown_method(server):
     """Test processing unknown method returns method not found."""
-    raw = json.dumps({
-        "jsonrpc": "2.0",
-        "id": 42,
-        "method": "nonexistent/method",
-        "params": {},
-    })
+    raw = json.dumps(
+        {
+            "jsonrpc": "2.0",
+            "id": 42,
+            "method": "nonexistent/method",
+            "params": {},
+        }
+    )
     response = await server._process_message(raw)
     assert response["error"]["code"] == -32601
 
@@ -543,11 +577,13 @@ async def test_process_message_unknown_method(server):
 @pytest.mark.asyncio
 async def test_process_message_notification_no_response(server):
     """Test notifications (no id) get no response."""
-    raw = json.dumps({
-        "jsonrpc": "2.0",
-        "method": "initialized",
-        "params": {},
-    })
+    raw = json.dumps(
+        {
+            "jsonrpc": "2.0",
+            "method": "initialized",
+            "params": {},
+        }
+    )
     response = await server._process_message(raw)
     assert response is None
 
@@ -555,11 +591,13 @@ async def test_process_message_notification_no_response(server):
 @pytest.mark.asyncio
 async def test_process_message_unknown_notification_ignored(server):
     """Test unknown notification is silently ignored."""
-    raw = json.dumps({
-        "jsonrpc": "2.0",
-        "method": "unknown/notification",
-        "params": {},
-    })
+    raw = json.dumps(
+        {
+            "jsonrpc": "2.0",
+            "method": "unknown/notification",
+            "params": {},
+        }
+    )
     response = await server._process_message(raw)
     assert response is None
 

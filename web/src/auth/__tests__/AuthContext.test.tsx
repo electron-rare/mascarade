@@ -17,6 +17,7 @@ import { setApiKey, validateApiKey, clearApiKey, onAuth401 } from "../../api/cli
 const mockedSetApiKey = vi.mocked(setApiKey);
 const mockedValidateApiKey = vi.mocked(validateApiKey);
 const mockedClearApiKey = vi.mocked(clearApiKey);
+const mockedOnAuth401 = vi.mocked(onAuth401);
 
 // A helper component that exposes auth state for testing
 function AuthConsumer() {
@@ -35,6 +36,7 @@ function AuthConsumer() {
 describe("AuthContext", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockedOnAuth401.mockReturnValue(() => {});
     // Default: /health returns auth not required
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response(JSON.stringify({ auth_required: false }), {
@@ -174,6 +176,35 @@ describe("AuthContext", () => {
     // Should not lock out the user
     expect(screen.getByTestId("authenticated").textContent).toBe("true");
     expect(screen.getByTestId("authRequired").textContent).toBe("false");
+  });
+
+  it("forces authRequired=true after an API 401 event", async () => {
+    let handler: (() => void) | undefined;
+    mockedOnAuth401.mockImplementation((nextHandler) => {
+      handler = nextHandler;
+      return () => {};
+    });
+
+    render(
+      <AuthProvider>
+        <AuthConsumer />
+      </AuthProvider>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId("checking").textContent).toBe("false");
+    });
+
+    expect(screen.getByTestId("authRequired").textContent).toBe("false");
+    expect(screen.getByTestId("authenticated").textContent).toBe("true");
+
+    act(() => {
+      handler?.();
+    });
+
+    expect(screen.getByTestId("authRequired").textContent).toBe("true");
+    expect(screen.getByTestId("authenticated").textContent).toBe("false");
+    expect(screen.getByTestId("checking").textContent).toBe("false");
   });
 
   it("throws when useAuth is used outside AuthProvider", () => {

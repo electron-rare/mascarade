@@ -18,7 +18,9 @@ TIMEOUT = 300.0
 results = []
 
 
-def call(stage: str, system: str, user: str, max_tokens: int = 256, temperature: float = 0.3):
+def call(
+    stage: str, system: str, user: str, max_tokens: int = 256, temperature: float = 0.3
+):
     """Call Mascarade chat completions and record result."""
     print(f"\n{'='*60}")
     print(f"Stage: {stage}")
@@ -51,25 +53,41 @@ def call(stage: str, system: str, user: str, max_tokens: int = 256, temperature:
             tok_s = tok / elapsed if elapsed > 0 else 0
             print(f"  OK — {tok} tokens in {elapsed:.1f}s ({tok_s:.1f} tok/s)")
             print(f"  Preview: {content[:200]}...")
-            results.append({
-                "stage": stage,
-                "status": "pass",
-                "tokens": tok,
-                "elapsed_s": round(elapsed, 1),
-                "tok_s": round(tok_s, 1),
-                "content_length": len(content),
-            })
+            results.append(
+                {
+                    "stage": stage,
+                    "status": "pass",
+                    "tokens": tok,
+                    "elapsed_s": round(elapsed, 1),
+                    "tok_s": round(tok_s, 1),
+                    "content_length": len(content),
+                }
+            )
             return content
         else:
             detail = data.get("detail", str(data))
             print(f"  FAIL — {detail[:200]}")
-            results.append({"stage": stage, "status": "fail", "error": str(detail)[:200], "elapsed_s": round(time.time() - t0, 1)})
+            results.append(
+                {
+                    "stage": stage,
+                    "status": "fail",
+                    "error": str(detail)[:200],
+                    "elapsed_s": round(time.time() - t0, 1),
+                }
+            )
             return None
 
     except Exception as exc:
         elapsed = time.time() - t0
         print(f"  ERROR — {exc}")
-        results.append({"stage": stage, "status": "error", "error": str(exc)[:200], "elapsed_s": round(elapsed, 1)})
+        results.append(
+            {
+                "stage": stage,
+                "status": "error",
+                "error": str(exc)[:200],
+                "elapsed_s": round(elapsed, 1),
+            }
+        )
         return None
 
 
@@ -102,7 +120,9 @@ if structure:
     try:
         parsed = json.loads(structure)
         json_valid = True
-        print(f"  JSON valid: YES — title='{parsed.get('title', '?')}', chapters={len(parsed.get('chapters', []))}")
+        print(
+            f"  JSON valid: YES — title='{parsed.get('title', '?')}', chapters={len(parsed.get('chapters', []))}"
+        )
     except json.JSONDecodeError as e:
         # Try stripping markdown fences
         clean = structure.strip()
@@ -111,7 +131,9 @@ if structure:
             try:
                 parsed = json.loads(clean)
                 json_valid = True
-                print(f"  JSON valid: YES (after stripping markdown) — title='{parsed.get('title', '?')}'")
+                print(
+                    f"  JSON valid: YES (after stripping markdown) — title='{parsed.get('title', '?')}'"
+                )
             except json.JSONDecodeError:
                 pass
         if not json_valid:
@@ -156,7 +178,9 @@ if gate:
         gate_valid = True
         gate_verdict = gdata.get("verdict", "?")
         print(f"  Gate verdict: {gate_verdict}")
-        print(f"  Scores: clarity={gdata.get('clarity')}, engagement={gdata.get('engagement')}, originality={gdata.get('originality')}")
+        print(
+            f"  Scores: clarity={gdata.get('clarity')}, engagement={gdata.get('engagement')}, originality={gdata.get('originality')}"
+        )
     except json.JSONDecodeError:
         print("  Gate JSON invalid")
 
@@ -180,13 +204,26 @@ for r in results:
         extra += f" json={'OK' if r['json_valid'] else 'FAIL'}"
     if r.get("gate_verdict"):
         extra += f" verdict={r['gate_verdict']}"
-    print(f"  {r['stage']:12s} {status:5s}  {r.get('elapsed_s', '?'):>6}s  {r.get('tokens', '?'):>4} tok{extra}")
+    print(
+        f"  {r['stage']:12s} {status:5s}  {r.get('elapsed_s', '?'):>6}s  {r.get('tokens', '?'):>4} tok{extra}"
+    )
 
-print(f"\n  Total: {total_tokens} tokens in {total_time:.0f}s ({total_tokens/total_time:.1f} tok/s avg)")
+print(
+    f"\n  Total: {total_tokens} tokens in {total_time:.0f}s ({total_tokens/total_time:.1f} tok/s avg)"
+)
 print(f"  Cycle: {'PASS' if all_pass else 'FAIL'}")
 
 # Save results
 out_path = "/tmp/ane_priority_models_cycle.json"
 with open(out_path, "w") as f:
-    json.dump({"model": MODEL, "timestamp": time.strftime("%Y-%m-%dT%H:%M:%S"), "results": results, "cycle_pass": all_pass}, f, indent=2)
+    json.dump(
+        {
+            "model": MODEL,
+            "timestamp": time.strftime("%Y-%m-%dT%H:%M:%S"),
+            "results": results,
+            "cycle_pass": all_pass,
+        },
+        f,
+        indent=2,
+    )
 print(f"\n  Results saved to {out_path}")

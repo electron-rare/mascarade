@@ -138,7 +138,7 @@ class TestJSONValidationReward:
 
     async def test_valid_json_not_object(self):
         reward = JSONValidationReward(expected_keys=["name"])
-        result = await reward.evaluate("json", '[1, 2, 3]')
+        result = await reward.evaluate("json", "[1, 2, 3]")
         assert result.score == 0.5
         assert result.passed is True
         assert "not an object" in result.details
@@ -151,10 +151,12 @@ class TestJSONValidationReward:
 
 class TestCompositeReward:
     async def test_combines_scores(self):
-        composite = CompositeReward([
-            (CodeCompilationReward(), 0.6),
-            (JSONValidationReward(), 0.4),
-        ])
+        composite = CompositeReward(
+            [
+                (CodeCompilationReward(), 0.6),
+                (JSONValidationReward(), 0.4),
+            ]
+        )
         # Valid Python, valid JSON
         code_json = '{"key": "value"}'  # valid JSON and valid Python expression
         result = await composite.evaluate("test", code_json)
@@ -163,10 +165,12 @@ class TestCompositeReward:
         assert result.passed is True
 
     async def test_mixed_pass_fail(self):
-        composite = CompositeReward([
-            (CodeCompilationReward(), 0.5),
-            (JSONValidationReward(), 0.5),
-        ])
+        composite = CompositeReward(
+            [
+                (CodeCompilationReward(), 0.5),
+                (JSONValidationReward(), 0.5),
+            ]
+        )
         # Valid Python but invalid JSON
         result = await composite.evaluate("test", "def foo(): pass")
         # code: 1.0 * 0.5 = 0.5, json: -0.5 * 0.5 = -0.25 => 0.25
@@ -179,16 +183,20 @@ class TestCompositeReward:
 
     async def test_weights_must_sum_to_one(self):
         with pytest.raises(ValueError, match="sum to 1.0"):
-            CompositeReward([
-                (CodeCompilationReward(), 0.3),
-                (JSONValidationReward(), 0.3),
-            ])
+            CompositeReward(
+                [
+                    (CodeCompilationReward(), 0.3),
+                    (JSONValidationReward(), 0.3),
+                ]
+            )
 
     async def test_details_include_component_names(self):
-        composite = CompositeReward([
-            (CodeCompilationReward(), 0.5),
-            (JSONValidationReward(), 0.5),
-        ])
+        composite = CompositeReward(
+            [
+                (CodeCompilationReward(), 0.5),
+                (JSONValidationReward(), 0.5),
+            ]
+        )
         result = await composite.evaluate("test", '{"a": 1}')
         assert "CodeCompilationReward" in result.details
         assert "JSONValidationReward" in result.details
@@ -201,7 +209,9 @@ class TestCompositeReward:
 
 class TestRLVRConfig:
     def test_defaults(self):
-        cfg = RLVRConfig(base_model="meta-llama/Llama-3-8B", reward_functions=["code_compilation"])
+        cfg = RLVRConfig(
+            base_model="meta-llama/Llama-3-8B", reward_functions=["code_compilation"]
+        )
         assert cfg.num_generations == 16
         assert cfg.loss_type == "dapo"
         assert cfg.max_completion_length == 2048

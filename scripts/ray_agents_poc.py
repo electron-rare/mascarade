@@ -53,7 +53,10 @@ def main() -> int:
 
     ray.init(ignore_reinit_error=True, namespace="mascarade")
     payload = "x" * max(1, int(args.payload_size))
-    futures = [run_agent.remote(i, payload, int(args.sleep_ms)) for i in range(max(1, int(args.tasks)))]
+    futures = [
+        run_agent.remote(i, payload, int(args.sleep_ms))
+        for i in range(max(1, int(args.tasks)))
+    ]
     results = ray.get(futures)
     ray.shutdown()
 

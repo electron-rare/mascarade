@@ -11,8 +11,9 @@ from mascarade.router.providers.mistral_studio import MistralStudioProvider
 @pytest.mark.asyncio
 async def test_mistral_studio_initialization():
     """Test Mistral Studio provider initialization."""
-    with patch('mascarade.router.providers.mistral_studio.MISTRAL_STUDIO_AVAILABLE', True), \
-         patch('mascarade.router.providers.mistral_studio.MistralClient') as mock_client:
+    with patch(
+        "mascarade.router.providers.mistral_studio.MISTRAL_STUDIO_AVAILABLE", True
+    ), patch("mascarade.router.providers.mistral_studio.MistralClient") as mock_client:
         provider = MistralStudioProvider(api_key="test-key")
         mock_client.assert_called_once_with(api_key="test-key")
         assert provider.name == "mistral-studio"
@@ -24,9 +25,13 @@ async def test_mistral_studio_send():
     # Create mock ChatMessage class
     mock_chat_message_class = MagicMock()
 
-    with patch('mascarade.router.providers.mistral_studio.MISTRAL_STUDIO_AVAILABLE', True), \
-         patch('mascarade.router.providers.mistral_studio.MistralClient') as mock_client, \
-         patch('mascarade.router.providers.mistral_studio.ChatMessage', mock_chat_message_class):
+    with patch(
+        "mascarade.router.providers.mistral_studio.MISTRAL_STUDIO_AVAILABLE", True
+    ), patch(
+        "mascarade.router.providers.mistral_studio.MistralClient"
+    ) as mock_client, patch(
+        "mascarade.router.providers.mistral_studio.ChatMessage", mock_chat_message_class
+    ):
         # Setup mock response
         mock_response = MagicMock()
         mock_response.choices = [MagicMock()]
@@ -59,9 +64,13 @@ async def test_mistral_studio_stream():
     # Create mock ChatMessage class
     mock_chat_message_class = MagicMock()
 
-    with patch('mascarade.router.providers.mistral_studio.MISTRAL_STUDIO_AVAILABLE', True), \
-         patch('mascarade.router.providers.mistral_studio.MistralClient') as mock_client, \
-         patch('mascarade.router.providers.mistral_studio.ChatMessage', mock_chat_message_class):
+    with patch(
+        "mascarade.router.providers.mistral_studio.MISTRAL_STUDIO_AVAILABLE", True
+    ), patch(
+        "mascarade.router.providers.mistral_studio.MistralClient"
+    ) as mock_client, patch(
+        "mascarade.router.providers.mistral_studio.ChatMessage", mock_chat_message_class
+    ):
         # Setup mock stream
         mock_chunk1 = MagicMock()
         mock_chunk1.choices = [MagicMock()]
@@ -89,8 +98,9 @@ async def test_mistral_studio_stream():
 
 def test_mistral_studio_models():
     """Test available models."""
-    with patch('mascarade.router.providers.mistral_studio.MISTRAL_STUDIO_AVAILABLE', True), \
-         patch('mascarade.router.providers.mistral_studio.MistralClient'):
+    with patch(
+        "mascarade.router.providers.mistral_studio.MISTRAL_STUDIO_AVAILABLE", True
+    ), patch("mascarade.router.providers.mistral_studio.MistralClient"):
         provider = MistralStudioProvider(api_key="test-key")
         models = provider.available_models()
 
@@ -102,6 +112,8 @@ def test_mistral_studio_models():
 
 def test_mistral_studio_without_client():
     """Test when Mistral client is not available."""
-    with patch('mascarade.router.providers.mistral_studio.MISTRAL_STUDIO_AVAILABLE', False):
+    with patch(
+        "mascarade.router.providers.mistral_studio.MISTRAL_STUDIO_AVAILABLE", False
+    ):
         with pytest.raises(RuntimeError, match="Mistral Studio client not available"):
             MistralStudioProvider(api_key="test-key")

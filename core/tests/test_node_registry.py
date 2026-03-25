@@ -5,6 +5,7 @@ from mascarade.node_engine.worker import NodeCapability, NodeWorker
 
 # --- Mock Worker for testing ---
 
+
 class MockNodeWorker(NodeWorker):
     """Mock worker for testing purposes."""
 
@@ -13,7 +14,9 @@ class MockNodeWorker(NodeWorker):
         self.domain = domain
         self._available = available
 
-    async def execute(self, node_type: str, inputs: dict, config: dict, context) -> dict:
+    async def execute(
+        self, node_type: str, inputs: dict, config: dict, context
+    ) -> dict:
         """Mock execute - returns empty dict."""
         return {}
 
@@ -34,6 +37,7 @@ class MockNodeWorker(NodeWorker):
 
 
 # --- NodeTypeRegistry Tests ---
+
 
 def test_node_type_registry_register_and_get():
     reg = NodeTypeRegistry(storage_path=None)
@@ -141,6 +145,7 @@ def test_node_type_registry_load_noop_when_no_file(tmp_path):
 
 
 # --- WorkerRegistry Tests ---
+
 
 def test_worker_registry_register_and_get():
     reg = WorkerRegistry()

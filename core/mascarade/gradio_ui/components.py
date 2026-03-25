@@ -162,7 +162,14 @@ def create_job_list_display() -> tuple[gr.components.Component, ...]:
         gr.Markdown("View and manage all fine-tuning jobs.")
 
         jobs_dataframe = gr.Dataframe(
-            headers=["Job ID", "Base Model", "Dataset", "Method", "Status", "Started At"],
+            headers=[
+                "Job ID",
+                "Base Model",
+                "Dataset",
+                "Method",
+                "Status",
+                "Started At",
+            ],
             datatype=["str", "str", "str", "str", "str", "str"],
             interactive=False,
             wrap=True,

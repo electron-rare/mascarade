@@ -26,7 +26,11 @@ from auto_policy import (
     resolve_teacher_selection,
 )
 from dataset_bootstrap import ensure_seed_dataset
-from dataset_quality import DatasetQualityError, enforce_dataset_quality, summarize_quality_report
+from dataset_quality import (
+    DatasetQualityError,
+    enforce_dataset_quality,
+    summarize_quality_report,
+)
 from dataset_refresh import refresh_domains
 from llmfit_utils import (
     build_llmfit_record,
@@ -219,7 +223,9 @@ def prevalidate_source_dataset(
             ids_fixed=normalized_source_ids,
         )
     except DatasetQualityError as exc:
-        raise SystemExit(f"Source dataset quality gate failed for {label}: {exc}") from exc
+        raise SystemExit(
+            f"Source dataset quality gate failed for {label}: {exc}"
+        ) from exc
 
     if normalized_source_ids:
         print(
@@ -262,15 +268,21 @@ def update_batch_summary(manifest: dict) -> None:
             for payload in domains.values()
             if payload.get("train", {}).get("status") == "completed"
         ),
-        "source_rows": sum(int(item.get("source_rows") or 0) for item in distill_payloads),
+        "source_rows": sum(
+            int(item.get("source_rows") or 0) for item in distill_payloads
+        ),
         "distilled_rows": sum(
             int(item.get("distilled_rows") or 0) for item in distill_payloads
         ),
-        "merged_rows": sum(int(item.get("merged_rows") or 0) for item in distill_payloads),
+        "merged_rows": sum(
+            int(item.get("merged_rows") or 0) for item in distill_payloads
+        ),
         "duplicates_removed": sum(
             int(item.get("duplicates_removed") or 0) for item in distill_payloads
         ),
-        "failed_source_rows": sum(final_failed_source_rows(item) for item in distill_payloads),
+        "failed_source_rows": sum(
+            final_failed_source_rows(item) for item in distill_payloads
+        ),
         "promotions_completed": sum(
             1
             for payload in domains.values()
@@ -552,11 +564,15 @@ def load_jsonl_if_exists(path: Path) -> list[dict]:
 
 
 def merge_source_and_distilled(job: DomainJob) -> tuple[int, int, int, int]:
-    source_rows = ensure_row_ids(load_jsonl(job.source_dataset), f"{job.canonical}-source")
+    source_rows = ensure_row_ids(
+        load_jsonl(job.source_dataset), f"{job.canonical}-source"
+    )
     distilled_rows = ensure_row_ids(
         load_jsonl_if_exists(job.distilled_out), f"{job.canonical}-distill"
     )
-    merged_rows, duplicates_removed = dedupe_rows_with_stats(source_rows + distilled_rows)
+    merged_rows, duplicates_removed = dedupe_rows_with_stats(
+        source_rows + distilled_rows
+    )
     validation_errors = validate_rows(merged_rows)
     if validation_errors:
         raise RuntimeError(
@@ -622,9 +638,8 @@ def run_distill_pass(
     ]
     if config["teacher_system_path"]:
         command.extend(["--teacher-system-path", config["teacher_system_path"]])
-    if (
-        config["teacher_provider"] == LOCAL_HF_PROVIDER
-        and config.get("local_hf_device")
+    if config["teacher_provider"] == LOCAL_HF_PROVIDER and config.get(
+        "local_hf_device"
     ):
         command.extend(["--local-hf-device", config["local_hf_device"]])
     for api_url in config["api_urls"]:
@@ -909,7 +924,9 @@ def start_train_process(
     return process, log_handle
 
 
-def stop_active_trains(active_trains: dict[str, tuple[subprocess.Popen, object]]) -> None:
+def stop_active_trains(
+    active_trains: dict[str, tuple[subprocess.Popen, object]],
+) -> None:
     for process, log_handle in active_trains.values():
         try:
             process.terminate()
@@ -931,9 +948,7 @@ def domain_done(payload: dict, phase: str) -> bool:
     return payload[phase]["status"] == "completed"
 
 
-def resolve_batch_llmfit(
-    config: dict, run_dir: Path
-) -> dict:
+def resolve_batch_llmfit(config: dict, run_dir: Path) -> dict:
     enabled = bool(config.get("llmfit_preflight", True))
     requested_device = str(config.get("device") or "gpu")
     model_name = str(config.get("student_model") or "")
@@ -1173,7 +1188,9 @@ def main() -> int:
             explicit_provider=args.teacher_provider,
             explicit_model=args.teacher_model,
             ollama_api_url=os.environ.get("OLLAMA_API_URL"),
-            domains=[canonical_domain(label) for label in (args.domains or DEFAULT_DOMAINS)],
+            domains=[
+                canonical_domain(label) for label in (args.domains or DEFAULT_DOMAINS)
+            ],
             objective=args.teacher_objective,
         )
         args.teacher_provider = args.teacher_selection["provider"]
@@ -1279,9 +1296,15 @@ def main() -> int:
     config["auto_promote"] = config.get("auto_promote", False)
     config["promotion_quant"] = config.get("promotion_quant", DEFAULT_PROMOTION_QUANT)
     config["promotion_registry_path"] = config.get("promotion_registry_path")
-    config["llmfit_preflight"] = config.get("llmfit_preflight", env_flag("LLMFIT_PREFLIGHT", True))
-    config["llmfit_min_fit"] = config.get("llmfit_min_fit", os.environ.get("LLMFIT_MIN_FIT", "marginal"))
-    config["llmfit_memory"] = config.get("llmfit_memory", os.environ.get("LLMFIT_MEMORY"))
+    config["llmfit_preflight"] = config.get(
+        "llmfit_preflight", env_flag("LLMFIT_PREFLIGHT", True)
+    )
+    config["llmfit_min_fit"] = config.get(
+        "llmfit_min_fit", os.environ.get("LLMFIT_MIN_FIT", "marginal")
+    )
+    config["llmfit_memory"] = config.get(
+        "llmfit_memory", os.environ.get("LLMFIT_MEMORY")
+    )
     config["llmfit_bin"] = config.get("llmfit_bin", os.environ.get("LLMFIT_BIN"))
     config["llmfit_root"] = config.get("llmfit_root", os.environ.get("LLMFIT_ROOT"))
     config["llmfit_allow_cargo_run"] = config.get(
@@ -1318,8 +1341,7 @@ def main() -> int:
         )
     else:
         print(
-            "[INFO] machine=cpu-only "
-            f"class={machine_profile.get('hardware_class')}"
+            "[INFO] machine=cpu-only " f"class={machine_profile.get('hardware_class')}"
         )
     print(f"[INFO] teacher={config['teacher_provider']}/{config['teacher_model']}")
     teacher_selection = config.get("teacher_selection") or {}
@@ -1329,7 +1351,9 @@ def main() -> int:
         f"objective={teacher_selection.get('objective', config.get('teacher_objective', '-'))} "
         f"reason={teacher_selection.get('reason', '-')}"
     )
-    if config["teacher_provider"] == LOCAL_HF_PROVIDER and config.get("local_hf_device"):
+    if config["teacher_provider"] == LOCAL_HF_PROVIDER and config.get(
+        "local_hf_device"
+    ):
         print(f"[INFO] local_hf_device={config['local_hf_device']}")
     print(
         f"[INFO] student={config['student_model']} "
@@ -1486,14 +1510,16 @@ def main() -> int:
                     if child_llmfit is not None:
                         manifest["domains"][label]["train"]["llmfit"] = child_llmfit
                     if child_run is not None:
-                        training_info = (
-                            child_run.get("artifacts", {}) or {}
-                        ).get("training_info")
+                        training_info = (child_run.get("artifacts", {}) or {}).get(
+                            "training_info"
+                        )
                         if training_info is not None:
-                            manifest["domains"][label]["train"]["training_info"] = (
-                                training_info
-                            )
-                    promotion_result = maybe_promote_completed_train(jobs[label], config)
+                            manifest["domains"][label]["train"][
+                                "training_info"
+                            ] = training_info
+                    promotion_result = maybe_promote_completed_train(
+                        jobs[label], config
+                    )
                     if promotion_result is not None:
                         manifest["domains"][label]["promotion"] = promotion_result
                         print(
@@ -1503,7 +1529,10 @@ def main() -> int:
                         )
                     print(f"[OK] train {label}")
                 else:
-                    if child_llmfit is not None and child_llmfit.get("status") == "rejected":
+                    if (
+                        child_llmfit is not None
+                        and child_llmfit.get("status") == "rejected"
+                    ):
                         train_blocked_by_llmfit = True
                         manifest["llmfit"] = child_llmfit
                         pending_trains.clear()
@@ -1605,7 +1634,9 @@ def main() -> int:
                 payload["train"] = {
                     "status": "blocked" if train_blocked_by_llmfit else "skipped",
                     "completed_at": now_ts(),
-                    "reason": batch_llmfit.get("reason") if train_blocked_by_llmfit else None,
+                    "reason": (
+                        batch_llmfit.get("reason") if train_blocked_by_llmfit else None
+                    ),
                     "llmfit": {
                         "status": batch_llmfit["status"],
                         "reason": batch_llmfit.get("reason"),

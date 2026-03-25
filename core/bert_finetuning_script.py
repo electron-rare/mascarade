@@ -16,14 +16,12 @@ from pathlib import Path
 
 # Configure logging
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger("bert_finetuning")
 
-# Import after logging is configured
-from mascarade.analytics.clickhouse_logger import get_clickhouse_client
-from mascarade.router.bert_classifier import BertDomainClassifier
+from mascarade.analytics.clickhouse_logger import get_clickhouse_client  # noqa: E402
+from mascarade.router.bert_classifier import BertDomainClassifier  # noqa: E402
 
 
 def load_production_data(days: int = 7) -> tuple[list[str], list[str]]:
@@ -46,7 +44,7 @@ def load_production_data(days: int = 7) -> tuple[list[str], list[str]]:
         start_date = end_date - timedelta(days=days)
 
         # Query to get successful routing decisions with their domains
-        query = f"""
+        query = """
         SELECT
             query_text,
             detected_domain
@@ -54,13 +52,19 @@ def load_production_data(days: int = 7) -> tuple[list[str], list[str]]:
         WHERE
             success = 1
             AND detected_domain != ''
-            AND created_at >= '{start_date.isoformat()}'
-            AND created_at <= '{end_date.isoformat()}'
+            AND created_at >= %(start_date)s
+            AND created_at <= %(end_date)s
         ORDER BY created_at DESC
         LIMIT 10000
         """
 
-        result = client.execute(query)
+        result = client.execute(
+            query,
+            parameters={
+                "start_date": start_date.isoformat(),
+                "end_date": end_date.isoformat(),
+            },
+        )
 
         texts = []
         labels = []
@@ -79,7 +83,9 @@ def load_production_data(days: int = 7) -> tuple[list[str], list[str]]:
         raise
 
 
-def balance_dataset(texts: list[str], labels: list[str], min_samples: int = 50) -> tuple[list[str], list[str]]:
+def balance_dataset(
+    texts: list[str], labels: list[str], min_samples: int = 50
+) -> tuple[list[str], list[str]]:
     """
     Balance the dataset to ensure all domains have sufficient samples.
 
@@ -113,8 +119,11 @@ def balance_dataset(texts: list[str], labels: list[str], min_samples: int = 50) 
             balanced_labels.extend([domain] * len(selected_texts))
             logger.debug("Domain %s: %d samples", domain, len(selected_texts))
 
-    logger.info("Balanced dataset: %d samples across %d domains",
-               len(balanced_texts), len(set(balanced_labels)))
+    logger.info(
+        "Balanced dataset: %d samples across %d domains",
+        len(balanced_texts),
+        len(set(balanced_labels)),
+    )
 
     return balanced_texts, balanced_labels
 
@@ -134,7 +143,9 @@ def fine_tune_bert(texts: list[str], labels: list[str]) -> BertDomainClassifier:
 
     try:
         # Initialize classifier
-        model_path = Path.home() / ".mascarade" / "models" / "bert_domain_classifier_prod"
+        model_path = (
+            Path.home() / ".mascarade" / "models" / "bert_domain_classifier_prod"
+        )
         classifier = BertDomainClassifier(model_path=model_path)
 
         # Training parameters
@@ -148,7 +159,7 @@ def fine_tune_bert(texts: list[str], labels: list[str]) -> BertDomainClassifier:
             "logging_steps": 10,
             "save_strategy": "epoch",
             "evaluation_strategy": "epoch",
-            "load_best_model_at_end": True
+            "load_best_model_at_end": True,
         }
 
         # Train the model
@@ -164,7 +175,9 @@ def fine_tune_bert(texts: list[str], labels: list[str]) -> BertDomainClassifier:
         raise
 
 
-def evaluate_classifier(classifier: BertDomainClassifier, test_texts: list[str], test_labels: list[str]) -> dict:
+def evaluate_classifier(
+    classifier: BertDomainClassifier, test_texts: list[str], test_labels: list[str]
+) -> dict:
     """
     Evaluate classifier performance on test data.
 
@@ -194,7 +207,7 @@ def evaluate_classifier(classifier: BertDomainClassifier, test_texts: list[str],
         metrics = {
             "accuracy": accuracy,
             "classification_report": report,
-            "num_samples": len(test_labels)
+            "num_samples": len(test_labels),
         }
 
         logger.info("Evaluation completed")
@@ -218,7 +231,9 @@ def main():
         texts, labels = load_production_data(days=14)
 
         if len(texts) < 100:
-            logger.warning("Insufficient data (%d samples). Need at least 100.", len(texts))
+            logger.warning(
+                "Insufficient data (%d samples). Need at least 100.", len(texts)
+            )
             return
 
         # Step 2: Balance dataset
@@ -231,8 +246,11 @@ def main():
             balanced_texts, balanced_labels, test_size=0.2, random_state=42
         )
 
-        logger.info("Train set: %d samples, Test set: %d samples",
-                   len(train_texts), len(test_texts))
+        logger.info(
+            "Train set: %d samples, Test set: %d samples",
+            len(train_texts),
+            len(test_texts),
+        )
 
         # Step 4: Fine-tune BERT
         classifier = fine_tune_bert(train_texts, train_labels)
@@ -248,6 +266,7 @@ def main():
         # Step 7: Save metrics
         metrics_path = save_path / "evaluation_metrics.json"
         import json
+
         with metrics_path.open("w") as f:
             json.dump(metrics, f, indent=2)
 

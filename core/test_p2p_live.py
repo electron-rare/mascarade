@@ -28,7 +28,9 @@ async def main():
             listen_host="127.0.0.1",
             listen_port=4002,
             key_dir=dir_b,
-            bootstrap_peers=[(node_a.peer_id, "127.0.0.1", node_a.transport.listen_port)],
+            bootstrap_peers=[
+                (node_a.peer_id, "127.0.0.1", node_a.transport.listen_port)
+            ],
         )
         await node_b.start()
         print(f"\n[B] PeerID:  {node_b.peer_id}")

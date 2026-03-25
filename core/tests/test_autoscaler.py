@@ -1,6 +1,5 @@
 """Tests for the auto-scaler functionality."""
 
-
 import pytest
 
 from mascarade.scheduler.autoscaler import AutoScaler, ScalingDecision
@@ -34,6 +33,7 @@ def autoscaler(mock_scheduler):
     """Create an auto-scaler instance."""
     # Mock the settings
     from mascarade.config import settings
+
     original_values = {
         "autoscaling_enabled": settings.autoscaling_enabled,
         "autoscaling_min_workers": settings.autoscaling_min_workers,
@@ -88,6 +88,7 @@ def test_should_scale_cooldown(autoscaler):
 
     # Simulate a recent scale operation
     import time
+
     autoscaler.last_scale_time = time.time() - 10  # 10 seconds ago
 
     # With 300 second cooldown, should not allow scaling yet
@@ -181,9 +182,7 @@ def test_apply_scaling_decision_scale_up(autoscaler):
     initial_count = autoscaler.get_current_worker_count()
 
     decision = ScalingDecision(
-        action="scale_up",
-        target_workers=initial_count + 1,
-        reason="Test scale up"
+        action="scale_up", target_workers=initial_count + 1, reason="Test scale up"
     )
 
     result = autoscaler.apply_scaling_decision(decision)
@@ -197,9 +196,7 @@ def test_apply_scaling_decision_scale_down(autoscaler):
     initial_count = autoscaler.get_current_worker_count()
 
     decision = ScalingDecision(
-        action="scale_down",
-        target_workers=initial_count - 1,
-        reason="Test scale down"
+        action="scale_down", target_workers=initial_count - 1, reason="Test scale down"
     )
 
     result = autoscaler.apply_scaling_decision(decision)
@@ -213,9 +210,7 @@ def test_apply_scaling_decision_no_op(autoscaler):
     initial_count = autoscaler.get_current_worker_count()
 
     decision = ScalingDecision(
-        action="no_op",
-        target_workers=initial_count,
-        reason="Test no-op"
+        action="no_op", target_workers=initial_count, reason="Test no-op"
     )
 
     result = autoscaler.apply_scaling_decision(decision)

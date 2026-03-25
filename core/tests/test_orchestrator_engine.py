@@ -45,7 +45,9 @@ def _make_registry(*names: str) -> AgentRegistry:
     registry = AgentRegistry(storage_path=None)
     for name in names:
         registry.register(
-            Agent(name=name, description=f"Agent {name}", system_prompt=f"You are {name}.")
+            Agent(
+                name=name, description=f"Agent {name}", system_prompt=f"You are {name}."
+            )
         )
     return registry
 
@@ -308,9 +310,7 @@ class TestRoutingOverrides:
             ["analyst"],
             "policy test",
             mode="sequential",
-            routing_overrides={
-                "analyst": {"routing_policy": "strong"}
-            },
+            routing_overrides={"analyst": {"routing_policy": "strong"}},
         )
         assert router.calls[0]["routing_policy"] == "strong"
 

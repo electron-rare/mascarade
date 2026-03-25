@@ -223,7 +223,9 @@ class RateLimiter:
         """
         with self._user_lock:
             tracked_users = len(self._user_requests)
-            total_user_requests = sum(len(reqs) for reqs in self._user_requests.values())
+            total_user_requests = sum(
+                len(reqs) for reqs in self._user_requests.values()
+            )
 
         with self._ip_lock:
             tracked_ips = len(self._ip_requests)
@@ -296,7 +298,9 @@ def _load_api_keys() -> None:
             if _api_keys:
                 logger.info("Clearing all API keys (none configured)")
                 _api_keys.clear()
-            logger.warning("No MASCARADE_API_KEY configured — all protected routes are PUBLIC")
+            logger.warning(
+                "No MASCARADE_API_KEY configured — all protected routes are PUBLIC"
+            )
 
         _last_key_rotation = time.time()
 
@@ -340,10 +344,11 @@ def _resolve_role(token: str) -> AuthRole | None:
     admin_keys = _configured_role_keys("MASCARADE_RBAC_ADMIN_KEYS")
     operator_keys = _configured_role_keys("MASCARADE_RBAC_OPERATOR_KEYS")
     viewer_keys = _configured_role_keys("MASCARADE_RBAC_VIEWER_KEYS")
-    rbac_enabled = (
-        str(os.getenv("MASCARADE_RBAC_ENABLED", "")).strip().lower() in {"1", "true", "yes"}
-        or bool(admin_keys or operator_keys or viewer_keys)
-    )
+    rbac_enabled = str(os.getenv("MASCARADE_RBAC_ENABLED", "")).strip().lower() in {
+        "1",
+        "true",
+        "yes",
+    } or bool(admin_keys or operator_keys or viewer_keys)
 
     if not rbac_enabled:
         return "admin"
@@ -362,7 +367,11 @@ def _required_role_for_request(method: str, path: str) -> AuthRole:
 
     if normalized_path.startswith("/api-keys"):
         return "admin"
-    if normalized_path.startswith("/providers") and normalized_method not in {"GET", "HEAD", "OPTIONS"}:
+    if normalized_path.startswith("/providers") and normalized_method not in {
+        "GET",
+        "HEAD",
+        "OPTIONS",
+    }:
         return "admin"
     if normalized_path.startswith("/runtime-secrets"):
         return "admin"
@@ -371,7 +380,9 @@ def _required_role_for_request(method: str, path: str) -> AuthRole:
     if normalized_path.startswith("/cluster/forward"):
         return "admin"
     if normalized_path.startswith("/cluster") or normalized_path.startswith("/p2p"):
-        return "viewer" if normalized_method in {"GET", "HEAD", "OPTIONS"} else "operator"
+        return (
+            "viewer" if normalized_method in {"GET", "HEAD", "OPTIONS"} else "operator"
+        )
 
     if normalized_method in {"GET", "HEAD", "OPTIONS"}:
         return "viewer"
@@ -408,7 +419,10 @@ async def require_auth(
         x_api_key = request.headers.get("X-API-Key")
         if x_api_key:
             from fastapi.security import HTTPAuthorizationCredentials
-            credentials = HTTPAuthorizationCredentials(scheme="Bearer", credentials=x_api_key)
+
+            credentials = HTTPAuthorizationCredentials(
+                scheme="Bearer", credentials=x_api_key
+            )
 
     if credentials is None:
         raise HTTPException(status_code=401, detail="Missing token")
@@ -464,7 +478,9 @@ def get_rate_limit_metrics() -> dict[str, int]:
     return _rate_limiter.get_metrics()
 
 
-def reset_rate_limit(user_key: str | None = None, ip_address: str | None = None) -> None:
+def reset_rate_limit(
+    user_key: str | None = None, ip_address: str | None = None
+) -> None:
     """Reset rate limit counters.
 
     Args:
@@ -490,7 +506,9 @@ def hash_api_key(key: str) -> str:
     Returns:
         Hex-encoded HMAC-SHA256 hash of the key
     """
-    secret = os.getenv("MASCARADE_KEY_HASH_SECRET", "mascarade-default-pepper-change-me")
+    secret = os.getenv(
+        "MASCARADE_KEY_HASH_SECRET", "mascarade-default-pepper-change-me"
+    )
     return hmac.new(secret.encode(), key.encode(), hashlib.sha256).hexdigest()
 
 
@@ -698,9 +716,7 @@ async def require_admin(
                     current_user.id,
                     role_row["name"],
                 )
-                raise HTTPException(
-                    status_code=403, detail="Admin privileges required"
-                )
+                raise HTTPException(status_code=403, detail="Admin privileges required")
 
             logger.info(
                 "Admin access granted: user_id=%d, username=%s",
@@ -777,11 +793,9 @@ async def migrate_legacy_keys() -> dict:
 
     async with pool.acquire() as conn:
         # Get admin role ID
-        admin_role = await conn.fetchrow(
-            """
+        admin_role = await conn.fetchrow("""
             SELECT id FROM roles WHERE name = 'admin'
-            """
-        )
+            """)
 
         if admin_role is None:
             logger.error("Admin role not found in database")
@@ -809,11 +823,13 @@ async def migrate_legacy_keys() -> dict:
                         f"Legacy key {idx}/{len(legacy_keys)} already migrated (prefix: {key_prefix})"
                     )
                     results["skipped"] += 1
-                    results["details"].append({
-                        "key_prefix": key_prefix,
-                        "status": "skipped",
-                        "reason": "already_migrated",
-                    })
+                    results["details"].append(
+                        {
+                            "key_prefix": key_prefix,
+                            "status": "skipped",
+                            "reason": "already_migrated",
+                        }
+                    )
                     continue
 
                 # Check if this key already exists in api_keys table
@@ -829,11 +845,13 @@ async def migrate_legacy_keys() -> dict:
                         f"Legacy key {idx}/{len(legacy_keys)} already exists in database (prefix: {key_prefix})"
                     )
                     results["skipped"] += 1
-                    results["details"].append({
-                        "key_prefix": key_prefix,
-                        "status": "skipped",
-                        "reason": "key_exists",
-                    })
+                    results["details"].append(
+                        {
+                            "key_prefix": key_prefix,
+                            "status": "skipped",
+                            "reason": "key_exists",
+                        }
+                    )
                     continue
 
                 # Perform migration (transaction-safe in production,
@@ -901,12 +919,14 @@ async def migrate_legacy_keys() -> dict:
                         f"Successfully migrated legacy key {idx}/{len(legacy_keys)} (prefix: {key_prefix})"
                     )
                     results["migrated"] += 1
-                    results["details"].append({
-                        "key_prefix": key_prefix,
-                        "status": "migrated",
-                        "user_id": user_id,
-                        "username": username,
-                    })
+                    results["details"].append(
+                        {
+                            "key_prefix": key_prefix,
+                            "status": "migrated",
+                            "user_id": user_id,
+                            "username": username,
+                        }
+                    )
 
             except Exception as e:
                 logger.error(
@@ -914,11 +934,13 @@ async def migrate_legacy_keys() -> dict:
                     exc_info=True,
                 )
                 results["failed"] += 1
-                results["details"].append({
-                    "key_prefix": key_prefix,
-                    "status": "failed",
-                    "error": str(e),
-                })
+                results["details"].append(
+                    {
+                        "key_prefix": key_prefix,
+                        "status": "failed",
+                        "error": str(e),
+                    }
+                )
 
     logger.info(
         f"Legacy key migration complete: {results['migrated']} migrated, "

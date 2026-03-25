@@ -14,7 +14,7 @@ from google.auth.transport.requests import Request
 from google.genai import types as genai_types
 from google.oauth2.credentials import Credentials
 
-from mascarade.config import is_secret_configured, settings
+from mascarade.config import is_secret_configured, secret_value, settings
 from mascarade.router.providers.base import (
     LLMProvider,
     LLMResponse,
@@ -70,7 +70,9 @@ class GoogleProvider(LLMProvider):
 
     def __init__(self) -> None:
         if settings.google_application_credentials:
-            os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = settings.google_application_credentials
+            os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = (
+                settings.google_application_credentials
+            )
 
         self._client: genai.Client | None = None
         self._client_token = ""
@@ -97,7 +99,7 @@ class GoogleProvider(LLMProvider):
             return is_secret_configured(settings.google_api_key)
         if auth_mode == "oauth_oidc":
             return bool(
-                settings.google_oauth_client_id.strip()
+                secret_value(settings.google_oauth_client_id).strip()
                 and is_secret_configured(settings.google_oauth_client_secret)
                 and (
                     is_secret_configured(settings.google_oauth_access_token)
@@ -114,10 +116,10 @@ class GoogleProvider(LLMProvider):
 
     def _build_oauth_credentials(self) -> Credentials:
         token_endpoint = settings.google_oauth_token_endpoint.strip()
-        refresh_token = settings.google_oauth_refresh_token.strip()
-        client_id = settings.google_oauth_client_id.strip()
-        client_secret = settings.google_oauth_client_secret.strip()
-        access_token = settings.google_oauth_access_token.strip()
+        refresh_token = secret_value(settings.google_oauth_refresh_token).strip()
+        client_id = secret_value(settings.google_oauth_client_id).strip()
+        client_secret = secret_value(settings.google_oauth_client_secret).strip()
+        access_token = secret_value(settings.google_oauth_access_token).strip()
         expires_at = _parse_expires_at(settings.google_oauth_expires_at)
 
         if not token_endpoint:
@@ -126,7 +128,9 @@ class GoogleProvider(LLMProvider):
             raise RuntimeError("Google OAuth client id is missing")
         if not is_secret_configured(client_secret):
             raise RuntimeError("Google OAuth client secret is missing")
-        if not is_secret_configured(access_token) and not is_secret_configured(refresh_token):
+        if not is_secret_configured(access_token) and not is_secret_configured(
+            refresh_token
+        ):
             raise RuntimeError("Google OAuth access token or refresh token is missing")
 
         scopes = [
@@ -148,7 +152,7 @@ class GoogleProvider(LLMProvider):
     def _resolve_oauth_credentials(self) -> Credentials:
         credentials = self._build_oauth_credentials()
         expires_at = _parse_expires_at(settings.google_oauth_expires_at)
-        access_token = settings.google_oauth_access_token.strip()
+        access_token = secret_value(settings.google_oauth_access_token).strip()
         if (
             is_secret_configured(access_token)
             and expires_at is not None
@@ -176,7 +180,7 @@ class GoogleProvider(LLMProvider):
         http_opts = genai_types.HttpOptions(timeout=_TIMEOUT_S)
 
         if auth_mode == "api_key":
-            api_key = settings.google_api_key.strip()
+            api_key = secret_value(settings.google_api_key).strip()
             if not is_secret_configured(api_key):
                 raise RuntimeError("Google API key is missing")
             if (
@@ -225,7 +229,8 @@ class GoogleProvider(LLMProvider):
             [
                 settings.google_cloud_project.strip(),
                 settings.google_cloud_location.strip(),
-                adc_path or os.environ.get("GOOGLE_APPLICATION_CREDENTIALS", "").strip(),
+                adc_path
+                or os.environ.get("GOOGLE_APPLICATION_CREDENTIALS", "").strip(),
             ]
         )
         if (
@@ -250,7 +255,7 @@ class GoogleProvider(LLMProvider):
         if self._proxy_client is not None:
             return self._proxy_client
         self._proxy_client = openai.AsyncOpenAI(
-            api_key=settings.litellm_master_key,
+            api_key=secret_value(settings.litellm_master_key),
             base_url=settings.litellm_base_url,
             timeout=30.0,
         )
@@ -277,15 +282,21 @@ class GoogleProvider(LLMProvider):
                 temperature=temperature,
             )
             if not response.choices:
-                raise RuntimeError(f"LiteLLM returned empty choices for model {model_id}")
+                raise RuntimeError(
+                    f"LiteLLM returned empty choices for model {model_id}"
+                )
             choice = response.choices[0]
             return LLMResponse(
                 content=choice.message.content or "",
                 model=model_id,
                 provider=self.name,
                 usage={
-                    "input_tokens": response.usage.prompt_tokens if response.usage else 0,
-                    "output_tokens": (response.usage.completion_tokens if response.usage else 0),
+                    "input_tokens": (
+                        response.usage.prompt_tokens if response.usage else 0
+                    ),
+                    "output_tokens": (
+                        response.usage.completion_tokens if response.usage else 0
+                    ),
                 },
             )
 
@@ -308,7 +319,9 @@ class GoogleProvider(LLMProvider):
             provider=self.name,
             usage={
                 "input_tokens": int(getattr(usage_meta, "prompt_token_count", 0) or 0),
-                "output_tokens": int(getattr(usage_meta, "candidates_token_count", 0) or 0),
+                "output_tokens": int(
+                    getattr(usage_meta, "candidates_token_count", 0) or 0
+                ),
             },
         )
 
@@ -358,6 +371,7 @@ class GoogleProvider(LLMProvider):
                     if text:
                         queue.put_nowait(text)
                 queue.put_nowait(None)
+
             await asyncio.to_thread(_run)
 
         drain_task = asyncio.create_task(_drain())

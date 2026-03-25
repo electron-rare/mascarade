@@ -37,7 +37,7 @@ def build_modelfile(
 ) -> str:
     """Build an Ollama Modelfile for a GGUF model."""
     lines = [f'FROM "{gguf_path}"']
-    lines.append(f"TEMPLATE \"\"\"{template or DEFAULT_TEMPLATE}\"\"\"")
+    lines.append(f'TEMPLATE """{template or DEFAULT_TEMPLATE}"""')
     if system:
         lines.append(f'SYSTEM """{system}"""')
     lines.append(parameters or DEFAULT_PARAMETERS)
@@ -61,12 +61,16 @@ async def register_ollama_model(
         return {"status": "error", "error": f"GGUF not found: {gguf_path}"}
 
     modelfile_content = build_modelfile(
-        gguf_path, template=template, system=system,
+        gguf_path,
+        template=template,
+        system=system,
     )
 
     # Write Modelfile to temp location
     with tempfile.NamedTemporaryFile(
-        mode="w", suffix=".Modelfile", delete=False,
+        mode="w",
+        suffix=".Modelfile",
+        delete=False,
     ) as f:
         f.write(modelfile_content)
         modelfile_path = f.name
@@ -77,7 +81,11 @@ async def register_ollama_model(
             return {"status": "error", "error": f"'{ollama_binary}' not found in PATH"}
 
         proc = await asyncio.create_subprocess_exec(
-            ollama_binary, "create", model_name, "-f", modelfile_path,
+            ollama_binary,
+            "create",
+            model_name,
+            "-f",
+            modelfile_path,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
@@ -87,7 +95,9 @@ async def register_ollama_model(
             err = stderr.decode().strip()[-500:]
             logger.error(
                 "ollama create %s failed (rc=%d): %s",
-                model_name, proc.returncode, err,
+                model_name,
+                proc.returncode,
+                err,
             )
             return {"status": "error", "error": err, "model_name": model_name}
 

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, patch
 
 import httpx
 import pytest
@@ -18,7 +18,11 @@ class FakeRouter:
     """Fake router for testing provider endpoints."""
 
     def __init__(self, available_providers: list[str] | None = None):
-        self.available_providers = available_providers or ["openai", "anthropic", "ollama"]
+        self.available_providers = available_providers or [
+            "openai",
+            "anthropic",
+            "ollama",
+        ]
         self._providers = {}
         self.fill_in_middle = AsyncMock(
             return_value=type(
@@ -79,20 +83,22 @@ def _clean_api_keys():
 @asynccontextmanager
 async def _client(fake_router: FakeRouter | None = None):
     """Create test client with optional fake router."""
-    async with app.router.lifespan_context(app):
-        original_router = app.state.router if fake_router else None
-        if fake_router:
-            app.state.router = fake_router
-        try:
-            transport = httpx.ASGITransport(app=app)
-            async with httpx.AsyncClient(
-                transport=transport,
-                base_url="http://testserver",
-            ) as client:
-                yield client
-        finally:
-            if original_router:
-                app.state.router = original_router
+    with patch("mascarade.auth.is_valid_api_key", return_value=True), \
+         patch("mascarade.auth._resolve_role", return_value="admin"):
+        async with app.router.lifespan_context(app):
+            original_router = app.state.router if fake_router else None
+            if fake_router:
+                app.state.router = fake_router
+            try:
+                transport = httpx.ASGITransport(app=app)
+                async with httpx.AsyncClient(
+                    transport=transport,
+                    base_url="http://testserver",
+                ) as client:
+                    yield client
+            finally:
+                if original_router:
+                    app.state.router = original_router
 
 
 @pytest.mark.asyncio
@@ -102,7 +108,7 @@ async def test_list_providers():
 
     async with _client(fake_router) as client:
         response = await client.get(
-            "/api/providers",
+            "/v1/providers",
             headers={"Authorization": f"Bearer {TEST_API_KEY}"},
         )
 
@@ -121,7 +127,7 @@ async def test_providers_status():
 
     async with _client(fake_router) as client:
         response = await client.get(
-            "/api/providers/status",
+            "/v1/providers/status",
             headers={"Authorization": f"Bearer {TEST_API_KEY}"},
         )
 
@@ -144,7 +150,7 @@ async def test_update_provider_key():
 
     async with _client(fake_router) as client:
         response = await client.put(
-            "/api/providers/openai/key",
+            "/v1/providers/openai/key",
             headers={"Authorization": f"Bearer {TEST_API_KEY}"},
             json={
                 "keys": {
@@ -164,7 +170,7 @@ async def test_update_unknown_provider():
     """Test updating an unknown provider returns 404."""
     async with _client() as client:
         response = await client.put(
-            "/api/providers/unknown-provider/key",
+            "/v1/providers/unknown-provider/key",
             headers={"Authorization": f"Bearer {TEST_API_KEY}"},
             json={
                 "keys": {
@@ -186,7 +192,7 @@ async def test_bedrock_models():
 
     async with _client(fake_router) as client:
         response = await client.get(
-            "/api/providers/bedrock/models",
+            "/v1/providers/bedrock/models",
             headers={"Authorization": f"Bearer {TEST_API_KEY}"},
         )
 
@@ -206,7 +212,7 @@ async def test_bedrock_models_not_available():
 
     async with _client(fake_router) as client:
         response = await client.get(
-            "/api/providers/bedrock/models",
+            "/v1/providers/bedrock/models",
             headers={"Authorization": f"Bearer {TEST_API_KEY}"},
         )
 
@@ -223,7 +229,7 @@ async def test_bedrock_finetune_jobs():
 
     async with _client(fake_router) as client:
         response = await client.get(
-            "/api/providers/bedrock/finetune-jobs",
+            "/v1/providers/bedrock/finetune-jobs",
             headers={"Authorization": f"Bearer {TEST_API_KEY}"},
         )
 
@@ -243,7 +249,7 @@ async def test_bedrock_finetune_jobs_not_available():
 
     async with _client(fake_router) as client:
         response = await client.get(
-            "/api/providers/bedrock/finetune-jobs",
+            "/v1/providers/bedrock/finetune-jobs",
             headers={"Authorization": f"Bearer {TEST_API_KEY}"},
         )
 
@@ -255,7 +261,7 @@ async def test_bedrock_finetune_jobs_not_available():
 async def test_provider_endpoints_require_auth():
     """Test that provider endpoints require authentication."""
     async with _client() as client:
-        response = await client.get("/api/providers")
+        response = await client.get("/v1/providers")
 
     assert response.status_code == 401
 
@@ -266,7 +272,7 @@ async def test_codestral_fim_endpoint():
 
     async with _client(fake_router) as client:
         response = await client.post(
-            "/api/providers/codestral/fim",
+            "/v1/providers/codestral/fim",
             headers={"Authorization": f"Bearer {TEST_API_KEY}"},
             json={
                 "prompt": "def add(a, b):\n",
@@ -288,7 +294,7 @@ async def test_codestral_fim_validation_error():
 
     async with _client(fake_router) as client:
         response = await client.post(
-            "/api/providers/codestral/fim",
+            "/v1/providers/codestral/fim",
             headers={"Authorization": f"Bearer {TEST_API_KEY}"},
             json={"prompt": "", "suffix": ""},
         )
@@ -299,11 +305,13 @@ async def test_codestral_fim_validation_error():
 @pytest.mark.asyncio
 async def test_list_providers_multiple():
     """Test listing multiple providers."""
-    fake_router = FakeRouter(available_providers=["openai", "anthropic", "ollama", "bedrock"])
+    fake_router = FakeRouter(
+        available_providers=["openai", "anthropic", "ollama", "bedrock"]
+    )
 
     async with _client(fake_router) as client:
         response = await client.get(
-            "/api/providers",
+            "/v1/providers",
             headers={"Authorization": f"Bearer {TEST_API_KEY}"},
         )
 

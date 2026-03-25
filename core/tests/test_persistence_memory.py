@@ -30,8 +30,14 @@ async def test_memory_manager_initialization():
 @pytest.mark.asyncio
 async def test_memory_keys_are_scoped_by_project():
     manager = MultiBackendMemoryManager(redis_url="redis://test:6379")
-    assert manager._get_memory_key("mem-1", project_id="project-a") == "memory:project-a:mem-1"
-    assert manager._get_memory_key("mem-1", project_id="project-b") == "memory:project-b:mem-1"
+    assert (
+        manager._get_memory_key("mem-1", project_id="project-a")
+        == "memory:project-a:mem-1"
+    )
+    assert (
+        manager._get_memory_key("mem-1", project_id="project-b")
+        == "memory:project-b:mem-1"
+    )
 
 
 @pytest.mark.asyncio
@@ -44,7 +50,7 @@ async def test_memory_entry_creation():
         created_at="2024-01-01T00:00:00Z",
         updated_at="2024-01-01T00:00:00Z",
         metadata={"test": "value"},
-        tags=["test", "example"]
+        tags=["test", "example"],
     )
 
     assert memory.memory_id == "test_mem"
@@ -56,7 +62,7 @@ async def test_memory_entry_creation():
 @pytest.mark.asyncio
 async def test_memory_save_and_retrieve():
     """Test saving and retrieving memories."""
-    with patch('mascarade.persistence.memory_manager.redis.from_url') as mock_redis:
+    with patch("mascarade.persistence.memory_manager.redis.from_url") as mock_redis:
         # Setup mock Redis
         mock_redis_client = AsyncMock()
         mock_redis.return_value = mock_redis_client
@@ -70,7 +76,7 @@ async def test_memory_save_and_retrieve():
             content="test content",
             memory_type="generic",
             created_at="2024-01-01T00:00:00Z",
-            updated_at="2024-01-01T00:00:00Z"
+            updated_at="2024-01-01T00:00:00Z",
         )
 
         # Mock Redis operations
@@ -90,7 +96,7 @@ async def test_memory_save_and_retrieve():
 @pytest.mark.asyncio
 async def test_memory_update():
     """Test updating existing memory."""
-    with patch('mascarade.persistence.memory_manager.redis.from_url') as mock_redis:
+    with patch("mascarade.persistence.memory_manager.redis.from_url") as mock_redis:
         # Setup mock Redis
         mock_redis_client = AsyncMock()
         mock_redis.return_value = mock_redis_client
@@ -104,7 +110,7 @@ async def test_memory_update():
             content="original content",
             memory_type="generic",
             created_at="2024-01-01T00:00:00Z",
-            updated_at="2024-01-01T00:00:00Z"
+            updated_at="2024-01-01T00:00:00Z",
         )
 
         # Mock Redis operations
@@ -123,7 +129,7 @@ async def test_memory_update():
 @pytest.mark.asyncio
 async def test_memory_deletion():
     """Test deleting memory."""
-    with patch('mascarade.persistence.memory_manager.redis.from_url') as mock_redis:
+    with patch("mascarade.persistence.memory_manager.redis.from_url") as mock_redis:
         # Setup mock Redis
         mock_redis_client = AsyncMock()
         mock_redis.return_value = mock_redis_client
@@ -142,7 +148,7 @@ async def test_memory_deletion():
 @pytest.mark.asyncio
 async def test_memory_search():
     """Test searching memories."""
-    with patch('mascarade.persistence.memory_manager.redis.from_url') as mock_redis:
+    with patch("mascarade.persistence.memory_manager.redis.from_url") as mock_redis:
         # Setup mock Redis
         mock_redis_client = AsyncMock()
         mock_redis.return_value = mock_redis_client
@@ -167,7 +173,7 @@ async def test_memory_search():
             memory_type="generic",
             created_at="2024-01-01T00:00:00Z",
             updated_at="2024-01-01T00:00:00Z",
-            tags=["test"]
+            tags=["test"],
         )
 
         memory2 = MemoryEntry(
@@ -176,13 +182,10 @@ async def test_memory_search():
             memory_type="conversation",
             created_at="2024-01-01T00:00:00Z",
             updated_at="2024-01-01T00:00:00Z",
-            tags=["example"]
+            tags=["example"],
         )
 
-        mock_redis_client.get.side_effect = [
-            memory1.json(),
-            memory2.json()
-        ]
+        mock_redis_client.get.side_effect = [memory1.json(), memory2.json()]
 
         # Search memories
         results = await manager.search_memories("test", memory_type="generic")
@@ -193,7 +196,7 @@ async def test_memory_search():
 @pytest.mark.asyncio
 async def test_batch_operations():
     """Test batch memory operations."""
-    with patch('mascarade.persistence.memory_manager.redis.from_url') as mock_redis:
+    with patch("mascarade.persistence.memory_manager.redis.from_url") as mock_redis:
         # Setup mock Redis
         mock_redis_client = AsyncMock()
         mock_redis.return_value = mock_redis_client
@@ -208,15 +211,15 @@ async def test_batch_operations():
                 content="content1",
                 memory_type="generic",
                 created_at="2024-01-01T00:00:00Z",
-                updated_at="2024-01-01T00:00:00Z"
+                updated_at="2024-01-01T00:00:00Z",
             ),
             MemoryEntry(
                 memory_id="mem2",
                 content="content2",
                 memory_type="generic",
                 created_at="2024-01-01T00:00:00Z",
-                updated_at="2024-01-01T00:00:00Z"
-            )
+                updated_at="2024-01-01T00:00:00Z",
+            ),
         ]
 
         # Mock Redis operations
@@ -239,7 +242,7 @@ async def test_batch_operations():
 @pytest.mark.asyncio
 async def test_utility_functions():
     """Test utility functions."""
-    with patch('mascarade.persistence.memory_manager.redis.from_url') as mock_redis:
+    with patch("mascarade.persistence.memory_manager.redis.from_url") as mock_redis:
         # Setup mock Redis
         mock_redis_client = AsyncMock()
         mock_redis.return_value = mock_redis_client
@@ -252,7 +255,7 @@ async def test_utility_functions():
             content="test content",
             memory_type="test",
             metadata={"test": "value"},
-            tags=["test"]
+            tags=["test"],
         )
 
         assert memory.memory_id.startswith("mem_")
@@ -268,18 +271,20 @@ async def test_utility_functions():
         manager.store_memory = AsyncMock(return_value=memory.memory_id)
         manager.store_conversation_message = AsyncMock()
 
-        with patch('mascarade.conversation.models.ConversationMessage') as mock_message:
+        with patch("mascarade.conversation.models.ConversationMessage") as mock_message:
             mock_message_instance = MagicMock()
             mock_message.return_value = mock_message_instance
 
-            with patch('mascarade.persistence.memory_manager.create_memory_entry') as mock_create:
+            with patch(
+                "mascarade.persistence.memory_manager.create_memory_entry"
+            ) as mock_create:
                 mock_create.return_value = memory
 
                 result = await create_conversation_memory(
                     manager=manager,
                     conversation_id="conv1",
                     user_id="user1",
-                    initial_message="hello"
+                    initial_message="hello",
                 )
 
                 assert result == memory.memory_id

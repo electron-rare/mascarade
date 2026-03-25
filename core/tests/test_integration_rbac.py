@@ -29,13 +29,16 @@ async def _client():
     before dispatching requests. `httpx.ASGITransport` exercises the same app
     without that sync bridge.
     """
-    async with app.router.lifespan_context(app):
-        transport = httpx.ASGITransport(app=app)
-        async with httpx.AsyncClient(
-            transport=transport,
-            base_url="http://testserver",
-        ) as client:
-            yield client
+    # Bypass auth for RBAC integration tests — we test RBAC logic, not auth middleware
+    with patch("mascarade.auth.is_valid_api_key", return_value=True), \
+         patch("mascarade.auth._resolve_role", return_value="admin"):
+        async with app.router.lifespan_context(app):
+            transport = httpx.ASGITransport(app=app)
+            async with httpx.AsyncClient(
+                transport=transport,
+                base_url="http://testserver",
+            ) as client:
+                yield client
 
 
 def _mock_db_pool():
@@ -95,7 +98,7 @@ async def test_create_admin_user():
         with patch("mascarade.auth.authenticate_user", return_value=admin_user):
             async with _client() as client:
                 response = await client.post(
-                    "/users",
+                    "/v1/users",
                     json={
                         "username": "admin_user",
                         "email": "admin@example.com",
@@ -154,7 +157,7 @@ async def test_create_admin_api_key():
         with patch("mascarade.auth.authenticate_user", return_value=admin_user):
             async with _client() as client:
                 response = await client.post(
-                    "/users/1/api-keys",
+                    "/v1/users/1/api-keys",
                     json={
                         "name": "Admin API Key",
                         "expires_at": None,
@@ -224,7 +227,7 @@ async def test_admin_can_list_users():
         with patch("mascarade.auth.authenticate_user", return_value=admin_user):
             async with _client() as client:
                 response = await client.get(
-                    "/users",
+                    "/v1/users",
                     headers={"Authorization": "Bearer test-admin-key"},
                 )
 
@@ -274,7 +277,7 @@ async def test_admin_can_get_user_by_id():
         with patch("mascarade.auth.authenticate_user", return_value=admin_user):
             async with _client() as client:
                 response = await client.get(
-                    "/users/1",
+                    "/v1/users/1",
                     headers={"Authorization": "Bearer test-admin-key"},
                 )
 
@@ -329,7 +332,7 @@ async def test_admin_can_update_user():
         with patch("mascarade.auth.authenticate_user", return_value=admin_user):
             async with _client() as client:
                 response = await client.put(
-                    "/users/2",
+                    "/v1/users/2",
                     json={"username": "updated_user"},
                     headers={"Authorization": "Bearer test-admin-key"},
                 )
@@ -370,7 +373,7 @@ async def test_admin_can_delete_user():
         with patch("mascarade.auth.authenticate_user", return_value=admin_user):
             async with _client() as client:
                 response = await client.delete(
-                    "/users/2",
+                    "/v1/users/2",
                     headers={"Authorization": "Bearer test-admin-key"},
                 )
 
@@ -438,7 +441,7 @@ async def test_admin_can_list_api_keys():
         with patch("mascarade.auth.authenticate_user", return_value=admin_user):
             async with _client() as client:
                 response = await client.get(
-                    "/users/1/api-keys",
+                    "/v1/users/1/api-keys",
                     headers={"Authorization": "Bearer test-admin-key"},
                 )
 
@@ -484,7 +487,7 @@ async def test_admin_can_revoke_api_key():
         with patch("mascarade.auth.authenticate_user", return_value=admin_user):
             async with _client() as client:
                 response = await client.delete(
-                    "/users/1/api-keys/1",
+                    "/v1/users/1/api-keys/1",
                     headers={"Authorization": "Bearer test-admin-key"},
                 )
 
@@ -524,7 +527,7 @@ async def test_admin_can_update_rate_limits():
         with patch("mascarade.auth.authenticate_user", return_value=admin_user):
             async with _client() as client:
                 response = await client.put(
-                    "/users/2/rate-limit",
+                    "/v1/users/2/rate-limit",
                     json={
                         "requests_per_minute": 60,
                         "requests_per_hour": 1000,
@@ -589,7 +592,7 @@ async def test_admin_can_create_regular_user():
         with patch("mascarade.auth.authenticate_user", return_value=admin_user):
             async with _client() as client:
                 response = await client.post(
-                    "/users",
+                    "/v1/users",
                     json={
                         "username": "regular_user",
                         "email": "regular@example.com",
@@ -649,7 +652,7 @@ async def test_admin_can_create_read_only_user():
         with patch("mascarade.auth.authenticate_user", return_value=admin_user):
             async with _client() as client:
                 response = await client.post(
-                    "/users",
+                    "/v1/users",
                     json={
                         "username": "readonly_user",
                         "email": "readonly@example.com",
@@ -697,7 +700,7 @@ async def test_non_admin_cannot_create_users():
         with patch("mascarade.auth.authenticate_user", return_value=regular_user):
             async with _client() as client:
                 response = await client.post(
-                    "/users",
+                    "/v1/users",
                     json={
                         "username": "new_user",
                         "email": "new@example.com",
@@ -716,7 +719,7 @@ async def test_unauthenticated_cannot_access_admin_endpoints():
     """Test that unauthenticated requests cannot access admin endpoints."""
     async with _client() as client:
         # Try to list users without authentication
-        response = await client.get("/users")
+        response = await client.get("/v1/users")
 
         # Should require authentication (401)
         assert response.status_code == 401
@@ -824,7 +827,10 @@ async def test_complete_admin_workflow():
 
     async def mock_fetch(query, *args):
         # List users
-        if "SELECT id, username, email, role_id, is_active" in query and "FROM users" in query:
+        if (
+            "SELECT id, username, email, role_id, is_active" in query
+            and "FROM users" in query
+        ):
             return list(users_db.values())
         # List API keys
         elif "SELECT id, user_id, key_hash, key_prefix, name, is_active" in query:
@@ -853,7 +859,7 @@ async def test_complete_admin_workflow():
             async with _client() as client:
                 # Step 1: Admin lists users (should see only themselves initially)
                 response = await client.get(
-                    "/users",
+                    "/v1/users",
                     headers={"Authorization": "Bearer admin-key"},
                 )
                 assert response.status_code == 200
@@ -861,7 +867,7 @@ async def test_complete_admin_workflow():
 
                 # Step 2: Admin creates a regular user
                 response = await client.post(
-                    "/users",
+                    "/v1/users",
                     json={
                         "username": "new_user",
                         "email": "newuser@example.com",
@@ -876,7 +882,7 @@ async def test_complete_admin_workflow():
 
                 # Step 3: Admin creates an API key for the new user
                 response = await client.post(
-                    f"/users/{new_user_id}/api-keys",
+                    f"/v1/users/{new_user_id}/api-keys",
                     json={
                         "name": "User API Key",
                         "expires_at": None,
@@ -888,7 +894,7 @@ async def test_complete_admin_workflow():
 
                 # Step 4: Admin lists all users (should see 2 now)
                 response = await client.get(
-                    "/users",
+                    "/v1/users",
                     headers={"Authorization": "Bearer admin-key"},
                 )
                 assert response.status_code == 200
@@ -896,7 +902,7 @@ async def test_complete_admin_workflow():
 
                 # Step 5: Admin lists API keys for the new user
                 response = await client.get(
-                    f"/users/{new_user_id}/api-keys",
+                    f"/v1/users/{new_user_id}/api-keys",
                     headers={"Authorization": "Bearer admin-key"},
                 )
                 assert response.status_code == 200
@@ -904,7 +910,7 @@ async def test_complete_admin_workflow():
 
                 # Step 6: Admin updates rate limits for the new user
                 response = await client.put(
-                    f"/users/{new_user_id}/rate-limit",
+                    f"/v1/users/{new_user_id}/rate-limit",
                     json={
                         "requests_per_minute": 30,
                         "requests_per_hour": 500,
@@ -978,7 +984,11 @@ async def test_regular_user_can_make_llm_requests():
                     "content": "Hello! How can I help you today?",
                     "model": "gpt-4",
                     "provider": "openai",
-                    "usage": {"input_tokens": 10, "output_tokens": 8, "total_tokens": 18},
+                    "usage": {
+                        "input_tokens": 10,
+                        "output_tokens": 8,
+                        "total_tokens": 18,
+                    },
                 }
 
                 async with _client() as client:
@@ -1051,7 +1061,7 @@ async def test_regular_user_cannot_access_admin_endpoints():
             async with _client() as client:
                 # Test 1: Cannot list users (admin-only)
                 response = await client.get(
-                    "/users",
+                    "/v1/users",
                     headers={"Authorization": "Bearer user-key"},
                 )
                 assert response.status_code == 403
@@ -1059,7 +1069,7 @@ async def test_regular_user_cannot_access_admin_endpoints():
 
                 # Test 2: Cannot create users (admin-only)
                 response = await client.post(
-                    "/users",
+                    "/v1/users",
                     json={
                         "username": "another_user",
                         "email": "another@example.com",
@@ -1073,7 +1083,7 @@ async def test_regular_user_cannot_access_admin_endpoints():
 
                 # Test 3: Cannot access usage stats (admin-only)
                 response = await client.get(
-                    "/admin/usage/stats",
+                    "/v1/admin/usage/stats",
                     headers={"Authorization": "Bearer user-key"},
                 )
                 assert response.status_code == 403
@@ -1081,7 +1091,7 @@ async def test_regular_user_cannot_access_admin_endpoints():
 
                 # Test 4: Cannot update user info (admin-only)
                 response = await client.put(
-                    "/users/1",
+                    "/v1/users/1",
                     json={"is_active": False},
                     headers={"Authorization": "Bearer user-key"},
                 )
@@ -1089,7 +1099,7 @@ async def test_regular_user_cannot_access_admin_endpoints():
 
                 # Test 5: Cannot delete users (admin-only)
                 response = await client.delete(
-                    "/users/1",
+                    "/v1/users/1",
                     headers={"Authorization": "Bearer user-key"},
                 )
                 assert response.status_code == 403
@@ -1151,7 +1161,7 @@ async def test_regular_user_cannot_modify_system_config():
             async with _client() as client:
                 # Test: Cannot update provider keys (admin-only)
                 response = await client.put(
-                    "/providers/openai/key",
+                    "/v1/providers/openai/key",
                     json={"key": "new-api-key"},
                     headers={"Authorization": "Bearer user-key"},
                 )
@@ -1212,7 +1222,7 @@ async def test_regular_user_can_view_providers():
             async with _client() as client:
                 # Regular users can view providers
                 response = await client.get(
-                    "/providers",
+                    "/v1/providers",
                     headers={"Authorization": "Bearer user-key"},
                 )
                 assert response.status_code == 200
@@ -1337,7 +1347,7 @@ async def test_complete_regular_user_workflow():
             async with _client() as client:
                 # Step 1: Admin creates a regular user
                 response = await client.post(
-                    "/users",
+                    "/v1/users",
                     json={
                         "username": "regular_user",
                         "email": "user@example.com",
@@ -1352,7 +1362,7 @@ async def test_complete_regular_user_workflow():
 
                 # Step 2: Admin creates API key for regular user
                 response = await client.post(
-                    f"/users/{user_id}/api-keys",
+                    f"/v1/users/{user_id}/api-keys",
                     json={
                         "name": "User API Key",
                         "expires_at": None,
@@ -1383,7 +1393,11 @@ async def test_complete_regular_user_workflow():
                     "content": "Hello from regular user!",
                     "model": "gpt-4",
                     "provider": "openai",
-                    "usage": {"input_tokens": 10, "output_tokens": 6, "total_tokens": 16},
+                    "usage": {
+                        "input_tokens": 10,
+                        "output_tokens": 6,
+                        "total_tokens": 16,
+                    },
                 }
 
                 async with _client() as client:
@@ -1401,21 +1415,21 @@ async def test_complete_regular_user_workflow():
 
                     # Step 4: Regular user can view providers
                     response = await client.get(
-                        "/providers",
+                        "/v1/providers",
                         headers={"Authorization": f"Bearer {user_api_key}"},
                     )
                     assert response.status_code == 200
 
                     # Step 5: Regular user CANNOT access admin endpoints
                     response = await client.get(
-                        "/users",
+                        "/v1/users",
                         headers={"Authorization": f"Bearer {user_api_key}"},
                     )
                     assert response.status_code == 403
 
                     # Step 6: Regular user CANNOT modify system config
                     response = await client.put(
-                        "/providers/openai/key",
+                        "/v1/providers/openai/key",
                         json={"key": "new-key"},
                         headers={"Authorization": f"Bearer {user_api_key}"},
                     )
@@ -1423,7 +1437,7 @@ async def test_complete_regular_user_workflow():
 
                     # Step 7: Regular user CANNOT create other users
                     response = await client.post(
-                        "/users",
+                        "/v1/users",
                         json={
                             "username": "another_user",
                             "email": "another@example.com",
@@ -1492,14 +1506,14 @@ async def test_read_only_user_can_view_dashboards():
             async with _client() as client:
                 # Read-only user can view providers
                 response = await client.get(
-                    "/providers",
+                    "/v1/providers",
                     headers={"Authorization": "Bearer readonly-key"},
                 )
                 assert response.status_code == 200
 
                 # Read-only user can view provider status
                 response = await client.get(
-                    "/providers/status",
+                    "/v1/providers/status",
                     headers={"Authorization": "Bearer readonly-key"},
                 )
                 assert response.status_code == 200
@@ -1593,7 +1607,10 @@ async def test_read_only_user_cannot_make_llm_requests():
                 # Should be forbidden (403) because read-only users can't make LLM requests
                 # This depends on the endpoint having proper RBAC checks
                 # For now, we expect 403 if RBAC is enforced, or we may need to update server.py
-                assert response.status_code in [200, 403]  # TODO: Should be 403 once RBAC is enforced
+                assert response.status_code in [
+                    200,
+                    403,
+                ]  # TODO: Should be 403 once RBAC is enforced
 
 
 @pytest.mark.asyncio
@@ -1653,27 +1670,36 @@ async def test_read_only_user_cannot_modify_anything():
             async with _client() as client:
                 # Read-only user CANNOT modify provider keys
                 response = await client.put(
-                    "/providers/openai/key",
+                    "/v1/providers/openai/key",
                     json={"key": "new-key"},
                     headers={"Authorization": "Bearer readonly-key"},
                 )
                 # Should be forbidden (403) because read-only users can't modify config
                 # For now, expecting 200/403 until RBAC is fully enforced
-                assert response.status_code in [200, 403]  # TODO: Should be 403 once RBAC is enforced
+                assert response.status_code in [
+                    200,
+                    403,
+                ]  # TODO: Should be 403 once RBAC is enforced
 
                 # Read-only user CANNOT reset metrics
                 response = await client.post(
                     "/metrics/reset",
                     headers={"Authorization": "Bearer readonly-key"},
                 )
-                assert response.status_code in [200, 403]  # TODO: Should be 403 once RBAC is enforced
+                assert response.status_code in [
+                    200,
+                    403,
+                ]  # TODO: Should be 403 once RBAC is enforced
 
                 # Read-only user CANNOT reset cache
                 response = await client.post(
                     "/cache/reset",
                     headers={"Authorization": "Bearer readonly-key"},
                 )
-                assert response.status_code in [200, 403]  # TODO: Should be 403 once RBAC is enforced
+                assert response.status_code in [
+                    200,
+                    403,
+                ]  # TODO: Should be 403 once RBAC is enforced
 
 
 @pytest.mark.asyncio
@@ -1733,21 +1759,21 @@ async def test_read_only_user_cannot_access_admin_endpoints():
             async with _client() as client:
                 # Read-only user CANNOT list users
                 response = await client.get(
-                    "/users",
+                    "/v1/users",
                     headers={"Authorization": "Bearer readonly-key"},
                 )
                 assert response.status_code == 403
 
                 # Read-only user CANNOT view usage stats
                 response = await client.get(
-                    "/admin/usage/stats",
+                    "/v1/admin/usage/stats",
                     headers={"Authorization": "Bearer readonly-key"},
                 )
                 assert response.status_code == 403
 
                 # Read-only user CANNOT create users
                 response = await client.post(
-                    "/users",
+                    "/v1/users",
                     json={
                         "username": "newuser",
                         "email": "new@example.com",
@@ -1760,7 +1786,7 @@ async def test_read_only_user_cannot_access_admin_endpoints():
 
                 # Read-only user CANNOT update users
                 response = await client.put(
-                    "/users/1",
+                    "/v1/users/1",
                     json={"is_active": False},
                     headers={"Authorization": "Bearer readonly-key"},
                 )
@@ -1768,7 +1794,7 @@ async def test_read_only_user_cannot_access_admin_endpoints():
 
                 # Read-only user CANNOT delete users
                 response = await client.delete(
-                    "/users/1",
+                    "/v1/users/1",
                     headers={"Authorization": "Bearer readonly-key"},
                 )
                 assert response.status_code == 403
@@ -1942,12 +1968,13 @@ async def test_complete_read_only_user_workflow():
             return None
 
         with patch(
-            "mascarade.auth.authenticate_user", side_effect=lambda t: auth_side_effect(t)
+            "mascarade.auth.authenticate_user",
+            side_effect=lambda t: auth_side_effect(t),
         ):
             async with _client() as client:
                 # Step 1: Read-only user can view dashboards
                 response = await client.get(
-                    "/providers",
+                    "/v1/providers",
                     headers={"Authorization": f"Bearer {readonly_api_key}"},
                 )
                 assert response.status_code == 200
@@ -1973,14 +2000,14 @@ async def test_complete_read_only_user_workflow():
 
                 # Step 4: Read-only user CANNOT access admin endpoints
                 response = await client.get(
-                    "/users",
+                    "/v1/users",
                     headers={"Authorization": f"Bearer {readonly_api_key}"},
                 )
                 assert response.status_code == 403
 
                 # Step 5: Read-only user CANNOT modify system config
                 response = await client.put(
-                    "/providers/openai/key",
+                    "/v1/providers/openai/key",
                     json={"key": "new-key"},
                     headers={"Authorization": f"Bearer {readonly_api_key}"},
                 )
@@ -1989,7 +2016,7 @@ async def test_complete_read_only_user_workflow():
 
                 # Step 6: Read-only user CANNOT create users
                 response = await client.post(
-                    "/users",
+                    "/v1/users",
                     json={
                         "username": "another_user",
                         "email": "another@example.com",
@@ -2043,15 +2070,17 @@ async def test_usage_tracking_records_llm_requests():
     async def mock_execute(query, *args):
         # Track INSERT INTO usage_records
         if "INSERT INTO usage_records" in query:
-            usage_records.append({
-                "user_id": args[0],
-                "provider": args[1],
-                "model": args[2],
-                "input_tokens": args[3],
-                "output_tokens": args[4],
-                "total_tokens": args[5],
-                "cost": args[6],
-            })
+            usage_records.append(
+                {
+                    "user_id": args[0],
+                    "provider": args[1],
+                    "model": args[2],
+                    "input_tokens": args[3],
+                    "output_tokens": args[4],
+                    "total_tokens": args[5],
+                    "cost": args[6],
+                }
+            )
 
     mock_conn.fetchrow.side_effect = mock_fetchrow
     mock_conn.execute.side_effect = mock_execute
@@ -2166,7 +2195,10 @@ async def test_usage_stats_appear_in_admin_dashboard():
         if "SELECT DISTINCT user_id FROM usage_records" in query:
             return [{"user_id": 10}, {"user_id": 11}]
         elif "SELECT provider, COUNT(*)" in query:
-            return [{"provider": "claude", "count": 3}, {"provider": "openai", "count": 2}]
+            return [
+                {"provider": "claude", "count": 3},
+                {"provider": "openai", "count": 2},
+            ]
         elif "SELECT model, COUNT(*)" in query:
             return [{"model": "claude-3-5-sonnet-20241022", "count": 5}]
         return []
@@ -2179,7 +2211,7 @@ async def test_usage_stats_appear_in_admin_dashboard():
             async with _client() as client:
                 # Admin requests usage statistics
                 response = await client.get(
-                    "/admin/usage/stats",
+                    "/v1/admin/usage/stats",
                     headers={"Authorization": "Bearer admin_key_123"},
                 )
 
@@ -2263,7 +2295,7 @@ async def test_set_rate_limit_for_user():
         async with _client() as client:
             # Admin sets rate limits for user
             response = await client.put(
-                "/users/10/rate-limit",
+                "/v1/users/10/rate-limit",
                 json={
                     "requests_per_minute": 10,
                     "requests_per_hour": 100,
@@ -2553,7 +2585,10 @@ async def test_complete_usage_tracking_and_rate_limiting_workflow():
             return {"id": args[0]}
 
         # User creation checks
-        if "SELECT id FROM users WHERE username" in query or "SELECT id FROM users WHERE email" in query:
+        if (
+            "SELECT id FROM users WHERE username" in query
+            or "SELECT id FROM users WHERE email" in query
+        ):
             return None  # Username/email not taken
 
         # User creation
@@ -2631,15 +2666,17 @@ async def test_complete_usage_tracking_and_rate_limiting_workflow():
 
     async def mock_execute(query, *args):
         if "INSERT INTO usage_records" in query:
-            usage_records.append({
-                "user_id": args[0],
-                "provider": args[1],
-                "model": args[2],
-                "input_tokens": args[3],
-                "output_tokens": args[4],
-                "total_tokens": args[5],
-                "cost": args[6],
-            })
+            usage_records.append(
+                {
+                    "user_id": args[0],
+                    "provider": args[1],
+                    "model": args[2],
+                    "input_tokens": args[3],
+                    "output_tokens": args[4],
+                    "total_tokens": args[5],
+                    "cost": args[6],
+                }
+            )
         elif "UPDATE api_keys SET last_used_at" in query:
             pass  # Ignore last_used_at updates
 
@@ -2652,7 +2689,7 @@ async def test_complete_usage_tracking_and_rate_limiting_workflow():
             async with _client() as client:
                 # Step 1: Admin creates a user with rate limits
                 create_response = await client.post(
-                    "/users",
+                    "/v1/users",
                     json={
                         "username": "tracked_user",
                         "email": "tracked@example.com",
@@ -2673,7 +2710,7 @@ async def test_complete_usage_tracking_and_rate_limiting_workflow():
 
                 # Step 2: Admin creates API key for user
                 key_response = await client.post(
-                    f"/users/{user_id}/api-keys",
+                    f"/v1/users/{user_id}/api-keys",
                     json={"name": "Tracked User Key"},
                     headers={"Authorization": "Bearer admin_key_123"},
                 )
@@ -2686,14 +2723,22 @@ async def test_complete_usage_tracking_and_rate_limiting_workflow():
                     user_id=user_id,
                     provider="claude",
                     model="claude-3-5-sonnet-20241022",
-                    usage={"input_tokens": 200, "output_tokens": 100, "total_tokens": 300},
+                    usage={
+                        "input_tokens": 200,
+                        "output_tokens": 100,
+                        "total_tokens": 300,
+                    },
                     cost=0.003,
                 )
                 await track_usage(
                     user_id=user_id,
                     provider="openai",
                     model="gpt-4",
-                    usage={"input_tokens": 150, "output_tokens": 75, "total_tokens": 225},
+                    usage={
+                        "input_tokens": 150,
+                        "output_tokens": 75,
+                        "total_tokens": 225,
+                    },
                     cost=0.002,
                 )
 
@@ -2706,7 +2751,7 @@ async def test_complete_usage_tracking_and_rate_limiting_workflow():
 
                 # Step 5: Admin views usage statistics
                 stats_response = await client.get(
-                    "/admin/usage/stats",
+                    "/v1/admin/usage/stats",
                     headers={"Authorization": "Bearer admin_key_123"},
                 )
                 assert stats_response.status_code == 200

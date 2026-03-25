@@ -34,13 +34,22 @@ Reponds UNIQUEMENT en JSON."""
 def query_ollama(model, prompt, timeout=120.0):
     try:
         with httpx.Client(timeout=timeout) as c:
-            r = c.post(f"{OLLAMA_URL}/api/generate", json={
-                "model": model, "prompt": prompt, "stream": False,
-                "options": {"temperature": 0.2, "num_predict": 512},
-            })
+            r = c.post(
+                f"{OLLAMA_URL}/api/generate",
+                json={
+                    "model": model,
+                    "prompt": prompt,
+                    "stream": False,
+                    "options": {"temperature": 0.2, "num_predict": 512},
+                },
+            )
             r.raise_for_status()
             d = r.json()
-            return d.get("response", ""), d.get("eval_count", 0), r.elapsed.total_seconds()
+            return (
+                d.get("response", ""),
+                d.get("eval_count", 0),
+                r.elapsed.total_seconds(),
+            )
     except Exception:
         return "", 0, 0
 
@@ -48,20 +57,30 @@ def query_ollama(model, prompt, timeout=120.0):
 def judge(question, response):
     try:
         with httpx.Client(timeout=30) as c:
-            r = c.post(CODESTRAL_URL, headers={
-                "Authorization": f"Bearer {CODESTRAL_KEY}",
-                "Content-Type": "application/json",
-            }, json={
-                "model": "codestral-latest",
-                "messages": [
-                    {"role": "system", "content": JUDGE_SYSTEM},
-                    {"role": "user", "content": f"Question:\n{question}\n\nReponse:\n{response}\n\nJSON: {{\"score\": N, \"justification\": \"...\"}}"},
-                ],
-                "response_format": {"type": "json_object"},
-                "temperature": 0.1, "max_tokens": 200,
-            })
+            r = c.post(
+                CODESTRAL_URL,
+                headers={
+                    "Authorization": f"Bearer {CODESTRAL_KEY}",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "model": "codestral-latest",
+                    "messages": [
+                        {"role": "system", "content": JUDGE_SYSTEM},
+                        {
+                            "role": "user",
+                            "content": f'Question:\n{question}\n\nReponse:\n{response}\n\nJSON: {{"score": N, "justification": "..."}}',
+                        },
+                    ],
+                    "response_format": {"type": "json_object"},
+                    "temperature": 0.1,
+                    "max_tokens": 200,
+                },
+            )
             r.raise_for_status()
-            return json.loads(r.json()["choices"][0]["message"]["content"]).get("score", 0)
+            return json.loads(r.json()["choices"][0]["message"]["content"]).get(
+                "score", 0
+            )
     except Exception:
         return 0
 
@@ -111,13 +130,19 @@ def main():
             domain_scores.setdefault(domain, []).append(score)
 
             if (i + 1) % 20 == 0:
-                print(f"  [{i+1}/{len(prompts)}] avg={sum(scores)/len(scores):.2f}/10 lat={sum(latencies)/len(latencies)*1000:.0f}ms")
+                print(
+                    f"  [{i+1}/{len(prompts)}] avg={sum(scores)/len(scores):.2f}/10 lat={sum(latencies)/len(latencies)*1000:.0f}ms"
+                )
 
         avg = sum(scores) / len(scores) if scores else 0
         avg_lat = sum(latencies) / len(latencies) * 1000 if latencies else 0
-        dom = {d: round(sum(s)/len(s), 2) for d, s in domain_scores.items()}
+        dom = {d: round(sum(s) / len(s), 2) for d, s in domain_scores.items()}
 
-        results[label] = {"score": round(avg, 2), "latency_ms": round(avg_lat), "domains": dom}
+        results[label] = {
+            "score": round(avg, 2),
+            "latency_ms": round(avg_lat),
+            "domains": dom,
+        }
         print(f"  DONE: {avg:.2f}/10 | {avg_lat:.0f}ms | {dom}\n")
 
     # Report
@@ -135,7 +160,11 @@ def main():
 
     report += "\n## Key Finding\n\n"
     our_best = max((v["score"], k) for k, v in results.items() if "ours" in k)
-    hf_best = max((v["score"], k) for k, v in results.items() if "HF" in k or "stem" in k.lower() or "phi2" in k.lower())
+    hf_best = max(
+        (v["score"], k)
+        for k, v in results.items()
+        if "HF" in k or "stem" in k.lower() or "phi2" in k.lower()
+    )
     if our_best[0] > hf_best[0]:
         report += f"**mascarade wins**: {our_best[1]} ({our_best[0]}/10) vs {hf_best[1]} ({hf_best[0]}/10)\n"
     else:

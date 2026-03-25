@@ -1,0 +1,616 @@
+plan_id: 2026-03-24-sota-mascarade
+objective: Synthese courte des opportunites SOTA 2026 les plus realistes pour Mascarade avec focus multi-agents, Apple Intelligence/Foundation Models/CoreML/MLX, evaluation-routing-adaptation locale, documentation et operabilite.
+focus_area: sota_2026_realistic_opportunities
+created_at: 2026-03-24T00:00:00Z
+created_by: GitHub Copilot (GPT-5.4)
+status: completed
+
+tldr: |
+  - Mascarade dispose deja des briques structurantes qui rendent realistes des lots incrementaux plutot qu'un replatforming: routeur hybride, providers locaux Apple/MLX, orchestration multi-agents, traces runtime, runbooks operatoires.
+  - Les opportunites 2026 les plus credibles sont celles qui renforcent des chemins deja presents: graphes d'orchestration durables, evaluation standardisee, routing local adapte par machine, et durcissement des surfaces Apple locales.
+  - Les integrations a eviter sont surtout les plateformes lourdes ou les paris materiels trop incertains: framework complet de remplacement, grands modeles distribues sur Macs, dependance totale a Apple Foundation Models, et fallbacks Apple multi-modeles dans une meme requete.
+  - Cinq references OSS ressortent comme vraiment utiles pour Mascarade: LangGraph, LiteLLM, MLX/MLX-LM, lm-evaluation-harness, OpenTelemetry Python.
+  - Le meilleur prochain lot d'implementation reste centre sur l'evaluation et le routing local: brancher un banc d'eval standard, exposer des profils machine Apple explicites, puis relier proprement Apple Foundation Models au routeur si la cible locale le justifie.
+
+research_metadata:
+  methodology: hybrid retrieval via semantic_search + grep_search + targeted read_file + focused web fetch on Apple/Foundation Models, MLX/MLX-LM, LiteLLM, LangGraph, lm-evaluation-harness and OpenTelemetry; relationships expanded from router/provider/orchestrator and runbook files.
+  scope: core routing, Apple local inference providers, orchestrator, observability, operator runbooks, existing OSS research, and selected external sources for 2026 maturity signals.
+  confidence: high
+  coverage: 82
+
+files_analyzed:
+  - file: README.md
+    path: /Users/electron/Documents/Projets/mascarade/README.md
+    purpose: High-level project capabilities and declared architecture.
+    key_elements:
+      - element: Multi-provider architecture
+        type: pattern
+        location: README.md:20
+        description: Declares core engine, router, agents, orchestrator and 20+ providers including CoreML, MLX, LiteLLM and Exo.
+      - element: ML Router
+        type: pattern
+        location: README.md:45
+        description: Declares a softmax classifier with 17 features for model selection.
+      - element: Observability stack
+        type: pattern
+        location: README.md:51
+        description: Declares Grafana, Prometheus, Loki, Tempo, OTEL and Langfuse as active observability surfaces.
+    language: markdown
+    lines: 176
+  - file: router.py
+    path: /Users/electron/Documents/Projets/mascarade/core/mascarade/router/router.py
+    purpose: Central routing logic across providers, policies, metrics and classifier-driven decisions.
+    key_elements:
+      - element: Router.__init__
+        type: function
+        location: router.py:112
+        description: Wires cache, metrics, circuit breaker, health monitor, domain classifier and routing classifier.
+      - element: Router._register_defaults
+        type: function
+        location: router.py:234
+        description: Registers default providers including MLX-LM and Apple CoreML.
+      - element: Router._resolve_routellm_target
+        type: function
+        location: router.py:614
+        description: Mixes policy override, heuristic policy, ML routing classifier and score fallback.
+      - element: register_finetuned_model
+        type: function
+        location: router.py:730
+        description: Registers domain models with health verification metadata.
+    language: python
+    lines: 1200
+  - file: mlx_lm.py
+    path: /Users/electron/Documents/Projets/mascarade/core/mascarade/router/providers/mlx_lm.py
+    purpose: OpenAI-compatible provider for Apple Silicon inference through mlx-lm server.
+    key_elements:
+      - element: MLXLMProvider
+        type: class
+        location: mlx_lm.py:26
+        description: Local zero-cost provider with streaming, model listing and availability checks.
+      - element: available_models
+        type: function
+        location: mlx_lm.py:157
+        description: Cached server-side model discovery through /v1/models.
+    language: python
+    lines: 181
+  - file: apple_coreml.py
+    path: /Users/electron/Documents/Projets/mascarade/core/mascarade/router/providers/apple_coreml.py
+    purpose: Provider for host-native Apple CoreML/ANE runtime.
+    key_elements:
+      - element: AppleCoreMLProvider
+        type: class
+        location: apple_coreml.py:15
+        description: Local provider with explicit single-model constraint and warmup-aware timeout messaging.
+      - element: send
+        type: function
+        location: apple_coreml.py:55
+        description: Calls /generate on local runtime and records last loaded model.
+      - element: available_models
+        type: function
+        location: apple_coreml.py:123
+        description: Cached discovery against /models endpoint.
+    language: python
+    lines: 147
+  - file: apple_fm.py
+    path: /Users/electron/Documents/Projets/mascarade/core/mascarade/router/providers/apple_fm.py
+    purpose: Swift bridge-backed provider for Apple Foundation Models.
+    key_elements:
+      - element: AppleFMProvider
+        type: class
+        location: apple_fm.py:25
+        description: OpenAI-compatible provider over a local Swift bridge for Apple Foundation Models.
+      - element: is_configured
+        type: function
+        location: apple_fm.py:57
+        description: Provider is controlled through AFM_ENABLED.
+      - element: stream
+        type: function
+        location: apple_fm.py:106
+        description: SSE streaming adapter from Swift bridge.
+    language: python
+    lines: 181
+  - file: AFMServer.swift
+    path: /Users/electron/Documents/Projets/mascarade/tools/afm-bridge/Sources/AFMServer.swift
+    purpose: Local Swift HTTP bridge exposing Apple Foundation Models as OpenAI-compatible endpoints.
+    key_elements:
+      - element: AFMServer
+        type: struct
+        location: AFMServer.swift:5
+        description: Exposes /health, /v1/models and /v1/chat/completions.
+      - element: LanguageModelSession usage
+        type: pattern
+        location: AFMServer.swift:11
+        description: Uses FoundationModels.LanguageModelSession for local text generation and streaming.
+    language: swift
+    lines: 140
+  - file: test_orchestrator.py
+    path: /Users/electron/Documents/Projets/mascarade/core/tests/test_orchestrator.py
+    purpose: Behavioral tests for sequential, parallel, pipeline and cluster-enabled orchestration.
+    key_elements:
+      - element: test_parallel
+        type: function
+        location: test_orchestrator.py:136
+        description: Verifies fan-out orchestration mode.
+      - element: test_pipeline
+        type: function
+        location: test_orchestrator.py:145
+        description: Verifies output handoff between agents.
+      - element: test_traces_are_recorded_for_pipeline_runs
+        type: function
+        location: test_orchestrator.py:153
+        description: Confirms trace events are emitted for orchestration lifecycle.
+    language: python
+    lines: 240
+  - file: test_mlx_lm_provider.py
+    path: /Users/electron/Documents/Projets/mascarade/core/tests/test_mlx_lm_provider.py
+    purpose: Provider contract tests for MLX-LM.
+    key_elements:
+      - element: test_available_models_success
+        type: function
+        location: test_mlx_lm_provider.py:58
+        description: Verifies cached model discovery.
+      - element: test_send_success
+        type: function
+        location: test_mlx_lm_provider.py:110
+        description: Verifies OpenAI-like parsing and usage extraction.
+    language: python
+    lines: 220
+  - file: test_apple_coreml_provider.py
+    path: /Users/electron/Documents/Projets/mascarade/core/tests/test_apple_coreml_provider.py
+    purpose: Contract tests for Apple CoreML provider behavior.
+    key_elements:
+      - element: test_apple_provider_send_timeout_is_explicit
+        type: function
+        location: test_apple_coreml_provider.py:78
+        description: Confirms operator-facing timeout guidance is explicit.
+      - element: test_apple_provider_available_models
+        type: function
+        location: test_apple_coreml_provider.py:117
+        description: Verifies /models discovery path.
+    language: python
+    lines: 160
+  - file: APPLE_INTELLIGENCE_SPEC.md
+    path: /Users/electron/Documents/Projets/mascarade/docs/APPLE_INTELLIGENCE_SPEC.md
+    purpose: Internal architecture and migration plan for Apple local runtimes.
+    key_elements:
+      - element: MLX-LM integration plan
+        type: pattern
+        location: APPLE_INTELLIGENCE_SPEC.md:11
+        description: Documents MLX-LM as a drop-in provider and low-risk phase.
+      - element: Apple Foundation Models bridge plan
+        type: pattern
+        location: APPLE_INTELLIGENCE_SPEC.md:261
+        description: Documents Swift bridge for on-device Apple Foundation Models.
+      - element: Migration path
+        type: pattern
+        location: APPLE_INTELLIGENCE_SPEC.md:466
+        description: Frames CoreML as current path and MLX/AFM as staged additions.
+    language: markdown
+    lines: 660
+  - file: RUNBOOK_APPLE_LLM_LOCAL.md
+    path: /Users/electron/Documents/Projets/mascarade/docs/RUNBOOK_APPLE_LLM_LOCAL.md
+    purpose: Operator-facing guidance for local Apple runtime qualification and recovery.
+    key_elements:
+      - element: single-model runtime constraint
+        type: pattern
+        location: RUNBOOK_APPLE_LLM_LOCAL.md:10
+        description: Documents one-model-at-a-time behavior on port 8201.
+      - element: runtime validation commands
+        type: pattern
+        location: RUNBOOK_APPLE_LLM_LOCAL.md:15
+        description: Provides smoke validation and recovery steps.
+      - element: current best Apple candidates
+        type: pattern
+        location: RUNBOOK_APPLE_LLM_LOCAL.md:100
+        description: Records current acceptable local Apple candidates.
+    language: markdown
+    lines: 103
+  - file: RUNBOOK_VM_OPS.md
+    path: /Users/electron/Documents/Projets/mascarade/docs/RUNBOOK_VM_OPS.md
+    purpose: Operational lifecycle for bootstrap, update, rollback, health and observability.
+    key_elements:
+      - element: observability opt-in stack
+        type: pattern
+        location: RUNBOOK_VM_OPS.md:136
+        description: Documents OTEL, Loki, Promtail and related smoke checks.
+      - element: pilotage auto du hub
+        type: pattern
+        location: RUNBOOK_VM_OPS.md:149
+        description: Documents machine-aware next-lot scripts and execution hub.
+    language: markdown
+    lines: 173
+
+patterns_found:
+  - category: architecture
+    pattern: Unified provider contract for heterogeneous runtimes
+    description: Local Apple runtimes, hosted APIs and distributed providers all implement LLMProvider with send, stream and available_models.
+    examples:
+      - file: apple_coreml.py
+        location: apple_coreml.py:15
+        snippet: class AppleCoreMLProvider(LLMProvider)
+      - file: apple_fm.py
+        location: apple_fm.py:25
+        snippet: class AppleFMProvider(LLMProvider)
+      - file: mlx_lm.py
+        location: mlx_lm.py:26
+        snippet: class MLXLMProvider(LLMProvider)
+    prevalence: common
+  - category: architecture
+    pattern: Hybrid routing combining static policy, heuristics and learned classifiers
+    description: Route selection is not delegated to a single external framework; it combines explicit policy, heuristics, ML confidence thresholds and fallback scoring.
+    examples:
+      - file: router.py
+        location: router.py:614
+        snippet: if self.routing_classifier is not None and self.routing_classifier.is_loaded
+      - file: README.md
+        location: README.md:45
+        snippet: Softmax classifier (17 features) auto-selects best model per prompt
+    prevalence: common
+  - category: structure
+    pattern: OpenAI-compatible shim as the integration seam
+    description: Local runtimes are wrapped behind OpenAI-compatible HTTP surfaces to minimize coupling with clients and orchestration code.
+    examples:
+      - file: AFMServer.swift
+        location: AFMServer.swift:21
+        snippet: router.get("/v1/models")
+      - file: AFMServer.swift
+        location: AFMServer.swift:37
+        snippet: router.post("/v1/chat/completions")
+      - file: APPLE_INTELLIGENCE_SPEC.md
+        location: APPLE_INTELLIGENCE_SPEC.md:581
+        snippet: expose the frozen /v1/chat/completions contract
+    prevalence: common
+  - category: operability
+    pattern: Runbook-first local runtime management
+    description: Local Apple and VM operations are documented with explicit preflight, recovery and smoke-test procedures.
+    examples:
+      - file: RUNBOOK_APPLE_LLM_LOCAL.md
+        location: RUNBOOK_APPLE_LLM_LOCAL.md:15
+        snippet: curl /health, /models and smoke_apple_llm.sh
+      - file: RUNBOOK_VM_OPS.md
+        location: RUNBOOK_VM_OPS.md:136
+        snippet: smoke_otel_loki.sh and loki_cardinality_report.sh
+    prevalence: common
+  - category: testing
+    pattern: Mock-heavy provider contract testing
+    description: Provider behavior is verified via mocked httpx clients and explicit timeout/error assertions.
+    examples:
+      - file: test_mlx_lm_provider.py
+        location: test_mlx_lm_provider.py:110
+        snippet: assert result.provider == "mlx_lm"
+      - file: test_apple_coreml_provider.py
+        location: test_apple_coreml_provider.py:102
+        snippet: assert "Apple local timeout after 90s" in message
+    prevalence: common
+  - category: orchestration
+    pattern: Multi-agent modes already modeled in core
+    description: Sequential, parallel and pipeline orchestration are already first-class behaviors with cluster-aware routing hooks.
+    examples:
+      - file: test_orchestrator.py
+        location: test_orchestrator.py:127
+        snippet: orch.run([...], mode="sequential")
+      - file: test_orchestrator.py
+        location: test_orchestrator.py:136
+        snippet: orch.run([...], mode="parallel")
+      - file: test_orchestrator.py
+        location: test_orchestrator.py:145
+        snippet: orch.run([...], mode="pipeline")
+    prevalence: common
+
+related_architecture:
+  components_relevant_to_domain:
+    - component: Router
+      responsibility: Provider selection, policy resolution, metrics, health and fallback.
+      location: /Users/electron/Documents/Projets/mascarade/core/mascarade/router
+      relationship_to_domain: central control plane for local-vs-remote execution and adaptation.
+    - component: Provider layer
+      responsibility: Normalize Apple, MLX and hosted runtimes behind one interface.
+      location: /Users/electron/Documents/Projets/mascarade/core/mascarade/router/providers
+      relationship_to_domain: domain depends on this for practical local inference.
+    - component: Orchestrator
+      responsibility: Execute agent sequences, parallel branches and pipelines.
+      location: /Users/electron/Documents/Projets/mascarade/core/mascarade/orchestrator
+      relationship_to_domain: domain uses router outputs for agent execution plans.
+    - component: Observability layer
+      responsibility: Trace agent runs and LLM generations to in-process buffers and OTEL/Langfuse sinks.
+      location: /Users/electron/Documents/Projets/mascarade/core/mascarade/observability
+      relationship_to_domain: this uses domain outputs for operator debugging and evaluation.
+    - component: Operator runbooks
+      responsibility: Define qualification, recovery, bootstrap and next-lot operational procedures.
+      location: /Users/electron/Documents/Projets/mascarade/docs
+      relationship_to_domain: operational framing for realistic adoption of local runtimes.
+  interfaces_used_by_domain:
+    - interface: LLMProvider
+      location: /Users/electron/Documents/Projets/mascarade/core/mascarade/router/providers/base.py
+      usage_pattern: Every realistic local runtime extension plugs into this ABC.
+    - interface: OpenAI-compatible HTTP API
+      location: /Users/electron/Documents/Projets/mascarade/tools/afm-bridge/Sources/AFMServer.swift
+      usage_pattern: Used as the compatibility seam for Apple and MLX local serving.
+    - interface: AgentTraceBuffer
+      location: /Users/electron/Documents/Projets/mascarade/core/mascarade/observability/agent_trace.py
+      usage_pattern: Used to capture orchestration and tool-use lifecycle events.
+  data_flow_involving_domain: User requests enter the API/core layer, the Router selects a provider or cluster lane using policy plus learned routing, the chosen provider talks to a local Apple runtime, MLX-LM server or remote model endpoint, then orchestration traces and Langfuse/OTEL events record the execution for operators and evaluation loops.
+  key_relationships_to_domain:
+    - from: Router
+      to: LLMProvider implementations
+      relationship: imports
+    - from: Orchestrator
+      to: Router
+      relationship: calls
+    - from: AppleFMProvider
+      to: AFMServer.swift bridge
+      relationship: calls
+    - from: AgentTraceBuffer
+      to: OpenTelemetry collector
+      relationship: exports
+    - from: Router
+      to: Langfuse tracing helpers
+      relationship: calls
+
+related_technology_stack:
+  languages_used_in_domain:
+    - Python
+    - Swift
+    - Markdown
+    - Shell
+  frameworks_used_in_domain:
+    - name: FastAPI
+      usage_in_domain: Core engine surface around router and orchestration.
+    - name: Hummingbird
+      usage_in_domain: Swift bridge HTTP server for Apple Foundation Models.
+    - name: FoundationModels
+      usage_in_domain: Apple on-device system language model access and tool-capable sessions.
+  libraries_used_in_domain:
+    - name: httpx
+      purpose_in_domain: Async and sync HTTP transport between router providers and local/remote runtimes.
+    - name: mlx / mlx-lm
+      purpose_in_domain: Apple Silicon-native inference, quantization and possible local fine-tuning path.
+    - name: coremltools
+      purpose_in_domain: CoreML runtime loading and model packaging for local ANE-serving path.
+    - name: langfuse
+      purpose_in_domain: LLM generation traces and metadata for runtime analysis.
+    - name: opentelemetry-python
+      purpose_in_domain: Standardized telemetry export for logs, traces and metrics.
+    - name: pytest
+      purpose_in_domain: Contract and orchestration regression tests.
+  external_apis_used_in_domain:
+    - name: OpenAI-compatible local chat completion APIs
+      integration_point: MLX-LM and AFM/CoreML bridges expose local models through the same request contract.
+    - name: Apple Foundation Models framework
+      integration_point: AFMServer.swift via LanguageModelSession.
+
+related_conventions:
+  naming_patterns_in_domain: Provider classes are named <Runtime>Provider, env flags follow *_ENABLED / *_BASE_URL / *_TIMEOUT_SECONDS, and machine/operator docs use explicit runbook naming.
+  structure_of_domain: Core control logic stays in router.py, runtime-specific transport adapters live in router/providers, and operational guidance lives under docs as runbooks or specs.
+  error_handling_in_domain: Local runtime providers surface operator-oriented timeout and HTTP diagnostics instead of silent retries, especially on Apple paths.
+  testing_in_domain: Providers use isolated pytest modules with fake httpx clients; orchestrator behavior is verified by mode-specific tests and trace assertions.
+  documentation_in_domain: Major runtime additions are accompanied by technical specs plus runbooks and smoke commands, not only code comments.
+
+related_dependencies:
+  internal:
+    - component: mascarade.orchestrator.engine
+      relationship_to_domain: consumes router outputs and emits orchestration traces.
+      direction: bidirectional
+    - component: mascarade.observability.agent_trace
+      relationship_to_domain: records agent lifecycle and forwards OTEL logs.
+      direction: outbound
+    - component: mascarade.observability.langfuse
+      relationship_to_domain: records generation metadata for routing and evaluation visibility.
+      direction: outbound
+    - component: mascarade.config
+      relationship_to_domain: controls runtime enablement and endpoints for AFM, MLX and CoreML.
+      direction: inbound
+    - component: tools/afm-bridge
+      relationship_to_domain: provides the Swift runtime bridge for Apple Foundation Models.
+      direction: outbound
+  external:
+    - name: ml-explore/mlx
+      purpose_for_domain: Native Apple Silicon ML framework with unified memory and Python/C++/Swift APIs.
+    - name: ml-explore/mlx-lm
+      purpose_for_domain: Practical LLM serving, quantization and fine-tuning on Apple Silicon.
+    - name: langchain-ai/langgraph
+      purpose_for_domain: Durable graph execution patterns for stateful multi-agent workflows.
+    - name: BerriAI/litellm
+      purpose_for_domain: Wide provider abstraction and OpenAI-format gateway/router reference.
+    - name: EleutherAI/lm-evaluation-harness
+      purpose_for_domain: Standardized evaluation backend for local and API-served models.
+    - name: open-telemetry/opentelemetry-python
+      purpose_for_domain: Stable trace and metrics instrumentation baseline.
+
+domain_security_considerations:
+  sensitive_areas:
+    - area: Local provider and tracing configuration
+      location: core/mascarade/config.py
+      concern: API keys, tracing credentials and runtime URLs determine exposure of local and remote surfaces.
+    - area: Apple Foundation Models usage constraints
+      location: developer.apple.com/documentation/foundationmodels
+      concern: Access depends on Apple Intelligence enablement and acceptable-use requirements.
+  authentication_patterns_in_domain: Core/API deployment is protected through operator-managed env keys and edge proxy posture; local Apple bridges shown here are loopback-oriented.
+  authorization_patterns_in_domain: No per-agent authorization layer was identified in the local provider code examined; control appears to be deployment and API-key scoped.
+  data_validation_in_domain: Provider bridges mostly rely on typed JSON decode or simple message shaping; stronger request schema validation is more visible at the broader API layer than inside local bridges.
+
+testing_patterns:
+  framework: pytest
+  coverage_areas:
+    - provider initialization and configuration gating
+    - model listing and caching behavior
+    - timeout and HTTP failure surfacing
+    - sequential, parallel and pipeline orchestration modes
+    - trace emission during orchestration
+  test_organization: Per-provider test files under core/tests with mocked clients plus orchestration behavior tests.
+  mock_patterns:
+    - fake httpx.AsyncClient/httpx.Client implementations
+    - monkeypatch of settings module attributes
+    - fake cluster and fake provider objects for orchestration tests
+
+realistic_opportunities:
+  - title: Durable graph-based multi-agent orchestration on top of current modes
+    why_realistic: Mascarade already has sequential, parallel and pipeline modes plus trace hooks; adopting graph execution patterns is an extension, not a rewrite.
+    evidence_in_repo:
+      - test_orchestrator.py:127
+      - test_orchestrator.py:136
+      - test_orchestrator.py:145
+      - test_orchestrator.py:153
+    external_signal:
+      - langgraph offers durable execution, memory and human-in-the-loop for long-running stateful agents.
+    fit_assessment: high
+  - title: Machine-aware local routing between MLX-LM, Apple CoreML and remote fallbacks
+    why_realistic: Router already supports strategy/policy/ML classification, while Apple and MLX providers are already present and zero-cost locally.
+    evidence_in_repo:
+      - router.py:614
+      - mlx_lm.py:26
+      - apple_coreml.py:15
+      - RUNBOOK_APPLE_LLM_LOCAL.md:100
+    external_signal:
+      - mlx-lm is actively maintained and exposes serving, quantization, prompt caching and distributed inference capabilities.
+    fit_assessment: high
+  - title: Apple Foundation Models as a constrained tool-capable local lane for structured tasks
+    why_realistic: The Swift bridge and Python provider already exist, and Apple documents guided generation, tool calling and locale support for Foundation Models.
+    evidence_in_repo:
+      - apple_fm.py:25
+      - AFMServer.swift:11
+      - APPLE_INTELLIGENCE_SPEC.md:261
+    external_signal:
+      - Apple Foundation Models framework explicitly supports guided generation via Generable and tool calling via Tool.
+    fit_assessment: medium_high
+  - title: Standardized evaluation loop for routing and local model qualification
+    why_realistic: Mascarade already tracks benchmarks and traces, but evaluation remains custom; adding a standard harness uses the existing OpenAI-compatible seams.
+    evidence_in_repo:
+      - README.md:45
+      - README.md:51
+      - router.py:730
+      - RUNBOOK_APPLE_LLM_LOCAL.md:15
+    external_signal:
+      - lm-evaluation-harness supports local OpenAI-compatible servers and standardized task configs.
+    fit_assessment: high
+  - title: Local adaptation per machine profile instead of global one-size-fits-all routing
+    why_realistic: The repo already contains machine profiles, next-lot scripts and runbooks that distinguish host capabilities.
+    evidence_in_repo:
+      - RUNBOOK_VM_OPS.md:149
+      - README.md:129
+      - TODO_AI_NOVEL_ENGINE.md:73
+    external_signal:
+      - MLX/Apple local stacks have strong hardware sensitivity; practical 2026 systems increasingly route by device profile, not only by prompt complexity.
+    fit_assessment: high
+  - title: Operator-grade documentation surfaces for local inference and orchestration regressions
+    why_realistic: Existing runbooks, smoke scripts, trace buffer and Langfuse hooks provide the substrate for docs-as-ops hardening.
+    evidence_in_repo:
+      - RUNBOOK_APPLE_LLM_LOCAL.md:15
+      - RUNBOOK_VM_OPS.md:136
+      - core/mascarade/server.py:91
+      - core/mascarade/router/router.py:1136
+    external_signal:
+      - OpenTelemetry traces are stable in Python and well suited to codify incident and evaluation workflows.
+    fit_assessment: high
+
+avoid_or_delay:
+  - title: Full replatforming of orchestration onto CrewAI, Dify or another external platform
+    why_defer: Mascarade already differentiates on router + P2P + Apple-local lanes; a framework replacement would discard working internal abstractions without solving the current bottlenecks.
+    evidence_in_repo:
+      - README.md:20
+      - OSS_RESEARCH.md:33
+      - OSS_RESEARCH.md:68
+  - title: Apple CoreML fallback chains across multiple Apple models in a single request path
+    why_defer: The provider explicitly documents the single-model runtime constraint; this is an operational mismatch, not a missing feature toggle.
+    evidence_in_repo:
+      - apple_coreml.py:17
+      - RUNBOOK_APPLE_LLM_LOCAL.md:10
+  - title: Large-model distributed Apple inference as a near-term core path
+    why_defer: Exo and similar paths exist in specs, but they increase operational fragility and are not needed for the current realistic local Apple lane.
+    evidence_in_repo:
+      - APPLE_INTELLIGENCE_SPEC.md:134
+      - APPLE_INTELLIGENCE_SPEC.md:490
+    risk_driver: networked local inference is more complex than the currently validated single-host paths.
+  - title: Treating Apple Foundation Models as a universal replacement for local domain models
+    why_defer: AFM is attractive for structured and tool-enabled tasks, but its model size, platform gating and current bridge maturity make it a complementary lane, not a universal runtime.
+    evidence_in_repo:
+      - apple_fm.py:57
+      - APPLE_INTELLIGENCE_SPEC.md:265
+      - developer.apple.com/documentation/foundationmodels
+  - title: Heavy local fine-tuning bets on Apple Neural Engine as the primary adaptation path
+    why_defer: Current repo evidence is strongest for MLX/MLX-LM on Apple Silicon and CoreML serving; docs also note MLX is CPU/GPU oriented rather than ANE-first.
+    evidence_in_repo:
+      - APPLE_SILICON_M5_HISTORY.md:61
+      - APPLE_SILICON_M5_HISTORY.md:62
+      - TODO_AI_NOVEL_ENGINE.md:61
+  - title: Adding more provider wrappers before standardizing evaluation and routing evidence
+    why_defer: The router already supports many providers; the missing leverage is standardized qualification, comparative baselines and machine-local adaptation logic.
+    evidence_in_repo:
+      - README.md:40
+      - README.md:45
+      - OSS_RESEARCH.md:15
+
+reference_projects:
+  - name: langchain-ai/langgraph
+    usefulness: Reference for durable, stateful graph orchestration, human-in-the-loop checkpoints and long-running agent workflows.
+    why_compare_or_integrate: Best external reference for evolving Mascarade orchestration without replacing its router/provider stack.
+    maturity_signal: 27k+ stars, frequent releases, strong production positioning in 2026.
+  - name: BerriAI/litellm
+    usefulness: Reference or backend for broad provider normalization, cost tracking and gateway semantics.
+    why_compare_or_integrate: Useful to reduce provider-maintenance burden while preserving Mascarade-specific routing decisions above it.
+    maturity_signal: 40k+ stars, stable release channel, heavy 2026 activity.
+  - name: ml-explore/mlx and ml-explore/mlx-lm
+    usefulness: Primary Apple Silicon-native stack for local inference, quantization and potentially local adaptation.
+    why_compare_or_integrate: Most practical 2026 path for Apple-local performance outside ANE-specific CoreML serving.
+    maturity_signal: Active Apple-backed framework and active mlx-lm release cadence.
+  - name: EleutherAI/lm-evaluation-harness
+    usefulness: Standardized benchmark runner for local servers, HF models and API endpoints.
+    why_compare_or_integrate: Direct fit for validating routing, Apple local lanes and fine-tuned domain models through reproducible task configs.
+    maturity_signal: 11k+ stars, active releases, local-chat-completions support.
+  - name: open-telemetry/opentelemetry-python
+    usefulness: Stable tracing and metrics substrate for operational hardening and eval observability.
+    why_compare_or_integrate: Mascarade already uses OTEL; this remains the right backbone for docs-as-ops and machine-aware telemetry.
+    maturity_signal: traces and metrics marked stable in project status.
+
+next_lot_implementation_candidates:
+  - candidate: Standardized local eval lane for routing decisions and Apple/MLX qualification
+    concrete_scope:
+      - wire lm-evaluation-harness against Mascarade local-chat-completions/OpenAI-compatible surfaces
+      - define a small task pack for electronics, structured output, and rewrite quality
+      - persist per-machine results beside current runbooks and benchmark metadata
+    direct_fit: highest
+  - candidate: Machine-profile-aware routing presets for Apple hosts
+    concrete_scope:
+      - encode preferred local providers by machine profile
+      - separate fast local, structured local and quality remote lanes
+      - keep Apple CoreML and MLX-LM as distinct capabilities instead of one generic local bucket
+    direct_fit: highest
+  - candidate: Promote Apple Foundation Models as a narrow structured/task-calling lane
+    concrete_scope:
+      - verify AppleFMProvider is registered in the active router path when enabled
+      - limit use cases to structured extraction, tool invocation and short local assistance
+      - compare AFM against MLX/CoreML on locale support and structured-output reliability
+    direct_fit: high
+  - candidate: Durable orchestration state and replayability
+    concrete_scope:
+      - extend current sequential/parallel/pipeline engine with graph/checkpoint semantics
+      - keep AgentTraceBuffer and Langfuse as the execution record
+      - focus on resumability and operator replay before adding new agent personas
+    direct_fit: high
+  - candidate: Documentation-to-operations tightening
+    concrete_scope:
+      - align Apple runtime runbooks, smoke scripts and router error messages
+      - make next useful lot and machine context outputs first-class operator inputs
+      - codify acceptance gates for local Apple candidates before promotion
+    direct_fit: high
+
+open_questions:
+  - question: Is AppleFMProvider registered in the active runtime path today or only documented/tested?
+    context: The provider and tests exist, but the live router snippet read in router.py did not show AppleFMProvider in default provider_specs while specs expect it.
+  - question: Which Apple-local use cases matter most for Mascarade: structured extraction, coding assistance, rewrite, or domain reasoning?
+    context: Apple Foundation Models and CoreML/MLX each look better suited to different workloads.
+  - question: What exact benchmark suite should become the acceptance gate for local routing policies?
+    context: The repo has custom benchmark and smoke artifacts, but no single standardized acceptance pack was identified.
+  - question: How should machine profiles influence routing policy thresholds and provider priorities?
+    context: The repo clearly distinguishes hosts, but the routing evidence examined is still mostly global rather than machine-specific.
+
+gaps:
+  - area: Runtime registration drift between docs/specs and active router code
+    description: The Apple Foundation Models lane appears documented and tested, but active default registration was not confirmed from the router snippet read.
+    impact: Reduces certainty about how close AFM is to production readiness.
+  - area: Standardized evaluation package for local providers
+    description: Benchmarking exists, but a reproducible harness-backed task pack for routing and Apple-local qualification was not found.
+    impact: Makes provider comparison and routing adaptation less auditable.
+  - area: Coverage of live Apple FM operator runbooks
+    description: Apple CoreML has an explicit runbook; Apple Foundation Models has strong spec coverage but less obvious operator-facing recovery guidance in the files inspected.
+    impact: Lowers confidence in day-2 operational maturity for the AFM lane.

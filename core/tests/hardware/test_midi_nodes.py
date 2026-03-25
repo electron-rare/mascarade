@@ -95,7 +95,7 @@ async def test_midi_client_read_messages_with_filters():
         messages = await client.read_messages(
             "Mock MIDI Input",
             channel_filter=0,
-            message_filter=["note_on", "control_change"]
+            message_filter=["note_on", "control_change"],
         )
         assert messages == []
     finally:
@@ -114,7 +114,7 @@ async def test_midi_client_send_message_mock():
             channel=0,
             data1=60,  # Middle C
             data2=100,  # Velocity
-            timestamp_ms=int(time.time() * 1000)
+            timestamp_ms=int(time.time() * 1000),
         )
 
         sent = await client.send_message("Mock MIDI Output", message)
@@ -135,7 +135,7 @@ async def test_midi_client_send_message_note_off():
             channel=0,
             data1=60,
             data2=0,
-            timestamp_ms=int(time.time() * 1000)
+            timestamp_ms=int(time.time() * 1000),
         )
 
         sent = await client.send_message("Mock MIDI Output", message)
@@ -154,9 +154,9 @@ async def test_midi_client_send_message_control_change():
         message = MIDIMessage(
             status=MIDIStatus.CONTROL_CHANGE,
             channel=0,
-            data1=7,   # Volume CC
+            data1=7,  # Volume CC
             data2=127,  # Max volume
-            timestamp_ms=int(time.time() * 1000)
+            timestamp_ms=int(time.time() * 1000),
         )
 
         sent = await client.send_message("Mock MIDI Output", message)
@@ -178,21 +178,21 @@ async def test_midi_client_send_batch():
                 channel=0,
                 data1=60,
                 data2=100,
-                timestamp_ms=int(time.time() * 1000)
+                timestamp_ms=int(time.time() * 1000),
             ),
             MIDIMessage(
                 status=MIDIStatus.NOTE_ON,
                 channel=0,
                 data1=64,
                 data2=100,
-                timestamp_ms=int(time.time() * 1000)
+                timestamp_ms=int(time.time() * 1000),
             ),
             MIDIMessage(
                 status=MIDIStatus.NOTE_ON,
                 channel=0,
                 data1=67,
                 data2=100,
-                timestamp_ms=int(time.time() * 1000)
+                timestamp_ms=int(time.time() * 1000),
             ),
         ]
 
@@ -240,7 +240,7 @@ def test_midi_message_creation():
         channel=5,
         data1=60,
         data2=100,
-        timestamp_ms=1234567890
+        timestamp_ms=1234567890,
     )
 
     assert message.status == MIDIStatus.NOTE_ON
@@ -256,7 +256,7 @@ def test_midi_message_type_property():
         status=MIDIStatus.NOTE_ON | 0x05,  # NOTE_ON on channel 5
         channel=5,
         data1=60,
-        data2=100
+        data2=100,
     )
 
     assert message.message_type == MIDIStatus.NOTE_ON
@@ -269,7 +269,7 @@ def test_midi_message_channel_validation():
             status=MIDIStatus.NOTE_ON,
             channel=16,  # Invalid, must be 0-15
             data1=60,
-            data2=100
+            data2=100,
         )
         assert False, "Should have raised ValidationError"
     except ValidationError:
@@ -283,7 +283,7 @@ def test_midi_message_data_validation():
             status=MIDIStatus.NOTE_ON,
             channel=0,
             data1=128,  # Invalid, must be 0-127
-            data2=100
+            data2=100,
         )
         assert False, "Should have raised ValidationError"
     except ValidationError:
@@ -328,7 +328,7 @@ def test_execute_midi_input_with_filters():
             self._inputs = {
                 "port_name": "Mock MIDI Input",
                 "channel_filter": 0,
-                "message_filter": ["note_on", "note_off"]
+                "message_filter": ["note_on", "note_off"],
             }
 
         def get_input(self, name, default=None):
@@ -370,8 +370,8 @@ def test_execute_midi_output_single_message():
                     "channel": 0,
                     "data1": 60,
                     "data2": 100,
-                    "timestamp_ms": 0
-                }
+                    "timestamp_ms": 0,
+                },
             }
 
         def get_input(self, name, default=None):
@@ -393,18 +393,12 @@ def test_execute_midi_output_batch():
                 "port_name": "Mock MIDI Output",
                 "batch": [
                     MIDIMessage(
-                        status=MIDIStatus.NOTE_ON,
-                        channel=0,
-                        data1=60,
-                        data2=100
+                        status=MIDIStatus.NOTE_ON, channel=0, data1=60, data2=100
                     ),
                     MIDIMessage(
-                        status=MIDIStatus.NOTE_ON,
-                        channel=0,
-                        data1=64,
-                        data2=100
-                    )
-                ]
+                        status=MIDIStatus.NOTE_ON, channel=0, data1=64, data2=100
+                    ),
+                ],
             }
 
         def get_input(self, name, default=None):
@@ -422,9 +416,7 @@ def test_execute_midi_output_missing_port_name():
 
     class _FakeContext(NodeExecutionContext):
         def __init__(self):
-            self._inputs = {
-                "message": MIDIMessage(status=MIDIStatus.NOTE_ON)
-            }
+            self._inputs = {"message": MIDIMessage(status=MIDIStatus.NOTE_ON)}
 
         def get_input(self, name, default=None):
             return self._inputs.get(name, default)
@@ -461,11 +453,8 @@ def test_execute_midi_output_message_as_midi_message():
             self._inputs = {
                 "port_name": "Mock MIDI Output",
                 "message": MIDIMessage(
-                    status=MIDIStatus.CONTROL_CHANGE,
-                    channel=0,
-                    data1=7,
-                    data2=127
-                )
+                    status=MIDIStatus.CONTROL_CHANGE, channel=0, data1=7, data2=127
+                ),
             }
 
         def get_input(self, name, default=None):

@@ -4,6 +4,7 @@
 Usage:
     python scripts/p2p/mesh_tui.py
 """
+
 import os
 import subprocess
 import time
@@ -30,7 +31,15 @@ NODES = {
         "ssh": None,  # local
         "port": 4001,
         "role": "bridge",
-        "caps": ["p2p-relay", "p2p-bridge", "llm-inference", "ft-research", "ft-dataset", "ft-teacher", "ft-archive"],
+        "caps": [
+            "p2p-relay",
+            "p2p-bridge",
+            "llm-inference",
+            "ft-research",
+            "ft-dataset",
+            "ft-teacher",
+            "ft-archive",
+        ],
     },
     "CILS": {
         "ssh": "cils@192.168.0.210",
@@ -48,7 +57,14 @@ NODES = {
         "ssh": "kxkm@kxkm-ai",
         "port": 4001,
         "role": "worker",
-        "caps": ["llm-inference", "gpu", "compute", "ft-student", "ft-analysis", "ft-reinforcement"],
+        "caps": [
+            "llm-inference",
+            "gpu",
+            "compute",
+            "ft-student",
+            "ft-analysis",
+            "ft-reinforcement",
+        ],
     },
 }
 
@@ -71,9 +87,18 @@ def check_node(name, info):
 
     try:
         result = subprocess.run(
-            ["ssh", "-o", "ConnectTimeout=3", "-o", "BatchMode=yes", ssh,
-             f"lsof -ti:{port} 2>/dev/null || ss -tlnp 2>/dev/null | grep :{port}"],
-            capture_output=True, text=True, timeout=5,
+            [
+                "ssh",
+                "-o",
+                "ConnectTimeout=3",
+                "-o",
+                "BatchMode=yes",
+                ssh,
+                f"lsof -ti:{port} 2>/dev/null || ss -tlnp 2>/dev/null | grep :{port}",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=5,
         )
         return result.returncode == 0 and result.stdout.strip() != ""
     except Exception:
@@ -91,7 +116,9 @@ def show_mesh_status():
         caps = ", ".join(info["caps"])
         role = info["role"]
         port = str(info["port"])
-        print(f"  {BOLD}{name:22s}{RESET} {role:8s} :{port:<5s} {status:>20s}  {DIM}{caps}{RESET}")
+        print(
+            f"  {BOLD}{name:22s}{RESET} {role:8s} :{port:<5s} {status:>20s}  {DIM}{caps}{RESET}"
+        )
 
 
 def show_node_detail(name, info):
@@ -102,11 +129,17 @@ def show_node_detail(name, info):
         print(f"  {DIM}Local node{RESET}")
         try:
             result = subprocess.run(
-                ["uname", "-m"], capture_output=True, text=True, timeout=5,
+                ["uname", "-m"],
+                capture_output=True,
+                text=True,
+                timeout=5,
             )
             print(f"  {BOLD}{'Arch':12s}{RESET} {result.stdout.strip()}")
             result = subprocess.run(
-                ["sw_vers", "--productVersion"], capture_output=True, text=True, timeout=5,
+                ["sw_vers", "--productVersion"],
+                capture_output=True,
+                text=True,
+                timeout=5,
             )
             if result.returncode == 0:
                 print(f"  {BOLD}{'macOS':12s}{RESET} {result.stdout.strip()}")
@@ -128,7 +161,9 @@ def show_node_detail(name, info):
         try:
             result = subprocess.run(
                 ["ssh", "-o", "ConnectTimeout=3", ssh, cmd],
-                capture_output=True, text=True, timeout=10,
+                capture_output=True,
+                text=True,
+                timeout=10,
             )
             output = result.stdout.strip()[:80]
             print(f"  {BOLD}{label:12s}{RESET} {output}")
@@ -148,9 +183,11 @@ def start_node(name, info):
         cmd = "cd ~/mascarade/core && nohup python3 scripts/p2p/node_start_bootstrap.py > /tmp/p2p.log 2>&1 &"
     else:
         caps = ",".join(info["caps"])
-        cmd = (f"cd ~/mascarade/core && "
-               f"P2P_CAPABILITIES={caps} P2P_BOOTSTRAP_PORT=4001 "
-               f"nohup python3 scripts/p2p/task_handler_worker.py > /tmp/p2p.log 2>&1 &")
+        cmd = (
+            f"cd ~/mascarade/core && "
+            f"P2P_CAPABILITIES={caps} P2P_BOOTSTRAP_PORT=4001 "
+            f"nohup python3 scripts/p2p/task_handler_worker.py > /tmp/p2p.log 2>&1 &"
+        )
 
     try:
         subprocess.run(["ssh", ssh, cmd], timeout=10)
