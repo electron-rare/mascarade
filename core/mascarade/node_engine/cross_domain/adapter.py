@@ -1,7 +1,8 @@
 """Cross-domain type adapter base class.
 
 Extends the Phase 0 NodeWorker interface with adapter-specific
-validation and conversion semantics.
+validation and conversion semantics.  Uses :class:`NodeTypeRegistry`
+for domain-type schema validation of source and target data.
 """
 
 from __future__ import annotations
@@ -9,9 +10,12 @@ from __future__ import annotations
 import logging
 from abc import abstractmethod
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from mascarade.node_engine.worker import ExecutionContext, NodeResult, NodeWorker
+
+if TYPE_CHECKING:
+    from mascarade.node_engine.registry import NodeTypeRegistry
 
 logger = logging.getLogger("mascarade.node_engine.cross_domain")
 
@@ -51,6 +55,10 @@ class CrossDomainAdapter(NodeWorker):
     source data conforms to the source domain schema before conversion
     and validates the output against the target domain schema after.
 
+    When a :class:`NodeTypeRegistry` is provided, validation uses the
+    registered :class:`DomainType` JSON-schema definitions. Otherwise
+    only a ``None`` check is performed.
+
     Example:
         class AIToCADAdapter(CrossDomainAdapter):
             def supported_mappings(self) -> list[AdapterMapping]:
@@ -66,6 +74,9 @@ class CrossDomainAdapter(NodeWorker):
                 elif mapping.target_type == "GCode":
                     return self._extract_gcode(source_data)
     """
+
+    def __init__(self, registry: NodeTypeRegistry | None = None) -> None:
+        self._registry = registry
 
     @abstractmethod
     def supported_mappings(self) -> list[AdapterMapping]:
@@ -181,15 +192,16 @@ class CrossDomainAdapter(NodeWorker):
             data: Source data to validate
             mapping: The mapping defining expected source type
 
-        Note:
-            Full validation delegates to NodeTypeRegistry schema validation (Phase 0).
-            Stub implementation for Phase 5 development.
+        Raises:
+            ValueError: If data is None or fails schema validation.
         """
-        # TODO: Integrate with NodeTypeRegistry when Phase 0 is implemented
         if data is None:
             raise ValueError(
                 f"Source data is None for {mapping.source_domain}.{mapping.source_type}"
             )
+        self._validate_domain_type(
+            data, mapping.source_domain, mapping.source_type, direction="source"
+        )
 
     def _validate_target(self, data: Any, mapping: AdapterMapping) -> None:
         """Validate converted data against the target domain type schema.
@@ -198,12 +210,75 @@ class CrossDomainAdapter(NodeWorker):
             data: Converted data to validate
             mapping: The mapping defining expected target type
 
-        Note:
-            Full validation delegates to NodeTypeRegistry schema validation (Phase 0).
-            Stub implementation for Phase 5 development.
+        Raises:
+            ValueError: If data is None or fails schema validation.
         """
-        # TODO: Integrate with NodeTypeRegistry when Phase 0 is implemented
         if data is None:
             raise ValueError(
                 f"Converted data is None for {mapping.target_domain}.{mapping.target_type}"
+            )
+        self._validate_domain_type(
+            data, mapping.target_domain, mapping.target_type, direction="target"
+        )
+
+    # ------------------------------------------------------------------
+    # Registry integration
+    # ------------------------------------------------------------------
+
+    def _validate_domain_type(
+        self,
+        data: Any,
+        domain: str,
+        type_name: str,
+        *,
+        direction: str,
+    ) -> None:
+        """Validate *data* against a DomainType looked up in the registry.
+
+        If no registry is set, or the qualified name is not registered,
+        validation is skipped with a debug-level log.
+
+        Args:
+            data: The payload to validate (must be a dict for schema checks).
+            domain: Domain identifier (e.g. ``"ai"``).
+            type_name: Type name within the domain (e.g. ``"LLMResponse"``).
+            direction: ``"source"`` or ``"target"`` — used in error messages.
+
+        Raises:
+            ValueError: If the data fails schema validation.
+        """
+        if self._registry is None:
+            return
+
+        qualified = f"{domain}.{type_name}"
+
+        if qualified not in self._registry:
+            logger.debug(
+                "Domain type %s not found in registry — skipping %s validation",
+                qualified,
+                direction,
+            )
+            return
+
+        from mascarade.node_engine.types import DomainType
+
+        entry = self._registry.get(qualified)
+        if not isinstance(entry, DomainType):
+            # It's a NodeType, not a DomainType — nothing to schema-validate.
+            return
+
+        if not isinstance(data, dict):
+            # DomainType.validate_schema expects a dict; non-dict payloads
+            # cannot be validated against a JSON schema.
+            logger.debug(
+                "Skipping schema validation for %s %s: data is not a dict",
+                direction,
+                qualified,
+            )
+            return
+
+        valid, error = entry.validate_schema(data)
+        if not valid:
+            raise ValueError(
+                f"Schema validation failed for {direction} type {qualified}: {error}"
             )

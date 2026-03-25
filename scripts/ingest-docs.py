@@ -16,10 +16,8 @@ Qdrant must be running (default: http://localhost:6333).
 from __future__ import annotations
 
 import argparse
-import hashlib
 import logging
 import os
-import sys
 import asyncio
 from pathlib import Path
 

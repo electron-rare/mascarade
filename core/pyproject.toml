@@ -55,6 +55,9 @@ langfuse = [
 observability = [
     "traceloop-sdk>=0.33; python_version < '3.14'",
 ]
+eval = [
+    "lm-eval>=0.4,<1",
+]
 dev = [
     "numpy>=2.3,<3",
     "pytest>=9.0,<10",
@@ -76,7 +79,10 @@ build-backend = "setuptools.build_meta"
 [tool.ruff]
 line-length = 100
 target-version = "py311"
-exclude = []
+exclude = [
+    "clients/",
+    "finetune/kicad_fabrication_toolkit/",
+]
 
 [tool.ruff.lint]
 select = [

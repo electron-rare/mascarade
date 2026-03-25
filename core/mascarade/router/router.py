@@ -8,7 +8,9 @@ from collections.abc import AsyncIterator
 from enum import StrEnum
 
 from mascarade.cache.multi_tier_cache import MultiTierCache
+from mascarade.config import settings
 from mascarade.load_balancer.balancer import LoadBalancer
+from mascarade.machine_profile import MachineProfile, detect_machine_profile
 from mascarade.metrics.tracker import MetricsTracker
 from mascarade.observability.langfuse import (
     start_langfuse_generation,
@@ -21,11 +23,35 @@ from mascarade.router.providers.base import LLMProvider, LLMResponse
 logger = logging.getLogger("mascarade.router")
 
 
+def _machine_aware_sort(
+    providers: list[LLMProvider],
+    profile: MachineProfile,
+) -> list[LLMProvider]:
+    """Re-order *providers* so hardware-preferred ones come first.
+
+    Providers whose name appears in ``profile.preferred_providers`` are moved
+    to the front (preserving their relative priority order).  Others follow,
+    sorted by quality_rank descending as a tiebreaker.
+    """
+    preferred = profile.preferred_providers
+    pref_set = set(preferred)
+    # Build an index: lower = better
+    pref_index = {name: idx for idx, name in enumerate(preferred)}
+
+    preferred_list = [p for p in providers if p.name in pref_set]
+    rest = [p for p in providers if p.name not in pref_set]
+
+    preferred_list.sort(key=lambda p: pref_index.get(p.name, 999))
+    rest.sort(key=lambda p: -p.quality_rank)
+    return preferred_list + rest
+
+
 class Strategy(StrEnum):
     BEST = "best"
     CHEAPEST = "cheapest"
     DOMAIN = "domain"
     FASTEST = "fastest"
+    MACHINE_AWARE = "machine_aware"
     SPECIFIC = "specific"
 
 
@@ -51,6 +77,7 @@ class Router:
             ("mascarade.router.providers.huggingface", "HuggingFaceProvider"),
             ("mascarade.router.providers.ollama", "OllamaProvider"),
             ("mascarade.router.providers.apple_coreml", "AppleCoreMLProvider"),
+            ("mascarade.router.providers.litellm_universal", "LiteLLMUniversalProvider"),
         ]
 
         for module_name, class_name in provider_specs:
@@ -58,9 +85,7 @@ class Router:
                 module = __import__(module_name, fromlist=[class_name])
                 provider_cls = getattr(module, class_name)
             except (ImportError, AttributeError) as exc:
-                logger.warning(
-                    "Skipping provider %s (%s): %s", class_name, module_name, exc
-                )
+                logger.warning("Skipping provider %s (%s): %s", class_name, module_name, exc)
                 continue
 
             try:
@@ -81,10 +106,7 @@ class Router:
         return list(self._providers.keys())
 
     def provider_model_map(self) -> dict[str, list[str]]:
-        return {
-            name: provider.available_models()
-            for name, provider in self._providers.items()
-        }
+        return {name: provider.available_models() for name, provider in self._providers.items()}
 
     def _select_candidates(
         self,
@@ -113,26 +135,47 @@ class Router:
             # If Ollama not available, fallback to BEST strategy
             ollama_providers = [p for p in providers if p.name == "ollama"]
             if ollama_providers:
-                return ollama_providers
-            # Fallback to BEST strategy
+                return self._apply_machine_preference(ollama_providers + providers)
             best_value = max(p.quality_rank for p in providers)
-            return [p for p in providers if p.quality_rank == best_value]
+            candidates = [p for p in providers if p.quality_rank == best_value]
+            return self._apply_machine_preference(candidates)
 
         if strategy == Strategy.FASTEST:
             best_value = min(p.speed_rank for p in providers)
             return [p for p in providers if p.speed_rank == best_value]
 
+        if strategy == Strategy.MACHINE_AWARE:
+            return self._apply_machine_preference(providers)
+
+        # BEST — apply machine preference to top-quality providers
         best_value = max(p.quality_rank for p in providers)
-        return [p for p in providers if p.quality_rank == best_value]
+        candidates = [p for p in providers if p.quality_rank == best_value]
+        return self._apply_machine_preference(candidates)
+
+    def _apply_machine_preference(
+        self,
+        candidates: list[LLMProvider],
+    ) -> list[LLMProvider]:
+        """Re-order candidates by hardware affinity when machine profiling is on."""
+        if not settings.machine_profile_enabled:
+            return candidates
+        profile = detect_machine_profile(override=settings.machine_profile_override)
+        sorted_candidates = _machine_aware_sort(candidates, profile)
+        # De-duplicate while preserving order (DOMAIN path may have duplicates)
+        seen: set[str] = set()
+        unique: list[LLMProvider] = []
+        for p in sorted_candidates:
+            if p.name not in seen:
+                seen.add(p.name)
+                unique.append(p)
+        return unique or candidates
 
     def _select_provider(
         self,
         strategy: Strategy = Strategy.BEST,
         provider_name: str | None = None,
     ) -> LLMProvider:
-        candidates = self._select_candidates(
-            strategy=strategy, provider_name=provider_name
-        )
+        candidates = self._select_candidates(strategy=strategy, provider_name=provider_name)
         if len(candidates) == 1:
             return candidates[0]
 
@@ -223,9 +266,7 @@ class Router:
             # Skip provider if its circuit breaker is open
             breaker = self.circuit_breakers.get_breaker(f"{selected.name}-provider")
             if breaker.current_state.name == "STATE_OPEN":
-                logger.warning(
-                    "Skipping provider %s: circuit breaker is OPEN", selected.name
-                )
+                logger.warning("Skipping provider %s: circuit breaker is OPEN", selected.name)
                 continue
 
             started_at = time.perf_counter()
@@ -268,9 +309,7 @@ class Router:
                     metadata=trace_metadata,
                 ) as generation:
                     # Wrap provider call with circuit breaker
-                    response = await breaker.call(
-                        selected.send, messages, **send_kwargs
-                    )
+                    response = await breaker.call(selected.send, messages, **send_kwargs)
 
                     # Update trace with response data
                     if generation is not None:
@@ -282,9 +321,7 @@ class Router:
                         )
             except Exception as exc:
                 elapsed = time.perf_counter() - started_at
-                logger.warning(
-                    "Provider %s failed (%.2fs): %s", selected.name, elapsed, exc
-                )
+                logger.warning("Provider %s failed (%.2fs): %s", selected.name, elapsed, exc)
                 self.load_balancer.request_completed(
                     selected.name, response_time=elapsed, success=False
                 )
@@ -322,9 +359,7 @@ class Router:
                 continue
 
             elapsed = time.perf_counter() - started_at
-            self.load_balancer.request_completed(
-                selected.name, response_time=elapsed, success=True
-            )
+            self.load_balancer.request_completed(selected.name, response_time=elapsed, success=True)
 
             usage = response.usage or {}
             self.metrics.track_request(
@@ -396,9 +431,7 @@ class Router:
             # Skip provider if its circuit breaker is open
             breaker = self.circuit_breakers.get_breaker(f"{selected.name}-provider")
             if breaker.current_state.name == "STATE_OPEN":
-                logger.warning(
-                    "Skipping provider %s: circuit breaker is OPEN", selected.name
-                )
+                logger.warning("Skipping provider %s: circuit breaker is OPEN", selected.name)
                 continue
 
             started_at = time.perf_counter()
@@ -415,9 +448,7 @@ class Router:
                     yield token
             except Exception as exc:
                 elapsed = time.perf_counter() - started_at
-                logger.warning(
-                    "Provider %s stream failed (%.2fs): %s", selected.name, elapsed, exc
-                )
+                logger.warning("Provider %s stream failed (%.2fs): %s", selected.name, elapsed, exc)
                 self.load_balancer.request_completed(
                     selected.name, response_time=elapsed, success=False
                 )
@@ -433,9 +464,7 @@ class Router:
                 continue
 
             elapsed = time.perf_counter() - started_at
-            self.load_balancer.request_completed(
-                selected.name, response_time=elapsed, success=True
-            )
+            self.load_balancer.request_completed(selected.name, response_time=elapsed, success=True)
             self.metrics.track_request(
                 provider_name=selected.name,
                 tokens=0,

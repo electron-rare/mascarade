@@ -19,14 +19,16 @@ import logging
 from typing import TYPE_CHECKING
 
 import httpx
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, Request, WebSocket, WebSocketDisconnect
+from fastapi.responses import JSONResponse, Response
 from starlette.websockets import WebSocketState
 
 from mascarade.auth import get_active_api_keys
 from mascarade.config import settings
+from mascarade.voice_pipeline import VoicePipeline
 
 if TYPE_CHECKING:
-    from mascarade.router import Router
+    from mascarade.router.router import Router
 
 logger = logging.getLogger("mascarade.voice")
 
@@ -109,7 +111,7 @@ async def voice_websocket(websocket: WebSocket):
                 msg = json.loads(data["text"])
                 await _handle_json_message(websocket, msg, llm_router)
             elif "bytes" in data:
-                await _handle_audio_frame(websocket, data["bytes"])
+                await _handle_audio_frame(websocket, data["bytes"], llm_router)
 
     except WebSocketDisconnect:
         logger.info("[VOICE] Client disconnected: %s", client_info)
@@ -163,15 +165,48 @@ async def _handle_json_message(
         logger.debug("[VOICE] Unknown message type: %s", msg_type)
 
 
-async def _handle_audio_frame(ws: WebSocket, frame: bytes) -> None:
+async def _handle_audio_frame(
+    ws: WebSocket,
+    frame: bytes,
+    llm_router: Router | None,
+) -> None:
     """Handle binary audio frame from device.
 
-    MVP stub: logs frame size.  Full implementation will decode OPUS,
-    buffer until VAD end-of-speech, run ASR, query LLM, TTS, and
-    stream audio back.
+    Runs the full voice pipeline: OPUS decode -> VAD -> ASR -> LLM -> TTS
+    and streams the audio response back over the WebSocket.
     """
     logger.debug("[VOICE] Audio frame: %d bytes", len(frame))
-    # TODO: OPUS decode → VAD → faster-whisper ASR → LLM → TTS pipeline
+
+    pipeline = VoicePipeline(router=llm_router)
+    result = await pipeline.process(frame, content_type="audio/opus")
+
+    if not result.ok:
+        logger.warning("[VOICE] Pipeline error: %s", result.error)
+        await ws.send_json(
+            {
+                "type": "pipeline_error",
+                "error": result.error or "unknown",
+            }
+        )
+        return
+
+    if not result.transcript:
+        logger.debug("[VOICE] Empty transcript -- skipping")
+        return
+
+    # Send TTS audio back to device
+    await ws.send_json(
+        {
+            "type": "tts",
+            "state": "start",
+            "text": result.llm_reply,
+            "transcript": result.transcript,
+            "timings_ms": result.timings_ms,
+        }
+    )
+    if result.audio_response:
+        await ws.send_bytes(result.audio_response)
+    await ws.send_json({"type": "tts", "state": "stop"})
 
 
 # ---------------------------------------------------------------------------
@@ -258,3 +293,78 @@ async def _text_to_speech(text: str) -> bytes | None:
     except Exception as e:
         logger.error("[VOICE] TTS error: %s", e)
         return None
+
+
+# ---------------------------------------------------------------------------
+# POST endpoint — voice pipeline (non-WebSocket)
+# ---------------------------------------------------------------------------
+
+
+@router.post("/pipeline")
+async def voice_pipeline_post(request: Request) -> Response:
+    """Process audio through the full voice pipeline via HTTP POST.
+
+    Send raw audio (OPUS, WAV, etc.) as the request body.
+    Set ``Content-Type`` to ``audio/opus``, ``audio/wav``, etc.
+
+    Returns the TTS audio (WAV) on success, or a JSON error payload.
+
+    Query params:
+        ``format`` — response format: ``audio`` (default) returns WAV bytes,
+        ``json`` returns a JSON object with transcript, reply, and timings.
+    """
+    llm_router: Router | None = getattr(request.app.state, "router", None)
+    content_type = request.headers.get("content-type", "audio/opus")
+    response_format = request.query_params.get("format", "audio")
+
+    body = await request.body()
+    if not body:
+        return JSONResponse(
+            status_code=400,
+            content={"error": "empty_body", "detail": "No audio payload received."},
+        )
+
+    if len(body) > settings.device_voice_max_audio_bytes:
+        return JSONResponse(
+            status_code=413,
+            content={
+                "error": "payload_too_large",
+                "detail": f"Max {settings.device_voice_max_audio_bytes} bytes.",
+            },
+        )
+
+    pipeline = VoicePipeline(router=llm_router)
+    result = await pipeline.process(body, content_type=content_type)
+
+    if not result.ok:
+        return JSONResponse(
+            status_code=502,
+            content={
+                "error": result.error or "pipeline_error",
+                "transcript": result.transcript,
+                "llm_reply": result.llm_reply,
+                "timings_ms": result.timings_ms,
+            },
+        )
+
+    if response_format == "json":
+        return JSONResponse(
+            content={
+                "ok": True,
+                "transcript": result.transcript,
+                "llm_reply": result.llm_reply,
+                "timings_ms": result.timings_ms,
+                "audio_content_type": result.audio_content_type,
+                "audio_size": len(result.audio_response),
+            },
+        )
+
+    # Default: return audio bytes
+    return Response(
+        content=result.audio_response,
+        media_type=result.audio_content_type,
+        headers={
+            "X-Transcript": result.transcript[:200],
+            "X-LLM-Reply": result.llm_reply[:200],
+        },
+    )

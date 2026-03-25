@@ -51,13 +51,12 @@ def kicad_drc_reward(prompt: str, completion: str) -> float:
     has_kicad_header = "kicad_sch" in completion or "(kicad_sch" in completion
     has_symbol = "(symbol" in completion or "(lib_symbols" in completion
     has_wire = "(wire" in completion
-    has_junction = "(junction" in completion or "(no_connect" in completion
     has_property = "(property" in completion
 
     # Count components
     n_symbols = len(re.findall(r"\(symbol\s", completion))
     n_wires = len(re.findall(r"\(wire\s", completion))
-    n_pins = len(re.findall(r"\(pin\s", completion))
+    len(re.findall(r"\(pin\s", completion))
 
     if has_kicad_header and has_symbol and n_symbols >= 2:
         if has_wire and n_wires >= 2:
