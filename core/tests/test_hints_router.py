@@ -8,9 +8,10 @@ from unittest.mock import AsyncMock, patch
 import httpx
 import pytest
 
+from fastapi import FastAPI
+
 from mascarade.router.providers.base import LLMResponse
-from mascarade.routers.hints import _sessions
-from mascarade.server import app
+from mascarade.routers.hints import _sessions, router as hints_router
 
 
 @pytest.fixture(autouse=True)
@@ -21,18 +22,25 @@ def _clear_sessions():
     _sessions.clear()
 
 
+def _build_app():
+    """Build a minimal FastAPI app with the hints router mounted under /v1."""
+    test_app = FastAPI()
+    test_app.include_router(hints_router, prefix="/v1")
+    return test_app
+
+
 @asynccontextmanager
 async def _client():
-    """Create test client with mocked LLM."""
-    with patch("mascarade.auth.is_valid_api_key", return_value=True), \
-         patch("mascarade.auth._resolve_role", return_value="admin"):
-        async with app.router.lifespan_context(app):
-            transport = httpx.ASGITransport(app=app)
-            async with httpx.AsyncClient(
-                transport=transport,
-                base_url="http://testserver",
-            ) as client:
-                yield client
+    """Create test client with a standalone app containing the hints router."""
+    test_app = _build_app()
+    # Provide app.state.router so _query_llm can use it
+    test_app.state.router = AsyncMock()
+    transport = httpx.ASGITransport(app=test_app)
+    async with httpx.AsyncClient(
+        transport=transport,
+        base_url="http://testserver",
+    ) as client:
+        yield client, test_app
 
 
 def _mock_send(content: str = "Un indice mysterieux du Professeur..."):
@@ -55,19 +63,17 @@ def _mock_send(content: str = "Un indice mysterieux du Professeur..."):
 @pytest.mark.asyncio
 async def test_ask_hint_level_1():
     """Level 1 hint should return a vague response."""
-    async with _client() as client:
-        with patch.object(
-            app.state.router, "send", _mock_send("Les ombres murmurent...")
-        ):
-            resp = await client.post(
-                "/v1/hints/ask",
-                json={
-                    "puzzle_id": "LA_440",
-                    "question": "Je suis bloque, que faire?",
-                    "hint_level": 1,
-                    "session_id": "test-session-1",
-                },
-            )
+    async with _client() as (client, test_app):
+        test_app.state.router.send = _mock_send("Les ombres murmurent...")
+        resp = await client.post(
+            "/v1/hints/ask",
+            json={
+                "puzzle_id": "LA_440",
+                "question": "Je suis bloque, que faire?",
+                "hint_level": 1,
+                "session_id": "test-session-1",
+            },
+        )
     assert resp.status_code == 200
     body = resp.json()
     assert body["hint"] == "Les ombres murmurent..."
@@ -80,21 +86,19 @@ async def test_ask_hint_level_1():
 @pytest.mark.asyncio
 async def test_ask_hint_level_3():
     """Level 3 hint should return a more explicit response."""
-    async with _client() as client:
-        with patch.object(
-            app.state.router,
-            "send",
-            _mock_send("Cherchez du cote des instruments d'accordage..."),
-        ):
-            resp = await client.post(
-                "/v1/hints/ask",
-                json={
-                    "puzzle_id": "LA_440",
-                    "question": "Comment stabiliser l'appareil?",
-                    "hint_level": 3,
-                    "session_id": "test-session-2",
-                },
-            )
+    async with _client() as (client, test_app):
+        test_app.state.router.send = _mock_send(
+            "Cherchez du cote des instruments d'accordage..."
+        )
+        resp = await client.post(
+            "/v1/hints/ask",
+            json={
+                "puzzle_id": "LA_440",
+                "question": "Comment stabiliser l'appareil?",
+                "hint_level": 3,
+                "session_id": "test-session-2",
+            },
+        )
     assert resp.status_code == 200
     body = resp.json()
     assert body["hint_level"] == 3
@@ -104,7 +108,7 @@ async def test_ask_hint_level_3():
 @pytest.mark.asyncio
 async def test_anti_cheat_solution_keywords():
     """Query containing solution keywords should trigger deflection."""
-    async with _client() as client:
+    async with _client() as (client, _test_app):
         resp = await client.post(
             "/v1/hints/ask",
             json={
@@ -122,7 +126,7 @@ async def test_anti_cheat_solution_keywords():
 @pytest.mark.asyncio
 async def test_anti_cheat_prompt_injection():
     """Prompt injection attempts should be deflected in character."""
-    async with _client() as client:
+    async with _client() as (client, _test_app):
         resp = await client.post(
             "/v1/hints/ask",
             json={
@@ -148,7 +152,7 @@ async def test_max_hints_reached():
             {"level": 3, "timestamp": 3.0},
         ]
     }
-    async with _client() as client:
+    async with _client() as (client, _test_app):
         resp = await client.post(
             "/v1/hints/ask",
             json={
@@ -167,30 +171,30 @@ async def test_max_hints_reached():
 @pytest.mark.asyncio
 async def test_session_tracking():
     """Hints should be tracked per puzzle per session."""
-    async with _client() as client:
-        with patch.object(app.state.router, "send", _mock_send()):
-            # Ask two hints for different puzzles
-            await client.post(
-                "/v1/hints/ask",
-                json={
-                    "puzzle_id": "LA_440",
-                    "question": "Aide moi",
-                    "hint_level": 1,
-                    "session_id": "test-track",
-                },
-            )
-            await client.post(
-                "/v1/hints/ask",
-                json={
-                    "puzzle_id": "LEFOU_PIANO",
-                    "question": "Aide moi",
-                    "hint_level": 2,
-                    "session_id": "test-track",
-                },
-            )
+    async with _client() as (client, test_app):
+        test_app.state.router.send = _mock_send()
+        # Ask two hints for different puzzles
+        await client.post(
+            "/v1/hints/ask",
+            json={
+                "puzzle_id": "LA_440",
+                "question": "Aide moi",
+                "hint_level": 1,
+                "session_id": "test-track",
+            },
+        )
+        await client.post(
+            "/v1/hints/ask",
+            json={
+                "puzzle_id": "LEFOU_PIANO",
+                "question": "Aide moi",
+                "hint_level": 2,
+                "session_id": "test-track",
+            },
+        )
 
-            # Check session analytics
-            resp = await client.get("/v1/hints/session/test-track")
+        # Check session analytics
+        resp = await client.get("/v1/hints/session/test-track")
 
     assert resp.status_code == 200
     body = resp.json()
@@ -204,7 +208,7 @@ async def test_session_tracking():
 @pytest.mark.asyncio
 async def test_puzzle_list():
     """GET /hints/puzzles should return all puzzle metadata."""
-    async with _client() as client:
+    async with _client() as (client, _test_app):
         resp = await client.get("/v1/hints/puzzles")
 
     assert resp.status_code == 200
@@ -224,7 +228,7 @@ async def test_puzzle_list():
 async def test_session_reset():
     """POST /hints/reset/{session_id} should clear session data."""
     _sessions["test-reset"] = {"LA_440": [{"level": 1, "timestamp": 1.0}]}
-    async with _client() as client:
+    async with _client() as (client, _test_app):
         resp = await client.post("/v1/hints/reset/test-reset")
 
     assert resp.status_code == 200
@@ -236,7 +240,7 @@ async def test_session_reset():
 @pytest.mark.asyncio
 async def test_unknown_puzzle():
     """Requesting a hint for an unknown puzzle should return an error message."""
-    async with _client() as client:
+    async with _client() as (client, _test_app):
         resp = await client.post(
             "/v1/hints/ask",
             json={
