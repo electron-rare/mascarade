@@ -1,8 +1,11 @@
 """Tests for MLX provider."""
 
-from unittest.mock import AsyncMock, MagicMock, patch
-
+pytest_plugins = []
 import pytest
+
+mlx_lm = pytest.importorskip("mlx_lm", reason="mlx_lm not installed")
+
+from unittest.mock import AsyncMock, MagicMock, patch
 
 from mascarade.router.providers.mlx_provider import MLXProvider, MLXWorker
 from mascarade.scheduler.scheduler import ScheduledRequest

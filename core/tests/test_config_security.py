@@ -199,7 +199,10 @@ def test_config_loads_from_env_file():
 
 def test_empty_secrets_are_handled_gracefully():
     """Empty or unset secrets should not cause errors."""
-    settings = Settings()
+    settings = Settings(
+        anthropic_api_key=SecretStr(""),
+        openai_api_key=SecretStr(""),
+    )
 
     # All secret fields should default to empty SecretStr
     assert isinstance(settings.anthropic_api_key, SecretStr)

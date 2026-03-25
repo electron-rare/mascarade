@@ -253,6 +253,7 @@ def test_e2e_specific_strategy_with_model_override():
         router.send(
             messages,
             strategy=Strategy.SPECIFIC,
+            provider="openai",
             model="gpt-4",
         )
     )

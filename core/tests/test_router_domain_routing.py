@@ -137,6 +137,7 @@ def test_router_domain_provider_filtering():
         registry_path = Path(tmpdir) / "test_models.json"
 
         router = Router()
+        router._providers.clear()
         router.model_registry = ModelRegistry(storage_path=registry_path)
 
         # Manually register mock providers for testing
@@ -178,6 +179,7 @@ def test_router_domain_filtering_fallback():
         registry_path = Path(tmpdir) / "test_models.json"
 
         router = Router()
+        router._providers.clear()
         router.model_registry = ModelRegistry(storage_path=registry_path)
 
         # Manually register mock providers

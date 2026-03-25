@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import pytest
+
+openai = pytest.importorskip("openai", reason="openai not installed")
+
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
-
-import pytest
 
 from mascarade.config import settings
 from mascarade.router.providers.mistral import MistralProvider
@@ -75,10 +77,7 @@ async def test_mistral_provider_uses_direct_sdk_by_default(monkeypatch):
     settings.litellm_proxy_enabled = False
     _FakeMistral.created.clear()
     monkeypatch.setattr("mascarade.router.providers.mistral.Mistral", _FakeMistral)
-    monkeypatch.setattr(
-        "mascarade.router.providers.mistral.openai.AsyncOpenAI",
-        _FakeAsyncOpenAI,
-    )
+    monkeypatch.setattr("openai.AsyncOpenAI", _FakeAsyncOpenAI)
 
     provider = MistralProvider()
     response = await provider.send([{"role": "user", "content": "ping"}])
@@ -98,10 +97,7 @@ async def test_mistral_provider_uses_litellm_proxy_when_enabled(monkeypatch):
     settings.litellm_master_key = "sk-litellm-test"  # noqa: S105
     _FakeAsyncOpenAI.created.clear()
     monkeypatch.setattr("mascarade.router.providers.mistral.Mistral", _FakeMistral)
-    monkeypatch.setattr(
-        "mascarade.router.providers.mistral.openai.AsyncOpenAI",
-        _FakeAsyncOpenAI,
-    )
+    monkeypatch.setattr("openai.AsyncOpenAI", _FakeAsyncOpenAI)
 
     provider = MistralProvider()
     response = await provider.send([{"role": "user", "content": "trace me"}])

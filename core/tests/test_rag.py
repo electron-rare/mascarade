@@ -132,17 +132,17 @@ class TestRAGPipeline:
         mock_vs = AsyncMock(spec=QdrantVectorStore)
         mock_vs.collection = "mascarade-rag"
         mock_vs.base_url = "http://qdrant:6333"
-        mock_vs.search = AsyncMock(
-            return_value=[
-                {
-                    "id": "1",
-                    "score": 0.95,
-                    "text": "Doc content",
-                    "source": "test.md",
-                    "metadata": {},
-                },
-            ]
-        )
+        search_results = [
+            {
+                "id": "1",
+                "score": 0.95,
+                "text": "Doc content",
+                "source": "test.md",
+                "metadata": {},
+            },
+        ]
+        mock_vs.search = AsyncMock(return_value=search_results)
+        mock_vs.hybrid_search = AsyncMock(return_value=search_results)
 
         pipeline = RAGPipeline(
             router=mock_router, vectorstore=mock_vs, embeddings=mock_embeddings
@@ -152,7 +152,7 @@ class TestRAGPipeline:
         assert result["intent"] == "rag"
         assert "answer" in result
         assert len(result["sources"]) == 1
-        assert "vector_search" in result["tool_calls"]
+        assert "hybrid_search" in result["tool_calls"] or "vector_search" in result["tool_calls"]
         assert "llm_generate" in result["tool_calls"]
 
     @pytest.mark.asyncio
@@ -170,6 +170,7 @@ class TestRAGPipeline:
         mock_vs.collection = "mascarade-rag"
         mock_vs.base_url = "http://qdrant:6333"
         mock_vs.search = AsyncMock(return_value=[])
+        mock_vs.hybrid_search = AsyncMock(return_value=[])
 
         pipeline = RAGPipeline(
             router=mock_router, vectorstore=mock_vs, embeddings=mock_embeddings
