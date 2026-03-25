@@ -1,6 +1,6 @@
 # Mascarade Feature Map
 
-> Last updated: 2026-03-21
+> Last updated: 2026-03-25
 
 ## Legend
 
@@ -23,7 +23,7 @@
 
 | Feature | Status | Priority | Dependencies | Notes |
 |---------|--------|----------|--------------|-------|
-| Multi-provider routing | done | P0 | — | 11 providers |
+| Multi-provider routing | done | P0 | — | 25+ providers |
 | Strategy engine (cheapest/fastest/best/specific) | done | P0 | — | |
 | Automatic fallback chain | done | P0 | — | Provider failure → next |
 | Load balancer | done | P1 | — | |
@@ -48,9 +48,14 @@
 | llama.cpp | done | P1 | GGUF models |
 | Apple CoreML | done | P2 | M-series Macs |
 | KiCad Router | done | P2 | Domain-specific |
-| MLX-LM | planned | P1 | Apple Silicon native |
-| Exo (distributed) | planned | P1 | Multi-Mac cluster |
-| Apple Foundation Models | planned | P2 | 3B on-device |
+| MLX-LM | done | P1 | Apple Silicon native |
+| Exo (distributed) | done | P1 | Multi-Mac cluster |
+| Apple Foundation Models | done | P2 | 3B on-device |
+| GitHub Copilot | done | P1 | Copilot provider |
+| Codestral | done | P1 | Mistral code model |
+| Mistral Agents | done | P1 | Mistral agent API |
+| Mistral Studio | done | P1 | Mistral Studio integration |
+| Cody Gateway | done | P1 | Sourcegraph Cody |
 
 ## 2. Agents
 
@@ -77,6 +82,7 @@
 | Retry with backoff | done | P1 | — | |
 | Dead letter queue | done | P2 | — | Failed tasks |
 | Execution context | done | P1 | — | State passing |
+| Plan-and-Execute orchestrator | done | P1 | — | Execution plan + task management |
 
 ## 4. Node Engine
 
@@ -174,7 +180,7 @@
 
 | Feature | Status | Priority | Dependencies | Notes |
 |---------|--------|----------|--------------|-------|
-| Hono framework | done | P0 | — | Port 3000 |
+| Hono framework | done | P0 | — | Port 3100 |
 | JWT + API key auth | done | P0 | — | |
 | Rate limiting | done | P1 | — | |
 | Core proxy (→ :8100) | done | P0 | — | |
@@ -239,19 +245,33 @@
 | API hardening | done | P1 | — | Tower merge |
 | Secrets manager (P2P) | done | P2 | — | `p2p_secrets_manager.sh` |
 
-## 12. Apple Intelligence (Planned)
+## 12. Apple Intelligence
 
 | Feature | Status | Priority | Dependencies | Notes |
 |---------|--------|----------|--------------|-------|
-| MLX-LM provider | planned | P1 | MLX framework | OpenAI-compatible server |
-| MLX model quantization | planned | P1 | MLX | 4-bit / 8-bit |
-| Exo distributed inference | planned | P1 | Exo | Mac cluster sharding |
-| Apple Foundation Models (3B) | planned | P2 | macOS 26+ | Swift bridge |
+| MLX-LM provider | done | P1 | MLX framework | OpenAI-compatible server |
+| MLX model quantization | done | P1 | MLX | 4-bit / 8-bit |
+| Exo distributed inference | done | P1 | Exo | Mac cluster sharding |
+| Apple Foundation Models (3B) | done | P2 | macOS 26+ | Swift bridge |
 | Core AI framework integration | planned | P2 | WWDC 2026 | |
 | App Intents (Siri) | planned | P3 | macOS 26+ | Voice → Mascarade |
 | CoreML → Core AI migration | planned | P2 | Core AI SDK | |
 
-## 13. Ecosystem Integration
+## 13. Agentic RAG
+
+| Feature | Status | Priority | Dependencies | Notes |
+|---------|--------|----------|--------------|-------|
+| Agentic RAG engine | done | P1 | Qdrant | Retrieval-augmented generation |
+| Document retriever | done | P1 | — | Multi-source retrieval |
+| Reranker | done | P2 | — | Result reranking |
+
+## 14. Cowork OTel
+
+| Feature                  | Status | Priority | Dependencies   | Notes                        |
+|--------------------------|--------|----------|----------------|------------------------------|
+| Cowork OTel integration  | done   | P1       | OTEL Collector | Collaborative observability  |
+
+## 15. Ecosystem Integration
 
 | Feature | Status | Priority | Dependencies | Notes |
 |---------|--------|----------|--------------|-------|
@@ -269,9 +289,9 @@
 | Domain | Done | In Progress | Planned | Total |
 |--------|------|-------------|---------|-------|
 | LLM Router | 10 | 0 | 0 | 10 |
-| Providers | 10 | 0 | 3 | 13 |
+| Providers | 18 | 0 | 0 | 18 |
 | Agents | 8 | 0 | 0 | 8 |
-| Orchestrator | 8 | 0 | 0 | 8 |
+| Orchestrator | 9 | 0 | 0 | 9 |
 | Node Engine | 11 | 1 | 0 | 12 |
 | P2P Mesh | 13 | 0 | 0 | 13 |
 | Fine-Tuning | 13 | 1 | 1 | 15 |
@@ -280,6 +300,8 @@
 | Frontend | 7 | 1 | 0 | 8 |
 | Infrastructure | 17 | 0 | 0 | 17 |
 | Auth / Security | 7 | 0 | 0 | 7 |
-| Apple Intelligence | 0 | 0 | 7 | 7 |
+| Apple Intelligence | 4 | 0 | 3 | 7 |
+| Agentic RAG | 3 | 0 | 0 | 3 |
+| Cowork OTel | 1 | 0 | 0 | 1 |
 | Ecosystem | 4 | 2 | 0 | 6 |
-| **Total** | **133** | **5** | **11** | **149** |
+| **Total** | **150** | **5** | **4** | **159** |
