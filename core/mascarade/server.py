@@ -560,17 +560,14 @@ async def chat_completions(req: ChatCompletionRequest):
         provider_prefix = parts[0]
         model = parts[1]
 
-        # Get supported provider names (these are the known provider types)
-        supported_providers = [
-            "apple-coreml",
-            "ollama",
-            "openai",
-            "claude",
-            "anthropic",
-            "mistral",
-            "bedrock",
-            "gemini",
-        ]
+        # Get supported provider names dynamically from router + known aliases
+        _provider_aliases = {"anthropic": "claude", "gemini": "google"}
+        supported_providers = set(app.state.router.available_providers)
+        supported_providers.update(_provider_aliases.keys())
+
+        # Resolve alias before validation
+        if provider_prefix in _provider_aliases:
+            provider_prefix = _provider_aliases[provider_prefix]
 
         # Validate provider prefix
         if provider_prefix not in supported_providers:
