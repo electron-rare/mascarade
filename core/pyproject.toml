@@ -49,6 +49,10 @@ libp2p = [
 # unsloth requires protobuf<4 which conflicts with libp2p (protobuf>=4.25).
 # Finetune deps are installed separately on KXKM-AI GPU in its own venv.
 # See: scripts/finetune/requirements.txt
+midi = [
+    "mido>=1.3,<2",
+    "python-rtmidi>=1.5,<2",
+]
 langfuse = [
     "langfuse>=2.36,<3",
 ]
