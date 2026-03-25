@@ -145,7 +145,21 @@ class HardwareWorker(NodeWorker):
         # (GPIO LOW, PWM 0%, DMX blackout, etc.)
         for device_id in list(self._device_registry.keys()):
             logger.debug("Closing device connection: %s", device_id)
-            # TODO: Implement actual device cleanup in device-specific subtasks
+            device = self._device_registry[device_id]
+            try:
+                # If the device exposes an async close method, call it
+                close_fn = getattr(device, "close", None)
+                if close_fn is not None and callable(close_fn):
+                    import asyncio
+                    import inspect
+
+                    if inspect.iscoroutinefunction(close_fn):
+                        await close_fn()
+                    else:
+                        await asyncio.get_event_loop().run_in_executor(None, close_fn)
+                logger.debug("Device closed successfully: %s", device_id)
+            except Exception:
+                logger.warning("Error closing device %s, forcing release", device_id, exc_info=True)
 
         self._device_registry.clear()
         self._initialized = False

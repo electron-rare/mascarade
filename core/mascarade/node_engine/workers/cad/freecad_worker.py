@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from mascarade.mcp import McpRuntimeClient
 from mascarade.node_engine.worker import NodeWorker, WorkerCapabilities
 from mascarade.observability import new_run_id
+
+logger = logging.getLogger("mascarade.node_engine.workers.cad.freecad_worker")
 
 
 class FreeCADWorker(NodeWorker):
@@ -27,6 +30,16 @@ class FreeCADWorker(NodeWorker):
         requires_runtime=True,
         runtime_check_endpoint="/cad/freecad/runtime",
     )
+
+    def __init__(self, *, router: Any | None = None) -> None:
+        """Initialize the FreeCAD worker.
+
+        Args:
+            router: Optional Router instance for AI-assisted script generation
+                via FreeCADAgent. When None, falls back to template-based modeling.
+        """
+        super().__init__()
+        self._router = router
 
     node_types = [
         "cad.freecad.create_document",
@@ -217,33 +230,48 @@ class FreeCADWorker(NodeWorker):
         parameters = inputs.get("parameters", {})
         description = inputs.get("description", "")
 
-        # For now, we support basic parametric templates
-        # Future: integrate with FreeCADAgent for AI-assisted parameter inference
-        if description:
-            # TODO: Integrate with FreeCADAgent.generate_freecad_script() for AI assistance
-            pass
-
-        # Extract parameters with defaults (box template)
-        length = parameters.get("length", 10.0)
-        width = parameters.get("width", 8.0)
-        height = parameters.get("height", 6.0)
-
         # Generate temporary output path
         output_path = f"/tmp/freecad_parametric_{template}.FCStd"
 
-        # Step 1: Create the document with parametric template
-        doc_result = await mcp_client.freecad_create_document(
-            output_path,
-            name=f"Parametric_{template}",
-            primitive=template,
-            length=float(length),
-            width=float(width),
-            height=float(height),
-            run_id=new_run_id(),
-            mode="freecad",
-            step=0,
-            agent_name="freecad",
-        )
+        # Attempt AI-assisted generation when a natural-language description is provided
+        ai_script = None
+        if description:
+            ai_script = await self._generate_with_freecad_agent(description)
+
+        if ai_script:
+            # Use AI-generated FreeCAD Python script
+            logger.info("Using FreeCADAgent-generated script for parametric model")
+            doc_result = await mcp_client.freecad_run_python_script(
+                ai_script,
+                output_path=output_path,
+                run_id=new_run_id(),
+                mode="freecad",
+                step=0,
+                agent_name="freecad",
+            )
+        else:
+            # Fallback: template-based parametric creation
+            if description:
+                logger.info("FreeCADAgent unavailable, using template-based generation")
+
+            # Extract parameters with defaults (box template)
+            length = parameters.get("length", 10.0)
+            width = parameters.get("width", 8.0)
+            height = parameters.get("height", 6.0)
+
+            # Step 1: Create the document with parametric template
+            doc_result = await mcp_client.freecad_create_document(
+                output_path,
+                name=f"Parametric_{template}",
+                primitive=template,
+                length=float(length),
+                width=float(width),
+                height=float(height),
+                run_id=new_run_id(),
+                mode="freecad",
+                step=0,
+                agent_name="freecad",
+            )
 
         # Step 2: Generate tessellated mesh from the document
         # For now, create a simple mesh representation
@@ -355,6 +383,34 @@ class FreeCADWorker(NodeWorker):
             outputs["mesh"] = mesh_data
 
         return outputs
+
+    async def _generate_with_freecad_agent(
+        self,
+        design_description: str,
+    ) -> str | None:
+        """Attempt to generate a FreeCAD script using FreeCADAgent + LLM router.
+
+        Returns the AI-generated Python script string, or None if the agent or
+        router is unavailable (graceful degradation).
+        """
+        if self._router is None:
+            return None
+
+        try:
+            # Lazy import to avoid circular dependencies
+            from mascarade.agents.freecad_agent import FreeCADAgent
+
+            agent = FreeCADAgent()
+            script = await agent.generate_freecad_script(design_description, router=self._router)
+            if script and script.strip():
+                return script
+        except Exception:
+            logger.warning(
+                "FreeCADAgent script generation failed, falling back to template",
+                exc_info=True,
+            )
+
+        return None
 
     def _generate_export_script(
         self,
