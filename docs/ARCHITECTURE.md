@@ -1,6 +1,6 @@
 # Mascarade Architecture
 
-> Last updated: 2026-03-21
+> Last updated: 2026-03-25
 
 ## 1. System Overview — Ecosystem
 
@@ -15,7 +15,7 @@ graph TB
     end
 
     subgraph mascarade["mascarade (this repo)"]
-        API["api/<br/>Hono TypeScript<br/>:3000"]
+        API["api/<br/>Hono TypeScript<br/>:3100"]
         CORE["core/<br/>FastAPI Python<br/>:8100"]
         WEB["web/<br/>React 19 Bridge UI"]
         FT["finetune/<br/>Training Pipeline"]
@@ -32,7 +32,7 @@ graph TB
         MCP7[huggingface MCP]
     end
 
-    subgraph Providers["LLM Providers"]
+    subgraph Providers["LLM Providers (25+)"]
         Claude[Claude / Anthropic]
         GPT[OpenAI / GPT]
         Mistral[Mistral AI]
@@ -42,8 +42,14 @@ graph TB
         Ollama[Ollama Local]
         LlamaCpp[llama.cpp]
         CoreML[Apple CoreML]
-        MLX[MLX-LM<br/>planned]
-        Exo[Exo Cluster<br/>planned]
+        MLX[MLX-LM]
+        Exo[Exo Cluster]
+        AppleFM[Apple FM]
+        Copilot[GitHub Copilot]
+        Codestral[Codestral]
+        MistralAgents[Mistral Agents]
+        MistralStudio[Mistral Studio]
+        CodyGW[Cody Gateway]
     end
 
     subgraph Infra["Infrastructure Services"]
@@ -70,7 +76,7 @@ graph TB
 
 ```mermaid
 graph TB
-    subgraph API_Layer["API Layer — TypeScript (Hono, :3000)"]
+    subgraph API_Layer["API Layer — TypeScript (Hono, :3100)"]
         AUTH_MW[Auth Middleware<br/>JWT + API Key]
         RATE[Rate Limiter]
         ROUTES[33 Route Modules]
@@ -79,7 +85,7 @@ graph TB
     subgraph Core_Layer["Core Layer — Python (FastAPI, :8100)"]
         subgraph Router_Module["Router"]
             STRATEGY[Strategy Engine<br/>cheapest/fastest/best/specific]
-            PROVIDERS[11 Provider Adapters]
+            PROVIDERS[25+ Provider Adapters]
             FALLBACK[Fallback Chain]
             LB[Load Balancer]
         end
@@ -96,11 +102,18 @@ graph TB
 
         subgraph Orchestrator_Module["Orchestrator"]
             ENGINE[Orchestration Engine]
+            PLAN_EXEC[Plan-and-Execute]
             TEMPLATES[Templates<br/>seq/par/pipeline]
             CB[Circuit Breaker]
             RETRY[Retry Logic]
             DLQ[Dead Letter Queue]
             CTX[Execution Context]
+        end
+
+        subgraph RAG_Module["Agentic RAG"]
+            RAG_ENGINE[RAG Engine]
+            RAG_RETRIEVE[Retriever]
+            RAG_RERANK[Reranker]
         end
 
         subgraph NodeEngine_Module["Node Engine"]
@@ -151,7 +164,7 @@ graph TB
 ```mermaid
 sequenceDiagram
     participant C as Client
-    participant API as API (Hono :3000)
+    participant API as API (Hono :3100)
     participant MW as Auth Middleware
     participant Core as Core (FastAPI :8100)
     participant Router as Router
@@ -410,7 +423,7 @@ graph TB
 graph TB
     subgraph Core_Services["Core Services"]
         CORE_SVC["mascarade-core<br/>FastAPI :8100<br/>2 CPU / 4GB"]
-        API_SVC["mascarade-api<br/>Hono :3000<br/>2 CPU / 4GB"]
+        API_SVC["mascarade-api<br/>Hono :3100<br/>2 CPU / 4GB"]
     end
 
     subgraph Data_Stores["Data Stores"]
@@ -493,9 +506,11 @@ graph TB
 |--------|------|---------|
 | Server | `core/mascarade/server.py` | FastAPI application entrypoint |
 | Router | `core/mascarade/router/` | LLM provider routing + strategy |
-| Providers | `core/mascarade/router/providers/` | 11 LLM provider adapters |
+| Providers | `core/mascarade/router/providers/` | 25+ LLM provider adapters |
 | Agents | `core/mascarade/agents/` | Specialized agents (KiCad, FreeCAD, SPICE, Components) |
 | Orchestrator | `core/mascarade/orchestrator/` | Multi-agent execution engine |
+| Plan-and-Execute | `core/mascarade/orchestrator/plan_execute.py` | Plan-and-Execute orchestrator |
+| Agentic RAG | `core/mascarade/rag/` | Agentic retrieval-augmented generation |
 | Node Engine | `core/mascarade/node_engine/` | Visual graph execution runtime |
 | P2P | `core/mascarade/p2p/` | libp2p mesh networking |
 | MCP | `core/mascarade/mcp/` | Model Context Protocol client |

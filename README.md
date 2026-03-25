@@ -18,7 +18,7 @@ graph TD
     Client["Clients (curl, SDK, MCP, Xcode)"] --> Proxy["Edge Proxy / Caddy"]
     Proxy --> API["API Gateway (Hono, :3100 expose / :3000 container)\nAuth - Rate Limit - OpenAI compat"]
     API --> Core["Core Engine (FastAPI, :8100)\nRouter - Agents - Orchestrator"]
-    Core --> Providers["20+ LLM Providers\nClaude - OpenAI - Mistral - Codestral\nGoogle - Ollama - llama.cpp - MLX\nLiteLLM - HF - Exo - vLLM"]
+    Core --> Providers["25+ LLM Providers\nClaude - OpenAI - Mistral - Codestral\nGoogle - Ollama - llama.cpp - MLX\nLiteLLM - HF - Exo - vLLM - GitHub Copilot"]
     Core <--> P2P["P2P Mesh\nDHT - PubSub - Relay"]
     Core <--> MCP["MCP Server (5 tools)\nMCP Client (KiCad, SPICE, FreeCAD)"]
     Core <--> A2A["A2A Protocol\nAgent Card - Task Delegation"]
@@ -37,18 +37,20 @@ graph TD
 
 | Category | Details |
 | -------- | ------- |
-| **LLM Providers** | 20+ providers -- Claude, OpenAI, Mistral, Codestral, Google, HuggingFace, Bedrock, Ollama, llama.cpp, CoreML, MLX, LiteLLM, Exo, vLLM |
-| **Agents** | 16 pre-built -- coder, analyst, kicad-designer, spice-expert, pcb-routing, Mistral Studio (4 real agent IDs), CLI (Vibe/Codex/Claude Code) |
+| **LLM Providers** | 25+ providers -- Claude, OpenAI, Mistral, Codestral, Google, HuggingFace, Bedrock, Ollama, llama.cpp, CoreML, MLX, LiteLLM, Exo, vLLM, GitHub Copilot |
+| **Agents** | 35 agents -- 16 core (coder, analyst, planner, summarizer, writer, translator, pcb-routing, etc.), 4 domain (kicad-designer, spice-expert, freecad-designer, components-expert), 3 CLI (Vibe/Codex/Claude Code), 4 Mistral Studio (devstral-code, forge, tower-commercial, sentinelle), 8 finetune pipeline |
 | **MCP** | Server (5 tools) + Client (KiCad x5, SPICEBridge 28 tools, FreeCAD, n8n, ERPNext) |
 | **A2A** | Agent-to-Agent protocol (spec v0.3) with task delegation and lifecycle states |
-| **RAG** | Qdrant hybrid search (dense+BM25+RRF), LLM reranking, CRAG fallback, SearXNG web search, bge-m3 embeddings |
+| **RAG** | Agentic RAG pipeline -- Qdrant hybrid search (dense+BM25+RRF), LLM reranking, CRAG fallback, SearXNG web search, bge-m3 embeddings |
 | **ML Router** | Softmax classifier (17 features) auto-selects best model per prompt |
 | **Fine-tuning** | 3-stage pipeline: CPT -> SFT -> RLVR. LoRA/QLoRA, DPO, SimPO, KTO, GRPO. 14 domain mini-models |
 | **Data Quality** | SOTA 2026 pipeline: SemDeDup, IFD scoring, multi-judge (3 LLMs), per-capability scoring |
 | **P2P Mesh** | DHT, PubSub, relay with NAT traversal and distributed task queue |
 | **Scheduler** | GPU-aware worker selection with predictive load balancing |
 | **API Compat** | OpenAI `/v1/chat/completions` + Ollama `/api/chat` + Xcode Intelligence |
-| **Observability** | Grafana, Prometheus, Loki, Tempo, OTEL, Langfuse, ClickHouse |
+| **Orchestrator** | Plan-and-Execute orchestrator with execution plan, task decomposition and dependency management |
+| **Cody Gateway** | VSCode / Sourcegraph integration -- code completions and chat via Mascarade providers |
+| **Observability** | Grafana, Prometheus, Loki, Tempo, OTEL, Langfuse, ClickHouse, Cowork OTel integration |
 
 ## Quick Start
 
@@ -76,7 +78,7 @@ Default ports in this repository:
 For local API development outside Docker, `api/src/index.ts` defaults to `API_PORT=3100`.
 If you run legacy scripts that target `3000`, start API with `API_PORT=3000 npm run dev`.
 
-Any Ollama-compatible app (Continue.dev, Open WebUI, LM Studio) can connect directly -- Mascarade exposes a Fake Ollama API that routes to all 20+ providers.
+Any Ollama-compatible app (Continue.dev, Open WebUI, LM Studio) can connect directly -- Mascarade exposes a Fake Ollama API that routes to all 25+ providers.
 
 ## Benchmark Results
 
