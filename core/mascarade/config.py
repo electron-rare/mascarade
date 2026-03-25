@@ -248,6 +248,10 @@ class Settings(BaseSettings):
     # Observability
     otel_enabled: bool = False
     otel_collector_http_endpoint: str = "http://otel-collector:4318"
+    otel_exporter_protocol: str = "http/protobuf"  # or "grpc"
+    otel_exporter_headers: str = ""  # "Authorization=Bearer token"
+    otel_service_name: str = "mascarade-core"
+    otel_resource_attributes: str = ""  # "team.id=core,deployment=production"
     ops_agent_url: str = "http://ops-agent:9200"
     loki_url: str = "http://loki:3100"
 
