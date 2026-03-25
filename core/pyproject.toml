@@ -54,7 +54,7 @@ midi = [
     "python-rtmidi>=1.5,<2",
 ]
 langfuse = [
-    "langfuse>=2.36,<3",
+    "langfuse>=2.36,<5",
 ]
 observability = [
     "traceloop-sdk>=0.33; python_version < '3.14'",
