@@ -107,7 +107,7 @@ async def daw_transport(body: TransportRequest, request: Request):
     try:
         action = TransportAction(body.action)
     except ValueError:
-        raise HTTPException(status_code=400, detail=f"Unknown action: {body.action}")
+        raise HTTPException(status_code=400, detail=f"Unknown action: {body.action}") from None
 
     result = await manager.daw_transport(action, bpm=body.bpm)
     return _tool_result_to_dict(result)

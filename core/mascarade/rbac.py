@@ -156,7 +156,7 @@ def get_default_permissions(role_name: str | RoleName) -> dict[str, list[str]]:
         except ValueError:
             raise ValueError(
                 f"Invalid role name: {role_name}. Valid roles: {[r.value for r in RoleName]}"
-            )
+            ) from None
 
     if role_name == RoleName.ADMIN:
         return {

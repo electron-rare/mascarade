@@ -849,7 +849,7 @@ async def list_users(_: None = Depends(require_admin)):
             return {"users": [user.model_dump() for user in users]}
     except Exception as e:
         logger.error("Error listing users: %s", str(e), exc_info=True)
-        raise HTTPException(status_code=500, detail="Error listing users")
+        raise HTTPException(status_code=500, detail="Error listing users") from e
 
 
 @protected.post("/users")
@@ -915,7 +915,7 @@ async def create_user(req: UserCreate, _: None = Depends(require_admin)):
         raise
     except Exception as e:
         logger.error("Error creating user: %s", str(e), exc_info=True)
-        raise HTTPException(status_code=500, detail="Error creating user")
+        raise HTTPException(status_code=500, detail="Error creating user") from e
 
 
 @protected.get("/users/{user_id}")
@@ -949,7 +949,7 @@ async def get_user(user_id: int, _: None = Depends(require_admin)):
         raise
     except Exception as e:
         logger.error("Error getting user: %s", str(e), exc_info=True)
-        raise HTTPException(status_code=500, detail="Error getting user")
+        raise HTTPException(status_code=500, detail="Error getting user") from e
 
 
 @protected.put("/users/{user_id}")
@@ -1059,7 +1059,7 @@ async def update_user(
         raise
     except Exception as e:
         logger.error("Error updating user: %s", str(e), exc_info=True)
-        raise HTTPException(status_code=500, detail="Error updating user")
+        raise HTTPException(status_code=500, detail="Error updating user") from e
 
 
 @protected.delete("/users/{user_id}")
@@ -1095,7 +1095,7 @@ async def delete_user(user_id: int, _: None = Depends(require_admin)):
         raise
     except Exception as e:
         logger.error("Error deleting user: %s", str(e), exc_info=True)
-        raise HTTPException(status_code=500, detail="Error deleting user")
+        raise HTTPException(status_code=500, detail="Error deleting user") from e
 
 
 @protected.put("/users/{user_id}/rate-limit")
@@ -1156,7 +1156,7 @@ async def update_user_rate_limit(
         raise
     except Exception as e:
         logger.error("Error updating rate limits: %s", str(e), exc_info=True)
-        raise HTTPException(status_code=500, detail="Error updating rate limits")
+        raise HTTPException(status_code=500, detail="Error updating rate limits") from e
 
 
 # --- API Key Management ---
@@ -1224,7 +1224,7 @@ async def create_user_api_key(
         raise
     except Exception as e:
         logger.error("Error creating API key: %s", str(e), exc_info=True)
-        raise HTTPException(status_code=500, detail="Error creating API key")
+        raise HTTPException(status_code=500, detail="Error creating API key") from e
 
 
 @protected.get("/users/{user_id}/api-keys")
@@ -1268,7 +1268,7 @@ async def list_user_api_keys(
         raise
     except Exception as e:
         logger.error("Error listing API keys: %s", str(e), exc_info=True)
-        raise HTTPException(status_code=500, detail="Error listing API keys")
+        raise HTTPException(status_code=500, detail="Error listing API keys") from e
 
 
 @protected.delete("/users/{user_id}/api-keys/{key_id}")
@@ -1322,7 +1322,7 @@ async def revoke_user_api_key(
         raise
     except Exception as e:
         logger.error("Error revoking API key: %s", str(e), exc_info=True)
-        raise HTTPException(status_code=500, detail="Error revoking API key")
+        raise HTTPException(status_code=500, detail="Error revoking API key") from e
 
 
 # --- Usage Statistics ---
@@ -1343,10 +1343,10 @@ async def get_usage_statistics(
         stats = await get_all_usage_stats(start_date=start_date, end_date=end_date)
         return {"stats": [stat.model_dump() for stat in stats]}
     except RuntimeError as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
     except Exception as e:
         logger.error("Error fetching usage statistics: %s", str(e), exc_info=True)
-        raise HTTPException(status_code=500, detail="Error fetching usage statistics")
+        raise HTTPException(status_code=500, detail="Error fetching usage statistics") from e
 
 
 # --- LLM ---
@@ -1463,7 +1463,7 @@ async def prometheus_metrics():
         raise HTTPException(
             status_code=501,
             detail="prometheus_client is not installed",
-        )
+        ) from None
 
 
 # --- Cache ---
@@ -2832,7 +2832,7 @@ async def metrics():
             content=generate_latest(REGISTRY), media_type="text/plain; version=0.0.4; charset=utf-8"
         )
     except ImportError:
-        raise HTTPException(status_code=501, detail="prometheus_client not installed")
+        raise HTTPException(status_code=501, detail="prometheus_client not installed") from None
 
 
 @protected.get("/device/v1/voice/replies/{reply_id}.wav")

@@ -56,7 +56,7 @@ async def _run_cli(
     except TimeoutError:
         proc.kill()
         await proc.wait()
-        raise RuntimeError(f"CLI command timed out after {timeout}s: {' '.join(cmd)}")
+        raise RuntimeError(f"CLI command timed out after {timeout}s: {' '.join(cmd)}") from None
 
     return (
         stdout.decode("utf-8", errors="replace"),

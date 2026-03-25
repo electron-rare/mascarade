@@ -596,7 +596,7 @@ async def get_agent(name: str, request: Request):
     try:
         agent = registry.get(name)
     except KeyError:
-        raise HTTPException(status_code=404, detail=f"Agent '{name}' not found")
+        raise HTTPException(status_code=404, detail=f"Agent '{name}' not found") from None
     return {
         "name": agent.name,
         "description": agent.description,
@@ -621,7 +621,7 @@ async def run_agent(name: str, request: Request):
     try:
         agent = registry.get(name)
     except KeyError:
-        raise HTTPException(status_code=404, detail=f"Agent '{name}' not found")
+        raise HTTPException(status_code=404, detail=f"Agent '{name}' not found") from None
 
     body = await request.json()
     messages = body.get("messages", [])
@@ -698,7 +698,7 @@ async def run_prompt(name: str, request: Request):
         try:
             agent = registry.get("agent-zero")
         except KeyError:
-            raise HTTPException(status_code=404, detail=f"Agent '{name}' not found")
+            raise HTTPException(status_code=404, detail=f"Agent '{name}' not found") from None
 
     body = await request.json()
     messages = body.get("messages", [])

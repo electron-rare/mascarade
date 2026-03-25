@@ -215,7 +215,7 @@ class DrcCheckNode(BaseNode):
             raise RuntimeError(
                 f"kicad-cli not found at {config.kicad_cli_path}. "
                 "Please install KiCad and ensure kicad-cli is in your PATH."
-            )
+            ) from None
 
         # Create temporary files for board and DRC report
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -273,7 +273,7 @@ class DrcCheckNode(BaseNode):
 
             except Exception as e:
                 logger.error(f"DRC execution failed: {e}")
-                raise RuntimeError(f"DRC execution failed: {e}")
+                raise RuntimeError(f"DRC execution failed: {e}") from e
 
         # Build DRC report
         passed = len(violations) == 0

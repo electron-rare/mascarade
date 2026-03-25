@@ -676,7 +676,7 @@ class ReinforcerAgent:
         except ImportError:
             raise RuntimeError(
                 "KTO requires trl >= 0.25. Install with: pip install 'trl>=0.25'"
-            )
+            ) from None
 
         run_id = run_id or f"kto-{int(time.time())}"
         output_dir = Path(f"~/.mascarade/finetune/runs/{run_id}").expanduser()
@@ -806,7 +806,7 @@ class ReinforcerAgent:
         except ImportError:
             raise RuntimeError(
                 "GRPO requires trl >= 0.24. Install with: pip install trl>=0.24"
-            )
+            ) from None
 
         from datasets import Dataset
 

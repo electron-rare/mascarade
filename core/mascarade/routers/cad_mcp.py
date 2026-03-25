@@ -108,12 +108,12 @@ async def kicad_call_tool(req: KicadToolRequest, request: Request):
                 raise HTTPException(
                     status_code=502,
                     detail=f"KiCad MCP call failed (both Seeed and legacy): {exc}",
-                )
+                ) from exc
         else:
             raise HTTPException(
                 status_code=502,
                 detail=f"KiCad MCP call failed: {exc}",
-            )
+            ) from exc
 
     return {
         "ok": not result.is_error,
