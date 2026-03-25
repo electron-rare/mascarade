@@ -230,6 +230,9 @@ class Settings(BaseSettings):
     fake_ollama_enabled: bool = False
     fake_ollama_port: int = 11434
     fake_ollama_host: str = "0.0.0.0"
+    # GitHub Copilot (via copilot-api sidecar proxy)
+    github_copilot_proxy_url: str = "http://localhost:4141"
+    github_copilot_api_key: SecretStr = Field(default=SecretStr(""), repr=False)
     # Device voice sessions
     device_stt_model: str = "gpt-4o-mini-transcribe"
     device_stt_language: str = "fr"
