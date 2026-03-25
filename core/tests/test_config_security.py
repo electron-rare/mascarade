@@ -197,8 +197,10 @@ def test_config_loads_from_env_file():
         assert "user:secret" not in repr_str
 
 
-def test_empty_secrets_are_handled_gracefully():
+def test_empty_secrets_are_handled_gracefully(monkeypatch):
     """Empty or unset secrets should not cause errors."""
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     settings = Settings()
 
     # All secret fields should default to empty SecretStr

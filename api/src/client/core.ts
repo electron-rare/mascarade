@@ -147,6 +147,13 @@ export interface ProviderStatus {
   auth_modes?: string[];
 }
 
+export interface CoreOpenAIModel {
+  id: string;
+  object?: string;
+  owned_by?: string;
+  provider?: string;
+}
+
 export interface ProviderHealthMetrics {
   status: string;
   latency_ms?: number;
@@ -243,6 +250,27 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
   return res.json() as Promise<T>;
 }
 
+async function requestCompat<T>(paths: string[], options?: RequestInit): Promise<T> {
+  let lastError: unknown;
+
+  for (const path of paths) {
+    try {
+      return await request<T>(path, options);
+    } catch (error) {
+      if (error instanceof CoreApiError && error.status === 404) {
+        lastError = error;
+        continue;
+      }
+      throw error;
+    }
+  }
+
+  if (lastError instanceof Error) {
+    throw lastError;
+  }
+  throw new CoreApiError("Core API error 404", 404);
+}
+
 export const coreClient = {
   health() {
     return request<{ status: string; providers: string[]; agents: number }>("/health");
@@ -279,15 +307,22 @@ export const coreClient = {
   },
 
   listProviders() {
-    return request<{ providers: string[] }>("/v1/api/providers");
+    return requestCompat<{ providers: string[] }>(["/v1/providers", "/providers"]);
   },
 
   providersStatus() {
-    return request<{ providers: ProviderStatus[] }>("/v1/api/providers/status");
+    return requestCompat<{ providers: ProviderStatus[] }>([
+      "/v1/providers/status",
+      "/providers/status",
+    ]);
   },
 
   providerHealth() {
     return request<Record<string, unknown>>("/health/providers");
+  },
+
+  listOpenAIModels() {
+    return request<{ object: string; data: CoreOpenAIModel[] }>("/v1/models");
   },
 
   updateProviderKey(name: string, keys: Record<string, string>) {
@@ -356,11 +391,15 @@ export const coreClient = {
   },
 
   listAgents() {
-    return request<{ agents: AgentInfo[]; total?: number; limit?: number; offset?: number }>("/v1/api/v1/agents");
+    return requestCompat<{ agents: AgentInfo[]; total?: number; limit?: number; offset?: number }>([
+      "/v1/agents",
+      "/agents",
+    ]);
   },
 
   getAgent(name: string) {
-    return request<AgentInfo>(`/v1/api/v1/agents/${encodeURIComponent(name)}`);
+    const encodedName = encodeURIComponent(name);
+    return requestCompat<AgentInfo>([`/v1/agents/${encodedName}`, `/agents/${encodedName}`]);
   },
 
   updateAgent(

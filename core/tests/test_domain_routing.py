@@ -454,7 +454,7 @@ def test_domain_metadata_passed_to_cache():
     assert response2.provider == "ollama"
 
     # Vérifier les stats du cache
-    cache_stats = r.cache.get_stats()
+    cache_stats = asyncio.run(r.cache.get_stats())
     assert cache_stats["hit_count"] >= 1  # Au moins un hit
 
 

@@ -14,41 +14,43 @@ from mascarade.scheduler.vllm_integration import VLLMScheduler, VLLMWorker
 @pytest.mark.asyncio
 async def test_vllm_worker_initialization():
     """Test VLLM worker initialization."""
-    worker = VLLMWorker(
-        node_id="test-worker", model_path="test-model", tensor_parallel_size=1
-    )
+    with patch("mascarade.scheduler.vllm_integration.VLLMProvider") as MockVLLM:
+        mock_provider = AsyncMock()
+        MockVLLM.return_value = mock_provider
 
-    # Mock the provider initialization
-    worker.provider.initialize = AsyncMock()
+        worker = VLLMWorker(
+            node_id="test-worker", model_path="test-model", tensor_parallel_size=1
+        )
 
-    await worker.initialize()
-    worker.provider.initialize.assert_awaited_once()
+        await worker.initialize()
+        mock_provider.initialize.assert_awaited_once()
 
 
 @pytest.mark.asyncio
 async def test_vllm_worker_request_processing():
     """Test VLLM worker request processing."""
-    worker = VLLMWorker(node_id="test-worker", model_path="test-model")
+    with patch("mascarade.scheduler.vllm_integration.VLLMProvider") as MockVLLM:
+        mock_provider = AsyncMock()
+        MockVLLM.return_value = mock_provider
 
-    # Mock dependencies
-    worker.provider.generate = AsyncMock(return_value=MagicMock())
+        worker = VLLMWorker(node_id="test-worker", model_path="test-model")
+        worker.provider.generate = AsyncMock(return_value=MagicMock())
 
-    request = ScheduledRequest(
-        request_id="req-1",
-        model="test-model",
-        messages=[{"role": "user", "content": "test"}],
-        max_tokens=100,
-    )
-    request.complete_callback = AsyncMock()
+        request = ScheduledRequest(
+            model="test-model",
+            messages=[{"role": "user", "content": "test"}],
+            max_tokens=100,
+        )
+        request.complete_callback = AsyncMock()
 
-    await worker.add_request(request)
+        await worker.add_request(request)
 
-    # Process the batch
-    await worker._process_batches()
+        # Process the batch
+        await worker._process_batches()
 
-    # Verify
-    worker.provider.generate.assert_awaited_once()
-    request.complete_callback.assert_awaited_once()
+        # Verify
+        worker.provider.generate.assert_awaited_once()
+        request.complete_callback.assert_awaited_once()
 
 
 @pytest.mark.asyncio
@@ -85,7 +87,6 @@ async def test_vllm_scheduler_request_routing():
     scheduler.vllm_workers["worker-1"] = mock_worker
 
     request = ScheduledRequest(
-        request_id="req-1",
         model="test-model",
         messages=[{"role": "user", "content": "test"}],
     )
@@ -155,43 +156,46 @@ async def test_vllm_performance_benchmark():
     """Benchmark vLLM performance."""
     import time
 
-    worker = VLLMWorker(node_id="benchmark-worker", model_path="benchmark-model")
+    with patch("mascarade.scheduler.vllm_integration.VLLMProvider") as MockVLLM:
+        mock_provider = AsyncMock()
+        MockVLLM.return_value = mock_provider
 
-    # Mock the provider
-    worker.provider.generate = AsyncMock(
-        return_value=MagicMock(content="test response")
-    )
+        worker = VLLMWorker(node_id="benchmark-worker", model_path="benchmark-model")
 
-    # Create test requests
-    requests = [
-        ScheduledRequest(
-            request_id=f"req-{i}",
-            model="benchmark-model",
-            messages=[{"role": "user", "content": f"test {i}"}],
-            max_tokens=50,
+        # Mock the provider
+        worker.provider.generate = AsyncMock(
+            return_value=MagicMock(content="test response")
         )
-        for i in range(100)
-    ]
 
-    # Add all requests
-    for req in requests:
-        req.complete_callback = AsyncMock()
-        await worker.add_request(req)
+        # Create test requests
+        requests = [
+            ScheduledRequest(
+                model="benchmark-model",
+                messages=[{"role": "user", "content": f"test {i}"}],
+                max_tokens=50,
+            )
+            for i in range(100)
+        ]
 
-    # Measure processing time
-    start_time = time.time()
-    await worker._process_batches()
-    end_time = time.time()
+        # Add all requests
+        for req in requests:
+            req.complete_callback = AsyncMock()
+            await worker.add_request(req)
 
-    # Calculate throughput
-    throughput = len(requests) / (end_time - start_time)
-    print("\nvLLM Benchmark Results:")
-    print(f"  Requests: {len(requests)}")
-    print(f"  Time: {end_time - start_time:.2f}s")
-    print(f"  Throughput: {throughput:.1f} req/s")
+        # Measure processing time
+        start_time = time.time()
+        await worker._process_batches()
+        end_time = time.time()
 
-    # Basic assertion
-    assert throughput > 0
+        # Calculate throughput
+        throughput = len(requests) / (end_time - start_time)
+        print("\nvLLM Benchmark Results:")
+        print(f"  Requests: {len(requests)}")
+        print(f"  Time: {end_time - start_time:.2f}s")
+        print(f"  Throughput: {throughput:.1f} req/s")
+
+        # Basic assertion
+        assert throughput > 0
 
 
 @pytest.mark.asyncio

@@ -367,7 +367,7 @@ class TestSkillRegistryIntegration:
         original = agent.build_send_payload
         calls = []
 
-        def tracking_build(prompt, *, context=None, skill_registry=None):
+        def tracking_build(prompt, *, context=None, skill_registry=None, **kwargs):
             calls.append(skill_registry)
             return original(prompt, context=context, skill_registry=skill_registry)
 

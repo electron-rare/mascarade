@@ -1,5 +1,5 @@
 import { Hono, type Context } from "hono";
-import { CoreApiError, coreClient } from "../client/core.js";
+import { CoreApiError, type AgentInfo, type CliAgentsStatusResponse, coreClient } from "../client/core.js";
 import { buildAgentCatalog } from "../lib/agentCatalog.js";
 import { emitStructuredLog } from "../lib/otel.js";
 import { handleCoreError } from "../middleware/error.js";
@@ -189,6 +189,34 @@ function buildOperatorCopilotPrompt(body: OperatorCopilotRequest): string {
   return sections.join("\n\n");
 }
 
+async function listAgentsCompat(): Promise<{
+  agents: AgentInfo[];
+  total?: number;
+  limit?: number;
+  offset?: number;
+}> {
+  try {
+    return await coreClient.listAgents();
+  } catch (error) {
+    if (error instanceof CoreApiError && error.status === 404) {
+      return { agents: [], total: 0, limit: 0, offset: 0 };
+    }
+    throw error;
+  }
+}
+
+async function cliAgentsStatusCompat(): Promise<CliAgentsStatusResponse["agents"]> {
+  try {
+    const result = await coreClient.cliAgentsStatus();
+    return result.agents;
+  } catch (error) {
+    if (error instanceof CoreApiError && error.status === 404) {
+      return {} as CliAgentsStatusResponse["agents"];
+    }
+    throw error;
+  }
+}
+
 async function proxyOpsAgentJson(
   c: Context,
   path: string,
@@ -264,7 +292,7 @@ async function providerMutationResult(
 /** Lister tous les agents */
 agents.get("/", async (c) => {
   try {
-    const result = await coreClient.listAgents();
+    const result = await listAgentsCompat();
     return c.json(result);
   } catch (error) {
     const { status, body } = handleCoreError(error);
@@ -276,10 +304,10 @@ agents.get("/", async (c) => {
 agents.get("/catalog", async (c) => {
   try {
     const [agentResult, cliAgentResult] = await Promise.all([
-      coreClient.listAgents(),
-      coreClient.cliAgentsStatus(),
+      listAgentsCompat(),
+      cliAgentsStatusCompat(),
     ]);
-    return c.json(buildAgentCatalog(agentResult.agents, cliAgentResult.agents));
+    return c.json(buildAgentCatalog(agentResult.agents, cliAgentResult));
   } catch (error) {
     const { status, body } = handleCoreError(error);
     return c.json(body, status);
