@@ -20,12 +20,20 @@ import httpx
 
 logger = logging.getLogger("mascarade.agentic_rag")
 
-QDRANT_URL = "http://localhost:6333"
-QDRANT_COLLECTION = "mascarade-rag"
+import os
+
+QDRANT_URL = os.getenv("QDRANT_URL", "http://localhost:6333")
+QDRANT_COLLECTION = os.getenv("QDRANT_COLLECTION", "mascarade-rag")
 EMBEDDING_DIM = 384
 TOP_K = 8
 RELEVANCE_THRESHOLD = 0.55
 MAX_REROUTE_ROUNDS = 2
+
+# Compute backends — KXKM (RTX 4090) for embeddings + inference
+KXKM_OLLAMA_URL = os.getenv("KXKM_OLLAMA_URL", "http://kxkm-ai:11434")
+LOCAL_OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434")
+EMBED_MODEL = os.getenv("RAG_EMBED_MODEL", "nomic-embed-text")
+SYNTH_MODEL = os.getenv("RAG_SYNTH_MODEL", "devstral")
 
 
 class SourceType(str, Enum):
@@ -66,17 +74,43 @@ class Chunk:
         return self.score * 0.5 + self.freshness * 0.25 + self.authority * 0.25
 
 
-async def _embed(text: str, *, ollama_url: str = "http://localhost:11434") -> list[float]:
-    try:
-        async with httpx.AsyncClient(timeout=15.0) as client:
-            r = await client.post(f"{ollama_url}/api/embed", json={"model": "nomic-embed-text", "input": text})
-            r.raise_for_status()
-            embeddings = r.json().get("embeddings", [])
-            if embeddings:
-                return embeddings[0]
-    except Exception as exc:
-        logger.warning("Embedding failed: %s", exc)
+async def _embed(text: str) -> list[float]:
+    """Get embeddings — try KXKM (fast GPU) first, fallback to local."""
+    for url in [KXKM_OLLAMA_URL, LOCAL_OLLAMA_URL]:
+        try:
+            async with httpx.AsyncClient(timeout=15.0) as client:
+                r = await client.post(f"{url}/api/embed", json={"model": EMBED_MODEL, "input": text})
+                r.raise_for_status()
+                embeddings = r.json().get("embeddings", [])
+                if embeddings:
+                    return embeddings[0]
+        except Exception as exc:
+            logger.debug("Embedding via %s failed: %s", url, exc)
+    logger.warning("All embedding backends failed")
     return [0.0] * EMBEDDING_DIM
+
+
+async def _synthesize_with_llm(context: str, query: str) -> str:
+    """Use KXKM devstral to synthesize a final answer from retrieved context."""
+    prompt = f"""Based on the following retrieved context, provide a concise and accurate answer to the query.
+
+Query: {query}
+
+Context:
+{context[:6000]}
+
+Answer:"""
+    for url in [KXKM_OLLAMA_URL, LOCAL_OLLAMA_URL]:
+        try:
+            async with httpx.AsyncClient(timeout=120.0) as client:
+                r = await client.post(f"{url}/api/generate", json={
+                    "model": SYNTH_MODEL, "prompt": prompt, "stream": False,
+                })
+                r.raise_for_status()
+                return r.json().get("response", "")
+        except Exception as exc:
+            logger.debug("Synthesis via %s failed: %s", url, exc)
+    return context  # fallback: return raw context
 
 
 _MCP_KEYWORDS = {
@@ -223,32 +257,33 @@ class AgenticRAGPipeline:
 
 
 def mount_agentic_rag(app: Any) -> None:
-    from fastapi import Request
+    from fastapi import Body
     from fastapi.responses import JSONResponse
 
     pipeline = AgenticRAGPipeline()
 
     @app.post("/v1/rag/retrieve")
-    async def rag_retrieve(request: Request) -> JSONResponse:
-        body = await request.json()
-        query = body.get("query", "")
-        if not query:
-            return JSONResponse({"error": "query required"}, status_code=400)
+    async def rag_retrieve(query: str = Body(..., embed=True)):
         context = await pipeline.retrieve(query)
-        return JSONResponse({"query": query, "context": context})
+        return {"query": query, "context": context}
 
     @app.post("/v1/rag/route")
-    async def rag_route(request: Request) -> JSONResponse:
-        body = await request.json()
-        query = body.get("query", "")
-        if not query:
-            return JSONResponse({"error": "query required"}, status_code=400)
+    async def rag_route(query: str = Body(..., embed=True)):
         decision = pipeline.router.route(query)
-        return JSONResponse({
+        return {
             "query": query,
             "sources": [s.value for s in decision.sources],
             "mcp_servers": decision.mcp_servers,
             "query_variants": decision.query_variants,
-        })
+        }
 
-    logger.info("Agentic RAG mounted (/v1/rag/retrieve, /v1/rag/route)")
+    @app.post("/v1/rag/ask")
+    async def rag_ask(query: str = Body(..., embed=True)):
+        """Full RAG: retrieve context then synthesize answer via KXKM."""
+        context = await pipeline.retrieve(query)
+        if not context:
+            return {"query": query, "answer": "", "context": ""}
+        answer = await _synthesize_with_llm(context, query)
+        return {"query": query, "answer": answer, "context": context}
+
+    logger.info("Agentic RAG mounted (/v1/rag/retrieve, /v1/rag/route, /v1/rag/ask) — KXKM compute: %s", KXKM_OLLAMA_URL)
