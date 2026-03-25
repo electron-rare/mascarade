@@ -8,6 +8,11 @@ from mascarade.agents.skill_registry import SkillRegistry
 from mascarade.agents.skills import ALL_SKILLS, register_default_skills, register_default_skills_v2
 from mascarade.agents.spice_agent import SpiceAgent
 
+try:
+    from mascarade.agents.kicad_happy_agent import KiCadHappyAgent
+except ImportError:
+    KiCadHappyAgent = None  # type: ignore[assignment,misc]
+
 __all__ = [
     "Agent",
     "AgentRegistry",
@@ -20,4 +25,5 @@ __all__ = [
     "SpiceAgent",
     "KiCadAgent",
     "ComponentsAgent",
+    "KiCadHappyAgent",
 ]
