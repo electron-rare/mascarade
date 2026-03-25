@@ -1,7 +1,9 @@
 """A2A Discovery — find agents on the network."""
 from __future__ import annotations
-import logging, time
-from typing import Any
+
+import logging
+import time
+
 import httpx
 
 logger = logging.getLogger("mascarade.a2a.discovery")

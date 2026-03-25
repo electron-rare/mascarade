@@ -442,7 +442,11 @@ class McpRuntimeClient:
         # --- Seeed KiCad MCP v2 (preferred) ---
         from mascarade.mcp.kicad_seeed import (
             get_server as get_seeed_server,
+        )
+        from mascarade.mcp.kicad_seeed import (
             is_available as seeed_available,
+        )
+        from mascarade.mcp.kicad_seeed import (
             log_status as seeed_log_status,
         )
 

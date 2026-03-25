@@ -12,7 +12,6 @@ from mascarade.observability.langfuse import (
     create_trace,
     flush_langfuse,
     get_trace_id,
-    new_trace_id,
 )
 from mascarade.router import Router
 from mascarade.router.providers.base import LLMResponse

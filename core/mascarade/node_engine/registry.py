@@ -1,10 +1,11 @@
-"""Node type definition and registry.
+"""Node type and worker registries for the Universal Node Engine.
 
-Modeled on AgentRegistry (core/mascarade/agents/registry.py)
-with the same patterns: centralized register/get/list/remove,
-builtin vs. dynamic distinction, metrics tracking, atomic JSON persistence.
+Provides two registries:
+- NodeTypeRegistry: manages NodeType and DomainType definitions with JSON persistence
+- WorkerRegistry: manages domain workers (one per domain)
+
+Thread-safe. Persistence uses atomic writes (tempfile + rename) to prevent corruption.
 """
-"""Registry for domain type registration and discovery."""
 
 from __future__ import annotations
 
@@ -12,360 +13,317 @@ import json
 import logging
 import os
 import tempfile
-from dataclasses import dataclass, field
+import threading
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
+
+from mascarade.node_engine.types import DomainType, NodeType
 
 if TYPE_CHECKING:
     from mascarade.node_engine.worker import NodeWorker
 
 logger = logging.getLogger("mascarade.node_engine.registry")
 
-
-@dataclass
-class NodeType:
-    """Definition of a node type in the registry."""
-
-    id: str                               # Unique identifier (e.g., "ai.llm-inference")
-    domain: str                           # Domain this node belongs to
-    label: str                            # Human-readable label
-    description: str                      # What this node does
-    version: str = "1.0.0"               # Semantic version
-    inputs: list[dict[str, Any]] = field(default_factory=list)
-    outputs: list[dict[str, Any]] = field(default_factory=list)
-    config_schema: dict[str, Any] = field(default_factory=dict)
-    tags: list[str] = field(default_factory=list)
-    deprecated: bool = False
-    deprecated_by: str | None = None
-
-
-DEFAULT_REGISTRY_PATH = Path("data/node_types.json")
+DEFAULT_STORAGE_PATH = Path("data/node_types.json")
 
 
 class NodeTypeRegistry:
-    """
-    Centralized registry for node type definitions.
+    """Centralized registry for NodeType and DomainType definitions.
 
-    Follows AgentRegistry patterns:
-    - register/get/list/remove semantics
-    - builtin vs. dynamic node type distinction
-    - JSON persistence with atomic writes (temp + rename)
-    """
+    Supports both node types (used by the graph executor) and domain types
+    (domain-specific data schemas). Both share the same namespace keyed by
+    their qualified ID (``domain.name`` for DomainType, ``id`` for NodeType).
 
-    def __init__(self, storage_path: Path | None = DEFAULT_REGISTRY_PATH) -> None:
-        self._types: dict[str, NodeType] = {}
-        self._builtin_ids: set[str] = set()
-        self._storage_path = storage_path
-
-    def register(self, node_type: NodeType, *, builtin: bool = False) -> None:
-        """Register a node type. Raises ValueError if ID already exists."""
-        if node_type.id in self._types and not node_type.deprecated:
-            raise ValueError(f"Node type '{node_type.id}' already registered")
-        self._types[node_type.id] = node_type
-        if builtin:
-            self._builtin_ids.add(node_type.id)
-
-    def get(self, type_id: str) -> NodeType:
-        """Get a node type by ID. Raises KeyError if not found."""
-        if type_id not in self._types:
-            raise KeyError(
-                f"Node type '{type_id}' not found. Available: {list(self._types.keys())}"
-            )
-        return self._types[type_id]
-
-    def list(self, domain: str | None = None) -> list[NodeType]:
-        """List all node types, optionally filtered by domain."""
-        types = list(self._types.values())
-        if domain:
-            types = [t for t in types if t.domain == domain]
-        return types
-
-    def remove(self, type_id: str) -> None:
-        """Remove a node type from the registry."""
-        self._types.pop(type_id, None)
-        self._builtin_ids.discard(type_id)
-
-    def domains(self) -> list[str]:
-        """List all registered domains."""
-        return sorted(set(t.domain for t in self._types.values()))
-
-    def __contains__(self, type_id: str) -> bool:
-        return type_id in self._types
-
-    def __len__(self) -> int:
-        return len(self._types)
-
-    def is_builtin(self, type_id: str) -> bool:
-        return type_id in self._builtin_ids
-
-    # --- Persistence (follows AgentRegistry.save/load pattern) ---
-
-    def save(self) -> None:
-        """Save dynamic node types to JSON with atomic write."""
-from pathlib import Path
-
-from mascarade.node_engine.types import DomainType
-
-logger = logging.getLogger("mascarade.node_engine")
-
-DEFAULT_STORAGE_PATH = Path("data/domain_types.json")
-
-
-class NodeTypeRegistry:
-    """Centralized registry for managing domain types.
-
-    Stores and retrieves domain-specific type definitions (DomainType instances)
-    that extend the base type system with domain-specific structures.
+    Builtin types are loaded at startup and excluded from persistence.
+    Custom types are saved to / loaded from a JSON file using atomic writes.
+    All public methods are thread-safe.
     """
 
     def __init__(self, storage_path: Path | None = DEFAULT_STORAGE_PATH) -> None:
-        """Initialize the registry.
-
-        Args:
-            storage_path: Path to JSON file for persistence. If None, persistence is disabled.
-        """
-        self._types: dict[str, DomainType] = {}
-        self._builtin_names: set[str] = set()
+        self._node_types: dict[str, NodeType] = {}
+        self._domain_types: dict[str, DomainType] = {}
+        self._builtin_ids: set[str] = set()
         self._storage_path = storage_path
+        self._lock = threading.Lock()
 
-    def register(self, domain_type: DomainType, *, builtin: bool = False) -> None:
-        """Register a domain type.
+    # ------------------------------------------------------------------
+    # Registration
+    # ------------------------------------------------------------------
+
+    def register(
+        self,
+        item: NodeType | DomainType,
+        *,
+        builtin: bool = False,
+    ) -> None:
+        """Register a NodeType or DomainType.
 
         Args:
-            domain_type: The DomainType instance to register
-            builtin: Whether this is a builtin type (not persisted)
-        """
-        if isinstance(item, NodeType):
-            self._node_types[item.id] = item
-            if builtin:
-                self._builtin_names.add(item.id)
-        elif isinstance(item, DomainType):
-            qualified_name = item.qualified_name
-            if (
-                qualified_name in self._types
-                and qualified_name not in self._builtin_names
-            ):
-                logger.warning("Overwriting existing domain type: %s", qualified_name)
-            self._types[qualified_name] = item
-            if builtin:
-                self._builtin_names.add(qualified_name)
-        else:
-            raise TypeError(f"Cannot register {type(item).__name__}")
+            item: The type definition to register.
+            builtin: If True the type is considered builtin and will not be
+                persisted to disk.
 
         Raises:
-            ValueError: If a type with the same qualified name is already registered
+            TypeError: If *item* is neither a NodeType nor a DomainType.
+            ValueError: If a non-builtin type with the same key already exists.
         """
-        qualified_name = domain_type.qualified_name
-        if qualified_name in self._types and qualified_name not in self._builtin_names:
-            logger.warning(
-                "Overwriting existing domain type: %s", qualified_name
-            )
-        self._types[qualified_name] = domain_type
-        if builtin:
-            self._builtin_names.add(qualified_name)
+        with self._lock:
+            if isinstance(item, NodeType):
+                key = item.id
+                if key in self._node_types and key not in self._builtin_ids:
+                    logger.warning("Overwriting existing node type: %s", key)
+                self._node_types[key] = item
+            elif isinstance(item, DomainType):
+                key = item.qualified_name
+                if key in self._domain_types and key not in self._builtin_ids:
+                    logger.warning("Overwriting existing domain type: %s", key)
+                self._domain_types[key] = item
+            else:
+                raise TypeError(
+                    f"Cannot register {type(item).__name__}; expected NodeType or DomainType"
+                )
+            if builtin:
+                self._builtin_ids.add(key)
 
-    def get(self, qualified_name: str) -> DomainType:
-        """Get a domain type by its qualified name (domain.name).
+    # Backward-compatible alias
+    register_type = register
+
+    def unregister(self, key: str) -> None:
+        """Remove a type by its key (node type ID or domain qualified name).
+
+        Silently ignores unknown keys.
+        """
+        with self._lock:
+            self._node_types.pop(key, None)
+            self._domain_types.pop(key, None)
+            self._builtin_ids.discard(key)
+
+    # Keep ``remove`` as an alias for callers that expect it.
+    remove = unregister
+
+    # ------------------------------------------------------------------
+    # Lookup
+    # ------------------------------------------------------------------
+
+    def get(self, key: str) -> NodeType | DomainType:
+        """Get a type by its key.
 
         Args:
-            qualified_name: The qualified type name (e.g., "ai.LLMResponse")
+            key: Node type ID (e.g. ``"ai.llm-inference"``) or domain type
+                qualified name (e.g. ``"ai.LLMResponse"``).
 
         Returns:
-            The DomainType instance
+            The registered NodeType or DomainType.
 
         Raises:
-            KeyError: If the type is not found
+            KeyError: If the key is not found.
         """
-        if qualified_name not in self._types:
-            raise KeyError(
-                f"Domain type '{qualified_name}' not found. "
-                f"Available: {list(self._types.keys())}"
-            )
-        return self._types[qualified_name]
+        with self._lock:
+            if key in self._node_types:
+                return self._node_types[key]
+            if key in self._domain_types:
+                return self._domain_types[key]
+        available = self._all_keys()
+        raise KeyError(f"Type '{key}' not found. Available: {available}")
 
-    def get_by_domain(self, domain: str) -> list[DomainType]:
-        """Get all domain types for a specific domain.
+    def list_all(self) -> list[NodeType | DomainType]:
+        """Return all registered types (node types + domain types)."""
+        with self._lock:
+            return list(self._node_types.values()) + list(self._domain_types.values())
+
+    # Keep ``list`` as a convenience alias (used by existing callers).
+    def list(self, domain: str | None = None) -> list[NodeType | DomainType]:
+        """List registered types, optionally filtered by domain.
 
         Args:
-            domain: The domain identifier (e.g., "ai", "cad")
-
-        Returns:
-            List of DomainType instances for the specified domain
+            domain: If provided, only return types belonging to this domain.
         """
-        all_items: list[DomainType | NodeType] = list(self._types.values()) + list(
-            self._node_types.values()
-        )
+        with self._lock:
+            items: list[NodeType | DomainType] = list(self._node_types.values()) + list(
+                self._domain_types.values()
+            )
         if domain:
-            return [item for item in all_items if getattr(item, "domain", "") == domain]
-        return all_items
+            items = [t for t in items if getattr(t, "domain", "") == domain]
+        return items
 
-    def list(self) -> list[DomainType]:
-        """List all registered domain types.
+    def list_by_category(self, category: str) -> list[NodeType]:
+        """Return node types matching a given category."""
+        with self._lock:
+            return [nt for nt in self._node_types.values() if nt.category == category]
 
-        Returns:
-            List of all DomainType instances
-        """
-        return list(self._types.values())
+    def get_by_domain(self, domain: str) -> list[NodeType | DomainType]:
+        """Return all types (node + domain) for a specific domain."""
+        return self.list(domain=domain)
 
-    def remove(self, qualified_name: str) -> None:
-        """Remove a domain type from the registry.
+    def domains(self) -> list[str]:
+        """Return sorted list of all registered domains."""
+        with self._lock:
+            ds = {getattr(t, "domain", "") for t in self._node_types.values()}
+            ds |= {t.domain for t in self._domain_types.values()}
+        ds.discard("")
+        return sorted(ds)
 
-        Args:
-            qualified_name: The qualified type name to remove
-        """
-        self._types.pop(qualified_name, None)
-        self._builtin_names.discard(qualified_name)
+    # ------------------------------------------------------------------
+    # Introspection helpers
+    # ------------------------------------------------------------------
 
-    def __contains__(self, qualified_name: str) -> bool:
-        """Check if a type is registered."""
-        return qualified_name in self._types or qualified_name in self._node_types
+    def is_builtin(self, key: str) -> bool:
+        """Return True if *key* was registered as builtin."""
+        with self._lock:
+            return key in self._builtin_ids
+
+    def __contains__(self, key: str) -> bool:
+        with self._lock:
+            return key in self._node_types or key in self._domain_types
 
     def __len__(self) -> int:
-        """Get the number of registered types."""
-        return len(self._types) + len(self._node_types)
+        with self._lock:
+            return len(self._node_types) + len(self._domain_types)
 
     def __bool__(self) -> bool:
         """Registry is always truthy (even when empty)."""
         return True
 
-    def is_builtin(self, qualified_name: str) -> bool:
-        """Check if a type is builtin."""
-        return qualified_name in self._builtin_names
+    def _all_keys(self) -> list[str]:
+        with self._lock:
+            return list(self._node_types.keys()) + list(self._domain_types.keys())
 
-    # --- Worker management ---
-
-    def register_type(
-        self, item: DomainType | NodeType, *, builtin: bool = False
-    ) -> None:
-        """Alias for register() for backward compatibility."""
-        self.register(item, builtin=builtin)
-
-    def register_worker(self, worker: Any) -> None:
-        """Register a worker and set its registry reference.
-
-        Args:
-            qualified_name: The qualified type name to check
-
-        Returns:
-            True if the type is registered
-        """
-        return qualified_name in self._types
-
-    def __len__(self) -> int:
-        """Get the number of registered domain types.
-
-        Returns:
-            Number of registered types
-        """
-        return len(self._types)
-
-    def is_builtin(self, qualified_name: str) -> bool:
-        """Check if a domain type is builtin.
-
-        Args:
-            qualified_name: The qualified type name to check
-
-        Returns:
-            True if the type is builtin
-        """
-        return qualified_name in self._builtin_names
-
-    # --- Persistence ---
+    # ------------------------------------------------------------------
+    # Persistence
+    # ------------------------------------------------------------------
 
     def save(self) -> None:
-        """Save custom domain types to JSON file.
+        """Persist custom (non-builtin) types to JSON.
 
-        Builtin types are not persisted. Uses atomic write to prevent corruption.
+        Uses atomic write: data is written to a temporary file in the same
+        directory, then renamed over the target path.
         """
         if self._storage_path is None:
             return
 
         self._storage_path.parent.mkdir(parents=True, exist_ok=True)
-        types_data = []
-        for nt in self._types.values():
-            if nt.id in self._builtin_ids:
-                continue
-            types_data.append({
-                "id": nt.id,
-                "domain": nt.domain,
-                "label": nt.label,
-                "description": nt.description,
-                "version": nt.version,
-                "inputs": nt.inputs,
-                "outputs": nt.outputs,
-                "config_schema": nt.config_schema,
-                "tags": nt.tags,
-                "deprecated": nt.deprecated,
-                "deprecated_by": nt.deprecated_by,
-            })
 
+        with self._lock:
+            node_data = [
+                nt.model_dump()
+                for nt in self._node_types.values()
+                if nt.id not in self._builtin_ids
+            ]
+            domain_data = [
+                dt.model_dump()
+                for dt in self._domain_types.values()
+                if dt.qualified_name not in self._builtin_ids
+            ]
 
-        # Only save non-builtin types
-        types_data = []
-        for domain_type in self._types.values():
-            if domain_type.qualified_name not in self._builtin_names:
-                types_data.append(domain_type.model_dump())
+        payload: dict[str, Any] = {
+            "node_types": node_data,
+            "domain_types": domain_data,
+        }
 
-        # Atomic write: write to temp file, then rename
         fd, tmp_path = tempfile.mkstemp(
-            dir=str(self._storage_path.parent), suffix=".tmp"
+            dir=str(self._storage_path.parent),
+            suffix=".tmp",
         )
         try:
-            with os.fdopen(fd, "w", encoding="utf-8") as f:
-                json.dump(types_data, f, indent=2, ensure_ascii=False)
+            with os.fdopen(fd, "w", encoding="utf-8") as fh:
+                json.dump(payload, fh, indent=2, ensure_ascii=False)
             os.replace(tmp_path, str(self._storage_path))
+            logger.debug(
+                "Saved %d types to %s", len(node_data) + len(domain_data), self._storage_path
+            )
         except BaseException:
-            os.unlink(tmp_path)
+            if os.path.exists(tmp_path):
+                os.unlink(tmp_path)
             raise
 
     def load(self) -> None:
-        """Load dynamic node types from JSON."""
+        """Load custom types from JSON file.
+
+        Builtin types already in the registry are preserved. Invalid entries
+        are logged and skipped.
+        """
         if self._storage_path is None or not self._storage_path.exists():
             return
+
         try:
             raw = json.loads(self._storage_path.read_text(encoding="utf-8"))
         except (json.JSONDecodeError, OSError) as exc:
             logger.error("Failed to load types from %s: %s", self._storage_path, exc)
             return
-        for data in raw:
+
+        # Support both old flat list format and new dict format
+        if isinstance(raw, list):
+            node_entries = raw
+            domain_entries: list[dict[str, Any]] = []
+        else:
+            node_entries = raw.get("node_types", [])
+            domain_entries = raw.get("domain_types", [])
+
+        for data in node_entries:
             try:
-                nt = NodeType(**data)
-                self.register(nt)
-            except (KeyError, TypeError, ValueError) as exc:
+                self.register(NodeType(**data))
+            except (TypeError, ValueError) as exc:
                 logger.warning("Skipping invalid node type entry: %s", exc)
+
+        for data in domain_entries:
+            try:
+                self.register(DomainType(**data))
+            except (TypeError, ValueError) as exc:
+                logger.warning("Skipping invalid domain type entry: %s", exc)
+
+
+# Backward-compatible alias used by some test files.
+NodeRegistry = NodeTypeRegistry
 
 
 class WorkerRegistry:
-    """Registry of domain workers. One worker per domain."""
+    """Registry of domain workers. One worker per domain.
+
+    Thread-safe. Workers are keyed by their ``domain`` attribute.
+    """
 
     def __init__(self) -> None:
-        self._workers: dict[str, "NodeWorker"] = {}
+        self._workers: dict[str, NodeWorker] = {}
+        self._lock = threading.Lock()
 
-    def register(self, worker: "NodeWorker") -> None:
+    def register(self, worker: NodeWorker) -> None:
         """Register a worker for its domain."""
-        self._workers[worker.domain] = worker
+        with self._lock:
+            self._workers[worker.domain] = worker
 
-    def get(self, domain: str) -> "NodeWorker":
-        """Get the worker for a domain. Raises KeyError if not found."""
-        if domain not in self._workers:
-            raise KeyError(
-                f"No worker registered for domain '{domain}'. "
-                f"Available: {list(self._workers.keys())}"
-            )
-        return self._workers[domain]
+    def get(self, domain: str) -> NodeWorker:
+        """Get the worker for *domain*.
 
-    def list(self) -> list["NodeWorker"]:
-        return list(self._workers.values())
+        Raises:
+            KeyError: If no worker is registered for the domain.
+        """
+        with self._lock:
+            if domain not in self._workers:
+                raise KeyError(
+                    f"No worker registered for domain '{domain}'. "
+                    f"Available: {list(self._workers.keys())}"
+                )
+            return self._workers[domain]
+
+    def list(self) -> list[NodeWorker]:
+        """Return all registered workers."""
+        with self._lock:
+            return list(self._workers.values())
 
     def remove(self, domain: str) -> None:
         """Remove a worker from the registry."""
-        self._workers.pop(domain, None)
+        with self._lock:
+            self._workers.pop(domain, None)
 
     def available_domains(self) -> list[str]:
-        return [d for d, w in self._workers.items() if w.is_available]
+        """Return domains whose worker reports ``is_available``."""
+        with self._lock:
+            return [d for d, w in self._workers.items() if w.is_available]
 
     def __contains__(self, domain: str) -> bool:
-        return domain in self._workers
+        with self._lock:
+            return domain in self._workers
 
     def __len__(self) -> int:
-        return len(self._workers)
+        with self._lock:
+            return len(self._workers)
