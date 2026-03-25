@@ -66,10 +66,12 @@ services:
     environment:
       CORE_URL: ${CORE_URL}
       API_PORT: 3000
+      MASCARADE_API_KEY: ""
       HOME: /tmp
       KILL_LIFE_ROOT: ${KILL_LIFE_ROOT:-/workspace/Kill_LIFE}
     volumes:
       - ../Kill_LIFE:${KILL_LIFE_ROOT:-/workspace/Kill_LIFE}:rw
+      - ./core/scripts/p2p/nodes.yaml:/core/scripts/p2p/nodes.yaml:ro
     depends_on:
       - core
     healthcheck:
@@ -81,6 +83,7 @@ services:
     networks:
       - frontend
       - backend
+      - frappe-suite
 
   litellm:
     profiles:
@@ -758,6 +761,7 @@ services:
       - /var/log/journal:/var/log/journal:ro
       - /run/log/journal:/run/log/journal:ro
       - /etc/machine-id:/etc/machine-id:ro
+      - /home/clems/Kill_LIFE:/workspace/Kill_LIFE:ro
     healthcheck:
       test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:9200/health')\""]
       interval: 15s
@@ -1000,6 +1004,7 @@ services:
       - /var/log/journal:/var/log/journal:ro
       - /run/log/journal:/run/log/journal:ro
       - /etc/machine-id:/etc/machine-id:ro
+      - /home/clems/Kill_LIFE:/workspace/Kill_LIFE:ro
     depends_on:
       loki:
         condition: service_started
@@ -1190,6 +1195,9 @@ networks:
   backend:
     driver: bridge
     name: mascarade-network
+  frappe-suite:
+    external: true
+    name: mascarade_mascarade-network
   observability:
     driver: bridge
     name: mascarade-observability

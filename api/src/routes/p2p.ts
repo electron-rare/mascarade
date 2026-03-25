@@ -37,9 +37,43 @@ function normalizeNodeList(data: unknown): UnknownRecord[] {
   if (!payload) {
     return [];
   }
-  if (Array.isArray(payload.nodes)) {
-    return (payload.nodes as unknown[]).filter((entry): entry is UnknownRecord => asRecord(entry) !== null);
+
+  const result: UnknownRecord[] = [];
+
+  // Handle bootstrap node (top-level object)
+  const bootstrap = asRecord(payload.bootstrap);
+  if (bootstrap) {
+    if (!bootstrap.node_id && !bootstrap.id) {
+      bootstrap.node_id = "bootstrap";
+    }
+    result.push(bootstrap);
   }
+
+  // Handle nodes as array or as object (keyed by node id)
+  if (Array.isArray(payload.nodes)) {
+    for (const entry of payload.nodes) {
+      const node = asRecord(entry);
+      if (node) result.push(node);
+    }
+  } else {
+    const nodesObj = asRecord(payload.nodes);
+    if (nodesObj) {
+      for (const [key, value] of Object.entries(nodesObj)) {
+        const node = asRecord(value);
+        if (node) {
+          if (!node.node_id && !node.id) {
+            node.node_id = key;
+          }
+          result.push(node);
+        }
+      }
+    }
+  }
+
+  if (result.length > 0) {
+    return result;
+  }
+
   return [payload];
 }
 
@@ -285,3 +319,70 @@ p2p.get("/health", async (c) => {
 });
 
 export { p2p };
+
+/** Topology endpoint for the P2PMesh frontend component */
+p2p.get("/topology", async (c) => {
+  try {
+    const parsedNodes = await loadNodesFromYaml();
+    const nodes = parsedNodes.map((node, index) => normalizeNode(node, index));
+    const probed = await Promise.all(nodes.map((node) => probeNode(node)));
+    const online = probed.filter((n) => n.health.ok).length;
+    const offline = probed.length - online;
+
+    const bootstrapNode = nodes.find((n) => n.node_id === "bootstrap") ?? nodes[0];
+    const localNode = bootstrapNode
+      ? {
+          node_id: bootstrapNode.node_id,
+          role: asString(bootstrapNode.role) ?? "infra",
+          label: asString(bootstrapNode.name) ?? bootstrapNode.node_id,
+          providers: bootstrapNode.capabilities,
+          cluster_enabled: nodes.length > 1,
+        }
+      : { node_id: "unknown", role: "unknown", label: "unknown", providers: [], cluster_enabled: false };
+
+    const peers = probed
+      .filter((n) => n.node_id !== (bootstrapNode?.node_id ?? ""))
+      .map((n) => ({
+        peer_id: n.node_id,
+        role: asString(n.role) ?? "worker",
+        base_url: pickNodeBaseUrl(n) ?? "",
+        ok: n.health.ok,
+        status: n.health.status ?? 0,
+        latency_ms: n.health.latency_ms ?? 0,
+        error: n.health.error,
+        remote_node_id: n.node_id,
+        remote_label: asString(n.name) ?? n.node_id,
+        providers: n.capabilities,
+      }));
+
+    return c.json({
+      node: localNode,
+      peers,
+      mesh: { total_peers: probed.length, online, offline },
+    });
+  } catch (error) {
+    const { status, body } = formatNodeFileError(error);
+    return c.json(body, status);
+  }
+});
+
+/** Capabilities aggregation endpoint for the P2PMesh frontend component */
+p2p.get("/capabilities", async (c) => {
+  try {
+    const parsedNodes = await loadNodesFromYaml();
+    const nodes = parsedNodes.map((node, index) => normalizeNode(node, index));
+
+    const capMap: Record<string, string[]> = {};
+    for (const node of nodes) {
+      for (const cap of node.capabilities) {
+        if (!capMap[cap]) capMap[cap] = [];
+        capMap[cap].push(node.node_id);
+      }
+    }
+
+    return c.json({ capabilities: capMap });
+  } catch (error) {
+    const { status, body } = formatNodeFileError(error);
+    return c.json(body, status);
+  }
+});

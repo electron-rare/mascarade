@@ -10,9 +10,8 @@ export const securityHeaders: MiddlewareHandler = async (c, next) => {
   c.header("X-Frame-Options", "DENY");
   c.header("X-XSS-Protection", "0");
   c.header("Referrer-Policy", "strict-origin-when-cross-origin");
-  const coreUrl = process.env.CORE_URL || "http://localhost:8100";
   c.header(
     "Content-Security-Policy",
-    `default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' ${coreUrl}`,
+    "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' ws: wss:",
   );
 };
