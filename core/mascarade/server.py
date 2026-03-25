@@ -14,6 +14,7 @@ from datetime import datetime
 from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, FastAPI, HTTPException, Query, Request
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel, Field
 
@@ -148,6 +149,15 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="Mascarade Core", version="0.1.0", lifespan=lifespan)
+
+# CORS — restrict origins via CORS_ALLOWED_ORIGINS env var (comma-separated)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.cors_allowed_origins.split(",") if settings.cors_allowed_origins else [],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 # --- Models ---
@@ -800,8 +810,9 @@ async def delete_api_key(req: APIKeyRemove):
 
 @protected.get("/api-keys")
 async def list_api_keys():
+    from mascarade.auth import mask_api_key
     keys = get_active_api_keys()
-    return {"api_keys": [{"key": k[:4] + "***" + k[-4:], "active": True} for k in keys]}
+    return {"api_keys": [{"key": mask_api_key(k), "active": True} for k in keys]}
 
 
 @protected.get("/auth/me")

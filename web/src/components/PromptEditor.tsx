@@ -1,4 +1,5 @@
 import { useId, useState } from "react";
+import DOMPurify from "dompurify";
 import Editor from "@monaco-editor/react";
 
 interface Props {
@@ -142,7 +143,7 @@ export default function PromptEditor({
             {value ? (
               <div
                 className="prose prose-invert max-w-none text-sm leading-7 text-amber-100/78"
-                dangerouslySetInnerHTML={{ __html: renderMarkdown(value) }}
+                dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(renderMarkdown(value)) }}
               />
             ) : (
               <p className="text-sm text-muted/60">

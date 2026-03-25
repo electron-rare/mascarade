@@ -156,6 +156,7 @@ class Settings(BaseSettings):
     # Core API server
     core_host: str = "0.0.0.0"
     core_port: int = 8100
+    cors_allowed_origins: str = ""
 
     # Authentication
     mascarade_api_key: SecretStr = Field(default=SecretStr(""), repr=False)
