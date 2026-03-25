@@ -1,17 +1,15 @@
-"""Adaptateur Mistral AI."""
+"""Adaptateur Mistral AI (via litellm)."""
 
 from __future__ import annotations
 
 from collections.abc import AsyncIterator
 
-import httpx
-
 try:
-    from mistralai.client import Mistral
+    import litellm
 except ImportError:
-    from mistralai import Mistral
+    litellm = None  # type: ignore[assignment]
 
-from mascarade.config import is_secret_configured, secret_value, settings
+from mascarade.config import is_secret_configured, settings
 from mascarade.router.providers.base import (
     LLMProvider,
     LLMResponse,
@@ -19,7 +17,7 @@ from mascarade.router.providers.base import (
     make_retry,
 )
 
-_retry = make_retry(httpx.TimeoutException, httpx.TransportError)
+_retry = make_retry(ConnectionError, TimeoutError)
 
 
 class MistralProvider(LLMProvider):
@@ -29,33 +27,10 @@ class MistralProvider(LLMProvider):
     speed_rank = 1
     quality_rank = 1
 
-    def __init__(self) -> None:
-        self._proxy_enabled = bool(
-            settings.litellm_proxy_enabled
-            and settings.litellm_base_url.strip()
-            and is_secret_configured(settings.litellm_master_key)
-        )
-        if self._proxy_enabled:
-            import openai
-
-            self._client = openai.AsyncOpenAI(
-                api_key=secret_value(settings.litellm_master_key),
-                base_url=settings.litellm_base_url,
-                timeout=max(settings.mistral_timeout_ms / 1000, 1),
-            )
-        else:
-            self._client = Mistral(
-                api_key=secret_value(settings.mistral_api_key),
-                timeout_ms=settings.mistral_timeout_ms,
-            )
-
     @property
     def is_configured(self) -> bool:
-        if self._proxy_enabled:
-            return bool(
-                settings.litellm_base_url.strip()
-                and is_secret_configured(settings.litellm_master_key)
-            )
+        if litellm is None:
+            return False
         return is_secret_configured(settings.mistral_api_key)
 
     @_retry
@@ -69,41 +44,21 @@ class MistralProvider(LLMProvider):
         temperature: float = 0.7,
         max_tokens: int = 4096,
     ) -> LLMResponse:
+        if litellm is None:
+            raise RuntimeError("litellm is not installed. Install with: pip install litellm")
         model = model or self.default_model
         chat_messages = build_chat_messages(messages, system)
 
-        if self._proxy_enabled:
-            response = await self._client.chat.completions.create(
-                model=model,
-                messages=chat_messages,
-                response_format=response_format,
-                max_tokens=max_tokens,
-                temperature=temperature,
-            )
-            if not response.choices:
-                raise RuntimeError(f"Mistral returned empty choices for model {model}")
-            choice = response.choices[0]
-            return LLMResponse(
-                content=choice.message.content or "",
-                model=model,
-                provider=self.name,
-                usage={
-                    "input_tokens": (
-                        response.usage.prompt_tokens if response.usage else 0
-                    ),
-                    "output_tokens": (
-                        response.usage.completion_tokens if response.usage else 0
-                    ),
-                },
-            )
+        kwargs: dict = {
+            "model": f"mistral/{model}",
+            "messages": chat_messages,
+            "max_tokens": max_tokens,
+            "temperature": temperature,
+        }
+        if response_format is not None:
+            kwargs["response_format"] = response_format
 
-        response = await self._client.chat.complete_async(
-            model=model,
-            messages=chat_messages,
-            response_format=response_format,
-            max_tokens=max_tokens,
-            temperature=temperature,
-        )
+        response = await litellm.acompletion(**kwargs)
         if not response.choices:
             raise RuntimeError(f"Mistral returned empty choices for model {model}")
         choice = response.choices[0]
@@ -113,9 +68,7 @@ class MistralProvider(LLMProvider):
             provider=self.name,
             usage={
                 "input_tokens": response.usage.prompt_tokens if response.usage else 0,
-                "output_tokens": (
-                    response.usage.completion_tokens if response.usage else 0
-                ),
+                "output_tokens": (response.usage.completion_tokens if response.usage else 0),
             },
         )
 
@@ -128,36 +81,26 @@ class MistralProvider(LLMProvider):
         temperature: float = 0.7,
         max_tokens: int = 4096,
     ) -> AsyncIterator[str]:
+        if litellm is None:
+            raise RuntimeError("litellm is not installed. Install with: pip install litellm")
         model = model or self.default_model
         chat_messages = build_chat_messages(messages, system)
 
-        if self._proxy_enabled:
-            response = await self._client.chat.completions.create(
-                model=model,
-                messages=chat_messages,
-                max_tokens=max_tokens,
-                temperature=temperature,
-                stream=True,
-            )
-            async for chunk in response:
-                choices = getattr(chunk, "choices", None) or []
-                if not choices:
-                    continue
-                delta = getattr(choices[0], "delta", None)
-                content = getattr(delta, "content", None)
-                if content:
-                    yield content
-            return
-
-        response = await self._client.chat.stream_async(
-            model=model,
+        response = await litellm.acompletion(
+            model=f"mistral/{model}",
             messages=chat_messages,
             max_tokens=max_tokens,
             temperature=temperature,
+            stream=True,
         )
-        async for event in response:
-            if event.data.choices and event.data.choices[0].delta.content:
-                yield event.data.choices[0].delta.content
+        async for chunk in response:
+            choices = getattr(chunk, "choices", None) or []
+            if not choices:
+                continue
+            delta = getattr(choices[0], "delta", None)
+            content = getattr(delta, "content", None)
+            if content:
+                yield content
 
     def available_models(self) -> list[str]:
         return ["mistral-large-latest", "mistral-small-latest", "codestral-latest"]

@@ -1,12 +1,15 @@
-"""Adaptateur OpenAI."""
+"""Adaptateur OpenAI (via litellm)."""
 
 from __future__ import annotations
 
 from collections.abc import AsyncIterator
 
-import openai
+try:
+    import litellm
+except ImportError:
+    litellm = None  # type: ignore[assignment]
 
-from mascarade.config import is_secret_configured, secret_value, settings
+from mascarade.config import is_secret_configured, settings
 from mascarade.router.providers.base import (
     LLMProvider,
     LLMResponse,
@@ -14,11 +17,7 @@ from mascarade.router.providers.base import (
     make_retry,
 )
 
-_retry = make_retry(
-    openai.RateLimitError,
-    openai.APIConnectionError,
-    openai.APITimeoutError,
-)
+_retry = make_retry(ConnectionError, TimeoutError)
 
 
 class OpenAIProvider(LLMProvider):
@@ -28,29 +27,10 @@ class OpenAIProvider(LLMProvider):
     speed_rank = 1
     quality_rank = 2
 
-    def __init__(self) -> None:
-        self._proxy_enabled = bool(
-            settings.litellm_proxy_enabled
-            and settings.litellm_base_url.strip()
-            and is_secret_configured(settings.litellm_master_key)
-        )
-        self._client = openai.AsyncOpenAI(
-            api_key=(
-                secret_value(settings.litellm_master_key)
-                if self._proxy_enabled
-                else secret_value(settings.openai_api_key)
-            ),
-            base_url=(settings.litellm_base_url if self._proxy_enabled else None),
-            timeout=30.0,
-        )
-
     @property
     def is_configured(self) -> bool:
-        if self._proxy_enabled:
-            return bool(
-                settings.litellm_base_url.strip()
-                and is_secret_configured(settings.litellm_master_key)
-            )
+        if litellm is None:
+            return False
         return is_secret_configured(settings.openai_api_key)
 
     @_retry
@@ -63,10 +43,12 @@ class OpenAIProvider(LLMProvider):
         temperature: float = 0.7,
         max_tokens: int = 4096,
     ) -> LLMResponse:
+        if litellm is None:
+            raise RuntimeError("litellm is not installed. Install with: pip install litellm")
         model = model or self.default_model
         chat_messages = build_chat_messages(messages, system)
 
-        response = await self._client.chat.completions.create(
+        response = await litellm.acompletion(
             model=model,
             messages=chat_messages,
             max_tokens=max_tokens,
@@ -81,9 +63,7 @@ class OpenAIProvider(LLMProvider):
             provider=self.name,
             usage={
                 "input_tokens": response.usage.prompt_tokens if response.usage else 0,
-                "output_tokens": (
-                    response.usage.completion_tokens if response.usage else 0
-                ),
+                "output_tokens": (response.usage.completion_tokens if response.usage else 0),
             },
         )
 
@@ -96,19 +76,26 @@ class OpenAIProvider(LLMProvider):
         temperature: float = 0.7,
         max_tokens: int = 4096,
     ) -> AsyncIterator[str]:
+        if litellm is None:
+            raise RuntimeError("litellm is not installed. Install with: pip install litellm")
         model = model or self.default_model
         chat_messages = build_chat_messages(messages, system)
 
-        stream = await self._client.chat.completions.create(
+        response = await litellm.acompletion(
             model=model,
             messages=chat_messages,
             max_tokens=max_tokens,
             temperature=temperature,
             stream=True,
         )
-        async for chunk in stream:
-            if chunk.choices and chunk.choices[0].delta.content:
-                yield chunk.choices[0].delta.content
+        async for chunk in response:
+            choices = getattr(chunk, "choices", None) or []
+            if not choices:
+                continue
+            delta = getattr(choices[0], "delta", None)
+            content = getattr(delta, "content", None)
+            if content:
+                yield content
 
     def available_models(self) -> list[str]:
         return ["gpt-4o", "gpt-4o-mini", "o1", "o3-mini"]
