@@ -254,3 +254,5 @@ For issues or questions about this verification:
 - Review `implementation_plan.json` for technical details
 - See `spec.md` for original requirements
 
+
+<iframe src="https://github.com/sponsors/electron-rare/card" title="Sponsor electron-rare" height="225" width="600" style="border: 0;"></iframe>
