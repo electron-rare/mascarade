@@ -12,7 +12,6 @@ import json
 import os
 import re
 import hashlib
-import time
 import numpy as np
 import httpx
 from collections import Counter
@@ -111,7 +110,7 @@ def stage1_semdedup(records, threshold=SEMDEDUP_THRESHOLD):
     embeddings = model.encode(texts, batch_size=64, show_progress_bar=True)
     embeddings = embeddings / np.linalg.norm(embeddings, axis=1, keepdims=True)
 
-    print(f"  Building FAISS index...")
+    print("  Building FAISS index...")
     dim = embeddings.shape[1]
     index = faiss.IndexFlatIP(dim)
     index.add(embeddings.astype(np.float32))
@@ -166,7 +165,7 @@ def stage1_fallback_md5(records):
 def stage2_quality_filter(records):
     """Filter by length, format, patterns."""
     print(f"\n{'='*60}")
-    print(f"STAGE 2: Quality Filtering")
+    print("STAGE 2: Quality Filtering")
     print(f"{'='*60}")
 
     HALLUC = [
@@ -336,7 +335,7 @@ def stage3_multi_judge(records, sample_size=500):
 def stage4_output(records):
     """Write domain-separated verified files."""
     print(f"\n{'='*60}")
-    print(f"STAGE 4: Domain Output")
+    print("STAGE 4: Domain Output")
     print(f"{'='*60}")
 
     by_domain = {}

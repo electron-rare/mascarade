@@ -2859,6 +2859,11 @@ from mascarade.routers.kicad_mcp import router as kicad_mcp_router
 
 app.include_router(kicad_mcp_router)
 
+# Eval harness (lm-evaluation-harness) endpoints
+from mascarade.routers.eval import router as eval_router
+
+app.include_router(eval_router)
+
 # Mount Ollama-compatible API (fake Ollama backed by Mascarade Router + P2P)
 mount_ollama_compat(app)
 

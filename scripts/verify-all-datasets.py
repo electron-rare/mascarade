@@ -1,7 +1,10 @@
 """Verify ALL 61K dataset examples with local LLM judge.
 For each Q&A: is the answer correct? Does it hallucinate? Should it say "I dont know"?"""
 
-import json, os, re, time, httpx
+import json
+import os
+import re
+import httpx
 
 OLLAMA_URL = "http://localhost:11434"
 JUDGE_MODEL = "qwen3:8b"  # Local, free, fast
@@ -149,13 +152,13 @@ for fn in datasets:
     print(f"  Checked: {checked}, Avg score: {avg:.1f}/10")
     print(f"  Removed: {removed} ({pct_removed:.0f}%), Kept: {len(kept)}")
     if issues[:3]:
-        print(f"  Worst issues:")
+        print("  Worst issues:")
         for iss in issues[:3]:
             print(f"    {iss[:100]}")
     print(f"  -> {out_path}")
 
 print(f"\n{'='*50}")
-print(f"VERIFICATION COMPLETE")
+print("VERIFICATION COMPLETE")
 print(f"{'='*50}")
 print(f"Total: {grand_total}")
 print(f"Kept: {grand_kept}")

@@ -1,5 +1,8 @@
 """Full audit of 7 unverified datasets."""
-import json, os, re, hashlib
+import json
+import os
+import re
+import hashlib
 from collections import Counter
 
 FILES = [
@@ -80,11 +83,11 @@ for path, label in FILES:
     print(f"  Empty: {empty}, Short: {short_c}, Avg len: {avg_len}, Code: {code_pct:.0f}%")
     if flags_all: print(f"  Flags: {dict(flags_all)}")
 
-    if dupe_pct > 30: print(f"  VERDICT: BAD — heavy dupes")
-    elif removed > valid * 0.1: print(f"  VERDICT: MEDIOCRE — hallucinations")
-    elif len(kept) < 100: print(f"  VERDICT: TOO SMALL")
-    elif avg_len < 200: print(f"  VERDICT: SHALLOW — short answers")
-    else: print(f"  VERDICT: GOOD")
+    if dupe_pct > 30: print("  VERDICT: BAD — heavy dupes")
+    elif removed > valid * 0.1: print("  VERDICT: MEDIOCRE — hallucinations")
+    elif len(kept) < 100: print("  VERDICT: TOO SMALL")
+    elif avg_len < 200: print("  VERDICT: SHALLOW — short answers")
+    else: print("  VERDICT: GOOD")
 
     cleaned = path.replace(".jsonl", "_audited.jsonl")
     with open(cleaned, "w") as f:

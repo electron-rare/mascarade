@@ -25,7 +25,7 @@ from __future__ import annotations
 import time
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 # ---------------------------------------------------------------------------
 # State definitions
@@ -41,7 +41,7 @@ class AgentState(str, Enum):
 
 
 # Allowed transitions (directed graph: source -> set of valid targets)
-TRANSITIONS: Dict[AgentState, set[AgentState]] = {
+TRANSITIONS: dict[AgentState, set[AgentState]] = {
     AgentState.IDLE:       {AgentState.ROUTING},
     AgentState.ROUTING:    {AgentState.EXECUTING, AgentState.FAILED},
     AgentState.EXECUTING:  {AgentState.EVALUATING, AgentState.FAILED},
@@ -60,7 +60,7 @@ class TransitionRecord:
     from_state: str
     to_state: str
     timestamp: float
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
 
 # ---------------------------------------------------------------------------
@@ -76,8 +76,8 @@ class GraphStateMachine:
 
     def __init__(self, initial: AgentState = AgentState.IDLE) -> None:
         self._state: AgentState = initial
-        self._history: List[TransitionRecord] = []
-        self._context: Dict[str, Any] = {}
+        self._history: list[TransitionRecord] = []
+        self._context: dict[str, Any] = {}
 
     # -- read --
 
@@ -86,14 +86,14 @@ class GraphStateMachine:
         return self._state
 
     @property
-    def history(self) -> List[TransitionRecord]:
+    def history(self) -> list[TransitionRecord]:
         return list(self._history)
 
     @property
-    def context(self) -> Dict[str, Any]:
+    def context(self) -> dict[str, Any]:
         return dict(self._context)
 
-    def allowed_transitions(self) -> List[str]:
+    def allowed_transitions(self) -> list[str]:
         """Return state names reachable from the current state."""
         return sorted(s.value for s in TRANSITIONS.get(self._state, set()))
 
@@ -103,7 +103,7 @@ class GraphStateMachine:
         self,
         target: str,
         *,
-        metadata: Optional[Dict[str, Any]] = None,
+        metadata: dict[str, Any] | None = None,
     ) -> TransitionRecord:
         """Move to *target* state if the transition is allowed.
 
@@ -129,7 +129,7 @@ class GraphStateMachine:
             raise InvalidTransition(
                 f"Unknown state '{target}'. "
                 f"Valid states: {[s.value for s in AgentState]}"
-            )
+            ) from None
 
         allowed = TRANSITIONS.get(self._state, set())
         if target_state not in allowed:
@@ -162,7 +162,7 @@ class GraphStateMachine:
 # FastAPI integration
 # ---------------------------------------------------------------------------
 
-def mount_graph_routes(app: Any, gsm: Optional[GraphStateMachine] = None) -> GraphStateMachine:
+def mount_graph_routes(app: Any, gsm: GraphStateMachine | None = None) -> GraphStateMachine:
     """Add GET /v1/graph/state and POST /v1/graph/transition to a FastAPI app.
 
     Parameters
@@ -184,7 +184,7 @@ def mount_graph_routes(app: Any, gsm: Optional[GraphStateMachine] = None) -> Gra
 
     class TransitionRequest(BaseModel):
         target: str
-        metadata: Optional[Dict[str, Any]] = None
+        metadata: dict[str, Any] | None = None
 
     @app.get("/v1/graph/state")
     async def get_state():
@@ -200,7 +200,7 @@ def mount_graph_routes(app: Any, gsm: Optional[GraphStateMachine] = None) -> Gra
         try:
             record = gsm.transition(req.target, metadata=req.metadata)
         except InvalidTransition as exc:
-            raise HTTPException(status_code=409, detail=str(exc))
+            raise HTTPException(status_code=409, detail=str(exc)) from None
         return {
             "state": gsm.state.value,
             "transition": {

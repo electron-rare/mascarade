@@ -172,7 +172,7 @@ def main():
             seen.add(h)
             deduped.append(r)
 
-    print(f"\n=== TOTAL ===")
+    print("\n=== TOTAL ===")
     print(f"  Raw: {len(all_results)}")
     print(f"  After dedup: {len(deduped)}")
 

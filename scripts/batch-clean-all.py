@@ -274,7 +274,7 @@ print(f"  Total entries removed: {total_original - total_final}")
 print(f"  Reduction: {(total_original - total_final) / total_original * 100:.1f}%")
 
 # List output files
-print(f"\n  Final files:")
+print("\n  Final files:")
 for name in DATASETS:
     outpath = os.path.join(OUT, f"{name}_final.jsonl")
     if os.path.exists(outpath):

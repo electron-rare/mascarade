@@ -188,14 +188,14 @@ def check_node_status():
         if code == 0:
             try:
                 status = json.loads(stdout)
-                print(f"   ✅ En ligne")
+                print("   ✅ En ligne")
                 print(f"   🖥️  Node ID : {status.get('node_id', 'unknown')}")
                 print(f"   ⚡ Charge : {status.get('load', 0):.2%}")
                 print(f"   🎯 Capacités : {', '.join(status.get('capabilities', []))}")
             except json.JSONDecodeError:
-                print(f"   ⚠️  Réponse invalide")
+                print("   ⚠️  Réponse invalide")
         else:
-            print(f"   ❌ Hors ligne ou erreur")
+            print("   ❌ Hors ligne ou erreur")
             if stderr:
                 print(f"   └─ {stderr.strip()}")
 
@@ -230,7 +230,7 @@ def demo_capabilities():
                     for cap in caps:
                         print(f"   ✓ {cap}")
                 else:
-                    print(f"   ⚠️  Aucune capacité détectée")
+                    print("   ⚠️  Aucune capacité détectée")
             except json.JSONDecodeError:
                 print(f"\n📍 {name}: Erreur de parsing")
     

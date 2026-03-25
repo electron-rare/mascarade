@@ -56,7 +56,7 @@ def main():
     print(f"Prompts: {len(prompts)}")
 
     # Build training data: for each prompt, find the best model
-    extractor = PromptFeatureExtractor()
+    PromptFeatureExtractor()
     classifier = RoutingClassifier()
 
     # Map model names to routing tiers

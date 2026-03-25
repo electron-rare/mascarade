@@ -7,10 +7,11 @@ Based on:
 - SkillRater (arXiv 2602.11615) — per-capability scoring
 """
 
-import json, os, hashlib, time, re, math
+import json
+import os
+import re
+import math
 import httpx
-import numpy as np
-from collections import Counter, defaultdict
 
 OLLAMA_URL = "http://localhost:11434"
 CODESTRAL_URL = "https://codestral.mistral.ai/v1/chat/completions"
@@ -397,7 +398,7 @@ for fn in datasets:
     grand_after += after
 
 print(f"\n{'='*60}")
-print(f"SOTA PIPELINE COMPLETE")
+print("SOTA PIPELINE COMPLETE")
 print(f"{'='*60}")
 print(f"Total: {grand_before} -> {grand_after} ({(grand_before-grand_after)/max(grand_before,1)*100:.1f}% removed)")
 print(f"\nCurated datasets: {OUTPUT}/")
