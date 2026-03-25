@@ -134,9 +134,7 @@ async def test_send_success(monkeypatch):
     mock_response.raise_for_status = MagicMock()
     mock_response.json.return_value = {
         "model": "test-model",
-        "choices": [
-            {"message": {"role": "assistant", "content": "Hello from MLX!"}}
-        ],
+        "choices": [{"message": {"role": "assistant", "content": "Hello from MLX!"}}],
         "usage": {"prompt_tokens": 10, "completion_tokens": 5},
     }
 

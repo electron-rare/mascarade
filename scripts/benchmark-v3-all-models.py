@@ -1,6 +1,10 @@
 """Benchmark v3: test ALL mini-models + import to Ollama + configure router."""
 
-import json, time, os, subprocess, httpx
+import json
+import time
+import os
+import subprocess
+import httpx
 
 OLLAMA_URL = os.environ.get("OLLAMA_URL", "http://localhost:11434")
 CODESTRAL_URL = "https://codestral.mistral.ai/v1/chat/completions"
@@ -49,7 +53,9 @@ SYSTEM "You are an expert electronics engineer."
     try:
         result = subprocess.run(
             ["ollama", "create", name, "-f", mf_path],
-            capture_output=True, text=True, timeout=300,
+            capture_output=True,
+            text=True,
+            timeout=300,
         )
         if result.returncode == 0:
             print(f"  Ollama import OK: {name}")
@@ -65,13 +71,22 @@ SYSTEM "You are an expert electronics engineer."
 def query_ollama(model, prompt, timeout=60.0):
     try:
         with httpx.Client(timeout=timeout) as c:
-            r = c.post(f"{OLLAMA_URL}/api/generate", json={
-                "model": model, "prompt": prompt, "stream": False,
-                "options": {"temperature": 0.2, "num_predict": 512},
-            })
+            r = c.post(
+                f"{OLLAMA_URL}/api/generate",
+                json={
+                    "model": model,
+                    "prompt": prompt,
+                    "stream": False,
+                    "options": {"temperature": 0.2, "num_predict": 512},
+                },
+            )
             r.raise_for_status()
             d = r.json()
-            return d.get("response", ""), d.get("eval_count", 0), r.elapsed.total_seconds()
+            return (
+                d.get("response", ""),
+                d.get("eval_count", 0),
+                r.elapsed.total_seconds(),
+            )
     except Exception:
         return "", 0, 0
 
@@ -79,22 +94,31 @@ def query_ollama(model, prompt, timeout=60.0):
 def judge(question, response):
     try:
         with httpx.Client(timeout=30) as c:
-            r = c.post(CODESTRAL_URL, headers={
-                "Authorization": f"Bearer {CODESTRAL_KEY}",
-                "Content-Type": "application/json",
-            }, json={
-                "model": "codestral-latest",
-                "messages": [
-                    {"role": "system", "content": JUDGE_SYSTEM},
-                    {"role": "user", "content": f"Question:\n{question}\n\nAnswer:\n{response}\n\nScore (1-10):"},
-                ],
-                "response_format": {"type": "json_object"},
-                "temperature": 0.1, "max_tokens": 100,
-            })
+            r = c.post(
+                CODESTRAL_URL,
+                headers={
+                    "Authorization": f"Bearer {CODESTRAL_KEY}",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "model": "codestral-latest",
+                    "messages": [
+                        {"role": "system", "content": JUDGE_SYSTEM},
+                        {
+                            "role": "user",
+                            "content": f"Question:\n{question}\n\nAnswer:\n{response}\n\nScore (1-10):",
+                        },
+                    ],
+                    "response_format": {"type": "json_object"},
+                    "temperature": 0.1,
+                    "max_tokens": 100,
+                },
+            )
             r.raise_for_status()
             import re
+
             text = r.json()["choices"][0]["message"]["content"]
-            nums = re.findall(r'\b(\d+)\b', text)
+            nums = re.findall(r"\b(\d+)\b", text)
             for n in nums:
                 v = int(n)
                 if 1 <= v <= 10:
@@ -124,9 +148,14 @@ def benchmark_model(model_name, prompts):
 
     avg_score = sum(scores) / len(scores) if scores else 0
     avg_lat = sum(latencies) / len(latencies) * 1000 if latencies else 0
-    domains = {d: round(sum(s)/len(s), 2) for d, s in domain_scores.items()}
+    domains = {d: round(sum(s) / len(s), 2) for d, s in domain_scores.items()}
 
-    return {"avg_score": round(avg_score, 2), "avg_latency_ms": round(avg_lat), "domains": domains, "n_prompts": len(prompts)}
+    return {
+        "avg_score": round(avg_score, 2),
+        "avg_latency_ms": round(avg_lat),
+        "domains": domains,
+        "n_prompts": len(prompts),
+    }
 
 
 def main():
@@ -189,7 +218,9 @@ def main():
         try:
             result = benchmark_model(model, prompts)
             results[label] = result
-            print(f"  Score: {result['avg_score']}/10, Latency: {result['avg_latency_ms']}ms")
+            print(
+                f"  Score: {result['avg_score']}/10, Latency: {result['avg_latency_ms']}ms"
+            )
             print(f"  Domains: {result['domains']}")
         except Exception as e:
             print(f"  FAILED: {e}")
@@ -203,7 +234,9 @@ def main():
     report += "|-------|-----------|---------|-------------|\n"
 
     for label, r in sorted(results.items(), key=lambda x: -x[1]["avg_score"]):
-        best_domain = max(r["domains"].items(), key=lambda x: x[1]) if r["domains"] else ("?", 0)
+        best_domain = (
+            max(r["domains"].items(), key=lambda x: x[1]) if r["domains"] else ("?", 0)
+        )
         report += f"| {label} | **{r['avg_score']}** | {r['avg_latency_ms']}ms | {best_domain[0]}={best_domain[1]} |\n"
 
     with open(f"{OUTPUT}/BENCHMARK_V3_REPORT.md", "w") as f:

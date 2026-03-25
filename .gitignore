@@ -93,3 +93,4 @@ machine_info_*.txt
 MACHINE_INVENTORY.md
 .ops/
 .venv-*/
+.env.vm

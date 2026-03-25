@@ -152,12 +152,17 @@ def test_e2e_template_to_inference(runtime):
     # Verify template node
     template_result = context.node_results["template1"]
     assert template_result.status == ExecutionStatus.COMPLETED
-    assert template_result.outputs["prompt"] == "Explain quantum computing in simple terms"
+    assert (
+        template_result.outputs["prompt"] == "Explain quantum computing in simple terms"
+    )
 
     # Verify inference node received templated prompt
     llm_result = context.node_results["llm1"]
     assert llm_result.status == ExecutionStatus.COMPLETED
-    assert "Response to: Explain quantum computing in simple terms" in llm_result.outputs["response"].content
+    assert (
+        "Response to: Explain quantum computing in simple terms"
+        in llm_result.outputs["response"].content
+    )
 
 
 def test_e2e_multi_step_inference(runtime):

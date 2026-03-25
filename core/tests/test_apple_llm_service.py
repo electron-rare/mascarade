@@ -11,7 +11,11 @@ from types import SimpleNamespace
 import httpx
 import pytest
 
-SERVICE_PATH = Path(__file__).resolve().parents[2] / "deploy" / "apple_llm_api" / "app.py"
+pytest.importorskip("psutil", reason="psutil required for apple_llm_api tests")
+
+SERVICE_PATH = (
+    Path(__file__).resolve().parents[2] / "deploy" / "apple_llm_api" / "app.py"
+)
 
 
 def _load_service_module():
@@ -138,7 +142,9 @@ def test_runtime_config_reads_embed_model_path(monkeypatch, service_module):
 
 
 @pytest.mark.asyncio
-async def test_health_rejects_onnx_path_for_coreml_backend(tmp_path, monkeypatch, service_module):
+async def test_health_rejects_onnx_path_for_coreml_backend(
+    tmp_path, monkeypatch, service_module
+):
     model_path = tmp_path / "decoder_model_merged.onnx"
     tokenizer_path = tmp_path / "tokenizer"
     model_path.write_text("onnx")
@@ -167,7 +173,11 @@ def test_prepare_inputs_supports_empty_past_cache(service_module):
         ("input_ids", "tensor(int64)", ["batch_size", "sequence_length"]),
         ("attention_mask", "tensor(int64)", ["batch_size", "total_sequence_length"]),
         ("position_ids", "tensor(int64)", ["batch_size", "sequence_length"]),
-        ("past_key_values.0.key", "tensor(float16)", ["batch_size", 3, "past_sequence_length", 64]),
+        (
+            "past_key_values.0.key",
+            "tensor(float16)",
+            ["batch_size", 3, "past_sequence_length", 64],
+        ),
     ]
     runtime._tokenizer = object()
 
@@ -190,10 +200,16 @@ def test_prepare_inputs_supports_embed_tokens_and_qwen35_cache(service_module):
         ("position_ids", "tensor(int64)", [3, "batch_size", "sequence_length"]),
         ("past_conv.0", "tensor(float16)", ["batch_size", 8192, 4]),
         ("past_recurrent.0", "tensor(float16)", ["batch_size", 32, 128, 128]),
-        ("past_key_values.3.key", "tensor(float16)", ["batch_size", 4, "past_sequence_length", 256]),
+        (
+            "past_key_values.3.key",
+            "tensor(float16)",
+            ["batch_size", 4, "past_sequence_length", 256],
+        ),
     ]
     runtime._tokenizer = object()
-    runtime._embed_input_ids = lambda token_ids: np.ones((1, token_ids.shape[1], 2560), dtype=np.float32)
+    runtime._embed_input_ids = lambda token_ids: np.ones(
+        (1, token_ids.shape[1], 2560), dtype=np.float32
+    )
 
     inputs = runtime._prepare_inputs(np.array([[7, 8]], dtype=np.int64))
 
@@ -297,7 +313,9 @@ def test_resolve_coreml_embed_model_path_for_qwen35_layout(tmp_path, service_mod
     assert runtime._resolve_embed_model_path() == str(embed_path)
 
 
-def test_coreml_runtime_loads_explicit_embed_model_path(tmp_path, monkeypatch, service_module):
+def test_coreml_runtime_loads_explicit_embed_model_path(
+    tmp_path, monkeypatch, service_module
+):
     np = pytest.importorskip("numpy")
 
     model_dir = tmp_path / "model"

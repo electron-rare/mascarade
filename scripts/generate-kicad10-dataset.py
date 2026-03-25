@@ -7,7 +7,9 @@ import httpx
 import random
 
 # Route via Mascarade core (supports Codestral direct or Mistral via routing)
-MASCARADE_URL = os.environ.get("MASCARADE_URL", "http://127.0.0.1:8100/v1/chat/completions")
+MASCARADE_URL = os.environ.get(
+    "MASCARADE_URL", "http://127.0.0.1:8100/v1/chat/completions"
+)
 MASCARADE_KEY = os.environ.get("MASCARADE_API_KEY", "")
 MODEL = os.environ.get("DISTILL_MODEL", "mistral:codestral-latest")
 OUTPUT = "finetune/datasets/kicad10_features.jsonl"
@@ -164,17 +166,70 @@ CATEGORIES = [
 ]
 
 VARS = {
-    "rule": ["minimum trace width", "clearance per voltage", "via-in-pad", "differential pair spacing", "courtyard overlap", "silkscreen-to-pad gap"],
-    "error_type": ["unconnected net", "clearance violation", "short circuit", "missing courtyard", "silkscreen overlap"],
+    "rule": [
+        "minimum trace width",
+        "clearance per voltage",
+        "via-in-pad",
+        "differential pair spacing",
+        "courtyard overlap",
+        "silkscreen-to-pad gap",
+    ],
+    "error_type": [
+        "unconnected net",
+        "clearance violation",
+        "short circuit",
+        "missing courtyard",
+        "silkscreen overlap",
+    ],
     "voltage": ["3.3", "5", "12", "24", "48", "230"],
-    "signal_type": ["DDR4 data bus", "USB 3.0 differential pair", "PCIe Gen4 lane", "HDMI 2.1 TMDS", "Ethernet RGMII", "LVDS pair"],
+    "signal_type": [
+        "DDR4 data bus",
+        "USB 3.0 differential pair",
+        "PCIe Gen4 lane",
+        "HDMI 2.1 TMDS",
+        "Ethernet RGMII",
+        "LVDS pair",
+    ],
     "layers": ["4", "6", "8"],
-    "use_case": ["product with optional WiFi module", "multi-region power supply (EU/US)", "prototype vs production BOM", "basic vs premium version"],
-    "block_type": ["USB Type-C connector with ESD", "ESP32 module with antenna", "LDO power supply", "RS-485 transceiver", "SWD debug header", "DC-DC buck converter"],
-    "power_supply": ["3.3V LDO from 5V USB", "12V to 5V buck", "battery charger with path management"],
-    "source": ["Cadence Allegro", "Mentor PADS", "gEDA/Lepton", "Altium Designer", "Eagle"],
-    "file_type": ["board file (.brd)", "schematic (.sch)", "design archive", "library (.dra)"],
-    "plugin_type": ["BOM generator", "DRC rule checker", "JLCPCB exporter", "net inspector", "component placer"],
+    "use_case": [
+        "product with optional WiFi module",
+        "multi-region power supply (EU/US)",
+        "prototype vs production BOM",
+        "basic vs premium version",
+    ],
+    "block_type": [
+        "USB Type-C connector with ESD",
+        "ESP32 module with antenna",
+        "LDO power supply",
+        "RS-485 transceiver",
+        "SWD debug header",
+        "DC-DC buck converter",
+    ],
+    "power_supply": [
+        "3.3V LDO from 5V USB",
+        "12V to 5V buck",
+        "battery charger with path management",
+    ],
+    "source": [
+        "Cadence Allegro",
+        "Mentor PADS",
+        "gEDA/Lepton",
+        "Altium Designer",
+        "Eagle",
+    ],
+    "file_type": [
+        "board file (.brd)",
+        "schematic (.sch)",
+        "design archive",
+        "library (.dra)",
+    ],
+    "plugin_type": [
+        "BOM generator",
+        "DRC rule checker",
+        "JLCPCB exporter",
+        "net inspector",
+        "component placer",
+    ],
 }
 
 
@@ -214,21 +269,28 @@ Reply ONLY JSON: {{"question": "...", "answer": "..."}}"""
         if MASCARADE_KEY:
             headers["Authorization"] = f"Bearer {MASCARADE_KEY}"
         with httpx.Client(timeout=60.0) as client:
-            resp = client.post(MASCARADE_URL, headers=headers, json={
-                "model": MODEL,
-                "messages": [{"role": "user", "content": prompt}],
-                "response_format": {"type": "json_object"},
-                "temperature": 0.7,
-                "max_tokens": 700,
-                "stream": False,
-                "project_id": "dataset-kicad10",
-            })
+            resp = client.post(
+                MASCARADE_URL,
+                headers=headers,
+                json={
+                    "model": MODEL,
+                    "messages": [{"role": "user", "content": prompt}],
+                    "response_format": {"type": "json_object"},
+                    "temperature": 0.7,
+                    "max_tokens": 700,
+                    "stream": False,
+                    "project_id": "dataset-kicad10",
+                },
+            )
             resp.raise_for_status()
             data = json.loads(resp.json()["choices"][0]["message"]["content"])
             if "question" in data and "answer" in data:
                 return {
                     "conversations": [
-                        {"from": "system", "value": f"You are an expert KiCad 10 PCB designer and developer. KiCad 10.0.0 was released March 20, 2026. You provide detailed, accurate answers about {category_name}."},
+                        {
+                            "from": "system",
+                            "value": f"You are an expert KiCad 10 PCB designer and developer. KiCad 10.0.0 was released March 20, 2026. You provide detailed, accurate answers about {category_name}.",
+                        },
                         {"from": "human", "value": data["question"]},
                         {"from": "gpt", "value": data["answer"]},
                     ],
@@ -264,7 +326,9 @@ def main():
                 else:
                     errors += 1
                 if (i + 1) % 50 == 0:
-                    print(f"  [{i+1}/{cat['count']}] generated={cat_count} errors={errors}")
+                    print(
+                        f"  [{i+1}/{cat['count']}] generated={cat_count} errors={errors}"
+                    )
                 time.sleep(0.5)
             print(f"  DONE: {cat_count} pairs")
 

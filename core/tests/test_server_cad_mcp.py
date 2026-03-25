@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, patch
 
 import httpx
 import pytest
@@ -21,13 +21,15 @@ def _clean_api_keys():
 
 @asynccontextmanager
 async def _client():
-    async with app.router.lifespan_context(app):
-        transport = httpx.ASGITransport(app=app)
-        async with httpx.AsyncClient(
-            transport=transport,
-            base_url="http://testserver",
-        ) as client:
-            yield client
+    with patch("mascarade.auth.is_valid_api_key", return_value=True), \
+         patch("mascarade.auth._resolve_role", return_value="admin"):
+        async with app.router.lifespan_context(app):
+            transport = httpx.ASGITransport(app=app)
+            async with httpx.AsyncClient(
+                transport=transport,
+                base_url="http://testserver",
+            ) as client:
+                yield client
 
 
 @pytest.mark.asyncio
@@ -106,7 +108,11 @@ async def test_toolpath_generate_gcode_route():
             "/v1/mcp/toolpath/generate",
             headers={"Authorization": "Bearer test-key-001"},
             json={
-                "mesh": {"vertices": [[0, 0, 0], [10, 0, 0], [10, 10, 0]], "faces": [[0, 1, 2]], "format": "stl"},
+                "mesh": {
+                    "vertices": [[0, 0, 0], [10, 0, 0], [10, 10, 0]],
+                    "faces": [[0, 1, 2]],
+                    "format": "stl",
+                },
                 "tool": {"id": "tool_1", "diameter": 6.0, "flute_count": 2},
                 "strategy": "adaptive",
                 "run_id": "run-toolpath-001",
@@ -155,11 +161,23 @@ async def test_toolpath_optimize_route():
             json={
                 "toolpath": {
                     "moves": [
-                        {"x": 0.0, "y": 0.0, "z": 10.0, "feed_rate": 100.0, "type": "rapid"},
-                        {"x": 50.0, "y": 50.0, "z": 0.0, "feed_rate": 50.0, "type": "linear"},
+                        {
+                            "x": 0.0,
+                            "y": 0.0,
+                            "z": 10.0,
+                            "feed_rate": 100.0,
+                            "type": "rapid",
+                        },
+                        {
+                            "x": 50.0,
+                            "y": 50.0,
+                            "z": 0.0,
+                            "feed_rate": 50.0,
+                            "type": "linear",
+                        },
                     ],
                     "unit": "mm",
-                    "tool_id": "tool_0"
+                    "tool_id": "tool_0",
                 },
                 "objective": "time",
                 "run_id": "run-toolpath-opt-001",

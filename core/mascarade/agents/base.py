@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
+from enum import Enum
 from typing import TYPE_CHECKING
 
 from mascarade.router import Router
@@ -12,6 +15,51 @@ from mascarade.router.router import Strategy
 if TYPE_CHECKING:
     from mascarade.agents.registry import AgentRegistry
     from mascarade.agents.skill_registry import SkillRegistry
+
+logger = logging.getLogger("mascarade.agents")
+
+
+# ---------------------------------------------------------------------------
+# Gate system — execution checkpoints for quality/safety
+# ---------------------------------------------------------------------------
+
+class GateStatus(str, Enum):
+    """Gate evaluation result."""
+    PENDING = "pending"
+    PASSED = "passed"
+    FAILED = "failed"
+    SKIPPED = "skipped"
+
+
+@dataclass
+class Gate:
+    """A checkpoint that must pass before or after agent execution.
+
+    Gates can enforce pre-conditions (input validation, authorization)
+    or post-conditions (output quality, safety review).
+    """
+
+    name: str
+    description: str = ""
+    phase: str = "pre"  # "pre" (before execution) or "post" (after execution)
+    required: bool = True  # if True, failure blocks execution
+    check: str = ""  # callable name or expression to evaluate
+    status: GateStatus = GateStatus.PENDING
+
+
+@dataclass
+class EvidenceRecord:
+    """Tracks an agent execution with evidence for audit/compliance."""
+
+    run_id: str
+    agent_name: str
+    timestamp: str = ""
+    input_hash: str = ""
+    output_hash: str = ""
+    gates_passed: list[str] = field(default_factory=list)
+    gates_failed: list[str] = field(default_factory=list)
+    duration_ms: float = 0.0
+    metadata: dict = field(default_factory=dict)
 
 
 @dataclass
@@ -33,6 +81,10 @@ class Agent:
     category: str | None = None  # grouping: domain, code, creative, etc.
     retry_config: dict | None = None
     prompt_versions: list[dict] = field(default_factory=list)
+    gates: list[Gate] = field(default_factory=list)  # execution gates
+    evidence_refs: list[str] = field(default_factory=list)  # evidence doc refs
+    capabilities: list[str] = field(default_factory=list)  # e.g. ["code", "pcb", "review"]
+    cluster: str | None = None  # domain cluster: general, code, electronics, ops, creative
 
     def get_enhanced_system_prompt(self, skill_registry: SkillRegistry) -> str:
         """Build system prompt enhanced with assigned skills.
@@ -83,6 +135,69 @@ class Agent:
         if skill_registry and self.skills:
             return self.get_enhanced_system_prompt(skill_registry)
         return self.system_prompt
+
+    # ------------------------------------------------------------------
+    # Gate checking
+    # ------------------------------------------------------------------
+
+    def check_gates(self, phase: str = "pre") -> tuple[bool, list[str]]:
+        """Evaluate gates for the given phase.
+
+        Returns (all_passed, list_of_failed_gate_names).
+        Non-required gates that fail are logged but don't block.
+        """
+        failed: list[str] = []
+        for gate in self.gates:
+            if gate.phase != phase:
+                continue
+            # Built-in gate checks
+            passed = self._evaluate_gate(gate)
+            gate.status = GateStatus.PASSED if passed else GateStatus.FAILED
+            if not passed:
+                if gate.required:
+                    failed.append(gate.name)
+                else:
+                    logger.warning(
+                        "Agent %s: optional gate '%s' failed (phase=%s)",
+                        self.name, gate.name, phase,
+                    )
+        return len(failed) == 0, failed
+
+    def _evaluate_gate(self, gate: Gate) -> bool:
+        """Evaluate a single gate. Override for custom gate logic."""
+        if not gate.check:
+            return True  # no check expression = auto-pass
+        # Built-in checks
+        if gate.check == "has_system_prompt":
+            return bool(self.system_prompt.strip())
+        if gate.check == "has_skills":
+            return len(self.skills) > 0
+        if gate.check == "has_tools":
+            return len(self.tools) > 0
+        if gate.check == "is_configured":
+            return self.preferred_provider is not None
+        # Unknown check — pass by default
+        logger.debug("Unknown gate check '%s' on agent %s", gate.check, self.name)
+        return True
+
+    def reset_gates(self) -> None:
+        """Reset all gates to pending status."""
+        for gate in self.gates:
+            gate.status = GateStatus.PENDING
+
+    def create_evidence(
+        self, run_id: str, duration_ms: float = 0.0, **metadata: object
+    ) -> EvidenceRecord:
+        """Create an evidence record from the current gate state."""
+        return EvidenceRecord(
+            run_id=run_id,
+            agent_name=self.name,
+            timestamp=datetime.now(UTC).isoformat(),
+            gates_passed=[g.name for g in self.gates if g.status == GateStatus.PASSED],
+            gates_failed=[g.name for g in self.gates if g.status == GateStatus.FAILED],
+            duration_ms=duration_ms,
+            metadata=dict(metadata),
+        )
 
     async def run(
         self,

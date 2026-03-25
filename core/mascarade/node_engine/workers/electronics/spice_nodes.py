@@ -235,11 +235,13 @@ class NetlistGeneratorNode(BaseNode):
             netlist_lines.append("")
 
         # Add placeholder circuit (in production, this would be LLM-generated)
-        netlist_lines.extend([
-            "* Circuit netlist",
-            "* TODO: Integrate with SpiceAgent for intelligent generation",
-            "",
-        ])
+        netlist_lines.extend(
+            [
+                "* Circuit netlist",
+                "* TODO: Integrate with SpiceAgent for intelligent generation",
+                "",
+            ]
+        )
 
         # Add analysis directives
         if config.include_control_section:
@@ -402,7 +404,11 @@ class SimulateNode(BaseNode):
             if ".end" in netlist_text.lower():
                 lines = netlist_text.split("\n")
                 end_index = next(
-                    (i for i, line in enumerate(lines) if line.strip().lower() == ".end"),
+                    (
+                        i
+                        for i, line in enumerate(lines)
+                        if line.strip().lower() == ".end"
+                    ),
                     len(lines),
                 )
                 lines.insert(end_index, extra_directives)
@@ -688,35 +694,41 @@ class AnalyzeNode(BaseNode):
         for key, value in characteristics.items():
             report_lines.append(f"   - {key}: {value}")
 
-        report_lines.extend([
-            "",
-            "2. Expected Behavior:",
-            "   - Circuit topology analyzed",
-            "   - Component values extracted",
-            "   - Analysis directives identified",
-            "",
-            "3. Critical Parameters:",
-            "   - See characteristics section above",
-        ])
+        report_lines.extend(
+            [
+                "",
+                "2. Expected Behavior:",
+                "   - Circuit topology analyzed",
+                "   - Component values extracted",
+                "   - Analysis directives identified",
+                "",
+                "3. Critical Parameters:",
+                "   - See characteristics section above",
+            ]
+        )
 
         # Add recommendations
         recommendations = []
 
         if config.include_measurements:
-            report_lines.extend([
-                "",
-                "4. Suggested Measurements:",
-            ])
+            report_lines.extend(
+                [
+                    "",
+                    "4. Suggested Measurements:",
+                ]
+            )
             measurements = self._suggest_measurements(netlist_text, characteristics)
             for measurement in measurements:
                 report_lines.append(f"   - {measurement}")
                 recommendations.append(measurement)
 
         if config.suggest_improvements:
-            report_lines.extend([
-                "",
-                "5. Potential Improvements:",
-            ])
+            report_lines.extend(
+                [
+                    "",
+                    "5. Potential Improvements:",
+                ]
+            )
             improvements = self._suggest_improvements(netlist_text, characteristics)
             for improvement in improvements:
                 report_lines.append(f"   - {improvement}")
@@ -847,9 +859,7 @@ class AnalyzeNode(BaseNode):
 
         # Check for missing control section
         if not characteristics.get("has_control_section"):
-            improvements.append(
-                "Add .control section for automated measurements"
-            )
+            improvements.append("Add .control section for automated measurements")
 
         # Check for missing analyses
         if not characteristics.get("analysis_types"):
@@ -1095,9 +1105,7 @@ class DebugConvergenceNode(BaseNode):
 
         return "\n".join(diagnosis_parts)
 
-    def _generate_solutions(
-        self, error_message: str, netlist: str
-    ) -> list[str]:
+    def _generate_solutions(self, error_message: str, netlist: str) -> list[str]:
         """Generate step-by-step solutions.
 
         Args:
@@ -1112,41 +1120,47 @@ class DebugConvergenceNode(BaseNode):
 
         # Common solutions for different error types
         if "timestep" in error_lower:
-            solutions.extend([
-                "Increase maximum timestep: Add .options trtol=7 to relax transient tolerance",
-                "Add initial conditions: Use .ic directive to set stable starting point",
-                "Reduce circuit stiffness: Check for extreme component value ratios",
-                "Use smaller initial timestep: Adjust .tran statement start time",
-            ])
+            solutions.extend(
+                [
+                    "Increase maximum timestep: Add .options trtol=7 to relax transient tolerance",
+                    "Add initial conditions: Use .ic directive to set stable starting point",
+                    "Reduce circuit stiffness: Check for extreme component value ratios",
+                    "Use smaller initial timestep: Adjust .tran statement start time",
+                ]
+            )
         elif "gmin" in error_lower or "stepping" in error_lower:
-            solutions.extend([
-                "Add nodeset hints: Use .nodeset to guide DC solution",
-                "Increase gmin: Add .options gmin=1e-9 for better conditioning",
-                "Check for floating nodes: Ensure all nodes have DC path to ground",
-                "Verify component values: Look for unrealistic resistor/capacitor values",
-            ])
+            solutions.extend(
+                [
+                    "Add nodeset hints: Use .nodeset to guide DC solution",
+                    "Increase gmin: Add .options gmin=1e-9 for better conditioning",
+                    "Check for floating nodes: Ensure all nodes have DC path to ground",
+                    "Verify component values: Look for unrealistic resistor/capacitor values",
+                ]
+            )
         elif "singular" in error_lower:
-            solutions.extend([
-                "Remove voltage source loops: Check for series voltage sources",
-                "Remove current source cutsets: Check for parallel current sources",
-                "Add small series resistance: Place 1m\u03a9 resistor in voltage source",
-                "Check subcircuit connections: Verify proper node connectivity",
-            ])
+            solutions.extend(
+                [
+                    "Remove voltage source loops: Check for series voltage sources",
+                    "Remove current source cutsets: Check for parallel current sources",
+                    "Add small series resistance: Place 1m\u03a9 resistor in voltage source",
+                    "Check subcircuit connections: Verify proper node connectivity",
+                ]
+            )
         else:
             # Generic solutions
-            solutions.extend([
-                "Add convergence aids: Use .options itl1=300 itl2=200 to increase iterations",
-                "Improve initial conditions: Add .nodeset or .ic directives",
-                "Check component models: Verify all semiconductor models are defined",
-                "Simplify the circuit: Test with ideal components first, then add complexity",
-                "Add damping: Include small series resistances in inductive branches",
-            ])
+            solutions.extend(
+                [
+                    "Add convergence aids: Use .options itl1=300 itl2=200 to increase iterations",
+                    "Improve initial conditions: Add .nodeset or .ic directives",
+                    "Check component models: Verify all semiconductor models are defined",
+                    "Simplify the circuit: Test with ideal components first, then add complexity",
+                    "Add damping: Include small series resistances in inductive branches",
+                ]
+            )
 
         return solutions
 
-    def _generate_fixed_netlist(
-        self, netlist: str, solutions: list[str]
-    ) -> str:
+    def _generate_fixed_netlist(self, netlist: str, solutions: list[str]) -> str:
         """Generate a modified netlist with suggested fixes applied.
 
         Args:
@@ -1160,11 +1174,13 @@ class DebugConvergenceNode(BaseNode):
         fixed_lines = []
 
         # Add header comment
-        fixed_lines.extend([
-            "* MODIFIED NETLIST - Convergence fixes applied",
-            "* Original netlist with suggested corrections",
-            "",
-        ])
+        fixed_lines.extend(
+            [
+                "* MODIFIED NETLIST - Convergence fixes applied",
+                "* Original netlist with suggested corrections",
+                "",
+            ]
+        )
 
         # Add convergence options before any analysis directives
         options_added = False
@@ -1178,13 +1194,15 @@ class DebugConvergenceNode(BaseNode):
                 or line_lower.startswith(".tran")
                 or line_lower.startswith(".control")
             ):
-                fixed_lines.extend([
-                    "",
-                    "* Convergence assistance options",
-                    ".options gmin=1e-10 abstol=1e-10 reltol=0.001",
-                    ".options itl1=300 itl2=200",
-                    "",
-                ])
+                fixed_lines.extend(
+                    [
+                        "",
+                        "* Convergence assistance options",
+                        ".options gmin=1e-10 abstol=1e-10 reltol=0.001",
+                        ".options itl1=300 itl2=200",
+                        "",
+                    ]
+                )
                 options_added = True
 
             fixed_lines.append(line)
@@ -1193,12 +1211,18 @@ class DebugConvergenceNode(BaseNode):
         if not options_added:
             # Find .end and insert before it
             end_index = next(
-                (i for i, line in enumerate(fixed_lines) if line.strip().lower() == ".end"),
+                (
+                    i
+                    for i, line in enumerate(fixed_lines)
+                    if line.strip().lower() == ".end"
+                ),
                 len(fixed_lines),
             )
             fixed_lines.insert(end_index, "")
             fixed_lines.insert(end_index, "* Convergence assistance options")
-            fixed_lines.insert(end_index + 1, ".options gmin=1e-10 abstol=1e-10 reltol=0.001")
+            fixed_lines.insert(
+                end_index + 1, ".options gmin=1e-10 abstol=1e-10 reltol=0.001"
+            )
             fixed_lines.insert(end_index + 2, ".options itl1=300 itl2=200")
             fixed_lines.insert(end_index + 3, "")
 

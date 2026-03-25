@@ -6,6 +6,7 @@ from contextlib import asynccontextmanager
 
 import httpx
 import pytest
+from unittest.mock import patch
 
 from mascarade.auth import add_api_key, get_active_api_keys, remove_api_key
 from mascarade.device_voice import DeviceVoiceService
@@ -98,18 +99,20 @@ def _clean_api_keys():
 
 @asynccontextmanager
 async def _client(device_voice: DeviceVoiceService):
-    async with app.router.lifespan_context(app):
-        original_device_voice = app.state.device_voice
-        app.state.device_voice = device_voice
-        try:
-            transport = httpx.ASGITransport(app=app)
-            async with httpx.AsyncClient(
-                transport=transport,
-                base_url="http://testserver",
-            ) as client:
-                yield client
-        finally:
-            app.state.device_voice = original_device_voice
+    with patch("mascarade.auth.is_valid_api_key", return_value=True), \
+         patch("mascarade.auth._resolve_role", return_value="admin"):
+        async with app.router.lifespan_context(app):
+            original_device_voice = app.state.device_voice
+            app.state.device_voice = device_voice
+            try:
+                transport = httpx.ASGITransport(app=app)
+                async with httpx.AsyncClient(
+                    transport=transport,
+                    base_url="http://testserver",
+                ) as client:
+                    yield client
+            finally:
+                app.state.device_voice = original_device_voice
 
 
 @pytest.mark.asyncio
@@ -215,7 +218,11 @@ async def test_service_falls_back_from_claude_to_local_provider():
     result = await service.handle_session(
         device_id="round-box-1",
         mode="radio",
-        current_media_payload={"mode": "radio", "playing": True, "station": "BBC World Service"},
+        current_media_payload={
+            "mode": "radio",
+            "playing": True,
+            "station": "BBC World Service",
+        },
         audio_bytes=b"RIFF\x00\x00news",
         filename="audio.wav",
         content_type="audio/wav",

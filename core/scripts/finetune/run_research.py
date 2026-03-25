@@ -5,6 +5,7 @@ Usage:
     python scripts/finetune/run_research.py --task text-generation --domain code
     python scripts/finetune/run_research.py --task code --max-size 3.0 --languages en,fr
 """
+
 import asyncio
 import os
 import sys
@@ -18,6 +19,7 @@ from mascarade.finetune.registry import DatasetEntry, FinetuneRegistry, ModelEnt
 
 async def main():
     import argparse
+
     parser = argparse.ArgumentParser(description="Fine-tuning research")
     parser.add_argument("--task", default="text-generation", help="Model task")
     parser.add_argument("--domain", default="code", help="Dataset domain")
@@ -36,16 +38,26 @@ async def main():
     print(f"{'='*60}\n")
 
     researcher = ResearcherAgent(hf_token=args.hf_token)
-    report = await researcher.recommend(args.task, max_size_gb=args.max_size, top_k=args.top_k)
+    report = await researcher.recommend(
+        args.task, max_size_gb=args.max_size, top_k=args.top_k
+    )
 
     for i, m in enumerate(report["candidates"], 1):
         print(f"  {i}. {m['model_id']}")
-        print(f"     downloads={m['downloads']:,} likes={m['likes']:,} license={m['license']} size={m['size_gb']}GB")
-        registry.add_model(ModelEntry(
-            model_id=m["model_id"], source="huggingface", task=args.task,
-            size_gb=m["size_gb"], license=m["license"], downloads=m["downloads"],
-            likes=m["likes"],
-        ))
+        print(
+            f"     downloads={m['downloads']:,} likes={m['likes']:,} license={m['license']} size={m['size_gb']}GB"
+        )
+        registry.add_model(
+            ModelEntry(
+                model_id=m["model_id"],
+                source="huggingface",
+                task=args.task,
+                size_gb=m["size_gb"],
+                license=m["license"],
+                downloads=m["downloads"],
+                likes=m["likes"],
+            )
+        )
 
     if report["papers"]:
         print("\n  Papers:")
@@ -58,15 +70,23 @@ async def main():
     print(f"{'='*60}\n")
 
     documentalist = DocumentalistAgent(hf_token=args.hf_token)
-    ds_report = await documentalist.recommend(args.domain, top_k=args.top_k, languages=languages)
+    ds_report = await documentalist.recommend(
+        args.domain, top_k=args.top_k, languages=languages
+    )
 
     for i, d in enumerate(ds_report["candidates"], 1):
         print(f"  {i}. {d['dataset_id']}")
-        print(f"     downloads={d['downloads']:,} likes={d['likes']:,} license={d['license']} langs={d.get('languages', [])}")
-        registry.add_dataset(DatasetEntry(
-            dataset_id=d["dataset_id"], source="huggingface", domain=args.domain,
-            license=d["license"],
-        ))
+        print(
+            f"     downloads={d['downloads']:,} likes={d['likes']:,} license={d['license']} langs={d.get('languages', [])}"
+        )
+        registry.add_dataset(
+            DatasetEntry(
+                dataset_id=d["dataset_id"],
+                source="huggingface",
+                domain=args.domain,
+                license=d["license"],
+            )
+        )
 
     # Summary
     print(f"\n{'='*60}")

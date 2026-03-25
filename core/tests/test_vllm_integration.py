@@ -4,6 +4,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+torch = pytest.importorskip("torch", reason="torch not installed")
+
 from mascarade.scheduler.paged_attention import PagedAttentionManager
 from mascarade.scheduler.scheduler import ScheduledRequest
 from mascarade.scheduler.vllm_integration import VLLMScheduler, VLLMWorker
@@ -13,9 +15,7 @@ from mascarade.scheduler.vllm_integration import VLLMScheduler, VLLMWorker
 async def test_vllm_worker_initialization():
     """Test VLLM worker initialization."""
     worker = VLLMWorker(
-        node_id="test-worker",
-        model_path="test-model",
-        tensor_parallel_size=1
+        node_id="test-worker", model_path="test-model", tensor_parallel_size=1
     )
 
     # Mock the provider initialization
@@ -28,10 +28,7 @@ async def test_vllm_worker_initialization():
 @pytest.mark.asyncio
 async def test_vllm_worker_request_processing():
     """Test VLLM worker request processing."""
-    worker = VLLMWorker(
-        node_id="test-worker",
-        model_path="test-model"
-    )
+    worker = VLLMWorker(node_id="test-worker", model_path="test-model")
 
     # Mock dependencies
     worker.provider.generate = AsyncMock(return_value=MagicMock())
@@ -40,7 +37,7 @@ async def test_vllm_worker_request_processing():
         request_id="req-1",
         model="test-model",
         messages=[{"role": "user", "content": "test"}],
-        max_tokens=100
+        max_tokens=100,
     )
     request.complete_callback = AsyncMock()
 
@@ -60,13 +57,12 @@ async def test_vllm_scheduler_registration():
     scheduler = VLLMScheduler()
 
     # Mock vLLM worker
-    with patch('mascarade.scheduler.vllm_integration.VLLMWorker') as mock_worker:
+    with patch("mascarade.scheduler.vllm_integration.VLLMWorker") as mock_worker:
         mock_instance = AsyncMock()
         mock_worker.return_value = mock_instance
 
         await scheduler.register_vllm_worker(
-            node_id="worker-1",
-            model_path="test-model"
+            node_id="worker-1", model_path="test-model"
         )
 
         # Verify worker was created and initialized
@@ -91,7 +87,7 @@ async def test_vllm_scheduler_request_routing():
     request = ScheduledRequest(
         request_id="req-1",
         model="test-model",
-        messages=[{"role": "user", "content": "test"}]
+        messages=[{"role": "user", "content": "test"}],
     )
 
     await scheduler.schedule_vllm_request(request)
@@ -102,11 +98,7 @@ async def test_vllm_scheduler_request_routing():
 
 def test_paged_attention_allocation():
     """Test PagedAttention memory allocation."""
-    manager = PagedAttentionManager(
-        block_size=4,
-        max_gpu_blocks=10,
-        max_cpu_blocks=20
-    )
+    manager = PagedAttentionManager(block_size=4, max_gpu_blocks=10, max_cpu_blocks=20)
 
     # Allocate a sequence
     seq_id = manager.allocate_sequence(10)  # 3 blocks needed
@@ -127,9 +119,7 @@ def test_paged_attention_allocation():
 def test_paged_attention_eviction():
     """Test PagedAttention block eviction."""
     manager = PagedAttentionManager(
-        block_size=4,
-        max_gpu_blocks=2,  # Only 2 blocks
-        max_cpu_blocks=10
+        block_size=4, max_gpu_blocks=2, max_cpu_blocks=10  # Only 2 blocks
     )
 
     # Fill GPU
@@ -165,13 +155,12 @@ async def test_vllm_performance_benchmark():
     """Benchmark vLLM performance."""
     import time
 
-    worker = VLLMWorker(
-        node_id="benchmark-worker",
-        model_path="benchmark-model"
-    )
+    worker = VLLMWorker(node_id="benchmark-worker", model_path="benchmark-model")
 
     # Mock the provider
-    worker.provider.generate = AsyncMock(return_value=MagicMock(content="test response"))
+    worker.provider.generate = AsyncMock(
+        return_value=MagicMock(content="test response")
+    )
 
     # Create test requests
     requests = [
@@ -179,7 +168,7 @@ async def test_vllm_performance_benchmark():
             request_id=f"req-{i}",
             model="benchmark-model",
             messages=[{"role": "user", "content": f"test {i}"}],
-            max_tokens=50
+            max_tokens=50,
         )
         for i in range(100)
     ]
@@ -211,9 +200,7 @@ async def test_paged_attention_performance():
     import time
 
     manager = PagedAttentionManager(
-        block_size=16,
-        max_gpu_blocks=100,
-        max_cpu_blocks=1000
+        block_size=16, max_gpu_blocks=100, max_cpu_blocks=1000
     )
 
     # Allocate many sequences

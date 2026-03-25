@@ -8,7 +8,11 @@ from mascarade.agents.maintenance_predictor import MaintenancePredictorAgent
 from mascarade.agents.registry import AgentRegistry
 from mascarade.agents.skill import Skill
 from mascarade.agents.skill_registry import SkillRegistry
-from mascarade.agents.skills import ALL_SKILLS, register_default_skills, register_default_skills_v2
+from mascarade.agents.skills import (
+    ALL_SKILLS,
+    register_default_skills,
+    register_default_skills_v2,
+)
 from mascarade.agents.spice_agent import SpiceAgent
 
 try:

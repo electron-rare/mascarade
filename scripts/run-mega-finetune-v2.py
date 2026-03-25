@@ -33,7 +33,15 @@ model = FastLanguageModel.get_peft_model(
     lora_dropout=0,
     bias="none",
     use_gradient_checkpointing="unsloth",
-    target_modules=["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"],
+    target_modules=[
+        "q_proj",
+        "k_proj",
+        "v_proj",
+        "o_proj",
+        "gate_proj",
+        "up_proj",
+        "down_proj",
+    ],
     random_state=42,
 )
 
@@ -47,6 +55,7 @@ SAMPLE_SIZE = 50000
 if len(ds) > SAMPLE_SIZE:
     ds = ds.shuffle(seed=42).select(range(SAMPLE_SIZE))
     print(f"Sampled: {SAMPLE_SIZE} examples")
+
 
 # Format conversations
 def format_chat(example):
@@ -62,6 +71,7 @@ def format_chat(example):
         elif role in ("assistant", "gpt"):
             text += f" {content}</s>"
     return {"text": text}
+
 
 ds = ds.map(format_chat)
 # Filter empty

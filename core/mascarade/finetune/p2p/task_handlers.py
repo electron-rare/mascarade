@@ -34,6 +34,7 @@ async def handle_ft_task(payload: dict[str, Any], capability: str) -> dict:
 
 async def _handle_research(payload: dict) -> dict:
     from mascarade.finetune.agents.researcher import ResearcherAgent
+
     agent = ResearcherAgent(hf_token=payload.get("hf_token"))
     action = payload.get("action", "search_models")
 
@@ -63,6 +64,7 @@ async def _handle_research(payload: dict) -> dict:
 
 async def _handle_dataset(payload: dict) -> dict:
     from mascarade.finetune.agents.documentalist import DocumentalistAgent
+
     agent = DocumentalistAgent(hf_token=payload.get("hf_token"))
     action = payload.get("action", "search")
 
@@ -107,11 +109,15 @@ async def _handle_teacher(payload: dict) -> dict:
             if not prompts:
                 return {"error": "Missing required field: prompts"}
             config = TeacherConfig(
-                task_description=payload.get("task_description", "Generate training data"),
+                task_description=payload.get(
+                    "task_description", "Generate training data"
+                ),
                 output_format=payload.get("output_format", "chatml"),
                 temperature=payload.get("temperature", 0.7),
             )
-            output_path = payload.get("output_path", "~/.mascarade/finetune/teacher/output.jsonl")
+            output_path = payload.get(
+                "output_path", "~/.mascarade/finetune/teacher/output.jsonl"
+            )
             result = await agent.generate_from_prompts(prompts, config, output_path)
             return result
         elif action == "correct":
@@ -119,9 +125,13 @@ async def _handle_teacher(payload: dict) -> dict:
             if not errors:
                 return {"error": "Missing required field: errors"}
             config = TeacherConfig(
-                task_description=payload.get("task_description", "Generate corrections"),
+                task_description=payload.get(
+                    "task_description", "Generate corrections"
+                ),
             )
-            output_path = payload.get("output_path", "~/.mascarade/finetune/teacher/corrections.jsonl")
+            output_path = payload.get(
+                "output_path", "~/.mascarade/finetune/teacher/corrections.jsonl"
+            )
             result = await agent.generate_corrections(errors, config, output_path)
             return result
 
@@ -132,6 +142,7 @@ async def _handle_teacher(payload: dict) -> dict:
 
 async def _handle_student(payload: dict) -> dict:
     from mascarade.finetune.agents.student import LoRAConfig, StudentAgent
+
     agent = StudentAgent()
     action = payload.get("action", "train_lora")
 
@@ -142,7 +153,9 @@ async def _handle_student(payload: dict) -> dict:
             return {"error": "Missing required fields: base_model, dataset_path"}
         config = LoRAConfig(**payload.get("lora_config", {}))
         result = await agent.train_lora(
-            base_model, dataset_path, config,
+            base_model,
+            dataset_path,
+            config,
             run_id=payload.get("run_id"),
         )
         return result.__dict__
@@ -152,7 +165,8 @@ async def _handle_student(payload: dict) -> dict:
         if not gguf_model or not dataset_path:
             return {"error": "Missing required fields: gguf_model, dataset_path"}
         result = await agent.train_llamacpp(
-            gguf_model, dataset_path,
+            gguf_model,
+            dataset_path,
             run_id=payload.get("run_id"),
         )
         return result.__dict__
@@ -161,13 +175,16 @@ async def _handle_student(payload: dict) -> dict:
 
 async def _handle_analysis(payload: dict) -> dict:
     from mascarade.finetune.agents.analyst import AnalystAgent
+
     agent = AnalystAgent()
 
     model_id = payload.get("model_id")
     model_path = payload.get("model_path")
     test_data_path = payload.get("test_data_path")
     if not model_id or not model_path or not test_data_path:
-        return {"error": "Missing required fields: model_id, model_path, test_data_path"}
+        return {
+            "error": "Missing required fields: model_id, model_path, test_data_path"
+        }
 
     result = await agent.full_eval(model_id, model_path, test_data_path)
     return result.__dict__
@@ -227,6 +244,7 @@ async def _handle_reinforcement(payload: dict) -> dict:
 
 async def _handle_validation(payload: dict) -> dict:
     from mascarade.finetune.agents.validator import ValidatorAgent
+
     agent = ValidatorAgent()
 
     model_id = payload.get("model_id")
@@ -235,7 +253,8 @@ async def _handle_validation(payload: dict) -> dict:
         return {"error": "Missing required fields: model_id, model_path"}
 
     result = await agent.validate(
-        model_id, model_path,
+        model_id,
+        model_path,
         previous_model_path=payload.get("previous_model_path"),
         test_prompts=payload.get("test_prompts"),
     )
@@ -244,6 +263,7 @@ async def _handle_validation(payload: dict) -> dict:
 
 async def _handle_archive(payload: dict) -> dict:
     from mascarade.finetune.agents.archivist import ArchivistAgent
+
     agent = ArchivistAgent(hf_token=payload.get("hf_token"))
     action = payload.get("action", "push_model")
 
@@ -256,7 +276,9 @@ async def _handle_archive(payload: dict) -> dict:
         if not domain:
             return {"error": "Missing required field: domain"}
         result = await agent.push_dataset(
-            local_path, domain, version=payload.get("version"),
+            local_path,
+            domain,
+            version=payload.get("version"),
         )
         return result.__dict__
     elif action == "push_model":
@@ -265,7 +287,10 @@ async def _handle_archive(payload: dict) -> dict:
         if not task or not size_label:
             return {"error": "Missing required fields: task, size_label"}
         result = await agent.push_model(
-            local_path, task, size_label, version=payload.get("version"),
+            local_path,
+            task,
+            size_label,
+            version=payload.get("version"),
         )
         return result.__dict__
     return {"error": f"Unknown archive action: {action}"}

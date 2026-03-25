@@ -45,6 +45,7 @@ _ZACUS_SYSTEM_PROMPT = (
 # Auth helper (same pattern as ws.py)
 # ---------------------------------------------------------------------------
 
+
 async def _ws_auth(websocket: WebSocket) -> bool:
     """Validate bearer token from query param ``token``.
 
@@ -62,6 +63,7 @@ async def _ws_auth(websocket: WebSocket) -> bool:
 # ---------------------------------------------------------------------------
 # WebSocket endpoint
 # ---------------------------------------------------------------------------
+
 
 @router.websocket("/ws")
 async def voice_websocket(websocket: WebSocket):
@@ -89,11 +91,13 @@ async def voice_websocket(websocket: WebSocket):
         device_id = hello.get("device_id", "unknown")
         logger.info("[VOICE] Hello from device %s", device_id)
 
-        await websocket.send_json({
-            "type": "hello_ack",
-            "version": 1,
-            "capabilities": ["tts", "llm"],
-        })
+        await websocket.send_json(
+            {
+                "type": "hello_ack",
+                "version": 1,
+                "capabilities": ["tts", "llm"],
+            }
+        )
 
         # --- Main loop ---------------------------------------------------
         llm_router: Router | None = getattr(websocket.app.state, "router", None)
@@ -122,6 +126,7 @@ async def voice_websocket(websocket: WebSocket):
 # ---------------------------------------------------------------------------
 # Message handlers
 # ---------------------------------------------------------------------------
+
 
 async def _handle_json_message(
     ws: WebSocket,
@@ -172,6 +177,7 @@ async def _handle_audio_frame(ws: WebSocket, frame: bytes) -> None:
 # ---------------------------------------------------------------------------
 # LLM query
 # ---------------------------------------------------------------------------
+
 
 async def _query_llm(text: str, llm_router: Router | None = None) -> str:
     """Query the mascarade LLM for a response.
@@ -225,6 +231,7 @@ async def _query_llm(text: str, llm_router: Router | None = None) -> str:
 # ---------------------------------------------------------------------------
 # TTS
 # ---------------------------------------------------------------------------
+
 
 async def _text_to_speech(text: str) -> bytes | None:
     """Convert *text* to speech using Piper TTS (OpenAI-compatible API)."""

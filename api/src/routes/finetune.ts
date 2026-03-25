@@ -1,6 +1,8 @@
 import { Hono } from "hono";
 import { coreClient } from "../client/core.js";
 import { handleCoreError } from "../middleware/error.js";
+import { validate } from "../validation/index.js";
+import { FinetuneRunRequestSchema, type FinetuneRunRequest } from "../validation/schemas.js";
 
 const finetune = new Hono();
 const FALLBACK_STACK = {
@@ -66,17 +68,9 @@ function sanitizePipelinePayload(raw: unknown): FinetunePipelinePayload | null {
 }
 
 /** Lancer un pipeline finetune via le core */
-finetune.post("/pipeline", async (c) => {
+finetune.post("/pipeline", validate(FinetuneRunRequestSchema), async (c) => {
   try {
-    const rawBody = await c.req.json().catch(() => null);
-    if (rawBody === null) {
-      return c.json({ error: "Invalid JSON payload" }, 400);
-    }
-
-    const body = sanitizePipelinePayload(rawBody);
-    if (!body) {
-      return c.json({ error: "Invalid payload. Required: task, optional: domain, max_model_size_gb" }, 400);
-    }
+    const body = c.get("validated" as never) as FinetuneRunRequest;
     const result = await coreClient.finetunePipeline(body);
     return c.json(result);
   } catch (error) {

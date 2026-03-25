@@ -10,8 +10,12 @@ from mascarade.router.providers.mistral_embeddings import MistralEmbeddingsProvi
 @pytest.mark.asyncio
 async def test_mistral_embeddings_initialization():
     """Test Mistral Embeddings provider initialization."""
-    with patch('mascarade.router.providers.mistral_embeddings.MISTRAL_EMBEDDINGS_AVAILABLE', True), \
-         patch('mascarade.router.providers.mistral_embeddings.MistralClient') as mock_client:
+    with patch(
+        "mascarade.router.providers.mistral_embeddings.MISTRAL_EMBEDDINGS_AVAILABLE",
+        True,
+    ), patch(
+        "mascarade.router.providers.mistral_embeddings.MistralClient"
+    ) as mock_client:
         MistralEmbeddingsProvider(api_key="test-key")
         mock_client.assert_called_once_with(api_key="test-key")
 
@@ -19,8 +23,12 @@ async def test_mistral_embeddings_initialization():
 @pytest.mark.asyncio
 async def test_mistral_embeddings_embed():
     """Test Mistral embeddings generation."""
-    with patch('mascarade.router.providers.mistral_embeddings.MISTRAL_EMBEDDINGS_AVAILABLE', True), \
-         patch('mascarade.router.providers.mistral_embeddings.MistralClient') as mock_client:
+    with patch(
+        "mascarade.router.providers.mistral_embeddings.MISTRAL_EMBEDDINGS_AVAILABLE",
+        True,
+    ), patch(
+        "mascarade.router.providers.mistral_embeddings.MistralClient"
+    ) as mock_client:
         # Setup mock response
         mock_data1 = MagicMock()
         mock_data1.embedding = [0.1, 0.2, 0.3]
@@ -48,8 +56,12 @@ async def test_mistral_embeddings_embed():
 @pytest.mark.asyncio
 async def test_mistral_embeddings_query():
     """Test Mistral embeddings for single query."""
-    with patch('mascarade.router.providers.mistral_embeddings.MISTRAL_EMBEDDINGS_AVAILABLE', True), \
-         patch('mascarade.router.providers.mistral_embeddings.MistralClient') as mock_client:
+    with patch(
+        "mascarade.router.providers.mistral_embeddings.MISTRAL_EMBEDDINGS_AVAILABLE",
+        True,
+    ), patch(
+        "mascarade.router.providers.mistral_embeddings.MistralClient"
+    ) as mock_client:
         # Setup mock response
         mock_data = MagicMock()
         mock_data.embedding = [0.1, 0.2, 0.3]
@@ -70,8 +82,10 @@ async def test_mistral_embeddings_query():
 
 def test_mistral_embeddings_models():
     """Test available embedding models."""
-    with patch('mascarade.router.providers.mistral_embeddings.MISTRAL_EMBEDDINGS_AVAILABLE', True), \
-         patch('mascarade.router.providers.mistral_embeddings.MistralClient'):
+    with patch(
+        "mascarade.router.providers.mistral_embeddings.MISTRAL_EMBEDDINGS_AVAILABLE",
+        True,
+    ), patch("mascarade.router.providers.mistral_embeddings.MistralClient"):
         provider = MistralEmbeddingsProvider(api_key="test-key")
         models = provider.available_models()
 
@@ -80,6 +94,11 @@ def test_mistral_embeddings_models():
 
 def test_mistral_embeddings_without_client():
     """Test when Mistral client is not available."""
-    with patch('mascarade.router.providers.mistral_embeddings.MISTRAL_EMBEDDINGS_AVAILABLE', False):
-        with pytest.raises(RuntimeError, match="Mistral embeddings client not available"):
+    with patch(
+        "mascarade.router.providers.mistral_embeddings.MISTRAL_EMBEDDINGS_AVAILABLE",
+        False,
+    ):
+        with pytest.raises(
+            RuntimeError, match="Mistral embeddings client not available"
+        ):
             MistralEmbeddingsProvider(api_key="test-key")

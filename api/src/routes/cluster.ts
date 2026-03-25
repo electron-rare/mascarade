@@ -1,6 +1,8 @@
 import { Hono } from "hono";
 import { coreClient } from "../client/core.js";
 import { handleCoreError } from "../middleware/error.js";
+import { validate } from "../validation/index.js";
+import { ClusterForwardSendRequestSchema } from "../validation/schemas.js";
 
 const cluster = new Hono();
 
@@ -153,10 +155,10 @@ cluster.get("/events", async (c) => {
   }
 });
 
-cluster.post("/forward/send", async (c) => {
+cluster.post("/forward/send", validate(ClusterForwardSendRequestSchema), async (c) => {
   try {
-    const body = await c.req.json();
-    const result = await coreClient.clusterForwardSend(body);
+    const body = c.get("validated" as never);
+    const result = await coreClient.clusterForwardSend(body as any);
     return c.json(result);
   } catch (error) {
     const { status, body } = handleCoreError(error);

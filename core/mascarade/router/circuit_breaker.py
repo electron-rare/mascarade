@@ -35,7 +35,9 @@ class CircuitBreaker:
     half_open_max_calls: int = 3
 
     # Per-provider circuit states
-    _provider_states: dict[str, ProviderCircuitState] = field(default_factory=dict, init=False)
+    _provider_states: dict[str, ProviderCircuitState] = field(
+        default_factory=dict, init=False
+    )
 
     # Legacy global state (deprecated, kept for backward compatibility)
     _state: CircuitState = field(default=CircuitState.CLOSED, init=False)
@@ -97,12 +99,16 @@ class CircuitBreaker:
                     and time.time() - pstate.last_failure_time >= self.recovery_timeout
                 ):
                     self._transition_to_half_open(provider_name)
+                    pstate.half_open_calls = 1
                     return True
                 return False
 
             if pstate.state == CircuitState.HALF_OPEN:
                 # Limiter le nombre d'appels en mode half-open
-                return pstate.half_open_calls < self.half_open_max_calls
+                if pstate.half_open_calls < self.half_open_max_calls:
+                    pstate.half_open_calls += 1
+                    return True
+                return False
 
             return False
 
@@ -117,12 +123,16 @@ class CircuitBreaker:
                 and time.time() - self._last_failure_time >= self.recovery_timeout
             ):
                 self._transition_to_half_open()
+                self._half_open_calls = 1
                 return True
             return False
 
         if self._state == CircuitState.HALF_OPEN:
             # Limiter le nombre d'appels en mode half-open
-            return self._half_open_calls < self.half_open_max_calls
+            if self._half_open_calls < self.half_open_max_calls:
+                self._half_open_calls += 1
+                return True
+            return False
 
         return False
 

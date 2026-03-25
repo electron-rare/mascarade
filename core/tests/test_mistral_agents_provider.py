@@ -97,7 +97,11 @@ async def test_mistral_agents_provider_fallbacks_to_deprecated():
             AsyncMock(
                 return_value={
                     "choices": [{"message": {"content": "Fallback ok"}}],
-                    "usage": {"prompt_tokens": 3, "completion_tokens": 2, "total_tokens": 5},
+                    "usage": {
+                        "prompt_tokens": 3,
+                        "completion_tokens": 2,
+                        "total_tokens": 5,
+                    },
                 }
             ),
         ) as call_deprecated:
@@ -124,7 +128,11 @@ async def test_mistral_agents_provider_send_to_agent_keeps_conversation_id():
                 return_value={
                     "conversation_id": "conv-xyz",
                     "outputs": [{"role": "assistant", "content": "Suite"}],
-                    "usage": {"prompt_tokens": 2, "completion_tokens": 4, "total_tokens": 6},
+                    "usage": {
+                        "prompt_tokens": 2,
+                        "completion_tokens": 4,
+                        "total_tokens": 6,
+                    },
                 }
             ),
         ) as call_beta:

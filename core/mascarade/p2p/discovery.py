@@ -100,10 +100,7 @@ class P2PDiscovery:
         return list(self._known_peers.values())
 
     def find_by_capability(self, capability: str) -> list[DiscoveredPeer]:
-        return [
-            p for p in self._known_peers.values()
-            if capability in p.capabilities
-        ]
+        return [p for p in self._known_peers.values() if capability in p.capabilities]
 
     def get_peer(self, peer_id: str) -> DiscoveredPeer | None:
         return self._known_peers.get(peer_id)

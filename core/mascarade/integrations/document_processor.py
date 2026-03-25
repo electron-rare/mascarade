@@ -85,9 +85,7 @@ class DocumentProcessor:
                 # Sauvegarder le chunk actuel si non vide
                 if current_chunk.strip():
                     chunks.append(
-                        self._create_chunk(
-                            current_chunk, current_position, metadata
-                        )
+                        self._create_chunk(current_chunk, current_position, metadata)
                     )
                     current_position += len(current_chunk) - self._chunk_overlap
                     current_chunk = ""
@@ -96,9 +94,7 @@ class DocumentProcessor:
                 sub_chunks = self._split_long_text(paragraph)
                 for sub_chunk in sub_chunks:
                     chunks.append(
-                        self._create_chunk(
-                            sub_chunk, current_position, metadata
-                        )
+                        self._create_chunk(sub_chunk, current_position, metadata)
                     )
                     current_position += len(sub_chunk) - self._chunk_overlap
 
@@ -106,14 +102,14 @@ class DocumentProcessor:
             elif len(current_chunk) + len(paragraph) + 2 > self._chunk_size:
                 if current_chunk.strip():
                     chunks.append(
-                        self._create_chunk(
-                            current_chunk, current_position, metadata
-                        )
+                        self._create_chunk(current_chunk, current_position, metadata)
                     )
                     # Calculer le chevauchement
                     overlap_text = self._get_overlap_text(current_chunk)
                     current_position += len(current_chunk) - len(overlap_text)
-                    current_chunk = overlap_text + "\n\n" + paragraph if overlap_text else paragraph
+                    current_chunk = (
+                        overlap_text + "\n\n" + paragraph if overlap_text else paragraph
+                    )
                 else:
                     current_chunk = paragraph
 
@@ -126,9 +122,7 @@ class DocumentProcessor:
 
         # Ajouter le dernier chunk
         if current_chunk.strip():
-            chunks.append(
-                self._create_chunk(current_chunk, current_position, metadata)
-            )
+            chunks.append(self._create_chunk(current_chunk, current_position, metadata))
 
         return chunks
 
@@ -178,7 +172,7 @@ class DocumentProcessor:
         """Obtenir le texte de chevauchement depuis la fin d'un chunk."""
         if len(text) <= self._chunk_overlap:
             return text
-        return text[-self._chunk_overlap:].strip()
+        return text[-self._chunk_overlap :].strip()
 
     def _create_chunk(
         self,
@@ -226,9 +220,7 @@ class DocumentProcessor:
         )
         return response.data[0].embedding
 
-    async def generate_embeddings_batch(
-        self, texts: list[str]
-    ) -> list[list[float]]:
+    async def generate_embeddings_batch(self, texts: list[str]) -> list[list[float]]:
         """
         Générer des embeddings pour plusieurs textes (batch).
 
@@ -283,9 +275,7 @@ class DocumentProcessor:
         # Générer les embeddings si demandé
         if generate_embeddings:
             if not self.is_configured:
-                logger.warning(
-                    "OpenAI non configuré, embeddings non générés"
-                )
+                logger.warning("OpenAI non configuré, embeddings non générés")
                 return chunks
 
             # Extraire les textes

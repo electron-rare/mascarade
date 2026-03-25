@@ -130,7 +130,11 @@ def extract_from_clickhouse(limit: int = 20000) -> list[TrainingSample]:
 
         user = getattr(settings, "clickhouse_user", "langfuse")
         password_obj = getattr(settings, "clickhouse_password", "")
-        password = password_obj.get_secret_value() if hasattr(password_obj, "get_secret_value") else str(password_obj)
+        password = (
+            password_obj.get_secret_value()
+            if hasattr(password_obj, "get_secret_value")
+            else str(password_obj)
+        )
         database = getattr(settings, "clickhouse_database", "default")
 
         logger.info(
@@ -178,7 +182,9 @@ def extract_from_clickhouse(limit: int = 20000) -> list[TrainingSample]:
         client.close()
 
     except ImportError:
-        logger.warning("clickhouse_connect not available, skipping ClickHouse extraction")
+        logger.warning(
+            "clickhouse_connect not available, skipping ClickHouse extraction"
+        )
     except Exception as exc:
         logger.warning("Failed to extract from ClickHouse: %s", exc)
 
@@ -261,7 +267,11 @@ def generate_synthetic_samples(count: int = 10000) -> list[TrainingSample]:
             )
             samples.append(sample)
 
-    logger.info("Generated %d synthetic samples across %d domains", len(samples), len(domain_samples))
+    logger.info(
+        "Generated %d synthetic samples across %d domains",
+        len(samples),
+        len(domain_samples),
+    )
     return samples
 
 
@@ -316,7 +326,12 @@ def prepare_dataset(
     domain_counts = Counter(s.domain for s in labeled_samples)
     logger.info("Domain distribution:")
     for domain, count in domain_counts.most_common():
-        logger.info("  %s: %d samples (%.1f%%)", domain, count, 100 * count / len(labeled_samples))
+        logger.info(
+            "  %s: %d samples (%.1f%%)",
+            domain,
+            count,
+            100 * count / len(labeled_samples),
+        )
 
     # Preview samples
     logger.info("\nSample preview (first 3 per domain):")
@@ -324,10 +339,17 @@ def prepare_dataset(
         domain_samples = [s for s in labeled_samples if s.domain == domain][:3]
         logger.info("\n  Domain: %s", domain)
         for sample in domain_samples:
-            logger.info("    - %s", sample.text[:80] + "..." if len(sample.text) > 80 else sample.text)
+            logger.info(
+                "    - %s",
+                sample.text[:80] + "..." if len(sample.text) > 80 else sample.text,
+            )
 
     if dry_run:
-        logger.info("\n[DRY RUN] Would write %d samples to %s", len(labeled_samples), output_path)
+        logger.info(
+            "\n[DRY RUN] Would write %d samples to %s",
+            len(labeled_samples),
+            output_path,
+        )
         logger.info("[DRY RUN] No files written")
         return
 
@@ -347,7 +369,11 @@ def prepare_dataset(
         "created_at": datetime.now().isoformat(),
         "total_samples": len(labeled_samples),
         "domain_distribution": dict(domain_counts),
-        "source": "clickhouse + synthetic" if len(samples) > len(labeled_samples) else "synthetic",
+        "source": (
+            "clickhouse + synthetic"
+            if len(samples) > len(labeled_samples)
+            else "synthetic"
+        ),
     }
 
     with metadata_path.open("w") as f:

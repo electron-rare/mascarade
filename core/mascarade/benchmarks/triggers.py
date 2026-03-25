@@ -15,7 +15,9 @@ from mascarade.router import Router
 
 logger = logging.getLogger("mascarade.benchmarks.triggers")
 
-DEFAULT_AUTO_BENCHMARK_ENABLED = os.getenv("AUTO_BENCHMARK_ENABLED", "true").lower() in {
+DEFAULT_AUTO_BENCHMARK_ENABLED = os.getenv(
+    "AUTO_BENCHMARK_ENABLED", "true"
+).lower() in {
     "true",
     "1",
     "yes",
@@ -103,8 +105,11 @@ class ModelDeploymentTrigger:
             ModelDeploymentTriggerError: If trigger processing fails
         """
         if not self.auto_benchmark_enabled:
-            logger.info("Auto-benchmark disabled, skipping deployment event for %s/%s",
-                       event.provider, event.model)
+            logger.info(
+                "Auto-benchmark disabled, skipping deployment event for %s/%s",
+                event.provider,
+                event.model,
+            )
             return {
                 "status": "skipped",
                 "reason": "auto_benchmark_disabled",
@@ -328,7 +333,9 @@ class ModelDeploymentTrigger:
     async def close(self) -> None:
         """Clean up pending tasks."""
         if self._pending_tasks:
-            logger.info("Waiting for %d pending benchmark tasks", len(self._pending_tasks))
+            logger.info(
+                "Waiting for %d pending benchmark tasks", len(self._pending_tasks)
+            )
             await asyncio.gather(*self._pending_tasks, return_exceptions=True)
             self._pending_tasks.clear()
 

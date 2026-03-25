@@ -121,9 +121,7 @@ class HealthMonitorVerifier:
             if response.status_code == 200:
                 print(f"✓ Grafana accessible at {self.grafana_url}")
                 print(f"  Dashboard URL: {self.grafana_url}/d/mascarade-ops-overview")
-                print(
-                    "  → Manually verify that Provider Health panel is visible"
-                )
+                print("  → Manually verify that Provider Health panel is visible")
                 return True
             else:
                 print(f"⚠ Grafana returned status {response.status_code}")
@@ -187,7 +185,9 @@ class HealthMonitorVerifier:
                 for provider_name, stats in cb_data["providers"].items():
                     print(f"  - {provider_name}:")
                     print(f"    State: {stats.get('state', 'unknown')}")
-                    print(f"    Failures: {stats.get('failure_count', 0)}/{stats.get('failure_threshold', 'N/A')}")
+                    print(
+                        f"    Failures: {stats.get('failure_count', 0)}/{stats.get('failure_threshold', 'N/A')}"
+                    )
 
             return True
 
@@ -215,7 +215,9 @@ class HealthMonitorVerifier:
         results = []
 
         # Step 1: Verify core health endpoint
-        results.append(("Core Health Endpoint", await self.verify_core_health_endpoint()))
+        results.append(
+            ("Core Health Endpoint", await self.verify_core_health_endpoint())
+        )
 
         # Step 2: Send test requests to build metrics
         results.append(("Test Requests", await self.send_test_requests(10)))
@@ -225,10 +227,14 @@ class HealthMonitorVerifier:
         await asyncio.sleep(2)
 
         # Step 3: Verify health endpoint again with data
-        results.append(("Health Metrics with Data", await self.verify_core_health_endpoint()))
+        results.append(
+            ("Health Metrics with Data", await self.verify_core_health_endpoint())
+        )
 
         # Step 4: Verify circuit breaker metrics
-        results.append(("Circuit Breaker Metrics", await self.verify_circuit_breaker_metrics()))
+        results.append(
+            ("Circuit Breaker Metrics", await self.verify_circuit_breaker_metrics())
+        )
 
         # Step 5: Verify API ops summary
         results.append(("API Ops Summary", await self.verify_api_ops_summary()))
@@ -237,7 +243,9 @@ class HealthMonitorVerifier:
         results.append(("Grafana Dashboard", await self.verify_grafana_dashboard()))
 
         # Step 7: Health-aware routing (manual check)
-        results.append(("Health-Aware Routing", await self.verify_health_aware_routing()))
+        results.append(
+            ("Health-Aware Routing", await self.verify_health_aware_routing())
+        )
 
         # Print summary
         print("\n" + "=" * 60)

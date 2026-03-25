@@ -32,9 +32,7 @@ async def test_register_vllm_worker():
 
     scheduler = VLLMScheduler()
 
-    with patch(
-        "mascarade.scheduler.vllm_integration.VLLMWorker"
-    ) as mock_worker_cls:
+    with patch("mascarade.scheduler.vllm_integration.VLLMWorker") as mock_worker_cls:
         mock_instance = AsyncMock()
         mock_worker_cls.return_value = mock_instance
 
@@ -60,7 +58,10 @@ async def test_register_mlx_worker():
 
     with patch(
         "mascarade.router.providers.mlx_provider.MLXWorker", mock_mlx_cls, create=True
-    ), patch.dict("sys.modules", {"mascarade.router.providers.mlx_provider": MagicMock(MLXWorker=mock_mlx_cls)}):
+    ), patch.dict(
+        "sys.modules",
+        {"mascarade.router.providers.mlx_provider": MagicMock(MLXWorker=mock_mlx_cls)},
+    ):
         await scheduler.register_mlx_worker(
             node_id="mlx-worker-1",
             model_path="mlx-model",

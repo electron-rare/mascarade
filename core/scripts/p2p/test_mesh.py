@@ -21,11 +21,19 @@ def get_bootstrap_peer_id() -> str:
 
     try:
         result = subprocess.run(
-            ["ssh", "-o", "ConnectTimeout=3", "root@192.168.0.119",
-             "head -1 /tmp/p2p_node.log"],
-            capture_output=True, text=True, timeout=5,
+            [
+                "ssh",
+                "-o",
+                "ConnectTimeout=3",
+                "root@192.168.0.119",
+                "head -1 /tmp/p2p_node.log",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=5,
         )
         import json
+
         info = json.loads(result.stdout.strip())
         return info["peer_id"]
     except Exception:

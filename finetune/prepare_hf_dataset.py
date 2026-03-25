@@ -8,7 +8,11 @@ import json
 import os
 from pathlib import Path
 
-from dataset_quality import DatasetQualityError, enforce_dataset_quality, summarize_quality_report
+from dataset_quality import (
+    DatasetQualityError,
+    enforce_dataset_quality,
+    summarize_quality_report,
+)
 from dataset_refresh import DOMAIN_RESEARCH, SUPPORTED_DOMAINS
 from sharegpt_utils import (
     dedupe_rows_with_stats,
@@ -280,7 +284,9 @@ def prepare_domain(
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Prepare canonical datasets for HF publication")
+    parser = argparse.ArgumentParser(
+        description="Prepare canonical datasets for HF publication"
+    )
     parser.add_argument("domains", nargs="+", choices=SUPPORTED_DOMAINS)
     parser.add_argument("--dataset-dir", default=str(DEFAULT_DATASETS_DIR))
     parser.add_argument("--output-root", default=str(DEFAULT_OUTPUT_ROOT))

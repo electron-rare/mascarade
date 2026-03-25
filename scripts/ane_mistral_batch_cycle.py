@@ -62,12 +62,18 @@ STAGES = [
             "max_tokens": 256,
             "temperature": 0.3,
             "messages": [
-                {"role": "system", "content": "You are a story planner. Create a concise outline for a short story."},
-                {"role": "user", "content": (
-                    "Create an outline for a 3-chapter mystery story set in a lighthouse. "
-                    "Include: premise, main character, and a brief summary of each chapter. "
-                    "Be concise — max 200 words."
-                )},
+                {
+                    "role": "system",
+                    "content": "You are a story planner. Create a concise outline for a short story.",
+                },
+                {
+                    "role": "user",
+                    "content": (
+                        "Create an outline for a 3-chapter mystery story set in a lighthouse. "
+                        "Include: premise, main character, and a brief summary of each chapter. "
+                        "Be concise — max 200 words."
+                    ),
+                },
             ],
         },
     },
@@ -78,11 +84,17 @@ STAGES = [
             "max_tokens": 512,
             "temperature": 0.2,
             "messages": [
-                {"role": "system", "content": "You are a story structure assistant. Output valid JSON only, no markdown fences."},
-                {"role": "user", "content": (
-                    "Create a structured JSON for a 3-chapter mystery story set in a lighthouse. "
-                    "Keys: title, premise, protagonist (name, trait), chapters (array of {number, title, summary})."
-                )},
+                {
+                    "role": "system",
+                    "content": "You are a story structure assistant. Output valid JSON only, no markdown fences.",
+                },
+                {
+                    "role": "user",
+                    "content": (
+                        "Create a structured JSON for a 3-chapter mystery story set in a lighthouse. "
+                        "Keys: title, premise, protagonist (name, trait), chapters (array of {number, title, summary})."
+                    ),
+                },
             ],
         },
     },
@@ -93,15 +105,21 @@ STAGES = [
             "max_tokens": 256,
             "temperature": 0.7,
             "messages": [
-                {"role": "system", "content": (
-                    "You are a literary prose writer. Write vivid, engaging prose. "
-                    "Preserve meaning while elevating the language."
-                )},
-                {"role": "user", "content": (
-                    "Rewrite this opening paragraph into rich, literary prose:\n\n"
-                    "'The lighthouse keeper walked up the spiral stairs. The light was broken. "
-                    "He needed to fix it before the storm. The wind was getting stronger.'"
-                )},
+                {
+                    "role": "system",
+                    "content": (
+                        "You are a literary prose writer. Write vivid, engaging prose. "
+                        "Preserve meaning while elevating the language."
+                    ),
+                },
+                {
+                    "role": "user",
+                    "content": (
+                        "Rewrite this opening paragraph into rich, literary prose:\n\n"
+                        "'The lighthouse keeper walked up the spiral stairs. The light was broken. "
+                        "He needed to fix it before the storm. The wind was getting stronger.'"
+                    ),
+                },
             ],
         },
     },
@@ -112,17 +130,23 @@ STAGES = [
             "max_tokens": 256,
             "temperature": 0.2,
             "messages": [
-                {"role": "system", "content": (
-                    "You are a quality reviewer for creative writing. "
-                    "Evaluate the prose below on: clarity (1-5), engagement (1-5), originality (1-5). "
-                    "Output JSON: {clarity: N, engagement: N, originality: N, verdict: 'pass'|'revise', notes: '...'}"
-                )},
-                {"role": "user", "content": (
-                    "Evaluate this prose:\n\n"
-                    "The keeper climbed the spiral stairs as wind howled outside, "
-                    "each step a percussion against the stone, each gust a whispered threat. "
-                    "Above, the great lens sat dark and cold — a dead eye staring out to sea."
-                )},
+                {
+                    "role": "system",
+                    "content": (
+                        "You are a quality reviewer for creative writing. "
+                        "Evaluate the prose below on: clarity (1-5), engagement (1-5), originality (1-5). "
+                        "Output JSON: {clarity: N, engagement: N, originality: N, verdict: 'pass'|'revise', notes: '...'}"
+                    ),
+                },
+                {
+                    "role": "user",
+                    "content": (
+                        "Evaluate this prose:\n\n"
+                        "The keeper climbed the spiral stairs as wind howled outside, "
+                        "each step a percussion against the stone, each gust a whispered threat. "
+                        "Above, the great lens sat dark and cold — a dead eye staring out to sea."
+                    ),
+                },
             ],
         },
     },
@@ -148,7 +172,15 @@ def cmd_submit() -> str:
     # Save job ID
     state_path = OUTPUT_DIR / "batch_state.json"
     with open(state_path, "w") as f:
-        json.dump({"job_id": job.id, "model": MODEL, "created": time.strftime("%Y-%m-%dT%H:%M:%S")}, f, indent=2)
+        json.dump(
+            {
+                "job_id": job.id,
+                "model": MODEL,
+                "created": time.strftime("%Y-%m-%dT%H:%M:%S"),
+            },
+            f,
+            indent=2,
+        )
     print(f"State saved to {state_path}")
 
     return job.id
@@ -160,10 +192,17 @@ def cmd_status(job_id: str) -> dict:
     job = client.batch.jobs.get(job_id=job_id)
     print(f"Job: {job.id}")
     print(f"Status: {job.status}")
-    print(f"Progress: {job.succeeded_requests}/{job.total_requests} succeeded, {job.failed_requests} failed")
+    print(
+        f"Progress: {job.succeeded_requests}/{job.total_requests} succeeded, {job.failed_requests} failed"
+    )
     if job.output_file:
         print(f"Output file: {job.output_file}")
-    return {"status": job.status, "succeeded": job.succeeded_requests, "total": job.total_requests, "output_file": job.output_file}
+    return {
+        "status": job.status,
+        "succeeded": job.succeeded_requests,
+        "total": job.total_requests,
+        "output_file": job.output_file,
+    }
 
 
 def cmd_results(job_id: str) -> list[dict]:
@@ -208,7 +247,9 @@ def cmd_results(job_id: str) -> list[dict]:
         content = choices[0]["message"]["content"] if choices else "(empty)"
 
         print(f"\n--- {cid} ---")
-        print(f"Tokens: {usage.get('prompt_tokens', 0)} in / {usage.get('completion_tokens', 0)} out")
+        print(
+            f"Tokens: {usage.get('prompt_tokens', 0)} in / {usage.get('completion_tokens', 0)} out"
+        )
         print(f"Content: {content[:300]}{'...' if len(content) > 300 else ''}")
 
         # Validate JSON for structure/gate stages
@@ -229,12 +270,16 @@ def cmd_results(job_id: str) -> list[dict]:
     # Save summary
     summary_path = OUTPUT_DIR / "batch_summary.json"
     with open(summary_path, "w") as f:
-        json.dump({
-            "job_id": job_id,
-            "model": MODEL,
-            "timestamp": time.strftime("%Y-%m-%dT%H:%M:%S"),
-            "results": results,
-        }, f, indent=2)
+        json.dump(
+            {
+                "job_id": job_id,
+                "model": MODEL,
+                "timestamp": time.strftime("%Y-%m-%dT%H:%M:%S"),
+                "results": results,
+            },
+            f,
+            indent=2,
+        )
     print(f"\nSummary saved to {summary_path}")
 
     return results

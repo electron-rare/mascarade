@@ -211,7 +211,9 @@ async def test_esp32_gpio_operation_with_pwm():
     config = ESP32ConnectionConfig(device_id="test")
     client = ESP32Client(config, http_client=_FakeAsyncClient())
 
-    pin_config = GPIOState(pin=18, direction=GPIODirection.OUTPUT, pwm_duty=0.5, pwm_freq=1000)
+    pin_config = GPIOState(
+        pin=18, direction=GPIODirection.OUTPUT, pwm_duty=0.5, pwm_freq=1000
+    )
     result = await client.gpio_operation(pin_config)
 
     assert result.pwm_duty == 0.5

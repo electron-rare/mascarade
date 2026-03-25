@@ -15,7 +15,9 @@ from mascarade.auth import require_auth
 from mascarade.project_scope import normalize_scope
 from mascarade.router.router import Strategy
 
-router = APIRouter(prefix="/v1/api", dependencies=[Depends(require_auth)], tags=["agents"])
+router = APIRouter(
+    prefix="/v1/api", dependencies=[Depends(require_auth)], tags=["agents"]
+)
 
 
 # --- Models ---
@@ -264,9 +266,7 @@ async def update_agent(name: str, req: AgentUpdate, request: Request):
 
         # Create PromptHistory and load existing versions
         prompt_history = PromptHistory(storage_path=None)
-        prompt_history._versions = [
-            PromptVersion(**v) for v in agent.prompt_versions
-        ]
+        prompt_history._versions = [PromptVersion(**v) for v in agent.prompt_versions]
 
         # Add new version
         prompt_history.add_version(
@@ -557,12 +557,21 @@ async def get_agent_metrics(name: str, request: Request):
 # Agent Zero — Operator Copilot
 # ---------------------------------------------------------------------------
 
-_SECRET_PATTERNS = ("api_key=", "api-key:", "authorization:", "bearer ", "password=", "secret=", "token=")
+_SECRET_PATTERNS = (
+    "api_key=",
+    "api-key:",
+    "authorization:",
+    "bearer ",
+    "password=",
+    "secret=",
+    "token=",
+)
 
 
 def _redact_secrets(text: str) -> str:
     """Strip likely secret values from log/trace text before sending to LLM."""
     import re
+
     redacted = text
     for pat in _SECRET_PATTERNS:
         redacted = re.sub(
@@ -579,8 +588,12 @@ class CopilotRequest(BaseModel):
 
     mode: Literal["logs", "traces", "incident"] = "incident"
     prompt: str = Field(max_length=10_000, description="Operator question or context")
-    logs: list[str] = Field(default_factory=list, max_length=50, description="Recent log lines")
-    traces: list[dict] = Field(default_factory=list, max_length=20, description="Agent trace objects")
+    logs: list[str] = Field(
+        default_factory=list, max_length=50, description="Recent log lines"
+    )
+    traces: list[dict] = Field(
+        default_factory=list, max_length=20, description="Agent trace objects"
+    )
     run_id: str | None = Field(default=None, max_length=100)
     service: str | None = Field(default=None, max_length=100)
     severity: Literal["debug", "info", "warning", "error", "critical"] | None = None
@@ -598,7 +611,9 @@ async def agent_zero_copilot(req: CopilotRequest, request: Request):
     try:
         agent = request.app.state.registry.get("agent-zero")
     except KeyError:
-        raise HTTPException(status_code=404, detail="agent-zero not registered") from None
+        raise HTTPException(
+            status_code=404, detail="agent-zero not registered"
+        ) from None
 
     # Build context from logs and traces
     context_parts: list[str] = []
@@ -618,6 +633,7 @@ async def agent_zero_copilot(req: CopilotRequest, request: Request):
     if req.traces:
         context_parts.append("--- Agent traces ---")
         import json
+
         for trace in req.traces[-10:]:
             context_parts.append(_redact_secrets(json.dumps(trace, default=str)))
 
@@ -633,9 +649,10 @@ async def agent_zero_copilot(req: CopilotRequest, request: Request):
         "Sois concis et factuel."
     )
 
-    context_block = "\n".join(context_parts) if context_parts else "(aucun contexte fourni)"
+    context_block = (
+        "\n".join(context_parts) if context_parts else "(aucun contexte fourni)"
+    )
     full_prompt = f"{req.prompt}\n\n{context_block}"
-
 
     try:
         response = await agent.run(
@@ -646,7 +663,9 @@ async def agent_zero_copilot(req: CopilotRequest, request: Request):
             system_override=copilot_system,
         )
     except Exception as exc:
-        raise HTTPException(status_code=503, detail=f"Agent Zero failed: {exc}") from exc
+        raise HTTPException(
+            status_code=503, detail=f"Agent Zero failed: {exc}"
+        ) from exc
 
     return {
         "content": response.content,

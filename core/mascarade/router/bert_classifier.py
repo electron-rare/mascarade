@@ -49,14 +49,18 @@ class BertDomainClassifier:
         """
         self.model: BertForSequenceClassification | None = None
         self.tokenizer: BertTokenizer | None = None
-        self.device = torch.device("cuda" if use_gpu and torch.cuda.is_available() else "cpu")
+        self.device = torch.device(
+            "cuda" if use_gpu and torch.cuda.is_available() else "cpu"
+        )
         self.domains: list[str] = []
         self.is_loaded = False
         self.max_length = max_length
 
         if model_path is None:
             # Default model location
-            model_path = Path.home() / ".mascarade" / "models" / "bert_domain_classifier"
+            model_path = (
+                Path.home() / ".mascarade" / "models" / "bert_domain_classifier"
+            )
 
         self.model_path = model_path
 
@@ -146,12 +150,18 @@ class BertDomainClassifier:
                 probs = torch.nn.functional.softmax(outputs.logits, dim=1)[0]
 
             # Create domain -> probability mapping
-            result = {domain: float(prob) for domain, prob in zip(self.domains, probs, strict=False)}
+            result = {
+                domain: float(prob)
+                for domain, prob in zip(self.domains, probs, strict=False)
+            }
 
             logger.debug(
                 "BERT domain probabilities for '%s...': %s",
                 text[:50],
-                {k: f"{v:.3f}" for k, v in sorted(result.items(), key=lambda x: -x[1])[:3]},
+                {
+                    k: f"{v:.3f}"
+                    for k, v in sorted(result.items(), key=lambda x: -x[1])[:3]
+                },
             )
 
             return result
@@ -255,7 +265,9 @@ class BertDomainClassifier:
             ValueError: If training data is invalid
         """
         if len(texts) != len(labels):
-            raise ValueError(f"Mismatched data: {len(texts)} texts, {len(labels)} labels")
+            raise ValueError(
+                f"Mismatched data: {len(texts)} texts, {len(labels)} labels"
+            )
 
         if len(texts) == 0:
             raise ValueError("No training data provided")
@@ -276,7 +288,9 @@ class BertDomainClassifier:
         encoded_labels = label_encoder.fit_transform(labels)
         self.domains = label_encoder.classes_.tolist()
 
-        logger.info("Training for %d domains: %s", len(self.domains), ", ".join(self.domains))
+        logger.info(
+            "Training for %d domains: %s", len(self.domains), ", ".join(self.domains)
+        )
 
         # Split data
         train_texts, val_texts, train_labels, val_labels = train_test_split(
@@ -292,8 +306,12 @@ class BertDomainClassifier:
         self.model.to(self.device)
 
         # Tokenize datasets
-        train_encodings = self.tokenizer(train_texts, truncation=True, padding=True, max_length=self.max_length)
-        val_encodings = self.tokenizer(val_texts, truncation=True, padding=True, max_length=self.max_length)
+        train_encodings = self.tokenizer(
+            train_texts, truncation=True, padding=True, max_length=self.max_length
+        )
+        val_encodings = self.tokenizer(
+            val_texts, truncation=True, padding=True, max_length=self.max_length
+        )
 
         class Dataset(torch.utils.data.Dataset):
             def __init__(self, encodings, labels):
@@ -301,7 +319,9 @@ class BertDomainClassifier:
                 self.labels = labels
 
             def __getitem__(self, idx):
-                item = {key: torch.tensor(val[idx]) for key, val in self.encodings.items()}
+                item = {
+                    key: torch.tensor(val[idx]) for key, val in self.encodings.items()
+                }
                 item["labels"] = torch.tensor(self.labels[idx])
                 return item
 
@@ -342,7 +362,9 @@ class BertDomainClassifier:
         eval_results = trainer.evaluate()
         self.is_loaded = True
 
-        logger.info("BERT training complete. Eval loss: %.4f", eval_results["eval_loss"])
+        logger.info(
+            "BERT training complete. Eval loss: %.4f", eval_results["eval_loss"]
+        )
 
         return {
             "eval_loss": eval_results["eval_loss"],

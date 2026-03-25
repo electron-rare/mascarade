@@ -52,7 +52,9 @@ def _restore_cluster_settings():
 async def _client():
     async with app.router.lifespan_context(app):
         transport = httpx.ASGITransport(app=app)
-        async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
+        async with httpx.AsyncClient(
+            transport=transport, base_url="http://testserver"
+        ) as client:
             yield client
 
 
@@ -278,9 +280,9 @@ async def test_cluster_manager_forward_send_no_double_execution(monkeypatch):
 
     # Without fix: http_call_count == 2 (pre-P2P + fallback)
     # With fix: http_call_count == 1 (only fallback after P2P returns None)
-    assert http_call_count == 1, (
-        f"Expected exactly 1 HTTP call (fallback), got {http_call_count}"
-    )
+    assert (
+        http_call_count == 1
+    ), f"Expected exactly 1 HTTP call (fallback), got {http_call_count}"
 
 
 @pytest.mark.asyncio
@@ -322,7 +324,9 @@ async def test_cluster_manager_forward_send_uses_libp2p_when_available(monkeypat
     manager.set_p2p_node(fake_node)
 
     async def fail_http(*args, **kwargs):
-        raise AssertionError("HTTP fallback should not be used when libp2p forwarding succeeds")
+        raise AssertionError(
+            "HTTP fallback should not be used when libp2p forwarding succeeds"
+        )
 
     monkeypatch.setattr(manager, "_request_json", fail_http)
 
@@ -454,7 +458,9 @@ async def test_cluster_manager_merges_mdns_peers(monkeypatch):
 
     async def fake_discover_mdns():
         peers = [
-            ClusterPeer(peer_id="node-mdns", role="edge", base_url="http://100.64.0.22:8100"),
+            ClusterPeer(
+                peer_id="node-mdns", role="edge", base_url="http://100.64.0.22:8100"
+            ),
         ]
         manager._mdns_peers = {peer.peer_id: peer for peer in peers}
         return peers
@@ -480,7 +486,9 @@ async def test_cluster_manager_merges_mdns_peers(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_cluster_manager_explicit_send_can_target_discovered_mdns_peer(monkeypatch):
+async def test_cluster_manager_explicit_send_can_target_discovered_mdns_peer(
+    monkeypatch,
+):
     settings.cluster_enabled = True
     settings.cluster_mdns_enabled = True
     settings.cluster_mdns_advertise = False
@@ -497,7 +505,9 @@ async def test_cluster_manager_explicit_send_can_target_discovered_mdns_peer(mon
 
     async def fake_discover_mdns():
         peers = [
-            ClusterPeer(peer_id="node-mdns", role="edge", base_url="http://100.64.0.22:8100"),
+            ClusterPeer(
+                peer_id="node-mdns", role="edge", base_url="http://100.64.0.22:8100"
+            ),
         ]
         manager._mdns_peers = {peer.peer_id: peer for peer in peers}
         return peers

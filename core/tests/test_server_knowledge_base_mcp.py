@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, patch
 
 import httpx
 import pytest
@@ -21,21 +21,27 @@ def _clean_api_keys():
 
 @asynccontextmanager
 async def _client():
-    async with app.router.lifespan_context(app):
-        transport = httpx.ASGITransport(app=app)
-        async with httpx.AsyncClient(
-            transport=transport,
-            base_url="http://testserver",
-        ) as client:
-            yield client
+    with patch("mascarade.auth.is_valid_api_key", return_value=True), \
+         patch("mascarade.auth._resolve_role", return_value="admin"):
+        async with app.router.lifespan_context(app):
+            transport = httpx.ASGITransport(app=app)
+            async with httpx.AsyncClient(
+                transport=transport,
+                base_url="http://testserver",
+            ) as client:
+                yield client
 
 
 @pytest.mark.asyncio
-async def test_knowledge_base_search_route_uses_mcp_client(monkeypatch: pytest.MonkeyPatch):
+async def test_knowledge_base_search_route_uses_mcp_client(
+    monkeypatch: pytest.MonkeyPatch,
+):
     add_api_key("test-key-001")
     fake_mcp = AsyncMock()
     fake_mcp.knowledge_base_search.return_value = {
-        "results": [{"id": "memo-1", "title": "Release note", "url": "http://kb/memo-1"}],
+        "results": [
+            {"id": "memo-1", "title": "Release note", "url": "http://kb/memo-1"}
+        ],
         "provider": "memos",
         "provider_label": "Memos",
     }
@@ -61,7 +67,9 @@ async def test_knowledge_base_search_route_uses_mcp_client(monkeypatch: pytest.M
 
 
 @pytest.mark.asyncio
-async def test_knowledge_base_search_route_rejects_missing_project_id(monkeypatch: pytest.MonkeyPatch):
+async def test_knowledge_base_search_route_rejects_missing_project_id(
+    monkeypatch: pytest.MonkeyPatch,
+):
     add_api_key("test-key-001")
     fake_mcp = AsyncMock()
     monkeypatch.setattr("mascarade.server.knowledge_base_auth_configured", lambda: True)
@@ -84,7 +92,9 @@ async def test_knowledge_base_search_route_forwards_project_scope(
     add_api_key("test-key-001")
     fake_mcp = AsyncMock()
     fake_mcp.knowledge_base_search.return_value = {
-        "results": [{"id": "chunk-1", "title": "Musique concrete", "url": "http://kb/chunk-1"}],
+        "results": [
+            {"id": "chunk-1", "title": "Musique concrete", "url": "http://kb/chunk-1"}
+        ],
         "provider": "kxkm",
         "provider_label": "kxkm",
     }

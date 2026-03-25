@@ -15,7 +15,10 @@ class MockWorker(NodeWorker):
     """Mock worker for testing parallel execution."""
 
     def __init__(
-        self, name: str = "mock-worker", domain: str = "test", execution_delay: float = 0.0
+        self,
+        name: str = "mock-worker",
+        domain: str = "test",
+        execution_delay: float = 0.0,
     ):
         self.name = name
         self.domain = domain
@@ -217,7 +220,9 @@ class TestParallelExecution:
 
         # Expected time: 3 levels * 0.05s = ~0.15s (parallel within level 1)
         # Sequential would be 4 * 0.05s = 0.2s
-        assert duration < 0.18, f"Expected ~0.15s with parallel middle level, got {duration}s"
+        assert (
+            duration < 0.18
+        ), f"Expected ~0.15s with parallel middle level, got {duration}s"
 
         # Verify execution order: n1 before n2/n3, n2/n3 before n4
         order = worker._execution_order
@@ -249,9 +254,15 @@ class TestParallelExecution:
             id="test",
             name="Data Flow Test",
             nodes=[
-                GraphNode(id="n1", node_type="test-node", label="Source", config={"add": 10}),
-                GraphNode(id="n2", node_type="test-node", label="Left", config={"add": 5}),
-                GraphNode(id="n3", node_type="test-node", label="Right", config={"add": 3}),
+                GraphNode(
+                    id="n1", node_type="test-node", label="Source", config={"add": 10}
+                ),
+                GraphNode(
+                    id="n2", node_type="test-node", label="Left", config={"add": 5}
+                ),
+                GraphNode(
+                    id="n3", node_type="test-node", label="Right", config={"add": 3}
+                ),
             ],
             edges=[
                 GraphEdge(

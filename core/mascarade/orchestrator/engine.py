@@ -22,7 +22,9 @@ from mascarade.router.providers.base import LLMResponse
 logger = logging.getLogger("mascarade.orchestrator")
 
 
-def _env_float(name: str, default: float, *, min_value: float, max_value: float) -> float:
+def _env_float(
+    name: str, default: float, *, min_value: float, max_value: float
+) -> float:
     raw = str(os.getenv(name, str(default))).strip()
     try:
         value = float(raw)
@@ -41,13 +43,22 @@ def _env_int(name: str, default: int, *, min_value: int, max_value: int) -> int:
 
 
 _RAY_EXEC_TIMEOUT_S = _env_float(
-    "ORCHESTRATOR_RAY_EXEC_TIMEOUT_S", 45.0, min_value=5.0, max_value=300.0,
+    "ORCHESTRATOR_RAY_EXEC_TIMEOUT_S",
+    45.0,
+    min_value=5.0,
+    max_value=300.0,
 )
 _RAY_CIRCUIT_FAILURE_THRESHOLD = _env_int(
-    "ORCHESTRATOR_RAY_CIRCUIT_FAILURE_THRESHOLD", 3, min_value=1, max_value=20,
+    "ORCHESTRATOR_RAY_CIRCUIT_FAILURE_THRESHOLD",
+    3,
+    min_value=1,
+    max_value=20,
 )
 _RAY_CIRCUIT_COOLDOWN_S = _env_float(
-    "ORCHESTRATOR_RAY_CIRCUIT_COOLDOWN_S", 60.0, min_value=5.0, max_value=3600.0,
+    "ORCHESTRATOR_RAY_CIRCUIT_COOLDOWN_S",
+    60.0,
+    min_value=5.0,
+    max_value=3600.0,
 )
 
 
@@ -128,7 +139,9 @@ class Orchestrator:
     _ray_send_remote: Any = field(default=None, init=False, repr=False)
     _ray_disabled: bool = field(default=False, init=False, repr=False)
     _ray_failures: dict[str, int] = field(default_factory=dict, init=False, repr=False)
-    _ray_circuit_open_until: dict[str, float] = field(default_factory=dict, init=False, repr=False)
+    _ray_circuit_open_until: dict[str, float] = field(
+        default_factory=dict, init=False, repr=False
+    )
 
     def __post_init__(self) -> None:
         if self.trace_buffer is None:
@@ -273,7 +286,9 @@ class Orchestrator:
                 timeout=_RAY_EXEC_TIMEOUT_S + 2.0,
             )
         except Exception as exc:
-            logger.warning("Exécution Ray échouée pour %s, fallback local: %s", agent_name, exc)
+            logger.warning(
+                "Exécution Ray échouée pour %s, fallback local: %s", agent_name, exc
+            )
             failure_count = int(self._ray_failures.get(agent_name, 0)) + 1
             self._ray_failures[agent_name] = failure_count
             if failure_count >= _RAY_CIRCUIT_FAILURE_THRESHOLD:
@@ -512,7 +527,16 @@ class Orchestrator:
                     agent_name=agent_names[i],
                     step=i,
                 )
-                results.append(TaskResult(agent_name=agent_names[i], response=LLMResponse(content="", model="", provider="", usage={}), step=i, error=error_msg))
+                results.append(
+                    TaskResult(
+                        agent_name=agent_names[i],
+                        response=LLMResponse(
+                            content="", model="", provider="", usage={}
+                        ),
+                        step=i,
+                        error=error_msg,
+                    )
+                )
             else:
                 results.append(r)
         return results
@@ -602,7 +626,9 @@ class Orchestrator:
                     )
                     try:
                         fallback_agent = self.registry.get(fallback_name)
-                        fallback_override = (routing_overrides or {}).get(fallback_name) or {}
+                        fallback_override = (routing_overrides or {}).get(
+                            fallback_name
+                        ) or {}
                         result = await self._execute_agent(
                             fallback_agent,
                             current_input,
@@ -639,7 +665,9 @@ class Orchestrator:
                             f"Primary agent '{name}' failed: {exc}; "
                             f"Fallback agent '{fallback_name}' also failed: {fallback_exc}"
                         )
-                logger.error("Pipeline agent %s (step %d) failed: %s", name, i, error_msg)
+                logger.error(
+                    "Pipeline agent %s (step %d) failed: %s", name, i, error_msg
+                )
                 self._trace(
                     run_id=run_id,
                     mode=mode,
@@ -652,7 +680,11 @@ class Orchestrator:
                 self.dead_letter_store.record_failure(
                     run_id=run_id,
                     error=error_msg,
-                    context={"initial_prompt": initial_prompt, "current_input": current_input, "agent_names": agent_names},
+                    context={
+                        "initial_prompt": initial_prompt,
+                        "current_input": current_input,
+                        "agent_names": agent_names,
+                    },
                     mode=mode.value,
                     agent_name=name,
                     step=i,
@@ -660,7 +692,9 @@ class Orchestrator:
                 results.append(
                     TaskResult(
                         agent_name=name,
-                        response=LLMResponse(content="", model="", provider="", usage={}),
+                        response=LLMResponse(
+                            content="", model="", provider="", usage={}
+                        ),
                         step=i,
                         error=error_msg,
                         fallback_used=False,
@@ -805,7 +839,11 @@ class Orchestrator:
                     peer_id=routed.get("peer_id"),
                     node_id=str(routed.get("node_id") or "") or None,
                     role=str(routed.get("role") or "") or None,
-                    transport=str(routed.get("transport") or ("local" if not routed.get("remote") else "")) or None,
+                    transport=str(
+                        routed.get("transport")
+                        or ("local" if not routed.get("remote") else "")
+                    )
+                    or None,
                     latency_ms=(
                         int(routed["latency_ms"])
                         if isinstance(routed.get("latency_ms"), (int, float))
@@ -947,13 +985,19 @@ class Orchestrator:
             self.dead_letter_store.record_failure(
                 run_id=run_id,
                 error=error_msg,
-                context={"prompt": prompt, "agent_names": agent_names, "mode": mode.value},
+                context={
+                    "prompt": prompt,
+                    "agent_names": agent_names,
+                    "mode": mode.value,
+                },
                 mode=mode.value,
             )
             raise
 
         if any(result.error for result in results):
-            error_summary = "; ".join(result.error or "" for result in results if result.error)
+            error_summary = "; ".join(
+                result.error or "" for result in results if result.error
+            )
             self._trace(
                 run_id=run_id,
                 mode=mode,

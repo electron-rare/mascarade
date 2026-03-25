@@ -285,8 +285,10 @@ def test_e2e_agent_workflow_with_routing_strategy():
 
     fast_agent = MockAgentProvider(name="fast_agent")
     fast_agent.speed_rank = 1
+    fast_agent.quality_rank = 1
     best_agent = MockAgentProvider(name="best_agent")
-    best_agent.quality_rank = 3
+    best_agent.speed_rank = 99
+    best_agent.quality_rank = 10
 
     router.register(fast_agent)
     router.register(best_agent)
@@ -294,15 +296,11 @@ def test_e2e_agent_workflow_with_routing_strategy():
     messages = [{"role": "user", "content": "Route me"}]
 
     # Test FASTEST strategy
-    response_fast = asyncio.run(
-        router.send(messages, strategy=Strategy.FASTEST)
-    )
+    response_fast = asyncio.run(router.send(messages, strategy=Strategy.FASTEST))
     assert response_fast.provider == "fast_agent"
 
     # Test BEST strategy
-    response_best = asyncio.run(
-        router.send(messages, strategy=Strategy.BEST)
-    )
+    response_best = asyncio.run(router.send(messages, strategy=Strategy.BEST))
     assert response_best.provider == "best_agent"
 
 

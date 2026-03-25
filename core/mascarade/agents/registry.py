@@ -100,6 +100,61 @@ class AgentRegistry:
         """Réinitialiser toutes les métriques."""
         self.metrics.reset()
 
+    # --- Capabilities & Delegation ---
+
+    def find_by_capability(self, capability: str) -> list[Agent]:
+        """Find agents that declare a specific capability."""
+        return [
+            a for a in self._agents.values()
+            if capability in (a.capabilities or [])
+        ]
+
+    def find_by_cluster(self, cluster: str) -> list[Agent]:
+        """Find all agents in a domain cluster."""
+        return [
+            a for a in self._agents.values()
+            if a.cluster == cluster
+        ]
+
+    def find_best_for(self, task_description: str) -> Agent | None:
+        """Find the best agent for a task based on capabilities and keywords.
+
+        Simple keyword matching against agent descriptions and capabilities.
+        For LLM-based routing, use the Plan-and-Execute orchestrator instead.
+        """
+        task_lower = task_description.lower()
+        best: Agent | None = None
+        best_score = 0
+
+        for agent in self._agents.values():
+            score = 0
+            # Match capabilities
+            for cap in (agent.capabilities or []):
+                if cap.lower() in task_lower:
+                    score += 3
+            # Match description keywords
+            desc_words = (agent.description or "").lower().split()
+            for word in desc_words:
+                if len(word) > 3 and word in task_lower:
+                    score += 1
+            # Match name
+            if agent.name.replace("-", " ").replace("_", " ") in task_lower:
+                score += 5
+
+            if score > best_score:
+                best_score = score
+                best = agent
+
+        return best
+
+    def clusters(self) -> dict[str, list[Agent]]:
+        """Return all agents grouped by cluster."""
+        groups: dict[str, list[Agent]] = {}
+        for agent in self._agents.values():
+            cluster = agent.cluster or "uncategorized"
+            groups.setdefault(cluster, []).append(agent)
+        return groups
+
     # --- Persistance ---
 
     async def async_save(self) -> None:

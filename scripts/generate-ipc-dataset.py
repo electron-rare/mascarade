@@ -6,7 +6,9 @@ import os
 import httpx
 import random
 
-MASCARADE_URL = os.environ.get("MASCARADE_URL", "http://127.0.0.1:8100/v1/chat/completions")
+MASCARADE_URL = os.environ.get(
+    "MASCARADE_URL", "http://127.0.0.1:8100/v1/chat/completions"
+)
 MASCARADE_KEY = os.environ.get("MASCARADE_API_KEY", "")
 MODEL = os.environ.get("DISTILL_MODEL", "mistral:codestral-latest")
 OUTPUT = "finetune/datasets/ipc_jlcpcb_standards.jsonl"
@@ -169,12 +171,48 @@ VARS = {
     "voltage": ["3.3", "5", "12", "24", "48", "110", "230", "400"],
     "class": ["1", "2", "3"],
     "drill": ["0.2", "0.3", "0.4", "0.6", "0.8", "1.0"],
-    "package": ["0201", "0402", "0603", "0805", "1206", "1210", "2512", "SOT-23", "SOT-223", "SOIC-8", "SOIC-16", "QFN-16", "QFN-32", "QFN-48", "QFP-44", "QFP-64", "QFP-100", "QFP-144", "BGA-256", "BGA-484"],
+    "package": [
+        "0201",
+        "0402",
+        "0603",
+        "0805",
+        "1206",
+        "1210",
+        "2512",
+        "SOT-23",
+        "SOT-223",
+        "SOIC-8",
+        "SOIC-16",
+        "QFN-16",
+        "QFN-32",
+        "QFN-48",
+        "QFP-44",
+        "QFP-64",
+        "QFP-100",
+        "QFP-144",
+        "BGA-256",
+        "BGA-484",
+    ],
     "pitch": ["0.4", "0.5", "0.65", "0.8", "1.0", "1.27"],
     "type": ["microstrip", "stripline", "coplanar waveguide", "differential pair"],
     "density": ["least (Level A)", "nominal (Level B)", "most (Level C)"],
-    "component": ["SMD resistor", "SMD capacitor", "QFN IC", "BGA IC", "through-hole connector", "electrolytic capacitor"],
-    "defect_type": ["insufficient solder", "excess solder", "cold solder", "bridging", "tombstoning", "voiding", "lifted pad"],
+    "component": [
+        "SMD resistor",
+        "SMD capacitor",
+        "QFN IC",
+        "BGA IC",
+        "through-hole connector",
+        "electrolytic capacitor",
+    ],
+    "defect_type": [
+        "insufficient solder",
+        "excess solder",
+        "cold solder",
+        "bridging",
+        "tombstoning",
+        "voiding",
+        "lifted pad",
+    ],
     "temp_rise": ["10", "20", "30", "40"],
     "plating": ["18", "25", "30"],
     "power": ["1", "2", "5", "10", "20"],
@@ -188,8 +226,18 @@ VARS = {
     "paste_type": ["SAC305 lead-free", "Sn63Pb37 leaded", "low-temperature BiSnAg"],
     "version": ["8", "9"],
     "rule_type": ["trace width", "clearance", "via", "differential pair", "silkscreen"],
-    "product_type": ["consumer electronics", "industrial control", "medical device", "LED lighting"],
-    "application": ["high reliability electronics", "medical implants", "aerospace", "automotive"],
+    "product_type": [
+        "consumer electronics",
+        "industrial control",
+        "medical device",
+        "LED lighting",
+    ],
+    "application": [
+        "high reliability electronics",
+        "medical implants",
+        "aerospace",
+        "automotive",
+    ],
     "size": ["metric", "imperial"],
 }
 
@@ -224,22 +272,29 @@ Reply ONLY in JSON format:
         if MASCARADE_KEY:
             headers["Authorization"] = f"Bearer {MASCARADE_KEY}"
         with httpx.Client(timeout=60.0) as client:
-            resp = client.post(MASCARADE_URL, headers=headers, json={
-                "model": MODEL,
-                "messages": [{"role": "user", "content": prompt}],
-                "response_format": {"type": "json_object"},
-                "temperature": 0.7,
-                "max_tokens": 600,
-                "stream": False,
-                "project_id": "dataset-ipc",
-            })
+            resp = client.post(
+                MASCARADE_URL,
+                headers=headers,
+                json={
+                    "model": MODEL,
+                    "messages": [{"role": "user", "content": prompt}],
+                    "response_format": {"type": "json_object"},
+                    "temperature": 0.7,
+                    "max_tokens": 600,
+                    "stream": False,
+                    "project_id": "dataset-ipc",
+                },
+            )
             resp.raise_for_status()
             content = resp.json()["choices"][0]["message"]["content"]
             data = json.loads(content)
             if "question" in data and "answer" in data:
                 return {
                     "conversations": [
-                        {"from": "system", "value": f"You are an expert electronics engineer specializing in {category_name}. You provide precise, standards-compliant answers."},
+                        {
+                            "from": "system",
+                            "value": f"You are an expert electronics engineer specializing in {category_name}. You provide precise, standards-compliant answers.",
+                        },
                         {"from": "human", "value": data["question"]},
                         {"from": "gpt", "value": data["answer"]},
                     ],
@@ -277,7 +332,9 @@ def main():
                     errors += 1
 
                 if (i + 1) % 50 == 0:
-                    print(f"  [{i+1}/{cat['count']}] generated={cat_count} errors={errors}")
+                    print(
+                        f"  [{i+1}/{cat['count']}] generated={cat_count} errors={errors}"
+                    )
 
                 # Rate limit: ~2 requests/sec for Codestral
                 time.sleep(0.5)

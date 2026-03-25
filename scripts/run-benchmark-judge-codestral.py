@@ -47,7 +47,10 @@ def judge_with_codestral(question: str, response: str) -> dict:
                     "model": "codestral-latest",
                     "messages": [
                         {"role": "system", "content": JUDGE_SYSTEM},
-                        {"role": "user", "content": f"Question posee:\n{question}\n\nReponse a evaluer:\n{response}\n\nDonne ton evaluation en JSON: {{\"score\": N, \"exactitude\": N, \"completude\": N, \"clarte\": N, \"pertinence\": N, \"justification\": \"...\"}}"},
+                        {
+                            "role": "user",
+                            "content": f'Question posee:\n{question}\n\nReponse a evaluer:\n{response}\n\nDonne ton evaluation en JSON: {{"score": N, "exactitude": N, "completude": N, "clarte": N, "pertinence": N, "justification": "..."}}',
+                        },
                     ],
                     "response_format": {"type": "json_object"},
                     "temperature": 0.1,
@@ -74,12 +77,15 @@ def query_ollama(model: str, prompt: str) -> str:
     """Get response from Ollama model."""
     try:
         with httpx.Client(timeout=120.0) as client:
-            resp = client.post(f"{OLLAMA_URL}/api/generate", json={
-                "model": model,
-                "prompt": prompt,
-                "stream": False,
-                "options": {"temperature": 0.2, "num_predict": 512},
-            })
+            resp = client.post(
+                f"{OLLAMA_URL}/api/generate",
+                json={
+                    "model": model,
+                    "prompt": prompt,
+                    "stream": False,
+                    "options": {"temperature": 0.2, "num_predict": 512},
+                },
+            )
             resp.raise_for_status()
             return resp.json().get("response", "")
     except Exception:
@@ -138,15 +144,19 @@ def main():
             if model_name == "__codestral_api__":
                 try:
                     with httpx.Client(timeout=30.0) as client:
-                        resp = client.post(CODESTRAL_URL, headers={
-                            "Authorization": f"Bearer {CODESTRAL_KEY}",
-                            "Content-Type": "application/json",
-                        }, json={
-                            "model": "codestral-latest",
-                            "messages": [{"role": "user", "content": question}],
-                            "temperature": 0.2,
-                            "max_tokens": 512,
-                        })
+                        resp = client.post(
+                            CODESTRAL_URL,
+                            headers={
+                                "Authorization": f"Bearer {CODESTRAL_KEY}",
+                                "Content-Type": "application/json",
+                            },
+                            json={
+                                "model": "codestral-latest",
+                                "messages": [{"role": "user", "content": question}],
+                                "temperature": 0.2,
+                                "max_tokens": 512,
+                            },
+                        )
                         response = resp.json()["choices"][0]["message"]["content"]
                 except Exception:
                     response = ""
@@ -167,16 +177,18 @@ def main():
                 domain_scores[domain] = []
             domain_scores[domain].append(score)
 
-            details.append({
-                "prompt_id": prompt_data.get("id", i),
-                "domain": domain,
-                "score": score,
-                "exactitude": judgment.get("exactitude", 0),
-                "completude": judgment.get("completude", 0),
-                "clarte": judgment.get("clarte", 0),
-                "pertinence": judgment.get("pertinence", 0),
-                "justification": judgment.get("justification", "")[:200],
-            })
+            details.append(
+                {
+                    "prompt_id": prompt_data.get("id", i),
+                    "domain": domain,
+                    "score": score,
+                    "exactitude": judgment.get("exactitude", 0),
+                    "completude": judgment.get("completude", 0),
+                    "clarte": judgment.get("clarte", 0),
+                    "pertinence": judgment.get("pertinence", 0),
+                    "justification": judgment.get("justification", "")[:200],
+                }
+            )
 
             if (i + 1) % 10 == 0:
                 avg = sum(scores) / len(scores)

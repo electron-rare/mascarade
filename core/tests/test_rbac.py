@@ -325,7 +325,9 @@ class TestGetDefaultPermissions:
         for role in RoleName:
             perms = get_default_permissions(role)
             is_valid, error = validate_permissions(perms)
-            assert is_valid is True, f"Default permissions for {role.value} are invalid: {error}"
+            assert (
+                is_valid is True
+            ), f"Default permissions for {role.value} are invalid: {error}"
 
 
 class TestValidPermissionsConstant:

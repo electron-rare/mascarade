@@ -102,33 +102,35 @@ class GraphExecutor:
 
         # Check all node types are known
         for node in graph.nodes:
-            node_type = getattr(node, 'node_type', '')
+            node_type = getattr(node, "node_type", "")
             if node_type not in self._node_definitions:
-                errors.append(f"Node '{getattr(node, 'node_id', getattr(node, 'id', ''))}' has unknown type '{node_type}'")
+                errors.append(
+                    f"Node '{getattr(node, 'node_id', getattr(node, 'id', ''))}' has unknown type '{node_type}'"
+                )
 
         # Check required inputs are provided (via connections or config)
-        connections = getattr(graph, 'connections', [])
+        connections = getattr(graph, "connections", [])
         for node in graph.nodes:
-            node_id = getattr(node, 'node_id', getattr(node, 'id', ''))
-            node_type = getattr(node, 'node_type', '')
+            node_id = getattr(node, "node_id", getattr(node, "id", ""))
+            node_type = getattr(node, "node_type", "")
             node_def = self._node_definitions.get(node_type)
             if not node_def:
                 continue
 
-            config = getattr(node, 'config', {})
+            config = getattr(node, "config", {})
 
             # Check for required inputs
             for port in node_def.input_ports:
-                if getattr(port, 'optional', False):
+                if getattr(port, "optional", False):
                     continue
-                if not getattr(port, 'required', True):
+                if not getattr(port, "required", True):
                     continue
                 port_name = port.name
 
                 # Check if provided via connection
                 has_connection = any(
-                    getattr(conn, 'target_node_id', '') == node_id and
-                    getattr(conn, 'target_port', '') == port_name
+                    getattr(conn, "target_node_id", "") == node_id
+                    and getattr(conn, "target_port", "") == port_name
                     for conn in connections
                 )
 
@@ -136,7 +138,9 @@ class GraphExecutor:
                 has_config = port_name in config
 
                 if not has_connection and not has_config:
-                    errors.append(f"Node '{node_id}': missing required input '{port_name}'")
+                    errors.append(
+                        f"Node '{node_id}': missing required input '{port_name}'"
+                    )
 
         # Check for cycles
         try:
@@ -152,20 +156,20 @@ class GraphExecutor:
         adjacency: dict[str, list[str]] = defaultdict(list)
 
         for node in graph.nodes:
-            node_id = getattr(node, 'node_id', getattr(node, 'id', ''))
+            node_id = getattr(node, "node_id", getattr(node, "id", ""))
             in_degree[node_id] = 0
 
-        connections = getattr(graph, 'connections', [])
+        connections = getattr(graph, "connections", [])
         for conn in connections:
-            src = getattr(conn, 'source_node_id', '')
-            tgt = getattr(conn, 'target_node_id', '')
+            src = getattr(conn, "source_node_id", "")
+            tgt = getattr(conn, "target_node_id", "")
             adjacency[src].append(tgt)
             in_degree[tgt] = in_degree.get(tgt, 0) + 1
 
-        edges = getattr(graph, 'edges', [])
+        edges = getattr(graph, "edges", [])
         for edge in edges:
-            src = getattr(edge, 'source_node', '')
-            tgt = getattr(edge, 'target_node', '')
+            src = getattr(edge, "source_node", "")
+            tgt = getattr(edge, "target_node", "")
             adjacency[src].append(tgt)
             in_degree[tgt] = in_degree.get(tgt, 0) + 1
 
@@ -196,7 +200,7 @@ class GraphExecutor:
     ) -> GraphExecutionResult:
         """Execute a graph with topological ordering."""
         result = GraphExecutionResult(
-            graph_id=getattr(graph, 'graph_id', getattr(graph, 'id', '')),
+            graph_id=getattr(graph, "graph_id", getattr(graph, "id", "")),
             status=ExecutionStatus.RUNNING,
             start_time_ms=time.monotonic() * 1000,
         )
@@ -230,11 +234,11 @@ class GraphExecutor:
         """Inner graph execution logic."""
         sorted_nodes = self._topological_sort(graph)
         node_outputs: dict[str, dict[str, Any]] = {}
-        getattr(graph, 'connections', [])
+        getattr(graph, "connections", [])
 
         for node in sorted_nodes:
-            node_id = getattr(node, 'node_id', getattr(node, 'id', ''))
-            node_type = getattr(node, 'node_type', '')
+            node_id = getattr(node, "node_id", getattr(node, "id", ""))
+            node_type = getattr(node, "node_type", "")
             node_def = self._node_definitions.get(node_type)
 
             if not node_def:
@@ -270,11 +274,12 @@ class GraphExecutor:
 
             # Build execution context
             from mascarade.node_engine.base import NodeExecutionContext
+
             ctx = NodeExecutionContext(
                 node_id=node_id,
                 graph_id=result.graph_id,
                 inputs=inputs,
-                config=getattr(node, 'config', {}),
+                config=getattr(node, "config", {}),
                 capabilities=capabilities or set(),
             )
 
@@ -298,7 +303,7 @@ class GraphExecutor:
                         node_id=node_id,
                         status=ExecutionStatus.FAILED,
                         error=exec_result.error,
-                        error_type=getattr(exec_result, 'error_type', 'RuntimeError'),
+                        error_type=getattr(exec_result, "error_type", "RuntimeError"),
                         execution_time_ms=exec_time,
                     )
                     result.status = ExecutionStatus.FAILED
@@ -348,24 +353,24 @@ class GraphExecutor:
     ) -> dict[str, Any]:
         """Collect inputs for a node from connections and config."""
         inputs: dict[str, Any] = {}
-        node_id = getattr(node, 'node_id', getattr(node, 'id', ''))
-        config = getattr(node, 'config', {})
+        node_id = getattr(node, "node_id", getattr(node, "id", ""))
+        config = getattr(node, "config", {})
 
         # First, apply config values as defaults
         for port in node_def.input_ports:
             port_name = port.name
             if port_name in config:
                 inputs[port_name] = config[port_name]
-            elif getattr(port, 'default_value', None) is not None:
+            elif getattr(port, "default_value", None) is not None:
                 inputs[port_name] = port.default_value
 
         # Then, apply connected values (override defaults)
-        connections = getattr(graph, 'connections', [])
+        connections = getattr(graph, "connections", [])
         for conn in connections:
-            if getattr(conn, 'target_node_id', '') == node_id:
-                src_id = getattr(conn, 'source_node_id', '')
-                src_port = getattr(conn, 'source_port', '')
-                tgt_port = getattr(conn, 'target_port', '')
+            if getattr(conn, "target_node_id", "") == node_id:
+                src_id = getattr(conn, "source_node_id", "")
+                src_port = getattr(conn, "source_port", "")
+                tgt_port = getattr(conn, "target_port", "")
                 if src_id in node_outputs and src_port in node_outputs[src_id]:
                     inputs[tgt_port] = node_outputs[src_id][src_port]
 

@@ -122,7 +122,9 @@ class P2PDHT:
         for peer_id, _, _ in self._bootstrap_peers:
             await self.find_node(self._local_peer_id, target_peer=peer_id)
 
-    async def find_node(self, target_id: str, target_peer: str | None = None) -> list[DHTEntry]:
+    async def find_node(
+        self, target_id: str, target_peer: str | None = None
+    ) -> list[DHTEntry]:
         msg = P2PMessage(
             type="dht:find_node",
             sender=self._local_peer_id,
@@ -143,7 +145,9 @@ class P2PDHT:
         await asyncio.sleep(0.5)
         return self._table.closest(target_id)
 
-    async def announce(self, capabilities: list[str], metadata: dict[str, Any] | None = None) -> int:
+    async def announce(
+        self, capabilities: list[str], metadata: dict[str, Any] | None = None
+    ) -> int:
         return await self._announce_self(capabilities=capabilities, metadata=metadata)
 
     async def _announce_self(
@@ -176,11 +180,13 @@ class P2PDHT:
         host = self._resolve_host(msg.payload.get("host", conn.host), conn.host)
         port = msg.payload.get("port", conn.port)
 
-        self._table.upsert(DHTEntry(
-            peer_id=msg.sender,
-            host=host,
-            port=port,
-        ))
+        self._table.upsert(
+            DHTEntry(
+                peer_id=msg.sender,
+                host=host,
+                port=port,
+            )
+        )
         # Register as transport peer so we can send messages back
         self._transport.add_peer(msg.sender, host, port)
 
@@ -198,7 +204,9 @@ class P2PDHT:
         )
         await conn.send(reply)
 
-    async def _handle_find_node_reply(self, msg: P2PMessage, conn: PeerConnection) -> None:
+    async def _handle_find_node_reply(
+        self, msg: P2PMessage, conn: PeerConnection
+    ) -> None:
         peers = msg.payload.get("peers", [])
         for peer_data in peers:
             pid = peer_data.get("peer_id", "")
@@ -225,7 +233,9 @@ class P2PDHT:
             logger.warning(
                 "DHT: rejected announce from %s — announced host %s does not match "
                 "connection source %s",
-                msg.sender, announced_host, conn.host,
+                msg.sender,
+                announced_host,
+                conn.host,
             )
             return
 
@@ -236,7 +246,8 @@ class P2PDHT:
         if not isinstance(port, int) or port < 1 or port > 65535:
             logger.warning(
                 "DHT: rejected announce from %s — invalid port %s",
-                msg.sender, port,
+                msg.sender,
+                port,
             )
             return
 
@@ -253,17 +264,22 @@ class P2PDHT:
         if public_key:
             metadata["public_key"] = public_key
 
-        self._table.upsert(DHTEntry(
-            peer_id=msg.sender,
-            host=host,
-            port=port,
-            capabilities=capabilities,
-            metadata=metadata,
-        ))
+        self._table.upsert(
+            DHTEntry(
+                peer_id=msg.sender,
+                host=host,
+                port=port,
+                capabilities=capabilities,
+                metadata=metadata,
+            )
+        )
         self._transport.add_peer(msg.sender, host, port)
         logger.info(
             "DHT: peer %s announced at %s:%d caps=%s",
-            msg.sender, host, port, capabilities,
+            msg.sender,
+            host,
+            port,
+            capabilities,
         )
 
         # Re-broadcast discovery info via PubSub (which handles signature
@@ -280,15 +296,21 @@ class P2PDHT:
             }
 
         if self._pubsub is not None:
-            await self._pubsub.publish("dht:peer_discovered", {
-                "peer_id": msg.sender,
-                "host": host,
-                "port": port,
-                "capabilities": capabilities,
-            })
+            await self._pubsub.publish(
+                "dht:peer_discovered",
+                {
+                    "peer_id": msg.sender,
+                    "host": host,
+                    "port": port,
+                    "capabilities": capabilities,
+                },
+            )
 
     async def _handle_peer_discovered(
-        self, topic: str, data: dict[str, Any], origin: str,
+        self,
+        topic: str,
+        data: dict[str, Any],
+        origin: str,
     ) -> None:
         """Handle a peer discovery event relayed via PubSub."""
         peer_id = data.get("peer_id", "")
@@ -297,13 +319,21 @@ class P2PDHT:
         capabilities = data.get("capabilities", [])
         if not peer_id or peer_id == self._local_peer_id or not host or not port:
             return
-        self._table.upsert(DHTEntry(
-            peer_id=peer_id, host=host, port=port, capabilities=capabilities,
-        ))
+        self._table.upsert(
+            DHTEntry(
+                peer_id=peer_id,
+                host=host,
+                port=port,
+                capabilities=capabilities,
+            )
+        )
         self._transport.add_peer(peer_id, host, port)
         logger.info(
             "DHT: discovered peer %s at %s:%d via PubSub caps=%s",
-            peer_id, host, port, capabilities,
+            peer_id,
+            host,
+            port,
+            capabilities,
         )
 
     async def _handle_ping(self, msg: P2PMessage, conn: PeerConnection) -> None:
@@ -315,8 +345,10 @@ class P2PDHT:
         await conn.send(pong)
 
     async def _handle_pong(self, msg: P2PMessage, conn: PeerConnection) -> None:
-        self._table.upsert(DHTEntry(
-            peer_id=msg.sender,
-            host=conn.host,
-            port=conn.port,
-        ))
+        self._table.upsert(
+            DHTEntry(
+                peer_id=msg.sender,
+                host=conn.host,
+                port=conn.port,
+            )
+        )

@@ -47,13 +47,15 @@ async def _client():
     before dispatching requests. `httpx.ASGITransport` exercises the same app
     without that sync bridge.
     """
-    async with app.router.lifespan_context(app):
-        transport = httpx.ASGITransport(app=app)
-        async with httpx.AsyncClient(
-            transport=transport,
-            base_url="http://testserver",
-        ) as client:
-            yield client
+    with patch("mascarade.auth.is_valid_api_key", return_value=True), \
+         patch("mascarade.auth._resolve_role", return_value="admin"):
+        async with app.router.lifespan_context(app):
+            transport = httpx.ASGITransport(app=app)
+            async with httpx.AsyncClient(
+                transport=transport,
+                base_url="http://testserver",
+            ) as client:
+                yield client
 
 
 # --- Legacy in-memory authentication tests ---
@@ -165,9 +167,7 @@ async def test_migrate_legacy_keys_invalid_keys():
     mock_pool.acquire.return_value.__aenter__.return_value = mock_conn
 
     # Mock admin role query
-    mock_conn.fetchrow = AsyncMock(
-        return_value={"id": 1}  # admin role id
-    )
+    mock_conn.fetchrow = AsyncMock(return_value={"id": 1})  # admin role id
 
     with patch("mascarade.auth.get_db_pool", return_value=mock_pool):
         with patch("mascarade.config.settings") as mock_settings:

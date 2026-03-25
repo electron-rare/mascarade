@@ -32,12 +32,22 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 DATASETS_DIR = SCRIPT_DIR / "datasets"
 
 DOMAINS = [
-    "stm32", "spice", "iot", "power", "dsp", "emc",
-    "kicad", "embedded", "platformio", "freecad",
+    "stm32",
+    "spice",
+    "iot",
+    "power",
+    "dsp",
+    "emc",
+    "kicad",
+    "embedded",
+    "platformio",
+    "freecad",
 ]
 
 
-def load_prompts(domain: str, dataset_path: str | None = None, max_prompts: int | None = None) -> list[dict]:
+def load_prompts(
+    domain: str, dataset_path: str | None = None, max_prompts: int | None = None
+) -> list[dict]:
     """Load prompts from ShareGPT dataset."""
     path = Path(dataset_path) if dataset_path else DATASETS_DIR / f"{domain}_chat.jsonl"
     if not path.exists():
@@ -75,15 +85,17 @@ def generate_candidates_ollama(
     for i, p in enumerate(prompts):
         candidates = []
         for j in range(n_candidates):
-            payload = json.dumps({
-                "model": model,
-                "messages": [
-                    {"role": "system", "content": p["system"]},
-                    {"role": "user", "content": p["human"]},
-                ],
-                "stream": False,
-                "options": {"temperature": temperature, "num_predict": max_tokens},
-            }).encode()
+            payload = json.dumps(
+                {
+                    "model": model,
+                    "messages": [
+                        {"role": "system", "content": p["system"]},
+                        {"role": "user", "content": p["human"]},
+                    ],
+                    "stream": False,
+                    "options": {"temperature": temperature, "num_predict": max_tokens},
+                }
+            ).encode()
 
             try:
                 req = urllib.request.Request(
@@ -97,12 +109,16 @@ def generate_candidates_ollama(
                 content = data.get("message", {}).get("content", "")
                 candidates.append(content)
             except Exception as exc:
-                print(f"  [WARN] Generation failed for prompt {i}, candidate {j}: {exc}")
+                print(
+                    f"  [WARN] Generation failed for prompt {i}, candidate {j}: {exc}"
+                )
                 candidates.append("")
 
         all_candidates.append(candidates)
         if (i + 1) % 10 == 0 or i == 0:
-            print(f"  Generated {i + 1}/{total} prompts ({n_candidates} candidates each)")
+            print(
+                f"  Generated {i + 1}/{total} prompts ({n_candidates} candidates each)"
+            )
 
     return all_candidates
 
@@ -155,7 +171,9 @@ def build_dpo_pairs(
 ) -> list[dict]:
     """Score candidates with validator and build DPO preference pairs."""
     validator = get_validator(domain, **(validator_kwargs or {}))
-    print(f"  Validator: {type(validator).__name__} (available: {validator.available()})")
+    print(
+        f"  Validator: {type(validator).__name__} (available: {validator.available()})"
+    )
 
     pairs = []
     stats = {"total": 0, "valid_pairs": 0, "no_pass": 0, "no_fail": 0, "all_same": 0}
@@ -167,7 +185,9 @@ def build_dpo_pairs(
         scored = []
         for c in cands:
             if not c.strip():
-                scored.append((c, ValidationResult(score=0.0, passed=False, errors=["Empty"])))
+                scored.append(
+                    (c, ValidationResult(score=0.0, passed=False, errors=["Empty"]))
+                )
                 continue
             result = validator.validate(prompt["human"], c)
             scored.append((c, result))
@@ -214,22 +234,38 @@ def build_dpo_pairs(
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Rejection sampling for DPO pair generation")
+    parser = argparse.ArgumentParser(
+        description="Rejection sampling for DPO pair generation"
+    )
     parser.add_argument("domain", choices=DOMAINS)
-    parser.add_argument("--student-model", default=None, help="Student model for generation (ollama name or HF id)")
+    parser.add_argument(
+        "--student-model",
+        default=None,
+        help="Student model for generation (ollama name or HF id)",
+    )
     parser.add_argument("--dataset-path", default=None)
     parser.add_argument("--output-dir", default=None)
-    parser.add_argument("--n-candidates", type=int, default=8, help="Candidates per prompt")
-    parser.add_argument("--max-prompts", type=int, default=None, help="Limit prompts for testing")
+    parser.add_argument(
+        "--n-candidates", type=int, default=8, help="Candidates per prompt"
+    )
+    parser.add_argument(
+        "--max-prompts", type=int, default=None, help="Limit prompts for testing"
+    )
     parser.add_argument("--temperature", type=float, default=0.8)
     parser.add_argument("--max-tokens", type=int, default=2048)
-    parser.add_argument("--use-vllm", action="store_true", help="Use vLLM instead of Ollama")
+    parser.add_argument(
+        "--use-vllm", action="store_true", help="Use vLLM instead of Ollama"
+    )
     parser.add_argument("--ollama-url", default="http://127.0.0.1:11434")
     args = parser.parse_args()
 
     # Defaults
     student_model = args.student_model or f"mascarade-{args.domain}"
-    output_dir = Path(args.output_dir) if args.output_dir else SCRIPT_DIR / "dpo_pairs" / args.domain
+    output_dir = (
+        Path(args.output_dir)
+        if args.output_dir
+        else SCRIPT_DIR / "dpo_pairs" / args.domain
+    )
     output_dir.mkdir(parents=True, exist_ok=True)
 
     stamp = time.strftime("%Y%m%d_%H%M%S")
@@ -250,14 +286,16 @@ def main() -> int:
     print(f"\n[2/3] Generating {args.n_candidates} candidates per prompt...")
     if args.use_vllm:
         candidates = generate_candidates_vllm(
-            prompts, student_model,
+            prompts,
+            student_model,
             n_candidates=args.n_candidates,
             temperature=args.temperature,
             max_tokens=args.max_tokens,
         )
     else:
         candidates = generate_candidates_ollama(
-            prompts, student_model,
+            prompts,
+            student_model,
             n_candidates=args.n_candidates,
             temperature=args.temperature,
             max_tokens=args.max_tokens,
@@ -281,7 +319,9 @@ def main() -> int:
     print(f"\n{'=' * 60}")
     print("Results:")
     print(f"  Prompts processed:  {stats['total']}")
-    print(f"  Valid DPO pairs:    {stats['valid_pairs']} ({stats['valid_pairs'] * 100 // max(1, stats['total'])}%)")
+    print(
+        f"  Valid DPO pairs:    {stats['valid_pairs']} ({stats['valid_pairs'] * 100 // max(1, stats['total'])}%)"
+    )
     print(f"  No passing cand.:   {stats['no_pass']}")
     print(f"  No failing cand.:   {stats['no_fail']}")
     print(f"  All same score:     {stats['all_same']}")

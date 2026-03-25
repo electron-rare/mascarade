@@ -2,6 +2,14 @@
 
 Consolidation de tous les TODO files et plans d'exécution en une liste unique, dédupliquée et priorisée.
 
+## Mise à jour opératoire — 24/03/2026
+
+- Lot actif de référence: `docs/plan/2026-03-24-sota-mascarade/active_execution_plan.md`
+- Objectif immédiat: exécuter des lots courts, vérifiables, avec propriétaire explicite par module/spec et journalisation TUI.
+- Décision: privilégier les correctifs structurels à faible risque et forte valeur (`router`, `auth gateway`, `docs/runbooks`, `tests de garde`) avant toute extension ambitieuse.
+- Correctif démarré dans ce lot: durcissement du `CircuitBreaker` en `HALF_OPEN` avec budget de probes effectivement consommé.
+- Backlog critiques identifiés par analyse croisée: secrets versionnés, auth fail-open Hono, fallback RBAC admin, surface réseau Docker trop large.
+
 Sources: `docs/EXECUTION_PLAN_2026-03-10.md`, `docs/TODO_2026-03-10.md`, `TODO_IMPLEMENTE.md`, `TODO_VM.md`, `TODO_COCKPIT_OPS.md`, `TODO_CAD_KICAD.md`, `TODO_TUNNING_PARTY.md`, `TODO_AI_NOVEL_ENGINE.md`, `plan.md`
 
 ---
@@ -212,7 +220,7 @@ Sources: `docs/EXECUTION_PLAN_2026-03-10.md`, `docs/TODO_2026-03-10.md`, `TODO_I
 
 ## Dependency Graph (critical path)
 
-```
+```raw
 1.1 (push) → 1.2 (CI)
 4.1 (distribute_task) → 4.2 (P2P pipeline)
 4.3 (benchmarks) → 4.6 (DPO) → 4.7 (validation) → 4.8 (publish) → 4.9 (auto-register) → 4.15 (continuous)

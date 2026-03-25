@@ -14,27 +14,24 @@ function cockpitMcpUrl(pathSuffix = ""): string {
 }
 
 function forwardedIdentityHeaders(headers: Headers): Record<string, string> {
-  const forwardedEmail =
+  const trustedEmail =
     headers.get("Cf-Access-Authenticated-User-Email") ||
-    headers.get("X-Forwarded-Email") ||
     headers.get("X-Auth-Request-Email") ||
     "";
-  const forwardedUser =
-    headers.get("X-Forwarded-User") ||
+  const trustedUser =
     headers.get("X-Auth-Request-User") ||
-    forwardedEmail ||
+    trustedEmail ||
     "mascarade-platform";
-  const forwardedGroups =
-    headers.get("X-Forwarded-Groups") ||
+  const trustedGroups =
     headers.get("X-Auth-Request-Groups") ||
     STATIC_PROXY_GROUPS ||
     "";
   const forwarded: Record<string, string> = {
-    "X-Forwarded-User": forwardedUser,
-    "X-Forwarded-Email": forwardedEmail || forwardedUser,
+    "X-Forwarded-User": trustedUser,
+    "X-Forwarded-Email": trustedEmail || trustedUser,
   };
-  if (forwardedGroups) {
-    forwarded["X-Forwarded-Groups"] = forwardedGroups;
+  if (trustedGroups) {
+    forwarded["X-Forwarded-Groups"] = trustedGroups;
   }
   return forwarded;
 }

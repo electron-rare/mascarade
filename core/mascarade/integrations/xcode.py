@@ -102,25 +102,32 @@ class XcodeProvider:
         projects = []
         search = Path(search_path)
 
-        for pattern, kind in [("**/*.xcworkspace", "workspace"), ("**/*.xcodeproj", "project")]:
+        for pattern, kind in [
+            ("**/*.xcworkspace", "workspace"),
+            ("**/*.xcodeproj", "project"),
+        ]:
             for p in search.glob(pattern):
                 if ".build" in str(p) or "DerivedData" in str(p):
                     continue
-                projects.append({
-                    "path": str(p),
-                    "name": p.stem,
-                    "type": kind,
-                })
+                projects.append(
+                    {
+                        "path": str(p),
+                        "name": p.stem,
+                        "type": kind,
+                    }
+                )
 
         # Also find Swift packages
         for p in search.glob("**/Package.swift"):
             if ".build" in str(p):
                 continue
-            projects.append({
-                "path": str(p.parent),
-                "name": p.parent.name,
-                "type": "swift-package",
-            })
+            projects.append(
+                {
+                    "path": str(p.parent),
+                    "name": p.parent.name,
+                    "type": "swift-package",
+                }
+            )
 
         return projects
 
@@ -130,7 +137,13 @@ class XcodeProvider:
 
         if path.suffix == ".xcworkspace" or path.suffix == ".xcodeproj":
             result = await _run(
-                ["xcodebuild", "-list", "-json", "-project" if path.suffix == ".xcodeproj" else "-workspace", str(path)],
+                [
+                    "xcodebuild",
+                    "-list",
+                    "-json",
+                    "-project" if path.suffix == ".xcodeproj" else "-workspace",
+                    str(path),
+                ],
                 timeout=30.0,
             )
             if result.success:
@@ -271,11 +284,16 @@ class XcodeProvider:
         else:
             cmd.extend(["-project", str(path)])
 
-        cmd.extend([
-            "-scheme", scheme,
-            "-configuration", configuration,
-            "-archivePath", archive_path,
-        ])
+        cmd.extend(
+            [
+                "-scheme",
+                scheme,
+                "-configuration",
+                configuration,
+                "-archivePath",
+                archive_path,
+            ]
+        )
 
         return await _run(cmd, timeout=timeout)
 
@@ -289,10 +307,14 @@ class XcodeProvider:
     ) -> XcodeBuildResult:
         """Export an IPA from an archive."""
         cmd = [
-            "xcodebuild", "-exportArchive",
-            "-archivePath", archive_path,
-            "-exportPath", export_path,
-            "-exportOptionsPlist", export_options_plist,
+            "xcodebuild",
+            "-exportArchive",
+            "-archivePath",
+            archive_path,
+            "-exportPath",
+            export_path,
+            "-exportOptionsPlist",
+            export_options_plist,
         ]
         return await _run(cmd, timeout=timeout)
 
@@ -362,9 +384,7 @@ class XcodeProvider:
 
     # --- Code Analysis ---
 
-    async def swift_lint(
-        self, path: str, *, fix: bool = False
-    ) -> XcodeBuildResult:
+    async def swift_lint(self, path: str, *, fix: bool = False) -> XcodeBuildResult:
         """Run SwiftLint on a directory (requires swiftlint installed)."""
         cmd = ["swiftlint"]
         if fix:

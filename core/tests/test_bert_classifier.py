@@ -4,6 +4,8 @@ from pathlib import Path
 
 import pytest
 
+torch = pytest.importorskip("torch", reason="torch not installed")
+
 from mascarade.router.bert_classifier import BertDomainClassifier
 
 

@@ -52,6 +52,7 @@ def _auth_headers(api_key: str) -> dict[str, str]:
 # Document AI
 # ---------------------------------------------------------------------------
 
+
 class MistralDocumentAI:
     """Mistral Document AI -- OCR and document understanding.
 
@@ -192,6 +193,7 @@ class MistralDocumentAI:
 # ---------------------------------------------------------------------------
 # Audio Transcription
 # ---------------------------------------------------------------------------
+
 
 class MistralAudioTranscription:
     """Mistral Audio Transcription -- speech-to-text.
@@ -349,7 +351,9 @@ class MistralEmbeddings:
             result = resp.json()
 
         n_embeddings = len(result.get("data", []))
-        logger.info("Embeddings generated — %d vector(s), model=%s", n_embeddings, model)
+        logger.info(
+            "Embeddings generated — %d vector(s), model=%s", n_embeddings, model
+        )
         return result
 
 

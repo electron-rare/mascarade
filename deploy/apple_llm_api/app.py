@@ -36,8 +36,13 @@ try:
 except ValueError:
     # Metrics already registered (happens in tests with multiple imports)
     from prometheus_client import REGISTRY
-    HTTP_REQUESTS_TOTAL = REGISTRY._names_to_collectors.get("apple_llm_http_requests_total")
-    HTTP_REQUEST_DURATION_SECONDS = REGISTRY._names_to_collectors.get("apple_llm_http_request_duration_seconds")
+
+    HTTP_REQUESTS_TOTAL = REGISTRY._names_to_collectors.get(
+        "apple_llm_http_requests_total"
+    )
+    HTTP_REQUEST_DURATION_SECONDS = REGISTRY._names_to_collectors.get(
+        "apple_llm_http_request_duration_seconds"
+    )
 
 
 class Message(BaseModel):
@@ -294,7 +299,7 @@ class ModelManager:
                         "model_id": model_id,
                         "duration": load_duration,
                         "memory_usage": memory_usage,
-                    }
+                    },
                 )
 
                 return runtime
@@ -331,9 +336,7 @@ class ModelManager:
             if self.current_model_id == model_id:
                 # Set to the most recently loaded model, or None if no models loaded
                 self.current_model_id = (
-                    list(self.loaded_models.keys())[-1]
-                    if self.loaded_models
-                    else None
+                    list(self.loaded_models.keys())[-1] if self.loaded_models else None
                 )
 
             # Log successful model unload
@@ -346,7 +349,7 @@ class ModelManager:
                     "model_id": model_id,
                     "duration": unload_duration,
                     "memory_usage": memory_usage,
-                }
+                },
             )
 
             return True
@@ -456,7 +459,7 @@ class ModelManager:
                 "model_id": new_model_id,
                 "duration": 0,
                 "memory_usage": memory_usage_start,
-            }
+            },
         )
 
         with self.model_load_lock:
@@ -465,7 +468,9 @@ class ModelManager:
                 self._mark_model_used(new_model_id)
                 self.current_model_id = new_model_id
                 # Track usage
-                self.request_count[new_model_id] = self.request_count.get(new_model_id, 0) + 1
+                self.request_count[new_model_id] = (
+                    self.request_count.get(new_model_id, 0) + 1
+                )
                 self.last_used[new_model_id] = time.time()
 
                 # Log successful model swap (already loaded)
@@ -478,7 +483,7 @@ class ModelManager:
                         "model_id": new_model_id,
                         "duration": swap_duration,
                         "memory_usage": memory_usage,
-                    }
+                    },
                 )
 
                 return self.loaded_models[new_model_id]
@@ -505,7 +510,9 @@ class ModelManager:
                 self.loaded_models[new_model_id] = runtime
                 self.current_model_id = new_model_id
                 # Track usage
-                self.request_count[new_model_id] = self.request_count.get(new_model_id, 0) + 1
+                self.request_count[new_model_id] = (
+                    self.request_count.get(new_model_id, 0) + 1
+                )
                 self.last_used[new_model_id] = time.time()
 
                 # Log successful model swap (newly loaded)
@@ -518,7 +525,7 @@ class ModelManager:
                         "model_id": new_model_id,
                         "duration": swap_duration,
                         "memory_usage": memory_usage,
-                    }
+                    },
                 )
 
                 return runtime
@@ -543,6 +550,7 @@ def pre_warm_next_model() -> None:
     and loads it proactively in the background if memory is available.
     The actual loading happens in a separate thread to avoid blocking the main application.
     """
+
     def _load_predicted_model() -> None:
         """Background task to load the predicted next model."""
         try:
@@ -612,6 +620,7 @@ def _env_int(name: str, default: int) -> int:
 @dataclass(frozen=True)
 class ModelConfigEntry:
     """Model configuration entry from APPLE_LLM_MODELS_JSON."""
+
     model_id: str
     model_path: str
     tokenizer_path: str
@@ -696,7 +705,8 @@ def _get_all_model_configs() -> list[RuntimeConfig]:
     # Fall back to legacy single-model env vars
     single_config = RuntimeConfig(
         backend=backend,
-        model_id=os.getenv("APPLE_LLM_MODEL_ID", "apple-local").strip() or "apple-local",
+        model_id=os.getenv("APPLE_LLM_MODEL_ID", "apple-local").strip()
+        or "apple-local",
         model_path=os.getenv("APPLE_LLM_MODEL_PATH", "").strip(),
         embed_model_path=os.getenv("APPLE_LLM_EMBED_MODEL_PATH", "").strip(),
         tokenizer_path=os.getenv("APPLE_LLM_TOKENIZER_PATH", "").strip(),
@@ -782,7 +792,9 @@ def _runtime_config() -> RuntimeConfig:
             model_path=primary_entry.model_path,
             embed_model_path=primary_entry.embed_model_path,
             tokenizer_path=primary_entry.tokenizer_path,
-            compute_units=_normalize_compute_units(os.getenv("APPLE_LLM_COMPUTE_UNITS")),
+            compute_units=_normalize_compute_units(
+                os.getenv("APPLE_LLM_COMPUTE_UNITS")
+            ),
             max_input_tokens=max(32, _env_int("APPLE_LLM_MAX_INPUT_TOKENS", 2048)),
             max_new_tokens=max(1, _env_int("APPLE_LLM_MAX_NEW_TOKENS", 256)),
             trust_remote_code=_env_flag("APPLE_LLM_TRUST_REMOTE_CODE", False),
@@ -791,7 +803,8 @@ def _runtime_config() -> RuntimeConfig:
     # Fall back to legacy single-model env vars
     return RuntimeConfig(
         backend=_normalize_backend(os.getenv("APPLE_LLM_BACKEND")),
-        model_id=os.getenv("APPLE_LLM_MODEL_ID", "apple-local").strip() or "apple-local",
+        model_id=os.getenv("APPLE_LLM_MODEL_ID", "apple-local").strip()
+        or "apple-local",
         model_path=os.getenv("APPLE_LLM_MODEL_PATH", "").strip(),
         embed_model_path=os.getenv("APPLE_LLM_EMBED_MODEL_PATH", "").strip(),
         tokenizer_path=os.getenv("APPLE_LLM_TOKENIZER_PATH", "").strip(),
@@ -1111,7 +1124,9 @@ class _IterativeDecoderRuntime:
                 (batch_size, seq_len),
             ).copy()
 
-        prefix_dim = shape_spec[0] if isinstance(shape_spec[0], int) and shape_spec[0] > 0 else 1
+        prefix_dim = (
+            shape_spec[0] if isinstance(shape_spec[0], int) and shape_spec[0] > 0 else 1
+        )
         return np.broadcast_to(
             positions.reshape(1, 1, seq_len),
             (prefix_dim, batch_size, seq_len),
@@ -1177,7 +1192,9 @@ class _IterativeDecoderRuntime:
                     batch_size=token_ids.shape[0],
                     seq_len=seq_len,
                 )
-            elif lower in {"causalmask", "causal_mask"} or lower.endswith(".causalmask"):
+            elif lower in {"causalmask", "causal_mask"} or lower.endswith(
+                ".causalmask"
+            ):
                 source = self._build_causal_mask(
                     shape_spec,
                     past_length=past_length,
@@ -1238,7 +1255,9 @@ class _IterativeDecoderRuntime:
             elif name.startswith("present_conv."):
                 remapped[name.replace("present_conv.", "past_conv.", 1)] = value
             elif name.startswith("present_recurrent."):
-                remapped[name.replace("present_recurrent.", "past_recurrent.", 1)] = value
+                remapped[name.replace("present_recurrent.", "past_recurrent.", 1)] = (
+                    value
+                )
         return remapped
 
     def _sample_token(self, logits, temperature: float) -> int:
@@ -1304,7 +1323,9 @@ class _IterativeDecoderRuntime:
                 break
 
         content = self._tokenizer.decode(produced, skip_special_tokens=True).strip()
-        finish_reason = "stop" if produced and produced[-1] == eos_token_id else "length"
+        finish_reason = (
+            "stop" if produced and produced[-1] == eos_token_id else "length"
+        )
 
         return {
             "content": content,
@@ -1371,7 +1392,12 @@ class CoreMLRuntime(_IterativeDecoderRuntime):
         for index, item in enumerate(size_ranges):
             lower = getattr(item, "lowerBound", None)
             upper = getattr(item, "upperBound", None)
-            if isinstance(lower, int) and isinstance(upper, int) and lower == upper and lower >= 0:
+            if (
+                isinstance(lower, int)
+                and isinstance(upper, int)
+                and lower == upper
+                and lower >= 0
+            ):
                 resolved_shape.append(lower)
             else:
                 resolved_shape.append(f"dim_{index}")
@@ -1437,7 +1463,9 @@ class CoreMLRuntime(_IterativeDecoderRuntime):
 
         if name.startswith("decoder_model_merged"):
             candidates.append(
-                model_path.with_name(f"embed_tokens{name[len('decoder_model_merged'):]}")
+                model_path.with_name(
+                    f"embed_tokens{name[len('decoder_model_merged'):]}"
+                )
             )
         elif name.startswith("decoder_model"):
             candidates.append(
@@ -1471,9 +1499,7 @@ class CoreMLRuntime(_IterativeDecoderRuntime):
         try:
             import coremltools as ct
         except Exception as exc:  # pragma: no cover
-            raise RuntimeConfigError(
-                f"coremltools is not available: {exc}"
-            ) from exc
+            raise RuntimeConfigError(f"coremltools is not available: {exc}") from exc
 
         compute_units_name = {
             "all": "ALL",
@@ -1482,7 +1508,9 @@ class CoreMLRuntime(_IterativeDecoderRuntime):
             "cpu_and_ne": "CPU_AND_NE",
         }[self.config.compute_units]
         compute_units = getattr(ct.ComputeUnit, compute_units_name)
-        decoder_model = ct.models.MLModel(self.config.model_path, compute_units=compute_units)
+        decoder_model = ct.models.MLModel(
+            self.config.model_path, compute_units=compute_units
+        )
         input_specs = self._input_specs_from_spec(decoder_model.get_spec())
         state_specs = self._state_specs_from_spec(decoder_model.get_spec())
         runtime: dict[str, Any] = {
@@ -1501,7 +1529,9 @@ class CoreMLRuntime(_IterativeDecoderRuntime):
                     f"was found next to {self.config.model_path}"
                 )
             runtime["embed_model_path"] = embed_model_path
-            runtime["embed"] = ct.models.MLModel(embed_model_path, compute_units=compute_units)
+            runtime["embed"] = ct.models.MLModel(
+                embed_model_path, compute_units=compute_units
+            )
         return runtime, input_specs
 
     def _run_model(self, inputs: dict[str, Any]):
@@ -1657,9 +1687,7 @@ class OnnxCoreMLRuntime(_IterativeDecoderRuntime):
         try:
             import onnxruntime as ort
         except Exception as exc:  # pragma: no cover
-            raise RuntimeConfigError(
-                f"onnxruntime is not available: {exc}"
-            ) from exc
+            raise RuntimeConfigError(f"onnxruntime is not available: {exc}") from exc
 
         provider_options = {
             "ModelFormat": os.getenv("APPLE_LLM_ORT_MODEL_FORMAT", "MLProgram"),
@@ -1733,9 +1761,13 @@ class OnnxCoreMLRuntime(_IterativeDecoderRuntime):
         cache_state: dict[str, Any] | None = None,
     ):
         assert self._runtime_obj is not None
-        has_past_inputs = any(name.startswith("past_key_values.") for name, _, _ in self._input_specs)
+        has_past_inputs = any(
+            name.startswith("past_key_values.") for name, _, _ in self._input_specs
+        )
         use_cpu_session = has_past_inputs and not cache_state
-        session = self._runtime_obj["cpu"] if use_cpu_session else self._runtime_obj["coreml"]
+        session = (
+            self._runtime_obj["cpu"] if use_cpu_session else self._runtime_obj["coreml"]
+        )
         output_names = [item.name for item in session.get_outputs()]
         values = session.run(output_names, inputs)
         return dict(zip(output_names, values, strict=False))
@@ -1819,7 +1851,9 @@ async def health() -> dict[str, Any]:
                 "onnxruntime": _package_version("onnxruntime"),
             }
     else:
-        runtime_error = "APPLE_LLM_MODEL_PATH and APPLE_LLM_TOKENIZER_PATH must be configured"
+        runtime_error = (
+            "APPLE_LLM_MODEL_PATH and APPLE_LLM_TOKENIZER_PATH must be configured"
+        )
         details["dependencies"] = {
             "numpy": _package_version("numpy"),
             "transformers": _package_version("transformers"),
@@ -1870,12 +1904,14 @@ async def models() -> dict[str, Any]:
         # Get priority from config (falls back to 0 if not in models JSON)
         priority = _get_model_priority(config.model_id)
 
-        models_info.append({
-            "model_id": config.model_id,
-            "loaded": is_loaded,
-            "priority": priority,
-            "backend": config.backend,
-        })
+        models_info.append(
+            {
+                "model_id": config.model_id,
+                "loaded": is_loaded,
+                "priority": priority,
+                "backend": config.backend,
+            }
+        )
 
     return {
         "models": models_info,
@@ -1908,12 +1944,14 @@ async def status() -> dict[str, Any]:
         request_count = _model_manager.request_count.get(model_id, 0)
         last_used = _model_manager.last_used.get(model_id)
 
-        loaded_models_info.append({
-            "model_id": model_id,
-            "priority": priority,
-            "request_count": request_count,
-            "last_used": last_used,
-        })
+        loaded_models_info.append(
+            {
+                "model_id": model_id,
+                "priority": priority,
+                "request_count": request_count,
+                "last_used": last_used,
+            }
+        )
 
     # Get system memory info
     memory = psutil.virtual_memory()
@@ -1975,4 +2013,6 @@ async def generate(req: GenerateRequest):
     except RuntimeConfigError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     except Exception as exc:  # pragma: no cover
-        raise HTTPException(status_code=500, detail=f"Generation failed: {exc}") from exc
+        raise HTTPException(
+            status_code=500, detail=f"Generation failed: {exc}"
+        ) from exc

@@ -27,7 +27,15 @@ model, tokenizer = FastLanguageModel.from_pretrained(
 model = FastLanguageModel.get_peft_model(
     model,
     r=16,
-    target_modules=["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"],
+    target_modules=[
+        "q_proj",
+        "k_proj",
+        "v_proj",
+        "o_proj",
+        "gate_proj",
+        "up_proj",
+        "down_proj",
+    ],
     lora_alpha=32,
     lora_dropout=0.05,
     bias="none",
@@ -52,6 +60,7 @@ for f in datasets_files:
 dataset = concatenate_datasets(all_datasets)
 print(f"Total dataset: {len(dataset)} examples")
 
+
 # Format conversations
 def format_chat(example):
     convs = example.get("conversations", [])
@@ -64,6 +73,7 @@ def format_chat(example):
         elif role in ("assistant", "gpt"):
             text += f" {content}</s>"
     return {"text": text}
+
 
 dataset = dataset.map(format_chat)
 

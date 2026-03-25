@@ -102,30 +102,37 @@ async def cluster_p2p_topology(request: Request):
 
     # Local node
     local_caps = node.capabilities._local_caps
-    nodes.append({
-        "peer_id": node.peer_id,
-        "label": local_caps.label if local_caps else "",
-        "role": local_caps.role if local_caps else "general",
-        "capabilities": local_caps.capabilities if local_caps else [],
-        "http_base_url": local_caps.http_base_url if local_caps else None,
-        "is_local": True,
-    })
+    nodes.append(
+        {
+            "peer_id": node.peer_id,
+            "label": local_caps.label if local_caps else "",
+            "role": local_caps.role if local_caps else "general",
+            "capabilities": local_caps.capabilities if local_caps else [],
+            "http_base_url": local_caps.http_base_url if local_caps else None,
+            "is_local": True,
+        }
+    )
 
     # Remote peers
     for pid, caps in all_caps.items():
-        nodes.append({
-            "peer_id": pid,
-            "label": caps.label,
-            "role": caps.role,
-            "capabilities": caps.capabilities,
-            "http_base_url": caps.http_base_url,
-            "is_local": False,
-        })
-        edges.append({
-            "from": node.peer_id,
-            "to": pid,
-            "connected": pid in node.transport.peers and node.transport.peers[pid].connected,
-        })
+        nodes.append(
+            {
+                "peer_id": pid,
+                "label": caps.label,
+                "role": caps.role,
+                "capabilities": caps.capabilities,
+                "http_base_url": caps.http_base_url,
+                "is_local": False,
+            }
+        )
+        edges.append(
+            {
+                "from": node.peer_id,
+                "to": pid,
+                "connected": pid in node.transport.peers
+                and node.transport.peers[pid].connected,
+            }
+        )
 
     return {"nodes": nodes, "edges": edges}
 

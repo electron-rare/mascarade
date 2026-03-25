@@ -124,17 +124,24 @@ def build_trace_message(event: AgentTraceEvent) -> str:
             summary += f' "{event.content_excerpt}"'
         return summary
     if event.event_type == "handoff":
-        return f"{event.from_agent or 'agent'} -> {event.to_agent or 'agent'} handoff" + (
-            f' "{event.content_excerpt}"' if event.content_excerpt else ""
+        return (
+            f"{event.from_agent or 'agent'} -> {event.to_agent or 'agent'} handoff"
+            + (f' "{event.content_excerpt}"' if event.content_excerpt else "")
         )
     if event.event_type == "run_completed":
         return f"run {event.run_id} completed"
     if event.event_type == "run_failed":
-        return f"run {event.run_id} failed" + (f" ({event.error})" if event.error else "")
+        return f"run {event.run_id} failed" + (
+            f" ({event.error})" if event.error else ""
+        )
     if event.event_type == "mcp_call_started":
         return f"MCP {event.mcp_server or 'server'}::{event.mcp_tool or 'tool'} started"
     if event.event_type == "mcp_call_completed":
-        suffix = f" ({event.mcp_latency_ms:.1f} ms)" if event.mcp_latency_ms is not None else ""
+        suffix = (
+            f" ({event.mcp_latency_ms:.1f} ms)"
+            if event.mcp_latency_ms is not None
+            else ""
+        )
         return f"MCP {event.mcp_server or 'server'}::{event.mcp_tool or 'tool'} completed{suffix}"
     if event.event_type == "mcp_call_failed":
         detail = f" ({event.error})" if event.error else ""
@@ -247,7 +254,9 @@ class AgentTraceBuffer:
                 "mcp_status": event.mcp_status or "",
                 "mcp_transport": event.mcp_transport or "",
                 "mcp_protocol_version": event.mcp_protocol_version or "",
-                "retry_count": str(event.retry_count) if event.retry_count is not None else "",
+                "retry_count": (
+                    str(event.retry_count) if event.retry_count is not None else ""
+                ),
                 "circuit_breaker_state": event.circuit_breaker_state or "",
             },
         )

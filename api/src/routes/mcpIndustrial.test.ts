@@ -43,7 +43,7 @@ describe("industrial MCP HTTP proxy routes", () => {
     expect(headers.get("X-Forwarded-Groups")).toContain("operator");
   });
 
-  it("proxies JSON-RPC POST calls to one industrial MCP server", async () => {
+  it("proxies JSON-RPC POST calls to one industrial MCP server using trusted identity headers only", async () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response(JSON.stringify({ jsonrpc: "2.0", id: 1, result: { tools: [] } }), {
         status: 200,
@@ -61,9 +61,12 @@ describe("industrial MCP HTTP proxy routes", () => {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "X-Forwarded-User": "ops",
-        "X-Forwarded-Email": "ops@example.com",
-        "X-Forwarded-Groups": "operator,approver",
+        "X-Forwarded-User": "spoofed-user",
+        "X-Forwarded-Email": "spoofed@example.com",
+        "X-Forwarded-Groups": "admin",
+        "X-Auth-Request-User": "ops",
+        "X-Auth-Request-Email": "ops@example.com",
+        "X-Auth-Request-Groups": "operator,approver",
       },
       body: JSON.stringify(rpcBody),
     });

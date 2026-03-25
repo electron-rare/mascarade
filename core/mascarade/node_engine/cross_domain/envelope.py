@@ -46,17 +46,22 @@ class CrossDomainEnvelope:
     def serialize(self) -> bytes:
         """Serialize envelope for network transfer."""
         if self.serialization_format == "json":
-            return json.dumps({
-                "source_domain": self.source_domain,
-                "source_type": self.source_type,
-                "target_domain": self.target_domain,
-                "target_type": self.target_type,
-                "payload": self.payload,
-                "checksum": self.checksum,
-                "provenance": self.provenance,
-            }, default=str).encode()
+            return json.dumps(
+                {
+                    "source_domain": self.source_domain,
+                    "source_type": self.source_type,
+                    "target_domain": self.target_domain,
+                    "target_type": self.target_type,
+                    "payload": self.payload,
+                    "checksum": self.checksum,
+                    "provenance": self.provenance,
+                },
+                default=str,
+            ).encode()
         # msgpack and arrow formats for high-throughput scenarios
-        raise NotImplementedError(f"Format {self.serialization_format} not yet implemented")
+        raise NotImplementedError(
+            f"Format {self.serialization_format} not yet implemented"
+        )
 
     @classmethod
     def deserialize(cls, data: bytes) -> CrossDomainEnvelope:

@@ -81,8 +81,20 @@ def _make_simple_add_node() -> NodeDefinition:
         node_type="test.simple.add",
         description="Add two numbers",
         input_ports=[
-            primitive_port("a", PortDirection.INPUT, PrimitiveType.INTEGER, optional=True, default_value=0),
-            primitive_port("b", PortDirection.INPUT, PrimitiveType.INTEGER, optional=True, default_value=0),
+            primitive_port(
+                "a",
+                PortDirection.INPUT,
+                PrimitiveType.INTEGER,
+                optional=True,
+                default_value=0,
+            ),
+            primitive_port(
+                "b",
+                PortDirection.INPUT,
+                PrimitiveType.INTEGER,
+                optional=True,
+                default_value=0,
+            ),
         ],
         output_ports=[
             primitive_port("sum", PortDirection.OUTPUT, PrimitiveType.INTEGER),

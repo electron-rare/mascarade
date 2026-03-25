@@ -6,6 +6,7 @@ from contextlib import asynccontextmanager
 
 import httpx
 import pytest
+from unittest.mock import patch
 
 from mascarade.server import app
 
@@ -13,20 +14,22 @@ from mascarade.server import app
 @asynccontextmanager
 async def _client():
     """Create test client."""
-    async with app.router.lifespan_context(app):
-        transport = httpx.ASGITransport(app=app)
-        async with httpx.AsyncClient(
-            transport=transport,
-            base_url="http://testserver",
-        ) as client:
-            yield client
+    with patch("mascarade.auth.is_valid_api_key", return_value=True), \
+         patch("mascarade.auth._resolve_role", return_value="admin"):
+        async with app.router.lifespan_context(app):
+            transport = httpx.ASGITransport(app=app)
+            async with httpx.AsyncClient(
+                transport=transport,
+                base_url="http://testserver",
+            ) as client:
+                yield client
 
 
 @pytest.mark.asyncio
 async def test_memory_status_basic():
     """Test basic memory status endpoint."""
     async with _client() as client:
-        response = await client.get("/api/memory/status")
+        response = await client.get("/v1/memory/status")
 
     assert response.status_code == 200
     body = response.json()
@@ -41,7 +44,7 @@ async def test_memory_status_basic():
 async def test_memory_status_structure():
     """Test memory status response structure."""
     async with _client() as client:
-        response = await client.get("/api/memory/status")
+        response = await client.get("/v1/memory/status")
 
     assert response.status_code == 200
     body = response.json()
@@ -60,7 +63,7 @@ async def test_memory_status_no_auth_required():
     """Test that memory status endpoint doesn't require authentication."""
     # Memory status is currently open (no auth dependency)
     async with _client() as client:
-        response = await client.get("/api/memory/status")
+        response = await client.get("/v1/memory/status")
 
     assert response.status_code == 200
 
@@ -72,7 +75,7 @@ async def test_memory_status_multiple_calls():
         # Make multiple calls
         responses = []
         for _ in range(3):
-            response = await client.get("/api/memory/status")
+            response = await client.get("/v1/memory/status")
             responses.append(response)
 
     # All should succeed

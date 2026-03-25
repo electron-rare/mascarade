@@ -171,7 +171,12 @@ class BenchmarkStorage:
                     "notes",
                 ],
             )
-            logger.debug("Benchmark result written to ClickHouse: %s/%s/%s", provider, model, domain)
+            logger.debug(
+                "Benchmark result written to ClickHouse: %s/%s/%s",
+                provider,
+                model,
+                domain,
+            )
             return True
         except Exception as exc:  # pragma: no cover - best effort only
             logger.warning("Failed to write benchmark result: %s", exc)
@@ -208,7 +213,14 @@ class BenchmarkStorage:
                 where_clause = "WHERE domain = %(domain)s"
                 params["domain"] = domain
 
-            # order_by is already validated via whitelist in server.py, safe to interpolate
+            # Whitelist order_by to prevent SQL injection
+            allowed_order = {
+                "quality_score", "latency_p50", "latency_p95",
+                "cost", "error_rate", "total_requests",
+            }
+            if order_by not in allowed_order:
+                order_by = "quality_score"
+
             query = f"""
                 SELECT
                     provider,

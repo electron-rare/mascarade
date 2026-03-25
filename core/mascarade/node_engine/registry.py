@@ -134,6 +134,23 @@ class NodeTypeRegistry:
         Args:
             domain_type: The DomainType instance to register
             builtin: Whether this is a builtin type (not persisted)
+        """
+        if isinstance(item, NodeType):
+            self._node_types[item.id] = item
+            if builtin:
+                self._builtin_names.add(item.id)
+        elif isinstance(item, DomainType):
+            qualified_name = item.qualified_name
+            if (
+                qualified_name in self._types
+                and qualified_name not in self._builtin_names
+            ):
+                logger.warning("Overwriting existing domain type: %s", qualified_name)
+            self._types[qualified_name] = item
+            if builtin:
+                self._builtin_names.add(qualified_name)
+        else:
+            raise TypeError(f"Cannot register {type(item).__name__}")
 
         Raises:
             ValueError: If a type with the same qualified name is already registered
@@ -175,7 +192,12 @@ class NodeTypeRegistry:
         Returns:
             List of DomainType instances for the specified domain
         """
-        return [dt for dt in self._types.values() if dt.domain == domain]
+        all_items: list[DomainType | NodeType] = list(self._types.values()) + list(
+            self._node_types.values()
+        )
+        if domain:
+            return [item for item in all_items if getattr(item, "domain", "") == domain]
+        return all_items
 
     def list(self) -> list[DomainType]:
         """List all registered domain types.
@@ -195,7 +217,31 @@ class NodeTypeRegistry:
         self._builtin_names.discard(qualified_name)
 
     def __contains__(self, qualified_name: str) -> bool:
-        """Check if a domain type is registered.
+        """Check if a type is registered."""
+        return qualified_name in self._types or qualified_name in self._node_types
+
+    def __len__(self) -> int:
+        """Get the number of registered types."""
+        return len(self._types) + len(self._node_types)
+
+    def __bool__(self) -> bool:
+        """Registry is always truthy (even when empty)."""
+        return True
+
+    def is_builtin(self, qualified_name: str) -> bool:
+        """Check if a type is builtin."""
+        return qualified_name in self._builtin_names
+
+    # --- Worker management ---
+
+    def register_type(
+        self, item: DomainType | NodeType, *, builtin: bool = False
+    ) -> None:
+        """Alias for register() for backward compatibility."""
+        self.register(item, builtin=builtin)
+
+    def register_worker(self, worker: Any) -> None:
+        """Register a worker and set its registry reference.
 
         Args:
             qualified_name: The qualified type name to check
@@ -279,7 +325,7 @@ class NodeTypeRegistry:
         try:
             raw = json.loads(self._storage_path.read_text(encoding="utf-8"))
         except (json.JSONDecodeError, OSError) as exc:
-            logger.error("Failed to load node types from %s: %s", self._storage_path, exc)
+            logger.error("Failed to load types from %s: %s", self._storage_path, exc)
             return
         for data in raw:
             try:

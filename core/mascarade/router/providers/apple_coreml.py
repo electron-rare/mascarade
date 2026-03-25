@@ -139,7 +139,10 @@ class AppleCoreMLProvider(LLMProvider):
     def available_models(self) -> list[str]:
         # Return cached models if still fresh
         now = time.time()
-        if self._models_cache is not None and (now - self._models_cache_time) < self._models_cache_ttl:
+        if (
+            self._models_cache is not None
+            and (now - self._models_cache_time) < self._models_cache_ttl
+        ):
             return self._models_cache
 
         # Fetch fresh models from endpoint

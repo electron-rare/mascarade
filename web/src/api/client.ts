@@ -147,6 +147,9 @@ function linkAbortSignal(
 
 export function getErrorMessage(error: unknown): string {
   if (error instanceof ApiError) {
+    if (error.status === 401) {
+      return "Session gateway expiree ou invalide. Reconnectez-vous.";
+    }
     return error.message;
   }
 

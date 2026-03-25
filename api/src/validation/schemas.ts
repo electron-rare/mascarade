@@ -4,9 +4,16 @@ import { z } from "zod";
 // Shared primitives
 // ---------------------------------------------------------------------------
 
+const MAX_MESSAGE_CONTENT_LENGTH = 50_000;
+const MAX_MESSAGE_COUNT = 100;
+const MAX_COMPLETION_TOKENS = 32_768;
+const MAX_PROMPT_LENGTH = 50_000;
+const MAX_SYSTEM_PROMPT_LENGTH = 20_000;
+const MAX_CODESSTRAL_CONTEXT_LENGTH = 100_000;
+
 export const MessageSchema = z.object({
   role: z.enum(["system", "user", "assistant", "tool"]),
-  content: z.string().min(1).max(100_000),
+  content: z.string().min(1).max(MAX_MESSAGE_CONTENT_LENGTH),
 });
 
 export type Message = z.infer<typeof MessageSchema>;
@@ -41,11 +48,11 @@ function withProjectScope<T extends z.ZodRawShape>(shape: T, options?: { default
 export const ChatCompletionRequestSchema = withProjectScope(
   {
     model: z.string().max(100).optional(),
-    messages: z.array(MessageSchema).min(1).max(200),
+    messages: z.array(MessageSchema).min(1).max(MAX_MESSAGE_COUNT),
     strategy: z.enum(["best", "cheapest", "domain", "fastest", "specific", "routellm"]).optional(),
     routing_policy: z.enum(["auto", "strong", "cheap", "fast"]).optional(),
     temperature: z.number().min(0).max(2).default(0.7),
-    max_tokens: z.number().int().min(1).max(128_000).default(4096),
+    max_tokens: z.number().int().min(1).max(MAX_COMPLETION_TOKENS).default(4096),
     stream: z.boolean().default(false),
   },
   { defaultProjectId: DEFAULT_PROJECT_ID },
@@ -59,13 +66,13 @@ export type ChatCompletionRequest = z.infer<typeof ChatCompletionRequestSchema>;
 
 const OllamaOptionsSchema = z.object({
   temperature: z.number().min(0).max(2).optional(),
-  num_predict: z.number().int().min(1).max(128_000).optional(),
+  num_predict: z.number().int().min(1).max(MAX_COMPLETION_TOKENS).optional(),
 }).passthrough();
 
 export const OllamaChatRequestSchema = withProjectScope(
   {
     model: z.string().max(100).optional(),
-    messages: z.array(MessageSchema).min(1).max(200),
+    messages: z.array(MessageSchema).min(1).max(MAX_MESSAGE_COUNT),
     stream: z.boolean().default(true),
     format: z.union([z.literal("json"), z.record(z.string(), z.unknown())]).optional(),
     options: OllamaOptionsSchema.optional(),
@@ -80,8 +87,8 @@ export type OllamaChatRequest = z.infer<typeof OllamaChatRequestSchema>;
 export const OllamaGenerateRequestSchema = withProjectScope(
   {
     model: z.string().max(100).optional(),
-    prompt: z.string().min(1).max(100_000),
-    system: z.string().max(10_000).optional(),
+    prompt: z.string().min(1).max(MAX_PROMPT_LENGTH),
+    system: z.string().max(MAX_SYSTEM_PROMPT_LENGTH).optional(),
     stream: z.boolean().default(true),
     format: z.union([z.literal("json"), z.record(z.string(), z.unknown())]).optional(),
     options: OllamaOptionsSchema.optional(),
@@ -100,14 +107,14 @@ export type OllamaGenerateRequest = z.infer<typeof OllamaGenerateRequestSchema>;
 export const AgentCreateRequestSchema = z.object({
   name: z.string().min(1).max(128).regex(/^[\w.-]+$/, "Name must match [\\w.-]+"),
   description: z.string().max(2000),
-  system_prompt: z.string().min(1).max(50_000),
+  system_prompt: z.string().min(1).max(MAX_SYSTEM_PROMPT_LENGTH),
   preferred_provider: z.string().max(100).optional(),
   preferred_model: z.string().max(100).optional(),
   preferred_role: z.string().max(100).optional(),
   strategy: z.string().max(50).optional(),
   routing_policy: z.string().max(50).optional(),
   temperature: z.number().min(0).max(2).optional(),
-  max_tokens: z.number().int().min(1).max(128_000).optional(),
+  max_tokens: z.number().int().min(1).max(MAX_COMPLETION_TOKENS).optional(),
 });
 
 export type AgentCreateRequest = z.infer<typeof AgentCreateRequestSchema>;
@@ -125,14 +132,14 @@ export type AgentUpdateRequest = z.infer<typeof AgentUpdateRequestSchema>;
 // ---------------------------------------------------------------------------
 
 export const SendRequestSchema = withProjectScope({
-  messages: z.array(MessageSchema).min(1).max(200),
+  messages: z.array(MessageSchema).min(1).max(MAX_MESSAGE_COUNT),
   strategy: z.string().max(50).optional(),
   routing_policy: z.string().max(50).optional(),
   provider: z.string().max(100).optional(),
   model: z.string().max(100).optional(),
-  system: z.string().max(50_000).optional(),
+  system: z.string().max(MAX_SYSTEM_PROMPT_LENGTH).optional(),
   temperature: z.number().min(0).max(2).optional(),
-  max_tokens: z.number().int().min(1).max(128_000).optional(),
+  max_tokens: z.number().int().min(1).max(MAX_COMPLETION_TOKENS).optional(),
 });
 
 export type SendRequest = z.infer<typeof SendRequestSchema>;
@@ -164,7 +171,7 @@ export type KnowledgeBaseSearch = z.infer<typeof KnowledgeBaseSearchSchema>;
 // ---------------------------------------------------------------------------
 
 export const AgentRunRequestSchema = withProjectScope({
-  messages: z.array(MessageSchema).min(1).max(200),
+  messages: z.array(MessageSchema).min(1).max(MAX_MESSAGE_COUNT),
 });
 
 export type AgentRunRequest = z.infer<typeof AgentRunRequestSchema>;
@@ -178,10 +185,10 @@ export const CliAgentNameSchema = z.enum(["vibe", "codex", "claude-code"]);
 export type CliAgentName = z.infer<typeof CliAgentNameSchema>;
 
 export const CliAgentRunRequestSchema = z.object({
-  prompt: z.string().min(1).max(100_000),
+  prompt: z.string().min(1).max(MAX_PROMPT_LENGTH),
   workdir: z.string().max(500).optional(),
   agent: CliAgentNameSchema.default("claude-code"),
-  max_turns: z.number().int().min(1).max(100).default(20),
+  max_turns: z.number().int().min(1).max(40).default(20),
   max_price: z.number().min(0).max(50).default(2),
   model: z.string().max(50).default("sonnet"),
   allowed_tools: z.array(z.string().min(1).max(100)).max(64).optional(),
@@ -195,8 +202,8 @@ export type CliAgentRunRequest = z.infer<typeof CliAgentRunRequestSchema>;
 // ---------------------------------------------------------------------------
 
 export const CodestralFIMRequestSchema = z.object({
-  prompt: z.string().min(1).max(200_000),
-  suffix: z.string().max(200_000).default(""),
+  prompt: z.string().min(1).max(MAX_CODESSTRAL_CONTEXT_LENGTH),
+  suffix: z.string().max(MAX_CODESSTRAL_CONTEXT_LENGTH).default(""),
   model: z.string().max(100).optional(),
   temperature: z.number().min(0).max(2).default(0),
   max_tokens: z.number().int().min(1).max(32_768).default(1024),
@@ -206,7 +213,7 @@ export const CodestralFIMRequestSchema = z.object({
 export type CodestralFIMRequest = z.infer<typeof CodestralFIMRequestSchema>;
 
 export const KnowledgeScribeRunAndPushRequestSchema = withProjectScope({
-  messages: z.array(MessageSchema).min(1).max(200),
+  messages: z.array(MessageSchema).min(1).max(MAX_MESSAGE_COUNT),
   push_to: z.string().max(512).optional(),
   run_id: z.string().max(256).optional(),
 });
@@ -223,3 +230,71 @@ export const PipelineRunRequestSchema = z.object({
 });
 
 export type PipelineRunRequest = z.infer<typeof PipelineRunRequestSchema>;
+
+// ---------------------------------------------------------------------------
+// POST /api/v1/users  (create)
+// ---------------------------------------------------------------------------
+
+export const UserCreateRequestSchema = z.object({
+  username: z.string().min(1).max(128),
+  email: z.string().email().max(256),
+  role_id: z.number().int().min(1).max(10).optional(),
+  password: z.string().min(8).max(256).optional(),
+});
+
+export type UserCreateRequest = z.infer<typeof UserCreateRequestSchema>;
+
+// ---------------------------------------------------------------------------
+// PUT /api/v1/users/:userId  (update)
+// ---------------------------------------------------------------------------
+
+export const UserUpdateRequestSchema = UserCreateRequestSchema.partial();
+
+export type UserUpdateRequest = z.infer<typeof UserUpdateRequestSchema>;
+
+// ---------------------------------------------------------------------------
+// POST /api/v1/users/:userId/api-keys
+// ---------------------------------------------------------------------------
+
+export const ApiKeyCreateRequestSchema = z.object({
+  name: z.string().min(1).max(128).optional(),
+  expires_in_days: z.number().int().min(1).max(365).optional(),
+});
+
+export type ApiKeyCreateRequest = z.infer<typeof ApiKeyCreateRequestSchema>;
+
+// ---------------------------------------------------------------------------
+// POST /api/killlife/workflows/:id/run
+// ---------------------------------------------------------------------------
+
+export const WorkflowRunRequestSchema = z.object({
+  mode: z.enum(["local", "github"]),
+  dry_run: z.boolean().default(false),
+  inputs: z.record(z.string(), z.unknown()).optional(),
+});
+
+export type WorkflowRunRequest = z.infer<typeof WorkflowRunRequestSchema>;
+
+// ---------------------------------------------------------------------------
+// POST /api/v1/finetune/pipeline
+// ---------------------------------------------------------------------------
+
+export const FinetuneRunRequestSchema = z.object({
+  task: z.string().min(1).max(256),
+  domain: z.string().min(1).max(128).optional(),
+  max_model_size_gb: z.coerce.number().positive().finite().optional(),
+});
+
+export type FinetuneRunRequest = z.infer<typeof FinetuneRunRequestSchema>;
+
+// ---------------------------------------------------------------------------
+// POST /api/cluster/forward/send
+// ---------------------------------------------------------------------------
+
+export const ClusterForwardSendRequestSchema = z.object({
+  messages: z.array(MessageSchema).min(1).max(MAX_MESSAGE_COUNT),
+  target_node: z.string().max(256).optional(),
+  strategy: z.string().max(50).optional(),
+  model: z.string().max(100).optional(),
+  provider: z.string().max(100).optional(),
+});

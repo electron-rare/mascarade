@@ -34,15 +34,15 @@ class _FakeMistral:
         self.chat = SimpleNamespace(
             complete_async=AsyncMock(
                 return_value=SimpleNamespace(
-                    choices=[SimpleNamespace(message=SimpleNamespace(content="direct-ok"))],
+                    choices=[
+                        SimpleNamespace(message=SimpleNamespace(content="direct-ok"))
+                    ],
                     usage=SimpleNamespace(prompt_tokens=2, completion_tokens=1),
                 )
             ),
             stream_async=AsyncMock(),
         )
-        self.__class__.created.append(
-            {"api_key": api_key, "timeout_ms": timeout_ms}
-        )
+        self.__class__.created.append({"api_key": api_key, "timeout_ms": timeout_ms})
 
 
 class _FakeAsyncOpenAI:
@@ -56,7 +56,9 @@ class _FakeAsyncOpenAI:
             completions=SimpleNamespace(
                 create=AsyncMock(
                     return_value=SimpleNamespace(
-                        choices=[SimpleNamespace(message=SimpleNamespace(content="proxy-ok"))],
+                        choices=[
+                            SimpleNamespace(message=SimpleNamespace(content="proxy-ok"))
+                        ],
                         usage=SimpleNamespace(prompt_tokens=4, completion_tokens=3),
                     )
                 )
@@ -82,7 +84,9 @@ async def test_mistral_provider_uses_direct_sdk_by_default(monkeypatch):
     response = await provider.send([{"role": "user", "content": "ping"}])
 
     assert provider.is_configured is True
-    assert _FakeMistral.created[-1]["api_key"] == "mistral_api_key_123456789"  # noqa: S105
+    assert (
+        _FakeMistral.created[-1]["api_key"] == "mistral_api_key_123456789"
+    )  # noqa: S105
     assert response.content == "direct-ok"
 
 

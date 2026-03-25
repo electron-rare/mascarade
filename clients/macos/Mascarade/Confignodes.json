@@ -1,0 +1,72 @@
+{
+  "nodes": [
+    {
+      "name": "Root Server",
+      "host": "192.168.0.119",
+      "port": 22,
+      "username": "root",
+      "authentication": "publicKey",
+      "capabilities": [
+        "dataProcessing",
+        "modelTraining",
+        "inference"
+      ],
+      "description": "Serveur principal avec capacités ML complètes",
+      "maxConcurrentTasks": 5,
+      "enabled": true
+    },
+    {
+      "name": "Clems Workstation",
+      "host": "192.168.0.120",
+      "port": 22,
+      "username": "clems",
+      "authentication": "publicKey",
+      "capabilities": [
+        "textProcessing",
+        "imageAnalysis",
+        "inference"
+      ],
+      "description": "Station de travail pour traitement NLP et vision",
+      "maxConcurrentTasks": 3,
+      "enabled": true
+    },
+    {
+      "name": "KXKM AI Node",
+      "host": "kxkm-ai",
+      "port": 22,
+      "username": "kxkm",
+      "authentication": "publicKey",
+      "capabilities": [
+        "modelTraining",
+        "inference",
+        "dataProcessing"
+      ],
+      "description": "Nœud dédié à l'IA et au machine learning",
+      "maxConcurrentTasks": 8,
+      "enabled": true
+    },
+    {
+      "name": "CILS Node",
+      "host": "cils",
+      "port": 22,
+      "username": "user",
+      "authentication": "publicKey",
+      "capabilities": [
+        "textProcessing",
+        "inference"
+      ],
+      "description": "Nœud auxiliaire pour traitement léger",
+      "maxConcurrentTasks": 2,
+      "enabled": true
+    }
+  ],
+  "settings": {
+    "autoRefresh": true,
+    "refreshInterval": 60,
+    "connectionTimeout": 30,
+    "retryAttempts": 3,
+    "retryDelay": 5,
+    "enableLogging": true,
+    "logLevel": "INFO"
+  }
+}

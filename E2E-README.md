@@ -51,7 +51,7 @@ This directory contains comprehensive end-to-end verification tools and document
 cd core && python -m uvicorn mascarade.server:app --reload --host 0.0.0.0 --port 8100
 
 # Terminal 2
-cd api && npm run dev
+cd api && API_PORT=3000 npm run dev
 
 # Terminal 3
 cd web && npm run dev
@@ -59,12 +59,15 @@ cd web && npm run dev
 
 ### 2. Run Automated API Tests
 
+Note: this E2E harness expects the API on `localhost:3000` (legacy setup).
+For the repository default (`3100`), either export `API_PORT=3000` before `npm run dev` or adapt the script endpoints.
+
 ```bash
 ./e2e-verification.sh
 ```
 
 Expected output:
-```
+```raw
 ========================================
 Agent Management E2E Verification
 ========================================
@@ -157,7 +160,7 @@ Key manual test scenarios:
 
 ## Architecture
 
-```
+```raw
 ┌─────────────┐
 │  Web (5173) │  React UI with enhanced editor and metrics display
 └──────┬──────┘
@@ -165,7 +168,7 @@ Key manual test scenarios:
        │ HTTP/REST
        │
 ┌──────▼──────┐
-│  API (3000) │  Hono proxy layer with delete and metrics routes
+│  API (3000) │  Hono proxy layer with delete and metrics routes (legacy E2E harness port)
 └──────┬──────┘
        │
        │ HTTP/REST
@@ -251,3 +254,5 @@ For issues or questions about this verification:
 - Review `implementation_plan.json` for technical details
 - See `spec.md` for original requirements
 
+
+<iframe src="https://github.com/sponsors/electron-rare/card" title="Sponsor electron-rare" height="225" width="600" style="border: 0;"></iframe>

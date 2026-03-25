@@ -79,7 +79,9 @@ def test_api_endpoint(client, mock_auth):
         }
     ]
 
-    with patch("mascarade.routers.analytics.BenchmarkStorage", return_value=mock_storage):
+    with patch(
+        "mascarade.routers.analytics.BenchmarkStorage", return_value=mock_storage
+    ):
         response = client.get("/v1/analytics/benchmarks")
 
         assert response.status_code == 200
@@ -104,7 +106,9 @@ def test_api_endpoint_with_filters(client, mock_auth):
     mock_storage = MagicMock()
     mock_storage.query_leaderboard.return_value = []
 
-    with patch("mascarade.routers.analytics.BenchmarkStorage", return_value=mock_storage):
+    with patch(
+        "mascarade.routers.analytics.BenchmarkStorage", return_value=mock_storage
+    ):
         response = client.get(
             "/v1/analytics/benchmarks",
             params={
@@ -333,16 +337,34 @@ def test_get_fastest_provider():
 
     # Add stats for multiple providers
     stats1 = ProviderBenchmarkStats(provider_name="fast")
-    stats1.update(BenchmarkResult(
-        prompt_id="test-001", provider="fast", model="m1", domain="test",
-        difficulty="easy", latency=0.3, tokens=100, cost=0.001, success=True
-    ))
+    stats1.update(
+        BenchmarkResult(
+            prompt_id="test-001",
+            provider="fast",
+            model="m1",
+            domain="test",
+            difficulty="easy",
+            latency=0.3,
+            tokens=100,
+            cost=0.001,
+            success=True,
+        )
+    )
 
     stats2 = ProviderBenchmarkStats(provider_name="slow")
-    stats2.update(BenchmarkResult(
-        prompt_id="test-002", provider="slow", model="m2", domain="test",
-        difficulty="easy", latency=0.8, tokens=100, cost=0.001, success=True
-    ))
+    stats2.update(
+        BenchmarkResult(
+            prompt_id="test-002",
+            provider="slow",
+            model="m2",
+            domain="test",
+            difficulty="easy",
+            latency=0.8,
+            tokens=100,
+            cost=0.001,
+            success=True,
+        )
+    )
 
     runner.provider_stats = {"fast": stats1, "slow": stats2}
 
@@ -361,16 +383,34 @@ def test_get_cheapest_provider():
     runner = BenchmarkRunner()
 
     stats1 = ProviderBenchmarkStats(provider_name="cheap")
-    stats1.update(BenchmarkResult(
-        prompt_id="test-001", provider="cheap", model="m1", domain="test",
-        difficulty="easy", latency=0.5, tokens=100, cost=0.001, success=True
-    ))
+    stats1.update(
+        BenchmarkResult(
+            prompt_id="test-001",
+            provider="cheap",
+            model="m1",
+            domain="test",
+            difficulty="easy",
+            latency=0.5,
+            tokens=100,
+            cost=0.001,
+            success=True,
+        )
+    )
 
     stats2 = ProviderBenchmarkStats(provider_name="expensive")
-    stats2.update(BenchmarkResult(
-        prompt_id="test-002", provider="expensive", model="m2", domain="test",
-        difficulty="easy", latency=0.5, tokens=100, cost=0.005, success=True
-    ))
+    stats2.update(
+        BenchmarkResult(
+            prompt_id="test-002",
+            provider="expensive",
+            model="m2",
+            domain="test",
+            difficulty="easy",
+            latency=0.5,
+            tokens=100,
+            cost=0.005,
+            success=True,
+        )
+    )
 
     runner.provider_stats = {"cheap": stats1, "expensive": stats2}
 
@@ -381,10 +421,19 @@ def test_get_cheapest_provider():
 def test_benchmark_runner_reset():
     """Test resetting runner stats."""
     runner = BenchmarkRunner()
-    runner.results.append(BenchmarkResult(
-        prompt_id="test-001", provider="test", model="m1", domain="test",
-        difficulty="easy", latency=0.5, tokens=100, cost=0.001, success=True
-    ))
+    runner.results.append(
+        BenchmarkResult(
+            prompt_id="test-001",
+            provider="test",
+            model="m1",
+            domain="test",
+            difficulty="easy",
+            latency=0.5,
+            tokens=100,
+            cost=0.001,
+            success=True,
+        )
+    )
     runner.provider_stats["test"] = ProviderBenchmarkStats("test")
 
     runner.reset()
@@ -399,8 +448,15 @@ def test_benchmark_runner_get_summary():
     runner = BenchmarkRunner()
 
     result = BenchmarkResult(
-        prompt_id="test-001", provider="test", model="m1", domain="test",
-        difficulty="easy", latency=0.5, tokens=100, cost=0.001, success=True
+        prompt_id="test-001",
+        provider="test",
+        model="m1",
+        domain="test",
+        difficulty="easy",
+        latency=0.5,
+        tokens=100,
+        cost=0.001,
+        success=True,
     )
     runner.results.append(result)
     runner._get_provider_stats("test").update(result)
@@ -522,13 +578,21 @@ async def test_benchmark_suite_run_single_provider(mock_router):
     suite = BenchmarkSuite(router=mock_router)
 
     # Mock the runner method
-    suite.runner.run_provider_benchmark = AsyncMock(return_value=[
-        BenchmarkResult(
-            prompt_id="test-001", provider="anthropic", model="claude",
-            domain="test", difficulty="easy", latency=0.5, tokens=100,
-            cost=0.001, success=True
-        )
-    ])
+    suite.runner.run_provider_benchmark = AsyncMock(
+        return_value=[
+            BenchmarkResult(
+                prompt_id="test-001",
+                provider="anthropic",
+                model="claude",
+                domain="test",
+                difficulty="easy",
+                latency=0.5,
+                tokens=100,
+                cost=0.001,
+                success=True,
+            )
+        ]
+    )
 
     run = await suite.run_single_provider("anthropic")
 
@@ -587,8 +651,14 @@ def test_benchmark_suite_get_latest_run():
     # Empty history
     assert suite.get_latest_run() is None
 
-    run1 = BenchmarkRun(run_id="test-001", scope=BenchmarkScope.SINGLE_PROVIDER, start_time=datetime.now())
-    run2 = BenchmarkRun(run_id="test-002", scope=BenchmarkScope.FULL_SUITE, start_time=datetime.now())
+    run1 = BenchmarkRun(
+        run_id="test-001",
+        scope=BenchmarkScope.SINGLE_PROVIDER,
+        start_time=datetime.now(),
+    )
+    run2 = BenchmarkRun(
+        run_id="test-002", scope=BenchmarkScope.FULL_SUITE, start_time=datetime.now()
+    )
 
     suite._record_run(run1)
     suite._record_run(run2)
@@ -601,7 +671,11 @@ def test_benchmark_suite_clear_history():
     """Test clearing run history."""
     suite = BenchmarkSuite()
 
-    run = BenchmarkRun(run_id="test-001", scope=BenchmarkScope.SINGLE_PROVIDER, start_time=datetime.now())
+    run = BenchmarkRun(
+        run_id="test-001",
+        scope=BenchmarkScope.SINGLE_PROVIDER,
+        start_time=datetime.now(),
+    )
     suite._record_run(run)
 
     suite.clear_history()
@@ -615,11 +689,19 @@ def test_benchmark_suite_get_leaderboard():
 
     # Add some stats to the runner
     stats = ProviderBenchmarkStats(provider_name="anthropic")
-    stats.update(BenchmarkResult(
-        prompt_id="test-001", provider="anthropic", model="claude",
-        domain="test", difficulty="easy", latency=0.5, tokens=100,
-        cost=0.001, success=True
-    ))
+    stats.update(
+        BenchmarkResult(
+            prompt_id="test-001",
+            provider="anthropic",
+            model="claude",
+            domain="test",
+            difficulty="easy",
+            latency=0.5,
+            tokens=100,
+            cost=0.001,
+            success=True,
+        )
+    )
     suite.runner.provider_stats = {"anthropic": stats}
 
     leaderboard = suite.get_leaderboard()
@@ -932,9 +1014,7 @@ def test_routing_strategy():
     messages_kicad = [
         {"role": "user", "content": "I need help designing a PCB in KiCad"}
     ]
-    messages_general = [
-        {"role": "user", "content": "What is the capital of France?"}
-    ]
+    messages_general = [{"role": "user", "content": "What is the capital of France?"}]
 
     # Test _detect_domain method
     assert router._detect_domain(messages_spice) == "spice"

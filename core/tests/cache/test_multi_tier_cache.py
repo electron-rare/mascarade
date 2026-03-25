@@ -207,10 +207,7 @@ async def test_store_l1_only():
     messages = [{"role": "user", "content": "test"}]
 
     key = await cache.store(
-        messages=messages,
-        response="test response",
-        tokens=10,
-        cost=0.001
+        messages=messages, response="test response", tokens=10, cost=0.001
     )
 
     assert key is not None
@@ -231,10 +228,7 @@ async def test_store_all_tiers():
     messages = [{"role": "user", "content": "test"}]
 
     key = await cache.store(
-        messages=messages,
-        response="test response",
-        tokens=10,
-        cost=0.001
+        messages=messages, response="test response", tokens=10, cost=0.001
     )
 
     assert key is not None

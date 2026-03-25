@@ -148,6 +148,7 @@ _TOOL_NAMES = {t["name"] for t in TOOLS}
 # JSON-RPC helpers
 # ---------------------------------------------------------------------------
 
+
 def _jsonrpc_response(id: Any, result: Any) -> dict[str, Any]:
     return {"jsonrpc": "2.0", "id": id, "result": result}
 
@@ -176,6 +177,7 @@ _INTERNAL_ERROR = -32603
 # MCP tool result helpers
 # ---------------------------------------------------------------------------
 
+
 def _tool_result_text(text: str, *, is_error: bool = False) -> dict[str, Any]:
     """Build an MCP tools/call result payload with a single text content block."""
     return {
@@ -196,6 +198,7 @@ def _tool_result_json(obj: Any, *, is_error: bool = False) -> dict[str, Any]:
 # Server
 # ---------------------------------------------------------------------------
 
+
 def _register_initial_agents(
     registry: AgentRegistry,
     register_defaults: Any | None = None,
@@ -205,7 +208,9 @@ def _register_initial_agents(
         try:
             from mascarade.agents.skills import register_default_skills
         except ImportError:
-            logger.debug("No default skills module found — starting with empty registry")
+            logger.debug(
+                "No default skills module found — starting with empty registry"
+            )
             return 0
         register_defaults = register_default_skills
 
@@ -255,7 +260,8 @@ class McpServer:
     # ------------------------------------------------------------------
 
     async def _handle_initialize(
-        self, params: dict[str, Any],
+        self,
+        params: dict[str, Any],
     ) -> dict[str, Any]:
         """Respond to the MCP initialize handshake."""
         self._initialized = True
@@ -277,24 +283,28 @@ class McpServer:
         }
 
     async def _handle_initialized_notification(
-        self, params: dict[str, Any],
+        self,
+        params: dict[str, Any],
     ) -> None:
         """Handle the 'initialized' notification (no response expected)."""
         logger.info("MCP client confirmed initialization")
         return None
 
     async def _handle_ping(
-        self, params: dict[str, Any],
+        self,
+        params: dict[str, Any],
     ) -> dict[str, Any]:
         return {}
 
     async def _handle_tools_list(
-        self, params: dict[str, Any],
+        self,
+        params: dict[str, Any],
     ) -> dict[str, Any]:
         return {"tools": TOOLS}
 
     async def _handle_tools_call(
-        self, params: dict[str, Any],
+        self,
+        params: dict[str, Any],
     ) -> dict[str, Any]:
         tool_name = params.get("name", "")
         arguments = params.get("arguments") or {}
@@ -321,7 +331,8 @@ class McpServer:
     # ------------------------------------------------------------------
 
     async def _tool_list_agents(
-        self, arguments: dict[str, Any],
+        self,
+        arguments: dict[str, Any],
     ) -> dict[str, Any]:
         agents = self.registry.list()
         result = [
@@ -340,18 +351,21 @@ class McpServer:
         return _tool_result_json(result)
 
     async def _tool_run_agent(
-        self, arguments: dict[str, Any],
+        self,
+        arguments: dict[str, Any],
     ) -> dict[str, Any]:
         agent_name = arguments.get("agent_name", "").strip()
         prompt = arguments.get("prompt", "").strip()
 
         if not agent_name:
             return _tool_result_text(
-                "Missing required parameter: agent_name", is_error=True,
+                "Missing required parameter: agent_name",
+                is_error=True,
             )
         if not prompt:
             return _tool_result_text(
-                "Missing required parameter: prompt", is_error=True,
+                "Missing required parameter: prompt",
+                is_error=True,
             )
 
         try:
@@ -382,21 +396,25 @@ class McpServer:
             max_tokens=agent.max_tokens,
         )
 
-        return _tool_result_json({
-            "agent": agent_name,
-            "content": response.content,
-            "model": response.model,
-            "provider": response.provider,
-            "usage": dict(response.usage) if response.usage else None,
-        })
+        return _tool_result_json(
+            {
+                "agent": agent_name,
+                "content": response.content,
+                "model": response.model,
+                "provider": response.provider,
+                "usage": dict(response.usage) if response.usage else None,
+            }
+        )
 
     async def _tool_search_knowledge_base(
-        self, arguments: dict[str, Any],
+        self,
+        arguments: dict[str, Any],
     ) -> dict[str, Any]:
         query = arguments.get("query", "").strip()
         if not query:
             return _tool_result_text(
-                "Missing required parameter: query", is_error=True,
+                "Missing required parameter: query",
+                is_error=True,
             )
 
         limit = arguments.get("limit", 10)
@@ -414,14 +432,17 @@ class McpServer:
         finally:
             await kb.close()
 
-        return _tool_result_json({
-            "query": query,
-            "count": len(results),
-            "results": results,
-        })
+        return _tool_result_json(
+            {
+                "query": query,
+                "count": len(results),
+                "results": results,
+            }
+        )
 
     async def _tool_list_providers(
-        self, arguments: dict[str, Any],
+        self,
+        arguments: dict[str, Any],
     ) -> dict[str, Any]:
         providers = []
         for name, provider in self.router._providers.items():
@@ -440,7 +461,8 @@ class McpServer:
         return _tool_result_json(providers)
 
     async def _tool_orchestrate(
-        self, arguments: dict[str, Any],
+        self,
+        arguments: dict[str, Any],
     ) -> dict[str, Any]:
         if self.orchestrator is None:
             return _tool_result_text(
@@ -459,7 +481,8 @@ class McpServer:
             )
         if not prompt:
             return _tool_result_text(
-                "Missing required parameter: prompt", is_error=True,
+                "Missing required parameter: prompt",
+                is_error=True,
             )
 
         # Validate all agent names before starting
@@ -479,20 +502,24 @@ class McpServer:
 
         results = []
         for tr in run.results:
-            results.append({
-                "agent": tr.agent_name,
-                "step": tr.step,
-                "content": tr.response.content if tr.response else None,
-                "model": tr.response.model if tr.response else None,
-                "provider": tr.response.provider if tr.response else None,
-                "error": tr.error,
-            })
+            results.append(
+                {
+                    "agent": tr.agent_name,
+                    "step": tr.step,
+                    "content": tr.response.content if tr.response else None,
+                    "model": tr.response.model if tr.response else None,
+                    "provider": tr.response.provider if tr.response else None,
+                    "error": tr.error,
+                }
+            )
 
-        return _tool_result_json({
-            "run_id": run.run_id,
-            "mode": str(run.mode),
-            "results": results,
-        })
+        return _tool_result_json(
+            {
+                "run_id": run.run_id,
+                "mode": str(run.mode),
+                "results": results,
+            }
+        )
 
     # ------------------------------------------------------------------
     # Stdio transport
@@ -509,12 +536,14 @@ class McpServer:
         reader = asyncio.StreamReader()
         protocol = asyncio.StreamReaderProtocol(reader)
         await asyncio.get_event_loop().connect_read_pipe(
-            lambda: protocol, sys.stdin,
+            lambda: protocol,
+            sys.stdin,
         )
 
         # Wrap stdout for async writes
         transport, _ = await asyncio.get_event_loop().connect_write_pipe(
-            asyncio.BaseProtocol, sys.stdout,
+            asyncio.BaseProtocol,
+            sys.stdout,
         )
 
         try:
@@ -541,7 +570,8 @@ class McpServer:
             logger.info("mascarade MCP server stopped")
 
     async def _process_message(
-        self, raw: str,
+        self,
+        raw: str,
     ) -> dict[str, Any] | None:
         """Parse a single JSON-RPC message and dispatch to the handler."""
         try:
@@ -552,7 +582,9 @@ class McpServer:
 
         if not isinstance(msg, dict):
             return _jsonrpc_error(
-                None, _INVALID_REQUEST, "Request must be a JSON object",
+                None,
+                _INVALID_REQUEST,
+                "Request must be a JSON object",
             )
 
         method = msg.get("method", "")
@@ -593,6 +625,7 @@ class McpServer:
 # ---------------------------------------------------------------------------
 # CLI entry point
 # ---------------------------------------------------------------------------
+
 
 def main() -> None:
     """Launch the MCP server from the command line.

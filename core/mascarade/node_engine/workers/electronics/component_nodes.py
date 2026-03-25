@@ -238,10 +238,16 @@ class LookupNode(BaseNode):
         # Generate mock alternatives based on the spec
         alternatives = []
         if config.include_alternatives:
-            alternatives = self._generate_mock_alternatives(component_spec, requirements)
+            alternatives = self._generate_mock_alternatives(
+                component_spec, requirements
+            )
 
         # Select best match (first alternative in this mock implementation)
-        best_match = alternatives[0] if alternatives else self._generate_default_component(component_spec)
+        best_match = (
+            alternatives[0]
+            if alternatives
+            else self._generate_default_component(component_spec)
+        )
 
         logger.info(f"Found {len(alternatives)} alternatives for {component_spec}")
 
@@ -413,9 +419,15 @@ class JlcpcbOptimizationNode(BaseNode):
         optimized_bom = self._optimize_components(requirements, prefer_basic, config)
 
         # Generate summary
-        basic_count = sum(1 for item in optimized_bom if item.get("jlcpcb_basic", False))
+        basic_count = sum(
+            1 for item in optimized_bom if item.get("jlcpcb_basic", False)
+        )
         extended_count = len(optimized_bom) - basic_count
-        total_cost = sum(float(item.get("price_unit", "$0").replace("$", "")) * item.get("quantity", 1) for item in optimized_bom)
+        total_cost = sum(
+            float(item.get("price_unit", "$0").replace("$", ""))
+            * item.get("quantity", 1)
+            for item in optimized_bom
+        )
 
         summary = {
             "total_components": len(optimized_bom),
@@ -633,7 +645,9 @@ class BomGeneratorNode(BaseNode):
         Returns:
             CSV formatted string
         """
-        lines = ["Comment,Designator,Footprint,LCSC Part Number,Manufacturer,MPN,Quantity"]
+        lines = [
+            "Comment,Designator,Footprint,LCSC Part Number,Manufacturer,MPN,Quantity"
+        ]
 
         for item in bom_data:
             lines.append(
@@ -944,18 +958,20 @@ class AvailabilityCheckNode(BaseNode):
         availability = []
 
         for part_number in part_numbers:
-            availability.append({
-                "lcsc_part_number": part_number,
-                "in_stock": True,
-                "stock_level": 50000 if config.check_stock else None,
-                "lead_time_days": 3 if config.check_lead_time else None,
-                "moq": 1,
-                "price_breaks": [
-                    {"quantity": 1, "price": "$0.0009"},
-                    {"quantity": 10, "price": "$0.0008"},
-                    {"quantity": 100, "price": "$0.0007"},
-                ],
-            })
+            availability.append(
+                {
+                    "lcsc_part_number": part_number,
+                    "in_stock": True,
+                    "stock_level": 50000 if config.check_stock else None,
+                    "lead_time_days": 3 if config.check_lead_time else None,
+                    "moq": 1,
+                    "price_breaks": [
+                        {"quantity": 1, "price": "$0.0009"},
+                        {"quantity": 10, "price": "$0.0008"},
+                        {"quantity": 100, "price": "$0.0007"},
+                    ],
+                }
+            )
 
         return availability
 
@@ -974,17 +990,19 @@ class AvailabilityCheckNode(BaseNode):
 
         for item in availability:
             if not item.get("in_stock", False) or item.get("stock_level", 0) < 100:
-                recommendations.append({
-                    "original_part": item.get("lcsc_part_number"),
-                    "reason": "Low stock or unavailable",
-                    "alternatives": [
-                        {
-                            "lcsc_part_number": "C17415",
-                            "description": "Alternative 10kΩ resistor",
-                            "stock_level": 100000,
-                        },
-                    ],
-                })
+                recommendations.append(
+                    {
+                        "original_part": item.get("lcsc_part_number"),
+                        "reason": "Low stock or unavailable",
+                        "alternatives": [
+                            {
+                                "lcsc_part_number": "C17415",
+                                "description": "Alternative 10kΩ resistor",
+                                "stock_level": 100000,
+                            },
+                        ],
+                    }
+                )
 
         return recommendations
 
@@ -1091,7 +1109,9 @@ class DatasheetNode(BaseNode):
         if config.include_parameters:
             parameters = self._extract_parameters(component)
 
-        summary = self._generate_summary(component, parameters, include_diagrams or config.include_diagrams)
+        summary = self._generate_summary(
+            component, parameters, include_diagrams or config.include_diagrams
+        )
 
         logger.info(f"Datasheet retrieved for {component}")
 
@@ -1132,7 +1152,9 @@ class DatasheetNode(BaseNode):
             "power_rating": "0.125W",
         }
 
-    def _generate_summary(self, component: str, parameters: dict[str, Any], include_diagrams: bool) -> str:
+    def _generate_summary(
+        self, component: str, parameters: dict[str, Any], include_diagrams: bool
+    ) -> str:
         """Generate human-readable summary of component.
 
         Args:
@@ -1150,7 +1172,9 @@ class DatasheetNode(BaseNode):
             summary_lines.append(f"{key_formatted}: {value}")
 
         if include_diagrams:
-            summary_lines.append("Block diagrams and application circuits available in datasheet.")
+            summary_lines.append(
+                "Block diagrams and application circuits available in datasheet."
+            )
 
         return "\n".join(summary_lines)
 
@@ -1308,7 +1332,9 @@ class BomGenerateNode(BaseNode):
             },
         ]
 
-    def _format_bom_csv(self, bom_data: list[dict[str, Any]], config: BomGeneratorConfig) -> str:
+    def _format_bom_csv(
+        self, bom_data: list[dict[str, Any]], config: BomGeneratorConfig
+    ) -> str:
         """Format BOM data as CSV.
 
         Args:
@@ -1319,7 +1345,9 @@ class BomGenerateNode(BaseNode):
             CSV formatted string
         """
         if config.format == "jlcpcb":
-            lines = ["Comment,Designator,Footprint,LCSC Part Number,Manufacturer,MPN,Quantity"]
+            lines = [
+                "Comment,Designator,Footprint,LCSC Part Number,Manufacturer,MPN,Quantity"
+            ]
             for item in bom_data:
                 lines.append(
                     f'"{item.get("comment", "")}","{item.get("designator", "")}","{item.get("footprint", "")}","{item.get("lcsc_part_number", "")}","{item.get("manufacturer", "")}","{item.get("mpn", "")}",{item.get("quantity", 0)}'
@@ -1333,7 +1361,9 @@ class BomGenerateNode(BaseNode):
 
         return "\n".join(lines)
 
-    def _generate_bom_summary(self, bom_data: list[dict[str, Any]], config: BomGeneratorConfig) -> dict[str, Any]:
+    def _generate_bom_summary(
+        self, bom_data: list[dict[str, Any]], config: BomGeneratorConfig
+    ) -> dict[str, Any]:
         """Generate BOM summary with statistics.
 
         Args:
@@ -1349,13 +1379,16 @@ class BomGenerateNode(BaseNode):
 
         if config.include_cost_estimates:
             total_cost = sum(
-                item.get("unit_price", 0.0) * item.get("quantity", 0) for item in bom_data
+                item.get("unit_price", 0.0) * item.get("quantity", 0)
+                for item in bom_data
             )
 
         return {
             "total_line_items": total_line_items,
             "total_components": total_components,
-            "estimated_cost": f"${total_cost:.2f}" if config.include_cost_estimates else "N/A",
+            "estimated_cost": (
+                f"${total_cost:.2f}" if config.include_cost_estimates else "N/A"
+            ),
             "format": config.format,
         }
 
@@ -1468,17 +1501,23 @@ class FindAlternativesNode(BaseNode):
         logger.info(f"Finding alternatives for component: {component_spec}")
 
         # Find alternatives (mock implementation)
-        all_alternatives = self._find_all_alternatives(component_spec, requirements, config)
+        all_alternatives = self._find_all_alternatives(
+            component_spec, requirements, config
+        )
 
         # Separate by compatibility type
         pin_compatible = []
         functional_equiv = []
 
         if config.include_pin_compatible:
-            pin_compatible = [alt for alt in all_alternatives if alt.get("pin_compatible", False)]
+            pin_compatible = [
+                alt for alt in all_alternatives if alt.get("pin_compatible", False)
+            ]
 
         if config.include_functional_equiv:
-            functional_equiv = [alt for alt in all_alternatives if not alt.get("pin_compatible", False)]
+            functional_equiv = [
+                alt for alt in all_alternatives if not alt.get("pin_compatible", False)
+            ]
 
         # Limit results
         max_limit = min(max_results, config.max_alternatives)
@@ -1497,7 +1536,10 @@ class FindAlternativesNode(BaseNode):
         }
 
     def _find_all_alternatives(
-        self, component_spec: str, requirements: dict[str, Any], config: FindAlternativesConfig
+        self,
+        component_spec: str,
+        requirements: dict[str, Any],
+        config: FindAlternativesConfig,
     ) -> list[dict[str, Any]]:
         """Find all alternative components.
 
@@ -1514,57 +1556,61 @@ class FindAlternativesNode(BaseNode):
 
         # Pin-compatible alternatives
         if config.include_pin_compatible:
-            alternatives.extend([
-                {
-                    "lcsc_part_number": "C17414",
-                    "manufacturer": "UniOhm",
-                    "mpn": "0805W8F1002T5E",
-                    "description": "10kΩ ±1% 0805 Resistor",
-                    "pin_compatible": True,
-                    "notes": "Direct replacement, same footprint and specs",
-                    "availability": "In stock",
-                    "price_unit": "$0.0009",
-                    "compatibility_score": 100,
-                },
-                {
-                    "lcsc_part_number": "C25804",
-                    "manufacturer": "Yageo",
-                    "mpn": "RC0805FR-0710KL",
-                    "description": "10kΩ ±1% 0805 Resistor",
-                    "pin_compatible": True,
-                    "notes": "Direct replacement, slightly different manufacturer",
-                    "availability": "In stock",
-                    "price_unit": "$0.0010",
-                    "compatibility_score": 95,
-                },
-            ])
+            alternatives.extend(
+                [
+                    {
+                        "lcsc_part_number": "C17414",
+                        "manufacturer": "UniOhm",
+                        "mpn": "0805W8F1002T5E",
+                        "description": "10kΩ ±1% 0805 Resistor",
+                        "pin_compatible": True,
+                        "notes": "Direct replacement, same footprint and specs",
+                        "availability": "In stock",
+                        "price_unit": "$0.0009",
+                        "compatibility_score": 100,
+                    },
+                    {
+                        "lcsc_part_number": "C25804",
+                        "manufacturer": "Yageo",
+                        "mpn": "RC0805FR-0710KL",
+                        "description": "10kΩ ±1% 0805 Resistor",
+                        "pin_compatible": True,
+                        "notes": "Direct replacement, slightly different manufacturer",
+                        "availability": "In stock",
+                        "price_unit": "$0.0010",
+                        "compatibility_score": 95,
+                    },
+                ]
+            )
 
         # Functional equivalents
         if config.include_functional_equiv:
-            alternatives.extend([
-                {
-                    "lcsc_part_number": "C17415",
-                    "manufacturer": "UniOhm",
-                    "mpn": "0603W8F1002T5E",
-                    "description": "10kΩ ±1% 0603 Resistor",
-                    "pin_compatible": False,
-                    "notes": "Smaller package (0603), requires PCB layout change",
-                    "availability": "In stock",
-                    "price_unit": "$0.0007",
-                    "compatibility_score": 80,
-                },
-                {
-                    "lcsc_part_number": "C25805",
-                    "manufacturer": "UniOhm",
-                    "mpn": "0805W8F1002T5E",
-                    "description": "10kΩ ±5% 0805 Resistor",
-                    "pin_compatible": False,
-                    "notes": "Lower tolerance (±5%), check if acceptable for application",
-                    "availability": "In stock",
-                    "price_unit": "$0.0005",
-                    "compatibility_score": 70,
-                },
-            ])
+            alternatives.extend(
+                [
+                    {
+                        "lcsc_part_number": "C17415",
+                        "manufacturer": "UniOhm",
+                        "mpn": "0603W8F1002T5E",
+                        "description": "10kΩ ±1% 0603 Resistor",
+                        "pin_compatible": False,
+                        "notes": "Smaller package (0603), requires PCB layout change",
+                        "availability": "In stock",
+                        "price_unit": "$0.0007",
+                        "compatibility_score": 80,
+                    },
+                    {
+                        "lcsc_part_number": "C25805",
+                        "manufacturer": "UniOhm",
+                        "mpn": "0805W8F1002T5E",
+                        "description": "10kΩ ±5% 0805 Resistor",
+                        "pin_compatible": False,
+                        "notes": "Lower tolerance (±5%), check if acceptable for application",
+                        "availability": "In stock",
+                        "price_unit": "$0.0005",
+                        "compatibility_score": 70,
+                    },
+                ]
+            )
 
         # Sort by compatibility score
         alternatives.sort(key=lambda x: x.get("compatibility_score", 0), reverse=True)

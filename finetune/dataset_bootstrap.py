@@ -14,7 +14,9 @@ def seed_builder_for_domain(script_dir: Path, domain: str) -> Path | None:
     return None
 
 
-def ensure_seed_dataset(script_dir: Path, domain: str, dataset_path: Path) -> Path | None:
+def ensure_seed_dataset(
+    script_dir: Path, domain: str, dataset_path: Path
+) -> Path | None:
     """Build the default seed dataset when the canonical JSONL is missing."""
 
     if dataset_path.exists():

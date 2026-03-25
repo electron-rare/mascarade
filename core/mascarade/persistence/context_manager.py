@@ -13,7 +13,7 @@ from mascarade.orchestrator.context import OrchestrationContext
 
 logger = logging.getLogger("mascarade.persistence.context")
 
-T = TypeVar('T', bound='BaseContext')
+T = TypeVar("T", bound="BaseContext")
 
 
 class BaseContext(BaseModel):
@@ -33,7 +33,7 @@ class BaseContext(BaseModel):
                     "context_type": "orchestration",
                     "created_at": "2024-01-01T00:00:00Z",
                     "updated_at": "2024-01-01T00:00:00Z",
-                    "metadata": {}
+                    "metadata": {},
                 }
             ]
         }
@@ -55,7 +55,7 @@ class PersistentOrchestrationContext(BaseContext):
         context: OrchestrationContext,
         context_id: str,
         created_at: str,
-        updated_at: str
+        updated_at: str,
     ) -> PersistentOrchestrationContext:
         """Create persistent context from orchestration context."""
         return cls(
@@ -68,7 +68,7 @@ class PersistentOrchestrationContext(BaseContext):
             mode=context.mode,
             current_input=context.current_input,
             initial_prompt=context.initial_prompt,
-            execution_history=[]
+            execution_history=[],
         )
 
     def to_orchestration_context(self) -> OrchestrationContext:
@@ -78,7 +78,7 @@ class PersistentOrchestrationContext(BaseContext):
             agent_names=self.agent_names,
             mode=self.mode,
             current_input=self.current_input,
-            initial_prompt=self.initial_prompt
+            initial_prompt=self.initial_prompt,
         )
 
 
@@ -86,9 +86,7 @@ class ContextPersistenceManager:
     """Multi-backend context persistence manager."""
 
     def __init__(
-        self,
-        redis_url: str = "redis://localhost:6379",
-        default_ttl: int = 86400
+        self, redis_url: str = "redis://localhost:6379", default_ttl: int = 86400
     ) -> None:
         """Initialize context persistence manager.
 
@@ -121,11 +119,7 @@ class ContextPersistenceManager:
         """Generate Redis key for context storage."""
         return f"context:{context_id}"
 
-    async def save_context(
-        self,
-        context: BaseContext,
-        ttl: int | None = None
-    ) -> str:
+    async def save_context(self, context: BaseContext, ttl: int | None = None) -> str:
         """Save context to persistence layer.
 
         Args:
@@ -147,11 +141,7 @@ class ContextPersistenceManager:
 
         return context.context_id
 
-    async def get_context(
-        self,
-        context_id: str,
-        context_class: type[T]
-    ) -> T | None:
+    async def get_context(self, context_id: str, context_class: type[T]) -> T | None:
         """Retrieve context from persistence layer.
 
         Args:
@@ -180,9 +170,7 @@ class ContextPersistenceManager:
             return None
 
     async def update_context(
-        self,
-        context: BaseContext,
-        update_data: dict[str, Any]
+        self, context: BaseContext, update_data: dict[str, Any]
     ) -> bool:
         """Update existing context.
 
@@ -209,6 +197,7 @@ class ContextPersistenceManager:
 
         # Update timestamp
         from datetime import datetime
+
         context.updated_at = datetime.utcnow().isoformat() + "Z"
 
         # Save updated context
@@ -239,10 +228,7 @@ class ContextPersistenceManager:
         logger.warning(f"Context {context_id} not found for deletion")
         return False
 
-    async def list_contexts(
-        self,
-        context_type: str | None = None
-    ) -> list[str]:
+    async def list_contexts(self, context_type: str | None = None) -> list[str]:
         """List all context IDs, optionally filtered by type.
 
         Args:
@@ -270,7 +256,7 @@ class ContextPersistenceManager:
                         context_json = json.loads(context_data)
                         if context_json.get("context_type") == context_type:
                             context_ids.append(context_id)
-                    except:
+                    except (json.JSONDecodeError, KeyError, TypeError):
                         continue
 
         return sorted(context_ids)
@@ -300,7 +286,7 @@ class ContextPersistenceManager:
                 "context_type": context_data["context_type"],
                 "created_at": context_data["created_at"],
                 "updated_at": context_data["updated_at"],
-                "metadata": context_data.get("metadata", {})
+                "metadata": context_data.get("metadata", {}),
             }
         except Exception as e:
             logger.error(f"Failed to get metadata for context {context_id}: {e}")
@@ -329,11 +315,12 @@ class ContextPersistenceManager:
 
 # Utility functions for common context operations
 
+
 async def save_orchestration_context(
     manager: ContextPersistenceManager,
     context: OrchestrationContext,
     context_id: str,
-    ttl: int | None = None
+    ttl: int | None = None,
 ) -> str:
     """Utility function to save orchestration context."""
     from datetime import datetime
@@ -342,15 +329,14 @@ async def save_orchestration_context(
         context=context,
         context_id=context_id,
         created_at=datetime.utcnow().isoformat() + "Z",
-        updated_at=datetime.utcnow().isoformat() + "Z"
+        updated_at=datetime.utcnow().isoformat() + "Z",
     )
 
     return await manager.save_context(persistent_context, ttl)
 
 
 async def load_orchestration_context(
-    manager: ContextPersistenceManager,
-    context_id: str
+    manager: ContextPersistenceManager, context_id: str
 ) -> OrchestrationContext | None:
     """Utility function to load orchestration context."""
     context = await manager.get_context(context_id, PersistentOrchestrationContext)

@@ -7,7 +7,7 @@ from collections.abc import AsyncIterator
 import anthropic
 import openai
 
-from mascarade.config import is_secret_configured, settings
+from mascarade.config import is_secret_configured, secret_value, settings
 from mascarade.router.providers.base import (
     LLMProvider,
     LLMResponse,
@@ -40,13 +40,13 @@ class ClaudeProvider(LLMProvider):
         )
         if self._proxy_enabled:
             self._client = openai.AsyncOpenAI(
-                api_key=settings.litellm_master_key,
+                api_key=secret_value(settings.litellm_master_key),
                 base_url=settings.litellm_base_url,
                 timeout=30.0,
             )
         else:
             self._client = anthropic.AsyncAnthropic(
-                api_key=settings.anthropic_api_key,
+                api_key=secret_value(settings.anthropic_api_key),
                 timeout=30.0,
             )
 
@@ -79,15 +79,21 @@ class ClaudeProvider(LLMProvider):
                 temperature=temperature,
             )
             if not response.choices:
-                raise RuntimeError(f"Claude proxy returned empty choices for model {model}")
+                raise RuntimeError(
+                    f"Claude proxy returned empty choices for model {model}"
+                )
             choice = response.choices[0]
             return LLMResponse(
                 content=choice.message.content or "",
                 model=model,
                 provider=self.name,
                 usage={
-                    "input_tokens": response.usage.prompt_tokens if response.usage else 0,
-                    "output_tokens": response.usage.completion_tokens if response.usage else 0,
+                    "input_tokens": (
+                        response.usage.prompt_tokens if response.usage else 0
+                    ),
+                    "output_tokens": (
+                        response.usage.completion_tokens if response.usage else 0
+                    ),
                 },
             )
 

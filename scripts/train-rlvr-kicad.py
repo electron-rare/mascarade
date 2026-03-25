@@ -3,7 +3,10 @@
 The model generates KiCad schematics, KiBot runs DRC, the DRC result = reward.
 Training method: GRPO (Group Relative Policy Optimization) via TRL."""
 
-import json, time, os, subprocess, tempfile, re
+import json
+import time
+import os
+import re
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 os.environ["WANDB_DISABLED"] = "true"
@@ -52,9 +55,9 @@ def kicad_drc_reward(prompt: str, completion: str) -> float:
     has_property = "(property" in completion
 
     # Count components
-    n_symbols = len(re.findall(r'\(symbol\s', completion))
-    n_wires = len(re.findall(r'\(wire\s', completion))
-    n_pins = len(re.findall(r'\(pin\s', completion))
+    n_symbols = len(re.findall(r"\(symbol\s", completion))
+    n_wires = len(re.findall(r"\(wire\s", completion))
+    n_pins = len(re.findall(r"\(pin\s", completion))
 
     if has_kicad_header and has_symbol and n_symbols >= 2:
         if has_wire and n_wires >= 2:
@@ -65,7 +68,9 @@ def kicad_drc_reward(prompt: str, completion: str) -> float:
             return 0.3  # Minimal structure
     elif has_symbol or "(component" in completion:
         return 0.2  # Some KiCad-like content
-    elif "```" in completion and any(kw in completion for kw in ["resistor", "capacitor", "VCC", "GND"]):
+    elif "```" in completion and any(
+        kw in completion for kw in ["resistor", "capacitor", "VCC", "GND"]
+    ):
         return 0.1  # Describes a circuit but not in KiCad format
     else:
         return -0.5  # Not a schematic at all
@@ -77,7 +82,9 @@ def code_compilation_reward(prompt: str, completion: str) -> float:
         return -0.5
 
     # Extract code blocks
-    code_blocks = re.findall(r'```(?:c|cpp|python|ino)?\n(.*?)```', completion, re.DOTALL)
+    code_blocks = re.findall(
+        r"```(?:c|cpp|python|ino)?\n(.*?)```", completion, re.DOTALL
+    )
     if not code_blocks:
         # Try without backticks
         if any(kw in completion for kw in ["#include", "void ", "def ", "import "]):
@@ -118,6 +125,7 @@ def main():
     # Check if GRPO is available
     try:
         from trl import GRPOConfig, GRPOTrainer
+
         print("GRPOTrainer available")
     except ImportError:
         print("GRPOTrainer not available in this TRL version. Using DPO fallback.")
@@ -130,15 +138,31 @@ def main():
     # Load best model (mascarade-spice-v2 or latest)
     base = "unsloth/Qwen3-8B-unsloth-bnb-4bit"
     print(f"Loading {base}...")
-    model, tokenizer = FastLanguageModel.from_pretrained(base, max_seq_length=2048, load_in_4bit=True)
+    model, tokenizer = FastLanguageModel.from_pretrained(
+        base, max_seq_length=2048, load_in_4bit=True
+    )
     model = FastLanguageModel.get_peft_model(
-        model, r=16, lora_alpha=32, lora_dropout=0, bias="none",
+        model,
+        r=16,
+        lora_alpha=32,
+        lora_dropout=0,
+        bias="none",
         use_gradient_checkpointing="unsloth",
-        target_modules=["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"],
+        target_modules=[
+            "q_proj",
+            "k_proj",
+            "v_proj",
+            "o_proj",
+            "gate_proj",
+            "up_proj",
+            "down_proj",
+        ],
     )
 
     # Build dataset
-    ds = Dataset.from_dict({"prompt": RLVR_PROMPTS * 10})  # Repeat for more training steps
+    ds = Dataset.from_dict(
+        {"prompt": RLVR_PROMPTS * 10}
+    )  # Repeat for more training steps
     print(f"Dataset: {len(ds)} prompts")
 
     # Reward function

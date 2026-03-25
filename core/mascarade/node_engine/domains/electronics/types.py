@@ -41,10 +41,16 @@ WAVEFORM_TYPE = DomainType(
     schema={
         "type": "object",
         "properties": {
-            "signals": {"type": "object", "additionalProperties": {"type": "array", "items": {"type": "number"}}},
+            "signals": {
+                "type": "object",
+                "additionalProperties": {"type": "array", "items": {"type": "number"}},
+            },
             "time_axis": {"type": "array", "items": {"type": "number"}},
             "units": {"type": "object", "additionalProperties": {"type": "string"}},
-            "analysis_type": {"type": "string", "enum": ["transient", "ac", "dc", "noise", "op"]},
+            "analysis_type": {
+                "type": "string",
+                "enum": ["transient", "ac", "dc", "noise", "op"],
+            },
         },
         "required": ["signals", "analysis_type"],
     },
@@ -58,7 +64,10 @@ FIRMWARE_BINARY_TYPE = DomainType(
         "properties": {
             "binary": {"type": "string", "contentEncoding": "base64"},
             "target": {"type": "string"},
-            "framework": {"type": "string", "enum": ["esp-idf", "platformio", "arduino"]},
+            "framework": {
+                "type": "string",
+                "enum": ["esp-idf", "platformio", "arduino"],
+            },
             "size_bytes": {"type": "integer"},
             "sections": {"type": "object", "additionalProperties": {"type": "integer"}},
         },

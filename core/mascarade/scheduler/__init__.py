@@ -12,4 +12,10 @@ try:
 except ModuleNotFoundError:
     VLLMScheduler = None  # type: ignore[assignment]
 
-__all__ = ["WorkerState", "HeartbeatMonitor", "ResourceAwareScheduler", "VLLMScheduler", "AutoScaler"]
+__all__ = [
+    "WorkerState",
+    "HeartbeatMonitor",
+    "ResourceAwareScheduler",
+    "VLLMScheduler",
+    "AutoScaler",
+]

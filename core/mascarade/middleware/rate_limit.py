@@ -71,11 +71,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         # Periodic cleanup of stale buckets (every 5 minutes)
         if now - self._last_cleanup > 300:
             self._last_cleanup = now
-            stale = [
-                ip
-                for ip, b in self._buckets.items()
-                if now - b.last_refill > 600
-            ]
+            stale = [ip for ip, b in self._buckets.items() if now - b.last_refill > 600]
             for ip in stale:
                 del self._buckets[ip]
 

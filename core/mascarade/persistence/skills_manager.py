@@ -32,7 +32,7 @@ class SkillDefinition(BaseModel):
                     "version": "1.0.0",
                     "parameters": {"max_iterations": 100},
                     "enabled": True,
-                    "metadata": {"category": "analysis"}
+                    "metadata": {"category": "analysis"},
                 }
             ]
         }
@@ -63,7 +63,7 @@ class SkillExecutionRecord(BaseModel):
                     "status": "completed",
                     "result": {"analysis": "successful"},
                     "metrics": {"duration_ms": 450},
-                    "error": None
+                    "error": None,
                 }
             ]
         }
@@ -73,9 +73,7 @@ class SkillsPersistenceManager:
     """Persistent skills management with Redis backend."""
 
     def __init__(
-        self,
-        redis_url: str = "redis://localhost:6379",
-        default_ttl: int = 86400
+        self, redis_url: str = "redis://localhost:6379", default_ttl: int = 86400
     ) -> None:
         """Initialize skills persistence manager.
 
@@ -111,9 +109,7 @@ class SkillsPersistenceManager:
         return f"skill:def:{skill_id}"
 
     async def register_skill(
-        self,
-        skill_definition: SkillDefinition,
-        ttl: int | None = None
+        self, skill_definition: SkillDefinition, ttl: int | None = None
     ) -> str:
         """Register a new skill or update existing one.
 
@@ -132,7 +128,9 @@ class SkillsPersistenceManager:
         ttl_seconds = ttl or self.default_ttl
 
         await self._redis.set(key, value, ex=ttl_seconds)
-        logger.info(f"Registered skill {skill_definition.skill_id} (v{skill_definition.version})")
+        logger.info(
+            f"Registered skill {skill_definition.skill_id} (v{skill_definition.version})"
+        )
 
         return skill_definition.skill_id
 
@@ -163,11 +161,7 @@ class SkillsPersistenceManager:
             logger.error(f"Failed to deserialize skill {skill_id}: {e}")
             return None
 
-    async def update_skill(
-        self,
-        skill_id: str,
-        update_data: dict[str, Any]
-    ) -> bool:
+    async def update_skill(self, skill_id: str, update_data: dict[str, Any]) -> bool:
         """Update existing skill definition.
 
         Args:
@@ -229,9 +223,7 @@ class SkillsPersistenceManager:
         return f"skill:agent:{agent_id}:executions"
 
     async def record_execution(
-        self,
-        execution_record: SkillExecutionRecord,
-        ttl: int | None = None
+        self, execution_record: SkillExecutionRecord, ttl: int | None = None
     ) -> str:
         """Record skill execution with results.
 
@@ -260,8 +252,10 @@ class SkillsPersistenceManager:
 
         await pipeline.execute()
 
-        logger.info(f"Recorded execution {execution_record.execution_id} "
-                   f"for skill {execution_record.skill_id}")
+        logger.info(
+            f"Recorded execution {execution_record.execution_id} "
+            f"for skill {execution_record.skill_id}"
+        )
 
         return execution_record.execution_id
 
@@ -293,9 +287,7 @@ class SkillsPersistenceManager:
             return None
 
     async def get_agent_executions(
-        self,
-        agent_id: str,
-        limit: int = 10
+        self, agent_id: str, limit: int = 10
     ) -> list[SkillExecutionRecord]:
         """Get execution history for an agent.
 
@@ -327,11 +319,7 @@ class SkillsPersistenceManager:
         """Generate Redis key for agent's skills."""
         return f"agent:{agent_id}:skills"
 
-    async def assign_skill_to_agent(
-        self,
-        agent_id: str,
-        skill_id: str
-    ) -> bool:
+    async def assign_skill_to_agent(self, agent_id: str, skill_id: str) -> bool:
         """Assign skill to an agent.
 
         Args:
@@ -356,11 +344,7 @@ class SkillsPersistenceManager:
         logger.info(f"Assigned skill {skill_id} to agent {agent_id}")
         return True
 
-    async def remove_skill_from_agent(
-        self,
-        agent_id: str,
-        skill_id: str
-    ) -> bool:
+    async def remove_skill_from_agent(self, agent_id: str, skill_id: str) -> bool:
         """Remove skill from an agent.
 
         Args:
@@ -428,9 +412,7 @@ class SkillsPersistenceManager:
         return sorted(skill_ids)
 
     async def search_skills(
-        self,
-        query: str,
-        category: str | None = None
+        self, query: str, category: str | None = None
     ) -> list[SkillDefinition]:
         """Search skills by name, description, or category.
 
@@ -459,8 +441,10 @@ class SkillsPersistenceManager:
                 continue
 
             # Search in name and description
-            if (query.lower() in skill.name.lower() or
-                query.lower() in skill.description.lower()):
+            if (
+                query.lower() in skill.name.lower()
+                or query.lower() in skill.description.lower()
+            ):
                 results.append(skill)
 
         return results
@@ -489,7 +473,7 @@ class SkillsPersistenceManager:
                     execution = SkillExecutionRecord.parse_raw(exec_data)
                     if execution.skill_id == skill_id:
                         execution_count += 1
-                except:
+                except (ValueError, KeyError, TypeError):
                     continue
 
         # Get agents using this skill
@@ -505,7 +489,7 @@ class SkillsPersistenceManager:
             "skill_id": skill_id,
             "execution_count": execution_count,
             "agents_using": len(agents_using),
-            "agent_ids": agents_using
+            "agent_ids": agents_using,
         }
 
     async def clear_all_skills(self) -> int:
@@ -549,13 +533,14 @@ class SkillsPersistenceManager:
 
 # Utility functions for common skill operations
 
+
 async def create_skill_definition(
     name: str,
     description: str,
     parameters: dict[str, Any] | None = None,
     skill_id: str | None = None,
     version: str = "1.0.0",
-    metadata: dict[str, Any] | None = None
+    metadata: dict[str, Any] | None = None,
 ) -> SkillDefinition:
     """Create a new SkillDefinition with automatic IDs."""
     import uuid
@@ -567,7 +552,7 @@ async def create_skill_definition(
         version=version,
         parameters=parameters or {},
         enabled=True,
-        metadata=metadata or {}
+        metadata=metadata or {},
     )
 
 
@@ -577,7 +562,7 @@ async def create_execution_record(
     parameters: dict[str, Any],
     result: dict[str, Any] | None = None,
     error: str | None = None,
-    execution_id: str | None = None
+    execution_id: str | None = None,
 ) -> SkillExecutionRecord:
     """Create a new SkillExecutionRecord with automatic IDs and timestamps."""
     import uuid
@@ -595,7 +580,7 @@ async def create_execution_record(
         status=status,
         result=result,
         metrics={},
-        error=error
+        error=error,
     )
 
 
@@ -604,7 +589,7 @@ async def execute_skill_with_recording(
     skill_id: str,
     agent_id: str,
     parameters: dict[str, Any],
-    execution_func: callable
+    execution_func: callable,
 ) -> SkillExecutionRecord:
     """Execute a skill and automatically record the execution.
 
@@ -624,10 +609,7 @@ async def execute_skill_with_recording(
 
         # Create execution record
         execution_record = await create_execution_record(
-            skill_id=skill_id,
-            agent_id=agent_id,
-            parameters=parameters,
-            result=result
+            skill_id=skill_id, agent_id=agent_id, parameters=parameters, result=result
         )
 
         # Record execution
@@ -638,10 +620,7 @@ async def execute_skill_with_recording(
     except Exception as e:
         # Record failed execution
         execution_record = await create_execution_record(
-            skill_id=skill_id,
-            agent_id=agent_id,
-            parameters=parameters,
-            error=str(e)
+            skill_id=skill_id, agent_id=agent_id, parameters=parameters, error=str(e)
         )
 
         await manager.record_execution(execution_record)

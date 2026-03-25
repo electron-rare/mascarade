@@ -1,0 +1,416 @@
+plan_id: 2026-03-24-sota-mascarade
+objective: Evaluer le prochain lot technique a faible risque et forte valeur autour de l'UX/auth du cockpit agents apres confirmation que le core expose toujours les agents mais que /api/agents retourne 401 en production.
+focus_area: agents_auth_ux
+created_at: 2026-03-24T00:00:00Z
+created_by: GitHub Copilot GPT-5.4
+status: completed
+
+tldr: |
+  - La production montre un backend vivant cote core (/health remonte core.agents) mais la gateway applique bien une protection sur /api/agents; un 401 sur cette route est donc compatible avec un cookie de session absent, invalide ou expire, pas avec une disparition des agents.
+  - Le web monte deja une gate globale via AuthProvider/AuthGate, mais la detection authRequired depend de /health alors que /health et authMiddleware n'utilisent pas la meme logique de configuration d'auth.
+  - Le plus petit lot utile observe est un lot de coherence auth: partager la meme source de verite pour auth_required, tester /api/auth/session, et rendre la page Agents plus explicite quand l'echec vient d'une session manquante/expiree plutot que d'un registre vide.
+  - Les fichiers les plus centraux pour ce lot sont api/src/routes/health.ts, api/src/routes/auth.ts, api/src/middleware/auth.ts, web/src/api/client.ts, web/src/auth/AuthContext.tsx, web/src/auth/AuthGate.tsx, web/src/pages/Agents.tsx.
+  - La couverture actuelle protege bien le middleware et AuthContext, mais ne couvre pas la route /api/auth/session ni un parcours UX de re-auth sur 401 depuis la page Agents.
+
+research_metadata:
+  methodology: hybrid retrieval via semantic_search + grep_search, targeted read_file on auth/web route files, relationship discovery via vscode_listCodeUsages
+  scope: Focus sur le flux auth du cockpit web vers la gateway API pour les surfaces agents, avec verification des tests unitaires et E2E voisins
+  confidence: high
+  coverage: 85
+
+files_analyzed:
+  - file: auth.ts
+    path: api/src/middleware/auth.ts
+    purpose: Middleware principal qui protege /api/* et /v1/api/*, accepte Bearer ou cookie de session, puis applique le RBAC.
+    key_elements:
+      - element: useDatabaseAuth
+        type: variable
+        location: api/src/middleware/auth.ts:24
+        description: Active la validation via base si DATABASE_URL est definie.
+      - element: isAuthConfigured
+        type: function
+        location: api/src/middleware/auth.ts:44
+        description: Source de verite reelle pour savoir si l'API est protegee.
+      - element: authMiddleware
+        type: function
+        location: api/src/middleware/auth.ts:193
+        description: Lit Authorization ou le cookie mascarade_key puis retourne 401, 403 ou 503 selon le contexte.
+    language: typescript
+    lines: 246
+  - file: auth.ts
+    path: api/src/routes/auth.ts
+    purpose: Route de creation/suppression de la session cookie HTTP-only cote web.
+    key_elements:
+      - element: POST /session
+        type: function
+        location: api/src/routes/auth.ts:21
+        description: Accepte un token via body ou header, le valide puis pose le cookie.
+      - element: validation duale config/database
+        type: pattern
+        location: api/src/routes/auth.ts:35
+        description: Essaie d'abord les cles legacy puis le backend DB/core.
+      - element: DELETE /session
+        type: function
+        location: api/src/routes/auth.ts:48
+        description: Efface le cookie de session.
+    language: typescript
+    lines: 52
+  - file: health.ts
+    path: api/src/routes/health.ts
+    purpose: Endpoint public consomme par le cockpit pour savoir si une authentification est requise.
+    key_elements:
+      - element: isAuthRequired
+        type: function
+        location: api/src/routes/health.ts:6
+        description: Derive auth_required uniquement depuis MASCARADE_API_KEY.
+      - element: GET /health
+        type: function
+        location: api/src/routes/health.ts:10
+        description: Retourne status, auth_required et core health.
+    language: typescript
+    lines: 20
+  - file: index.ts
+    path: api/src/index.ts
+    purpose: Montage des routes et de l'ordre auth/rate-limit.
+    key_elements:
+      - element: /api/auth mount
+        type: pattern
+        location: api/src/index.ts:67
+        description: /api/auth reste publique hormis le rate limit.
+      - element: /api/* authMiddleware
+        type: pattern
+        location: api/src/index.ts:69
+        description: Toute la surface /api est protegee avant routage.
+      - element: /api/agents mount
+        type: pattern
+        location: api/src/index.ts:71
+        description: La page Agents passe necessairement par le middleware d'auth.
+    language: typescript
+    lines: 101
+  - file: client.ts
+    path: web/src/api/client.ts
+    purpose: Client fetch web, gestion de session cookie et bus global des 401.
+    key_elements:
+      - element: AUTH_SESSION_PATH
+        type: variable
+        location: web/src/api/client.ts:4
+        description: Pointe vers /api/auth/session pour poser ou effacer le cookie.
+      - element: setApiKey
+        type: function
+        location: web/src/api/client.ts:50
+        description: Cree la session cookie et stocke seulement le flag persist en localStorage.
+      - element: validateApiKey
+        type: function
+        location: web/src/api/client.ts:79
+        description: Sans cle explicite, probe /api/agents/providers avec credentials include.
+      - element: _emit401
+        type: pattern
+        location: web/src/api/client.ts:202
+        description: Notifie le contexte auth sur toute reponse 401 provenant du client api().
+    language: typescript
+    lines: 241
+  - file: AuthContext.tsx
+    path: web/src/auth/AuthContext.tsx
+    purpose: Etat auth global du cockpit.
+    key_elements:
+      - element: AuthProvider
+        type: function
+        location: web/src/auth/AuthContext.tsx:33
+        description: Probe /health puis valide la session existante.
+      - element: auth_required consumption
+        type: pattern
+        location: web/src/auth/AuthContext.tsx:48
+        description: La decision d'afficher la gate depend strictement de data.auth_required.
+      - element: validateApiKey call
+        type: pattern
+        location: web/src/auth/AuthContext.tsx:57
+        description: Controle la validite du cookie courant.
+      - element: onAuth401 subscription
+        type: pattern
+        location: web/src/auth/AuthContext.tsx:77
+        description: Force authenticated=false apres toute 401 provenant du client api().
+    language: typescript
+    lines: 92
+  - file: AuthGate.tsx
+    path: web/src/auth/AuthGate.tsx
+    purpose: Overlay de connexion du cockpit.
+    key_elements:
+      - element: AuthGate
+        type: function
+        location: web/src/auth/AuthGate.tsx:6
+        description: Bloque tout le router tant que checking ou auth manquante.
+      - element: login copy
+        type: pattern
+        location: web/src/auth/AuthGate.tsx:61
+        description: Message d'acces au cockpit via cle API.
+      - element: invalid state
+        type: pattern
+        location: web/src/auth/AuthGate.tsx:94
+        description: Seul feedback utilisateur explicite en cas d'echec de connexion.
+    language: typescript
+    lines: 121
+  - file: Agents.tsx
+    path: web/src/pages/Agents.tsx
+    purpose: Vue registre agents du cockpit.
+    key_elements:
+      - element: initial fetch
+        type: pattern
+        location: web/src/pages/Agents.tsx:69
+        description: Charge /api/agents des l'entree dans la page.
+      - element: loading state
+        type: pattern
+        location: web/src/pages/Agents.tsx:161
+        description: Rend un panneau de chargement sans contexte auth.
+      - element: error notice
+        type: pattern
+        location: web/src/pages/Agents.tsx:197
+        description: Rend Last refresh failed: {error}, sans distinction 401/session expiree.
+    language: typescript
+    lines: 357
+  - file: AuthContext.test.tsx
+    path: web/src/auth/__tests__/AuthContext.test.tsx
+    purpose: Couvre les cas de base du contexte auth web.
+    key_elements:
+      - element: auth required valid key
+        type: test
+        location: web/src/auth/__tests__/AuthContext.test.tsx:75
+        description: Valide qu'un cookie/session valide authentifie bien le contexte.
+      - element: auth required invalid key
+        type: test
+        location: web/src/auth/__tests__/AuthContext.test.tsx:97
+        description: Verifie le clear du state quand la validation echoue.
+      - element: health failure fallback
+        type: test
+        location: web/src/auth/__tests__/AuthContext.test.tsx:162
+        description: Le cockpit reste ouvert si /health tombe.
+    language: typescriptreact
+    lines: 187
+  - file: auth.test.ts
+    path: api/src/middleware/auth.test.ts
+    purpose: Couvre les comportements de base du middleware auth.
+    key_elements:
+      - element: fail closed
+        type: test
+        location: api/src/middleware/auth.test.ts:53
+        description: Retourne 503 sans configuration d'auth.
+      - element: cookie acceptance
+        type: test
+        location: api/src/middleware/auth.test.ts:84
+        description: Accepte le cookie mascarade_key.
+      - element: missing token
+        type: test
+        location: api/src/middleware/auth.test.ts:95
+        description: Retourne 401 si auth activee et aucun token present.
+    language: typescript
+    lines: 151
+  - file: auth-gates.spec.ts
+    path: e2e/tests/api/auth-gates.spec.ts
+    purpose: Smoke E2E des statuts 503/401/200/403 sur routes protegees.
+    key_elements:
+      - element: protected routes matrix
+        type: test
+        location: e2e/tests/api/auth-gates.spec.ts:13
+        description: Couvre /api/agents et /api/agents/providers avec plusieurs statuts.
+    language: typescript
+    lines: 73
+
+patterns_found:
+  - category: architecture
+    pattern: Gate globale cote web avant le router
+    description: Toute l'application React est montee sous AuthProvider puis AuthGate, donc un 401 sur /api/agents apres bootstrap traduit plutot une session invalide/expiree qu'une absence de garde.
+    examples:
+      - file: web/src/main.tsx
+        location: web/src/main.tsx:12
+        snippet: <AuthProvider><AuthGate><App /></AuthGate></AuthProvider>
+    prevalence: common
+  - category: architecture
+    pattern: Routes /api protegees, /api/auth publique
+    description: Le backend laisse seulement /api/auth/session hors authMiddleware puis protege /api/agents avant le handler metier.
+    examples:
+      - file: api/src/index.ts
+        location: api/src/index.ts:67
+        snippet: app.route("/api/auth", auth); app.use("/api/*", authMiddleware); app.route("/api/agents", agents);
+    prevalence: common
+  - category: error_handling
+    pattern: 401 global -> invalidation du state auth web
+    description: Le client api() emet un evenement sur toute 401 et AuthContext remet authenticated a false.
+    examples:
+      - file: web/src/api/client.ts
+        location: web/src/api/client.ts:202
+        snippet: if (res.status === 401) { _emit401(); }
+      - file: web/src/auth/AuthContext.tsx
+        location: web/src/auth/AuthContext.tsx:77
+        snippet: useEffect(() => onAuth401(() => setAuthenticated(false)), []);
+    prevalence: common
+  - category: structure
+    pattern: Validation de session par probe /api/agents/providers
+    description: Le web n'a pas d'endpoint de session GET; il deduit la validite de la session en appelant une route protegee legere.
+    examples:
+      - file: web/src/api/client.ts
+        location: web/src/api/client.ts:79
+        snippet: fetch("/api/agents/providers", { credentials: "include" })
+    prevalence: common
+  - category: architecture
+    pattern: Incoherence entre health et auth reelle
+    description: /health calcule auth_required depuis MASCARADE_API_KEY seulement, alors que le middleware accepte aussi le mode database auth via DATABASE_URL.
+    examples:
+      - file: api/src/routes/health.ts
+        location: api/src/routes/health.ts:6
+        snippet: function isAuthRequired(): boolean { return (process.env.MASCARADE_API_KEY || "")... }
+      - file: api/src/middleware/auth.ts
+        location: api/src/middleware/auth.ts:44
+        snippet: export function isAuthConfigured(): boolean { return useDatabaseAuth || configuredApiKeys().length > 0; }
+    prevalence: occasional
+  - category: ux
+    pattern: La page Agents ne distingue pas un echec auth d'un echec registre
+    description: Le rendu d'erreur affiche un message generic Last refresh failed sans indiquer si la session est expiree.
+    examples:
+      - file: web/src/pages/Agents.tsx
+        location: web/src/pages/Agents.tsx:197
+        snippet: message={`Last refresh failed: ${error}`}
+    prevalence: common
+
+related_architecture:
+  components_relevant_to_domain:
+    - component: api auth middleware
+      responsibility: AuthN/AuthZ des routes protegees
+      location: api/src/middleware/auth.ts
+      relationship_to_domain: domain depends on this
+    - component: api auth session routes
+      responsibility: Pose et suppression du cookie HTTP-only
+      location: api/src/routes/auth.ts
+      relationship_to_domain: domain depends on this
+    - component: public health route
+      responsibility: Expose auth_required et la sante core
+      location: api/src/routes/health.ts
+      relationship_to_domain: domain depends on this
+    - component: web auth context/gate
+      responsibility: Decider si l'application est bloquee par login
+      location: web/src/auth
+      relationship_to_domain: domain depends on this
+    - component: agents registry page
+      responsibility: Charger et afficher le registre agents
+      location: web/src/pages/Agents.tsx
+      relationship_to_domain: this uses domain outputs
+  interfaces_used_by_domain:
+    - interface: AuthUser
+      location: api/src/lib/auth.ts
+      usage_pattern: Porte role_id et is_active pour le RBAC base de donnees
+    - interface: Agent
+      location: web/src/api/agents.ts
+      usage_pattern: Type de retour principal de /api/agents
+  data_flow_involving_domain: Le cockpit web appelle d'abord /health pour connaitre auth_required, puis valide la session existante via /api/agents/providers ou cree une session via POST /api/auth/session; ensuite la page Agents charge /api/agents et, sur 401, le client web emet un evenement qui fait repasser AuthContext en non authentifie.
+  key_relationships_to_domain:
+    - from: web/src/api/client.ts
+      to: api/src/routes/auth.ts
+      relationship: calls
+    - from: web/src/auth/AuthContext.tsx
+      to: api/src/routes/health.ts
+      relationship: calls
+    - from: web/src/pages/Agents.tsx
+      to: api/src/routes/agents.ts
+      relationship: calls
+    - from: api/src/index.ts
+      to: api/src/middleware/auth.ts
+      relationship: composes
+
+related_technology_stack:
+  languages_used_in_domain:
+    - TypeScript
+    - TSX
+  frameworks_used_in_domain:
+    - name: Hono
+      usage_in_domain: Routage API et middleware auth/session
+    - name: React
+      usage_in_domain: Contexte auth, gate globale et pages cockpit
+    - name: React Router
+      usage_in_domain: Routing des pages Agents et AgentDetail
+    - name: Vitest
+      usage_in_domain: Tests unitaires API/web
+    - name: Playwright
+      usage_in_domain: Smokes E2E auth/health
+  libraries_used_in_domain:
+    - name: node:crypto
+      purpose_in_domain: timingSafeEqual pour les cles legacy
+    - name: Testing Library
+      purpose_in_domain: Tests du contexte auth React
+  external_apis_used_in_domain:
+    - name: Mascarade core service
+      integration_point: api/src/lib/auth.ts via coreClient.verifyToken et api/src/routes/health.ts via coreClient.health
+
+related_conventions:
+  naming_patterns_in_domain: Routes Hono exportees comme const auth/health/agents; helpers auth nommes explicitement isAuthConfigured, validateApiKey, clearApiKey.
+  structure_of_domain: Separation nette entre middleware API, routes session publiques, client fetch web, contexte auth React, puis pages qui consomment les endpoints.
+  error_handling_in_domain: 401 pour token manquant/invalide, 403 pour role insuffisant, 503 pour fail-closed sans auth configuree; cote web, ApiError normalise le message et AuthContext bascule sur non authentifie a la reception d'un 401.
+  testing_in_domain: Unit tests Vitest au niveau middleware et contexte React; smokes Playwright au niveau gateway.
+  documentation_in_domain: Peu de documentation inline; le comportement est surtout encode dans les tests et dans les messages de log/commentaires de middleware.
+
+related_dependencies:
+  internal:
+    - component: api/src/lib/auth.ts
+      relationship_to_domain: Valide les tokens DB/core
+      direction: outbound
+    - component: api/src/client/core.ts
+      relationship_to_domain: Expose health et verifyToken au core
+      direction: outbound
+    - component: web/src/api/agents.ts
+      relationship_to_domain: Encapsule /api/agents* pour les pages cockpit
+      direction: outbound
+    - component: web/src/hooks/useFetch
+      relationship_to_domain: Orchestre les chargements de la page Agents
+      direction: outbound
+  external:
+    - name: hono
+      purpose_for_domain: Router/middleware HTTP
+    - name: react
+      purpose_for_domain: Etat auth et rendu de l'overlay
+    - name: vitest
+      purpose_for_domain: Regression tests unitaires
+    - name: @playwright/test
+      purpose_for_domain: Verification E2E des codes de statut
+
+domain_security_considerations:
+  sensitive_areas:
+    - area: Session cookie HTTP-only
+      location: api/src/routes/auth.ts:41
+      concern: L'UX depend entierement de ce cookie; s'il n'est pas pose ou n'est plus envoye, /api/agents retombe immediatement en 401.
+    - area: Source de verite auth_required
+      location: api/src/routes/health.ts:6
+      concern: Une incoherence avec le middleware peut ouvrir ou fermer a tort la gate cote web.
+    - area: Cookie ou Bearer interchangeables
+      location: api/src/middleware/auth.ts:198
+      concern: Le comportement est correct mais doit rester bien teste pour eviter des regressions entre login web et appels scripts.
+  authentication_patterns_in_domain: Bearer Authorization ou cookie mascarade_key, validation legacy env keys ou database/core verifyToken.
+  authorization_patterns_in_domain: RBAC derive soit du role DB, soit de listes de cles par role via envs MASCARADE_RBAC_*.
+  data_validation_in_domain: Longueur minimale de token, comparaison timing-safe pour les cles legacy, actif/inactif verifie cote DB.
+
+testing_patterns:
+  framework: Vitest et Playwright
+  coverage_areas:
+    - Middleware auth 401/403/503 et cookie support
+    - AuthContext bootstrap et login/logout
+    - E2E statuts sur /api/agents et /health
+  test_organization: Tests API sous api/src/**/*.test.ts, tests React sous web/src/**/__tests__/*.test.tsx, smokes end-to-end sous e2e/tests/api
+  mock_patterns:
+    - Mock de global fetch pour AuthContext
+    - Spy sur coreClient pour les routes API
+    - Matrices Playwright sur routes protegees
+
+open_questions:
+  - question: En production, l'auth utilise-t-elle DATABASE_URL sans MASCARADE_API_KEY ?
+    context: Si oui, /health peut declarer auth_required=false alors que /api/agents est protege, ce qui expliquerait une UX incoherente meme sans bug de registre.
+  - question: Le 401 observe sur /api/agents arrive-t-il avant login initial ou apres expiration de session existante ?
+    context: Le plus petit lot differe legerement entre bootstrap incomplet et re-auth apres expiration.
+  - question: Un proxy reverse ou un attribut Secure/SameSite empeche-t-il parfois l'envoi du cookie de session en production ?
+    context: Le serveur accepte bien le cookie, mais l'incident peut aussi venir de la couche de transport plutot que du code applicatif.
+
+gaps:
+  - area: Route /api/auth/session non testee
+    description: Aucun test unitaire cible ne valide POST/DELETE /api/auth/session avec token header/body, cookie pose, ou erreur 401/503.
+    impact: Zone non couverte exactement sur le chemin UX le plus critique pour le cockpit.
+  - area: UX explicite sur 401 dans la page Agents
+    description: Aucune regression test ne verifie qu'une page deja ouverte bascule proprement vers une re-auth claire quand /api/agents ou /api/agents/providers retourne 401.
+    impact: Le ressenti utilisateur peut rester ambigu entre panne registre et session expiree.
+  - area: Cohesion health/authMiddleware
+    description: Aucun test n'assure que auth_required expose par /health suit exactement la meme logique que l'auth reelle.
+    impact: Risque de gate web ouverte ou fermee a tort selon le mode d'auth deploye.

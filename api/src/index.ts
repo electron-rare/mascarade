@@ -101,7 +101,7 @@ if (hasFrontend) {
 
 app.notFound((c) => c.json({ error: "Not found" }, 404));
 
-const port = parseInt(process.env.API_PORT || "3000", 10);
+const port = parseInt(process.env.API_PORT || "3100", 10);
 
 console.log(`Mascarade API listening on port ${port}`);
 serve({ fetch: app.fetch, port });

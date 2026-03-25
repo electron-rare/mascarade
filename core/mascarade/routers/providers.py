@@ -12,7 +12,9 @@ from mascarade.provider_admin import (
     update_provider_keys,
 )
 
-router = APIRouter(prefix="/v1/api", dependencies=[Depends(require_auth)], tags=["providers"])
+router = APIRouter(
+    prefix="/v1/api", dependencies=[Depends(require_auth)], tags=["providers"]
+)
 
 
 # --- Models ---

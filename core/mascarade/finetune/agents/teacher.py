@@ -63,14 +63,18 @@ class TeacherAgent:
                         temperature=config.temperature,
                         max_tokens=config.max_tokens,
                     )
-                    entry = self._format_entry(prompt, response.content, config.output_format)
+                    entry = self._format_entry(
+                        prompt, response.content, config.output_format
+                    )
                     f.write(json.dumps(entry, ensure_ascii=False) + "\n")
                     results.append(entry)
                 except Exception as e:
                     logger.warning("Failed to generate for prompt %d: %s", i, e)
                     errors += 1
 
-        logger.info("Generated %d samples (%d errors) → %s", len(results), errors, output_path)
+        logger.info(
+            "Generated %d samples (%d errors) → %s", len(results), errors, output_path
+        )
         return {
             "output_path": str(output_path),
             "total": len(results),

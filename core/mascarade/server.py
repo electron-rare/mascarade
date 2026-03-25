@@ -149,7 +149,7 @@ async def lifespan(app: FastAPI):
     if settings.database_url:
         await close_db_pool()
         logger.info("Database pool closed")
-    if app.state.qdrant is not None:
+    if getattr(app.state, "qdrant", None) is not None:
         await app.state.qdrant.close()
 
 
@@ -405,6 +405,8 @@ class RateLimitUpdate(BaseModel):
     requests_per_hour: int | None = Field(default=None, ge=0)
     requests_per_day: int | None = Field(default=None, ge=0)
     tokens_per_day: int | None = Field(default=None, ge=0)
+
+
 class QdrantCreateCollectionRequest(BaseModel):
     vector_size: int = Field(gt=0, le=65536)
     distance: Literal["Cosine", "Euclid", "Dot"] = "Cosine"
@@ -485,11 +487,7 @@ async def health():
 @app.get("/v1/version")
 async def version():
     """Version endpoint - returns API version and service information."""
-    return {
-        "version": "v1",
-        "service": "mascarade-core",
-        "api_version": "0.1.0"
-    }
+    return {"version": "v1", "service": "mascarade-core", "api_version": "0.1.0"}
 
 
 @app.get("/v1/models")
@@ -602,6 +600,7 @@ async def chat_completions(req: ChatCompletionRequest):
 
     # Handle streaming if requested
     if req.stream:
+
         async def stream_response():
             """Generate SSE stream of chat completion chunks."""
             chat_id = f"chatcmpl-{new_run_id()}"
@@ -839,13 +838,11 @@ async def list_users(_: None = Depends(require_admin)):
 
     try:
         async with pool.acquire() as conn:
-            rows = await conn.fetch(
-                """
+            rows = await conn.fetch("""
                 SELECT id, username, email, role_id, is_active, created_at, updated_at
                 FROM users
                 ORDER BY created_at DESC
-                """
-            )
+                """)
             users = [User.from_record(dict(row)) for row in rows]
             return {"users": [user.model_dump() for user in users]}
     except Exception as e:
@@ -1331,8 +1328,12 @@ async def revoke_user_api_key(
 
 @protected.get("/admin/usage/stats")
 async def get_usage_statistics(
-    start_date: datetime | None = Query(default=None, description="Start date for filtering (ISO format)"),
-    end_date: datetime | None = Query(default=None, description="End date for filtering (ISO format)"),
+    start_date: datetime | None = Query(
+        default=None, description="Start date for filtering (ISO format)"
+    ),
+    end_date: datetime | None = Query(
+        default=None, description="End date for filtering (ISO format)"
+    ),
     _: None = Depends(require_admin),
 ):
     """Get aggregated usage statistics for all users (admin only)."""
@@ -1580,9 +1581,7 @@ async def update_agent(name: str, req: AgentUpdate, request: Request):
 
         # Create PromptHistory and load existing versions
         prompt_history = PromptHistory(storage_path=None)
-        prompt_history._versions = [
-            PromptVersion(**v) for v in agent.prompt_versions
-        ]
+        prompt_history._versions = [PromptVersion(**v) for v in agent.prompt_versions]
 
         # Add new version
         new_version = prompt_history.add_version(
@@ -1709,9 +1708,7 @@ async def get_template(template_id: str):
     try:
         template = app.state.template_registry.get(template_id)
     except KeyError as exc:
-        raise HTTPException(
-            status_code=404, detail=f"Template not found: {template_id}"
-        ) from exc
+        raise HTTPException(status_code=404, detail=f"Template not found: {template_id}") from exc
     return {
         "id": template.id,
         "name": template.name,
@@ -1730,9 +1727,7 @@ async def deploy_template(template_id: str, req: TemplateDeployRequest):
     try:
         template = app.state.template_registry.get(template_id)
     except KeyError as exc:
-        raise HTTPException(
-            status_code=404, detail=f"Template not found: {template_id}"
-        ) from exc
+        raise HTTPException(status_code=404, detail=f"Template not found: {template_id}") from exc
 
     # Merge template routing_overrides with request overrides (request takes precedence)
     routing_overrides = {}
@@ -1905,8 +1900,12 @@ async def get_cost_analytics(
                 "request_count": 0,
             }
 
-        input_tokens = event.token_usage.get("input_tokens", 0) or event.token_usage.get("prompt_tokens", 0)
-        output_tokens = event.token_usage.get("output_tokens", 0) or event.token_usage.get("completion_tokens", 0)
+        input_tokens = event.token_usage.get("input_tokens", 0) or event.token_usage.get(
+            "prompt_tokens", 0
+        )
+        output_tokens = event.token_usage.get("output_tokens", 0) or event.token_usage.get(
+            "completion_tokens", 0
+        )
 
         # Calculate cost for this event
         cost = cost_calc.calculate_cost(
@@ -2647,7 +2646,7 @@ async def get_benchmark_results(
     if order_by not in valid_order_by:
         raise HTTPException(
             status_code=400,
-            detail=f"Invalid order_by parameter. Must be one of: {', '.join(valid_order_by)}"
+            detail=f"Invalid order_by parameter. Must be one of: {', '.join(valid_order_by)}",
         )
 
     storage = BenchmarkStorage()
@@ -2666,7 +2665,7 @@ async def get_benchmark_results(
                 "domain": domain,
                 "limit": limit,
                 "order_by": order_by,
-            }
+            },
         }
     except Exception as e:
         logger.exception("Failed to query benchmark results")
@@ -2821,13 +2820,17 @@ async def handle_model_deployment_webhook(webhook: ModelDeploymentWebhook):
         logger.exception("Unexpected error processing webhook")
         raise HTTPException(status_code=500, detail="Internal server error") from exc
 
+
 @app.get("/metrics")
 async def metrics():
     """Expose Prometheus metrics for scraping."""
     try:
         from prometheus_client import REGISTRY, generate_latest
         from starlette.responses import Response as _RawResponse
-        return _RawResponse(content=generate_latest(REGISTRY), media_type="text/plain; version=0.0.4; charset=utf-8")
+
+        return _RawResponse(
+            content=generate_latest(REGISTRY), media_type="text/plain; version=0.0.4; charset=utf-8"
+        )
     except ImportError:
         raise HTTPException(status_code=501, detail="prometheus_client not installed")
 
@@ -2845,6 +2848,14 @@ async def device_voice_reply_audio(reply_id: str, request: Request):
 
 app.include_router(protected)
 app.include_router(cluster_protected)
+
+# OpenAI-compatible audio endpoints for ESP32-S3-BOX-3 (no auth required)
+from mascarade.routers.openai_audio import router as openai_audio_router
+app.include_router(openai_audio_router)
+
+# KiCad + SPICE MCP endpoints
+from mascarade.routers.kicad_mcp import router as kicad_mcp_router
+app.include_router(kicad_mcp_router)
 
 # Mount Ollama-compatible API (fake Ollama backed by Mascarade Router + P2P)
 mount_ollama_compat(app)
