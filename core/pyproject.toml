@@ -76,9 +76,7 @@ build-backend = "setuptools.build_meta"
 [tool.ruff]
 line-length = 100
 target-version = "py311"
-exclude = [
-    "mascarade/node_engine/registry.py",  # corrupt from merge conflict — needs rewrite
-]
+exclude = []
 
 [tool.ruff.lint]
 select = [
@@ -135,7 +133,6 @@ ignore = [
 "mascarade/finetune/*" = ["S101", "E402"]  # assert in training, late imports
 "bert_finetuning_script.py" = ["E402"]  # imports after logging setup
 "mascarade/agentic_rag.py" = ["E402"]  # imports after logger setup
-"mascarade/node_engine/registry.py" = ["ALL"]  # corrupt — needs rewrite
 "mascarade/node_engine/base.py" = ["F811"]  # error var reused in except chains
 "mascarade/node_engine/types.py" = ["UP007"]  # Union syntax for compat
 "mascarade/node_engine/worker.py" = ["B027"]  # empty hooks are intentional

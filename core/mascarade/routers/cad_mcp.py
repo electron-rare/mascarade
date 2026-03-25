@@ -132,7 +132,6 @@ async def kicad_list_tools():
     from mascarade.mcp.kicad_seeed import (
         SEEED_TOOL_CATEGORIES,
         SEEED_TOOLS,
-        is_available as seeed_available,
     )
 
     server_key = _resolve_kicad_server_key()
@@ -141,7 +140,7 @@ async def kicad_list_tools():
             "server": server_key,
             "provider": "seeed",
             "tool_count": len(SEEED_TOOLS),
-            "categories": {k: v for k, v in SEEED_TOOL_CATEGORIES.items()},
+            "categories": dict(SEEED_TOOL_CATEGORIES.items()),
             "tools": SEEED_TOOLS,
         }
 

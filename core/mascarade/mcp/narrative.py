@@ -16,7 +16,6 @@ import asyncio
 import logging
 import os
 import shlex
-import time
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -65,7 +64,8 @@ class _StdioSession:
 
         async with self._lock:
             proc = await self._ensure_process()
-            assert proc.stdin is not None and proc.stdout is not None
+            if proc.stdin is None or proc.stdout is None:
+                raise RuntimeError("MCP subprocess stdio not available")
 
             self._request_id += 1
             request = {
@@ -97,7 +97,7 @@ class _StdioSession:
             self._process.terminate()
             try:
                 await asyncio.wait_for(self._process.wait(), timeout=5.0)
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 self._process.kill()
             self._process = None
 

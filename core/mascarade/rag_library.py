@@ -1,7 +1,12 @@
 """RAG Document Library — ingest + search documents via Qdrant."""
 from __future__ import annotations
-import hashlib, logging, os, time, uuid
+
+import logging
+import os
+import time
+import uuid
 from typing import Any
+
 import httpx
 
 logger = logging.getLogger("mascarade.rag_library")
@@ -84,7 +89,7 @@ async def status() -> dict:
 
 def mount_rag_library(app: Any) -> None:
     from fastapi import Body
-    
+
     @app.post("/v1/library/ingest")
     async def library_ingest(text: str = Body(..., embed=True), source: str = Body("", embed=True)):
         result = await ingest(text, {"source": source})

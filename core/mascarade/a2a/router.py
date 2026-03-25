@@ -1,7 +1,11 @@
 """A2A protocol endpoints for FastAPI."""
 from __future__ import annotations
-import logging, uuid, time
+
+import logging
+import time
+import uuid
 from typing import Any
+
 from mascarade.a2a.agent_card import AgentCard
 
 logger = logging.getLogger("mascarade.a2a")
