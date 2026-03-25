@@ -29,7 +29,7 @@ dependencies = [
     "google-genai>=1.0,<2",
     "python-multipart>=0.0.22,<1",
     "zeroconf>=0.145.0,<1",
-    "cryptography>=44.0,<45",
+    "cryptography>=44.0,<47",
     "huggingface-hub>=1.6.0",
     "asyncpg>=0.30,<1",
 ]
