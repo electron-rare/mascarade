@@ -85,7 +85,8 @@ services:
   litellm:
     profiles:
       - personal
-    image: ${LITELLM_IMAGE:-ghcr.io/berriai/litellm@sha256:59a2736ac84800821fa0e1656487366089f2d29d10f8ae05c918df9c6e4940af}
+    # SECURITY: pinned to 1.81.14 — DO NOT use 1.82.7/1.82.8 (TeamPCP supply chain compromise)
+    image: ${LITELLM_IMAGE:-ghcr.io/berriai/litellm@sha256:89b407f182cee61e86b22d44c476f4d64d222c798d5bd6b871a926f65a51e59a}
     container_name: mascarade-litellm
     restart: unless-stopped
     deploy:
