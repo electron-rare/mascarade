@@ -1,16 +1,13 @@
-"""Mistral Embeddings Provider - Vector embeddings for semantic search."""
+"""Mistral Embeddings Provider - Vector embeddings for semantic search (via litellm)."""
 
 from __future__ import annotations
 
 import logging
 
 try:
-    from mistralai.client import MistralClient
-
-    MISTRAL_EMBEDDINGS_AVAILABLE = True
+    import litellm
 except ImportError:
-    MISTRAL_EMBEDDINGS_AVAILABLE = False
-    MistralClient = object
+    litellm = None  # type: ignore[assignment]
 
 logger = logging.getLogger("mascarade.mistral_embeddings")
 
@@ -18,15 +15,12 @@ logger = logging.getLogger("mascarade.mistral_embeddings")
 class MistralEmbeddingsProvider:
     """Provider for Mistral embeddings service."""
 
-    def __init__(self, api_key: str):
-        if not MISTRAL_EMBEDDINGS_AVAILABLE:
-            raise RuntimeError(
-                "Mistral embeddings client not available. "
-                "Install with: pip install mistralai"
+    def __init__(self, api_key: str | None = None):
+        self._api_key = api_key
+        if litellm is None:
+            logger.warning(
+                "litellm is not installed. MistralEmbeddingsProvider will be unavailable."
             )
-
-        self.client = MistralClient(api_key=api_key)
-        logger.info("Mistral Embeddings provider initialized")
 
     async def embed(
         self,
@@ -35,13 +29,15 @@ class MistralEmbeddingsProvider:
         dimensions: int = 1024,
     ) -> list[list[float]]:
         """Generate embeddings for texts."""
-        response = self.client.embeddings(
-            model=model,
+        if litellm is None:
+            raise RuntimeError("litellm is not installed. Install with: pip install litellm")
+        response = await litellm.aembedding(
+            model=f"mistral/{model}",
             input=texts,
             dimensions=dimensions,
+            api_key=self._api_key,
         )
-
-        return [data.embedding for data in response.data]
+        return [data["embedding"] for data in response.data]
 
     async def embed_query(
         self,
