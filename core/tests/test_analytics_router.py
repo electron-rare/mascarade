@@ -18,15 +18,17 @@ from mascarade.server import app
 
 @asynccontextmanager
 async def _client(**state_overrides):
-    async with app.router.lifespan_context(app):
-        for k, v in state_overrides.items():
-            setattr(app.state, k, v)
-        transport = httpx.ASGITransport(app=app)
-        async with httpx.AsyncClient(
-            transport=transport,
-            base_url="http://testserver",
-        ) as client:
-            yield client
+    with patch("mascarade.auth.is_valid_api_key", return_value=True), \
+         patch("mascarade.auth._resolve_role", return_value="admin"):
+        async with app.router.lifespan_context(app):
+            for k, v in state_overrides.items():
+                setattr(app.state, k, v)
+            transport = httpx.ASGITransport(app=app)
+            async with httpx.AsyncClient(
+                transport=transport,
+                base_url="http://testserver",
+            ) as client:
+                yield client
 
 
 def _fake_leaderboard(domain=None, limit=10, order_by="quality_score"):

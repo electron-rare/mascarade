@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, patch
 
 import httpx
 import pytest
@@ -21,13 +21,15 @@ def _clean_api_keys():
 
 @asynccontextmanager
 async def _client():
-    async with app.router.lifespan_context(app):
-        transport = httpx.ASGITransport(app=app)
-        async with httpx.AsyncClient(
-            transport=transport,
-            base_url="http://testserver",
-        ) as client:
-            yield client
+    with patch("mascarade.auth.is_valid_api_key", return_value=True), \
+         patch("mascarade.auth._resolve_role", return_value="admin"):
+        async with app.router.lifespan_context(app):
+            transport = httpx.ASGITransport(app=app)
+            async with httpx.AsyncClient(
+                transport=transport,
+                base_url="http://testserver",
+            ) as client:
+                yield client
 
 
 @pytest.mark.asyncio

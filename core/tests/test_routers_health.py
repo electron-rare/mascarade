@@ -8,6 +8,7 @@ from datetime import datetime
 
 import httpx
 import pytest
+from unittest.mock import patch
 
 from mascarade.router.circuit_breaker import CircuitState
 from mascarade.server import app
@@ -90,32 +91,34 @@ async def _client(
     fake_router: FakeRouter | None = None, fake_registry: FakeRegistry | None = None
 ):
     """Create test client with optional fake router and registry."""
-    async with app.router.lifespan_context(app):
-        original_router = None
-        original_registry = None
+    with patch("mascarade.auth.is_valid_api_key", return_value=True), \
+         patch("mascarade.auth._resolve_role", return_value="admin"):
+        async with app.router.lifespan_context(app):
+            original_router = None
+            original_registry = None
 
-        if fake_router is not None:
-            original_router = app.state.router if hasattr(app.state, "router") else None
-            app.state.router = fake_router
+            if fake_router is not None:
+                original_router = app.state.router if hasattr(app.state, "router") else None
+                app.state.router = fake_router
 
-        if fake_registry is not None:
-            original_registry = (
-                app.state.registry if hasattr(app.state, "registry") else None
-            )
-            app.state.registry = fake_registry
+            if fake_registry is not None:
+                original_registry = (
+                    app.state.registry if hasattr(app.state, "registry") else None
+                )
+                app.state.registry = fake_registry
 
-        try:
-            transport = httpx.ASGITransport(app=app)
-            async with httpx.AsyncClient(
-                transport=transport,
-                base_url="http://testserver",
-            ) as client:
-                yield client
-        finally:
-            if original_router:
-                app.state.router = original_router
-            if original_registry:
-                app.state.registry = original_registry
+            try:
+                transport = httpx.ASGITransport(app=app)
+                async with httpx.AsyncClient(
+                    transport=transport,
+                    base_url="http://testserver",
+                ) as client:
+                    yield client
+            finally:
+                if original_router:
+                    app.state.router = original_router
+                if original_registry:
+                    app.state.registry = original_registry
 
 
 @pytest.mark.asyncio
@@ -248,17 +251,19 @@ async def test_provider_health_endpoint():
 @pytest.mark.asyncio
 async def test_provider_health_without_router():
     """Test provider health endpoint fails without router."""
-    async with app.router.lifespan_context(app):
-        # Remove router from app state
-        if hasattr(app.state, "router"):
-            delattr(app.state, "router")
+    with patch("mascarade.auth.is_valid_api_key", return_value=True), \
+         patch("mascarade.auth._resolve_role", return_value="admin"):
+        async with app.router.lifespan_context(app):
+            # Remove router from app state
+            if hasattr(app.state, "router"):
+                delattr(app.state, "router")
 
-        transport = httpx.ASGITransport(app=app)
-        async with httpx.AsyncClient(
-            transport=transport,
-            base_url="http://testserver",
-        ) as client:
-            response = await client.get("/health/providers")
+            transport = httpx.ASGITransport(app=app)
+            async with httpx.AsyncClient(
+                transport=transport,
+                base_url="http://testserver",
+            ) as client:
+                response = await client.get("/health/providers")
 
     assert response.status_code == 503
     assert "Router not initialized" in response.json()["detail"]
@@ -316,26 +321,28 @@ async def test_health_multiple_calls():
 @pytest.mark.asyncio
 async def test_health_without_router_or_registry():
     """Test health returns ok even without router or registry."""
-    async with app.router.lifespan_context(app):
-        original_router = getattr(app.state, "router", None)
-        original_registry = getattr(app.state, "registry", None)
-        if hasattr(app.state, "router"):
-            delattr(app.state, "router")
-        if hasattr(app.state, "registry"):
-            delattr(app.state, "registry")
+    with patch("mascarade.auth.is_valid_api_key", return_value=True), \
+         patch("mascarade.auth._resolve_role", return_value="admin"):
+        async with app.router.lifespan_context(app):
+            original_router = getattr(app.state, "router", None)
+            original_registry = getattr(app.state, "registry", None)
+            if hasattr(app.state, "router"):
+                delattr(app.state, "router")
+            if hasattr(app.state, "registry"):
+                delattr(app.state, "registry")
 
-        try:
-            transport = httpx.ASGITransport(app=app)
-            async with httpx.AsyncClient(
-                transport=transport,
-                base_url="http://testserver",
-            ) as client:
-                response = await client.get("/health")
-        finally:
-            if original_router:
-                app.state.router = original_router
-            if original_registry:
-                app.state.registry = original_registry
+            try:
+                transport = httpx.ASGITransport(app=app)
+                async with httpx.AsyncClient(
+                    transport=transport,
+                    base_url="http://testserver",
+                ) as client:
+                    response = await client.get("/health")
+            finally:
+                if original_router:
+                    app.state.router = original_router
+                if original_registry:
+                    app.state.registry = original_registry
 
     assert response.status_code == 200
     body = response.json()

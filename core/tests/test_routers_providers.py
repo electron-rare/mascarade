@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, patch
 
 import httpx
 import pytest
@@ -83,20 +83,22 @@ def _clean_api_keys():
 @asynccontextmanager
 async def _client(fake_router: FakeRouter | None = None):
     """Create test client with optional fake router."""
-    async with app.router.lifespan_context(app):
-        original_router = app.state.router if fake_router else None
-        if fake_router:
-            app.state.router = fake_router
-        try:
-            transport = httpx.ASGITransport(app=app)
-            async with httpx.AsyncClient(
-                transport=transport,
-                base_url="http://testserver",
-            ) as client:
-                yield client
-        finally:
-            if original_router:
-                app.state.router = original_router
+    with patch("mascarade.auth.is_valid_api_key", return_value=True), \
+         patch("mascarade.auth._resolve_role", return_value="admin"):
+        async with app.router.lifespan_context(app):
+            original_router = app.state.router if fake_router else None
+            if fake_router:
+                app.state.router = fake_router
+            try:
+                transport = httpx.ASGITransport(app=app)
+                async with httpx.AsyncClient(
+                    transport=transport,
+                    base_url="http://testserver",
+                ) as client:
+                    yield client
+            finally:
+                if original_router:
+                    app.state.router = original_router
 
 
 @pytest.mark.asyncio

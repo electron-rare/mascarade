@@ -6,6 +6,7 @@ from contextlib import asynccontextmanager
 
 import httpx
 import pytest
+from unittest.mock import patch
 
 from mascarade.auth import get_active_api_keys, remove_api_key
 from mascarade.router.providers.base import LLMProvider, LLMResponse
@@ -106,17 +107,19 @@ def _clean_api_keys():
 @asynccontextmanager
 async def _test_client(fake_provider: FakeLLMProvider | None = None):
     """Create test client with app lifespan and optional fake provider."""
-    async with app.router.lifespan_context(app):
-        if fake_provider is not None:
-            # Register the fake provider in the router
-            app.state.router.register(fake_provider)
+    with patch("mascarade.auth.is_valid_api_key", return_value=True), \
+         patch("mascarade.auth._resolve_role", return_value="admin"):
+        async with app.router.lifespan_context(app):
+            if fake_provider is not None:
+                # Register the fake provider in the router
+                app.state.router.register(fake_provider)
 
-        transport = httpx.ASGITransport(app=app)
-        async with httpx.AsyncClient(
-            transport=transport,
-            base_url="http://testserver",
-        ) as client:
-            yield client
+            transport = httpx.ASGITransport(app=app)
+            async with httpx.AsyncClient(
+                transport=transport,
+                base_url="http://testserver",
+            ) as client:
+                yield client
 
 
 @pytest.mark.asyncio

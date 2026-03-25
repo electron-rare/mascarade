@@ -8,6 +8,7 @@ from pathlib import Path
 
 import httpx
 import pytest
+from unittest.mock import patch
 
 from mascarade.agents.base import Agent
 from mascarade.agents.skill import Skill
@@ -32,23 +33,25 @@ def _clean_api_keys():
 @asynccontextmanager
 async def _client():
     """Create test client with app lifespan, using temp storage for skills."""
-    async with app.router.lifespan_context(app):
-        # Override storage paths to avoid polluting real data
-        with tempfile.TemporaryDirectory() as tmpdir:
-            # Ensure skill_registry exists on app.state (server lifespan may not set it)
-            if not hasattr(app.state, "skill_registry"):
-                skill_reg = SkillRegistry(storage_path=Path(tmpdir) / "skills.json")
-                register_default_skills_v2(skill_reg)
-                app.state.skill_registry = skill_reg
-            else:
-                app.state.skill_registry._storage_path = Path(tmpdir) / "skills.json"
-            app.state.registry._storage_path = Path(tmpdir) / "agents.json"
-            transport = httpx.ASGITransport(app=app)
-            async with httpx.AsyncClient(
-                transport=transport,
-                base_url="http://testserver",
-            ) as client:
-                yield client
+    with patch("mascarade.auth.is_valid_api_key", return_value=True), \
+         patch("mascarade.auth._resolve_role", return_value="admin"):
+        async with app.router.lifespan_context(app):
+            # Override storage paths to avoid polluting real data
+            with tempfile.TemporaryDirectory() as tmpdir:
+                # Ensure skill_registry exists on app.state (server lifespan may not set it)
+                if not hasattr(app.state, "skill_registry"):
+                    skill_reg = SkillRegistry(storage_path=Path(tmpdir) / "skills.json")
+                    register_default_skills_v2(skill_reg)
+                    app.state.skill_registry = skill_reg
+                else:
+                    app.state.skill_registry._storage_path = Path(tmpdir) / "skills.json"
+                app.state.registry._storage_path = Path(tmpdir) / "agents.json"
+                transport = httpx.ASGITransport(app=app)
+                async with httpx.AsyncClient(
+                    transport=transport,
+                    base_url="http://testserver",
+                ) as client:
+                    yield client
 
 
 # --- SkillRegistry unit tests ---
