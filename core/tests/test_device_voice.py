@@ -6,6 +6,7 @@ from contextlib import asynccontextmanager
 
 import httpx
 import pytest
+from unittest.mock import patch
 
 from mascarade.auth import add_api_key, get_active_api_keys, remove_api_key
 from mascarade.device_voice import DeviceVoiceService
@@ -98,18 +99,20 @@ def _clean_api_keys():
 
 @asynccontextmanager
 async def _client(device_voice: DeviceVoiceService):
-    async with app.router.lifespan_context(app):
-        original_device_voice = app.state.device_voice
-        app.state.device_voice = device_voice
-        try:
-            transport = httpx.ASGITransport(app=app)
-            async with httpx.AsyncClient(
-                transport=transport,
-                base_url="http://testserver",
-            ) as client:
-                yield client
-        finally:
-            app.state.device_voice = original_device_voice
+    with patch("mascarade.auth.is_valid_api_key", return_value=True), \
+         patch("mascarade.auth._resolve_role", return_value="admin"):
+        async with app.router.lifespan_context(app):
+            original_device_voice = app.state.device_voice
+            app.state.device_voice = device_voice
+            try:
+                transport = httpx.ASGITransport(app=app)
+                async with httpx.AsyncClient(
+                    transport=transport,
+                    base_url="http://testserver",
+                ) as client:
+                    yield client
+            finally:
+                app.state.device_voice = original_device_voice
 
 
 @pytest.mark.asyncio

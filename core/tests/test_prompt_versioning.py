@@ -8,6 +8,7 @@ from pathlib import Path
 
 import httpx
 import pytest
+from unittest.mock import patch
 
 from mascarade.agents.base import Agent
 from mascarade.agents.prompt_versioning import (
@@ -474,16 +475,18 @@ async def _test_client():
         )
 
         try:
-            async with app.router.lifespan_context(app):
-                # Replace the registry with a clean one for testing
-                app.state.registry = AgentRegistry(storage_path=test_storage_path)
+            with patch("mascarade.auth.is_valid_api_key", return_value=True), \
+                 patch("mascarade.auth._resolve_role", return_value="admin"):
+                async with app.router.lifespan_context(app):
+                    # Replace the registry with a clean one for testing
+                    app.state.registry = AgentRegistry(storage_path=test_storage_path)
 
-                transport = httpx.ASGITransport(app=app)
-                async with httpx.AsyncClient(
-                    transport=transport,
-                    base_url="http://testserver",
-                ) as client:
-                    yield client
+                    transport = httpx.ASGITransport(app=app)
+                    async with httpx.AsyncClient(
+                        transport=transport,
+                        base_url="http://testserver",
+                    ) as client:
+                        yield client
         finally:
             # Restore original settings and registry
             settings.qdrant_url = original_qdrant
