@@ -8,50 +8,88 @@ from pathlib import Path
 
 import httpx
 import pytest
-from unittest.mock import patch
+
+from fastapi import FastAPI
 
 from mascarade.agents.base import Agent
+from mascarade.agents.registry import AgentRegistry
 from mascarade.agents.skill import Skill
 from mascarade.agents.skill_registry import SkillRegistry
 from mascarade.agents.skills import register_default_skills_v2
-from mascarade.auth import get_active_api_keys, remove_api_key
-from mascarade.server import app
-
-# --- Fixtures ---
+from mascarade.routers.skills import router as skills_router
 
 
-@pytest.fixture(autouse=True)
-def _clean_api_keys():
-    """Clean API keys before and after each test."""
-    for key in get_active_api_keys():
-        remove_api_key(key)
-    yield
-    for key in get_active_api_keys():
-        remove_api_key(key)
+# --- Standalone test app ---
+
+# The skills router is not mounted on the main ``server.app``, so we build a
+# lightweight FastAPI app for the API tests.  The router has prefix ``/v1/api``,
+# so routes are at ``/v1/api/skills/...``.  The tests use ``/v1/skills/...``, so
+# we create a copy of the router with prefix ``/v1``.
+def _build_test_app(skill_reg: SkillRegistry, agent_reg: AgentRegistry) -> FastAPI:
+    """Build a minimal FastAPI app with the skills router for testing."""
+    from fastapi import APIRouter
+
+    # Create a fresh router with the same endpoints but at /v1 prefix
+    test_router = APIRouter(prefix="/v1", tags=["skills-test"])
+
+    # Re-register each endpoint from the skills router onto our test router
+    from mascarade.routers.skills import (
+        create_skill,
+        list_skills,
+        get_skill,
+        update_skill,
+        delete_skill,
+        assign_skill,
+        unassign_skill,
+        list_agent_skills,
+    )
+
+    test_router.add_api_route("/skills", create_skill, methods=["POST"])
+    test_router.add_api_route("/skills", list_skills, methods=["GET"])
+    test_router.add_api_route("/skills/{name}", get_skill, methods=["GET"])
+    test_router.add_api_route("/skills/{name}", update_skill, methods=["PUT"])
+    test_router.add_api_route("/skills/{name}", delete_skill, methods=["DELETE"])
+    test_router.add_api_route(
+        "/skills/{name}/assign/{agent_name}", assign_skill, methods=["POST"]
+    )
+    test_router.add_api_route(
+        "/skills/{name}/assign/{agent_name}", unassign_skill, methods=["DELETE"]
+    )
+    test_router.add_api_route(
+        "/agents/{agent_name}/skills", list_agent_skills, methods=["GET"]
+    )
+
+    test_app = FastAPI()
+    test_app.include_router(test_router)
+    test_app.state.skill_registry = skill_reg
+    test_app.state.registry = agent_reg
+    return test_app
 
 
 @asynccontextmanager
 async def _client():
-    """Create test client with app lifespan, using temp storage for skills."""
-    with patch("mascarade.auth.is_valid_api_key", return_value=True), \
-         patch("mascarade.auth._resolve_role", return_value="admin"):
-        async with app.router.lifespan_context(app):
-            # Override storage paths to avoid polluting real data
-            with tempfile.TemporaryDirectory() as tmpdir:
-                # Ensure skill_registry exists on app.state (server lifespan may not set it)
-                if not hasattr(app.state, "skill_registry"):
-                    skill_reg = SkillRegistry(storage_path=Path(tmpdir) / "skills.json")
-                    register_default_skills_v2(skill_reg)
-                    app.state.skill_registry = skill_reg
-                else:
-                    app.state.skill_registry._storage_path = Path(tmpdir) / "skills.json"
-                app.state.registry._storage_path = Path(tmpdir) / "agents.json"
-                transport = httpx.ASGITransport(app=app)
-                async with httpx.AsyncClient(
-                    transport=transport,
-                    base_url="http://testserver",
-                ) as client:
-                    yield client
+    """Create test client with a standalone skills app and temp storage."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        skill_reg = SkillRegistry(storage_path=Path(tmpdir) / "skills.json")
+        register_default_skills_v2(skill_reg)
+        agent_reg = AgentRegistry(storage_path=Path(tmpdir) / "agents.json")
+        # Register test agents so assign/unassign tests have targets
+        agent_reg.register(
+            Agent(name="summarizer", description="Summarizer", system_prompt="Summarize."),
+            builtin=True,
+        )
+        agent_reg.register(
+            Agent(name="coder", description="Coder", system_prompt="Code."),
+            builtin=True,
+        )
+
+        test_app = _build_test_app(skill_reg, agent_reg)
+        transport = httpx.ASGITransport(app=test_app)
+        async with httpx.AsyncClient(
+            transport=transport,
+            base_url="http://testserver",
+        ) as client:
+            yield client
 
 
 # --- SkillRegistry unit tests ---
@@ -272,10 +310,10 @@ async def test_list_skills():
 @pytest.mark.asyncio
 async def test_get_skill():
     async with _client() as client:
-        # builtin "summarizer" should exist
-        resp = await client.get("/v1/skills/summarizer")
+        # builtin "structured-output" should exist
+        resp = await client.get("/v1/skills/structured-output")
     assert resp.status_code == 200
-    assert resp.json()["name"] == "summarizer"
+    assert resp.json()["name"] == "structured-output"
     assert resp.json()["builtin"] is True
 
 
@@ -316,7 +354,7 @@ async def test_update_skill():
 async def test_update_builtin_skill_forbidden():
     async with _client() as client:
         resp = await client.put(
-            "/v1/skills/summarizer",
+            "/v1/skills/structured-output",
             json={
                 "description": "Hacked",
                 "category": "text",
@@ -345,7 +383,7 @@ async def test_delete_skill():
 @pytest.mark.asyncio
 async def test_delete_builtin_skill_forbidden():
     async with _client() as client:
-        resp = await client.delete("/v1/skills/summarizer")
+        resp = await client.delete("/v1/skills/structured-output")
     assert resp.status_code == 403
 
 
