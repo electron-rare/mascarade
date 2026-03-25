@@ -255,6 +255,14 @@ class Settings(BaseSettings):
     ops_agent_url: str = "http://ops-agent:9200"
     loki_url: str = "http://loki:3100"
 
+    # Langfuse (self-hosted tracing)
+    langfuse_enabled: bool = False
+    langfuse_public_key: str = ""
+    langfuse_secret_key: SecretStr = Field(default=SecretStr(""), repr=False)
+    langfuse_host: str = "http://langfuse-web:3000"
+    langfuse_init_project_public_key: str = ""
+    langfuse_init_project_secret_key: SecretStr = Field(default=SecretStr(""), repr=False)
+
     # ClickHouse
     clickhouse_host: str = "http://clickhouse:8123"
     clickhouse_user: str = "langfuse"

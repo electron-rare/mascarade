@@ -8,6 +8,12 @@ from datetime import UTC, datetime
 from enum import Enum
 from typing import TYPE_CHECKING
 
+from mascarade.observability.langfuse import (
+    create_trace,
+    flush_langfuse,
+    get_trace_id,
+    new_trace_id,
+)
 from mascarade.router import Router
 from mascarade.router.providers.base import LLMResponse
 from mascarade.router.router import Strategy
@@ -213,10 +219,18 @@ class Agent:
         system_override: str | None = None,
     ) -> LLMResponse:
         """Exécuter l'agent avec un prompt donné."""
+        # Set up Langfuse trace for this agent invocation (opt-in, no-op if disabled)
+        if get_trace_id() is None:
+            create_trace(
+                name=f"agent/{self.name}",
+                metadata={"agent": self.name, "strategy": self.strategy},
+                tags=["agent"],
+            )
+
         system = system_override or self._resolve_system_prompt(skill_registry)
         messages = list(context) if context else []
         messages.append({"role": "user", "content": prompt})
-        return await router.send(
+        response = await router.send(
             messages,
             strategy=self.strategy,
             routing_policy=self.routing_policy,
@@ -229,6 +243,8 @@ class Agent:
             federation_scope=federation_scope,
             knowledge_scope=knowledge_scope,
         )
+        flush_langfuse()
+        return response
 
     async def run_with_history(
         self,
@@ -242,8 +258,16 @@ class Agent:
         knowledge_scope: str = "project",
     ) -> LLMResponse:
         """Exécuter l'agent avec un historique de messages complet."""
+        # Set up Langfuse trace for this agent invocation (opt-in, no-op if disabled)
+        if get_trace_id() is None:
+            create_trace(
+                name=f"agent/{self.name}",
+                metadata={"agent": self.name, "strategy": self.strategy},
+                tags=["agent"],
+            )
+
         system = self._resolve_system_prompt(skill_registry)
-        return await router.send(
+        response = await router.send(
             messages,
             strategy=self.strategy,
             routing_policy=self.routing_policy,
@@ -256,3 +280,5 @@ class Agent:
             federation_scope=federation_scope,
             knowledge_scope=knowledge_scope,
         )
+        flush_langfuse()
+        return response

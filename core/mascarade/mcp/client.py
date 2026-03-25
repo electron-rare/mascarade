@@ -433,7 +433,33 @@ class McpRuntimeClient:
         )
 
     def _register_kicad_mcp_servers(self) -> None:
-        """Auto-discover and register installed KiCad MCP servers."""
+        """Auto-discover and register installed KiCad MCP servers.
+
+        The Seeed KiCad MCP v2 server (39 tools) is registered first when
+        available.  Legacy KiCad MCP servers from ``kicad_servers.py`` are
+        registered afterwards; duplicates are skipped.
+        """
+        # --- Seeed KiCad MCP v2 (preferred) ---
+        from mascarade.mcp.kicad_seeed import (
+            get_server as get_seeed_server,
+            is_available as seeed_available,
+            log_status as seeed_log_status,
+        )
+
+        if seeed_available():
+            srv = get_seeed_server()
+            if srv.key not in self._servers:
+                self._servers[srv.key] = McpServerDefinition(
+                    key=srv.key,
+                    command=srv.command,
+                    timeout_s=srv.timeout_s,
+                    transport=srv.transport,
+                    label=srv.description,
+                    description=f"KiCad MCP: {srv.description} ({srv.repo})",
+                )
+        seeed_log_status()
+
+        # --- Legacy KiCad MCP servers ---
         from mascarade.mcp.kicad_servers import (
             KICAD_MCP_SERVERS,
             discover_installed,
@@ -444,14 +470,14 @@ class McpRuntimeClient:
         for key in installed:
             if key in self._servers:
                 continue
-            srv = KICAD_MCP_SERVERS[key]
+            srv_legacy = KICAD_MCP_SERVERS[key]
             self._servers[key] = McpServerDefinition(
                 key=key,
-                command=srv.command,
+                command=srv_legacy.command,
                 timeout_s=45.0,
-                transport=srv.transport,
-                label=srv.description,
-                description=f"KiCad MCP: {srv.description} ({srv.repo})",
+                transport=srv_legacy.transport,
+                label=srv_legacy.description,
+                description=f"KiCad MCP: {srv_legacy.description} ({srv_legacy.repo})",
             )
         log_available()
 
