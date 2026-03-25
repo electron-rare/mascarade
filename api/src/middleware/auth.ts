@@ -21,7 +21,8 @@ const ROLE_RANK: Record<AuthRole, number> = {
   admin: 3,
 };
 
-const useDatabaseAuth = isDatabaseAuthAvailable();
+// Computed once at startup for logging, but isAuthConfigured() re-checks at runtime
+const useDatabaseAuthAtStartup = isDatabaseAuthAvailable();
 
 function allowPublicApi(): boolean {
   return /^(1|true|yes)$/i.test(String(process.env.MASCARADE_ALLOW_PUBLIC_API || "").trim());
@@ -42,8 +43,10 @@ function configuredRoleKeys(envName: string): string[] {
 }
 
 export function isAuthConfigured(): boolean {
-  return useDatabaseAuth || configuredApiKeys().length > 0;
+  return isDatabaseAuthAvailable() || configuredApiKeys().length > 0;
 }
+
+export { allowPublicApi };
 
 if (!isAuthConfigured()) {
   if (allowPublicApi()) {
@@ -55,7 +58,7 @@ if (!isAuthConfigured()) {
       "[auth] Authentication is not configured — protected routes will fail closed until DATABASE_URL or MASCARADE_API_KEY is set",
     );
   }
-} else if (useDatabaseAuth) {
+} else if (useDatabaseAuthAtStartup) {
   console.info("[auth] Using database-backed authentication");
 } else {
   console.info("[auth] Using legacy MASCARADE_API_KEY authentication");
@@ -210,7 +213,7 @@ export const authMiddleware: MiddlewareHandler = async (c, next) => {
   let isValid = false;
   let user: AuthUser | undefined;
 
-  if (useDatabaseAuth) {
+  if (isDatabaseAuthAvailable()) {
     try {
       const validatedUser = await validateToken(token);
       if (validatedUser) {
