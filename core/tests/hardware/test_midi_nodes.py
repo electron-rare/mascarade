@@ -14,14 +14,13 @@ from mascarade.hardware.nodes.midi import (
     MIDIError,
     MIDIMessageError,
     MIDIPortError,
-    _mido_msg_to_midi_message,
     _midi_message_to_mido_msg,
+    _mido_msg_to_midi_message,
     execute_midi_input,
     execute_midi_output,
 )
 from mascarade.hardware.types import MIDIMessage, MIDIStatus
 from mascarade.node_engine.base import NodeExecutionContext
-
 
 # --- Helpers ---
 
@@ -542,7 +541,7 @@ def test_midi_message_to_mido_msg_note_on():
         msg = MIDIMessage(
             status=MIDIStatus.NOTE_ON, channel=0, data1=60, data2=100
         )
-        result = _midi_message_to_mido_msg(msg)
+        _midi_message_to_mido_msg(msg)
         mock_mido.Message.assert_called_once_with(
             "note_on", channel=0, note=60, velocity=100
         )
