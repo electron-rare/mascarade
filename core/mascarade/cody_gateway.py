@@ -804,3 +804,35 @@ def mount_cody_gateway(app: FastAPI) -> None:
     """Mount Cody Gateway routes on the main app."""
     app.include_router(cody_router)
     logger.info("Cody Gateway mounted (/.api/completions/stream, /.api/chat/completions, /.api/graphql)")
+
+
+# ---------------------------------------------------------------------------
+# Ops console compatibility routes
+# ---------------------------------------------------------------------------
+
+@cody_router.get("/v1/api/v1/agents")
+async def ops_list_agents(request: Request):
+    agents = await list_agents(request)
+    return {"agents": agents}
+
+@cody_router.get("/v1/api/v1/agents/{name}")
+async def ops_get_agent(name: str, request: Request):
+    return await get_agent(name, request)
+
+@cody_router.get("/v1/api/providers")
+async def ops_providers(request: Request):
+    h = await health_check(request)
+    return [{"id": p, "configured": True} for p in h.get("providers", [])]
+
+@cody_router.get("/v1/api/providers/status")
+async def ops_providers_status(request: Request):
+    h = await health_check(request)
+    return {"providers": h.get("providers", []), "status": "ok"}
+
+@cody_router.get("/v1/api/cli-agents/status")
+async def ops_cli_status():
+    return {"agents": [], "status": "ok"}
+
+@cody_router.post("/v1/api/cli-agents/run")
+async def ops_cli_run():
+    return {"status": "not_implemented"}
