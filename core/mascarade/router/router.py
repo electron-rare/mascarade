@@ -246,6 +246,7 @@ class Router:
             ("mascarade.router.providers.apple_coreml", "AppleCoreMLProvider"),
             ("mascarade.router.providers.litellm", "LiteLLMProvider"),
             ("mascarade.router.providers.codestral", "CodestralProvider"),
+            ("mascarade.router.providers.github_copilot", "GitHubCopilotProvider"),
         ]
 
         for module_name, class_name in provider_specs:
