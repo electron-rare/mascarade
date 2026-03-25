@@ -469,6 +469,13 @@ def get_active_api_keys() -> list[str]:
         return list(_api_keys)
 
 
+def mask_api_key(key: str) -> str:
+    """Mask an API key for safe display: 'abcd...wxyz'."""
+    if len(key) <= 8:
+        return "****"
+    return f"{key[:4]}...{key[-4:]}"
+
+
 def get_rate_limit_metrics() -> dict[str, int]:
     """Get current rate limiter metrics.
 
@@ -506,9 +513,13 @@ def hash_api_key(key: str) -> str:
     Returns:
         Hex-encoded HMAC-SHA256 hash of the key
     """
-    secret = os.getenv(
-        "MASCARADE_KEY_HASH_SECRET", "mascarade-default-pepper-change-me"
-    )
+    secret = os.getenv("MASCARADE_KEY_HASH_SECRET", "")
+    if not secret:
+        logger.critical(
+            "MASCARADE_KEY_HASH_SECRET is not set — using insecure default. "
+            "Set this variable in production to protect API key hashes."
+        )
+        secret = "mascarade-default-pepper-INSECURE"
     return hmac.new(secret.encode(), key.encode(), hashlib.sha256).hexdigest()
 
 

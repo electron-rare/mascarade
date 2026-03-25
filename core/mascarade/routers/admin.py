@@ -511,12 +511,12 @@ async def list_legacy_api_keys(request: Request):
     token = auth_header.removeprefix("Bearer ").strip()
 
     # Check legacy in-memory keys first
-    from mascarade.auth import get_active_api_keys, is_valid_api_key
+    from mascarade.auth import get_active_api_keys, is_valid_api_key, mask_api_key
 
     if is_valid_api_key(token):
         pool = auth_module.get_db_pool()
         if pool is None:
-            return {"api_keys": list(get_active_api_keys())}
+            return {"api_keys": [mask_api_key(k) for k in get_active_api_keys()]}
         async with pool.acquire() as conn:
             records = await conn.fetch(
                 "SELECT id, user_id, key_prefix, name, is_active, created_at FROM api_keys"
@@ -530,7 +530,7 @@ async def list_legacy_api_keys(request: Request):
 
     pool = auth_module.get_db_pool()
     if pool is None:
-        return {"api_keys": list(get_active_api_keys())}
+        return {"api_keys": [mask_api_key(k) for k in get_active_api_keys()]}
     async with pool.acquire() as conn:
         records = await conn.fetch(
             "SELECT id, user_id, key_prefix, name, is_active, created_at FROM api_keys"
