@@ -23,7 +23,7 @@ class KiCadMcpServer:
 KICAD_MCP_SERVERS: dict[str, KiCadMcpServer] = {
     "seeed-kicad": KiCadMcpServer(
         key="seeed-kicad",
-        description="Seeed Studio KiCad MCP",
+        description="Seeed Studio KiCad MCP (legacy entry — prefer seeed-kicad-v2)",
         repo="https://github.com/Seeed-Studio/kicad-mcp-server",
         command=("npx", "-y", "@anthropic-ai/kicad-mcp-server"),
         install_cmd="npm install -g @anthropic-ai/kicad-mcp-server",
@@ -33,6 +33,62 @@ KICAD_MCP_SERVERS: dict[str, KiCadMcpServer] = {
             "list_components",
             "check_drc",
             "export_bom",
+        ],
+    ),
+    "seeed-kicad-v2": KiCadMcpServer(
+        key="seeed-kicad-v2",
+        description="Seeed Studio KiCad MCP — 39 tools (analysis, validation, pin, devicetree, editing)",
+        repo="https://github.com/Seeed-Studio/kicad-mcp-server",
+        command=("uvx", "kicad-mcp-server"),
+        install_cmd="pip install kicad-mcp-server",
+        tools=[
+            # Schematic analysis (6)
+            "list_schematic_components",
+            "get_symbol_details",
+            "search_symbols",
+            "list_schematic_nets",
+            "get_schematic_info",
+            "search_components_by_type",
+            # Hierarchical analysis (2)
+            "trace_hierarchical_connection",
+            "analyze_hierarchical_nets",
+            # PCB analysis (4)
+            "list_pcb_footprints",
+            "get_pcb_statistics",
+            "analyze_pcb_nets",
+            "find_tracks_by_net",
+            # Netlist analysis (4)
+            "generate_netlist",
+            "trace_netlist_connection",
+            "get_netlist_nets",
+            "get_netlist_components",
+            # Validation / DRC / ERC (6)
+            "run_erc",
+            "run_drc",
+            "get_erc_violations",
+            "get_drc_violations",
+            "export_erc_report",
+            "export_drc_report",
+            # Pin analysis (3)
+            "analyze_pin_functions",
+            "detect_pin_conflicts",
+            "extract_pinmux_config",
+            # Device tree / code generation (6)
+            "generate_device_tree",
+            "extract_gpio_config",
+            "extract_i2c_devices",
+            "extract_spi_devices",
+            "extract_power_domains",
+            "validate_pin_configuration",
+            # Schematic editing (3)
+            "add_component_from_library",
+            "add_wire",
+            "add_label",
+            # PCB layout (2)
+            "setup_pcb_layout",
+            "export_gerber",
+            # Project management (1)
+            "create_kicad_project",
         ],
     ),
     "circuit-synth": KiCadMcpServer(

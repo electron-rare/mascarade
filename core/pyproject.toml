@@ -49,6 +49,9 @@ libp2p = [
 # unsloth requires protobuf<4 which conflicts with libp2p (protobuf>=4.25).
 # Finetune deps are installed separately on KXKM-AI GPU in its own venv.
 # See: scripts/finetune/requirements.txt
+langfuse = [
+    "langfuse>=2.36,<3",
+]
 observability = [
     "traceloop-sdk>=0.33; python_version < '3.14'",
 ]
