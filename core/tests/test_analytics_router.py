@@ -8,7 +8,9 @@ from unittest.mock import MagicMock, patch
 import httpx
 import pytest
 
-from mascarade.server import app
+from fastapi import FastAPI
+
+from mascarade.routers.analytics import router as analytics_router
 
 
 # ---------------------------------------------------------------------------
@@ -16,19 +18,22 @@ from mascarade.server import app
 # ---------------------------------------------------------------------------
 
 
+def _build_app():
+    """Build a minimal FastAPI app with the analytics router."""
+    test_app = FastAPI()
+    test_app.include_router(analytics_router)
+    return test_app
+
+
 @asynccontextmanager
-async def _client(**state_overrides):
-    with patch("mascarade.auth.is_valid_api_key", return_value=True), \
-         patch("mascarade.auth._resolve_role", return_value="admin"):
-        async with app.router.lifespan_context(app):
-            for k, v in state_overrides.items():
-                setattr(app.state, k, v)
-            transport = httpx.ASGITransport(app=app)
-            async with httpx.AsyncClient(
-                transport=transport,
-                base_url="http://testserver",
-            ) as client:
-                yield client
+async def _client():
+    test_app = _build_app()
+    transport = httpx.ASGITransport(app=test_app)
+    async with httpx.AsyncClient(
+        transport=transport,
+        base_url="http://testserver",
+    ) as client:
+        yield client
 
 
 def _fake_leaderboard(domain=None, limit=10, order_by="quality_score"):

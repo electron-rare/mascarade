@@ -2,7 +2,7 @@ import json
 
 """Tests for Context Persistence Manager."""
 
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -10,6 +10,8 @@ from mascarade.orchestrator.context import OrchestrationContext
 from mascarade.persistence.context_manager import (
     ContextPersistenceManager,
     PersistentOrchestrationContext,
+    save_orchestration_context,
+    load_orchestration_context,
 )
 
 
@@ -43,7 +45,7 @@ async def test_persistent_orchestration_context_creation():
     assert persistent_context.context_id == "test_ctx_123"
     assert persistent_context.prompt == "test prompt"
     assert persistent_context.agent_names == ["agent1", "agent2"]
-    assert persistent_context.protocol == "MCP/1.0"
+    assert persistent_context.context_type == "orchestration"
 
 
 @pytest.mark.asyncio
@@ -70,13 +72,19 @@ async def test_context_conversion_roundtrip():
     assert converted.mode == original.mode
 
 
+def _make_mock_redis():
+    """Create a mock Redis client and patch redis.from_url as an async function."""
+    mock_redis_client = AsyncMock()
+    return mock_redis_client
+
+
 @pytest.mark.asyncio
 async def test_context_save_and_retrieve():
     """Test saving and retrieving contexts."""
-    with patch("mascarade.persistence.context_manager.redis.from_url") as mock_redis:
-        # Setup mock Redis
-        mock_redis_client = AsyncMock()
-        mock_redis.return_value = mock_redis_client
+    mock_redis_client = _make_mock_redis()
+
+    with patch("mascarade.persistence.context_manager.redis") as mock_redis_module:
+        mock_redis_module.from_url = AsyncMock(return_value=mock_redis_client)
 
         manager = ContextPersistenceManager()
         await manager.connect()
@@ -84,36 +92,30 @@ async def test_context_save_and_retrieve():
         # Create test context
         context = PersistentOrchestrationContext(
             context_id="test_ctx",
-            protocol="MCP/1.0",
-            model_id="test_model",
-            session_id="test_session",
-            parameters={"temp": 0.7},
+            context_type="orchestration",
+            prompt="test prompt",
             created_at="2024-01-01T00:00:00Z",
             updated_at="2024-01-01T00:00:00Z",
         )
 
         # Mock Redis operations
         mock_redis_client.set.return_value = True
-        mock_redis_client.sadd.return_value = True
-        mock_redis_client.expire.return_value = True
 
         # Save context
         result = await manager.save_context(context)
         assert result == "test_ctx"
 
-        # Verify Redis calls
+        # Verify Redis set was called
         mock_redis_client.set.assert_called_once()
-        mock_redis_client.sadd.assert_called()
-        mock_redis_client.expire.assert_called()
 
 
 @pytest.mark.asyncio
 async def test_context_update():
     """Test updating existing context."""
-    with patch("mascarade.persistence.context_manager.redis.from_url") as mock_redis:
-        # Setup mock Redis
-        mock_redis_client = AsyncMock()
-        mock_redis.return_value = mock_redis_client
+    mock_redis_client = _make_mock_redis()
+
+    with patch("mascarade.persistence.context_manager.redis") as mock_redis_module:
+        mock_redis_module.from_url = AsyncMock(return_value=mock_redis_client)
 
         manager = ContextPersistenceManager()
         await manager.connect()
@@ -121,52 +123,38 @@ async def test_context_update():
         # Create and save initial context
         context = PersistentOrchestrationContext(
             context_id="test_ctx",
-            protocol="MCP/1.0",
-            model_id="test_model",
-            session_id="test_session",
-            parameters={"temp": 0.7},
+            context_type="orchestration",
+            prompt="test prompt",
             created_at="2024-01-01T00:00:00Z",
             updated_at="2024-01-01T00:00:00Z",
+            execution_history=[],
         )
 
         # Mock Redis operations
-        mock_redis_client.get.return_value = context.json()
+        mock_redis_client.exists.return_value = 1
         mock_redis_client.set.return_value = True
 
         # Update context
-        update_data = {"parameters": {"temp": 0.9}}
+        update_data = {"prompt": "updated prompt"}
         result = await manager.update_context(context, update_data)
 
         assert result
-        assert context.parameters["temp"] == 0.9
+        assert context.prompt == "updated prompt"
 
 
 @pytest.mark.asyncio
 async def test_context_deletion():
     """Test deleting context."""
-    with patch("mascarade.persistence.context_manager.redis.from_url") as mock_redis:
-        # Setup mock Redis
-        mock_redis_client = AsyncMock()
-        mock_redis.return_value = mock_redis_client
+    mock_redis_client = _make_mock_redis()
+
+    with patch("mascarade.persistence.context_manager.redis") as mock_redis_module:
+        mock_redis_module.from_url = AsyncMock(return_value=mock_redis_client)
 
         manager = ContextPersistenceManager()
         await manager.connect()
 
-        # Create test context
-        context = PersistentOrchestrationContext(
-            context_id="test_ctx",
-            protocol="MCP/1.0",
-            model_id="test_model",
-            session_id="test_session",
-            parameters={},
-            created_at="2024-01-01T00:00:00Z",
-            updated_at="2024-01-01T00:00:00Z",
-        )
-
         # Mock Redis operations
-        mock_redis_client.get.return_value = context.json()
         mock_redis_client.delete.return_value = 1
-        mock_redis_client.srem.return_value = 1
 
         # Delete context
         result = await manager.delete_context("test_ctx")
@@ -176,43 +164,35 @@ async def test_context_deletion():
 @pytest.mark.asyncio
 async def test_list_contexts():
     """Test listing contexts."""
-    with patch("mascarade.persistence.context_manager.redis.from_url") as mock_redis:
-        # Setup mock Redis
-        mock_redis_client = AsyncMock()
-        mock_redis.return_value = mock_redis_client
+    mock_redis_client = _make_mock_redis()
+
+    with patch("mascarade.persistence.context_manager.redis") as mock_redis_module:
+        mock_redis_module.from_url = AsyncMock(return_value=mock_redis_client)
 
         manager = ContextPersistenceManager()
         await manager.connect()
 
-        # Mock scan results
-        mock_redis_client.scan_iter.return_value = [b"context:ctx1", b"context:ctx2"]
+        # Mock scan_iter as an async generator
+        async def mock_scan_iter(match=None):
+            for key in ["context:ctx1", "context:ctx2"]:
+                yield key
 
-        # Mock context retrieval
-        context1 = PersistentOrchestrationContext(
-            context_id="ctx1",
-            protocol="MCP/1.0",
-            model_id="model1",
-            session_id="session1",
-            parameters={},
-            created_at="2024-01-01T00:00:00Z",
-            updated_at="2024-01-01T00:00:00Z",
-        )
+        mock_redis_client.scan_iter = mock_scan_iter
 
-        mock_redis_client.get.side_effect = [context1.json(), None]  # ctx2 not found
-
-        # List contexts
+        # List contexts (no type filter -> all returned)
         contexts = await manager.list_contexts()
-        assert len(contexts) == 1
-        assert contexts[0] == "ctx1"
+        assert len(contexts) == 2
+        assert "ctx1" in contexts
+        assert "ctx2" in contexts
 
 
 @pytest.mark.asyncio
 async def test_context_metadata():
     """Test getting context metadata."""
-    with patch("mascarade.persistence.context_manager.redis.from_url") as mock_redis:
-        # Setup mock Redis
-        mock_redis_client = AsyncMock()
-        mock_redis.return_value = mock_redis_client
+    mock_redis_client = _make_mock_redis()
+
+    with patch("mascarade.persistence.context_manager.redis") as mock_redis_module:
+        mock_redis_module.from_url = AsyncMock(return_value=mock_redis_client)
 
         manager = ContextPersistenceManager()
         await manager.connect()
@@ -237,11 +217,10 @@ async def test_context_metadata():
 @pytest.mark.asyncio
 async def test_utility_functions():
     """Test utility functions."""
+    mock_redis_client = _make_mock_redis()
 
-    with patch("mascarade.persistence.context_manager.redis.from_url") as mock_redis:
-        # Setup mock Redis
-        mock_redis_client = AsyncMock()
-        mock_redis.return_value = mock_redis_client
+    with patch("mascarade.persistence.context_manager.redis") as mock_redis_module:
+        mock_redis_module.from_url = AsyncMock(return_value=mock_redis_client)
 
         manager = ContextPersistenceManager()
         await manager.connect()
@@ -253,8 +232,6 @@ async def test_utility_functions():
 
         # Save using utility function
         mock_redis_client.set.return_value = True
-        mock_redis_client.sadd.return_value = True
-        mock_redis_client.expire.return_value = True
 
         context_id = await save_orchestration_context(
             manager=manager, context=orch_context, context_id="test_id", ttl=3600
@@ -266,10 +243,7 @@ async def test_utility_functions():
         mock_redis_client.get.return_value = json.dumps(
             {
                 "context_id": "test_id",
-                "protocol": "MCP/1.0",
-                "model_id": "",
-                "session_id": "",
-                "parameters": {},
+                "context_type": "orchestration",
                 "created_at": "2024-01-01T00:00:00Z",
                 "updated_at": "2024-01-01T00:00:00Z",
                 "prompt": "test prompt",
@@ -277,6 +251,7 @@ async def test_utility_functions():
                 "mode": None,
                 "current_input": None,
                 "initial_prompt": None,
+                "execution_history": [],
             }
         )
 

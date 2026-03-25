@@ -9,9 +9,10 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import httpx
 import pytest
 
+from fastapi import FastAPI
+
 from mascarade.db.models import User
-from mascarade.routers.admin import _get_authenticated_user, _require_admin
-from mascarade.server import app
+from mascarade.routers.admin import _get_authenticated_user, _require_admin, router as admin_router
 
 
 # ---------------------------------------------------------------------------
@@ -56,19 +57,22 @@ def _mock_pool(conn=None):
     return pool
 
 
+def _build_app():
+    """Build a minimal FastAPI app with the admin router mounted under /v1."""
+    test_app = FastAPI()
+    test_app.include_router(admin_router, prefix="/v1")
+    return test_app
+
+
 @asynccontextmanager
-async def _client(**state_overrides):
-    with patch("mascarade.auth.is_valid_api_key", return_value=True), \
-         patch("mascarade.auth._resolve_role", return_value="admin"):
-        async with app.router.lifespan_context(app):
-            for k, v in state_overrides.items():
-                setattr(app.state, k, v)
-            transport = httpx.ASGITransport(app=app)
-            async with httpx.AsyncClient(
-                transport=transport,
-                base_url="http://testserver",
-            ) as client:
-                yield client
+async def _client():
+    test_app = _build_app()
+    transport = httpx.ASGITransport(app=test_app)
+    async with httpx.AsyncClient(
+        transport=transport,
+        base_url="http://testserver",
+    ) as client:
+        yield client
 
 
 # ---------------------------------------------------------------------------
