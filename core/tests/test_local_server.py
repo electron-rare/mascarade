@@ -94,9 +94,7 @@ class TestOllamaResultToOpenAI:
         from mascarade.local_server import ollama_result_to_openai_chat_completion
 
         # message is not a dict — should still produce empty content
-        result = ollama_result_to_openai_chat_completion(
-            {"message": "not-a-dict"}, "test"
-        )
+        result = ollama_result_to_openai_chat_completion({"message": "not-a-dict"}, "test")
         assert result["choices"][0]["message"]["content"] == ""
 
 
@@ -182,9 +180,7 @@ class TestClaudeChat:
     async def test_system_messages_extracted(self):
         fake_usage = type("U", (), {"input_tokens": 10, "output_tokens": 5})()
         fake_block = type("B", (), {"text": "Claude response"})()
-        fake_response = type(
-            "R", (), {"content": [fake_block], "usage": fake_usage}
-        )()
+        fake_response = type("R", (), {"content": [fake_block], "usage": fake_usage})()
 
         with (
             patch("mascarade.local_server.ANTHROPIC_API_KEY", "sk-ant-test"),
@@ -217,7 +213,11 @@ class TestHealthEndpoint:
     async def test_health_returns_ok(self):
         with (
             patch.dict("mascarade.local_server.PROVIDERS", {}),
-            patch("mascarade.local_server.provider_status_payload", new_callable=AsyncMock, return_value=[]),
+            patch(
+                "mascarade.local_server.provider_status_payload",
+                new_callable=AsyncMock,
+                return_value=[],
+            ),
         ):
             from mascarade.local_server import app
 
@@ -238,9 +238,7 @@ class TestTryP2PForward:
         with patch("mascarade.local_server.P2P_PEERS", []):
             from mascarade.local_server import try_p2p_forward
 
-            result = await try_p2p_forward(
-                [{"role": "user", "content": "hi"}], "model"
-            )
+            result = await try_p2p_forward([{"role": "user", "content": "hi"}], "model")
         assert result is None
 
     @pytest.mark.asyncio
@@ -268,9 +266,7 @@ class TestTryP2PForward:
         ):
             from mascarade.local_server import try_p2p_forward
 
-            result = await try_p2p_forward(
-                [{"role": "user", "content": "hi"}], "model"
-            )
+            result = await try_p2p_forward([{"role": "user", "content": "hi"}], "model")
 
         assert result is not None
         assert result["_routed_via"] == "http://peer1:8100"
@@ -292,9 +288,7 @@ class TestTryP2PForward:
         ):
             from mascarade.local_server import try_p2p_forward
 
-            result = await try_p2p_forward(
-                [{"role": "user", "content": "hi"}], "model"
-            )
+            result = await try_p2p_forward([{"role": "user", "content": "hi"}], "model")
 
         assert result is None
 
@@ -328,9 +322,7 @@ class TestProbeProviderStatus:
             "checked_at": time.time(),
         }
 
-        with patch.dict(
-            "mascarade.local_server.PROVIDER_PROBE_CACHE", {"mistral": cached}
-        ):
+        with patch.dict("mascarade.local_server.PROVIDER_PROBE_CACHE", {"mistral": cached}):
             from mascarade.local_server import probe_provider_status
 
             result = await probe_provider_status("mistral")

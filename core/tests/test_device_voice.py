@@ -98,7 +98,9 @@ class TestDeviceStateStore:
 
     def test_merge_updates_state(self):
         store = DeviceStateStore()
-        result = store.merge_current_media("dev-1", {"mode": "radio", "playing": True, "volume": 50})
+        result = store.merge_current_media(
+            "dev-1", {"mode": "radio", "playing": True, "volume": 50}
+        )
         assert result.mode == "radio"
         assert result.playing is True
         assert result.volume == 50

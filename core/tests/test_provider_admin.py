@@ -327,9 +327,7 @@ class TestUpdateProviderKeysEdgeCases:
         assert "Unknown provider" in result["error"]
 
     def test_unknown_field_returns_error(self):
-        result = update_provider_keys(
-            "claude", {"INVALID_ENV_VAR": "value"}, _FakeRouter()
-        )
+        result = update_provider_keys("claude", {"INVALID_ENV_VAR": "value"}, _FakeRouter())
         assert "error" in result
         assert "Unknown field" in result["error"]
 
