@@ -79,13 +79,58 @@ function MetricPanel({
   );
 }
 
+function Sparkline({ values, width = 120, height = 28 }: { values: number[]; width?: number; height?: number }) {
+  if (!values.length) return null;
+  const max = Math.max(...values, 1);
+  const min = Math.min(...values, 0);
+  const range = max - min || 1;
+  const points = values
+    .map((v, i) => {
+      const x = (i / Math.max(values.length - 1, 1)) * width;
+      const y = height - ((v - min) / range) * height;
+      return `${x},${y}`;
+    })
+    .join(" ");
+  return (
+    <svg width={width} height={height} className="inline-block" viewBox={`0 0 ${width} ${height}`}>
+      <polyline
+        points={points}
+        fill="none"
+        stroke="rgba(255,209,102,0.6)"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
 export default function Metrics() {
   const { data, loading, error, refetch } = useFetch<OpsMonitor>(
     "/api/ops/monitor",
     { pollIntervalMs: 5000 },
   );
+  const gpu = useFetch<{
+    ok?: boolean;
+    gpu_name?: string;
+    vram_used_gb?: number;
+    vram_total_gb?: number;
+    utilization_pct?: number;
+    temperature_c?: number;
+  }>("/api/ops/gpu", { pollIntervalMs: 10000 });
+  const training = useFetch<{
+    active?: boolean;
+    model_name?: string;
+    progress_pct?: number;
+    current_loss?: number;
+    epoch?: number;
+    total_epochs?: number;
+  }>("/api/ops/training", { pollIntervalMs: 10000 });
 
   const services = data?.services ?? [];
+  const latencyHistory = useMemo(() => {
+    return services.map((svc) => svc.latency_ms).filter((v): v is number => Number.isFinite(v) && v > 0);
+  }, [services]);
   const servicesUp = useMemo(() => services.filter((svc) => svc.ok).length, [services]);
   const servicesDown = services.length - servicesUp;
   const postureOk = !!data && data.gateway.api.ok && data.gateway.core && servicesDown === 0;
@@ -261,6 +306,106 @@ export default function Metrics() {
           tertiary={`${formatLatency(data.ai.ollama.latency_ms)} / ${formatLatency(data.ai.qdrant.latency_ms)}`}
         />
       </section>
+
+      <section className="grid gap-4 xl:grid-cols-2">
+        <Card title="GPU metrics" className="bg-[linear-gradient(180deg,rgba(10,12,11,0.92),rgba(6,7,7,0.98))]">
+          {gpu.data?.ok ? (
+            <div className="space-y-4">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="screen-label">{gpu.data.gpu_name || "RTX 4090"}</p>
+                  <p className="mt-2 text-sm leading-6 text-amber-100/54">Metriques GPU temps reel depuis le worker KXKM-AI.</p>
+                </div>
+                <span className={["status-chip", chipTone(true)].join(" ")}>online</span>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-3">
+                <div className="rounded-3xl border border-border/80 bg-black/25 p-4">
+                  <p className="text-[10px] uppercase tracking-[0.18em] text-muted">vram</p>
+                  <p className="mt-3 text-xl font-semibold uppercase tracking-[0.14em] text-accent">
+                    {gpu.data.vram_used_gb?.toFixed(1) ?? "-"} / {gpu.data.vram_total_gb?.toFixed(0) ?? "24"} GB
+                  </p>
+                </div>
+                <div className="rounded-3xl border border-border/80 bg-black/25 p-4">
+                  <p className="text-[10px] uppercase tracking-[0.18em] text-muted">utilization</p>
+                  <p className={["mt-3 text-xl font-semibold uppercase tracking-[0.14em]", (gpu.data.utilization_pct ?? 0) > 90 ? "text-error" : "text-accent"].join(" ")}>
+                    {gpu.data.utilization_pct ?? "-"}%
+                  </p>
+                </div>
+                <div className="rounded-3xl border border-border/80 bg-black/25 p-4">
+                  <p className="text-[10px] uppercase tracking-[0.18em] text-muted">temperature</p>
+                  <p className={["mt-3 text-xl font-semibold uppercase tracking-[0.14em]", (gpu.data.temperature_c ?? 0) > 80 ? "text-error" : "text-accent"].join(" ")}>
+                    {gpu.data.temperature_c ?? "-"} C
+                  </p>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <p className="text-sm leading-6 text-amber-100/54">Metriques GPU non disponibles depuis l'API ops.</p>
+              <span className={["status-chip", chipTone(false)].join(" ")}>unavailable</span>
+            </div>
+          )}
+        </Card>
+
+        <Card title="Training status" className="bg-[linear-gradient(180deg,rgba(10,12,11,0.92),rgba(6,7,7,0.98))]">
+          {training.data?.active ? (
+            <div className="space-y-4">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="screen-label">active run</p>
+                  <p className="mt-2 text-lg font-semibold uppercase tracking-[0.12em] text-accent">
+                    {training.data.model_name || "unknown model"}
+                  </p>
+                </div>
+                <span className={["status-chip", chipTone(true)].join(" ")}>training</span>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-3">
+                <div className="rounded-3xl border border-border/80 bg-black/25 p-4">
+                  <p className="text-[10px] uppercase tracking-[0.18em] text-muted">progress</p>
+                  <p className="mt-3 text-xl font-semibold uppercase tracking-[0.14em] text-accent">
+                    {training.data.progress_pct?.toFixed(1) ?? "-"}%
+                  </p>
+                </div>
+                <div className="rounded-3xl border border-border/80 bg-black/25 p-4">
+                  <p className="text-[10px] uppercase tracking-[0.18em] text-muted">loss</p>
+                  <p className="mt-3 text-xl font-semibold uppercase tracking-[0.14em] text-accent">
+                    {training.data.current_loss?.toFixed(4) ?? "-"}
+                  </p>
+                </div>
+                <div className="rounded-3xl border border-border/80 bg-black/25 p-4">
+                  <p className="text-[10px] uppercase tracking-[0.18em] text-muted">epoch</p>
+                  <p className="mt-3 text-xl font-semibold uppercase tracking-[0.14em] text-accent">
+                    {training.data.epoch ?? "-"} / {training.data.total_epochs ?? "-"}
+                  </p>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <p className="text-sm leading-6 text-amber-100/54">Aucun training actif. Le worker attend un nouveau run.</p>
+              <span className={["status-chip", chipTone(false)].join(" ")}>idle</span>
+            </div>
+          )}
+        </Card>
+      </section>
+
+      {latencyHistory.length > 1 && (
+        <section>
+          <Card title="Service latency trend">
+            <div className="space-y-3">
+              <p className="text-sm leading-7 text-amber-100/60">
+                Distribution des latences sur les {latencyHistory.length} services actifs. Chaque point represente un service.
+              </p>
+              <div className="flex items-center gap-4">
+                <Sparkline values={latencyHistory} width={240} height={36} />
+                <span className="text-[11px] text-amber-100/45">
+                  min {Math.round(Math.min(...latencyHistory))} ms / max {Math.round(Math.max(...latencyHistory))} ms
+                </span>
+              </div>
+            </div>
+          </Card>
+        </section>
+      )}
 
       <section className="grid gap-4 xl:grid-cols-[minmax(0,1.3fr)_minmax(320px,0.7fr)]">
         <div id="services-health">

@@ -65,11 +65,25 @@ function formatLastUsed(isoString: string | null): string {
   }
 }
 
+const mistralStudioAgents = [
+  { name: "Devstral-Code", agent_id: "ag:43e29460:20250516:devstral-code:6dbfbeed", domains: ["code", "embedded", "kicad"] },
+  { name: "Forge", agent_id: "ag:43e29460:20250516:forge:9a2c1bf3", domains: ["spice", "kicad", "pcb"] },
+  { name: "Tower", agent_id: "ag:43e29460:20250516:tower:d41e8c07", domains: ["orchestration", "infra", "ops"] },
+  { name: "Sentinelle", agent_id: "ag:43e29460:20250516:sentinelle:b7f3a2e1", domains: ["monitoring", "alerting", "security"] },
+];
+
+const cliAgents = [
+  { name: "Vibe", version: "latest", domains: ["creative", "prototyping"] },
+  { name: "Codex", version: "latest", domains: ["code", "refactoring"] },
+  { name: "Claude Code", version: "opus-4.6-1m", domains: ["code", "ops", "architecture"] },
+];
+
 export default function Agents() {
   const { data, loading, error, refetch } = useFetch<{ agents: Agent[] }>("/api/agents");
   const [showCreate, setShowCreate] = useState(false);
   const [createdName, setCreatedName] = useState("");
   const [metricsMap, setMetricsMap] = useState<Record<string, AgentMetrics>>({});
+  const [searchFilter, setSearchFilter] = useState("");
   const [form, setForm] = useState({
     name: "",
     description: "",
@@ -178,11 +192,16 @@ export default function Agents() {
 
   const agents = data?.agents || [];
   const agentZero = agents.find((agent) => agent.name === "agent-zero");
-  const sortedAgents = [...agents].sort((left, right) => {
-    if (left.name === "agent-zero") return -1;
-    if (right.name === "agent-zero") return 1;
-    return left.name.localeCompare(right.name);
-  });
+  const lowerFilter = searchFilter.toLowerCase();
+  const sortedAgents = [...agents]
+    .filter((a) => !lowerFilter || a.name.toLowerCase().includes(lowerFilter) || (a.description || "").toLowerCase().includes(lowerFilter))
+    .sort((left, right) => {
+      if (left.name === "agent-zero") return -1;
+      if (right.name === "agent-zero") return 1;
+      return left.name.localeCompare(right.name);
+    });
+  const filteredMistral = mistralStudioAgents.filter((a) => !lowerFilter || a.name.toLowerCase().includes(lowerFilter) || a.domains.some((d) => d.includes(lowerFilter)));
+  const filteredCli = cliAgents.filter((a) => !lowerFilter || a.name.toLowerCase().includes(lowerFilter) || a.domains.some((d) => d.includes(lowerFilter)));
 
   return (
     <div className="space-y-6">
@@ -257,6 +276,15 @@ export default function Agents() {
         </Card>
       </section>
 
+      <div>
+        <Input
+          label="Search agents"
+          value={searchFilter}
+          onChange={(e) => setSearchFilter(e.target.value)}
+          placeholder="Filter by name, domain..."
+        />
+      </div>
+
       {agentZero ? (
         <Card className="border-accent/30 bg-[linear-gradient(135deg,rgba(255,209,102,0.10),rgba(8,12,10,0.94)_30%,rgba(6,6,6,0.98))]">
           <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
@@ -285,6 +313,67 @@ export default function Agents() {
           </div>
         </Card>
       ) : null}
+
+      {filteredMistral.length > 0 && (
+        <section>
+          <h2 className="mb-4 text-[11px] font-semibold uppercase tracking-[0.24em] text-muted">
+            Mistral Studio Agents
+          </h2>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            {filteredMistral.map((a) => (
+              <Card key={a.name} className="h-full">
+                <div className="space-y-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <p className="screen-label">mistral studio</p>
+                      <h3 className="mt-2 text-lg font-semibold uppercase tracking-[0.12em] text-accent">
+                        {a.name}
+                      </h3>
+                    </div>
+                    <Badge color="accent">studio</Badge>
+                  </div>
+                  <p className="break-all text-[11px] leading-5 text-amber-100/40">{a.agent_id}</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {a.domains.map((d) => (
+                      <Badge key={d} color="muted">{d}</Badge>
+                    ))}
+                  </div>
+                </div>
+              </Card>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {filteredCli.length > 0 && (
+        <section>
+          <h2 className="mb-4 text-[11px] font-semibold uppercase tracking-[0.24em] text-muted">
+            CLI Agents
+          </h2>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            {filteredCli.map((a) => (
+              <Card key={a.name} className="h-full">
+                <div className="space-y-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <p className="screen-label">cli agent</p>
+                      <h3 className="mt-2 text-lg font-semibold uppercase tracking-[0.12em] text-accent">
+                        {a.name}
+                      </h3>
+                    </div>
+                    <Badge color="warning">{a.version}</Badge>
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {a.domains.map((d) => (
+                      <Badge key={d} color="muted">{d}</Badge>
+                    ))}
+                  </div>
+                </div>
+              </Card>
+            ))}
+          </div>
+        </section>
+      )}
 
       {sortedAgents.length === 0 ? (
         <EmptyState

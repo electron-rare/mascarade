@@ -2,7 +2,12 @@ import { Hono } from "hono";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("node:child_process", () => ({
-  spawn: vi.fn(() => ({ unref: vi.fn() })),
+  spawn: vi.fn(() => ({
+    unref: vi.fn(),
+    pid: 12345,
+    on: vi.fn(),
+    kill: vi.fn(),
+  })),
 }));
 
 vi.mock("node:fs", () => ({

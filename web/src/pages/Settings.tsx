@@ -1099,6 +1099,79 @@ export default function Settings() {
         </section>
       )}
 
+      <section>
+        <h2 className="mb-4 text-[11px] font-semibold uppercase tracking-[0.24em] text-muted">
+          Data tools
+        </h2>
+        <div className="grid gap-4 lg:grid-cols-2">
+          {[
+            {
+              label: "Nextcloud",
+              url: "https://cloud.saillant.cc",
+              description: "Stockage fichiers, datasets et synchronisation entre machines du cluster.",
+              envHint: "NEXTCLOUD_URL",
+              configured: runtimeGroups.some((g) => g.name === "nextcloud" && g.configured),
+            },
+            {
+              label: "Argilla",
+              url: "https://argilla.saillant.cc",
+              description: "Annotation de datasets, review collaborative et quality scoring.",
+              envHint: "ARGILLA_API_URL",
+              configured: runtimeGroups.some((g) => g.name === "argilla" && g.configured),
+            },
+            {
+              label: "Langfuse",
+              url: "https://langfuse.saillant.cc",
+              description: "Observabilite LLM: traces, latences, couts et metriques de qualite.",
+              envHint: "LANGFUSE_HOST",
+              configured: runtimeGroups.some((g) => g.name === "langfuse" && g.configured),
+            },
+            {
+              label: "Data Reviewer",
+              url: "https://train.saillant.cc",
+              description: "Dashboard de fine-tuning, validation des runs et suivi des modeles entraines.",
+              envHint: "TRAIN_DASHBOARD_URL",
+              configured: false,
+            },
+          ].map((tool) => (
+            <div key={tool.label} className="rounded-[1.4rem] border border-border/80 bg-black/25 p-5">
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-[13px] font-semibold uppercase tracking-[0.18em] text-accent">
+                    {tool.label}
+                  </p>
+                  <p className="mt-1 text-[12px] leading-5 text-amber-100/48">
+                    {tool.description}
+                  </p>
+                </div>
+                <span
+                  className={`status-chip ${
+                    tool.configured
+                      ? "border-[#214e31] bg-[#0c170f]/80 text-[#8cffb7]"
+                      : "border-border/80 bg-black/25 text-muted"
+                  }`}
+                >
+                  {tool.configured ? "connected" : "not configured"}
+                </span>
+              </div>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between rounded-2xl border border-border/80 bg-black/20 px-3 py-2.5">
+                  <span className="text-[11px] text-amber-100/50">{tool.envHint}</span>
+                  <a
+                    href={tool.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-[11px] font-semibold uppercase tracking-[0.14em] text-accent transition hover:text-accent/80"
+                  >
+                    {tool.url.replace(/^https?:\/\//, "")}
+                  </a>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+
       {active.length > 0 && (
         <section>
           <h2 className="mb-4 text-[11px] font-semibold uppercase tracking-[0.24em] text-muted">

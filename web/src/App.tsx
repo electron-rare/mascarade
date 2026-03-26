@@ -16,12 +16,14 @@ import ComfyUI from "./pages/ComfyUI";
 import KillLifeWorkflows from "./pages/KillLifeWorkflows";
 import KillLifeWorkflowEditor from "./pages/KillLifeWorkflowEditor";
 import Settings from "./pages/Settings";
-import P2PMesh from "./pages/P2PMesh";
+import P2P from "./pages/P2P";
+import McpServers from "./pages/McpServers";
 import FineTuning from "./pages/FineTuning";
 import Training from "./pages/Training";
 import Datasets from "./pages/Datasets";
 import Fleet from "./pages/Fleet";
 import Benchmark from "./pages/Benchmark";
+import Administration from "./pages/Administration";
 
 export default function App() {
   return (
@@ -43,12 +45,14 @@ export default function App() {
           <Route path="kill-life" element={<KillLifeWorkflows />} />
           <Route path="kill-life/:workflowId" element={<KillLifeWorkflowEditor />} />
           <Route path="settings" element={<Settings />} />
-          <Route path="p2p" element={<P2PMesh />} />
+          <Route path="mcp" element={<McpServers />} />
+          <Route path="p2p" element={<P2P />} />
           <Route path="finetune" element={<FineTuning />} />
           <Route path="training" element={<Training />} />
           <Route path="datasets" element={<Datasets />} />
           <Route path="fleet" element={<Fleet />} />
           <Route path="benchmark" element={<Benchmark />} />
+          <Route path="admin" element={<Administration />} />
           <Route path="*" element={<p className="text-error text-sm text-center mt-20">404 — page not found</p>} />
         </Route>
       </Routes>
