@@ -6,7 +6,9 @@ import asyncio
 import hashlib
 import json
 import logging
+import os
 import secrets
+from pathlib import Path
 from contextlib import asynccontextmanager
 from datetime import datetime
 import time
@@ -49,6 +51,7 @@ from mascarade.integrations.knowledge_base import (
     knowledge_base_status_detail,
 )
 from mascarade.integrations.qdrant_client import QdrantClient
+from mascarade.integrations.rag_pipeline import RAGPipeline
 from mascarade.mcp import McpCallError, McpRuntimeClient, McpServerUnavailable
 from mascarade.mcp.client import McpError
 from mascarade.observability import AgentTraceBuffer, iso_utc_now, new_run_id
@@ -70,6 +73,7 @@ from mascarade.device_voice import (
 from mascarade.router import Router
 from mascarade.router.router import Strategy
 from mascarade.usage_tracking import get_all_usage_stats
+from mascarade.ollama_compat import mount_ollama_compat
 
 logger = logging.getLogger("mascarade.server")
 INDUSTRIAL_MCP_SERVER_KEYS = {"cockpit-ops", "plm", "qms", "mes", "erp", "wms", "dcs"}
@@ -110,6 +114,9 @@ async def lifespan(app: FastAPI):
     app.state.mcp = McpRuntimeClient(trace_buffer=trace_buffer)
     app.state.comfyui = ComfyUIClient() if settings.comfyui_url else None
     app.state.device_voice = DeviceVoiceService(router=router)
+    _qdrant = QdrantClient() if settings.qdrant_url else None
+    app.state.qdrant = _qdrant
+    app.state.rag = RAGPipeline(qdrant=_qdrant) if _qdrant else None
 
     registry.load()
 
@@ -150,6 +157,8 @@ async def lifespan(app: FastAPI):
         logger.info("Database pool closed")
     if app.state.qdrant is not None:
         await app.state.qdrant.close()
+    if app.state.rag is not None:
+        await app.state.rag.close()
 
 
 app = FastAPI(title="Mascarade Core", version="0.1.0", lifespan=lifespan)
@@ -369,9 +378,26 @@ class QdrantSemanticSearchRequest(BaseModel):
 
 class QdrantRAGRequest(BaseModel):
     query: str = Field(min_length=1, max_length=10000)
-    limit: int = Field(default=5, gt=0, le=20)
+    collection: str = Field(default="mascarade-kb", min_length=1, max_length=100)
+    retrieve_k: int = Field(default=20, gt=0, le=100)
+    rerank_top_k: int = Field(default=5, gt=0, le=20)
     model: str | None = None
-    temperature: float = Field(default=0.7, ge=0.0, le=2.0)
+    temperature: float = Field(default=0.3, ge=0.0, le=2.0)
+
+
+class RAGIngestRequest(BaseModel):
+    collection: str = Field(default="mascarade-kb", min_length=1, max_length=100)
+    texts: list[str] = Field(min_length=1, max_length=100)
+    payloads: list[dict[str, Any]] | None = None
+    chunk_size: int = Field(default=800, gt=100, le=4000)
+    chunk_overlap: int = Field(default=100, ge=0, le=500)
+
+
+class RAGSearchRequest(BaseModel):
+    query: str = Field(min_length=1, max_length=10000)
+    collection: str = Field(default="mascarade-kb", min_length=1, max_length=100)
+    limit: int = Field(default=10, gt=0, le=50)
+    score_threshold: float | None = Field(default=None, ge=0.0, le=1.0)
 
 
 class BenchmarkRunRequest(BaseModel):
@@ -464,6 +490,7 @@ async def chat_completions(req: ChatCompletionRequest):
         supported_providers = [
             "apple-coreml",
             "ollama",
+            "mlx",
             "openai",
             "claude",
             "anthropic",
@@ -1347,1383 +1374,14 @@ async def metrics_reset():
 
 
 @app.get("/metrics")
-async def prometheus_metrics():
-    """Expose Prometheus metrics for scraping — no auth required."""
-    try:
-        from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
-
-        from starlette.responses import Response
-
-        return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
-    except ImportError:
-        raise HTTPException(
-            status_code=501,
-            detail="prometheus_client is not installed",
-        )
-
-
-# --- Cache ---
-
-
-@protected.get("/cache/stats")
-async def cache_stats():
-    return app.state.router.cache.get_stats()
-
-
-@protected.post("/cache/reset")
-async def cache_reset():
-    app.state.router.cache.clear()
-    return {"status": "ok"}
-
-
-# --- Load Balancer ---
-
-
-@protected.get("/load-balancer/stats")
-async def lb_stats():
-    return app.state.router.load_balancer.get_load_stats()
-
-
-@protected.post("/load-balancer/reset")
-async def lb_reset():
-    app.state.router.load_balancer.reset_stats()
-    return {"status": "ok"}
-
-
-# --- Fallback ---
-
-
-@protected.get("/fallback/stats")
-async def fallback_stats():
-    return app.state.router.fallback.get_failure_stats()
-
-
-@protected.post("/fallback/reset")
-async def fallback_reset():
-    app.state.router.fallback.reset()
-    return {"status": "ok"}
-
-
-# --- Agents ---
-
-
-@protected.post("/agents")
-async def create_agent(req: AgentCreate):
-    agent = Agent(
-        name=req.name,
-        description=req.description,
-        system_prompt=req.system_prompt,
-        preferred_provider=req.preferred_provider,
-        preferred_model=req.preferred_model,
-        preferred_role=req.preferred_role,
-        strategy=req.strategy,
-        routing_policy=req.routing_policy,
-        temperature=req.temperature,
-        max_tokens=req.max_tokens,
-    )
-    app.state.registry.register(agent)
-    app.state.registry.save()
-    return _serialize_agent(agent)
-
-
-@protected.get("/agents")
-async def list_agents():
-    return {"agents": [_serialize_agent(agent) for agent in app.state.registry.list()]}
-
-
-@protected.get("/agents/{name}")
-async def get_agent(name: str):
-    try:
-        agent = app.state.registry.get(name)
-    except KeyError:
-        raise HTTPException(status_code=404, detail=f"Agent '{name}' not found") from None
-    return _serialize_agent(agent)
-
-
-@protected.put("/agents/{name}")
-async def update_agent(name: str, req: AgentUpdate, request: Request):
-    try:
-        agent = app.state.registry.get(name)
-    except KeyError:
-        raise HTTPException(status_code=404, detail=f"Agent '{name}' not found") from None
-    if app.state.registry.is_builtin(name):
-        raise HTTPException(
-            status_code=403,
-            detail="Built-in agents are read-only; create a dynamic agent from the UI to edit routing.",
-        )
-
-    # Check if system_prompt is changing
-    old_system_prompt = agent.system_prompt
-    system_prompt_changed = old_system_prompt != req.system_prompt
-
-    # Update agent fields
-    agent.description = req.description
-    agent.system_prompt = req.system_prompt
-    agent.preferred_provider = req.preferred_provider
-    agent.preferred_model = req.preferred_model
-    agent.preferred_role = req.preferred_role
-    agent.strategy = req.strategy
-    agent.routing_policy = req.routing_policy
-    agent.temperature = req.temperature
-    agent.max_tokens = req.max_tokens
-
-    # Create version if system_prompt changed
-    if system_prompt_changed:
-        # Get API key from request headers for author tracking
-        auth_header = request.headers.get("Authorization", "")
-        api_key = ""
-        if auth_header.startswith("Bearer "):
-            api_key = auth_header[7:]
-        author_hash = hash_api_key(api_key)
-
-        # Create PromptHistory and load existing versions
-        prompt_history = PromptHistory(storage_path=None)
-        prompt_history._versions = [
-            PromptVersion(**v) for v in agent.prompt_versions
-        ]
-
-        # Add new version
-        new_version = prompt_history.add_version(
-            content=req.system_prompt,
-            author_hash=author_hash,
-            note=req.version_note,
-        )
-
-        # Update agent's prompt_versions
-        agent.prompt_versions = [asdict(v) for v in prompt_history._versions]
-
-    app.state.registry.save()
-    return _serialize_agent(agent)
-
-
-@protected.delete("/agents/{name}")
-async def delete_agent(name: str):
-    try:
-        agent = app.state.registry.get(name)
-    except KeyError:
-        raise HTTPException(status_code=404, detail=f"Agent '{name}' not found") from None
-    if app.state.registry.is_builtin(name):
-        raise HTTPException(
-            status_code=403,
-            detail="Built-in agents are read-only and cannot be deleted.",
-        )
-
-    app.state.registry.remove(name)
-    app.state.registry.save()
-    return {"message": f"Agent '{name}' deleted successfully"}
-
-
-@protected.post("/agents/{name}/run")
-async def run_agent(name: str, req: SendRequest):
-    if not req.messages:
-        raise HTTPException(status_code=400, detail="At least one message is required")
-
-    try:
-        agent = app.state.registry.get(name)
-    except KeyError:
-        raise HTTPException(status_code=404, detail=f"Agent '{name}' not found") from None
-
-    messages = [m.model_dump() for m in req.messages]
-    prompt = messages[-1]["content"]
-    context = messages[:-1] if len(messages) > 1 else None
-    response = await agent.run(prompt, router=app.state.router, context=context)
-    return {
-        "content": response.content,
-        "model": response.model,
-        "provider": response.provider,
-        "usage": response.usage,
-    }
-
-
-@protected.get("/agents/{name}/metrics")
-async def get_agent_metrics(name: str):
-    try:
-        agent = app.state.registry.get(name)
-    except KeyError:
-        raise HTTPException(status_code=404, detail=f"Agent '{name}' not found") from None
-    return app.state.registry.agent_metrics(name)
-
-
-# --- Orchestration ---
-
-
-@protected.post("/orchestrate")
-async def orchestrate(req: TaskRequest):
-    try:
-        run = await app.state.orchestrator.run(
-            req.agent_names,
-            req.prompt,
-            mode=req.mode,
-            routing_overrides={
-                agent_name: override.model_dump()
-                for agent_name, override in req.routing_overrides.items()
-            },
-        )
-    except KeyError as exc:
-        raise HTTPException(status_code=404, detail=f"Agent not found: {exc}") from exc
-    return {
-        "run_id": run.run_id,
-        "mode": run.mode.value,
-        "results": [
-            {
-                "agent": r.agent_name,
-                "step": r.step,
-                "content": r.response.content,
-                "model": r.response.model,
-                "provider": r.response.provider,
-                "remote": r.remote,
-                "selected_by": r.selected_by,
-                "peer_id": r.peer_id,
-                "node_id": r.node_id,
-                "role": r.role,
-                **({"error": r.error} if r.error else {}),
-            }
-            for r in run.results
-        ],
-    }
-
-
-@protected.get("/orchestrate/templates")
-async def list_templates():
-    """List all available workflow templates."""
-    templates = app.state.template_registry.list()
-    return [
-        {
-            "id": t.id,
-            "name": t.name,
-            "description": t.description,
-            "agent_names": t.agent_names,
-            "mode": t.mode.value,
-            "documentation": t.documentation,
-            "builtin": app.state.template_registry.is_builtin(t.id),
-        }
-        for t in templates
-    ]
-
-
-@protected.get("/orchestrate/templates/{template_id}")
-async def get_template(template_id: str):
-    """Get a specific workflow template by ID."""
-    try:
-        template = app.state.template_registry.get(template_id)
-    except KeyError as exc:
-        raise HTTPException(
-            status_code=404, detail=f"Template not found: {template_id}"
-        ) from exc
-    return {
-        "id": template.id,
-        "name": template.name,
-        "description": template.description,
-        "agent_names": template.agent_names,
-        "mode": template.mode.value,
-        "routing_overrides": template.routing_overrides,
-        "documentation": template.documentation,
-        "builtin": app.state.template_registry.is_builtin(template.id),
-    }
-
-
-@protected.post("/orchestrate/templates/{template_id}/deploy")
-async def deploy_template(template_id: str, req: TemplateDeployRequest):
-    """Deploy a workflow template with user input."""
-    try:
-        template = app.state.template_registry.get(template_id)
-    except KeyError as exc:
-        raise HTTPException(
-            status_code=404, detail=f"Template not found: {template_id}"
-        ) from exc
-
-    # Merge template routing_overrides with request overrides (request takes precedence)
-    routing_overrides = {}
-    if template.routing_overrides:
-        routing_overrides.update(template.routing_overrides)
-    if req.routing_overrides:
-        routing_overrides.update(
-            {
-                agent_name: override.model_dump()
-                for agent_name, override in req.routing_overrides.items()
-            }
-        )
-
-    try:
-        run = await app.state.orchestrator.run(
-            template.agent_names,
-            req.input,
-            mode=template.mode,
-            routing_overrides=routing_overrides,
-        )
-    except KeyError as exc:
-        raise HTTPException(status_code=404, detail=f"Agent not found: {exc}") from exc
-
-    return {
-        "run_id": run.run_id,
-        "template_id": template_id,
-        "mode": run.mode.value,
-        "results": [
-            {
-                "agent": r.agent_name,
-                "step": r.step,
-                "content": r.response.content,
-                "model": r.response.model,
-                "provider": r.response.provider,
-                "remote": r.remote,
-                "selected_by": r.selected_by,
-                "peer_id": r.peer_id,
-                "node_id": r.node_id,
-                "role": r.role,
-                **({"error": r.error} if r.error else {}),
-            }
-            for r in run.results
-        ],
-    }
-
-
-# --- Cluster / multi-node ---
-
-
-@protected.get("/cluster/identity")
-async def cluster_identity():
-    return app.state.cluster.local_identity().to_dict()
-
-
-@protected.get("/cluster/peers")
-async def cluster_peers():
-    peers = await app.state.cluster.probe_peers()
-    return {
-        "node": app.state.cluster.local_identity().to_dict(),
-        "peers": [peer.to_dict() for peer in peers],
-    }
-
-
-@protected.post("/cluster/forward/send")
-async def cluster_forward_send(req: ClusterForwardSendRequest):
-    payload = req.model_dump(exclude={"peer_id", "preferred_role", "allow_local"})
-    return await app.state.cluster.forward_send(
-        peer_id=req.peer_id,
-        preferred_role=req.preferred_role,
-        allow_local=req.allow_local,
-        payload=payload,
-    )
-
-
-@cluster_protected.get("/identity")
-async def cluster_node_identity():
-    return app.state.cluster.local_identity().to_dict()
-
-
-@cluster_protected.post("/send")
-async def cluster_node_send(req: SendRequest):
-    messages = [m.model_dump() for m in req.messages]
-    try:
-        response = await app.state.router.send(
-            messages,
-            strategy=req.strategy,
-            routing_policy=req.routing_policy,
-            provider=req.provider,
-            model=req.model,
-            system=req.system,
-            response_format=req.response_format,
-            temperature=req.temperature,
-            max_tokens=req.max_tokens,
-        )
-    except ValueError as exc:
-        logger.warning("Cluster send request rejected: %s", exc)
-        raise HTTPException(status_code=400, detail="Invalid request parameters") from exc
-
-    return {
-        "node_id": settings.node_id,
-        "content": response.content,
-        "model": response.model,
-        "provider": response.provider,
-        "usage": response.usage,
-    }
-
-
-# --- Analytics ---
-
-
-class ProviderCostSummary(BaseModel):
-    provider: str
-    model: str
-    total_cost: float = Field(ge=0.0)
-    input_tokens: int = Field(ge=0)
-    output_tokens: int = Field(ge=0)
-    request_count: int = Field(ge=0)
-
-
-class CostAnalyticsResponse(BaseModel):
-    total_cost: float = Field(ge=0.0)
-    total_requests: int = Field(ge=0)
-    total_input_tokens: int = Field(ge=0)
-    total_output_tokens: int = Field(ge=0)
-    by_provider: list[ProviderCostSummary]
-
-
-@protected.get("/v1/analytics/cost")
-async def get_cost_analytics(
-    limit: int = Query(default=1000, ge=1, le=5000),
-    run_id: str | None = Query(default=None, max_length=64),
-):
-    """
-    Get cost analytics aggregated from trace events.
-
-    Args:
-        limit: Maximum number of events to analyze (default: 1000)
-        run_id: Optional run ID to filter by
-
-    Returns:
-        Cost analytics with totals and breakdowns by provider/model
-    """
-    from mascarade.analytics import get_cost_calculator
-
-    # Get recent trace events with token usage
-    events = app.state.trace_buffer.recent(
-        limit=limit,
-        run_id=run_id,
-    )
-
-    # Filter events that have token usage
-    events_with_usage = [e for e in events if e.token_usage]
-
-    # Aggregate by (provider, model)
-    aggregates: dict[tuple[str, str], dict] = {}
-    cost_calc = get_cost_calculator()
-
-    for event in events_with_usage:
-        if not event.provider or not event.model:
-            continue
-
-        key = (event.provider, event.model)
-        if key not in aggregates:
-            aggregates[key] = {
-                "provider": event.provider,
-                "model": event.model,
-                "total_cost": 0.0,
-                "input_tokens": 0,
-                "output_tokens": 0,
-                "request_count": 0,
-            }
-
-        input_tokens = event.token_usage.get("input_tokens", 0) or event.token_usage.get("prompt_tokens", 0)
-        output_tokens = event.token_usage.get("output_tokens", 0) or event.token_usage.get("completion_tokens", 0)
-
-        # Calculate cost for this event
-        cost = cost_calc.calculate_cost(
-            provider=event.provider,
-            model=event.model,
-            input_tokens=input_tokens,
-            output_tokens=output_tokens,
-        )
-
-        aggregates[key]["total_cost"] += cost
-        aggregates[key]["input_tokens"] += input_tokens
-        aggregates[key]["output_tokens"] += output_tokens
-        aggregates[key]["request_count"] += 1
-
-    # Calculate totals
-    total_cost = sum(agg["total_cost"] for agg in aggregates.values())
-    total_requests = sum(agg["request_count"] for agg in aggregates.values())
-    total_input_tokens = sum(agg["input_tokens"] for agg in aggregates.values())
-    total_output_tokens = sum(agg["output_tokens"] for agg in aggregates.values())
-
-    # Convert to response models
-    by_provider = [ProviderCostSummary(**agg) for agg in aggregates.values()]
-
-    return CostAnalyticsResponse(
-        total_cost=total_cost,
-        total_requests=total_requests,
-        total_input_tokens=total_input_tokens,
-        total_output_tokens=total_output_tokens,
-        by_provider=by_provider,
-    )
-
-
-# --- Orchestration traces ---
-
-
-@protected.get("/agent-traces/recent")
-async def recent_agent_traces(
-    limit: int = Query(default=50, ge=1, le=500),
-    run_id: str | None = Query(default=None, max_length=64),
-    agent_name: str | None = Query(default=None, max_length=128),
-    event_type: str | None = Query(default=None, max_length=64),
-):
-    events = app.state.trace_buffer.recent(
-        limit=limit,
-        run_id=run_id,
-        agent_name=agent_name,
-        event_type=event_type,
-    )
-    return {
-        "events": [event.to_dict() for event in events],
-        "count": len(events),
-    }
-
-
-@protected.get("/agent-traces/stream")
-async def stream_agent_traces(
-    request: Request,
-    run_id: str | None = Query(default=None, max_length=64),
-    agent_name: str | None = Query(default=None, max_length=128),
-    event_type: str | None = Query(default=None, max_length=64),
-    limit: int = Query(default=20, ge=0, le=200),
-):
-    async def event_stream():
-        queue, unsubscribe = app.state.trace_buffer.subscribe(
-            run_id=run_id,
-            agent_name=agent_name,
-            event_type=event_type,
-        )
-        try:
-            if limit > 0:
-                for event in app.state.trace_buffer.recent(
-                    limit=limit,
-                    run_id=run_id,
-                    agent_name=agent_name,
-                    event_type=event_type,
-                ):
-                    yield f"event: agent_trace\ndata: {json.dumps(event.to_dict())}\n\n"
-
-            while True:
-                if await request.is_disconnected():
-                    break
-                try:
-                    event = await asyncio.wait_for(queue.get(), timeout=15)
-                except TimeoutError:
-                    yield f"event: heartbeat\ndata: {json.dumps({'ts': iso_utc_now()})}\n\n"
-                    continue
-                yield f"event: agent_trace\ndata: {json.dumps(event.to_dict())}\n\n"
-        finally:
-            unsubscribe()
-
-    return StreamingResponse(
-        event_stream(),
-        media_type="text/event-stream",
-        headers={
-            "Cache-Control": "no-cache",
-            "Connection": "keep-alive",
-            "X-Accel-Buffering": "no",
-        },
-    )
-
-
-@protected.get("/agent-traces/{run_id}")
-async def run_agent_traces(
-    run_id: str,
-    limit: int = Query(default=200, ge=1, le=1000),
-):
-    events = app.state.trace_buffer.run_events(run_id, limit=limit)
-    return {
-        "run_id": run_id,
-        "events": [event.to_dict() for event in events],
-        "count": len(events),
-    }
-
-
-# --- Knowledge Base ---
-
-
-def _require_mcp_client() -> McpRuntimeClient:
-    if not hasattr(app.state, "mcp"):
-        raise HTTPException(status_code=503, detail="MCP runtime non initialise")
-    return app.state.mcp
-
-
-def _require_knowledge_base() -> McpRuntimeClient:
-    if not knowledge_base_auth_configured():
-        raise HTTPException(
-            status_code=503,
-            detail=knowledge_base_status_detail(),
-        )
-    return _require_mcp_client()
-
-
-@protected.get("/knowledge-base/search")
-async def knowledge_base_search(q: str):
-    if len(q) > 1000:
-        raise HTTPException(status_code=400, detail="Search query too long (max 1000 chars)")
-    client = _require_knowledge_base()
-    try:
-        payload = await client.knowledge_base_search(
-            q,
-            mode="http",
-            agent_name="knowledge-base-api",
-        )
-    except (McpCallError, McpServerUnavailable) as exc:
-        raise _mcp_http_exception(exc) from exc
-    return {
-        "results": payload.get("results") or [],
-        "provider": payload.get("provider"),
-        "provider_label": payload.get("provider_label"),
-    }
-
-
-@protected.get("/knowledge-base/pages/{page_id}")
-async def knowledge_base_read_page(page_id: str):
-    client = _require_knowledge_base()
-    try:
-        payload = await client.knowledge_base_read_page(
-            page_id,
-            mode="http",
-            agent_name="knowledge-base-api",
-        )
-    except (McpCallError, McpServerUnavailable) as exc:
-        raise _mcp_http_exception(exc) from exc
-    return {
-        "page_id": page_id,
-        "content": payload.get("content") or "",
-        "provider": payload.get("provider"),
-        "provider_label": payload.get("provider_label"),
-    }
-
-
-@protected.post("/knowledge-base/pages/{page_id}/append")
-async def knowledge_base_append(page_id: str, req: KnowledgeBaseAppendRequest):
-    client = _require_knowledge_base()
-    try:
-        payload = await client.knowledge_base_append(
-            page_id,
-            req.content,
-            mode="http",
-            agent_name="knowledge-base-api",
-        )
-    except (McpCallError, McpServerUnavailable) as exc:
-        raise _mcp_http_exception(exc) from exc
-    return {
-        "status": "ok",
-        "page_id": page_id,
-        "provider": payload.get("provider"),
-        "provider_label": payload.get("provider_label"),
-    }
-
-
-@protected.post("/knowledge-base/pages")
-async def knowledge_base_create_page(req: KnowledgeBaseCreateRequest):
-    client = _require_knowledge_base()
-    try:
-        payload = await client.knowledge_base_create_page(
-            req.parent_id,
-            req.title,
-            req.content,
-            mode="http",
-            agent_name="knowledge-base-api",
-        )
-    except (McpCallError, McpServerUnavailable) as exc:
-        raise _mcp_http_exception(exc) from exc
-    return {
-        "page_id": payload.get("page_id") or "",
-        "provider": payload.get("provider"),
-        "provider_label": payload.get("provider_label"),
-    }
-
-
-@protected.post("/agents/knowledge-scribe/run-and-push")
-async def run_knowledge_scribe_and_push(req: KnowledgeScribeRequest):
-    try:
-        agent = app.state.registry.get("knowledge-scribe")
-    except KeyError:
-        raise HTTPException(status_code=404, detail="Agent 'knowledge-scribe' not found") from None
-
-    messages = [m.model_dump() for m in req.messages]
-    prompt = messages[-1]["content"]
-    context = messages[:-1] if len(messages) > 1 else None
-    response = await agent.run(prompt, router=app.state.router, context=context)
-
-    result = {
-        "content": response.content,
-        "model": response.model,
-        "provider": response.provider,
-        "usage": response.usage,
-        "pushed_to_knowledge_base": False,
-        "run_id": req.run_id,
-    }
-
-    if req.push_to:
-        client = _require_knowledge_base()
-        trace_run_id = req.run_id or new_run_id()
-        try:
-            payload = await client.knowledge_base_append(
-                req.push_to,
-                response.content,
-                run_id=trace_run_id,
-                mode="knowledge-scribe",
-                step=0,
-                agent_name="knowledge-scribe",
-            )
-        except (McpCallError, McpServerUnavailable) as exc:
-            raise _mcp_http_exception(exc) from exc
-        result["pushed_to_knowledge_base"] = True
-        result["knowledge_base_page_id"] = req.push_to
-        result["knowledge_base_provider"] = payload.get("provider")
-        result["knowledge_base_provider_label"] = payload.get("provider_label")
-        result["run_id"] = trace_run_id
-
-    return result
-
-
-# --- GitHub dispatch MCP facade ---
-
-
-@protected.get("/mcp/github-dispatch/workflows")
-async def github_dispatch_workflows():
-    client = _require_mcp_client()
-    try:
-        payload = await client.github_list_allowlisted_workflows(
-            mode="http",
-            agent_name="github-dispatch-api",
-        )
-    except (McpCallError, McpServerUnavailable) as exc:
-        raise _mcp_http_exception(exc) from exc
-
-    return payload
-
-
-@protected.post("/mcp/github-dispatch/dispatch")
-async def github_dispatch_dispatch(req: GitHubDispatchRequest):
-    client = _require_mcp_client()
-    try:
-        payload = await client.github_dispatch_workflow(
-            req.workflow_file,
-            ref=req.ref,
-            inputs=req.inputs,
-            run_id=req.run_id,
-            mode="github-dispatch",
-            step=0,
-            agent_name="github-dispatch",
-        )
-    except (McpCallError, McpServerUnavailable) as exc:
-        raise _mcp_http_exception(exc) from exc
-    return payload
-
-
-@protected.post("/mcp/github-dispatch/status")
-async def github_dispatch_status(req: GitHubDispatchStatusRequest):
-    client = _require_mcp_client()
-    try:
-        payload = await client.github_get_dispatch_status(
-            req.dispatch_id,
-            run_id=req.run_id,
-            mode="github-dispatch",
-            step=0,
-            agent_name="github-dispatch",
-        )
-    except (McpCallError, McpServerUnavailable) as exc:
-        raise _mcp_http_exception(exc) from exc
-    return payload
-
-
-# --- FreeCAD / OpenSCAD MCP facade ---
-
-
-@protected.get("/mcp/freecad/runtime")
-async def freecad_runtime_info(run_id: str | None = Query(default=None, max_length=64)):
-    client = _require_mcp_client()
-    trace_run_id = run_id or new_run_id()
-    try:
-        payload = await client.freecad_get_runtime_info(
-            run_id=trace_run_id,
-            mode="freecad",
-            step=0,
-            agent_name="freecad",
-        )
-    except (McpCallError, McpServerUnavailable) as exc:
-        raise _mcp_http_exception(exc) from exc
-    return {**payload, "run_id": trace_run_id}
-
-
-@protected.post("/mcp/freecad/documents")
-async def freecad_create_document(req: FreeCADCreateDocumentRequest):
-    client = _require_mcp_client()
-    trace_run_id = req.run_id or new_run_id()
-    try:
-        payload = await client.freecad_create_document(
-            req.output_path,
-            name=req.name,
-            primitive=req.primitive,
-            length=req.length,
-            width=req.width,
-            height=req.height,
-            run_id=trace_run_id,
-            mode="freecad",
-            step=0,
-            agent_name="freecad",
-        )
-    except (McpCallError, McpServerUnavailable) as exc:
-        raise _mcp_http_exception(exc) from exc
-    return {**payload, "run_id": trace_run_id}
-
-
-@protected.post("/mcp/freecad/export")
-async def freecad_export_document(req: FreeCADExportDocumentRequest):
-    client = _require_mcp_client()
-    trace_run_id = req.run_id or new_run_id()
-    try:
-        payload = await client.freecad_export_document(
-            req.document_path,
-            req.output_path,
-            run_id=trace_run_id,
-            mode="freecad",
-            step=0,
-            agent_name="freecad",
-        )
-    except (McpCallError, McpServerUnavailable) as exc:
-        raise _mcp_http_exception(exc) from exc
-    return {**payload, "run_id": trace_run_id}
-
-
-@protected.post("/mcp/freecad/script")
-async def freecad_run_script(req: FreeCADRunScriptRequest):
-    client = _require_mcp_client()
-    trace_run_id = req.run_id or new_run_id()
-    try:
-        payload = await client.freecad_run_python_script(
-            req.script,
-            output_path=req.output_path,
-            run_id=trace_run_id,
-            mode="freecad",
-            step=0,
-            agent_name="freecad",
-        )
-    except (McpCallError, McpServerUnavailable) as exc:
-        raise _mcp_http_exception(exc) from exc
-    return {**payload, "run_id": trace_run_id}
-
-
-@protected.get("/mcp/openscad/runtime")
-async def openscad_runtime_info(run_id: str | None = Query(default=None, max_length=64)):
-    client = _require_mcp_client()
-    trace_run_id = run_id or new_run_id()
-    try:
-        payload = await client.openscad_get_runtime_info(
-            run_id=trace_run_id,
-            mode="openscad",
-            step=0,
-            agent_name="openscad",
-        )
-    except (McpCallError, McpServerUnavailable) as exc:
-        raise _mcp_http_exception(exc) from exc
-    return {**payload, "run_id": trace_run_id}
-
-
-@protected.post("/mcp/openscad/validate")
-async def openscad_validate_model(req: OpenSCADValidateRequest):
-    client = _require_mcp_client()
-    trace_run_id = req.run_id or new_run_id()
-    try:
-        payload = await client.openscad_validate_model(
-            req.source,
-            run_id=trace_run_id,
-            mode="openscad",
-            step=0,
-            agent_name="openscad",
-        )
-    except (McpCallError, McpServerUnavailable) as exc:
-        raise _mcp_http_exception(exc) from exc
-    return {**payload, "run_id": trace_run_id}
-
-
-@protected.post("/mcp/openscad/render")
-async def openscad_render_model(req: OpenSCADRenderRequest):
-    client = _require_mcp_client()
-    trace_run_id = req.run_id or new_run_id()
-    try:
-        payload = await client.openscad_render_model(
-            req.source,
-            req.output_path,
-            run_id=trace_run_id,
-            mode="openscad",
-            step=0,
-            agent_name="openscad",
-        )
-    except (McpCallError, McpServerUnavailable) as exc:
-        raise _mcp_http_exception(exc) from exc
-    return {**payload, "run_id": trace_run_id}
-
-
-@protected.post("/mcp/openscad/export")
-async def openscad_export_model(req: OpenSCADRenderRequest):
-    client = _require_mcp_client()
-    trace_run_id = req.run_id or new_run_id()
-    try:
-        payload = await client.openscad_export_model(
-            req.source,
-            req.output_path,
-            run_id=trace_run_id,
-            mode="openscad",
-            step=0,
-            agent_name="openscad",
-        )
-    except (McpCallError, McpServerUnavailable) as exc:
-        raise _mcp_http_exception(exc) from exc
-    return {**payload, "run_id": trace_run_id}
-
-
-@protected.get("/mcp/industrial/servers")
-async def industrial_mcp_servers():
-    client = _require_mcp_client()
-    return {
-        "items": [
-            item for item in client.list_servers() if item.get("key") in INDUSTRIAL_MCP_SERVER_KEYS
-        ]
-    }
-
-
-@protected.get("/mcp/industrial/{server_key}/runtime")
-async def industrial_mcp_runtime(server_key: str):
-    if server_key not in INDUSTRIAL_MCP_SERVER_KEYS:
-        raise HTTPException(status_code=404, detail=f"Unknown industrial MCP server '{server_key}'")
-    client = _require_mcp_client()
-    try:
-        payload = await _industrial_runtime_payload(client, server_key)
-    except (McpCallError, McpServerUnavailable) as exc:
-        raise _mcp_http_exception(exc) from exc
-    return payload
-
-
-@protected.get("/mcp/industrial/{server_key}/resource")
-async def industrial_mcp_resource(server_key: str, uri: str = Query(..., min_length=1)):
-    if server_key not in INDUSTRIAL_MCP_SERVER_KEYS:
-        raise HTTPException(status_code=404, detail=f"Unknown industrial MCP server '{server_key}'")
-    client = _require_mcp_client()
-    try:
-        return await client.read_resource(server_key, uri)
-    except (McpCallError, McpServerUnavailable) as exc:
-        raise _mcp_http_exception(exc) from exc
-
-
-@protected.get("/mcp/industrial/platform")
-async def industrial_mcp_platform():
-    client = _require_mcp_client()
-    inventory = [
-        item for item in client.list_servers() if item.get("key") in INDUSTRIAL_MCP_SERVER_KEYS
-    ]
-    runtime_results = await asyncio.gather(
-        *(_industrial_runtime_payload(client, str(item.get("key", ""))) for item in inventory),
-        return_exceptions=True,
-    )
-    servers: list[dict[str, Any]] = []
-    for item, result in zip(inventory, runtime_results, strict=False):
-        if isinstance(result, Exception):
-            servers.append(
-                {
-                    **item,
-                    "ok": False,
-                    "runtime_ok": False,
-                    "error": str(result),
-                    "tool_count": 0,
-                    "resource_count": 0,
-                    "prompt_count": 0,
-                }
-            )
-            continue
-        servers.append(
-            {
-                **item,
-                "ok": bool(result.get("ok", False)),
-                "runtime_ok": bool(result.get("ok", False)),
-                "protocol_version": result.get("protocol_version", ""),
-                "server_info": result.get("server_info", {}),
-                "tool_count": int(result.get("tool_count", 0) or 0),
-                "resource_count": int(result.get("resource_count", 0) or 0),
-                "prompt_count": int(result.get("prompt_count", 0) or 0),
-                **(
-                    {"health": result.get("health")}
-                    if isinstance(result.get("health"), dict)
-                    else {}
-                ),
-                **(
-                    {"contract": result.get("contract")}
-                    if isinstance(result.get("contract"), dict)
-                    else {}
-                ),
-            }
-        )
-
-    try:
-        topology = await client.read_resource("cockpit-ops", "cockpit://topology")
-        topology_payload = topology.get("payload", {}) if isinstance(topology, dict) else {}
-    except (McpCallError, McpServerUnavailable):
-        topology_payload = {}
-    try:
-        vendor_contracts = await client.read_resource("cockpit-ops", "cockpit://vendor-contracts")
-        vendor_contracts_payload = (
-            vendor_contracts.get("payload", {}) if isinstance(vendor_contracts, dict) else {}
-        )
-    except (McpCallError, McpServerUnavailable):
-        vendor_contracts_payload = {}
-
-    return {
-        "servers": servers,
-        "summary": {
-            "server_count": len(servers),
-            "runtime_ok_count": sum(1 for item in servers if item.get("runtime_ok")),
-            "runtime_error_count": sum(1 for item in servers if not item.get("runtime_ok")),
-            "topology_valid": bool(topology_payload.get("valid", False)),
-            "vendor_contract_ready_count": int(
-                vendor_contracts_payload.get("summary", {}).get("ready_count", 0) or 0
-            ),
-            "vendor_contract_blocked_count": int(
-                vendor_contracts_payload.get("summary", {}).get("blocked_count", 0) or 0
-            ),
-        },
-        "topology": topology_payload,
-        "vendor_contracts": vendor_contracts_payload,
-    }
-
-
-def _industrial_health_uri(server_key: str) -> str:
-    if server_key == "cockpit-ops":
-        return "cockpit://health"
-    return f"{server_key}://health"
-
-
-def _industrial_contract_uri(server_key: str) -> str | None:
-    if server_key == "cockpit-ops":
-        return None
-    return f"{server_key}://contract"
-
-
-async def _industrial_runtime_payload(client: McpRuntimeClient, server_key: str) -> dict[str, Any]:
-    payload = await client.describe_server(server_key)
-    health_uri = _industrial_health_uri(server_key)
-    try:
-        health = await client.read_resource(server_key, health_uri)
-        health_payload = health.get("payload") if isinstance(health, dict) else None
-        if isinstance(health_payload, dict):
-            payload["health"] = health_payload
-    except (McpCallError, McpServerUnavailable):
-        pass
-
-    contract_uri = _industrial_contract_uri(server_key)
-    if contract_uri:
-        try:
-            contract = await client.read_resource(server_key, contract_uri)
-            contract_payload = contract.get("payload") if isinstance(contract, dict) else None
-            if isinstance(contract_payload, dict):
-                payload["contract"] = contract_payload
-        except (McpCallError, McpServerUnavailable):
-            pass
-    return payload
-
-
-@protected.post("/mcp/industrial/{server_key}/tools/{tool_name}")
-async def industrial_mcp_tool(server_key: str, tool_name: str, req: IndustrialMcpToolRequest):
-    if server_key not in INDUSTRIAL_MCP_SERVER_KEYS:
-        raise HTTPException(status_code=404, detail=f"Unknown industrial MCP server '{server_key}'")
-    client = _require_mcp_client()
-    trace_run_id = req.run_id or new_run_id()
-    try:
-        payload = await client.call_tool(
-            server_key,
-            tool_name,
-            req.arguments,
-            run_id=trace_run_id,
-            mode="industrial-mcp",
-            step=0,
-            agent_name=server_key,
-        )
-    except (McpCallError, McpServerUnavailable) as exc:
-        raise _mcp_http_exception(exc) from exc
-    return {
-        "ok": not payload.is_error,
-        "run_id": trace_run_id,
-        "server_key": server_key,
-        "tool_name": tool_name,
-        "protocol_version": payload.protocol_version,
-        "server_name": payload.server_name,
-        "message": payload.message,
-        "payload": payload.structured_content,
-    }
-
-
-# --- ComfyUI ---
-
-
-def _require_comfyui() -> ComfyUIClient:
-    if app.state.comfyui is None:
-        raise HTTPException(status_code=503, detail="ComfyUI non configure (COMFYUI_URL manquant)")
-    return app.state.comfyui
-
-
-@protected.get("/comfyui/status")
-async def comfyui_status():
-    client = _require_comfyui()
-    return await client.get_system_stats()
-
-
-@protected.get("/comfyui/queue")
-async def comfyui_queue():
-    client = _require_comfyui()
-    return await client.get_queue_status()
-
-
-@protected.get("/comfyui/models/{model_type}")
-async def comfyui_models(model_type: str = "checkpoints"):
-    client = _require_comfyui()
-    models = await client.list_models(model_type)
-    return {"models": models, "type": model_type}
-
-
-@protected.post("/comfyui/generate")
-async def comfyui_generate(req: ComfyUIGenerateRequest):
-    client = _require_comfyui()
-    result = await client.generate_image(
-        req.prompt,
-        req.negative_prompt,
-        checkpoint=req.checkpoint,
-        width=req.width,
-        height=req.height,
-        steps=req.steps,
-        cfg=req.cfg,
-        seed=req.seed,
-    )
-    return result
-
-
-@protected.post("/comfyui/workflow")
-async def comfyui_workflow(req: ComfyUIWorkflowRequest):
-    if not req.workflow or not isinstance(req.workflow, dict):
-        raise HTTPException(status_code=400, detail="Workflow must be a non-empty object")
-    if len(str(req.workflow)) > 500_000:
-        raise HTTPException(status_code=400, detail="Workflow payload too large")
-    client = _require_comfyui()
-    prompt_id = await client.queue_prompt(req.workflow)
-    return {"prompt_id": prompt_id}
-
-
-@protected.get("/comfyui/history/{prompt_id}")
-async def comfyui_history(prompt_id: str):
-    client = _require_comfyui()
-    return await client.get_history(prompt_id)
-
-
-@protected.get("/comfyui/image")
-async def comfyui_image(filename: str, subfolder: str = "", type: str = "output"):
-    from fastapi.responses import Response
-
-    client = _require_comfyui()
-    try:
-        image_data = await client.get_image(filename, subfolder, type)
-    except ValueError:
-        raise HTTPException(status_code=400, detail="Invalid image path parameters") from None
-    return Response(content=image_data, media_type="image/png")
-
-
-@protected.post("/comfyui/interrupt")
-async def comfyui_interrupt():
-    client = _require_comfyui()
-    await client.interrupt()
-    return {"status": "ok"}
-
-
-# --- P2P network ---
-
-
-# --- Benchmark Analytics ---
-
-
-@protected.get("/v1/analytics/benchmarks")
-async def get_benchmark_results(
-    domain: str | None = Query(default=None, max_length=50),
-    limit: int = Query(default=10, ge=1, le=100),
-    order_by: str = Query(default="quality_score", max_length=50),
-):
-    """
-    Get benchmark results leaderboard.
-
-    Query parameters:
-    - domain: Filter by domain (optional)
-    - limit: Maximum number of results (default: 10, max: 100)
-    - order_by: Column to order by (default: quality_score, options: quality_score, latency_p50, cost)
-
-    Returns:
-        List of benchmark results with provider, model, domain, and performance metrics
-    """
-    from mascarade.benchmarks.storage import BenchmarkStorage
-
-    # Validate order_by parameter
-    valid_order_by = {"quality_score", "latency_p50", "latency_p95", "cost"}
-    if order_by not in valid_order_by:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Invalid order_by parameter. Must be one of: {', '.join(valid_order_by)}"
-        )
-
-    storage = BenchmarkStorage()
-
-    try:
-        results = storage.query_leaderboard(
-            domain=domain,
-            limit=limit,
-            order_by=order_by,
-        )
-
-        return {
-            "results": results,
-            "count": len(results),
-            "filters": {
-                "domain": domain,
-                "limit": limit,
-                "order_by": order_by,
-            }
-        }
-    except Exception as e:
-        logger.exception("Failed to query benchmark results")
-        raise HTTPException(status_code=500, detail=str(e)) from e
-
-
-@protected.post("/v1/benchmarks/run", status_code=202)
-async def trigger_benchmark_run(req: BenchmarkRunRequest):
-    """
-    Trigger an on-demand benchmark run.
-
-    Request body:
-    - domain: Domain to benchmark (optional, runs all domains if not specified)
-    - providers: List of providers to test (optional, tests all providers if not specified)
-    - difficulty: Difficulty level to test (optional)
-    - limit: Maximum number of prompts per provider (optional)
-
-    Returns:
-        202 Accepted with run_id for tracking the benchmark execution
-    """
-    from mascarade.benchmarks.suite import BenchmarkSuite
-
-    # Initialize benchmark suite with router from app state
-    suite = BenchmarkSuite(router=app.state.router)
-
-    # Generate run_id for tracking
-    run_id = suite._generate_run_id()
-
-    # Define the background benchmark task
-    async def run_benchmark_task():
-        """Background task to execute the benchmark."""
-        try:
-            if req.domain:
-                # Run domain-specific benchmark
-                logger.info(
-                    "Starting domain-specific benchmark (domain=%s, run_id=%s)",
-                    req.domain,
-                    run_id,
-                )
-                run = await suite.run_domain_benchmark(
-                    domain=req.domain,
-                    providers=req.providers,
-                    difficulty=req.difficulty,
-                    limit=req.limit,
-                )
-            else:
-                # Run full suite benchmark
-                logger.info(
-                    "Starting full suite benchmark (run_id=%s)",
-                    run_id,
-                )
-                run = await suite.run_full_suite(
-                    providers=req.providers,
-                    difficulty=req.difficulty,
-                    limit=req.limit,
-                )
-
-            logger.info(
-                "Benchmark completed (run_id=%s, total=%d, successful=%d, failed=%d)",
-                run.run_id,
-                run.total_benchmarks,
-                run.successful_benchmarks,
-                run.failed_benchmarks,
-            )
-
-            # Store results in ClickHouse
-            from mascarade.benchmarks.storage import BenchmarkStorage
-
-            storage = BenchmarkStorage()
-            for result in run.results:
-                try:
-                    storage.write_result(result)
-                except Exception as e:
-                    logger.warning(
-                        "Failed to store benchmark result for %s/%s: %s",
-                        result.provider,
-                        result.model,
-                        e,
-                    )
-
-        except Exception as e:
-            logger.exception("Benchmark run failed (run_id=%s): %s", run_id, e)
-
-    # Create background task (fire and forget)
-    asyncio.create_task(run_benchmark_task())
-
-    return {
-        "status": "accepted",
-        "run_id": run_id,
-        "message": "Benchmark run started in background",
-        "filters": {
-            "domain": req.domain,
-            "providers": req.providers,
-            "difficulty": req.difficulty,
-            "limit": req.limit,
-        },
-    }
-
-
-@protected.post("/v1/benchmarks/webhook/deployment", status_code=200)
-async def handle_model_deployment_webhook(webhook: ModelDeploymentWebhook):
-    """
-    Handle model deployment webhook to trigger automatic benchmarks.
-
-    This endpoint is triggered when a new fine-tuned model is deployed
-    and automatically runs benchmarks to evaluate its performance.
-
-    Request body:
-    - provider: Provider name (required)
-    - model: Model identifier (required)
-    - event_type: Type of deployment event (default: "deployment")
-    - domain: Domain to benchmark (optional)
-    - limit: Maximum number of prompts to test (optional)
-    - background: Run benchmark in background (default: true)
-    - metadata: Additional event metadata (optional)
-
-    Returns:
-        Webhook processing result with trigger status
-    """
-    from mascarade.benchmarks.triggers import BenchmarkTriggerError
-
-    try:
-        # Get trigger instance from app state
-        trigger = app.state.benchmark_trigger
-
-        # Process webhook
-        result = await trigger.handle_webhook(
-            payload={
-                "provider": webhook.provider,
-                "model": webhook.model,
-                "event_type": webhook.event_type,
-                "domain": webhook.domain,
-                "limit": webhook.limit,
-                "background": webhook.background,
-                "metadata": webhook.metadata,
-            }
-        )
-
-        logger.info(
-            "Model deployment webhook processed: %s/%s (status=%s)",
-            webhook.provider,
-            webhook.model,
-            result.get("trigger_result", {}).get("status", "unknown"),
-        )
-
-        return result
-
-    except BenchmarkTriggerError as exc:
-        logger.error("Webhook processing failed: %s", exc)
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-    except Exception as exc:
-        logger.exception("Unexpected error processing webhook")
-        raise HTTPException(status_code=500, detail="Internal server error") from exc
-
-@app.get("/metrics")
 async def metrics():
     """Expose Prometheus metrics for scraping."""
     try:
         from prometheus_client import REGISTRY, generate_latest
+        from prometheus_client import CONTENT_TYPE_LATEST
+        return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
+    except ImportError:
+        raise HTTPException(status_code=501, detail="prometheus_client not installed")
 
 
 @protected.get("/device/v1/voice/replies/{reply_id}.wav")
@@ -2737,8 +1395,250 @@ async def device_voice_reply_audio(reply_id: str, request: Request):
     return _Response(content=audio.payload, media_type=audio.content_type)
 
 
+# --- RAG routes (KXKM compute: nomic-embed-text + qwen3:4b rerank + devstral) ---
+
+def _require_rag(request: Request) -> "RAGPipeline":
+    rag = request.app.state.rag
+    if rag is None:
+        raise HTTPException(status_code=503, detail="RAG pipeline not available (QDRANT_URL not set)")
+    return rag
+
+
+@protected.post("/rag/ingest", status_code=202)
+async def rag_ingest(req: RAGIngestRequest, request: Request):
+    """Ingère des textes dans Qdrant avec embeddings nomic-embed-text (768d)."""
+    rag = _require_rag(request)
+    n = await rag.ingest(
+        req.collection, req.texts, req.payloads, req.chunk_size, req.chunk_overlap
+    )
+    return {"collection": req.collection, "points_inserted": n}
+
+
+@protected.post("/rag/search")
+async def rag_search(req: RAGSearchRequest, request: Request):
+    """Recherche sémantique dans Qdrant (embed via nomic-embed-text)."""
+    rag = _require_rag(request)
+    results = await rag.search(req.collection, req.query, req.limit, req.score_threshold)
+    return {"query": req.query, "collection": req.collection, "results": results}
+
+
+@protected.post("/rag/query")
+async def rag_query(req: QdrantRAGRequest, request: Request):
+    """Pipeline RAG complet : embed → Qdrant → rerank (qwen3:4b) → synthèse (devstral)."""
+    rag = _require_rag(request)
+    result = await rag.query(
+        req.collection,
+        req.query,
+        retrieve_k=req.retrieve_k,
+        rerank_top_k=req.rerank_top_k,
+        model=req.model,
+        temperature=req.temperature,
+    )
+    return result
+
+
+# Mapping agent → collection Qdrant pour enrichissement RAG automatique
+_AGENT_RAG_COLLECTIONS: dict[str, str] = {
+    "firmware-engineer": "kb-firmware",
+    "kicad-designer": "kb-kicad",
+    "spice-expert": "kb-spice",
+    "freecad-designer": "kb-freecad",
+    "components-expert": "kb-components",
+    "openseeker": "kb-firmware",  # fallback; fan-out handled by OpenSeekerAgent itself
+}
+_RAG_RETRIEVE_K = 12
+_RAG_RERANK_TOP_K = 4
+
+
+async def _rag_enrich(messages: list[dict], agent_name: str, rag) -> list[dict]:
+    """Injecte du contexte RAG dans le dernier message utilisateur si une collection existe."""
+    collection = _AGENT_RAG_COLLECTIONS.get(agent_name)
+    if not collection or rag is None:
+        return messages
+
+    # Extraire la query du dernier message user
+    query = next(
+        (m["content"] for m in reversed(messages) if m.get("role") == "user"), None
+    )
+    if not query:
+        return messages
+
+    try:
+        # Search → rerank
+        chunks = await rag.search(collection, query, limit=_RAG_RETRIEVE_K, score_threshold=0.4)
+        if not chunks:
+            return messages
+        ranked = await rag._reranker.rerank(query, chunks, top_k=_RAG_RERANK_TOP_K)
+        top = [c for c in ranked if c.get("score", 0) >= 1]
+        # Fallback : si reranker donne tous 0, utiliser les top chunks Qdrant bruts
+        if not top:
+            top = chunks[:_RAG_RERANK_TOP_K]
+        context = "\n\n---\n\n".join(c["text"] for c in top)
+        if not context:
+            return messages
+    except Exception as e:
+        logger.debug("RAG enrich failed for %s: %s", agent_name, e)
+        return messages
+
+    # Injecter le contexte dans une copie des messages
+    enriched = list(messages)
+    last_user_idx = next(
+        (i for i, m in reversed(list(enumerate(enriched))) if m.get("role") == "user"),
+        None,
+    )
+    if last_user_idx is not None:
+        enriched[last_user_idx] = {
+            **enriched[last_user_idx],
+            "content": (
+                f"## Knowledge base context\n\n{context}\n\n---\n\n"
+                f"{enriched[last_user_idx]['content']}"
+            ),
+        }
+    return enriched
+
+
+class AgentRunRequest(BaseModel):
+    messages: list[dict[str, str]]
+    rag: bool = True  # Activer l'enrichissement RAG automatique (défaut: True)
+
+
+@protected.post("/agents/{name}/run")
+async def run_agent(name: str, req: AgentRunRequest, request: Request):
+    """Exécute un agent par nom. Enrichit automatiquement avec RAG si une collection existe."""
+    try:
+        agent = request.app.state.registry.get(name)
+    except KeyError:
+        raise HTTPException(status_code=404, detail=f"Agent '{name}' not found")
+
+    messages = req.messages
+    rag_used = False
+    if req.rag and request.app.state.rag and name in _AGENT_RAG_COLLECTIONS:
+        messages = await _rag_enrich(messages, name, request.app.state.rag)
+        rag_used = messages is not req.messages
+
+    try:
+        response = await agent.run_with_history(
+            messages, router=request.app.state.router
+        )
+    except Exception as exc:
+        logger.warning("Agent run failed for %s: %s", name, exc)
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+    return {
+        "content": response.content,
+        "model": response.model,
+        "provider": response.provider,
+        "usage": response.usage,
+        "rag_collection": _AGENT_RAG_COLLECTIONS.get(name) if rag_used else None,
+    }
+
+
+class OpenSeekerRequest(BaseModel):
+    query: str
+    collections: list[str] | None = None  # None = all collections
+    retrieve_k: int = 6
+    rerank_top_k: int = 8
+    score_threshold: float = 0.40
+
+
+@protected.post("/agents/openseeker/search")
+async def openseeker_search(req: OpenSeekerRequest, request: Request):
+    """Multi-hop RAG search: fan-out across collections, rerank, synthesize."""
+    from mascarade.agents.openseeker_agent import OpenSeekerAgent
+
+    try:
+        agent = request.app.state.registry.get("openseeker")
+    except KeyError:
+        agent = OpenSeekerAgent()
+
+    rag = request.app.state.rag
+    router = request.app.state.router
+
+    try:
+        result = await agent.cross_domain_query(
+            req.query,
+            router=router,
+            rag=rag,
+            collections=req.collections,
+            retrieve_k=req.retrieve_k,
+            rerank_top_k=req.rerank_top_k,
+            score_threshold=req.score_threshold,
+        )
+    except Exception as exc:
+        logger.warning("OpenSeeker search failed: %s", exc)
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+    return result
+
+
+_KILL_LIFE_ROOT = Path(os.getenv("KILL_LIFE_ROOT", "/home/clems/Kill_LIFE")).resolve()
+_CLI_AGENT_TIMEOUT_S = int(os.getenv("CLI_AGENT_TIMEOUT_S", "60"))
+
+
+class CliAgentRunRequest(BaseModel):
+    agent: str
+    args: list[str] = Field(default_factory=list)
+    env: dict[str, str] = Field(default_factory=dict)
+    timeout_ms: int | None = None
+
+
+@protected.post("/cli-agents/run")
+async def run_cli_agent(req: CliAgentRunRequest):
+    """Run a Kill_LIFE CLI agent script from KILL_LIFE_ROOT/tools/."""
+    # Resolve and validate path stays within tools/
+    try:
+        script = (_KILL_LIFE_ROOT / "tools" / req.agent).resolve()
+        script.relative_to(_KILL_LIFE_ROOT / "tools")
+    except (ValueError, Exception):
+        raise HTTPException(status_code=400, detail=f"Invalid agent path: {req.agent!r}")
+
+    if not script.exists():
+        raise HTTPException(status_code=404, detail=f"CLI agent not found: {req.agent!r}")
+
+    timeout_s = (req.timeout_ms / 1000) if req.timeout_ms else _CLI_AGENT_TIMEOUT_S
+    env = {**dict(os.environ), "KILL_LIFE_ROOT": str(_KILL_LIFE_ROOT), **req.env}
+
+    # Use bash for shell scripts to avoid execute permission issues
+    cmd = ["bash", str(script)] if script.suffix == ".sh" else [str(script)]
+
+    t0 = time.monotonic()
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            *cmd,
+            *req.args,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+            env=env,
+            cwd=str(_KILL_LIFE_ROOT),
+        )
+        try:
+            stdout_b, stderr_b = await asyncio.wait_for(proc.communicate(), timeout=timeout_s)
+        except asyncio.TimeoutError:
+            proc.kill()
+            await proc.communicate()
+            raise HTTPException(status_code=504, detail=f"CLI agent timed out after {timeout_s}s")
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.warning("CLI agent launch failed for %s: %s", req.agent, exc)
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+    duration_ms = int((time.monotonic() - t0) * 1000)
+    return {
+        "ok": proc.returncode == 0,
+        "agent": req.agent,
+        "exit_code": proc.returncode,
+        "output": stdout_b.decode("utf-8", errors="replace"),
+        "stderr": stderr_b.decode("utf-8", errors="replace"),
+        "duration_ms": duration_ms,
+    }
+
+
 app.include_router(protected)
 app.include_router(cluster_protected)
+
+# Mount Ollama-compatible API
+mount_ollama_compat(app)
 
 
 def start():

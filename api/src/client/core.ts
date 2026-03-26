@@ -1070,6 +1070,25 @@ export const coreClient = {
     return request<unknown>(`/orchestrate/templates/${encodeURIComponent(templateId)}`);
   },
 
+  runCliAgent(body: {
+    agent: string;
+    args?: string[];
+    env?: Record<string, string>;
+    timeout_ms?: number;
+  }) {
+    return request<{
+      ok: boolean;
+      agent: string;
+      exit_code: number;
+      output: string;
+      stderr: string;
+      duration_ms: number;
+    }>("/v1/cli-agents/run", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+
   deployTemplate(templateId: string, body: { input: string; routing_overrides?: Record<string, unknown> }) {
     return request<{
       run_id: string;
