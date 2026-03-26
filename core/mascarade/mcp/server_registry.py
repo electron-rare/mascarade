@@ -155,6 +155,22 @@ def register_searxng_server(servers: dict[str, McpServerDefinition]) -> None:
     )
 
 
+def register_outline_server(servers: dict[str, McpServerDefinition]) -> None:
+    """Register Outline MCP server if OUTLINE_URL and OUTLINE_API_KEY are set."""
+    outline_url = os.getenv("OUTLINE_URL", "")
+    outline_key = os.getenv("OUTLINE_API_KEY", "")
+    if not outline_url or not outline_key:
+        return
+    servers["outline"] = McpServerDefinition(
+        key="outline",
+        transport="http",
+        url=outline_url.rstrip("/"),
+        timeout_s=15.0,
+        label="Outline Wiki",
+        description="Search and retrieve documents from Outline knowledge base (GitHub-connected).",
+    )
+
+
 def register_docling_server(servers: dict[str, McpServerDefinition]) -> None:
     """Register Docling MCP server if DOCLING_URL is set."""
     docling_url = os.getenv("DOCLING_URL", "")

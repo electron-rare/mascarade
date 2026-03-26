@@ -28,6 +28,7 @@ from mascarade.mcp.server_registry import (
     register_industrial_servers,
     register_kicad_mcp_servers,
     register_n8n_server,
+    register_outline_server,
     register_searxng_server,
 )
 from mascarade.mcp.server_registry import (
@@ -113,6 +114,7 @@ class McpRuntimeClient:
         register_erpnext_server(self._servers)
         register_searxng_server(self._servers)
         register_docling_server(self._servers)
+        register_outline_server(self._servers)
         register_kicad_mcp_servers(self._servers)
 
     def _server(self, server_key: str) -> McpServerDefinition:
