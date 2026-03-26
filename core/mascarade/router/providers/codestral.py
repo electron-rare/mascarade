@@ -1,4 +1,7 @@
-"""Codestral provider — Mistral's code-specialized model with FIM support."""
+"""Codestral provider — Mistral's code-specialized model with FIM support.
+
+Chat completions via litellm; FIM endpoint kept as direct httpx (litellm has no FIM).
+"""
 
 from __future__ import annotations
 
@@ -6,6 +9,11 @@ import logging
 from collections.abc import AsyncIterator
 
 import httpx
+
+try:
+    import litellm
+except ImportError:
+    litellm = None  # type: ignore[assignment]
 
 from mascarade.config import is_secret_configured, secret_value, settings
 from mascarade.router.providers.base import (
@@ -17,10 +25,9 @@ from mascarade.router.providers.base import (
 
 logger = logging.getLogger("mascarade.providers.codestral")
 
-_retry = make_retry(httpx.TimeoutException, httpx.TransportError)
+_retry = make_retry(ConnectionError, TimeoutError)
 
-# Codestral endpoints
-_CODESTRAL_CHAT_URL = "https://codestral.mistral.ai/v1/chat/completions"
+# Codestral FIM endpoint (kept as direct httpx — litellm has no FIM support)
 _CODESTRAL_FIM_URL = "https://codestral.mistral.ai/v1/fim/completions"
 
 
@@ -37,6 +44,7 @@ class CodestralProvider(LLMProvider):
         api_key = secret_value(getattr(settings, "codestral_api_key", "") or "")
         self._api_key = api_key.strip()
         timeout = getattr(settings, "codestral_timeout_seconds", 120.0)
+        # httpx client kept for FIM endpoint only
         self._client = httpx.AsyncClient(
             timeout=httpx.Timeout(timeout, connect=10.0),
             headers={
@@ -47,6 +55,8 @@ class CodestralProvider(LLMProvider):
 
     @property
     def is_configured(self) -> bool:
+        if litellm is None:
+            return False
         return is_secret_configured(self._api_key)
 
     def available_models(self) -> list[str]:
@@ -63,38 +73,34 @@ class CodestralProvider(LLMProvider):
         temperature: float = 0.2,
         max_tokens: int = 4096,
     ) -> LLMResponse:
-        """Send a chat completion request to Codestral."""
+        """Send a chat completion request via litellm."""
+        if litellm is None:
+            raise RuntimeError("litellm is not installed. Install with: pip install litellm")
         model = model or self.default_model
         chat_messages = build_chat_messages(messages, system)
 
-        payload: dict = {
-            "model": model,
+        kwargs: dict = {
+            "model": f"codestral/{model}",
             "messages": chat_messages,
-            "temperature": temperature,
             "max_tokens": max_tokens,
+            "temperature": temperature,
+            "api_key": self._api_key,
         }
         if response_format:
-            payload["response_format"] = response_format
+            kwargs["response_format"] = response_format
 
-        resp = await self._client.post(_CODESTRAL_CHAT_URL, json=payload)
-        resp.raise_for_status()
-        data = resp.json()
-
-        choices = data.get("choices", [])
-        if not choices:
+        response = await litellm.acompletion(**kwargs)
+        if not response.choices:
             raise RuntimeError(f"Codestral returned empty choices for model {model}")
 
-        content = choices[0].get("message", {}).get("content", "")
-        usage = data.get("usage", {})
-
+        choice = response.choices[0]
         return LLMResponse(
-            content=content,
-            model=data.get("model", model),
+            content=choice.message.content or "",
+            model=model,
             provider=self.name,
             usage={
-                "input_tokens": usage.get("prompt_tokens", 0),
-                "output_tokens": usage.get("completion_tokens", 0),
-                "total_tokens": usage.get("total_tokens", 0),
+                "input_tokens": (response.usage.prompt_tokens if response.usage else 0),
+                "output_tokens": (response.usage.completion_tokens if response.usage else 0),
             },
         )
 
@@ -108,35 +114,25 @@ class CodestralProvider(LLMProvider):
         temperature: float = 0.2,
         max_tokens: int = 4096,
     ) -> AsyncIterator[str]:
-        """Stream chat completion tokens from Codestral."""
+        """Stream chat completion tokens via litellm."""
+        if litellm is None:
+            raise RuntimeError("litellm is not installed. Install with: pip install litellm")
         model = model or self.default_model
         chat_messages = build_chat_messages(messages, system)
 
-        payload: dict = {
-            "model": model,
+        kwargs: dict = {
+            "model": f"codestral/{model}",
             "messages": chat_messages,
-            "temperature": temperature,
             "max_tokens": max_tokens,
+            "temperature": temperature,
+            "api_key": self._api_key,
             "stream": True,
         }
 
-        async with self._client.stream(
-            "POST", _CODESTRAL_CHAT_URL, json=payload
-        ) as resp:
-            resp.raise_for_status()
-            async for line in resp.aiter_lines():
-                if not line.startswith("data: "):
-                    continue
-                chunk = line[6:]
-                if chunk.strip() == "[DONE]":
-                    break
-                import json
-
-                data = json.loads(chunk)
-                delta = data.get("choices", [{}])[0].get("delta", {})
-                content = delta.get("content")
-                if content:
-                    yield content
+        response = await litellm.acompletion(**kwargs)
+        async for chunk in response:
+            if chunk.choices and chunk.choices[0].delta.content:
+                yield chunk.choices[0].delta.content
 
     async def fill_in_middle(
         self,
@@ -149,6 +145,8 @@ class CodestralProvider(LLMProvider):
         stop: list[str] | None = None,
     ) -> str:
         """Codestral FIM (Fill-in-the-Middle) completion for code infilling.
+
+        Uses direct httpx — litellm does not support FIM.
 
         Args:
             prompt: Code before the cursor position.
@@ -179,6 +177,4 @@ class CodestralProvider(LLMProvider):
         choices = data.get("choices", [])
         if not choices:
             return ""
-        return choices[0].get("text", "") or choices[0].get("message", {}).get(
-            "content", ""
-        )
+        return choices[0].get("text", "") or choices[0].get("message", {}).get("content", "")

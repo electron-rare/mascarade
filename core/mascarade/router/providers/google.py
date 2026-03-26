@@ -1,17 +1,18 @@
-"""Adaptateur Google Gemini (API key ou Vertex AI)."""
+"""Adaptateur Google Gemini (API key ou Vertex AI) — litellm chat path."""
 
 from __future__ import annotations
 
-import asyncio
 import logging
 import os
 from collections.abc import AsyncIterator
 from datetime import UTC, datetime, timedelta
 
-import openai
-from google import genai
+try:
+    import litellm
+except ImportError:
+    litellm = None  # type: ignore[assignment]
+
 from google.auth.transport.requests import Request
-from google.genai import types as genai_types
 from google.oauth2.credentials import Credentials
 
 from mascarade.config import is_secret_configured, secret_value, settings
@@ -50,15 +51,25 @@ def _iso_utc(value: datetime) -> str:
     return value.astimezone(UTC).isoformat().replace("+00:00", "Z")
 
 
-def _messages_to_text(messages: list[dict], system: str | None = None) -> str:
-    chunks: list[str] = []
-    if system:
-        chunks.append(f"[system]\n{system.strip()}\n")
-    for message in messages:
-        role = message.get("role", "user")
-        content = str(message.get("content", "")).strip()
-        chunks.append(f"[{role}] {content}")
-    return "\n".join(chunks).strip()
+def _setup_auth_env() -> None:
+    """Push Google auth credentials into env vars so litellm can pick them up."""
+    auth_mode = _normalized_auth_mode()
+
+    if auth_mode == "api_key":
+        api_key = secret_value(settings.google_api_key).strip()
+        if is_secret_configured(api_key):
+            os.environ["GEMINI_API_KEY"] = api_key
+
+    elif auth_mode == "adc":
+        adc_path = settings.google_application_credentials.strip()
+        if adc_path:
+            os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = adc_path
+        project = settings.google_cloud_project.strip()
+        if project:
+            os.environ["VERTEXAI_PROJECT"] = project
+        location = settings.google_cloud_location.strip()
+        if location:
+            os.environ["VERTEXAI_LOCATION"] = location
 
 
 class GoogleProvider(LLMProvider):
@@ -70,30 +81,14 @@ class GoogleProvider(LLMProvider):
 
     def __init__(self) -> None:
         if settings.google_application_credentials:
-            os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = (
-                settings.google_application_credentials
-            )
-
-        self._client: genai.Client | None = None
-        self._client_token = ""
-        self._client_mode = ""
-        self._proxy_enabled = (
-            settings.litellm_proxy_enabled
-            and settings.litellm_base_url.strip()
-            and is_secret_configured(settings.litellm_master_key)
-        )
-        self._proxy_client: openai.AsyncOpenAI | None = None
-        if settings.litellm_proxy_enabled and not self._proxy_enabled:
-            logger.warning(
-                "LiteLLM proxy requested for google but base_url/master_key is incomplete; using direct SDK mode",
-            )
-        if self._proxy_enabled:
-            logger.info("Google provider will use LiteLLM proxy mode")
+            os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = settings.google_application_credentials
+        # Push auth env vars for litellm on init
+        _setup_auth_env()
 
     @property
     def is_configured(self) -> bool:
-        if self._proxy_enabled:
-            return True
+        if litellm is None:
+            return False
         auth_mode = _normalized_auth_mode()
         if auth_mode == "api_key":
             return is_secret_configured(settings.google_api_key)
@@ -114,6 +109,8 @@ class GoogleProvider(LLMProvider):
             )
         )
 
+    # ---- OAuth helpers (kept for 3-mode auth) ----
+
     def _build_oauth_credentials(self) -> Credentials:
         token_endpoint = settings.google_oauth_token_endpoint.strip()
         refresh_token = secret_value(settings.google_oauth_refresh_token).strip()
@@ -128,9 +125,7 @@ class GoogleProvider(LLMProvider):
             raise RuntimeError("Google OAuth client id is missing")
         if not is_secret_configured(client_secret):
             raise RuntimeError("Google OAuth client secret is missing")
-        if not is_secret_configured(access_token) and not is_secret_configured(
-            refresh_token
-        ):
+        if not is_secret_configured(access_token) and not is_secret_configured(refresh_token):
             raise RuntimeError("Google OAuth access token or refresh token is missing")
 
         scopes = [
@@ -175,91 +170,14 @@ class GoogleProvider(LLMProvider):
         )
         return credentials
 
-    def _ensure_client(self) -> genai.Client:
-        auth_mode = _normalized_auth_mode()
-        http_opts = genai_types.HttpOptions(timeout=_TIMEOUT_S)
+    def _ensure_oauth_env(self) -> None:
+        """Refresh OAuth token and push into env for litellm."""
+        credentials = self._resolve_oauth_credentials()
+        token = credentials.token or ""
+        if token:
+            os.environ["GEMINI_API_KEY"] = token
 
-        if auth_mode == "api_key":
-            api_key = secret_value(settings.google_api_key).strip()
-            if not is_secret_configured(api_key):
-                raise RuntimeError("Google API key is missing")
-            if (
-                self._client is not None
-                and self._client_mode == auth_mode
-                and self._client_token == api_key
-            ):
-                return self._client
-            self._client = genai.Client(api_key=api_key, http_options=http_opts)
-            self._client_token = api_key
-            self._client_mode = auth_mode
-            return self._client
-
-        if auth_mode == "oauth_oidc":
-            credentials = self._resolve_oauth_credentials()
-            token = credentials.token or ""
-            use_vertex = bool(settings.google_cloud_project.strip())
-            client_mode = f"{auth_mode}:{'vertex' if use_vertex else 'gemini'}"
-            if (
-                self._client is not None
-                and self._client_mode == client_mode
-                and self._client_token == token
-            ):
-                return self._client
-            client_kwargs: dict[str, object] = {
-                "credentials": credentials,
-                "http_options": http_opts,
-            }
-            if use_vertex:
-                client_kwargs.update(
-                    {
-                        "vertexai": True,
-                        "project": settings.google_cloud_project,
-                        "location": settings.google_cloud_location,
-                    }
-                )
-            self._client = genai.Client(**client_kwargs)
-            self._client_token = token
-            self._client_mode = client_mode
-            return self._client
-
-        adc_path = settings.google_application_credentials.strip()
-        if adc_path:
-            os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = adc_path
-        client_key = "|".join(
-            [
-                settings.google_cloud_project.strip(),
-                settings.google_cloud_location.strip(),
-                adc_path
-                or os.environ.get("GOOGLE_APPLICATION_CREDENTIALS", "").strip(),
-            ]
-        )
-        if (
-            self._client is not None
-            and self._client_mode == auth_mode
-            and self._client_token == client_key
-        ):
-            return self._client
-        self._client = genai.Client(
-            vertexai=True,
-            project=settings.google_cloud_project,
-            location=settings.google_cloud_location,
-            http_options=http_opts,
-        )
-        self._client_token = client_key
-        self._client_mode = auth_mode
-        return self._client
-
-    def _ensure_proxy_client(self) -> openai.AsyncOpenAI:
-        if not self._proxy_enabled:
-            raise RuntimeError("LiteLLM proxy mode is disabled for google provider")
-        if self._proxy_client is not None:
-            return self._proxy_client
-        self._proxy_client = openai.AsyncOpenAI(
-            api_key=secret_value(settings.litellm_master_key),
-            base_url=settings.litellm_base_url,
-            timeout=30.0,
-        )
-        return self._proxy_client
+    # ---- litellm chat paths ----
 
     @_retry
     async def send(
@@ -271,57 +189,36 @@ class GoogleProvider(LLMProvider):
         temperature: float = 0.7,
         max_tokens: int = 4096,
     ) -> LLMResponse:
+        if litellm is None:
+            raise RuntimeError("litellm is not installed. Install with: pip install litellm")
         model_id = model or self.default_model
-        if self._proxy_enabled:
-            proxy_client = self._ensure_proxy_client()
-            chat_messages = build_chat_messages(messages, system)
-            response = await proxy_client.chat.completions.create(
-                model=model_id,
-                messages=chat_messages,
-                max_tokens=max_tokens,
-                temperature=temperature,
-            )
-            if not response.choices:
-                raise RuntimeError(
-                    f"LiteLLM returned empty choices for model {model_id}"
-                )
-            choice = response.choices[0]
-            return LLMResponse(
-                content=choice.message.content or "",
-                model=model_id,
-                provider=self.name,
-                usage={
-                    "input_tokens": (
-                        response.usage.prompt_tokens if response.usage else 0
-                    ),
-                    "output_tokens": (
-                        response.usage.completion_tokens if response.usage else 0
-                    ),
-                },
-            )
 
-        prompt = _messages_to_text(messages, system=system)
+        # Ensure auth env is up-to-date (especially for OAuth refresh)
+        auth_mode = _normalized_auth_mode()
+        if auth_mode == "oauth_oidc":
+            self._ensure_oauth_env()
+        else:
+            _setup_auth_env()
 
-        def _call():
-            client = self._ensure_client()
-            return client.models.generate_content(
-                model=model_id,
-                contents=prompt,
-                config={"temperature": temperature, "max_output_tokens": max_tokens},
-            )
+        chat_messages = build_chat_messages(messages, system)
 
-        response = await asyncio.wait_for(asyncio.to_thread(_call), timeout=_TIMEOUT_S)
-        usage_meta = getattr(response, "usage_metadata", None)
-
+        response = await litellm.acompletion(
+            model=f"gemini/{model_id}",
+            messages=chat_messages,
+            max_tokens=max_tokens,
+            temperature=temperature,
+            timeout=_TIMEOUT_S,
+        )
+        if not response.choices:
+            raise RuntimeError(f"Google/Gemini returned empty choices for model {model_id}")
+        choice = response.choices[0]
         return LLMResponse(
-            content=getattr(response, "text", "") or "",
+            content=choice.message.content or "",
             model=model_id,
             provider=self.name,
             usage={
-                "input_tokens": int(getattr(usage_meta, "prompt_token_count", 0) or 0),
-                "output_tokens": int(
-                    getattr(usage_meta, "candidates_token_count", 0) or 0
-                ),
+                "input_tokens": (response.usage.prompt_tokens if response.usage else 0),
+                "output_tokens": (response.usage.completion_tokens if response.usage else 0),
             },
         )
 
@@ -334,53 +231,29 @@ class GoogleProvider(LLMProvider):
         temperature: float = 0.7,
         max_tokens: int = 4096,
     ) -> AsyncIterator[str]:
+        if litellm is None:
+            raise RuntimeError("litellm is not installed. Install with: pip install litellm")
         model_id = model or self.default_model
-        if self._proxy_enabled:
-            proxy_client = self._ensure_proxy_client()
-            chat_messages = build_chat_messages(messages, system)
-            stream = await proxy_client.chat.completions.create(
-                model=model_id,
-                messages=chat_messages,
-                max_tokens=max_tokens,
-                temperature=temperature,
-                stream=True,
-            )
-            async for chunk in stream:
-                if chunk.choices and chunk.choices[0].delta.content:
-                    yield chunk.choices[0].delta.content
-            return
 
-        prompt = _messages_to_text(messages, system=system)
+        auth_mode = _normalized_auth_mode()
+        if auth_mode == "oauth_oidc":
+            self._ensure_oauth_env()
+        else:
+            _setup_auth_env()
 
-        def _call():
-            client = self._ensure_client()
-            return client.models.generate_content_stream(
-                model=model_id,
-                contents=prompt,
-                config={"temperature": temperature, "max_output_tokens": max_tokens},
-            )
+        chat_messages = build_chat_messages(messages, system)
 
-        stream = await asyncio.wait_for(asyncio.to_thread(_call), timeout=_TIMEOUT_S)
-
-        queue: asyncio.Queue[str | None] = asyncio.Queue()
-
-        async def _drain():
-            def _run():
-                for chunk in stream:
-                    text = getattr(chunk, "text", None)
-                    if text:
-                        queue.put_nowait(text)
-                queue.put_nowait(None)
-
-            await asyncio.to_thread(_run)
-
-        drain_task = asyncio.create_task(_drain())
-        while True:
-            item = await queue.get()
-            if item is None:
-                break
-            yield item
-        await drain_task
+        response = await litellm.acompletion(
+            model=f"gemini/{model_id}",
+            messages=chat_messages,
+            max_tokens=max_tokens,
+            temperature=temperature,
+            timeout=_TIMEOUT_S,
+            stream=True,
+        )
+        async for chunk in response:
+            if chunk.choices and chunk.choices[0].delta.content:
+                yield chunk.choices[0].delta.content
 
     def available_models(self) -> list[str]:
         return [settings.google_model]

@@ -1,4 +1,4 @@
-"""Adaptateur Hugging Face Inference (API OpenAI-compatible)."""
+"""Adaptateur Hugging Face Inference — litellm chat path."""
 
 from __future__ import annotations
 
@@ -7,7 +7,11 @@ from collections.abc import AsyncIterator
 from datetime import UTC, datetime, timedelta
 
 import httpx
-import openai
+
+try:
+    import litellm
+except ImportError:
+    litellm = None  # type: ignore[assignment]
 
 from mascarade.config import is_secret_configured, secret_value, settings
 from mascarade.router.providers.base import (
@@ -17,11 +21,7 @@ from mascarade.router.providers.base import (
     make_retry,
 )
 
-_retry = make_retry(
-    openai.RateLimitError,
-    openai.APIConnectionError,
-    openai.APITimeoutError,
-)
+_retry = make_retry(ConnectionError, TimeoutError)
 _OAUTH_REFRESH_SKEW = timedelta(seconds=60)
 logger = logging.getLogger("mascarade.router.providers.huggingface")
 
@@ -55,23 +55,13 @@ class HuggingFaceProvider(LLMProvider):
     quality_rank = 2
 
     def __init__(self) -> None:
-        self._client: openai.AsyncOpenAI | None = None
         self._client_token = ""
         self._client_mode = ""
-        self._proxy_enabled = (
-            settings.litellm_proxy_enabled
-            and settings.litellm_base_url.strip()
-            and is_secret_configured(settings.litellm_master_key)
-        )
-        if settings.litellm_proxy_enabled and not self._proxy_enabled:
-            logger.warning(
-                "LiteLLM proxy requested for huggingface but base_url/master_key is incomplete; using direct provider mode",
-            )
 
     @property
     def is_configured(self) -> bool:
-        if self._proxy_enabled:
-            return True
+        if litellm is None:
+            return False
         if _normalized_auth_mode() == "api_key":
             return is_secret_configured(settings.huggingface_api_key)
         return bool(
@@ -82,6 +72,8 @@ class HuggingFaceProvider(LLMProvider):
                 and is_secret_configured(settings.huggingface_oauth_client_secret)
             )
         )
+
+    # ---- OAuth token refresh (kept intact) ----
 
     async def _refresh_oauth_access_token(self) -> str:
         token_endpoint = settings.huggingface_oauth_token_endpoint.strip()
@@ -132,10 +124,7 @@ class HuggingFaceProvider(LLMProvider):
         access_token = secret_value(settings.huggingface_oauth_access_token).strip()
         expires_at = _parse_expires_at(settings.huggingface_oauth_expires_at)
         if is_secret_configured(access_token):
-            if (
-                expires_at is None
-                or expires_at > datetime.now(tz=UTC) + _OAUTH_REFRESH_SKEW
-            ):
+            if expires_at is None or expires_at > datetime.now(tz=UTC) + _OAUTH_REFRESH_SKEW:
                 return access_token
         return await self._refresh_oauth_access_token()
 
@@ -147,39 +136,7 @@ class HuggingFaceProvider(LLMProvider):
             return token
         return await self._resolve_oauth_access_token()
 
-    async def _ensure_client(self) -> openai.AsyncOpenAI:
-        if self._proxy_enabled:
-            proxy_key = secret_value(settings.litellm_master_key)
-            if (
-                self._client is not None
-                and self._client_mode == "litellm"
-                and self._client_token == proxy_key
-            ):
-                return self._client
-            self._client = openai.AsyncOpenAI(
-                api_key=proxy_key,
-                base_url=settings.litellm_base_url,
-                timeout=30.0,
-            )
-            self._client_token = proxy_key
-            self._client_mode = "litellm"
-            return self._client
-
-        token = await self._resolve_access_token()
-        if (
-            self._client is not None
-            and self._client_mode == "direct"
-            and self._client_token == token
-        ):
-            return self._client
-        self._client = openai.AsyncOpenAI(
-            api_key=token,
-            base_url=settings.huggingface_base_url,
-            timeout=30.0,
-        )
-        self._client_token = token
-        self._client_mode = "direct"
-        return self._client
+    # ---- litellm chat paths ----
 
     @_retry
     async def send(
@@ -191,15 +148,19 @@ class HuggingFaceProvider(LLMProvider):
         temperature: float = 0.7,
         max_tokens: int = 4096,
     ) -> LLMResponse:
+        if litellm is None:
+            raise RuntimeError("litellm is not installed. Install with: pip install litellm")
         model = model or self.default_model
         chat_messages = build_chat_messages(messages, system)
-        client = await self._ensure_client()
 
-        response = await client.chat.completions.create(
-            model=model,
+        api_key = await self._resolve_access_token()
+
+        response = await litellm.acompletion(
+            model=f"huggingface/{model}",
             messages=chat_messages,
             max_tokens=max_tokens,
             temperature=temperature,
+            api_key=api_key,
         )
         if not response.choices:
             raise RuntimeError(f"HuggingFace returned empty choices for model {model}")
@@ -210,9 +171,7 @@ class HuggingFaceProvider(LLMProvider):
             provider=self.name,
             usage={
                 "input_tokens": response.usage.prompt_tokens if response.usage else 0,
-                "output_tokens": (
-                    response.usage.completion_tokens if response.usage else 0
-                ),
+                "output_tokens": (response.usage.completion_tokens if response.usage else 0),
             },
         )
 
@@ -225,18 +184,22 @@ class HuggingFaceProvider(LLMProvider):
         temperature: float = 0.7,
         max_tokens: int = 4096,
     ) -> AsyncIterator[str]:
+        if litellm is None:
+            raise RuntimeError("litellm is not installed. Install with: pip install litellm")
         model = model or self.default_model
         chat_messages = build_chat_messages(messages, system)
-        client = await self._ensure_client()
 
-        stream = await client.chat.completions.create(
-            model=model,
+        api_key = await self._resolve_access_token()
+
+        response = await litellm.acompletion(
+            model=f"huggingface/{model}",
             messages=chat_messages,
             max_tokens=max_tokens,
             temperature=temperature,
+            api_key=api_key,
             stream=True,
         )
-        async for chunk in stream:
+        async for chunk in response:
             if chunk.choices and chunk.choices[0].delta.content:
                 yield chunk.choices[0].delta.content
 
