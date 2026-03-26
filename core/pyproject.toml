@@ -185,5 +185,5 @@ minversion = "9.0"
 testpaths = ["tests"]
 python_files = "test_*.py"
 python_functions = "test_*"
-addopts = "-ra -q"
+addopts = "-ra -q --cov-report=html:htmlcov"
 asyncio_mode = "auto"
