@@ -29,24 +29,67 @@ const actionCards = [
     body: "Lister les agents exposes et basculer vers la vue detaillee quand un comportement derive.",
   },
   {
-    to: "/metrics",
-    label: "Ops",
-    title: "Check Metrics",
-    body: "Confirmer la sante de la gateway, du core et des services relies a la stack locale.",
+    to: "/training",
+    label: "Training",
+    title: "Training Deck",
+    body: "Monitoring du training, datasets et benchmark des modeles fine-tunes.",
   },
   {
-    to: "/logs",
-    label: "Live feed",
-    title: "Open Logs",
-    body: "Suivre les incidents de service et les echanges inter-agent dans une seule console temps reel.",
-  },
-  {
-    to: "/infra",
-    label: "Stack map",
-    title: "Read Infrastructure",
-    body: "Voir les endpoints exposes et les providers declares sans sortir du cockpit.",
+    to: "/admin",
+    label: "Admin",
+    title: "Control Panel",
+    body: "Services, fleet sync, settings, MCP servers, users et audit centralises.",
   },
 ];
+
+const externalServices = [
+  {
+    label: "Grafana",
+    url: "https://grafana-tower.saillant.cc",
+    description: "Metrics & monitoring",
+  },
+  {
+    label: "Langfuse",
+    url: "https://langfuse.saillant.cc",
+    description: "Agent traces",
+  },
+  {
+    label: "Argilla",
+    url: "https://argilla.saillant.cc",
+    description: "Dataset review",
+  },
+  {
+    label: "Nextcloud",
+    url: "https://cloud.saillant.cc",
+    description: "File storage",
+  },
+  {
+    label: "Data Reviewer",
+    url: "https://train.saillant.cc",
+    description: "Dataset preview",
+  },
+  {
+    label: "ComfyUI",
+    url: "https://comfyui.saillant.cc",
+    description: "Image generation",
+  },
+];
+
+type ClusterPayload = {
+  nodes?: Array<{
+    name?: string;
+    status?: string;
+  }>;
+};
+
+type TrainingStatusData = {
+  active?: boolean;
+  model_name?: string;
+  progress_pct?: number;
+  current_loss?: number;
+  epoch?: number;
+  total_epochs?: number;
+};
 
 function headline(status: string) {
   return status === "ok" ? "System matrix stable" : "Gateway under pressure";
@@ -63,6 +106,12 @@ function narrative(status: string, providers: string[], agents: number) {
 export default function Dashboard() {
   const { data, loading, error, refetch } = useFetch<HealthData>("/health");
   const monitor = useFetch<OpsMonitor>("/api/ops/monitor", { pollIntervalMs: 6000 });
+  const cluster = useFetch<ClusterPayload>("/api/cluster/nodes", { pollIntervalMs: 30000 });
+  const trainingStatus = useFetch<TrainingStatusData>("/api/ops/training", { pollIntervalMs: 15000 });
+
+  const fleetNodes = cluster.data?.nodes ?? [];
+  const fleetOnline = fleetNodes.filter((n) => n.status === "online").length;
+  const fleetTotal = fleetNodes.length || 5;
 
   if (loading && !data) {
     return (
@@ -146,16 +195,16 @@ export default function Dashboard() {
                   open playground
                 </Link>
                 <Link
-                  to="/metrics"
+                  to="/admin"
                   className="rounded-2xl border border-border/80 bg-black/25 px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-amber-100/78 transition hover:border-accent/35 hover:text-accent"
                 >
-                  inspect metrics
+                  admin panel
                 </Link>
                 <Link
-                  to="/logs"
+                  to="/training"
                   className="rounded-2xl border border-border/80 bg-black/25 px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-amber-100/78 transition hover:border-accent/35 hover:text-accent"
                 >
-                  open logs
+                  training deck
                 </Link>
                 <Button variant="ghost" className="rounded-2xl border border-border/80 px-4 py-2 text-xs uppercase tracking-[0.18em]" onClick={() => void refetch()}>
                   refresh status
@@ -279,6 +328,93 @@ export default function Dashboard() {
         ))}
       </section>
 
+      {/* Fleet + Training summaries */}
+      <section className="grid gap-4 xl:grid-cols-2">
+        <Card title="Fleet status">
+          <div className="space-y-4">
+            <p className="text-sm leading-7 text-amber-100/60">
+              Vue rapide du cluster. Detail complet dans Admin &gt; Fleet.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <span className="status-chip border-accent/35 bg-accent/10 text-accent">
+                machines {fleetTotal}
+              </span>
+              <span className={["status-chip", fleetOnline > 0 ? "border-[#214e31] bg-[#0c170f]/80 text-[#8cffb7]" : "border-[#5d2332] bg-[#18070d]/80 text-error"].join(" ")}>
+                online {fleetOnline}
+              </span>
+            </div>
+            <Link
+              to="/admin"
+              className="inline-block rounded-2xl border border-accent/35 bg-accent/10 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-accent transition hover:bg-accent/15"
+            >
+              open fleet
+            </Link>
+          </div>
+        </Card>
+
+        <Card title="Training status">
+          <div className="space-y-4">
+            {trainingStatus.data?.active ? (
+              <>
+                <p className="text-sm leading-7 text-amber-100/60">
+                  Training en cours: {trainingStatus.data.model_name || "model"} — epoch {trainingStatus.data.epoch ?? "-"}/{trainingStatus.data.total_epochs ?? "-"}
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  <span className="status-chip border-[#214e31] bg-[#0c170f]/80 text-[#8cffb7]">
+                    active
+                  </span>
+                  <span className="status-chip border-accent/35 bg-accent/10 text-accent">
+                    {trainingStatus.data.progress_pct?.toFixed(1) ?? "-"}%
+                  </span>
+                  <span className="status-chip border-border/80 bg-black/30 text-muted">
+                    loss {trainingStatus.data.current_loss?.toFixed(4) ?? "-"}
+                  </span>
+                </div>
+              </>
+            ) : (
+              <p className="text-sm leading-7 text-amber-100/60">
+                Aucun training actif. Le worker attend un nouveau run.
+              </p>
+            )}
+            <Link
+              to="/training"
+              className="inline-block rounded-2xl border border-accent/35 bg-accent/10 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-accent transition hover:bg-accent/15"
+            >
+              open training
+            </Link>
+          </div>
+        </Card>
+      </section>
+
+      {/* External services */}
+      <section>
+        <Card title="Services externes">
+          <div className="space-y-4">
+            <p className="text-sm leading-7 text-amber-100/60">
+              Services web exposes pour le monitoring, l'observabilite, le stockage et la generation d'images.
+            </p>
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {externalServices.map((svc) => (
+                <a
+                  key={svc.label}
+                  href={svc.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="group rounded-[1.4rem] border border-border/80 bg-black/20 p-4 transition hover:border-accent/35"
+                >
+                  <p className="text-[13px] font-semibold uppercase tracking-[0.14em] text-accent transition group-hover:glow-text">
+                    {svc.label}
+                  </p>
+                  <p className="mt-1 text-[11px] text-amber-100/50">{svc.description}</p>
+                  <p className="mt-2 text-[10px] text-amber-100/30">{svc.url.replace(/^https?:\/\//, "")}</p>
+                </a>
+              ))}
+            </div>
+          </div>
+        </Card>
+      </section>
+
+      {/* Agent Zero lane */}
       <section className="grid gap-4 xl:grid-cols-2">
         <Card
           title="Agent Zero lane"
@@ -307,15 +443,15 @@ export default function Dashboard() {
                 </p>
               </Link>
               <Link
-                to="/orchestrate"
+                to="/playground"
                 className="rounded-[1.4rem] border border-border/80 bg-black/25 px-4 py-4 transition hover:border-accent/35 hover:bg-black/30"
               >
                 <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-accent">
-                  start with zero
+                  open playground
                 </p>
-                <p className="mt-2 text-sm text-amber-100/72">guided dispatch lane</p>
+                <p className="mt-2 text-sm text-amber-100/72">prompt sandbox</p>
                 <p className="mt-2 text-[12px] leading-5 text-amber-100/44">
-                  Lance un cadrage operateur avant de repartir vers les agents specialises.
+                  Tester rapidement les prompts et verifier la reponse du routage principal.
                 </p>
               </Link>
             </div>
@@ -325,8 +461,7 @@ export default function Dashboard() {
         <Card title="Dify lane">
           <div className="space-y-4">
             <p className="text-sm leading-7 text-amber-100/60">
-              Surface builder deja presente dans la stack pour les workflows IA, avec acces web, health API et
-              raccourcis logs quand le service derive.
+              Surface builder deja presente dans la stack pour les workflows IA, avec acces web et health API.
             </p>
             <div className="flex flex-wrap gap-2">
               <span
@@ -349,7 +484,6 @@ export default function Dashboard() {
               >
                 dify api {difyApi?.ok ? "online" : "watch"}
               </span>
-              <span className="status-chip border-border/80 bg-black/25 text-muted">redis + postgres</span>
             </div>
             <div className="grid gap-3 md:grid-cols-2">
               <a
@@ -380,20 +514,6 @@ export default function Dashboard() {
                   {difyApi ? `http ${difyApi.status || "-"} / ${Math.round(difyApi.latency_ms || 0)} ms` : "workflow api pending"}
                 </p>
               </a>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <Link
-                to="/logs?service=dify-web"
-                className="rounded-2xl border border-accent/35 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-accent transition hover:bg-accent/10"
-              >
-                dify web logs
-              </Link>
-              <Link
-                to="/logs?service=dify-api"
-                className="rounded-2xl border border-accent/35 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-accent transition hover:bg-accent/10"
-              >
-                dify api logs
-              </Link>
             </div>
           </div>
         </Card>

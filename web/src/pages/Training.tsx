@@ -1,7 +1,7 @@
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import { useFetch } from "../hooks/useFetch";
 import { post } from "../api/client";
-import { Badge, Button, Card, InlineNotice, LoadingPanel } from "../components/ui";
+import { Badge, Button, Card, InlineNotice, JsonView, LoadingPanel } from "../components/ui";
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -360,7 +360,752 @@ function ProgressBar({ status }: { status: TrainingStatus | null }) {
 /*  Page                                                               */
 /* ------------------------------------------------------------------ */
 
-export default function Training() {
+/* ================================================================== */
+/*  Datasets tab content (merged from Datasets.tsx)                    */
+/* ================================================================== */
+
+type DsRegistryData = {
+  datasets: Record<string, {
+    dataset_id: string;
+    source: string;
+    domain: string;
+    rows: number;
+    license: string;
+    quality_score: number;
+    added_at: number;
+  }>;
+};
+
+type DatasetMeta = {
+  dataset_id: string;
+  domain: string;
+  rows: number;
+  size_mb: number;
+  quality_score: number;
+  examples: { input: string; output: string }[];
+  source: string;
+  license: string;
+  added_at: number;
+};
+
+type DatasetsResponse = {
+  datasets: DatasetMeta[];
+};
+
+function dsQualityColor(score: number): "accent" | "warning" | "error" | "muted" {
+  if (score >= 7) return "accent";
+  if (score >= 5) return "warning";
+  if (score > 0) return "error";
+  return "muted";
+}
+
+function dsQualityChip(score: number): string {
+  if (score >= 7) return "border-[#214e31] bg-[#0c170f]/80 text-[#8cffb7]";
+  if (score >= 5) return "border-warning/35 bg-warning/10 text-warning";
+  if (score > 0) return "border-[#5d2332] bg-[#18070d]/80 text-error";
+  return "border-border/80 bg-black/25 text-muted";
+}
+
+function dsFormatDate(ts: number) {
+  if (!ts) return "-";
+  return new Date(ts * 1000).toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" });
+}
+
+function dsFormatSize(mb: number): string {
+  if (!mb || mb <= 0) return "-";
+  if (mb >= 1000) return `${(mb / 1000).toFixed(1)} GB`;
+  return `${mb.toFixed(0)} MB`;
+}
+
+const DS_DOMAINS = [
+  "all",
+  "spice",
+  "kicad",
+  "embedded",
+  "general",
+  "code",
+  "instruction",
+  "conversation",
+  "alignment",
+] as const;
+
+function DatasetPreview({ dataset }: { dataset: DatasetMeta | null }) {
+  if (!dataset) {
+    return (
+      <div className="flex h-full items-center justify-center rounded-3xl border border-border/80 bg-black/25 p-6">
+        <p className="text-[11px] uppercase tracking-[0.18em] text-muted">
+          select a dataset to preview examples
+        </p>
+      </div>
+    );
+  }
+
+  const examples = dataset.examples?.slice(0, 3) ?? [];
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="screen-label">preview</p>
+          <p className="mt-2 text-sm font-semibold uppercase tracking-[0.14em] text-accent">
+            {dataset.dataset_id}
+          </p>
+        </div>
+        <Badge color={dsQualityColor(dataset.quality_score)}>
+          score {dataset.quality_score.toFixed(1)}
+        </Badge>
+      </div>
+
+      <div className="grid gap-2 sm:grid-cols-3">
+        <div className="rounded-2xl border border-border/80 bg-black/25 p-3 text-center">
+          <p className="text-[9px] uppercase tracking-[0.2em] text-muted">rows</p>
+          <p className="mt-1 text-lg font-semibold text-accent">{dataset.rows.toLocaleString()}</p>
+        </div>
+        <div className="rounded-2xl border border-border/80 bg-black/25 p-3 text-center">
+          <p className="text-[9px] uppercase tracking-[0.2em] text-muted">size</p>
+          <p className="mt-1 text-lg font-semibold text-accent">{dsFormatSize(dataset.size_mb)}</p>
+        </div>
+        <div className="rounded-2xl border border-border/80 bg-black/25 p-3 text-center">
+          <p className="text-[9px] uppercase tracking-[0.2em] text-muted">domain</p>
+          <p className="mt-1 text-lg font-semibold text-accent">{dataset.domain}</p>
+        </div>
+      </div>
+
+      {examples.length > 0 ? (
+        <div className="space-y-3">
+          <p className="text-[10px] uppercase tracking-[0.18em] text-muted">sample examples</p>
+          {examples.map((ex, i) => (
+            <div key={i} className="rounded-2xl border border-border/80 bg-black/25 p-3">
+              <div className="mb-2">
+                <span className="text-[9px] uppercase tracking-[0.2em] text-muted">input</span>
+                <p className="mt-1 max-h-16 overflow-auto text-[11px] leading-5 text-amber-100/70">
+                  {ex.input}
+                </p>
+              </div>
+              <div>
+                <span className="text-[9px] uppercase tracking-[0.2em] text-accent">output</span>
+                <p className="mt-1 max-h-16 overflow-auto text-[11px] leading-5 text-amber-100/54">
+                  {ex.output}
+                </p>
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="rounded-2xl border border-border/80 bg-black/25 p-4">
+          <p className="text-[11px] text-muted">No sample examples available for this dataset.</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function DatasetsContent() {
+  const { data: dsRegistry, loading: dsRegLoading, error: dsRegError, refetch: dsRefetch } = useFetch<DsRegistryData>(
+    "/api/finetune/registry",
+    { pollIntervalMs: 30000 },
+  );
+  const { data: datasetsResp } = useFetch<DatasetsResponse>("/api/datasets", {
+    pollIntervalMs: 30000,
+  });
+
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [domainFilter, setDomainFilter] = useState<string>("all");
+
+  const allDatasets: DatasetMeta[] = useMemo(() => {
+    const fromApi = datasetsResp?.datasets ?? [];
+    const fromRegistry = Object.values(dsRegistry?.datasets ?? {}).map((d) => ({
+      dataset_id: d.dataset_id,
+      domain: d.domain,
+      rows: d.rows,
+      size_mb: 0,
+      quality_score: d.quality_score,
+      examples: [],
+      source: d.source,
+      license: d.license,
+      added_at: d.added_at,
+    }));
+
+    const map = new Map<string, DatasetMeta>();
+    for (const d of fromRegistry) map.set(d.dataset_id, d);
+    for (const d of fromApi) map.set(d.dataset_id, d);
+    return Array.from(map.values());
+  }, [dsRegistry, datasetsResp]);
+
+  const filtered = useMemo(() => {
+    if (domainFilter === "all") return allDatasets;
+    return allDatasets.filter((d) => d.domain === domainFilter);
+  }, [allDatasets, domainFilter]);
+
+  const selectedDataset = useMemo(() => {
+    return allDatasets.find((d) => d.dataset_id === selectedId) ?? null;
+  }, [allDatasets, selectedId]);
+
+  const avgQuality = useMemo(() => {
+    const scored = allDatasets.filter((d) => d.quality_score > 0);
+    if (scored.length === 0) return 0;
+    return scored.reduce((sum, d) => sum + d.quality_score, 0) / scored.length;
+  }, [allDatasets]);
+
+  const totalRows = useMemo(() => allDatasets.reduce((sum, d) => sum + d.rows, 0), [allDatasets]);
+
+  if (dsRegLoading && !dsRegistry) {
+    return (
+      <LoadingPanel
+        title="Syncing datasets"
+        message="Collecting dataset registry and quality metadata."
+      />
+    );
+  }
+  if (dsRegError && !dsRegistry) {
+    return (
+      <InlineNotice
+        title="dataset error"
+        message={dsRegError}
+        tone="error"
+        className="mx-auto mt-20 max-w-3xl"
+      />
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <section className="grid gap-4 xl:grid-cols-[minmax(0,1.4fr)_minmax(320px,0.8fr)]">
+        <Card className="overflow-hidden border-accent/20 bg-[linear-gradient(135deg,rgba(255,209,102,0.08),rgba(9,14,11,0.9)_26%,rgba(7,7,7,0.95))]">
+          <div className="max-w-3xl">
+            <p className="screen-label">dataset registry</p>
+            <h2 className="mt-3 text-3xl font-semibold uppercase tracking-[0.12em] text-accent glow-text md:text-5xl">
+              {allDatasets.length} datasets indexed
+            </h2>
+            <p className="mt-4 max-w-2xl text-sm leading-7 text-amber-100/62 md:text-[15px]">
+              Registre consolide des datasets disponibles pour le fine-tuning. Qualite evaluee par le pipeline
+              de validation automatique, exemples consultables en direct.
+            </p>
+            <div className="mt-5 flex flex-wrap items-center gap-2">
+              <span className="status-chip border-accent/35 bg-accent/10 text-accent">
+                datasets {allDatasets.length}
+              </span>
+              <span className="status-chip border-border/80 bg-black/30 text-muted">
+                total rows {totalRows.toLocaleString()}
+              </span>
+              <span className={["status-chip", dsQualityChip(avgQuality)].join(" ")}>
+                avg quality {avgQuality.toFixed(1)}
+              </span>
+            </div>
+            <div className="mt-6 flex flex-wrap gap-3">
+              <a
+                href="https://argilla.saillant.cc"
+                target="_blank"
+                rel="noreferrer"
+                className="rounded-2xl border border-accent/40 bg-accent/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-accent transition hover:bg-accent/15"
+              >
+                open argilla
+              </a>
+              <a
+                href="https://cloud.saillant.cc"
+                target="_blank"
+                rel="noreferrer"
+                className="rounded-2xl border border-border/80 bg-black/25 px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-amber-100/78 transition hover:border-accent/35 hover:text-accent"
+              >
+                upload to nextcloud
+              </a>
+              <Button variant="ghost" onClick={() => void dsRefetch()}>
+                refresh
+              </Button>
+            </div>
+          </div>
+        </Card>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div className="rounded-3xl border border-border/80 bg-black/30 p-4">
+            <p className="text-[10px] uppercase tracking-[0.2em] text-muted">total datasets</p>
+            <p className="mt-3 text-2xl font-semibold uppercase tracking-[0.12em] text-accent">
+              {allDatasets.length.toString().padStart(2, "0")}
+            </p>
+          </div>
+          <div className="rounded-3xl border border-border/80 bg-black/30 p-4">
+            <p className="text-[10px] uppercase tracking-[0.2em] text-muted">total examples</p>
+            <p className="mt-3 text-2xl font-semibold uppercase tracking-[0.12em] text-accent">
+              {totalRows.toLocaleString()}
+            </p>
+          </div>
+          <div className="rounded-3xl border border-border/80 bg-black/30 p-4">
+            <p className="text-[10px] uppercase tracking-[0.2em] text-muted">avg quality</p>
+            <p className={["mt-3 text-2xl font-semibold uppercase tracking-[0.12em]", avgQuality >= 7 ? "text-[#8cffb7]" : avgQuality >= 5 ? "text-warning" : "text-error"].join(" ")}>
+              {avgQuality.toFixed(1)} / 10
+            </p>
+          </div>
+          <div className="rounded-3xl border border-border/80 bg-black/30 p-4">
+            <p className="text-[10px] uppercase tracking-[0.2em] text-muted">domains</p>
+            <p className="mt-3 text-2xl font-semibold uppercase tracking-[0.12em] text-accent">
+              {new Set(allDatasets.map((d) => d.domain)).size}
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <div className="flex flex-wrap gap-2">
+        {DS_DOMAINS.map((d) => (
+          <button
+            key={d}
+            className={[
+              "rounded-2xl border px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] transition",
+              domainFilter === d
+                ? "border-accent/40 bg-accent/10 text-accent"
+                : "border-border/80 bg-black/25 text-muted hover:border-accent/35 hover:text-accent",
+            ].join(" ")}
+            onClick={() => setDomainFilter(d)}
+          >
+            {d}
+          </button>
+        ))}
+      </div>
+
+      <section className="grid gap-4 xl:grid-cols-[minmax(0,1.3fr)_minmax(320px,0.7fr)]">
+        <Card title={`Datasets (${filtered.length})`}>
+          {filtered.length === 0 ? (
+            <p className="text-sm text-amber-100/40">
+              No datasets match the current filter.
+            </p>
+          ) : (
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {filtered.map((d) => (
+                <button
+                  key={d.dataset_id}
+                  className={[
+                    "rounded-[1.4rem] border p-4 text-left transition",
+                    selectedId === d.dataset_id
+                      ? "border-accent/50 bg-accent/8"
+                      : "border-border/80 bg-black/25 hover:border-accent/35",
+                  ].join(" ")}
+                  onClick={() => setSelectedId(d.dataset_id)}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="truncate text-xs font-semibold uppercase tracking-[0.14em] text-accent" title={d.dataset_id}>
+                      {d.dataset_id.split("/").pop()}
+                    </p>
+                    <span className={["status-chip text-[9px]", dsQualityChip(d.quality_score)].join(" ")}>
+                      {d.quality_score.toFixed(1)}
+                    </span>
+                  </div>
+                  <div className="mt-2 flex flex-wrap gap-1">
+                    <Badge color="muted">{d.domain}</Badge>
+                  </div>
+                  <div className="mt-3 grid grid-cols-2 gap-2 text-center">
+                    <div>
+                      <p className="text-[9px] uppercase tracking-[0.2em] text-muted">examples</p>
+                      <p className="mt-1 text-sm font-semibold text-amber-100/80">{d.rows.toLocaleString()}</p>
+                    </div>
+                    <div>
+                      <p className="text-[9px] uppercase tracking-[0.2em] text-muted">size</p>
+                      <p className="mt-1 text-sm font-semibold text-amber-100/80">{dsFormatSize(d.size_mb)}</p>
+                    </div>
+                  </div>
+                  <p className="mt-2 text-[10px] text-amber-100/30">{dsFormatDate(d.added_at)}</p>
+                </button>
+              ))}
+            </div>
+          )}
+        </Card>
+        <Card title="Dataset preview">
+          <DatasetPreview dataset={selectedDataset} />
+        </Card>
+      </section>
+    </div>
+  );
+}
+
+/* ================================================================== */
+/*  Benchmark tab content (merged from Benchmark.tsx)                  */
+/* ================================================================== */
+
+type BmDomainScores = {
+  kicad?: number;
+  spice?: number;
+  embedded?: number;
+  mixed?: number;
+};
+
+type BmModelResult = {
+  model: string;
+  scores: BmDomainScores;
+  overall?: number;
+  provider?: string;
+};
+
+type BmBenchmarkMeta = {
+  date?: string;
+  prompts_count?: number;
+  judge_model?: string;
+  version?: string;
+};
+
+type BmBenchmarkPayload = {
+  results?: BmModelResult[];
+  metadata?: BmBenchmarkMeta;
+  baseline?: {
+    model?: string;
+    overall?: number;
+  };
+};
+
+const BM_DOMAINS = ["kicad", "spice", "embedded", "mixed"] as const;
+const BM_BASELINE_MODEL = "phi2-ee";
+const BM_BASELINE_SCORE = 3.05;
+
+function bmScoreTone(score: number | undefined): string {
+  if (score === undefined || score === null) return "text-muted";
+  if (score >= 7) return "text-[#8cffb7]";
+  if (score >= 5) return "text-warning";
+  return "text-error";
+}
+
+function bmScoreBg(score: number | undefined): string {
+  if (score === undefined || score === null) return "bg-black/20";
+  if (score >= 7) return "bg-[#0c170f]/60";
+  if (score >= 5) return "bg-[#1a1400]/60";
+  return "bg-[#18070d]/60";
+}
+
+function bmScoreBorder(score: number | undefined): string {
+  if (score === undefined || score === null) return "border-border/80";
+  if (score >= 7) return "border-[#214e31]/60";
+  if (score >= 5) return "border-warning/30";
+  return "border-[#5d2332]/60";
+}
+
+function bmFormatScore(score: number | undefined): string {
+  if (score === undefined || score === null) return "--";
+  return score.toFixed(2);
+}
+
+function bmComputeOverall(scores: BmDomainScores): number {
+  const values = BM_DOMAINS.map((d) => scores[d]).filter(
+    (v): v is number => v !== undefined && v !== null,
+  );
+  if (values.length === 0) return 0;
+  return values.reduce((a, b) => a + b, 0) / values.length;
+}
+
+function BmBarChart({ results }: { results: Array<{ model: string; overall: number }> }) {
+  const maxScore = 10;
+  const barHeight = 28;
+  const labelWidth = 140;
+  const chartWidth = 500;
+  const gap = 6;
+  const svgHeight = results.length * (barHeight + gap) + 10;
+
+  return (
+    <svg
+      viewBox={`0 0 ${labelWidth + chartWidth + 80} ${svgHeight}`}
+      className="w-full"
+      style={{ maxHeight: `${Math.max(svgHeight, 100)}px` }}
+    >
+      {results.map((entry, index) => {
+        const y = index * (barHeight + gap) + 5;
+        const barWidth = (entry.overall / maxScore) * chartWidth;
+        const isBaseline = entry.model.toLowerCase() === BM_BASELINE_MODEL.toLowerCase();
+        const fill = entry.overall >= 7
+          ? "rgba(140, 255, 183, 0.7)"
+          : entry.overall >= 5
+            ? "rgba(255, 209, 102, 0.7)"
+            : "rgba(255, 100, 100, 0.6)";
+
+        return (
+          <g key={entry.model}>
+            <text
+              x={labelWidth - 8}
+              y={y + barHeight / 2 + 4}
+              textAnchor="end"
+              fill={isBaseline ? "rgba(255, 100, 100, 0.8)" : "rgba(255, 209, 102, 0.7)"}
+              fontSize="11"
+              fontFamily="monospace"
+              fontWeight={isBaseline ? "bold" : "normal"}
+              style={{ textTransform: "uppercase", letterSpacing: "0.08em" }}
+            >
+              {entry.model.length > 16 ? entry.model.substring(0, 16) + ".." : entry.model}
+            </text>
+            <rect
+              x={labelWidth}
+              y={y}
+              width={Math.max(barWidth, 2)}
+              height={barHeight}
+              rx={4}
+              fill={fill}
+              opacity={0.85}
+            />
+            {isBaseline ? (
+              <rect
+                x={labelWidth}
+                y={y}
+                width={Math.max(barWidth, 2)}
+                height={barHeight}
+                rx={4}
+                fill="none"
+                stroke="rgba(255, 100, 100, 0.6)"
+                strokeWidth={2}
+                strokeDasharray="4 3"
+              />
+            ) : null}
+            <text
+              x={labelWidth + Math.max(barWidth, 2) + 8}
+              y={y + barHeight / 2 + 4}
+              fill="rgba(255, 209, 102, 0.6)"
+              fontSize="11"
+              fontFamily="monospace"
+            >
+              {entry.overall.toFixed(2)}
+            </text>
+          </g>
+        );
+      })}
+      <line
+        x1={labelWidth + (BM_BASELINE_SCORE / maxScore) * chartWidth}
+        y1={0}
+        x2={labelWidth + (BM_BASELINE_SCORE / maxScore) * chartWidth}
+        y2={svgHeight}
+        stroke="rgba(255, 100, 100, 0.4)"
+        strokeWidth={1}
+        strokeDasharray="6 4"
+      />
+      <text
+        x={labelWidth + (BM_BASELINE_SCORE / maxScore) * chartWidth + 4}
+        y={svgHeight - 2}
+        fill="rgba(255, 100, 100, 0.5)"
+        fontSize="9"
+        fontFamily="monospace"
+      >
+        baseline {BM_BASELINE_SCORE}
+      </text>
+    </svg>
+  );
+}
+
+function BenchmarkContent() {
+  const benchFetch = useFetch<BmBenchmarkPayload>("/api/analytics/v1/benchmarks", {
+    pollIntervalMs: 30_000,
+  });
+
+  const results = useMemo(() => {
+    const raw = benchFetch.data?.results ?? [];
+    return raw
+      .map((entry) => ({
+        ...entry,
+        overall: entry.overall ?? bmComputeOverall(entry.scores),
+      }))
+      .sort((a, b) => b.overall - a.overall);
+  }, [benchFetch.data]);
+
+  const meta = benchFetch.data?.metadata;
+  const baseline = benchFetch.data?.baseline;
+  const baselineOverall = baseline?.overall ?? BM_BASELINE_SCORE;
+  const baselineModel = baseline?.model ?? BM_BASELINE_MODEL;
+  const aboveBaseline = results.filter((r) => r.overall > baselineOverall).length;
+
+  if (benchFetch.loading && !benchFetch.data) {
+    return (
+      <LoadingPanel
+        title="Loading benchmark results"
+        message="Fetching model scores across kicad, spice, embedded and mixed domains."
+      />
+    );
+  }
+
+  if (benchFetch.error && !benchFetch.data) {
+    return (
+      <InlineNotice
+        title="benchmark data unavailable"
+        message={benchFetch.error}
+        tone="error"
+        className="mx-auto mt-20 max-w-3xl"
+      />
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <Card className="overflow-hidden border-accent/20 bg-[linear-gradient(135deg,rgba(255,209,102,0.08),rgba(8,12,10,0.94)_26%,rgba(6,6,6,0.98))]">
+        <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+          <div className="max-w-3xl">
+            <p className="screen-label">benchmark lab</p>
+            <h2 className="mt-3 text-3xl font-semibold uppercase tracking-[0.12em] text-accent glow-text md:text-5xl">
+              Model evaluation scores across technical domains
+            </h2>
+            <p className="mt-4 max-w-2xl text-sm leading-7 text-amber-100/60 md:text-[15px]">
+              Resultats de benchmark par modele sur les domaines kicad, spice, embedded et mixed. Score global moyen, comparaison avec le baseline HuggingFace ({baselineModel}: {baselineOverall}).
+            </p>
+            <div className="mt-5 flex flex-wrap gap-2">
+              <span className="status-chip border-accent/35 bg-accent/10 text-accent">
+                models {results.length}
+              </span>
+              <span className="status-chip border-green-400/60 bg-green-500/20 text-emerald-100">
+                above baseline {aboveBaseline}
+              </span>
+              <span className="status-chip border-border/80 bg-black/30 text-muted">
+                domains {BM_DOMAINS.length}
+              </span>
+            </div>
+            <div className="mt-6 flex flex-wrap gap-3">
+              <Button
+                variant="ghost"
+                className="rounded-2xl border border-border/80 px-4 py-2 text-xs uppercase tracking-[0.18em]"
+                onClick={() => void benchFetch.refetch()}
+              >
+                refresh
+              </Button>
+            </div>
+          </div>
+
+          <div className="grid min-w-0 gap-3 sm:grid-cols-2 lg:min-w-[320px]">
+            <div className="rounded-3xl border border-border/80 bg-black/30 p-4">
+              <p className="text-[10px] uppercase tracking-[0.2em] text-muted">best model</p>
+              <p className="mt-3 text-lg font-semibold uppercase tracking-[0.12em] text-accent">
+                {results[0]?.model ?? "--"}
+              </p>
+              <p className="mt-2 text-[12px] leading-5 text-amber-100/46">
+                Score: {results[0] ? results[0].overall.toFixed(2) : "--"}
+              </p>
+            </div>
+            <div className="rounded-3xl border border-border/80 bg-black/30 p-4">
+              <p className="text-[10px] uppercase tracking-[0.2em] text-muted">baseline</p>
+              <p className="mt-3 text-lg font-semibold uppercase tracking-[0.12em] text-error">
+                {baselineModel}
+              </p>
+              <p className="mt-2 text-[12px] leading-5 text-amber-100/46">
+                Score: {baselineOverall.toFixed(2)}
+              </p>
+            </div>
+            <div className="rounded-3xl border border-border/80 bg-black/30 p-4">
+              <p className="text-[10px] uppercase tracking-[0.2em] text-muted">prompts</p>
+              <p className="mt-3 text-2xl font-semibold uppercase tracking-[0.12em] text-accent">
+                {meta?.prompts_count?.toString().padStart(2, "0") ?? "--"}
+              </p>
+            </div>
+            <div className="rounded-3xl border border-border/80 bg-black/30 p-4">
+              <p className="text-[10px] uppercase tracking-[0.2em] text-muted">judge</p>
+              <p className="mt-3 text-lg font-semibold uppercase tracking-[0.12em] text-accent">
+                {meta?.judge_model ?? "--"}
+              </p>
+            </div>
+          </div>
+        </div>
+      </Card>
+
+      {meta ? (
+        <Card title="Benchmark metadata">
+          <div className="flex flex-wrap gap-2">
+            {meta.date ? <Badge color="accent">date: {meta.date}</Badge> : null}
+            {meta.prompts_count ? <Badge color="accent">prompts: {meta.prompts_count}</Badge> : null}
+            {meta.judge_model ? <Badge color="accent">judge: {meta.judge_model}</Badge> : null}
+            {meta.version ? <Badge color="muted">version: {meta.version}</Badge> : null}
+          </div>
+        </Card>
+      ) : null}
+
+      <Card title="Score table">
+        {results.length === 0 ? (
+          <InlineNotice
+            title="no benchmark data"
+            message="Aucun resultat de benchmark disponible. Lancez un run depuis la pipeline finetune."
+          />
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse text-sm">
+              <thead>
+                <tr>
+                  <th className="px-3 py-3 text-left text-[10px] uppercase tracking-[0.2em] text-muted">rank</th>
+                  <th className="px-3 py-3 text-left text-[10px] uppercase tracking-[0.2em] text-muted">model</th>
+                  {BM_DOMAINS.map((domain) => (
+                    <th key={domain} className="px-3 py-3 text-center text-[10px] uppercase tracking-[0.2em] text-muted">{domain}</th>
+                  ))}
+                  <th className="px-3 py-3 text-center text-[10px] uppercase tracking-[0.2em] text-accent">overall</th>
+                  <th className="px-3 py-3 text-center text-[10px] uppercase tracking-[0.2em] text-muted">vs baseline</th>
+                </tr>
+              </thead>
+              <tbody>
+                {results.map((entry, index) => {
+                  const isBaseline = entry.model.toLowerCase() === baselineModel.toLowerCase();
+                  const delta = entry.overall - baselineOverall;
+                  return (
+                    <tr
+                      key={entry.model}
+                      className={[
+                        "border-t border-border/40 transition hover:bg-accent/5",
+                        isBaseline ? "bg-error/5" : "",
+                      ].join(" ")}
+                    >
+                      <td className="px-3 py-3 font-mono text-xs text-muted">{(index + 1).toString().padStart(2, "0")}</td>
+                      <td className="px-3 py-3">
+                        <span className={["font-semibold uppercase tracking-[0.1em] text-sm", isBaseline ? "text-error" : "text-accent"].join(" ")}>
+                          {entry.model}
+                        </span>
+                        {entry.provider ? (
+                          <span className="ml-2 text-[10px] uppercase tracking-[0.14em] text-muted">{entry.provider}</span>
+                        ) : null}
+                      </td>
+                      {BM_DOMAINS.map((domain) => {
+                        const score = entry.scores[domain];
+                        return (
+                          <td
+                            key={domain}
+                            className={[
+                              "px-3 py-3 text-center font-mono text-sm",
+                              bmScoreTone(score),
+                              bmScoreBg(score),
+                              bmScoreBorder(score),
+                            ].join(" ")}
+                            style={{ borderLeft: `1px solid rgba(255,255,255,0.04)` }}
+                          >
+                            {bmFormatScore(score)}
+                          </td>
+                        );
+                      })}
+                      <td className={["px-3 py-3 text-center font-mono text-sm font-bold", bmScoreTone(entry.overall)].join(" ")}>
+                        {entry.overall.toFixed(2)}
+                      </td>
+                      <td className="px-3 py-3 text-center font-mono text-sm">
+                        <span className={delta >= 0 ? "text-[#8cffb7]" : "text-error"}>
+                          {delta >= 0 ? "+" : ""}{delta.toFixed(2)}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Card>
+
+      {results.length > 0 ? (
+        <Card title="Score distribution">
+          <p className="mb-4 text-sm leading-7 text-amber-100/60">
+            Scores globaux par modele. La ligne pointillee rouge indique le baseline {baselineModel} ({baselineOverall}).
+          </p>
+          <div className="overflow-x-auto rounded-2xl border border-border/80 bg-black/20 p-4">
+            <BmBarChart
+              results={results.map((r) => ({ model: r.model, overall: r.overall }))}
+            />
+          </div>
+        </Card>
+      ) : null}
+
+      <Card title="Raw payload">
+        <div>
+          <p className="screen-label">benchmarks</p>
+          <div className="mt-3">
+            <JsonView data={benchFetch.data ?? {}} />
+          </div>
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+/* ================================================================== */
+/*  Training content (original)                                        */
+/* ================================================================== */
+
+function TrainingContent() {
   const { data: registry, loading: regLoading, error: regError, refetch } = useFetch<RegistryData>(
     "/api/finetune/registry",
     { pollIntervalMs: 15000 },
@@ -586,6 +1331,39 @@ export default function Training() {
           tone="error"
         />
       ) : null}
+    </div>
+  );
+}
+
+/* ================================================================== */
+/*  Main export with tabs                                              */
+/* ================================================================== */
+
+const TABS = ["training", "datasets", "benchmark"] as const;
+
+export default function Training() {
+  const [tab, setTab] = useState<string>("training");
+
+  return (
+    <div className="space-y-6">
+      <div className="flex gap-1 mb-6">
+        {TABS.map((t) => (
+          <button
+            key={t}
+            onClick={() => setTab(t)}
+            className={`px-4 py-2 rounded-2xl text-xs uppercase tracking-[0.16em] transition ${
+              tab === t
+                ? "bg-accent/15 text-accent border border-accent/30"
+                : "bg-black/30 text-muted border border-border/50 hover:text-accent"
+            }`}
+          >
+            {t}
+          </button>
+        ))}
+      </div>
+      {tab === "training" && <TrainingContent />}
+      {tab === "datasets" && <DatasetsContent />}
+      {tab === "benchmark" && <BenchmarkContent />}
     </div>
   );
 }

@@ -5,25 +5,11 @@ import Dashboard from "./pages/Dashboard";
 import Playground from "./pages/Playground";
 import Agents from "./pages/Agents";
 import AgentDetail from "./pages/AgentDetail";
-import Orchestrate from "./pages/Orchestrate";
-import OpsHub from "./pages/OpsHub";
-import Logs from "./pages/Logs";
-import Metrics from "./pages/Metrics";
-import Infrastructure from "./pages/Infrastructure";
-import KnowledgeBrowser from "./pages/KnowledgeBrowser";
-import QdrantKnowledge from "./pages/QdrantKnowledge";
-import ComfyUI from "./pages/ComfyUI";
+import Training from "./pages/Training";
+import Knowledge from "./pages/Knowledge";
+import Administration from "./pages/Administration";
 import KillLifeWorkflows from "./pages/KillLifeWorkflows";
 import KillLifeWorkflowEditor from "./pages/KillLifeWorkflowEditor";
-import Settings from "./pages/Settings";
-import P2P from "./pages/P2P";
-import McpServers from "./pages/McpServers";
-import FineTuning from "./pages/FineTuning";
-import Training from "./pages/Training";
-import Datasets from "./pages/Datasets";
-import Fleet from "./pages/Fleet";
-import Benchmark from "./pages/Benchmark";
-import Administration from "./pages/Administration";
 
 export default function App() {
   return (
@@ -34,25 +20,11 @@ export default function App() {
           <Route path="playground" element={<Playground />} />
           <Route path="agents" element={<Agents />} />
           <Route path="agents/:name" element={<AgentDetail />} />
-          <Route path="orchestrate" element={<Orchestrate />} />
-          <Route path="ops" element={<OpsHub />} />
-          <Route path="logs" element={<Logs />} />
-          <Route path="metrics" element={<Metrics />} />
-          <Route path="infra" element={<Infrastructure />} />
-          <Route path="knowledge-base" element={<KnowledgeBrowser />} />
-          <Route path="qdrant-knowledge" element={<QdrantKnowledge />} />
-          <Route path="comfyui" element={<ComfyUI />} />
+          <Route path="training" element={<Training />} />
+          <Route path="knowledge" element={<Knowledge />} />
+          <Route path="admin" element={<Administration />} />
           <Route path="kill-life" element={<KillLifeWorkflows />} />
           <Route path="kill-life/:workflowId" element={<KillLifeWorkflowEditor />} />
-          <Route path="settings" element={<Settings />} />
-          <Route path="mcp" element={<McpServers />} />
-          <Route path="p2p" element={<P2P />} />
-          <Route path="finetune" element={<FineTuning />} />
-          <Route path="training" element={<Training />} />
-          <Route path="datasets" element={<Datasets />} />
-          <Route path="fleet" element={<Fleet />} />
-          <Route path="benchmark" element={<Benchmark />} />
-          <Route path="admin" element={<Administration />} />
           <Route path="*" element={<p className="text-error text-sm text-center mt-20">404 — page not found</p>} />
         </Route>
       </Routes>
