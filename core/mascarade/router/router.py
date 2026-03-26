@@ -53,7 +53,6 @@ class Strategy(StrEnum):
     CHEAPEST = "cheapest"
     DOMAIN = "domain"
     FASTEST = "fastest"
-    MACHINE_AWARE = "machine_aware"
     SPECIFIC = "specific"
     ROUTELLM = "routellm"
 
@@ -111,7 +110,6 @@ class Router:
 
     def __init__(self) -> None:
         self._providers: dict[str, LLMProvider] = {}
-        self._p2p_capabilities = None  # Set via attach_p2p()
         self.cache = self._initialize_cache()
         self.metrics = MetricsTracker()
         self.load_balancer = LoadBalancer()
@@ -244,7 +242,7 @@ class Router:
             ("mascarade.router.providers.litellm", "LiteLLMProvider"),
             ("mascarade.router.providers.codestral", "CodestralProvider"),
             ("mascarade.router.providers.github_copilot", "GitHubCopilotProvider"),
-            ("mascarade.router.providers.litellm_universal", "LiteLLMUniversalProvider"),
+            ("mascarade.router.providers.perplexity", "PerplexityProvider"),
         ]
 
         # Lightweight pre-checks to skip expensive imports for unconfigured
@@ -262,6 +260,7 @@ class Router:
             "ExoProvider": lambda: settings.exo_enabled,
             "LlamaCppProvider": lambda: settings.llama_cpp_enabled,
             "CodestralProvider": lambda: is_secret_configured(settings.codestral_api_key),
+            "PerplexityProvider": lambda: is_secret_configured(settings.perplexity_api_key),
         }
 
         for module_name, class_name in provider_specs:
@@ -344,35 +343,12 @@ class Router:
         )
         return static_cost
 
-    def attach_p2p(self, p2p_capabilities) -> None:
-        """Attach P2P capability exchange for peer-aware routing."""
-        self._p2p_capabilities = p2p_capabilities
-
-    def _inject_p2p_providers(self) -> None:
-        """Refresh P2P proxy providers from current peer capabilities."""
-        if not self._p2p_capabilities or not settings.p2p_provider_enabled:
-            return
-        from mascarade.router.providers.p2p_proxy import build_p2p_providers
-
-        # Remove stale P2P providers
-        stale = [k for k in self._providers if k.startswith("p2p/")]
-        for k in stale:
-            del self._providers[k]
-
-        # Inject fresh ones
-        peers = self._p2p_capabilities.all_capabilities()
-        for proxy in build_p2p_providers(peers):
-            self._providers[proxy.name] = proxy
-
     def _select_candidates(
         self,
         strategy: Strategy = Strategy.BEST,
         provider_name: str | None = None,
         domain: str | None = None,
     ) -> list[LLMProvider]:
-        # Refresh P2P providers before selection
-        self._inject_p2p_providers()
-
         if not self._providers:
             raise RuntimeError("Aucun provider LLM configuré. Vérifiez vos clés API.")
 

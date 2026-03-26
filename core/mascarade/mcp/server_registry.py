@@ -155,6 +155,21 @@ def register_searxng_server(servers: dict[str, McpServerDefinition]) -> None:
     )
 
 
+def register_docling_server(servers: dict[str, McpServerDefinition]) -> None:
+    """Register Docling MCP server if DOCLING_URL is set."""
+    docling_url = os.getenv("DOCLING_URL", "")
+    if not docling_url:
+        return
+    servers["docling"] = McpServerDefinition(
+        key="docling",
+        transport="http",
+        url=docling_url.rstrip("/"),
+        timeout_s=120.0,
+        label="Docling Document Parser",
+        description="Parse and convert PDFs, DOCX, HTML to markdown/JSON via docling-serve.",
+    )
+
+
 def register_kicad_mcp_servers(servers: dict[str, McpServerDefinition]) -> None:
     """Auto-discover and register installed KiCad MCP servers.
 

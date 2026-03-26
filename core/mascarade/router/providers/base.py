@@ -53,6 +53,7 @@ class LLMResponse:
     model: str
     provider: str
     usage: dict[str, int] = field(default_factory=dict)
+    metadata: dict = field(default_factory=dict)
 
 
 @dataclass

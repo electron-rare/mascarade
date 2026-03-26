@@ -159,15 +159,15 @@ except ImportError:
     pass
 
 try:
-    from mascarade.router.providers.pcbdesigner import PCBDesignerProvider
+    from mascarade.router.providers.github_copilot import GitHubCopilotProvider
 
-    __all__.append("PCBDesignerProvider")
+    __all__.append("GitHubCopilotProvider")
 except ImportError:
     pass
 
 try:
-    from mascarade.router.providers.quilter import QuilterProvider
+    from mascarade.router.providers.perplexity import PerplexityProvider
 
-    __all__.append("QuilterProvider")
+    __all__.append("PerplexityProvider")
 except ImportError:
     pass
