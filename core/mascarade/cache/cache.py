@@ -73,16 +73,10 @@ class InMemoryCache:
         # Exclude provider, strategy, and model from cache key to enable cache hits across different providers
         # and strategies after fallback scenarios. Model is determined by provider selection.
         cache_kwargs = {
-            k: v
-            for k, v in kwargs.items()
-            if k not in ["provider", "strategy", "model"]
+            k: v for k, v in kwargs.items() if k not in ["provider", "strategy", "model"]
         }
 
-        raw = (
-            json.dumps(messages, sort_keys=True)
-            + "|"
-            + json.dumps(cache_kwargs, sort_keys=True)
-        )
+        raw = json.dumps(messages, sort_keys=True) + "|" + json.dumps(cache_kwargs, sort_keys=True)
         return hashlib.sha256(raw.encode()).hexdigest()
 
     def store(

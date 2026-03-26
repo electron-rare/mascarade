@@ -139,9 +139,7 @@ HUMANEVAL_PROBLEMS = [
 ]
 
 
-def query_ollama(
-    url: str, model: str, prompt: str, max_tokens: int = 512
-) -> tuple[str, float]:
+def query_ollama(url: str, model: str, prompt: str, max_tokens: int = 512) -> tuple[str, float]:
     """Query Ollama using chat template and return (response, duration_seconds)."""
     chat_prompt = (
         "<|im_start|>system\n"
@@ -221,9 +219,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--url", default="http://localhost:11434")
     parser.add_argument("--model", default="mascarade-coder")
-    parser.add_argument(
-        "--n", type=int, default=20, help="Number of problems to evaluate"
-    )
+    parser.add_argument("--n", type=int, default=20, help="Number of problems to evaluate")
     args = parser.parse_args()
 
     problems = HUMANEVAL_PROBLEMS[: args.n]
@@ -241,9 +237,7 @@ def main():
         try:
             completion, elapsed = query_ollama(args.url, args.model, prob["prompt"])
             times.append(elapsed)
-            full_code = extract_function(
-                prob["prompt"], completion, prob["entry_point"]
-            )
+            full_code = extract_function(prob["prompt"], completion, prob["entry_point"])
             ok = run_test(full_code, prob["test"])
             status = "PASS" if ok else "FAIL"
             if ok:

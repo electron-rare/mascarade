@@ -128,9 +128,7 @@ async def test_send_success(monkeypatch):
     mock_response.raise_for_status = MagicMock()
     mock_response.json.return_value = {
         "model": "apple-fm-3b",
-        "choices": [
-            {"message": {"role": "assistant", "content": "Hello from AFM!"}}
-        ],
+        "choices": [{"message": {"role": "assistant", "content": "Hello from AFM!"}}],
         "usage": {"prompt_tokens": 10, "completion_tokens": 5},
     }
 

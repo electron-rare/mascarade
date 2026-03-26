@@ -18,9 +18,7 @@ async def test_vllm_worker_initialization():
         mock_provider = AsyncMock()
         MockVLLM.return_value = mock_provider
 
-        worker = VLLMWorker(
-            node_id="test-worker", model_path="test-model", tensor_parallel_size=1
-        )
+        worker = VLLMWorker(node_id="test-worker", model_path="test-model", tensor_parallel_size=1)
 
         await worker.initialize()
         mock_provider.initialize.assert_awaited_once()
@@ -64,9 +62,7 @@ async def test_vllm_scheduler_registration():
         mock_instance = AsyncMock()
         mock_worker.return_value = mock_instance
 
-        await scheduler.register_vllm_worker(
-            node_id="worker-1", model_path="test-model"
-        )
+        await scheduler.register_vllm_worker(node_id="worker-1", model_path="test-model")
 
         # Verify worker was created and initialized
         mock_worker.assert_called_once()
@@ -171,9 +167,7 @@ async def test_vllm_performance_benchmark():
         worker = VLLMWorker(node_id="benchmark-worker", model_path="benchmark-model")
 
         # Mock the provider
-        worker.provider.generate = AsyncMock(
-            return_value=MagicMock(content="test response")
-        )
+        worker.provider.generate = AsyncMock(return_value=MagicMock(content="test response"))
 
         # Create test requests
         requests = [
@@ -212,9 +206,7 @@ async def test_paged_attention_performance():
     """Benchmark PagedAttention memory operations."""
     import time
 
-    manager = PagedAttentionManager(
-        block_size=16, max_gpu_blocks=100, max_cpu_blocks=1000
-    )
+    manager = PagedAttentionManager(block_size=16, max_gpu_blocks=100, max_cpu_blocks=1000)
 
     # Allocate many sequences
     num_sequences = 1000

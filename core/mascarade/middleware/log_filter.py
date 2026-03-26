@@ -45,8 +45,7 @@ class SecretMaskingFilter(logging.Filter):
                 }
             elif isinstance(record.args, tuple):
                 record.args = tuple(
-                    mask_secrets(str(a)) if isinstance(a, str) else a
-                    for a in record.args
+                    mask_secrets(str(a)) if isinstance(a, str) else a for a in record.args
                 )
         return True
 

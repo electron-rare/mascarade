@@ -159,10 +159,7 @@ class Router:
 
         # ML routing classifier for tier prediction (strong/cheap/fast)
         self.routing_classifier = None
-        if (
-            settings.ml_routing_classifier_enabled
-            and get_routing_classifier is not None
-        ):
+        if settings.ml_routing_classifier_enabled and get_routing_classifier is not None:
             try:
                 from pathlib import Path
 
@@ -214,9 +211,7 @@ class Router:
         l3 = None
         if settings.cache_l3_enabled:
             try:
-                l3 = SemanticCache(
-                    similarity_threshold=settings.cache_l3_similarity_threshold
-                )
+                l3 = SemanticCache(similarity_threshold=settings.cache_l3_similarity_threshold)
                 logger.info("L3 Semantic cache enabled")
             except Exception as exc:
                 logger.warning("Failed to initialize L3 Semantic cache: %s", exc)
@@ -287,9 +282,7 @@ class Router:
                 module = __import__(module_name, fromlist=[class_name])
                 provider_cls = getattr(module, class_name)
             except (ImportError, AttributeError) as exc:
-                logger.warning(
-                    "Skipping provider %s (%s): %s", class_name, module_name, exc
-                )
+                logger.warning("Skipping provider %s (%s): %s", class_name, module_name, exc)
                 continue
 
             try:
@@ -310,10 +303,7 @@ class Router:
         return list(self._providers.keys())
 
     def provider_model_map(self) -> dict[str, list[str]]:
-        return {
-            name: provider.available_models()
-            for name, provider in self._providers.items()
-        }
+        return {name: provider.available_models() for name, provider in self._providers.items()}
 
     def _get_effective_cost(self, provider: LLMProvider) -> float:
         """
@@ -420,9 +410,7 @@ class Router:
 
         # Filter out providers with OPEN circuits
         # Allow HALF_OPEN providers for recovery testing
-        healthy_providers = [
-            p for p in providers if not self.circuit_breaker.is_open(p.name)
-        ]
+        healthy_providers = [p for p in providers if not self.circuit_breaker.is_open(p.name)]
 
         # If all providers have OPEN circuits, fall back to all providers
         # to allow recovery attempts
@@ -504,17 +492,13 @@ class Router:
 
             # Return LLMProvider instances for these providers
             candidates = [
-                self._providers[name]
-                for name in top_providers
-                if name in self._providers
+                self._providers[name] for name in top_providers if name in self._providers
             ]
 
             return candidates if candidates else []
 
         except Exception as exc:
-            logger.warning(
-                "Failed to query benchmarks for domain '%s': %s", domain, exc
-            )
+            logger.warning("Failed to query benchmarks for domain '%s': %s", domain, exc)
             return []
 
     def _detect_domain(self, messages: list[dict]) -> str | None:
@@ -529,9 +513,7 @@ class Router:
         """
         # Combine all message content
         content = " ".join(
-            msg.get("content", "")
-            for msg in messages
-            if isinstance(msg.get("content"), str)
+            msg.get("content", "") for msg in messages if isinstance(msg.get("content"), str)
         )
 
         if not content.strip():
@@ -558,9 +540,7 @@ class Router:
                     logger.debug("ML classifier detected domain: %s", domain)
                     return domain
             except Exception as exc:
-                logger.warning(
-                    "ML classifier prediction failed: %s, falling back to keywords", exc
-                )
+                logger.warning("ML classifier prediction failed: %s, falling back to keywords", exc)
 
         # Fallback to keyword-based detection
         return detect_domain(content)
@@ -607,11 +587,7 @@ class Router:
         messages: list[dict],
         system: str | None = None,
     ) -> str | None:
-        normalized = (
-            re.sub(r"\s+", " ", cls._joined_message_text(messages, system))
-            .strip()
-            .lower()
-        )
+        normalized = re.sub(r"\s+", " ", cls._joined_message_text(messages, system)).strip().lower()
         if not normalized:
             return None
         if len(normalized) < 50:
@@ -632,32 +608,20 @@ class Router:
         if not text.strip():
             return 0.0
         length_score = min(len(text) / 6000.0, 1.0)
-        code_score = (
-            0.25 if re.search(r"```|class\s+|def\s+|function\s+", text, re.I) else 0.0
-        )
+        code_score = 0.25 if re.search(r"```|class\s+|def\s+|function\s+", text, re.I) else 0.0
         math_score = (
-            0.20
-            if re.search(r"\b(O\(|NP|FFT|integral|derive|proof)\b", text, re.I)
-            else 0.0
+            0.20 if re.search(r"\b(O\(|NP|FFT|integral|derive|proof)\b", text, re.I) else 0.0
         )
         planning_score = (
             0.15
-            if re.search(
-                r"\b(plan|todo|roadmap|architecture|threat model)\b", text, re.I
-            )
+            if re.search(r"\b(plan|todo|roadmap|architecture|threat model)\b", text, re.I)
             else 0.0
         )
-        multilingual_score = (
-            0.10 if re.search(r"[\u0400-\u04FF\u4E00-\u9FFF]", text) else 0.0
-        )
+        multilingual_score = 0.10 if re.search(r"[\u0400-\u04FF\u4E00-\u9FFF]", text) else 0.0
         return max(
             0.0,
             min(
-                length_score
-                + code_score
-                + math_score
-                + planning_score
-                + multilingual_score,
+                length_score + code_score + math_score + planning_score + multilingual_score,
                 1.0,
             ),
         )
@@ -754,18 +718,14 @@ class Router:
         if self.routing_classifier is not None and self.routing_classifier.is_loaded:
             try:
                 joined = self._joined_message_text(messages, system)
-                ml_tier, ml_confidence = (
-                    self.routing_classifier.predict_with_confidence(joined)
-                )
+                ml_tier, ml_confidence = self.routing_classifier.predict_with_confidence(joined)
                 logger.debug(
                     "ML routing classifier: tier=%s confidence=%.3f",
                     ml_tier,
                     ml_confidence,
                 )
                 # Only use ML prediction when confidence exceeds threshold
-                if ml_confidence >= max(
-                    0.0, min(float(settings.routellm_threshold), 1.0)
-                ):
+                if ml_confidence >= max(0.0, min(float(settings.routellm_threshold), 1.0)):
                     if ml_tier == "strong":
                         strategy, chosen_provider, chosen_model = _strong_target()
                     elif ml_tier == "fast":
@@ -780,9 +740,7 @@ class Router:
                     )
                     return strategy, chosen_provider, chosen_model
             except Exception as exc:
-                logger.warning(
-                    "ML routing classifier failed, falling back to heuristic: %s", exc
-                )
+                logger.warning("ML routing classifier failed, falling back to heuristic: %s", exc)
 
         # --- Rule-based complexity score fallback ------------------
         threshold = max(0.0, min(float(settings.routellm_threshold), 1.0))
@@ -901,12 +859,10 @@ class Router:
 
         Returns a dict with all resolved parameters needed by send()/stream().
         """
-        normalized_project, normalized_federation, normalized_scope = (
-            self._normalize_scope(
-                project_id=project_id,
-                federation_scope=federation_scope,
-                knowledge_scope=knowledge_scope,
-            )
+        normalized_project, normalized_federation, normalized_scope = self._normalize_scope(
+            project_id=project_id,
+            federation_scope=federation_scope,
+            knowledge_scope=knowledge_scope,
         )
         cache_scope = {
             "project_id": normalized_project,
@@ -937,9 +893,7 @@ class Router:
                 model=model,
                 routing_policy=policy,
             )
-        strict_provider = (
-            effective_strategy == Strategy.SPECIFIC and effective_provider is not None
-        )
+        strict_provider = effective_strategy == Strategy.SPECIFIC and effective_provider is not None
 
         cached = await self.cache.retrieve(
             messages,
@@ -963,9 +917,7 @@ class Router:
                 available_providers=self.available_providers,
             )
 
-        detected_domain = (
-            self._detect_domain(messages) if strategy == Strategy.BEST else None
-        )
+        detected_domain = self._detect_domain(messages) if strategy == Strategy.BEST else None
 
         return {
             "normalized_project": normalized_project,
@@ -1142,9 +1094,7 @@ class Router:
                     "Circuit breaker is open for provider %s, skipping",
                     selected.name,
                 )
-                last_error = RuntimeError(
-                    f"Circuit breaker is open for provider {selected.name}"
-                )
+                last_error = RuntimeError(f"Circuit breaker is open for provider {selected.name}")
                 continue
 
             started_at = time.perf_counter()
@@ -1354,9 +1304,7 @@ class Router:
                 )
 
             if resp.status_code != 200:
-                raise RuntimeError(
-                    f"Worker {worker.node_id} returned {resp.status_code}"
-                )
+                raise RuntimeError(f"Worker {worker.node_id} returned {resp.status_code}")
 
             data = resp.json()
             elapsed_ms = (time.perf_counter() - started) * 1000
@@ -1408,9 +1356,7 @@ class Router:
 
         fill_in_middle = getattr(selected, "fill_in_middle", None)
         if not callable(fill_in_middle):
-            raise ValueError(
-                f"Provider '{provider}' does not support fill-in-the-middle"
-            )
+            raise ValueError(f"Provider '{provider}' does not support fill-in-the-middle")
 
         started_at = time.perf_counter()
         self.load_balancer.request_started(selected.name)
@@ -1500,9 +1446,7 @@ class Router:
                     "Circuit breaker is open for provider %s, skipping",
                     selected.name,
                 )
-                last_error = RuntimeError(
-                    f"Circuit breaker is open for provider {selected.name}"
-                )
+                last_error = RuntimeError(f"Circuit breaker is open for provider {selected.name}")
                 continue
 
             started_at = time.perf_counter()
@@ -1547,9 +1491,7 @@ class Router:
             elapsed = time.perf_counter() - started_at
             # Streaming doesn't provide token counts, so track with zero usage
             stream_model = model or (
-                selected.available_models()[0]
-                if selected.available_models()
-                else "unknown"
+                selected.available_models()[0] if selected.available_models() else "unknown"
             )
             self._track_success(
                 provider_name=selected.name,

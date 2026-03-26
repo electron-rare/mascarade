@@ -28,9 +28,7 @@ class ProviderStats:
 
     def error_rate(self) -> float:
         """Calculer le taux d'erreur."""
-        return (
-            self.error_count / self.total_requests if self.total_requests > 0 else 0.0
-        )
+        return self.error_count / self.total_requests if self.total_requests > 0 else 0.0
 
 
 class LoadBalancer:
@@ -130,9 +128,7 @@ class LoadBalancer:
             self.providers[provider_name].total_requests += 1
             self.providers[provider_name].last_used = time.time()
 
-    def request_completed(
-        self, provider_name: str, response_time: float, success: bool
-    ) -> None:
+    def request_completed(self, provider_name: str, response_time: float, success: bool) -> None:
         """Notifier le balancer qu'une requête est terminée."""
         if provider_name in self.providers:
             stats = self.providers[provider_name]
@@ -159,12 +155,8 @@ class LoadBalancer:
                 }
                 for name, stats in self.providers.items()
             },
-            "total_requests": sum(
-                stats.total_requests for stats in self.providers.values()
-            ),
-            "total_pending": sum(
-                stats.pending_requests for stats in self.providers.values()
-            ),
+            "total_requests": sum(stats.total_requests for stats in self.providers.values()),
+            "total_pending": sum(stats.pending_requests for stats in self.providers.values()),
         }
 
     def reset_stats(self) -> None:

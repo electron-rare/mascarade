@@ -51,9 +51,7 @@ async def test_upload_dataset_success(tmp_path):
         }
     )
 
-    with patch(
-        "httpx.AsyncClient.post", new_callable=AsyncMock, return_value=fake_resp
-    ):
+    with patch("httpx.AsyncClient.post", new_callable=AsyncMock, return_value=fake_resp):
         studio = _make_studio()
         result = await studio.upload_dataset(str(dataset))
 
@@ -86,9 +84,7 @@ async def test_create_finetune_job_success():
         }
     )
 
-    with patch(
-        "httpx.AsyncClient.post", new_callable=AsyncMock, return_value=fake_resp
-    ):
+    with patch("httpx.AsyncClient.post", new_callable=AsyncMock, return_value=fake_resp):
         studio = _make_studio()
         result = await studio.create_finetune_job(
             model="open-mistral-7b",
@@ -189,9 +185,7 @@ async def test_cancel_finetune_job():
     """T-MS-025: cancel a running job."""
     fake_resp = _mock_response({"id": "ftjob-001", "status": "cancelled"})
 
-    with patch(
-        "httpx.AsyncClient.post", new_callable=AsyncMock, return_value=fake_resp
-    ):
+    with patch("httpx.AsyncClient.post", new_callable=AsyncMock, return_value=fake_resp):
         studio = _make_studio()
         result = await studio.cancel_finetune_job("ftjob-001")
 
@@ -231,13 +225,9 @@ async def test_list_models():
 @pytest.mark.asyncio
 async def test_delete_model():
     """T-MS-030: delete a fine-tuned model."""
-    fake_resp = _mock_response(
-        {"id": "ft:open-mistral-7b:my-model:ftjob-001", "deleted": True}
-    )
+    fake_resp = _mock_response({"id": "ft:open-mistral-7b:my-model:ftjob-001", "deleted": True})
 
-    with patch(
-        "httpx.AsyncClient.delete", new_callable=AsyncMock, return_value=fake_resp
-    ):
+    with patch("httpx.AsyncClient.delete", new_callable=AsyncMock, return_value=fake_resp):
         studio = _make_studio()
         result = await studio.delete_model("ft:open-mistral-7b:my-model:ftjob-001")
 
@@ -274,9 +264,7 @@ async def test_http_error_propagation():
         request=httpx.Request("POST", "https://api.mistral.ai/v1/fine_tuning/jobs"),
     )
 
-    with patch(
-        "httpx.AsyncClient.post", new_callable=AsyncMock, return_value=error_resp
-    ):
+    with patch("httpx.AsyncClient.post", new_callable=AsyncMock, return_value=error_resp):
         studio = _make_studio()
         with pytest.raises(httpx.HTTPStatusError):
             await studio.create_finetune_job(

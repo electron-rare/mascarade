@@ -21,9 +21,7 @@ async def get_prompt_history(name: str, request: Request):
     try:
         agent = request.app.state.registry.get(name)
     except KeyError:
-        raise HTTPException(
-            status_code=404, detail=f"Agent '{name}' not found"
-        ) from None
+        raise HTTPException(status_code=404, detail=f"Agent '{name}' not found") from None
 
     return {"versions": agent.prompt_versions}
 
@@ -43,9 +41,7 @@ async def rollback_prompt(name: str, version: int, request: Request):
     try:
         agent = request.app.state.registry.get(name)
     except KeyError:
-        raise HTTPException(
-            status_code=404, detail=f"Agent '{name}' not found"
-        ) from None
+        raise HTTPException(status_code=404, detail=f"Agent '{name}' not found") from None
 
     if version < 1:
         raise HTTPException(status_code=400, detail=f"Invalid version: {version}")

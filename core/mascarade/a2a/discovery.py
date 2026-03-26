@@ -1,4 +1,5 @@
 """A2A Discovery — find agents on the network."""
+
 from __future__ import annotations
 
 import logging
@@ -7,6 +8,7 @@ import time
 import httpx
 
 logger = logging.getLogger("mascarade.a2a.discovery")
+
 
 class A2ADiscovery:
     def __init__(self, known_peers: list[str] | None = None, cache_ttl: int = 300):

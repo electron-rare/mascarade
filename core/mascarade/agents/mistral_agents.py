@@ -163,19 +163,14 @@ class MistralRemoteAgent(Agent):
         if not is_secret_configured(api_key):
             raise RuntimeError("MISTRAL_API_KEY not configured")
         if not self.agent_id.strip():
-            raise RuntimeError(
-                f"Mistral agent '{self.name}' has no agent_id configured"
-            )
+            raise RuntimeError(f"Mistral agent '{self.name}' has no agent_id configured")
 
         headers = {
             "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json",
         }
         base_url = _mistral_base_url()
-        api_mode = (
-            getattr(settings, "mistral_agents_api_mode", "beta").strip().lower()
-            or "beta"
-        )
+        api_mode = getattr(settings, "mistral_agents_api_mode", "beta").strip().lower() or "beta"
 
         async with httpx.AsyncClient(timeout=120.0) as client:
             if api_mode == "beta" and self.conversation_id:
@@ -309,9 +304,7 @@ async def discover_mistral_agents() -> list[dict[str, str]]:
             data = resp.json()
 
         agents = []
-        items = (
-            data if isinstance(data, list) else data.get("data", data.get("agents", []))
-        )
+        items = data if isinstance(data, list) else data.get("data", data.get("agents", []))
         for agent in items:
             agents.append(
                 {
@@ -354,6 +347,4 @@ def register_mistral_agents(registry, agents_config: list[dict] | None = None) -
             max_tokens=cfg.get("max_tokens", 8192),
         )
         registry.register(agent, builtin=True)
-        logger.info(
-            "Mistral remote agent registered: %s (%s)", cfg["name"], cfg["agent_id"]
-        )
+        logger.info("Mistral remote agent registered: %s (%s)", cfg["name"], cfg["agent_id"])

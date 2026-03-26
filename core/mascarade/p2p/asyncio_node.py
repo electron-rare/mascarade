@@ -143,9 +143,7 @@ class MascaradeP2PNode:
     # --- Lifecycle ---
 
     async def start(self) -> None:
-        logger.info(
-            "Starting P2P node %s on port %d", self.peer_id, self._transport.listen_port
-        )
+        logger.info("Starting P2P node %s on port %d", self.peer_id, self._transport.listen_port)
         await self._transport.start()
         await self._dht.bootstrap()
         # Request capabilities from existing peers so we catch up on what we missed
@@ -321,18 +319,14 @@ class MascaradeP2PNode:
                 # Re-request capabilities from newly discovered peers
                 await self._capabilities.request_all()
                 # Update Prometheus gauges
-                connected = sum(
-                    1 for c in self._transport.peers.values() if c.connected
-                )
+                connected = sum(1 for c in self._transport.peers.values() if c.connected)
                 self._metrics.update_gauges(
                     connected_peers=connected,
                     dht_entries=len(self._dht.routing_table),
                     capabilities_known=len(self._capabilities.all_capabilities()),
                 )
                 # Detect peer joins/leaves and emit events
-                current_peers = {
-                    pid for pid, c in self._transport.peers.items() if c.connected
-                }
+                current_peers = {pid for pid, c in self._transport.peers.items() if c.connected}
                 for pid in current_peers - self._known_peers:
                     self._event_bus.emit(
                         P2PEvent(

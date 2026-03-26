@@ -236,9 +236,7 @@ class TestNodePortDefinition:
 
     def test_port_definition_defaults(self):
         """Port definition should have sensible defaults."""
-        port = NodePortDefinition(
-            id="simple", label="Simple", type=PrimitiveType.STRING
-        )
+        port = NodePortDefinition(id="simple", label="Simple", type=PrimitiveType.STRING)
         assert port.required is True
         assert port.default is None
         assert port.description == ""

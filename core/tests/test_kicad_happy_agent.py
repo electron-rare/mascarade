@@ -69,13 +69,14 @@ def agent() -> KiCadHappyAgent:
 # S-expression parser
 # ---------------------------------------------------------------------------
 
+
 class TestSExpressionParser:
     def test_tokenize_simple(self):
         tokens = _tokenize_sexpr('(hello "world" 42)')
         assert tokens == ["(", "hello", '"world"', "42", ")"]
 
     def test_tokenize_nested(self):
-        tokens = _tokenize_sexpr('(a (b c))')
+        tokens = _tokenize_sexpr("(a (b c))")
         assert tokens == ["(", "a", "(", "b", "c", ")", ")"]
 
     def test_parse_flat(self):
@@ -122,6 +123,7 @@ class TestSExpressionParser:
 # BOM extraction
 # ---------------------------------------------------------------------------
 
+
 class TestBOMExtraction:
     @pytest.mark.asyncio
     async def test_bom_extract(self, agent, sch_file):
@@ -148,6 +150,7 @@ class TestBOMExtraction:
 # ---------------------------------------------------------------------------
 # LCSC component sourcing
 # ---------------------------------------------------------------------------
+
 
 class TestComponentSourcing:
     def test_lookup_direct_match(self):
@@ -193,6 +196,7 @@ class TestComponentSourcing:
 # BOM export formats
 # ---------------------------------------------------------------------------
 
+
 class TestBOMExport:
     @pytest.fixture()
     def sample_components(self) -> list[SchComponent]:
@@ -210,7 +214,7 @@ class TestBOMExport:
         assert rows[1][0] == "R_10K"
         assert rows[1][1] == "R1"
         assert rows[1][3] == "C25744"  # known LCSC
-        assert rows[2][3] == "C1525"   # C_100nF
+        assert rows[2][3] == "C1525"  # C_100nF
 
     def test_digikey_csv(self, sample_components):
         csv_str = _bom_to_digikey_csv(sample_components)
@@ -226,7 +230,13 @@ class TestBOMExport:
         reader = csv.reader(io.StringIO(csv_str))
         rows = list(reader)
         header = rows[0]
-        assert header == ["Mouser Part Number", "Manufacturer Part Number", "Quantity", "Reference", "Description"]
+        assert header == [
+            "Mouser Part Number",
+            "Manufacturer Part Number",
+            "Quantity",
+            "Reference",
+            "Description",
+        ]
         assert rows[1][1] == "0402WGF1002TCE"  # MPN for R_10K
         assert rows[1][3] == "R1"
 
@@ -256,6 +266,7 @@ class TestBOMExport:
 # ---------------------------------------------------------------------------
 # DFM check heuristics
 # ---------------------------------------------------------------------------
+
 
 class TestDFMCheck:
     def test_no_violations_on_good_design(self):
@@ -336,6 +347,7 @@ class TestDFMCheck:
 # DFM check via agent skill
 # ---------------------------------------------------------------------------
 
+
 class TestDFMCheckSkill:
     @pytest.mark.asyncio
     async def test_dfm_check_skill_pass(self, agent):
@@ -367,6 +379,7 @@ class TestDFMCheckSkill:
 # Agent metadata
 # ---------------------------------------------------------------------------
 
+
 class TestAgentMetadata:
     def test_agent_name(self, agent):
         assert agent.name == "kicad-happy"
@@ -390,6 +403,7 @@ class TestAgentMetadata:
 # ---------------------------------------------------------------------------
 # Analyze schematic
 # ---------------------------------------------------------------------------
+
 
 class TestAnalyzeSchematic:
     @pytest.mark.asyncio

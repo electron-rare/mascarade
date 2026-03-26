@@ -23,6 +23,7 @@ VALID_OPTIMIZE_OBJECTIVES = {"time", "quality", "tool_life"}
 # KiCad server resolution helper
 # ---------------------------------------------------------------------------
 
+
 def _resolve_kicad_server_key() -> str:
     """Return the best available KiCad MCP server key.
 
@@ -363,9 +364,7 @@ def _calculate_improvement(original: list[dict], optimized: list[dict]) -> float
     def total_time(moves: list[dict]) -> float:
         t = 0.0
         for m in moves:
-            dist = math.sqrt(
-                m.get("x", 0) ** 2 + m.get("y", 0) ** 2 + m.get("z", 0) ** 2
-            )
+            dist = math.sqrt(m.get("x", 0) ** 2 + m.get("y", 0) ** 2 + m.get("z", 0) ** 2)
             feed = m.get("feed_rate", 100.0)
             t += dist / max(feed, 1.0) * 60
         return max(t, 0.001)

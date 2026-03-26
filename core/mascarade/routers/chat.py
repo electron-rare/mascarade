@@ -77,9 +77,7 @@ def _normalize_strategy(strategy: str | Strategy | None) -> Strategy | None:
     try:
         return Strategy(str(strategy))
     except ValueError as exc:
-        raise HTTPException(
-            status_code=400, detail=f"Unsupported strategy '{strategy}'."
-        ) from exc
+        raise HTTPException(status_code=400, detail=f"Unsupported strategy '{strategy}'.") from exc
 
 
 def _normalize_routing_policy(routing_policy: str | None) -> str | None:
@@ -122,9 +120,7 @@ def _infer_provider_for_model(model: str, router_instance: Any) -> str | None:
     provider_model_map = _provider_model_map(router_instance)
     if not provider_model_map:
         return None
-    owners = [
-        provider for provider, models in provider_model_map.items() if model in models
-    ]
+    owners = [provider for provider, models in provider_model_map.items() if model in models]
     if not owners:
         return None
     if len(owners) == 1:
@@ -185,9 +181,7 @@ def _message_to_dict(message: Any) -> dict[str, Any]:
         "content": content or "",
         **({"name": message.name} if getattr(message, "name", None) else {}),
         **(
-            {"tool_call_id": message.tool_call_id}
-            if getattr(message, "tool_call_id", None)
-            else {}
+            {"tool_call_id": message.tool_call_id} if getattr(message, "tool_call_id", None) else {}
         ),
     }
 
@@ -212,9 +206,7 @@ def _split_messages(
     return effective_messages, system_prompt, all_messages
 
 
-def _format_response_model(
-    provider: str | None, model: str | None, *, fallback: str
-) -> str:
+def _format_response_model(provider: str | None, model: str | None, *, fallback: str) -> str:
     if model is None or not str(model).strip():
         return fallback
     normalized_model = str(model).strip()
@@ -236,9 +228,7 @@ def _resolve_requested_routing(
     requested_strategy = _normalize_strategy(strategy)
     normalized_policy = _normalize_routing_policy(routing_policy)
     try:
-        provider, model_name, display_model = _parse_model_string(
-            model, router_instance
-        )
+        provider, model_name, display_model = _parse_model_string(model, router_instance)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -406,18 +396,14 @@ async def create_chat_completion(
 ):
     """Create a chat completion (OpenAI-compatible endpoint)."""
     router_instance = _require_router(request)
-    strategy, routing_policy, provider, model_name, display_model = (
-        _resolve_requested_routing(
-            router_instance=router_instance,
-            model=request_body.model,
-            strategy=request_body.strategy,
-            routing_policy=request_body.routing_policy,
-        )
+    strategy, routing_policy, provider, model_name, display_model = _resolve_requested_routing(
+        router_instance=router_instance,
+        model=request_body.model,
+        strategy=request_body.strategy,
+        routing_policy=request_body.routing_policy,
     )
     messages, system_prompt, all_messages = _split_messages(request_body.messages)
-    max_tokens = (
-        request_body.max_tokens if request_body.max_tokens is not None else 4096
-    )
+    max_tokens = request_body.max_tokens if request_body.max_tokens is not None else 4096
     response_format_dict = _response_format_from_openai(request_body)
 
     try:
@@ -467,9 +453,7 @@ async def create_chat_completion(
         if llm_response.usage:
             input_tokens = llm_response.usage.get("input_tokens", 0)
             output_tokens = llm_response.usage.get("output_tokens", 0)
-            total = llm_response.usage.get("total_tokens", 0) or (
-                input_tokens + output_tokens
-            )
+            total = llm_response.usage.get("total_tokens", 0) or (input_tokens + output_tokens)
             usage = ChatCompletionUsage(
                 prompt_tokens=input_tokens,
                 completion_tokens=output_tokens,
@@ -519,13 +503,11 @@ async def create_ollama_chat_completion(
 ):
     """Ollama-compatible chat shim backed by the Mascarade router."""
     router_instance = _require_router(request)
-    strategy, routing_policy, provider, model_name, display_model = (
-        _resolve_requested_routing(
-            router_instance=router_instance,
-            model=request_body.model,
-            strategy=request_body.strategy,
-            routing_policy=request_body.routing_policy,
-        )
+    strategy, routing_policy, provider, model_name, display_model = _resolve_requested_routing(
+        router_instance=router_instance,
+        model=request_body.model,
+        strategy=request_body.strategy,
+        routing_policy=request_body.routing_policy,
     )
     messages, system_prompt, all_messages = _split_messages(request_body.messages)
     temperature, max_tokens = _ollama_generation_params(request_body.options)
@@ -604,13 +586,11 @@ async def create_ollama_generate_completion(
 ):
     """Ollama-compatible generate shim backed by the Mascarade router."""
     router_instance = _require_router(request)
-    strategy, routing_policy, provider, model_name, display_model = (
-        _resolve_requested_routing(
-            router_instance=router_instance,
-            model=request_body.model,
-            strategy=request_body.strategy,
-            routing_policy=request_body.routing_policy,
-        )
+    strategy, routing_policy, provider, model_name, display_model = _resolve_requested_routing(
+        router_instance=router_instance,
+        model=request_body.model,
+        strategy=request_body.strategy,
+        routing_policy=request_body.routing_policy,
     )
     temperature, max_tokens = _ollama_generation_params(request_body.options)
     response_format = _response_format_from_ollama(request_body.format)

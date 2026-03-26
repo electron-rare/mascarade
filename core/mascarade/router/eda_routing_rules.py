@@ -20,46 +20,58 @@ def recommend_provider(
         complexity = "moderate"
 
     # Analysis always via kicad-happy
-    recommendations.append({
-        "step": "analyze",
-        "provider": "kicad_happy",
-        "reason": "Best for schematic analysis, BOM extraction, and DFM checks",
-    })
+    recommendations.append(
+        {
+            "step": "analyze",
+            "provider": "kicad_happy",
+            "reason": "Best for schematic analysis, BOM extraction, and DFM checks",
+        }
+    )
 
     # Routing
     if complexity == "complex":
-        recommendations.append({
-            "step": "route",
-            "provider": "quilter",
-            "reason": f"Complex board ({layer_count}L, {component_count} components) — Quilter RL autorouter recommended",
-        })
+        recommendations.append(
+            {
+                "step": "route",
+                "provider": "quilter",
+                "reason": f"Complex board ({layer_count}L, {component_count} components) — Quilter RL autorouter recommended",
+            }
+        )
     elif budget == "fast":
-        recommendations.append({
-            "step": "route",
-            "provider": "pcbdesigner",
-            "reason": "Fast budget — PCBDesigner one-click route+order",
-        })
+        recommendations.append(
+            {
+                "step": "route",
+                "provider": "pcbdesigner",
+                "reason": "Fast budget — PCBDesigner one-click route+order",
+            }
+        )
     else:
-        recommendations.append({
-            "step": "route",
-            "provider": "kicad_router",
-            "reason": f"Standard {complexity} board — internal KiCad router sufficient",
-            "alternative": "quilter" if complexity == "moderate" else None,
-        })
+        recommendations.append(
+            {
+                "step": "route",
+                "provider": "kicad_router",
+                "reason": f"Standard {complexity} board — internal KiCad router sufficient",
+                "alternative": "quilter" if complexity == "moderate" else None,
+            }
+        )
 
     # Fabrication
     if budget == "fast":
-        recommendations.append({
-            "step": "fabricate",
-            "provider": "pcbdesigner",
-            "reason": "One-click JLCPCB ordering via PCBDesigner",
-        })
+        recommendations.append(
+            {
+                "step": "fabricate",
+                "provider": "pcbdesigner",
+                "reason": "One-click JLCPCB ordering via PCBDesigner",
+            }
+        )
     else:
-        recommendations.append({
-            "step": "fabricate",
-            "provider": "manual",
-            "reason": "Standard flow — review Gerbers before ordering",
-        })
+        recommendations.append(
+            {
+                "step": "fabricate",
+                "provider": "manual",
+                "reason": "Standard flow — review Gerbers before ordering",
+            }
+        )
 
     return {
         "complexity": complexity,

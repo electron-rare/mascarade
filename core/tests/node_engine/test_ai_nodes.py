@@ -637,9 +637,7 @@ class TestOrchestrate:
 
         # Create orchestrator and AI worker
         orchestrator = Orchestrator(router=mock_router, registry=mock_registry)
-        ai_worker = AIWorker(
-            router=mock_router, registry=mock_registry, orchestrator=orchestrator
-        )
+        ai_worker = AIWorker(router=mock_router, registry=mock_registry, orchestrator=orchestrator)
 
         # Execute sequential orchestration
         result = await ai_worker.execute(
@@ -708,9 +706,7 @@ class TestOrchestrate:
 
         # Create orchestrator and AI worker
         orchestrator = Orchestrator(router=mock_router, registry=mock_registry)
-        ai_worker = AIWorker(
-            router=mock_router, registry=mock_registry, orchestrator=orchestrator
-        )
+        ai_worker = AIWorker(router=mock_router, registry=mock_registry, orchestrator=orchestrator)
 
         # Execute parallel orchestration
         result = await ai_worker.execute(
@@ -772,9 +768,7 @@ class TestOrchestrate:
 
         # Create orchestrator and AI worker
         orchestrator = Orchestrator(router=mock_router, registry=mock_registry)
-        ai_worker = AIWorker(
-            router=mock_router, registry=mock_registry, orchestrator=orchestrator
-        )
+        ai_worker = AIWorker(router=mock_router, registry=mock_registry, orchestrator=orchestrator)
 
         # Execute pipeline orchestration
         result = await ai_worker.execute(
@@ -829,9 +823,7 @@ class TestOrchestrate:
 
         # Create orchestrator and AI worker
         orchestrator = Orchestrator(router=mock_router, registry=mock_registry)
-        ai_worker = AIWorker(
-            router=mock_router, registry=mock_registry, orchestrator=orchestrator
-        )
+        ai_worker = AIWorker(router=mock_router, registry=mock_registry, orchestrator=orchestrator)
 
         # Execute orchestration without specifying mode
         result = await ai_worker.execute(
@@ -895,9 +887,7 @@ async def test_orchestrate(mock_router, mock_registry, monkeypatch):
 
     # Create orchestrator and AI worker
     orchestrator = Orchestrator(router=mock_router, registry=mock_registry)
-    ai_worker = AIWorker(
-        router=mock_router, registry=mock_registry, orchestrator=orchestrator
-    )
+    ai_worker = AIWorker(router=mock_router, registry=mock_registry, orchestrator=orchestrator)
 
     # Test sequential mode
     result = await ai_worker.execute(
@@ -946,9 +936,7 @@ async def test_router_select(mock_router, mock_registry):
 
     # Mock the router's _select_provider method
     mock_provider = MockProvider()
-    mock_router._select_provider = (
-        lambda strategy, provider_name=None, domain=None: mock_provider
-    )
+    mock_router._select_provider = lambda strategy, provider_name=None, domain=None: mock_provider
 
     # Test basic provider selection
     result = await ai_worker.execute(

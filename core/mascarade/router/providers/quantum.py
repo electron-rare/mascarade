@@ -32,8 +32,7 @@ class QuantumAIProvider:
         """Initialize Quantum-AI provider."""
         if not QUANTUM_AVAILABLE:
             logger.warning(
-                "Quantum computing libraries not available. "
-                "Install with: pip install qiskit"
+                "Quantum computing libraries not available. " "Install with: pip install qiskit"
             )
 
         self.api_key = api_key
@@ -120,9 +119,7 @@ class QuantumClassicalHybrid:
     def __init__(self, provider: QuantumAIProvider):
         self.provider = provider
 
-    async def optimize_with_quantum(
-        self, problem: dict, max_iterations: int = 10
-    ) -> dict:
+    async def optimize_with_quantum(self, problem: dict, max_iterations: int = 10) -> dict:
         """Optimize using quantum-enhanced algorithms."""
         quantum_task = {
             "type": "optimization",
@@ -130,13 +127,9 @@ class QuantumClassicalHybrid:
             "iterations": max_iterations,
         }
 
-        return await self.provider.hybrid_inference(
-            "Solving optimization problem", quantum_task
-        )
+        return await self.provider.hybrid_inference("Solving optimization problem", quantum_task)
 
-    async def sample_with_quantum(
-        self, distribution: dict, samples: int = 1000
-    ) -> dict:
+    async def sample_with_quantum(self, distribution: dict, samples: int = 1000) -> dict:
         """Generate samples using quantum-enhanced sampling."""
         quantum_task = {
             "type": "sampling",
@@ -144,13 +137,9 @@ class QuantumClassicalHybrid:
             "samples": samples,
         }
 
-        return await self.provider.hybrid_inference(
-            "Generating quantum samples", quantum_task
-        )
+        return await self.provider.hybrid_inference("Generating quantum samples", quantum_task)
 
-    async def extract_quantum_features(
-        self, data: list[dict], feature_dim: int = 128
-    ) -> dict:
+    async def extract_quantum_features(self, data: list[dict], feature_dim: int = 128) -> dict:
         """Extract features using quantum algorithms."""
         quantum_task = {
             "type": "feature_extraction",
@@ -158,9 +147,7 @@ class QuantumClassicalHybrid:
             "dimensions": feature_dim,
         }
 
-        return await self.provider.hybrid_inference(
-            "Extracting quantum features", quantum_task
-        )
+        return await self.provider.hybrid_inference("Extracting quantum features", quantum_task)
 
 
 class QuantumReadiness:
@@ -295,10 +282,7 @@ class QuantumSecurity:
                 "URGENT: Begin migration to post-quantum cryptography"
             )
 
-        if (
-            assessment["mitigations"]["quantum_key_distribution"]["status"]
-            != "complete"
-        ):
+        if assessment["mitigations"]["quantum_key_distribution"]["status"] != "complete":
             assessment["recommendations"].append(
                 "Evaluate Quantum Key Distribution for critical networks"
             )

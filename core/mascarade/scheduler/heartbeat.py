@@ -82,9 +82,7 @@ class HeartbeatMonitor:
 
             if latency_ms > SLOW_THRESHOLD_MS:
                 worker.status = WorkerStatus.SLOW
-                logger.warning(
-                    "Worker %s is slow (%.0f ms)", worker.node_id, latency_ms
-                )
+                logger.warning("Worker %s is slow (%.0f ms)", worker.node_id, latency_ms)
             else:
                 if worker.status == WorkerStatus.DEAD:
                     logger.info("Worker %s came back alive", worker.node_id)

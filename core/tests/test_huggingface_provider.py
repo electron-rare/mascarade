@@ -42,9 +42,7 @@ class _FakeAsyncOpenAI:
             completions=SimpleNamespace(
                 create=AsyncMock(
                     return_value=SimpleNamespace(
-                        choices=[
-                            SimpleNamespace(message=SimpleNamespace(content="ok"))
-                        ],
+                        choices=[SimpleNamespace(message=SimpleNamespace(content="ok"))],
                         usage=SimpleNamespace(prompt_tokens=3, completion_tokens=2),
                     )
                 )
@@ -105,9 +103,7 @@ async def test_huggingface_provider_uses_api_key(monkeypatch):
     assert provider.is_configured is True
     client = await provider._ensure_client()
     assert client.api_key == "hf_api_key_123456789"  # noqa: S105
-    assert (
-        _FakeAsyncOpenAI.created[-1]["api_key"] == "hf_api_key_123456789"
-    )  # noqa: S105
+    assert _FakeAsyncOpenAI.created[-1]["api_key"] == "hf_api_key_123456789"  # noqa: S105
 
 
 @pytest.mark.asyncio
@@ -117,9 +113,7 @@ async def test_huggingface_provider_refreshes_oauth_token(monkeypatch):
     settings.huggingface_oauth_refresh_token = "hf_refresh_123456789"  # noqa: S105
     settings.huggingface_oauth_client_id = "hf-client-id"
     settings.huggingface_oauth_client_secret = "hf-client-secret-123456"  # noqa: S105
-    settings.huggingface_oauth_token_endpoint = (
-        "https://huggingface.co/oauth/token"  # noqa: S105
-    )
+    settings.huggingface_oauth_token_endpoint = "https://huggingface.co/oauth/token"  # noqa: S105
     settings.huggingface_oauth_expires_at = ""
 
     _FakeAsyncOpenAI.created.clear()
@@ -139,12 +133,8 @@ async def test_huggingface_provider_refreshes_oauth_token(monkeypatch):
     client = await provider._ensure_client()
 
     assert client.api_key == "hf_oauth_access_123456789"  # noqa: S105
-    assert (
-        settings.huggingface_oauth_access_token == "hf_oauth_access_123456789"
-    )  # noqa: S105
-    assert (
-        settings.huggingface_oauth_refresh_token == "hf_refresh_rotated_987654321"
-    )  # noqa: S105
+    assert settings.huggingface_oauth_access_token == "hf_oauth_access_123456789"  # noqa: S105
+    assert settings.huggingface_oauth_refresh_token == "hf_refresh_rotated_987654321"  # noqa: S105
     assert settings.huggingface_oauth_expires_at
     assert _FakeHttpxClient.calls
     assert _FakeHttpxClient.calls[-1]["url"] == "https://huggingface.co/oauth/token"

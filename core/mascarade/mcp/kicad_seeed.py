@@ -104,9 +104,7 @@ SEEED_TOOL_CATEGORIES: dict[str, list[str]] = {
     ],
 }
 
-SEEED_TOOLS: list[str] = [
-    tool for tools in SEEED_TOOL_CATEGORIES.values() for tool in tools
-]
+SEEED_TOOLS: list[str] = [tool for tools in SEEED_TOOL_CATEGORIES.values() for tool in tools]
 
 # Subset of tools that overlap with the legacy ``seeed-kicad`` entry
 # in ``kicad_servers.py``.  When the Seeed server is available these
@@ -124,12 +122,15 @@ LEGACY_OVERLAP_TOOLS = {
 # Server descriptor
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class SeeedKicadServer:
     """Runtime descriptor for the Seeed KiCad MCP server."""
 
     key: str = "seeed-kicad-v2"
-    description: str = "Seeed Studio KiCad MCP — 39 tools (analysis, validation, pin, devicetree, editing)"
+    description: str = (
+        "Seeed Studio KiCad MCP — 39 tools (analysis, validation, pin, devicetree, editing)"
+    )
     repo: str = "https://github.com/Seeed-Studio/kicad-mcp-server"
     command: tuple[str, ...] = field(default_factory=_resolve_command)
     tools: list[str] = field(default_factory=lambda: list(SEEED_TOOLS))
@@ -152,6 +153,7 @@ def get_server() -> SeeedKicadServer:
 # ---------------------------------------------------------------------------
 # Availability check
 # ---------------------------------------------------------------------------
+
 
 def is_available() -> bool:
     """Return True if the Seeed KiCad MCP server can be launched.
@@ -194,6 +196,7 @@ def get_server_config(project_path: str | None = None) -> dict[str, Any]:
 # Tool resolution helpers
 # ---------------------------------------------------------------------------
 
+
 def resolve_tool(tool_name: str) -> str | None:
     """Map a legacy or canonical tool name to its Seeed equivalent.
 
@@ -213,6 +216,7 @@ def get_tools_by_category(category: str) -> list[str]:
 # Logging helper
 # ---------------------------------------------------------------------------
 
+
 def log_status() -> None:
     """Log availability of the Seeed KiCad MCP server."""
     if is_available():
@@ -224,8 +228,7 @@ def log_status() -> None:
         )
     elif _is_enabled():
         logger.warning(
-            "Seeed KiCad MCP server: enabled but command not found (%s). "
-            "Install with: %s",
+            "Seeed KiCad MCP server: enabled but command not found (%s). " "Install with: %s",
             " ".join(_resolve_command()),
             "pip install kicad-mcp-server",
         )

@@ -243,13 +243,9 @@ class CompileNode(BaseNode):
 
         # Compile based on framework
         if framework == "esp-idf":
-            return await self._compile_esp_idf(
-                source_path_obj, target, build_flags, config
-            )
+            return await self._compile_esp_idf(source_path_obj, target, build_flags, config)
         elif framework == "platformio":
-            return await self._compile_platformio(
-                source_path_obj, target, build_flags, config
-            )
+            return await self._compile_platformio(source_path_obj, target, build_flags, config)
         else:
             raise ValueError(
                 f"Unsupported framework: {framework}. Must be 'esp-idf' or 'platformio'"
@@ -294,8 +290,7 @@ class CompileNode(BaseNode):
                 await check_proc.communicate()
                 if check_proc.returncode != 0:
                     raise RuntimeError(
-                        "idf.py not available. "
-                        "Please install ESP-IDF and source export.sh."
+                        "idf.py not available. " "Please install ESP-IDF and source export.sh."
                     )
                 idf_py = "idf.py"
             except FileNotFoundError:
@@ -392,8 +387,7 @@ class CompileNode(BaseNode):
                 logger.error(f"Binary not found in {build_dir}")
                 return {
                     "firmware": None,
-                    "build_log": build_log
-                    + f"\n\nError: Binary not found in {build_dir}",
+                    "build_log": build_log + f"\n\nError: Binary not found in {build_dir}",
                     "success": False,
                 }
 
@@ -465,13 +459,11 @@ class CompileNode(BaseNode):
             await check_proc.communicate()
             if check_proc.returncode != 0:
                 raise RuntimeError(
-                    "PlatformIO not available. "
-                    "Please install PlatformIO: pip install platformio"
+                    "PlatformIO not available. " "Please install PlatformIO: pip install platformio"
                 )
         except FileNotFoundError:
             raise RuntimeError(
-                "PlatformIO not found. "
-                "Please install PlatformIO: pip install platformio"
+                "PlatformIO not found. " "Please install PlatformIO: pip install platformio"
             ) from None
 
         build_log_lines = []
@@ -534,8 +526,7 @@ class CompileNode(BaseNode):
                 logger.error(f"Binary not found at {binary_path}")
                 return {
                     "firmware": None,
-                    "build_log": build_log
-                    + f"\n\nError: Binary not found at {binary_path}",
+                    "build_log": build_log + f"\n\nError: Binary not found at {binary_path}",
                     "success": False,
                 }
 
@@ -761,9 +752,7 @@ class FlashPrepareNode(BaseNode):
             "merged_binary": merged_binary,
         }
 
-    def _generate_esptool_command(
-        self, firmware: dict[str, Any], config: dict[str, Any]
-    ) -> str:
+    def _generate_esptool_command(self, firmware: dict[str, Any], config: dict[str, Any]) -> str:
         """Generate esptool.py flash command.
 
         Args:

@@ -213,9 +213,7 @@ class TestRoutingClassifier:
         clf = RoutingClassifier()
         # Record 15 samples across tiers
         for i in range(6):
-            clf.record_outcome(
-                f"complex code with function class {i}", "strong", True, 200.0, 0.05
-            )
+            clf.record_outcome(f"complex code with function class {i}", "strong", True, 200.0, 0.05)
         for i in range(5):
             clf.record_outcome(f"simple question {i}", "cheap", True, 50.0, 0.001)
         for i in range(4):

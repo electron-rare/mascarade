@@ -89,8 +89,10 @@ def _clean_api_keys():
 @asynccontextmanager
 async def _client(fake_router: FakeRouter | None = None):
     """Create test client with optional fake router."""
-    with patch("mascarade.auth.is_valid_api_key", return_value=True), \
-         patch("mascarade.auth._resolve_role", return_value="admin"):
+    with (
+        patch("mascarade.auth.is_valid_api_key", return_value=True),
+        patch("mascarade.auth._resolve_role", return_value="admin"),
+    ):
         async with app.router.lifespan_context(app):
             original_router = app.state.router if fake_router else None
             if fake_router:
@@ -114,16 +116,16 @@ async def _client_no_raise(fake_router: FakeRouter | None = None):
     Use for tests that exercise code paths where unhandled exceptions
     propagate (the transport returns 500 instead of raising).
     """
-    with patch("mascarade.auth.is_valid_api_key", return_value=True), \
-         patch("mascarade.auth._resolve_role", return_value="admin"):
+    with (
+        patch("mascarade.auth.is_valid_api_key", return_value=True),
+        patch("mascarade.auth._resolve_role", return_value="admin"),
+    ):
         async with app.router.lifespan_context(app):
             original_router = app.state.router if fake_router else None
             if fake_router:
                 app.state.router = fake_router
             try:
-                transport = httpx.ASGITransport(
-                    app=app, raise_app_exceptions=False
-                )
+                transport = httpx.ASGITransport(app=app, raise_app_exceptions=False)
                 async with httpx.AsyncClient(
                     transport=transport,
                     base_url="http://testserver",
@@ -414,8 +416,10 @@ async def test_chat_completion_router_not_initialized():
     The legacy endpoint accesses ``app.state.router`` directly with no guard;
     when the attribute is missing an ``AttributeError`` propagates.
     """
-    with patch("mascarade.auth.is_valid_api_key", return_value=True), \
-         patch("mascarade.auth._resolve_role", return_value="admin"):
+    with (
+        patch("mascarade.auth.is_valid_api_key", return_value=True),
+        patch("mascarade.auth._resolve_role", return_value="admin"),
+    ):
         async with app.router.lifespan_context(app):
             original = getattr(app.state, "router", None)
             if hasattr(app.state, "router"):
@@ -537,9 +541,7 @@ async def test_chat_completion_message_with_tool_call_id():
             "/v1/chat/completions",
             json={
                 "model": "gpt-4",
-                "messages": [
-                    {"role": "tool", "content": "result", "tool_call_id": "call_123"}
-                ],
+                "messages": [{"role": "tool", "content": "result", "tool_call_id": "call_123"}],
             },
         )
 
@@ -726,9 +728,7 @@ async def test_parse_model_string_ollama_with_tag():
     class FakeRouterInstance:
         available_providers = ["ollama"]
 
-    provider, model, display = _parse_model_string(
-        "ollama:qwen3.5:9b", FakeRouterInstance()
-    )
+    provider, model, display = _parse_model_string("ollama:qwen3.5:9b", FakeRouterInstance())
     assert provider == "ollama"
     assert model == "qwen3.5:9b"
     assert display == "ollama:qwen3.5:9b"

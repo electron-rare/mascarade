@@ -38,9 +38,7 @@ async def main():
     print(f"{'='*60}\n")
 
     researcher = ResearcherAgent(hf_token=args.hf_token)
-    report = await researcher.recommend(
-        args.task, max_size_gb=args.max_size, top_k=args.top_k
-    )
+    report = await researcher.recommend(args.task, max_size_gb=args.max_size, top_k=args.top_k)
 
     for i, m in enumerate(report["candidates"], 1):
         print(f"  {i}. {m['model_id']}")
@@ -70,9 +68,7 @@ async def main():
     print(f"{'='*60}\n")
 
     documentalist = DocumentalistAgent(hf_token=args.hf_token)
-    ds_report = await documentalist.recommend(
-        args.domain, top_k=args.top_k, languages=languages
-    )
+    ds_report = await documentalist.recommend(args.domain, top_k=args.top_k, languages=languages)
 
     for i, d in enumerate(ds_report["candidates"], 1):
         print(f"  {i}. {d['dataset_id']}")

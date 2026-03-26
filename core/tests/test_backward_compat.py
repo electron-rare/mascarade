@@ -47,8 +47,10 @@ async def _client():
     before dispatching requests. `httpx.ASGITransport` exercises the same app
     without that sync bridge.
     """
-    with patch("mascarade.auth.is_valid_api_key", return_value=True), \
-         patch("mascarade.auth._resolve_role", return_value="admin"):
+    with (
+        patch("mascarade.auth.is_valid_api_key", return_value=True),
+        patch("mascarade.auth._resolve_role", return_value="admin"),
+    ):
         async with app.router.lifespan_context(app):
             transport = httpx.ASGITransport(app=app)
             async with httpx.AsyncClient(
@@ -123,8 +125,10 @@ async def test_migrate_legacy_keys_no_env_var():
         del os.environ["MASCARADE_API_KEY"]
 
     # Mock the database pool and ensure _configured_api_keys_string returns ""
-    with patch("mascarade.auth.get_db_pool") as mock_pool, \
-         patch("mascarade.auth._configured_api_keys_string", return_value=""):
+    with (
+        patch("mascarade.auth.get_db_pool") as mock_pool,
+        patch("mascarade.auth._configured_api_keys_string", return_value=""),
+    ):
         mock_pool.return_value = MagicMock()
 
         result = await migrate_legacy_keys()
@@ -141,8 +145,10 @@ async def test_migrate_legacy_keys_empty_string():
     """Test migration when MASCARADE_API_KEY is empty string."""
     os.environ["MASCARADE_API_KEY"] = ""
 
-    with patch("mascarade.auth.get_db_pool") as mock_pool, \
-         patch("mascarade.auth._configured_api_keys_string", return_value=""):
+    with (
+        patch("mascarade.auth.get_db_pool") as mock_pool,
+        patch("mascarade.auth._configured_api_keys_string", return_value=""),
+    ):
         mock_pool.return_value = MagicMock()
 
         result = await migrate_legacy_keys()

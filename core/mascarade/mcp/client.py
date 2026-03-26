@@ -2,17 +2,39 @@
 
 from __future__ import annotations
 
-import ast
 import asyncio
 import json
 import logging
 import os
 import time
-from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 from mascarade.config import settings
+from mascarade.mcp.errors import McpCallError, McpServerUnavailable
+from mascarade.mcp.protocol import (
+    _message_text,
+    _normalize_scope,
+    _read_message,
+    _write_message,
+)
+from mascarade.mcp.sandbox import _validate_freecad_script
+from mascarade.mcp.server_registry import (
+    McpServerDefinition,
+    McpToolResult,
+    register_erpnext_server,
+    register_graphiti_server,
+    register_industrial_servers,
+    register_kicad_mcp_servers,
+    register_n8n_server,
+    register_searxng_server,
+)
+from mascarade.mcp.server_registry import (
+    _server_command as _registry_server_command,
+)
+from mascarade.mcp.server_registry import (
+    list_servers as _registry_list_servers,
+)
 from mascarade.observability import AgentTraceBuffer
 
 logger = logging.getLogger("mascarade.mcp.client")
@@ -36,235 +58,6 @@ DEFAULT_AGENT_FACTORY_COCKPIT_DIR = _resolve_default_dir(
 DEFAULT_MASCARADE_ENV_FILE = Path(
     os.getenv("MASCARADE_ENV_FILE", str(DEFAULT_MASCARADE_DIR / ".env"))
 ).resolve()
-_FREECAD_BLOCKED_SNIPPETS = (
-    "import os",
-    "from os",
-    "import subprocess",
-    "from subprocess",
-    "import socket",
-    "from socket",
-    "__import__",
-    "eval(",
-    "exec(",
-    "open(",
-)
-_FREECAD_ALLOWED_IMPORT_ROOTS = {
-    "FreeCAD",
-    "App",
-    "Part",
-    "math",
-    "json",
-}
-_FREECAD_BLOCKED_MODULE_NAMES = {
-    "os",
-    "subprocess",
-    "socket",
-    "pathlib",
-    "sys",
-    "shutil",
-    "builtins",
-}
-_FREECAD_BLOCKED_CALLS = {
-    "__import__",
-    "eval",
-    "exec",
-    "compile",
-    "open",
-    "input",
-    "help",
-    "globals",
-    "locals",
-    "vars",
-    "getattr",
-    "setattr",
-    "delattr",
-}
-
-
-@dataclass(slots=True)
-class McpServerDefinition:
-    key: str
-    launcher: Path | None = None
-    command: tuple[str, ...] | None = None
-    cwd: Path | None = None
-    timeout_s: float = 45.0
-    transport: str = "stdio"
-    label: str | None = None
-    description: str | None = None
-    url: str | None = None
-
-
-@dataclass(slots=True)
-class McpToolResult:
-    server_key: str
-    tool_name: str
-    structured_content: dict[str, Any]
-    message: str
-    protocol_version: str | None
-    server_name: str | None
-    is_error: bool
-    latency_ms: float
-    transport: str = "stdio"
-
-
-class McpError(RuntimeError):
-    def __init__(
-        self,
-        message: str,
-        *,
-        server_key: str,
-        tool_name: str | None = None,
-        protocol_version: str | None = None,
-        transport: str = "stdio",
-        latency_ms: float | None = None,
-        structured_content: dict[str, Any] | None = None,
-        error_code: str | None = None,
-    ) -> None:
-        super().__init__(message)
-        self.server_key = server_key
-        self.tool_name = tool_name
-        self.protocol_version = protocol_version
-        self.transport = transport
-        self.latency_ms = latency_ms
-        self.structured_content = structured_content or {}
-        self.error_code = error_code
-
-
-class McpServerUnavailable(McpError):
-    """The target MCP server could not be started or initialized."""
-
-
-class McpCallError(McpError):
-    """The MCP server answered, but the requested tool call failed."""
-
-
-def _message_text(payload: dict[str, Any]) -> str:
-    content = payload.get("content")
-    if isinstance(content, list):
-        for item in content:
-            if isinstance(item, dict) and item.get("type") == "text":
-                text = str(item.get("text") or "").strip()
-                if text:
-                    return text
-    return ""
-
-
-def _normalize_scope(
-    *,
-    project_id: str | None = None,
-    federation_scope: list[str] | tuple[str, ...] | None = None,
-    knowledge_scope: str = "project",
-) -> tuple[str, list[str], str]:
-    normalized_project = (
-        project_id or settings.mascarade_project_id
-    ).strip() or "default"
-    normalized_scope = (knowledge_scope or "project").strip().lower() or "project"
-    if normalized_scope not in {"project", "federated"}:
-        raise ValueError(f"Unsupported knowledge_scope: {knowledge_scope}")
-
-    cleaned_federation = [
-        item.strip() for item in (federation_scope or []) if str(item).strip()
-    ]
-    if normalized_scope == "project":
-        cleaned_federation = [normalized_project]
-    elif not cleaned_federation:
-        raise ValueError(
-            "federation_scope is required when knowledge_scope is federated"
-        )
-    elif normalized_project not in cleaned_federation:
-        cleaned_federation = [normalized_project, *cleaned_federation]
-
-    return normalized_project, list(dict.fromkeys(cleaned_federation)), normalized_scope
-
-
-async def _read_message(
-    stdout: asyncio.StreamReader,
-) -> dict[str, Any] | None:
-    headers: dict[str, str] = {}
-    first_line: bytes | None = None
-    while True:
-        line = await stdout.readline()
-        if not line:
-            return None
-        if first_line is None:
-            first_line = line
-            if line.lstrip().startswith(b"{"):
-                return json.loads(line.decode("utf-8"))
-        if line in (b"\r\n", b"\n"):
-            break
-        key, _, value = line.decode("utf-8").partition(":")
-        headers[key.strip().lower()] = value.strip()
-
-    content_length = int(headers.get("content-length", "0") or "0")
-    if content_length <= 0:
-        return None
-
-    body = await stdout.readexactly(content_length)
-    return json.loads(body.decode("utf-8"))
-
-
-async def _write_message(
-    stdin: asyncio.StreamWriter,
-    payload: dict[str, Any],
-) -> None:
-    body = json.dumps(payload).encode("utf-8")
-    stdin.write(f"Content-Length: {len(body)}\r\n\r\n".encode())
-    stdin.write(body)
-    await stdin.drain()
-
-
-def _validate_freecad_script(script: str) -> None:
-    if len(script) > 20_000:
-        raise ValueError("FreeCAD script too large (max 20,000 chars)")
-
-    lowered = script.lower()
-    for snippet in _FREECAD_BLOCKED_SNIPPETS:
-        if snippet in lowered:
-            raise ValueError(f"FreeCAD script contains blocked pattern: {snippet}")
-
-    try:
-        tree = ast.parse(script, mode="exec")
-    except SyntaxError as exc:
-        raise ValueError(f"FreeCAD script syntax error: {exc.msg}") from exc
-
-    for node in ast.walk(tree):
-        if isinstance(node, ast.Import):
-            for alias in node.names:
-                root = alias.name.split(".", 1)[0]
-                if root not in _FREECAD_ALLOWED_IMPORT_ROOTS:
-                    raise ValueError(f"FreeCAD script blocked import: {alias.name}")
-        elif isinstance(node, ast.ImportFrom):
-            module = (node.module or "").strip()
-            root = module.split(".", 1)[0] if module else ""
-            if node.level != 0 or root not in _FREECAD_ALLOWED_IMPORT_ROOTS:
-                raise ValueError(
-                    f"FreeCAD script blocked import-from: {module or '<relative>'}"
-                )
-        elif isinstance(node, ast.Call):
-            if (
-                isinstance(node.func, ast.Name)
-                and node.func.id in _FREECAD_BLOCKED_CALLS
-            ):
-                raise ValueError(
-                    f"FreeCAD script blocked function call: {node.func.id}"
-                )
-        elif isinstance(node, ast.Attribute):
-            if node.attr.startswith("__"):
-                raise ValueError(
-                    f"FreeCAD script blocked dunder attribute: {node.attr}"
-                )
-            if (
-                isinstance(node.value, ast.Name)
-                and node.value.id in _FREECAD_BLOCKED_MODULE_NAMES
-            ):
-                raise ValueError(
-                    f"FreeCAD script blocked module access: {node.value.id}.{node.attr}"
-                )
-        elif isinstance(node, ast.Name):
-            if isinstance(node.ctx, ast.Load) and (
-                node.id in _FREECAD_BLOCKED_MODULE_NAMES or node.id.startswith("__")
-            ):
-                raise ValueError(f"FreeCAD script blocked name usage: {node.id}")
 
 
 class McpRuntimeClient:
@@ -285,9 +78,7 @@ class McpRuntimeClient:
         self.agent_factory_cockpit_dir = (
             agent_factory_cockpit_dir or DEFAULT_AGENT_FACTORY_COCKPIT_DIR
         ).resolve()
-        self.mascarade_env_file = (
-            mascarade_env_file or DEFAULT_MASCARADE_ENV_FILE
-        ).resolve()
+        self.mascarade_env_file = (mascarade_env_file or DEFAULT_MASCARADE_ENV_FILE).resolve()
         self._servers: dict[str, McpServerDefinition] = {
             "knowledge-base": McpServerDefinition(
                 key="knowledge-base",
@@ -315,215 +106,23 @@ class McpRuntimeClient:
                 timeout_s=60.0,
             ),
         }
-        self._register_industrial_servers()
-        self._register_graphiti_server()
-        self._register_n8n_server()
-        self._register_erpnext_server()
-        self._register_searxng_server()
-        self._register_kicad_mcp_servers()
-
-    def _register_industrial_servers(self) -> None:
-        if not self.agent_factory_cockpit_dir.exists():
-            return
-        industrial_metadata = {
-            "cockpit-ops": (
-                "Industrial Cockpit Ops",
-                "Operator control plane for runs, alerts, topology, vendor contracts, and governance signals.",
-            ),
-            "plm": (
-                "PLM MCP",
-                "Product lifecycle management contract surface for governed product records and release traces.",
-            ),
-            "qms": (
-                "QMS MCP",
-                "Quality management surface for validation packs, deviations, and sign-off posture.",
-            ),
-            "mes": (
-                "MES MCP",
-                "Manufacturing execution surface for build dispatch and work-order status contracts.",
-            ),
-            "erp": (
-                "ERP MCP",
-                "Enterprise release surface for release publication and governed change-order contracts.",
-            ),
-            "wms": (
-                "WMS MCP",
-                "Warehouse logistics surface for pick waves, shipment release, and inventory holds.",
-            ),
-            "dcs": (
-                "DCS MCP",
-                "Critical-boundary surface for governed read snapshots and write-request escalation paths.",
-            ),
-        }
-        for key, (label, description) in industrial_metadata.items():
-            self._servers[key] = McpServerDefinition(
-                key=key,
-                command=(
-                    "python3",
-                    "-m",
-                    "agent_factory_cockpit.cli",
-                    "mcp-stdio",
-                    key,
-                    "--actor",
-                    "mascarade-mcp",
-                    "--auth-mode",
-                    "token",
-                ),
-                cwd=self.agent_factory_cockpit_dir,
-                timeout_s=45.0,
-                label=label,
-                description=description,
-            )
-
-    def _register_graphiti_server(self) -> None:
-        if os.getenv("GRAPHITI_ENABLED", "").lower() not in ("true", "1", "yes"):
-            return
-        graphiti_url = os.getenv(
-            "GRAPHITI_MCP_URL", "http://mascarade-graphiti-mcp:8000"
-        )
-        self._servers["graphiti"] = McpServerDefinition(
-            key="graphiti",
-            transport="http",
-            url=graphiti_url,
-            timeout_s=30.0,
-            label="Graphiti Knowledge Graph",
-            description="Semantic knowledge graph for entity relationships and episodic memory.",
-        )
-
-    def _register_n8n_server(self) -> None:
-        """Register n8n MCP server if N8N_BASE_URL is set."""
-        n8n_url = os.getenv("N8N_BASE_URL", "")
-        if not n8n_url:
-            return
-        self._servers["n8n"] = McpServerDefinition(
-            key="n8n",
-            transport="http",
-            url=n8n_url.rstrip("/"),
-            timeout_s=30.0,
-            label="n8n Workflow Automation",
-            description="Trigger and manage n8n workflows for lead processing, notifications, and data pipelines.",
-        )
-
-    def _register_erpnext_server(self) -> None:
-        """Register ERPNext MCP server if FRAPPE_URL is set."""
-        frappe_url = os.getenv("FRAPPE_URL", "")
-        if not frappe_url:
-            return
-        self._servers["erpnext"] = McpServerDefinition(
-            key="erpnext",
-            transport="http",
-            url=frappe_url.rstrip("/"),
-            timeout_s=30.0,
-            label="ERPNext CRM",
-            description="CRM and ERP operations: leads, quotations, invoices via Frappe REST API.",
-        )
-
-    def _register_searxng_server(self) -> None:
-        """Register SearXNG MCP server if SEARXNG_URL is set."""
-        searxng_url = os.getenv("SEARXNG_URL", "")
-        if not searxng_url:
-            return
-        self._servers["searxng"] = McpServerDefinition(
-            key="searxng",
-            transport="http",
-            url=searxng_url.rstrip("/"),
-            timeout_s=15.0,
-            label="SearXNG Web Search",
-            description="Privacy-respecting metasearch engine for web, news, science, IT, and file search.",
-        )
-
-    def _register_kicad_mcp_servers(self) -> None:
-        """Auto-discover and register installed KiCad MCP servers.
-
-        The Seeed KiCad MCP v2 server (39 tools) is registered first when
-        available.  Legacy KiCad MCP servers from ``kicad_servers.py`` are
-        registered afterwards; duplicates are skipped.
-        """
-        # --- Seeed KiCad MCP v2 (preferred) ---
-        from mascarade.mcp.kicad_seeed import (
-            get_server as get_seeed_server,
-        )
-        from mascarade.mcp.kicad_seeed import (
-            is_available as seeed_available,
-        )
-        from mascarade.mcp.kicad_seeed import (
-            log_status as seeed_log_status,
-        )
-
-        if seeed_available():
-            srv = get_seeed_server()
-            if srv.key not in self._servers:
-                self._servers[srv.key] = McpServerDefinition(
-                    key=srv.key,
-                    command=srv.command,
-                    timeout_s=srv.timeout_s,
-                    transport=srv.transport,
-                    label=srv.description,
-                    description=f"KiCad MCP: {srv.description} ({srv.repo})",
-                )
-        seeed_log_status()
-
-        # --- Legacy KiCad MCP servers ---
-        from mascarade.mcp.kicad_servers import (
-            KICAD_MCP_SERVERS,
-            discover_installed,
-            log_available,
-        )
-
-        installed = discover_installed()
-        for key in installed:
-            if key in self._servers:
-                continue
-            srv_legacy = KICAD_MCP_SERVERS[key]
-            self._servers[key] = McpServerDefinition(
-                key=key,
-                command=srv_legacy.command,
-                timeout_s=45.0,
-                transport=srv_legacy.transport,
-                label=srv_legacy.description,
-                description=f"KiCad MCP: {srv_legacy.description} ({srv_legacy.repo})",
-            )
-        log_available()
+        register_industrial_servers(self._servers, self.agent_factory_cockpit_dir)
+        register_graphiti_server(self._servers)
+        register_n8n_server(self._servers)
+        register_erpnext_server(self._servers)
+        register_searxng_server(self._servers)
+        register_kicad_mcp_servers(self._servers)
 
     def _server(self, server_key: str) -> McpServerDefinition:
-        try:
-            return self._servers[server_key]
-        except KeyError as exc:  # pragma: no cover - programming error
-            raise McpServerUnavailable(
-                f"Unknown MCP server '{server_key}'",
-                server_key=server_key,
-            ) from exc
+        from mascarade.mcp.server_registry import _server
 
-    def _server_command(
-        self, server: McpServerDefinition
-    ) -> tuple[tuple[str, ...], Path]:
-        if server.command:
-            return tuple(server.command), (server.cwd or self.mascarade_dir)
-        launcher = server.launcher
-        if launcher is None or not launcher.exists():
-            raise McpServerUnavailable(
-                f"MCP launcher missing for {server.key}: {launcher}",
-                server_key=server.key,
-                transport=server.transport,
-            )
-        return ("bash", str(launcher)), (server.cwd or launcher.parent)
+        return _server(self._servers, server_key)
+
+    def _server_command(self, server: McpServerDefinition) -> tuple[tuple[str, ...], Path]:
+        return _registry_server_command(server, self.mascarade_dir)
 
     def list_servers(self) -> list[dict[str, Any]]:
-        items = []
-        for key, server in sorted(self._servers.items()):
-            items.append(
-                {
-                    "key": key,
-                    "label": server.label or key,
-                    "description": server.description or "",
-                    "transport": server.transport,
-                    "timeout_s": server.timeout_s,
-                    "cwd": str(server.cwd or ""),
-                    "command": list(server.command) if server.command else [],
-                    "launcher": str(server.launcher) if server.launcher else "",
-                }
-            )
-        return items
+        return _registry_list_servers(self._servers)
 
     def _trace(
         self,
@@ -634,9 +233,7 @@ class McpRuntimeClient:
                     transport=server.transport,
                 )
             await _write_message(proc.stdin, message)
-            response = await asyncio.wait_for(
-                _read_message(proc.stdout), timeout=timeout
-            )
+            response = await asyncio.wait_for(_read_message(proc.stdout), timeout=timeout)
             if response is None:
                 stderr_excerpt = ""
                 try:
@@ -645,9 +242,7 @@ class McpRuntimeClient:
                     pass
                 if proc.stderr is not None:
                     stderr_excerpt = (
-                        (await proc.stderr.read())
-                        .decode("utf-8", errors="replace")
-                        .strip()
+                        (await proc.stderr.read()).decode("utf-8", errors="replace").strip()
                     )
                 detail = f"MCP server '{server_key}' returned EOF"
                 if stderr_excerpt:
@@ -724,9 +319,7 @@ class McpRuntimeClient:
             if is_error:
                 error_code = None
                 if isinstance(structured.get("error"), dict):
-                    error_code = (
-                        str(structured["error"].get("code") or "").strip() or None
-                    )
+                    error_code = str(structured["error"].get("code") or "").strip() or None
                 self._trace(
                     run_id=run_id,
                     mode=mode,
@@ -815,9 +408,7 @@ class McpRuntimeClient:
                 proc.kill()
                 await proc.wait()
             if proc.stderr is not None:
-                stderr_text = (
-                    (await proc.stderr.read()).decode("utf-8", errors="replace").strip()
-                )
+                stderr_text = (await proc.stderr.read()).decode("utf-8", errors="replace").strip()
             if proc.returncode not in (0, None) and not stderr_text:
                 stderr_text = f"launcher exited with code {proc.returncode}"
             if proc.returncode not in (0, None) and stderr_text:
@@ -1040,9 +631,7 @@ class McpRuntimeClient:
                     transport=server.transport,
                 )
             await _write_message(proc.stdin, message)
-            response = await asyncio.wait_for(
-                _read_message(proc.stdout), timeout=timeout
-            )
+            response = await asyncio.wait_for(_read_message(proc.stdout), timeout=timeout)
             if response is None:
                 raise McpServerUnavailable(
                     f"MCP server '{server_key}' returned EOF",
@@ -1076,9 +665,7 @@ class McpRuntimeClient:
                     },
                 )
             tools = (
-                await _request(
-                    {"jsonrpc": "2.0", "id": 2, "method": "tools/list", "params": {}}
-                )
+                await _request({"jsonrpc": "2.0", "id": 2, "method": "tools/list", "params": {}})
             ).get("result", {})
             resources = (
                 await _request(
@@ -1091,9 +678,7 @@ class McpRuntimeClient:
                 )
             ).get("result", {})
             prompts = (
-                await _request(
-                    {"jsonrpc": "2.0", "id": 4, "method": "prompts/list", "params": {}}
-                )
+                await _request({"jsonrpc": "2.0", "id": 4, "method": "prompts/list", "params": {}})
             ).get("result", {})
             return {
                 "ok": True,
@@ -1103,9 +688,7 @@ class McpRuntimeClient:
                 "protocol_version": protocol_version,
                 "server_info": server_info,
                 "tool_count": len(
-                    tools.get("tools", [])
-                    if isinstance(tools.get("tools", []), list)
-                    else []
+                    tools.get("tools", []) if isinstance(tools.get("tools", []), list) else []
                 ),
                 "resource_count": len(
                     resources.get("resources", [])
@@ -1166,9 +749,7 @@ class McpRuntimeClient:
                     transport=server.transport,
                 )
             await _write_message(proc.stdin, message)
-            response = await asyncio.wait_for(
-                _read_message(proc.stdout), timeout=timeout
-            )
+            response = await asyncio.wait_for(_read_message(proc.stdout), timeout=timeout)
             if response is None:
                 raise McpServerUnavailable(
                     f"MCP server '{server_key}' returned EOF",
@@ -1186,9 +767,7 @@ class McpRuntimeClient:
             return response
 
         try:
-            await _request(
-                {"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {}}
-            )
+            await _request({"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {}})
             if proc.stdin is not None:
                 await _write_message(
                     proc.stdin,
@@ -1397,17 +976,11 @@ class McpRuntimeClient:
         for index, item in enumerate(raw_results[:limit]):
             if not isinstance(item, dict):
                 item = {"text": str(item)}
-            text = str(
-                item.get("text") or item.get("content") or item.get("chunk") or ""
-            ).strip()
+            text = str(item.get("text") or item.get("content") or item.get("chunk") or "").strip()
             results.append(
                 {
-                    "id": str(
-                        item.get("id") or item.get("chunk_id") or f"kxkm-{index + 1}"
-                    ),
-                    "title": (
-                        text.splitlines()[0][:140] if text else f"kxkm-{index + 1}"
-                    ),
+                    "id": str(item.get("id") or item.get("chunk_id") or f"kxkm-{index + 1}"),
+                    "title": (text.splitlines()[0][:140] if text else f"kxkm-{index + 1}"),
                     "url": str(item.get("url") or item.get("source_url") or ""),
                     "provider": "kxkm",
                     "text": text,
@@ -1444,9 +1017,7 @@ class McpRuntimeClient:
             "federation_scope": normalized_federation,
             "results": results,
             "total": (
-                int(data.get("total", len(results)))
-                if isinstance(data, dict)
-                else len(results)
+                int(data.get("total", len(results))) if isinstance(data, dict) else len(results)
             ),
         }
         self._trace(

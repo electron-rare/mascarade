@@ -264,9 +264,7 @@ class DrcCheckNode(BaseNode):
                 # Parse DRC report
                 if report_path.exists():
                     report_data = json.loads(report_path.read_text())
-                    violations = self._parse_violations(
-                        report_data, config.severity_threshold
-                    )
+                    violations = self._parse_violations(report_data, config.severity_threshold)
                 else:
                     # No violations found or report not generated
                     violations = []
@@ -477,9 +475,7 @@ class ViolationReporterNode(BaseNode):
     """
 
     node_type = "electronics.pcb.violation_reporter"
-    description = (
-        "Formats DRC violations into human-readable or machine-parsable reports"
-    )
+    description = "Formats DRC violations into human-readable or machine-parsable reports"
 
     def _default_config(self) -> ViolationReporterConfig:
         """Return default configuration for violation reporter."""
@@ -608,13 +604,9 @@ class ViolationReporterNode(BaseNode):
 
             for i, violation in enumerate(violations, 1):
                 severity = violation.get("severity", "unknown")
-                severity_emoji = {"error": "🔴", "warning": "🟡", "info": "🔵"}.get(
-                    severity, "⚪"
-                )
+                severity_emoji = {"error": "🔴", "warning": "🟡", "info": "🔵"}.get(severity, "⚪")
 
-                lines.append(
-                    f"### {i}. {severity_emoji} {violation.get('rule', 'Unknown Rule')}"
-                )
+                lines.append(f"### {i}. {severity_emoji} {violation.get('rule', 'Unknown Rule')}")
                 lines.append(f"**Severity:** {severity}")
                 lines.append(f"**Message:** {violation.get('message', 'No message')}")
 

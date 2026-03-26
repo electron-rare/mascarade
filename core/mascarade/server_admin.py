@@ -1010,7 +1010,9 @@ def register_admin_routes(protected: APIRouter, app: FastAPI) -> None:
 
     def _require_comfyui_local() -> ComfyUIClient:
         if app.state.comfyui is None:
-            raise HTTPException(status_code=503, detail="ComfyUI non configure (COMFYUI_URL manquant)")
+            raise HTTPException(
+                status_code=503, detail="ComfyUI non configure (COMFYUI_URL manquant)"
+            )
         return app.state.comfyui
 
     @protected.get("/comfyui/status")

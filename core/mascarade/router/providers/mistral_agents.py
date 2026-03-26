@@ -79,22 +79,14 @@ def _agent_catalog() -> dict[str, dict[str, Any]]:
 
 
 def _configured_agents() -> dict[str, dict[str, Any]]:
-    return {
-        name: agent for name, agent in _agent_catalog().items() if agent["configured"]
-    }
+    return {name: agent for name, agent in _agent_catalog().items() if agent["configured"]}
 
 
 def _extract_content(data: dict[str, Any]) -> tuple[str, dict[str, int]]:
     if "outputs" in data:
         outputs = data.get("outputs", [])
-        assistant_outputs = [
-            item for item in outputs if item.get("role") == "assistant"
-        ]
-        latest = (
-            assistant_outputs[-1]
-            if assistant_outputs
-            else (outputs[-1] if outputs else {})
-        )
+        assistant_outputs = [item for item in outputs if item.get("role") == "assistant"]
+        latest = assistant_outputs[-1] if assistant_outputs else (outputs[-1] if outputs else {})
         content = latest.get("content", "")
         if isinstance(content, list):
             text_chunks = [
@@ -150,9 +142,7 @@ class MistralAgentsProvider(LLMProvider):
         self._base_url = _base_url()
         self._timeout = max(settings.mistral_timeout_ms / 1000, 1)
         self._api_mode = (
-            str(getattr(settings, "mistral_agents_api_mode", "beta") or "beta")
-            .strip()
-            .lower()
+            str(getattr(settings, "mistral_agents_api_mode", "beta") or "beta").strip().lower()
         )
         self._http: httpx.AsyncClient | None = None
 
@@ -211,9 +201,7 @@ class MistralAgentsProvider(LLMProvider):
         payload: dict[str, Any]
         if conversation_id:
             payload = {"inputs": messages, "stream": False}
-            response = await client.post(
-                f"/conversations/{conversation_id}", json=payload
-            )
+            response = await client.post(f"/conversations/{conversation_id}", json=payload)
         else:
             payload = {"agent_id": agent_id, "inputs": messages, "stream": False}
             response = await client.post("/conversations", json=payload)

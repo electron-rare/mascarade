@@ -84,32 +84,24 @@ class DocumentProcessor:
             if len(paragraph) > self._chunk_size:
                 # Sauvegarder le chunk actuel si non vide
                 if current_chunk.strip():
-                    chunks.append(
-                        self._create_chunk(current_chunk, current_position, metadata)
-                    )
+                    chunks.append(self._create_chunk(current_chunk, current_position, metadata))
                     current_position += len(current_chunk) - self._chunk_overlap
                     current_chunk = ""
 
                 # Découper le long paragraphe
                 sub_chunks = self._split_long_text(paragraph)
                 for sub_chunk in sub_chunks:
-                    chunks.append(
-                        self._create_chunk(sub_chunk, current_position, metadata)
-                    )
+                    chunks.append(self._create_chunk(sub_chunk, current_position, metadata))
                     current_position += len(sub_chunk) - self._chunk_overlap
 
             # Si ajouter ce paragraphe dépasse la taille, sauvegarder le chunk actuel
             elif len(current_chunk) + len(paragraph) + 2 > self._chunk_size:
                 if current_chunk.strip():
-                    chunks.append(
-                        self._create_chunk(current_chunk, current_position, metadata)
-                    )
+                    chunks.append(self._create_chunk(current_chunk, current_position, metadata))
                     # Calculer le chevauchement
                     overlap_text = self._get_overlap_text(current_chunk)
                     current_position += len(current_chunk) - len(overlap_text)
-                    current_chunk = (
-                        overlap_text + "\n\n" + paragraph if overlap_text else paragraph
-                    )
+                    current_chunk = overlap_text + "\n\n" + paragraph if overlap_text else paragraph
                 else:
                     current_chunk = paragraph
 

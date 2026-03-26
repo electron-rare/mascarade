@@ -65,9 +65,7 @@ class TestStdioSession:
 
         response = {"jsonrpc": "2.0", "id": 1, "result": {"ok": True, "data": "hello"}}
         mock_proc.stdout = MagicMock()
-        mock_proc.stdout.readline = AsyncMock(
-            return_value=(json.dumps(response) + "\n").encode()
-        )
+        mock_proc.stdout.readline = AsyncMock(return_value=(json.dumps(response) + "\n").encode())
 
         session._process = mock_proc
 
@@ -93,9 +91,7 @@ class TestStdioSession:
 
         response = {"jsonrpc": "2.0", "id": 1, "error": {"code": -1, "message": "not found"}}
         mock_proc.stdout = MagicMock()
-        mock_proc.stdout.readline = AsyncMock(
-            return_value=(json.dumps(response) + "\n").encode()
-        )
+        mock_proc.stdout.readline = AsyncMock(return_value=(json.dumps(response) + "\n").encode())
 
         session._process = mock_proc
 
@@ -231,13 +227,9 @@ class TestNarrativeMcpClient:
         with patch.dict("os.environ", env, clear=True):
             client = NarrativeMcpClient()
             mock_bs = MagicMock()
-            mock_bs.call_tool = AsyncMock(
-                return_value={"issues": [], "score": 1.0}
-            )
+            mock_bs.call_tool = AsyncMock(return_value={"issues": [], "score": 1.0})
             mock_wr = MagicMock()
-            mock_wr.call_tool = AsyncMock(
-                return_value={"issues": ["timeline mismatch"]}
-            )
+            mock_wr.call_tool = AsyncMock(return_value={"issues": ["timeline mismatch"]})
             client._book_series = mock_bs
             client._writer = mock_wr
 
@@ -261,9 +253,7 @@ class TestNarrativeMcpClient:
         with patch.dict("os.environ", env, clear=True):
             client = NarrativeMcpClient()
             mock_bs = MagicMock()
-            mock_bs.call_tool = AsyncMock(
-                return_value={"characters": [], "events": []}
-            )
+            mock_bs.call_tool = AsyncMock(return_value={"characters": [], "events": []})
             client._book_series = mock_bs
             result = await client.get_world_state(book_id="book1")
             assert "characters" in result
@@ -325,6 +315,7 @@ class TestNarrativeRouter:
 
         # Override auth dependency
         from mascarade.auth import require_auth
+
         app.dependency_overrides[require_auth] = lambda: None
 
         app.include_router(narrative_router)
@@ -351,9 +342,7 @@ class TestNarrativeRouter:
 
     def test_check_consistency(self, mock_app):
         client, mock_narrative = mock_app
-        mock_narrative.check_consistency = AsyncMock(
-            return_value={"ok": True, "issues": []}
-        )
+        mock_narrative.check_consistency = AsyncMock(return_value={"ok": True, "issues": []})
 
         resp = client.post(
             "/v1/narrative/consistency",

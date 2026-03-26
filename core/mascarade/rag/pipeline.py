@@ -91,9 +91,7 @@ class RAGPipeline:
         if skip_classification:
             intent = "rag"
         else:
-            intent = await self._classify_intent(
-                user_query, provider=provider, model=model
-            )
+            intent = await self._classify_intent(user_query, provider=provider, model=model)
         tool_calls.append(f"classify:{intent}")
 
         # Step 2 — retrieve context if RAG (hybrid search + reranking)
@@ -141,9 +139,7 @@ class RAGPipeline:
             tool_calls.append("web_search")
 
         # Step 3 — generate
-        system_prompt = (
-            _RAG_SYSTEM_PROMPT.format(context=context_text) if context_text else None
-        )
+        system_prompt = _RAG_SYSTEM_PROMPT.format(context=context_text) if context_text else None
         messages = [{"role": "user", "content": user_query}]
 
         llm_response = await self.router.send(
@@ -165,14 +161,10 @@ class RAGPipeline:
             "model": llm_response.model,
             "usage": {
                 "prompt_tokens": (
-                    llm_response.usage.get("prompt_tokens", 0)
-                    if llm_response.usage
-                    else 0
+                    llm_response.usage.get("prompt_tokens", 0) if llm_response.usage else 0
                 ),
                 "completion_tokens": (
-                    llm_response.usage.get("completion_tokens", 0)
-                    if llm_response.usage
-                    else 0
+                    llm_response.usage.get("completion_tokens", 0) if llm_response.usage else 0
                 ),
             },
             "elapsed_seconds": round(elapsed, 3),
@@ -232,9 +224,7 @@ class RAGPipeline:
             return results
 
         # Build scoring prompt
-        docs_text = "\n".join(
-            f"DOC_{i}: {r['text'][:300]}" for i, r in enumerate(results)
-        )
+        docs_text = "\n".join(f"DOC_{i}: {r['text'][:300]}" for i, r in enumerate(results))
         prompt = (
             f"Rate each document's relevance to the query on a scale 0-10. "
             f"Reply with ONLY comma-separated scores (e.g. 8,3,9,1,7).\n\n"
@@ -293,9 +283,7 @@ class RAGPipeline:
             intent = resp.text.strip().lower()
             if intent in {"rag", "web", "general"}:
                 return intent
-            logger.debug(
-                "Unexpected intent classification %r, defaulting to rag", intent
-            )
+            logger.debug("Unexpected intent classification %r, defaulting to rag", intent)
             return "rag"
         except Exception as exc:
             logger.warning("Intent classification failed (%s), defaulting to rag", exc)

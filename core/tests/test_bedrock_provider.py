@@ -1,4 +1,5 @@
 """Tests for BedrockProvider — works even without boto3 installed."""
+
 from __future__ import annotations
 
 import sys
@@ -19,12 +20,17 @@ _botocore_config = ModuleType("botocore.config")
 _botocore_config.Config = MagicMock
 _botocore_exceptions = ModuleType("botocore.exceptions")
 _botocore_exceptions.BotoCoreError = type("BotoCoreError", (Exception,), {})
-_botocore_exceptions.ClientError = type("ClientError", (Exception,), {
-    "__init__": lambda self, error_response=None, operation_name=None: (
-        Exception.__init__(self, str(error_response)),
-        setattr(self, "response", error_response or {}),
-    ) and None
-})
+_botocore_exceptions.ClientError = type(
+    "ClientError",
+    (Exception,),
+    {
+        "__init__": lambda self, error_response=None, operation_name=None: (
+            Exception.__init__(self, str(error_response)),
+            setattr(self, "response", error_response or {}),
+        )
+        and None
+    },
+)
 
 for mod_name, mod in [
     ("boto3", _boto3_stub),
@@ -78,12 +84,15 @@ async def test_bedrock_send():
     provider._ft_management = MagicMock()
     provider._ft_management.list_custom_models.return_value = {"modelSummaries": []}
 
-    with patch(
-        "mascarade.router.providers.bedrock.asyncio.to_thread",
-        new=_fake_to_thread,
-    ), patch(
-        "mascarade.router.providers.bedrock.asyncio.wait_for",
-        side_effect=_fake_wait_for,
+    with (
+        patch(
+            "mascarade.router.providers.bedrock.asyncio.to_thread",
+            new=_fake_to_thread,
+        ),
+        patch(
+            "mascarade.router.providers.bedrock.asyncio.wait_for",
+            side_effect=_fake_wait_for,
+        ),
     ):
         response = await provider.send([{"role": "user", "content": "hello"}])
 
@@ -107,12 +116,15 @@ async def test_bedrock_send_with_system():
     provider._ft_management = MagicMock()
     provider._ft_management.list_custom_models.return_value = {"modelSummaries": []}
 
-    with patch(
-        "mascarade.router.providers.bedrock.asyncio.to_thread",
-        new=_fake_to_thread,
-    ), patch(
-        "mascarade.router.providers.bedrock.asyncio.wait_for",
-        side_effect=_fake_wait_for,
+    with (
+        patch(
+            "mascarade.router.providers.bedrock.asyncio.to_thread",
+            new=_fake_to_thread,
+        ),
+        patch(
+            "mascarade.router.providers.bedrock.asyncio.wait_for",
+            side_effect=_fake_wait_for,
+        ),
     ):
         response = await provider.send(
             [{"role": "user", "content": "hi"}],
@@ -185,6 +197,7 @@ def test_to_bedrock_messages_empty_content():
 
 
 # ---------- helpers ----------
+
 
 async def _fake_to_thread(fn, *args, **kwargs):
     """Replacement for asyncio.to_thread that calls fn directly."""

@@ -405,9 +405,7 @@ def test_execute_with_capabilities():
     )
 
     # Execute with capability granted
-    result = asyncio.run(
-        executor.execute_graph(graph, capabilities={"test_capability"})
-    )
+    result = asyncio.run(executor.execute_graph(graph, capabilities={"test_capability"}))
 
     assert result.status == ExecutionStatus.COMPLETED
 

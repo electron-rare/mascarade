@@ -43,9 +43,9 @@ class MLXLMProvider(LLMProvider):
 
     def __init__(self) -> None:
         self._enabled: bool = getattr(settings, "mlx_lm_enabled", False)
-        self._base_url: str = getattr(
-            settings, "mlx_lm_base_url", "http://localhost:8201"
-        ).rstrip("/")
+        self._base_url: str = getattr(settings, "mlx_lm_base_url", "http://localhost:8201").rstrip(
+            "/"
+        )
         self.default_model = getattr(
             settings,
             "mlx_lm_default_model",

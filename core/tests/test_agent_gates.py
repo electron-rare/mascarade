@@ -1,4 +1,5 @@
 """Tests for Agent gate system and evidence tracking."""
+
 from __future__ import annotations
 
 from mascarade.agents.base import Agent, EvidenceRecord, Gate, GateStatus
@@ -24,9 +25,11 @@ class TestGateChecking:
         assert failed == []
 
     def test_gate_with_no_check_auto_passes(self):
-        agent = _make_agent(gates=[
-            Gate(name="approval", phase="pre", required=True),
-        ])
+        agent = _make_agent(
+            gates=[
+                Gate(name="approval", phase="pre", required=True),
+            ]
+        )
         passed, failed = agent.check_gates("pre")
         assert passed is True
         assert agent.gates[0].status == GateStatus.PASSED
@@ -101,10 +104,12 @@ class TestGateChecking:
         assert agent.gates[0].status == GateStatus.FAILED
 
     def test_phase_filtering(self):
-        agent = _make_agent(gates=[
-            Gate(name="pre-gate", phase="pre", check="has_system_prompt"),
-            Gate(name="post-gate", phase="post", check="has_tools"),
-        ])
+        agent = _make_agent(
+            gates=[
+                Gate(name="pre-gate", phase="pre", check="has_system_prompt"),
+                Gate(name="post-gate", phase="post", check="has_tools"),
+            ]
+        )
         # Check pre gates — system_prompt exists, so passes
         passed, _ = agent.check_gates("pre")
         assert passed is True
@@ -126,27 +131,33 @@ class TestGateChecking:
         assert "prompt-ok" not in failed
 
     def test_unknown_check_passes(self):
-        agent = _make_agent(gates=[
-            Gate(name="custom", phase="pre", check="unknown_check_name"),
-        ])
+        agent = _make_agent(
+            gates=[
+                Gate(name="custom", phase="pre", check="unknown_check_name"),
+            ]
+        )
         passed, failed = agent.check_gates("pre")
         assert passed is True
 
     def test_reset_gates(self):
-        agent = _make_agent(gates=[
-            Gate(name="g1", phase="pre", status=GateStatus.PASSED),
-            Gate(name="g2", phase="post", status=GateStatus.FAILED),
-        ])
+        agent = _make_agent(
+            gates=[
+                Gate(name="g1", phase="pre", status=GateStatus.PASSED),
+                Gate(name="g2", phase="post", status=GateStatus.FAILED),
+            ]
+        )
         agent.reset_gates()
         assert all(g.status == GateStatus.PENDING for g in agent.gates)
 
 
 class TestEvidenceRecord:
     def test_create_evidence(self):
-        agent = _make_agent(gates=[
-            Gate(name="g1", phase="pre", status=GateStatus.PASSED),
-            Gate(name="g2", phase="post", status=GateStatus.FAILED),
-        ])
+        agent = _make_agent(
+            gates=[
+                Gate(name="g1", phase="pre", status=GateStatus.PASSED),
+                Gate(name="g2", phase="post", status=GateStatus.FAILED),
+            ]
+        )
         # Manually set statuses
         agent.gates[0].status = GateStatus.PASSED
         agent.gates[1].status = GateStatus.FAILED

@@ -6,9 +6,7 @@ from fastapi import APIRouter, Depends, Request
 
 from mascarade.auth import require_auth
 
-router = APIRouter(
-    prefix="/v1/api", dependencies=[Depends(require_auth)], tags=["scheduler"]
-)
+router = APIRouter(prefix="/v1/api", dependencies=[Depends(require_auth)], tags=["scheduler"])
 
 
 @router.get("/scheduler/status")

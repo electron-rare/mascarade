@@ -132,9 +132,7 @@ class PagedAttentionManager:
         result = []
 
         for i in range(num_blocks):
-            location, block_id = self.logical_to_physical.get(
-                (logical_id, i), ("cpu", -1)
-            )
+            location, block_id = self.logical_to_physical.get((logical_id, i), ("cpu", -1))
             block = self._get_block(location, block_id)
             if block is not None:
                 # Get the relevant part of the block
@@ -186,16 +184,12 @@ class PagedAttentionManager:
             "gpu_blocks": {
                 "used": self.gpu_table.num_allocated_blocks(),
                 "max": self.max_gpu_blocks,
-                "usage_pct": self.gpu_table.num_allocated_blocks()
-                / self.max_gpu_blocks
-                * 100,
+                "usage_pct": self.gpu_table.num_allocated_blocks() / self.max_gpu_blocks * 100,
             },
             "cpu_blocks": {
                 "used": self.cpu_table.num_allocated_blocks(),
                 "max": self.max_cpu_blocks,
-                "usage_pct": self.cpu_table.num_allocated_blocks()
-                / self.max_cpu_blocks
-                * 100,
+                "usage_pct": self.cpu_table.num_allocated_blocks() / self.max_cpu_blocks * 100,
             },
             "total_sequences": len({k[0] for k in self.logical_to_physical.keys()}),
         }
@@ -227,10 +221,7 @@ class PagedAttentionOptimizer:
 
             for _, block_id in blocks:
                 # Move to GPU if space available
-                if (
-                    self.manager.gpu_table.num_allocated_blocks()
-                    < self.manager.max_gpu_blocks
-                ):
+                if self.manager.gpu_table.num_allocated_blocks() < self.manager.max_gpu_blocks:
                     cpu_block = self.manager.cpu_table.get_block(block_id)
                     if cpu_block is not None:
                         gpu_block_id = self.manager.gpu_table.allocate_block()

@@ -299,9 +299,7 @@ class RoutingClassifier:
 
                 # Forward pass: compute scores and probabilities
                 raw_scores = {
-                    tier: sum(
-                        self._weights[tier].get(k, 0.0) * v for k, v in fv.items()
-                    )
+                    tier: sum(self._weights[tier].get(k, 0.0) * v for k, v in fv.items())
                     + self._bias[tier]
                     for tier in TIERS
                 }
@@ -381,8 +379,7 @@ class RoutingClassifier:
             }
 
         return {
-            tier: sum(self._weights[tier].get(k, 0.0) * v for k, v in fv.items())
-            + self._bias[tier]
+            tier: sum(self._weights[tier].get(k, 0.0) * v for k, v in fv.items()) + self._bias[tier]
             for tier in TIERS
         }
 
@@ -511,8 +508,6 @@ def get_routing_classifier(
     global _routing_classifier_instance
     if _routing_classifier_instance is None:
         if model_path is None:
-            model_path = (
-                Path.home() / ".mascarade" / "models" / "routing_classifier.json"
-            )
+            model_path = Path.home() / ".mascarade" / "models" / "routing_classifier.json"
         _routing_classifier_instance = RoutingClassifier(model_path=model_path)
     return _routing_classifier_instance

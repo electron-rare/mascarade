@@ -261,9 +261,7 @@ def create_gradio_app() -> gr.Blocks:
                     lora_alpha,
                 ) = create_hyperparameter_form()
 
-                submit_button = gr.Button(
-                    "🚀 Launch Training", variant="primary", size="lg"
-                )
+                submit_button = gr.Button("🚀 Launch Training", variant="primary", size="lg")
                 submit_status = gr.Textbox(
                     label="Submission Status",
                     interactive=False,

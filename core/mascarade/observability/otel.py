@@ -59,9 +59,7 @@ def _resource_attributes() -> list[dict]:
         for pair in extra.split(","):
             if "=" in pair:
                 key, _, value = pair.partition("=")
-                attrs.append(
-                    {"key": key.strip(), "value": {"stringValue": value.strip()}}
-                )
+                attrs.append({"key": key.strip(), "value": {"stringValue": value.strip()}})
     return attrs
 
 
@@ -79,12 +77,8 @@ async def _post_otlp_log(
     now_ns = str(time.time_ns())
     resource_attrs = _resource_attributes()
     if service_name and service_name != settings.otel_service_name:
-        resource_attrs = [
-            a for a in resource_attrs if a["key"] != "service.name"
-        ]
-        resource_attrs.insert(
-            0, {"key": "service.name", "value": {"stringValue": service_name}}
-        )
+        resource_attrs = [a for a in resource_attrs if a["key"] != "service.name"]
+        resource_attrs.insert(0, {"key": "service.name", "value": {"stringValue": service_name}})
 
     payload = {
         "resourceLogs": [

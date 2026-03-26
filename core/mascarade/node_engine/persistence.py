@@ -34,9 +34,7 @@ class MigrationRegistry:
     """Registre de migrations pour les mises à jour de schéma."""
 
     def __init__(self) -> None:
-        self._migrations: dict[
-            tuple[str, str], Callable[[dict[str, Any]], dict[str, Any]]
-        ] = {}
+        self._migrations: dict[tuple[str, str], Callable[[dict[str, Any]], dict[str, Any]]] = {}
 
     def register(
         self,
@@ -62,9 +60,7 @@ class MigrationRegistry:
         self._migrations[key] = migration_func
         logger.debug("Registered migration: %s -> %s", from_version, to_version)
 
-    def get(
-        self, from_version: str, to_version: str
-    ) -> Callable[[dict[str, Any]], dict[str, Any]]:
+    def get(self, from_version: str, to_version: str) -> Callable[[dict[str, Any]], dict[str, Any]]:
         """
         Obtenir une fonction de migration.
 
@@ -194,11 +190,7 @@ def _graph_to_dict(graph: Graph) -> dict[str, Any]:
                 }
             )
 
-    status_val = (
-        graph.status.value
-        if isinstance(graph.status, GraphStatus)
-        else str(graph.status)
-    )
+    status_val = graph.status.value if isinstance(graph.status, GraphStatus) else str(graph.status)
 
     return {
         "id": graph.id,

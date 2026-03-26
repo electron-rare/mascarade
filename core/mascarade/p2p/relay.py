@@ -211,9 +211,7 @@ class P2PRelay:
                         circuit.peer_b,
                     )
                 if stale_keys:
-                    logger.debug(
-                        "Relay cleanup: evicted %d stale circuits", len(stale_keys)
-                    )
+                    logger.debug("Relay cleanup: evicted %d stale circuits", len(stale_keys))
         except asyncio.CancelledError:
             pass
 

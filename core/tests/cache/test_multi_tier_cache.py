@@ -206,9 +206,7 @@ async def test_store_l1_only():
     cache = MultiTierCache()
     messages = [{"role": "user", "content": "test"}]
 
-    key = await cache.store(
-        messages=messages, response="test response", tokens=10, cost=0.001
-    )
+    key = await cache.store(messages=messages, response="test response", tokens=10, cost=0.001)
 
     assert key is not None
     # Verify stored in L1
@@ -227,9 +225,7 @@ async def test_store_all_tiers():
     cache = MultiTierCache(l1=l1, l2=l2, l3=l3)
     messages = [{"role": "user", "content": "test"}]
 
-    key = await cache.store(
-        messages=messages, response="test response", tokens=10, cost=0.001
-    )
+    key = await cache.store(messages=messages, response="test response", tokens=10, cost=0.001)
 
     assert key is not None
 

@@ -22,9 +22,7 @@ def normalize_scope(
     if require_project_id and not explicit_project:
         raise ValueError("project_id is required")
 
-    fallback_project = str(
-        default_project_id or settings.mascarade_project_id or ""
-    ).strip()
+    fallback_project = str(default_project_id or settings.mascarade_project_id or "").strip()
     normalized_project = explicit_project or fallback_project or "default"
 
     normalized_scope = str(knowledge_scope or "project").strip().lower() or "project"
@@ -40,9 +38,7 @@ def normalize_scope(
     )
     if normalized_scope == "federated":
         if not normalized_federation:
-            raise ValueError(
-                "federation_scope is required when knowledge_scope is federated"
-            )
+            raise ValueError("federation_scope is required when knowledge_scope is federated")
     else:
         normalized_federation = ()
 

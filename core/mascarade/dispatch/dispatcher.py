@@ -14,8 +14,7 @@ from mascarade.dispatch.models import Job, JobRequirements
 logger = logging.getLogger("mascarade.dispatch.dispatcher")
 
 DEFAULT_MACHINE_PROFILES_PATH = Path(
-    os.getenv("MACHINE_PROFILES_PATH", "").strip()
-    or "/mascarade/docs/MACHINE_PROFILES.json"
+    os.getenv("MACHINE_PROFILES_PATH", "").strip() or "/mascarade/docs/MACHINE_PROFILES.json"
 )
 
 
@@ -165,16 +164,12 @@ class Dispatcher:
 
             for machine_id, machine_data in machines.items():
                 aliases_raw = machine_data.get("aliases", [])
-                aliases = {
-                    str(item).strip() for item in aliases_raw if str(item).strip()
-                }
+                aliases = {str(item).strip() for item in aliases_raw if str(item).strip()}
                 aliases.add(machine_id)
 
                 capabilities_raw = machine_data.get("capabilities", [])
                 capabilities = {
-                    str(item).strip().lower()
-                    for item in capabilities_raw
-                    if str(item).strip()
+                    str(item).strip().lower() for item in capabilities_raw if str(item).strip()
                 }
 
                 profile = MachineProfile(
@@ -266,9 +261,7 @@ class Dispatcher:
 
         for machine_id, profile in machine_pool.items():
             # Skip excluded machines
-            if machine_id in excluded or any(
-                alias in excluded for alias in profile.aliases
-            ):
+            if machine_id in excluded or any(alias in excluded for alias in profile.aliases):
                 continue
 
             # Calculate score

@@ -50,9 +50,7 @@ class P2PPubSub:
         *,
         reject_unsigned: bool = True,
     ) -> None:
-        self._authenticator = MessageAuthenticator(
-            identity, reject_unsigned=reject_unsigned
-        )
+        self._authenticator = MessageAuthenticator(identity, reject_unsigned=reject_unsigned)
 
     def subscribe(self, topic: str, handler: TopicHandler) -> None:
         self._subscriptions[topic].append(handler)

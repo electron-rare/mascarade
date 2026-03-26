@@ -86,6 +86,7 @@ class TestIsAvailable:
         with patch.dict("os.environ", {"KICAD_MCP_SEEED_ENABLED": "false"}):
             # Re-import would be needed for full coverage, but _is_enabled reads env directly
             from mascarade.mcp.kicad_seeed import _is_enabled
+
             assert _is_enabled() is False
 
 
@@ -174,6 +175,7 @@ class TestSeeedKicadServer:
     def test_get_server_singleton_reset(self):
         """get_server() returns a SeeedKicadServer instance."""
         import mascarade.mcp.kicad_seeed as mod
+
         old = mod._server
         mod._server = None
         try:
@@ -185,5 +187,6 @@ class TestSeeedKicadServer:
     def test_custom_command_via_env(self):
         with patch.dict("os.environ", {"KICAD_MCP_SEEED_COMMAND": "python3 -m kicad_mcp_server"}):
             from mascarade.mcp.kicad_seeed import _resolve_command
+
             cmd = _resolve_command()
             assert cmd == ("python3", "-m", "kicad_mcp_server")

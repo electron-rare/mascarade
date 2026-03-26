@@ -83,8 +83,10 @@ def _clean_api_keys():
 @asynccontextmanager
 async def _client(fake_router: FakeRouter | None = None):
     """Create test client with optional fake router."""
-    with patch("mascarade.auth.is_valid_api_key", return_value=True), \
-         patch("mascarade.auth._resolve_role", return_value="admin"):
+    with (
+        patch("mascarade.auth.is_valid_api_key", return_value=True),
+        patch("mascarade.auth._resolve_role", return_value="admin"),
+    ):
         async with app.router.lifespan_context(app):
             original_router = app.state.router if fake_router else None
             if fake_router:
@@ -276,8 +278,10 @@ async def test_cluster_endpoints_have_v1_prefix():
 
     test_key = "cluster-key-12345"
 
-    with patch.object(cfg, "cluster_enabled", True), \
-         patch.object(cfg, "cluster_shared_key", test_key):
+    with (
+        patch.object(cfg, "cluster_enabled", True),
+        patch.object(cfg, "cluster_shared_key", test_key),
+    ):
         async with _client() as client:
             # Test /v1/cluster/node/identity endpoint (GET)
             response = await client.get(

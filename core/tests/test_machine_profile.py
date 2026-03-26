@@ -170,7 +170,9 @@ class TestDetectMachineProfile:
     def test_detect_nvidia(self):
         with (
             patch("mascarade.machine_profile._detect_apple_silicon", return_value=False),
-            patch("mascarade.machine_profile._detect_nvidia_gpu", return_value=("NVIDIA A100", 80.0)),
+            patch(
+                "mascarade.machine_profile._detect_nvidia_gpu", return_value=("NVIDIA A100", 80.0)
+            ),
             patch("mascarade.machine_profile._cpu_cores", return_value=64),
             patch("mascarade.machine_profile._ram_gb", return_value=256.0),
         ):

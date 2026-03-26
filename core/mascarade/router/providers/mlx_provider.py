@@ -53,9 +53,7 @@ class MLXProvider(LLMProvider):
         """Load model and tokenizer."""
         if self.model is None:
             logger.info(f"Loading MLX model: {self.model_path}")
-            self.model, self.tokenizer = load(
-                self.model_path, device=self.device, **self.kwargs
-            )
+            self.model, self.tokenizer = load(self.model_path, device=self.device, **self.kwargs)
             logger.info("MLX model loaded successfully")
 
     async def generate(

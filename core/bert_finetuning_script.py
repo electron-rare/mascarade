@@ -143,9 +143,7 @@ def fine_tune_bert(texts: list[str], labels: list[str]) -> BertDomainClassifier:
 
     try:
         # Initialize classifier
-        model_path = (
-            Path.home() / ".mascarade" / "models" / "bert_domain_classifier_prod"
-        )
+        model_path = Path.home() / ".mascarade" / "models" / "bert_domain_classifier_prod"
         classifier = BertDomainClassifier(model_path=model_path)
 
         # Training parameters
@@ -231,9 +229,7 @@ def main():
         texts, labels = load_production_data(days=14)
 
         if len(texts) < 100:
-            logger.warning(
-                "Insufficient data (%d samples). Need at least 100.", len(texts)
-            )
+            logger.warning("Insufficient data (%d samples). Need at least 100.", len(texts))
             return
 
         # Step 2: Balance dataset

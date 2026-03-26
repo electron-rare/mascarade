@@ -206,9 +206,7 @@ class VLLMScheduler(ResourceAwareScheduler):
 
         return score
 
-    def _score_vllm_worker(
-        self, worker: VLLMWorker, request: ScheduledRequest
-    ) -> float:
+    def _score_vllm_worker(self, worker: VLLMWorker, request: ScheduledRequest) -> float:
         """Score a vLLM worker for a request."""
         score = 0.0
 
@@ -217,9 +215,7 @@ class VLLMScheduler(ResourceAwareScheduler):
             score += 50
 
         # Load balancing
-        load_ratio = (
-            worker.batch_queue.qsize() / worker.provider.engine_args.max_model_len
-        )
+        load_ratio = worker.batch_queue.qsize() / worker.provider.engine_args.max_model_len
         score += 30 * (1 - load_ratio)
 
         # GPU memory

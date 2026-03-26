@@ -260,9 +260,7 @@ class ToolpathWorker(NodeWorker):
             "unit": "mm",
         }
 
-    def _calculate_bounds(
-        self, mesh: dict[str, Any], stock: dict[str, Any]
-    ) -> dict[str, float]:
+    def _calculate_bounds(self, mesh: dict[str, Any], stock: dict[str, Any]) -> dict[str, float]:
         """Calculate bounding box from mesh or stock dimensions."""
         if stock:
             return {
@@ -316,9 +314,7 @@ class ToolpathWorker(NodeWorker):
             for i in range(num_contours):
                 inset = i * offset
                 moves.append({"x": inset, "y": inset, "z": 0.0, "type": "linear"})
-                moves.append(
-                    {"x": bounds["x"] - inset, "y": inset, "z": 0.0, "type": "linear"}
-                )
+                moves.append({"x": bounds["x"] - inset, "y": inset, "z": 0.0, "type": "linear"})
                 moves.append(
                     {
                         "x": bounds["x"] - inset,
@@ -327,9 +323,7 @@ class ToolpathWorker(NodeWorker):
                         "type": "linear",
                     }
                 )
-                moves.append(
-                    {"x": inset, "y": bounds["y"] - inset, "z": 0.0, "type": "linear"}
-                )
+                moves.append({"x": inset, "y": bounds["y"] - inset, "z": 0.0, "type": "linear"})
                 moves.append({"x": inset, "y": inset, "z": 0.0, "type": "linear"})
 
         elif strategy == "pocket":
@@ -569,13 +563,9 @@ class ToolpathWorker(NodeWorker):
                 m.get("feed_rate", 0) for m in moves if m.get("type") != "rapid"
             ) / max(1, len([m for m in moves if m.get("type") != "rapid"]))
             avg_optimized_feed = sum(
-                m.get("feed_rate", 0)
-                for m in optimized_moves
-                if m.get("type") != "rapid"
+                m.get("feed_rate", 0) for m in optimized_moves if m.get("type") != "rapid"
             ) / max(1, len([m for m in optimized_moves if m.get("type") != "rapid"]))
-            improvement_pct = (
-                (avg_original_feed - avg_optimized_feed) / avg_original_feed
-            ) * 100
+            improvement_pct = ((avg_original_feed - avg_optimized_feed) / avg_original_feed) * 100
         elif objective == "tool_life":
             # For tool life, improvement is based on reduced peak loads
             max_original_feed = max(
@@ -583,11 +573,7 @@ class ToolpathWorker(NodeWorker):
                 default=0,
             )
             max_optimized_feed = max(
-                (
-                    m.get("feed_rate", 0)
-                    for m in optimized_moves
-                    if m.get("type") != "rapid"
-                ),
+                (m.get("feed_rate", 0) for m in optimized_moves if m.get("type") != "rapid"),
                 default=0,
             )
             improvement_pct = (
@@ -602,9 +588,7 @@ class ToolpathWorker(NodeWorker):
         bounds = self._calculate_bounds_from_moves(optimized_moves)
 
         # Generate optimized G-code
-        gcode_program = self._generate_optimized_gcode(
-            objective, optimized_moves, tool_id, bounds
-        )
+        gcode_program = self._generate_optimized_gcode(objective, optimized_moves, tool_id, bounds)
 
         return {
             "program": gcode_program,
@@ -709,9 +693,7 @@ class ToolpathWorker(NodeWorker):
 
         return optimized
 
-    def _calculate_bounds_from_moves(
-        self, moves: list[dict[str, Any]]
-    ) -> dict[str, float]:
+    def _calculate_bounds_from_moves(self, moves: list[dict[str, Any]]) -> dict[str, float]:
         """Calculate bounding box from toolpath moves."""
         if not moves:
             return {"x": 0.0, "y": 0.0, "z": 0.0}

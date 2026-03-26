@@ -56,11 +56,12 @@ async def test_register_mlx_worker():
     mock_instance = AsyncMock()
     mock_mlx_cls.return_value = mock_instance
 
-    with patch(
-        "mascarade.router.providers.mlx_provider.MLXWorker", mock_mlx_cls, create=True
-    ), patch.dict(
-        "sys.modules",
-        {"mascarade.router.providers.mlx_provider": MagicMock(MLXWorker=mock_mlx_cls)},
+    with (
+        patch("mascarade.router.providers.mlx_provider.MLXWorker", mock_mlx_cls, create=True),
+        patch.dict(
+            "sys.modules",
+            {"mascarade.router.providers.mlx_provider": MagicMock(MLXWorker=mock_mlx_cls)},
+        ),
     ):
         await scheduler.register_mlx_worker(
             node_id="mlx-worker-1",

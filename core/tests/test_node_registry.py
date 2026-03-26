@@ -25,9 +25,7 @@ class MockNodeWorker(NodeWorker):
         self.domain = domain
         self._available = available
 
-    async def execute(
-        self, node_type: str, inputs: dict, config: dict, context
-    ) -> dict:
+    async def execute(self, node_type: str, inputs: dict, config: dict, context) -> dict:
         """Mock execute - returns empty dict."""
         return {}
 

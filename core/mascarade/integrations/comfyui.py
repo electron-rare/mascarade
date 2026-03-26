@@ -84,9 +84,7 @@ class ComfyUIClient:
                 return history
             await asyncio.sleep(poll_interval)
             elapsed += poll_interval
-        raise TimeoutError(
-            f"ComfyUI: timeout apres {timeout}s en attendant prompt_id={prompt_id}"
-        )
+        raise TimeoutError(f"ComfyUI: timeout apres {timeout}s en attendant prompt_id={prompt_id}")
 
     async def interrupt(self) -> None:
         """Interrompre l'execution en cours."""

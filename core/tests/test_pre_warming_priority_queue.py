@@ -14,9 +14,7 @@ import pytest
 
 pytest.importorskip("psutil", reason="psutil required for apple_llm_api tests")
 
-SERVICE_PATH = (
-    Path(__file__).resolve().parents[2] / "deploy" / "apple_llm_api" / "app.py"
-)
+SERVICE_PATH = Path(__file__).resolve().parents[2] / "deploy" / "apple_llm_api" / "app.py"
 
 
 def _load_service_module():
@@ -284,9 +282,7 @@ async def test_priority_queue_keeps_high_priority_models(monkeypatch, service_mo
         # Verify high-priority still loaded, low-priority evicted
         status3 = await client.get("/status")
         loaded3 = {m["model_id"] for m in status3.json()["loaded_models"]}
-        assert (
-            "high-priority" in loaded3
-        ), "High priority model should always stay loaded"
+        assert "high-priority" in loaded3, "High priority model should always stay loaded"
         assert "medium-priority" in loaded3
         assert "low-priority" not in loaded3, "Low priority should be evicted"
 

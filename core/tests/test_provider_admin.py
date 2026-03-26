@@ -73,9 +73,7 @@ def test_get_providers_status_huggingface_oauth_uses_refresh_token():
     settings.huggingface_oauth_refresh_token = "hf_refresh_123456789"  # noqa: S105
     settings.huggingface_oauth_client_id = "hf-client-id"
     settings.huggingface_oauth_client_secret = "hf-client-secret-123456"  # noqa: S105
-    settings.huggingface_oauth_token_endpoint = (
-        "https://huggingface.co/oauth/token"  # noqa: S105
-    )
+    settings.huggingface_oauth_token_endpoint = "https://huggingface.co/oauth/token"  # noqa: S105
 
     status = get_providers_status(_FakeRouter())
     entry = next(provider for provider in status if provider["name"] == "huggingface")
@@ -83,18 +81,13 @@ def test_get_providers_status_huggingface_oauth_uses_refresh_token():
         field for field in entry["fields"] if field["env"] == "HUGGINGFACE_API_KEY"
     )
     refresh_field = next(
-        field
-        for field in entry["fields"]
-        if field["env"] == "HUGGINGFACE_OAUTH_REFRESH_TOKEN"
+        field for field in entry["fields"] if field["env"] == "HUGGINGFACE_OAUTH_REFRESH_TOKEN"
     )
 
     assert entry["auth_mode"] == "oauth_oidc"
     assert entry["classification"] == "provider-credential"
     assert entry["criticality"] == "feature-required"
-    assert (
-        entry["required_when"]
-        == "Requis seulement si HuggingFace est active comme provider."
-    )
+    assert entry["required_when"] == "Requis seulement si HuggingFace est active comme provider."
     assert entry["used_by"] == ["core", "playground", "orchestrate", "ops-agent"]
     assert entry["configured"] is True
     assert api_key_field["active"] is False
@@ -115,10 +108,7 @@ def test_get_providers_status_ollama_toggle_disables_provider():
     assert entry["toggle_env"] == "OLLAMA_ENABLED"
     assert entry["classification"] == "provider-credential"
     assert entry["criticality"] == "feature-required"
-    assert (
-        entry["required_when"]
-        == "Requis seulement si le provider local Ollama est active."
-    )
+    assert entry["required_when"] == "Requis seulement si le provider local Ollama est active."
     assert entry["used_by"] == ["core", "playground", "orchestrate"]
     assert entry["fields"][0]["classification"] == "operator-context"
     assert entry["fields"][0]["criticality"] == "local-operator-context"
@@ -130,9 +120,7 @@ def test_update_provider_keys_reinitializes_provider_from_registry(monkeypatch):
     router = _FakeRouter()
 
     monkeypatch.setitem(sys.modules, "test_provider_admin_fake", fake_module)
-    monkeypatch.setitem(
-        PROVIDER_REGISTRY["ollama"], "module", "test_provider_admin_fake"
-    )
+    monkeypatch.setitem(PROVIDER_REGISTRY["ollama"], "module", "test_provider_admin_fake")
     monkeypatch.setitem(PROVIDER_REGISTRY["ollama"], "class", "FakeProvider")
     monkeypatch.setattr("mascarade.provider_admin._persist_env", lambda updates: None)
 
@@ -168,9 +156,7 @@ def test_update_provider_keys_runtime_only_skips_env_persistence(monkeypatch):
     router = _FakeRouter()
 
     monkeypatch.setitem(sys.modules, "test_provider_admin_fake_runtime", fake_module)
-    monkeypatch.setitem(
-        PROVIDER_REGISTRY["ollama"], "module", "test_provider_admin_fake_runtime"
-    )
+    monkeypatch.setitem(PROVIDER_REGISTRY["ollama"], "module", "test_provider_admin_fake_runtime")
     monkeypatch.setitem(PROVIDER_REGISTRY["ollama"], "class", "FakeProvider")
 
     def fail_persist(_updates):

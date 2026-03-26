@@ -222,9 +222,7 @@ class KiCadWorker(NodeWorker):
         pitch = inputs.get("pitch", 2.54)
 
         if not component_description:
-            raise ValueError(
-                "component_description is required for generate_footprint node"
-            )
+            raise ValueError("component_description is required for generate_footprint node")
 
         if pin_count <= 0:
             raise ValueError("pin_count must be greater than 0")
@@ -362,9 +360,7 @@ class KiCadWorker(NodeWorker):
             raise ValueError("layout is required for generate_manufacturing_files node")
 
         if not output_directory:
-            raise ValueError(
-                "output_directory is required for generate_manufacturing_files node"
-            )
+            raise ValueError("output_directory is required for generate_manufacturing_files node")
 
         # Generate manufacturing files using KiCad agent via MCP
         result = await mcp_client.kicad_generate_manufacturing_files(
@@ -386,9 +382,7 @@ class KiCadWorker(NodeWorker):
             "gerber_files": result.get("gerber_files", []) if include_gerbers else [],
             "drill_files": result.get("drill_files", []) if include_drill else [],
             "bom_file": result.get("bom_file", "") if include_bom else "",
-            "pick_place_file": (
-                result.get("pick_place_file", "") if include_pick_place else ""
-            ),
+            "pick_place_file": (result.get("pick_place_file", "") if include_pick_place else ""),
             "assembly_drawings": result.get("assembly_drawings", []),
         }
 

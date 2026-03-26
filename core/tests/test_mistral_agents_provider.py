@@ -87,24 +87,27 @@ async def test_mistral_agents_provider_fallbacks_to_deprecated():
         _configure_settings(mock_settings)
         provider = MistralAgentsProvider()
 
-        with patch.object(
-            provider,
-            "_call_beta",
-            AsyncMock(side_effect=httpx.TransportError("beta down")),
-        ), patch.object(
-            provider,
-            "_call_deprecated",
-            AsyncMock(
-                return_value={
-                    "choices": [{"message": {"content": "Fallback ok"}}],
-                    "usage": {
-                        "prompt_tokens": 3,
-                        "completion_tokens": 2,
-                        "total_tokens": 5,
-                    },
-                }
+        with (
+            patch.object(
+                provider,
+                "_call_beta",
+                AsyncMock(side_effect=httpx.TransportError("beta down")),
             ),
-        ) as call_deprecated:
+            patch.object(
+                provider,
+                "_call_deprecated",
+                AsyncMock(
+                    return_value={
+                        "choices": [{"message": {"content": "Fallback ok"}}],
+                        "usage": {
+                            "prompt_tokens": 3,
+                            "completion_tokens": 2,
+                            "total_tokens": 5,
+                        },
+                    }
+                ),
+            ) as call_deprecated,
+        ):
             response = await provider.send(
                 [{"role": "user", "content": "Analyse"}],
                 model="agent:forge",

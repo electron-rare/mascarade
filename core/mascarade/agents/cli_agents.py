@@ -209,9 +209,7 @@ class CodexAgent(Agent):
     ) -> LLMResponse:
         """Execute Codex CLI in non-interactive mode."""
         if not self.is_available:
-            raise RuntimeError(
-                "codex CLI not found. Install: npm install -g @openai/codex"
-            )
+            raise RuntimeError("codex CLI not found. Install: npm install -g @openai/codex")
 
         cmd = ["codex", "exec"]
         if self._full_auto:

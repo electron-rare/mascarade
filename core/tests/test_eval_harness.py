@@ -299,8 +299,10 @@ class TestEvalRouter:
         mock_runner = MagicMock()
         mock_runner.get_run.return_value = None
 
-        with patch("mascarade.routers.eval._runner", mock_runner), \
-             patch("mascarade.routers.eval.settings") as mock_settings:
+        with (
+            patch("mascarade.routers.eval._runner", mock_runner),
+            patch("mascarade.routers.eval.settings") as mock_settings,
+        ):
             mock_settings.eval_harness_enabled = True
             resp = mock_app.get("/v1/eval/runs/nonexistent")
         assert resp.status_code == 404
@@ -309,8 +311,10 @@ class TestEvalRouter:
         """POST /v1/eval/run with an unsupported task returns 400."""
         mock_runner = MagicMock()
 
-        with patch("mascarade.routers.eval._runner", mock_runner), \
-             patch("mascarade.routers.eval.settings") as mock_settings:
+        with (
+            patch("mascarade.routers.eval._runner", mock_runner),
+            patch("mascarade.routers.eval.settings") as mock_settings,
+        ):
             mock_settings.eval_harness_enabled = True
             resp = mock_app.post(
                 "/v1/eval/run",

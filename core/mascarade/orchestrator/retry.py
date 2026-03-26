@@ -56,14 +56,10 @@ class RetryConfig:
         """Déterminer si l'erreur justifie un retry."""
         error_msg = str(error).lower()
 
-        if self.retry_on_timeout and (
-            "timeout" in error_msg or "timed out" in error_msg
-        ):
+        if self.retry_on_timeout and ("timeout" in error_msg or "timed out" in error_msg):
             return True
 
-        if self.retry_on_rate_limit and (
-            "rate limit" in error_msg or "429" in error_msg
-        ):
+        if self.retry_on_rate_limit and ("rate limit" in error_msg or "429" in error_msg):
             return True
 
         if self.retry_on_server_error and (
@@ -128,9 +124,7 @@ class RetryExecutor:
     ) -> Any:
         """Exécuter une fonction avec retry et backoff exponentiel."""
         retry_config = config or self.config
-        max_attempts = (
-            max_retries if max_retries is not None else retry_config.max_retries
-        ) + 1
+        max_attempts = (max_retries if max_retries is not None else retry_config.max_retries) + 1
 
         # Obtenir ou créer l'état de retry
         if agent_name not in self.states:

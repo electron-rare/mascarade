@@ -96,10 +96,13 @@ class TestClientConfig:
 
 class TestCompletionsStream:
     def test_returns_sse(self, client):
-        r = client.post("/.api/completions/stream", json={
-            "messages": [{"speaker": "human", "text": "hello"}],
-            "model": "ollama/devstral",
-        })
+        r = client.post(
+            "/.api/completions/stream",
+            json={
+                "messages": [{"speaker": "human", "text": "hello"}],
+                "model": "ollama/devstral",
+            },
+        )
         assert r.status_code == 200
         assert "text/event-stream" in r.headers["content-type"]
         body = r.text
@@ -107,24 +110,33 @@ class TestCompletionsStream:
         assert "event: done" in body
 
     def test_no_router_503(self, client_no_router):
-        r = client_no_router.post("/.api/completions/stream", json={
-            "messages": [{"speaker": "human", "text": "hi"}],
-        })
+        r = client_no_router.post(
+            "/.api/completions/stream",
+            json={
+                "messages": [{"speaker": "human", "text": "hi"}],
+            },
+        )
         assert r.status_code == 503
 
     def test_empty_messages_still_works(self, client):
-        r = client.post("/.api/completions/stream", json={
-            "messages": [],
-            "model": "ollama/devstral",
-        })
+        r = client.post(
+            "/.api/completions/stream",
+            json={
+                "messages": [],
+                "model": "ollama/devstral",
+            },
+        )
         assert r.status_code == 200
 
     def test_model_split(self, client):
         """Provider hint is extracted from model ref like 'anthropic/claude-sonnet-4-20250514'."""
-        r = client.post("/.api/completions/stream", json={
-            "messages": [{"speaker": "human", "text": "test"}],
-            "model": "anthropic/claude-sonnet-4-20250514",
-        })
+        r = client.post(
+            "/.api/completions/stream",
+            json={
+                "messages": [{"speaker": "human", "text": "test"}],
+                "model": "anthropic/claude-sonnet-4-20250514",
+            },
+        )
         assert r.status_code == 200
 
 
@@ -135,10 +147,13 @@ class TestCompletionsStream:
 
 class TestChatCompletions:
     def test_non_streaming(self, client):
-        r = client.post("/.api/chat/completions", json={
-            "messages": [{"role": "user", "content": "hi"}],
-            "model": "ollama/devstral",
-        })
+        r = client.post(
+            "/.api/chat/completions",
+            json={
+                "messages": [{"role": "user", "content": "hi"}],
+                "model": "ollama/devstral",
+            },
+        )
         assert r.status_code == 200
         data = r.json()
         assert data["object"] == "chat.completion"
@@ -146,31 +161,43 @@ class TestChatCompletions:
 
     def test_speaker_format(self, client):
         """Cody sometimes uses speaker/text instead of role/content."""
-        r = client.post("/.api/chat/completions", json={
-            "messages": [{"speaker": "human", "text": "hi"}],
-        })
+        r = client.post(
+            "/.api/chat/completions",
+            json={
+                "messages": [{"speaker": "human", "text": "hi"}],
+            },
+        )
         assert r.status_code == 200
 
     def test_usage_in_response(self, client):
-        r = client.post("/.api/chat/completions", json={
-            "messages": [{"role": "user", "content": "hi"}],
-        })
+        r = client.post(
+            "/.api/chat/completions",
+            json={
+                "messages": [{"role": "user", "content": "hi"}],
+            },
+        )
         usage = r.json()["usage"]
         assert usage["prompt_tokens"] == 10
         assert usage["completion_tokens"] == 20
         assert usage["total_tokens"] == 30
 
     def test_no_router_503(self, client_no_router):
-        r = client_no_router.post("/.api/chat/completions", json={
-            "messages": [{"role": "user", "content": "hi"}],
-        })
+        r = client_no_router.post(
+            "/.api/chat/completions",
+            json={
+                "messages": [{"role": "user", "content": "hi"}],
+            },
+        )
         assert r.status_code == 503
 
     def test_streaming_chat(self, client):
-        r = client.post("/.api/chat/completions", json={
-            "messages": [{"role": "user", "content": "hi"}],
-            "stream": True,
-        })
+        r = client.post(
+            "/.api/chat/completions",
+            json={
+                "messages": [{"role": "user", "content": "hi"}],
+                "stream": True,
+            },
+        )
         assert r.status_code == 200
         assert "text/event-stream" in r.headers["content-type"]
 

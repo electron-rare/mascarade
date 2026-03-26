@@ -62,10 +62,7 @@ class CircuitBreaker:
 
         if self.state == CircuitState.OPEN:
             # Vérifier si le timeout est écoulé pour passer en half-open
-            if (
-                self.last_failure_time
-                and (time.time() - self.last_failure_time) >= self.timeout
-            ):
+            if self.last_failure_time and (time.time() - self.last_failure_time) >= self.timeout:
                 self._transition_to_half_open()
                 return True
             return False

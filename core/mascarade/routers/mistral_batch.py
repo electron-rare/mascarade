@@ -175,9 +175,7 @@ async def submit_batch(req: BatchSubmitRequest):
             metadata=req.metadata,
         )
     except Exception as exc:
-        raise HTTPException(
-            status_code=502, detail=f"Mistral batch API error: {exc}"
-        ) from exc
+        raise HTTPException(status_code=502, detail=f"Mistral batch API error: {exc}") from exc
 
     # Track locally
     _jobs[job.id] = {
@@ -222,9 +220,7 @@ async def submit_preset(preset_name: str, model: str = "mistral-large-latest"):
             metadata={"preset": preset_name},
         )
     except Exception as exc:
-        raise HTTPException(
-            status_code=502, detail=f"Mistral batch API error: {exc}"
-        ) from exc
+        raise HTTPException(status_code=502, detail=f"Mistral batch API error: {exc}") from exc
 
     _jobs[job.id] = {
         "model": model,
@@ -249,9 +245,7 @@ async def get_job_status(job_id: str):
     try:
         job = client.batch.jobs.get(job_id=job_id)
     except Exception as exc:
-        raise HTTPException(
-            status_code=502, detail=f"Mistral API error: {exc}"
-        ) from exc
+        raise HTTPException(status_code=502, detail=f"Mistral API error: {exc}") from exc
 
     return BatchJobResponse(
         job_id=job.id,
@@ -272,9 +266,7 @@ async def get_job_results(job_id: str):
     try:
         job = client.batch.jobs.get(job_id=job_id)
     except Exception as exc:
-        raise HTTPException(
-            status_code=502, detail=f"Mistral API error: {exc}"
-        ) from exc
+        raise HTTPException(status_code=502, detail=f"Mistral API error: {exc}") from exc
 
     if job.status != "SUCCESS":
         raise HTTPException(status_code=409, detail=f"Job not complete: {job.status}")
@@ -288,9 +280,7 @@ async def get_job_results(job_id: str):
         for chunk in content.stream:
             raw += chunk
     except Exception as exc:
-        raise HTTPException(
-            status_code=502, detail=f"Failed to download results: {exc}"
-        ) from exc
+        raise HTTPException(status_code=502, detail=f"Failed to download results: {exc}") from exc
 
     # Parse JSONL
     results = []
@@ -331,9 +321,7 @@ async def cancel_job(job_id: str):
     try:
         job = client.batch.jobs.cancel(job_id=job_id)
     except Exception as exc:
-        raise HTTPException(
-            status_code=502, detail=f"Mistral API error: {exc}"
-        ) from exc
+        raise HTTPException(status_code=502, detail=f"Mistral API error: {exc}") from exc
 
     return {"job_id": job.id, "status": job.status}
 

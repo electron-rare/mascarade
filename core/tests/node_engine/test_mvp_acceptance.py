@@ -755,9 +755,7 @@ class TestMVPCriterion5_TypeValidation:
         with pytest.raises(ValueError, match="validation failed"):
             asyncio.run(runtime_with_ai_worker.execute(graph))
 
-    def test_validation_fails_for_classify_missing_categories(
-        self, runtime_with_ai_worker
-    ):
+    def test_validation_fails_for_classify_missing_categories(self, runtime_with_ai_worker):
         """Test validation error for classify node missing categories."""
         graph = Graph(
             nodes=[
@@ -774,9 +772,7 @@ class TestMVPCriterion5_TypeValidation:
         with pytest.raises(ValueError, match="validation failed"):
             asyncio.run(runtime_with_ai_worker.execute(graph))
 
-    def test_validation_fails_for_batch_inference_missing_prompts(
-        self, runtime_with_ai_worker
-    ):
+    def test_validation_fails_for_batch_inference_missing_prompts(self, runtime_with_ai_worker):
         """Test validation error for batch inference missing prompts."""
         graph = Graph(
             nodes=[
@@ -1060,10 +1056,7 @@ class TestMVPGate:
         assert context.node_results["analyze"].status == ExecutionStatus.COMPLETED
         assert context.node_results["classify"].status == ExecutionStatus.COMPLETED
         assert context.node_results["agent_summary"].status == ExecutionStatus.COMPLETED
-        assert (
-            context.node_results["validation_pipeline"].status
-            == ExecutionStatus.COMPLETED
-        )
+        assert context.node_results["validation_pipeline"].status == ExecutionStatus.COMPLETED
 
         # Criterion 2: Router integration - verify different strategies used
         assert context.node_results["analyze"].outputs["response"].provider == "cheap"

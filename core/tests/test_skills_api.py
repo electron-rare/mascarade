@@ -18,6 +18,7 @@ from mascarade.agents.skills import register_default_skills_v2
 
 # --- Standalone test app ---
 
+
 # The skills router is not mounted on the main ``server.app``, so we build a
 # lightweight FastAPI app for the API tests.  The router has prefix ``/v1/api``,
 # so routes are at ``/v1/api/skills/...``.  The tests use ``/v1/skills/...``, so
@@ -46,15 +47,11 @@ def _build_test_app(skill_reg: SkillRegistry, agent_reg: AgentRegistry) -> FastA
     test_router.add_api_route("/skills/{name}", get_skill, methods=["GET"])
     test_router.add_api_route("/skills/{name}", update_skill, methods=["PUT"])
     test_router.add_api_route("/skills/{name}", delete_skill, methods=["DELETE"])
-    test_router.add_api_route(
-        "/skills/{name}/assign/{agent_name}", assign_skill, methods=["POST"]
-    )
+    test_router.add_api_route("/skills/{name}/assign/{agent_name}", assign_skill, methods=["POST"])
     test_router.add_api_route(
         "/skills/{name}/assign/{agent_name}", unassign_skill, methods=["DELETE"]
     )
-    test_router.add_api_route(
-        "/agents/{agent_name}/skills", list_agent_skills, methods=["GET"]
-    )
+    test_router.add_api_route("/agents/{agent_name}/skills", list_agent_skills, methods=["GET"])
 
     test_app = FastAPI()
     test_app.include_router(test_router)
@@ -121,9 +118,7 @@ def test_skill_registry_contains():
 
 def test_skill_registry_remove():
     reg = SkillRegistry(storage_path=None)
-    reg.register(
-        Skill(name="rm", description="Remove me", category="text", instruction="RM")
-    )
+    reg.register(Skill(name="rm", description="Remove me", category="text", instruction="RM"))
     reg.remove("rm")
     assert "rm" not in reg
 
@@ -140,9 +135,7 @@ def test_skill_registry_is_builtin():
         Skill(name="builtin", description="B", category="text", instruction="B"),
         builtin=True,
     )
-    reg.register(
-        Skill(name="dynamic", description="D", category="text", instruction="D")
-    )
+    reg.register(Skill(name="dynamic", description="D", category="text", instruction="D"))
     assert reg.is_builtin("builtin") is True
     assert reg.is_builtin("dynamic") is False
 

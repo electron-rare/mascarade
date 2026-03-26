@@ -16,9 +16,7 @@ async def test_stream_forward_between_nodes():
             listen_host="127.0.0.1",
             listen_port=0,
             key_dir=db,
-            bootstrap_peers=[
-                (node_a.peer_id, "127.0.0.1", node_a.transport.listen_port)
-            ],
+            bootstrap_peers=[(node_a.peer_id, "127.0.0.1", node_a.transport.listen_port)],
         )
         await node_b.start()
 
@@ -64,9 +62,7 @@ async def test_stream_forward_timeout():
             listen_host="127.0.0.1",
             listen_port=0,
             key_dir=db,
-            bootstrap_peers=[
-                (node_a.peer_id, "127.0.0.1", node_a.transport.listen_port)
-            ],
+            bootstrap_peers=[(node_a.peer_id, "127.0.0.1", node_a.transport.listen_port)],
         )
         await node_b.start()
 
@@ -104,9 +100,7 @@ async def test_stream_forward_error():
             listen_host="127.0.0.1",
             listen_port=0,
             key_dir=db,
-            bootstrap_peers=[
-                (node_a.peer_id, "127.0.0.1", node_a.transport.listen_port)
-            ],
+            bootstrap_peers=[(node_a.peer_id, "127.0.0.1", node_a.transport.listen_port)],
         )
         await node_b.start()
 
@@ -143,9 +137,7 @@ async def test_can_forward():
             listen_host="127.0.0.1",
             listen_port=0,
             key_dir=db,
-            bootstrap_peers=[
-                (node_a.peer_id, "127.0.0.1", node_a.transport.listen_port)
-            ],
+            bootstrap_peers=[(node_a.peer_id, "127.0.0.1", node_a.transport.listen_port)],
         )
         await node_b.start()
 

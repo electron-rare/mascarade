@@ -31,6 +31,7 @@ from typing import Any
 # State definitions
 # ---------------------------------------------------------------------------
 
+
 class AgentState(str, Enum):
     IDLE = "IDLE"
     ROUTING = "ROUTING"
@@ -42,18 +43,19 @@ class AgentState(str, Enum):
 
 # Allowed transitions (directed graph: source -> set of valid targets)
 TRANSITIONS: dict[AgentState, set[AgentState]] = {
-    AgentState.IDLE:       {AgentState.ROUTING},
-    AgentState.ROUTING:    {AgentState.EXECUTING, AgentState.FAILED},
-    AgentState.EXECUTING:  {AgentState.EVALUATING, AgentState.FAILED},
+    AgentState.IDLE: {AgentState.ROUTING},
+    AgentState.ROUTING: {AgentState.EXECUTING, AgentState.FAILED},
+    AgentState.EXECUTING: {AgentState.EVALUATING, AgentState.FAILED},
     AgentState.EVALUATING: {AgentState.ROUTING, AgentState.COMPLETE, AgentState.FAILED},
-    AgentState.COMPLETE:   {AgentState.IDLE},
-    AgentState.FAILED:     {AgentState.IDLE},
+    AgentState.COMPLETE: {AgentState.IDLE},
+    AgentState.FAILED: {AgentState.IDLE},
 }
 
 
 # ---------------------------------------------------------------------------
 # Transition record
 # ---------------------------------------------------------------------------
+
 
 @dataclass
 class TransitionRecord:
@@ -66,6 +68,7 @@ class TransitionRecord:
 # ---------------------------------------------------------------------------
 # State machine
 # ---------------------------------------------------------------------------
+
 
 class InvalidTransition(Exception):
     """Raised when a transition is not allowed by the graph."""
@@ -127,8 +130,7 @@ class GraphStateMachine:
             target_state = AgentState(target.upper())
         except ValueError:
             raise InvalidTransition(
-                f"Unknown state '{target}'. "
-                f"Valid states: {[s.value for s in AgentState]}"
+                f"Unknown state '{target}'. " f"Valid states: {[s.value for s in AgentState]}"
             ) from None
 
         allowed = TRANSITIONS.get(self._state, set())
@@ -161,6 +163,7 @@ class GraphStateMachine:
 # ---------------------------------------------------------------------------
 # FastAPI integration
 # ---------------------------------------------------------------------------
+
 
 def mount_graph_routes(app: Any, gsm: GraphStateMachine | None = None) -> GraphStateMachine:
     """Add GET /v1/graph/state and POST /v1/graph/transition to a FastAPI app.

@@ -18,6 +18,7 @@ from mascarade.routers.admin import router as admin_router
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _admin_user() -> User:
     return User(
         id=1,
@@ -86,7 +87,11 @@ class TestGetAuthenticatedUser:
         request = MagicMock()
         request.headers = {"Authorization": "Bearer valid-key"}
 
-        with patch("mascarade.routers.admin.auth_module.authenticate_user", new_callable=AsyncMock, return_value=user):
+        with patch(
+            "mascarade.routers.admin.auth_module.authenticate_user",
+            new_callable=AsyncMock,
+            return_value=user,
+        ):
             result = await _get_authenticated_user(request)
         assert result.username == "admin"
 
@@ -104,8 +109,14 @@ class TestGetAuthenticatedUser:
         request = MagicMock()
         request.headers = {"Authorization": "Bearer bad-key"}
 
-        with patch("mascarade.routers.admin.auth_module.authenticate_user", new_callable=AsyncMock, return_value=None), \
-             patch("mascarade.routers.admin.auth_module.get_db_pool", return_value=None):
+        with (
+            patch(
+                "mascarade.routers.admin.auth_module.authenticate_user",
+                new_callable=AsyncMock,
+                return_value=None,
+            ),
+            patch("mascarade.routers.admin.auth_module.get_db_pool", return_value=None),
+        ):
             with pytest.raises(Exception) as exc_info:
                 await _get_authenticated_user(request)
             assert exc_info.value.status_code == 401
@@ -123,7 +134,11 @@ class TestRequireAdmin:
         request = MagicMock()
         request.headers = {"Authorization": "Bearer key"}
 
-        with patch("mascarade.routers.admin.auth_module.authenticate_user", new_callable=AsyncMock, return_value=user):
+        with patch(
+            "mascarade.routers.admin.auth_module.authenticate_user",
+            new_callable=AsyncMock,
+            return_value=user,
+        ):
             result = await _require_admin(request)
         assert result.role_id == 1
 
@@ -133,7 +148,11 @@ class TestRequireAdmin:
         request = MagicMock()
         request.headers = {"Authorization": "Bearer key"}
 
-        with patch("mascarade.routers.admin.auth_module.authenticate_user", new_callable=AsyncMock, return_value=user):
+        with patch(
+            "mascarade.routers.admin.auth_module.authenticate_user",
+            new_callable=AsyncMock,
+            return_value=user,
+        ):
             with pytest.raises(Exception) as exc_info:
                 await _require_admin(request)
             assert exc_info.value.status_code == 403
@@ -149,13 +168,30 @@ class TestListUsers:
     async def test_list_users_returns_list(self):
         admin = _admin_user()
         conn = AsyncMock()
-        conn.fetch = AsyncMock(return_value=[
-            {"id": 1, "username": "admin", "email": "a@b.com", "role_id": 1, "is_active": True, "rate_limits": None, "created_at": datetime.now(), "updated_at": datetime.now()},
-        ])
+        conn.fetch = AsyncMock(
+            return_value=[
+                {
+                    "id": 1,
+                    "username": "admin",
+                    "email": "a@b.com",
+                    "role_id": 1,
+                    "is_active": True,
+                    "rate_limits": None,
+                    "created_at": datetime.now(),
+                    "updated_at": datetime.now(),
+                },
+            ]
+        )
         pool = _mock_pool(conn)
 
-        with patch("mascarade.routers.admin.auth_module.authenticate_user", new_callable=AsyncMock, return_value=admin), \
-             patch("mascarade.routers.admin.auth_module.get_db_pool", return_value=pool):
+        with (
+            patch(
+                "mascarade.routers.admin.auth_module.authenticate_user",
+                new_callable=AsyncMock,
+                return_value=admin,
+            ),
+            patch("mascarade.routers.admin.auth_module.get_db_pool", return_value=pool),
+        ):
             async with _client() as client:
                 resp = await client.get("/v1/users", headers={"Authorization": "Bearer test-key"})
 
@@ -171,16 +207,32 @@ class TestCreateUser:
         admin = _admin_user()
         now = datetime.now()
         conn = AsyncMock()
-        conn.fetchrow = AsyncMock(side_effect=[
-            None,  # username check
-            None,  # email check
-            {"id": 2},  # role check
-            {"id": 3, "username": "newuser", "email": "new@test.com", "role_id": 2, "is_active": True, "created_at": now.isoformat(), "updated_at": now.isoformat()},  # INSERT RETURNING
-        ])
+        conn.fetchrow = AsyncMock(
+            side_effect=[
+                None,  # username check
+                None,  # email check
+                {"id": 2},  # role check
+                {
+                    "id": 3,
+                    "username": "newuser",
+                    "email": "new@test.com",
+                    "role_id": 2,
+                    "is_active": True,
+                    "created_at": now.isoformat(),
+                    "updated_at": now.isoformat(),
+                },  # INSERT RETURNING
+            ]
+        )
         pool = _mock_pool(conn)
 
-        with patch("mascarade.routers.admin.auth_module.authenticate_user", new_callable=AsyncMock, return_value=admin), \
-             patch("mascarade.routers.admin.auth_module.get_db_pool", return_value=pool):
+        with (
+            patch(
+                "mascarade.routers.admin.auth_module.authenticate_user",
+                new_callable=AsyncMock,
+                return_value=admin,
+            ),
+            patch("mascarade.routers.admin.auth_module.get_db_pool", return_value=pool),
+        ):
             async with _client() as client:
                 resp = await client.post(
                     "/v1/users",
@@ -195,13 +247,21 @@ class TestCreateUser:
     async def test_create_user_duplicate_username(self):
         admin = _admin_user()
         conn = AsyncMock()
-        conn.fetchrow = AsyncMock(side_effect=[
-            {"id": 99},  # username already exists
-        ])
+        conn.fetchrow = AsyncMock(
+            side_effect=[
+                {"id": 99},  # username already exists
+            ]
+        )
         pool = _mock_pool(conn)
 
-        with patch("mascarade.routers.admin.auth_module.authenticate_user", new_callable=AsyncMock, return_value=admin), \
-             patch("mascarade.routers.admin.auth_module.get_db_pool", return_value=pool):
+        with (
+            patch(
+                "mascarade.routers.admin.auth_module.authenticate_user",
+                new_callable=AsyncMock,
+                return_value=admin,
+            ),
+            patch("mascarade.routers.admin.auth_module.get_db_pool", return_value=pool),
+        ):
             async with _client() as client:
                 resp = await client.post(
                     "/v1/users",
@@ -222,10 +282,18 @@ class TestDeleteUser:
         conn.execute = AsyncMock()
         pool = _mock_pool(conn)
 
-        with patch("mascarade.routers.admin.auth_module.authenticate_user", new_callable=AsyncMock, return_value=admin), \
-             patch("mascarade.routers.admin.auth_module.get_db_pool", return_value=pool):
+        with (
+            patch(
+                "mascarade.routers.admin.auth_module.authenticate_user",
+                new_callable=AsyncMock,
+                return_value=admin,
+            ),
+            patch("mascarade.routers.admin.auth_module.get_db_pool", return_value=pool),
+        ):
             async with _client() as client:
-                resp = await client.delete("/v1/users/5", headers={"Authorization": "Bearer test-key"})
+                resp = await client.delete(
+                    "/v1/users/5", headers={"Authorization": "Bearer test-key"}
+                )
 
         assert resp.status_code == 200
         assert resp.json()["status"] == "ok"
@@ -237,15 +305,33 @@ class TestCreateApiKey:
         admin = _admin_user()
         now = datetime.now()
         conn = AsyncMock()
-        conn.fetchrow = AsyncMock(side_effect=[
-            {"id": 2},  # _find_user_by_id
-            {"id": 10, "user_id": 2, "key_hash": "h", "key_prefix": "mk_abcde", "name": "Test Key", "is_active": True, "created_at": now, "expires_at": None, "last_used_at": None},  # INSERT RETURNING
-        ])
+        conn.fetchrow = AsyncMock(
+            side_effect=[
+                {"id": 2},  # _find_user_by_id
+                {
+                    "id": 10,
+                    "user_id": 2,
+                    "key_hash": "h",
+                    "key_prefix": "mk_abcde",
+                    "name": "Test Key",
+                    "is_active": True,
+                    "created_at": now,
+                    "expires_at": None,
+                    "last_used_at": None,
+                },  # INSERT RETURNING
+            ]
+        )
         pool = _mock_pool(conn)
 
-        with patch("mascarade.routers.admin.auth_module.authenticate_user", new_callable=AsyncMock, return_value=admin), \
-             patch("mascarade.routers.admin.auth_module.get_db_pool", return_value=pool), \
-             patch("mascarade.routers.admin.auth_module.hash_api_key", return_value="hashed"):
+        with (
+            patch(
+                "mascarade.routers.admin.auth_module.authenticate_user",
+                new_callable=AsyncMock,
+                return_value=admin,
+            ),
+            patch("mascarade.routers.admin.auth_module.get_db_pool", return_value=pool),
+            patch("mascarade.routers.admin.auth_module.hash_api_key", return_value="hashed"),
+        ):
             async with _client() as client:
                 resp = await client.post(
                     "/v1/users/2/api-keys",
@@ -264,22 +350,34 @@ class TestUsageStats:
     async def test_usage_stats_returns_aggregated(self):
         admin = _admin_user()
         conn = AsyncMock()
-        conn.fetch = AsyncMock(side_effect=[
-            [{"user_id": 1}],  # DISTINCT user_ids
-            [{"provider": "openai", "count": 5}],  # provider breakdown
-            [{"model": "gpt-4", "count": 5}],  # model breakdown
-        ])
-        conn.fetchrow = AsyncMock(return_value={
-            "total_requests": 5,
-            "total_tokens": 1000,
-            "total_cost": 0.25,
-        })
+        conn.fetch = AsyncMock(
+            side_effect=[
+                [{"user_id": 1}],  # DISTINCT user_ids
+                [{"provider": "openai", "count": 5}],  # provider breakdown
+                [{"model": "gpt-4", "count": 5}],  # model breakdown
+            ]
+        )
+        conn.fetchrow = AsyncMock(
+            return_value={
+                "total_requests": 5,
+                "total_tokens": 1000,
+                "total_cost": 0.25,
+            }
+        )
         pool = _mock_pool(conn)
 
-        with patch("mascarade.routers.admin.auth_module.authenticate_user", new_callable=AsyncMock, return_value=admin), \
-             patch("mascarade.routers.admin.auth_module.get_db_pool", return_value=pool):
+        with (
+            patch(
+                "mascarade.routers.admin.auth_module.authenticate_user",
+                new_callable=AsyncMock,
+                return_value=admin,
+            ),
+            patch("mascarade.routers.admin.auth_module.get_db_pool", return_value=pool),
+        ):
             async with _client() as client:
-                resp = await client.get("/v1/admin/usage/stats", headers={"Authorization": "Bearer test-key"})
+                resp = await client.get(
+                    "/v1/admin/usage/stats", headers={"Authorization": "Bearer test-key"}
+                )
 
         assert resp.status_code == 200
         body = resp.json()

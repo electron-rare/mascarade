@@ -110,13 +110,10 @@ class JobQueue:
         try:
             data = json.loads(self.queue_file.read_text(encoding="utf-8"))
             self._jobs = {
-                job_id: Job.from_dict(job_data)
-                for job_id, job_data in data.get("jobs", {}).items()
+                job_id: Job.from_dict(job_data) for job_id, job_data in data.get("jobs", {}).items()
             }
         except (OSError, json.JSONDecodeError, KeyError, ValueError) as exc:
-            raise JobQueueError(
-                f"Failed to load queue from {self.queue_file}: {exc}"
-            ) from exc
+            raise JobQueueError(f"Failed to load queue from {self.queue_file}: {exc}") from exc
 
     def _persist(self) -> None:
         """Persist queue state to JSON file."""
@@ -130,9 +127,7 @@ class JobQueue:
             temp_file.write_text(json.dumps(data, indent=2), encoding="utf-8")
             temp_file.replace(self.queue_file)
         except OSError as exc:
-            raise JobQueueError(
-                f"Failed to persist queue to {self.queue_file}: {exc}"
-            ) from exc
+            raise JobQueueError(f"Failed to persist queue to {self.queue_file}: {exc}") from exc
 
     def add_job(self, job: Job) -> None:
         """Add a job to the queue.
@@ -300,9 +295,7 @@ class JobQueue:
             Number of jobs removed.
         """
         terminal_statuses = {JobStatus.COMPLETED, JobStatus.FAILED, JobStatus.CANCELLED}
-        completed_jobs = [
-            job for job in self._jobs.values() if job.status in terminal_statuses
-        ]
+        completed_jobs = [job for job in self._jobs.values() if job.status in terminal_statuses]
 
         if len(completed_jobs) <= keep_count:
             return 0

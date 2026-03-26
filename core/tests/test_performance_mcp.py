@@ -111,7 +111,7 @@ class TestPerformanceMcpManager:
 
     @pytest.mark.asyncio
     async def test_daw_transport_not_available(self, manager):
-        from mascarade.mcp.client import McpServerUnavailable
+        from mascarade.mcp.errors import McpServerUnavailable
 
         with pytest.raises(McpServerUnavailable):
             await manager.daw_transport(TransportAction.PLAY)

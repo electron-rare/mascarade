@@ -51,9 +51,7 @@ class ControlledLatencyProvider(LLMProvider):
             return 0
         sorted_times = sorted(self.call_times)
         p95_idx = int(len(sorted_times) * 0.95)
-        return (
-            sorted_times[p95_idx] if p95_idx < len(sorted_times) else sorted_times[-1]
-        )
+        return sorted_times[p95_idx] if p95_idx < len(sorted_times) else sorted_times[-1]
 
 
 def calculate_p95(latencies: list[float]) -> float:
@@ -62,11 +60,7 @@ def calculate_p95(latencies: list[float]) -> float:
         return 0
     sorted_latencies = sorted(latencies)
     p95_idx = int(len(sorted_latencies) * 0.95)
-    return (
-        sorted_latencies[p95_idx]
-        if p95_idx < len(sorted_latencies)
-        else sorted_latencies[-1]
-    )
+    return sorted_latencies[p95_idx] if p95_idx < len(sorted_latencies) else sorted_latencies[-1]
 
 
 def disable_router_cache(router: Router):
@@ -168,9 +162,7 @@ def test_e2e_perf_concurrent_requests():
 
     # 10 concurrent requests should complete much faster than 10 sequential
     # Sequential would be ~400ms (10 * 40ms), concurrent should be ~40-80ms
-    assert (
-        elapsed_ms < 150
-    ), f"Concurrent requests took {elapsed_ms:.2f}ms, expected < 150ms"
+    assert elapsed_ms < 150, f"Concurrent requests took {elapsed_ms:.2f}ms, expected < 150ms"
     assert len(responses) == 10
 
 
@@ -416,9 +408,7 @@ def test_e2e_perf_memory_efficiency():
         asyncio.run(router.send(messages, strategy=Strategy.FASTEST))
 
     # Provider should have recorded all calls
-    assert (
-        len(provider.call_times) == 200
-    ), f"Expected 200 calls, got {len(provider.call_times)}"
+    assert len(provider.call_times) == 200, f"Expected 200 calls, got {len(provider.call_times)}"
 
     # Verify times list doesn't have duplicate references or corruption
     assert all(isinstance(t, float) for t in provider.call_times)

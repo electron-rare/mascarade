@@ -43,9 +43,7 @@ class AgentRegistry:
 
     def get(self, name: str) -> Agent:
         if name not in self._agents:
-            raise KeyError(
-                f"Agent '{name}' non trouvé. Disponibles: {list(self._agents.keys())}"
-            )
+            raise KeyError(f"Agent '{name}' non trouvé. Disponibles: {list(self._agents.keys())}")
         return self._agents[name]
 
     def list(self) -> list[Agent]:
@@ -104,17 +102,11 @@ class AgentRegistry:
 
     def find_by_capability(self, capability: str) -> list[Agent]:
         """Find agents that declare a specific capability."""
-        return [
-            a for a in self._agents.values()
-            if capability in (a.capabilities or [])
-        ]
+        return [a for a in self._agents.values() if capability in (a.capabilities or [])]
 
     def find_by_cluster(self, cluster: str) -> list[Agent]:
         """Find all agents in a domain cluster."""
-        return [
-            a for a in self._agents.values()
-            if a.cluster == cluster
-        ]
+        return [a for a in self._agents.values() if a.cluster == cluster]
 
     def find_best_for(self, task_description: str) -> Agent | None:
         """Find the best agent for a task based on capabilities and keywords.
@@ -129,7 +121,7 @@ class AgentRegistry:
         for agent in self._agents.values():
             score = 0
             # Match capabilities
-            for cap in (agent.capabilities or []):
+            for cap in agent.capabilities or []:
                 if cap.lower() in task_lower:
                     score += 3
             # Match description keywords
@@ -225,9 +217,7 @@ class AgentRegistry:
             agents_data.append(data)
 
         # Atomic write: write to temp file, then rename
-        fd, tmp_path = tempfile.mkstemp(
-            dir=str(self._storage_path.parent), suffix=".tmp"
-        )
+        fd, tmp_path = tempfile.mkstemp(dir=str(self._storage_path.parent), suffix=".tmp")
         try:
             with os.fdopen(fd, "w", encoding="utf-8") as f:
                 json.dump(agents_data, f, indent=2, ensure_ascii=False)

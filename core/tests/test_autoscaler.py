@@ -209,9 +209,7 @@ def test_apply_scaling_decision_no_op(autoscaler):
     """Test applying a no-op decision."""
     initial_count = autoscaler.get_current_worker_count()
 
-    decision = ScalingDecision(
-        action="no_op", target_workers=initial_count, reason="Test no-op"
-    )
+    decision = ScalingDecision(action="no_op", target_workers=initial_count, reason="Test no-op")
 
     result = autoscaler.apply_scaling_decision(decision)
 

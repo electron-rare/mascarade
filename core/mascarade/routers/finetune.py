@@ -12,9 +12,7 @@ from pydantic import BaseModel, Field
 from mascarade.auth import require_auth
 from mascarade.finetune.registry import FinetuneRegistry, RunEntry
 
-router = APIRouter(
-    prefix="/v1/api", dependencies=[Depends(require_auth)], tags=["finetune"]
-)
+router = APIRouter(prefix="/v1/api", dependencies=[Depends(require_auth)], tags=["finetune"])
 
 
 # --- Models ---

@@ -64,9 +64,7 @@ async def track_or_query_character(req: CharacterRequest, request: Request):
 
     try:
         if req.knowledge_aspect:
-            data = await client.get_character_knowledge(
-                req.name, aspect=req.knowledge_aspect
-            )
+            data = await client.get_character_knowledge(req.name, aspect=req.knowledge_aspect)
         else:
             data = await client.track_character(
                 req.name, attributes=req.attributes, book_id=req.book_id
@@ -103,9 +101,7 @@ async def check_consistency(req: ConsistencyRequest, request: Request):
     client = _get_narrative(request)
 
     try:
-        result = await client.check_consistency(
-            req.text, book_id=req.book_id, scope=req.scope
-        )
+        result = await client.check_consistency(req.text, book_id=req.book_id, scope=req.scope)
     except RuntimeError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
 

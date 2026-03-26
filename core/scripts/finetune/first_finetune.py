@@ -80,9 +80,7 @@ async def phase_research(task: str, max_size_gb: float) -> dict:
     report = await researcher.recommend(task, max_size_gb=max_size_gb, top_k=5)
 
     for i, m in enumerate(report["candidates"], 1):
-        print(
-            f"    {i}. {CYAN}{m['model_id']}{RESET}  ↓{m['downloads']:,}  ♥{m['likes']:,}"
-        )
+        print(f"    {i}. {CYAN}{m['model_id']}{RESET}  ↓{m['downloads']:,}  ♥{m['likes']:,}")
 
     if report["papers"]:
         print(f"\n    {DIM}Papers:{RESET}")
@@ -113,9 +111,7 @@ def phase_check_kxkm() -> bool:
     ok("SSH OK")
 
     step(2, "GPU check...")
-    rc, out = ssh_cmd(
-        f"{KXKM_VENV} -c 'import torch; print(torch.cuda.get_device_name(0))'"
-    )
+    rc, out = ssh_cmd(f"{KXKM_VENV} -c 'import torch; print(torch.cuda.get_device_name(0))'")
     if rc != 0:
         fail(f"GPU check failed: {out}")
         return False
@@ -313,12 +309,8 @@ async def main():
     parser.add_argument("--task", default="code", help="Model task")
     parser.add_argument("--domain", default="code", help="Dataset domain")
     parser.add_argument("--max-size", type=float, default=3.0, help="Max model size GB")
-    parser.add_argument(
-        "--base-model", default="", help="Override base model (skip research)"
-    )
-    parser.add_argument(
-        "--dataset", default="", help="Override dataset (skip research)"
-    )
+    parser.add_argument("--base-model", default="", help="Override base model (skip research)")
+    parser.add_argument("--dataset", default="", help="Override dataset (skip research)")
     parser.add_argument("--dry-run", action="store_true", help="Skip actual training")
     args = parser.parse_args()
 

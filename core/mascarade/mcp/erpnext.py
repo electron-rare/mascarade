@@ -250,7 +250,10 @@ class ERPNextMcpClient:
                 "inputSchema": {
                     "type": "object",
                     "properties": {
-                        "name": {"type": "string", "description": "Lead ID (e.g. CRM-LEAD-2026-00001)"},
+                        "name": {
+                            "type": "string",
+                            "description": "Lead ID (e.g. CRM-LEAD-2026-00001)",
+                        },
                     },
                     "required": ["name"],
                 },

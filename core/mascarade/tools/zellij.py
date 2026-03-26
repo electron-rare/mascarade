@@ -72,21 +72,19 @@ class ZellijAgent:
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )
-            stdout, stderr = await asyncio.wait_for(
-                proc.communicate(), timeout=self.ssh_timeout
-            )
+            stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=self.ssh_timeout)
             output = stdout.decode() + stderr.decode()
             return output.strip(), proc.returncode or 0
 
-        ssh_cmd = f"ssh -o ConnectTimeout={self.ssh_timeout} -o StrictHostKeyChecking=no {host} {cmd!r}"
+        ssh_cmd = (
+            f"ssh -o ConnectTimeout={self.ssh_timeout} -o StrictHostKeyChecking=no {host} {cmd!r}"
+        )
         proc = await asyncio.create_subprocess_shell(
             ssh_cmd,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
-        stdout, stderr = await asyncio.wait_for(
-            proc.communicate(), timeout=self.ssh_timeout + 5
-        )
+        stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=self.ssh_timeout + 5)
         output = stdout.decode() + stderr.decode()
         return output.strip(), proc.returncode or 0
 
@@ -132,17 +130,11 @@ class ZellijAgent:
         logger.info("Found %d sessions on %s", len(sessions), node)
         return sessions
 
-    async def dump_layout(
-        self, node: str = "tower", session: str = "mascarade"
-    ) -> ZellijLayout:
+    async def dump_layout(self, node: str = "tower", session: str = "mascarade") -> ZellijLayout:
         """Dump the layout of a zellij session."""
-        output, rc = await self._ssh_cmd(
-            node, f"zellij -s {session} action dump-layout 2>&1"
-        )
+        output, rc = await self._ssh_cmd(node, f"zellij -s {session} action dump-layout 2>&1")
         if rc != 0:
-            return ZellijLayout(
-                session=session, node=node, raw_layout=f"Error: {output}"
-            )
+            return ZellijLayout(session=session, node=node, raw_layout=f"Error: {output}")
 
         # Parse panes from layout
         panes = []
@@ -173,9 +165,7 @@ class ZellijAgent:
         cmd = f"zellij -s {session} action write-chars '{escaped}'"
         output, rc = await self._ssh_cmd(node, cmd)
         if rc != 0:
-            logger.warning(
-                "Failed to write to pane on %s/%s: %s", node, session, output
-            )
+            logger.warning("Failed to write to pane on %s/%s: %s", node, session, output)
             return False
         logger.info("Sent %d chars to %s/%s", len(text), node, session)
         return True

@@ -116,17 +116,11 @@ class TestEndToEndExecution:
 
         node_registry = NodeTypeRegistry(storage_path=None)
         node_registry.register(
-            NodeType(
-                id="math.constant", domain="math", label="Constant", description=""
-            )
+            NodeType(id="math.constant", domain="math", label="Constant", description="")
         )
+        node_registry.register(NodeType(id="math.add", domain="math", label="Add", description=""))
         node_registry.register(
-            NodeType(id="math.add", domain="math", label="Add", description="")
-        )
-        node_registry.register(
-            NodeType(
-                id="math.multiply", domain="math", label="Multiply", description=""
-            )
+            NodeType(id="math.multiply", domain="math", label="Multiply", description="")
         )
 
         # Build graph: 5 -> +3 -> *2 = 16
@@ -140,12 +134,8 @@ class TestEndToEndExecution:
                     label="Five",
                     config={"value": 5},
                 ),
-                GraphNode(
-                    id="n2", node_type="math.add", label="Add 3", config={"b": 3}
-                ),
-                GraphNode(
-                    id="n3", node_type="math.multiply", label="Times 2", config={"b": 2}
-                ),
+                GraphNode(id="n2", node_type="math.add", label="Add 3", config={"b": 3}),
+                GraphNode(id="n3", node_type="math.multiply", label="Times 2", config={"b": 2}),
             ],
             edges=[
                 GraphEdge(
@@ -190,17 +180,11 @@ class TestEndToEndExecution:
 
         node_registry = NodeTypeRegistry(storage_path=None)
         node_registry.register(
-            NodeType(
-                id="math.constant", domain="math", label="Constant", description=""
-            )
+            NodeType(id="math.constant", domain="math", label="Constant", description="")
         )
+        node_registry.register(NodeType(id="math.add", domain="math", label="Add", description=""))
         node_registry.register(
-            NodeType(id="math.add", domain="math", label="Add", description="")
-        )
-        node_registry.register(
-            NodeType(
-                id="math.multiply", domain="math", label="Multiply", description=""
-            )
+            NodeType(id="math.multiply", domain="math", label="Multiply", description="")
         )
 
         # Build diamond: 10 -> (+5, *2) -> add branches = 35
@@ -214,9 +198,7 @@ class TestEndToEndExecution:
                     label="Ten",
                     config={"value": 10},
                 ),
-                GraphNode(
-                    id="left", node_type="math.add", label="Add 5", config={"b": 5}
-                ),
+                GraphNode(id="left", node_type="math.add", label="Add 5", config={"b": 5}),
                 GraphNode(
                     id="right",
                     node_type="math.multiply",
@@ -280,9 +262,7 @@ class TestEndToEndExecution:
 
         node_registry = NodeTypeRegistry(storage_path=None)
         node_registry.register(
-            NodeType(
-                id="math.constant", domain="math", label="Constant", description=""
-            )
+            NodeType(id="math.constant", domain="math", label="Constant", description="")
         )
         node_registry.register(
             NodeType(id="text.repeat", domain="text", label="Repeat", description="")
@@ -302,12 +282,8 @@ class TestEndToEndExecution:
                     label="Three",
                     config={"value": 3},
                 ),
-                GraphNode(
-                    id="n2", node_type="text.repeat", label="Repeat Hello", config={}
-                ),
-                GraphNode(
-                    id="n3", node_type="text.upper", label="Uppercase", config={}
-                ),
+                GraphNode(id="n2", node_type="text.repeat", label="Repeat Hello", config={}),
+                GraphNode(id="n3", node_type="text.upper", label="Uppercase", config={}),
             ],
             edges=[
                 GraphEdge(
@@ -355,9 +331,7 @@ class TestEndToEndPersistence:
             id="persist-test",
             name="Persistence Test",
             nodes=[
-                GraphNode(
-                    id="n1", node_type="math.constant", label="C1", config={"value": 10}
-                ),
+                GraphNode(id="n1", node_type="math.constant", label="C1", config={"value": 10}),
                 GraphNode(id="n2", node_type="math.add", label="Add", config={"b": 5}),
             ],
             edges=[
@@ -388,13 +362,9 @@ class TestEndToEndPersistence:
 
         node_registry = NodeTypeRegistry(storage_path=None)
         node_registry.register(
-            NodeType(
-                id="math.constant", domain="math", label="Constant", description=""
-            )
+            NodeType(id="math.constant", domain="math", label="Constant", description="")
         )
-        node_registry.register(
-            NodeType(id="math.add", domain="math", label="Add", description="")
-        )
+        node_registry.register(NodeType(id="math.add", domain="math", label="Add", description=""))
 
         engine = GraphExecutionEngine(worker_registry, node_registry)
         results = asyncio.run(engine.execute(loaded, run_id="run-persist"))
@@ -723,9 +693,7 @@ class TestAcceptanceCriteria:
 
         # Verify no errors in parallel execution
         for node_id in ["source", "parallel1", "parallel2", "parallel3", "sink"]:
-            assert (
-                result_map[node_id].error is None
-            ), f"Node {node_id} should not have errors"
+            assert result_map[node_id].error is None, f"Node {node_id} should not have errors"
 
         # --- STEP 6: Verify cycle detection rejects cyclic graphs ---
         cyclic_graph = Graph(
@@ -767,9 +735,7 @@ class TestAcceptanceCriteria:
         with pytest.raises(CycleDetectedError) as exc_info:
             engine._topological_sort(cyclic_graph)
 
-        assert (
-            "cycle" in str(exc_info.value).lower()
-        ), "Error message should mention cycle"
+        assert "cycle" in str(exc_info.value).lower(), "Error message should mention cycle"
 
         # Verify execution also rejects cyclic graph (topological sort is called first)
         with pytest.raises(CycleDetectedError):

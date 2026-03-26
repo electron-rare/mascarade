@@ -290,6 +290,7 @@ def langfuse_trace_agent(agent_name: str | None = None):
     The trace_id is set in context so that any router.send() call inside
     the agent run automatically attaches to the same trace.
     """
+
     def decorator(func):
         @wraps(func)
         async def wrapper(*args, **kwargs):
@@ -340,4 +341,5 @@ def langfuse_trace_agent(agent_name: str | None = None):
                 return result
 
         return wrapper
+
     return decorator

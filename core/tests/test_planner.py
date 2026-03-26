@@ -150,17 +150,21 @@ class TestExecutionPlan:
 
 class TestPlanParsing:
     def test_parse_plan_valid(self, orchestrator: PlanAndExecuteOrchestrator):
-        raw = json.dumps([
-            {"id": "t1", "agent": "researcher", "input": "Find info", "dependencies": []},
-            {"id": "t2", "agent": "writer", "input": "Write it up", "dependencies": ["t1"]},
-        ])
+        raw = json.dumps(
+            [
+                {"id": "t1", "agent": "researcher", "input": "Find info", "dependencies": []},
+                {"id": "t2", "agent": "writer", "input": "Write it up", "dependencies": ["t1"]},
+            ]
+        )
         nodes = orchestrator._parse_plan(raw)
         assert len(nodes) == 2
         assert nodes[0].id == "t1"
         assert nodes[1].dependencies == ["t1"]
 
     def test_parse_plan_with_markdown_fences(self, orchestrator: PlanAndExecuteOrchestrator):
-        raw = '```json\n[{"id": "t1", "agent": "researcher", "input": "x", "dependencies": []}]\n```'
+        raw = (
+            '```json\n[{"id": "t1", "agent": "researcher", "input": "x", "dependencies": []}]\n```'
+        )
         nodes = orchestrator._parse_plan(raw)
         assert len(nodes) == 1
 
@@ -218,9 +222,11 @@ class TestPlanning:
     async def test_plan_calls_router(
         self, orchestrator: PlanAndExecuteOrchestrator, mock_router: MagicMock
     ):
-        plan_json = json.dumps([
-            {"id": "t1", "agent": "researcher", "input": "Find info", "dependencies": []},
-        ])
+        plan_json = json.dumps(
+            [
+                {"id": "t1", "agent": "researcher", "input": "Find info", "dependencies": []},
+            ]
+        )
         mock_router.send.return_value = LLMResponse(
             content=plan_json, model="test", provider="test"
         )
@@ -253,9 +259,7 @@ class TestExecution:
         self, orchestrator: PlanAndExecuteOrchestrator, mock_router: MagicMock
     ):
         """Two independent tasks should both complete."""
-        mock_router.send.return_value = LLMResponse(
-            content="result", model="test", provider="test"
-        )
+        mock_router.send.return_value = LLMResponse(content="result", model="test", provider="test")
         plan = ExecutionPlan(
             tasks=[
                 TaskNode(id="t1", agent="researcher", input="task 1"),
@@ -399,7 +403,9 @@ class TestSynthesis:
     ):
         plan = ExecutionPlan(
             tasks=[
-                TaskNode(id="t1", agent="a", input="x", status=TaskStatus.COMPLETED, result="The answer"),
+                TaskNode(
+                    id="t1", agent="a", input="x", status=TaskStatus.COMPLETED, result="The answer"
+                ),
             ],
             query="question",
         )
@@ -450,10 +456,12 @@ class TestFullRun:
     async def test_run_end_to_end(
         self, orchestrator: PlanAndExecuteOrchestrator, mock_router: MagicMock
     ):
-        plan_json = json.dumps([
-            {"id": "t1", "agent": "researcher", "input": "Research topic", "dependencies": []},
-            {"id": "t2", "agent": "writer", "input": "Write summary", "dependencies": ["t1"]},
-        ])
+        plan_json = json.dumps(
+            [
+                {"id": "t1", "agent": "researcher", "input": "Research topic", "dependencies": []},
+                {"id": "t2", "agent": "writer", "input": "Write summary", "dependencies": ["t1"]},
+            ]
+        )
 
         call_count = 0
 
@@ -486,9 +494,11 @@ class TestFullRun:
         self, orchestrator: PlanAndExecuteOrchestrator, mock_router: MagicMock
     ):
         """When a task fails, run() should replan and retry."""
-        plan_json = json.dumps([
-            {"id": "t1", "agent": "researcher", "input": "Find data", "dependencies": []},
-        ])
+        plan_json = json.dumps(
+            [
+                {"id": "t1", "agent": "researcher", "input": "Find data", "dependencies": []},
+            ]
+        )
 
         call_count = 0
 

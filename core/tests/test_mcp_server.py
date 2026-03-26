@@ -87,9 +87,7 @@ class FakeRouter:
 def agents():
     return [
         FakeAgent(name="coder", description="Writes code"),
-        FakeAgent(
-            name="reviewer", description="Reviews code", preferred_provider="anthropic"
-        ),
+        FakeAgent(name="reviewer", description="Reviews code", preferred_provider="anthropic"),
     ]
 
 

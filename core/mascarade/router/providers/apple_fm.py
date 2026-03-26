@@ -43,12 +43,10 @@ class AppleFMProvider(LLMProvider):
 
     def __init__(self) -> None:
         self._enabled: bool = getattr(settings, "afm_enabled", False)
-        self._base_url: str = getattr(
-            settings, "afm_bridge_url", "http://localhost:8090"
-        ).rstrip("/")
-        self.default_model = getattr(
-            settings, "afm_default_model", "apple-fm-3b"
+        self._base_url: str = getattr(settings, "afm_bridge_url", "http://localhost:8090").rstrip(
+            "/"
         )
+        self.default_model = getattr(settings, "afm_default_model", "apple-fm-3b")
         self._timeout: float = getattr(settings, "afm_timeout_seconds", 60.0)
         self._client = httpx.AsyncClient(
             base_url=self._base_url,

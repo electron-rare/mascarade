@@ -119,17 +119,13 @@ class DomainClassifier:
 
             # Create domain -> probability mapping
             result = {
-                domain: float(proba)
-                for domain, proba in zip(self.domains, probas, strict=False)
+                domain: float(proba) for domain, proba in zip(self.domains, probas, strict=False)
             }
 
             logger.debug(
                 "Domain probabilities for '%s...': %s",
                 text[:50],
-                {
-                    k: f"{v:.3f}"
-                    for k, v in sorted(result.items(), key=lambda x: -x[1])[:3]
-                },
+                {k: f"{v:.3f}" for k, v in sorted(result.items(), key=lambda x: -x[1])[:3]},
             )
 
             return result
@@ -222,9 +218,7 @@ class DomainClassifier:
             ValueError: If training data is invalid
         """
         if len(texts) != len(labels):
-            raise ValueError(
-                f"Mismatched data: {len(texts)} texts, {len(labels)} labels"
-            )
+            raise ValueError(f"Mismatched data: {len(texts)} texts, {len(labels)} labels")
 
         if len(texts) == 0:
             raise ValueError("No training data provided")
@@ -243,9 +237,7 @@ class DomainClassifier:
 
         # Get unique domains
         self.domains = sorted(set(labels))
-        logger.info(
-            "Training for %d domains: %s", len(self.domains), ", ".join(self.domains)
-        )
+        logger.info("Training for %d domains: %s", len(self.domains), ", ".join(self.domains))
 
         # Create TF-IDF vectorizer
         self.vectorizer = TfidfVectorizer(

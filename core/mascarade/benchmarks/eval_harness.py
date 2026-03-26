@@ -39,14 +39,16 @@ except ImportError:
 # ---------------------------------------------------------------------------
 # Supported tasks (subset safe for API-based models)
 # ---------------------------------------------------------------------------
-SUPPORTED_TASKS = frozenset({
-    "hellaswag",
-    "mmlu",
-    "arc_easy",
-    "arc_challenge",
-    "truthfulqa_mc2",
-    "gsm8k",
-})
+SUPPORTED_TASKS = frozenset(
+    {
+        "hellaswag",
+        "mmlu",
+        "arc_easy",
+        "arc_challenge",
+        "truthfulqa_mc2",
+        "gsm8k",
+    }
+)
 
 
 class EvalRunStatus(StrEnum):
@@ -154,6 +156,7 @@ class MascaradeLM(LM):  # type: ignore[misc]
         if loop and loop.is_running():
             # We're inside an existing event loop — use a thread.
             import concurrent.futures
+
             with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
                 return pool.submit(asyncio.run, coro).result()
         return asyncio.run(coro)
@@ -221,9 +224,7 @@ class EvalHarnessRunner:
         self.router = router or Router()
         self.runs: dict[str, EvalRunResult] = {}
         self._storage = BenchmarkStorage()
-        self._cache_dir = Path(
-            getattr(settings, "eval_harness_cache_dir", "data/eval_cache")
-        )
+        self._cache_dir = Path(getattr(settings, "eval_harness_cache_dir", "data/eval_cache"))
         self._cache_dir.mkdir(parents=True, exist_ok=True)
 
     def _generate_run_id(self) -> str:
@@ -251,9 +252,7 @@ class EvalHarnessRunner:
         _check_available()
 
         if task not in SUPPORTED_TASKS:
-            raise ValueError(
-                f"Unsupported task '{task}'. Supported: {sorted(SUPPORTED_TASKS)}"
-            )
+            raise ValueError(f"Unsupported task '{task}'. Supported: {sorted(SUPPORTED_TASKS)}")
 
         run_id = self._generate_run_id()
         result = EvalRunResult(
@@ -295,9 +294,7 @@ class EvalHarnessRunner:
 
             result.scores = scores
             result.raw_results = {
-                k: v
-                for k, v in task_results.items()
-                if isinstance(v, (int, float, str, bool))
+                k: v for k, v in task_results.items() if isinstance(v, (int, float, str, bool))
             }
             result.status = EvalRunStatus.COMPLETED
 

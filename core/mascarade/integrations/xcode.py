@@ -392,9 +392,7 @@ class XcodeProvider:
         cmd.extend(["--path", path])
         return await _run(cmd, timeout=120.0)
 
-    async def swift_format(
-        self, path: str, *, in_place: bool = False
-    ) -> XcodeBuildResult:
+    async def swift_format(self, path: str, *, in_place: bool = False) -> XcodeBuildResult:
         """Run swift-format on a directory."""
         cmd = ["swift-format"]
         if in_place:

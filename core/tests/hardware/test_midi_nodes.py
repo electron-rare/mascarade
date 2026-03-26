@@ -278,9 +278,7 @@ def test_midi_client_read_messages_with_message_filter():
     with patch("mascarade.hardware.nodes.midi.mido", mock_mido):
         client = MIDIClient()
         asyncio.run(client.open_input_port("port1"))
-        messages = asyncio.run(
-            client.read_messages("port1", message_filter=["control_change"])
-        )
+        messages = asyncio.run(client.read_messages("port1", message_filter=["control_change"]))
         assert len(messages) == 1
         assert messages[0].data1 == 7
         assert messages[0].data2 == 127
@@ -538,13 +536,9 @@ def test_midi_message_to_mido_msg_note_on():
     mock_mido.Message.return_value = MagicMock()
 
     with patch("mascarade.hardware.nodes.midi.mido", mock_mido):
-        msg = MIDIMessage(
-            status=MIDIStatus.NOTE_ON, channel=0, data1=60, data2=100
-        )
+        msg = MIDIMessage(status=MIDIStatus.NOTE_ON, channel=0, data1=60, data2=100)
         _midi_message_to_mido_msg(msg)
-        mock_mido.Message.assert_called_once_with(
-            "note_on", channel=0, note=60, velocity=100
-        )
+        mock_mido.Message.assert_called_once_with("note_on", channel=0, note=60, velocity=100)
 
 
 def test_midi_message_to_mido_msg_no_mido():
@@ -677,9 +671,7 @@ def test_execute_midi_output_message_as_midi_message():
     with patch("mascarade.hardware.nodes.midi.mido", mock_mido):
         ctx = _make_context(
             port_name="port1",
-            message=MIDIMessage(
-                status=MIDIStatus.CONTROL_CHANGE, channel=0, data1=7, data2=127
-            ),
+            message=MIDIMessage(status=MIDIStatus.CONTROL_CHANGE, channel=0, data1=7, data2=127),
         )
         result = asyncio.run(execute_midi_output(ctx))
         assert result.success is True

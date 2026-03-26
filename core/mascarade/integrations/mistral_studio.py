@@ -132,9 +132,7 @@ class MistralStudio:
             )
             resp.raise_for_status()
             result: dict[str, Any] = resp.json()
-            logger.info(
-                "Created fine-tuning job %s for model %s", result.get("id"), model
-            )
+            logger.info("Created fine-tuning job %s for model %s", result.get("id"), model)
             return result
 
     async def list_finetune_jobs(self) -> list[dict[str, Any]]:

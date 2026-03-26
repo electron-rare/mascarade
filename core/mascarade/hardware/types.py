@@ -39,12 +39,8 @@ class GPIOState(BaseModel):
     direction: GPIODirection = GPIODirection.INPUT
     value: bool = False
     pull: GPIOPull = GPIOPull.NONE
-    pwm_duty: float | None = Field(
-        None, ge=0.0, le=1.0, description="PWM duty cycle 0.0-1.0"
-    )
-    pwm_freq: int | None = Field(
-        None, ge=1, le=40_000_000, description="PWM frequency in Hz"
-    )
+    pwm_duty: float | None = Field(None, ge=0.0, le=1.0, description="PWM duty cycle 0.0-1.0")
+    pwm_freq: int | None = Field(None, ge=1, le=40_000_000, description="PWM frequency in Hz")
 
 
 # --- SensorReading ---
@@ -58,15 +54,11 @@ class SensorReading(BaseModel):
     name: Literal["SensorReading"] = "SensorReading"
 
     sensor_id: str = Field(description="Unique sensor identifier")
-    sensor_type: str = Field(
-        description="Sensor type (temperature, humidity, distance, etc.)"
-    )
+    sensor_type: str = Field(description="Sensor type (temperature, humidity, distance, etc.)")
     value: float = Field(description="Numeric reading value")
     unit: str = Field(description="Unit of measurement (°C, %, mm, lux, etc.)")
     timestamp_ms: int = Field(description="Unix timestamp in milliseconds")
-    quality: float = Field(
-        1.0, ge=0.0, le=1.0, description="Reading quality/confidence 0.0-1.0"
-    )
+    quality: float = Field(1.0, ge=0.0, le=1.0, description="Reading quality/confidence 0.0-1.0")
     raw: int | None = Field(None, description="Raw ADC value if applicable")
 
 
@@ -173,17 +165,11 @@ class HardwareDeviceDescriptor(BaseModel):
     """Descriptor reported by a discovered hardware device."""
 
     device_id: str = Field(description="Unique device identifier")
-    device_type: str = Field(
-        description="Device type (esp32, midi_interface, dmx_adapter, etc.)"
-    )
+    device_type: str = Field(description="Device type (esp32, midi_interface, dmx_adapter, etc.)")
     hostname: str = Field(description="Network hostname or IP")
     port: int = Field(description="Primary communication port")
-    protocols: list[str] = Field(
-        description="Supported protocols (http, ws, mqtt, serial)"
-    )
-    capabilities: list[str] = Field(
-        description="Device capabilities (gpio, sensor, ota, etc.)"
-    )
+    protocols: list[str] = Field(description="Supported protocols (http, ws, mqtt, serial)")
+    capabilities: list[str] = Field(description="Device capabilities (gpio, sensor, ota, etc.)")
     firmware_version: str | None = Field(None, description="Current firmware version")
     last_seen_ms: int = Field(description="Last seen timestamp in milliseconds")
     online: bool = Field(True, description="Whether device is currently reachable")

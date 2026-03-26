@@ -189,9 +189,7 @@ class P2PTaskDistribution:
 
         # If another peer already claimed this task, skip it.
         if task.status == TaskStatus.CLAIMED and task.claimed_by != self._local_peer_id:
-            logger.debug(
-                "Task %s already claimed by %s, skipping", task_id, task.claimed_by
-            )
+            logger.debug("Task %s already claimed by %s, skipping", task_id, task.claimed_by)
             return
 
         # Mark ourselves as the tentative claimer before broadcasting so that
@@ -223,9 +221,7 @@ class P2PTaskDistribution:
             return
 
         if not self._task_handler:
-            logger.warning(
-                "No task handler registered, cannot process task %s", task_id
-            )
+            logger.warning("No task handler registered, cannot process task %s", task_id)
             return
 
         task.status = TaskStatus.RUNNING
@@ -274,9 +270,7 @@ class P2PTaskDistribution:
         task = self._tasks.get(task_id)
         if task:
             task.claimed_by = data.get("executor")
-            task.status = (
-                TaskStatus.COMPLETED if status == "completed" else TaskStatus.FAILED
-            )
+            task.status = TaskStatus.COMPLETED if status == "completed" else TaskStatus.FAILED
 
     async def _handle_task_claim(
         self,

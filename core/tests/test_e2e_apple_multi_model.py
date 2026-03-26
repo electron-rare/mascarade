@@ -14,9 +14,7 @@ import pytest
 
 pytest.importorskip("psutil", reason="psutil required for apple_llm_api tests")
 
-SERVICE_PATH = (
-    Path(__file__).resolve().parents[2] / "deploy" / "apple_llm_api" / "app.py"
-)
+SERVICE_PATH = Path(__file__).resolve().parents[2] / "deploy" / "apple_llm_api" / "app.py"
 
 
 def _load_service_module():
@@ -171,12 +169,8 @@ async def test_concurrent_model_serving(monkeypatch, service_module):
         assert len(loaded_model_ids) == 2
 
         # Verify usage tracking
-        model_4b_info = next(
-            m for m in status["loaded_models"] if m["model_id"] == "apple-4b"
-        )
-        model_05b_info = next(
-            m for m in status["loaded_models"] if m["model_id"] == "apple-0.5b"
-        )
+        model_4b_info = next(m for m in status["loaded_models"] if m["model_id"] == "apple-4b")
+        model_05b_info = next(m for m in status["loaded_models"] if m["model_id"] == "apple-0.5b")
         assert model_4b_info["request_count"] >= 1
         assert model_05b_info["request_count"] >= 1
         assert model_4b_info["priority"] == 1
@@ -356,13 +350,9 @@ async def test_priority_based_eviction(monkeypatch, service_module):
         # Check that high-priority stayed, medium was evicted
         status_2 = await client.get("/status")
         loaded_2 = {m["model_id"] for m in status_2.json()["loaded_models"]}
-        assert (
-            "apple-high-priority" in loaded_2
-        ), "High priority model should not be evicted"
+        assert "apple-high-priority" in loaded_2, "High priority model should not be evicted"
         assert "apple-low-priority" in loaded_2
-        assert (
-            "apple-medium-priority" not in loaded_2
-        ), "Medium priority should be evicted first"
+        assert "apple-medium-priority" not in loaded_2, "Medium priority should be evicted first"
 
 
 @pytest.mark.asyncio

@@ -116,9 +116,7 @@ class InteropManager:
         else:
             raise ValueError(f"Unsupported protocol: {protocol}")
 
-    def validate_interop_message(
-        self, message: dict, protocol: str | None = None
-    ) -> bool:
+    def validate_interop_message(self, message: dict, protocol: str | None = None) -> bool:
         """Validate interoperability message."""
         if protocol:
             if protocol == "MCP/1.0":
@@ -153,9 +151,7 @@ class InteropManager:
             if "content" in message and isinstance(message["content"], dict):
                 return message["content"]
 
-        raise ValueError(
-            f"Translation from {source_protocol} to {target_protocol} not supported"
-        )
+        raise ValueError(f"Translation from {source_protocol} to {target_protocol} not supported")
 
 
 class NISTCompliance:
@@ -213,9 +209,7 @@ class NISTCompliance:
                 }
 
         # Calculate compliance score
-        passed = sum(
-            1 for check in compliance["checks"].values() if check["status"] == "pass"
-        )
+        passed = sum(1 for check in compliance["checks"].values() if check["status"] == "pass")
         total = len(compliance["checks"])
         compliance["score"] = (passed / total * 100) if total > 0 else 0
 

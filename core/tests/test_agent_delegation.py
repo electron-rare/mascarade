@@ -1,4 +1,5 @@
 """Tests for agent delegation, capabilities, and cluster system."""
+
 from __future__ import annotations
 
 import pytest
@@ -24,9 +25,13 @@ def registry():
     r.register(_agent("coder", capabilities=["code", "debug", "review"], cluster="code"))
     r.register(_agent("writer", capabilities=["text", "email", "redaction"], cluster="general"))
     r.register(_agent("kicad", capabilities=["pcb", "schematic", "drc"], cluster="electronics"))
-    r.register(_agent("spice", capabilities=["simulation", "netlist", "spice"], cluster="electronics"))
+    r.register(
+        _agent("spice", capabilities=["simulation", "netlist", "spice"], cluster="electronics")
+    )
     r.register(_agent("analyst", capabilities=["data", "kpi", "analysis"], cluster="ops"))
-    r.register(_agent("planner", capabilities=["planning", "decompose", "roadmap"], cluster="general"))
+    r.register(
+        _agent("planner", capabilities=["planning", "decompose", "roadmap"], cluster="general")
+    )
     return r
 
 

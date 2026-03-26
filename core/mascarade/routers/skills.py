@@ -10,9 +10,7 @@ from pydantic import BaseModel, Field
 from mascarade.agents.skill import Skill
 from mascarade.auth import require_auth
 
-router = APIRouter(
-    prefix="/v1/api", dependencies=[Depends(require_auth)], tags=["skills"]
-)
+router = APIRouter(prefix="/v1/api", dependencies=[Depends(require_auth)], tags=["skills"])
 
 
 # --- Models ---
@@ -60,9 +58,7 @@ def _serialize_skill(skill: Skill, request: Request) -> dict[str, object]:
 async def create_skill(req: SkillCreate, request: Request):
     """Create a new skill."""
     if req.name in request.app.state.skill_registry:
-        raise HTTPException(
-            status_code=409, detail=f"Skill '{req.name}' already exists"
-        )
+        raise HTTPException(status_code=409, detail=f"Skill '{req.name}' already exists")
     skill = Skill(
         name=req.name,
         description=req.description,
@@ -102,9 +98,7 @@ async def get_skill(name: str, request: Request):
     try:
         skill = request.app.state.skill_registry.get(name)
     except KeyError:
-        raise HTTPException(
-            status_code=404, detail=f"Skill '{name}' not found"
-        ) from None
+        raise HTTPException(status_code=404, detail=f"Skill '{name}' not found") from None
     return _serialize_skill(skill, request)
 
 
@@ -114,9 +108,7 @@ async def update_skill(name: str, req: SkillUpdate, request: Request):
     try:
         skill = request.app.state.skill_registry.get(name)
     except KeyError:
-        raise HTTPException(
-            status_code=404, detail=f"Skill '{name}' not found"
-        ) from None
+        raise HTTPException(status_code=404, detail=f"Skill '{name}' not found") from None
     if request.app.state.skill_registry.is_builtin(name):
         raise HTTPException(
             status_code=403,
@@ -141,9 +133,7 @@ async def delete_skill(name: str, request: Request):
     try:
         request.app.state.skill_registry.get(name)
     except KeyError:
-        raise HTTPException(
-            status_code=404, detail=f"Skill '{name}' not found"
-        ) from None
+        raise HTTPException(status_code=404, detail=f"Skill '{name}' not found") from None
     if request.app.state.skill_registry.is_builtin(name):
         raise HTTPException(
             status_code=403,
@@ -167,15 +157,11 @@ async def assign_skill(name: str, agent_name: str, request: Request):
     try:
         request.app.state.skill_registry.get(name)
     except KeyError:
-        raise HTTPException(
-            status_code=404, detail=f"Skill '{name}' not found"
-        ) from None
+        raise HTTPException(status_code=404, detail=f"Skill '{name}' not found") from None
     try:
         agent = request.app.state.registry.get(agent_name)
     except KeyError:
-        raise HTTPException(
-            status_code=404, detail=f"Agent '{agent_name}' not found"
-        ) from None
+        raise HTTPException(status_code=404, detail=f"Agent '{agent_name}' not found") from None
 
     if not hasattr(agent, "skills"):
         agent.skills = []
@@ -196,15 +182,11 @@ async def unassign_skill(name: str, agent_name: str, request: Request):
     try:
         request.app.state.skill_registry.get(name)
     except KeyError:
-        raise HTTPException(
-            status_code=404, detail=f"Skill '{name}' not found"
-        ) from None
+        raise HTTPException(status_code=404, detail=f"Skill '{name}' not found") from None
     try:
         agent = request.app.state.registry.get(agent_name)
     except KeyError:
-        raise HTTPException(
-            status_code=404, detail=f"Agent '{agent_name}' not found"
-        ) from None
+        raise HTTPException(status_code=404, detail=f"Agent '{agent_name}' not found") from None
 
     if not hasattr(agent, "skills") or name not in agent.skills:
         raise HTTPException(
@@ -223,9 +205,7 @@ async def list_agent_skills(agent_name: str, request: Request):
     try:
         agent = request.app.state.registry.get(agent_name)
     except KeyError:
-        raise HTTPException(
-            status_code=404, detail=f"Agent '{agent_name}' not found"
-        ) from None
+        raise HTTPException(status_code=404, detail=f"Agent '{agent_name}' not found") from None
 
     skill_names = getattr(agent, "skills", [])
     skills = []

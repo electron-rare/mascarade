@@ -21,9 +21,7 @@ class TestWorkerState:
         assert w.error_rate == 0.0
 
     def test_alive_status(self):
-        w = WorkerState(
-            node_id="test", url="http://localhost:8201", status=WorkerStatus.ALIVE
-        )
+        w = WorkerState(node_id="test", url="http://localhost:8201", status=WorkerStatus.ALIVE)
         assert w.alive
         w.status = WorkerStatus.SLOW
         assert w.alive
@@ -131,9 +129,7 @@ class TestScheduler:
     def test_select_only_worker(self):
         s = ResourceAwareScheduler()
         s.register_worker(self._make_worker("kxkm", loaded_models=["llama-8b"]))
-        req = ScheduledRequest(
-            model="llama-8b", messages=[{"role": "user", "content": "hi"}]
-        )
+        req = ScheduledRequest(model="llama-8b", messages=[{"role": "user", "content": "hi"}])
         result = s.select_worker(req)
         assert result.node_id == "kxkm"
 
@@ -142,9 +138,7 @@ class TestScheduler:
         s.register_worker(self._make_worker("kxkm", loaded_models=["llama-8b"]))
         s.register_worker(self._make_worker("tower", loaded_models=["qwen-1.5b"]))
 
-        req = ScheduledRequest(
-            model="llama-8b", messages=[{"role": "user", "content": "hi"}]
-        )
+        req = ScheduledRequest(model="llama-8b", messages=[{"role": "user", "content": "hi"}])
         result = s.select_worker(req)
         assert result.node_id == "kxkm"  # has the model
 
@@ -158,9 +152,7 @@ class TestScheduler:
         w2.current_load = 0  # empty
         s.register_worker(w2)
 
-        req = ScheduledRequest(
-            model="llama-8b", messages=[{"role": "user", "content": "hi"}]
-        )
+        req = ScheduledRequest(model="llama-8b", messages=[{"role": "user", "content": "hi"}])
         result = s.select_worker(req)
         assert result.node_id == "tower"  # less loaded
 
@@ -168,9 +160,7 @@ class TestScheduler:
         s = ResourceAwareScheduler()
         s.register_worker(self._make_worker("dead", status=WorkerStatus.DEAD))
 
-        req = ScheduledRequest(
-            model="any", messages=[{"role": "user", "content": "hi"}]
-        )
+        req = ScheduledRequest(model="any", messages=[{"role": "user", "content": "hi"}])
         with pytest.raises(HTTPException) as exc_info:
             s.select_worker(req)
         assert exc_info.value.status_code == 503
@@ -181,9 +171,7 @@ class TestScheduler:
         w.queue_depth = 200
         s.register_worker(w)
 
-        req = ScheduledRequest(
-            model="any", messages=[{"role": "user", "content": "hi"}]
-        )
+        req = ScheduledRequest(model="any", messages=[{"role": "user", "content": "hi"}])
         with pytest.raises(HTTPException) as exc_info:
             s.admit(req)
         assert exc_info.value.status_code == 429
@@ -392,18 +380,14 @@ class TestSchedulerExtended:
 
     def test_estimate_wait_no_workers(self):
         s = ResourceAwareScheduler()
-        req = ScheduledRequest(
-            model="any", messages=[{"role": "user", "content": "hi"}]
-        )
+        req = ScheduledRequest(model="any", messages=[{"role": "user", "content": "hi"}])
         assert s.estimate_wait(req) == float("inf")
 
     def test_admit_no_capable_worker(self):
         s = ResourceAwareScheduler()
         # Only dead workers
         s.register_worker(self._make_worker("dead", status=WorkerStatus.DEAD))
-        req = ScheduledRequest(
-            model="any", messages=[{"role": "user", "content": "hi"}]
-        )
+        req = ScheduledRequest(model="any", messages=[{"role": "user", "content": "hi"}])
         with pytest.raises(HTTPException) as exc_info:
             s.admit(req)
         assert exc_info.value.status_code == 503

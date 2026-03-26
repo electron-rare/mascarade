@@ -110,9 +110,7 @@ class P2PCapabilityExchange:
 
     async def request_capability(self, capability: str) -> list[PeerCapabilities]:
         # Check local cache first
-        cached = [
-            caps for caps in self._peer_caps.values() if capability in caps.capabilities
-        ]
+        cached = [caps for caps in self._peer_caps.values() if capability in caps.capabilities]
         if cached:
             return cached
 
@@ -140,9 +138,7 @@ class P2PCapabilityExchange:
                     last_updated=entry.last_seen,
                 )
 
-        return [
-            caps for caps in self._peer_caps.values() if capability in caps.capabilities
-        ]
+        return [caps for caps in self._peer_caps.values() if capability in caps.capabilities]
 
     def get_peer_capabilities(self, peer_id: str) -> PeerCapabilities | None:
         return self._peer_caps.get(peer_id)
@@ -157,9 +153,7 @@ class P2PCapabilityExchange:
         the network without sending an explicit departure message.
         """
         cutoff = time.monotonic() - max_age
-        stale = [
-            pid for pid, caps in self._peer_caps.items() if caps.last_updated < cutoff
-        ]
+        stale = [pid for pid, caps in self._peer_caps.items() if caps.last_updated < cutoff]
         for pid in stale:
             del self._peer_caps[pid]
         if stale:
@@ -170,11 +164,7 @@ class P2PCapabilityExchange:
         return [c for c in self._peer_caps.values() if provider in c.providers]
 
     def peers_with_model(self, provider: str, model: str) -> list[PeerCapabilities]:
-        return [
-            c
-            for c in self._peer_caps.values()
-            if model in c.provider_models.get(provider, [])
-        ]
+        return [c for c in self._peer_caps.values() if model in c.provider_models.get(provider, [])]
 
     async def _handle_capabilities(
         self,
@@ -208,9 +198,7 @@ class P2PCapabilityExchange:
             http_base_url=data.get("http_base_url"),
             last_updated=time.monotonic(),
         )
-        logger.info(
-            "Updated capabilities for peer %s: %s", peer_id, data.get("capabilities")
-        )
+        logger.info("Updated capabilities for peer %s: %s", peer_id, data.get("capabilities"))
 
     async def _handle_request(
         self,

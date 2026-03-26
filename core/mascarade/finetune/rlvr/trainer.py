@@ -137,9 +137,7 @@ class RLVRTrainer:
             ) from None
 
         # Resolve reward functions
-        self._reward_fns = [
-            get_reward_function(name) for name in config.reward_functions
-        ]
+        self._reward_fns = [get_reward_function(name) for name in config.reward_functions]
         logger.info(
             "RLVR: %d reward functions: %s",
             len(self._reward_fns),
@@ -310,11 +308,7 @@ class RLVRTrainer:
             loop = asyncio.new_event_loop()
             try:
                 for completion_group, prompt in zip(completions, prompts, strict=False):
-                    text = (
-                        completion_group[0].get("content", "")
-                        if completion_group
-                        else ""
-                    )
+                    text = completion_group[0].get("content", "") if completion_group else ""
                     # Average score across all reward functions
                     fn_scores: list[float] = []
                     for fn in reward_fns:
@@ -343,10 +337,7 @@ class RLVRTrainer:
             logger.info("RLVR: llama-cli not found, skipping post-training reward eval")
             return 0.0
 
-        prompts = [
-            row["prompt"]
-            for row in dataset.select(range(min(sample_size, len(dataset))))
-        ]
+        prompts = [row["prompt"] for row in dataset.select(range(min(sample_size, len(dataset))))]
         total_score = 0.0
         count = 0
 

@@ -150,9 +150,7 @@ def test_all_sensitive_fields_use_secretstr():
     # Verify each field is a SecretStr
     for field_name in sensitive_fields:
         field_value = getattr(settings, field_name)
-        assert isinstance(
-            field_value, SecretStr
-        ), f"{field_name} should be SecretStr type"
+        assert isinstance(field_value, SecretStr), f"{field_name} should be SecretStr type"
 
 
 def test_config_does_not_expose_secrets_in_str():
@@ -185,10 +183,7 @@ def test_config_loads_from_env_file():
         # Verify values are loaded
         assert settings.anthropic_api_key.get_secret_value() == "sk-ant-env-key"
         assert settings.openai_api_key.get_secret_value() == "sk-openai-env-key"
-        assert (
-            settings.database_url.get_secret_value()
-            == "postgresql://user:secret@host/db"
-        )
+        assert settings.database_url.get_secret_value() == "postgresql://user:secret@host/db"
 
         # Verify they don't leak in repr
         repr_str = repr(settings)

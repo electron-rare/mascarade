@@ -15,9 +15,7 @@ from mascarade.auth import require_auth
 from mascarade.project_scope import normalize_scope
 from mascarade.router.router import Strategy
 
-router = APIRouter(
-    prefix="/v1/api", dependencies=[Depends(require_auth)], tags=["agents"]
-)
+router = APIRouter(prefix="/v1/api", dependencies=[Depends(require_auth)], tags=["agents"])
 
 
 # --- Models ---
@@ -203,9 +201,7 @@ async def get_agent(name: str, request: Request):
     try:
         agent = request.app.state.registry.get(name)
     except KeyError:
-        raise HTTPException(
-            status_code=404, detail=f"Agent '{name}' not found"
-        ) from None
+        raise HTTPException(status_code=404, detail=f"Agent '{name}' not found") from None
     return _serialize_agent(agent, request)
 
 
@@ -231,9 +227,7 @@ async def update_agent(name: str, req: AgentUpdate, request: Request):
     try:
         agent = request.app.state.registry.get(name)
     except KeyError:
-        raise HTTPException(
-            status_code=404, detail=f"Agent '{name}' not found"
-        ) from None
+        raise HTTPException(status_code=404, detail=f"Agent '{name}' not found") from None
     if request.app.state.registry.is_builtin(name):
         raise HTTPException(
             status_code=403,
@@ -300,9 +294,7 @@ async def delete_agent(name: str, request: Request):
     try:
         request.app.state.registry.get(name)
     except KeyError:
-        raise HTTPException(
-            status_code=404, detail=f"Agent '{name}' not found"
-        ) from None
+        raise HTTPException(status_code=404, detail=f"Agent '{name}' not found") from None
     if request.app.state.registry.is_builtin(name):
         raise HTTPException(
             status_code=403,
@@ -336,9 +328,7 @@ async def run_agent(name: str, req: SendRequest, request: Request):
     try:
         agent = request.app.state.registry.get(name)
     except KeyError:
-        raise HTTPException(
-            status_code=404, detail=f"Agent '{name}' not found"
-        ) from None
+        raise HTTPException(status_code=404, detail=f"Agent '{name}' not found") from None
 
     try:
         normalized_project, normalized_federation, normalized_scope = normalize_scope(
@@ -547,9 +537,7 @@ async def get_agent_metrics(name: str, request: Request):
     try:
         request.app.state.registry.get(name)
     except KeyError:
-        raise HTTPException(
-            status_code=404, detail=f"Agent '{name}' not found"
-        ) from None
+        raise HTTPException(status_code=404, detail=f"Agent '{name}' not found") from None
     return request.app.state.registry.agent_metrics(name)
 
 
@@ -588,9 +576,7 @@ class CopilotRequest(BaseModel):
 
     mode: Literal["logs", "traces", "incident"] = "incident"
     prompt: str = Field(max_length=10_000, description="Operator question or context")
-    logs: list[str] = Field(
-        default_factory=list, max_length=50, description="Recent log lines"
-    )
+    logs: list[str] = Field(default_factory=list, max_length=50, description="Recent log lines")
     traces: list[dict] = Field(
         default_factory=list, max_length=20, description="Agent trace objects"
     )
@@ -611,9 +597,7 @@ async def agent_zero_copilot(req: CopilotRequest, request: Request):
     try:
         agent = request.app.state.registry.get("agent-zero")
     except KeyError:
-        raise HTTPException(
-            status_code=404, detail="agent-zero not registered"
-        ) from None
+        raise HTTPException(status_code=404, detail="agent-zero not registered") from None
 
     # Build context from logs and traces
     context_parts: list[str] = []
@@ -649,9 +633,7 @@ async def agent_zero_copilot(req: CopilotRequest, request: Request):
         "Sois concis et factuel."
     )
 
-    context_block = (
-        "\n".join(context_parts) if context_parts else "(aucun contexte fourni)"
-    )
+    context_block = "\n".join(context_parts) if context_parts else "(aucun contexte fourni)"
     full_prompt = f"{req.prompt}\n\n{context_block}"
 
     try:
@@ -663,9 +645,7 @@ async def agent_zero_copilot(req: CopilotRequest, request: Request):
             system_override=copilot_system,
         )
     except Exception as exc:
-        raise HTTPException(
-            status_code=503, detail=f"Agent Zero failed: {exc}"
-        ) from exc
+        raise HTTPException(status_code=503, detail=f"Agent Zero failed: {exc}") from exc
 
     return {
         "content": response.content,

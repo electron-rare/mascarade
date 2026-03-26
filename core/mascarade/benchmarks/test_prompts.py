@@ -369,9 +369,7 @@ TEST_PROMPTS = {
 }
 
 
-def get_test_prompts(
-    domain: str, difficulty: str | None = None
-) -> list[dict[str, str]]:
+def get_test_prompts(domain: str, difficulty: str | None = None) -> list[dict[str, str]]:
     """
     Retrieve test prompts for a specific domain.
 
@@ -452,9 +450,7 @@ def get_prompts_by_difficulty(difficulty: str) -> list[dict[str, str]]:
     matching_prompts = []
 
     for prompts in TEST_PROMPTS.values():
-        matching_prompts.extend(
-            [p for p in prompts if p.get("difficulty") == difficulty]
-        )
+        matching_prompts.extend([p for p in prompts if p.get("difficulty") == difficulty])
 
     return matching_prompts
 

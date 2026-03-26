@@ -18,6 +18,7 @@ from mascarade.router.providers.pcbdesigner import (
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _msg(payload: dict | str) -> list[dict]:
     """Build a minimal messages list for provider.send()."""
     content = json.dumps(payload) if isinstance(payload, dict) else payload
@@ -37,6 +38,7 @@ def _mock_response(status_code: int = 200, json_data: dict | None = None) -> htt
 # Fixtures
 # ---------------------------------------------------------------------------
 
+
 @pytest.fixture()
 def provider() -> PCBDesignerProvider:
     return PCBDesignerProvider(api_url="http://pcbdesigner.local:8080")
@@ -45,6 +47,7 @@ def provider() -> PCBDesignerProvider:
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
+
 
 class TestConfiguration:
     def test_is_configured_with_url(self, provider: PCBDesignerProvider):
@@ -69,6 +72,7 @@ class TestConfiguration:
 # Invalid input
 # ---------------------------------------------------------------------------
 
+
 class TestInvalidInput:
     @pytest.mark.asyncio
     async def test_non_json_input(self, provider):
@@ -89,16 +93,21 @@ class TestInvalidInput:
 # Action: upload_design
 # ---------------------------------------------------------------------------
 
+
 class TestUploadDesign:
     @pytest.mark.asyncio
     async def test_upload_success(self, provider):
         api_resp = {"job_id": "job-123", "status": "queued"}
         with patch.object(provider, "_post", new_callable=AsyncMock, return_value=api_resp):
-            resp = await provider.send(_msg({
-                "action": "upload_design",
-                "file_path": "/tmp/board.kicad_pcb",
-                "rules_preset": "jlcpcb_2layer",
-            }))
+            resp = await provider.send(
+                _msg(
+                    {
+                        "action": "upload_design",
+                        "file_path": "/tmp/board.kicad_pcb",
+                        "rules_preset": "jlcpcb_2layer",
+                    }
+                )
+            )
         body = json.loads(resp.content)
         assert body["job_id"] == "job-123"
         assert resp.provider == "pcbdesigner"
@@ -114,11 +123,15 @@ class TestUploadDesign:
         api_resp = {"job_id": "job-456", "status": "queued"}
         mock_post = AsyncMock(return_value=api_resp)
         with patch.object(provider, "_post", mock_post):
-            await provider.send(_msg({
-                "action": "upload_design",
-                "file_path": "/tmp/board.kicad_pcb",
-                "rules_preset": "pcbway",
-            }))
+            await provider.send(
+                _msg(
+                    {
+                        "action": "upload_design",
+                        "file_path": "/tmp/board.kicad_pcb",
+                        "rules_preset": "pcbway",
+                    }
+                )
+            )
         call_payload = mock_post.call_args[0][1]
         assert call_payload["rules"]["name"] == "PCBWay Standard"
 
@@ -128,11 +141,15 @@ class TestUploadDesign:
         api_resp = {"job_id": "job-789"}
         mock_post = AsyncMock(return_value=api_resp)
         with patch.object(provider, "_post", mock_post):
-            await provider.send(_msg({
-                "action": "upload_design",
-                "file_path": "/tmp/x.kicad_pcb",
-                "rules_preset": "nonexistent",
-            }))
+            await provider.send(
+                _msg(
+                    {
+                        "action": "upload_design",
+                        "file_path": "/tmp/x.kicad_pcb",
+                        "rules_preset": "nonexistent",
+                    }
+                )
+            )
         call_payload = mock_post.call_args[0][1]
         assert call_payload["rules"]["name"] == "JLCPCB 2-Layer"
 
@@ -140,6 +157,7 @@ class TestUploadDesign:
 # ---------------------------------------------------------------------------
 # Action: check_status
 # ---------------------------------------------------------------------------
+
 
 class TestCheckStatus:
     @pytest.mark.asyncio
@@ -161,17 +179,22 @@ class TestCheckStatus:
 # Action: export_gerber
 # ---------------------------------------------------------------------------
 
+
 class TestExportGerber:
     @pytest.mark.asyncio
     async def test_export_gerber_success(self, provider):
         api_resp = {"url": "https://cdn.example.com/gerber.zip"}
         with patch.object(provider, "_post", new_callable=AsyncMock, return_value=api_resp):
-            resp = await provider.send(_msg({
-                "action": "export_gerber",
-                "job_id": "job-1",
-                "format": "gerber_x2",
-                "include_drill": True,
-            }))
+            resp = await provider.send(
+                _msg(
+                    {
+                        "action": "export_gerber",
+                        "job_id": "job-1",
+                        "format": "gerber_x2",
+                        "include_drill": True,
+                    }
+                )
+            )
         body = json.loads(resp.content)
         assert "url" in body
 
@@ -186,18 +209,23 @@ class TestExportGerber:
 # Action: order_pcb
 # ---------------------------------------------------------------------------
 
+
 class TestOrderPCB:
     @pytest.mark.asyncio
     async def test_order_pcb_success(self, provider):
         api_resp = {"order_id": "ord-42", "manufacturer": "jlcpcb", "quantity": 10}
         mock_post = AsyncMock(return_value=api_resp)
         with patch.object(provider, "_post", mock_post):
-            resp = await provider.send(_msg({
-                "action": "order_pcb",
-                "job_id": "job-1",
-                "manufacturer": "jlcpcb",
-                "quantity": 10,
-            }))
+            resp = await provider.send(
+                _msg(
+                    {
+                        "action": "order_pcb",
+                        "job_id": "job-1",
+                        "manufacturer": "jlcpcb",
+                        "quantity": 10,
+                    }
+                )
+            )
         body = json.loads(resp.content)
         assert body["order_id"] == "ord-42"
         call_payload = mock_post.call_args[0][1]
@@ -222,6 +250,7 @@ class TestOrderPCB:
 # ---------------------------------------------------------------------------
 # Action: get_rules
 # ---------------------------------------------------------------------------
+
 
 class TestGetRules:
     @pytest.mark.asyncio
@@ -251,6 +280,7 @@ class TestGetRules:
 # Design rule presets data
 # ---------------------------------------------------------------------------
 
+
 class TestDesignRulePresets:
     def test_jlcpcb_2layer_values(self):
         r = DESIGN_RULES["jlcpcb_2layer"]
@@ -274,6 +304,7 @@ class TestDesignRulePresets:
 # Error handling
 # ---------------------------------------------------------------------------
 
+
 class TestErrorHandling:
     @pytest.mark.asyncio
     async def test_api_http_error(self, provider):
@@ -282,12 +313,18 @@ class TestErrorHandling:
             status_code=503,
             request=httpx.Request("POST", "http://test"),
         )
-        exc = httpx.HTTPStatusError("Service Unavailable", request=exc_resp.request, response=exc_resp)
+        exc = httpx.HTTPStatusError(
+            "Service Unavailable", request=exc_resp.request, response=exc_resp
+        )
         with patch.object(provider, "_post", new_callable=AsyncMock, side_effect=exc):
-            resp = await provider.send(_msg({
-                "action": "upload_design",
-                "file_path": "/tmp/b.kicad_pcb",
-            }))
+            resp = await provider.send(
+                _msg(
+                    {
+                        "action": "upload_design",
+                        "file_path": "/tmp/b.kicad_pcb",
+                    }
+                )
+            )
         body = json.loads(resp.content)
         assert "error" in body
         assert body["status_code"] == 503
@@ -295,11 +332,17 @@ class TestErrorHandling:
     @pytest.mark.asyncio
     async def test_api_generic_exception(self, provider):
         """Generic exceptions are caught and returned as error JSON."""
-        with patch.object(provider, "_post", new_callable=AsyncMock, side_effect=RuntimeError("boom")):
-            resp = await provider.send(_msg({
-                "action": "upload_design",
-                "file_path": "/tmp/b.kicad_pcb",
-            }))
+        with patch.object(
+            provider, "_post", new_callable=AsyncMock, side_effect=RuntimeError("boom")
+        ):
+            resp = await provider.send(
+                _msg(
+                    {
+                        "action": "upload_design",
+                        "file_path": "/tmp/b.kicad_pcb",
+                    }
+                )
+            )
         body = json.loads(resp.content)
         assert "error" in body
         assert "boom" in body["error"]
@@ -315,15 +358,20 @@ class TestErrorHandling:
 # Stream
 # ---------------------------------------------------------------------------
 
+
 class TestStream:
     @pytest.mark.asyncio
     async def test_stream_yields_content(self, provider):
         with patch.object(provider, "_post", new_callable=AsyncMock, return_value={"ok": True}):
             chunks = []
-            async for chunk in provider.stream(_msg({
-                "action": "upload_design",
-                "file_path": "/tmp/b.kicad_pcb",
-            })):
+            async for chunk in provider.stream(
+                _msg(
+                    {
+                        "action": "upload_design",
+                        "file_path": "/tmp/b.kicad_pcb",
+                    }
+                )
+            ):
                 chunks.append(chunk)
         assert len(chunks) == 1
         body = json.loads(chunks[0])

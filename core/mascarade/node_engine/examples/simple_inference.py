@@ -127,9 +127,7 @@ async def main() -> None:
                 print("Node: template1 (ai.prompt-template)")
                 print(f"  Status: {template_result.status}")
                 print(f"  Execution time: {template_result.execution_time_ms:.2f}ms")
-                print(
-                    f"  Output prompt: {template_result.outputs.get('prompt', 'N/A')[:100]}..."
-                )
+                print(f"  Output prompt: {template_result.outputs.get('prompt', 'N/A')[:100]}...")
                 print()
 
             # Show LLM inference result

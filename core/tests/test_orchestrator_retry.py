@@ -16,9 +16,7 @@ class TestBackoffStrategy:
     """Tests pour les stratégies de backoff."""
 
     def test_constant_backoff(self):
-        config = RetryConfig(
-            strategy=BackoffStrategy.CONSTANT, initial_delay=2.0, jitter=False
-        )
+        config = RetryConfig(strategy=BackoffStrategy.CONSTANT, initial_delay=2.0, jitter=False)
 
         assert config.calculate_delay(0) == 2.0
         assert config.calculate_delay(1) == 2.0
@@ -232,9 +230,7 @@ class TestRetryExecutor:
             raise Exception("Error")
 
         with pytest.raises(Exception):
-            await executor.execute_with_retry(
-                always_fails, agent_name="test", max_retries=1
-            )
+            await executor.execute_with_retry(always_fails, agent_name="test", max_retries=1)
 
         assert call_count == 2  # Initial + 1 retry (override of default 10)
 
@@ -253,9 +249,7 @@ class TestRetryExecutor:
 
         start_time = time.time()
         with pytest.raises(Exception):
-            await executor.execute_with_retry(
-                always_fails, agent_name="test", config=custom_config
-            )
+            await executor.execute_with_retry(always_fails, agent_name="test", config=custom_config)
         elapsed = time.time() - start_time
 
         # Should use custom_config's 0.01s delay, not default 10.0s

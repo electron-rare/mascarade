@@ -134,9 +134,7 @@ async def dmx_scene(body: SceneRequest, request: Request):
     """Trigger a named lighting scene."""
     manager = _get_perf_manager(request)
     if not manager.is_available(manager.SERVER_KEY_DMX):
-        raise HTTPException(
-            status_code=503, detail="LacyLights MCP server not configured"
-        )
+        raise HTTPException(status_code=503, detail="LacyLights MCP server not configured")
 
     result = await manager.dmx_trigger_scene(
         body.scene_name, fade_ms=body.fade_ms, universe=body.universe
@@ -149,9 +147,7 @@ async def dmx_blackout(body: BlackoutRequest, request: Request):
     """Emergency blackout — all DMX channels to zero."""
     manager = _get_perf_manager(request)
     if not manager.is_available(manager.SERVER_KEY_DMX):
-        raise HTTPException(
-            status_code=503, detail="LacyLights MCP server not configured"
-        )
+        raise HTTPException(status_code=503, detail="LacyLights MCP server not configured")
 
     result = await manager.dmx_blackout(fade_ms=body.fade_ms)
     return _tool_result_to_dict(result)
@@ -162,9 +158,7 @@ async def dmx_list_scenes(request: Request):
     """List all available lighting scenes."""
     manager = _get_perf_manager(request)
     if not manager.is_available(manager.SERVER_KEY_DMX):
-        raise HTTPException(
-            status_code=503, detail="LacyLights MCP server not configured"
-        )
+        raise HTTPException(status_code=503, detail="LacyLights MCP server not configured")
 
     result = await manager.dmx_list_scenes()
     return _tool_result_to_dict(result)

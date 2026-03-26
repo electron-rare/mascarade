@@ -24,9 +24,7 @@ def _check_kb_auth() -> bool:
     """Check KB auth using the function from mascarade.server (supports monkeypatching)."""
     import mascarade.server as server_mod
 
-    fn = getattr(
-        server_mod, "knowledge_base_auth_configured", knowledge_base_auth_configured
-    )
+    fn = getattr(server_mod, "knowledge_base_auth_configured", knowledge_base_auth_configured)
     return fn()
 
 
@@ -108,9 +106,7 @@ async def run_and_push(agent_name: str, req: RunAndPushRequest, request: Request
     try:
         agent = request.app.state.registry.get(agent_name)
     except KeyError:
-        raise HTTPException(
-            status_code=404, detail=f"Agent '{agent_name}' not found"
-        ) from None
+        raise HTTPException(status_code=404, detail=f"Agent '{agent_name}' not found") from None
 
     # Run the agent
     prompt = req.messages[-1]["content"] if req.messages else ""

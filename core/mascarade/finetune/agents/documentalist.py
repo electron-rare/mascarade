@@ -124,9 +124,7 @@ class DocumentalistAgent:
             if len(candidates) >= limit:
                 break
 
-        logger.info(
-            "Found %d dataset candidates for domain=%s", len(candidates), domain
-        )
+        logger.info("Found %d dataset candidates for domain=%s", len(candidates), domain)
         return candidates
 
     async def _search_via_http(
@@ -192,9 +190,7 @@ class DocumentalistAgent:
     ) -> dict:
         """Full dataset search with quality ranking."""
         datasets = await self.search_datasets(domain, languages=languages)
-        ranked = sorted(
-            datasets, key=lambda d: (d.downloads * 0.7 + d.likes * 0.3), reverse=True
-        )
+        ranked = sorted(datasets, key=lambda d: (d.downloads * 0.7 + d.likes * 0.3), reverse=True)
         top = ranked[:top_k]
 
         return {

@@ -93,8 +93,10 @@ class FakeBedrockProvider:
 @asynccontextmanager
 async def _client(fake_router: FakeRouter | None = None):
     """Create test client with optional fake router."""
-    with patch("mascarade.auth.is_valid_api_key", return_value=True), \
-         patch("mascarade.auth._resolve_role", return_value="admin"):
+    with (
+        patch("mascarade.auth.is_valid_api_key", return_value=True),
+        patch("mascarade.auth._resolve_role", return_value="admin"),
+    ):
         test_app = _make_app(fake_router)
         transport = httpx.ASGITransport(app=test_app)
         async with httpx.AsyncClient(
@@ -308,9 +310,7 @@ async def test_codestral_fim_validation_error():
 @pytest.mark.asyncio
 async def test_list_providers_multiple():
     """Test listing multiple providers."""
-    fake_router = FakeRouter(
-        available_providers=["openai", "anthropic", "ollama", "bedrock"]
-    )
+    fake_router = FakeRouter(available_providers=["openai", "anthropic", "ollama", "bedrock"])
 
     async with _client(fake_router) as client:
         response = await client.get(

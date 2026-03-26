@@ -149,9 +149,7 @@ def test_circuit_breaker_recovery():
     # Trigger failures to open circuit
     for _ in range(4):
         try:
-            asyncio.run(
-                router.send(payload, strategy="specific", provider="recoverable")
-            )
+            asyncio.run(router.send(payload, strategy="specific", provider="recoverable"))
         except Exception:
             pass
 
@@ -274,9 +272,7 @@ def test_multiple_providers_health_ranking():
         asyncio.run(router.send(payload, strategy="specific", provider="slow"))
 
     # Get healthiest providers
-    healthiest = router.health_monitor.get_healthiest_providers(
-        ["fast", "medium", "slow"]
-    )
+    healthiest = router.health_monitor.get_healthiest_providers(["fast", "medium", "slow"])
 
     # Should be ordered by health (fastest first)
     assert healthiest[0] == "fast", f"Expected fast first, got {healthiest}"
@@ -409,10 +405,13 @@ def test_end_to_end_health_workflow():
     # Send enough requests to trigger circuit breaker (may need more due to fallback)
     for i in range(10):
         try:
-            result = asyncio.run(router.send(
-                [{"role": "user", "content": f"fail test {i}"}],
-                strategy="specific", provider="primary",
-            ))
+            result = asyncio.run(
+                router.send(
+                    [{"role": "user", "content": f"fail test {i}"}],
+                    strategy="specific",
+                    provider="primary",
+                )
+            )
             print(f"Request {i+1}: routed to {result.provider}")
         except Exception as e:
             print(f"Request {i+1}: failed - {type(e).__name__}")
@@ -425,14 +424,14 @@ def test_end_to_end_health_workflow():
     # Phase 3: Verify traffic shifts to backup (use unique messages to avoid cache)
     print("\n=== Phase 3: Traffic Shifting ===")
     for i in range(5):
-        result = asyncio.run(router.send(
-            [{"role": "user", "content": f"phase3 request {i}"}],
-            strategy="best",
-        ))
+        result = asyncio.run(
+            router.send(
+                [{"role": "user", "content": f"phase3 request {i}"}],
+                strategy="best",
+            )
+        )
         print(f"Request {i+1}: routed to {result.provider}")
-        assert (
-            result.provider == "backup"
-        ), "Should route to backup when primary is down"
+        assert result.provider == "backup", "Should route to backup when primary is down"
 
     # Phase 4: Provider recovery
     print("\n=== Phase 4: Provider Recovery ===")
@@ -445,10 +444,12 @@ def test_end_to_end_health_workflow():
     # Circuit should allow test requests (HALF_OPEN)
     print("Sending recovery test requests...")
     for i in range(3):
-        result = asyncio.run(router.send(
-            [{"role": "user", "content": f"phase4 recovery {i}"}],
-            strategy="best",
-        ))
+        result = asyncio.run(
+            router.send(
+                [{"role": "user", "content": f"phase4 recovery {i}"}],
+                strategy="best",
+            )
+        )
         print(f"Recovery request {i+1}: routed to {result.provider}")
 
     # Verify circuit closed

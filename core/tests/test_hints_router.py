@@ -87,9 +87,7 @@ async def test_ask_hint_level_1():
 async def test_ask_hint_level_3():
     """Level 3 hint should return a more explicit response."""
     async with _client() as (client, test_app):
-        test_app.state.router.send = _mock_send(
-            "Cherchez du cote des instruments d'accordage..."
-        )
+        test_app.state.router.send = _mock_send("Cherchez du cote des instruments d'accordage...")
         resp = await client.post(
             "/v1/hints/ask",
             json={

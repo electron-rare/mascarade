@@ -42,8 +42,7 @@ class RedisCache(CacheBackend):
         """
         if aioredis is None:
             raise ImportError(
-                "redis package is required for RedisCache. "
-                "Install with: pip install redis"
+                "redis package is required for RedisCache. " "Install with: pip install redis"
             )
         redis_url = os.getenv("REDIS_URL")
         if redis_url:
@@ -81,16 +80,10 @@ class RedisCache(CacheBackend):
         across different providers and strategies after fallback scenarios.
         """
         cache_kwargs = {
-            k: v
-            for k, v in kwargs.items()
-            if k not in ["provider", "strategy", "model"]
+            k: v for k, v in kwargs.items() if k not in ["provider", "strategy", "model"]
         }
 
-        raw = (
-            json.dumps(messages, sort_keys=True)
-            + "|"
-            + json.dumps(cache_kwargs, sort_keys=True)
-        )
+        raw = json.dumps(messages, sort_keys=True) + "|" + json.dumps(cache_kwargs, sort_keys=True)
         hash_key = hashlib.sha256(raw.encode()).hexdigest()
         return f"{self.key_prefix}{hash_key}"
 

@@ -111,8 +111,10 @@ def _clean_api_keys():
 @asynccontextmanager
 async def _test_client(fake_provider: FakeLLMProvider | None = None):
     """Create test client with app lifespan and optional fake provider."""
-    with patch("mascarade.auth.is_valid_api_key", return_value=True), \
-         patch("mascarade.auth._resolve_role", return_value="admin"):
+    with (
+        patch("mascarade.auth.is_valid_api_key", return_value=True),
+        patch("mascarade.auth._resolve_role", return_value="admin"),
+    ):
         async with app.router.lifespan_context(app):
             if fake_provider is not None:
                 # Register the fake provider in the router

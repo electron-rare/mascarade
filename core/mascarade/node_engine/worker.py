@@ -35,9 +35,7 @@ def make_worker_retry(*extra_exceptions: type[BaseException]):
     return retry(
         stop=stop_after_attempt(3),
         wait=wait_exponential(multiplier=1, min=1, max=10),
-        retry=retry_if_exception_type(
-            RETRYABLE_WORKER_EXCEPTIONS + tuple(extra_exceptions)
-        ),
+        retry=retry_if_exception_type(RETRYABLE_WORKER_EXCEPTIONS + tuple(extra_exceptions)),
         before_sleep=before_sleep_log(logger, logging.WARNING),
         reraise=True,
     )
@@ -136,9 +134,7 @@ class NodeWorker(ABC):
             TimeoutError: Execution timeout
             ValueError: Invalid inputs or configuration
         """
-        raise NotImplementedError(
-            f"execute() not implemented for {self.__class__.__name__}"
-        )
+        raise NotImplementedError(f"execute() not implemented for {self.__class__.__name__}")
 
     async def validate(
         self,
@@ -170,9 +166,7 @@ class NodeWorker(ABC):
             NodeCapability or dict with capability metadata.
             Required keys (if dict): node_types (list[str]), domain (str).
         """
-        raise NotImplementedError(
-            f"capabilities() not implemented for {self.__class__.__name__}"
-        )
+        raise NotImplementedError(f"capabilities() not implemented for {self.__class__.__name__}")
 
     @property
     def is_available(self) -> bool:
@@ -189,15 +183,11 @@ class NodeWorker(ABC):
 
     async def initialize(self) -> None:
         """Initialize the worker (optional override)."""
-        raise NotImplementedError(
-            f"initialize() not implemented for {self.__class__.__name__}"
-        )
+        raise NotImplementedError(f"initialize() not implemented for {self.__class__.__name__}")
 
     async def shutdown(self) -> None:
         """Shutdown the worker (optional override)."""
-        raise NotImplementedError(
-            f"shutdown() not implemented for {self.__class__.__name__}"
-        )
+        raise NotImplementedError(f"shutdown() not implemented for {self.__class__.__name__}")
 
     async def _check_tool(self, tool_name: str) -> bool:
         """Check if an external tool is available in PATH."""

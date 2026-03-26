@@ -28,19 +28,27 @@ class TestChunk:
         assert c.freshness == 1.0
 
     def test_freshness_week_old(self):
-        c = Chunk(content="x", source=SourceType.QDRANT, metadata={"timestamp": time.time() - 3 * 86400})
+        c = Chunk(
+            content="x", source=SourceType.QDRANT, metadata={"timestamp": time.time() - 3 * 86400}
+        )
         assert c.freshness == 0.9
 
     def test_freshness_month_old(self):
-        c = Chunk(content="x", source=SourceType.QDRANT, metadata={"timestamp": time.time() - 15 * 86400})
+        c = Chunk(
+            content="x", source=SourceType.QDRANT, metadata={"timestamp": time.time() - 15 * 86400}
+        )
         assert c.freshness == 0.7
 
     def test_freshness_old(self):
-        c = Chunk(content="x", source=SourceType.QDRANT, metadata={"timestamp": time.time() - 100 * 86400})
+        c = Chunk(
+            content="x", source=SourceType.QDRANT, metadata={"timestamp": time.time() - 100 * 86400}
+        )
         assert c.freshness == 0.5
 
     def test_freshness_very_old(self):
-        c = Chunk(content="x", source=SourceType.QDRANT, metadata={"timestamp": time.time() - 365 * 86400})
+        c = Chunk(
+            content="x", source=SourceType.QDRANT, metadata={"timestamp": time.time() - 365 * 86400}
+        )
         assert c.freshness == 0.3
 
     def test_freshness_no_timestamp(self):
@@ -56,7 +64,12 @@ class TestChunk:
         assert c.authority == 0.5
 
     def test_combined_score(self):
-        c = Chunk(content="x", source=SourceType.QDRANT, score=0.9, metadata={"timestamp": time.time(), "source_type": "spec"})
+        c = Chunk(
+            content="x",
+            source=SourceType.QDRANT,
+            score=0.9,
+            metadata={"timestamp": time.time(), "source_type": "spec"},
+        )
         expected = 0.9 * 0.5 + 1.0 * 0.25 + 1.0 * 0.25
         assert abs(c.combined_score - expected) < 0.01
 
@@ -113,7 +126,9 @@ class TestQueryRouter:
 
 
 class TestRelevanceEvaluator:
-    def _make_chunk(self, score: float, ts: float | None = None, src_type: str = "generic") -> Chunk:
+    def _make_chunk(
+        self, score: float, ts: float | None = None, src_type: str = "generic"
+    ) -> Chunk:
         meta = {"source_type": src_type}
         if ts is not None:
             meta["timestamp"] = ts
@@ -133,7 +148,10 @@ class TestRelevanceEvaluator:
 
     def test_quality_sufficient_true(self):
         ev = RelevanceEvaluator(threshold=0.4)
-        chunks = [self._make_chunk(0.9, time.time(), "spec"), self._make_chunk(0.8, time.time(), "spec")]
+        chunks = [
+            self._make_chunk(0.9, time.time(), "spec"),
+            self._make_chunk(0.8, time.time(), "spec"),
+        ]
         assert ev.quality_sufficient(chunks)
 
     def test_quality_sufficient_false_empty(self):
@@ -199,10 +217,24 @@ class TestAgenticRAGPipeline:
     async def test_full_retrieve_with_good_quality(self):
         """When quality is sufficient on first round, no re-route."""
         good_chunks = [
-            Chunk(content="result1", source=SourceType.QDRANT, score=0.9, metadata={"timestamp": time.time(), "source_type": "spec"}),
-            Chunk(content="result2", source=SourceType.QDRANT, score=0.85, metadata={"timestamp": time.time(), "source_type": "docs"}),
+            Chunk(
+                content="result1",
+                source=SourceType.QDRANT,
+                score=0.9,
+                metadata={"timestamp": time.time(), "source_type": "spec"},
+            ),
+            Chunk(
+                content="result2",
+                source=SourceType.QDRANT,
+                score=0.85,
+                metadata={"timestamp": time.time(), "source_type": "docs"},
+            ),
         ]
-        with patch("mascarade.agentic_rag.retrieve_qdrant", new_callable=AsyncMock, return_value=good_chunks):
+        with patch(
+            "mascarade.agentic_rag.retrieve_qdrant",
+            new_callable=AsyncMock,
+            return_value=good_chunks,
+        ):
             pipeline = AgenticRAGPipeline()
             result = await pipeline.retrieve("test query")
         assert "test query" in result
@@ -210,7 +242,9 @@ class TestAgenticRAGPipeline:
 
     @pytest.mark.asyncio
     async def test_no_results_returns_empty_or_minimal(self):
-        with patch("mascarade.agentic_rag.retrieve_qdrant", new_callable=AsyncMock, return_value=[]):
+        with patch(
+            "mascarade.agentic_rag.retrieve_qdrant", new_callable=AsyncMock, return_value=[]
+        ):
             pipeline = AgenticRAGPipeline()
             result = await pipeline.retrieve("unknown topic")
         # With no chunks, synthesizer returns ""
@@ -228,7 +262,14 @@ class TestAgenticRAGPipeline:
             return [weak_chunk]
 
         async def mock_memory(query):
-            return [Chunk(content="from memory", source=SourceType.MEMORY, score=0.6, metadata={"timestamp": time.time(), "source_type": "docs"})]
+            return [
+                Chunk(
+                    content="from memory",
+                    source=SourceType.MEMORY,
+                    score=0.6,
+                    metadata={"timestamp": time.time(), "source_type": "docs"},
+                )
+            ]
 
         with (
             patch("mascarade.agentic_rag.retrieve_qdrant", side_effect=mock_qdrant),
@@ -242,6 +283,7 @@ class TestAgenticRAGPipeline:
     @pytest.mark.asyncio
     async def test_all_sources_fail(self):
         """When all retrieval raises exceptions, pipeline should still return."""
+
         async def failing_qdrant(query, **kw):
             raise RuntimeError("qdrant down")
 
@@ -255,12 +297,31 @@ class TestAgenticRAGPipeline:
     async def test_mcp_route_included(self):
         """A PCB query should trigger MCP retrieval."""
         good_chunks = [
-            Chunk(content="pcb info", source=SourceType.QDRANT, score=0.9, metadata={"timestamp": time.time(), "source_type": "spec"}),
-            Chunk(content="mcp hint", source=SourceType.MCP, source_id="kicad", score=0.7, metadata={"source_type": "mcp_hint"}),
+            Chunk(
+                content="pcb info",
+                source=SourceType.QDRANT,
+                score=0.9,
+                metadata={"timestamp": time.time(), "source_type": "spec"},
+            ),
+            Chunk(
+                content="mcp hint",
+                source=SourceType.MCP,
+                source_id="kicad",
+                score=0.7,
+                metadata={"source_type": "mcp_hint"},
+            ),
         ]
         with (
-            patch("mascarade.agentic_rag.retrieve_qdrant", new_callable=AsyncMock, return_value=good_chunks[:1]),
-            patch("mascarade.agentic_rag.retrieve_mcp", new_callable=AsyncMock, return_value=good_chunks[1:]),
+            patch(
+                "mascarade.agentic_rag.retrieve_qdrant",
+                new_callable=AsyncMock,
+                return_value=good_chunks[:1],
+            ),
+            patch(
+                "mascarade.agentic_rag.retrieve_mcp",
+                new_callable=AsyncMock,
+                return_value=good_chunks[1:],
+            ),
         ):
             pipeline = AgenticRAGPipeline()
             result = await pipeline.retrieve("show pcb layout")

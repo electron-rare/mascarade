@@ -1,4 +1,5 @@
 """Tests for OpenAIProvider — works even without the openai SDK installed."""
+
 from __future__ import annotations
 
 import sys
@@ -161,6 +162,7 @@ async def test_openai_send_default_model(monkeypatch):
 
 
 # ---------- helpers ----------
+
 
 async def _async_iter(items):
     for item in items:

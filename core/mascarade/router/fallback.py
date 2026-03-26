@@ -31,9 +31,7 @@ class FallbackState:
         # Trier les providers par santé si health_monitor est disponible
         sorted_providers = available_providers
         if health_monitor:
-            sorted_providers = health_monitor.get_healthiest_providers(
-                available_providers
-            )
+            sorted_providers = health_monitor.get_healthiest_providers(available_providers)
 
         sequence: list[tuple[str, str | None]] = []
 
@@ -59,9 +57,7 @@ class FallbackState:
 
     def record_failure(self, provider_name: str) -> None:
         """Enregistrer un échec pour un provider."""
-        self.failed_attempts[provider_name] = (
-            self.failed_attempts.get(provider_name, 0) + 1
-        )
+        self.failed_attempts[provider_name] = self.failed_attempts.get(provider_name, 0) + 1
 
     def get_failure_stats(self) -> dict:
         """Obtenir les statistiques des échecs."""

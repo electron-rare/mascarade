@@ -180,18 +180,20 @@ def parse_altium_bom(csv_content: str) -> list[BOMRecord]:
                 extra[csv_col.strip()] = row[csv_col].strip()
 
         if designator:
-            records.append(BOMRecord(
-                designator=designator,
-                quantity=quantity,
-                value=value,
-                footprint=footprint,
-                description=description,
-                manufacturer=manufacturer,
-                manufacturer_pn=manufacturer_pn,
-                supplier=supplier,
-                supplier_pn=supplier_pn,
-                extra=extra,
-            ))
+            records.append(
+                BOMRecord(
+                    designator=designator,
+                    quantity=quantity,
+                    value=value,
+                    footprint=footprint,
+                    description=description,
+                    manufacturer=manufacturer,
+                    manufacturer_pn=manufacturer_pn,
+                    supplier=supplier,
+                    supplier_pn=supplier_pn,
+                    extra=extra,
+                )
+            )
 
     logger.info("Parsed %d BOM records from Altium CSV", len(records))
     return records
@@ -264,16 +266,18 @@ def parse_kicad_bom(csv_content: str) -> list[BOMRecord]:
                 extra[csv_col.strip()] = row[csv_col].strip()
 
         if designator:
-            records.append(BOMRecord(
-                designator=designator,
-                quantity=quantity,
-                value=value,
-                footprint=footprint,
-                description=description,
-                manufacturer=manufacturer,
-                manufacturer_pn=manufacturer_pn,
-                extra=extra,
-            ))
+            records.append(
+                BOMRecord(
+                    designator=designator,
+                    quantity=quantity,
+                    value=value,
+                    footprint=footprint,
+                    description=description,
+                    manufacturer=manufacturer,
+                    manufacturer_pn=manufacturer_pn,
+                    extra=extra,
+                )
+            )
 
     logger.info("Parsed %d BOM records from KiCad CSV", len(records))
     return records
@@ -303,26 +307,30 @@ def _records_to_kicad_csv(records: list[BOMRecord]) -> str:
     writer = csv.writer(output, lineterminator="\n")
 
     # KiCad BOM header
-    writer.writerow([
-        "Reference",
-        "Value",
-        "Footprint",
-        "Description",
-        "Quantity",
-        "Manufacturer",
-        "MPN",
-    ])
+    writer.writerow(
+        [
+            "Reference",
+            "Value",
+            "Footprint",
+            "Description",
+            "Quantity",
+            "Manufacturer",
+            "MPN",
+        ]
+    )
 
     for rec in records:
-        writer.writerow([
-            rec.designator,
-            rec.value,
-            rec.footprint,
-            rec.description,
-            rec.quantity,
-            rec.manufacturer,
-            rec.manufacturer_pn,
-        ])
+        writer.writerow(
+            [
+                rec.designator,
+                rec.value,
+                rec.footprint,
+                rec.description,
+                rec.quantity,
+                rec.manufacturer,
+                rec.manufacturer_pn,
+            ]
+        )
 
     return output.getvalue()
 
@@ -351,30 +359,34 @@ def _records_to_altium_csv(records: list[BOMRecord]) -> str:
     writer = csv.writer(output, lineterminator="\n")
 
     # Altium BOM header (common export format)
-    writer.writerow([
-        "Designator",
-        "Comment",
-        "Footprint",
-        "Description",
-        "Quantity",
-        "Manufacturer",
-        "Manufacturer Part Number",
-        "Supplier",
-        "Supplier Part Number",
-    ])
+    writer.writerow(
+        [
+            "Designator",
+            "Comment",
+            "Footprint",
+            "Description",
+            "Quantity",
+            "Manufacturer",
+            "Manufacturer Part Number",
+            "Supplier",
+            "Supplier Part Number",
+        ]
+    )
 
     for rec in records:
-        writer.writerow([
-            rec.designator,
-            rec.value,
-            rec.footprint,
-            rec.description,
-            rec.quantity,
-            rec.manufacturer,
-            rec.manufacturer_pn,
-            rec.supplier,
-            rec.supplier_pn,
-        ])
+        writer.writerow(
+            [
+                rec.designator,
+                rec.value,
+                rec.footprint,
+                rec.description,
+                rec.quantity,
+                rec.manufacturer,
+                rec.manufacturer_pn,
+                rec.supplier,
+                rec.supplier_pn,
+            ]
+        )
 
     return output.getvalue()
 
@@ -459,20 +471,31 @@ def parse_altium_schematic_ascii(content: str) -> list[SchematicComponent]:
 
         # Store all fields as parameters for downstream use
         comp.parameters = {
-            k: v for k, v in fields.items()
-            if k not in ("RECORD", "DESIGNATORID", "Designator",
-                         "LIBREFERENCE", "LibReference", "COMMENT", "Comment",
-                         "VALUE", "FOOTPRINT", "Footprint",
-                         "COMPONENTDESCRIPTION", "Description",
-                         "LOCATION.X", "LOCATION.Y")
+            k: v
+            for k, v in fields.items()
+            if k
+            not in (
+                "RECORD",
+                "DESIGNATORID",
+                "Designator",
+                "LIBREFERENCE",
+                "LibReference",
+                "COMMENT",
+                "Comment",
+                "VALUE",
+                "FOOTPRINT",
+                "Footprint",
+                "COMPONENTDESCRIPTION",
+                "Description",
+                "LOCATION.X",
+                "LOCATION.Y",
+            )
         }
 
         if comp.designator or comp.lib_ref:
             components.append(comp)
 
-    logger.info(
-        "Parsed %d components from Altium ASCII schematic", len(components)
-    )
+    logger.info("Parsed %d components from Altium ASCII schematic", len(components))
     return components
 
 

@@ -205,9 +205,7 @@ def test_failover_with_circuit_breaker():
     assert resp.provider == "success"
 
 
-@pytest.mark.skip(
-    reason="Router has bug: stream() doesn't await cache.retrieve() on line 862"
-)
+@pytest.mark.skip(reason="Router has bug: stream() doesn't await cache.retrieve() on line 862")
 def test_failover_streaming():
     """Test failover works for streaming requests."""
     r = Router()
@@ -322,9 +320,7 @@ def test_failover_with_specific_provider_not_available():
         pass
 
 
-@pytest.mark.skip(
-    reason="Router has bug: stream() doesn't await cache.retrieve() on line 862"
-)
+@pytest.mark.skip(reason="Router has bug: stream() doesn't await cache.retrieve() on line 862")
 def test_failover_streaming_mid_stream_failure():
     """Test that streaming cannot fallback after tokens have been yielded."""
     r = Router()

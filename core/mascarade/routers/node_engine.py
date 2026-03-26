@@ -48,9 +48,7 @@ def _serialize_execution_context(graph_id: str, ctx) -> dict[str, Any]:
         "results": {
             node_id: {
                 "node_id": nr.node_id,
-                "status": (
-                    nr.status.value if hasattr(nr.status, "value") else str(nr.status)
-                ),
+                "status": (nr.status.value if hasattr(nr.status, "value") else str(nr.status)),
                 "outputs": nr.outputs,
                 "error": nr.error,
                 "worker": nr.worker_name,

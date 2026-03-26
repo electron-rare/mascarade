@@ -104,9 +104,7 @@ class P2PNode:
         """Start the libp2p node. Called from asyncio."""
         self._identity_provider = identity_provider
         self._send_handler = send_handler
-        self._thread = threading.Thread(
-            target=self._run_trio, name="mascarade-p2p", daemon=True
-        )
+        self._thread = threading.Thread(target=self._run_trio, name="mascarade-p2p", daemon=True)
         self._thread.start()
         ok = await asyncio.to_thread(self._started.wait, 15)
         if not ok:
@@ -118,9 +116,7 @@ class P2PNode:
         """Stop the libp2p node. Called from asyncio."""
         if self._trio_token and self._stop_event:
             try:
-                trio.from_thread.run_sync(
-                    self._stop_event.set, trio_token=self._trio_token
-                )
+                trio.from_thread.run_sync(self._stop_event.set, trio_token=self._trio_token)
             except trio.RunFinishedError:
                 pass
         if self._thread:
@@ -133,11 +129,7 @@ class P2PNode:
 
     @property
     def running(self) -> bool:
-        return (
-            self._started.is_set()
-            and self._thread is not None
-            and self._thread.is_alive()
-        )
+        return self._started.is_set() and self._thread is not None and self._thread.is_alive()
 
     def discovered_peers(self) -> list[P2PPeer]:
         """Return a snapshot of discovered peers (thread-safe)."""
@@ -232,9 +224,7 @@ class P2PNode:
         logger.info("P2P trio loop exiting cleanly")
 
     def _should_start_pubsub(self) -> bool:
-        return bool(
-            _PUBSUB_AVAILABLE and getattr(self._settings, "p2p_pubsub_enabled", False)
-        )
+        return bool(_PUBSUB_AVAILABLE and getattr(self._settings, "p2p_pubsub_enabled", False))
 
     async def _start_pubsub(self) -> None:
         if not _PUBSUB_AVAILABLE:
@@ -387,9 +377,7 @@ class P2PNode:
                 await self._pubsub.subscribe(_HEARTBEAT_TOPIC)
                 logger.info("GossipSub heartbeat topic subscribed")
                 while True:
-                    identity = (
-                        self._identity_provider() if self._identity_provider else {}
-                    )
+                    identity = self._identity_provider() if self._identity_provider else {}
                     heartbeat = {
                         "type": "heartbeat",
                         "libp2p_peer_id": self._local_peer_id,

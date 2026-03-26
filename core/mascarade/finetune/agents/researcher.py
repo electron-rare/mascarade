@@ -251,9 +251,7 @@ class ResearcherAgent:
         models = await self.search_base_models(task, max_size_gb=max_size_gb)
         papers = await self.search_papers(f"{task} fine-tuning")
 
-        ranked = sorted(
-            models, key=lambda m: (m.downloads * 0.7 + m.likes * 0.3), reverse=True
-        )
+        ranked = sorted(models, key=lambda m: (m.downloads * 0.7 + m.likes * 0.3), reverse=True)
         top = ranked[:top_k]
 
         return {

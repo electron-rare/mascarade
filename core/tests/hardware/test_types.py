@@ -35,9 +35,7 @@ def test_gpiostate_defaults():
 
 def test_gpiostate_output_with_value():
     """GPIOState can be set to output with a value."""
-    state = GPIOState(
-        pin=12, direction=GPIODirection.OUTPUT, value=True, pull=GPIOPull.UP
-    )
+    state = GPIOState(pin=12, direction=GPIODirection.OUTPUT, value=True, pull=GPIOPull.UP)
     assert state.direction == GPIODirection.OUTPUT
     assert state.value is True
     assert state.pull == GPIOPull.UP
@@ -496,9 +494,7 @@ def test_all_types_have_domain_metadata():
     """All hardware types have correct domain metadata."""
     types_to_test = [
         GPIOState(pin=0),
-        SensorReading(
-            sensor_id="test", sensor_type="test", value=0, unit="test", timestamp_ms=0
-        ),
+        SensorReading(sensor_id="test", sensor_type="test", value=0, unit="test", timestamp_ms=0),
         MIDIMessage(status=0x90),
         DMXFrame(),
         SerialData(port="test", data="test"),

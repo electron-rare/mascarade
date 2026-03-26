@@ -61,18 +61,14 @@ class FunctionCall(BaseModel):
     """Function call details."""
 
     name: str = Field(max_length=100, description="The name of the function to call")
-    arguments: str = Field(
-        max_length=10_000, description="JSON-encoded function arguments"
-    )
+    arguments: str = Field(max_length=10_000, description="JSON-encoded function arguments")
 
 
 class ToolCall(BaseModel):
     """Tool call details."""
 
     id: str = Field(max_length=200, description="Unique ID for the tool call")
-    type: Literal["function"] = Field(
-        default="function", description="The type of tool call"
-    )
+    type: Literal["function"] = Field(default="function", description="The type of tool call")
     function: FunctionCall = Field(description="Function call details")
 
 
@@ -127,15 +123,9 @@ class ChatCompletionRequest(BaseModel):
         le=1.0,
         description="Nucleus sampling parameter (alternative to temperature)",
     )
-    n: int = Field(
-        default=1, ge=1, le=10, description="Number of completions to generate"
-    )
-    stream: bool = Field(
-        default=False, description="Whether to stream partial responses"
-    )
-    stop: str | list[str] | None = Field(
-        default=None, max_length=4, description="Stop sequences"
-    )
+    n: int = Field(default=1, ge=1, le=10, description="Number of completions to generate")
+    stream: bool = Field(default=False, description="Whether to stream partial responses")
+    stop: str | list[str] | None = Field(default=None, max_length=4, description="Stop sequences")
     presence_penalty: float | None = Field(
         default=None,
         ge=-2.0,
@@ -151,17 +141,15 @@ class ChatCompletionRequest(BaseModel):
     logit_bias: dict[str, float] | None = Field(
         default=None, description="Token ID to bias mapping"
     )
-    user: str | None = Field(
-        default=None, max_length=100, description="Unique user identifier"
-    )
+    user: str | None = Field(default=None, max_length=100, description="Unique user identifier")
     response_format: ResponseFormat | None = Field(
         default=None, description="Response format configuration"
     )
-    strategy: (
-        Literal["best", "cheapest", "domain", "fastest", "specific", "routellm"] | None
-    ) = Field(
-        default=None,
-        description="Optional routing strategy override",
+    strategy: Literal["best", "cheapest", "domain", "fastest", "specific", "routellm"] | None = (
+        Field(
+            default=None,
+            description="Optional routing strategy override",
+        )
     )
     routing_policy: Literal["auto", "strong", "cheap", "fast"] | None = Field(
         default=None,
@@ -170,18 +158,14 @@ class ChatCompletionRequest(BaseModel):
     tools: list[dict] | None = Field(
         default=None, max_length=20, description="Available tools/functions"
     )
-    tool_choice: str | dict | None = Field(
-        default=None, description="Tool choice configuration"
-    )
+    tool_choice: str | dict | None = Field(default=None, description="Tool choice configuration")
 
 
 class ChatCompletionUsage(BaseModel):
     """Token usage statistics for a chat completion."""
 
     prompt_tokens: int = Field(ge=0, description="Number of tokens in the prompt")
-    completion_tokens: int = Field(
-        ge=0, description="Number of tokens in the completion"
-    )
+    completion_tokens: int = Field(ge=0, description="Number of tokens in the completion")
     total_tokens: int = Field(ge=0, description="Total number of tokens used")
 
 
@@ -214,31 +198,22 @@ class ChatCompletionChoice(BaseModel):
     index: int = Field(ge=0, description="The index of this choice")
     message: ChatCompletionMessage = Field(description="The completion message")
     finish_reason: (
-        Literal[
-            "stop", "length", "tool_calls", "content_filter", "function_call", "null"
-        ]
-        | None
+        Literal["stop", "length", "tool_calls", "content_filter", "function_call", "null"] | None
     ) = Field(default=None, description="Why the completion finished")
-    logprobs: dict | None = Field(
-        default=None, description="Log probabilities (if requested)"
-    )
+    logprobs: dict | None = Field(default=None, description="Log probabilities (if requested)")
 
 
 class ChatCompletionResponse(BaseModel):
     """Response model for chat completions endpoint (OpenAI-compatible)."""
 
     id: str = Field(max_length=200, description="Unique completion ID")
-    object: Literal["chat.completion"] = Field(
-        default="chat.completion", description="Object type"
-    )
+    object: Literal["chat.completion"] = Field(default="chat.completion", description="Object type")
     created: int = Field(ge=0, description="Unix timestamp of creation")
     model: str = Field(max_length=100, description="Model used for completion")
     choices: list[ChatCompletionChoice] = Field(
         min_length=1, description="List of completion choices"
     )
-    usage: ChatCompletionUsage | None = Field(
-        default=None, description="Token usage statistics"
-    )
+    usage: ChatCompletionUsage | None = Field(default=None, description="Token usage statistics")
     system_fingerprint: str | None = Field(
         default=None, max_length=100, description="System fingerprint"
     )
@@ -270,12 +245,10 @@ class OllamaChatRequest(BaseModel):
     project_id: str | None = Field(default=None, min_length=1, max_length=256)
     knowledge_scope: Literal["project", "federated"] = Field(default="project")
     federation_scope: list[str] | None = Field(default=None)
-    strategy: (
-        Literal["best", "cheapest", "domain", "fastest", "specific", "routellm"] | None
-    ) = Field(default=None)
-    routing_policy: Literal["auto", "strong", "cheap", "fast"] | None = Field(
-        default=None
+    strategy: Literal["best", "cheapest", "domain", "fastest", "specific", "routellm"] | None = (
+        Field(default=None)
     )
+    routing_policy: Literal["auto", "strong", "cheap", "fast"] | None = Field(default=None)
 
 
 class OllamaGenerateRequest(BaseModel):
@@ -290,9 +263,7 @@ class OllamaGenerateRequest(BaseModel):
     project_id: str | None = Field(default=None, min_length=1, max_length=256)
     knowledge_scope: Literal["project", "federated"] = Field(default="project")
     federation_scope: list[str] | None = Field(default=None)
-    strategy: (
-        Literal["best", "cheapest", "domain", "fastest", "specific", "routellm"] | None
-    ) = Field(default=None)
-    routing_policy: Literal["auto", "strong", "cheap", "fast"] | None = Field(
-        default=None
+    strategy: Literal["best", "cheapest", "domain", "fastest", "specific", "routellm"] | None = (
+        Field(default=None)
     )
+    routing_policy: Literal["auto", "strong", "cheap", "fast"] | None = Field(default=None)

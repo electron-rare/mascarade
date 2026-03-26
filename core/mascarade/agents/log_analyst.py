@@ -73,7 +73,7 @@ def _parse_line(line: str) -> dict[str, Any]:
         return {
             "format": "timestamped",
             "timestamp": m.group("timestamp"),
-            "message": line[m.end():],
+            "message": line[m.end() :],
         }
 
     return {"format": "raw", "message": line}
@@ -258,7 +258,11 @@ class LogAnalystAgent(Agent):
             )
 
         # Check for repeated error messages
-        error_msgs = [e.get("message", "")[:100] for e in entries if e.get("severity") in ("error", "err", "critical")]
+        error_msgs = [
+            e.get("message", "")[:100]
+            for e in entries
+            if e.get("severity") in ("error", "err", "critical")
+        ]
         msg_counts = Counter(error_msgs)
         for msg, count in msg_counts.most_common(5):
             if count >= 3:
@@ -313,13 +317,8 @@ class LogAnalystAgent(Agent):
         for sev, count in sorted(summary["severity_distribution"].items()):
             md += f"| {sev} | {count} |\n"
 
-        md += (
-            "\n## Top Processes\n\n"
-            "| Process | Events |\n|---------|--------|\n"
-        )
-        for proc, count in sorted(
-            summary["top_processes"].items(), key=lambda x: -x[1]
-        )[:10]:
+        md += "\n## Top Processes\n\n" "| Process | Events |\n|---------|--------|\n"
+        for proc, count in sorted(summary["top_processes"].items(), key=lambda x: -x[1])[:10]:
             md += f"| {proc} | {count} |\n"
 
         if summary["sample_errors"]:

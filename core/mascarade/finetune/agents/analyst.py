@@ -123,9 +123,7 @@ class AnalystAgent:
             return {
                 "tokens_generated": output_tokens,
                 "time_seconds": round(elapsed, 2),
-                "tokens_per_second": (
-                    round(output_tokens / elapsed, 1) if elapsed > 0 else 0
-                ),
+                "tokens_per_second": (round(output_tokens / elapsed, 1) if elapsed > 0 else 0),
             }
         except Exception as e:
             return {"error": str(e)}
@@ -142,9 +140,7 @@ class AnalystAgent:
             for prompt in test_prompts[:5]:
                 speed = await self.evaluate_inference_speed(path, prompt=prompt)
                 speeds.append(speed)
-            avg_tps = sum(s.get("tokens_per_second", 0) for s in speeds) / max(
-                len(speeds), 1
-            )
+            avg_tps = sum(s.get("tokens_per_second", 0) for s in speeds) / max(len(speeds), 1)
             results[name] = {
                 "avg_tokens_per_second": round(avg_tps, 1),
                 "samples": speeds,

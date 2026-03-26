@@ -28,8 +28,10 @@ logger = logging.getLogger("mascarade.agents")
 # Gate system — execution checkpoints for quality/safety
 # ---------------------------------------------------------------------------
 
+
 class GateStatus(str, Enum):
     """Gate evaluation result."""
+
     PENDING = "pending"
     PASSED = "passed"
     FAILED = "failed"
@@ -133,9 +135,7 @@ class Agent:
             "knowledge_scope": knowledge_scope,
         }
 
-    def _resolve_system_prompt(
-        self, skill_registry: SkillRegistry | None = None
-    ) -> str:
+    def _resolve_system_prompt(self, skill_registry: SkillRegistry | None = None) -> str:
         """Return the effective system prompt, enhanced with skills if available."""
         if skill_registry and self.skills:
             return self.get_enhanced_system_prompt(skill_registry)
@@ -164,7 +164,9 @@ class Agent:
                 else:
                     logger.warning(
                         "Agent %s: optional gate '%s' failed (phase=%s)",
-                        self.name, gate.name, phase,
+                        self.name,
+                        gate.name,
+                        phase,
                     )
         return len(failed) == 0, failed
 

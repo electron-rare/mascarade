@@ -53,9 +53,7 @@ class HealthMonitor:
             provider_metrics = self.metrics.providers[provider_name]
 
             # Calculer les percentiles de latence
-            p50, p95, p99 = self._calculate_percentiles(
-                list(provider_metrics.response_times)
-            )
+            p50, p95, p99 = self._calculate_percentiles(list(provider_metrics.response_times))
 
             # Calculer le score de santé
             health_score = self._calculate_health_score(
@@ -94,9 +92,7 @@ class HealthMonitor:
 
         return health_stats
 
-    def _calculate_percentiles(
-        self, response_times: list[float]
-    ) -> tuple[float, float, float]:
+    def _calculate_percentiles(self, response_times: list[float]) -> tuple[float, float, float]:
         """Calculer les percentiles P50, P95, P99 des temps de réponse."""
         if not response_times:
             return 0.0, 0.0, 0.0

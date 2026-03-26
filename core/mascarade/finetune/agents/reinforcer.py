@@ -67,9 +67,7 @@ class ReinforcerAgent:
     P2P capability: ft-reinforcement
     """
 
-    def __init__(
-        self, *, teacher=None, output_dir: Path | str = "~/.mascarade/finetune/dpo"
-    ):
+    def __init__(self, *, teacher=None, output_dir: Path | str = "~/.mascarade/finetune/dpo"):
         self.teacher = teacher
         self.output_dir = Path(output_dir).expanduser()
         self.output_dir.mkdir(parents=True, exist_ok=True)
@@ -81,9 +79,7 @@ class ReinforcerAgent:
         federation_scope: list[str] | tuple[str, ...] | None = None,
         knowledge_scope: str = "project",
     ) -> tuple[str, list[str], str]:
-        normalized_project = (
-            project_id or settings.mascarade_project_id
-        ).strip() or "default"
+        normalized_project = (project_id or settings.mascarade_project_id).strip() or "default"
         normalized_scope = (knowledge_scope or "project").strip().lower() or "project"
         if normalized_scope not in {"project", "federated"}:
             raise ValueError(f"Unsupported knowledge_scope: {knowledge_scope}")
@@ -94,9 +90,7 @@ class ReinforcerAgent:
         if normalized_scope == "project":
             cleaned_federation = [normalized_project]
         elif not cleaned_federation:
-            raise ValueError(
-                "federation_scope is required when knowledge_scope is federated"
-            )
+            raise ValueError("federation_scope is required when knowledge_scope is federated")
         elif normalized_project not in cleaned_federation:
             cleaned_federation = [normalized_project, *cleaned_federation]
 
@@ -114,12 +108,10 @@ class ReinforcerAgent:
         federation_scope: list[str] | tuple[str, ...] | None = None,
         knowledge_scope: str = "project",
     ) -> list[DPOPair]:
-        normalized_project, normalized_federation, normalized_scope = (
-            self._normalize_scope(
-                project_id=project_id,
-                federation_scope=federation_scope,
-                knowledge_scope=knowledge_scope,
-            )
+        normalized_project, normalized_federation, normalized_scope = self._normalize_scope(
+            project_id=project_id,
+            federation_scope=federation_scope,
+            knowledge_scope=knowledge_scope,
         )
         selected_persona = (persona or settings.kxkm_dpo_persona).strip()
         if not selected_persona:
@@ -217,9 +209,7 @@ class ReinforcerAgent:
             except Exception as e:
                 logger.warning("Error collecting: %s", e)
 
-        logger.info(
-            "Collected %d errors from %d prompts", len(errors), len(test_prompts)
-        )
+        logger.info("Collected %d errors from %d prompts", len(errors), len(test_prompts))
         return errors
 
     async def generate_dpo_pairs(
@@ -252,9 +242,7 @@ class ReinforcerAgent:
 
             await self.teacher.generate_corrections(
                 errors=errors,
-                config=TeacherConfig(
-                    task_description="Generate correct response for DPO training"
-                ),
+                config=TeacherConfig(task_description="Generate correct response for DPO training"),
                 output_path=output_path,
             )
             combined_pairs.extend(self._load_pairs(output_path, source="teacher"))
@@ -301,12 +289,8 @@ class ReinforcerAgent:
                     prompt=prompt,
                     chosen=chosen,
                     rejected=rejected,
-                    persona=str(
-                        data.get("persona") or settings.kxkm_dpo_persona
-                    ).strip(),
-                    project_id=str(
-                        data.get("project_id") or settings.mascarade_project_id
-                    ).strip(),
+                    persona=str(data.get("persona") or settings.kxkm_dpo_persona).strip(),
+                    project_id=str(data.get("project_id") or settings.mascarade_project_id).strip(),
                     source=str(data.get("source") or source).strip() or source,
                 )
             )
@@ -371,9 +355,7 @@ class ReinforcerAgent:
         """
         valid_methods = {"dpo", "simpo", "kto", "rlvr"}
         if method not in valid_methods:
-            raise ValueError(
-                f"Unknown alignment method '{method}', must be one of {valid_methods}"
-            )
+            raise ValueError(f"Unknown alignment method '{method}', must be one of {valid_methods}")
 
         if method == "rlvr":
             return await self._train_rlvr(
@@ -489,9 +471,7 @@ class ReinforcerAgent:
         output_dir = Path(f"~/.mascarade/finetune/runs/{run_id}").expanduser()
         output_dir.mkdir(parents=True, exist_ok=True)
 
-        logger.info(
-            "Starting DPO alignment: model=%s dataset=%s", model_path, dataset_path
-        )
+        logger.info("Starting DPO alignment: model=%s dataset=%s", model_path, dataset_path)
         start = time.time()
 
         dataset = self._load_alignment_dataset(dataset_path)
@@ -617,9 +597,7 @@ class ReinforcerAgent:
             # Fallback: DPOTrainer with loss_type="simpo"
             from trl import DPOConfig, DPOTrainer
 
-            logger.info(
-                "SimPOTrainer not available, falling back to DPOTrainer(loss_type='simpo')"
-            )
+            logger.info("SimPOTrainer not available, falling back to DPOTrainer(loss_type='simpo')")
 
             training_args = DPOConfig(
                 output_dir=str(output_dir),
@@ -742,9 +720,7 @@ class ReinforcerAgent:
             return _load_dataset("json", data_files=dataset_path, split="train")
         return _load_dataset(dataset_path, split="train")
 
-    def _run_trainer(
-        self, trainer, tokenizer, output_dir: Path, method: str, start: float
-    ) -> dict:
+    def _run_trainer(self, trainer, tokenizer, output_dir: Path, method: str, start: float) -> dict:
         """Execute training and return standardized result dict."""
         trainer.train()
         trainer.save_model(str(output_dir / "aligned"))
@@ -761,9 +737,7 @@ class ReinforcerAgent:
             "final_loss": round(final_loss, 4),
             "model_path": str(output_dir / "aligned"),
         }
-        (output_dir / "alignment_result.json").write_text(
-            json.dumps(result, indent=2, default=str)
-        )
+        (output_dir / "alignment_result.json").write_text(json.dumps(result, indent=2, default=str))
         logger.info(
             "%s alignment complete in %.0fs, loss=%.4f → %s",
             method,
@@ -796,9 +770,7 @@ class ReinforcerAgent:
         output_dir = Path(f"~/.mascarade/finetune/runs/{run_id}").expanduser()
         output_dir.mkdir(parents=True, exist_ok=True)
 
-        logger.info(
-            "Starting GRPO training: model=%s, %d prompts", model_path, len(prompts)
-        )
+        logger.info("Starting GRPO training: model=%s, %d prompts", model_path, len(prompts))
         start = time.time()
 
         try:
@@ -884,9 +856,7 @@ class ReinforcerAgent:
             "final_loss": round(final_loss, 4),
             "model_path": str(output_dir / "grpo"),
         }
-        (output_dir / "grpo_result.json").write_text(
-            json.dumps(result, indent=2, default=str)
-        )
+        (output_dir / "grpo_result.json").write_text(json.dumps(result, indent=2, default=str))
         logger.info(
             "GRPO training complete in %.0fs, loss=%.4f → %s",
             elapsed,

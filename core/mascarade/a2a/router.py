@@ -1,4 +1,5 @@
 """A2A protocol endpoints for FastAPI."""
+
 from __future__ import annotations
 
 import logging
@@ -10,6 +11,7 @@ from mascarade.a2a.agent_card import AgentCard
 
 logger = logging.getLogger("mascarade.a2a")
 _tasks: dict[str, dict] = {}
+
 
 def mount_a2a(app: Any, card: AgentCard) -> None:
     from fastapi import Request
@@ -24,9 +26,12 @@ def mount_a2a(app: Any, card: AgentCard) -> None:
         body = await request.json()
         task_id = str(uuid.uuid4())
         _tasks[task_id] = {
-            "id": task_id, "status": "pending",
-            "input": body.get("input", ""), "agent": body.get("agent", card.name),
-            "created_at": time.time(), "result": None,
+            "id": task_id,
+            "status": "pending",
+            "input": body.get("input", ""),
+            "agent": body.get("agent", card.name),
+            "created_at": time.time(),
+            "result": None,
         }
         return JSONResponse({"id": task_id, "status": "pending"}, status_code=201)
 

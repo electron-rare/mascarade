@@ -209,9 +209,7 @@ def update_metrics(scheduler: ResourceAwareScheduler) -> None:
 
         # Status gauge
         status_val = {"alive": 1.0, "slow": 0.5, "dead": 0.0, "draining": 0.25}
-        WORKER_STATUS.labels(node_id=node_id, runtime=rt).set(
-            status_val.get(w.status.value, 0.0)
-        )
+        WORKER_STATUS.labels(node_id=node_id, runtime=rt).set(status_val.get(w.status.value, 0.0))
 
         # Resource metrics
         WORKER_VRAM_USAGE_PCT.labels(node_id=node_id).set(w.vram_usage_pct)

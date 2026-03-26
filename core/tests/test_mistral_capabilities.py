@@ -38,9 +38,10 @@ class TestMistralDocumentAI:
             "model": "mistral-ocr-latest",
         }
 
-        with patch("mascarade.integrations.mistral_capabilities.settings") as ms, patch(
-            "httpx.AsyncClient"
-        ) as mock_cls:
+        with (
+            patch("mascarade.integrations.mistral_capabilities.settings") as ms,
+            patch("httpx.AsyncClient") as mock_cls,
+        ):
             ms.mistral_api_key = _FAKE_API_KEY
             mock_client = AsyncMock()
             mock_client.post = AsyncMock(return_value=mock_resp)
@@ -86,9 +87,10 @@ class TestMistralDocumentAI:
                 return ocr_resp
             return chat_resp
 
-        with patch("mascarade.integrations.mistral_capabilities.settings") as ms, patch(
-            "httpx.AsyncClient"
-        ) as mock_cls:
+        with (
+            patch("mascarade.integrations.mistral_capabilities.settings") as ms,
+            patch("httpx.AsyncClient") as mock_cls,
+        ):
             ms.mistral_api_key = _FAKE_API_KEY
             ms.mistral_default_model = "mistral-large-latest"
             mock_client = AsyncMock()
@@ -98,9 +100,7 @@ class TestMistralDocumentAI:
             mock_cls.return_value = mock_client
 
             doc_ai = MistralDocumentAI()
-            result = await doc_ai.process_document(
-                str(pdf_file), prompt="What is the total?"
-            )
+            result = await doc_ai.process_document(str(pdf_file), prompt="What is the total?")
 
         assert result["answer"] == "The total is 1234 EUR."
         assert call_count == 2  # OCR + chat
@@ -155,9 +155,10 @@ class TestMistralAudioTranscription:
             "text": "Bonjour le monde",
         }
 
-        with patch("mascarade.integrations.mistral_capabilities.settings") as ms, patch(
-            "httpx.AsyncClient"
-        ) as mock_cls:
+        with (
+            patch("mascarade.integrations.mistral_capabilities.settings") as ms,
+            patch("httpx.AsyncClient") as mock_cls,
+        ):
             ms.mistral_api_key = _FAKE_API_KEY
             mock_client = AsyncMock()
             mock_client.post = AsyncMock(return_value=mock_resp)
@@ -189,9 +190,10 @@ class TestMistralAudioTranscription:
         mock_resp.raise_for_status = MagicMock()
         mock_resp.json.return_value = {"text": "Transcription OK"}
 
-        with patch("mascarade.integrations.mistral_capabilities.settings") as ms, patch(
-            "httpx.AsyncClient"
-        ) as mock_cls:
+        with (
+            patch("mascarade.integrations.mistral_capabilities.settings") as ms,
+            patch("httpx.AsyncClient") as mock_cls,
+        ):
             ms.mistral_api_key = _FAKE_API_KEY
             mock_client = AsyncMock()
             mock_client.post = AsyncMock(return_value=mock_resp)
@@ -243,9 +245,10 @@ class TestMistralAudioTranscription:
             "text": "Speaker 1: hello. Speaker 2: hi.",
         }
 
-        with patch("mascarade.integrations.mistral_capabilities.settings") as ms, patch(
-            "httpx.AsyncClient"
-        ) as mock_cls:
+        with (
+            patch("mascarade.integrations.mistral_capabilities.settings") as ms,
+            patch("httpx.AsyncClient") as mock_cls,
+        ):
             ms.mistral_api_key = _FAKE_API_KEY
             mock_client = AsyncMock()
             mock_client.post = AsyncMock(return_value=mock_resp)
@@ -389,9 +392,10 @@ class TestMistralEmbeddings:
             "usage": {"prompt_tokens": 5, "total_tokens": 5},
         }
 
-        with patch("mascarade.integrations.mistral_capabilities.settings") as ms, patch(
-            "httpx.AsyncClient"
-        ) as mock_cls:
+        with (
+            patch("mascarade.integrations.mistral_capabilities.settings") as ms,
+            patch("httpx.AsyncClient") as mock_cls,
+        ):
             ms.mistral_api_key = _FAKE_API_KEY
             mock_client = AsyncMock()
             mock_client.post = AsyncMock(return_value=mock_resp)
@@ -424,9 +428,10 @@ class TestMistralEmbeddings:
             "usage": {"prompt_tokens": 10, "total_tokens": 10},
         }
 
-        with patch("mascarade.integrations.mistral_capabilities.settings") as ms, patch(
-            "httpx.AsyncClient"
-        ) as mock_cls:
+        with (
+            patch("mascarade.integrations.mistral_capabilities.settings") as ms,
+            patch("httpx.AsyncClient") as mock_cls,
+        ):
             ms.mistral_api_key = _FAKE_API_KEY
             mock_client = AsyncMock()
             mock_client.post = AsyncMock(return_value=mock_resp)
@@ -492,9 +497,10 @@ class TestMistralClassifier:
             ],
         }
 
-        with patch("mascarade.integrations.mistral_capabilities.settings") as ms, patch(
-            "httpx.AsyncClient"
-        ) as mock_cls:
+        with (
+            patch("mascarade.integrations.mistral_capabilities.settings") as ms,
+            patch("httpx.AsyncClient") as mock_cls,
+        ):
             ms.mistral_api_key = _FAKE_API_KEY
             mock_client = AsyncMock()
             mock_client.post = AsyncMock(return_value=mock_resp)
@@ -522,9 +528,10 @@ class TestMistralClassifier:
             "results": [{"categories": {"pii": True}}],
         }
 
-        with patch("mascarade.integrations.mistral_capabilities.settings") as ms, patch(
-            "httpx.AsyncClient"
-        ) as mock_cls:
+        with (
+            patch("mascarade.integrations.mistral_capabilities.settings") as ms,
+            patch("httpx.AsyncClient") as mock_cls,
+        ):
             ms.mistral_api_key = _FAKE_API_KEY
             mock_client = AsyncMock()
             mock_client.post = AsyncMock(return_value=mock_resp)
@@ -676,9 +683,10 @@ class TestMistralRemoteAgentMCP:
         mock_resp.status_code = 200
         mock_resp.raise_for_status = MagicMock()
 
-        with patch("mascarade.agents.mistral_agents.settings") as ms, patch(
-            "httpx.AsyncClient"
-        ) as mock_cls:
+        with (
+            patch("mascarade.agents.mistral_agents.settings") as ms,
+            patch("httpx.AsyncClient") as mock_cls,
+        ):
             ms.mistral_api_key = _FAKE_API_KEY
             mock_client = AsyncMock()
             mock_client.patch = AsyncMock(return_value=mock_resp)
