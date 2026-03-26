@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 import re
 import time
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Callable
 from enum import StrEnum
 from typing import TYPE_CHECKING, Any
 
@@ -255,7 +255,7 @@ class Router:
         # Lightweight pre-checks to skip expensive imports for unconfigured
         # providers (e.g. litellm import costs ~3s). Each callable returns
         # True when the provider *might* be configured.
-        _env_precheck: dict[str, callable] = {
+        _env_precheck: dict[str, Callable[[], bool]] = {
             "ClaudeProvider": lambda: is_secret_configured(settings.anthropic_api_key),
             "OpenAIProvider": lambda: is_secret_configured(settings.openai_api_key),
             "MistralProvider": lambda: is_secret_configured(settings.mistral_api_key),
