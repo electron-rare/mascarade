@@ -13,6 +13,15 @@ export default defineConfig(({ mode }) => {
     build: {
       outDir: "dist",
       emptyOutDir: true,
+      rollupOptions: {
+        output: {
+          manualChunks: {
+            vendor: ["react", "react-dom", "react-router-dom"],
+            editor: ["@monaco-editor/react"],
+            flow: ["@xyflow/react", "dagre"],
+          },
+        },
+      },
     },
     server: {
       port: 80,

@@ -194,17 +194,17 @@ function autoLayoutDagre(workflow: KillLifeWorkflow): KillLifeWorkflow {
 
 export function NoteNode({ data }: { data: KillLifeWorkflowNode }) {
   return (
-    <div className="relative flex w-[220px] flex-col rounded-[1.3rem] border border-border/80 bg-black/30 p-4">
+    <div className="relative flex w-[220px] flex-col rounded-[1.3rem] border border-[rgba(0,0,0,0.08)] bg-[#f5f5f7] p-4">
       <Handle type="target" position={Position.Left} />
 
       <span className="text-[10px] uppercase tracking-[0.2em] text-muted">{data.type}</span>
-      <span className="mt-3 text-sm font-semibold uppercase tracking-[0.14em] text-amber-100">
+      <span className="mt-3 text-sm font-semibold uppercase tracking-[0.14em] text-[#1d1d1f]">
         {data.label}
       </span>
-      <span className="mt-2 line-clamp-3 text-xs leading-5 text-amber-100/56">
+      <span className="mt-2 line-clamp-3 text-xs leading-5 text-[#1d1d1f]/56">
         {data.description || "No description"}
       </span>
-      <span className="mt-4 text-[10px] uppercase tracking-[0.2em] text-amber-100/40">
+      <span className="mt-4 text-[10px] uppercase tracking-[0.2em] text-[#1d1d1f]/40">
         visual node
       </span>
 
@@ -215,17 +215,17 @@ export function NoteNode({ data }: { data: KillLifeWorkflowNode }) {
 
 export function GroupNode({ data }: { data: KillLifeWorkflowNode }) {
   return (
-    <div className="relative flex w-[220px] flex-col rounded-[1.3rem] border border-border/80 bg-black/30 p-4">
+    <div className="relative flex w-[220px] flex-col rounded-[1.3rem] border border-[rgba(0,0,0,0.08)] bg-[#f5f5f7] p-4">
       <Handle type="target" position={Position.Left} />
 
       <span className="text-[10px] uppercase tracking-[0.2em] text-muted">{data.type}</span>
-      <span className="mt-3 text-sm font-semibold uppercase tracking-[0.14em] text-amber-100">
+      <span className="mt-3 text-sm font-semibold uppercase tracking-[0.14em] text-[#1d1d1f]">
         {data.label}
       </span>
-      <span className="mt-2 line-clamp-3 text-xs leading-5 text-amber-100/56">
+      <span className="mt-2 line-clamp-3 text-xs leading-5 text-[#1d1d1f]/56">
         {data.description || "No description"}
       </span>
-      <span className="mt-4 text-[10px] uppercase tracking-[0.2em] text-amber-100/40">
+      <span className="mt-4 text-[10px] uppercase tracking-[0.2em] text-[#1d1d1f]/40">
         group container
       </span>
 
@@ -236,17 +236,17 @@ export function GroupNode({ data }: { data: KillLifeWorkflowNode }) {
 
 export function DecisionNode({ data }: { data: KillLifeWorkflowNode }) {
   return (
-    <div className="relative flex w-[220px] flex-col rounded-[1.3rem] border border-border/80 bg-black/30 p-4">
+    <div className="relative flex w-[220px] flex-col rounded-[1.3rem] border border-[rgba(0,0,0,0.08)] bg-[#f5f5f7] p-4">
       <Handle type="target" position={Position.Left} />
 
       <span className="text-[10px] uppercase tracking-[0.2em] text-muted">{data.type}</span>
-      <span className="mt-3 text-sm font-semibold uppercase tracking-[0.14em] text-amber-100">
+      <span className="mt-3 text-sm font-semibold uppercase tracking-[0.14em] text-[#1d1d1f]">
         {data.label}
       </span>
-      <span className="mt-2 line-clamp-3 text-xs leading-5 text-amber-100/56">
+      <span className="mt-2 line-clamp-3 text-xs leading-5 text-[#1d1d1f]/56">
         {data.description || "No description"}
       </span>
-      <span className="mt-4 text-[10px] uppercase tracking-[0.2em] text-amber-100/40">
+      <span className="mt-4 text-[10px] uppercase tracking-[0.2em] text-[#1d1d1f]/40">
         decision point
       </span>
 
@@ -257,17 +257,17 @@ export function DecisionNode({ data }: { data: KillLifeWorkflowNode }) {
 
 export function ManualGateNode({ data }: { data: KillLifeWorkflowNode }) {
   return (
-    <div className="relative flex w-[220px] flex-col rounded-[1.3rem] border border-border/80 bg-black/30 p-4">
+    <div className="relative flex w-[220px] flex-col rounded-[1.3rem] border border-[rgba(0,0,0,0.08)] bg-[#f5f5f7] p-4">
       <Handle type="target" position={Position.Left} />
 
       <span className="text-[10px] uppercase tracking-[0.2em] text-muted">{data.type}</span>
-      <span className="mt-3 text-sm font-semibold uppercase tracking-[0.14em] text-amber-100">
+      <span className="mt-3 text-sm font-semibold uppercase tracking-[0.14em] text-[#1d1d1f]">
         {data.label}
       </span>
-      <span className="mt-2 line-clamp-3 text-xs leading-5 text-amber-100/56">
+      <span className="mt-2 line-clamp-3 text-xs leading-5 text-[#1d1d1f]/56">
         {data.description || "No description"}
       </span>
-      <span className="mt-4 text-[10px] uppercase tracking-[0.2em] text-amber-100/40">
+      <span className="mt-4 text-[10px] uppercase tracking-[0.2em] text-[#1d1d1f]/40">
         manual approval
       </span>
 
@@ -278,17 +278,17 @@ export function ManualGateNode({ data }: { data: KillLifeWorkflowNode }) {
 
 export function LocalActionNode({ data }: { data: KillLifeWorkflowNode }) {
   return (
-    <div className="relative flex w-[220px] flex-col rounded-[1.3rem] border border-accent/28 bg-black/35 p-4">
+    <div className="relative flex w-[220px] flex-col rounded-[1.3rem] border border-accent/28 bg-[#f5f5f7] p-4">
       <Handle type="target" position={Position.Left} />
 
       <span className="text-[10px] uppercase tracking-[0.2em] text-muted">{data.type}</span>
-      <span className="mt-3 text-sm font-semibold uppercase tracking-[0.14em] text-amber-100">
+      <span className="mt-3 text-sm font-semibold uppercase tracking-[0.14em] text-[#1d1d1f]">
         {data.label}
       </span>
-      <span className="mt-2 line-clamp-3 text-xs leading-5 text-amber-100/56">
+      <span className="mt-2 line-clamp-3 text-xs leading-5 text-[#1d1d1f]/56">
         {data.description || "No description"}
       </span>
-      <span className="mt-4 text-[10px] uppercase tracking-[0.2em] text-amber-100/40">
+      <span className="mt-4 text-[10px] uppercase tracking-[0.2em] text-[#1d1d1f]/40">
         {data.runner?.kind === "local-action" ? data.runner.action : "local action"}
       </span>
 
@@ -303,13 +303,13 @@ export function GithubDispatchNode({ data }: { data: KillLifeWorkflowNode }) {
       <Handle type="target" position={Position.Left} />
 
       <span className="text-[10px] uppercase tracking-[0.2em] text-muted">{data.type}</span>
-      <span className="mt-3 text-sm font-semibold uppercase tracking-[0.14em] text-amber-100">
+      <span className="mt-3 text-sm font-semibold uppercase tracking-[0.14em] text-[#1d1d1f]">
         {data.label}
       </span>
-      <span className="mt-2 line-clamp-3 text-xs leading-5 text-amber-100/56">
+      <span className="mt-2 line-clamp-3 text-xs leading-5 text-[#1d1d1f]/56">
         {data.description || "No description"}
       </span>
-      <span className="mt-4 text-[10px] uppercase tracking-[0.2em] text-amber-100/40">
+      <span className="mt-4 text-[10px] uppercase tracking-[0.2em] text-[#1d1d1f]/40">
         {data.runner?.kind === "github-dispatch" ? data.runner.workflow_file : "github dispatch"}
       </span>
 
@@ -670,11 +670,11 @@ export default function KillLifeWorkflowEditor() {
         <Card className="overflow-hidden border-accent/20 bg-[linear-gradient(135deg,rgba(255,209,102,0.08),rgba(8,12,10,0.94)_26%,rgba(6,6,6,0.98))]">
           <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
             <div className="max-w-3xl">
-              <p className="screen-label">graph editor</p>
-              <h2 className="mt-3 text-3xl font-semibold uppercase tracking-[0.12em] text-accent glow-text md:text-5xl">
+              <p className="text-xs font-semibold uppercase tracking-wide text-[#86868b]">graph editor</p>
+              <h2 className="mt-3 text-3xl font-semibold uppercase tracking-[0.12em] text-accent font-bold text-accent md:text-5xl">
                 {workflow.title}
               </h2>
-              <p className="mt-4 max-w-2xl text-sm leading-7 text-amber-100/60 md:text-[15px]">
+              <p className="mt-4 max-w-2xl text-sm leading-7 text-[#1d1d1f]/60 md:text-[15px]">
                 Canvas graphique éditable: ajoute des nœuds, relie-les visuellement, déplace-les à la souris, puis valide et lance les runs locaux ou GitHub depuis Mascarade.
               </p>
               <div className="mt-5 flex flex-wrap gap-2">
@@ -689,21 +689,21 @@ export default function KillLifeWorkflowEditor() {
             </div>
 
             <div className="grid min-w-0 gap-3 sm:grid-cols-2 lg:min-w-[320px]">
-              <div className="rounded-3xl border border-border/80 bg-black/30 p-4">
+              <div className="rounded-3xl border border-[rgba(0,0,0,0.08)] bg-[#f5f5f7] p-4">
                 <p className="text-[10px] uppercase tracking-[0.2em] text-muted">graph</p>
                 <p className="mt-3 text-2xl font-semibold uppercase tracking-[0.12em] text-accent">
                   {workflow.nodes.length.toString().padStart(2, "0")}
                 </p>
-                <p className="mt-2 text-[12px] leading-5 text-amber-100/46">
+                <p className="mt-2 text-[12px] leading-5 text-[#1d1d1f]/46">
                   Nodes / {workflow.edges.length} edges
                 </p>
               </div>
-              <div className="rounded-3xl border border-border/80 bg-black/30 p-4">
+              <div className="rounded-3xl border border-[rgba(0,0,0,0.08)] bg-[#f5f5f7] p-4">
                 <p className="text-[10px] uppercase tracking-[0.2em] text-muted">latest run</p>
-                <p className="mt-3 text-sm leading-6 text-amber-100/78">
+                <p className="mt-3 text-sm leading-6 text-[#1d1d1f]">
                   {displayedRuns[0] ? `${displayedRuns[0].mode} / ${displayedRuns[0].status}` : "none"}
                 </p>
-                <p className="mt-2 text-[12px] leading-5 text-amber-100/46">
+                <p className="mt-2 text-[12px] leading-5 text-[#1d1d1f]/46">
                   {displayedRuns[0] ? formatDate(displayedRuns[0].finished_at) : "No run recorded yet"}
                 </p>
               </div>
@@ -858,7 +858,7 @@ export default function KillLifeWorkflowEditor() {
             ) : null}
 
             <div
-              className="overflow-hidden rounded-[1.5rem] border border-border/80 bg-black/35"
+              className="overflow-hidden rounded-[1.5rem] border border-[rgba(0,0,0,0.08)] bg-[#f5f5f7]"
               style={{ height: "600px" }}
             >
               <ReactFlow
@@ -893,12 +893,12 @@ export default function KillLifeWorkflowEditor() {
                 }}
                 nodeTypes={nodeTypes}
                 fitView
-                className="bg-black/20"
+                className="bg-[#f5f5f7]"
               >
-                <Background color="#ffd166" gap={16} size={1} />
-                <Controls className="bg-black/60 border-border/80" />
+                <Background color="#0071e3" gap={16} size={1} />
+                <Controls className="bg-[#f5f5f7] border-[rgba(0,0,0,0.08)]" />
                 <MiniMap
-                  className="bg-black/60 border border-border/80"
+                  className="bg-[#f5f5f7] border border-[rgba(0,0,0,0.08)]"
                   nodeColor={(node) => {
                     if (node.type === "local-action") return "rgba(255, 209, 102, 0.5)";
                     if (node.type === "github-dispatch") return "rgba(140, 255, 183, 0.5)";
@@ -913,7 +913,7 @@ export default function KillLifeWorkflowEditor() {
         <div className="space-y-4">
           <Card title="Node inspector">
             {!selectedNode ? (
-              <p className="text-sm leading-7 text-amber-100/52">Select a node on the canvas to edit it.</p>
+              <p className="text-sm leading-7 text-[#1d1d1f]/52">Select a node on the canvas to edit it.</p>
             ) : (
               <div className="space-y-4">
                 <Input
@@ -1039,15 +1039,15 @@ export default function KillLifeWorkflowEditor() {
                   </>
                 ) : null}
 
-                <div className="space-y-3 rounded-[1.5rem] border border-border/80 bg-black/25 p-4">
+                <div className="space-y-3 rounded-[1.5rem] border border-[rgba(0,0,0,0.08)] bg-[#f5f5f7] p-4">
                   <p className="text-[10px] uppercase tracking-[0.2em] text-muted">outgoing edges</p>
                   {outgoingEdges.length === 0 ? (
-                    <p className="text-sm leading-6 text-amber-100/45">No outgoing edge yet.</p>
+                    <p className="text-sm leading-6 text-[#1d1d1f]/45">No outgoing edge yet.</p>
                   ) : (
                     <div className="space-y-2">
                       {outgoingEdges.map((edge) => (
-                        <div key={edge.id} className="flex items-center justify-between gap-3 rounded-2xl border border-border/70 bg-black/25 px-3 py-2">
-                          <span className="text-xs uppercase tracking-[0.16em] text-amber-100/78">
+                        <div key={edge.id} className="flex items-center justify-between gap-3 rounded-2xl border border-[rgba(0,0,0,0.06)]/70 bg-[#f5f5f7] px-3 py-2">
+                          <span className="text-xs uppercase tracking-[0.16em] text-[#1d1d1f]">
                             {edge.source} → {edge.target}
                           </span>
                           <Button variant="ghost" className="min-h-0 px-3 py-1" onClick={() => removeEdge(edge.id)}>
@@ -1120,7 +1120,7 @@ export default function KillLifeWorkflowEditor() {
                 ) : null}
               </div>
             ) : (
-              <p className="text-sm leading-7 text-amber-100/52">Run validation to inspect schema and DAG semantics.</p>
+              <p className="text-sm leading-7 text-[#1d1d1f]/52">Run validation to inspect schema and DAG semantics.</p>
             )}
           </Card>
 
@@ -1132,24 +1132,24 @@ export default function KillLifeWorkflowEditor() {
                     evidence target: {evidenceTarget}
                   </p>
                   {evidence.loading && !evidence.data ? (
-                    <p className="text-sm leading-6 text-amber-100/45">Loading evidence…</p>
+                    <p className="text-sm leading-6 text-[#1d1d1f]/45">Loading evidence…</p>
                   ) : evidence.data?.evidence.length ? (
                     <div className="space-y-2">
                       {evidence.data.evidence.map((entry) => (
-                        <div key={entry.path} className="rounded-2xl border border-border/70 bg-black/25 px-3 py-2">
+                        <div key={entry.path} className="rounded-2xl border border-[rgba(0,0,0,0.06)]/70 bg-[#f5f5f7] px-3 py-2">
                           <p className="text-xs uppercase tracking-[0.16em] text-accent">{entry.path}</p>
-                          <p className="mt-1 text-[11px] leading-5 text-amber-100/45">
+                          <p className="mt-1 text-[11px] leading-5 text-[#1d1d1f]/45">
                             {entry.type} / {entry.size_bytes} bytes / {formatDate(entry.updated_at)}
                           </p>
                         </div>
                       ))}
                     </div>
                   ) : (
-                    <p className="text-sm leading-6 text-amber-100/45">No evidence found for this target.</p>
+                    <p className="text-sm leading-6 text-[#1d1d1f]/45">No evidence found for this target.</p>
                   )}
                 </>
               ) : (
-                <p className="text-sm leading-6 text-amber-100/45">
+                <p className="text-sm leading-6 text-[#1d1d1f]/45">
                   Select an evidence node to inspect the current evidence pack surface.
                 </p>
               )}
@@ -1157,16 +1157,16 @@ export default function KillLifeWorkflowEditor() {
               <div className="space-y-2">
                 <p className="text-[10px] uppercase tracking-[0.2em] text-muted">recent runs</p>
                 {displayedRuns.length === 0 ? (
-                  <p className="text-sm leading-6 text-amber-100/45">No run recorded yet.</p>
+                  <p className="text-sm leading-6 text-[#1d1d1f]/45">No run recorded yet.</p>
                 ) : (
                   displayedRuns.slice(0, 5).map((run) => (
-                    <div key={run.run_id} className="rounded-[1.35rem] border border-border/80 bg-black/25 p-4">
+                    <div key={run.run_id} className="rounded-[1.35rem] border border-[rgba(0,0,0,0.08)] bg-[#f5f5f7] p-4">
                       <div className="flex flex-wrap items-start justify-between gap-3">
                         <div>
                           <p className="text-[11px] uppercase tracking-[0.18em] text-accent">
                             {run.mode} / {run.status}
                           </p>
-                          <p className="mt-2 text-[12px] leading-5 text-amber-100/46">
+                          <p className="mt-2 text-[12px] leading-5 text-[#1d1d1f]/46">
                             {formatDate(run.finished_at)} / {run.steps.length} step(s)
                           </p>
                         </div>
@@ -1175,14 +1175,14 @@ export default function KillLifeWorkflowEditor() {
                       {run.steps.length > 0 ? (
                         <div className="mt-3 space-y-2">
                           {run.steps.map((step) => (
-                            <div key={`${run.run_id}-${step.node_id}`} className="rounded-2xl border border-border/70 bg-black/25 px-3 py-2">
+                            <div key={`${run.run_id}-${step.node_id}`} className="rounded-2xl border border-[rgba(0,0,0,0.06)]/70 bg-[#f5f5f7] px-3 py-2">
                               <div className="flex flex-wrap items-center justify-between gap-3">
-                                <span className="text-[11px] uppercase tracking-[0.16em] text-amber-100/78">
+                                <span className="text-[11px] uppercase tracking-[0.16em] text-[#1d1d1f]">
                                   {step.label}
                                 </span>
                                 <Badge color={statusColor(step.status)}>{step.status}</Badge>
                               </div>
-                              <p className="mt-2 text-[11px] leading-5 text-amber-100/45">
+                              <p className="mt-2 text-[11px] leading-5 text-[#1d1d1f]/45">
                                 {step.message || "-"} / {durationLabel(step.duration_ms)}
                               </p>
                             </div>
@@ -1205,7 +1205,7 @@ export default function KillLifeWorkflowEditor() {
       <div className="flex flex-wrap gap-3">
         <Link
           to="/kill-life"
-          className="rounded-2xl border border-border/80 bg-black/25 px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-amber-100/78 transition hover:border-accent/35 hover:text-accent"
+          className="rounded-2xl border border-[rgba(0,0,0,0.08)] bg-[#f5f5f7] px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-[#1d1d1f] transition hover:border-accent/15 hover:text-accent"
         >
           back to registry
         </Link>

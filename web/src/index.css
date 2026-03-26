@@ -2,31 +2,39 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ═══ Apple SOTA 2026 — Mascarade Ops ER ═══ */
+
 html {
   font-size: 16px;
 }
 
-html,
-body,
-#root {
+html, body, #root {
   min-height: 100%;
 }
 
 :root {
-  --glow-green: #00ff85;
-  --glow-gold: #ffd166;
-  --matrix-green: #0f0;
+  --accent: #0071e3;
+  --accent-hover: #0077ed;
+  --success: #30d158;
+  --warning: #ff9f0a;
+  --error: #ff3b30;
 }
 
 body {
   margin: 0;
-  background:
-    radial-gradient(circle at top left, rgba(255, 209, 102, 0.12), transparent 28%),
-    radial-gradient(circle at 88% 18%, rgba(0, 255, 133, 0.08), transparent 24%),
-    linear-gradient(180deg, #09110b 0%, #030303 42%, #010101 100%);
-  color: #ffd166;
-  font-family: "Fira Code", "Source Code Pro", "IBM Plex Mono", "Courier New", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  letter-spacing: 0.01em;
+  background: #ffffff;
+  color: #1d1d1f;
+  font-family:
+    "Manrope",
+    -apple-system,
+    BlinkMacSystemFont,
+    "SF Pro Display",
+    "Segoe UI",
+    "Helvetica Neue",
+    sans-serif;
+  letter-spacing: -0.01em;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 * {
@@ -42,6 +50,18 @@ html {
   isolation: isolate;
 }
 
+/* Remove all retro overlays */
+body::before,
+body::after,
+#root::before {
+  display: none !important;
+}
+
+#root {
+  animation: none !important;
+}
+
+/* ── Scrollbar — Apple-thin ── */
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
@@ -52,24 +72,25 @@ html {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(255, 209, 102, 0.22);
+  background: rgba(0, 0, 0, 0.15);
   border-radius: 999px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 209, 102, 0.4);
+  background: rgba(0, 0, 0, 0.25);
 }
 
 ::selection {
-  background: rgba(255, 209, 102, 0.24);
-  color: #fff7e6;
+  background: rgba(0, 113, 227, 0.15);
+  color: #1d1d1f;
 }
 
+/* ── Focus — Apple ring ── */
 :where(a, button, input, textarea, select, [tabindex]):focus-visible {
   outline: none;
   box-shadow:
-    0 0 0 2px rgba(255, 209, 102, 0.55),
-    0 0 0 4px rgba(0, 0, 0, 0.72);
+    0 0 0 3px rgba(0, 113, 227, 0.3),
+    0 0 0 1px rgba(0, 113, 227, 0.15);
 }
 
 .sr-only {
@@ -94,203 +115,117 @@ html {
   white-space: normal;
 }
 
-body::before {
-  content: "";
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  z-index: 0;
-  background:
-    linear-gradient(rgba(255, 209, 102, 0.028) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(0, 255, 133, 0.028) 1px, transparent 1px);
-  background-size: 100% 30px, 30px 100%;
-  mask-image: radial-gradient(circle at center, black 42%, transparent 100%);
-}
-
-#root::before {
-  content: "";
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  z-index: 2;
-  background: repeating-linear-gradient(
-    0deg,
-    transparent 0px,
-    transparent 3px,
-    rgba(0, 0, 0, 0.13) 3px,
-    rgba(0, 0, 0, 0.13) 5px
-  );
-  mix-blend-mode: multiply;
-  opacity: 0.45;
-}
-
-body::after {
-  content: "";
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  z-index: 1;
-  background: radial-gradient(ellipse at center, transparent 56%, rgba(0, 0, 0, 0.58) 100%);
-}
-
-@keyframes crt-flicker {
-  0%,
-  100% {
-    opacity: 1;
-  }
-  3% {
-    opacity: 0.985;
-  }
-  44% {
-    opacity: 1;
-  }
-  74% {
-    opacity: 0.992;
-  }
-  92% {
-    opacity: 0.978;
-  }
-}
-
-#root {
-  animation: crt-flicker 6s linear infinite;
-}
-
+/* ── Utility classes (Apple-compat) ── */
 .glow-text {
-  text-shadow: 0 0 10px rgba(255, 209, 102, 0.42), 0 0 28px rgba(255, 209, 102, 0.18);
+  color: var(--accent);
+  font-weight: 700;
 }
 
 .glow-green {
-  color: var(--glow-green);
-  text-shadow: 0 0 8px rgba(0, 255, 133, 0.38), 0 0 20px rgba(0, 255, 133, 0.18);
+  color: var(--success);
+  font-weight: 600;
 }
 
 .glow-border {
-  box-shadow: 0 0 12px rgba(27, 77, 44, 0.36), inset 0 0 8px rgba(27, 77, 44, 0.12);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
 }
 
-@keyframes pulse-glow {
-  0%,
-  100% {
-    opacity: 1;
-    box-shadow: 0 0 4px currentColor;
-  }
-  50% {
-    opacity: 0.7;
-    box-shadow: 0 0 12px currentColor, 0 0 24px currentColor;
-  }
+/* ── Status dots ── */
+@keyframes pulse-subtle {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
 }
 
 .pulse-dot {
   display: inline-block;
-  width: 6px;
-  height: 6px;
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
-  animation: pulse-glow 2s ease-in-out infinite;
+  animation: pulse-subtle 2s ease-in-out infinite;
 }
 
 .pulse-dot-ok {
-  background: var(--glow-green);
-  color: var(--glow-green);
+  background: var(--success);
 }
 
 .pulse-dot-err {
-  background: #ff3b5c;
-  color: #ff3b5c;
+  background: var(--error);
 }
 
-@keyframes blink-cursor {
-  0%,
-  100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0;
-  }
-}
-
-.cursor-blink::after {
-  content: "█";
-  margin-left: 2px;
-  color: var(--glow-gold);
-  animation: blink-cursor 1s step-end infinite;
-}
-
-@keyframes glitch {
-  0%,
-  100% {
-    transform: translate(0);
-  }
-  20% {
-    transform: translate(-1px, 1px);
-  }
-  40% {
-    transform: translate(1px, -1px);
-  }
-  60% {
-    transform: translate(-1px, 0);
-  }
-  80% {
-    transform: translate(1px, 1px);
-  }
-}
-
-.killlife-canvas {
-  background:
-    radial-gradient(circle at top left, rgba(255, 209, 102, 0.06), transparent 18%),
-    radial-gradient(circle at 88% 24%, rgba(0, 255, 133, 0.05), transparent 20%),
-    linear-gradient(rgba(255, 209, 102, 0.045) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 209, 102, 0.045) 1px, transparent 1px),
-    linear-gradient(180deg, rgba(9, 12, 10, 0.95), rgba(4, 4, 4, 0.98));
-  background-size: auto, auto, 100% 40px, 40px 100%, auto;
-  border-radius: 1.25rem;
-  overflow: hidden;
-}
-
-.killlife-canvas::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background:
-    radial-gradient(circle at center, transparent 42%, rgba(0, 0, 0, 0.35) 100%);
-}
-
-.glitch:hover {
-  animation: glitch 0.3s ease-in-out;
-  text-shadow: -1px 0 #ff3b5c, 1px 0 #00ff85;
-}
-
+/* ── Screen label ── */
 .screen-label {
   display: inline-flex;
   align-items: center;
-  gap: 0.45rem;
-  color: rgba(255, 209, 102, 0.55);
-  font-size: 0.68rem;
-  letter-spacing: 0.28em;
+  gap: 0.5rem;
+  color: #86868b;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
 }
 
 .screen-label::before {
   content: "";
-  width: 0.5rem;
-  height: 0.5rem;
+  width: 8px;
+  height: 8px;
   border-radius: 999px;
-  background: linear-gradient(135deg, #00ff85, #ffd166);
-  box-shadow: 0 0 8px rgba(0, 255, 133, 0.35);
+  background: var(--accent);
 }
 
+/* ── Status chip ── */
 .status-chip {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 2.5rem;
+  min-height: 2.25rem;
   border-radius: 999px;
-  border-width: 1px;
-  padding: 0.55rem 0.9rem;
-  font-size: 0.68rem;
-  font-weight: 700;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-  backdrop-filter: blur(12px);
+  border: 0.5px solid rgba(0, 0, 0, 0.08);
+  padding: 0.4rem 0.85rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  background: #f5f5f7;
 }
+
+/* ── Killlife canvas (clean Apple version) ── */
+.killlife-canvas {
+  background: #f5f5f7;
+  border-radius: 1.25rem;
+  overflow: hidden;
+  border: 0.5px solid rgba(0, 0, 0, 0.06);
+}
+
+.killlife-canvas::before {
+  display: none;
+}
+
+/* ── Remove retro effects ── */
+.glitch:hover {
+  animation: none;
+  text-shadow: none;
+}
+
+.cursor-blink::after {
+  display: none;
+}
+
+/* -- Scroll-driven reveal animations (native CSS) -- */
+@keyframes scroll-fade-up {
+  from { opacity: 0; transform: translateY(24px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.scroll-reveal {
+  animation: scroll-fade-up ease both;
+  animation-timeline: view();
+  animation-range: entry 0% entry 40%;
+}
+
+@supports not (animation-timeline: view()) {
+  .scroll-reveal {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
+}
+@import "./dark-mode.css";

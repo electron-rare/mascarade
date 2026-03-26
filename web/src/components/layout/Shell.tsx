@@ -62,11 +62,11 @@ export default function Shell() {
   }, [navigate]);
 
   return (
-    <div className="relative flex min-h-screen text-amber-50">
+    <div className="relative flex min-h-screen bg-white text-[#1d1d1f]">
       <a
         href="#main-content"
         onClick={focusMainContent}
-        className="sr-only z-[70] rounded-2xl border border-accent/40 bg-black/90 px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-accent focus:not-sr-only focus:fixed focus:left-4 focus:top-4"
+        className="sr-only z-[70] rounded-xl border border-[rgba(0,0,0,0.08)] bg-white px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-accent focus:not-sr-only focus:fixed focus:left-4 focus:top-4"
       >
         Skip to content
       </a>
@@ -75,14 +75,14 @@ export default function Shell() {
         <button
           type="button"
           aria-label="Close navigation"
-          className="fixed inset-0 z-30 bg-black/70 backdrop-blur-sm lg:hidden"
+          className="fixed inset-0 z-30 bg-[#f5f5f7] backdrop-blur-sm lg:hidden"
           onClick={() => setNavOpen(false)}
         />
       )}
 
       <Sidebar pathname={pathname} open={navOpen} onClose={() => setNavOpen(false)} />
 
-      <div className="relative z-10 flex min-h-screen min-w-0 flex-1 flex-col">
+      <div className="relative z-10 flex min-h-screen min-w-0 flex-1 flex-col bg-white">
         <TopBar
           eyebrow={page.eyebrow}
           title={page.title}

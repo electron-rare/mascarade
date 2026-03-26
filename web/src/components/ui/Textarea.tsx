@@ -11,17 +11,16 @@ export default function Textarea({ label, className = "", id: externalId, ...pro
   return (
     <div className="space-y-2">
       {label && (
-        <label htmlFor={id} className="block text-[11px] uppercase tracking-[0.18em] text-muted">
+        <label htmlFor={id} className="block text-xs font-medium text-muted">
           {label}
         </label>
       )}
       <textarea
         id={id}
         className={[
-          "min-h-[120px] w-full resize-y rounded-[1.5rem] border border-border/80 bg-black/30 px-4 py-3",
-          "text-sm text-amber-100 outline-none transition-all placeholder:text-muted/60",
-          "focus:border-accent/45 focus:bg-black/40 focus:shadow-[0_0_0_2px_rgba(255,209,102,0.08)]",
-          "focus-visible:ring-2 focus-visible:ring-accent/55 focus-visible:ring-offset-2 focus-visible:ring-offset-[#050505]",
+          "min-h-[120px] w-full resize-y rounded-xl border border-[rgba(0,0,0,0.12)] bg-white px-4 py-3",
+          "text-sm text-[#1d1d1f] outline-none transition-all placeholder:text-[#86868b]",
+          "focus:border-accent focus:shadow-[0_0_0_3px_rgba(0,113,227,0.12)]",
           className,
         ].join(" ")}
         {...props}

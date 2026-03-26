@@ -200,11 +200,11 @@ export default function AgentDetail() {
         <Card className="overflow-hidden border-accent/20 bg-[linear-gradient(135deg,rgba(255,209,102,0.08),rgba(8,12,10,0.94)_26%,rgba(6,6,6,0.98))]">
           <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
             <div className="max-w-3xl">
-              <p className="screen-label">agent focus</p>
-              <h2 className="mt-3 text-3xl font-semibold uppercase tracking-[0.12em] text-accent glow-text md:text-5xl">
+              <p className="text-xs font-semibold uppercase tracking-wide text-[#86868b]">agent focus</p>
+              <h2 className="mt-3 text-3xl font-semibold uppercase tracking-[0.12em] text-accent font-bold text-accent md:text-5xl">
                 {name}
               </h2>
-              <p className="mt-4 max-w-2xl text-sm leading-7 text-amber-100/60 md:text-[15px]">
+              <p className="mt-4 max-w-2xl text-sm leading-7 text-[#1d1d1f]/60 md:text-[15px]">
                 Surface de test et de configuration pour l&apos;agent selectionne. Le profil ci-dessous pilote maintenant le routage auto cluster, pas seulement le prompt de systeme.
               </p>
               <div className="mt-5 flex flex-wrap gap-2">
@@ -236,7 +236,7 @@ export default function AgentDetail() {
 
         <Card title="Agent lane">
           <div className="space-y-4">
-            <p className="text-sm leading-7 text-amber-100/58">
+            <p className="text-sm leading-7 text-[#86868b]">
               Lance un test direct, puis ajuste le profil de routage si l&apos;agent doit preferer un noeud `gpu`, `edge` ou un provider/modele donne.
             </p>
             <div className="flex flex-wrap gap-3">
@@ -245,7 +245,7 @@ export default function AgentDetail() {
               </Button>
               <Link
                 to="/orchestrate"
-                className="rounded-2xl border border-border/80 px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-amber-100/72 transition hover:border-accent/35 hover:text-accent"
+                className="rounded-2xl border border-[rgba(0,0,0,0.08)] px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-[#6e6e73] transition hover:border-accent/15 hover:text-accent"
               >
                 open orchestrate
               </Link>
@@ -283,8 +283,8 @@ export default function AgentDetail() {
           <div className="space-y-4">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <p className="screen-label">performance track</p>
-                <p className="mt-3 text-sm leading-6 text-amber-100/54">
+                <p className="text-xs font-semibold uppercase tracking-wide text-[#86868b]">performance track</p>
+                <p className="mt-3 text-sm leading-6 text-[#1d1d1f]/54">
                   Metriques de sante et d&apos;activite pour {name}. Les compteurs remontent depuis le core tracker du registry.
                 </p>
               </div>
@@ -292,32 +292,32 @@ export default function AgentDetail() {
                 className={[
                   "status-chip",
                   healthStatusOk(metrics.data.error_rate)
-                    ? "border-[#214e31] bg-[#0c170f]/80 text-[#8cffb7]"
-                    : "border-[#5d2332] bg-[#18070d]/80 text-error",
+                    ? "border-[#e8f5e9] bg-[#f5f5f7]/80 text-[#30d158]"
+                    : "border-[#fce4ec] bg-[#f5f5f7]/80 text-error",
                 ].join(" ")}
               >
                 {healthStatusText(metrics.data.error_rate)}
               </span>
             </div>
             <div className="grid gap-3 sm:grid-cols-3">
-              <div className="rounded-3xl border border-border/80 bg-black/25 p-4">
+              <div className="rounded-3xl border border-[rgba(0,0,0,0.08)] bg-[#f5f5f7] p-4">
                 <p className="text-[10px] uppercase tracking-[0.18em] text-muted">requests</p>
                 <p className="mt-3 text-xl font-semibold uppercase tracking-[0.14em] text-accent">
                   {metrics.data.total_requests.toString().padStart(2, "0")}
                 </p>
               </div>
-              <div className="rounded-3xl border border-border/80 bg-black/25 p-4">
+              <div className="rounded-3xl border border-[rgba(0,0,0,0.08)] bg-[#f5f5f7] p-4">
                 <p className="text-[10px] uppercase tracking-[0.18em] text-muted">error rate</p>
                 <p
                   className={[
                     "mt-3 text-xl font-semibold uppercase tracking-[0.14em]",
-                    healthStatusOk(metrics.data.error_rate) ? "text-[#8cffb7]" : "text-error",
+                    healthStatusOk(metrics.data.error_rate) ? "text-[#30d158]" : "text-error",
                   ].join(" ")}
                 >
                   {metrics.data.error_rate.toFixed(1)}%
                 </p>
               </div>
-              <div className="rounded-3xl border border-border/80 bg-black/25 p-4">
+              <div className="rounded-3xl border border-[rgba(0,0,0,0.08)] bg-[#f5f5f7] p-4">
                 <p className="text-[10px] uppercase tracking-[0.18em] text-muted">latency</p>
                 <p className="mt-3 text-xl font-semibold uppercase tracking-[0.14em] text-accent">
                   {metrics.data.avg_response_time > 0
@@ -327,19 +327,19 @@ export default function AgentDetail() {
               </div>
             </div>
             <div className="grid gap-3 sm:grid-cols-3">
-              <div className="rounded-3xl border border-border/80 bg-black/25 p-4">
+              <div className="rounded-3xl border border-[rgba(0,0,0,0.08)] bg-[#f5f5f7] p-4">
                 <p className="text-[10px] uppercase tracking-[0.18em] text-muted">tokens</p>
                 <p className="mt-3 text-xl font-semibold uppercase tracking-[0.14em] text-accent">
                   {metrics.data.total_tokens.toLocaleString()}
                 </p>
               </div>
-              <div className="rounded-3xl border border-border/80 bg-black/25 p-4">
+              <div className="rounded-3xl border border-[rgba(0,0,0,0.08)] bg-[#f5f5f7] p-4">
                 <p className="text-[10px] uppercase tracking-[0.18em] text-muted">cost</p>
                 <p className="mt-3 text-xl font-semibold uppercase tracking-[0.14em] text-accent">
                   ${metrics.data.total_cost.toFixed(4)}
                 </p>
               </div>
-              <div className="rounded-3xl border border-border/80 bg-black/25 p-4">
+              <div className="rounded-3xl border border-[rgba(0,0,0,0.08)] bg-[#f5f5f7] p-4">
                 <p className="text-[10px] uppercase tracking-[0.18em] text-muted">last used</p>
                 <p className="mt-3 text-xl font-semibold uppercase tracking-[0.14em] text-accent">
                   {formatStamp(metrics.data.last_used)}
@@ -442,7 +442,7 @@ export default function AgentDetail() {
                 }
               />
             </div>
-            <p className="text-[12px] leading-6 text-amber-100/46">
+            <p className="text-[12px] leading-6 text-[#1d1d1f]/46">
               `preferred_role` pilote le routage auto cluster. Si tu mets `gpu`, l&apos;orchestration cherchera d&apos;abord un noeud cluster `gpu` compatible avec le provider/modele de cet agent.
             </p>
             {saveError ? (
@@ -521,7 +521,7 @@ export default function AgentDetail() {
                     </Badge>
                   ) : null}
                 </div>
-                <div className="whitespace-pre-wrap rounded-[1.5rem] border border-border/80 bg-black/25 p-4 text-sm leading-7 text-amber-100/78">
+                <div className="whitespace-pre-wrap rounded-[1.5rem] border border-[rgba(0,0,0,0.08)] bg-[#f5f5f7] p-4 text-sm leading-7 text-[#1d1d1f]">
                   {result.content}
                 </div>
               </div>
@@ -536,7 +536,7 @@ export default function AgentDetail() {
         title="Delete Agent"
       >
         <div className="space-y-4">
-          <p className="text-sm leading-7 text-amber-100/78">
+          <p className="text-sm leading-7 text-[#1d1d1f]">
             Are you sure you want to delete the agent <strong className="text-accent">{name}</strong>? This action cannot be undone.
           </p>
           {deleteError ? (

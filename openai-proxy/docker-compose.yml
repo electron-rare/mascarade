@@ -1,0 +1,14 @@
+services:
+  openai-proxy:
+    build: .
+    container_name: mascarade-openai-proxy
+    restart: unless-stopped
+    ports:
+      - "8901:8901"
+    networks:
+      - mascarade-network
+
+networks:
+  mascarade-network:
+    external: true
+    name: mascarade_mascarade-network

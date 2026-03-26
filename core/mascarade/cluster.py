@@ -58,13 +58,19 @@ class _ClusterMdnsDiscoveryListener(ServiceListener):
     def __init__(self) -> None:
         self._services: set[str] = set()
 
-    def add_service(self, zc: Zeroconf, service_type: str, name: str) -> None:  # noqa: ARG002
+    def add_service(
+        self, zc: Zeroconf, service_type: str, name: str
+    ) -> None:  # noqa: ARG002
         self._services.add(name)
 
-    def remove_service(self, zc: Zeroconf, service_type: str, name: str) -> None:  # noqa: ARG002
+    def remove_service(
+        self, zc: Zeroconf, service_type: str, name: str
+    ) -> None:  # noqa: ARG002
         self._services.discard(name)
 
-    def update_service(self, zc: Zeroconf, service_type: str, name: str) -> None:  # noqa: ARG002
+    def update_service(
+        self, zc: Zeroconf, service_type: str, name: str
+    ) -> None:  # noqa: ARG002
         self._services.add(name)
 
     @property
@@ -194,6 +200,10 @@ class NodeIdentity:
     provider_models: dict[str, list[str]]
     agents: int
     cluster_enabled: bool
+    # Hardware profile — detected at startup via machine_profile
+    gpu_vram_gb: float = 0.0
+    chip_family: str = "cpu_only"
+    ram_gb: float = 0.0
 
     def to_dict(self) -> dict[str, object]:
         return {
@@ -205,6 +215,9 @@ class NodeIdentity:
             "provider_models": self.provider_models,
             "agents": self.agents,
             "cluster_enabled": self.cluster_enabled,
+            "gpu_vram_gb": self.gpu_vram_gb,
+            "chip_family": self.chip_family,
+            "ram_gb": self.ram_gb,
         }
 
 
@@ -223,6 +236,9 @@ class PeerStatus:
     provider_models: dict[str, list[str]] | None = None
     agents: int | None = None
     last_seen: str | None = None
+    gpu_vram_gb: float = 0.0
+    chip_family: str = "cpu_only"
+    ram_gb: float = 0.0
 
     def to_dict(self) -> dict[str, object]:
         return {
@@ -239,6 +255,9 @@ class PeerStatus:
             "provider_models": self.provider_models,
             "agents": self.agents,
             "last_seen": self.last_seen,
+            "gpu_vram_gb": self.gpu_vram_gb,
+            "chip_family": self.chip_family,
+            "ram_gb": self.ram_gb,
         }
 
 
@@ -271,7 +290,9 @@ def _cluster_url_allowed_when_insecure(parsed) -> bool:
         return True
     if not settings.cluster_require_tls:
         return True
-    if settings.cluster_allow_insecure_loopback and _is_loopback_host(parsed.hostname or ""):
+    if settings.cluster_allow_insecure_loopback and _is_loopback_host(
+        parsed.hostname or ""
+    ):
         return True
     return False
 
@@ -372,8 +393,12 @@ class ClusterManager:
         self._agents_count_provider = agents_count_provider
         self._timeout_s = max(settings.cluster_request_timeout_ms, 500) / 1000
         self._http_client: httpx.AsyncClient | None = None
-        self._http_limits = httpx.Limits(max_connections=64, max_keepalive_connections=16)
-        self._peers = parse_cluster_peers(settings.cluster_peers, node_id=settings.node_id)
+        self._http_limits = httpx.Limits(
+            max_connections=64, max_keepalive_connections=16
+        )
+        self._peers = parse_cluster_peers(
+            settings.cluster_peers, node_id=settings.node_id
+        )
         self._mdns_peers: dict[str, ClusterPeer] = {}
         self._mdns_discovery_expiry = 0.0
         self._mdns_advertiser: Zeroconf | None = None
@@ -413,7 +438,9 @@ class ClusterManager:
                 node = MascaradeP2PNode(
                     listen_host=settings.p2p_listen_host,
                     listen_port=settings.p2p_listen_port,
-                    key_dir=settings.p2p_key_dir or settings.p2p_identity_key_path or None,
+                    key_dir=settings.p2p_key_dir
+                    or settings.p2p_identity_key_path
+                    or None,
                     bootstrap_peers=bootstrap,
                 )
                 await node.start()
@@ -426,6 +453,9 @@ class ClusterManager:
                     role=identity.role,
                     label=identity.label,
                     http_base_url=advertised_base_url(),
+                    gpu_vram_gb=identity.gpu_vram_gb,
+                    chip_family=identity.chip_family,
+                    ram_gb=identity.ram_gb,
                 )
                 # Wire task handler: incoming tasks are executed via local router
                 node.set_task_handler(self._p2p_task_handler)
@@ -525,7 +555,10 @@ class ClusterManager:
         # libp2p backend: discovered_peers() → list[P2PPeer]
         if hasattr(node, "discovered_peers"):
             for p2p_peer in node.discovered_peers():
-                if p2p_peer.peer_id not in peers_by_id and p2p_peer.peer_id != settings.node_id:
+                if (
+                    p2p_peer.peer_id not in peers_by_id
+                    and p2p_peer.peer_id != settings.node_id
+                ):
                     if p2p_peer.base_url:
                         peers_by_id[p2p_peer.peer_id] = ClusterPeer(
                             peer_id=p2p_peer.peer_id,
@@ -585,11 +618,14 @@ class ClusterManager:
         return list(self._collect_known_peers())
 
     def local_identity(self) -> NodeIdentity:
+        from mascarade.machine_profile import detect_machine_profile
+
         provider_models = (
             self._router.provider_model_map()
             if hasattr(self._router, "provider_model_map")
             else {name: [] for name in self._router.available_providers}
         )
+        hw = detect_machine_profile()
         return NodeIdentity(
             node_id=settings.node_id,
             role=settings.node_role,
@@ -599,11 +635,16 @@ class ClusterManager:
             provider_models=provider_models,
             agents=self._agents_count_provider(),
             cluster_enabled=self.enabled,
+            gpu_vram_gb=hw.gpu_vram_gb,
+            chip_family=hw.chip.value,
+            ram_gb=hw.ram_gb,
         )
 
     def _collect_known_peers(self) -> list[ClusterPeer]:
         peers_by_id: dict[str, ClusterPeer] = {}
-        for peer in parse_cluster_peers(settings.cluster_peers, node_id=settings.node_id):
+        for peer in parse_cluster_peers(
+            settings.cluster_peers, node_id=settings.node_id
+        ):
             peers_by_id[peer.peer_id] = peer
 
         for peer in self._mdns_peers.values():
@@ -678,10 +719,14 @@ class ClusterManager:
         service_name = self._mdns_service_name()
         ip_bytes, _ = _ip_from_host(host)
         if ip_bytes is None:
-            logger.warning("Cannot register mDNS service: invalid MESH_BIND_HOST=%s", host)
+            logger.warning(
+                "Cannot register mDNS service: invalid MESH_BIND_HOST=%s", host
+            )
             return
 
-        properties = {key: value.encode("utf-8") for key, value in self._mdns_txt().items()}
+        properties = {
+            key: value.encode("utf-8") for key, value in self._mdns_txt().items()
+        }
 
         try:
             addresses: list[bytes] = [ip_bytes]
@@ -697,7 +742,9 @@ class ClusterManager:
             assert self._mdns_advertiser is not None
             assert self._mdns_service_info is not None
             self._mdns_advertiser.register_service(self._mdns_service_info)
-            logger.info("mDNS service advertised: name=%s type=%s", service_name, service_type)
+            logger.info(
+                "mDNS service advertised: name=%s type=%s", service_name, service_type
+            )
         except Exception as exc:
             self._mdns_advertiser = None
             self._mdns_service_info = None
@@ -726,7 +773,9 @@ class ClusterManager:
             self._mdns_peers = {peer.peer_id: peer for peer in discovered}
             self._mdns_discovery_expiry = time.monotonic() + self._mdns_discovery_ttl()
             return discovered
-        except Exception as exc:  # pragma: no cover - optional dependency/OS discovery failures
+        except (
+            Exception
+        ) as exc:  # pragma: no cover - optional dependency/OS discovery failures
             logger.warning("mDNS peer discovery failed: %s", exc)
             self._mdns_peers = {}
             return []
@@ -775,7 +824,9 @@ class ClusterManager:
         if parsed.scheme not in {"http", "https"} or not parsed.netloc:
             return None
         if not _cluster_url_allowed_when_insecure(parsed):
-            logger.warning("mDNS peer rejected: insecure URL while TLS required (%s)", base_url)
+            logger.warning(
+                "mDNS peer rejected: insecure URL while TLS required (%s)", base_url
+            )
             return None
         return ClusterPeer(peer_id=peer_id, role=role, base_url=base_url)
 
@@ -802,12 +853,16 @@ class ClusterManager:
     ) -> dict[str, object]:
         if not settings.cluster_forward_enabled:
             raise HTTPException(status_code=403, detail="Cluster forwarding disabled")
+        from mascarade.router.model_sizes import get_model_size_gb
+
+        model_name = self._coerce_optional_string(payload.get("model"))
         selection = await self.select_route(
             peer_id=peer_id,
             preferred_role=preferred_role,
             provider=self._coerce_optional_string(payload.get("provider")),
-            model=self._coerce_optional_string(payload.get("model")),
+            model=model_name,
             allow_local=allow_local,
+            model_size_gb=get_model_size_gb(model_name),
         )
 
         if not selection.remote:
@@ -824,11 +879,17 @@ class ClusterManager:
             }
 
         if selection.peer_id is None:
-            raise HTTPException(status_code=500, detail="Cluster route selection failed")
+            raise HTTPException(
+                status_code=500, detail="Cluster route selection failed"
+            )
 
         peers = self._collect_known_peers()
         peer = next(
-            (candidate for candidate in peers if candidate.peer_id == selection.peer_id),
+            (
+                candidate
+                for candidate in peers
+                if candidate.peer_id == selection.peer_id
+            ),
             None,
         )
         if peer is None:
@@ -855,7 +916,9 @@ class ClusterManager:
             }
 
         # Fallback to HTTP forwarding (only if P2P unavailable/failed)
-        remote = await self._request_json(peer, "POST", "/v1/cluster/node/send", json=payload)
+        remote = await self._request_json(
+            peer, "POST", "/v1/cluster/node/send", json=payload
+        )
         latency_ms = int((time.perf_counter() - started) * 1000)
         logger.info("cluster HTTP forward <- %s (%d ms)", peer.peer_id, latency_ms)
         return {
@@ -876,13 +939,18 @@ class ClusterManager:
         provider: str | None,
         model: str | None,
         allow_local: bool,
+        model_size_gb: float = 0.0,
     ) -> ClusterRouteSelection:
         await self._discover_mdns_peers()
         peers = self._collect_known_peers()
         if peer_id:
-            peer = next((candidate for candidate in peers if candidate.peer_id == peer_id), None)
+            peer = next(
+                (candidate for candidate in peers if candidate.peer_id == peer_id), None
+            )
             if peer is None:
-                raise HTTPException(status_code=404, detail=f"Unknown cluster peer: {peer_id}")
+                raise HTTPException(
+                    status_code=404, detail=f"Unknown cluster peer: {peer_id}"
+                )
             return ClusterRouteSelection(
                 selected_by="explicit-peer",
                 remote=True,
@@ -898,6 +966,28 @@ class ClusterManager:
             peer_statuses.append(await self._probe_peer(peer))
         remote_candidates = [peer for peer in peer_statuses if peer.ok]
 
+        # Hardware-aware filtering: if the model is too large for local VRAM,
+        # skip local and prefer remote peers with enough VRAM.
+        local_can_host = (
+            model_size_gb == 0.0 or local.gpu_vram_gb >= model_size_gb * 1.1
+        )
+        if model_size_gb > 0.0:
+            vram_capable = [
+                p for p in remote_candidates if p.gpu_vram_gb >= model_size_gb * 1.1
+            ]
+            if vram_capable:
+                # There are remote peers with enough VRAM — prefer them over
+                # a local CPU-RAM fallback that risks OOM.
+                if not local_can_host:
+                    logger.info(
+                        "model_size=%.1fGB > local VRAM=%.1fGB → routing to capable peer(s): %s",
+                        model_size_gb,
+                        local.gpu_vram_gb,
+                        [p.peer_id for p in vram_capable],
+                    )
+                    remote_candidates = vram_capable
+                    allow_local = False
+
         if preferred_role:
             if (
                 allow_local
@@ -912,7 +1002,9 @@ class ClusterManager:
                     role=local.role,
                     base_url=local.base_url,
                 )
-            remote_candidates = [peer for peer in remote_candidates if peer.role == preferred_role]
+            remote_candidates = [
+                peer for peer in remote_candidates if peer.role == preferred_role
+            ]
 
         matching_remote = [
             peer
@@ -920,7 +1012,9 @@ class ClusterManager:
             if self._peer_matches(peer, provider=provider, model=model)
         ]
 
-        if allow_local and self._identity_matches(local, provider=provider, model=model):
+        if allow_local and self._identity_matches(
+            local, provider=provider, model=model
+        ):
             return ClusterRouteSelection(
                 selected_by="auto-local",
                 remote=False,
@@ -931,9 +1025,10 @@ class ClusterManager:
             )
 
         if matching_remote:
+            # Among VRAM-capable peers, sort by latency then VRAM (most VRAM first as tiebreak)
             best_remote = sorted(
                 matching_remote,
-                key=lambda peer: (peer.latency_ms, peer.peer_id),
+                key=lambda peer: (peer.latency_ms, -peer.gpu_vram_gb, peer.peer_id),
             )[0]
             return ClusterRouteSelection(
                 selected_by="auto-peer",
@@ -1004,6 +1099,9 @@ class ClusterManager:
             provider_models=self._coerce_provider_models(remote.get("provider_models")),
             agents=int(remote.get("agents") or 0),
             last_seen=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            gpu_vram_gb=float(remote.get("gpu_vram_gb") or 0.0),
+            chip_family=str(remote.get("chip_family") or "cpu_only"),
+            ram_gb=float(remote.get("ram_gb") or 0.0),
         )
 
     # ── HTTP transport & helpers ────────────────────────────────────────
@@ -1011,13 +1109,17 @@ class ClusterManager:
     async def _send_local(self, payload: dict[str, object]) -> dict[str, object]:
         messages = payload.get("messages")
         if not isinstance(messages, list):
-            raise HTTPException(status_code=400, detail="Cluster local send requires messages")
+            raise HTTPException(
+                status_code=400, detail="Cluster local send requires messages"
+            )
 
         try:
             response = await self._router.send(
                 messages,
                 strategy=payload.get("strategy", "routellm"),
-                routing_policy=self._coerce_optional_string(payload.get("routing_policy")),
+                routing_policy=self._coerce_optional_string(
+                    payload.get("routing_policy")
+                ),
                 provider=self._coerce_optional_string(payload.get("provider")),
                 model=self._coerce_optional_string(payload.get("model")),
                 system=self._coerce_optional_string(payload.get("system")),
@@ -1028,7 +1130,9 @@ class ClusterManager:
                 knowledge_scope=str(payload.get("knowledge_scope", "project")),
             )
         except ValueError as exc:
-            raise HTTPException(status_code=400, detail="Invalid request parameters") from exc
+            raise HTTPException(
+                status_code=400, detail="Invalid request parameters"
+            ) from exc
 
         return {
             "content": response.content,
@@ -1050,7 +1154,9 @@ class ClusterManager:
             if not isinstance(provider, str):
                 continue
             if isinstance(models, list):
-                mapped[provider] = [str(model) for model in models if isinstance(model, str)]
+                mapped[provider] = [
+                    str(model) for model in models if isinstance(model, str)
+                ]
         return mapped
 
     @staticmethod
@@ -1066,7 +1172,9 @@ class ClusterManager:
         return True
 
     @staticmethod
-    def _peer_matches(peer: PeerStatus, *, provider: str | None, model: str | None) -> bool:
+    def _peer_matches(
+        peer: PeerStatus, *, provider: str | None, model: str | None
+    ) -> bool:
         peer_providers = peer.providers or []
         peer_models = peer.provider_models or {}
         if provider and provider not in peer_providers:

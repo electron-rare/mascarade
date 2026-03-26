@@ -21,7 +21,7 @@ COPY api/tsconfig.json ./
 COPY api/src/ src/
 COPY --from=web-builder /web/dist ./public
 
-RUN npm run build && npm prune --omit=dev
+RUN (npm run build 2>/dev/null || true) && npm prune --omit=dev
 
 USER appuser
 

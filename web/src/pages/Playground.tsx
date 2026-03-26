@@ -73,41 +73,41 @@ export default function Playground() {
         <Card className="overflow-hidden border-accent/20 bg-[linear-gradient(135deg,rgba(255,209,102,0.08),rgba(9,14,11,0.9)_26%,rgba(7,7,7,0.95))]">
           <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
             <div className="max-w-3xl">
-              <p className="screen-label">prompt lane</p>
-              <h2 className="mt-3 text-3xl font-semibold uppercase tracking-[0.12em] text-accent glow-text md:text-5xl">
+              <p className="text-xs font-semibold uppercase tracking-wide text-[#86868b]">prompt lane</p>
+              <h2 className="mt-3 text-3xl font-semibold uppercase tracking-[0.12em] text-accent font-bold text-accent md:text-5xl">
                 Direct routing sandbox
               </h2>
-              <p className="mt-4 max-w-2xl text-sm leading-7 text-amber-100/60 md:text-[15px]">
+              <p className="mt-4 max-w-2xl text-sm leading-7 text-[#1d1d1f]/60 md:text-[15px]">
                 Cette surface sert a tester rapidement un prompt, imposer un provider ou un modele,
                 puis lire la reponse brute du core sans quitter le cockpit.
               </p>
               <div className="mt-5 flex flex-wrap gap-2">
-                <span className="status-chip border-accent/35 bg-accent/10 text-accent">
+                <span className="status-chip border-accent/15 bg-accent/10 text-accent">
                   providers {providers.length}
                 </span>
-                <span className="status-chip border-border/80 bg-black/25 text-muted">
+                <span className="status-chip border-[rgba(0,0,0,0.08)] bg-[#f5f5f7] text-muted">
                   strategy {strategy || "default"}
                 </span>
-                <span className="status-chip border-border/80 bg-black/25 text-muted">
+                <span className="status-chip border-[rgba(0,0,0,0.08)] bg-[#f5f5f7] text-muted">
                   temp {temperature}
                 </span>
               </div>
             </div>
 
             <div className="grid min-w-0 gap-3 sm:grid-cols-3 lg:min-w-[340px]">
-              <div className="rounded-3xl border border-border/80 bg-black/30 p-4">
+              <div className="rounded-3xl border border-[rgba(0,0,0,0.08)] bg-[#f5f5f7] p-4">
                 <p className="text-[10px] uppercase tracking-[0.2em] text-muted">prompt</p>
                 <p className="mt-3 text-2xl font-semibold uppercase tracking-[0.12em] text-accent">
                   {prompt.trim() ? "armed" : "idle"}
                 </p>
               </div>
-              <div className="rounded-3xl border border-border/80 bg-black/30 p-4">
+              <div className="rounded-3xl border border-[rgba(0,0,0,0.08)] bg-[#f5f5f7] p-4">
                 <p className="text-[10px] uppercase tracking-[0.2em] text-muted">provider</p>
                 <p className="mt-3 text-2xl font-semibold uppercase tracking-[0.12em] text-accent">
                   {provider || "auto"}
                 </p>
               </div>
-              <div className="rounded-3xl border border-border/80 bg-black/30 p-4">
+              <div className="rounded-3xl border border-[rgba(0,0,0,0.08)] bg-[#f5f5f7] p-4">
                 <p className="text-[10px] uppercase tracking-[0.2em] text-muted">response</p>
                 <p className="mt-3 text-2xl font-semibold uppercase tracking-[0.12em] text-accent">
                   {result ? "loaded" : "waiting"}
@@ -119,7 +119,7 @@ export default function Playground() {
 
         <Card title="Dispatch Settings">
           <div className="space-y-4">
-            <p className="text-sm leading-7 text-amber-100/58">
+            <p className="text-sm leading-7 text-[#86868b]">
               Fixer ici le mode de routage avant d&apos;envoyer le prompt dans la lane de test.
             </p>
             {providersLoading && !providerData ? (
@@ -140,19 +140,19 @@ export default function Playground() {
                 }
               />
             ) : (
-              <div className="rounded-[1.5rem] border border-border/80 bg-black/25 p-4">
+              <div className="rounded-[1.5rem] border border-[rgba(0,0,0,0.08)] bg-[#f5f5f7] p-4">
                 <div className="flex items-center justify-between gap-3">
-                  <p className="screen-label">provider bus</p>
-                  <span className="status-chip border-border/80 bg-black/30 text-muted">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-[#86868b]">provider bus</p>
+                  <span className="status-chip border-[rgba(0,0,0,0.08)] bg-[#f5f5f7] text-muted">
                     {providers.length} live
                   </span>
                 </div>
-                <p className="mt-3 text-sm leading-6 text-amber-100/58">
+                <p className="mt-3 text-sm leading-6 text-[#86868b]">
                   {providers.length > 0
                     ? `${providers.length} provider(s) disponibles pour le routage manuel ou auto.`
                     : "No providers detected on the gateway. Auto routing stays constrained until the bus comes back."}
                 </p>
-                <p className="mt-2 text-[12px] leading-5 text-amber-100/42">
+                <p className="mt-2 text-[12px] leading-5 text-[#86868b]">
                   Le provider bus liste les adapters de routage exposes par le core, pas les modeles locaux un par un.
                 </p>
                 {localRuntimeGap ? (
@@ -272,12 +272,12 @@ export default function Playground() {
                 <Badge color="muted">{result.model}</Badge>
                 {tokenSummary ? <Badge color="muted">{tokenSummary}</Badge> : null}
               </div>
-              <div className="whitespace-pre-wrap rounded-[1.5rem] border border-border/80 bg-black/25 p-4 text-sm leading-7 text-amber-100/78">
+              <div className="whitespace-pre-wrap rounded-[1.5rem] border border-[rgba(0,0,0,0.08)] bg-[#f5f5f7] p-4 text-sm leading-7 text-[#1d1d1f]">
                 {result.content}
               </div>
             </div>
           ) : (
-            <p className="text-sm leading-7 text-amber-100/54">
+            <p className="text-sm leading-7 text-[#1d1d1f]/54">
               No response yet. Send a prompt to inspect the provider decision and payload.
             </p>
           )}
@@ -293,7 +293,7 @@ export default function Playground() {
           ) : result ? (
             <JsonView data={result} />
           ) : (
-            <p className="text-sm leading-7 text-amber-100/54">
+            <p className="text-sm leading-7 text-[#1d1d1f]/54">
               The raw JSON response will appear here after the next call.
             </p>
           )}

@@ -51,8 +51,8 @@ type TopBarProps = {
 
 function statusTone(ok: boolean) {
   return ok
-    ? "border-[#214e31] bg-[#0c170f]/80 text-[#8cffb7]"
-    : "border-[#5d2332] bg-[#18070d]/80 text-error";
+    ? "border-emerald-200 bg-emerald-50 text-emerald-600"
+    : "border-red-200 bg-red-50 text-error";
 }
 
 function resolveQuickProviderField(provider: QuickProviderStatus) {
@@ -93,12 +93,12 @@ function sortQuickProviders(providers: QuickProviderStatus[]) {
 
 function quickProviderTone(provider: QuickProviderStatus) {
   if (provider.active) {
-    return "border-[#214e31] bg-[#0c170f]/80 text-[#8cffb7]";
+    return "border-emerald-200 bg-emerald-50 text-emerald-600";
   }
   if (provider.configured) {
-    return "border-amber-600/40 bg-amber-900/20 text-amber-300";
+    return "border-amber-200 bg-amber-50 text-[#1d1d1f]";
   }
-  return "border-border/80 bg-black/25 text-muted";
+  return "border-[rgba(0,0,0,0.08)] bg-[#f5f5f7] text-[#86868b]";
 }
 
 function QuickProviderKeyCard({
@@ -198,17 +198,17 @@ function QuickProviderKeyCard({
   };
 
   return (
-    <div className="rounded-[1.2rem] border border-border/80 bg-black/30 p-3">
+    <div className="rounded-xl border border-[rgba(0,0,0,0.08)] bg-white p-3 shadow-[0_2px_8px_rgba(0,0,0,0.04)]">
       <div className="mb-2 flex items-start justify-between gap-3">
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-accent">
             {provider.label}
           </p>
-          <p className="mt-1 text-[11px] text-amber-100/35">
+          <p className="mt-1 text-[11px] text-[#86868b]">
             {field.env}
           </p>
         </div>
-        <span className={["status-chip min-h-0 px-3 py-2", quickProviderTone(provider)].join(" ")}>
+        <span className={["rounded-full px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.16em]", quickProviderTone(provider)].join(" ")}>
           {provider.active ? "active" : provider.configured ? "configured" : "missing"}
         </span>
       </div>
@@ -225,7 +225,7 @@ function QuickProviderKeyCard({
             }
           }}
           placeholder={field.configured ? field.hint || "Configured" : "Paste API key"}
-          className="min-w-0 flex-1 rounded-2xl border border-border/80 bg-black/35 px-3 py-2.5 text-sm text-amber-100 outline-none transition placeholder:text-amber-100/25 focus:border-accent/50"
+          className="min-w-0 flex-1 rounded-lg border border-[rgba(0,0,0,0.08)] bg-white px-3 py-2.5 text-sm text-[#1d1d1f] outline-none transition placeholder:text-[#86868b]/50 focus:border-accent/50 focus:ring-2 focus:ring-accent/10"
         />
         <Button
           variant="ghost"
@@ -240,11 +240,11 @@ function QuickProviderKeyCard({
       <div className="mt-3 flex items-center justify-between gap-3">
         <div className="min-w-0">
           {message ? (
-            <p className={["text-[11px]", saveState === "ok" ? "text-emerald-400" : "text-red-400"].join(" ")}>
+            <p className={["text-[11px]", saveState === "ok" ? "text-emerald-500" : "text-red-500"].join(" ")}>
               {message}
             </p>
           ) : (
-            <p className="text-[11px] text-amber-100/35">
+            <p className="text-[11px] text-[#86868b]">
               {provider.configured ? "Cle deja presente, colle une nouvelle valeur pour la remplacer." : "Ajout rapide sans passer par Settings."}
             </p>
           )}
@@ -264,6 +264,37 @@ function QuickProviderKeyCard({
         </div>
       </div>
     </div>
+  );
+}
+
+
+function DarkModeToggle() {
+  const [dark, setDark] = useState(() => document.documentElement.dataset.theme === "dark");
+
+  const toggle = () => {
+    const next = !dark;
+    setDark(next);
+    document.documentElement.dataset.theme = next ? "dark" : "light";
+    localStorage.setItem("theme", next ? "dark" : "light");
+  };
+
+  useEffect(() => {
+    const saved = localStorage.getItem("theme");
+    if (saved === "dark") {
+      document.documentElement.dataset.theme = "dark";
+      setDark(true);
+    }
+  }, []);
+
+  return (
+    <button
+      onClick={toggle}
+      className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-[#f5f5f7] hover:bg-[rgba(0,0,0,0.06)] transition-colors text-sm"
+      title={dark ? "Mode clair" : "Mode sombre"}
+      aria-label={dark ? "Mode clair" : "Mode sombre"}
+    >
+      {dark ? "☀" : "☾"}
+    </button>
   );
 }
 
@@ -458,7 +489,7 @@ export default function TopBar({
   }, []);
 
   return (
-    <header className="sticky top-0 z-20 border-b border-border/80 bg-[linear-gradient(180deg,rgba(7,9,8,0.88),rgba(7,8,7,0.72))] px-4 py-4 backdrop-blur-xl md:px-6 lg:px-8">
+    <header className="sticky top-0 z-20 border-b border-[rgba(0,0,0,0.06)] bg-[rgba(255,255,255,0.72)] px-4 py-4 backdrop-blur-xl backdrop-saturate-[1.8] md:px-6 lg:px-8">
       <div className="mx-auto flex w-full max-w-[1440px] flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
         <div className="min-w-0">
           <div className="flex items-center gap-3">
@@ -467,40 +498,40 @@ export default function TopBar({
               onClick={onMenuToggle}
               aria-controls="primary-sidebar"
               aria-expanded={navOpen}
-              className="flex h-10 w-10 items-center justify-center rounded-2xl border border-border/80 bg-black/30 text-sm text-accent transition hover:border-accent/45 hover:bg-accent/10 lg:hidden"
+              className="flex h-10 w-10 items-center justify-center rounded-xl border border-[rgba(0,0,0,0.08)] bg-[#f5f5f7] text-sm text-[#1d1d1f] transition hover:bg-[#e8e8ed] hover:text-accent lg:hidden"
               aria-label={navOpen ? "Close navigation" : "Open navigation"}
             >
               {navOpen ? "✕" : "☰"}
             </button>
-            <span className="screen-label">{eyebrow}</span>
-            <span className="hidden rounded-full border border-border/80 bg-black/25 px-3 py-1 text-[10px] uppercase tracking-[0.18em] text-amber-100/42 md:inline">
+            <span className="text-[10px] font-medium uppercase tracking-[0.12em] text-[#86868b]">{eyebrow}</span>
+            <span className="hidden rounded-full border border-[rgba(0,0,0,0.08)] bg-[#f5f5f7] px-3 py-1 text-[10px] uppercase tracking-[0.18em] text-[#86868b] md:inline">
               {section}
             </span>
-            <span className="hidden rounded-full border border-accent/25 bg-accent/6 px-3 py-1 text-[10px] uppercase tracking-[0.18em] text-accent md:inline">
+            <span className="hidden rounded-full border border-accent/15 bg-accent/6 px-3 py-1 text-[10px] uppercase tracking-[0.18em] text-accent md:inline">
               lane {index}
             </span>
-            <span className="hidden text-[11px] uppercase tracking-[0.22em] text-amber-100/38 md:inline">
+            <span className="hidden text-[11px] uppercase tracking-[0.22em] text-[#86868b] md:inline">
               {clockLabel}
             </span>
           </div>
           <div className="mt-3 flex flex-col gap-2 xl:flex-row xl:items-end xl:gap-5">
-            <h1 className="text-2xl font-semibold uppercase tracking-[0.18em] text-accent glow-text md:text-[2rem]">
+            <h1 className="text-2xl font-semibold uppercase tracking-[0.18em] text-[#1d1d1f] md:text-[2rem]">
               {title}
             </h1>
-            <p className="max-w-3xl text-sm leading-6 text-amber-100/58 md:text-[15px]">
+            <p className="max-w-3xl text-sm leading-6 text-[#86868b] md:text-[15px]">
               {description}
             </p>
           </div>
           <div className="mt-3 flex flex-wrap gap-2">
             <Link
               to="/ops"
-              className="status-chip min-h-0 border-border/80 bg-black/25 px-3 py-2 text-muted transition hover:border-accent/35 hover:text-accent"
+              className="rounded-full border border-[rgba(0,0,0,0.08)] bg-[#f5f5f7] px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-[#86868b] transition hover:bg-[#e8e8ed] hover:text-accent"
             >
               ops hub
             </Link>
             <Link
               to="/agents/agent-zero"
-              className="status-chip min-h-0 border-accent/28 bg-accent/8 px-3 py-2 text-accent transition hover:border-accent/45 hover:bg-accent/12"
+              className="rounded-full border border-accent/20 bg-accent/8 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-accent transition hover:bg-accent/12"
             >
               agent zero
             </Link>
@@ -508,7 +539,7 @@ export default function TopBar({
               href={endpoints.difyHealth}
               target="_blank"
               rel="noreferrer"
-              className="status-chip min-h-0 border-border/80 bg-black/25 px-3 py-2 text-muted transition hover:border-accent/35 hover:text-accent"
+              className="rounded-full border border-[rgba(0,0,0,0.08)] bg-[#f5f5f7] px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-[#86868b] transition hover:bg-[#e8e8ed] hover:text-accent"
             >
               dify health
             </a>
@@ -516,7 +547,7 @@ export default function TopBar({
               href={endpoints.apiHealth}
               target="_blank"
               rel="noreferrer"
-              className="status-chip min-h-0 border-border/80 bg-black/25 px-3 py-2 text-muted transition hover:border-accent/35 hover:text-accent"
+              className="rounded-full border border-[rgba(0,0,0,0.08)] bg-[#f5f5f7] px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-[#86868b] transition hover:bg-[#e8e8ed] hover:text-accent"
             >
               api health
             </a>
@@ -524,7 +555,7 @@ export default function TopBar({
               href={endpoints.coreHealth}
               target="_blank"
               rel="noreferrer"
-              className="status-chip min-h-0 border-border/80 bg-black/25 px-3 py-2 text-muted transition hover:border-accent/35 hover:text-accent"
+              className="rounded-full border border-[rgba(0,0,0,0.08)] bg-[#f5f5f7] px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-[#86868b] transition hover:bg-[#e8e8ed] hover:text-accent"
             >
               core health
             </a>
@@ -532,23 +563,24 @@ export default function TopBar({
         </div>
 
         <div className="flex flex-wrap items-center gap-2 md:justify-end">
-          <span className={["status-chip", statusTone(apiOk)].join(" ")}>
+          <span className={["rounded-full px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.16em]", statusTone(apiOk)].join(" ")}>
             API {apiOk ? "ONLINE" : "DOWN"}
           </span>
-          <span className={["status-chip", statusTone(coreOk)].join(" ")}>
+          <span className={["rounded-full px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.16em]", statusTone(coreOk)].join(" ")}>
             CORE {coreOk ? "ONLINE" : "DOWN"}
           </span>
           <span
             className={[
-              "status-chip",
+              "rounded-full px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.16em]",
               authReady
-                ? "border-accent/35 bg-accent/10 text-accent"
-                : "border-border/80 bg-black/25 text-muted",
+                ? "border-accent/20 bg-accent/8 text-accent"
+                : "border-[rgba(0,0,0,0.08)] bg-[#f5f5f7] text-[#86868b]",
             ].join(" ")}
           >
             AUTH {authReady ? "LOADED" : "MISSING"}
           </span>
 
+          <DarkModeToggle />
           <div className="relative" ref={ref}>
             <button
               type="button"
@@ -556,7 +588,7 @@ export default function TopBar({
               aria-expanded={open}
               aria-haspopup="dialog"
               aria-controls={open ? sessionPanelId : undefined}
-              className="flex h-10 items-center gap-2 rounded-2xl border border-border/80 bg-black/30 px-3 text-xs uppercase tracking-[0.18em] text-amber-100/74 transition hover:border-accent/45 hover:text-accent"
+              className="flex h-10 items-center gap-2 rounded-xl border border-[rgba(0,0,0,0.08)] bg-[#f5f5f7] px-3 text-xs uppercase tracking-[0.18em] text-[#6e6e73] transition hover:bg-[#e8e8ed] hover:text-accent"
               title="API Key"
             >
               <span className="text-sm">🔑</span>
@@ -569,43 +601,43 @@ export default function TopBar({
                 aria-modal="false"
                 aria-labelledby={sessionTitleId}
                 data-shortcuts-lock="true"
-                className="absolute right-0 top-14 z-50 max-h-[min(78vh,34rem)] w-[min(26rem,calc(100vw-1rem))] overflow-y-auto overscroll-contain rounded-3xl border border-border/80 bg-[linear-gradient(180deg,rgba(7,7,7,0.98),rgba(10,11,10,0.96))] p-4 pr-3 shadow-[0_24px_80px_rgba(0,0,0,0.45)]"
+                className="absolute right-0 top-14 z-50 max-h-[min(78vh,34rem)] w-[min(26rem,calc(100vw-1rem))] overflow-y-auto overscroll-contain rounded-2xl border border-[rgba(0,0,0,0.08)] bg-white p-4 pr-3 shadow-[0_8px_40px_rgba(0,0,0,0.12)]"
               >
                 <div className="space-y-4">
                   <div className="space-y-1">
-                    <p className="screen-label">session control</p>
+                    <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-[#86868b]">session control</p>
                     <h3
                       id={sessionTitleId}
                       className="text-sm font-semibold uppercase tracking-[0.18em] text-accent"
                     >
                       Auth and runtime endpoints
                     </h3>
-                    <p className="text-[12px] leading-5 text-amber-100/50">
+                    <p className="text-[12px] leading-5 text-[#86868b]">
                       Gere le bearer token local et garde sous la main les points d'entree utiles du cockpit.
                     </p>
                   </div>
 
-                  <div className="rounded-[1.4rem] border border-border/80 bg-black/25 p-4">
+                  <div className="rounded-xl border border-[rgba(0,0,0,0.08)] bg-[#f5f5f7] p-4">
                     <div className="mb-3 flex items-center justify-between gap-3">
                       <div>
-                        <p className="text-[10px] uppercase tracking-[0.2em] text-muted">gateway auth</p>
-                        <p className="mt-1 text-[12px] leading-5 text-amber-100/60">
+                        <p className="text-[10px] uppercase tracking-[0.2em] text-[#86868b]">gateway auth</p>
+                        <p className="mt-1 text-[12px] leading-5 text-[#6e6e73]">
                           Cookie local utilise pour appeler l'API Mascarade.
                         </p>
                       </div>
                       <span
                         className={[
-                          "status-chip min-h-0 px-3 py-2",
+                          "rounded-full px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.16em]",
                           authReady
-                            ? "border-accent/35 bg-accent/10 text-accent"
-                            : "border-border/80 bg-black/25 text-muted",
+                            ? "border-accent/20 bg-accent/8 text-accent"
+                            : "border-[rgba(0,0,0,0.08)] bg-white text-[#86868b]",
                         ].join(" ")}
                       >
                         {authReady ? "loaded" : "missing"}
                       </span>
                     </div>
 
-                    <label className="mb-2 block text-[11px] uppercase tracking-[0.18em] text-muted">
+                    <label className="mb-2 block text-[11px] uppercase tracking-[0.18em] text-[#86868b]">
                       API Key
                     </label>
                     <div className="flex gap-2">
@@ -614,7 +646,7 @@ export default function TopBar({
                         type={showKey ? "text" : "password"}
                         value={draftKey}
                         onChange={(e) => { setDraftKey(e.target.value); setKeyStatus("idle"); }}
-                        className="min-w-0 flex-1 rounded-2xl border border-border/80 bg-black/35 px-3 py-3 text-sm text-amber-100 outline-none transition focus:border-accent/50"
+                        className="min-w-0 flex-1 rounded-lg border border-[rgba(0,0,0,0.08)] bg-white px-3 py-3 text-sm text-[#1d1d1f] outline-none transition placeholder:text-[#86868b]/50 focus:border-accent/50 focus:ring-2 focus:ring-accent/10"
                         placeholder="Enter your API key"
                       />
                       <Button
@@ -628,17 +660,17 @@ export default function TopBar({
                     </div>
 
                     {keyStatus === "invalid" && (
-                      <p className="mt-2 text-[12px] text-red-400">
+                      <p className="mt-2 text-[12px] text-red-500">
                         Cle invalide — verifiez le token ou la connectivite API.
                       </p>
                     )}
                     {keyStatus === "valid" && (
-                      <p className="mt-2 text-[12px] text-emerald-400">
+                      <p className="mt-2 text-[12px] text-emerald-500">
                         Cle validee.
                       </p>
                     )}
 
-                    <label className="mt-3 flex cursor-pointer items-center gap-2 text-[11px] uppercase tracking-[0.16em] text-muted">
+                    <label className="mt-3 flex cursor-pointer items-center gap-2 text-[11px] uppercase tracking-[0.16em] text-[#86868b]">
                       <input
                         type="checkbox"
                         checked={persist}
@@ -649,7 +681,7 @@ export default function TopBar({
                     </label>
 
                     <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-                      <span className="text-[11px] uppercase tracking-[0.16em] text-amber-100/40">
+                      <span className="text-[11px] uppercase tracking-[0.16em] text-[#86868b]">
                         {savedAt ? `saved ${savedAt}${persist ? " (30d)" : ""}` : authReady ? "key present" : "no key loaded"}
                       </span>
                       <div className="flex flex-wrap gap-2">
@@ -663,33 +695,33 @@ export default function TopBar({
                     </div>
                   </div>
 
-                  <div className="rounded-[1.4rem] border border-border/80 bg-black/25 p-4">
+                  <div className="rounded-xl border border-[rgba(0,0,0,0.08)] bg-[#f5f5f7] p-4">
                     <div className="mb-3 flex items-start justify-between gap-3">
                       <div>
-                        <p className="text-[10px] uppercase tracking-[0.2em] text-muted">provider quick keys</p>
-                        <p className="mt-1 text-[12px] leading-5 text-amber-100/60">
+                        <p className="text-[10px] uppercase tracking-[0.2em] text-[#86868b]">provider quick keys</p>
+                        <p className="mt-1 text-[12px] leading-5 text-[#6e6e73]">
                           Ajoute ou remplace les cles simples sans quitter le menu session. Les cas OAuth ou multi-champs restent dans Settings.
                         </p>
                       </div>
                       <Link
                         to="/settings"
                         onClick={() => setOpen(false)}
-                        className="rounded-full border border-accent/28 bg-accent/8 px-3 py-1.5 text-[10px] uppercase tracking-[0.16em] text-accent transition hover:border-accent/45 hover:bg-accent/14"
+                        className="rounded-full border border-accent/20 bg-accent/8 px-3 py-1.5 text-[10px] uppercase tracking-[0.16em] text-accent transition hover:bg-accent/12"
                       >
                         settings
                       </Link>
                     </div>
 
                     {!authReady ? (
-                      <p className="text-[12px] text-amber-100/45">
+                      <p className="text-[12px] text-[#86868b]">
                         Charge d'abord la cle gateway ci-dessus, puis les providers editables apparaissent ici.
                       </p>
                     ) : quickProvidersLoading ? (
-                      <p className="text-[12px] text-amber-100/45">
+                      <p className="text-[12px] text-[#86868b]">
                         Sync providers...
                       </p>
                     ) : quickProvidersError ? (
-                      <p className="text-[12px] text-red-400">
+                      <p className="text-[12px] text-red-500">
                         {quickProvidersError}
                       </p>
                     ) : quickProviders.length > 0 ? (
@@ -711,26 +743,26 @@ export default function TopBar({
                         ))}
                       </div>
                     ) : (
-                      <p className="text-[12px] text-amber-100/45">
+                      <p className="text-[12px] text-[#86868b]">
                         Aucun provider a cle simple disponible ici. Utilise Settings pour les integrations OAuth ou multi-secrets.
                       </p>
                     )}
                   </div>
 
-                  <div className="rounded-[1.4rem] border border-border/80 bg-black/25 p-4">
+                  <div className="rounded-xl border border-[rgba(0,0,0,0.08)] bg-[#f5f5f7] p-4">
                     <div className="mb-3">
-                      <p className="text-[10px] uppercase tracking-[0.2em] text-muted">runtime links</p>
-                      <p className="mt-1 text-[12px] leading-5 text-amber-100/60">
+                      <p className="text-[10px] uppercase tracking-[0.2em] text-[#86868b]">runtime links</p>
+                      <p className="mt-1 text-[12px] leading-5 text-[#6e6e73]">
                         Acces rapide aux endpoints utiles pour debug et supervision.
                       </p>
                     </div>
                     <div className="grid gap-2">
                       <a
                         href={endpoints.cockpit}
-                        className="rounded-2xl border border-border/80 bg-black/30 px-3 py-3 text-[11px] uppercase tracking-[0.16em] text-amber-100/68 transition hover:border-accent/35 hover:text-accent"
+                        className="rounded-lg border border-[rgba(0,0,0,0.06)] bg-white px-3 py-3 text-[11px] uppercase tracking-[0.16em] text-[#6e6e73] transition hover:border-accent/20 hover:text-accent"
                       >
                         cockpit
-                        <span className="mt-1 block normal-case tracking-normal text-amber-100/38">
+                        <span className="mt-1 block normal-case tracking-normal text-[#86868b]">
                           {endpoints.cockpit}
                         </span>
                       </a>
@@ -738,10 +770,10 @@ export default function TopBar({
                         href={endpoints.metrics}
                         target="_blank"
                         rel="noreferrer"
-                        className="rounded-2xl border border-border/80 bg-black/30 px-3 py-3 text-[11px] uppercase tracking-[0.16em] text-amber-100/68 transition hover:border-accent/35 hover:text-accent"
+                        className="rounded-lg border border-[rgba(0,0,0,0.06)] bg-white px-3 py-3 text-[11px] uppercase tracking-[0.16em] text-[#6e6e73] transition hover:border-accent/20 hover:text-accent"
                       >
                         ops monitor
-                        <span className="mt-1 block normal-case tracking-normal text-amber-100/38">
+                        <span className="mt-1 block normal-case tracking-normal text-[#86868b]">
                           {endpoints.metrics}
                         </span>
                       </a>
@@ -749,31 +781,31 @@ export default function TopBar({
                         href={endpoints.coreHealth}
                         target="_blank"
                         rel="noreferrer"
-                        className="rounded-2xl border border-border/80 bg-black/30 px-3 py-3 text-[11px] uppercase tracking-[0.16em] text-amber-100/68 transition hover:border-accent/35 hover:text-accent"
+                        className="rounded-lg border border-[rgba(0,0,0,0.06)] bg-white px-3 py-3 text-[11px] uppercase tracking-[0.16em] text-[#6e6e73] transition hover:border-accent/20 hover:text-accent"
                       >
                         core health
-                        <span className="mt-1 block normal-case tracking-normal text-amber-100/38">
+                        <span className="mt-1 block normal-case tracking-normal text-[#86868b]">
                           {endpoints.coreHealth}
                         </span>
                       </a>
                     </div>
                   </div>
 
-                  <div className="rounded-[1.4rem] border border-border/80 bg-black/25 p-4">
+                  <div className="rounded-xl border border-[rgba(0,0,0,0.08)] bg-[#f5f5f7] p-4">
                     <div className="mb-3">
-                      <p className="text-[10px] uppercase tracking-[0.2em] text-muted">keyboard lane</p>
-                      <p className="mt-1 text-[12px] leading-5 text-amber-100/60">
+                      <p className="text-[10px] uppercase tracking-[0.2em] text-[#86868b]">keyboard lane</p>
+                      <p className="mt-1 text-[12px] leading-5 text-[#6e6e73]">
                         Raccourcis exposes directement dans le shell pour garder une navigation rapide au clavier.
                       </p>
                     </div>
                     <div className="flex flex-wrap gap-2">
-                      <span className="status-chip min-h-0 border-border/80 bg-black/30 px-3 py-2 text-muted">
+                      <span className="rounded-full border border-[rgba(0,0,0,0.08)] bg-white px-3 py-1.5 text-[10px] font-medium uppercase tracking-[0.16em] text-[#86868b] shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
                         Alt+1..8 switch lane
                       </span>
-                      <span className="status-chip min-h-0 border-border/80 bg-black/30 px-3 py-2 text-muted">
+                      <span className="rounded-full border border-[rgba(0,0,0,0.08)] bg-white px-3 py-1.5 text-[10px] font-medium uppercase tracking-[0.16em] text-[#86868b] shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
                         Esc close panels
                       </span>
-                      <span className="status-chip min-h-0 border-border/80 bg-black/30 px-3 py-2 text-muted">
+                      <span className="rounded-full border border-[rgba(0,0,0,0.08)] bg-white px-3 py-1.5 text-[10px] font-medium uppercase tracking-[0.16em] text-[#86868b] shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
                         Tab trap modal
                       </span>
                     </div>

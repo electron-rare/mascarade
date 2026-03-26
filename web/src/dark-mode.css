@@ -1,0 +1,54 @@
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg-override: #1d1d1f;
+    --surface-override: #2c2c2e;
+    --text-override: #f5f5f7;
+    --muted-override: #98989d;
+    --border-override: rgba(255, 255, 255, 0.08);
+  }
+
+  body {
+    background: #1d1d1f !important;
+    color: #f5f5f7 !important;
+  }
+
+  /* Only activate if user explicitly toggles dark mode via data attr */
+  html[data-theme="dark"] body {
+    background: #1d1d1f;
+    color: #f5f5f7;
+  }
+}
+
+html[data-theme="dark"] body {
+  background: #1d1d1f;
+  color: #f5f5f7;
+}
+
+html[data-theme="dark"] .bg-white,
+html[data-theme="dark"] .bg-\[\#f5f5f7\] {
+  background-color: #2c2c2e !important;
+}
+
+html[data-theme="dark"] .bg-\[\#ffffff\] {
+  background-color: #1d1d1f !important;
+}
+
+html[data-theme="dark"] .text-\[\#1d1d1f\] {
+  color: #f5f5f7 !important;
+}
+
+html[data-theme="dark"] .text-\[\#6e6e73\],
+html[data-theme="dark"] .text-\[\#86868b\] {
+  color: #98989d !important;
+}
+
+html[data-theme="dark"] .border-\[rgba\(0\,0\,0\,0\.06\)\],
+html[data-theme="dark"] .border-\[rgba\(0\,0\,0\,0\.08\)\] {
+  border-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+html[data-theme="dark"] .shadow-apple,
+html[data-theme="dark"] .shadow-apple-md,
+html[data-theme="dark"] .shadow-apple-lg {
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3) !important;
+}

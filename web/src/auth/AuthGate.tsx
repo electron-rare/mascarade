@@ -11,7 +11,7 @@ export default function AuthGate({ children }: { children: ReactNode }) {
       <div className="flex min-h-screen items-center justify-center">
         <div className="space-y-4 text-center">
           <Spinner className="mx-auto h-10 w-10" />
-          <p className="screen-label justify-center">initializing gateway</p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-[#86868b] justify-center">initializing gateway</p>
         </div>
       </div>
     );
@@ -50,14 +50,14 @@ function LoginOverlay({
 
   return (
     <div className="flex min-h-screen items-center justify-center px-4">
-      <div className="w-full max-w-md rounded-[1.75rem] border border-border/80 bg-[linear-gradient(180deg,rgba(8,9,8,0.94),rgba(6,6,6,0.98))] p-8 shadow-[0_24px_80px_rgba(0,0,0,0.55)]">
+      <div className="w-full max-w-md rounded-[1.75rem] border border-[rgba(0,0,0,0.08)] bg-[linear-gradient(180deg,rgba(8,9,8,0.94),rgba(6,6,6,0.98))] p-8 shadow-[0_24px_80px_rgba(0,0,0,0.55)]">
         <div className="space-y-6">
           <div className="space-y-2 text-center">
-            <p className="screen-label justify-center">gateway auth</p>
-            <h1 className="text-2xl font-semibold uppercase tracking-[0.18em] text-accent glow-text">
+            <p className="text-xs font-semibold uppercase tracking-wide text-[#86868b] justify-center">gateway auth</p>
+            <h1 className="text-2xl font-semibold uppercase tracking-[0.18em] text-accent font-bold text-accent">
               Mascarade
             </h1>
-            <p className="text-sm leading-6 text-amber-100/58">
+            <p className="text-sm leading-6 text-[#6e6e73]">
               Entrez votre cle API pour acceder au cockpit.
             </p>
           </div>
@@ -76,7 +76,7 @@ function LoginOverlay({
                     setKey(e.target.value);
                     setStatus("idle");
                   }}
-                  className="min-w-0 flex-1 rounded-2xl border border-border/80 bg-black/35 px-3 py-3 text-sm text-amber-100 outline-none transition focus:border-accent/50"
+                  className="min-w-0 flex-1 rounded-2xl border border-[rgba(0,0,0,0.08)] bg-[#f5f5f7] px-3 py-3 text-sm text-[#1d1d1f] outline-none transition focus:border-accent/50"
                   placeholder="Enter your API key"
                   autoComplete="off"
                 />

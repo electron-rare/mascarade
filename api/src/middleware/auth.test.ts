@@ -13,6 +13,8 @@ function makeApp() {
   app.use("*", authMiddleware);
   app.get("/", (c) => c.json({ ok: true }));
   app.get("/api/users", (c) => c.json({ ok: true }));
+  app.get("/api/ops/monitor", (c) => c.json({ ok: true }));
+  app.post("/api/ops/monitor", (c) => c.json({ ok: true }));
   app.post("/api/agents/run", (c) => c.json({ ok: true }));
   return app;
 }
@@ -131,6 +133,31 @@ describe("authMiddleware", () => {
     process.env.MASCARADE_RBAC_OPERATOR_KEYS = "operator-key-123456";
 
     const res = await makeApp().request("/api/users", {
+      headers: { Authorization: "Bearer operator-key-123456" },
+    });
+
+    expect(res.status).toBe(403);
+    expect(await res.json()).toEqual({ error: "Permissions insuffisantes" });
+  });
+
+  it("allows viewers on read-only ops routes", async () => {
+    process.env.MASCARADE_API_KEY = "viewer-key-123456";
+    process.env.MASCARADE_RBAC_VIEWER_KEYS = "viewer-key-123456";
+
+    const res = await makeApp().request("/api/ops/monitor", {
+      headers: { Authorization: "Bearer viewer-key-123456" },
+    });
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ ok: true });
+  });
+
+  it("keeps write ops routes admin-only", async () => {
+    process.env.MASCARADE_API_KEY = "operator-key-123456";
+    process.env.MASCARADE_RBAC_OPERATOR_KEYS = "operator-key-123456";
+
+    const res = await makeApp().request("/api/ops/monitor", {
+      method: "POST",
       headers: { Authorization: "Bearer operator-key-123456" },
     });
 

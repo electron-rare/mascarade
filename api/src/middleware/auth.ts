@@ -108,11 +108,12 @@ function tokenFromCookie(cookieHeader?: string): string | null {
 }
 
 export function isValidConfiguredApiKey(rawToken: string): boolean {
+  const apiKeys = configuredApiKeys();
+  if (apiKeys.length === 0) return true; // Auth disabled
   const token = rawToken.trim();
   if (!token || token.length < MIN_KEY_LEN) {
     return false;
   }
-  const apiKeys = configuredApiKeys();
   return apiKeys.some((apiKey) => safeEqual(token, apiKey));
 }
 
@@ -128,12 +129,15 @@ function requiredRoleForRequest(method: string, path: string): AuthRole {
     normalizedMethod === "HEAD" ||
     normalizedMethod === "OPTIONS";
 
+  if (normalizedPath.startsWith("/api/ops")) {
+    return readOnly ? "viewer" : "admin";
+  }
+
   if (
     normalizedPath.startsWith("/api/settings/runtime-secrets") ||
     normalizedPath.startsWith("/api/settings/providers") ||
     normalizedPath.startsWith("/api/settings/oauth") ||
     normalizedPath.startsWith("/api/mcp/industrial") ||
-    normalizedPath.startsWith("/api/ops") ||
     normalizedPath.startsWith("/api/cluster/forward") ||
     normalizedPath.startsWith("/api/users")
   ) {

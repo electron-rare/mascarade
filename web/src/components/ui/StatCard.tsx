@@ -8,9 +8,9 @@ export default function StatCard({
   sub?: string;
 }) {
   return (
-    <div className="bg-surface border border-border rounded-md p-4 glow-border hover:shadow-[0_0_16px_rgba(27,77,44,0.6),inset_0_0_12px_rgba(27,77,44,0.2)] transition-shadow duration-300">
+    <div className="rounded-apple bg-white border border-[rgba(0,0,0,0.06)] p-4 shadow-apple transition-shadow duration-300 hover:shadow-apple-md">
       <p className="text-[11px] text-muted mb-1 uppercase tracking-wide">{label}</p>
-      <p className="text-2xl font-bold text-accent glow-text">{value}</p>
+      <p className="text-2xl font-bold text-accent">{value}</p>
       {sub && <p className="text-[11px] text-muted mt-1">{sub}</p>}
     </div>
   );

@@ -84,18 +84,18 @@ export default function Modal({
       aria-modal="true"
       aria-labelledby={titleId}
     >
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+      <div className="absolute inset-0 bg-[#f5f5f7] backdrop-blur-xl" onClick={onClose} />
       <div
         ref={panelRef}
         tabIndex={-1}
-        className="relative mx-4 w-full max-w-xl rounded-[2rem] border border-border/80 bg-[linear-gradient(180deg,rgba(9,11,10,0.98),rgba(7,7,7,0.98))] shadow-[0_28px_80px_rgba(0,0,0,0.52)]"
+        className="relative mx-4 w-full max-w-xl rounded-apple-lg border border-[rgba(0,0,0,0.06)] bg-white shadow-apple-lg"
       >
-        <div className="flex items-center justify-between border-b border-border/80 bg-black/25 px-5 py-4">
+        <div className="flex items-center justify-between border-b border-[rgba(0,0,0,0.06)] px-5 py-4">
           <div>
-            <p className="screen-label">modal</p>
+            <p className="text-xs text-muted">modal</p>
             <h2
               id={titleId}
-              className="mt-2 text-sm font-semibold uppercase tracking-[0.18em] text-accent glow-text"
+              className="mt-1 text-sm font-semibold text-[#1d1d1f]"
             >
               {title}
             </h2>
@@ -104,9 +104,9 @@ export default function Modal({
             type="button"
             onClick={onClose}
             aria-label="Close"
-            className="rounded-full border border-border/80 bg-black/25 px-3 py-1 text-sm text-muted transition hover:border-accent/40 hover:text-accent"
+            className="rounded-full bg-surface px-3 py-1 text-sm text-muted transition hover:bg-[#e8e8ed] hover:text-[#1d1d1f]"
           >
-            ×
+            &times;
           </button>
         </div>
         <div className="p-5">{children}</div>

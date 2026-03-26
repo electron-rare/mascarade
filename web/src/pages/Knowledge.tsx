@@ -256,11 +256,11 @@ export default function Knowledge() {
         <Card className="overflow-hidden border-accent/20 bg-[linear-gradient(135deg,rgba(102,209,255,0.08),rgba(8,12,10,0.94)_26%,rgba(6,6,6,0.98))]">
           <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
             <div className="max-w-3xl">
-              <p className="screen-label">qdrant vector store</p>
-              <h2 className="mt-3 text-3xl font-semibold uppercase tracking-[0.12em] text-accent glow-text md:text-5xl">
+              <p className="text-xs font-semibold uppercase tracking-wide text-[#86868b]">qdrant vector store</p>
+              <h2 className="mt-3 text-3xl font-semibold uppercase tracking-[0.12em] text-accent font-bold text-accent md:text-5xl">
                 Manage vector collections and knowledge embeddings
               </h2>
-              <p className="mt-4 max-w-2xl text-sm leading-7 text-amber-100/60 md:text-[15px]">
+              <p className="mt-4 max-w-2xl text-sm leading-7 text-[#1d1d1f]/60 md:text-[15px]">
                 Cette vue permet de surveiller et gerer les collections Qdrant: voir les statistiques, explorer les vecteurs, et verifier la sante du service vectoriel.
               </p>
               <div className="mt-5 flex flex-wrap gap-2">
@@ -270,19 +270,19 @@ export default function Knowledge() {
                       ? "border-[#214e31] bg-[#0c170f]/80 text-[#8cffb7]"
                       : healthStatus === "error"
                         ? "border-[#5d2332] bg-[#18070d]/80 text-error"
-                        : "border-border/80 bg-black/30 text-muted"
+                        : "border-[rgba(0,0,0,0.08)] bg-[#f5f5f7] text-muted"
                   }`}
                 >
                   {healthStatus}
                 </span>
-                <span className="status-chip border-border/80 bg-black/30 text-muted">
+                <span className="status-chip border-[rgba(0,0,0,0.08)] bg-[#f5f5f7] text-muted">
                   {collections.length} collections
                 </span>
-                <span className="status-chip border-border/80 bg-black/30 text-muted">
+                <span className="status-chip border-[rgba(0,0,0,0.08)] bg-[#f5f5f7] text-muted">
                   {selected ? "collection selected" : "browse mode"}
                 </span>
                 {healthApi.data?.version ? (
-                  <span className="status-chip border-border/80 bg-black/30 text-muted">
+                  <span className="status-chip border-[rgba(0,0,0,0.08)] bg-[#f5f5f7] text-muted">
                     v{healthApi.data.version}
                   </span>
                 ) : null}
@@ -290,39 +290,39 @@ export default function Knowledge() {
             </div>
 
             <div className="grid min-w-0 gap-3 sm:grid-cols-2 lg:min-w-[320px]">
-              <div className="rounded-3xl border border-border/80 bg-black/30 p-4">
+              <div className="rounded-3xl border border-[rgba(0,0,0,0.08)] bg-[#f5f5f7] p-4">
                 <p className="text-[10px] uppercase tracking-[0.2em] text-muted">total points</p>
                 <p className="mt-3 text-2xl font-semibold uppercase tracking-[0.12em] text-accent">
                   {formatNumber(totalPoints)}
                 </p>
-                <p className="mt-2 text-[12px] leading-5 text-amber-100/46">
+                <p className="mt-2 text-[12px] leading-5 text-[#1d1d1f]/46">
                   Nombre total de points indexes dans toutes les collections.
                 </p>
               </div>
-              <div className="rounded-3xl border border-border/80 bg-black/30 p-4">
+              <div className="rounded-3xl border border-[rgba(0,0,0,0.08)] bg-[#f5f5f7] p-4">
                 <p className="text-[10px] uppercase tracking-[0.2em] text-muted">total vectors</p>
                 <p className="mt-3 text-2xl font-semibold uppercase tracking-[0.12em] text-accent">
                   {formatNumber(totalVectors)}
                 </p>
-                <p className="mt-2 text-[12px] leading-5 text-amber-100/46">
+                <p className="mt-2 text-[12px] leading-5 text-[#1d1d1f]/46">
                   Nombre total de vecteurs stockes dans Qdrant.
                 </p>
               </div>
-              <div className="rounded-3xl border border-border/80 bg-black/30 p-4">
+              <div className="rounded-3xl border border-[rgba(0,0,0,0.08)] bg-[#f5f5f7] p-4">
                 <p className="text-[10px] uppercase tracking-[0.2em] text-muted">disk usage</p>
                 <p className="mt-3 text-2xl font-semibold uppercase tracking-[0.12em] text-accent">
                   {formatBytes(totalDiskSize)}
                 </p>
-                <p className="mt-2 text-[12px] leading-5 text-amber-100/46">
+                <p className="mt-2 text-[12px] leading-5 text-[#1d1d1f]/46">
                   Espace disque utilise pour le stockage vectoriel.
                 </p>
               </div>
-              <div className="rounded-3xl border border-border/80 bg-black/30 p-4">
+              <div className="rounded-3xl border border-[rgba(0,0,0,0.08)] bg-[#f5f5f7] p-4">
                 <p className="text-[10px] uppercase tracking-[0.2em] text-muted">ram usage</p>
                 <p className="mt-3 text-2xl font-semibold uppercase tracking-[0.12em] text-accent">
                   {formatBytes(totalRamSize)}
                 </p>
-                <p className="mt-2 text-[12px] leading-5 text-amber-100/46">
+                <p className="mt-2 text-[12px] leading-5 text-[#1d1d1f]/46">
                   Memoire RAM utilisee pour les index vectoriels.
                 </p>
               </div>
@@ -332,7 +332,7 @@ export default function Knowledge() {
 
         <Card title="Collection browser" className="bg-[linear-gradient(180deg,rgba(10,12,11,0.92),rgba(7,7,7,0.96))]">
           <div className="space-y-4">
-            <p className="text-sm leading-7 text-amber-100/58">{narrative}</p>
+            <p className="text-sm leading-7 text-[#86868b]">{narrative}</p>
             <div className="flex gap-3">
               <Button
                 onClick={() => void collectionsApi.execute(undefined)}
@@ -356,41 +356,41 @@ export default function Knowledge() {
         <Card className="overflow-hidden border-accent/20 bg-[linear-gradient(135deg,rgba(255,209,102,0.08),rgba(9,14,11,0.9)_26%,rgba(7,7,7,0.95))]">
           <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
             <div className="max-w-3xl">
-              <p className="screen-label">rag playground</p>
-              <h2 className="mt-3 text-3xl font-semibold uppercase tracking-[0.12em] text-accent glow-text md:text-5xl">
+              <p className="text-xs font-semibold uppercase tracking-wide text-[#86868b]">rag playground</p>
+              <h2 className="mt-3 text-3xl font-semibold uppercase tracking-[0.12em] text-accent font-bold text-accent md:text-5xl">
                 Retrieval-Augmented Generation
               </h2>
-              <p className="mt-4 max-w-2xl text-sm leading-7 text-amber-100/60 md:text-[15px]">
+              <p className="mt-4 max-w-2xl text-sm leading-7 text-[#1d1d1f]/60 md:text-[15px]">
                 Cette surface permet de tester rapidement une requete RAG: chercher dans la collection vectorielle,
                 puis combiner les resultats avec un modele LLM pour generer une reponse contextuelle.
               </p>
               <div className="mt-5 flex flex-wrap gap-2">
-                <span className="status-chip border-accent/35 bg-accent/10 text-accent">
+                <span className="status-chip border-accent/15 bg-accent/10 text-accent">
                   collection {selected?.name || "none"}
                 </span>
-                <span className="status-chip border-border/80 bg-black/25 text-muted">
+                <span className="status-chip border-[rgba(0,0,0,0.08)] bg-[#f5f5f7] text-muted">
                   model {ragModel || "auto"}
                 </span>
-                <span className="status-chip border-border/80 bg-black/25 text-muted">
+                <span className="status-chip border-[rgba(0,0,0,0.08)] bg-[#f5f5f7] text-muted">
                   top-k {ragTopK}
                 </span>
               </div>
             </div>
 
             <div className="grid min-w-0 gap-3 sm:grid-cols-3 lg:min-w-[340px]">
-              <div className="rounded-3xl border border-border/80 bg-black/30 p-4">
+              <div className="rounded-3xl border border-[rgba(0,0,0,0.08)] bg-[#f5f5f7] p-4">
                 <p className="text-[10px] uppercase tracking-[0.2em] text-muted">query</p>
                 <p className="mt-3 text-2xl font-semibold uppercase tracking-[0.12em] text-accent">
                   {ragQuery.trim() ? "armed" : "idle"}
                 </p>
               </div>
-              <div className="rounded-3xl border border-border/80 bg-black/30 p-4">
+              <div className="rounded-3xl border border-[rgba(0,0,0,0.08)] bg-[#f5f5f7] p-4">
                 <p className="text-[10px] uppercase tracking-[0.2em] text-muted">collection</p>
                 <p className="mt-3 text-2xl font-semibold uppercase tracking-[0.12em] text-accent">
                   {selected ? "ready" : "waiting"}
                 </p>
               </div>
-              <div className="rounded-3xl border border-border/80 bg-black/30 p-4">
+              <div className="rounded-3xl border border-[rgba(0,0,0,0.08)] bg-[#f5f5f7] p-4">
                 <p className="text-[10px] uppercase tracking-[0.2em] text-muted">response</p>
                 <p className="mt-3 text-2xl font-semibold uppercase tracking-[0.12em] text-accent">
                   {ragApi.loading ? "generating" : ragAnswer ? "ready" : "pending"}
@@ -402,7 +402,7 @@ export default function Knowledge() {
 
         <Card title="RAG Settings">
           <div className="space-y-4">
-            <p className="text-sm leading-7 text-amber-100/58">
+            <p className="text-sm leading-7 text-[#86868b]">
               Configurer le modele LLM et le nombre de vecteurs a recuperer pour la generation augmentee.
             </p>
             {!selected ? (
@@ -478,8 +478,8 @@ export default function Knowledge() {
             <LoadingPanel compact title="Generating answer" message="Retrieving context and generating response..." />
           ) : ragAnswer ? (
             <div className="space-y-4">
-              <div className="rounded-[1.5rem] border border-accent/40 bg-accent/5 p-4">
-                <p className="text-sm leading-7 text-amber-100/90">{ragAnswer}</p>
+              <div className="rounded-[1.5rem] border border-accent/15 bg-accent/5 p-4">
+                <p className="text-sm leading-7 text-[#1d1d1f]/90">{ragAnswer}</p>
               </div>
               {ragApi.data ? (
                 <div className="flex flex-wrap gap-2 text-xs text-muted">
@@ -492,7 +492,7 @@ export default function Knowledge() {
               ) : null}
             </div>
           ) : (
-            <p className="text-sm leading-7 text-amber-100/54">
+            <p className="text-sm leading-7 text-[#1d1d1f]/54">
               No response yet. Enter a query to retrieve relevant vectors and generate a contextual answer.
             </p>
           )}
@@ -504,10 +504,10 @@ export default function Knowledge() {
               {ragChunks.map((chunk, idx) => (
                 <div
                   key={idx}
-                  className="rounded-[1.5rem] border border-border/80 bg-black/25 p-4"
+                  className="rounded-[1.5rem] border border-[rgba(0,0,0,0.08)] bg-[#f5f5f7] p-4"
                 >
                   <div className="flex items-center justify-between gap-3 mb-3">
-                    <p className="screen-label">chunk {idx + 1}</p>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-[#86868b]">chunk {idx + 1}</p>
                     <div className="flex items-center gap-2">
                       <Badge color="accent">
                         score: {chunk.score.toFixed(4)}
@@ -515,8 +515,8 @@ export default function Knowledge() {
                       <span className="text-xs text-muted">{chunk.source}</span>
                     </div>
                   </div>
-                  <div className="rounded-xl border border-border/60 bg-black/20 p-3">
-                    <p className="text-sm leading-6 text-amber-100/80">
+                  <div className="rounded-xl border border-[rgba(0,0,0,0.06)]/60 bg-[#f5f5f7] p-3">
+                    <p className="text-sm leading-6 text-[#1d1d1f]/80">
                       {chunk.text}
                     </p>
                   </div>
@@ -524,7 +524,7 @@ export default function Knowledge() {
               ))}
             </div>
           ) : (
-            <p className="text-sm leading-7 text-amber-100/54">
+            <p className="text-sm leading-7 text-[#1d1d1f]/54">
               The retrieved vectors and their content will appear here before generation.
             </p>
           )}
@@ -533,7 +533,7 @@ export default function Knowledge() {
 
       <Card title="Document upload" className="bg-[linear-gradient(180deg,rgba(10,12,11,0.92),rgba(7,7,7,0.96))]">
         <div className="space-y-4">
-          <p className="text-sm leading-7 text-amber-100/58">
+          <p className="text-sm leading-7 text-[#86868b]">
             Upload documents to be processed and stored as vectors in the selected collection.
             Supported formats: PDF, TXT, MD, DOC, DOCX (max {formatBytes(MAX_FILE_SIZE)}).
           </p>
@@ -560,7 +560,7 @@ export default function Knowledge() {
             className={`relative rounded-[1.5rem] border-2 border-dashed p-8 text-center transition-all ${
               isDragActive
                 ? "border-accent/60 bg-accent/5"
-                : "border-border/60 bg-black/20 hover:border-border/80 hover:bg-black/30"
+                : "border-[rgba(0,0,0,0.06)]/60 bg-[#f5f5f7] hover:border-[rgba(0,0,0,0.08)] hover:bg-[#f5f5f7]"
             }`}
           >
             <input
@@ -573,7 +573,7 @@ export default function Knowledge() {
             />
 
             <div className="space-y-4">
-              <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full border border-border/60 bg-black/40">
+              <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full border border-[rgba(0,0,0,0.06)]/60 bg-[#f0f0f2]">
                 <svg
                   className="h-8 w-8 text-accent"
                   fill="none"
@@ -598,10 +598,10 @@ export default function Knowledge() {
                     {uploadFiles.map((file, idx) => (
                       <div
                         key={idx}
-                        className="flex items-center justify-between rounded-xl border border-border/40 bg-black/30 px-3 py-2 text-left"
+                        className="flex items-center justify-between rounded-xl border border-[rgba(0,0,0,0.06)]/40 bg-[#f5f5f7] px-3 py-2 text-left"
                       >
                         <div className="min-w-0 flex-1">
-                          <p className="truncate text-xs font-medium text-amber-100/80">
+                          <p className="truncate text-xs font-medium text-[#1d1d1f]/80">
                             {file.name}
                           </p>
                           <p className="text-[10px] text-muted">{formatBytes(file.size)}</p>
@@ -612,7 +612,7 @@ export default function Knowledge() {
                 </div>
               ) : (
                 <>
-                  <p className="text-sm font-medium text-amber-100/80">
+                  <p className="text-sm font-medium text-[#1d1d1f]/80">
                     {isDragActive ? "Drop files here" : "Drag and drop files here"}
                   </p>
                   <p className="text-xs text-muted">or</p>
@@ -651,7 +651,7 @@ export default function Knowledge() {
 
       <Card title="Semantic Search" className="bg-[linear-gradient(180deg,rgba(10,12,11,0.92),rgba(7,7,7,0.96))]">
         <div className="space-y-4">
-          <p className="text-sm leading-7 text-amber-100/58">{searchNarrative}</p>
+          <p className="text-sm leading-7 text-[#86868b]">{searchNarrative}</p>
 
           {!selected ? (
             <InlineNotice
@@ -711,13 +711,13 @@ export default function Knowledge() {
             {searchResults.map((result, idx) => (
               <div
                 key={result.id}
-                className="rounded-[1.5rem] border border-border/80 bg-black/25 p-4"
+                className="rounded-[1.5rem] border border-[rgba(0,0,0,0.08)] bg-[#f5f5f7] p-4"
               >
                 <div className="flex flex-col gap-3">
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
                       <div className="flex items-center gap-3">
-                        <p className="screen-label">result {idx + 1}</p>
+                        <p className="text-xs font-semibold uppercase tracking-wide text-[#86868b]">result {idx + 1}</p>
                         <Badge color="accent">
                           score: {result.score.toFixed(4)}
                         </Badge>
@@ -746,9 +746,9 @@ export default function Knowledge() {
                     </div>
                   </div>
                   {result.text ? (
-                    <div className="rounded-xl border border-border/60 bg-black/20 p-3">
+                    <div className="rounded-xl border border-[rgba(0,0,0,0.06)]/60 bg-[#f5f5f7] p-3">
                       <p className="text-[10px] uppercase tracking-[0.2em] text-muted mb-2">text</p>
-                      <p className="text-sm leading-6 text-amber-100/80">
+                      <p className="text-sm leading-6 text-[#1d1d1f]/80">
                         {result.text}
                       </p>
                     </div>
@@ -779,12 +779,12 @@ export default function Knowledge() {
                   setSelected(collection);
                   await detailsApi.execute(collection.name);
                 }}
-                className="w-full rounded-[1.5rem] border border-border/80 bg-black/25 p-4 text-left transition hover:border-accent/35 hover:bg-black/35 disabled:opacity-50"
+                className="w-full rounded-[1.5rem] border border-[rgba(0,0,0,0.08)] bg-[#f5f5f7] p-4 text-left transition hover:border-accent/15 hover:bg-[#f5f5f7] disabled:opacity-50"
               >
                 <div className="flex flex-col gap-3">
                   <div className="flex items-start justify-between">
                     <div>
-                      <p className="screen-label">collection</p>
+                      <p className="text-xs font-semibold uppercase tracking-wide text-[#86868b]">collection</p>
                       <p className="mt-2 text-[14px] font-semibold uppercase tracking-[0.16em] text-accent">
                         {collection.name}
                       </p>
@@ -796,19 +796,19 @@ export default function Knowledge() {
                   <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
                     <div>
                       <p className="text-[10px] uppercase tracking-[0.2em] text-muted">points</p>
-                      <p className="mt-1 text-sm font-medium text-amber-100/80">
+                      <p className="mt-1 text-sm font-medium text-[#1d1d1f]/80">
                         {formatNumber(collection.points_count)}
                       </p>
                     </div>
                     <div>
                       <p className="text-[10px] uppercase tracking-[0.2em] text-muted">vectors</p>
-                      <p className="mt-1 text-sm font-medium text-amber-100/80">
+                      <p className="mt-1 text-sm font-medium text-[#1d1d1f]/80">
                         {formatNumber(collection.vectors_count)}
                       </p>
                     </div>
                     <div>
                       <p className="text-[10px] uppercase tracking-[0.2em] text-muted">segments</p>
-                      <p className="mt-1 text-sm font-medium text-amber-100/80">
+                      <p className="mt-1 text-sm font-medium text-[#1d1d1f]/80">
                         {formatNumber(collection.segments_count)}
                       </p>
                     </div>
@@ -819,7 +819,7 @@ export default function Knowledge() {
                       </p>
                     </div>
                   </div>
-                  <div className="flex flex-wrap gap-3 text-xs text-amber-100/46">
+                  <div className="flex flex-wrap gap-3 text-xs text-[#1d1d1f]/46">
                     <span>disk: {formatBytes(collection.disk_data_size)}</span>
                     <span>•</span>
                     <span>ram: {formatBytes(collection.ram_data_size)}</span>
@@ -850,25 +850,25 @@ export default function Knowledge() {
         <Card title={`Collection: ${selected.name}`}>
           <div className="space-y-4">
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              <div className="rounded-2xl border border-border/80 bg-black/20 p-3">
+              <div className="rounded-2xl border border-[rgba(0,0,0,0.08)] bg-[#f5f5f7] p-3">
                 <p className="text-[10px] uppercase tracking-[0.2em] text-muted">points count</p>
                 <p className="mt-2 text-xl font-semibold text-accent">
                   {formatNumber(detailsApi.data.collection.points_count)}
                 </p>
               </div>
-              <div className="rounded-2xl border border-border/80 bg-black/20 p-3">
+              <div className="rounded-2xl border border-[rgba(0,0,0,0.08)] bg-[#f5f5f7] p-3">
                 <p className="text-[10px] uppercase tracking-[0.2em] text-muted">vectors count</p>
                 <p className="mt-2 text-xl font-semibold text-accent">
                   {formatNumber(detailsApi.data.collection.vectors_count)}
                 </p>
               </div>
-              <div className="rounded-2xl border border-border/80 bg-black/20 p-3">
+              <div className="rounded-2xl border border-[rgba(0,0,0,0.08)] bg-[#f5f5f7] p-3">
                 <p className="text-[10px] uppercase tracking-[0.2em] text-muted">segments</p>
                 <p className="mt-2 text-xl font-semibold text-accent">
                   {formatNumber(detailsApi.data.collection.segments_count)}
                 </p>
               </div>
-              <div className="rounded-2xl border border-border/80 bg-black/20 p-3">
+              <div className="rounded-2xl border border-[rgba(0,0,0,0.08)] bg-[#f5f5f7] p-3">
                 <p className="text-[10px] uppercase tracking-[0.2em] text-muted">vector size</p>
                 <p className="mt-2 text-xl font-semibold text-accent">
                   {detailsApi.data.collection.config?.params?.vectors?.size ?? "-"}
@@ -876,7 +876,7 @@ export default function Knowledge() {
               </div>
             </div>
             <div>
-              <p className="mb-2 text-sm font-medium text-amber-100/80">Collection configuration</p>
+              <p className="mb-2 text-sm font-medium text-[#1d1d1f]/80">Collection configuration</p>
               <JsonView data={detailsApi.data.collection} />
             </div>
           </div>

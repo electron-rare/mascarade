@@ -28,6 +28,10 @@ class PeerCapabilities:
     label: str = ""
     http_base_url: str | None = None
     last_updated: float = 0.0
+    # Hardware profile — advertised by each peer at startup
+    gpu_vram_gb: float = 0.0
+    chip_family: str = "cpu_only"
+    ram_gb: float = 0.0
 
 
 class P2PCapabilityExchange:
@@ -60,6 +64,9 @@ class P2PCapabilityExchange:
         role: str = "general",
         label: str = "",
         http_base_url: str | None = None,
+        gpu_vram_gb: float = 0.0,
+        chip_family: str = "cpu_only",
+        ram_gb: float = 0.0,
     ) -> int:
         self._local_caps = PeerCapabilities(
             peer_id=self._local_peer_id,
@@ -70,6 +77,9 @@ class P2PCapabilityExchange:
             label=label,
             http_base_url=http_base_url,
             last_updated=time.monotonic(),
+            gpu_vram_gb=gpu_vram_gb,
+            chip_family=chip_family,
+            ram_gb=ram_gb,
         )
 
         # Announce to DHT too
@@ -81,6 +91,9 @@ class P2PCapabilityExchange:
                 "role": role,
                 "label": label,
                 "http_base_url": http_base_url or "",
+                "gpu_vram_gb": gpu_vram_gb,
+                "chip_family": chip_family,
+                "ram_gb": ram_gb,
             },
         )
 
@@ -95,6 +108,9 @@ class P2PCapabilityExchange:
                 "role": role,
                 "label": label,
                 "http_base_url": http_base_url or "",
+                "gpu_vram_gb": gpu_vram_gb,
+                "chip_family": chip_family,
+                "ram_gb": ram_gb,
             },
         )
 
@@ -110,7 +126,9 @@ class P2PCapabilityExchange:
 
     async def request_capability(self, capability: str) -> list[PeerCapabilities]:
         # Check local cache first
-        cached = [caps for caps in self._peer_caps.values() if capability in caps.capabilities]
+        cached = [
+            caps for caps in self._peer_caps.values() if capability in caps.capabilities
+        ]
         if cached:
             return cached
 
@@ -136,9 +154,14 @@ class P2PCapabilityExchange:
                     label=entry.metadata.get("label", ""),
                     http_base_url=entry.metadata.get("http_base_url"),
                     last_updated=entry.last_seen,
+                    gpu_vram_gb=float(entry.metadata.get("gpu_vram_gb", 0.0)),
+                    chip_family=str(entry.metadata.get("chip_family", "cpu_only")),
+                    ram_gb=float(entry.metadata.get("ram_gb", 0.0)),
                 )
 
-        return [caps for caps in self._peer_caps.values() if capability in caps.capabilities]
+        return [
+            caps for caps in self._peer_caps.values() if capability in caps.capabilities
+        ]
 
     def get_peer_capabilities(self, peer_id: str) -> PeerCapabilities | None:
         return self._peer_caps.get(peer_id)
@@ -153,7 +176,9 @@ class P2PCapabilityExchange:
         the network without sending an explicit departure message.
         """
         cutoff = time.monotonic() - max_age
-        stale = [pid for pid, caps in self._peer_caps.items() if caps.last_updated < cutoff]
+        stale = [
+            pid for pid, caps in self._peer_caps.items() if caps.last_updated < cutoff
+        ]
         for pid in stale:
             del self._peer_caps[pid]
         if stale:
@@ -164,7 +189,11 @@ class P2PCapabilityExchange:
         return [c for c in self._peer_caps.values() if provider in c.providers]
 
     def peers_with_model(self, provider: str, model: str) -> list[PeerCapabilities]:
-        return [c for c in self._peer_caps.values() if model in c.provider_models.get(provider, [])]
+        return [
+            c
+            for c in self._peer_caps.values()
+            if model in c.provider_models.get(provider, [])
+        ]
 
     async def _handle_capabilities(
         self,
@@ -197,8 +226,17 @@ class P2PCapabilityExchange:
             label=data.get("label", ""),
             http_base_url=data.get("http_base_url"),
             last_updated=time.monotonic(),
+            gpu_vram_gb=float(data.get("gpu_vram_gb", 0.0)),
+            chip_family=str(data.get("chip_family", "cpu_only")),
+            ram_gb=float(data.get("ram_gb", 0.0)),
         )
-        logger.info("Updated capabilities for peer %s: %s", peer_id, data.get("capabilities"))
+        logger.info(
+            "Updated capabilities for peer %s: %s (VRAM=%.1fGB chip=%s)",
+            peer_id,
+            data.get("capabilities"),
+            float(data.get("gpu_vram_gb", 0.0)),
+            data.get("chip_family", "cpu_only"),
+        )
 
     async def _handle_request(
         self,
@@ -218,4 +256,7 @@ class P2PCapabilityExchange:
                 role=self._local_caps.role,
                 label=self._local_caps.label,
                 http_base_url=self._local_caps.http_base_url,
+                gpu_vram_gb=self._local_caps.gpu_vram_gb,
+                chip_family=self._local_caps.chip_family,
+                ram_gb=self._local_caps.ram_gb,
             )

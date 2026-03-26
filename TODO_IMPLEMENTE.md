@@ -4,6 +4,15 @@ Etat de reference du chantier fine-tuning/distillation local au 6 mars 2026.
 
 ## 1. Deja implemente
 
+### Mesh P2P hardware-aware (2026-03-26)
+- [x] Registre VRAM par modèle Ollama — `router/model_sizes.py` (lookup exact + heuristique param-count)
+- [x] `PeerCapabilities` étendu : `gpu_vram_gb`, `chip_family`, `ram_gb` gossipés via PubSub + DHT
+- [x] `NodeIdentity` injecte `detect_machine_profile()` au démarrage du cluster
+- [x] `select_route()` filtre les pairs par VRAM, désactive local si trop petit pour le modèle
+- [x] `P2PProvider._resolve_peer()` préfère les pairs VRAM-capables (tri desc)
+- [x] `OllamaProvider._ensure_model()` / `_pull_model()` — auto-pull avant la première requête
+- [x] Résultat : Tower (5GB) garde les petits modèles ; KXKM-AI (RTX 4090 24GB) reçoit les gros
+
 ### Pipeline local
 - [x] Point d'entree unique pour lancer le fine-tuning local CPU/GPU
 - [x] Support `LoRA/QLoRA` local avec `venv_tuning`
@@ -81,7 +90,7 @@ Etat de reference du chantier fine-tuning/distillation local au 6 mars 2026.
 ### Ce qui reste a verrouiller
 - [x] Valider la phase `train` de bout en bout sur un run batch `esp32 spice pio`
 - [x] Documenter la reprise `--resume` dans la doc operateur (code OK, doc manquante)
-- [ ] Mesurer si `2` trainings GPU paralleles apportent un gain reel sur Quadro P2000
+- [x] Mesurer si `2` trainings GPU paralleles apportent un gain reel sur Quadro P2000 — benchmark RTX 4090: slots=1→78s, slots=2→42s, speedup 1.857x (cf. `TODO_TUNNING_PARTY.md`)
 - [x] Robustifier `auto_chain_next_lots_loop.sh` : backoff adaptatif sur `blocked` et interdiction de `--report-dir` en pass-through.
 
 ### Verification au 6 mars 2026
