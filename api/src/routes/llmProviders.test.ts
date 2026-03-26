@@ -96,4 +96,67 @@ describe("llm providers route", () => {
       },
     });
   });
+
+  it("returns 502 when core is unreachable", async () => {
+    vi.spyOn(coreClient, "health").mockRejectedValue(new Error("ECONNREFUSED"));
+    vi.spyOn(coreClient, "providersStatus").mockRejectedValue(new Error("ECONNREFUSED"));
+
+    const res = await makeApp().request("/api/v2/llm-providers");
+
+    expect(res.status).toBe(502);
+    const body = await res.json();
+    expect(body.error).toBe("Core service unreachable");
+  });
+
+  it("reports lane as unavailable when provider is not in the list", async () => {
+    process.env.ROUTELLM_CHEAP_PROVIDER = "nonexistent";
+    process.env.ROUTELLM_CHEAP_MODEL = "model-x";
+    process.env.ROUTELLM_STRONG_PROVIDER = "claude";
+    process.env.ROUTELLM_STRONG_MODEL = "claude-sonnet-4-6";
+
+    vi.spyOn(coreClient, "health").mockResolvedValue({
+      status: "ok",
+      providers: ["claude"],
+      agents: 5,
+    });
+    vi.spyOn(coreClient, "providersStatus").mockResolvedValue({
+      providers: [
+        {
+          name: "claude",
+          label: "Claude",
+          configured: true,
+          active: true,
+          fields: [],
+          default_model: "claude-sonnet-4-6",
+          models: ["claude-sonnet-4-6"],
+        },
+      ] as any,
+    });
+
+    const res = await makeApp().request("/api/v2/llm-providers");
+    const payload = await res.json();
+
+    expect(res.status).toBe(200);
+    const cheapLane = payload.data.providers.find((p: any) => p.lane === "cheap");
+    expect(cheapLane.status).toBe("unavailable");
+  });
+
+  it("uses default env values when ROUTELLM env vars are not set", async () => {
+    vi.spyOn(coreClient, "health").mockResolvedValue({
+      status: "ok",
+      providers: ["ollama"],
+      agents: 3,
+    });
+    vi.spyOn(coreClient, "providersStatus").mockResolvedValue({
+      providers: [] as any,
+    });
+
+    const res = await makeApp().request("/api/v2/llm-providers");
+    const payload = await res.json();
+
+    expect(res.status).toBe(200);
+    const cheapLane = payload.data.providers.find((p: any) => p.lane === "cheap");
+    expect(cheapLane.provider).toBe("ollama");
+    expect(cheapLane.model).toBe("qwen3.5:9b");
+  });
 });
