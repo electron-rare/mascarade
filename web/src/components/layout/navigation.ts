@@ -88,6 +88,17 @@ export const navigationGroups: NavGroup[] = [
         section: "Operations",
       },
       {
+        to: "/pipeline",
+        icon: "\u25B7",
+        label: "Pipeline",
+        shortLabel: "Pipe",
+        hint: "training pipeline orchestration",
+        eyebrow: "pipeline deck",
+        title: "Pipeline",
+        description: "Orchestration du pipeline de training: clone, extract, QC, review, train, benchmark, deploy.",
+        section: "Operations",
+      },
+      {
         to: "/admin",
         icon: "\u2699",
         label: "Admin",

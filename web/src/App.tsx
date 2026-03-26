@@ -8,6 +8,7 @@ import AgentDetail from "./pages/AgentDetail";
 import Training from "./pages/Training";
 import Knowledge from "./pages/Knowledge";
 import Administration from "./pages/Administration";
+import Pipeline from "./pages/Pipeline";
 import KillLifeWorkflows from "./pages/KillLifeWorkflows";
 import KillLifeWorkflowEditor from "./pages/KillLifeWorkflowEditor";
 
@@ -22,6 +23,7 @@ export default function App() {
           <Route path="agents/:name" element={<AgentDetail />} />
           <Route path="training" element={<Training />} />
           <Route path="knowledge" element={<Knowledge />} />
+          <Route path="pipeline" element={<Pipeline />} />
           <Route path="admin" element={<Administration />} />
           <Route path="kill-life" element={<KillLifeWorkflows />} />
           <Route path="kill-life/:workflowId" element={<KillLifeWorkflowEditor />} />
