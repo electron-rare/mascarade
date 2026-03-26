@@ -65,6 +65,7 @@ class OllamaProvider(LLMProvider):
         self._models_cache: list[str] | None = None
         self._cache_timestamp: float = 0.0
         self._cache_ttl: float = 30.0  # Cache for 30 seconds
+        self._pulled_models: set[str] = set()  # models confirmed present this session
 
     @property
     def is_configured(self) -> bool:
@@ -73,6 +74,52 @@ class OllamaProvider(LLMProvider):
         if settings.ollama_enabled:
             return True
         return self._base_url != "http://ollama:11434"
+
+    async def _pull_model(self, model: str) -> None:
+        """Pull *model* from the Ollama registry, streaming progress to the log."""
+        logger.info("Pulling Ollama model '%s' — this may take several minutes…", model)
+        async with self._client.stream(
+            "POST",
+            "/api/pull",
+            json={"name": model, "stream": True},
+            timeout=None,  # pulls can take a very long time
+        ) as resp:
+            resp.raise_for_status()
+            async for line in resp.aiter_lines():
+                if not line:
+                    continue
+                try:
+                    data = json.loads(line)
+                    status = data.get("status", "")
+                    total = data.get("total", 0)
+                    completed = data.get("completed", 0)
+                    if total and completed:
+                        pct = int(completed / total * 100)
+                        logger.debug("  pull %s: %s %d%%", model, status, pct)
+                    elif status:
+                        logger.debug("  pull %s: %s", model, status)
+                except json.JSONDecodeError:
+                    continue
+        logger.info("Model '%s' is ready", model)
+        self._models_cache = None  # invalidate so next available_models() is fresh
+
+    async def _ensure_model(self, model: str) -> None:
+        """Guarantee *model* exists locally; pull it from Ollama hub if not present."""
+        if model in self._pulled_models:
+            return
+        try:
+            resp = await self._client.get("/api/tags", timeout=5.0)
+            resp.raise_for_status()
+            available = {m["name"] for m in resp.json().get("models", [])}
+            if model not in available:
+                await self._pull_model(model)
+            self._pulled_models.add(model)
+        except httpx.HTTPStatusError as exc:
+            logger.warning(
+                "Could not verify model '%s' (HTTP %s)", model, exc.response.status_code
+            )
+        except Exception as exc:
+            logger.warning("Could not ensure model '%s': %s", model, exc)
 
     @_retry
     async def send(
@@ -86,6 +133,7 @@ class OllamaProvider(LLMProvider):
         max_tokens: int = 4096,
     ) -> LLMResponse:
         model = model or self.default_model
+        await self._ensure_model(model)
         chat_messages = build_chat_messages(messages, system)
 
         payload = {
@@ -147,6 +195,7 @@ class OllamaProvider(LLMProvider):
         max_tokens: int = 4096,
     ) -> AsyncIterator[str]:
         model = model or self.default_model
+        await self._ensure_model(model)
         chat_messages = build_chat_messages(messages, system)
 
         async with self._client.stream(

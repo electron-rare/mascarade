@@ -15,6 +15,7 @@ build/
 
 # OS
 .DS_Store
+._*
 
 # IDE
 .vscode/
@@ -66,6 +67,13 @@ docker-compose.yml.bak.*
 
 # Temp files
 .tmp/
+test-results/
+web/test-results/
+core.bak.*/
+api/public/assets/
+api/public/manifest.json
+api/public/sw.js
+scripts/*.local
 
 # Audit evidence (local artifacts)
 docs/audit/AUDIT_EVIDENCE_*/

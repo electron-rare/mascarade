@@ -268,6 +268,17 @@ export const LANGFUSE_PUBLIC_ORIGIN = (
 ).replace(/\/+$/, "");
 export const EDGE_PROXY_OPS_AUTH_USER = (process.env.EDGE_PROXY_OPS_AUTH_USER || "").trim();
 export const EDGE_PROXY_OPS_AUTH_PASSWORD = process.env.EDGE_PROXY_OPS_AUTH_PASSWORD || "";
+
+// Frappe CRM (tower-frappe-suite-app — on mascarade network)
+export const FRAPPE_CRM_URL = (process.env.FRAPPE_CRM_URL || "http://tower-frappe-suite-app:8000").replace(/\/+$/, "");
+export const FRAPPE_CRM_API_KEY = (process.env.FRAPPE_CRM_API_KEY || "").trim();
+export const FRAPPE_CRM_API_SECRET = (process.env.FRAPPE_CRM_API_SECRET || "").trim();
+export function frappeCrmAuthHeader(): Record<string, string> {
+  if (FRAPPE_CRM_API_KEY && FRAPPE_CRM_API_SECRET) {
+    return { Authorization: `token ${FRAPPE_CRM_API_KEY}:${FRAPPE_CRM_API_SECRET}` };
+  }
+  return {};
+}
 export const EDGE_PROXY_INDUSTRIAL_GROUPS = (
   process.env.EDGE_PROXY_INDUSTRIAL_GROUPS || "operator"
 ).trim();

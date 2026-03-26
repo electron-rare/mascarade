@@ -23,7 +23,7 @@ export default class ErrorBoundary extends Component<Props, State> {
   render() {
     if (this.state.hasError) {
       return (
-        <div className="flex items-center justify-center min-h-screen bg-bg text-amber-100">
+        <div className="flex items-center justify-center min-h-screen bg-bg text-[#1d1d1f]">
           <div className="text-center space-y-3 max-w-md mx-4">
             <h1 className="text-lg font-semibold text-error">Application Error</h1>
             <p className="text-sm text-muted">

@@ -58,48 +58,48 @@ export default function KillLifeWorkflows() {
         <Card className="overflow-hidden border-accent/20 bg-[linear-gradient(135deg,rgba(255,209,102,0.08),rgba(8,12,10,0.94)_26%,rgba(6,6,6,0.98))]">
           <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
             <div className="max-w-3xl">
-              <p className="screen-label">embedded workflow lane</p>
-              <h2 className="mt-3 text-3xl font-semibold uppercase tracking-[0.12em] text-accent glow-text md:text-5xl">
+              <p className="text-xs font-semibold uppercase tracking-wide text-[#86868b]">embedded workflow lane</p>
+              <h2 className="mt-3 text-3xl font-semibold uppercase tracking-[0.12em] text-accent font-bold text-accent md:text-5xl">
                 Full graphical editor for Kill_LIFE
               </h2>
-              <p className="mt-4 max-w-2xl text-sm leading-7 text-amber-100/60 md:text-[15px]">
+              <p className="mt-4 max-w-2xl text-sm leading-7 text-[#1d1d1f]/60 md:text-[15px]">
                 Cette lane relie le cockpit Mascarade au moteur de workflow Kill_LIFE: édition directe du graphe, validation locale, dispatch GitHub, lecture des runs et evidence packs.
               </p>
               <div className="mt-5 flex flex-wrap gap-2">
-                <span className="status-chip border-accent/35 bg-accent/10 text-accent">
+                <span className="status-chip border-accent/15 bg-accent/10 text-accent">
                   workflows {workflows.length}
                 </span>
-                <span className="status-chip border-border/80 bg-black/30 text-muted">
+                <span className="status-chip border-[rgba(0,0,0,0.08)] bg-[#f5f5f7] text-muted">
                   ready {readyCount}
                 </span>
-                <span className="status-chip border-border/80 bg-black/30 text-muted">
+                <span className="status-chip border-[rgba(0,0,0,0.08)] bg-[#f5f5f7] text-muted">
                   local {localCount}
                 </span>
-                <span className="status-chip border-border/80 bg-black/30 text-muted">
+                <span className="status-chip border-[rgba(0,0,0,0.08)] bg-[#f5f5f7] text-muted">
                   github {githubCount}
                 </span>
               </div>
-              <p className="mt-5 text-sm leading-7 text-amber-100/52">
+              <p className="mt-5 text-sm leading-7 text-[#1d1d1f]/52">
                 Root Kill_LIFE courant: <span className="text-accent">{data?.root ?? "-"}</span>
               </p>
             </div>
 
             <div className="grid min-w-0 gap-3 sm:grid-cols-2 lg:min-w-[320px]">
-              <div className="rounded-3xl border border-border/80 bg-black/30 p-4">
+              <div className="rounded-3xl border border-[rgba(0,0,0,0.08)] bg-[#f5f5f7] p-4">
                 <p className="text-[10px] uppercase tracking-[0.2em] text-muted">editor posture</p>
                 <p className="mt-3 text-2xl font-semibold uppercase tracking-[0.12em] text-accent">
                   direct edit
                 </p>
-                <p className="mt-2 text-[12px] leading-5 text-amber-100/46">
+                <p className="mt-2 text-[12px] leading-5 text-[#1d1d1f]/46">
                   Les workflows JSON canoniques sont modifiés depuis cette lane.
                 </p>
               </div>
-              <div className="rounded-3xl border border-border/80 bg-black/30 p-4">
+              <div className="rounded-3xl border border-[rgba(0,0,0,0.08)] bg-[#f5f5f7] p-4">
                 <p className="text-[10px] uppercase tracking-[0.2em] text-muted">run modes</p>
                 <p className="mt-3 text-2xl font-semibold uppercase tracking-[0.12em] text-accent">
                   local + github
                 </p>
-                <p className="mt-2 text-[12px] leading-5 text-amber-100/46">
+                <p className="mt-2 text-[12px] leading-5 text-[#1d1d1f]/46">
                   Les mêmes graphes peuvent piloter la machine locale et les dispatchs GitHub allowlistés.
                 </p>
               </div>
@@ -109,7 +109,7 @@ export default function KillLifeWorkflows() {
 
         <Card title="Workflow actions">
           <div className="space-y-4">
-            <p className="text-sm leading-7 text-amber-100/58">
+            <p className="text-sm leading-7 text-[#86868b]">
               Ouvre un workflow pour éditer le graphe, relier des nœuds et lancer les lanes existantes de Kill_LIFE sans quitter le cockpit Mascarade.
             </p>
             <Button variant="ghost" className="w-full" onClick={() => void refetch()}>
@@ -126,15 +126,15 @@ export default function KillLifeWorkflows() {
       ) : (
         <section className="grid gap-4 xl:grid-cols-2">
           {workflows.map((workflow) => (
-            <Card key={workflow.id} className="border-border/80 bg-[linear-gradient(180deg,rgba(10,12,11,0.9),rgba(6,6,6,0.98))]">
+            <Card key={workflow.id} className="border-[rgba(0,0,0,0.08)] bg-[linear-gradient(180deg,rgba(10,12,11,0.9),rgba(6,6,6,0.98))]">
               <div className="space-y-5">
                 <div className="flex flex-wrap items-start justify-between gap-4">
                   <div className="min-w-0">
-                    <p className="screen-label">{workflow.category}</p>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-[#86868b]">{workflow.category}</p>
                     <h3 className="mt-2 text-xl font-semibold uppercase tracking-[0.12em] text-accent">
                       {workflow.title}
                     </h3>
-                    <p className="mt-2 text-sm leading-7 text-amber-100/52">
+                    <p className="mt-2 text-sm leading-7 text-[#1d1d1f]/52">
                       {workflow.node_count} nodes / {workflow.edge_count} edges / v{workflow.version}
                     </p>
                   </div>
@@ -150,29 +150,29 @@ export default function KillLifeWorkflows() {
 
                 <div className="flex flex-wrap gap-2">
                   {workflow.tags.map((tag) => (
-                    <span key={tag} className="status-chip border-border/80 bg-black/30 text-muted">
+                    <span key={tag} className="status-chip border-[rgba(0,0,0,0.08)] bg-[#f5f5f7] text-muted">
                       {tag}
                     </span>
                   ))}
                 </div>
 
                 <div className="grid gap-3 sm:grid-cols-2">
-                  <div className="rounded-3xl border border-border/80 bg-black/25 p-4">
+                  <div className="rounded-3xl border border-[rgba(0,0,0,0.08)] bg-[#f5f5f7] p-4">
                     <p className="text-[10px] uppercase tracking-[0.2em] text-muted">updated</p>
-                    <p className="mt-3 text-sm leading-6 text-amber-100/78">
+                    <p className="mt-3 text-sm leading-6 text-[#1d1d1f]">
                       {formatDate(workflow.updated_at)}
                     </p>
                   </div>
-                  <div className="rounded-3xl border border-border/80 bg-black/25 p-4">
+                  <div className="rounded-3xl border border-[rgba(0,0,0,0.08)] bg-[#f5f5f7] p-4">
                     <p className="text-[10px] uppercase tracking-[0.2em] text-muted">latest run</p>
                     {workflow.latest_run ? (
-                      <div className="mt-3 space-y-1 text-sm leading-6 text-amber-100/78">
+                      <div className="mt-3 space-y-1 text-sm leading-6 text-[#1d1d1f]">
                         <p>{workflow.latest_run.mode}</p>
                         <p>{workflow.latest_run.status}</p>
                         <p>{formatDate(workflow.latest_run.finished_at)}</p>
                       </div>
                     ) : (
-                      <p className="mt-3 text-sm leading-6 text-amber-100/45">none</p>
+                      <p className="mt-3 text-sm leading-6 text-[#1d1d1f]/45">none</p>
                     )}
                   </div>
                 </div>
@@ -180,7 +180,7 @@ export default function KillLifeWorkflows() {
                 <div className="flex flex-wrap gap-3">
                   <Link
                     to={`/kill-life/${workflow.id}`}
-                    className="rounded-2xl border border-accent/40 bg-accent/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-accent transition hover:bg-accent/15"
+                    className="rounded-2xl border border-accent/15 bg-accent/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-accent transition hover:bg-accent/15"
                   >
                     open editor
                   </Link>

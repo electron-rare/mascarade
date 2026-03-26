@@ -29,7 +29,7 @@ export default function CompactModelList({
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-[10px] uppercase tracking-[0.18em] text-[#8cffb7]">{title}</p>
-          <p className="mt-2 text-[12px] leading-5 text-amber-100/52">
+          <p className="mt-2 text-[12px] leading-5 text-[#6e6e73]">
             {orderedItems.length} modele(s) detecte(s) dans le runtime local.
           </p>
         </div>
@@ -57,7 +57,7 @@ export default function CompactModelList({
             </span>
           ))}
           {!expanded && hiddenCount > 0 ? (
-            <span className="inline-flex items-center rounded-full border border-border/80 bg-black/25 px-3 py-1 text-[11px] font-medium tracking-[0.03em] text-muted">
+            <span className="inline-flex items-center rounded-full border border-[rgba(0,0,0,0.08)] bg-[#f5f5f7] px-3 py-1 text-[11px] font-medium tracking-[0.03em] text-muted">
               +{hiddenCount} more
             </span>
           ) : null}

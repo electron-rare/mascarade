@@ -318,24 +318,24 @@ export default function Orchestrate() {
         <Card className="overflow-hidden border-accent/20 bg-[linear-gradient(135deg,rgba(255,209,102,0.08),rgba(8,12,10,0.94)_26%,rgba(6,6,6,0.98))]">
           <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
             <div className="max-w-3xl">
-              <p className="screen-label">orchestration lane</p>
-              <h2 className="mt-3 text-3xl font-semibold uppercase tracking-[0.12em] text-accent glow-text md:text-5xl">
+              <p className="text-xs font-semibold uppercase tracking-wide text-[#86868b]">orchestration lane</p>
+              <h2 className="mt-3 text-3xl font-semibold uppercase tracking-[0.12em] text-accent font-bold text-accent md:text-5xl">
                 Dispatch one prompt across a controlled agent cluster
               </h2>
-              <p className="mt-4 max-w-2xl text-sm leading-7 text-amber-100/60 md:text-[15px]">
+              <p className="mt-4 max-w-2xl text-sm leading-7 text-[#1d1d1f]/60 md:text-[15px]">
                 Selectionne un groupe d'agents, envoie une consigne unique, puis lis la sequence consolidee retournee par l'API d'orchestration sans perdre le contexte du cockpit.
               </p>
               <div className="mt-5 flex flex-wrap gap-2">
-                <span className="status-chip border-accent/35 bg-accent/10 text-accent">
+                <span className="status-chip border-accent/15 bg-accent/10 text-accent">
                   armed {selected.length}
                 </span>
-                <span className="status-chip border-border/80 bg-black/30 text-muted">
+                <span className="status-chip border-[rgba(0,0,0,0.08)] bg-[#f5f5f7] text-muted">
                   registry {agents.length}
                 </span>
-                <span className="status-chip border-border/80 bg-black/30 text-muted">
+                <span className="status-chip border-[rgba(0,0,0,0.08)] bg-[#f5f5f7] text-muted">
                   prompt {prompt.trim().length} chars
                 </span>
-                <span className="status-chip border-border/80 bg-black/30 text-muted">
+                <span className="status-chip border-[rgba(0,0,0,0.08)] bg-[#f5f5f7] text-muted">
                   role overrides {Object.keys(routingOverrides).length}
                 </span>
               </div>
@@ -350,7 +350,7 @@ export default function Orchestrate() {
                 </Button>
                 <Button
                   variant="ghost"
-                  className="rounded-2xl border border-border/80 px-4 py-2 text-xs uppercase tracking-[0.18em]"
+                  className="rounded-2xl border border-[rgba(0,0,0,0.08)] px-4 py-2 text-xs uppercase tracking-[0.18em]"
                   onClick={() => {
                     setPrompt("");
                     setSelected([]);
@@ -367,39 +367,39 @@ export default function Orchestrate() {
             </div>
 
             <div className="grid min-w-0 gap-3 sm:grid-cols-2 lg:min-w-[320px]">
-              <div className="rounded-3xl border border-border/80 bg-black/30 p-4">
+              <div className="rounded-3xl border border-[rgba(0,0,0,0.08)] bg-[#f5f5f7] p-4">
                 <p className="text-[10px] uppercase tracking-[0.2em] text-muted">selected agents</p>
                 <p className="mt-3 text-2xl font-semibold uppercase tracking-[0.12em] text-accent">
                   {selected.length.toString().padStart(2, "0")}
                 </p>
-                <p className="mt-2 text-[12px] leading-5 text-amber-100/46">
+                <p className="mt-2 text-[12px] leading-5 text-[#1d1d1f]/46">
                   Nombre d'agents armes pour la run courante.
                 </p>
               </div>
-              <div className="rounded-3xl border border-border/80 bg-black/30 p-4">
+              <div className="rounded-3xl border border-[rgba(0,0,0,0.08)] bg-[#f5f5f7] p-4">
                 <p className="text-[10px] uppercase tracking-[0.2em] text-muted">visible registry</p>
                 <p className="mt-3 text-2xl font-semibold uppercase tracking-[0.12em] text-accent">
                   {filteredAgents.length.toString().padStart(2, "0")}
                 </p>
-                <p className="mt-2 text-[12px] leading-5 text-amber-100/46">
+                <p className="mt-2 text-[12px] leading-5 text-[#1d1d1f]/46">
                   Nombre d'agents visibles apres filtrage local.
                 </p>
               </div>
-              <div className="rounded-3xl border border-border/80 bg-black/30 p-4">
+              <div className="rounded-3xl border border-[rgba(0,0,0,0.08)] bg-[#f5f5f7] p-4">
                 <p className="text-[10px] uppercase tracking-[0.2em] text-muted">dispatch state</p>
                 <p className="mt-3 text-2xl font-semibold uppercase tracking-[0.12em] text-accent">
                   {result ? "loaded" : running ? "running" : "idle"}
                 </p>
-                <p className="mt-2 text-[12px] leading-5 text-amber-100/46">
+                <p className="mt-2 text-[12px] leading-5 text-[#1d1d1f]/46">
                   Etat de la derniere run d'orchestration visible dans cette page.
                 </p>
               </div>
-              <div className="rounded-3xl border border-border/80 bg-black/30 p-4">
+              <div className="rounded-3xl border border-[rgba(0,0,0,0.08)] bg-[#f5f5f7] p-4">
                 <p className="text-[10px] uppercase tracking-[0.2em] text-muted">result steps</p>
                 <p className="mt-3 text-2xl font-semibold uppercase tracking-[0.12em] text-accent">
                   {(result?.results?.length ?? 0).toString().padStart(2, "0")}
                 </p>
-                <p className="mt-2 text-[12px] leading-5 text-amber-100/46">
+                <p className="mt-2 text-[12px] leading-5 text-[#1d1d1f]/46">
                   Nombre d'etapes remontees par l'orchestrateur sur la derniere run.
                 </p>
               </div>
@@ -409,7 +409,7 @@ export default function Orchestrate() {
 
         <Card title="Dispatch controls" className="bg-[linear-gradient(180deg,rgba(10,12,11,0.92),rgba(7,7,7,0.96))]">
           <div className="space-y-4">
-            <p className="text-sm leading-7 text-amber-100/58">
+            <p className="text-sm leading-7 text-[#86868b]">
               La run part uniquement si une consigne existe et si au moins un agent est arme. Le filtre sert juste a lire le registre plus vite.
             </p>
             <Input
@@ -423,7 +423,7 @@ export default function Orchestrate() {
                 <button
                   key={token}
                   type="button"
-                  className="status-chip border-border/80 bg-black/30 text-muted transition hover:border-accent/35 hover:text-accent"
+                  className="status-chip border-[rgba(0,0,0,0.08)] bg-[#f5f5f7] text-muted transition hover:border-accent/15 hover:text-accent"
                   onClick={() => setQuery(token)}
                 >
                   {token}
@@ -437,7 +437,7 @@ export default function Orchestrate() {
               {hasAgentZero ? (
                 <Button
                   variant="ghost"
-                  className="border border-accent/35 text-accent"
+                  className="border border-accent/15 text-accent"
                   onClick={() =>
                     setSelected((current) =>
                       current.includes("agent-zero") ? current : ["agent-zero", ...current],
@@ -449,14 +449,14 @@ export default function Orchestrate() {
               ) : null}
               <Button
                 variant="ghost"
-                className="border border-border/80"
+                className="border border-[rgba(0,0,0,0.08)]"
                 onClick={() => setSelected(filteredAgents.map((agent) => agent.name))}
               >
                 arm visible
               </Button>
                 <Button
                   variant="ghost"
-                  className="border border-border/80"
+                  className="border border-[rgba(0,0,0,0.08)]"
                   onClick={() => {
                     setSelected([]);
                     setRoutingForm({});
@@ -472,17 +472,17 @@ export default function Orchestrate() {
       <section className="grid gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(320px,0.85fr)]">
         <Card title="CAD MCP actions">
           <div className="grid gap-4 lg:grid-cols-2">
-            <div className="rounded-[1.5rem] border border-border/80 bg-black/25 p-4">
+            <div className="rounded-[1.5rem] border border-[rgba(0,0,0,0.08)] bg-[#f5f5f7] p-4">
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <p className="screen-label">freecad</p>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-[#86868b]">freecad</p>
                   <p className="mt-2 text-sm font-semibold uppercase tracking-[0.14em] text-accent">
                     create traced document
                   </p>
                 </div>
                 <Badge color="accent">mcp</Badge>
               </div>
-              <p className="mt-3 text-sm leading-6 text-amber-100/56">
+              <p className="mt-3 text-sm leading-6 text-[#1d1d1f]/56">
                 Cree un document headless minimal via la façade MCP core, puis suit les événements corrélés dans la timeline avec le même run ID.
               </p>
               <div className="mt-4 space-y-3">
@@ -507,17 +507,17 @@ export default function Orchestrate() {
                 </Button>
               </div>
             </div>
-            <div className="rounded-[1.5rem] border border-border/80 bg-black/25 p-4">
+            <div className="rounded-[1.5rem] border border-[rgba(0,0,0,0.08)] bg-[#f5f5f7] p-4">
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <p className="screen-label">openscad</p>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-[#86868b]">openscad</p>
                   <p className="mt-2 text-sm font-semibold uppercase tracking-[0.14em] text-accent">
                     render traced model
                   </p>
                 </div>
                 <Badge color="accent">mcp</Badge>
               </div>
-              <p className="mt-3 text-sm leading-6 text-amber-100/56">
+              <p className="mt-3 text-sm leading-6 text-[#1d1d1f]/56">
                 Rend un modèle minimal via OpenSCAD headless et remonte le run corrélé dans la même timeline que les autres appels MCP.
               </p>
               <div className="mt-4 space-y-3">
@@ -586,7 +586,7 @@ export default function Orchestrate() {
                       );
                     }
                   }}
-                  className="rounded-2xl border border-border/80 bg-black/25 px-3 py-2 text-[11px] uppercase tracking-[0.16em] text-amber-100/72 transition hover:border-accent/35 hover:text-accent"
+                  className="rounded-2xl border border-[rgba(0,0,0,0.08)] bg-[#f5f5f7] px-3 py-2 text-[11px] uppercase tracking-[0.16em] text-[#6e6e73] transition hover:border-accent/15 hover:text-accent"
                 >
                   {preset.label}
                 </button>
@@ -603,18 +603,18 @@ export default function Orchestrate() {
               {selectedAgents.map((agent) => (
                 <div
                   key={agent.name}
-                  className="rounded-3xl border border-border/80 bg-black/25 p-4"
+                  className="rounded-3xl border border-[rgba(0,0,0,0.08)] bg-[#f5f5f7] p-4"
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div>
-                      <p className="screen-label">{inferCluster(agent.name)}</p>
+                      <p className="text-xs font-semibold uppercase tracking-wide text-[#86868b]">{inferCluster(agent.name)}</p>
                       <p className="mt-2 text-sm font-semibold uppercase tracking-[0.14em] text-accent">
                         {agent.name}
                       </p>
                     </div>
                     <Badge color="accent">armed</Badge>
                   </div>
-                  <p className="mt-3 text-sm leading-6 text-amber-100/56">
+                  <p className="mt-3 text-sm leading-6 text-[#1d1d1f]/56">
                     {agent.description || "No description"}
                   </p>
                   <div className="mt-4 grid gap-4 md:grid-cols-[minmax(0,1fr)_200px] md:items-end">
@@ -649,7 +649,7 @@ export default function Orchestrate() {
                           </Badge>
                         ) : null}
                       </div>
-                      <p className="text-[12px] leading-5 text-amber-100/46">
+                      <p className="text-[12px] leading-5 text-[#1d1d1f]/46">
                         Override role, provider, model or routing policy for this run only. Leave a field empty to inherit the stored agent profile.
                       </p>
                     </div>
@@ -759,12 +759,12 @@ export default function Orchestrate() {
                     "rounded-[1.5rem] border px-4 py-4 text-left transition-colors",
                     active
                       ? "border-accent/45 bg-accent/10 text-accent"
-                      : "border-border/80 bg-black/25 text-amber-100/74 hover:border-accent/35 hover:bg-black/35",
+                      : "border-[rgba(0,0,0,0.08)] bg-[#f5f5f7] text-[#1d1d1f]/74 hover:border-accent/15 hover:bg-[#f5f5f7]",
                   ].join(" ")}
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div>
-                      <p className="screen-label">{inferCluster(agent.name)}</p>
+                      <p className="text-xs font-semibold uppercase tracking-wide text-[#86868b]">{inferCluster(agent.name)}</p>
                       <p className="mt-2 text-[12px] font-semibold uppercase tracking-[0.16em]">
                         {agent.name}
                       </p>
@@ -773,7 +773,7 @@ export default function Orchestrate() {
                       {active ? "armed" : "idle"}
                     </Badge>
                   </div>
-                  <p className="mt-3 text-sm leading-6 text-amber-100/48">
+                  <p className="mt-3 text-sm leading-6 text-[#1d1d1f]/48">
                     {agent.description || "No description"}
                   </p>
                 </button>
@@ -814,7 +814,7 @@ export default function Orchestrate() {
                 {result.results?.map((row) => (
                   <div
                     key={`${row.agent}-${row.step}`}
-                    className="rounded-[1.5rem] border border-border/80 bg-black/25 p-4"
+                    className="rounded-[1.5rem] border border-[rgba(0,0,0,0.08)] bg-[#f5f5f7] p-4"
                   >
                     <div className="mb-3 flex flex-wrap items-center justify-between gap-2 text-xs text-muted">
                       <div className="flex flex-wrap gap-2">
@@ -839,11 +839,11 @@ export default function Orchestrate() {
                       </span>
                     </div>
                     {row.node_id || row.peer_id ? (
-                      <p className="mb-3 text-[12px] leading-5 text-amber-100/46">
+                      <p className="mb-3 text-[12px] leading-5 text-[#1d1d1f]/46">
                         route: node {row.node_id || "local"} {row.peer_id ? `via ${row.peer_id}` : ""}
                       </p>
                     ) : null}
-                    <pre className="whitespace-pre-wrap text-sm leading-7 text-amber-100/76">
+                    <pre className="whitespace-pre-wrap text-sm leading-7 text-[#1d1d1f]/76">
                       {row.content}
                     </pre>
                     {row.error ? (
@@ -882,7 +882,7 @@ export default function Orchestrate() {
                 <EmptyState message="No trace event recorded yet for this run." />
               ) : (
                 <div className="space-y-4">
-                  <div className="rounded-[1.5rem] border border-border/80 bg-black/25 p-4">
+                  <div className="rounded-[1.5rem] border border-[rgba(0,0,0,0.08)] bg-[#f5f5f7] p-4">
                     <div className="flex flex-wrap items-center gap-2">
                       <Badge color="accent">run {activeRunId}</Badge>
                       <Badge color="muted">events {traceEvents.length}</Badge>
@@ -925,7 +925,7 @@ export default function Orchestrate() {
                     {filteredTraceEvents.map((event) => (
                     <div
                       key={event.id}
-                      className="rounded-[1.5rem] border border-border/80 bg-black/25 p-4"
+                      className="rounded-[1.5rem] border border-[rgba(0,0,0,0.08)] bg-[#f5f5f7] p-4"
                     >
                       <div className="flex flex-wrap items-center gap-2 text-[11px] uppercase tracking-[0.18em]">
                         <span className="text-muted">{event.ts.slice(11, 19)}</span>
@@ -950,7 +950,7 @@ export default function Orchestrate() {
                           </Badge>
                         ) : null}
                       </div>
-                      <p className="mt-3 text-sm leading-6 text-amber-100/74">
+                      <p className="mt-3 text-sm leading-6 text-[#1d1d1f]/74">
                         {event.message}
                       </p>
                       {event.mcp_server || event.mcp_tool || event.mcp_transport || event.mcp_protocol_version ? (
@@ -996,12 +996,12 @@ export default function Orchestrate() {
                         </div>
                       ) : null}
                       {event.prompt_excerpt ? (
-                        <p className="mt-2 text-[12px] leading-5 text-amber-100/46">
+                        <p className="mt-2 text-[12px] leading-5 text-[#1d1d1f]/46">
                           input: {event.prompt_excerpt}
                         </p>
                       ) : null}
                       {event.content_excerpt ? (
-                        <p className="mt-2 text-[12px] leading-5 text-amber-100/46">
+                        <p className="mt-2 text-[12px] leading-5 text-[#1d1d1f]/46">
                           output: {event.content_excerpt}
                         </p>
                       ) : null}

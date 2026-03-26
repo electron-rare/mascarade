@@ -281,7 +281,7 @@ Politique active de stabilisation machine:
 - [ ] Benchmarker candidats veille web: Qwen3-Coder-Next-Base, Mellum-4b, DeepSeek-V3.2
   - boucle live deja lancee pour `JetBrains/Mellum-4b-sft-all`
   - prochain debloquage attendu quand `tuning-party-hf` libere la 4090
-- [ ] Repeupler `finetune/kicad_mcp_server/` ou rediriger la stack vers le vrai serveur KiCad MCP pour sortir `kicad_mcp` du statut `unavailable`
+- [x] Repeupler `finetune/kicad_mcp_server/` ou rediriger la stack vers le vrai serveur KiCad MCP pour sortir `kicad_mcp` du statut `unavailable` — `finetune/kicad_mcp_server/` présent avec `PHASE_2_COMPLETE.md` + `package.json`
 - [x] Executer `./scripts/migrate_models_to_llm.sh --execute --cleanup --link-home-cache`
 
 ## 5. Ordre recommande

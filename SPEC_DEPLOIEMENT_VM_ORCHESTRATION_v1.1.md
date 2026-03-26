@@ -99,6 +99,41 @@ Transformer la vision v1.0 en plan d'exécution concret pour opérer `mascarade`
 - DoD:
   - runbook ops validé.
 
+## P3 (implémenté — mesh P2P hardware-aware)
+
+### P3-01 — Registre de tailles VRAM par modèle ✅
+- Scope: mapper les modèles Ollama connus à leur empreinte VRAM estimée.
+- Livrable: `core/mascarade/router/model_sizes.py`
+  - `get_model_size_gb(model)` — lookup exact ou heuristique param-count
+  - `can_fit_in_vram(model, vram_gb)` — avec marge 10 %
+- Modèles couverts: Phi, Qwen, DeepSeek, Gemma, Mistral, Llama, devstral, modèles HF, fine-tunes mascarade.
+
+### P3-02 — Hardware dans PeerCapabilities ✅
+- Scope: propager le profil matériel de chaque nœud via le gossip P2P.
+- Livrable: `core/mascarade/p2p/capabilities.py` étendu
+  - `PeerCapabilities`: champs `gpu_vram_gb`, `chip_family`, `ram_gb`
+  - `advertise_capabilities()` envoie le profil dans PubSub + DHT
+  - `_handle_capabilities()` parse le profil entrant
+- `NodeIdentity` dans `cluster.py` injecte `detect_machine_profile()` au démarrage.
+
+### P3-03 — Routage VRAM dans select_route() ✅
+- Scope: éviter que les gros modèles atterrissent sur une machine avec VRAM insuffisante.
+- Livrable: `cluster.py` — `select_route()` + `forward_send()`
+  - `forward_send()` calcule `model_size_gb = get_model_size_gb(model_name)`
+  - `select_route()` filtre les candidats distants par VRAM, désactive `allow_local` si local ne peut pas héberger
+  - Tri final: `(latency_ms, -gpu_vram_gb, peer_id)` — pair le plus puissant en tiebreak
+
+### P3-04 — Sélection hardware dans P2PProvider ✅
+- Scope: `_resolve_peer()` en `router/providers/p2p.py` préfère les pairs VRAM-capables.
+- Livrable: filtre `can_fit_in_vram()` + tri `gpu_vram_gb` desc sur les pairs joignables.
+
+### P3-05 — Auto-pull modèle manquant dans OllamaProvider ✅
+- Scope: si un modèle n'est pas présent localement, le tirer automatiquement avant la première requête.
+- Livrable: `core/mascarade/router/providers/ollama.py`
+  - `_pull_model(model)` — streaming pull avec log de progression
+  - `_ensure_model(model)` — vérifie `/api/tags`, pull si absent, cache en session
+  - Appelé en tête de `send()` et `stream()`
+
 ## 4. Plan de sprint recommandé
 
 ### Sprint 1 (P0)

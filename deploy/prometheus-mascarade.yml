@@ -2,6 +2,9 @@ global:
   scrape_interval: 15s
   evaluation_interval: 15s
 
+rule_files:
+  - "alerts.yml"
+
 scrape_configs:
   - job_name: "mascarade-core"
     metrics_path: /metrics
@@ -9,21 +12,35 @@ scrape_configs:
       - targets:
           - "192.168.0.119:8100"
         labels:
-          node: "vm-photon"
-          role: "gpu"
+          node: "photon"
+          role: "infra"
+          chip_family: "cpu_only"
 
   - job_name: "mascarade-p2p"
     metrics_path: /metrics
+    scrape_interval: 30s
     static_configs:
       - targets:
           - "192.168.0.119:8100"
         labels:
-          node: "vm-photon"
+          node: "photon"
+          role: "infra"
+          chip_family: "cpu_only"
       - targets:
           - "192.168.0.210:8100"
         labels:
-          node: "cils-macbook"
+          node: "cils"
+          role: "worker"
+          chip_family: "cpu_only"
       - targets:
           - "192.168.0.120:8100"
         labels:
           node: "tower"
+          role: "worker"
+          chip_family: "quadro_p2000"
+      - targets:
+          - "100.87.54.119:8100"
+        labels:
+          node: "kxkm-ai"
+          role: "gpu"
+          chip_family: "rtx_4090"

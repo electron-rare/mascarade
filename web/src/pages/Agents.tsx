@@ -226,32 +226,32 @@ export default function Agents() {
         <Card className="overflow-hidden border-accent/20 bg-[linear-gradient(135deg,rgba(255,209,102,0.08),rgba(8,12,10,0.94)_26%,rgba(6,6,6,0.98))]">
           <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
             <div className="max-w-3xl">
-              <p className="screen-label">agent registry</p>
-              <h2 className="mt-3 text-3xl font-semibold uppercase tracking-[0.12em] text-accent glow-text md:text-5xl">
+              <p className="text-xs font-semibold uppercase tracking-wide text-[#86868b]">agent registry</p>
+              <h2 className="mt-3 text-3xl font-semibold uppercase tracking-[0.12em] text-accent font-bold text-accent md:text-5xl">
                 Registry and dispatch surfaces
               </h2>
-              <p className="mt-4 max-w-2xl text-sm leading-7 text-amber-100/60 md:text-[15px]">
+              <p className="mt-4 max-w-2xl text-sm leading-7 text-[#1d1d1f]/60 md:text-[15px]">
                 Chaque agent expose une surface specialisee. Cette vue sert a lire rapidement
                 l&apos;inventaire, verifier la densite du registre et ouvrir un agent en detail.
               </p>
               <div className="mt-5 flex flex-wrap gap-2">
-                <span className="status-chip border-accent/35 bg-accent/10 text-accent">
+                <span className="status-chip border-accent/15 bg-accent/10 text-accent">
                   agents {agents.length}
                 </span>
-                <span className="status-chip border-border/80 bg-black/25 text-muted">
+                <span className="status-chip border-[rgba(0,0,0,0.08)] bg-[#f5f5f7] text-muted">
                   create {showCreate ? "open" : "ready"}
                 </span>
               </div>
             </div>
 
             <div className="grid min-w-0 gap-3 sm:grid-cols-2 lg:min-w-[320px]">
-              <div className="rounded-3xl border border-border/80 bg-black/30 p-4">
+              <div className="rounded-3xl border border-[rgba(0,0,0,0.08)] bg-[#f5f5f7] p-4">
                 <p className="text-[10px] uppercase tracking-[0.2em] text-muted">registry size</p>
                 <p className="mt-3 text-2xl font-semibold uppercase tracking-[0.12em] text-accent">
                   {agents.length.toString().padStart(2, "0")}
                 </p>
               </div>
-              <div className="rounded-3xl border border-border/80 bg-black/30 p-4">
+              <div className="rounded-3xl border border-[rgba(0,0,0,0.08)] bg-[#f5f5f7] p-4">
                 <p className="text-[10px] uppercase tracking-[0.2em] text-muted">creation lane</p>
                 <p className="mt-3 text-2xl font-semibold uppercase tracking-[0.12em] text-accent">
                   live
@@ -263,7 +263,7 @@ export default function Agents() {
 
         <Card title="Registry Controls">
           <div className="space-y-4">
-            <p className="text-sm leading-7 text-amber-100/58">
+            <p className="text-sm leading-7 text-[#86868b]">
               Ouvrir un agent pour le test detaille ou creer une nouvelle surface specialisee.
             </p>
             <div className="flex flex-wrap gap-3">
@@ -289,14 +289,14 @@ export default function Agents() {
         <Card className="border-accent/30 bg-[linear-gradient(135deg,rgba(255,209,102,0.10),rgba(8,12,10,0.94)_30%,rgba(6,6,6,0.98))]">
           <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
             <div className="max-w-3xl">
-              <p className="screen-label">lead agent</p>
-              <h3 className="mt-3 text-2xl font-semibold uppercase tracking-[0.14em] text-accent glow-text">
+              <p className="text-xs font-semibold uppercase tracking-wide text-[#86868b]">lead agent</p>
+              <h3 className="mt-3 text-2xl font-semibold uppercase tracking-[0.14em] text-accent font-bold text-accent">
                 agent-zero
               </h3>
-              <p className="mt-3 text-sm leading-7 text-amber-100/62">
+              <p className="mt-3 text-sm leading-7 text-[#1d1d1f]/62">
                 {agentZero.description}
               </p>
-              <p className="mt-3 text-[12px] leading-6 text-amber-100/46">
+              <p className="mt-3 text-[12px] leading-6 text-[#1d1d1f]/46">
                 Utilise-le comme point d&apos;entree quand la demande est encore floue ou quand il faut cadrer, decomposer et prioriser avant d&apos;ouvrir une lane specialisee.
               </p>
             </div>
@@ -305,7 +305,7 @@ export default function Agents() {
               <Badge color="accent">recommended first pass</Badge>
               <Link
                 to="/agents/agent-zero"
-                className="rounded-2xl border border-accent/40 bg-accent/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-accent transition hover:bg-accent/15"
+                className="rounded-2xl border border-accent/15 bg-accent/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-accent transition hover:bg-accent/15"
               >
                 open agent-zero
               </Link>
@@ -381,16 +381,16 @@ export default function Agents() {
           action={<Button onClick={() => setShowCreate(true)}>create one</Button>}
         />
       ) : (
-        <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        <section className="scroll-reveal grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {sortedAgents.map((a) => {
             const metrics = metricsMap[a.name];
             return (
               <Link key={a.name} to={`/agents/${a.name}`}>
-                <Card className="h-full cursor-pointer transition-colors hover:border-accent/35">
+                <Card className="h-full cursor-pointer transition-colors hover:border-accent/15">
                   <div className="space-y-4">
                     <div className="flex items-start justify-between gap-3">
                       <div>
-                        <p className="screen-label">agent</p>
+                        <p className="text-xs font-semibold uppercase tracking-wide text-[#86868b]">agent</p>
                         <h3 className="mt-3 text-lg font-semibold uppercase tracking-[0.12em] text-accent">
                           {a.name}
                         </h3>
@@ -400,19 +400,19 @@ export default function Agents() {
                       </Badge>
                     </div>
                     {a.builtin ? (
-                      <p className="text-[11px] uppercase tracking-[0.18em] text-amber-100/34">
+                      <p className="text-[11px] uppercase tracking-[0.18em] text-[#1d1d1f]/34">
                         built-in registry entry
                       </p>
                     ) : (
-                      <p className="text-[11px] uppercase tracking-[0.18em] text-[#82ffc1]">
+                      <p className="text-[11px] uppercase tracking-[0.18em] text-[#30d158]">
                         dynamic editable agent
                       </p>
                     )}
-                    <p className="text-sm leading-7 text-amber-100/56">
+                    <p className="text-sm leading-7 text-[#1d1d1f]/56">
                       {a.description || "No description provided for this registry entry."}
                     </p>
                     {metrics ? (
-                      <div className="flex gap-3 rounded-2xl border border-border/60 bg-black/25 p-3">
+                      <div className="flex gap-3 rounded-2xl border border-[rgba(0,0,0,0.06)]/60 bg-[#f5f5f7] p-3">
                         <div className="flex-1">
                           <p className="text-[10px] uppercase tracking-[0.2em] text-muted">requests</p>
                           <p className="mt-1 text-lg font-semibold text-accent">
@@ -421,7 +421,7 @@ export default function Agents() {
                         </div>
                         <div className="flex-1">
                           <p className="text-[10px] uppercase tracking-[0.2em] text-muted">last used</p>
-                          <p className="mt-1 text-xs text-amber-100/70">
+                          <p className="mt-1 text-xs text-[#1d1d1f]/70">
                             {formatLastUsed(metrics.last_used)}
                           </p>
                         </div>
@@ -442,7 +442,7 @@ export default function Agents() {
                         primary intake lane
                       </p>
                     ) : null}
-                    <p className="text-[11px] uppercase tracking-[0.18em] text-amber-100/34">
+                    <p className="text-[11px] uppercase tracking-[0.18em] text-[#1d1d1f]/34">
                       open detail
                     </p>
                   </div>
@@ -542,7 +542,7 @@ export default function Agents() {
               }
             />
           </div>
-          <p className="text-[12px] leading-6 text-amber-100/46">
+          <p className="text-[12px] leading-6 text-[#1d1d1f]/46">
             `preferred_role` alimente maintenant le routage auto cluster. Un agent cree depuis l&apos;UI peut donc cibler directement un noeud `gpu`, `edge` ou `general`.
           </p>
           {createError ? (

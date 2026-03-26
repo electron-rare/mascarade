@@ -4,13 +4,13 @@ type Variant = "primary" | "secondary" | "danger" | "ghost";
 
 const variants: Record<Variant, string> = {
   primary:
-    "border-accent/40 bg-accent/10 text-accent hover:bg-accent/16 hover:border-accent/55",
+    "bg-accent text-white shadow-apple hover:shadow-apple-md hover:brightness-110",
   secondary:
-    "border-border/80 bg-black/25 text-amber-100/78 hover:border-accent/35 hover:text-accent hover:bg-black/35",
+    "bg-surface text-[#1d1d1f] border border-[rgba(0,0,0,0.06)] hover:border-[rgba(0,0,0,0.16)] hover:bg-[#ededf0]",
   danger:
-    "border-error/35 bg-error/10 text-error hover:bg-error/18 hover:border-error/55",
+    "bg-error/8 text-error border border-error/15 hover:bg-error/12 hover:border-error/25",
   ghost:
-    "border-border/70 bg-transparent text-muted hover:border-border/90 hover:bg-white/[0.03] hover:text-accent",
+    "bg-transparent text-muted border border-transparent hover:bg-surface hover:text-[#1d1d1f]",
 };
 
 interface Props extends ButtonHTMLAttributes<HTMLButtonElement> {
@@ -29,9 +29,9 @@ export default function Button({
   return (
     <button
       className={[
-        "inline-flex min-h-10 items-center justify-center gap-2 rounded-2xl border px-4 py-2",
-        "text-xs font-semibold uppercase tracking-[0.18em] transition-all duration-200",
-        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/55 focus-visible:ring-offset-2 focus-visible:ring-offset-[#050505]",
+        "inline-flex min-h-10 items-center justify-center gap-2 rounded-full px-5 py-2",
+        "font-sans text-sm font-semibold transition-all duration-200",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 focus-visible:ring-offset-2 focus-visible:ring-offset-white",
         "disabled:pointer-events-none disabled:opacity-50",
         variants[variant],
         className,
@@ -39,7 +39,7 @@ export default function Button({
       disabled={disabled || loading}
       {...props}
     >
-      {loading && <span className="animate-spin text-[11px]">⟳</span>}
+      {loading && <span className="animate-spin text-[11px]">&#x27F3;</span>}
       {children}
     </button>
   );

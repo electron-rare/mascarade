@@ -39,6 +39,8 @@ import {
   ZEROCLAW_FOLLOW_URL,
   GRAFANA_PUBLIC_ORIGIN,
   LANGFUSE_PUBLIC_ORIGIN,
+  FRAPPE_CRM_URL,
+  frappeCrmAuthHeader,
 } from "./_shared.js";
 import { fetchOpsAgentMcpSummary } from "./mcp.js";
 
@@ -54,6 +56,7 @@ export async function collectMonitorSnapshot(): Promise<MonitorSnapshot> {
     timedProbe("paperless", "http://mascarade-paperless:8000/api/", 1800, [200, 301, 302, 403]),
     timedProbe("karakeep", "http://mascarade-karakeep:3000/", 1800, [200, 301, 302, 307]),
     timedProbe("tempo", "http://tempo:3200/ready"),
+    timedProbe("frappe-crm", `${FRAPPE_CRM_URL}/api/method/ping`, 2000),
     timedProbe("dify-web", "http://dify-web:3000/"),
     timedProbe("dify-api", "http://dify-api:5001/health"),
     timedProbe(
