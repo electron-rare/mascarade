@@ -16,7 +16,7 @@ from mascarade.analytics import COST_METRICS
 from mascarade.analytics.clickhouse_logger import get_cost_logger
 from mascarade.analytics.cost_calculator import get_cost_calculator
 from mascarade.cache.multi_tier_cache import MultiTierCache
-from mascarade.config import secret_value, settings
+from mascarade.config import is_secret_configured, secret_value, settings
 from mascarade.load_balancer.balancer import LoadBalancer
 from mascarade.metrics.tracker import MetricsTracker
 from mascarade.observability.langfuse import (
@@ -252,7 +252,37 @@ class Router:
             ("mascarade.router.providers.litellm_universal", "LiteLLMUniversalProvider"),
         ]
 
+        # Lightweight pre-checks to skip expensive imports for unconfigured
+        # providers (e.g. litellm import costs ~3s). Each callable returns
+        # True when the provider *might* be configured.
+        _env_precheck: dict[str, callable] = {
+            "ClaudeProvider": lambda: is_secret_configured(settings.anthropic_api_key),
+            "OpenAIProvider": lambda: is_secret_configured(settings.openai_api_key),
+            "MistralProvider": lambda: is_secret_configured(settings.mistral_api_key),
+            "MistralAgentsProvider": lambda: is_secret_configured(settings.mistral_api_key),
+            "BedrockProvider": lambda: is_secret_configured(settings.aws_access_key_id),
+            "GoogleProvider": lambda: is_secret_configured(settings.google_api_key),
+            "HuggingFaceProvider": lambda: is_secret_configured(settings.huggingface_api_key),
+            "OllamaProvider": lambda: settings.ollama_enabled,
+            "ExoProvider": lambda: settings.exo_enabled,
+            "LlamaCppProvider": lambda: settings.llama_cpp_enabled,
+            "CodestralProvider": lambda: is_secret_configured(settings.codestral_api_key),
+        }
+
         for module_name, class_name in provider_specs:
+            # Fast path: skip import entirely if env-var pre-check fails
+            precheck = _env_precheck.get(class_name)
+            if precheck is not None:
+                try:
+                    if not precheck():
+                        logger.debug(
+                            "Skipping provider %s (pre-check: not configured)",
+                            class_name,
+                        )
+                        continue
+                except Exception:
+                    pass  # Fall through to normal import path
+
             try:
                 module = __import__(module_name, fromlist=[class_name])
                 provider_cls = getattr(module, class_name)
