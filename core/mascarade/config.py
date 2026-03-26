@@ -38,6 +38,7 @@ class Settings(BaseSettings):
     # LLM API keys
     anthropic_api_key: SecretStr = Field(default=SecretStr(""), repr=False)
     openai_api_key: SecretStr = Field(default=SecretStr(""), repr=False)
+    github_copilot_token: SecretStr = Field(default=SecretStr(""), repr=False)
     mistral_api_key: SecretStr = Field(default=SecretStr(""), repr=False)
     google_api_key: SecretStr = Field(default=SecretStr(""), repr=False)
     google_auth_mode: str = "api_key"
@@ -97,6 +98,10 @@ class Settings(BaseSettings):
     github_app_id: str = ""
     github_app_private_key: SecretStr = Field(default=SecretStr(""), repr=False)
     github_app_installation_id: str = ""
+
+    # Perplexity (sonar models with built-in web search)
+    perplexity_api_key: SecretStr = Field(default=SecretStr(""), repr=False)
+    perplexity_base_url: str = "https://api.perplexity.ai"
 
     # Codestral (Mistral code model — FIM + chat)
     codestral_api_key: SecretStr = Field(default=SecretStr(""), repr=False)
@@ -230,8 +235,10 @@ class Settings(BaseSettings):
     voice_pipeline_enabled: bool = True
 
     # Voice bridge (ESP32 WebSocket pipeline)
-    voice_bridge_tts_url: str = "http://192.168.0.120:8001/v1/audio/speech"
-    voice_bridge_tts_voice: str = "alloy"
+    voice_bridge_tts_url: str = (
+        "http://192.168.0.120:8001/v1/audio/speech"  # override: VOICE_BRIDGE_TTS_URL
+    )
+    voice_bridge_tts_voice: str = "alloy"  # override: VOICE_BRIDGE_TTS_VOICE
 
     # Observability
     otel_enabled: bool = False
