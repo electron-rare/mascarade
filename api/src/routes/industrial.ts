@@ -1,8 +1,26 @@
 import { Hono } from "hono";
+import { z } from "zod";
 import { coreClient } from "../client/core.js";
 import { handleCoreError } from "../middleware/error.js";
 
 const industrial = new Hono();
+
+// --- P0-2: Validate tool arguments to prevent injection and oversized payloads ---
+const MAX_TOOL_ARGS_SIZE = 64 * 1024; // 64 KB max serialized size
+
+const ToolCallBodySchema = z.object({
+  arguments: z
+    .record(z.string(), z.unknown())
+    .optional()
+    .refine(
+      (args) => {
+        if (!args) return true;
+        return JSON.stringify(args).length <= MAX_TOOL_ARGS_SIZE;
+      },
+      { message: `Tool arguments exceed max size (${MAX_TOOL_ARGS_SIZE} bytes)` },
+    ),
+  run_id: z.string().max(256).optional(),
+}).strict();
 
 industrial.get("/servers", async (c) => {
   try {
@@ -50,10 +68,15 @@ industrial.get("/:serverKey/resource", async (c) => {
 
 industrial.post("/:serverKey/tools/:toolName", async (c) => {
   try {
-    const body = (await c.req.json().catch(() => ({}))) as {
-      arguments?: Record<string, unknown>;
-      run_id?: string;
-    };
+    const rawBody = await c.req.json().catch(() => ({}));
+    const parsed = ToolCallBodySchema.safeParse(rawBody);
+    if (!parsed.success) {
+      return c.json(
+        { error: "Invalid tool call body", details: parsed.error.issues },
+        400,
+      );
+    }
+    const body = parsed.data;
     const payload = await coreClient.industrialMcpTool(
       c.req.param("serverKey"),
       c.req.param("toolName"),

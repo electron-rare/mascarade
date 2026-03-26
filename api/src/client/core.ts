@@ -217,7 +217,63 @@ export interface CliAgentRunResponse {
 
 const REQUEST_TIMEOUT_MS = parseInt(process.env.CORE_TIMEOUT_MS || "30000", 10);
 
-async function request<T>(path: string, options?: RequestInit): Promise<T> {
+// --- P0-3: Simple circuit breaker ---
+const CB_FAILURE_THRESHOLD = 5;
+const CB_WINDOW_MS = 30_000;
+const CB_RECOVERY_MS = 60_000;
+
+interface CircuitBreakerState {
+  failures: number[];
+  openedAt: number | null;
+}
+
+const circuitBreaker: CircuitBreakerState = { failures: [], openedAt: null };
+
+function cbRecordFailure() {
+  const now = Date.now();
+  circuitBreaker.failures.push(now);
+  // Keep only failures within the window
+  circuitBreaker.failures = circuitBreaker.failures.filter((t) => now - t < CB_WINDOW_MS);
+  if (circuitBreaker.failures.length >= CB_FAILURE_THRESHOLD) {
+    circuitBreaker.openedAt = now;
+  }
+}
+
+function cbRecordSuccess() {
+  circuitBreaker.failures = [];
+  circuitBreaker.openedAt = null;
+}
+
+function cbCheck(): boolean {
+  if (circuitBreaker.openedAt === null) return true; // closed -> allow
+  const elapsed = Date.now() - circuitBreaker.openedAt;
+  if (elapsed >= CB_RECOVERY_MS) return true; // half-open -> allow one attempt
+  return false; // open -> reject
+}
+
+/** Exported for testing */
+export function resetCircuitBreaker() {
+  circuitBreaker.failures = [];
+  circuitBreaker.openedAt = null;
+}
+
+// --- P0-3: Retry with exponential backoff ---
+const RETRY_DELAYS = [1000, 2000, 4000]; // 3 retries: 1s, 2s, 4s
+
+function isRetryable(error: unknown): boolean {
+  if (error instanceof CoreApiError) {
+    // Retry on 502, 503, 504 (upstream issues) but not on 4xx client errors
+    return error.status >= 500 && error.status !== 501;
+  }
+  // Retry on network errors and timeouts
+  return true;
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function requestOnce<T>(path: string, options?: RequestInit): Promise<T> {
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     ...getCoreAuthHeaders(),
@@ -248,6 +304,31 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
     throw new CoreApiError(message, res.status, parsedBody);
   }
   return res.json() as Promise<T>;
+}
+
+async function request<T>(path: string, options?: RequestInit): Promise<T> {
+  if (!cbCheck()) {
+    throw new CoreApiError("Circuit breaker open — core unavailable", 503);
+  }
+
+  let lastError: unknown;
+  for (let attempt = 0; attempt <= RETRY_DELAYS.length; attempt++) {
+    try {
+      const result = await requestOnce<T>(path, options);
+      cbRecordSuccess();
+      return result;
+    } catch (error) {
+      lastError = error;
+      if (!isRetryable(error) || attempt >= RETRY_DELAYS.length) {
+        cbRecordFailure();
+        throw error;
+      }
+      await sleep(RETRY_DELAYS[attempt]);
+    }
+  }
+  // Unreachable, but satisfies TypeScript
+  cbRecordFailure();
+  throw lastError;
 }
 
 async function requestCompat<T>(paths: string[], options?: RequestInit): Promise<T> {
