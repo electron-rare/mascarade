@@ -78,6 +78,23 @@ The following endpoints have frozen contracts and will not change in v1.x:
 
 ## Version History
 
+### [Unreleased] - 2026-03-26
+
+#### Added
+- **LiteLLM migration (Google, HuggingFace, Codestral)** — Chat completion paths for 3 providers now use `litellm.acompletion()` instead of direct SDK/httpx calls. All auth logic (Google 3-mode: API key / OAuth OIDC / ADC; HuggingFace OAuth token refresh; Codestral API key) is preserved. LiteLLM is an optional import (`try/except`). Codestral FIM endpoint stays on direct httpx since litellm has no FIM support.
+- **OpenAPI spec export** — `scripts/export_openapi.py` generates `docs/api/openapi.json` (140KB, OpenAPI 3.1.0) from the FastAPI app
+- **Auth & security hardening** — Token validation improvements, RBAC key support, E2E tests for payload limits and auth security
+- **Agents UX research** — SOTA research findings for agents auth UX (`docs/plan/2026-03-24-sota-mascarade/`)
+
+#### Changed
+- **Provider consolidation** — Google provider no longer imports `google.genai` for chat (litellm handles it); removed `openai` dependency from Google provider; HuggingFace provider no longer creates its own `openai.AsyncOpenAI` client for chat; Codestral provider no longer parses SSE manually for chat streaming
+- **Web cockpit** — Updated API client, AuthContext improvements, Agents page updates
+
+#### Fixed
+- Health route updates in API layer
+
+---
+
 ### [Unreleased] - 2026-03-24
 
 #### Added
