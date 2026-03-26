@@ -200,9 +200,7 @@ class TestPostOtlpLog:
                     "json", mock_instance.post.call_args[1].get("json", {})
                 )
                 resource = payload["resourceLogs"][0]["resource"]
-                svc_attr = next(
-                    a for a in resource["attributes"] if a["key"] == "service.name"
-                )
+                svc_attr = next(a for a in resource["attributes"] if a["key"] == "service.name")
                 assert svc_attr["value"]["stringValue"] == "custom-svc"
 
 
@@ -223,7 +221,10 @@ class TestScheduleOtlpLog:
             mock_settings.otel_enabled = True
 
             with (
-                patch("mascarade.observability.otel.asyncio.get_running_loop", side_effect=RuntimeError),
+                patch(
+                    "mascarade.observability.otel.asyncio.get_running_loop",
+                    side_effect=RuntimeError,
+                ),
                 patch("mascarade.observability.otel._post_otlp_log"),
             ):
                 # Should not raise
