@@ -1,4 +1,4 @@
-import { spawn } from "node:child_process";
+import { spawn, type ChildProcess } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { Hono, type Context } from "hono";
@@ -12,6 +12,75 @@ const VALID_DOMAINS = [
   "stm32", "spice", "iot", "power", "dsp", "emc", "kicad",
   "embedded", "platformio", "freecad", "components"
 ];
+
+// --- P0-1: Track spawned pipeline processes to prevent orphans ---
+const MAX_PIPELINE_DURATION_MS = 5 * 60 * 1000; // 5 minutes
+
+interface ActiveJob {
+  child: ChildProcess;
+  pid: number;
+  runId: string;
+  startedAt: number;
+  timeoutHandle: ReturnType<typeof setTimeout>;
+}
+
+const activeJobs = new Map<string, ActiveJob>();
+
+function killJob(runId: string, reason: string) {
+  const job = activeJobs.get(runId);
+  if (!job) return;
+  try {
+    job.child.kill("SIGTERM");
+    // Force kill after 5s if still alive
+    setTimeout(() => {
+      try { job.child.kill("SIGKILL"); } catch { /* already dead */ }
+    }, 5000);
+  } catch { /* process already exited */ }
+  clearTimeout(job.timeoutHandle);
+  activeJobs.delete(runId);
+  emitStructuredLog({
+    severity: "warning",
+    source: "api",
+    service: "pipeline",
+    message: `Pipeline job ${runId} killed: ${reason}`,
+    run_id: runId,
+  });
+}
+
+function trackJob(runId: string, child: ChildProcess) {
+  const pid = child.pid ?? 0;
+  const timeoutHandle = setTimeout(() => {
+    killJob(runId, "exceeded max duration");
+  }, MAX_PIPELINE_DURATION_MS);
+
+  if (typeof (timeoutHandle as any).unref === "function") {
+    (timeoutHandle as any).unref();
+  }
+
+  const job: ActiveJob = { child, pid, runId, startedAt: Date.now(), timeoutHandle };
+  activeJobs.set(runId, job);
+
+  child.on("exit", () => {
+    clearTimeout(timeoutHandle);
+    activeJobs.delete(runId);
+  });
+
+  child.on("error", () => {
+    clearTimeout(timeoutHandle);
+    activeJobs.delete(runId);
+  });
+}
+
+/** Exported for tests and graceful shutdown */
+export function getActiveJobs(): ReadonlyMap<string, { pid: number; runId: string; startedAt: number }> {
+  return activeJobs;
+}
+
+export function killAllJobs() {
+  for (const runId of [...activeJobs.keys()]) {
+    killJob(runId, "shutdown");
+  }
+}
 
 /**
  * POST /run - Trigger pipeline execution
@@ -53,14 +122,14 @@ pipeline.post("/run", validate(PipelineRunRequestSchema), async (c: Context) => 
       args.push("--dry-run");
     }
 
-    // Spawn pipeline process in background
+    // Spawn pipeline process in background with tracking
     const child = spawn("python3", args, {
       detached: true,
       stdio: "ignore",
     });
 
-    // Detach the process so it continues after API exits
     child.unref();
+    trackJob(runId, child);
 
     emitStructuredLog({
       severity: "info",

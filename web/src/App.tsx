@@ -18,6 +18,10 @@ import KillLifeWorkflowEditor from "./pages/KillLifeWorkflowEditor";
 import Settings from "./pages/Settings";
 import P2PMesh from "./pages/P2PMesh";
 import FineTuning from "./pages/FineTuning";
+import Training from "./pages/Training";
+import Datasets from "./pages/Datasets";
+import Fleet from "./pages/Fleet";
+import Benchmark from "./pages/Benchmark";
 
 export default function App() {
   return (
@@ -41,6 +45,10 @@ export default function App() {
           <Route path="settings" element={<Settings />} />
           <Route path="p2p" element={<P2PMesh />} />
           <Route path="finetune" element={<FineTuning />} />
+          <Route path="training" element={<Training />} />
+          <Route path="datasets" element={<Datasets />} />
+          <Route path="fleet" element={<Fleet />} />
+          <Route path="benchmark" element={<Benchmark />} />
           <Route path="*" element={<p className="text-error text-sm text-center mt-20">404 — page not found</p>} />
         </Route>
       </Routes>

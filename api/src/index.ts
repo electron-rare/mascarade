@@ -32,12 +32,16 @@ import { providers } from "./routes/providers.js";
 import { cliAgents } from "./routes/cliAgents.js";
 import { models } from "./routes/models.js";
 import { ollama } from "./routes/ollama.js";
+import { bodyLimit } from "hono/body-limit";
 
 const app = new Hono();
 const hasFrontend = existsSync("./public/index.html");
 
+const MAX_BODY_SIZE = parseInt(process.env.MAX_BODY_SIZE || "1048576", 10); // 1 MB default
+
 app.use("*", corsMiddleware);
 app.use("*", securityHeaders);
+app.use("*", bodyLimit({ maxSize: MAX_BODY_SIZE }));
 app.use("*", logger());
 app.onError((err, c) => {
   console.error("Internal error:", err);

@@ -318,8 +318,6 @@ p2p.get("/health", async (c) => {
   }
 });
 
-export { p2p };
-
 /** Topology endpoint for the P2PMesh frontend component */
 p2p.get("/topology", async (c) => {
   try {
@@ -386,3 +384,5 @@ p2p.get("/capabilities", async (c) => {
     return c.json(body, status);
   }
 });
+
+export { p2p };
