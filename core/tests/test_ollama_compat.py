@@ -9,9 +9,98 @@ import httpx
 import pytest
 
 from mascarade.auth import get_active_api_keys, remove_api_key
+from mascarade.ollama_compat import (
+    _build_messages,
+    _build_prompt_messages,
+    _extract_options,
+    _parse_model,
+)
 from mascarade.router.providers.base import LLMResponse
 from mascarade.router.router import Strategy
 from mascarade.server import app
+
+# ── Unit tests for helper functions ──
+
+
+class TestParseModel:
+    """Tests for _parse_model (provider:model splitting)."""
+
+    def test_plain_ollama_model(self):
+        provider, model = _parse_model("llama3:8b")
+        assert provider is None
+        assert model == "llama3:8b"
+
+    def test_mascarade_provider_model(self):
+        provider, model = _parse_model("claude:claude-3-5-sonnet")
+        assert provider == "claude"
+        assert model == "claude-3-5-sonnet"
+
+    def test_p2p_peer_path_passthrough(self):
+        provider, model = _parse_model("peer123/claude:claude-3-5-sonnet")
+        assert provider is None
+        assert model == "peer123/claude:claude-3-5-sonnet"
+
+    def test_numeric_tag_not_treated_as_provider(self):
+        provider, model = _parse_model("qwen2.5:7b")
+        assert provider is None
+        assert model == "qwen2.5:7b"
+
+    def test_plain_model_no_colon(self):
+        provider, model = _parse_model("gpt-4o")
+        assert provider is None
+        assert model == "gpt-4o"
+
+    def test_openai_provider_prefix(self):
+        provider, model = _parse_model("openai:gpt-4o-mini")
+        assert provider == "openai"
+        assert model == "gpt-4o-mini"
+
+
+class TestBuildMessages:
+    """Tests for _build_messages."""
+
+    def test_extracts_messages(self):
+        body = {"messages": [{"role": "user", "content": "hi"}]}
+        assert _build_messages(body) == [{"role": "user", "content": "hi"}]
+
+    def test_empty_when_no_messages(self):
+        assert _build_messages({}) == []
+
+
+class TestBuildPromptMessages:
+    """Tests for _build_prompt_messages."""
+
+    def test_prompt_only(self):
+        body = {"prompt": "hello"}
+        msgs = _build_prompt_messages(body)
+        assert len(msgs) == 1
+        assert msgs[0]["role"] == "user"
+        assert msgs[0]["content"] == "hello"
+
+    def test_with_system(self):
+        body = {"prompt": "hello", "system": "be concise"}
+        msgs = _build_prompt_messages(body)
+        assert len(msgs) == 2
+        assert msgs[0]["role"] == "system"
+        assert msgs[0]["content"] == "be concise"
+
+
+class TestExtractOptions:
+    """Tests for _extract_options."""
+
+    def test_default_values(self):
+        opts = _extract_options({})
+        assert opts["temperature"] == 0.7
+        assert opts["max_tokens"] == 4096
+
+    def test_custom_values(self):
+        body = {"options": {"temperature": 0.3, "num_predict": 128}}
+        opts = _extract_options(body)
+        assert opts["temperature"] == 0.3
+        assert opts["max_tokens"] == 128
+
+
+# ── Integration tests ──
 
 
 class FakeRouter:
@@ -206,3 +295,150 @@ async def test_ollama_generate_streams_ndjson():
     assert chunks[0]["response"] == "one"
     assert chunks[0]["done"] is False
     assert chunks[-1]["done"] is True
+
+
+@pytest.mark.asyncio
+async def test_ollama_root_returns_running():
+    fake_router = FakeRouter(available_providers=["ollama"])
+
+    async with _client(fake_router) as client:
+        response = await client.get("/ollama/")
+
+    assert response.status_code == 200
+    assert "running" in response.text.lower()
+
+
+@pytest.mark.asyncio
+async def test_ollama_version_endpoint():
+    fake_router = FakeRouter(available_providers=["ollama"])
+
+    async with _client(fake_router) as client:
+        response = await client.get("/ollama/api/version")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert "mascarade" in body["version"]
+
+
+@pytest.mark.asyncio
+async def test_ollama_chat_requires_model():
+    fake_router = FakeRouter(available_providers=["ollama"])
+
+    async with _client(fake_router) as client:
+        response = await client.post(
+            "/ollama/api/chat",
+            json={"model": "", "messages": [{"role": "user", "content": "hi"}]},
+        )
+
+    assert response.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_ollama_chat_specific_provider_routing():
+    fake_router = FakeRouter(
+        available_providers=["claude"],
+        response=LLMResponse(
+            content="routed to claude",
+            model="claude-3-5-sonnet",
+            provider="claude",
+            usage={"input_tokens": 5, "output_tokens": 3},
+        ),
+    )
+
+    async with _client(fake_router) as client:
+        response = await client.post(
+            "/ollama/api/chat",
+            json={
+                "model": "claude:claude-3-5-sonnet",
+                "stream": False,
+                "messages": [{"role": "user", "content": "hello"}],
+            },
+        )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["message"]["content"] == "routed to claude"
+    assert fake_router.calls[0]["provider"] == "claude"
+    assert fake_router.calls[0]["strategy"] == "specific"
+
+
+@pytest.mark.asyncio
+async def test_ollama_chat_streaming():
+    fake_router = FakeRouter(
+        available_providers=["ollama"],
+        stream_tokens=["hello", " world"],
+    )
+
+    async with _client(fake_router) as client:
+        async with client.stream(
+            "POST",
+            "/ollama/api/chat",
+            json={
+                "model": "auto",
+                "stream": True,
+                "messages": [{"role": "user", "content": "hi"}],
+            },
+        ) as response:
+            assert response.status_code == 200
+            chunks = [json.loads(line) async for line in response.aiter_lines() if line]
+
+    # First chunks have content, last is done
+    assert chunks[0]["message"]["content"] == "hello"
+    assert chunks[-1]["done"] is True
+
+
+@pytest.mark.asyncio
+async def test_ollama_generate_non_streaming():
+    fake_router = FakeRouter(
+        available_providers=["ollama"],
+        response=LLMResponse(
+            content="generated text",
+            model="test",
+            provider="ollama",
+            usage={"input_tokens": 3, "output_tokens": 2},
+        ),
+    )
+
+    async with _client(fake_router) as client:
+        response = await client.post(
+            "/ollama/api/generate",
+            json={
+                "model": "auto",
+                "prompt": "count to 3",
+                "stream": False,
+            },
+        )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["response"] == "generated text"
+    assert body["done"] is True
+
+
+@pytest.mark.asyncio
+async def test_ollama_show_model():
+    fake_router = FakeRouter(available_providers=["ollama"])
+
+    async with _client(fake_router) as client:
+        response = await client.post(
+            "/ollama/api/show",
+            json={"name": "test-model"},
+        )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert "mascarade" in body["details"]["family"].lower()
+
+
+@pytest.mark.asyncio
+async def test_ollama_pull_noop():
+    fake_router = FakeRouter(available_providers=["ollama"])
+
+    async with _client(fake_router) as client:
+        response = await client.post(
+            "/ollama/api/pull",
+            json={"name": "test-model"},
+        )
+
+    assert response.status_code == 200
+    assert "mascarade" in response.json()["status"].lower()

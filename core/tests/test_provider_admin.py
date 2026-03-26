@@ -203,3 +203,148 @@ def test_provider_clear_updates_can_reset_selected_auth_fields_only():
         "HUGGINGFACE_OAUTH_CLIENT_ID": "",
         "HUGGINGFACE_OAUTH_CLIENT_SECRET": "",
     }
+
+
+# ── Additional coverage ──
+
+
+class TestResolveProviderMeta:
+    """Tests for resolve_provider_meta."""
+
+    def test_known_provider(self):
+        from mascarade.provider_admin import resolve_provider_meta
+
+        meta = resolve_provider_meta("claude")
+        assert meta["label"] == "Anthropic / Claude"
+        assert len(meta["fields"]) >= 1
+
+    def test_unknown_provider_raises(self):
+        from mascarade.provider_admin import resolve_provider_meta
+
+        with pytest.raises(KeyError):
+            resolve_provider_meta("nonexistent_provider")
+
+
+class TestValidProviderEnvs:
+    """Tests for valid_provider_envs."""
+
+    def test_claude_envs(self):
+        from mascarade.provider_admin import valid_provider_envs
+
+        envs = valid_provider_envs(PROVIDER_REGISTRY["claude"])
+        assert "ANTHROPIC_API_KEY" in envs
+
+    def test_ollama_envs_include_toggle(self):
+        from mascarade.provider_admin import valid_provider_envs
+
+        envs = valid_provider_envs(PROVIDER_REGISTRY["ollama"])
+        assert "OLLAMA_BASE_URL" in envs
+        assert "OLLAMA_ENABLED" in envs
+
+    def test_google_envs_include_auth_mode(self):
+        from mascarade.provider_admin import valid_provider_envs
+
+        envs = valid_provider_envs(PROVIDER_REGISTRY["google"])
+        assert "GOOGLE_AUTH_MODE" in envs
+        assert "GOOGLE_API_KEY" in envs
+
+
+class TestMask:
+    """Tests for _mask helper."""
+
+    def test_short_secret(self):
+        from mascarade.provider_admin import _mask
+
+        assert _mask("short") == "***"
+
+    def test_empty_secret(self):
+        from mascarade.provider_admin import _mask
+
+        assert _mask("") == ""
+
+    def test_long_secret(self):
+        from mascarade.provider_admin import _mask
+
+        result = _mask("sk-1234567890abcdef")
+        assert result.startswith("sk-1")
+        assert result.endswith("cdef")
+        assert "..." in result
+
+
+class TestPersistEnv:
+    """Tests for _persist_env."""
+
+    def test_rejects_unknown_env_key(self):
+        from mascarade.provider_admin import _persist_env
+
+        with pytest.raises(ValueError, match="Refusing to persist unknown env key"):
+            _persist_env({"MALICIOUS_VAR": "evil"})
+
+    def test_writes_known_keys(self, tmp_path, monkeypatch):
+        from mascarade.provider_admin import _persist_env
+
+        env_file = tmp_path / ".env"
+        env_file.write_text("ANTHROPIC_API_KEY=old-value\n")
+        monkeypatch.chdir(tmp_path)
+
+        _persist_env({"ANTHROPIC_API_KEY": "new-value"})
+
+        content = env_file.read_text()
+        assert "ANTHROPIC_API_KEY=new-value" in content
+        assert "old-value" not in content
+
+    def test_appends_new_keys(self, tmp_path, monkeypatch):
+        from mascarade.provider_admin import _persist_env
+
+        env_file = tmp_path / ".env"
+        env_file.write_text("EXISTING=value\n")
+        monkeypatch.chdir(tmp_path)
+
+        _persist_env({"ANTHROPIC_API_KEY": "new-key"})
+
+        content = env_file.read_text()
+        assert "EXISTING=value" in content
+        assert "ANTHROPIC_API_KEY=new-key" in content
+
+    def test_creates_env_file_if_missing(self, tmp_path, monkeypatch):
+        from mascarade.provider_admin import _persist_env
+
+        monkeypatch.chdir(tmp_path)
+
+        _persist_env({"ANTHROPIC_API_KEY": "fresh-key"})
+
+        env_file = tmp_path / ".env"
+        assert env_file.exists()
+        assert "ANTHROPIC_API_KEY=fresh-key" in env_file.read_text()
+
+
+class TestUpdateProviderKeysEdgeCases:
+    """Additional edge cases for update_provider_keys."""
+
+    def test_unknown_provider_returns_error(self):
+        result = update_provider_keys("unknown_provider", {}, _FakeRouter())
+        assert "error" in result
+        assert "Unknown provider" in result["error"]
+
+    def test_unknown_field_returns_error(self):
+        result = update_provider_keys(
+            "claude", {"INVALID_ENV_VAR": "value"}, _FakeRouter()
+        )
+        assert "error" in result
+        assert "Unknown field" in result["error"]
+
+
+class TestProviderRegistryStructure:
+    """Tests for PROVIDER_REGISTRY consistency."""
+
+    def test_all_providers_have_required_keys(self):
+        required_keys = {"label", "classification", "criticality", "fields"}
+        for name, meta in PROVIDER_REGISTRY.items():
+            for key in required_keys:
+                assert key in meta, f"Provider '{name}' missing key '{key}'"
+
+    def test_all_fields_have_env_and_attr(self):
+        for name, meta in PROVIDER_REGISTRY.items():
+            for field in meta["fields"]:
+                assert "env" in field, f"Provider '{name}' field missing 'env'"
+                assert "attr" in field, f"Provider '{name}' field missing 'attr'"

@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import io
+import time
+import wave
 from contextlib import asynccontextmanager
 from unittest.mock import patch
 
@@ -9,9 +12,277 @@ import httpx
 import pytest
 
 from mascarade.auth import add_api_key, get_active_api_keys, remove_api_key
-from mascarade.device_voice import DeviceVoiceService
+from mascarade.device_voice import (
+    DeviceCurrentMedia,
+    DeviceIntent,
+    DevicePlayerEvent,
+    DeviceStateStore,
+    DeviceVoiceService,
+    IntentRouter,
+    ReplyAudioStore,
+    _battery_reply,
+    _normalize,
+    _player_action_for,
+    _wav_duration_ms,
+    _what_is_playing_reply,
+    _wifi_reply,
+)
 from mascarade.router.providers.base import LLMResponse
 from mascarade.server import app
+
+# ── Helper functions ──
+
+
+def _make_wav_bytes(*, duration_s: float = 0.5, sample_rate: int = 16000) -> bytes:
+    """Create a valid WAV file in memory."""
+    buf = io.BytesIO()
+    with wave.open(buf, "wb") as wf:
+        wf.setnchannels(1)
+        wf.setsampwidth(2)
+        wf.setframerate(sample_rate)
+        n_frames = int(sample_rate * duration_s)
+        wf.writeframes(b"\x00\x00" * n_frames)
+    return buf.getvalue()
+
+
+# ── Unit tests for _normalize ──
+
+
+class TestNormalize:
+    def test_strips_and_lowercases(self):
+        assert _normalize("  HELLO World  ") == "hello world"
+
+    def test_removes_accents(self):
+        result = _normalize("precede\u0301")
+        assert "e" in result
+        # The accent combining char should be gone
+        assert "\u0301" not in result
+
+    def test_empty_string(self):
+        assert _normalize("") == ""
+
+
+# ── Unit tests for ReplyAudioStore ──
+
+
+class TestReplyAudioStore:
+    def test_put_and_get(self):
+        store = ReplyAudioStore(ttl_seconds=60)
+        reply_id = store.put(b"audio-data", content_type="audio/wav")
+        item = store.get(reply_id)
+        assert item is not None
+        assert item.payload == b"audio-data"
+        assert item.content_type == "audio/wav"
+
+    def test_get_unknown_returns_none(self):
+        store = ReplyAudioStore()
+        assert store.get("nonexistent") is None
+
+    def test_expired_entries_gc(self):
+        store = ReplyAudioStore(ttl_seconds=0)
+        reply_id = store.put(b"data")
+        # Force GC by calling get (which calls _gc internally)
+        time.sleep(0.01)
+        assert store.get(reply_id) is None
+
+
+# ── Unit tests for DeviceStateStore ──
+
+
+class TestDeviceStateStore:
+    def test_snapshot_default(self):
+        store = DeviceStateStore()
+        snap = store.snapshot("dev-1")
+        assert snap.mode == "idle"
+        assert snap.playing is False
+
+    def test_merge_updates_state(self):
+        store = DeviceStateStore()
+        result = store.merge_current_media("dev-1", {"mode": "radio", "playing": True, "volume": 50})
+        assert result.mode == "radio"
+        assert result.playing is True
+        assert result.volume == 50
+
+    def test_merge_preserves_existing_fields(self):
+        store = DeviceStateStore()
+        store.merge_current_media("dev-1", {"mode": "radio", "station": "BBC"})
+        result = store.merge_current_media("dev-1", {"volume": 70})
+        assert result.station == "BBC"
+        assert result.volume == 70
+
+    def test_merge_ignores_none_values(self):
+        store = DeviceStateStore()
+        store.merge_current_media("dev-1", {"volume": 50})
+        result = store.merge_current_media("dev-1", {"volume": None})
+        assert result.volume == 50
+
+    def test_record_event(self):
+        store = DeviceStateStore()
+        event = DevicePlayerEvent(
+            device_id="dev-1",
+            event="playback_started",
+            mode="radio",
+            playing=True,
+            station="Classic FM",
+        )
+        result = store.record_event(event)
+        assert result.mode == "radio"
+        assert result.station == "Classic FM"
+
+
+# ── Unit tests for IntentRouter ──
+
+
+class TestIntentRouter:
+    def setup_method(self):
+        self.router = IntentRouter()
+        self.media = DeviceCurrentMedia(
+            mode="radio",
+            playing=True,
+            station="BBC World Service",
+            volume=40,
+            available_stations=["BBC World Service", "Classic FM"],
+        )
+
+    def test_empty_transcript_returns_none_intent(self):
+        intent = self.router.resolve("", self.media)
+        assert intent.type == "none"
+        assert intent.spoken_confirmation != ""
+
+    def test_volume_command(self):
+        intent = self.router.resolve("volume a 30", self.media)
+        assert intent.type == "set_volume"
+        assert intent.value == 30
+
+    def test_volume_clamps_to_100(self):
+        intent = self.router.resolve("volume 150", self.media)
+        assert intent.type == "set_volume"
+        assert intent.value == 100
+
+    def test_next_command(self):
+        intent = self.router.resolve("suivant", self.media)
+        assert intent.type == "next"
+
+    def test_previous_command(self):
+        intent = self.router.resolve("precedent", self.media)
+        assert intent.type == "previous"
+
+    def test_pause_command(self):
+        intent = self.router.resolve("pause", self.media)
+        assert intent.type == "pause"
+
+    def test_play_command(self):
+        intent = self.router.resolve("reprend la lecture", self.media)
+        assert intent.type == "play"
+
+    def test_station_selection(self):
+        intent = self.router.resolve("mets Classic FM", self.media)
+        assert intent.type == "select_station"
+        assert intent.value == "Classic FM"
+
+    def test_battery_status(self):
+        intent = self.router.resolve("quelle est la batterie", self.media)
+        assert intent.type == "battery_status"
+
+    def test_wifi_status(self):
+        intent = self.router.resolve("quel est le wifi", self.media)
+        assert intent.type == "wifi_status"
+
+    def test_what_is_playing(self):
+        intent = self.router.resolve("c est quoi la musique en cours", self.media)
+        assert intent.type == "what_is_playing"
+
+    def test_switch_mode_radio(self):
+        intent = self.router.resolve("passe en radio", self.media)
+        assert intent.type == "switch_mode"
+        assert intent.value == "radio"
+
+    def test_switch_mode_mp3(self):
+        intent = self.router.resolve("mode mp3", self.media)
+        assert intent.type == "switch_mode"
+        assert intent.value == "mp3"
+
+    def test_unrecognized_returns_none_type(self):
+        intent = self.router.resolve("quel est le sens de la vie", self.media)
+        assert intent.type == "none"
+
+
+# ── Unit tests for helper functions ──
+
+
+class TestHelperFunctions:
+    def test_battery_reply_with_value(self):
+        media = DeviceCurrentMedia(battery_pct=75)
+        assert "75%" in _battery_reply(media)
+
+    def test_battery_reply_without_value(self):
+        media = DeviceCurrentMedia()
+        assert "pas encore" in _battery_reply(media)
+
+    def test_wifi_reply_with_ssid_and_rssi(self):
+        media = DeviceCurrentMedia(wifi_ssid="Home", wifi_rssi=-42)
+        reply = _wifi_reply(media)
+        assert "Home" in reply
+        assert "-42" in reply
+
+    def test_wifi_reply_with_ssid_only(self):
+        media = DeviceCurrentMedia(wifi_ssid="Home")
+        reply = _wifi_reply(media)
+        assert "Home" in reply
+        assert "dBm" not in reply
+
+    def test_wifi_reply_without_ssid(self):
+        media = DeviceCurrentMedia()
+        assert "pas encore" in _wifi_reply(media)
+
+    def test_what_is_playing_radio(self):
+        media = DeviceCurrentMedia(mode="radio", station="Jazz FM")
+        assert "Jazz FM" in _what_is_playing_reply(media)
+
+    def test_what_is_playing_mp3(self):
+        media = DeviceCurrentMedia(mode="mp3", track="Song.mp3")
+        assert "Song.mp3" in _what_is_playing_reply(media)
+
+    def test_what_is_playing_nothing(self):
+        media = DeviceCurrentMedia()
+        assert "Rien" in _what_is_playing_reply(media)
+
+    def test_player_action_pause(self):
+        intent = DeviceIntent(type="pause")
+        media = DeviceCurrentMedia(playing=True)
+        assert _player_action_for(intent, media) == "none"
+
+    def test_player_action_media_intent(self):
+        intent = DeviceIntent(type="next")
+        media = DeviceCurrentMedia(playing=True)
+        assert _player_action_for(intent, media) == "duck"
+
+    def test_player_action_stop_resume_when_playing(self):
+        intent = DeviceIntent(type="none")
+        media = DeviceCurrentMedia(playing=True)
+        assert _player_action_for(intent, media) == "stop_resume"
+
+    def test_player_action_none_when_not_playing(self):
+        intent = DeviceIntent(type="none")
+        media = DeviceCurrentMedia(playing=False)
+        assert _player_action_for(intent, media) == "none"
+
+
+class TestWavDuration:
+    def test_valid_wav(self):
+        wav_bytes = _make_wav_bytes(duration_s=1.0, sample_rate=16000)
+        ms = _wav_duration_ms(wav_bytes)
+        assert ms is not None
+        assert 950 <= ms <= 1050  # roughly 1000ms
+
+    def test_invalid_bytes_returns_none(self):
+        assert _wav_duration_ms(b"not a wav") is None
+
+    def test_empty_bytes_returns_none(self):
+        assert _wav_duration_ms(b"") is None
+
+
+# ── Original integration-style tests ──
 
 
 class FakeAudioBridge:
