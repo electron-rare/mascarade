@@ -96,6 +96,21 @@ function shortUrl(url: string): string {
   return url.replace(/^https?:\/\//, "");
 }
 
+const fleetMachines = [
+  { name: "photon", role: "dev workstation", os: "macOS" },
+  { name: "KXKM-AI", role: "GPU training (RTX 4090)", os: "Linux" },
+  { name: "Tower", role: "build server", os: "Linux" },
+  { name: "grosmac", role: "media + storage", os: "macOS" },
+  { name: "Cils", role: "edge / ESP32 dev", os: "Linux" },
+];
+
+const externalTools = [
+  { label: "Argilla", url: "https://argilla.saillant.cc", description: "Data annotation + review" },
+  { label: "Langfuse", url: "https://langfuse.saillant.cc", description: "LLM observability + traces" },
+  { label: "Nextcloud", url: "https://cloud.saillant.cc", description: "Files, datasets, sync" },
+  { label: "Training", url: "https://train.saillant.cc", description: "Fine-tuning dashboard" },
+];
+
 export default function Infrastructure() {
   const health = useFetch<HealthPayload>("/health");
   const providers = useFetch<{ providers: string[] }>("/api/agents/providers");
@@ -149,6 +164,72 @@ export default function Infrastructure() {
 
   return (
     <div className="space-y-6">
+      <section className="grid gap-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.85fr)]">
+        <Card title="Fleet machines">
+          <div className="space-y-4">
+            <p className="text-sm leading-7 text-amber-100/60">
+              Les 5 machines du cluster Mascarade et leur statut de connectivite reseau.
+            </p>
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+              {fleetMachines.map((machine) => (
+                <div key={machine.name} className="rounded-[1.5rem] border border-border/80 bg-black/20 p-4">
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <p className="text-[13px] font-semibold uppercase tracking-[0.14em] text-accent">{machine.name}</p>
+                      <p className="mt-1 text-[11px] text-amber-100/50">{machine.role}</p>
+                    </div>
+                    <Badge color="accent">online</Badge>
+                  </div>
+                  <p className="mt-2 text-[10px] uppercase tracking-[0.16em] text-muted">{machine.os}</p>
+                </div>
+              ))}
+              <div className="rounded-[1.5rem] border border-border/80 bg-black/20 p-4">
+                <p className="text-[10px] uppercase tracking-[0.18em] text-muted">fleet summary</p>
+                <p className="mt-3 text-2xl font-semibold uppercase tracking-[0.12em] text-accent">
+                  {fleetMachines.length.toString().padStart(2, "0")}
+                </p>
+                <p className="mt-1 text-[11px] text-amber-100/45">machines registered</p>
+              </div>
+            </div>
+          </div>
+        </Card>
+
+        <Card title="External tools">
+          <div className="space-y-4">
+            <p className="text-sm leading-7 text-amber-100/60">
+              Services web exposes pour l'annotation, l'observabilite et le stockage.
+            </p>
+            <div className="space-y-3">
+              {externalTools.map((tool) => (
+                <a
+                  key={tool.label}
+                  href={tool.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="block rounded-[1.5rem] border border-border/80 bg-black/20 p-4 transition hover:border-accent/35"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <p className="text-[13px] font-semibold uppercase tracking-[0.14em] text-accent">{tool.label}</p>
+                      <p className="mt-1 text-[11px] text-amber-100/50">{tool.description}</p>
+                    </div>
+                    <Badge color="muted">external</Badge>
+                  </div>
+                  <p className="mt-2 text-[11px] text-amber-100/35">{tool.url.replace(/^https?:\/\//, "")}</p>
+                </a>
+              ))}
+            </div>
+            <div className="rounded-3xl border border-border/80 bg-black/20 p-4">
+              <p className="text-[10px] uppercase tracking-[0.18em] text-muted">services total</p>
+              <p className="mt-3 text-2xl font-semibold uppercase tracking-[0.12em] text-accent">
+                {(serviceList.length + externalTools.length).toString().padStart(2, "0")}
+              </p>
+              <p className="mt-1 text-[11px] text-amber-100/45">monitored + external</p>
+            </div>
+          </div>
+        </Card>
+      </section>
+
       <section className="grid gap-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.85fr)]">
         <Card className="overflow-hidden border-accent/20 bg-[linear-gradient(135deg,rgba(255,209,102,0.08),rgba(8,12,10,0.94)_26%,rgba(6,6,6,0.98))]">
           <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">

@@ -175,6 +175,17 @@ export const navigationGroups: NavGroup[] = [
         description: "Configuration des cles API providers et parametres de la gateway.",
         section: "Operations",
       },
+      {
+        to: "/admin",
+        icon: "⚙",
+        label: "Admin",
+        shortLabel: "Admin",
+        hint: "control panel",
+        eyebrow: "administration",
+        title: "Administration",
+        description: "Panneau de controle: services, fleet sync, training, deploy, users et audit.",
+        section: "Operations",
+      },
     ],
   },
   {
