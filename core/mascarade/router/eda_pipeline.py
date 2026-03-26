@@ -42,7 +42,12 @@ class PipelineResult:
         return {
             "status": self.status,
             "steps": [
-                {"step": s.step.value, "status": s.status, "duration_ms": s.duration_ms, "error": s.error}
+                {
+                    "step": s.step.value,
+                    "status": s.status,
+                    "duration_ms": s.duration_ms,
+                    "error": s.error,
+                }
                 for s in self.steps
             ],
             "data": {s.step.value: s.data for s in self.steps if s.data},
@@ -62,13 +67,19 @@ class EDAPipeline:
         steps: list[PipelineStep] | None = None,
         options: dict[str, Any] | None = None,
     ) -> PipelineResult:
-        steps = steps or [PipelineStep.ANALYZE, PipelineStep.BOM, PipelineStep.ROUTE, PipelineStep.FABRICATE]
+        steps = steps or [
+            PipelineStep.ANALYZE,
+            PipelineStep.BOM,
+            PipelineStep.ROUTE,
+            PipelineStep.FABRICATE,
+        ]
         opts = options or {}
         result = PipelineResult()
         context: dict[str, Any] = {"kicad_path": kicad_path}
 
         for step in steps:
             import time
+
             t0 = time.monotonic()
             sr = StepResult(step=step, status="running")
             result.steps.append(sr)
@@ -96,7 +107,9 @@ class EDAPipeline:
             sr.duration_ms = (time.monotonic() - t0) * 1000
 
         failed = [s for s in result.steps if s.status == "failed"]
-        result.status = "done" if not failed else "partial" if len(failed) < len(result.steps) else "failed"
+        result.status = (
+            "done" if not failed else "partial" if len(failed) < len(result.steps) else "failed"
+        )
         return result
 
     async def _analyze(self, kicad_path: str, opts: dict) -> dict:
@@ -115,7 +128,9 @@ class EDAPipeline:
     async def _route(self, kicad_path: str, context: dict, opts: dict) -> dict:
         provider = self.providers.get("quilter")
         if provider and hasattr(provider, "send"):
-            msg = f"Route board at {kicad_path} with {len(context.get('components', []))} components"
+            msg = (
+                f"Route board at {kicad_path} with {len(context.get('components', []))} components"
+            )
             resp = await provider.send([{"role": "user", "content": msg}], model="submit_job")
             return {"job_id": resp.get("job_id", "unknown"), "status": "submitted"}
         return {"status": "skipped", "reason": "quilter not configured"}
@@ -135,6 +150,7 @@ class EDAPipeline:
 def mount_eda_pipeline(app: Any) -> None:
     """Mount EDA pipeline endpoints on FastAPI app."""
     from fastapi import Body
+
     pipeline = EDAPipeline()
 
     @app.post("/v1/eda/pipeline")
@@ -153,6 +169,7 @@ def mount_eda_pipeline(app: Any) -> None:
         budget: str = Body("standard", embed=True),
     ):
         from mascarade.router.eda_routing_rules import recommend_provider
+
         return recommend_provider(layer_count, component_count, budget)
 
     logger.info("EDA Pipeline mounted (/v1/eda/pipeline, /v1/eda/route)")

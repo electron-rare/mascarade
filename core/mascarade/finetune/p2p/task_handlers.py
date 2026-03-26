@@ -109,15 +109,11 @@ async def _handle_teacher(payload: dict) -> dict:
             if not prompts:
                 return {"error": "Missing required field: prompts"}
             config = TeacherConfig(
-                task_description=payload.get(
-                    "task_description", "Generate training data"
-                ),
+                task_description=payload.get("task_description", "Generate training data"),
                 output_format=payload.get("output_format", "chatml"),
                 temperature=payload.get("temperature", 0.7),
             )
-            output_path = payload.get(
-                "output_path", "~/.mascarade/finetune/teacher/output.jsonl"
-            )
+            output_path = payload.get("output_path", "~/.mascarade/finetune/teacher/output.jsonl")
             result = await agent.generate_from_prompts(prompts, config, output_path)
             return result
         elif action == "correct":
@@ -125,9 +121,7 @@ async def _handle_teacher(payload: dict) -> dict:
             if not errors:
                 return {"error": "Missing required field: errors"}
             config = TeacherConfig(
-                task_description=payload.get(
-                    "task_description", "Generate corrections"
-                ),
+                task_description=payload.get("task_description", "Generate corrections"),
             )
             output_path = payload.get(
                 "output_path", "~/.mascarade/finetune/teacher/corrections.jsonl"
@@ -182,9 +176,7 @@ async def _handle_analysis(payload: dict) -> dict:
     model_path = payload.get("model_path")
     test_data_path = payload.get("test_data_path")
     if not model_id or not model_path or not test_data_path:
-        return {
-            "error": "Missing required fields: model_id, model_path, test_data_path"
-        }
+        return {"error": "Missing required fields: model_id, model_path, test_data_path"}
 
     result = await agent.full_eval(model_id, model_path, test_data_path)
     return result.__dict__

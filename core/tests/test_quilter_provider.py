@@ -18,6 +18,7 @@ from mascarade.router.providers.quilter import (
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _msg(payload: dict | str) -> list[dict]:
     content = json.dumps(payload) if isinstance(payload, dict) else payload
     return [{"role": "user", "content": content}]
@@ -27,6 +28,7 @@ def _msg(payload: dict | str) -> list[dict]:
 # Fixtures
 # ---------------------------------------------------------------------------
 
+
 @pytest.fixture()
 def provider() -> QuilterProvider:
     return QuilterProvider(api_url="http://quilter.local:9090")
@@ -35,6 +37,7 @@ def provider() -> QuilterProvider:
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
+
 
 class TestConfiguration:
     def test_is_configured_with_url(self, provider):
@@ -60,6 +63,7 @@ class TestConfiguration:
 # Invalid input
 # ---------------------------------------------------------------------------
 
+
 class TestInvalidInput:
     @pytest.mark.asyncio
     async def test_non_json_input(self, provider):
@@ -79,15 +83,20 @@ class TestInvalidInput:
 # Action: submit_job
 # ---------------------------------------------------------------------------
 
+
 class TestSubmitJob:
     @pytest.mark.asyncio
     async def test_submit_success(self, provider):
         api_resp = {"job_id": "qj-1", "status": "queued"}
         with patch.object(provider, "_post", new_callable=AsyncMock, return_value=api_resp):
-            resp = await provider.send(_msg({
-                "action": "submit_job",
-                "file_path": "/tmp/board.kicad_pcb",
-            }))
+            resp = await provider.send(
+                _msg(
+                    {
+                        "action": "submit_job",
+                        "file_path": "/tmp/board.kicad_pcb",
+                    }
+                )
+            )
         body = json.loads(resp.content)
         assert body["job_id"] == "qj-1"
 
@@ -95,11 +104,15 @@ class TestSubmitJob:
     async def test_submit_with_impedance_preset(self, provider):
         mock_post = AsyncMock(return_value={"job_id": "qj-2"})
         with patch.object(provider, "_post", mock_post):
-            await provider.send(_msg({
-                "action": "submit_job",
-                "file_path": "/tmp/board.kicad_pcb",
-                "impedance_preset": "50ohm_single",
-            }))
+            await provider.send(
+                _msg(
+                    {
+                        "action": "submit_job",
+                        "file_path": "/tmp/board.kicad_pcb",
+                        "impedance_preset": "50ohm_single",
+                    }
+                )
+            )
         payload = mock_post.call_args[0][1]
         assert payload["impedance"]["target_ohm"] == 50
 
@@ -107,22 +120,30 @@ class TestSubmitJob:
     async def test_submit_with_diff_impedance(self, provider):
         mock_post = AsyncMock(return_value={"job_id": "qj-3"})
         with patch.object(provider, "_post", mock_post):
-            await provider.send(_msg({
-                "action": "submit_job",
-                "file_path": "/tmp/b.kicad_pcb",
-                "impedance_preset": "100ohm_diff",
-            }))
+            await provider.send(
+                _msg(
+                    {
+                        "action": "submit_job",
+                        "file_path": "/tmp/b.kicad_pcb",
+                        "impedance_preset": "100ohm_diff",
+                    }
+                )
+            )
         payload = mock_post.call_args[0][1]
         assert payload["impedance"]["type"] == "differential"
         assert payload["impedance"]["trace_spacing_mm"] == 0.127
 
     @pytest.mark.asyncio
     async def test_submit_unknown_impedance_preset(self, provider):
-        resp = await provider.send(_msg({
-            "action": "submit_job",
-            "file_path": "/tmp/b.kicad_pcb",
-            "impedance_preset": "fantasy",
-        }))
+        resp = await provider.send(
+            _msg(
+                {
+                    "action": "submit_job",
+                    "file_path": "/tmp/b.kicad_pcb",
+                    "impedance_preset": "fantasy",
+                }
+            )
+        )
         body = json.loads(resp.content)
         assert "error" in body
         assert "available" in body
@@ -137,10 +158,14 @@ class TestSubmitJob:
     async def test_submit_no_impedance_sends_null(self, provider):
         mock_post = AsyncMock(return_value={"job_id": "qj-x"})
         with patch.object(provider, "_post", mock_post):
-            await provider.send(_msg({
-                "action": "submit_job",
-                "file_path": "/tmp/b.kicad_pcb",
-            }))
+            await provider.send(
+                _msg(
+                    {
+                        "action": "submit_job",
+                        "file_path": "/tmp/b.kicad_pcb",
+                    }
+                )
+            )
         payload = mock_post.call_args[0][1]
         assert payload["impedance"] is None
 
@@ -148,6 +173,7 @@ class TestSubmitJob:
 # ---------------------------------------------------------------------------
 # Action: check_status
 # ---------------------------------------------------------------------------
+
 
 class TestCheckStatus:
     @pytest.mark.asyncio
@@ -169,13 +195,16 @@ class TestCheckStatus:
 # Action: list_candidates
 # ---------------------------------------------------------------------------
 
+
 class TestListCandidates:
     @pytest.mark.asyncio
     async def test_list_candidates_success(self, provider):
-        api_resp = {"candidates": [
-            {"id": "c1", "score": 0.95, "vias": 12},
-            {"id": "c2", "score": 0.88, "vias": 18},
-        ]}
+        api_resp = {
+            "candidates": [
+                {"id": "c1", "score": 0.95, "vias": 12},
+                {"id": "c2", "score": 0.88, "vias": 18},
+            ]
+        }
         with patch.object(provider, "_get", new_callable=AsyncMock, return_value=api_resp):
             resp = await provider.send(_msg({"action": "list_candidates", "job_id": "qj-1"}))
         body = json.loads(resp.content)
@@ -192,18 +221,23 @@ class TestListCandidates:
 # Action: download_result
 # ---------------------------------------------------------------------------
 
+
 class TestDownloadResult:
     @pytest.mark.asyncio
     async def test_download_success(self, provider):
         api_resp = {"file_url": "https://cdn.quilter.io/result.kicad_pcb"}
         mock_post = AsyncMock(return_value=api_resp)
         with patch.object(provider, "_post", mock_post):
-            resp = await provider.send(_msg({
-                "action": "download_result",
-                "job_id": "qj-1",
-                "candidate_id": "c1",
-                "format": "kicad_pcb",
-            }))
+            resp = await provider.send(
+                _msg(
+                    {
+                        "action": "download_result",
+                        "job_id": "qj-1",
+                        "candidate_id": "c1",
+                        "format": "kicad_pcb",
+                    }
+                )
+            )
         body = json.loads(resp.content)
         assert "file_url" in body
         payload = mock_post.call_args[0][1]
@@ -213,10 +247,14 @@ class TestDownloadResult:
     async def test_download_default_candidate(self, provider):
         mock_post = AsyncMock(return_value={"ok": True})
         with patch.object(provider, "_post", mock_post):
-            await provider.send(_msg({
-                "action": "download_result",
-                "job_id": "qj-1",
-            }))
+            await provider.send(
+                _msg(
+                    {
+                        "action": "download_result",
+                        "job_id": "qj-1",
+                    }
+                )
+            )
         payload = mock_post.call_args[0][1]
         assert payload["candidate_id"] == "best"
 
@@ -231,6 +269,7 @@ class TestDownloadResult:
 # Action: set_constraints
 # ---------------------------------------------------------------------------
 
+
 class TestSetConstraints:
     @pytest.mark.asyncio
     async def test_set_constraints_success(self, provider):
@@ -238,11 +277,15 @@ class TestSetConstraints:
         api_resp = {"ok": True, "constraints": constraints}
         mock_post = AsyncMock(return_value=api_resp)
         with patch.object(provider, "_post", mock_post):
-            resp = await provider.send(_msg({
-                "action": "set_constraints",
-                "job_id": "qj-1",
-                "constraints": constraints,
-            }))
+            resp = await provider.send(
+                _msg(
+                    {
+                        "action": "set_constraints",
+                        "job_id": "qj-1",
+                        "constraints": constraints,
+                    }
+                )
+            )
         body = json.loads(resp.content)
         assert body["ok"] is True
         # The constraints dict is sent directly
@@ -250,19 +293,27 @@ class TestSetConstraints:
 
     @pytest.mark.asyncio
     async def test_set_constraints_missing_job_id(self, provider):
-        resp = await provider.send(_msg({
-            "action": "set_constraints",
-            "constraints": {"max_vias": 10},
-        }))
+        resp = await provider.send(
+            _msg(
+                {
+                    "action": "set_constraints",
+                    "constraints": {"max_vias": 10},
+                }
+            )
+        )
         body = json.loads(resp.content)
         assert body["error"] == "job_id required"
 
     @pytest.mark.asyncio
     async def test_set_constraints_empty(self, provider):
-        resp = await provider.send(_msg({
-            "action": "set_constraints",
-            "job_id": "qj-1",
-        }))
+        resp = await provider.send(
+            _msg(
+                {
+                    "action": "set_constraints",
+                    "job_id": "qj-1",
+                }
+            )
+        )
         body = json.loads(resp.content)
         assert body["error"] == "constraints dict required"
 
@@ -270,6 +321,7 @@ class TestSetConstraints:
 # ---------------------------------------------------------------------------
 # Action: get_stackup
 # ---------------------------------------------------------------------------
+
 
 class TestGetStackup:
     @pytest.mark.asyncio
@@ -301,6 +353,7 @@ class TestGetStackup:
 # Impedance presets data
 # ---------------------------------------------------------------------------
 
+
 class TestImpedancePresets:
     def test_50ohm_single(self):
         p = IMPEDANCE_PRESETS["50ohm_single"]
@@ -327,6 +380,7 @@ class TestImpedancePresets:
 # Error handling
 # ---------------------------------------------------------------------------
 
+
 class TestErrorHandling:
     @pytest.mark.asyncio
     async def test_api_http_error(self, provider):
@@ -334,18 +388,26 @@ class TestErrorHandling:
             status_code=500,
             request=httpx.Request("POST", "http://test"),
         )
-        exc = httpx.HTTPStatusError("Internal Server Error", request=exc_resp.request, response=exc_resp)
+        exc = httpx.HTTPStatusError(
+            "Internal Server Error", request=exc_resp.request, response=exc_resp
+        )
         with patch.object(provider, "_post", new_callable=AsyncMock, side_effect=exc):
-            resp = await provider.send(_msg({
-                "action": "submit_job",
-                "file_path": "/tmp/b.kicad_pcb",
-            }))
+            resp = await provider.send(
+                _msg(
+                    {
+                        "action": "submit_job",
+                        "file_path": "/tmp/b.kicad_pcb",
+                    }
+                )
+            )
         body = json.loads(resp.content)
         assert body["status_code"] == 500
 
     @pytest.mark.asyncio
     async def test_api_connection_error(self, provider):
-        with patch.object(provider, "_get", new_callable=AsyncMock, side_effect=RuntimeError("connection refused")):
+        with patch.object(
+            provider, "_get", new_callable=AsyncMock, side_effect=RuntimeError("connection refused")
+        ):
             resp = await provider.send(_msg({"action": "check_status", "job_id": "qj-1"}))
         body = json.loads(resp.content)
         assert "connection refused" in body["error"]
@@ -361,14 +423,22 @@ class TestErrorHandling:
 # Stream
 # ---------------------------------------------------------------------------
 
+
 class TestStream:
     @pytest.mark.asyncio
     async def test_stream_yields_single_chunk(self, provider):
         api_resp = {"job_id": "qj-stream"}
         with patch.object(provider, "_post", new_callable=AsyncMock, return_value=api_resp):
-            chunks = [c async for c in provider.stream(_msg({
-                "action": "submit_job",
-                "file_path": "/tmp/b.kicad_pcb",
-            }))]
+            chunks = [
+                c
+                async for c in provider.stream(
+                    _msg(
+                        {
+                            "action": "submit_job",
+                            "file_path": "/tmp/b.kicad_pcb",
+                        }
+                    )
+                )
+            ]
         assert len(chunks) == 1
         assert json.loads(chunks[0])["job_id"] == "qj-stream"

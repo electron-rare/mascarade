@@ -73,9 +73,7 @@ def test_fallback_with_multiple_apple_models():
     r.register(MockAppleProvider("apple-1.5b", should_fail=True, quality=2))
     r.register(MockAppleProvider("apple-0.5b", should_fail=False, quality=1))
 
-    resp = asyncio.run(
-        r.send([{"role": "user", "content": "fallback test"}], strategy="best")
-    )
+    resp = asyncio.run(r.send([{"role": "user", "content": "fallback test"}], strategy="best"))
 
     # Should have fallen back all the way to the smallest model
     assert resp.provider == "apple-coreml-apple-0.5b"
@@ -156,9 +154,7 @@ def test_stream_fallback():
 
     async def collect_stream():
         chunks = []
-        async for chunk in r.stream(
-            [{"role": "user", "content": "stream test"}], strategy="best"
-        ):
+        async for chunk in r.stream([{"role": "user", "content": "stream test"}], strategy="best"):
             chunks.append(chunk)
         return "".join(chunks)
 
@@ -197,9 +193,7 @@ def test_e2e_router_fallback_chain_with_logging(caplog):
     # 3. Verify apple-4b was attempted but failed (implicit - fallback stats will show this)
 
     # 4. Verify router fell back to apple-0.5b
-    assert (
-        resp.provider == "apple-coreml-apple-0.5b"
-    ), "Should have fallen back to apple-0.5b"
+    assert resp.provider == "apple-coreml-apple-0.5b", "Should have fallen back to apple-0.5b"
     assert resp.content == "response from apple-0.5b"
     assert resp.model == "apple-0.5b"
     assert resp.usage["input_tokens"] == 10
@@ -207,9 +201,7 @@ def test_e2e_router_fallback_chain_with_logging(caplog):
 
     # 5. Check that fallback stats show model swap event
     fallback_stats = r.fallback.get_failure_stats()
-    assert (
-        fallback_stats["total_failures"] >= 1
-    ), "Should have recorded at least one failure"
+    assert fallback_stats["total_failures"] >= 1, "Should have recorded at least one failure"
     assert (
         "apple-coreml-apple-4b" in fallback_stats["failed_attempts"]
     ), "apple-4b failures should be tracked"
@@ -222,15 +214,9 @@ def test_e2e_router_fallback_chain_with_logging(caplog):
     assert (
         provider_stats["total_requests"] >= 1
     ), "Fallback provider should have handled the request"
-    assert (
-        provider_stats["error_rate"] == 0.0
-    ), "Fallback provider should have no errors"
+    assert provider_stats["error_rate"] == 0.0, "Fallback provider should have no errors"
 
     # Verify primary provider had 100% error rate (all requests failed)
     primary_stats = r.provider_metrics("apple-coreml-apple-4b")
-    assert (
-        primary_stats["total_requests"] >= 1
-    ), "Primary provider should have been attempted"
-    assert (
-        primary_stats["error_rate"] == 100.0
-    ), "Primary provider should have 100% error rate"
+    assert primary_stats["total_requests"] >= 1, "Primary provider should have been attempted"
+    assert primary_stats["error_rate"] == 100.0, "Primary provider should have 100% error rate"

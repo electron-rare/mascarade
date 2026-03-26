@@ -52,9 +52,7 @@ class EmbeddingProvider:
             return []
 
         # Try OpenAI
-        if is_secret_configured(settings.openai_api_key) and model.startswith(
-            "text-embedding"
-        ):
+        if is_secret_configured(settings.openai_api_key) and model.startswith("text-embedding"):
             try:
                 return await self._embed_openai(texts, model)
             except Exception as exc:
@@ -65,25 +63,19 @@ class EmbeddingProvider:
             try:
                 return await self._embed_mistral(texts)
             except Exception as exc:
-                logger.warning(
-                    "Mistral embedding failed, trying next provider: %s", exc
-                )
+                logger.warning("Mistral embedding failed, trying next provider: %s", exc)
 
         # Try HuggingFace
         if is_secret_configured(settings.huggingface_api_key):
             try:
                 return await self._embed_huggingface(texts)
             except Exception as exc:
-                logger.warning(
-                    "HuggingFace embedding failed, trying next provider: %s", exc
-                )
+                logger.warning("HuggingFace embedding failed, trying next provider: %s", exc)
 
         # Fallback: Qdrant fastembed
         return await self._embed_qdrant_fastembed(texts)
 
-    async def embed_query(
-        self, query: str, model: str = "text-embedding-3-small"
-    ) -> list[float]:
+    async def embed_query(self, query: str, model: str = "text-embedding-3-small") -> list[float]:
         """Embed a single query string."""
         results = await self.embed([query], model=model)
         return results[0]

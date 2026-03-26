@@ -122,9 +122,7 @@ class P2PDHT:
         for peer_id, _, _ in self._bootstrap_peers:
             await self.find_node(self._local_peer_id, target_peer=peer_id)
 
-    async def find_node(
-        self, target_id: str, target_peer: str | None = None
-    ) -> list[DHTEntry]:
+    async def find_node(self, target_id: str, target_peer: str | None = None) -> list[DHTEntry]:
         msg = P2PMessage(
             type="dht:find_node",
             sender=self._local_peer_id,
@@ -196,17 +194,12 @@ class P2PDHT:
             sender=self._local_peer_id,
             payload={
                 "target": target,
-                "peers": [
-                    {"peer_id": e.peer_id, "host": e.host, "port": e.port}
-                    for e in closest
-                ],
+                "peers": [{"peer_id": e.peer_id, "host": e.host, "port": e.port} for e in closest],
             },
         )
         await conn.send(reply)
 
-    async def _handle_find_node_reply(
-        self, msg: P2PMessage, conn: PeerConnection
-    ) -> None:
+    async def _handle_find_node_reply(self, msg: P2PMessage, conn: PeerConnection) -> None:
         peers = msg.payload.get("peers", [])
         for peer_data in peers:
             pid = peer_data.get("peer_id", "")
@@ -291,9 +284,7 @@ class P2PDHT:
         self._seen_announces[announce_key] = time.monotonic()
         if len(self._seen_announces) > 500:
             cutoff = time.monotonic() - 120.0
-            self._seen_announces = {
-                k: v for k, v in self._seen_announces.items() if v > cutoff
-            }
+            self._seen_announces = {k: v for k, v in self._seen_announces.items() if v > cutoff}
 
         if self._pubsub is not None:
             await self._pubsub.publish(

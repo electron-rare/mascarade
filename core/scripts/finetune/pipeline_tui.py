@@ -220,14 +220,10 @@ async def phase_teacher(log: PipelineLogger, domain: str) -> str | None:
             f"Create an advanced {domain} problem and its optimal solution.",
         ]
 
-        output_path = Path(
-            f"~/.mascarade/finetune/teacher/{domain}/train.jsonl"
-        ).expanduser()
+        output_path = Path(f"~/.mascarade/finetune/teacher/{domain}/train.jsonl").expanduser()
         output_path.parent.mkdir(parents=True, exist_ok=True)
 
-        log.info(
-            f"Génération de {len(prompts)} samples via {router._providers.keys()}..."
-        )
+        log.info(f"Génération de {len(prompts)} samples via {router._providers.keys()}...")
         result = await teacher.generate_from_prompts(prompts, config, output_path)
         log.ok(f"{result['total']} samples générés → {result['output_path']}")
         log.data("teacher_result", result)
@@ -457,9 +453,7 @@ def show_logs():
     print(f"  {BOLD}Logs ({len(logs)}):{RESET}\n")
     for i, log_path in enumerate(logs[:10], 1):
         size = log_path.stat().st_size
-        mtime = datetime.fromtimestamp(log_path.stat().st_mtime).strftime(
-            "%Y-%m-%d %H:%M"
-        )
+        mtime = datetime.fromtimestamp(log_path.stat().st_mtime).strftime("%Y-%m-%d %H:%M")
         # Read first and last lines for status
         lines = log_path.read_text().strip().split("\n")
         status = "..."
@@ -490,9 +484,7 @@ def show_logs():
         except (ValueError, EOFError):
             pass
     elif choice.upper() == "D":
-        confirm = input(
-            f"  {RED}Supprimer {len(logs)} logs ? (oui/non) > {RESET}"
-        ).strip()
+        confirm = input(f"  {RED}Supprimer {len(logs)} logs ? (oui/non) > {RESET}").strip()
         if confirm == "oui":
             for log_path in logs:
                 log_path.unlink()
@@ -526,9 +518,7 @@ async def run_pipeline():
     log = PipelineLogger(run_id)
 
     log.info(f"Run ID: {run_id}")
-    log.info(
-        f"Config: task={task} domain={domain} max_size={max_size}GB steps={max_steps}"
-    )
+    log.info(f"Config: task={task} domain={domain} max_size={max_size}GB steps={max_steps}")
 
     # Phase 1: Research
     model_report = await phase_research(log, task, max_size, top_k)
@@ -538,9 +528,7 @@ async def run_pipeline():
 
     selected_model = model_report["candidates"][0]["model_id"]
     # Allow override
-    override = input(
-        f"\n  Modèle [{CYAN}{selected_model}{RESET}] (entrée=garder) > "
-    ).strip()
+    override = input(f"\n  Modèle [{CYAN}{selected_model}{RESET}] (entrée=garder) > ").strip()
     if override:
         selected_model = override
     log.ok(f"Modèle: {selected_model}")
@@ -565,9 +553,7 @@ async def run_pipeline():
         return
 
     selected_dataset = ds_report["candidates"][0]["dataset_id"]
-    override = input(
-        f"\n  Dataset [{CYAN}{selected_dataset}{RESET}] (entrée=garder) > "
-    ).strip()
+    override = input(f"\n  Dataset [{CYAN}{selected_dataset}{RESET}] (entrée=garder) > ").strip()
     if override:
         selected_dataset = override
     log.ok(f"Dataset: {selected_dataset}")

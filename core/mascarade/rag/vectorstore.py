@@ -55,9 +55,7 @@ class QdrantVectorStore:
             logger.debug("Collection %s already exists", self.collection)
             return
 
-        logger.info(
-            "Creating Qdrant collection %s (dim=%d)", self.collection, dimension
-        )
+        logger.info("Creating Qdrant collection %s (dim=%d)", self.collection, dimension)
         resp = await client.put(
             f"/collections/{self.collection}",
             json={

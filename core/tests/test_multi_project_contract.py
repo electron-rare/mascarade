@@ -56,8 +56,10 @@ def _clean_api_keys():
 
 @asynccontextmanager
 async def _client(fake_router: _FakeRouter | None = None):
-    with patch("mascarade.auth.is_valid_api_key", return_value=True), \
-         patch("mascarade.auth._resolve_role", return_value="admin"):
+    with (
+        patch("mascarade.auth.is_valid_api_key", return_value=True),
+        patch("mascarade.auth._resolve_role", return_value="admin"),
+    ):
         async with app.router.lifespan_context(app):
             original_router = app.state.router if fake_router else None
             if fake_router:
@@ -127,9 +129,11 @@ async def test_v1_api_memory_add_scopes_user_to_project():
         calls.append(kwargs.get("json_data", kwargs))
         return {"id": "mem-123", "status": "created"}
 
-    with patch("mascarade.routers.memory._mem0_request", side_effect=mock_mem0_request), \
-         patch("mascarade.auth.is_valid_api_key", return_value=True), \
-         patch("mascarade.auth._resolve_role", return_value="admin"):
+    with (
+        patch("mascarade.routers.memory._mem0_request", side_effect=mock_mem0_request),
+        patch("mascarade.auth.is_valid_api_key", return_value=True),
+        patch("mascarade.auth._resolve_role", return_value="admin"),
+    ):
         transport = httpx.ASGITransport(app=test_app)
         async with httpx.AsyncClient(
             transport=transport,
@@ -200,8 +204,10 @@ async def test_v1_api_codestral_fim_uses_router_surface():
     test_app.include_router(providers_router)
     test_app.state.router = fake_router
 
-    with patch("mascarade.auth.is_valid_api_key", return_value=True), \
-         patch("mascarade.auth._resolve_role", return_value="admin"):
+    with (
+        patch("mascarade.auth.is_valid_api_key", return_value=True),
+        patch("mascarade.auth._resolve_role", return_value="admin"),
+    ):
         transport = httpx.ASGITransport(app=test_app)
         async with httpx.AsyncClient(
             transport=transport,
@@ -236,8 +242,10 @@ async def test_v1_api_codestral_fim_requires_prompt():
     test_app.include_router(providers_router)
     test_app.state.router = _FakeRouter()
 
-    with patch("mascarade.auth.is_valid_api_key", return_value=True), \
-         patch("mascarade.auth._resolve_role", return_value="admin"):
+    with (
+        patch("mascarade.auth.is_valid_api_key", return_value=True),
+        patch("mascarade.auth._resolve_role", return_value="admin"),
+    ):
         transport = httpx.ASGITransport(app=test_app)
         async with httpx.AsyncClient(
             transport=transport,

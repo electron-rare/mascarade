@@ -13,10 +13,7 @@ def _moving_average(values: list[float], window: int = 10) -> list[float]:
     """Compute simple moving average over a sliding window."""
     if len(values) < window:
         return values[:]
-    return [
-        statistics.mean(values[i : i + window])
-        for i in range(len(values) - window + 1)
-    ]
+    return [statistics.mean(values[i : i + window]) for i in range(len(values) - window + 1)]
 
 
 def _detect_anomalies(
@@ -194,9 +191,9 @@ class MaintenancePredictorAgent(Agent):
     ) -> str:
         """Prédit les pannes à partir de données multi-capteurs."""
         default_thresholds: dict[str, tuple[float, float]] = {
-            "vibration_mm_s": (4.5, 7.1),       # ISO 10816 class I
+            "vibration_mm_s": (4.5, 7.1),  # ISO 10816 class I
             "temperature_c": (70.0, 90.0),
-            "current_a": (0.0, 0.0),             # needs per-machine config
+            "current_a": (0.0, 0.0),  # needs per-machine config
             "pressure_bar": (0.0, 0.0),
         }
         thresholds = thresholds or {}
@@ -217,8 +214,7 @@ class MaintenancePredictorAgent(Agent):
 
         analysis = (
             f"Machine: {machine_id}\n"
-            f"Sensors analyzed: {len(sensor_data)}\n\n"
-            + "\n".join(results)
+            f"Sensors analyzed: {len(sensor_data)}\n\n" + "\n".join(results)
         )
 
         if router is None:

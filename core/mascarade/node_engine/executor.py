@@ -138,9 +138,7 @@ class GraphExecutor:
                 has_config = port_name in config
 
                 if not has_connection and not has_config:
-                    errors.append(
-                        f"Node '{node_id}': missing required input '{port_name}'"
-                    )
+                    errors.append(f"Node '{node_id}': missing required input '{port_name}'")
 
         # Check for cycles
         try:

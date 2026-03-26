@@ -101,9 +101,7 @@ TOOLS: list[dict[str, Any]] = [
     },
     {
         "name": "list_providers",
-        "description": (
-            "Return the list of registered LLM providers with availability status."
-        ),
+        "description": ("Return the list of registered LLM providers with availability status."),
         "inputSchema": {
             "type": "object",
             "properties": {},
@@ -208,9 +206,7 @@ def _register_initial_agents(
         try:
             from mascarade.agents.skills import register_default_skills
         except ImportError:
-            logger.debug(
-                "No default skills module found — starting with empty registry"
-            )
+            logger.debug("No default skills module found — starting with empty registry")
             return 0
         register_defaults = register_default_skills
 
@@ -312,8 +308,7 @@ class McpServer:
         handler = self._tool_dispatch.get(tool_name)
         if handler is None:
             return _tool_result_text(
-                f"Unknown tool: {tool_name}. "
-                f"Available: {', '.join(sorted(_TOOL_NAMES))}",
+                f"Unknown tool: {tool_name}. " f"Available: {', '.join(sorted(_TOOL_NAMES))}",
                 is_error=True,
             )
 

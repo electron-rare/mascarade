@@ -12,8 +12,7 @@ from mascarade.integrations.knowledge_base import (
     knowledge_base_auth_configured,
     knowledge_base_status_detail,
 )
-from mascarade.mcp import McpCallError, McpRuntimeClient, McpServerUnavailable
-from mascarade.mcp.client import McpError
+from mascarade.mcp import McpCallError, McpError, McpRuntimeClient, McpServerUnavailable
 from mascarade.observability import new_run_id
 from mascarade.server_models import (
     FreeCADCreateDocumentRequest,
@@ -84,9 +83,7 @@ def _industrial_contract_uri(server_key: str) -> str | None:
     return f"{server_key}://contract"
 
 
-async def _industrial_runtime_payload(
-    client: McpRuntimeClient, server_key: str
-) -> dict[str, Any]:
+async def _industrial_runtime_payload(client: McpRuntimeClient, server_key: str) -> dict[str, Any]:
     payload = await client.describe_server(server_key)
     health_uri = _industrial_health_uri(server_key)
     try:
@@ -458,15 +455,10 @@ def register_mcp_routes(protected: APIRouter, app: FastAPI) -> None:
     async def industrial_mcp_platform():
         client = _require_mcp_client(app)
         inventory = [
-            item
-            for item in client.list_servers()
-            if item.get("key") in INDUSTRIAL_MCP_SERVER_KEYS
+            item for item in client.list_servers() if item.get("key") in INDUSTRIAL_MCP_SERVER_KEYS
         ]
         runtime_results = await asyncio.gather(
-            *(
-                _industrial_runtime_payload(client, str(item.get("key", "")))
-                for item in inventory
-            ),
+            *(_industrial_runtime_payload(client, str(item.get("key", ""))) for item in inventory),
             return_exceptions=True,
         )
         servers: list[dict[str, Any]] = []
@@ -509,9 +501,7 @@ def register_mcp_routes(protected: APIRouter, app: FastAPI) -> None:
 
         try:
             topology = await client.read_resource("cockpit-ops", "cockpit://topology")
-            topology_payload = (
-                topology.get("payload", {}) if isinstance(topology, dict) else {}
-            )
+            topology_payload = topology.get("payload", {}) if isinstance(topology, dict) else {}
         except (McpCallError, McpServerUnavailable):
             topology_payload = {}
         try:
@@ -519,9 +509,7 @@ def register_mcp_routes(protected: APIRouter, app: FastAPI) -> None:
                 "cockpit-ops", "cockpit://vendor-contracts"
             )
             vendor_contracts_payload = (
-                vendor_contracts.get("payload", {})
-                if isinstance(vendor_contracts, dict)
-                else {}
+                vendor_contracts.get("payload", {}) if isinstance(vendor_contracts, dict) else {}
             )
         except (McpCallError, McpServerUnavailable):
             vendor_contracts_payload = {}
@@ -531,9 +519,7 @@ def register_mcp_routes(protected: APIRouter, app: FastAPI) -> None:
             "summary": {
                 "server_count": len(servers),
                 "runtime_ok_count": sum(1 for item in servers if item.get("runtime_ok")),
-                "runtime_error_count": sum(
-                    1 for item in servers if not item.get("runtime_ok")
-                ),
+                "runtime_error_count": sum(1 for item in servers if not item.get("runtime_ok")),
                 "topology_valid": bool(topology_payload.get("valid", False)),
                 "vendor_contract_ready_count": int(
                     vendor_contracts_payload.get("summary", {}).get("ready_count", 0) or 0
@@ -547,9 +533,7 @@ def register_mcp_routes(protected: APIRouter, app: FastAPI) -> None:
         }
 
     @protected.post("/mcp/industrial/{server_key}/tools/{tool_name}")
-    async def industrial_mcp_tool(
-        server_key: str, tool_name: str, req: IndustrialMcpToolRequest
-    ):
+    async def industrial_mcp_tool(server_key: str, tool_name: str, req: IndustrialMcpToolRequest):
         if server_key not in INDUSTRIAL_MCP_SERVER_KEYS:
             raise HTTPException(
                 status_code=404, detail=f"Unknown industrial MCP server '{server_key}'"

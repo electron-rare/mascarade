@@ -161,9 +161,7 @@ class PromptHistory:
         versions_data = [asdict(v) for v in self._versions]
 
         # Atomic write: write to temp file, then rename
-        fd, tmp_path = tempfile.mkstemp(
-            dir=str(self._storage_path.parent), suffix=".tmp"
-        )
+        fd, tmp_path = tempfile.mkstemp(dir=str(self._storage_path.parent), suffix=".tmp")
         try:
             with os.fdopen(fd, "w", encoding="utf-8") as f:
                 json.dump(versions_data, f, indent=2, ensure_ascii=False)
@@ -179,9 +177,7 @@ class PromptHistory:
         try:
             raw = json.loads(self._storage_path.read_text(encoding="utf-8"))
         except (json.JSONDecodeError, OSError) as exc:
-            logger.error(
-                "Failed to load prompt history from %s: %s", self._storage_path, exc
-            )
+            logger.error("Failed to load prompt history from %s: %s", self._storage_path, exc)
             return
 
         self._versions = []

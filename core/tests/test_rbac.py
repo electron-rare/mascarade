@@ -71,9 +71,7 @@ class TestCheckPermission:
     def test_all_valid_resources_and_actions(self):
         """Vérifie toutes les combinaisons valides de ressources et actions."""
         # Create full admin permissions
-        permissions = {
-            resource: actions.copy() for resource, actions in VALID_PERMISSIONS.items()
-        }
+        permissions = {resource: actions.copy() for resource, actions in VALID_PERMISSIONS.items()}
 
         for resource, actions in VALID_PERMISSIONS.items():
             for action in actions:
@@ -244,9 +242,7 @@ class TestValidatePermissions:
     def test_all_valid_permissions(self):
         """Vérifie que toutes les permissions valides sont acceptées."""
         # Build a permissions dict with all valid combinations
-        all_perms = {
-            resource: actions.copy() for resource, actions in VALID_PERMISSIONS.items()
-        }
+        all_perms = {resource: actions.copy() for resource, actions in VALID_PERMISSIONS.items()}
         is_valid, error = validate_permissions(all_perms)
         assert is_valid is True
         assert error is None
@@ -325,9 +321,7 @@ class TestGetDefaultPermissions:
         for role in RoleName:
             perms = get_default_permissions(role)
             is_valid, error = validate_permissions(perms)
-            assert (
-                is_valid is True
-            ), f"Default permissions for {role.value} are invalid: {error}"
+            assert is_valid is True, f"Default permissions for {role.value} are invalid: {error}"
 
 
 class TestValidPermissionsConstant:

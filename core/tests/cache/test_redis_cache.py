@@ -50,9 +50,7 @@ def test_redis_cache_initialization():
 
 def test_redis_cache_custom_config():
     """RedisCache accepts custom configuration."""
-    cache = RedisCache(
-        host="custom", port=6379, db=1, default_ttl=7200, key_prefix="test:cache:"
-    )
+    cache = RedisCache(host="custom", port=6379, db=1, default_ttl=7200, key_prefix="test:cache:")
     assert cache.default_ttl == 7200
     assert cache.key_prefix == "test:cache:"
 
@@ -74,9 +72,7 @@ def test_generate_key_excludes_provider_strategy():
     cache = RedisCache()
     messages = [{"role": "user", "content": "hello"}]
 
-    key1 = cache._generate_key(
-        messages, provider="openai", strategy="best", model="gpt-4"
-    )
+    key1 = cache._generate_key(messages, provider="openai", strategy="best", model="gpt-4")
     key2 = cache._generate_key(
         messages, provider="anthropic", strategy="cheapest", model="claude-3"
     )
@@ -132,9 +128,7 @@ async def test_store_failure_handled_gracefully(redis_cache, mock_redis):
     messages = [{"role": "user", "content": "test"}]
 
     # Should not raise, just log warning
-    key = await redis_cache.store(
-        messages=messages, response="test", tokens=10, cost=0.001
-    )
+    key = await redis_cache.store(messages=messages, response="test", tokens=10, cost=0.001)
 
     assert key.startswith("mascarade:cache:")
 

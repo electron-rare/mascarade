@@ -293,10 +293,7 @@ class KiCadRouterProvider(LLMProvider):
 
             # Suggest impedance tags for high-speed nets
             for net in nets:
-                if any(
-                    kw in net.lower()
-                    for kw in ["clk", "clock", "usb", "eth", "spi", "i2c"]
-                ):
+                if any(kw in net.lower() for kw in ["clk", "clock", "usb", "eth", "spi", "i2c"]):
                     suggestions.append(
                         {
                             "tag_type": "IMPEDANCE_SINGLE",
@@ -362,9 +359,7 @@ class KiCadRouterProvider(LLMProvider):
         project_models = Path(__file__).resolve().parents[4] / "fine_tuned_models"
         if project_models.exists():
             for kicad_dir in project_models.glob("kicad_*"):
-                if (kicad_dir / "final").exists() or (
-                    kicad_dir / "final_model.pt"
-                ).exists():
+                if (kicad_dir / "final").exists() or (kicad_dir / "final_model.pt").exists():
                     models.append(f"finetuned:{kicad_dir.name}")
 
         return models

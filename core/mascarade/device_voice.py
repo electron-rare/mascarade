@@ -132,11 +132,7 @@ class ReplyAudioStore:
 
     def _gc(self, now: float | None = None) -> None:
         now = now or time.time()
-        expired = [
-            reply_id
-            for reply_id, item in self._entries.items()
-            if item.expires_at <= now
-        ]
+        expired = [reply_id for reply_id, item in self._entries.items() if item.expires_at <= now]
         for reply_id in expired:
             self._entries.pop(reply_id, None)
 
@@ -167,17 +163,14 @@ class DeviceStateStore:
             existing = self._states.get(device_id, DeviceCurrentMedia())
             return existing.model_copy(deep=True)
 
-    def merge_current_media(
-        self, device_id: str, payload: dict[str, Any]
-    ) -> DeviceCurrentMedia:
+    def merge_current_media(self, device_id: str, payload: dict[str, Any]) -> DeviceCurrentMedia:
         with self._lock:
             existing = self._states.get(device_id, DeviceCurrentMedia())
             merged = existing.model_dump()
             updates = {
                 key: value
                 for key, value in payload.items()
-                if value is not None
-                and not (key == "available_stations" and value == [])
+                if value is not None and not (key == "available_stations" and value == [])
             }
             merged.update(updates)
             current = DeviceCurrentMedia.model_validate(merged)
@@ -243,9 +236,7 @@ class OpenAIAudioBridge:
 
 
 class IntentRouter:
-    _volume_pattern = re.compile(
-        r"\b(?:volume|son)\s*(?:a|à|to)?\s*(\d{1,3})\b", re.IGNORECASE
-    )
+    _volume_pattern = re.compile(r"\b(?:volume|son)\s*(?:a|à|to)?\s*(\d{1,3})\b", re.IGNORECASE)
 
     def resolve(self, transcript: str, media: DeviceCurrentMedia) -> DeviceIntent:
         normalized = _normalize(transcript)
@@ -346,9 +337,7 @@ class IntentRouter:
                 resume_media_after_tts=False,
             )
 
-        if any(
-            token in normalized for token in ("mode radio", "passe en radio", "radio")
-        ):
+        if any(token in normalized for token in ("mode radio", "passe en radio", "radio")):
             return DeviceIntent(
                 type="switch_mode",
                 target="mode",
@@ -493,10 +482,10 @@ class DeviceVoiceService:
             try:
                 audio_payload = await self._audio_bridge.synthesize(text=reply_text)
                 timings_ms["tts"] = _elapsed_ms(tts_started)
-                reply_id = self._reply_store.put(
-                    audio_payload, content_type="audio/wav"
+                reply_id = self._reply_store.put(audio_payload, content_type="audio/wav")
+                reply_audio_url = (
+                    f"{request_base_url.rstrip('/')}/device/v1/voice/replies/{reply_id}.wav"
                 )
-                reply_audio_url = f"{request_base_url.rstrip('/')}/device/v1/voice/replies/{reply_id}.wav"
             except Exception as exc:
                 tts_error = "tts_unavailable"
                 logger.warning("TTS failed for %s: %s", device_id, exc)

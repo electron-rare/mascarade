@@ -72,9 +72,7 @@ class SkillExecutionRecord(BaseModel):
 class SkillsPersistenceManager:
     """Persistent skills management with Redis backend."""
 
-    def __init__(
-        self, redis_url: str = "redis://localhost:6379", default_ttl: int = 86400
-    ) -> None:
+    def __init__(self, redis_url: str = "redis://localhost:6379", default_ttl: int = 86400) -> None:
         """Initialize skills persistence manager.
 
         Args:
@@ -128,9 +126,7 @@ class SkillsPersistenceManager:
         ttl_seconds = ttl or self.default_ttl
 
         await self._redis.set(key, value, ex=ttl_seconds)
-        logger.info(
-            f"Registered skill {skill_definition.skill_id} (v{skill_definition.version})"
-        )
+        logger.info(f"Registered skill {skill_definition.skill_id} (v{skill_definition.version})")
 
         return skill_definition.skill_id
 
@@ -411,9 +407,7 @@ class SkillsPersistenceManager:
 
         return sorted(skill_ids)
 
-    async def search_skills(
-        self, query: str, category: str | None = None
-    ) -> list[SkillDefinition]:
+    async def search_skills(self, query: str, category: str | None = None) -> list[SkillDefinition]:
         """Search skills by name, description, or category.
 
         Args:
@@ -441,10 +435,7 @@ class SkillsPersistenceManager:
                 continue
 
             # Search in name and description
-            if (
-                query.lower() in skill.name.lower()
-                or query.lower() in skill.description.lower()
-            ):
+            if query.lower() in skill.name.lower() or query.lower() in skill.description.lower():
                 results.append(skill)
 
         return results

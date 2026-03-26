@@ -46,8 +46,7 @@ def knowledge_base_auth_configured(provider: str | None = None) -> bool:
     selected = provider or normalized_knowledge_base_provider()
     if selected == "memos":
         return bool(
-            settings.memos_base_url.strip()
-            and is_secret_configured(settings.memos_access_token)
+            settings.memos_base_url.strip() and is_secret_configured(settings.memos_access_token)
         )
     if selected == "docmost":
         return bool(
@@ -216,9 +215,7 @@ class MemosClient(KnowledgeBaseAdapter):
             results.append(
                 {
                     "id": memo_id,
-                    "title": _extract_first_line_title(
-                        content, memo_id or "Untitled memo"
-                    ),
+                    "title": _extract_first_line_title(content, memo_id or "Untitled memo"),
                     "url": f"{_memos_public_url()}/memos/{memo_id}" if memo_id else "",
                     "provider": self.provider,
                 }
@@ -321,9 +318,7 @@ class DocmostClient(KnowledgeBaseAdapter):
         response.raise_for_status()
         self._session_started_at = datetime.now(tz=UTC)
 
-    async def _page_info(
-        self, page_id: str, *, format: str = "markdown"
-    ) -> dict[str, Any]:
+    async def _page_info(self, page_id: str, *, format: str = "markdown") -> dict[str, Any]:
         await self._ensure_session()
         response = await self._client.post(
             "/api/pages/info",
@@ -394,9 +389,7 @@ class DocmostClient(KnowledgeBaseAdapter):
         parent_page = await self._page_info(parent_id, format="json")
         space_id = str(parent_page.get("spaceId") or settings.docmost_space_id).strip()
         if not space_id:
-            raise RuntimeError(
-                "Docmost space ID is missing and could not be inferred from parent"
-            )
+            raise RuntimeError("Docmost space ID is missing and could not be inferred from parent")
         await self._ensure_session()
         response = await self._client.post(
             "/api/pages/create",
@@ -419,22 +412,16 @@ def _normalize_scope(
     federation_scope: list[str] | tuple[str, ...] | None = None,
     knowledge_scope: str = "project",
 ) -> tuple[str, list[str], str]:
-    normalized_project = (
-        project_id or settings.mascarade_project_id
-    ).strip() or "default"
+    normalized_project = (project_id or settings.mascarade_project_id).strip() or "default"
     normalized_scope = (knowledge_scope or "project").strip().lower() or "project"
     if normalized_scope not in {"project", "federated"}:
         raise RuntimeError(f"Unsupported knowledge scope: {knowledge_scope}")
 
-    cleaned_federation = [
-        item.strip() for item in (federation_scope or []) if str(item).strip()
-    ]
+    cleaned_federation = [item.strip() for item in (federation_scope or []) if str(item).strip()]
     if normalized_scope == "project":
         cleaned_federation = [normalized_project]
     elif not cleaned_federation:
-        raise RuntimeError(
-            "federation_scope is required when knowledge_scope is federated"
-        )
+        raise RuntimeError("federation_scope is required when knowledge_scope is federated")
     elif normalized_project not in cleaned_federation:
         cleaned_federation = [normalized_project, *cleaned_federation]
 
@@ -499,15 +486,11 @@ class KxkmClient(KnowledgeBaseAdapter):
         for index, item in enumerate(items[:limit]):
             if not isinstance(item, dict):
                 item = {"text": str(item)}
-            text = str(
-                item.get("text") or item.get("content") or item.get("chunk") or ""
-            ).strip()
+            text = str(item.get("text") or item.get("content") or item.get("chunk") or "").strip()
             title = _extract_first_line_title(text, f"kxkm-{index + 1}")
             results.append(
                 {
-                    "id": str(
-                        item.get("id") or item.get("chunk_id") or f"kxkm-{index + 1}"
-                    ),
+                    "id": str(item.get("id") or item.get("chunk_id") or f"kxkm-{index + 1}"),
                     "title": title,
                     "url": str(item.get("url") or item.get("source_url") or ""),
                     "provider": self.provider,

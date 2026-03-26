@@ -178,9 +178,7 @@ class GraphRuntime:
                 for error in validation_errors:
                     errors.append(f"Node '{node.id}': {error}")
             except Exception as exc:
-                errors.append(
-                    f"Node '{node.id}': validation failed with exception: {exc}"
-                )
+                errors.append(f"Node '{node.id}': validation failed with exception: {exc}")
 
         return errors
 
@@ -379,8 +377,7 @@ class GraphRuntime:
         )
         if validation_errors:
             raise ValueError(
-                "Node validation failed:\n"
-                + "\n".join(f"  - {e}" for e in validation_errors)
+                "Node validation failed:\n" + "\n".join(f"  - {e}" for e in validation_errors)
             )
 
         # Execute

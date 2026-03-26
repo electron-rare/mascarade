@@ -29,8 +29,10 @@ def _make_app():
 
 @asynccontextmanager
 async def _client():
-    with patch("mascarade.auth.is_valid_api_key", return_value=True), \
-         patch("mascarade.auth._resolve_role", return_value="admin"):
+    with (
+        patch("mascarade.auth.is_valid_api_key", return_value=True),
+        patch("mascarade.auth._resolve_role", return_value="admin"),
+    ):
         test_app = _make_app()
         transport = httpx.ASGITransport(app=test_app)
         async with httpx.AsyncClient(

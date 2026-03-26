@@ -85,9 +85,7 @@ class PersistentOrchestrationContext(BaseContext):
 class ContextPersistenceManager:
     """Multi-backend context persistence manager."""
 
-    def __init__(
-        self, redis_url: str = "redis://localhost:6379", default_ttl: int = 86400
-    ) -> None:
+    def __init__(self, redis_url: str = "redis://localhost:6379", default_ttl: int = 86400) -> None:
         """Initialize context persistence manager.
 
         Args:
@@ -169,9 +167,7 @@ class ContextPersistenceManager:
             logger.error(f"Failed to deserialize context {context_id}: {e}")
             return None
 
-    async def update_context(
-        self, context: BaseContext, update_data: dict[str, Any]
-    ) -> bool:
+    async def update_context(self, context: BaseContext, update_data: dict[str, Any]) -> bool:
         """Update existing context.
 
         Args:

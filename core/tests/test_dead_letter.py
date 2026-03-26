@@ -106,15 +106,9 @@ def test_recent_filters_by_run_id():
 
 def test_recent_filters_by_agent_name():
     store = DeadLetterStore()
-    store.record_failure(
-        run_id="run-1", error="error 1", context={}, agent_name="analyst"
-    )
-    store.record_failure(
-        run_id="run-2", error="error 2", context={}, agent_name="writer"
-    )
-    store.record_failure(
-        run_id="run-3", error="error 3", context={}, agent_name="analyst"
-    )
+    store.record_failure(run_id="run-1", error="error 1", context={}, agent_name="analyst")
+    store.record_failure(run_id="run-2", error="error 2", context={}, agent_name="writer")
+    store.record_failure(run_id="run-3", error="error 3", context={}, agent_name="analyst")
 
     filtered = store.recent(agent_name="analyst")
     assert len(filtered) == 2
@@ -123,15 +117,9 @@ def test_recent_filters_by_agent_name():
 
 def test_recent_filters_by_both_run_id_and_agent_name():
     store = DeadLetterStore()
-    store.record_failure(
-        run_id="run-a", error="error 1", context={}, agent_name="analyst"
-    )
-    store.record_failure(
-        run_id="run-a", error="error 2", context={}, agent_name="writer"
-    )
-    store.record_failure(
-        run_id="run-b", error="error 3", context={}, agent_name="analyst"
-    )
+    store.record_failure(run_id="run-a", error="error 1", context={}, agent_name="analyst")
+    store.record_failure(run_id="run-a", error="error 2", context={}, agent_name="writer")
+    store.record_failure(run_id="run-b", error="error 3", context={}, agent_name="analyst")
 
     filtered = store.recent(run_id="run-a", agent_name="analyst")
     assert len(filtered) == 1

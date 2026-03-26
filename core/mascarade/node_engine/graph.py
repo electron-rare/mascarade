@@ -245,9 +245,7 @@ class Graph:
         result = []
         for edge in self.edges:
             # Handle both Edge (Pydantic: to_node) and GraphEdge (dataclass: target_node)
-            target = getattr(edge, "to_node", None) or getattr(
-                edge, "target_node", None
-            )
+            target = getattr(edge, "to_node", None) or getattr(edge, "target_node", None)
             if target == node_id:
                 result.append(edge)
         for conn in self.connections:
@@ -260,9 +258,7 @@ class Graph:
         result = []
         for edge in self.edges:
             # Handle both Edge (Pydantic: from_node) and GraphEdge (dataclass: source_node)
-            source = getattr(edge, "from_node", None) or getattr(
-                edge, "source_node", None
-            )
+            source = getattr(edge, "from_node", None) or getattr(edge, "source_node", None)
             if source == node_id:
                 result.append(edge)
         for conn in self.connections:

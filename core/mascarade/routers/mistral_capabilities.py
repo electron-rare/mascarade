@@ -119,9 +119,7 @@ async def ocr_image(
 
 @router.post("/transcribe")
 async def transcribe_audio(
-    file: UploadFile = File(
-        ..., description="Audio file (mp3, wav, m4a, flac, ogg, webm)"
-    ),
+    file: UploadFile = File(..., description="Audio file (mp3, wav, m4a, flac, ogg, webm)"),
     language: Annotated[str, Form()] = "fr",
     diarize: Annotated[bool, Form()] = False,
 ):

@@ -111,9 +111,7 @@ async def _client(fake_router: FakeRouter):
 
     # Ensure the ollama router is included
     _already_included = any(
-        getattr(r, "path", None) == "/ollama"
-        for r in app.routes
-        if hasattr(r, "path")
+        getattr(r, "path", None) == "/ollama" for r in app.routes if hasattr(r, "path")
     )
     if not _already_included:
         app.include_router(ollama_router)

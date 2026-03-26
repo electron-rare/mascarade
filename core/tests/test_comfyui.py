@@ -47,9 +47,7 @@ def test_txt2img_random_seed():
     w1 = ComfyUIClient.txt2img_workflow("test")
     w2 = ComfyUIClient.txt2img_workflow("test")
     # seeds should be different (random)
-    assert (
-        w1["3"]["inputs"]["seed"] != w2["3"]["inputs"]["seed"] or True
-    )  # non-deterministic
+    assert w1["3"]["inputs"]["seed"] != w2["3"]["inputs"]["seed"] or True  # non-deterministic
 
 
 def test_img2img_workflow():
@@ -69,9 +67,7 @@ def test_img2img_custom_denoise():
 
 @pytest.mark.asyncio
 async def test_queue_prompt(comfyui_client):
-    comfyui_client._client.post = AsyncMock(
-        return_value=_mock_response({"prompt_id": "abc-123"})
-    )
+    comfyui_client._client.post = AsyncMock(return_value=_mock_response({"prompt_id": "abc-123"}))
     prompt_id = await comfyui_client.queue_prompt({"test": "workflow"})
     assert prompt_id == "abc-123"
 
@@ -132,8 +128,6 @@ async def test_interrupt(comfyui_client):
 
 @pytest.mark.asyncio
 async def test_upload_image(comfyui_client):
-    comfyui_client._client.post = AsyncMock(
-        return_value=_mock_response({"name": "uploaded.png"})
-    )
+    comfyui_client._client.post = AsyncMock(return_value=_mock_response({"name": "uploaded.png"}))
     result = await comfyui_client.upload_image(b"fake", "test.png")
     assert result["name"] == "uploaded.png"

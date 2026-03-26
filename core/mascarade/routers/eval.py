@@ -98,9 +98,7 @@ async def _run_eval_background(
 ) -> None:
     """Execute an eval run as a background task."""
     runner = _get_runner()
-    result = await runner.run_eval(
-        task, provider=provider, model=model, num_samples=num_samples
-    )
+    result = await runner.run_eval(task, provider=provider, model=model, num_samples=num_samples)
     # The runner already stores the result internally; just log completion.
     logger.info(
         "Eval run %s completed: status=%s scores=%s",

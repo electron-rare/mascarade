@@ -71,10 +71,7 @@ def menu_choice(options: list[str], prompt: str = "Choix") -> int:
 async def do_research():
     header("RECHERCHE — Modèles & Datasets")
     task = (
-        input(
-            f"  Task (text-generation/code/embeddings) [{CYAN}code{RESET}] > "
-        ).strip()
-        or "code"
+        input(f"  Task (text-generation/code/embeddings) [{CYAN}code{RESET}] > ").strip() or "code"
     )
     domain = (
         input(
@@ -128,9 +125,7 @@ async def do_research():
     print(f"\n  {BOLD}Datasets trouvés:{RESET}")
     for i, d in enumerate(ds_report["candidates"], 1):
         dl = f"{d['downloads']:,}"
-        print(
-            f"    {BOLD}{i}{RESET}. {CYAN}{d['dataset_id']}{RESET}  ↓{dl}  ♥{d['likes']:,}"
-        )
+        print(f"    {BOLD}{i}{RESET}. {CYAN}{d['dataset_id']}{RESET}  ↓{dl}  ♥{d['likes']:,}")
         registry.add_dataset(
             DatasetEntry(
                 dataset_id=d["dataset_id"],
@@ -150,9 +145,7 @@ async def do_registry():
     if registry.models:
         print(f"  {BOLD}Modèles ({len(registry.models)}):{RESET}")
         for mid, m in registry.models.items():
-            print(
-                f"    {CYAN}{mid}{RESET}  task={m.task}  size={m.size_gb}GB  dl={m.downloads:,}"
-            )
+            print(f"    {CYAN}{mid}{RESET}  task={m.task}  size={m.size_gb}GB  dl={m.downloads:,}")
     else:
         warn("Aucun modèle enregistré")
 
@@ -167,9 +160,7 @@ async def do_registry():
         print(f"\n  {BOLD}Runs ({len(registry.runs)}):{RESET}")
         for rid, r in registry.runs.items():
             status_color = (
-                GREEN
-                if r.status == "completed"
-                else (RED if r.status == "failed" else YELLOW)
+                GREEN if r.status == "completed" else (RED if r.status == "failed" else YELLOW)
             )
             print(
                 f"    {status_color}{r.status}{RESET}  {rid}  {r.base_model} + {r.dataset}  method={r.method}"

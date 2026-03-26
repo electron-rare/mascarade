@@ -30,14 +30,8 @@ async def test_memory_manager_initialization():
 @pytest.mark.asyncio
 async def test_memory_keys_are_scoped_by_project():
     manager = MultiBackendMemoryManager(redis_url="redis://test:6379")
-    assert (
-        manager._get_memory_key("mem-1", project_id="project-a")
-        == "memory:project-a:mem-1"
-    )
-    assert (
-        manager._get_memory_key("mem-1", project_id="project-b")
-        == "memory:project-b:mem-1"
-    )
+    assert manager._get_memory_key("mem-1", project_id="project-a") == "memory:project-a:mem-1"
+    assert manager._get_memory_key("mem-1", project_id="project-b") == "memory:project-b:mem-1"
 
 
 @pytest.mark.asyncio
@@ -275,9 +269,7 @@ async def test_utility_functions():
             mock_message_instance = MagicMock()
             mock_message.return_value = mock_message_instance
 
-            with patch(
-                "mascarade.persistence.memory_manager.create_memory_entry"
-            ) as mock_create:
+            with patch("mascarade.persistence.memory_manager.create_memory_entry") as mock_create:
                 mock_create.return_value = memory
 
                 result = await create_conversation_memory(

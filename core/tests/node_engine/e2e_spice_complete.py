@@ -105,9 +105,7 @@ C1 out 0 1u
 
             if "convergence_info" in results:
                 conv = results["convergence_info"]
-                logger.info(
-                    f"  Convergence iterations: {conv.get('iterations', 'N/A')}"
-                )
+                logger.info(f"  Convergence iterations: {conv.get('iterations', 'N/A')}")
                 if conv.get("warnings"):
                     logger.info(f"  Convergence warnings: {len(conv['warnings'])}")
 
@@ -117,11 +115,7 @@ C1 out 0 1u
             lines = stdout.split("\n")
             # Find interesting lines (frequency, voltage data)
             for line in lines[:50]:
-                if (
-                    "frequency" in line.lower()
-                    or "vdb" in line.lower()
-                    or "Index" in line
-                ):
+                if "frequency" in line.lower() or "vdb" in line.lower() or "Index" in line:
                     logger.info(f"    {line}")
 
     except Exception as e:

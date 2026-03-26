@@ -32,11 +32,7 @@ class GenerateResponse(BaseModel):
 @app.get("/api/models")
 def list_models():
     # Fake: retourne un modèle "mascarade"
-    return {
-        "models": [
-            ModelInfo(name="mascarade", description="Mascarade LLM proxy").dict()
-        ]
-    }
+    return {"models": [ModelInfo(name="mascarade", description="Mascarade LLM proxy").dict()]}
 
 
 @app.post("/api/generate")

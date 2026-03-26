@@ -1,4 +1,5 @@
 """Tests for ERPNext MCP client."""
+
 from __future__ import annotations
 
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -31,7 +32,9 @@ def _mock_httpx_response(data):
 
 def _patch_httpx(method="get", response_data=None):
     mock_instance = AsyncMock()
-    setattr(mock_instance, method, AsyncMock(return_value=_mock_httpx_response(response_data or [])))
+    setattr(
+        mock_instance, method, AsyncMock(return_value=_mock_httpx_response(response_data or []))
+    )
     mock_instance.__aenter__ = AsyncMock(return_value=mock_instance)
     mock_instance.__aexit__ = AsyncMock(return_value=None)
     return patch("mascarade.mcp.erpnext.httpx.AsyncClient", return_value=mock_instance)

@@ -145,7 +145,9 @@ class PCBDesignerProvider(LLMProvider):
             request = json.loads(last_msg)
         except (json.JSONDecodeError, TypeError):
             return LLMResponse(
-                content=json.dumps({"error": "Expected JSON with 'action' field", "supported_actions": ACTIONS}),
+                content=json.dumps(
+                    {"error": "Expected JSON with 'action' field", "supported_actions": ACTIONS}
+                ),
                 model=self.default_model,
                 provider=self.name,
             )
@@ -244,7 +246,9 @@ class PCBDesignerProvider(LLMProvider):
         temperature: float = 0.7,
         max_tokens: int = 4096,
     ) -> AsyncIterator[str]:
-        response = await self.send(messages, model=model, system=system, temperature=temperature, max_tokens=max_tokens)
+        response = await self.send(
+            messages, model=model, system=system, temperature=temperature, max_tokens=max_tokens
+        )
         yield response.content
 
     def available_models(self) -> list[str]:

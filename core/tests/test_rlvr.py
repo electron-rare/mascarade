@@ -209,9 +209,7 @@ class TestCompositeReward:
 
 class TestRLVRConfig:
     def test_defaults(self):
-        cfg = RLVRConfig(
-            base_model="meta-llama/Llama-3-8B", reward_functions=["code_compilation"]
-        )
+        cfg = RLVRConfig(base_model="meta-llama/Llama-3-8B", reward_functions=["code_compilation"])
         assert cfg.num_generations == 16
         assert cfg.loss_type == "dapo"
         assert cfg.max_completion_length == 2048

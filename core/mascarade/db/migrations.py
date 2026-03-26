@@ -38,9 +38,7 @@ async def _get_applied_migrations(conn: asyncpg.Connection) -> list[str]:
     Returns:
         List of migration names that have been applied
     """
-    rows = await conn.fetch(
-        "SELECT migration_name FROM schema_migrations ORDER BY migration_name"
-    )
+    rows = await conn.fetch("SELECT migration_name FROM schema_migrations ORDER BY migration_name")
     return [row["migration_name"] for row in rows]
 
 

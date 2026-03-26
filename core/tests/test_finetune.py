@@ -197,9 +197,7 @@ class TestAgentLogic:
         assert len(RED_TEAM_PROMPTS) >= 5
 
     def test_reinforcer_repetition_check(self):
-        assert ReinforcerAgent._is_repetitive(
-            "the the the the the the the the the the the the"
-        )
+        assert ReinforcerAgent._is_repetitive("the the the the the the the the the the the the")
         assert not ReinforcerAgent._is_repetitive(
             "This is a normal sentence with varied words and good content."
         )
@@ -352,9 +350,7 @@ class TestRegistryAtomicSave:
         reg.add_model(ModelEntry(model_id="m1", source="hf", task="code", size_gb=1.0))
         reg.add_dataset(DatasetEntry(dataset_id="d1", source="hf", domain="code"))
         reg.add_run(
-            RunEntry(
-                run_id="r1", base_model="m1", dataset="d1", method="lora", node="test"
-            )
+            RunEntry(run_id="r1", base_model="m1", dataset="d1", method="lora", node="test")
         )
 
         reg2 = FinetuneRegistry(path)
@@ -407,9 +403,7 @@ class TestReinforcerSimPO:
     def test_reinforcement_result_method_field(self):
         from mascarade.finetune.agents.reinforcer import ReinforcementResult
 
-        r = ReinforcementResult(
-            dataset_path="/tmp/test.jsonl", total_pairs=10, method="simpo"
-        )
+        r = ReinforcementResult(dataset_path="/tmp/test.jsonl", total_pairs=10, method="simpo")
         assert r.method == "simpo"
         assert r.ready_for_training
 
@@ -464,9 +458,7 @@ class TestReinforcerKxkm:
         settings.kxkm_rag_url = "http://localhost:3333"
         settings.kxkm_dpo_persona = "pharmacius"
 
-        with patch(
-            "mascarade.finetune.agents.reinforcer.httpx.AsyncClient"
-        ) as async_client_cls:
+        with patch("mascarade.finetune.agents.reinforcer.httpx.AsyncClient") as async_client_cls:
             ctx = AsyncMock()
             ctx.get = AsyncMock(
                 return_value=_FakeResponse(
@@ -509,9 +501,7 @@ class TestReinforcerKxkm:
         assert kwargs["headers"]["x-mascarade-federation-scope"] == "project-alpha"
 
     @pytest.mark.asyncio
-    async def test_generate_dpo_pairs_dedupes_kxkm_feedback(
-        self, tmp_path, monkeypatch
-    ):
+    async def test_generate_dpo_pairs_dedupes_kxkm_feedback(self, tmp_path, monkeypatch):
         settings.mascarade_project_id = "project-alpha"
         agent = ReinforcerAgent(output_dir=tmp_path)
         duplicate = DPOPair(

@@ -99,8 +99,10 @@ def _clean_api_keys():
 
 @asynccontextmanager
 async def _client(device_voice: DeviceVoiceService):
-    with patch("mascarade.auth.is_valid_api_key", return_value=True), \
-         patch("mascarade.auth._resolve_role", return_value="admin"):
+    with (
+        patch("mascarade.auth.is_valid_api_key", return_value=True),
+        patch("mascarade.auth._resolve_role", return_value="admin"),
+    ):
         async with app.router.lifespan_context(app):
             original_device_voice = app.state.device_voice
             app.state.device_voice = device_voice

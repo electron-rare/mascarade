@@ -134,9 +134,7 @@ class MistralDocumentAI:
             return ocr_result
 
         # Document Q&A: send OCR markdown as context to chat
-        pages_md = "\n\n---\n\n".join(
-            p.get("markdown", "") for p in ocr_result.get("pages", [])
-        )
+        pages_md = "\n\n---\n\n".join(p.get("markdown", "") for p in ocr_result.get("pages", []))
         answer = await self._chat_qa(api_key, pages_md, prompt)
         ocr_result["answer"] = answer
         return ocr_result
@@ -167,9 +165,7 @@ class MistralDocumentAI:
             },
             {
                 "role": "user",
-                "content": (
-                    f"Document text:\n\n{document_text}\n\n---\n\nQuestion: {question}"
-                ),
+                "content": (f"Document text:\n\n{document_text}\n\n---\n\nQuestion: {question}"),
             },
         ]
         async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
@@ -351,9 +347,7 @@ class MistralEmbeddings:
             result = resp.json()
 
         n_embeddings = len(result.get("data", []))
-        logger.info(
-            "Embeddings generated — %d vector(s), model=%s", n_embeddings, model
-        )
+        logger.info("Embeddings generated — %d vector(s), model=%s", n_embeddings, model)
         return result
 
 

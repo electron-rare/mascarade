@@ -100,10 +100,7 @@ class WorkerState:
 
     def has_capacity(self) -> bool:
         """Check if this worker can accept more requests."""
-        return (
-            self.current_load < self.max_concurrent
-            and self.status != WorkerStatus.DRAINING
-        )
+        return self.current_load < self.max_concurrent and self.status != WorkerStatus.DRAINING
 
     def request_started(self) -> None:
         self.current_load += 1
@@ -129,9 +126,7 @@ class WorkerState:
         self.max_concurrent = data.get("max_concurrent", self.max_concurrent)
         self.supports_batching = data.get("supports_batching", self.supports_batching)
         self.max_batch_size = data.get("max_batch_size", self.max_batch_size)
-        self.max_context_length = data.get(
-            "max_context_length", self.max_context_length
-        )
+        self.max_context_length = data.get("max_context_length", self.max_context_length)
 
         runtime = data.get("runtime", "")
         if runtime:

@@ -45,9 +45,7 @@ class MemoryEntry(BaseModel):
 class MultiBackendMemoryManager:
     """Multi-backend memory manager supporting Redis and other backends."""
 
-    def __init__(
-        self, redis_url: str = "redis://localhost:6379", default_ttl: int = 86400
-    ) -> None:
+    def __init__(self, redis_url: str = "redis://localhost:6379", default_ttl: int = 86400) -> None:
         """Initialize multi-backend memory manager.
 
         Args:
@@ -116,16 +114,12 @@ class MultiBackendMemoryManager:
             project_id=project_id or str(memory_entry.metadata.get("project_id") or ""),
         )
         memory_entry.metadata["project_id"] = normalized_project
-        key = self._get_memory_key(
-            memory_entry.memory_id, project_id=normalized_project
-        )
+        key = self._get_memory_key(memory_entry.memory_id, project_id=normalized_project)
         value = memory_entry.json()
         ttl_seconds = ttl or self.default_ttl
 
         await self._redis.set(key, value, ex=ttl_seconds)
-        logger.info(
-            f"Stored memory {memory_entry.memory_id} (type: {memory_entry.memory_type})"
-        )
+        logger.info(f"Stored memory {memory_entry.memory_id} (type: {memory_entry.memory_type})")
 
         return memory_entry.memory_id
 
@@ -257,9 +251,7 @@ class MultiBackendMemoryManager:
 
         async for key in self._redis.scan_iter(match=pattern):
             memory_id = str(key).replace(f"memory:{normalized_project}:", "")
-            memory_entry = await self.retrieve_memory(
-                memory_id, project_id=normalized_project
-            )
+            memory_entry = await self.retrieve_memory(memory_id, project_id=normalized_project)
 
             if memory_entry is None:
                 continue
@@ -308,9 +300,7 @@ class MultiBackendMemoryManager:
 
         async for key in self._redis.scan_iter(match=pattern):
             memory_id = str(key).replace(f"memory:{normalized_project}:", "")
-            memory_entry = await self.retrieve_memory(
-                memory_id, project_id=normalized_project
-            )
+            memory_entry = await self.retrieve_memory(memory_id, project_id=normalized_project)
 
             if memory_entry is None:
                 continue

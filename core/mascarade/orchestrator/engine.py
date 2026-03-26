@@ -22,9 +22,7 @@ from mascarade.router.providers.base import LLMResponse
 logger = logging.getLogger("mascarade.orchestrator")
 
 
-def _env_float(
-    name: str, default: float, *, min_value: float, max_value: float
-) -> float:
+def _env_float(name: str, default: float, *, min_value: float, max_value: float) -> float:
     raw = str(os.getenv(name, str(default))).strip()
     try:
         value = float(raw)
@@ -139,9 +137,7 @@ class Orchestrator:
     _ray_send_remote: Any = field(default=None, init=False, repr=False)
     _ray_disabled: bool = field(default=False, init=False, repr=False)
     _ray_failures: dict[str, int] = field(default_factory=dict, init=False, repr=False)
-    _ray_circuit_open_until: dict[str, float] = field(
-        default_factory=dict, init=False, repr=False
-    )
+    _ray_circuit_open_until: dict[str, float] = field(default_factory=dict, init=False, repr=False)
 
     def __post_init__(self) -> None:
         if self.trace_buffer is None:
@@ -286,9 +282,7 @@ class Orchestrator:
                 timeout=_RAY_EXEC_TIMEOUT_S + 2.0,
             )
         except Exception as exc:
-            logger.warning(
-                "Exécution Ray échouée pour %s, fallback local: %s", agent_name, exc
-            )
+            logger.warning("Exécution Ray échouée pour %s, fallback local: %s", agent_name, exc)
             failure_count = int(self._ray_failures.get(agent_name, 0)) + 1
             self._ray_failures[agent_name] = failure_count
             if failure_count >= _RAY_CIRCUIT_FAILURE_THRESHOLD:
@@ -530,9 +524,7 @@ class Orchestrator:
                 results.append(
                     TaskResult(
                         agent_name=agent_names[i],
-                        response=LLMResponse(
-                            content="", model="", provider="", usage={}
-                        ),
+                        response=LLMResponse(content="", model="", provider="", usage={}),
                         step=i,
                         error=error_msg,
                     )
@@ -626,9 +618,7 @@ class Orchestrator:
                     )
                     try:
                         fallback_agent = self.registry.get(fallback_name)
-                        fallback_override = (routing_overrides or {}).get(
-                            fallback_name
-                        ) or {}
+                        fallback_override = (routing_overrides or {}).get(fallback_name) or {}
                         result = await self._execute_agent(
                             fallback_agent,
                             current_input,
@@ -665,9 +655,7 @@ class Orchestrator:
                             f"Primary agent '{name}' failed: {exc}; "
                             f"Fallback agent '{fallback_name}' also failed: {fallback_exc}"
                         )
-                logger.error(
-                    "Pipeline agent %s (step %d) failed: %s", name, i, error_msg
-                )
+                logger.error("Pipeline agent %s (step %d) failed: %s", name, i, error_msg)
                 self._trace(
                     run_id=run_id,
                     mode=mode,
@@ -692,9 +680,7 @@ class Orchestrator:
                 results.append(
                     TaskResult(
                         agent_name=name,
-                        response=LLMResponse(
-                            content="", model="", provider="", usage={}
-                        ),
+                        response=LLMResponse(content="", model="", provider="", usage={}),
                         step=i,
                         error=error_msg,
                         fallback_used=False,
@@ -840,8 +826,7 @@ class Orchestrator:
                     node_id=str(routed.get("node_id") or "") or None,
                     role=str(routed.get("role") or "") or None,
                     transport=str(
-                        routed.get("transport")
-                        or ("local" if not routed.get("remote") else "")
+                        routed.get("transport") or ("local" if not routed.get("remote") else "")
                     )
                     or None,
                     latency_ms=(
@@ -995,9 +980,7 @@ class Orchestrator:
             raise
 
         if any(result.error for result in results):
-            error_summary = "; ".join(
-                result.error or "" for result in results if result.error
-            )
+            error_summary = "; ".join(result.error or "" for result in results if result.error)
             self._trace(
                 run_id=run_id,
                 mode=mode,

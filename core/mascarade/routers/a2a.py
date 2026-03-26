@@ -45,6 +45,7 @@ try:
     from a2a.types import (
         AgentSkill as _SDKSkill,
     )
+
     _SDK_AVAILABLE = True
     logger.info("a2a-sdk detected — using official protocol types")
 except ImportError:
@@ -54,6 +55,7 @@ except ImportError:
 # ---------------------------------------------------------------------------
 # Task states — A2A spec v0.3 lifecycle
 # ---------------------------------------------------------------------------
+
 
 class TaskState(str, Enum):
     SUBMITTED = "submitted"
@@ -102,8 +104,10 @@ async def _get_task(task_id: str) -> A2ATask:
 # Request / Response models (SDK-aligned)
 # ---------------------------------------------------------------------------
 
+
 class TaskPart(BaseModel):
     """A2A message part — supports text (extensible to file/data)."""
+
     type: str = "text"
     text: str = Field("", description="Text content")
 
@@ -113,9 +117,7 @@ class TaskInput(BaseModel):
 
 
 class TaskSubmitRequest(BaseModel):
-    skill_id: str = Field(
-        ..., min_length=1, description="Skill (agent) to route the task to"
-    )
+    skill_id: str = Field(..., min_length=1, description="Skill (agent) to route the task to")
     input: TaskInput
 
 
@@ -131,6 +133,7 @@ class TaskResponse(BaseModel):
 
 class AgentSkillInfo(BaseModel):
     """A2A Agent Card skill entry."""
+
     id: str
     name: str
     description: str = ""
@@ -139,6 +142,7 @@ class AgentSkillInfo(BaseModel):
 
 class AgentCardResponse(BaseModel):
     """A2A Agent Card — spec-compliant discovery document."""
+
     name: str
     description: str
     url: str
@@ -170,10 +174,7 @@ def _build_agent_card(request: Request) -> dict:
     skills: list[dict] = []
 
     # Populate from AgentRegistry (agents as high-level skills)
-    if (
-        hasattr(request.app.state, "registry")
-        and request.app.state.registry is not None
-    ):
+    if hasattr(request.app.state, "registry") and request.app.state.registry is not None:
         for agent in request.app.state.registry.list():
             skills.append(
                 {
@@ -240,10 +241,7 @@ async def submit_task(req: TaskSubmitRequest, request: Request):
 
     # Validate that the skill/agent exists
     agent_found = False
-    if (
-        hasattr(request.app.state, "registry")
-        and request.app.state.registry is not None
-    ):
+    if hasattr(request.app.state, "registry") and request.app.state.registry is not None:
         if req.skill_id in request.app.state.registry:
             agent_found = True
     if (
@@ -329,6 +327,7 @@ async def _execute_task(task: A2ATask, request: Request) -> None:
 # ---------------------------------------------------------------------------
 # SDK info helper
 # ---------------------------------------------------------------------------
+
 
 def a2a_sdk_info() -> dict:
     """Return information about A2A SDK availability."""

@@ -18,11 +18,8 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any
 
-from mascarade.mcp.client import (
-    McpRuntimeClient,
-    McpServerDefinition,
-    McpToolResult,
-)
+from mascarade.mcp.client import McpRuntimeClient
+from mascarade.mcp.server_registry import McpServerDefinition, McpToolResult
 
 logger = logging.getLogger("mascarade.mcp.performance")
 
@@ -142,9 +139,7 @@ class PerformanceMcpManager:
         if registered:
             logger.info("Performance MCP servers registered: %s", registered)
         else:
-            logger.warning(
-                "PERFORMANCE_MCP_ENABLED=true but no server commands configured"
-            )
+            logger.warning("PERFORMANCE_MCP_ENABLED=true but no server commands configured")
 
         return registered
 
@@ -188,9 +183,7 @@ class PerformanceMcpManager:
         """List all tracks in the current Reaper project."""
         return await self._call(self.SERVER_KEY_DAW, "get_tracks", {})
 
-    async def daw_set_track_volume(
-        self, track_index: int, volume_db: float
-    ) -> McpToolResult:
+    async def daw_set_track_volume(self, track_index: int, volume_db: float) -> McpToolResult:
         """Set volume for a specific track."""
         return await self._call(
             self.SERVER_KEY_DAW,
@@ -235,9 +228,7 @@ class PerformanceMcpManager:
 
     async def dmx_blackout(self, *, fade_ms: int = 0) -> McpToolResult:
         """Emergency blackout — all channels to zero."""
-        return await self._call(
-            self.SERVER_KEY_DMX, "blackout", {"fade_ms": fade_ms}
-        )
+        return await self._call(self.SERVER_KEY_DMX, "blackout", {"fade_ms": fade_ms})
 
     async def dmx_set_fixture(
         self,
@@ -276,9 +267,7 @@ class PerformanceMcpManager:
 
     async def obs_switch_scene(self, scene_name: str) -> McpToolResult:
         """Switch OBS to a named scene."""
-        return await self._call(
-            self.SERVER_KEY_OBS, "switch_scene", {"scene_name": scene_name}
-        )
+        return await self._call(self.SERVER_KEY_OBS, "switch_scene", {"scene_name": scene_name})
 
     async def obs_start_recording(self) -> McpToolResult:
         return await self._call(self.SERVER_KEY_OBS, "start_recording", {})
@@ -335,7 +324,7 @@ class PerformanceMcpManager:
         self, server_key: str, tool_name: str, arguments: dict[str, Any]
     ) -> McpToolResult:
         if not self.is_available(server_key):
-            from mascarade.mcp.client import McpServerUnavailable
+            from mascarade.mcp.errors import McpServerUnavailable
 
             raise McpServerUnavailable(
                 f"Performance MCP server '{server_key}' is not configured",

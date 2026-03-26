@@ -129,8 +129,7 @@ async def cluster_p2p_topology(request: Request):
             {
                 "from": node.peer_id,
                 "to": pid,
-                "connected": pid in node.transport.peers
-                and node.transport.peers[pid].connected,
+                "connected": pid in node.transport.peers and node.transport.peers[pid].connected,
             }
         )
 

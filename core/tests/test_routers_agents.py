@@ -68,10 +68,7 @@ def _clean_registry():
     if hasattr(app.state, "registry"):
         # Remove any test agents
         for agent in list(app.state.registry.list()):
-            if (
-                not app.state.registry.is_builtin(agent.name)
-                and agent.name not in original_agents
-            ):
+            if not app.state.registry.is_builtin(agent.name) and agent.name not in original_agents:
                 try:
                     app.state.registry.remove(agent.name)
                 except KeyError:
@@ -81,8 +78,10 @@ def _clean_registry():
 @asynccontextmanager
 async def _client(fake_router: FakeRouter | None = None):
     """Create test client with optional fake router."""
-    with patch("mascarade.auth.is_valid_api_key", return_value=True), \
-         patch("mascarade.auth._resolve_role", return_value="admin"):
+    with (
+        patch("mascarade.auth.is_valid_api_key", return_value=True),
+        patch("mascarade.auth._resolve_role", return_value="admin"),
+    ):
         async with app.router.lifespan_context(app):
             original_router = app.state.router if fake_router else None
             if fake_router:

@@ -62,9 +62,7 @@ class TestGraphNode:
 
     def test_graph_node_with_position(self):
         """GraphNode should support visual position."""
-        node = GraphNode(
-            id="n3", node_type="test", label="Positioned", position=(100.5, 200.3)
-        )
+        node = GraphNode(id="n3", node_type="test", label="Positioned", position=(100.5, 200.3))
         assert node.position == (100.5, 200.3)
 
     def test_graph_node_with_domain(self):
@@ -358,9 +356,7 @@ class TestGraphStructures:
 
     def test_linear_pipeline(self):
         """Build a linear pipeline graph."""
-        nodes = [
-            GraphNode(id=f"n{i}", node_type="step", label=f"Step {i}") for i in range(5)
-        ]
+        nodes = [GraphNode(id=f"n{i}", node_type="step", label=f"Step {i}") for i in range(5)]
         edges = [
             GraphEdge(
                 id=f"e{i}",
@@ -457,9 +453,7 @@ class TestPydanticNode:
             Node(id="n1", type="")
 
     def test_node_with_inputs_and_config(self):
-        n = Node(
-            id="n1", type="ai.embed", inputs={"text": "hello"}, config={"dim": 768}
-        )
+        n = Node(id="n1", type="ai.embed", inputs={"text": "hello"}, config={"dim": 768})
         assert n.inputs["text"] == "hello"
         assert n.config["dim"] == 768
 
@@ -633,9 +627,7 @@ class TestConnection:
     """Test Connection dataclass."""
 
     def test_aliases(self):
-        c = Connection(
-            source_node_id="a", source_port="o", target_node_id="b", target_port="i"
-        )
+        c = Connection(source_node_id="a", source_port="o", target_node_id="b", target_port="i")
         assert c.source_node == "a"
         assert c.target_node == "b"
 

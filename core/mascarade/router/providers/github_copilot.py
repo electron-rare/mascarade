@@ -109,9 +109,7 @@ class GitHubCopilotProvider(LLMProvider):
 
         response = await self._client.chat.completions.create(**kwargs)
         if not response.choices:
-            raise RuntimeError(
-                f"GitHub Copilot returned empty choices for model {model}"
-            )
+            raise RuntimeError(f"GitHub Copilot returned empty choices for model {model}")
 
         choice = response.choices[0]
         return LLMResponse(
@@ -119,12 +117,8 @@ class GitHubCopilotProvider(LLMProvider):
             model=model,
             provider=self.name,
             usage={
-                "input_tokens": (
-                    response.usage.prompt_tokens if response.usage else 0
-                ),
-                "output_tokens": (
-                    response.usage.completion_tokens if response.usage else 0
-                ),
+                "input_tokens": (response.usage.prompt_tokens if response.usage else 0),
+                "output_tokens": (response.usage.completion_tokens if response.usage else 0),
             },
         )
 
@@ -162,18 +156,12 @@ class GitHubCopilotProvider(LLMProvider):
         try:
             import httpx
 
-            with httpx.Client(
-                base_url=self._base_url, timeout=5.0
-            ) as client:
+            with httpx.Client(base_url=self._base_url, timeout=5.0) as client:
                 resp = client.get("/v1/models")
                 resp.raise_for_status()
-                models = [
-                    m["id"] for m in resp.json().get("data", [])
-                ]
+                models = [m["id"] for m in resp.json().get("data", [])]
                 self._models_cache = models
                 return models
         except Exception:
-            logger.debug(
-                "Cannot fetch models from copilot-api, using static list"
-            )
+            logger.debug("Cannot fetch models from copilot-api, using static list")
             return _ALL_MODELS

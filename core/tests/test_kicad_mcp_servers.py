@@ -21,7 +21,13 @@ from mascarade.mcp.kicad_servers import (
 
 class TestKicadServerRegistry:
     def test_all_servers_defined(self):
-        expected_keys = {"seeed-kicad", "circuit-synth", "kicad-happy", "mixelpixx-kicad", "spicebridge"}
+        expected_keys = {
+            "seeed-kicad",
+            "circuit-synth",
+            "kicad-happy",
+            "mixelpixx-kicad",
+            "spicebridge",
+        }
         assert set(KICAD_MCP_SERVERS.keys()) == expected_keys
 
     def test_server_dataclass_fields(self):
@@ -79,6 +85,7 @@ class TestKicadServerRegistry:
     @patch("mascarade.mcp.kicad_servers.shutil.which", return_value="/usr/bin/npx")
     def test_log_available_some(self, mock_which, caplog):
         import logging
+
         with caplog.at_level(logging.INFO, logger="mascarade.mcp.kicad_servers"):
             log_available()
         assert "KiCad MCP servers" in caplog.text
@@ -86,6 +93,7 @@ class TestKicadServerRegistry:
     @patch("mascarade.mcp.kicad_servers.shutil.which", return_value=None)
     def test_log_available_none(self, mock_which, caplog):
         import logging
+
         with caplog.at_level(logging.INFO, logger="mascarade.mcp.kicad_servers"):
             log_available()
         assert "No KiCad MCP servers installed" in caplog.text
@@ -120,7 +128,10 @@ def client():
 
 
 class TestKicadRouter:
-    @patch("mascarade.routers.kicad_mcp.discover_installed", return_value=["seeed-kicad", "spicebridge"])
+    @patch(
+        "mascarade.routers.kicad_mcp.discover_installed",
+        return_value=["seeed-kicad", "spicebridge"],
+    )
     def test_list_servers(self, mock_discover, client):
         test_client, _ = client
         resp = test_client.get("/v1/api/kicad/servers")
@@ -134,7 +145,10 @@ class TestKicadRouter:
         assert "installed" in srv
         assert "tools" in srv
 
-    @patch("mascarade.routers.kicad_mcp.discover_installed", return_value=["seeed-kicad", "spicebridge"])
+    @patch(
+        "mascarade.routers.kicad_mcp.discover_installed",
+        return_value=["seeed-kicad", "spicebridge"],
+    )
     def test_list_tools(self, mock_discover, client):
         test_client, _ = client
         resp = test_client.get("/v1/api/kicad/tools")

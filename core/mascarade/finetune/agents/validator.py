@@ -185,9 +185,7 @@ class ValidatorAgent:
             ]
 
         red_score = await self.red_team(model_path)
-        reg_score = await self.regression_test(
-            model_path, previous_model_path, test_prompts
-        )
+        reg_score = await self.regression_test(model_path, previous_model_path, test_prompts)
         safety = await self.safety_check(model_path)
 
         passed = (

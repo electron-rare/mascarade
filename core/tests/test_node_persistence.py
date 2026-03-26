@@ -32,9 +32,7 @@ class TestGraphSerializer:
         """Serialize graph with nodes."""
         nodes = [
             GraphNode(id="n1", node_type="test", label="Node 1"),
-            GraphNode(
-                id="n2", node_type="test", label="Node 2", config={"key": "value"}
-            ),
+            GraphNode(id="n2", node_type="test", label="Node 2", config={"key": "value"}),
         ]
         graph = Graph(id="g2", name="With Nodes", nodes=nodes)
         serializer = GraphSerializer()
@@ -215,9 +213,7 @@ class TestGraphSerializer:
         """Serialize then deserialize should preserve graph."""
         nodes = [
             GraphNode(id="n1", node_type="test", label="Node 1", position=(10.0, 20.0)),
-            GraphNode(
-                id="n2", node_type="test", label="Node 2", config={"param": "value"}
-            ),
+            GraphNode(id="n2", node_type="test", label="Node 2", config={"param": "value"}),
         ]
         edges = [
             GraphEdge(

@@ -362,9 +362,7 @@ def test_select_provider_called_once_with_domain():
     original = r._select_provider
 
     def tracking_select(strategy, provider_name=None, domain=None):
-        call_log.append(
-            {"strategy": strategy, "provider_name": provider_name, "domain": domain}
-        )
+        call_log.append({"strategy": strategy, "provider_name": provider_name, "domain": domain})
         return original(strategy, provider_name, domain)
 
     r._select_provider = tracking_select
@@ -392,9 +390,7 @@ def test_select_provider_called_once_with_domain_in_stream():
     original = r._select_provider
 
     def tracking_select(strategy, provider_name=None, domain=None):
-        call_log.append(
-            {"strategy": strategy, "provider_name": provider_name, "domain": domain}
-        )
+        call_log.append({"strategy": strategy, "provider_name": provider_name, "domain": domain})
         return original(strategy, provider_name, domain)
 
     r._select_provider = tracking_select

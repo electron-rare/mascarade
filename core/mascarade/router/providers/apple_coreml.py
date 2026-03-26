@@ -104,9 +104,7 @@ class AppleCoreMLProvider(LLMProvider):
                 f"Apple local HTTP {exc.response.status_code} for model '{model}': {detail}"
             ) from exc
         except httpx.HTTPError as exc:
-            raise RuntimeError(
-                f"Apple local request failed for model '{model}': {exc}"
-            ) from exc
+            raise RuntimeError(f"Apple local request failed for model '{model}': {exc}") from exc
 
         self._last_loaded_model = model
 

@@ -18,8 +18,10 @@ app.include_router(memory_router)
 @asynccontextmanager
 async def _client():
     """Create test client."""
-    with patch("mascarade.auth.is_valid_api_key", return_value=True), \
-         patch("mascarade.auth._resolve_role", return_value="admin"):
+    with (
+        patch("mascarade.auth.is_valid_api_key", return_value=True),
+        patch("mascarade.auth._resolve_role", return_value="admin"),
+    ):
         async with app.router.lifespan_context(app):
             transport = httpx.ASGITransport(app=app)
             async with httpx.AsyncClient(

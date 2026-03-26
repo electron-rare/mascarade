@@ -238,15 +238,11 @@ class LookupNode(BaseNode):
         # Generate mock alternatives based on the spec
         alternatives = []
         if config.include_alternatives:
-            alternatives = self._generate_mock_alternatives(
-                component_spec, requirements
-            )
+            alternatives = self._generate_mock_alternatives(component_spec, requirements)
 
         # Select best match (first alternative in this mock implementation)
         best_match = (
-            alternatives[0]
-            if alternatives
-            else self._generate_default_component(component_spec)
+            alternatives[0] if alternatives else self._generate_default_component(component_spec)
         )
 
         logger.info(f"Found {len(alternatives)} alternatives for {component_spec}")
@@ -419,13 +415,10 @@ class JlcpcbOptimizationNode(BaseNode):
         optimized_bom = self._optimize_components(requirements, prefer_basic, config)
 
         # Generate summary
-        basic_count = sum(
-            1 for item in optimized_bom if item.get("jlcpcb_basic", False)
-        )
+        basic_count = sum(1 for item in optimized_bom if item.get("jlcpcb_basic", False))
         extended_count = len(optimized_bom) - basic_count
         total_cost = sum(
-            float(item.get("price_unit", "$0").replace("$", ""))
-            * item.get("quantity", 1)
+            float(item.get("price_unit", "$0").replace("$", "")) * item.get("quantity", 1)
             for item in optimized_bom
         )
 
@@ -437,9 +430,7 @@ class JlcpcbOptimizationNode(BaseNode):
             "optimization_notes": f"Optimized for JLCPCB assembly with {basic_count} basic parts",
         }
 
-        logger.info(
-            f"Optimization complete: {basic_count} basic, {extended_count} extended parts"
-        )
+        logger.info(f"Optimization complete: {basic_count} basic, {extended_count} extended parts")
 
         return {
             "optimized_bom": optimized_bom,
@@ -645,9 +636,7 @@ class BomGeneratorNode(BaseNode):
         Returns:
             CSV formatted string
         """
-        lines = [
-            "Comment,Designator,Footprint,LCSC Part Number,Manufacturer,MPN,Quantity"
-        ]
+        lines = ["Comment,Designator,Footprint,LCSC Part Number,Manufacturer,MPN,Quantity"]
 
         for item in bom_data:
             lines.append(
@@ -975,9 +964,7 @@ class AvailabilityCheckNode(BaseNode):
 
         return availability
 
-    def _generate_recommendations(
-        self, availability: list[dict[str, Any]]
-    ) -> list[dict[str, Any]]:
+    def _generate_recommendations(self, availability: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """Generate alternative recommendations for unavailable parts.
 
         Args:
@@ -1172,9 +1159,7 @@ class DatasheetNode(BaseNode):
             summary_lines.append(f"{key_formatted}: {value}")
 
         if include_diagrams:
-            summary_lines.append(
-                "Block diagrams and application circuits available in datasheet."
-            )
+            summary_lines.append("Block diagrams and application circuits available in datasheet.")
 
         return "\n".join(summary_lines)
 
@@ -1332,9 +1317,7 @@ class BomGenerateNode(BaseNode):
             },
         ]
 
-    def _format_bom_csv(
-        self, bom_data: list[dict[str, Any]], config: BomGeneratorConfig
-    ) -> str:
+    def _format_bom_csv(self, bom_data: list[dict[str, Any]], config: BomGeneratorConfig) -> str:
         """Format BOM data as CSV.
 
         Args:
@@ -1345,9 +1328,7 @@ class BomGenerateNode(BaseNode):
             CSV formatted string
         """
         if config.format == "jlcpcb":
-            lines = [
-                "Comment,Designator,Footprint,LCSC Part Number,Manufacturer,MPN,Quantity"
-            ]
+            lines = ["Comment,Designator,Footprint,LCSC Part Number,Manufacturer,MPN,Quantity"]
             for item in bom_data:
                 lines.append(
                     f'"{item.get("comment", "")}","{item.get("designator", "")}","{item.get("footprint", "")}","{item.get("lcsc_part_number", "")}","{item.get("manufacturer", "")}","{item.get("mpn", "")}",{item.get("quantity", 0)}'
@@ -1379,16 +1360,13 @@ class BomGenerateNode(BaseNode):
 
         if config.include_cost_estimates:
             total_cost = sum(
-                item.get("unit_price", 0.0) * item.get("quantity", 0)
-                for item in bom_data
+                item.get("unit_price", 0.0) * item.get("quantity", 0) for item in bom_data
             )
 
         return {
             "total_line_items": total_line_items,
             "total_components": total_components,
-            "estimated_cost": (
-                f"${total_cost:.2f}" if config.include_cost_estimates else "N/A"
-            ),
+            "estimated_cost": (f"${total_cost:.2f}" if config.include_cost_estimates else "N/A"),
             "format": config.format,
         }
 
@@ -1501,18 +1479,14 @@ class FindAlternativesNode(BaseNode):
         logger.info(f"Finding alternatives for component: {component_spec}")
 
         # Find alternatives (mock implementation)
-        all_alternatives = self._find_all_alternatives(
-            component_spec, requirements, config
-        )
+        all_alternatives = self._find_all_alternatives(component_spec, requirements, config)
 
         # Separate by compatibility type
         pin_compatible = []
         functional_equiv = []
 
         if config.include_pin_compatible:
-            pin_compatible = [
-                alt for alt in all_alternatives if alt.get("pin_compatible", False)
-            ]
+            pin_compatible = [alt for alt in all_alternatives if alt.get("pin_compatible", False)]
 
         if config.include_functional_equiv:
             functional_equiv = [

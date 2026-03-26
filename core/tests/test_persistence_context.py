@@ -226,9 +226,7 @@ async def test_utility_functions():
         await manager.connect()
 
         # Create orchestration context
-        orch_context = OrchestrationContext(
-            prompt="test prompt", agent_names=["agent1"]
-        )
+        orch_context = OrchestrationContext(prompt="test prompt", agent_names=["agent1"])
 
         # Save using utility function
         mock_redis_client.set.return_value = True

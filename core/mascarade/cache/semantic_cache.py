@@ -51,9 +51,7 @@ class SemanticCache(CacheBackend):
             openai_api_key: OpenAI API key for embeddings. Default: env var OPENAI_API_KEY
         """
         self.similarity_threshold = similarity_threshold
-        self.storage_path = storage_path or os.getenv(
-            "GPTCACHE_STORAGE_PATH", "./data/gptcache"
-        )
+        self.storage_path = storage_path or os.getenv("GPTCACHE_STORAGE_PATH", "./data/gptcache")
         self.openai_api_key = openai_api_key or os.getenv("OPENAI_API_KEY")
 
         self.hit_count = 0
@@ -121,16 +119,10 @@ class SemanticCache(CacheBackend):
         """Generate a unique cache key (used for internal tracking)."""
         # Exclude provider, strategy, and model from cache key
         cache_kwargs = {
-            k: v
-            for k, v in kwargs.items()
-            if k not in ["provider", "strategy", "model"]
+            k: v for k, v in kwargs.items() if k not in ["provider", "strategy", "model"]
         }
 
-        raw = (
-            json.dumps(messages, sort_keys=True)
-            + "|"
-            + json.dumps(cache_kwargs, sort_keys=True)
-        )
+        raw = json.dumps(messages, sort_keys=True) + "|" + json.dumps(cache_kwargs, sort_keys=True)
         return hashlib.sha256(raw.encode()).hexdigest()
 
     def _messages_to_prompt(self, messages: list[dict]) -> str:
@@ -200,9 +192,7 @@ class SemanticCache(CacheBackend):
             )
 
             key = self._generate_key(messages, **kwargs)
-            logger.debug(
-                f"SemanticCache stored: key={key[:8]}..., prompt_len={len(prompt)}"
-            )
+            logger.debug(f"SemanticCache stored: key={key[:8]}..., prompt_len={len(prompt)}")
             return key
 
         except Exception as e:

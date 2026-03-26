@@ -99,9 +99,7 @@ async def get_provider_health(request: Request):
     return {
         "providers": providers_health,
         "timestamp": (
-            health_monitor.last_check_time.isoformat()
-            if health_monitor.last_check_time
-            else None
+            health_monitor.last_check_time.isoformat() if health_monitor.last_check_time else None
         ),
     }
 

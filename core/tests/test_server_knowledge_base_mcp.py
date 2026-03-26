@@ -32,8 +32,10 @@ def _make_app():
 
 @asynccontextmanager
 async def _client():
-    with patch("mascarade.auth.is_valid_api_key", return_value=True), \
-         patch("mascarade.auth._resolve_role", return_value="admin"):
+    with (
+        patch("mascarade.auth.is_valid_api_key", return_value=True),
+        patch("mascarade.auth._resolve_role", return_value="admin"),
+    ):
         test_app = _make_app()
         transport = httpx.ASGITransport(app=test_app)
         async with httpx.AsyncClient(
@@ -51,9 +53,7 @@ async def test_knowledge_base_search_route_uses_mcp_client(
     add_api_key("test-key-001")
     fake_mcp = AsyncMock()
     fake_mcp.knowledge_base_search.return_value = {
-        "results": [
-            {"id": "memo-1", "title": "Release note", "url": "http://kb/memo-1"}
-        ],
+        "results": [{"id": "memo-1", "title": "Release note", "url": "http://kb/memo-1"}],
         "provider": "memos",
         "provider_label": "Memos",
     }
@@ -104,9 +104,7 @@ async def test_knowledge_base_search_route_forwards_project_scope(
     add_api_key("test-key-001")
     fake_mcp = AsyncMock()
     fake_mcp.knowledge_base_search.return_value = {
-        "results": [
-            {"id": "chunk-1", "title": "Musique concrete", "url": "http://kb/chunk-1"}
-        ],
+        "results": [{"id": "chunk-1", "title": "Musique concrete", "url": "http://kb/chunk-1"}],
         "provider": "kxkm",
         "provider_label": "kxkm",
     }

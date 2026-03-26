@@ -254,9 +254,7 @@ async def ask_hint(body: HintRequest, request: Request) -> HintResponse:
         )
 
     # Query LLM
-    hint_text = await _query_llm(
-        body.question, puzzle, body.hint_level, request, body.context
-    )
+    hint_text = await _query_llm(body.question, puzzle, body.hint_level, request, body.context)
     hint_count = _record_hint(body.session_id, body.puzzle_id, body.hint_level)
 
     return HintResponse(

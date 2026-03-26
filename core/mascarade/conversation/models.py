@@ -73,9 +73,7 @@ class Conversation:
     @classmethod
     def from_dict(cls, data: dict) -> Conversation:
         """Create from dictionary format."""
-        messages = [
-            ConversationMessage.from_dict(msg) for msg in data.get("messages", [])
-        ]
+        messages = [ConversationMessage.from_dict(msg) for msg in data.get("messages", [])]
         return cls(
             id=data["id"],
             messages=messages,

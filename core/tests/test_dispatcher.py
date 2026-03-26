@@ -311,18 +311,10 @@ def test_job_queue_clear_completed_respects_status():
         queue = JobQueue(state_dir=Path(tmpdir))
 
         # Add jobs with various statuses
-        completed = Job(
-            job_id="completed", job_type="inference", requirements=JobRequirements()
-        )
-        failed = Job(
-            job_id="failed", job_type="inference", requirements=JobRequirements()
-        )
-        cancelled = Job(
-            job_id="cancelled", job_type="inference", requirements=JobRequirements()
-        )
-        running = Job(
-            job_id="running", job_type="inference", requirements=JobRequirements()
-        )
+        completed = Job(job_id="completed", job_type="inference", requirements=JobRequirements())
+        failed = Job(job_id="failed", job_type="inference", requirements=JobRequirements())
+        cancelled = Job(job_id="cancelled", job_type="inference", requirements=JobRequirements())
+        running = Job(job_id="running", job_type="inference", requirements=JobRequirements())
 
         queue.add_job(completed)
         queue.add_job(failed)
@@ -586,9 +578,7 @@ def test_dispatcher_find_candidates_with_exclusions():
     job = Job(
         job_id="job-1",
         job_type="inference",
-        requirements=JobRequirements(
-            exclude_machines=["gpu-workstation", "mac-studio"]
-        ),
+        requirements=JobRequirements(exclude_machines=["gpu-workstation", "mac-studio"]),
     )
     candidates = dispatcher.find_candidates(job)
 
@@ -751,9 +741,7 @@ def test_dispatcher_to_dict():
     assert len(state["machines"]) == 3
 
     # Check that capabilities are serialized
-    gpu_machine = next(
-        m for m in state["machines"] if m["machine_id"] == "gpu-workstation"
-    )
+    gpu_machine = next(m for m in state["machines"] if m["machine_id"] == "gpu-workstation")
     assert "gpu" in gpu_machine["capabilities"]
     assert "cuda" in gpu_machine["capabilities"]
 

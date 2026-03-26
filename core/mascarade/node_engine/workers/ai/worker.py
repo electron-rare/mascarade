@@ -275,12 +275,8 @@ class AIWorker(NodeWorker):
         strategy = config.get("strategy", "best")
         routing_policy = config.get("routing_policy")
         project_id = config.get("project_id") or inputs.get("project_id")
-        federation_scope = config.get("federation_scope") or inputs.get(
-            "federation_scope"
-        )
-        knowledge_scope = config.get("knowledge_scope") or inputs.get(
-            "knowledge_scope", "project"
-        )
+        federation_scope = config.get("federation_scope") or inputs.get("federation_scope")
+        knowledge_scope = config.get("knowledge_scope") or inputs.get("knowledge_scope", "project")
 
         # Build messages list (simple user message)
         messages = [{"role": "user", "content": prompt}]
@@ -335,12 +331,8 @@ class AIWorker(NodeWorker):
         # Extract optional inputs
         message_context = inputs.get("context")
         project_id = config.get("project_id") or inputs.get("project_id")
-        federation_scope = config.get("federation_scope") or inputs.get(
-            "federation_scope"
-        )
-        knowledge_scope = config.get("knowledge_scope") or inputs.get(
-            "knowledge_scope", "project"
-        )
+        federation_scope = config.get("federation_scope") or inputs.get("federation_scope")
+        knowledge_scope = config.get("knowledge_scope") or inputs.get("knowledge_scope", "project")
 
         # Get agent from registry (raises KeyError if not found)
         agent = self.registry.get(agent_name)
@@ -402,12 +394,8 @@ class AIWorker(NodeWorker):
         routing_policy = config.get("routing_policy")
         domain = config.get("domain")
         project_id = config.get("project_id") or inputs.get("project_id")
-        federation_scope = config.get("federation_scope") or inputs.get(
-            "federation_scope"
-        )
-        knowledge_scope = config.get("knowledge_scope") or inputs.get(
-            "knowledge_scope", "project"
-        )
+        federation_scope = config.get("federation_scope") or inputs.get("federation_scope")
+        knowledge_scope = config.get("knowledge_scope") or inputs.get("knowledge_scope", "project")
 
         # Build messages list (simple user message)
         messages = [{"role": "user", "content": prompt}]
@@ -671,9 +659,7 @@ class AIWorker(NodeWorker):
             responses = []
             for i in range(0, len(prompts), max_concurrent):
                 batch = prompts[i : i + max_concurrent]
-                batch_responses = await asyncio.gather(
-                    *[_process_prompt(p) for p in batch]
-                )
+                batch_responses = await asyncio.gather(*[_process_prompt(p) for p in batch])
                 responses.extend(batch_responses)
 
         # Return responses wrapped in output dict
@@ -821,9 +807,7 @@ class AIWorker(NodeWorker):
             reasoning.append(step_output)
 
             # Update context for next step
-            current_context = f"{question}\n\nPrevious reasoning:\n" + "\n".join(
-                reasoning
-            )
+            current_context = f"{question}\n\nPrevious reasoning:\n" + "\n".join(reasoning)
 
         # Final synthesis
         synthesis_prompt = (
@@ -965,10 +949,7 @@ class AIWorker(NodeWorker):
         max_length = inputs.get("max_length", 200)
 
         # Build summarization prompt
-        prompt = (
-            f"Summarize the following text in approximately {max_length} words:\n\n"
-            f"{text}"
-        )
+        prompt = f"Summarize the following text in approximately {max_length} words:\n\n" f"{text}"
 
         # Execute LLM inference
         result = await self._execute_llm_inference(
@@ -1189,9 +1170,7 @@ class AIWorker(NodeWorker):
             # Validate each agent exists in registry
             for agent_name in inputs["agent_names"]:
                 if not isinstance(agent_name, str):
-                    errors.append(
-                        f"Agent name must be a string, got: {type(agent_name).__name__}"
-                    )
+                    errors.append(f"Agent name must be a string, got: {type(agent_name).__name__}")
                     continue
                 try:
                     self.registry.get(agent_name)
@@ -1309,9 +1288,7 @@ class AIWorker(NodeWorker):
 
             # If strategy is "specific", provider_name is required
             if strategy == "specific" and "provider_name" not in inputs:
-                errors.append(
-                    "Input 'provider_name' is required when strategy is 'specific'"
-                )
+                errors.append("Input 'provider_name' is required when strategy is 'specific'")
 
         # Validate provider_name if provided
         if "provider_name" in inputs:

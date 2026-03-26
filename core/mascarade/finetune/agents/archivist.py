@@ -45,9 +45,7 @@ class ArchivistAgent:
         api = HfApi(token=self.hf_token)
 
         if version is None:
-            version = await asyncio.to_thread(
-                self._next_version, api, "dataset", domain
-            )
+            version = await asyncio.to_thread(self._next_version, api, "dataset", domain)
 
         repo_id = f"{self.namespace}/mascarade-{domain}-v{version}"
         await asyncio.to_thread(
@@ -150,13 +148,9 @@ class ArchivistAgent:
         """Find the next version number by checking existing repos."""
         try:
             if repo_type == "dataset":
-                repos = api.list_datasets(
-                    author=self.namespace, search=f"mascarade-{name_prefix}"
-                )
+                repos = api.list_datasets(author=self.namespace, search=f"mascarade-{name_prefix}")
             else:
-                repos = api.list_models(
-                    author=self.namespace, search=f"mascarade-{name_prefix}"
-                )
+                repos = api.list_models(author=self.namespace, search=f"mascarade-{name_prefix}")
 
             max_v = 0
             for r in repos:

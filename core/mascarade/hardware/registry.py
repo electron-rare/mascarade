@@ -218,9 +218,7 @@ class DeviceRegistry:
         devices_data = [device.model_dump() for device in self._devices.values()]
 
         # Atomic write: write to temp file, then rename
-        fd, tmp_path = tempfile.mkstemp(
-            dir=str(self._storage_path.parent), suffix=".tmp"
-        )
+        fd, tmp_path = tempfile.mkstemp(dir=str(self._storage_path.parent), suffix=".tmp")
         try:
             with os.fdopen(fd, "w", encoding="utf-8") as f:
                 json.dump(devices_data, f, indent=2, ensure_ascii=False)

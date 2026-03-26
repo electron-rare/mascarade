@@ -34,9 +34,7 @@ def verify_message(msg: P2PMessage, *, reject_unsigned: bool = False) -> bool:
     """
     if not msg.signature or not msg.public_key:
         if reject_unsigned:
-            logger.warning(
-                "Rejecting unsigned message type=%s from %s", msg.type, msg.sender
-            )
+            logger.warning("Rejecting unsigned message type=%s from %s", msg.type, msg.sender)
             return False
         logger.debug(
             "Accepting unsigned message type=%s from %s (backwards compat)",
@@ -50,9 +48,7 @@ def verify_message(msg: P2PMessage, *, reject_unsigned: bool = False) -> bool:
         pub_bytes = base64.b64decode(msg.public_key)
         data = msg.signing_payload()
         if not PeerIdentity.verify(pub_bytes, sig, data):
-            logger.warning(
-                "Invalid signature on message type=%s from %s", msg.type, msg.sender
-            )
+            logger.warning("Invalid signature on message type=%s from %s", msg.type, msg.sender)
             return False
 
         # Verify sender matches the public key (prevent impersonation)
@@ -60,9 +56,7 @@ def verify_message(msg: P2PMessage, *, reject_unsigned: bool = False) -> bool:
 
         from mascarade.p2p.identity import _peer_id_from_public_key
 
-        expected_peer_id = _peer_id_from_public_key(
-            Ed25519PublicKey.from_public_bytes(pub_bytes)
-        )
+        expected_peer_id = _peer_id_from_public_key(Ed25519PublicKey.from_public_bytes(pub_bytes))
         if msg.sender and expected_peer_id != msg.sender:
             logger.warning(
                 "Sender mismatch: claimed %s but key derives %s (type=%s)",

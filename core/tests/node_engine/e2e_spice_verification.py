@@ -62,9 +62,7 @@ async def test_netlist_generation():
     logger.info(circuit_description)
 
     # Create netlist generator node
-    config = NetlistGeneratorConfig(
-        include_control_section=True, default_analyses=["ac"]
-    )
+    config = NetlistGeneratorConfig(include_control_section=True, default_analyses=["ac"])
     node = NetlistGeneratorNode(config)
 
     logger.info(f"Node type: {node.node_type}")
@@ -112,9 +110,7 @@ async def test_simulation(netlist: dict[str, Any], ngspice_available: bool):
 
     if not ngspice_available:
         logger.warning("⚠️  ngspice not available - skipping simulation test")
-        logger.info(
-            "✓ Graceful degradation verified (simulation node available but tool missing)"
-        )
+        logger.info("✓ Graceful degradation verified (simulation node available but tool missing)")
         return None
 
     # Create simulation node
@@ -150,9 +146,7 @@ async def test_simulation(netlist: dict[str, Any], ngspice_available: bool):
 
             if "convergence_info" in results:
                 conv_info = results["convergence_info"]
-                logger.info(
-                    f"Convergence iterations: {conv_info.get('iterations', 'N/A')}"
-                )
+                logger.info(f"Convergence iterations: {conv_info.get('iterations', 'N/A')}")
                 logger.info(f"Convergence errors: {conv_info.get('errors', [])}")
 
         # Display simulation output
@@ -180,9 +174,7 @@ async def test_waveform_structure(simulation_outputs: dict[str, Any] | None):
     logger.info("=" * 60)
 
     if simulation_outputs is None:
-        logger.warning(
-            "⚠️  No simulation outputs available - skipping waveform verification"
-        )
+        logger.warning("⚠️  No simulation outputs available - skipping waveform verification")
         return None
 
     # For this test, we'll verify the expected waveform structure

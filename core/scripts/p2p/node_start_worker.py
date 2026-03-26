@@ -38,9 +38,7 @@ async def main():
     if USE_RELAY:
         from mascarade.p2p.relay import RelayClient
 
-        rc = RelayClient(
-            local_peer_id=node.peer_id, transport=node.transport, dht=node.dht
-        )
+        rc = RelayClient(local_peer_id=node.peer_id, transport=node.transport, dht=node.dht)
         rc.add_known_relay(BOOTSTRAP_ID)
         node.transport.set_relay_client(rc)
 

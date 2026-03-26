@@ -83,12 +83,8 @@ class RateLimiter:
         self._per_user_limit = per_user_limit or int(
             os.getenv("MASCARADE_RATE_LIMIT_PER_USER", "100")
         )
-        self._per_ip_limit = per_ip_limit or int(
-            os.getenv("MASCARADE_RATE_LIMIT_PER_IP", "200")
-        )
-        self._window_seconds = window_seconds or int(
-            os.getenv("MASCARADE_RATE_LIMIT_WINDOW", "60")
-        )
+        self._per_ip_limit = per_ip_limit or int(os.getenv("MASCARADE_RATE_LIMIT_PER_IP", "200"))
+        self._window_seconds = window_seconds or int(os.getenv("MASCARADE_RATE_LIMIT_WINDOW", "60"))
 
         # Track request timestamps per user and per IP
         self._user_requests: dict[str, deque[float]] = defaultdict(lambda: deque())
@@ -223,9 +219,7 @@ class RateLimiter:
         """
         with self._user_lock:
             tracked_users = len(self._user_requests)
-            total_user_requests = sum(
-                len(reqs) for reqs in self._user_requests.values()
-            )
+            total_user_requests = sum(len(reqs) for reqs in self._user_requests.values())
 
         with self._ip_lock:
             tracked_ips = len(self._ip_requests)
@@ -298,9 +292,7 @@ def _load_api_keys() -> None:
             if _api_keys:
                 logger.info("Clearing all API keys (none configured)")
                 _api_keys.clear()
-            logger.warning(
-                "No MASCARADE_API_KEY configured — all protected routes are PUBLIC"
-            )
+            logger.warning("No MASCARADE_API_KEY configured — all protected routes are PUBLIC")
 
         _last_key_rotation = time.time()
 
@@ -380,9 +372,7 @@ def _required_role_for_request(method: str, path: str) -> AuthRole:
     if normalized_path.startswith("/cluster/forward"):
         return "admin"
     if normalized_path.startswith("/cluster") or normalized_path.startswith("/p2p"):
-        return (
-            "viewer" if normalized_method in {"GET", "HEAD", "OPTIONS"} else "operator"
-        )
+        return "viewer" if normalized_method in {"GET", "HEAD", "OPTIONS"} else "operator"
 
     if normalized_method in {"GET", "HEAD", "OPTIONS"}:
         return "viewer"
@@ -420,9 +410,7 @@ async def require_auth(
         if x_api_key:
             from fastapi.security import HTTPAuthorizationCredentials
 
-            credentials = HTTPAuthorizationCredentials(
-                scheme="Bearer", credentials=x_api_key
-            )
+            credentials = HTTPAuthorizationCredentials(scheme="Bearer", credentials=x_api_key)
 
     if credentials is None:
         raise HTTPException(status_code=401, detail="Missing token")
@@ -485,9 +473,7 @@ def get_rate_limit_metrics() -> dict[str, int]:
     return _rate_limiter.get_metrics()
 
 
-def reset_rate_limit(
-    user_key: str | None = None, ip_address: str | None = None
-) -> None:
+def reset_rate_limit(user_key: str | None = None, ip_address: str | None = None) -> None:
     """Reset rate limit counters.
 
     Args:
@@ -779,9 +765,7 @@ async def migrate_legacy_keys() -> dict:
 
     # Parse legacy API keys
     legacy_keys = [
-        key.strip()
-        for key in configured_keys.split(",")
-        if key.strip() and len(key.strip()) >= 8
+        key.strip() for key in configured_keys.split(",") if key.strip() and len(key.strip()) >= 8
     ]
 
     if not legacy_keys:
@@ -898,9 +882,7 @@ async def migrate_legacy_keys() -> dict:
                             admin_role_id,
                         )
                         user_id = user["id"]
-                        logger.info(
-                            f"Created user {username} (id: {user_id}) for legacy key {idx}"
-                        )
+                        logger.info(f"Created user {username} (id: {user_id}) for legacy key {idx}")
 
                     # Create API key entry
                     await conn.execute(

@@ -153,12 +153,8 @@ class GraphExecutionEngine:
             for i, result in enumerate(results):
                 if isinstance(result, Exception):
                     # Defensive: _execute_node should catch exceptions, but handle edge cases
-                    logger.error(
-                        "Unexpected exception for node %s: %s", node_ids[i], result
-                    )
-                    all_results.append(
-                        NodeResult(node_id=node_ids[i], error=str(result))
-                    )
+                    logger.error("Unexpected exception for node %s: %s", node_ids[i], result)
+                    all_results.append(NodeResult(node_id=node_ids[i], error=str(result)))
                 else:
                     all_results.append(result)
                     port_data[result.node_id] = result.outputs

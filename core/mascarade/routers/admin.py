@@ -35,9 +35,7 @@ async def _get_authenticated_user(request: Request) -> User:
     """
     auth_header = request.headers.get("Authorization", "")
     if not auth_header.startswith("Bearer "):
-        raise HTTPException(
-            status_code=401, detail="Missing or invalid authorization header"
-        )
+        raise HTTPException(status_code=401, detail="Missing or invalid authorization header")
     token = auth_header.removeprefix("Bearer ").strip()
 
     # Try full auth first
@@ -51,18 +49,14 @@ async def _get_authenticated_user(request: Request) -> User:
         try:
             key_hash = auth_module.hash_api_key(token)
             async with pool.acquire() as conn:
-                ak_row = await conn.fetchrow(
-                    "SELECT * FROM api_keys WHERE key_hash = $1", key_hash
-                )
+                ak_row = await conn.fetchrow("SELECT * FROM api_keys WHERE key_hash = $1", key_hash)
                 if ak_row is None:
                     ak_row = await conn.fetchrow(
                         "SELECT * FROM api_keys WHERE key_hash = $1", key_hash
                     )
                 if ak_row and ak_row.get("is_active", True):
                     user_id = ak_row["user_id"]
-                    u_row = await conn.fetchrow(
-                        "SELECT * FROM users WHERE id = $1", user_id
-                    )
+                    u_row = await conn.fetchrow("SELECT * FROM users WHERE id = $1", user_id)
                     if u_row and u_row.get("is_active", True):
                         from datetime import datetime as dt
 
@@ -116,21 +110,15 @@ async def create_user(request: Request):
     body = await request.json()
     pool = auth_module.get_db_pool()
     async with pool.acquire() as conn:
-        existing = await conn.fetchrow(
-            "SELECT id FROM users WHERE username = $1", body["username"]
-        )
+        existing = await conn.fetchrow("SELECT id FROM users WHERE username = $1", body["username"])
         if existing:
             raise HTTPException(status_code=409, detail="Username already taken")
 
-        existing = await conn.fetchrow(
-            "SELECT id FROM users WHERE email = $1", body["email"]
-        )
+        existing = await conn.fetchrow("SELECT id FROM users WHERE email = $1", body["email"])
         if existing:
             raise HTTPException(status_code=409, detail="Email already taken")
 
-        role = await conn.fetchrow(
-            "SELECT id FROM roles WHERE id = $1", body["role_id"]
-        )
+        role = await conn.fetchrow("SELECT id FROM roles WHERE id = $1", body["role_id"])
         if not role:
             raise HTTPException(status_code=400, detail="Role not found")
 
@@ -192,9 +180,7 @@ async def update_user(user_id: int, request: Request):
                 raise HTTPException(status_code=409, detail="Username already taken")
 
         if "role_id" in body:
-            role = await conn.fetchrow(
-                "SELECT id FROM roles WHERE id = $1", body["role_id"]
-            )
+            role = await conn.fetchrow("SELECT id FROM roles WHERE id = $1", body["role_id"])
             if not role:
                 raise HTTPException(status_code=400, detail="Role not found")
 
@@ -338,9 +324,7 @@ async def update_rate_limit(user_id: int, request: Request):
     body = await request.json()
     pool = auth_module.get_db_pool()
     async with pool.acquire() as conn:
-        existing = await conn.fetchrow(
-            "SELECT id, username FROM users WHERE id = $1", user_id
-        )
+        existing = await conn.fetchrow("SELECT id, username FROM users WHERE id = $1", user_id)
         if existing is None:
             # Fallback query for broader compatibility
             existing = await conn.fetchrow("SELECT * FROM users WHERE id = $1", user_id)
@@ -505,9 +489,7 @@ async def list_legacy_api_keys(request: Request):
     # Try full DB auth first
     auth_header = request.headers.get("Authorization", "")
     if not auth_header.startswith("Bearer "):
-        raise HTTPException(
-            status_code=401, detail="Missing or invalid authorization header"
-        )
+        raise HTTPException(status_code=401, detail="Missing or invalid authorization header")
     token = auth_header.removeprefix("Bearer ").strip()
 
     # Check legacy in-memory keys first
@@ -563,9 +545,7 @@ async def send_message(request: Request):
     """Send a message to LLM (requires write access, not read_only)."""
     user = await _get_authenticated_user(request)
     if user.role_id == 3:  # read_only
-        raise HTTPException(
-            status_code=403, detail="Read-only users cannot make LLM requests"
-        )
+        raise HTTPException(status_code=403, detail="Read-only users cannot make LLM requests")
 
     body = await request.json()
     messages = body.get("messages", [])

@@ -52,18 +52,14 @@ async def mistral_agents_status(request: Request):
 
 
 @router.post("/{agent_name}/run")
-async def run_mistral_agent(
-    agent_name: str, req: MistralAgentRunRequest, request: Request
-):
+async def run_mistral_agent(agent_name: str, req: MistralAgentRunRequest, request: Request):
     """Run a Mistral AI Studio agent."""
     from mascarade.agents.mistral_agents import MistralRemoteAgent
 
     try:
         agent = request.app.state.registry.get(agent_name)
     except KeyError:
-        raise HTTPException(
-            status_code=404, detail=f"Agent '{agent_name}' not found"
-        ) from None
+        raise HTTPException(status_code=404, detail=f"Agent '{agent_name}' not found") from None
 
     if not isinstance(agent, MistralRemoteAgent):
         raise HTTPException(
@@ -98,18 +94,14 @@ async def run_mistral_agent(
 
 
 @router.post("/{agent_name}/configure")
-async def configure_mistral_agent(
-    agent_name: str, request: Request, agent_id: str = ""
-):
+async def configure_mistral_agent(agent_name: str, request: Request, agent_id: str = ""):
     """Configure the Mistral agent_id for a registered agent."""
     from mascarade.agents.mistral_agents import MistralRemoteAgent
 
     try:
         agent = request.app.state.registry.get(agent_name)
     except KeyError:
-        raise HTTPException(
-            status_code=404, detail=f"Agent '{agent_name}' not found"
-        ) from None
+        raise HTTPException(status_code=404, detail=f"Agent '{agent_name}' not found") from None
 
     if not isinstance(agent, MistralRemoteAgent):
         raise HTTPException(
@@ -129,9 +121,7 @@ async def reset_conversation(agent_name: str, request: Request):
     try:
         agent = request.app.state.registry.get(agent_name)
     except KeyError:
-        raise HTTPException(
-            status_code=404, detail=f"Agent '{agent_name}' not found"
-        ) from None
+        raise HTTPException(status_code=404, detail=f"Agent '{agent_name}' not found") from None
 
     if isinstance(agent, MistralRemoteAgent):
         agent.reset_conversation()

@@ -30,6 +30,7 @@ cody_router = APIRouter(tags=["cody-gateway"])
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _get_router(request: Request):
     return getattr(request.app.state, "router", None)
 
@@ -45,23 +46,25 @@ def _build_model_list(request: Request) -> list[dict]:
     for provider_name, provider_models in model_map.items():
         for m in provider_models:
             model_id = f"{provider_name}/{m}" if provider_name != "ollama" else f"ollama/{m}"
-            models.append({
-                "modelRef": model_id,
-                "displayName": f"{m} ({provider_name})",
-                "modelName": m,
-                "capabilities": ["autocomplete", "chat"],
-                "category": "balanced",
-                "status": "stable",
-                "tier": "free",
-                "contextWindow": {
-                    "maxInputTokens": 32000,
-                    "maxOutputTokens": 4096,
-                },
-                "provider": provider_name,
-                "serverSideConfig": {
-                    "type": "openaicompatible",
-                },
-            })
+            models.append(
+                {
+                    "modelRef": model_id,
+                    "displayName": f"{m} ({provider_name})",
+                    "modelName": m,
+                    "capabilities": ["autocomplete", "chat"],
+                    "category": "balanced",
+                    "status": "stable",
+                    "tier": "free",
+                    "contextWindow": {
+                        "maxInputTokens": 32000,
+                        "maxOutputTokens": 4096,
+                    },
+                    "provider": provider_name,
+                    "serverSideConfig": {
+                        "type": "openaicompatible",
+                    },
+                }
+            )
     return models
 
 
@@ -163,12 +166,14 @@ def _handle_graphql(query: str, variables: dict | None = None) -> dict:
         return {
             "data": {
                 "viewerSettings": {
-                    "final": json.dumps({
-                        "cody.enabled": True,
-                        "cody.autocomplete.enabled": True,
-                        "cody.chat.enabled": True,
-                        "cody.serverEndpoint": "",
-                    }),
+                    "final": json.dumps(
+                        {
+                            "cody.enabled": True,
+                            "cody.autocomplete.enabled": True,
+                            "cody.chat.enabled": True,
+                            "cody.serverEndpoint": "",
+                        }
+                    ),
                 }
             }
         }
@@ -239,6 +244,7 @@ def _handle_graphql(query: str, variables: dict | None = None) -> dict:
 # ---------------------------------------------------------------------------
 # Endpoints
 # ---------------------------------------------------------------------------
+
 
 @cody_router.post("/.api/graphql")
 async def graphql(request: Request):
@@ -389,6 +395,7 @@ async def chat_completions(request: Request):
         raise HTTPException(status_code=503, detail="Router not available")
 
     if stream:
+
         async def generate():
             try:
                 async for chunk in router.stream(
@@ -399,11 +406,13 @@ async def chat_completions(request: Request):
                     max_tokens=max_tokens,
                 ):
                     data = {
-                        "choices": [{
-                            "delta": {"content": chunk},
-                            "index": 0,
-                            "finish_reason": None,
-                        }]
+                        "choices": [
+                            {
+                                "delta": {"content": chunk},
+                                "index": 0,
+                                "finish_reason": None,
+                            }
+                        ]
                     }
                     yield f"data: {json.dumps(data)}\n\n"
                 yield "data: [DONE]\n\n"
@@ -432,14 +441,16 @@ async def chat_completions(request: Request):
         "object": "chat.completion",
         "created": int(time.time()),
         "model": model,
-        "choices": [{
-            "index": 0,
-            "message": {
-                "role": "assistant",
-                "content": response.content,
-            },
-            "finish_reason": "stop",
-        }],
+        "choices": [
+            {
+                "index": 0,
+                "message": {
+                    "role": "assistant",
+                    "content": response.content,
+                },
+                "finish_reason": "stop",
+            }
+        ],
         "usage": {
             "prompt_tokens": response.usage.get("input_tokens", 0),
             "completion_tokens": response.usage.get("output_tokens", 0),
@@ -460,16 +471,21 @@ async def prompts(request: Request):
     # Build prompts from registered agents
     if registry:
         for agent in registry.list():
-            prompt_list.append({
-                "id": f"mascarade-{agent.name}",
-                "name": agent.name.replace("-", " ").title(),
-                "description": agent.description,
-                "prompt": agent.system_prompt[:200],
-                "mode": "chat",
-                "model": f"{agent.preferred_provider or 'ollama'}/{agent.preferred_model or 'devstral'}",
-                "tags": [getattr(agent, "category", None) or "general", getattr(agent, "routing_policy", "auto")],
-                "builtin": True,
-            })
+            prompt_list.append(
+                {
+                    "id": f"mascarade-{agent.name}",
+                    "name": agent.name.replace("-", " ").title(),
+                    "description": agent.description,
+                    "prompt": agent.system_prompt[:200],
+                    "mode": "chat",
+                    "model": f"{agent.preferred_provider or 'ollama'}/{agent.preferred_model or 'devstral'}",
+                    "tags": [
+                        getattr(agent, "category", None) or "general",
+                        getattr(agent, "routing_policy", "auto"),
+                    ],
+                    "builtin": True,
+                }
+            )
 
     # Add curated prompts
     _CURATED = [
@@ -574,16 +590,18 @@ async def list_agents(request: Request):
         return []
     agents = []
     for agent in registry.list():
-        agents.append({
-            "name": agent.name,
-            "description": agent.description,
-            "strategy": str(getattr(agent, "strategy", "best")),
-            "provider": getattr(agent, "preferred_provider", None),
-            "model": getattr(agent, "preferred_model", None),
-            "temperature": getattr(agent, "temperature", 0.7),
-            "category": getattr(agent, "category", None),
-            "routing_policy": getattr(agent, "routing_policy", "auto"),
-        })
+        agents.append(
+            {
+                "name": agent.name,
+                "description": agent.description,
+                "strategy": str(getattr(agent, "strategy", "best")),
+                "provider": getattr(agent, "preferred_provider", None),
+                "model": getattr(agent, "preferred_model", None),
+                "temperature": getattr(agent, "temperature", 0.7),
+                "category": getattr(agent, "category", None),
+                "routing_policy": getattr(agent, "routing_policy", "auto"),
+            }
+        )
     return agents
 
 
@@ -765,13 +783,15 @@ async def healthz():
 @cody_router.get("/.auth/callback")
 async def auth_callback(code: str = "", state: str = ""):
     """Fake OAuth callback — always succeeds."""
-    return JSONResponse({
-        "type": "callback",
-        "payload": {
-            "accessToken": "sgp_mascarade_" + uuid.uuid4().hex[:16],
-            "user": {"username": "mascarade"},
-        },
-    })
+    return JSONResponse(
+        {
+            "type": "callback",
+            "payload": {
+                "accessToken": "sgp_mascarade_" + uuid.uuid4().hex[:16],
+                "user": {"username": "mascarade"},
+            },
+        }
+    )
 
 
 @cody_router.get("/.auth/authorize")
@@ -780,6 +800,7 @@ async def auth_authorize(response_type: str = "", client_id: str = "", state: st
     token = "sgp_mascarade_" + uuid.uuid4().hex[:16]
     # Redirect back to callback with code
     from fastapi.responses import RedirectResponse
+
     callback_url = f"/.auth/callback?code={token}&state={state}"
     return RedirectResponse(url=callback_url)
 
@@ -800,38 +821,47 @@ async def openid_config(request: Request):
 # Mount helper
 # ---------------------------------------------------------------------------
 
+
 def mount_cody_gateway(app: FastAPI) -> None:
     """Mount Cody Gateway routes on the main app."""
     app.include_router(cody_router)
-    logger.info("Cody Gateway mounted (/.api/completions/stream, /.api/chat/completions, /.api/graphql)")
+    logger.info(
+        "Cody Gateway mounted (/.api/completions/stream, /.api/chat/completions, /.api/graphql)"
+    )
 
 
 # ---------------------------------------------------------------------------
 # Ops console compatibility routes
 # ---------------------------------------------------------------------------
 
+
 @cody_router.get("/v1/api/v1/agents")
 async def ops_list_agents(request: Request):
     agents = await list_agents(request)
     return {"agents": agents}
 
+
 @cody_router.get("/v1/api/v1/agents/{name}")
 async def ops_get_agent(name: str, request: Request):
     return await get_agent(name, request)
+
 
 @cody_router.get("/v1/api/providers")
 async def ops_providers(request: Request):
     h = await health_check(request)
     return [{"id": p, "configured": True} for p in h.get("providers", [])]
 
+
 @cody_router.get("/v1/api/providers/status")
 async def ops_providers_status(request: Request):
     h = await health_check(request)
     return {"providers": h.get("providers", []), "status": "ok"}
 
+
 @cody_router.get("/v1/api/cli-agents/status")
 async def ops_cli_status():
     return {"agents": [], "status": "ok"}
+
 
 @cody_router.post("/v1/api/cli-agents/run")
 async def ops_cli_run():

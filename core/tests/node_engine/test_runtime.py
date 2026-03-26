@@ -267,9 +267,7 @@ def test_execute_topological_order():
 
     assert context.status == ExecutionStatus.COMPLETED
     # All nodes should execute successfully
-    assert all(
-        r.status == ExecutionStatus.COMPLETED for r in context.node_results.values()
-    )
+    assert all(r.status == ExecutionStatus.COMPLETED for r in context.node_results.values())
 
 
 def test_execute_validation_error():

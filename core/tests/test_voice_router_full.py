@@ -102,7 +102,11 @@ class TestHandleJsonMessage:
         mock_router = AsyncMock()
         mock_router.route = AsyncMock(return_value={"content": "Reponse du professeur"})
 
-        with patch("mascarade.routers.voice._text_to_speech", new_callable=AsyncMock, return_value=b"\x00" * 100):
+        with patch(
+            "mascarade.routers.voice._text_to_speech",
+            new_callable=AsyncMock,
+            return_value=b"\x00" * 100,
+        ):
             await _handle_json_message(
                 ws,
                 {"type": "text_query", "text": "Bonjour professeur"},
@@ -165,8 +169,10 @@ class TestTtsIntegration:
             request=httpx.Request("POST", "http://test"),
         )
 
-        with patch("mascarade.routers.voice.settings") as mock_settings, \
-             patch("mascarade.routers.voice.httpx.AsyncClient") as mock_client_cls:
+        with (
+            patch("mascarade.routers.voice.settings") as mock_settings,
+            patch("mascarade.routers.voice.httpx.AsyncClient") as mock_client_cls,
+        ):
             mock_settings.voice_bridge_tts_url = "http://piper:8000/v1/audio/speech"
             mock_settings.voice_bridge_tts_voice = "fr_FR-upmc-medium"
 
@@ -193,8 +199,10 @@ class TestTtsIntegration:
             request=httpx.Request("POST", "http://test"),
         )
 
-        with patch("mascarade.routers.voice.settings") as mock_settings, \
-             patch("mascarade.routers.voice.httpx.AsyncClient") as mock_client_cls:
+        with (
+            patch("mascarade.routers.voice.settings") as mock_settings,
+            patch("mascarade.routers.voice.httpx.AsyncClient") as mock_client_cls,
+        ):
             mock_settings.voice_bridge_tts_url = "http://piper:8000/v1/audio/speech"
             mock_settings.voice_bridge_tts_voice = "alloy"
 

@@ -60,8 +60,7 @@ class ExecutionPlan:
         return [
             t
             for t in self.tasks
-            if t.status == TaskStatus.PENDING
-            and all(dep in completed for dep in t.dependencies)
+            if t.status == TaskStatus.PENDING and all(dep in completed for dep in t.dependencies)
         ]
 
     def all_done(self) -> bool:
@@ -158,9 +157,7 @@ class PlanAndExecuteOrchestrator:
     async def plan(self, query: str) -> ExecutionPlan:
         """Use the LLM router to decompose *query* into an ExecutionPlan."""
         agents_desc = self._build_agents_description()
-        user_prompt = PLANNER_USER_TEMPLATE.format(
-            query=query, agents_description=agents_desc
-        )
+        user_prompt = PLANNER_USER_TEMPLATE.format(query=query, agents_description=agents_desc)
 
         response = await self.router.send(
             [{"role": "user", "content": user_prompt}],
@@ -174,9 +171,7 @@ class PlanAndExecuteOrchestrator:
         tasks = self._parse_plan(response.content)
         self._validate_plan(tasks)
         plan = ExecutionPlan(tasks=tasks, query=query)
-        logger.info(
-            "Plan created: %d tasks for query '%.80s'", len(tasks), query
-        )
+        logger.info("Plan created: %d tasks for query '%.80s'", len(tasks), query)
         return plan
 
     def _parse_plan(self, raw: str) -> list[TaskNode]:
@@ -222,9 +217,7 @@ class PlanAndExecuteOrchestrator:
                 )
             for dep in t.dependencies:
                 if dep not in ids:
-                    raise ValueError(
-                        f"Task '{t.id}' depends on unknown task '{dep}'"
-                    )
+                    raise ValueError(f"Task '{t.id}' depends on unknown task '{dep}'")
 
         # Simple cycle detection via topological sort attempt
         remaining = {t.id: set(t.dependencies) for t in tasks}
@@ -317,12 +310,8 @@ class PlanAndExecuteOrchestrator:
         if len(completed) == 1:
             return completed[0].result or ""
 
-        results_block = "\n\n".join(
-            f"[{t.id} / {t.agent}]:\n{t.result}" for t in completed
-        )
-        user_prompt = SYNTHESIZE_USER_TEMPLATE.format(
-            query=plan.query, results_block=results_block
-        )
+        results_block = "\n\n".join(f"[{t.id} / {t.agent}]:\n{t.result}" for t in completed)
+        user_prompt = SYNTHESIZE_USER_TEMPLATE.format(query=plan.query, results_block=results_block)
 
         response = await self.router.send(
             [{"role": "user", "content": user_prompt}],
@@ -344,9 +333,7 @@ class PlanAndExecuteOrchestrator:
         plan = await self.execute(plan)
 
         if plan.has_failures():
-            logger.warning(
-                "Plan has failures, attempting re-plan for failed tasks"
-            )
+            logger.warning("Plan has failures, attempting re-plan for failed tasks")
             plan = await self._replan_failures(plan)
             plan = await self.execute(plan)
 

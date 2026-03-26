@@ -41,6 +41,7 @@ def _is_secret_configured(secret) -> bool:
         val = str(secret)
     return bool(val and val.strip() and val != "changeme")
 
+
 logger = logging.getLogger("mascarade.openai_audio")
 
 router = APIRouter(prefix="/v1", tags=["audio"])
@@ -132,9 +133,7 @@ async def audio_speech(request: Request, body: SpeechRequest):
 
     # Fallback to OpenAI TTS API
     if audio_bytes is None and _is_secret_configured(settings.openai_api_key):
-        audio_bytes = await _synthesize_openai(
-            body.input, body.voice, body.response_format
-        )
+        audio_bytes = await _synthesize_openai(body.input, body.voice, body.response_format)
 
     if audio_bytes is None:
         raise HTTPException(
@@ -164,9 +163,7 @@ async def audio_speech(request: Request, body: SpeechRequest):
 # ---------------------------------------------------------------------------
 
 
-async def _transcribe_faster_whisper(
-    audio_bytes: bytes, language: str
-) -> str | None:
+async def _transcribe_faster_whisper(audio_bytes: bytes, language: str) -> str | None:
     """Transcribe using faster-whisper (local GPU/CPU)."""
     try:
         from faster_whisper import WhisperModel
@@ -198,17 +195,17 @@ async def _transcribe_faster_whisper(
         return None
 
 
-async def _transcribe_openai(
-    audio_bytes: bytes, filename: str, language: str
-) -> str | None:
+async def _transcribe_openai(audio_bytes: bytes, filename: str, language: str) -> str | None:
     """Transcribe using OpenAI Whisper API."""
     try:
         from openai import AsyncOpenAI
 
         client = AsyncOpenAI(
-            api_key=settings.openai_api_key
-            if isinstance(settings.openai_api_key, str)
-            else settings.openai_api_key.get_secret_value(),
+            api_key=(
+                settings.openai_api_key
+                if isinstance(settings.openai_api_key, str)
+                else settings.openai_api_key.get_secret_value()
+            ),
             timeout=30.0,
         )
         result = await client.audio.transcriptions.create(
@@ -228,9 +225,7 @@ async def _transcribe_openai(
 # ---------------------------------------------------------------------------
 
 
-async def _synthesize_piper(
-    text: str, voice: str, response_format: str
-) -> bytes | None:
+async def _synthesize_piper(text: str, voice: str, response_format: str) -> bytes | None:
     """Synthesize using Piper TTS (or any OpenAI-compatible TTS endpoint)."""
     tts_url = settings.voice_bridge_tts_url
     if not tts_url:
@@ -256,17 +251,17 @@ async def _synthesize_piper(
         return None
 
 
-async def _synthesize_openai(
-    text: str, voice: str, response_format: str
-) -> bytes | None:
+async def _synthesize_openai(text: str, voice: str, response_format: str) -> bytes | None:
     """Synthesize using OpenAI TTS API."""
     try:
         from openai import AsyncOpenAI
 
         client = AsyncOpenAI(
-            api_key=settings.openai_api_key
-            if isinstance(settings.openai_api_key, str)
-            else settings.openai_api_key.get_secret_value(),
+            api_key=(
+                settings.openai_api_key
+                if isinstance(settings.openai_api_key, str)
+                else settings.openai_api_key.get_secret_value()
+            ),
             timeout=30.0,
         )
         response = await client.audio.speech.create(

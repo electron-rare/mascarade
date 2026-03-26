@@ -16,9 +16,7 @@ if TYPE_CHECKING:
 class ConversationMemory:
     """Redis-backed storage for conversation history."""
 
-    def __init__(
-        self, redis_url: str = "redis://localhost:6379", default_ttl: int = 86400
-    ) -> None:
+    def __init__(self, redis_url: str = "redis://localhost:6379", default_ttl: int = 86400) -> None:
         """Initialize conversation memory with Redis connection.
 
         Args:
@@ -44,9 +42,7 @@ class ConversationMemory:
             await self._redis.aclose()
             self._redis = None
 
-    def _conversation_key(
-        self, conversation_id: str, *, project_id: str | None = None
-    ) -> str:
+    def _conversation_key(self, conversation_id: str, *, project_id: str | None = None) -> str:
         """Generate Redis key for a conversation."""
         return scoped_resource_key(
             "conversation",
@@ -75,9 +71,7 @@ class ConversationMemory:
 
         # Get existing conversation or create new one
         normalized_project, _, _ = normalize_scope(project_id=project_id)
-        conversation = await self.get_conversation(
-            conversation_id, project_id=normalized_project
-        )
+        conversation = await self.get_conversation(conversation_id, project_id=normalized_project)
         if conversation is None:
             conversation = Conversation(
                 id=conversation_id,
@@ -180,9 +174,7 @@ class ConversationMemory:
         Returns:
             Dictionary with metadata (id, message_count, created_at, updated_at, ttl)
         """
-        conversation = await self.get_conversation(
-            conversation_id, project_id=project_id
-        )
+        conversation = await self.get_conversation(conversation_id, project_id=project_id)
         if conversation is None:
             return None
 
@@ -206,9 +198,7 @@ class ConversationMemory:
 
         normalized_project, _, _ = normalize_scope(project_id=project_id)
         keys = []
-        async for key in self._redis.scan_iter(
-            match=f"conversation:{normalized_project}:*"
-        ):
+        async for key in self._redis.scan_iter(match=f"conversation:{normalized_project}:*"):
             keys.append(key)
 
         if keys:

@@ -37,6 +37,7 @@ def _parse_command(env_var: str) -> tuple[str, ...] | None:
 # Lightweight subprocess-based stdio MCP caller
 # ---------------------------------------------------------------------------
 
+
 @dataclass(slots=True)
 class _StdioSession:
     """Manages a single stdio MCP server subprocess."""
@@ -58,7 +59,9 @@ class _StdioSession:
             )
         return self._process
 
-    async def call_tool(self, tool_name: str, arguments: dict[str, Any] | None = None, *, timeout: float = 30.0) -> dict[str, Any]:
+    async def call_tool(
+        self, tool_name: str, arguments: dict[str, Any] | None = None, *, timeout: float = 30.0
+    ) -> dict[str, Any]:
         """Send a JSON-RPC tools/call request and return the result."""
         import json
 
@@ -106,6 +109,7 @@ class _StdioSession:
 # Public facade
 # ---------------------------------------------------------------------------
 
+
 class NarrativeMcpClient:
     """Unified interface to Book Series + Writer MCP servers for the ai-novel-engine pipeline."""
 
@@ -121,7 +125,9 @@ class NarrativeMcpClient:
         if bs_cmd:
             self._book_series = _StdioSession(command=bs_cmd, label="BookSeries")
         else:
-            logger.warning("NARRATIVE_MCP_BOOK_SERIES_COMMAND not set — book-series tools unavailable")
+            logger.warning(
+                "NARRATIVE_MCP_BOOK_SERIES_COMMAND not set — book-series tools unavailable"
+            )
 
         wr_cmd = _parse_command("NARRATIVE_MCP_WRITER_COMMAND")
         if wr_cmd:
@@ -218,22 +224,26 @@ class NarrativeMcpClient:
         tasks: list[tuple[str, Any]] = []
 
         if self._book_series is not None:
-            tasks.append((
-                "book_series",
-                self._book_series.call_tool(
-                    "check_consistency",
-                    {"text": text, "book_id": book_id or "default", "scope": scope},
-                ),
-            ))
+            tasks.append(
+                (
+                    "book_series",
+                    self._book_series.call_tool(
+                        "check_consistency",
+                        {"text": text, "book_id": book_id or "default", "scope": scope},
+                    ),
+                )
+            )
 
         if self._writer is not None:
-            tasks.append((
-                "writer",
-                self._writer.call_tool(
-                    "check_consistency",
-                    {"text": text, "scope": scope},
-                ),
-            ))
+            tasks.append(
+                (
+                    "writer",
+                    self._writer.call_tool(
+                        "check_consistency",
+                        {"text": text, "scope": scope},
+                    ),
+                )
+            )
 
         if not tasks:
             raise RuntimeError("No narrative MCP servers configured")

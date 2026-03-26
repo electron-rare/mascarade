@@ -63,12 +63,8 @@ def main():
 
         # Mark models as healthy (simulate successful deployment)
         print("Step 3: Mark models as healthy (simulating deployment)")
-        router.model_registry.register_model(
-            "mascarade-stm32:latest", {"health_status": "healthy"}
-        )
-        router.model_registry.register_model(
-            "mascarade-spice:latest", {"health_status": "healthy"}
-        )
+        router.model_registry.register_model("mascarade-stm32:latest", {"health_status": "healthy"})
+        router.model_registry.register_model("mascarade-spice:latest", {"health_status": "healthy"})
         print("✓ Both models marked as healthy")
         print()
 
@@ -86,18 +82,14 @@ def main():
 
         # Filter by STM32 domain
         stm32_models = [
-            m
-            for m in all_models
-            if m.domain == "stm32" and m.health_status == "healthy"
+            m for m in all_models if m.domain == "stm32" and m.health_status == "healthy"
         ]
         print(f"✓ Healthy STM32 domain models: {len(stm32_models)}")
         print(f"  Model: {stm32_models[0].model_id}")
 
         # Filter by SPICE domain
         spice_models = [
-            m
-            for m in all_models
-            if m.domain == "spice" and m.health_status == "healthy"
+            m for m in all_models if m.domain == "spice" and m.health_status == "healthy"
         ]
         print(f"✓ Healthy SPICE domain models: {len(spice_models)}")
         print(f"  Model: {spice_models[0].model_id}")
@@ -111,14 +103,10 @@ def main():
             print("✓ Ollama provider is available")
             print("  When router.send(domain='stm32') is called:")
             print("  → Router will filter to providers hosting healthy 'stm32' models")
-            print(
-                "  → Only 'ollama' provider will be selected (hosts mascarade-stm32:latest)"
-            )
+            print("  → Only 'ollama' provider will be selected (hosts mascarade-stm32:latest)")
         else:
             print("⚠ Ollama provider not configured in this environment")
-            print(
-                "  In production, domain filtering would select providers hosting domain models"
-            )
+            print("  In production, domain filtering would select providers hosting domain models")
         print()
 
         print("=" * 70)

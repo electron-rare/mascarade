@@ -19,9 +19,7 @@ VALID_PERMISSIONS = {
 }
 
 
-def check_permission(
-    permissions: dict[str, list[str]], resource: str, action: str
-) -> bool:
+def check_permission(permissions: dict[str, list[str]], resource: str, action: str) -> bool:
     """
     Check if a permission set allows a specific action on a resource.
 

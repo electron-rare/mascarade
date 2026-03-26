@@ -116,9 +116,7 @@ def show_mesh_status():
         caps = ", ".join(info["caps"])
         role = info["role"]
         port = str(info["port"])
-        print(
-            f"  {BOLD}{name:22s}{RESET} {role:8s} :{port:<5s} {status:>20s}  {DIM}{caps}{RESET}"
-        )
+        print(f"  {BOLD}{name:22s}{RESET} {role:8s} :{port:<5s} {status:>20s}  {DIM}{caps}{RESET}")
 
 
 def show_node_detail(name, info):

@@ -40,9 +40,7 @@ class SkillRegistry:
     def get(self, name: str) -> Skill:
         """Get a skill by name."""
         if name not in self._skills:
-            raise KeyError(
-                f"Skill '{name}' non trouvé. Disponibles: {list(self._skills.keys())}"
-            )
+            raise KeyError(f"Skill '{name}' non trouvé. Disponibles: {list(self._skills.keys())}")
         return self._skills[name]
 
     def list(self) -> list[Skill]:
@@ -94,9 +92,7 @@ class SkillRegistry:
             skills_data.append(asdict(skill))
 
         # Atomic write: write to temp file, then rename
-        fd, tmp_path = tempfile.mkstemp(
-            dir=str(self._storage_path.parent), suffix=".tmp"
-        )
+        fd, tmp_path = tempfile.mkstemp(dir=str(self._storage_path.parent), suffix=".tmp")
         try:
             with os.fdopen(fd, "w", encoding="utf-8") as f:
                 json.dump(skills_data, f, indent=2, ensure_ascii=False)

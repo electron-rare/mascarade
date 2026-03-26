@@ -115,9 +115,7 @@ def generate_copilot_instructions(agents: list[dict] | None = None) -> str:
     if agents is None:
         agents = _default_agents()
 
-    agent_list = "\n".join(
-        f"- **{a['name']}**: {a['description']}" for a in agents
-    )
+    agent_list = "\n".join(f"- **{a['name']}**: {a['description']}" for a in agents)
 
     return f"""\
 # Copilot Instructions — Mascarade Integration

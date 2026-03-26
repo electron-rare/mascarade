@@ -66,8 +66,7 @@ def register_agent_routes(protected: APIRouter, app: FastAPI) -> None:
     async def list_agents():
         return {
             "agents": [
-                _serialize_agent(agent, app.state.registry)
-                for agent in app.state.registry.list()
+                _serialize_agent(agent, app.state.registry) for agent in app.state.registry.list()
             ]
         }
 

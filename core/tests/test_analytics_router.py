@@ -88,7 +88,9 @@ class TestGetBenchmarks:
         body = resp.json()
         assert body["filters"]["domain"] == "code"
         instance.query_leaderboard.assert_called_once_with(
-            domain="code", limit=10, order_by="quality_score",
+            domain="code",
+            limit=10,
+            order_by="quality_score",
         )
 
     @pytest.mark.asyncio

@@ -45,9 +45,7 @@ class PeerConnection:
             self.connected = True
             self.last_seen = time.monotonic()
             self._reconnect_backoff = 1.0
-            logger.info(
-                "Connected to peer %s at %s:%d", self.peer_id, self.host, self.port
-            )
+            logger.info("Connected to peer %s at %s:%d", self.peer_id, self.host, self.port)
             return True
         except (TimeoutError, OSError) as exc:
             logger.debug("Failed to connect to %s: %s", self.peer_id, exc)
@@ -56,9 +54,7 @@ class PeerConnection:
 
     async def send(self, msg: P2PMessage) -> bool:
         try:
-            return await asyncio.wait_for(
-                self._send_impl(msg), timeout=_SEND_TIMEOUT_SECONDS
-            )
+            return await asyncio.wait_for(self._send_impl(msg), timeout=_SEND_TIMEOUT_SECONDS)
         except TimeoutError:
             logger.debug(
                 "Timed out sending to peer %s at %s:%d",
@@ -146,9 +142,7 @@ class P2PTransport:
         *,
         reject_unsigned: bool = True,
     ) -> None:
-        self._authenticator = MessageAuthenticator(
-            identity, reject_unsigned=reject_unsigned
-        )
+        self._authenticator = MessageAuthenticator(identity, reject_unsigned=reject_unsigned)
         for conn in self._peers.values():
             conn.message_transform = self._prepare_outgoing
 
@@ -197,9 +191,7 @@ class P2PTransport:
         for task in list(self._outbound_read_tasks.values()):
             task.cancel()
         if self._outbound_read_tasks:
-            await asyncio.gather(
-                *self._outbound_read_tasks.values(), return_exceptions=True
-            )
+            await asyncio.gather(*self._outbound_read_tasks.values(), return_exceptions=True)
         self._outbound_read_tasks.clear()
         # Close server
         if self._server:
@@ -331,17 +323,13 @@ class P2PTransport:
         try:
             while conn.connected and conn.reader is not None:
                 try:
-                    msg = await asyncio.wait_for(
-                        read_message(conn.reader), timeout=120.0
-                    )
+                    msg = await asyncio.wait_for(read_message(conn.reader), timeout=120.0)
                 except TimeoutError:
                     continue
                 if msg is None:
                     break
 
-                if self._authenticator is not None and not self._authenticator.verify(
-                    msg
-                ):
+                if self._authenticator is not None and not self._authenticator.verify(msg):
                     logger.warning(
                         "Dropping unsigned/invalid outbound message type=%s from=%s",
                         msg.type,
@@ -398,9 +386,7 @@ class P2PTransport:
                 if msg is None:
                     break
 
-                if self._authenticator is not None and not self._authenticator.verify(
-                    msg
-                ):
+                if self._authenticator is not None and not self._authenticator.verify(msg):
                     logger.warning(
                         "Dropping unsigned/invalid inbound message type=%s from=%s",
                         msg.type,

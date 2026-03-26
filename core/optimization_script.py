@@ -107,9 +107,7 @@ def optimize_cache_parameters(metrics: dict) -> dict:
     if hit_rate < 0.75 and not settings.cache_l3_enabled:
         optimizations["cache_l3_enabled"] = True
         optimizations["cache_l3_similarity_threshold"] = 0.8
-        logger.info(
-            "Enabling L3 semantic cache (hit rate %.2f%% < 75%%)", hit_rate * 100
-        )
+        logger.info("Enabling L3 semantic cache (hit rate %.2f%% < 75%%)", hit_rate * 100)
 
     return optimizations
 
@@ -210,9 +208,7 @@ def optimize_bert_parameters(metrics: dict) -> dict:
 
     if bert_accuracy < 0.85:
         # Low accuracy - might need retraining
-        logger.warning(
-            "BERT accuracy %.2f%% < 85%% - consider retraining", bert_accuracy * 100
-        )
+        logger.warning("BERT accuracy %.2f%% < 85%% - consider retraining", bert_accuracy * 100)
         # Could trigger retraining here
 
     return optimizations
@@ -295,15 +291,9 @@ def validate_improvements(baseline_metrics: dict) -> dict:
         ) * 100
         improvements["changes"]["cache_hit_rate"] = hit_rate_improvement
 
-    if (
-        "avg_response_time_ms" in baseline_metrics
-        and "avg_response_time_ms" in new_metrics
-    ):
+    if "avg_response_time_ms" in baseline_metrics and "avg_response_time_ms" in new_metrics:
         latency_improvement = (
-            (
-                baseline_metrics["avg_response_time_ms"]
-                - new_metrics["avg_response_time_ms"]
-            )
+            (baseline_metrics["avg_response_time_ms"] - new_metrics["avg_response_time_ms"])
             / baseline_metrics["avg_response_time_ms"]
         ) * 100
         improvements["changes"]["latency_improvement"] = latency_improvement

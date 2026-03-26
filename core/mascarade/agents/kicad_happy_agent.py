@@ -30,22 +30,134 @@ logger = logging.getLogger("mascarade.agents.kicad_happy")
 # ---------------------------------------------------------------------------
 
 LCSC_COMPONENTS: dict[str, dict[str, Any]] = {
-    "R_100R": {"lcsc": "C25803", "mfr": "Uniroyal", "mpn": "0402WGF1000TCE", "desc": "100R 0402 1%", "pkg": "0402", "price": 0.002},
-    "R_1K": {"lcsc": "C11702", "mfr": "Uniroyal", "mpn": "0402WGF1001TCE", "desc": "1K 0402 1%", "pkg": "0402", "price": 0.002},
-    "R_4K7": {"lcsc": "C25905", "mfr": "Uniroyal", "mpn": "0402WGF4701TCE", "desc": "4.7K 0402 1%", "pkg": "0402", "price": 0.002},
-    "R_10K": {"lcsc": "C25744", "mfr": "Uniroyal", "mpn": "0402WGF1002TCE", "desc": "10K 0402 1%", "pkg": "0402", "price": 0.002},
-    "R_100K": {"lcsc": "C25741", "mfr": "Uniroyal", "mpn": "0402WGF1003TCE", "desc": "100K 0402 1%", "pkg": "0402", "price": 0.002},
-    "C_100nF": {"lcsc": "C1525", "mfr": "Samsung", "mpn": "CL05B104KO5NNNC", "desc": "100nF 0402 X7R 16V", "pkg": "0402", "price": 0.003},
-    "C_1uF": {"lcsc": "C52923", "mfr": "Samsung", "mpn": "CL05A105KA5NQNC", "desc": "1uF 0402 X5R 16V", "pkg": "0402", "price": 0.004},
-    "C_10uF": {"lcsc": "C19702", "mfr": "Samsung", "mpn": "CL10A106KP8NNNC", "desc": "10uF 0603 X5R 10V", "pkg": "0603", "price": 0.008},
-    "C_100uF": {"lcsc": "C59461", "mfr": "Samsung", "mpn": "CL31A107MQHNNNE", "desc": "100uF 1206 X5R 6.3V", "pkg": "1206", "price": 0.05},
-    "ESP32_S3_WROOM": {"lcsc": "C2913202", "mfr": "Espressif", "mpn": "ESP32-S3-WROOM-1-N16R8", "desc": "ESP32-S3 WiFi+BLE 16MB/8MB", "pkg": "Module", "price": 3.20},
-    "ESP32_C3_MINI": {"lcsc": "C2838502", "mfr": "Espressif", "mpn": "ESP32-C3-MINI-1-N4", "desc": "ESP32-C3 WiFi+BLE 4MB", "pkg": "Module", "price": 1.50},
-    "STM32F103C8": {"lcsc": "C8734", "mfr": "ST", "mpn": "STM32F103C8T6", "desc": "STM32F103 ARM Cortex-M3 72MHz", "pkg": "LQFP-48", "price": 1.80},
-    "STM32G431KB": {"lcsc": "C529339", "mfr": "ST", "mpn": "STM32G431KBT6", "desc": "STM32G4 ARM Cortex-M4 170MHz", "pkg": "LQFP-32", "price": 3.50},
-    "USB_C_16P": {"lcsc": "C2765186", "mfr": "SHOU HAN", "mpn": "TYPE-C-31-M-12", "desc": "USB-C 16pin SMD", "pkg": "SMD", "price": 0.10},
-    "AMS1117_3V3": {"lcsc": "C6186", "mfr": "AMS", "mpn": "AMS1117-3.3", "desc": "3.3V LDO 1A SOT-223", "pkg": "SOT-223", "price": 0.08},
-    "CH340N": {"lcsc": "C2977777", "mfr": "WCH", "mpn": "CH340N", "desc": "USB-UART bridge SOP-8", "pkg": "SOP-8", "price": 0.35},
+    "R_100R": {
+        "lcsc": "C25803",
+        "mfr": "Uniroyal",
+        "mpn": "0402WGF1000TCE",
+        "desc": "100R 0402 1%",
+        "pkg": "0402",
+        "price": 0.002,
+    },
+    "R_1K": {
+        "lcsc": "C11702",
+        "mfr": "Uniroyal",
+        "mpn": "0402WGF1001TCE",
+        "desc": "1K 0402 1%",
+        "pkg": "0402",
+        "price": 0.002,
+    },
+    "R_4K7": {
+        "lcsc": "C25905",
+        "mfr": "Uniroyal",
+        "mpn": "0402WGF4701TCE",
+        "desc": "4.7K 0402 1%",
+        "pkg": "0402",
+        "price": 0.002,
+    },
+    "R_10K": {
+        "lcsc": "C25744",
+        "mfr": "Uniroyal",
+        "mpn": "0402WGF1002TCE",
+        "desc": "10K 0402 1%",
+        "pkg": "0402",
+        "price": 0.002,
+    },
+    "R_100K": {
+        "lcsc": "C25741",
+        "mfr": "Uniroyal",
+        "mpn": "0402WGF1003TCE",
+        "desc": "100K 0402 1%",
+        "pkg": "0402",
+        "price": 0.002,
+    },
+    "C_100nF": {
+        "lcsc": "C1525",
+        "mfr": "Samsung",
+        "mpn": "CL05B104KO5NNNC",
+        "desc": "100nF 0402 X7R 16V",
+        "pkg": "0402",
+        "price": 0.003,
+    },
+    "C_1uF": {
+        "lcsc": "C52923",
+        "mfr": "Samsung",
+        "mpn": "CL05A105KA5NQNC",
+        "desc": "1uF 0402 X5R 16V",
+        "pkg": "0402",
+        "price": 0.004,
+    },
+    "C_10uF": {
+        "lcsc": "C19702",
+        "mfr": "Samsung",
+        "mpn": "CL10A106KP8NNNC",
+        "desc": "10uF 0603 X5R 10V",
+        "pkg": "0603",
+        "price": 0.008,
+    },
+    "C_100uF": {
+        "lcsc": "C59461",
+        "mfr": "Samsung",
+        "mpn": "CL31A107MQHNNNE",
+        "desc": "100uF 1206 X5R 6.3V",
+        "pkg": "1206",
+        "price": 0.05,
+    },
+    "ESP32_S3_WROOM": {
+        "lcsc": "C2913202",
+        "mfr": "Espressif",
+        "mpn": "ESP32-S3-WROOM-1-N16R8",
+        "desc": "ESP32-S3 WiFi+BLE 16MB/8MB",
+        "pkg": "Module",
+        "price": 3.20,
+    },
+    "ESP32_C3_MINI": {
+        "lcsc": "C2838502",
+        "mfr": "Espressif",
+        "mpn": "ESP32-C3-MINI-1-N4",
+        "desc": "ESP32-C3 WiFi+BLE 4MB",
+        "pkg": "Module",
+        "price": 1.50,
+    },
+    "STM32F103C8": {
+        "lcsc": "C8734",
+        "mfr": "ST",
+        "mpn": "STM32F103C8T6",
+        "desc": "STM32F103 ARM Cortex-M3 72MHz",
+        "pkg": "LQFP-48",
+        "price": 1.80,
+    },
+    "STM32G431KB": {
+        "lcsc": "C529339",
+        "mfr": "ST",
+        "mpn": "STM32G431KBT6",
+        "desc": "STM32G4 ARM Cortex-M4 170MHz",
+        "pkg": "LQFP-32",
+        "price": 3.50,
+    },
+    "USB_C_16P": {
+        "lcsc": "C2765186",
+        "mfr": "SHOU HAN",
+        "mpn": "TYPE-C-31-M-12",
+        "desc": "USB-C 16pin SMD",
+        "pkg": "SMD",
+        "price": 0.10,
+    },
+    "AMS1117_3V3": {
+        "lcsc": "C6186",
+        "mfr": "AMS",
+        "mpn": "AMS1117-3.3",
+        "desc": "3.3V LDO 1A SOT-223",
+        "pkg": "SOT-223",
+        "price": 0.08,
+    },
+    "CH340N": {
+        "lcsc": "C2977777",
+        "mfr": "WCH",
+        "mpn": "CH340N",
+        "desc": "USB-UART bridge SOP-8",
+        "pkg": "SOP-8",
+        "price": 0.35,
+    },
 }
 
 # ---------------------------------------------------------------------------
@@ -77,6 +189,7 @@ DFM_RULES: dict[str, dict[str, float]] = {
 # ---------------------------------------------------------------------------
 # S-expression parser (minimal, for .kicad_sch)
 # ---------------------------------------------------------------------------
+
 
 @dataclass
 class SchComponent:
@@ -214,6 +327,7 @@ def parse_kicad_sch(path: str | Path) -> tuple[list[SchComponent], list[SchNet]]
 # BOM export helpers
 # ---------------------------------------------------------------------------
 
+
 def _bom_to_jlcpcb_csv(components: list[SchComponent]) -> str:
     buf = io.StringIO()
     writer = csv.writer(buf)
@@ -237,7 +351,9 @@ def _bom_to_digikey_csv(components: list[SchComponent]) -> str:
 def _bom_to_mouser_csv(components: list[SchComponent]) -> str:
     buf = io.StringIO()
     writer = csv.writer(buf)
-    writer.writerow(["Mouser Part Number", "Manufacturer Part Number", "Quantity", "Reference", "Description"])
+    writer.writerow(
+        ["Mouser Part Number", "Manufacturer Part Number", "Quantity", "Reference", "Description"]
+    )
     for comp in components:
         info = _lookup_component_info(comp.value)
         writer.writerow(["", info.get("mpn", ""), 1, comp.reference, info.get("desc", "")])
@@ -274,6 +390,7 @@ def _lookup_component_info(value: str) -> dict[str, Any]:
 # DFM check heuristics
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class DFMViolation:
     rule: str
@@ -296,49 +413,59 @@ def dfm_check(
     if trace_widths_mm:
         for i, tw in enumerate(trace_widths_mm):
             if tw < rules["min_trace_mm"]:
-                violations.append(DFMViolation(
-                    rule="min_trace_width",
-                    message=f"Trace width {tw:.3f}mm < min {rules['min_trace_mm']:.3f}mm",
-                    severity="error",
-                    location=f"trace[{i}]",
-                ))
+                violations.append(
+                    DFMViolation(
+                        rule="min_trace_width",
+                        message=f"Trace width {tw:.3f}mm < min {rules['min_trace_mm']:.3f}mm",
+                        severity="error",
+                        location=f"trace[{i}]",
+                    )
+                )
             elif tw < rules["min_trace_mm"] * 1.5:
-                violations.append(DFMViolation(
-                    rule="trace_width_margin",
-                    message=f"Trace width {tw:.3f}mm close to min {rules['min_trace_mm']:.3f}mm",
-                    severity="warning",
-                    location=f"trace[{i}]",
-                ))
+                violations.append(
+                    DFMViolation(
+                        rule="trace_width_margin",
+                        message=f"Trace width {tw:.3f}mm close to min {rules['min_trace_mm']:.3f}mm",
+                        severity="warning",
+                        location=f"trace[{i}]",
+                    )
+                )
 
     if via_drills_mm:
         for i, vd in enumerate(via_drills_mm):
             if vd < rules["min_via_drill_mm"]:
-                violations.append(DFMViolation(
-                    rule="min_via_drill",
-                    message=f"Via drill {vd:.3f}mm < min {rules['min_via_drill_mm']:.3f}mm",
-                    severity="error",
-                    location=f"via[{i}]",
-                ))
+                violations.append(
+                    DFMViolation(
+                        rule="min_via_drill",
+                        message=f"Via drill {vd:.3f}mm < min {rules['min_via_drill_mm']:.3f}mm",
+                        severity="error",
+                        location=f"via[{i}]",
+                    )
+                )
 
     if clearances_mm:
         for i, cl in enumerate(clearances_mm):
             if cl < rules["min_space_mm"]:
-                violations.append(DFMViolation(
-                    rule="min_clearance",
-                    message=f"Clearance {cl:.3f}mm < min {rules['min_space_mm']:.3f}mm",
-                    severity="error",
-                    location=f"clearance[{i}]",
-                ))
+                violations.append(
+                    DFMViolation(
+                        rule="min_clearance",
+                        message=f"Clearance {cl:.3f}mm < min {rules['min_space_mm']:.3f}mm",
+                        severity="error",
+                        location=f"clearance[{i}]",
+                    )
+                )
 
     if via_annulars_mm:
         for i, va in enumerate(via_annulars_mm):
             if va < rules["min_via_annular_mm"]:
-                violations.append(DFMViolation(
-                    rule="min_via_annular",
-                    message=f"Via annular ring {va:.3f}mm < min {rules['min_via_annular_mm']:.3f}mm",
-                    severity="error",
-                    location=f"via_annular[{i}]",
-                ))
+                violations.append(
+                    DFMViolation(
+                        rule="min_via_annular",
+                        message=f"Via annular ring {va:.3f}mm < min {rules['min_via_annular_mm']:.3f}mm",
+                        severity="error",
+                        location=f"via_annular[{i}]",
+                    )
+                )
 
     return violations
 
@@ -346,6 +473,7 @@ def dfm_check(
 # ---------------------------------------------------------------------------
 # Agent
 # ---------------------------------------------------------------------------
+
 
 class KiCadHappyAgent(Agent):
     """Agent tout-en-un pour l'analyse et la review de projets KiCad.
@@ -440,13 +568,13 @@ class KiCadHappyAgent(Agent):
         # Extract basic stats via regex (lightweight, no full parser needed)
         footprints = re.findall(r'\(footprint\s+"([^"]*)"', text)
         layers = re.findall(r'\(layer\s+"([^"]*)"', text)
-        vias = re.findall(r'\(via\s', text)
-        tracks = re.findall(r'\(segment\s', text)
-        zones = re.findall(r'\(zone\s', text)
+        vias = re.findall(r"\(via\s", text)
+        tracks = re.findall(r"\(segment\s", text)
+        zones = re.findall(r"\(zone\s", text)
 
         # Board outline
         edge_cuts = re.findall(
-            r'\(gr_line\s+\(start\s+([\d.]+)\s+([\d.]+)\)\s+\(end\s+([\d.]+)\s+([\d.]+)\).*?Edge\.Cuts',
+            r"\(gr_line\s+\(start\s+([\d.]+)\s+([\d.]+)\)\s+\(end\s+([\d.]+)\s+([\d.]+)\).*?Edge\.Cuts",
             text,
         )
 
@@ -557,7 +685,12 @@ class KiCadHappyAgent(Agent):
             "errors": len(errors),
             "warnings": len(warnings),
             "violations": [
-                {"rule": v.rule, "message": v.message, "severity": v.severity, "location": v.location}
+                {
+                    "rule": v.rule,
+                    "message": v.message,
+                    "severity": v.severity,
+                    "location": v.location,
+                }
                 for v in violations
             ],
             "pass": len(errors) == 0,
@@ -565,7 +698,9 @@ class KiCadHappyAgent(Agent):
 
     # -- skill: review ------------------------------------------------------
 
-    async def review(self, sch_path: str, pcb_path: str | None = None, router=None) -> dict[str, Any]:
+    async def review(
+        self, sch_path: str, pcb_path: str | None = None, router=None
+    ) -> dict[str, Any]:
         """Full review of a KiCad project: schematic + optional PCB."""
         result: dict[str, Any] = {}
 

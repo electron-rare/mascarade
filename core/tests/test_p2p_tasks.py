@@ -17,9 +17,7 @@ async def test_distribute_task_to_capable_peer():
             listen_host="127.0.0.1",
             listen_port=0,
             key_dir=db,
-            bootstrap_peers=[
-                (node_a.peer_id, "127.0.0.1", node_a.transport.listen_port)
-            ],
+            bootstrap_peers=[(node_a.peer_id, "127.0.0.1", node_a.transport.listen_port)],
         )
         await node_b.start()
 
@@ -69,9 +67,7 @@ async def test_distribute_task_targeted():
             listen_host="127.0.0.1",
             listen_port=0,
             key_dir=db,
-            bootstrap_peers=[
-                (node_a.peer_id, "127.0.0.1", node_a.transport.listen_port)
-            ],
+            bootstrap_peers=[(node_a.peer_id, "127.0.0.1", node_a.transport.listen_port)],
         )
         await node_b.start()
 
@@ -111,18 +107,14 @@ async def test_distribute_task_handler_error():
             listen_host="127.0.0.1",
             listen_port=0,
             key_dir=db,
-            bootstrap_peers=[
-                (node_a.peer_id, "127.0.0.1", node_a.transport.listen_port)
-            ],
+            bootstrap_peers=[(node_a.peer_id, "127.0.0.1", node_a.transport.listen_port)],
         )
         await node_b.start()
 
         try:
             await asyncio.sleep(1.5)
 
-            await node_a.advertise_capabilities(
-                capabilities=["failing-cap"], role="worker"
-            )
+            await node_a.advertise_capabilities(capabilities=["failing-cap"], role="worker")
 
             async def bad_handler(payload, capability):
                 raise RuntimeError("GPU exploded")
@@ -154,9 +146,7 @@ async def test_distribute_task_timeout():
             listen_host="127.0.0.1",
             listen_port=0,
             key_dir=db,
-            bootstrap_peers=[
-                (node_a.peer_id, "127.0.0.1", node_a.transport.listen_port)
-            ],
+            bootstrap_peers=[(node_a.peer_id, "127.0.0.1", node_a.transport.listen_port)],
         )
         await node_b.start()
 
@@ -164,9 +154,7 @@ async def test_distribute_task_timeout():
             await asyncio.sleep(1.5)
 
             # Node A does NOT have the requested capability
-            await node_a.advertise_capabilities(
-                capabilities=["other-cap"], role="worker"
-            )
+            await node_a.advertise_capabilities(capabilities=["other-cap"], role="worker")
             await asyncio.sleep(0.5)
 
             task = await node_b.distribute_task(

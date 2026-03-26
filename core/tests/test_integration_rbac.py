@@ -60,8 +60,10 @@ async def _client(user: User | None = None):
     app.dependency_overrides[require_admin] = _override_require_admin
 
     try:
-        with patch("mascarade.auth.is_valid_api_key", return_value=True), \
-             patch("mascarade.auth._resolve_role", return_value=role_name):
+        with (
+            patch("mascarade.auth.is_valid_api_key", return_value=True),
+            patch("mascarade.auth._resolve_role", return_value=role_name),
+        ):
             async with app.router.lifespan_context(app):
                 transport = httpx.ASGITransport(app=app, raise_app_exceptions=False)
                 async with httpx.AsyncClient(
@@ -720,10 +722,7 @@ async def test_complete_admin_workflow():
 
     async def mock_fetch(query, *args):
         # List users
-        if (
-            "SELECT id, username, email, role_id, is_active" in query
-            and "FROM users" in query
-        ):
+        if "SELECT id, username, email, role_id, is_active" in query and "FROM users" in query:
             return list(users_db.values())
         # List API keys
         elif "SELECT id, user_id, key_hash, key_prefix, name, is_active" in query:
@@ -1182,7 +1181,6 @@ async def test_read_only_user_can_view_dashboards():
             pass  # expected — handler may return non-serializable object
 
 
-
 @pytest.mark.asyncio
 async def test_read_only_user_cannot_make_llm_requests():
     """Test that read-only users cannot make LLM requests via /v1/send endpoint."""
@@ -1420,8 +1418,10 @@ async def test_usage_stats_appear_in_admin_dashboard():
     mock_conn.fetchrow.side_effect = mock_fetchrow
     mock_conn.fetch.side_effect = mock_fetch
 
-    with patch("mascarade.server.get_db_pool", return_value=mock_pool), \
-         patch("mascarade.usage_tracking.get_db_pool", return_value=mock_pool):
+    with (
+        patch("mascarade.server.get_db_pool", return_value=mock_pool),
+        patch("mascarade.usage_tracking.get_db_pool", return_value=mock_pool),
+    ):
         async with _client() as client:
             response = await client.get(
                 "/v1/admin/usage/stats",
@@ -1692,8 +1692,10 @@ async def test_complete_usage_tracking_and_rate_limiting_workflow():
     mock_conn.fetch.side_effect = mock_fetch
     mock_conn.execute.side_effect = mock_execute
 
-    with patch("mascarade.server.get_db_pool", return_value=mock_pool), \
-         patch("mascarade.usage_tracking.get_db_pool", return_value=mock_pool):
+    with (
+        patch("mascarade.server.get_db_pool", return_value=mock_pool),
+        patch("mascarade.usage_tracking.get_db_pool", return_value=mock_pool),
+    ):
         async with _client() as client:
             # Step 1: Admin creates a user
             response = await client.post(

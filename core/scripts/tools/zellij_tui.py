@@ -99,9 +99,7 @@ class ZellijTUI(cmd.Cmd):
             print("  Usage: send <text>")
             return
         ok = self._run(
-            self.agent.send_to_pane(
-                self.current_node, self.current_session, arg.strip()
-            )
+            self.agent.send_to_pane(self.current_node, self.current_session, arg.strip())
         )
         if ok:
             print(f"  ✓ Sent to {self.current_node}/{self.current_session}")
@@ -119,15 +117,11 @@ class ZellijTUI(cmd.Cmd):
             print("  Usage: run <command>")
             return
         ok1 = self._run(
-            self.agent.send_to_pane(
-                self.current_node, self.current_session, arg.strip()
-            )
+            self.agent.send_to_pane(self.current_node, self.current_session, arg.strip())
         )
         ok2 = self._run(self.agent.send_enter(self.current_node, self.current_session))
         if ok1 and ok2:
-            print(
-                f"  ✓ Ran on {self.current_node}/{self.current_session}: {arg.strip()}"
-            )
+            print(f"  ✓ Ran on {self.current_node}/{self.current_session}: {arg.strip()}")
         else:
             print("  ✗ Failed")
 

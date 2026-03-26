@@ -186,8 +186,9 @@ class TestTaskSubmission:
         registry = FakeRegistry([FakeAgent(name="coder")])
         app = _make_app(registry=registry, orchestrator=MagicMock())
 
-        with patch("mascarade.routers.a2a.settings") as mock_settings, patch(
-            "mascarade.routers.a2a.require_auth", return_value=None
+        with (
+            patch("mascarade.routers.a2a.settings") as mock_settings,
+            patch("mascarade.routers.a2a.require_auth", return_value=None),
         ):
             mock_settings.a2a_enabled = True
 

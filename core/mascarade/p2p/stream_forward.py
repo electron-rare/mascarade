@@ -138,9 +138,7 @@ class P2PStreamForwarder:
         request_data = msg.payload.get("request", {})
 
         if not self._request_handler:
-            await self._send_error(
-                conn, request_id, msg.sender, "No request handler configured"
-            )
+            await self._send_error(conn, request_id, msg.sender, "No request handler configured")
             return
 
         try:
@@ -182,9 +180,7 @@ class P2PStreamForwarder:
                 "peer_id": msg.sender,
                 "request_id": request_id,
                 "remote_latency_ms": msg.payload.get("latency_ms", 0),
-                "round_trip_ms": round(
-                    (time.monotonic() - pending.created_at) * 1000, 1
-                ),
+                "round_trip_ms": round((time.monotonic() - pending.created_at) * 1000, 1),
             }
             pending.future.set_result(response)
 

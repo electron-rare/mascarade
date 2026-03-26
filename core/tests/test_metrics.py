@@ -128,9 +128,7 @@ def test_classifier_metrics_domain_counts():
 
 def test_tracker_classifier_prediction():
     t = MetricsTracker()
-    t.track_classifier_prediction(
-        latency=0.05, predicted_domain="kicad", was_correct=True
-    )
+    t.track_classifier_prediction(latency=0.05, predicted_domain="kicad", was_correct=True)
     assert t.classifier.total_predictions == 1
     stats = t.get_classifier_stats()
     assert stats["total_predictions"] == 1

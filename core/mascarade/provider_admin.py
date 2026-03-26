@@ -351,9 +351,7 @@ def _field_status(
     default_classification: str,
 ) -> dict:
     value = str(getattr(settings, field["attr"], ""))
-    configured = (
-        is_secret_configured(value) if field.get("secret") else bool(value.strip())
-    )
+    configured = is_secret_configured(value) if field.get("secret") else bool(value.strip())
     return {
         "env": field["env"],
         "label": field["label"],

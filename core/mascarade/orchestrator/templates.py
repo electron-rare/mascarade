@@ -99,9 +99,7 @@ class TemplateRegistry:
             )
             templates_data.append(data)
         # Atomic write: write to temp file, then rename
-        fd, tmp_path = tempfile.mkstemp(
-            dir=str(self._storage_path.parent), suffix=".tmp"
-        )
+        fd, tmp_path = tempfile.mkstemp(dir=str(self._storage_path.parent), suffix=".tmp")
         try:
             with os.fdopen(fd, "w", encoding="utf-8") as f:
                 json.dump(templates_data, f, indent=2, ensure_ascii=False)
@@ -117,9 +115,7 @@ class TemplateRegistry:
         try:
             raw = json.loads(self._storage_path.read_text(encoding="utf-8"))
         except (json.JSONDecodeError, OSError) as exc:
-            logger.error(
-                "Failed to load templates from %s: %s", self._storage_path, exc
-            )
+            logger.error("Failed to load templates from %s: %s", self._storage_path, exc)
             return
         for data in raw:
             try:

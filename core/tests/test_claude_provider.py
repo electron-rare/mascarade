@@ -1,4 +1,5 @@
 """Tests for ClaudeProvider — works even without the anthropic SDK installed."""
+
 from __future__ import annotations
 
 import sys
@@ -50,6 +51,7 @@ def restore_claude_settings():
 
 # ---------- fake clients ----------
 
+
 class _FakeAsyncAnthropic:
     def __init__(self, *, api_key, timeout=30.0, **kw):
         self.api_key = api_key
@@ -81,6 +83,7 @@ class _FakeAsyncOpenAI:
 
 
 # ---------- tests ----------
+
 
 @pytest.mark.asyncio
 async def test_claude_direct_send(monkeypatch):
@@ -218,6 +221,7 @@ async def test_claude_send_with_system_prompt(monkeypatch):
 
 
 # ---------- helpers ----------
+
 
 async def _async_iter(items):
     for item in items:

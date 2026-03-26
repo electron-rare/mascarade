@@ -64,9 +64,7 @@ class FinetuneOrchestrator:
     9. Archive → publish final model (ft-archive)
     """
 
-    def __init__(
-        self, *, node=None, router=None, registry: FinetuneRegistry | None = None
-    ):
+    def __init__(self, *, node=None, router=None, registry: FinetuneRegistry | None = None):
         self.node = node  # MascaradeP2PNode
         self.router = router
         self.registry = registry or FinetuneRegistry()
@@ -133,9 +131,7 @@ class FinetuneOrchestrator:
         """Distribute a task to the appropriate P2P node."""
         if self.node is None:
             raise RuntimeError("Orchestrator requires a P2P node for task distribution")
-        return await self.node.distribute_task(
-            payload=payload, capability=capability, timeout=600
-        )
+        return await self.node.distribute_task(payload=payload, capability=capability, timeout=600)
 
     async def _phase_research(self, state: PipelineState) -> PipelineState:
         logger.info("Phase: Research — searching for base models")
@@ -238,9 +234,7 @@ class FinetuneOrchestrator:
             },
         )
         state.training_result = result
-        run_id = (
-            result.get("output_dir", "").split("/")[-1] or f"run-{int(time.time())}"
-        )
+        run_id = result.get("output_dir", "").split("/")[-1] or f"run-{int(time.time())}"
         failed = bool(result.get("error"))
         self.registry.add_run(
             RunEntry(
@@ -278,22 +272,14 @@ class FinetuneOrchestrator:
 
         # 1. Check prerequisites: eval_report must exist with data
         if not state.eval_report or not state.eval_report.get("metrics"):
-            logger.warning(
-                "%s skipped — no eval report available", alignment_method.upper()
-            )
-            state.errors.append(
-                f"{alignment_method} phase {state.phase} skipped: no eval report"
-            )
+            logger.warning("%s skipped — no eval report available", alignment_method.upper())
+            state.errors.append(f"{alignment_method} phase {state.phase} skipped: no eval report")
             return state
 
         model_path = state.training_result.get("output_dir", "")
         if not model_path:
-            logger.warning(
-                "%s skipped — no trained model path", alignment_method.upper()
-            )
-            state.errors.append(
-                f"{alignment_method} phase {state.phase} skipped: no model path"
-            )
+            logger.warning("%s skipped — no trained model path", alignment_method.upper())
+            state.errors.append(f"{alignment_method} phase {state.phase} skipped: no model path")
             return state
 
         # Build test prompts from domain context
@@ -366,9 +352,7 @@ class FinetuneOrchestrator:
 
         except Exception as e:
             state.errors.append(f"{alignment_method} phase {state.phase} failed: {e}")
-            logger.warning(
-                "%s phase %s failed: %s", alignment_method.upper(), state.phase, e
-            )
+            logger.warning("%s phase %s failed: %s", alignment_method.upper(), state.phase, e)
 
         return state
 

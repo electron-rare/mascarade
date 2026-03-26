@@ -253,9 +253,7 @@ async def test_call_tool_http_success():
         ctx.__aexit__ = AsyncMock(return_value=False)
         mock_client_cls.return_value = ctx
 
-        result = await client.call_tool_http(
-            "graphiti", "search", {"query": "test"}, run_id="r1"
-        )
+        result = await client.call_tool_http("graphiti", "search", {"query": "test"}, run_id="r1")
 
     assert result.server_key == "graphiti"
     assert result.tool_name == "search"
@@ -343,7 +341,7 @@ async def test_graphiti_search_convenience():
     with patch.dict(os.environ, {"GRAPHITI_ENABLED": "true"}):
         client = McpRuntimeClient()
 
-    from mascarade.mcp.client import McpToolResult
+    from mascarade.mcp.server_registry import McpToolResult
 
     fake_result = McpToolResult(
         server_key="graphiti",
@@ -376,7 +374,7 @@ async def test_graphiti_add_episode_convenience():
     with patch.dict(os.environ, {"GRAPHITI_ENABLED": "true"}):
         client = McpRuntimeClient()
 
-    from mascarade.mcp.client import McpToolResult
+    from mascarade.mcp.server_registry import McpToolResult
 
     fake_result = McpToolResult(
         server_key="graphiti",
@@ -405,7 +403,7 @@ async def test_graphiti_get_entity_convenience():
     with patch.dict(os.environ, {"GRAPHITI_ENABLED": "true"}):
         client = McpRuntimeClient()
 
-    from mascarade.mcp.client import McpToolResult
+    from mascarade.mcp.server_registry import McpToolResult
 
     fake_result = McpToolResult(
         server_key="graphiti",

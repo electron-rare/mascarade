@@ -20,9 +20,7 @@ class ProviderMetrics:
     last_used: datetime | None = None
     response_times: deque[float] = field(default_factory=lambda: deque(maxlen=500))
 
-    def update(
-        self, tokens: int, cost: float, response_time: float, success: bool
-    ) -> None:
+    def update(self, tokens: int, cost: float, response_time: float, success: bool) -> None:
         """Mettre à jour les métriques avec les données d'une nouvelle requête."""
         self.total_requests += 1
         self.total_tokens += tokens
@@ -164,9 +162,7 @@ class MetricsTracker:
                 classifier_latency.observe(latency)
 
             if classifier_predictions_total:
-                classifier_predictions_total.labels(
-                    predicted_domain=predicted_domain
-                ).inc()
+                classifier_predictions_total.labels(predicted_domain=predicted_domain).inc()
 
             if classifier_accuracy and self.classifier.total_predictions > 0:
                 classifier_accuracy.set(self.classifier.accuracy)
@@ -184,9 +180,7 @@ class MetricsTracker:
             "avg_latency_ms": round(self.classifier.avg_latency * 1000, 2),
             "predictions_by_domain": self.classifier.predictions_by_domain,
             "last_used": (
-                self.classifier.last_used.isoformat()
-                if self.classifier.last_used
-                else None
+                self.classifier.last_used.isoformat() if self.classifier.last_used else None
             ),
         }
 
@@ -208,9 +202,7 @@ class MetricsTracker:
     def get_summary(self) -> dict:
         """Obtenir un résumé des métriques du système."""
         return {
-            "providers": {
-                name: self.get_provider_stats(name) for name in self.providers
-            },
+            "providers": {name: self.get_provider_stats(name) for name in self.providers},
             "total_requests": sum(p.total_requests for p in self.providers.values()),
             "total_cost": round(sum(p.total_cost for p in self.providers.values()), 4),
             "best_performer": self._get_best_performer(),

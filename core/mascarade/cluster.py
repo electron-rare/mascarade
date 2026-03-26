@@ -36,6 +36,11 @@ _DEFAULT_MDNS_SERVICE = "_mascarade._tcp.local."
 _DEFAULT_MDNS_DISCOVERY_TTL_SECONDS = 60
 
 
+# ── mDNS utilities ───────────────────────────────────────────────────────────
+# Service type normalisation, discovery listener, key fingerprinting,
+# TXT record parsing, and IP/address helpers for Zeroconf integration.
+
+
 def _mdns_service_type(raw: str) -> str:
     service = (raw or _DEFAULT_MDNS_SERVICE).strip()
     if not service:
@@ -53,19 +58,13 @@ class _ClusterMdnsDiscoveryListener(ServiceListener):
     def __init__(self) -> None:
         self._services: set[str] = set()
 
-    def add_service(
-        self, zc: Zeroconf, service_type: str, name: str
-    ) -> None:  # noqa: ARG002
+    def add_service(self, zc: Zeroconf, service_type: str, name: str) -> None:  # noqa: ARG002
         self._services.add(name)
 
-    def remove_service(
-        self, zc: Zeroconf, service_type: str, name: str
-    ) -> None:  # noqa: ARG002
+    def remove_service(self, zc: Zeroconf, service_type: str, name: str) -> None:  # noqa: ARG002
         self._services.discard(name)
 
-    def update_service(
-        self, zc: Zeroconf, service_type: str, name: str
-    ) -> None:  # noqa: ARG002
+    def update_service(self, zc: Zeroconf, service_type: str, name: str) -> None:  # noqa: ARG002
         self._services.add(name)
 
     @property
@@ -173,6 +172,11 @@ def _parsed_addresses(info: Any) -> list[str]:
     return addresses
 
 
+# ── Data classes ─────────────────────────────────────────────────────────────
+# Value objects for cluster peers, node identity, peer health status,
+# and route selection results.
+
+
 @dataclass(slots=True)
 class ClusterPeer:
     peer_id: str
@@ -248,6 +252,11 @@ class ClusterRouteSelection:
     base_url: str | None
 
 
+# ── URL / peer parsing / auth ────────────────────────────────────────────────
+# Static peer list parsing from CLUSTER_PEERS env, URL validation (TLS policy),
+# and the FastAPI dependency for inter-node bearer authentication.
+
+
 def _normalized_url(value: str) -> str:
     return value.strip().rstrip("/")
 
@@ -262,9 +271,7 @@ def _cluster_url_allowed_when_insecure(parsed) -> bool:
         return True
     if not settings.cluster_require_tls:
         return True
-    if settings.cluster_allow_insecure_loopback and _is_loopback_host(
-        parsed.hostname or ""
-    ):
+    if settings.cluster_allow_insecure_loopback and _is_loopback_host(parsed.hostname or ""):
         return True
     return False
 
@@ -340,6 +347,23 @@ async def require_cluster_auth(
         raise HTTPException(status_code=401, detail="Invalid cluster token")
 
 
+# ── ClusterManager ───────────────────────────────────────────────────────────
+# Main orchestrator class. Tightly coupled: mDNS discovery, P2P lifecycle,
+# health probing, route selection, and HTTP forwarding all share instance state
+# (_mdns_peers, _p2p_node, _http_client, _router). Splitting into separate
+# modules would require passing the manager instance everywhere, so sections
+# are documented inline instead.
+#
+# Internal sections:
+#   __init__ / P2P lifecycle      — constructor, start_p2p, stop_p2p, close
+#   P2P task distribution         — p2p_distribute_task, _merge_p2p_peers
+#   Peer collection & properties  — peers, local_identity, _collect_known_peers
+#   mDNS discovery                — _discover_mdns_peers*, _register_mdns_service
+#   Health probing                — probe_peers, _probe_peer
+#   Route selection & forwarding  — select_route, forward_send, _try_p2p_forward
+#   HTTP transport & helpers      — _request_json, _send_local, coerce utilities
+
+
 class ClusterManager:
     """Cluster manager with optional mDNS and P2P peer discovery."""
 
@@ -348,12 +372,8 @@ class ClusterManager:
         self._agents_count_provider = agents_count_provider
         self._timeout_s = max(settings.cluster_request_timeout_ms, 500) / 1000
         self._http_client: httpx.AsyncClient | None = None
-        self._http_limits = httpx.Limits(
-            max_connections=64, max_keepalive_connections=16
-        )
-        self._peers = parse_cluster_peers(
-            settings.cluster_peers, node_id=settings.node_id
-        )
+        self._http_limits = httpx.Limits(max_connections=64, max_keepalive_connections=16)
+        self._peers = parse_cluster_peers(settings.cluster_peers, node_id=settings.node_id)
         self._mdns_peers: dict[str, ClusterPeer] = {}
         self._mdns_discovery_expiry = 0.0
         self._mdns_advertiser: Zeroconf | None = None
@@ -393,9 +413,7 @@ class ClusterManager:
                 node = MascaradeP2PNode(
                     listen_host=settings.p2p_listen_host,
                     listen_port=settings.p2p_listen_port,
-                    key_dir=settings.p2p_key_dir
-                    or settings.p2p_identity_key_path
-                    or None,
+                    key_dir=settings.p2p_key_dir or settings.p2p_identity_key_path or None,
                     bootstrap_peers=bootstrap,
                 )
                 await node.start()
@@ -472,6 +490,8 @@ class ClusterManager:
         info["backend"] = BACKEND
         return info
 
+    # ── P2P task distribution ────────────────────────────────────────────
+
     async def p2p_distribute_task(
         self,
         capability: str,
@@ -505,10 +525,7 @@ class ClusterManager:
         # libp2p backend: discovered_peers() → list[P2PPeer]
         if hasattr(node, "discovered_peers"):
             for p2p_peer in node.discovered_peers():
-                if (
-                    p2p_peer.peer_id not in peers_by_id
-                    and p2p_peer.peer_id != settings.node_id
-                ):
+                if p2p_peer.peer_id not in peers_by_id and p2p_peer.peer_id != settings.node_id:
                     if p2p_peer.base_url:
                         peers_by_id[p2p_peer.peer_id] = ClusterPeer(
                             peer_id=p2p_peer.peer_id,
@@ -557,6 +574,8 @@ class ClusterManager:
                 continue
         return peers
 
+    # ── Peer collection & properties ─────────────────────────────────────
+
     @property
     def enabled(self) -> bool:
         return bool(settings.cluster_enabled)
@@ -584,9 +603,7 @@ class ClusterManager:
 
     def _collect_known_peers(self) -> list[ClusterPeer]:
         peers_by_id: dict[str, ClusterPeer] = {}
-        for peer in parse_cluster_peers(
-            settings.cluster_peers, node_id=settings.node_id
-        ):
+        for peer in parse_cluster_peers(settings.cluster_peers, node_id=settings.node_id):
             peers_by_id[peer.peer_id] = peer
 
         for peer in self._mdns_peers.values():
@@ -598,6 +615,8 @@ class ClusterManager:
             self._merge_p2p_peers(peers_by_id)
 
         return list(peers_by_id.values())
+
+    # ── mDNS discovery ─────────────────────────────────────────────────
 
     def _mdns_discovery_ttl(self) -> float:
         try:
@@ -659,14 +678,10 @@ class ClusterManager:
         service_name = self._mdns_service_name()
         ip_bytes, _ = _ip_from_host(host)
         if ip_bytes is None:
-            logger.warning(
-                "Cannot register mDNS service: invalid MESH_BIND_HOST=%s", host
-            )
+            logger.warning("Cannot register mDNS service: invalid MESH_BIND_HOST=%s", host)
             return
 
-        properties = {
-            key: value.encode("utf-8") for key, value in self._mdns_txt().items()
-        }
+        properties = {key: value.encode("utf-8") for key, value in self._mdns_txt().items()}
 
         try:
             addresses: list[bytes] = [ip_bytes]
@@ -682,9 +697,7 @@ class ClusterManager:
             assert self._mdns_advertiser is not None
             assert self._mdns_service_info is not None
             self._mdns_advertiser.register_service(self._mdns_service_info)
-            logger.info(
-                "mDNS service advertised: name=%s type=%s", service_name, service_type
-            )
+            logger.info("mDNS service advertised: name=%s type=%s", service_name, service_type)
         except Exception as exc:
             self._mdns_advertiser = None
             self._mdns_service_info = None
@@ -713,9 +726,7 @@ class ClusterManager:
             self._mdns_peers = {peer.peer_id: peer for peer in discovered}
             self._mdns_discovery_expiry = time.monotonic() + self._mdns_discovery_ttl()
             return discovered
-        except (
-            Exception
-        ) as exc:  # pragma: no cover - optional dependency/OS discovery failures
+        except Exception as exc:  # pragma: no cover - optional dependency/OS discovery failures
             logger.warning("mDNS peer discovery failed: %s", exc)
             self._mdns_peers = {}
             return []
@@ -764,11 +775,11 @@ class ClusterManager:
         if parsed.scheme not in {"http", "https"} or not parsed.netloc:
             return None
         if not _cluster_url_allowed_when_insecure(parsed):
-            logger.warning(
-                "mDNS peer rejected: insecure URL while TLS required (%s)", base_url
-            )
+            logger.warning("mDNS peer rejected: insecure URL while TLS required (%s)", base_url)
             return None
         return ClusterPeer(peer_id=peer_id, role=role, base_url=base_url)
+
+    # ── Health probing ─────────────────────────────────────────────────
 
     async def probe_peers(self) -> list[PeerStatus]:
         await self._discover_mdns_peers()
@@ -778,6 +789,8 @@ class ClusterManager:
         for peer in self._peers:
             statuses.append(await self._probe_peer(peer))
         return statuses
+
+    # ── Route selection & forwarding ─────────────────────────────────────
 
     async def forward_send(
         self,
@@ -811,17 +824,11 @@ class ClusterManager:
             }
 
         if selection.peer_id is None:
-            raise HTTPException(
-                status_code=500, detail="Cluster route selection failed"
-            )
+            raise HTTPException(status_code=500, detail="Cluster route selection failed")
 
         peers = self._collect_known_peers()
         peer = next(
-            (
-                candidate
-                for candidate in peers
-                if candidate.peer_id == selection.peer_id
-            ),
+            (candidate for candidate in peers if candidate.peer_id == selection.peer_id),
             None,
         )
         if peer is None:
@@ -848,9 +855,7 @@ class ClusterManager:
             }
 
         # Fallback to HTTP forwarding (only if P2P unavailable/failed)
-        remote = await self._request_json(
-            peer, "POST", "/v1/cluster/node/send", json=payload
-        )
+        remote = await self._request_json(peer, "POST", "/v1/cluster/node/send", json=payload)
         latency_ms = int((time.perf_counter() - started) * 1000)
         logger.info("cluster HTTP forward <- %s (%d ms)", peer.peer_id, latency_ms)
         return {
@@ -875,13 +880,9 @@ class ClusterManager:
         await self._discover_mdns_peers()
         peers = self._collect_known_peers()
         if peer_id:
-            peer = next(
-                (candidate for candidate in peers if candidate.peer_id == peer_id), None
-            )
+            peer = next((candidate for candidate in peers if candidate.peer_id == peer_id), None)
             if peer is None:
-                raise HTTPException(
-                    status_code=404, detail=f"Unknown cluster peer: {peer_id}"
-                )
+                raise HTTPException(status_code=404, detail=f"Unknown cluster peer: {peer_id}")
             return ClusterRouteSelection(
                 selected_by="explicit-peer",
                 remote=True,
@@ -911,9 +912,7 @@ class ClusterManager:
                     role=local.role,
                     base_url=local.base_url,
                 )
-            remote_candidates = [
-                peer for peer in remote_candidates if peer.role == preferred_role
-            ]
+            remote_candidates = [peer for peer in remote_candidates if peer.role == preferred_role]
 
         matching_remote = [
             peer
@@ -921,9 +920,7 @@ class ClusterManager:
             if self._peer_matches(peer, provider=provider, model=model)
         ]
 
-        if allow_local and self._identity_matches(
-            local, provider=provider, model=model
-        ):
+        if allow_local and self._identity_matches(local, provider=provider, model=model):
             return ClusterRouteSelection(
                 selected_by="auto-local",
                 remote=False,
@@ -1009,20 +1006,18 @@ class ClusterManager:
             last_seen=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         )
 
+    # ── HTTP transport & helpers ────────────────────────────────────────
+
     async def _send_local(self, payload: dict[str, object]) -> dict[str, object]:
         messages = payload.get("messages")
         if not isinstance(messages, list):
-            raise HTTPException(
-                status_code=400, detail="Cluster local send requires messages"
-            )
+            raise HTTPException(status_code=400, detail="Cluster local send requires messages")
 
         try:
             response = await self._router.send(
                 messages,
                 strategy=payload.get("strategy", "routellm"),
-                routing_policy=self._coerce_optional_string(
-                    payload.get("routing_policy")
-                ),
+                routing_policy=self._coerce_optional_string(payload.get("routing_policy")),
                 provider=self._coerce_optional_string(payload.get("provider")),
                 model=self._coerce_optional_string(payload.get("model")),
                 system=self._coerce_optional_string(payload.get("system")),
@@ -1033,9 +1028,7 @@ class ClusterManager:
                 knowledge_scope=str(payload.get("knowledge_scope", "project")),
             )
         except ValueError as exc:
-            raise HTTPException(
-                status_code=400, detail="Invalid request parameters"
-            ) from exc
+            raise HTTPException(status_code=400, detail="Invalid request parameters") from exc
 
         return {
             "content": response.content,
@@ -1057,9 +1050,7 @@ class ClusterManager:
             if not isinstance(provider, str):
                 continue
             if isinstance(models, list):
-                mapped[provider] = [
-                    str(model) for model in models if isinstance(model, str)
-                ]
+                mapped[provider] = [str(model) for model in models if isinstance(model, str)]
         return mapped
 
     @staticmethod
@@ -1075,9 +1066,7 @@ class ClusterManager:
         return True
 
     @staticmethod
-    def _peer_matches(
-        peer: PeerStatus, *, provider: str | None, model: str | None
-    ) -> bool:
+    def _peer_matches(peer: PeerStatus, *, provider: str | None, model: str | None) -> bool:
         peer_providers = peer.providers or []
         peer_models = peer.provider_models or {}
         if provider and provider not in peer_providers:

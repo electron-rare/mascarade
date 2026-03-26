@@ -96,9 +96,7 @@ class StudentAgent:
         """Train a LoRA adapter. Auto-selects Unsloth (faster) or trl backend."""
         backend = self._resolve_backend(config)
         if backend == "unsloth":
-            return await self._train_unsloth(
-                base_model, dataset_path, config, run_id=run_id
-            )
+            return await self._train_unsloth(base_model, dataset_path, config, run_id=run_id)
         return await self._train_trl(base_model, dataset_path, config, run_id=run_id)
 
     async def _train_unsloth(
@@ -198,9 +196,7 @@ class StudentAgent:
             },
         )
 
-        (output_dir / "result.json").write_text(
-            json.dumps(result.__dict__, indent=2, default=str)
-        )
+        (output_dir / "result.json").write_text(json.dumps(result.__dict__, indent=2, default=str))
         logger.info(
             "Unsloth training complete in %.0fs, loss=%.4f → %s",
             elapsed,
@@ -312,9 +308,7 @@ class StudentAgent:
             base_model=base_model,
             dataset=dataset_path,
             method=(
-                dora_tag
-                if config.quantization == "none"
-                else f"q{dora_tag}-{config.quantization}"
+                dora_tag if config.quantization == "none" else f"q{dora_tag}-{config.quantization}"
             ),
             training_time_seconds=round(elapsed, 1),
             final_loss=round(final_loss, 4),
@@ -325,9 +319,7 @@ class StudentAgent:
             },
         )
 
-        (output_dir / "result.json").write_text(
-            json.dumps(result.__dict__, indent=2, default=str)
-        )
+        (output_dir / "result.json").write_text(json.dumps(result.__dict__, indent=2, default=str))
         logger.info(
             "trl training complete in %.0fs, loss=%.4f → %s",
             elapsed,
@@ -405,9 +397,7 @@ class StudentAgent:
             method="llamacpp",
             training_time_seconds=round(elapsed, 1),
         )
-        (output_dir / "result.json").write_text(
-            json.dumps(result.__dict__, indent=2, default=str)
-        )
+        (output_dir / "result.json").write_text(json.dumps(result.__dict__, indent=2, default=str))
         logger.info("llama.cpp fine-tune complete in %.0fs → %s", elapsed, lora_out)
         return result
 
@@ -441,9 +431,7 @@ class StudentAgent:
             return await self._export_gguf_unsloth(
                 base_model, adapter_path, output_gguf, quant_method
             )
-        return await self._export_gguf_peft(
-            base_model, adapter_path, output_gguf, quant_method
-        )
+        return await self._export_gguf_peft(base_model, adapter_path, output_gguf, quant_method)
 
     async def _export_gguf_unsloth(
         self,
@@ -486,22 +474,16 @@ class StudentAgent:
         Path(merged_hf_dir).mkdir(parents=True, exist_ok=True)
 
         logger.info("Merging adapter into base model (peft)...")
-        base = AutoModelForCausalLM.from_pretrained(
-            base_model, torch_dtype=torch.float16
-        )
+        base = AutoModelForCausalLM.from_pretrained(base_model, torch_dtype=torch.float16)
         model = PeftModel.from_pretrained(base, adapter_path)
         merged = model.merge_and_unload()
         merged.save_pretrained(merged_hf_dir)
         tokenizer = AutoTokenizer.from_pretrained(adapter_path)
         tokenizer.save_pretrained(merged_hf_dir)
 
-        convert_script = shutil.which("llama-convert") or shutil.which(
-            "convert_hf_to_gguf.py"
-        )
+        convert_script = shutil.which("llama-convert") or shutil.which("convert_hf_to_gguf.py")
         if not convert_script:
-            logger.warning(
-                "No GGUF convert tool found, returning merged HF dir: %s", merged_hf_dir
-            )
+            logger.warning("No GGUF convert tool found, returning merged HF dir: %s", merged_hf_dir)
             return merged_hf_dir
 
         logger.info("Converting to GGUF with %s...", convert_script)

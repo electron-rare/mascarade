@@ -26,12 +26,14 @@ def client():
 def mock_auth():
     """Mock authentication by ensuring no API keys are configured."""
     from mascarade.auth import get_active_api_keys, remove_api_key
+
     saved_keys = list(get_active_api_keys())
     for key in saved_keys:
         remove_api_key(key)
     yield
     for key in saved_keys:
         from mascarade.auth import add_api_key
+
         add_api_key(key)
 
 
@@ -84,9 +86,7 @@ def test_api_endpoint(client, mock_auth):
         }
     ]
 
-    with patch(
-        "mascarade.benchmarks.storage.BenchmarkStorage", return_value=mock_storage
-    ):
+    with patch("mascarade.benchmarks.storage.BenchmarkStorage", return_value=mock_storage):
         response = client.get("/v1/v1/analytics/benchmarks")
 
         assert response.status_code == 200
@@ -111,9 +111,7 @@ def test_api_endpoint_with_filters(client, mock_auth):
     mock_storage = MagicMock()
     mock_storage.query_leaderboard.return_value = []
 
-    with patch(
-        "mascarade.benchmarks.storage.BenchmarkStorage", return_value=mock_storage
-    ):
+    with patch("mascarade.benchmarks.storage.BenchmarkStorage", return_value=mock_storage):
         response = client.get(
             "/v1/v1/analytics/benchmarks",
             params={
@@ -614,9 +612,7 @@ async def test_benchmark_suite_run_single_provider_error(mock_router):
     """Test suite handles provider errors."""
     suite = BenchmarkSuite(router=mock_router)
 
-    suite.runner.run_provider_benchmark = AsyncMock(
-        side_effect=Exception("Provider error")
-    )
+    suite.runner.run_provider_benchmark = AsyncMock(side_effect=Exception("Provider error"))
 
     run = await suite.run_single_provider("anthropic")
 
@@ -1013,12 +1009,8 @@ def test_routing_strategy():
     router = Router()
 
     # Test domain detection
-    messages_spice = [
-        {"role": "user", "content": "Can you help me with SPICE simulation?"}
-    ]
-    messages_kicad = [
-        {"role": "user", "content": "I need help designing a PCB in KiCad"}
-    ]
+    messages_spice = [{"role": "user", "content": "Can you help me with SPICE simulation?"}]
+    messages_kicad = [{"role": "user", "content": "I need help designing a PCB in KiCad"}]
     messages_general = [{"role": "user", "content": "What is the capital of France?"}]
 
     # Test _detect_domain method

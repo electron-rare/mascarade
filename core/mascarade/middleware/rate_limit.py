@@ -40,9 +40,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         super().__init__(app)
         self._rate = requests_per_minute / 60.0  # tokens per second
         self._burst = float(burst)
-        self._buckets: dict[str, _Bucket] = defaultdict(
-            lambda: _Bucket(tokens=self._burst)
-        )
+        self._buckets: dict[str, _Bucket] = defaultdict(lambda: _Bucket(tokens=self._burst))
         self._last_cleanup = time.monotonic()
 
     async def dispatch(self, request: Request, call_next):

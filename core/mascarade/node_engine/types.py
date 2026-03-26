@@ -361,12 +361,8 @@ class NodeType(BaseModel):
     label: str = Field(default="", description="Human-readable label")
     description: str = Field(default="", description="Description of this node type")
     category: str = Field(default="", description="Category within the domain")
-    inputs: list[PortType] = Field(
-        default_factory=list, description="Input port definitions"
-    )
-    outputs: list[PortType] = Field(
-        default_factory=list, description="Output port definitions"
-    )
+    inputs: list[PortType] = Field(default_factory=list, description="Input port definitions")
+    outputs: list[PortType] = Field(default_factory=list, description="Output port definitions")
 
     model_config = ConfigDict(frozen=True, protected_namespaces=())
 
@@ -406,9 +402,7 @@ def primitive_port(
     actual_type = primitive_type or ptype
 
     # Handle swapped positional args: (name, PrimitiveType, PortDirection)
-    if isinstance(direction, (PrimitiveType, str)) and not isinstance(
-        direction, PortDirection
-    ):
+    if isinstance(direction, (PrimitiveType, str)) and not isinstance(direction, PortDirection):
         if isinstance(primitive_type, PortDirection):
             actual_direction = primitive_type
             actual_type = direction
@@ -421,11 +415,7 @@ def primitive_port(
     if actual_type is None:
         actual_type = PrimitiveType.STRING
 
-    t = (
-        actual_type.value
-        if isinstance(actual_type, PrimitiveType)
-        else str(actual_type)
-    )
+    t = actual_type.value if isinstance(actual_type, PrimitiveType) else str(actual_type)
     d = (
         actual_direction
         if isinstance(actual_direction, PortDirection)

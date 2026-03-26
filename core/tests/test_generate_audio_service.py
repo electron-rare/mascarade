@@ -12,9 +12,7 @@ import httpx
 import pytest
 from fastapi import HTTPException
 
-SERVICE_PATH = (
-    Path(__file__).resolve().parents[2] / "deploy" / "audio_gen_api" / "app.py"
-)
+SERVICE_PATH = Path(__file__).resolve().parents[2] / "deploy" / "audio_gen_api" / "app.py"
 
 
 def _load_service_module():
@@ -258,9 +256,7 @@ async def test_generate_uses_musicgen_defaults(monkeypatch, service_module):
 
 
 @pytest.mark.asyncio
-async def test_generate_falls_back_to_cpu_when_cuda_unavailable(
-    monkeypatch, service_module
-):
+async def test_generate_falls_back_to_cpu_when_cuda_unavailable(monkeypatch, service_module):
     fake_torch = _FakeTorch(cuda_available=False)
     fake_torchaudio = _FakeTorchaudio()
     registry = {}
@@ -334,9 +330,7 @@ async def test_unload_endpoint_clears_loaded_model(monkeypatch, service_module):
 
 
 @pytest.mark.asyncio
-async def test_generate_returns_503_when_runtime_is_missing(
-    monkeypatch, service_module
-):
+async def test_generate_returns_503_when_runtime_is_missing(monkeypatch, service_module):
     def _raise_runtime_error():
         raise HTTPException(
             status_code=503,
@@ -353,8 +347,7 @@ async def test_generate_returns_503_when_runtime_is_missing(
 
     assert response.status_code == 503
     assert (
-        response.json()["detail"]
-        == "Audio runtime dependencies are not available: missing torch"
+        response.json()["detail"] == "Audio runtime dependencies are not available: missing torch"
     )
 
 

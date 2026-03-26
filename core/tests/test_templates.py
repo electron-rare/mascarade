@@ -265,9 +265,7 @@ class TestBuiltinTemplates:
 
     def test_electronics_template_agents(self):
         """Test that electronics template uses correct agents (spec requirement)"""
-        electronics = next(
-            t for t in BUILTIN_TEMPLATES if t.id == "electronics-pipeline"
-        )
+        electronics = next(t for t in BUILTIN_TEMPLATES if t.id == "electronics-pipeline")
 
         # Spec requires: kicad-designer, spice-expert, components-expert
         expected_agents = {"kicad-designer", "spice-expert", "components-expert"}
@@ -298,9 +296,7 @@ class TestRegisterBuiltinTemplates:
 
         # All should be marked as builtin
         for template in BUILTIN_TEMPLATES:
-            assert registry.is_builtin(
-                template.id
-            ), f"Template {template.id} not marked as builtin"
+            assert registry.is_builtin(template.id), f"Template {template.id} not marked as builtin"
 
         # Should be able to retrieve each template
         for template in BUILTIN_TEMPLATES:

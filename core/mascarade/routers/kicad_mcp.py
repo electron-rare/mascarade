@@ -25,6 +25,7 @@ router = APIRouter(
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _require_mcp(request: Request):
     mcp = getattr(request.app.state, "mcp", None)
     if mcp is None:
@@ -48,6 +49,7 @@ def _best_server(candidates: list[str]) -> str:
 # Request / Response models
 # ---------------------------------------------------------------------------
 
+
 class AnalyzeRequest(BaseModel):
     project_path: str = Field(..., description="Path to KiCad project (.kicad_pro or directory)")
     run_id: str | None = None
@@ -69,26 +71,30 @@ class SpiceRequest(BaseModel):
 # GET /v1/api/kicad/servers
 # ---------------------------------------------------------------------------
 
+
 @router.get("/servers")
 async def list_servers():
     """List available KiCad MCP servers and their install status."""
     installed = set(discover_installed())
     result = []
     for key, srv in KICAD_MCP_SERVERS.items():
-        result.append({
-            "key": key,
-            "description": srv.description,
-            "repo": srv.repo,
-            "installed": key in installed,
-            "tools": srv.tools,
-            "install_cmd": srv.install_cmd,
-        })
+        result.append(
+            {
+                "key": key,
+                "description": srv.description,
+                "repo": srv.repo,
+                "installed": key in installed,
+                "tools": srv.tools,
+                "install_cmd": srv.install_cmd,
+            }
+        )
     return {"servers": result, "installed_count": len(installed), "total": len(KICAD_MCP_SERVERS)}
 
 
 # ---------------------------------------------------------------------------
 # GET /v1/api/kicad/tools
 # ---------------------------------------------------------------------------
+
 
 @router.get("/tools")
 async def list_tools():
@@ -106,6 +112,7 @@ async def list_tools():
 # ---------------------------------------------------------------------------
 # POST /v1/api/kicad/analyze
 # ---------------------------------------------------------------------------
+
 
 @router.post("/analyze")
 async def analyze_project(req: AnalyzeRequest, request: Request):
@@ -141,6 +148,7 @@ async def analyze_project(req: AnalyzeRequest, request: Request):
 # POST /v1/api/kicad/drc
 # ---------------------------------------------------------------------------
 
+
 @router.post("/drc")
 async def run_drc(req: DrcRequest, request: Request):
     """Run Design Rule Check on a KiCad project."""
@@ -174,6 +182,7 @@ async def run_drc(req: DrcRequest, request: Request):
 # ---------------------------------------------------------------------------
 # POST /v1/api/kicad/spice
 # ---------------------------------------------------------------------------
+
 
 @router.post("/spice")
 async def run_spice(req: SpiceRequest, request: Request):

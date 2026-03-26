@@ -288,9 +288,7 @@ def test_memory_search_request_validation():
     """Test MemorySearchRequest validation."""
     # Limit too low should fail
     with pytest.raises(Exception):
-        MemorySearchRequest(
-            query="test", user_id="test-user", project_id="project-alpha", limit=0
-        )
+        MemorySearchRequest(query="test", user_id="test-user", project_id="project-alpha", limit=0)
 
     # Limit too high should fail
     with pytest.raises(Exception):
@@ -400,7 +398,9 @@ def test_memory_search_limit_ranges():
     assert req_min.limit == 1
 
     # Maximum valid limit
-    req_max = MemorySearchRequest(query="test", user_id="user", project_id="project-alpha", limit=100)
+    req_max = MemorySearchRequest(
+        query="test", user_id="user", project_id="project-alpha", limit=100
+    )
     assert req_max.limit == 100
 
     # Default limit

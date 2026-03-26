@@ -34,8 +34,7 @@ class GPT53CodexProvider(LLMProvider):
     def __init__(self, api_key: str, organization: str | None = None):
         if not GPT53_CODEX_AVAILABLE:
             raise RuntimeError(
-                "OpenAI Python library not available. "
-                "Install with: pip install openai"
+                "OpenAI Python library not available. " "Install with: pip install openai"
             )
 
         self.client = openai.AsyncOpenAI(api_key=api_key, organization=organization)

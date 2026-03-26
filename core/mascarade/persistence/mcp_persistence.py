@@ -84,9 +84,7 @@ class PersistentModelContext(BaseModel):
 class MCPPersistenceManager:
     """Persistence manager for Model Context Protocol contexts."""
 
-    def __init__(
-        self, redis_url: str = "redis://localhost:6379", default_ttl: int = 86400
-    ) -> None:
+    def __init__(self, redis_url: str = "redis://localhost:6379", default_ttl: int = 86400) -> None:
         """Initialize MCP persistence manager.
 
         Args:
@@ -128,9 +126,7 @@ class MCPPersistenceManager:
         """Generate Redis key for model's contexts."""
         return f"mcp:model:{model_id}:contexts"
 
-    async def save_context(
-        self, context: PersistentModelContext, ttl: int | None = None
-    ) -> str:
+    async def save_context(self, context: PersistentModelContext, ttl: int | None = None) -> str:
         """Save MCP context to persistence layer.
 
         Args:
@@ -200,9 +196,7 @@ class MCPPersistenceManager:
             logger.error(f"Failed to deserialize MCP context {context_id}: {e}")
             return None
 
-    async def update_context(
-        self, context_id: str, update_data: dict[str, Any]
-    ) -> bool:
+    async def update_context(self, context_id: str, update_data: dict[str, Any]) -> bool:
         """Update existing MCP context.
 
         Args:
@@ -277,9 +271,7 @@ class MCPPersistenceManager:
 
     # --- Session Management ---
 
-    async def get_session_contexts(
-        self, session_id: str
-    ) -> list[PersistentModelContext]:
+    async def get_session_contexts(self, session_id: str) -> list[PersistentModelContext]:
         """Get all contexts for a session.
 
         Args:
@@ -454,9 +446,7 @@ class MCPPersistenceManager:
 
     # --- Context Versioning ---
 
-    async def version_context(
-        self, context_id: str, version_notes: str = ""
-    ) -> str | None:
+    async def version_context(self, context_id: str, version_notes: str = "") -> str | None:
         """Create a new version of an existing context.
 
         Args:
@@ -509,9 +499,7 @@ class MCPPersistenceManager:
         logger.info(f"Created version {new_context_id} of context {context_id}")
         return new_context_id
 
-    async def get_context_versions(
-        self, context_id: str
-    ) -> list[PersistentModelContext]:
+    async def get_context_versions(self, context_id: str) -> list[PersistentModelContext]:
         """Get all versions of a context.
 
         Args:

@@ -63,7 +63,9 @@ class TestWsAuthExtended:
     @pytest.mark.asyncio
     async def test_auth_multiple_valid_keys(self):
         ws = _make_ws(token="key-b")
-        with patch("mascarade.routers.ws.get_active_api_keys", return_value=["key-a", "key-b", "key-c"]):
+        with patch(
+            "mascarade.routers.ws.get_active_api_keys", return_value=["key-a", "key-b", "key-c"]
+        ):
             result = await _ws_auth(ws)
         assert result is True
 

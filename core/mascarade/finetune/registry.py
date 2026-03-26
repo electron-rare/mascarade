@@ -113,13 +113,9 @@ class FinetuneRegistry:
         self.runs[entry.run_id] = entry
         self.save()
 
-    def best_model_for_task(
-        self, task: str, max_size_gb: float = 4.0
-    ) -> ModelEntry | None:
+    def best_model_for_task(self, task: str, max_size_gb: float = 4.0) -> ModelEntry | None:
         candidates = [
-            m
-            for m in self.models.values()
-            if m.task == task and m.size_gb <= max_size_gb
+            m for m in self.models.values() if m.task == task and m.size_gb <= max_size_gb
         ]
         if not candidates:
             return None

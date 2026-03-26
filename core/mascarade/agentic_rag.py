@@ -57,16 +57,27 @@ class Chunk:
         if not ts:
             return 0.5
         age_days = (time.time() - ts) / 86400
-        if age_days < 1: return 1.0
-        if age_days < 7: return 0.9
-        if age_days < 30: return 0.7
-        if age_days < 180: return 0.5
+        if age_days < 1:
+            return 1.0
+        if age_days < 7:
+            return 0.9
+        if age_days < 30:
+            return 0.7
+        if age_days < 180:
+            return 0.5
         return 0.3
 
     @property
     def authority(self) -> float:
         src = self.metadata.get("source_type", "")
-        weights = {"spec": 1.0, "datasheet": 0.95, "docs": 0.85, "code": 0.8, "forum": 0.6, "generic": 0.4}
+        weights = {
+            "spec": 1.0,
+            "datasheet": 0.95,
+            "docs": 0.85,
+            "code": 0.8,
+            "forum": 0.6,
+            "generic": 0.4,
+        }
         return weights.get(src, 0.5)
 
     @property
@@ -79,7 +90,9 @@ async def _embed(text: str) -> list[float]:
     for url in [KXKM_OLLAMA_URL, LOCAL_OLLAMA_URL]:
         try:
             async with httpx.AsyncClient(timeout=15.0) as client:
-                r = await client.post(f"{url}/api/embed", json={"model": EMBED_MODEL, "input": text})
+                r = await client.post(
+                    f"{url}/api/embed", json={"model": EMBED_MODEL, "input": text}
+                )
                 r.raise_for_status()
                 embeddings = r.json().get("embeddings", [])
                 if embeddings:
@@ -103,9 +116,14 @@ Answer:"""
     for url in [KXKM_OLLAMA_URL, LOCAL_OLLAMA_URL]:
         try:
             async with httpx.AsyncClient(timeout=120.0) as client:
-                r = await client.post(f"{url}/api/generate", json={
-                    "model": SYNTH_MODEL, "prompt": prompt, "stream": False,
-                })
+                r = await client.post(
+                    f"{url}/api/generate",
+                    json={
+                        "model": SYNTH_MODEL,
+                        "prompt": prompt,
+                        "stream": False,
+                    },
+                )
                 r.raise_for_status()
                 return r.json().get("response", "")
         except Exception as exc:
@@ -146,7 +164,9 @@ class QueryRouter:
         variants = [query]
         if len(query.split()) > 5:
             variants.append(" ".join(query.split()[:5]))
-        return RouteDecision(sources=list(dict.fromkeys(sources)), mcp_servers=mcp_servers, query_variants=variants)
+        return RouteDecision(
+            sources=list(dict.fromkeys(sources)), mcp_servers=mcp_servers, query_variants=variants
+        )
 
 
 class RelevanceEvaluator:
@@ -184,26 +204,40 @@ class MultiSourceSynthesizer:
         return "\n".join(parts)
 
 
-async def retrieve_qdrant(query: str, collection: str = QDRANT_COLLECTION, top_k: int = TOP_K) -> list[Chunk]:
+async def retrieve_qdrant(
+    query: str, collection: str = QDRANT_COLLECTION, top_k: int = TOP_K
+) -> list[Chunk]:
     vector = await _embed(query)
     if all(v == 0.0 for v in vector):
         return []
     try:
         async with httpx.AsyncClient(timeout=10.0) as client:
-            r = await client.post(f"{QDRANT_URL}/collections/{collection}/points/search", json={
-                "vector": vector, "limit": top_k, "with_payload": True,
-            })
+            r = await client.post(
+                f"{QDRANT_URL}/collections/{collection}/points/search",
+                json={
+                    "vector": vector,
+                    "limit": top_k,
+                    "with_payload": True,
+                },
+            )
             r.raise_for_status()
             results = r.json().get("result", [])
         chunks = []
         for point in results:
             payload = point.get("payload", {})
-            chunks.append(Chunk(
-                content=payload.get("text", payload.get("content", str(payload))),
-                source=SourceType.QDRANT, source_id=collection,
-                score=point.get("score", 0.0),
-                metadata={"timestamp": payload.get("timestamp", 0), "source_type": payload.get("source_type", "generic"), "file": payload.get("file", "")},
-            ))
+            chunks.append(
+                Chunk(
+                    content=payload.get("text", payload.get("content", str(payload))),
+                    source=SourceType.QDRANT,
+                    source_id=collection,
+                    score=point.get("score", 0.0),
+                    metadata={
+                        "timestamp": payload.get("timestamp", 0),
+                        "source_type": payload.get("source_type", "generic"),
+                        "file": payload.get("file", ""),
+                    },
+                )
+            )
         return chunks
     except Exception as exc:
         logger.warning("Qdrant search failed: %s", exc)
@@ -215,14 +249,25 @@ async def retrieve_memory(query: str) -> list[Chunk]:
 
 
 async def retrieve_mcp(query: str, servers: list[str]) -> list[Chunk]:
-    return [Chunk(
-        content=f"[MCP hint] Query relevant to '{s}' MCP server. Use {s} tools for domain-specific results.",
-        source=SourceType.MCP, source_id=s, score=0.7, metadata={"source_type": "mcp_hint"},
-    ) for s in servers]
+    return [
+        Chunk(
+            content=f"[MCP hint] Query relevant to '{s}' MCP server. Use {s} tools for domain-specific results.",
+            source=SourceType.MCP,
+            source_id=s,
+            score=0.7,
+            metadata={"source_type": "mcp_hint"},
+        )
+        for s in servers
+    ]
 
 
 class AgenticRAGPipeline:
-    def __init__(self, router: QueryRouter | None = None, evaluator: RelevanceEvaluator | None = None, synthesizer: MultiSourceSynthesizer | None = None):
+    def __init__(
+        self,
+        router: QueryRouter | None = None,
+        evaluator: RelevanceEvaluator | None = None,
+        synthesizer: MultiSourceSynthesizer | None = None,
+    ):
         self.router = router or QueryRouter()
         self.evaluator = evaluator or RelevanceEvaluator()
         self.synthesizer = synthesizer or MultiSourceSynthesizer()
@@ -246,7 +291,11 @@ class AgenticRAGPipeline:
             all_chunks = self.evaluator.evaluate(all_chunks)
             if self.evaluator.quality_sufficient(all_chunks) or round_num >= MAX_REROUTE_ROUNDS:
                 break
-            logger.info("RAG round %d: quality insufficient (%d chunks), re-routing", round_num, len(all_chunks))
+            logger.info(
+                "RAG round %d: quality insufficient (%d chunks), re-routing",
+                round_num,
+                len(all_chunks),
+            )
             if SourceType.MEMORY not in decision.sources:
                 decision.sources.append(SourceType.MEMORY)
             if len(decision.query_variants) == 1:
@@ -285,4 +334,7 @@ def mount_agentic_rag(app: Any) -> None:
         answer = await _synthesize_with_llm(context, query)
         return {"query": query, "answer": answer, "context": context}
 
-    logger.info("Agentic RAG mounted (/v1/rag/retrieve, /v1/rag/route, /v1/rag/ask) — KXKM compute: %s", KXKM_OLLAMA_URL)
+    logger.info(
+        "Agentic RAG mounted (/v1/rag/retrieve, /v1/rag/route, /v1/rag/ask) — KXKM compute: %s",
+        KXKM_OLLAMA_URL,
+    )

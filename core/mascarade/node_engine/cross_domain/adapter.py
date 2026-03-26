@@ -279,6 +279,4 @@ class CrossDomainAdapter(NodeWorker):
 
         valid, error = entry.validate_schema(data)
         if not valid:
-            raise ValueError(
-                f"Schema validation failed for {direction} type {qualified}: {error}"
-            )
+            raise ValueError(f"Schema validation failed for {direction} type {qualified}: {error}")

@@ -134,16 +134,10 @@ def _make_orchestrator() -> Orchestrator:
     router.register(MockProvider())
 
     registry = AgentRegistry()
-    registry.register(
-        Agent(name="analyst", description="Analyzes", system_prompt="Analyze.")
-    )
-    registry.register(
-        Agent(name="writer", description="Writes", system_prompt="Write.")
-    )
+    registry.register(Agent(name="analyst", description="Analyzes", system_prompt="Analyze."))
+    registry.register(Agent(name="writer", description="Writes", system_prompt="Write."))
 
-    return Orchestrator(
-        router=router, registry=registry, trace_buffer=AgentTraceBuffer()
-    )
+    return Orchestrator(router=router, registry=registry, trace_buffer=AgentTraceBuffer())
 
 
 def test_sequential():
@@ -386,9 +380,7 @@ def test_skip_on_error_sequential():
     )
 
     run = asyncio.run(
-        orch.run(
-            ["good1", "bad", "good2"], "test", mode="sequential", skip_on_error=True
-        )
+        orch.run(["good1", "bad", "good2"], "test", mode="sequential", skip_on_error=True)
     )
 
     # Should have 3 results: 2 successful, 1 failed
@@ -449,9 +441,7 @@ def test_sequential_stops_on_error_by_default():
     )
 
     run = asyncio.run(
-        orch.run(
-            ["good1", "bad", "good2"], "test", mode="sequential", skip_on_error=False
-        )
+        orch.run(["good1", "bad", "good2"], "test", mode="sequential", skip_on_error=False)
     )
 
     # Should have 2 results: 1 successful, 1 failed, and stop before good2
@@ -510,9 +500,7 @@ def test_skip_on_error_pipeline():
     )
 
     run = asyncio.run(
-        orch.run(
-            ["good1", "bad", "good2"], "initial", mode="pipeline", skip_on_error=True
-        )
+        orch.run(["good1", "bad", "good2"], "initial", mode="pipeline", skip_on_error=True)
     )
 
     # Should have 3 results: good1 succeeds, bad fails, good2 succeeds
@@ -575,9 +563,7 @@ def test_pipeline_stops_on_error_by_default():
     )
 
     run = asyncio.run(
-        orch.run(
-            ["good1", "bad", "good2"], "initial", mode="pipeline", skip_on_error=False
-        )
+        orch.run(["good1", "bad", "good2"], "initial", mode="pipeline", skip_on_error=False)
     )
 
     # Should have 2 results: good1 succeeds, bad fails, and stop before good2

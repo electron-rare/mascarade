@@ -108,8 +108,10 @@ def _clean_api_keys():
 
 @asynccontextmanager
 async def _client(fake_router: FakeRouter):
-    with patch("mascarade.auth.is_valid_api_key", return_value=True), \
-         patch("mascarade.auth._resolve_role", return_value="admin"):
+    with (
+        patch("mascarade.auth.is_valid_api_key", return_value=True),
+        patch("mascarade.auth._resolve_role", return_value="admin"),
+    ):
         async with app.router.lifespan_context(app):
             original_router = app.state.router
             app.state.router = fake_router

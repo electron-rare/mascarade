@@ -10,9 +10,7 @@ from mascarade.p2p.transport import P2PTransport, PeerConnection
 
 async def _make_node() -> tuple[PeerIdentity, P2PTransport]:
     identity = PeerIdentity.generate()
-    t = P2PTransport(
-        local_peer_id=identity.peer_id, listen_host="127.0.0.1", listen_port=0
-    )
+    t = P2PTransport(local_peer_id=identity.peer_id, listen_host="127.0.0.1", listen_port=0)
     t.enable_authentication(identity)
     await t.start()
     return identity, t
@@ -24,9 +22,7 @@ async def test_dht_rejects_invalid_port():
     identity, transport = await _make_node()
     try:
         dht = P2PDHT(local_peer_id=identity.peer_id, transport=transport)
-        fake_conn = PeerConnection(
-            peer_id="QmFake", host="127.0.0.1", port=4001, connected=False
-        )
+        fake_conn = PeerConnection(peer_id="QmFake", host="127.0.0.1", port=4001, connected=False)
 
         # Port 0
         msg = P2PMessage(
@@ -64,9 +60,7 @@ async def test_dht_rejects_spoofed_host():
     identity, transport = await _make_node()
     try:
         dht = P2PDHT(local_peer_id=identity.peer_id, transport=transport)
-        fake_conn = PeerConnection(
-            peer_id="QmFake", host="10.0.0.1", port=4001, connected=False
-        )
+        fake_conn = PeerConnection(peer_id="QmFake", host="10.0.0.1", port=4001, connected=False)
 
         msg = P2PMessage(
             type="dht:announce",
@@ -108,9 +102,7 @@ async def test_dht_accepts_wildcard_host():
     identity, transport = await _make_node()
     try:
         dht = P2PDHT(local_peer_id=identity.peer_id, transport=transport)
-        fake_conn = PeerConnection(
-            peer_id="QmWild", host="10.0.0.5", port=4001, connected=False
-        )
+        fake_conn = PeerConnection(peer_id="QmWild", host="10.0.0.5", port=4001, connected=False)
 
         msg = P2PMessage(
             type="dht:announce",

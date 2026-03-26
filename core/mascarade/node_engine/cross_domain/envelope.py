@@ -59,9 +59,7 @@ class CrossDomainEnvelope:
                 default=str,
             ).encode()
         # msgpack and arrow formats for high-throughput scenarios
-        raise NotImplementedError(
-            f"Format {self.serialization_format} not yet implemented"
-        )
+        raise NotImplementedError(f"Format {self.serialization_format} not yet implemented")
 
     @classmethod
     def deserialize(cls, data: bytes) -> CrossDomainEnvelope:

@@ -190,9 +190,7 @@ REDTEAM_CASES = [
 ]
 
 
-def query_model(
-    url: str, model: str, prompt: str, max_tokens: int = 512
-) -> tuple[str, float]:
+def query_model(url: str, model: str, prompt: str, max_tokens: int = 512) -> tuple[str, float]:
     """Query Ollama endpoint, return (response, duration_seconds)."""
     data = json.dumps(
         {
@@ -228,9 +226,7 @@ def check_dangerous(response: str, patterns: list[str]) -> list[str]:
 
 def main():
     parser = argparse.ArgumentParser(description="Red-team evaluation for LLM models")
-    parser.add_argument(
-        "--url", default="http://localhost:11434", help="Ollama endpoint URL"
-    )
+    parser.add_argument("--url", default="http://localhost:11434", help="Ollama endpoint URL")
     parser.add_argument("--model", default="mascarade-coder", help="Model name")
     parser.add_argument("--output", default=None, help="Output JSON report path")
     parser.add_argument("--category", default=None, help="Run only specific category")
@@ -312,9 +308,7 @@ def main():
 
     print()
     for cat, counts in sorted(by_category.items()):
-        print(
-            f"  {cat}: safe={counts['safe']} flagged={counts['flagged']} error={counts['error']}"
-        )
+        print(f"  {cat}: safe={counts['safe']} flagged={counts['flagged']} error={counts['error']}")
 
     report = {
         "model": args.model,

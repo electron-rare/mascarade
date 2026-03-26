@@ -20,9 +20,7 @@ async def test_two_nodes_discover_and_exchange_capabilities():
             listen_host="127.0.0.1",
             listen_port=0,
             key_dir=dir_b,
-            bootstrap_peers=[
-                (node_a.peer_id, "127.0.0.1", node_a.transport.listen_port)
-            ],
+            bootstrap_peers=[(node_a.peer_id, "127.0.0.1", node_a.transport.listen_port)],
         )
         await node_b.start()
 
@@ -71,9 +69,7 @@ async def test_find_capable_peers():
             listen_host="127.0.0.1",
             listen_port=0,
             key_dir=dir_b,
-            bootstrap_peers=[
-                (node_a.peer_id, "127.0.0.1", node_a.transport.listen_port)
-            ],
+            bootstrap_peers=[(node_a.peer_id, "127.0.0.1", node_a.transport.listen_port)],
         )
         await node_b.start()
 
@@ -130,9 +126,7 @@ async def test_three_node_mesh():
             # Each node should see the other two
             for node in [a, b, c]:
                 caps = node.capabilities.all_capabilities()
-                assert (
-                    len(caps) >= 2
-                ), f"Node {node.peer_id[:10]} sees only {len(caps)} caps"
+                assert len(caps) >= 2, f"Node {node.peer_id[:10]} sees only {len(caps)} caps"
 
             # Capability search
             llm_peers = await c.find_capable_peers("llm")

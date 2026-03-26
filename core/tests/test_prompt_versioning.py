@@ -369,9 +369,7 @@ def test_auto_version_on_prompt_change():
         assert len(agent.prompt_versions) == 2
         version2 = agent.prompt_versions[1]
         assert version2["version_number"] == 2
-        assert (
-            version2["content"] == "Updated prompt"
-        )  # Version stores the previous prompt
+        assert version2["content"] == "Updated prompt"  # Version stores the previous prompt
         assert version2["diff"] is not None  # Should have diff from previous
 
         # Save again without changing prompt - no new version
@@ -476,9 +474,7 @@ async def _test_client():
 
         # Also expose on the module-level `app` so test bodies that reference
         # ``app.state.registry`` keep working.
-        original_registry = (
-            app.state.registry if hasattr(app.state, "registry") else None
-        )
+        original_registry = app.state.registry if hasattr(app.state, "registry") else None
         app.state.registry = test_app.state.registry
 
         try:
