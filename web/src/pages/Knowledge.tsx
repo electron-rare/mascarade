@@ -46,7 +46,7 @@ function distanceColor(distance?: string): string {
   }
 }
 
-export default function QdrantKnowledge() {
+export default function Knowledge() {
   const [selected, setSelected] = useState<QdrantCollection | null>(null);
   const [uploadFiles, setUploadFiles] = useState<File[]>([]);
   const [uploadError, setUploadError] = useState<string | null>(null);
