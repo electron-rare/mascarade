@@ -44,34 +44,54 @@ const actionCards = [
 
 const externalServices = [
   {
-    label: "Grafana",
-    url: "https://grafana-tower.saillant.cc",
-    description: "Metrics & monitoring",
+    label: "Grafana — Ops Overview",
+    url: "https://grafana.saillant.cc/d/6114d2e8-48f0-4e72-86d9-2fbe181a7869/mascarade-ops-overview",
+    description: "Metrics, services, latency",
+  },
+  {
+    label: "Grafana — AI Runtime",
+    url: "https://grafana.saillant.cc/d/96c8f781-3e6c-4880-9bbf-b368277b9b95/mascarade-ai-runtime",
+    description: "Agent metrics, routing, providers",
+  },
+  {
+    label: "Grafana — Fine-Tuning",
+    url: "https://grafana.saillant.cc/d/873d0797-744c-4784-a55c-6a97579ab36c/fine-tuning-progress",
+    description: "Training progress, GPU, loss curves",
+  },
+  {
+    label: "Grafana — Logs",
+    url: "https://grafana.saillant.cc/d/f43f440a-bb15-40cf-a956-a06a56a376e0/mascarade-service-logs",
+    description: "Service logs via Loki",
+  },
+  {
+    label: "Grafana — Cost Tracking",
+    url: "https://grafana.saillant.cc/d/2595b749-cd76-462b-ac70-a025648b9218/mascarade-cost-tracking",
+    description: "LLM costs, token usage",
+  },
+  {
+    label: "Grafana — Leaderboard",
+    url: "https://grafana.saillant.cc/d/2cbdd4c5-6b4d-4bd1-9420-46d3e84c0954/mascarade-model-leaderboard",
+    description: "Model benchmark scores",
   },
   {
     label: "Langfuse",
     url: "https://langfuse.saillant.cc",
-    description: "Agent traces",
+    description: "Agent traces, cost tracking",
   },
   {
     label: "Argilla",
     url: "https://argilla.saillant.cc",
-    description: "Dataset review",
+    description: "Dataset review (67K examples)",
   },
   {
     label: "Nextcloud",
     url: "https://cloud.saillant.cc",
-    description: "File storage",
+    description: "Datasets, models, docs",
   },
   {
     label: "Data Reviewer",
     url: "https://train.saillant.cc",
-    description: "Dataset preview",
-  },
-  {
-    label: "ComfyUI",
-    url: "https://comfyui.saillant.cc",
-    description: "Image generation",
+    description: "Quick dataset preview",
   },
 ];
 
