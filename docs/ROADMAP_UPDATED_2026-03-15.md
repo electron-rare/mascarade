@@ -1,7 +1,7 @@
 # Mascarade Project Roadmap — Universal Node Engine Initiative
 
 **Document:** Updated Project Roadmap
-**Date:** 2026-03-15
+**Date:** 2026-03-27
 **Version:** 1.0
 **Reference:** SPEC-029 (Universal Node Engine Architecture)
 **Predecessor:** SPEC-025 (Unified Node Engine Architecture — Kill_LIFE)
@@ -11,15 +11,16 @@
 ## Table of Contents
 
 1. [Executive Summary](#1-executive-summary)
-2. [Ecosystem Repositories](#2-ecosystem-repositories)
-3. [Phase Overview](#3-phase-overview)
-4. [Phase Dependency Graph](#4-phase-dependency-graph)
-5. [Phase Details](#5-phase-details)
-6. [MVP Gate: Phase 0-1](#6-mvp-gate-phase-0-1)
-7. [M-009 AI Novel Engine Dependency](#7-m-009-ai-novel-engine-dependency)
-8. [Infrastructure Constraints](#8-infrastructure-constraints)
-9. [Parallelism Opportunities](#9-parallelism-opportunities)
-10. [Risk Register](#10-risk-register)
+2. [Current Status (2026-03-27 Audit)](#2-current-status-2026-03-27-audit)
+3. [Ecosystem Repositories](#3-ecosystem-repositories)
+4. [Phase Overview](#4-phase-overview)
+5. [Phase Dependency Graph](#5-phase-dependency-graph)
+6. [Phase Details](#6-phase-details)
+7. [MVP Gate: Phase 0-1](#7-mvp-gate-phase-0-1)
+8. [M-009 AI Novel Engine Dependency](#8-m-009-ai-novel-engine-dependency)
+9. [Infrastructure Constraints](#9-infrastructure-constraints)
+10. [Parallelism Opportunities](#10-parallelism-opportunities)
+11. [Risk Register](#11-risk-register)
 
 ---
 
@@ -31,7 +32,31 @@ The initiative evolves SPEC-025's Kill_LIFE-focused node engine into a universal
 
 ---
 
-## 2. Ecosystem Repositories
+## 2. Current Status (2026-03-27 Audit)
+
+Implementation audit conducted on 2026-03-27. Completion percentages reflect code that exists and is functional, not just declared or scaffolded.
+
+| Phase | Name | Completion | Summary |
+|-------|------|------------|---------|
+| Phase 0 | Foundations | **~85%** | Core abstractions largely in place. Type system, registry, persistence, and NodeWorker are near-complete. Execution modes and streaming support missing. API layer not yet implemented. |
+| Phase 1 | AI Worker | **~60%** | AIWorker class, types, and Router integration done. Streaming nodes, function calling, agent dispatch execution, and error handling nodes missing. |
+| Phase 2 | CAD Worker | **~40%** | CADWorker base with IPC-2221 calculations done. FreeCAD/KiCad workers declared with MCP pattern. Actual tool execution unverified. Mesh ops and toolpath are placeholders. |
+| Phase 3 | Electronics Worker | **~10%** | Only config dataclasses and capability declarations exist. No actual SPICE simulation, DRC, firmware compilation, or component execution. |
+| Phase 4 | Hardware Runtime Worker | **~20%** | ESP32 client and DMX controller exist as infrastructure. No HardwareWorker class or worker nodes. MIDI worker declared but no execution. |
+| Phase 5 | Cross-Domain Integration | **~10%** | Base adapter class exists. No actual cross-domain adapters implemented. |
+
+### MVP Readiness (Phase 0 + Phase 1)
+
+The MVP gate (Phase 0-1) is approximately **~75%** complete by code presence, but key gaps remain:
+
+- **Execution modes** (eager/lazy/stepped) not implemented — blocks Go/No-Go criterion #2
+- **REST/WebSocket API** not implemented — blocks Go/No-Go criterion #5
+- **Streaming support** missing — affects LLM latency management in graph execution
+- **Agent dispatch and error handling nodes** missing from AI Worker
+
+---
+
+## 3. Ecosystem Repositories
 
 Five repositories participate in the Universal Node Engine initiative:
 
@@ -45,22 +70,22 @@ Five repositories participate in the Universal Node Engine initiative:
 
 ---
 
-## 3. Phase Overview
+## 4. Phase Overview
 
-| Phase | Name | Duration (weeks) | Depends On | MVP? |
-|-------|------|-------------------|------------|------|
-| Phase 0 | Foundations | 4–6 | — | ✅ MVP |
-| Phase 1 | AI Worker | 3–4 | Phase 0 | ✅ MVP |
-| Phase 2 | CAD Worker | 3–5 | Phase 0 | |
-| Phase 3 | Electronics Worker | 3–5 | Phase 0 | |
-| Phase 4 | Hardware Runtime Worker | 4–6 | Phase 0 | |
-| Phase 5 | Cross-Domain Integration | 4–6 | Phases 1–4 | |
+| Phase | Name | Duration (weeks) | Depends On | MVP? | Status |
+|-------|------|-------------------|------------|------|--------|
+| Phase 0 | Foundations | 4–6 | — | ✅ MVP | ⚠️ ~85% |
+| Phase 1 | AI Worker | 3–4 | Phase 0 | ✅ MVP | ⚠️ ~60% |
+| Phase 2 | CAD Worker | 3–5 | Phase 0 | | ⚠️ ~40% |
+| Phase 3 | Electronics Worker | 3–5 | Phase 0 | | ❌ ~10% |
+| Phase 4 | Hardware Runtime Worker | 4–6 | Phase 0 | | ❌ ~20% |
+| Phase 5 | Cross-Domain Integration | 4–6 | Phases 1–4 | | ❌ ~10% |
 
 **Total estimated duration:** 14–21 weeks (with parallelism), 21–32 weeks (fully sequential).
 
 ---
 
-## 4. Phase Dependency Graph
+## 5. Phase Dependency Graph
 
 ```
                     ┌───────────┐
@@ -88,19 +113,19 @@ Five repositories participate in the Universal Node Engine initiative:
 
 ---
 
-## 5. Phase Details
+## 6. Phase Details
 
-### Phase 0 — Foundations (4–6 weeks)
+### Phase 0 — Foundations (4–6 weeks) — ~85% Complete
 
 **Objective:** Establish the core abstractions — type system, graph execution runtime, NodeWorker plugin API, node registry, and persistence layer.
 
 **Milestones:**
-- M-0.1: Universal type system with primitive, composite, and domain-extension points
-- M-0.2: Graph execution runtime with topological sort, parallel branch scheduling, and 3 execution modes (eager, lazy, stepped)
-- M-0.3: NodeWorker abstract base class with lifecycle hooks, validation, and capability declarations
-- M-0.4: Node registry with registration, discovery, and versioning
-- M-0.5: Persistence layer with JSON serialization and graph versioning
-- M-0.6: REST/WebSocket API endpoints for graph operations (api/)
+- ✅ M-0.1: Universal type system with primitive, composite, and domain-extension points (95%)
+- ⚠️ M-0.2: Graph execution runtime with topological sort, parallel branch scheduling, and 3 execution modes (eager, lazy, stepped) — *runtime 85%, execution modes (eager/lazy/stepped) missing*
+- ✅ M-0.3: NodeWorker abstract base class with lifecycle hooks, validation, and capability declarations (90%)
+- ✅ M-0.4: Node registry with registration, discovery, and versioning (95%)
+- ✅ M-0.5: Persistence layer with JSON serialization and graph versioning (90%)
+- ❌ M-0.6: REST/WebSocket API endpoints for graph operations (api/) — *not implemented*
 
 **Deliverables:**
 - `core/mascarade/node_engine/` package (types, worker, registry, runtime, graph, persistence, context)
@@ -112,16 +137,16 @@ Five repositories participate in the Universal Node Engine initiative:
 
 ---
 
-### Phase 1 — AI Worker (3–4 weeks)
+### Phase 1 — AI Worker (3–4 weeks) — ~60% Complete
 
 **Objective:** Implement the AI domain worker, integrating with the existing Mascarade Router, Orchestrator, and AgentRegistry.
 
 **Milestones:**
-- M-1.1: LLM inference nodes (prompt → response via LLMProvider)
-- M-1.2: Embedding nodes (text/image embedding via provider system)
-- M-1.3: Reasoning chain nodes (multi-step, conditional branching)
-- M-1.4: Router integration nodes (strategy selection: cheapest/fastest/best/specific)
-- M-1.5: Orchestrator nodes (sequential/parallel/pipeline execution modes)
+- ⚠️ M-1.1: LLM inference nodes (prompt → response via LLMProvider) — *AIWorker class and types done, streaming nodes missing*
+- ❌ M-1.2: Embedding nodes (text/image embedding via provider system) — *not implemented*
+- ❌ M-1.3: Reasoning chain nodes (multi-step, conditional branching) — *function calling and error handling nodes missing*
+- ✅ M-1.4: Router integration nodes (strategy selection: cheapest/fastest/best/specific)
+- ❌ M-1.5: Orchestrator nodes (sequential/parallel/pipeline execution modes) — *agent dispatch execution missing*
 
 **Deliverables:**
 - `core/mascarade/node_engine/workers/ai/` package
@@ -133,18 +158,18 @@ Five repositories participate in the Universal Node Engine initiative:
 
 ---
 
-### Phase 2 — CAD Worker (3–5 weeks)
+### Phase 2 — CAD Worker (3–5 weeks) — ~40% Complete
 
 **Objective:** Wrap existing FreeCAD and KiCad agent capabilities into composable graph nodes.
 
 **Milestones:**
-- M-2.1: FreeCAD nodes (document creation, parametric modeling, script execution, export)
-- M-2.2: KiCad nodes (schematic generation, PCB layout, DRC, manufacturing export)
-- M-2.3: Toolpath generation nodes (G-code, CNC optimization)
-- M-2.4: Mesh operation nodes (STL import/export, boolean operations)
+- ⚠️ M-2.1: FreeCAD nodes (document creation, parametric modeling, script execution, export) — *declared with MCP pattern, actual tool execution unverified*
+- ⚠️ M-2.2: KiCad nodes (schematic generation, PCB layout, DRC, manufacturing export) — *declared with MCP pattern, actual tool execution unverified*
+- ❌ M-2.3: Toolpath generation nodes (G-code, CNC optimization) — *placeholder only*
+- ❌ M-2.4: Mesh operation nodes (STL import/export, boolean operations) — *placeholder only*
 
 **Deliverables:**
-- `core/mascarade/node_engine/workers/cad/` package
+- `core/mascarade/node_engine/workers/cad/` package — *CADWorker base with IPC-2221 calculations implemented*
 - CAD-specific port types: `MeshData`, `Toolpath`, `BOM`, `GCode`, `SchematicData`, `PCBLayout`, `CADDocument`
 
 **Risk Factors:**
@@ -153,15 +178,15 @@ Five repositories participate in the Universal Node Engine initiative:
 
 ---
 
-### Phase 3 — Electronics Worker (3–5 weeks)
+### Phase 3 — Electronics Worker (3–5 weeks) — ~10% Complete
 
 **Objective:** Implement electronics simulation, PCB validation, firmware compilation, and component management nodes.
 
 **Milestones:**
-- M-3.1: SPICE simulation nodes (ngspice-based netlist generation, transient/AC/DC analysis)
-- M-3.2: PCB design rule checking nodes (KiCad CLI integration)
-- M-3.3: Firmware compilation nodes (ESP-IDF/PlatformIO build targets)
-- M-3.4: Component library nodes (part lookup, BOM management)
+- ❌ M-3.1: SPICE simulation nodes (ngspice-based netlist generation, transient/AC/DC analysis) — *config dataclasses only, no execution*
+- ❌ M-3.2: PCB design rule checking nodes (KiCad CLI integration) — *capability declarations only*
+- ❌ M-3.3: Firmware compilation nodes (ESP-IDF/PlatformIO build targets) — *not implemented*
+- ❌ M-3.4: Component library nodes (part lookup, BOM management) — *not implemented*
 
 **Deliverables:**
 - `core/mascarade/node_engine/workers/electronics/` package
@@ -173,16 +198,16 @@ Five repositories participate in the Universal Node Engine initiative:
 
 ---
 
-### Phase 4 — Hardware Runtime Worker (4–6 weeks)
+### Phase 4 — Hardware Runtime Worker (4–6 weeks) — ~20% Complete
 
 **Objective:** Implement real-time hardware control nodes for ESP32, MIDI, DMX, and serial communication.
 
 **Milestones:**
-- M-4.1: ESP32 control nodes (device discovery, GPIO, sensor reading, OTA updates)
-- M-4.2: MIDI I/O nodes (input/output, CC mapping, clock sync)
-- M-4.3: DMX lighting nodes (universe management, fixture control, scene programming)
-- M-4.4: Serial communication nodes (protocol adapters, data parsing)
-- M-4.5: Real-time control loop nodes (PID controllers, safety interlocks)
+- ⚠️ M-4.1: ESP32 control nodes (device discovery, GPIO, sensor reading, OTA updates) — *ESP32 client exists as infrastructure, no worker nodes*
+- ❌ M-4.2: MIDI I/O nodes (input/output, CC mapping, clock sync) — *MIDI worker declared, no execution*
+- ⚠️ M-4.3: DMX lighting nodes (universe management, fixture control, scene programming) — *DMX controller exists as infrastructure, no worker nodes*
+- ❌ M-4.4: Serial communication nodes (protocol adapters, data parsing) — *not implemented*
+- ❌ M-4.5: Real-time control loop nodes (PID controllers, safety interlocks) — *not implemented*
 
 **Deliverables:**
 - `core/mascarade/node_engine/workers/hardware/` package
@@ -195,16 +220,16 @@ Five repositories participate in the Universal Node Engine initiative:
 
 ---
 
-### Phase 5 — Cross-Domain Integration (4–6 weeks)
+### Phase 5 — Cross-Domain Integration (4–6 weeks) — ~10% Complete
 
 **Objective:** Enable workflows that span multiple domains through type adapters, unified orchestration, and federated execution.
 
 **Milestones:**
-- M-5.1: Cross-domain type adapters (AI↔CAD, AI↔Electronics, CAD↔Electronics, Electronics↔Hardware, Hardware↔AI)
-- M-5.2: Unified orchestration pipeline with domain-aware scheduling
-- M-5.3: Federated graph execution via Ray and P2P cluster
-- M-5.4: End-to-end workflow examples (AI-designed part → electronics validation → hardware deployment)
-- M-5.5: Cross-domain observability in mascarade-cockpit
+- ❌ M-5.1: Cross-domain type adapters (AI↔CAD, AI↔Electronics, CAD↔Electronics, Electronics↔Hardware, Hardware↔AI) — *base adapter class exists, no actual adapters*
+- ❌ M-5.2: Unified orchestration pipeline with domain-aware scheduling — *not implemented*
+- ❌ M-5.3: Federated graph execution via Ray and P2P cluster — *not implemented*
+- ❌ M-5.4: End-to-end workflow examples (AI-designed part → electronics validation → hardware deployment) — *not implemented*
+- ❌ M-5.5: Cross-domain observability in mascarade-cockpit — *not implemented*
 
 **Deliverables:**
 - `core/mascarade/node_engine/adapters/` package
@@ -218,7 +243,7 @@ Five repositories participate in the Universal Node Engine initiative:
 
 ---
 
-## 6. MVP Gate: Phase 0-1
+## 7. MVP Gate: Phase 0-1
 
 Phases 0 and 1 together constitute the **Minimum Viable Product (MVP)**. The MVP must be validated before committing resources to Phases 2–5.
 
@@ -244,7 +269,7 @@ The MVP is considered successful if **all** of the following are met:
 
 ---
 
-## 7. M-009 AI Novel Engine Dependency
+## 8. M-009 AI Novel Engine Dependency
 
 M-009 (AI Novel Engine) is an independent project milestone that shares infrastructure with the Node Engine initiative. Specifically, M-009 depends on:
 
@@ -298,7 +323,7 @@ Phase 0 ──► Phase 1 ──► Phase 2/3/4 ──► Phase 5
 
 ---
 
-## 8. Infrastructure Constraints
+## 9. Infrastructure Constraints
 
 The Mascarade ecosystem runs on a single VM with limited resources. The Node Engine must be designed within these constraints.
 
@@ -339,7 +364,7 @@ The Mascarade ecosystem runs on a single VM with limited resources. The Node Eng
 
 ---
 
-## 9. Parallelism Opportunities
+## 10. Parallelism Opportunities
 
 ### Phase-Level Parallelism
 
@@ -378,7 +403,7 @@ Week  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15 16 17 18 19 20
 
 ---
 
-## 10. Risk Register
+## 11. Risk Register
 
 | Risk | Phase | Severity | Likelihood | Mitigation |
 |------|-------|----------|------------|------------|
@@ -394,3 +419,5 @@ Week  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15 16 17 18 19 20
 ---
 
 *This roadmap is a living document. It will be updated as phases complete and new information emerges from implementation.*
+
+*Last audit: 2026-03-27 — implementation status verified against codebase.*

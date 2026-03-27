@@ -1,5 +1,7 @@
 # TODO - Cockpit / Ops / Observability
 
+Last reviewed: 2026-03-27
+
 Etat de reference recale au 8 mars 2026.
 Le lot local est stable; ce fichier ne porte plus de blocage critique.
 

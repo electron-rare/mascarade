@@ -1,12 +1,14 @@
 # Universal Node Engine
 
-Graph-based execution system for composable domain workflows across AI, CAD, Electronics, and Hardware domains.
+Graph-based execution system for composable domain workflows across AI, CAD, Electronics, MIDI, and Hardware domains.
+
+*Last updated: 2026-03-27*
 
 ## Table of Contents
 
 1. [Overview](#overview)
 2. [Architecture](#architecture)
-3. [Core Concepts](#core-concepts)
+3. [Implementation Status](#implementation-status)
 4. [Quick Start](#quick-start)
 5. [Usage Examples](#usage-examples)
 6. [API Reference](#api-reference)
@@ -17,7 +19,7 @@ Graph-based execution system for composable domain workflows across AI, CAD, Ele
 
 ## Overview
 
-The Universal Node Engine provides a type-safe, graph-based execution runtime for composing domain-specific operations into workflows. Unlike monolithic orchestration systems, the Node Engine follows a **domain worker** pattern where each domain (AI, CAD, Electronics, Hardware) implements the `NodeWorker` interface independently.
+The Universal Node Engine provides a type-safe, graph-based execution runtime for composing domain-specific operations into workflows. Unlike monolithic orchestration systems, the Node Engine follows a **domain worker** pattern where each domain (AI, CAD, Electronics, MIDI) implements the `NodeWorker` interface independently.
 
 ### Key Features
 
@@ -25,8 +27,11 @@ The Universal Node Engine provides a type-safe, graph-based execution runtime fo
 - **Domain Workers** — Pluggable workers that execute nodes within their domain
 - **Async Execution** — Native async/await support for concurrent node execution
 - **Topological Ordering** — Automatic dependency resolution and execution ordering
-- **Extensible Type System** — Domain-specific types registered at runtime via `DomainType`
+- **Extensible Type System** — Primitive types, domain-specific types, composites (`array<T>`, `map<K,V>`, `stream<T>`)
 - **Graph Validation** — Pre-execution validation catches errors before execution begins
+- **Versioned Persistence** — JSON serialization with schema versioning and migrations
+- **Circuit Breaker / Retry** — Workers support tenacity-based retries and aiobreaker integration
+- **Cross-Domain Adapters** — Base framework for type conversion between domains
 
 ### Architecture Principles
 
@@ -51,164 +56,113 @@ The Universal Node Engine provides a type-safe, graph-based execution runtime fo
 │  • Tracks execution state and results                       │
 └────────────┬────────────────────────────────────────────────┘
              │
+             │ dispatches via
+             │
+   ┌─────────┴──────────────────────────────┐
+   │         GraphExecutionEngine            │
+   │  • Topological sort + parallel sched.   │
+   │  • Cycle detection                      │
+   └─────────┬──────────────────────────────┘
+             │
+             │ delegates to
+             │
+   ┌─────────┴──────────────────────────────┐
+   │         GraphExecutor                   │
+   │  • Worker dispatch per node             │
+   │  • Execution records + timing           │
+   │  • Status tracking (pending→completed)  │
+   └─────────┬──────────────────────────────┘
+             │
              │ registers workers
              │
-   ┌─────────┴──────────┐
-   │                    │
-   v                    v
-┌──────────────┐  ┌──────────────┐
-│  AIWorker    │  │  CADWorker   │  ... (future domains)
-│  domain: ai  │  │  domain: cad │
-└──────────────┘  └──────────────┘
-   │                    │
-   │ executes           │ executes
-   │                    │
-   v                    v
-┌──────────────┐  ┌──────────────┐
-│ ai.llm-      │  │ cad.sketch   │
-│ inference    │  │              │
-│              │  │ cad.extrude  │
-│ ai.agent-    │  │              │
-│ dispatch     │  │ cad.fillet   │
-└──────────────┘  └──────────────┘
+   ┌─────────┼──────────┬────────────┬───────────────┐
+   │         │          │            │               │
+   v         v          v            v               v
+┌────────┐ ┌────────┐ ┌──────────┐ ┌─────────────┐ ┌──────────┐
+│AIWorker│ │CADWork.│ │Electron. │ │ MIDIWorker  │ │CrossDom. │
+│domain: │ │domain: │ │Worker    │ │ domain:midi │ │ Adapter  │
+│  ai    │ │  cad   │ │domain:   │ │             │ │ (base)   │
+│        │ │        │ │electron. │ │             │ │          │
+└────────┘ └────────┘ └──────────┘ └─────────────┘ └──────────┘
 ```
 
 ### Core Modules
 
-| Module | Purpose |
-|--------|---------|
-| `types.py` | `DomainType` and `PortType` definitions — foundation for domain-specific types |
-| `registry.py` | `NodeTypeRegistry` for registering and discovering domain types |
-| `graph.py` | `Graph`, `Node`, `Edge` models with DAG validation |
-| `runtime.py` | `GraphRuntime` for executing graphs and dispatching to workers |
-| `worker.py` | `NodeWorker` abstract interface for domain workers |
-| `workers/ai/` | AI domain worker implementation (Phase 1) |
+| Module | Status | Purpose |
+|--------|--------|---------|
+| `types.py` | Done | `PrimitiveType`, `DomainType`, `PortType`, composites (`array`, `map`, `stream`), `PortDirection`, `PortKind` |
+| `graph.py` | Done | `Graph`, `GraphNode`, `GraphEdge` with validation, topological sort, dual construction |
+| `worker.py` | Done | `NodeWorker` abstract base with lifecycle, `NodeCapability`, `WorkerCapabilities`, circuit breaker, tenacity retry |
+| `registry.py` | Done | `NodeTypeRegistry` + `WorkerRegistry`, thread-safe, persistent storage |
+| `engine.py` | Done | `GraphExecutionEngine` — topological sort, parallel scheduling, cycle detection |
+| `executor.py` | Done | `GraphExecutor` — worker dispatch, execution records, status tracking |
+| `runtime.py` | Done | `GraphRuntime` — full execution pipeline, validation, status tracking |
+| `persistence.py` | Done | `GraphSerializer` — versioned JSON format (`v1.0.0`), migration support |
+| `base.py` | Done | Base abstractions shared across the engine |
+| `esp32_client.py` | Done | ESP32 HTTP/WebSocket client for hardware node communication |
+| `dmx_controller.py` | Done | DMX bridge controller for lighting/hardware |
+| `midi_controller.py` | Done | MIDI controller integration |
+| `midi_bridge.js` | Done | Node.js MIDI bridge (JS sidecar) |
+| `cross_domain/` | Partial | `CrossDomainAdapter` base class + `AdapterMapping` + `Envelope`. No concrete adapters yet. |
+| `domains/electronics/types.py` | Done | Electronics domain types (Netlist, Schematic, Waveform, etc.) |
+
+### Worker Modules
+
+| Worker | Status | Details |
+|--------|--------|---------|
+| `workers/ai/` | **Production** | `AIWorker` with full Router/Orchestrator integration. Node types: `ai.llm-inference`, `ai.prompt-template`, `ai.agent-dispatch`, `ai.orchestrate-sequential`. Registered types + worker. |
+| `workers/cad/worker.py` | **Working** | `CADWorker` with 6 pure-calculation node types (BOM, DRC, footprint lookup, stackup, trace width, thermal via). All have real implementations. |
+| `workers/cad/freecad_worker.py` | Partial | `FreeCADWorker` — 4 node types delegating to MCP. Requires FreeCAD runtime. |
+| `workers/cad/kicad_worker.py` | Partial | `KiCadWorker` — KiCad integration via MCP. Requires KiCad runtime. |
+| `workers/cad/mesh_worker.py` | Partial | `MeshWorker` — mesh operations (STL/OBJ). MCP-dependent. |
+| `workers/cad/toolpath_worker.py` | Partial | `ToolpathWorker` — CNC toolpath generation. MCP-dependent. |
+| `workers/electronics/worker.py` | **Scaffold** | `ElectronicsWorker` registers domain types and checks external tools (ngspice, kicad-cli, idf.py, pio). Has `capabilities()`, `initialize()`, `shutdown()` but **no `execute()` dispatch** — node classes exist but are not wired to the runtime. |
+| `workers/electronics/spice_nodes.py` | Implemented | 4 node classes (NetlistGenerator, Simulate, Analyze, DebugConvergence) with full execute logic. ~1300 lines. Requires ngspice. |
+| `workers/electronics/component_nodes.py` | Implemented | 9 node classes (lookup, JLCPCB optimization, BOM/CPL generation, availability check, etc.). ~1600 lines. |
+| `workers/electronics/pcb_nodes.py` | Implemented | 4 node classes (DRC, gerber export, etc.). ~640 lines. Requires kicad-cli. |
+| `workers/electronics/firmware_nodes.py` | Implemented | 4 node classes (ESP-IDF compile, PlatformIO compile, etc.). ~960 lines. Requires idf.py/pio. |
+| `workers/midi/` | **Working** | `MIDIWorker` with 4 node types (note-sequence, cc-map, pattern-generate, transform). All have real execute/validate implementations. |
+
+### Examples
+
+| Example | Status |
+|---------|--------|
+| `examples/simple_inference.py` | Working |
+| `examples/chain_of_thought.py` | Working |
+| `examples/agent_orchestration.py` | Working |
 
 ---
 
-## Core Concepts
+## Implementation Status
 
-### Domain Types
+### What Works End-to-End
 
-Domain types extend the base type system with domain-specific structures. They are defined as JSON Schema and registered at worker startup:
+- **Core engine**: Graph construction, validation, topological sort, execution dispatch
+- **AI domain**: Full pipeline — prompt templates, LLM inference, agent dispatch, sequential orchestration
+- **CAD calculations**: Pure-math PCB design nodes (trace width, stackup, thermal vias, BOM, DRC, footprint lookup)
+- **MIDI domain**: Note sequences, CC mapping, pattern generation, transformations
+- **Persistence**: Save/load graphs as versioned JSON
+- **Hardware bridges**: ESP32 client, DMX controller, MIDI bridge
 
-```python
-from mascarade.node_engine.types import DomainType
+### What Exists But Is Not Wired
 
-# Register an AI domain type
-llm_response_type = DomainType(
-    domain="ai",
-    name="LLMResponse",
-    schema={
-        "type": "object",
-        "properties": {
-            "content": {"type": "string"},
-            "model": {"type": "string"},
-            "provider": {"type": "string"},
-            "usage": {"type": "object"},
-        },
-        "required": ["content", "model", "provider"],
-    },
-)
-```
+- **Electronics nodes**: 21 node classes with real execute implementations across SPICE, PCB, firmware, and component domains (~4500 lines of logic). However, `ElectronicsWorker` lacks an `execute()` method, so these nodes cannot be dispatched through `GraphRuntime`. The node logic is real; the glue is missing.
+- **CAD sub-workers** (FreeCAD, KiCad, Mesh, Toolpath): Implemented as MCP-delegating workers with their own `execute_node()` methods, but depend on external runtimes (FreeCAD, KiCad) being available. Not integrated into the main `CADWorker` dispatch.
 
-**Primitive Types:** `string`, `number`, `integer`, `boolean`, `json`, `void`, `array<T>`, `map<K,V>`, `stream<T>`
+### What Is Scaffolded Only
 
-**Domain Types:** Qualified as `domain.TypeName` (e.g., `ai.LLMResponse`, `cad.Sketch`)
+- **Cross-domain adapters**: Base `CrossDomainAdapter` class and `AdapterMapping` dataclass exist. No concrete adapters (e.g., AI-to-CAD, CAD-to-Electronics) are implemented.
 
-### Graphs
+### Phase Completion
 
-Graphs are directed acyclic graphs (DAGs) composed of **nodes** (computation units) and **edges** (data flow connections):
-
-```python
-from mascarade.node_engine.graph import Graph, Node, Edge
-
-graph = Graph(
-    nodes=[
-        Node(
-            id="template1",
-            type="ai.prompt-template",
-            inputs={"template": "Hello {{name}}!"},
-        ),
-        Node(
-            id="llm1",
-            type="ai.llm-inference",
-            config={"temperature": 0.7, "model": "gpt-4"},
-        ),
-    ],
-    edges=[
-        Edge(
-            from_node="template1",
-            from_port="prompt",
-            to_node="llm1",
-            to_port="prompt",
-        ),
-    ],
-)
-```
-
-**Graph Validation:**
-- All node IDs must be unique
-- All edges must reference existing nodes
-- No cycles (DAG constraint enforced via topological sort)
-- All referenced node types must have registered workers
-
-### Nodes
-
-Nodes represent computation units with typed inputs, outputs, and configuration:
-
-**Anatomy of a Node:**
-```python
-Node(
-    id="llm1",                      # Unique identifier within the graph
-    type="ai.llm-inference",        # Fully qualified node type (domain.typename)
-    inputs={"prompt": "Hello!"},    # Input port values (literal or edge-connected)
-    config={"temperature": 0.7},    # Node configuration parameters
-)
-```
-
-**Node Execution:**
-1. Runtime resolves inputs from edges (upstream node outputs)
-2. Runtime validates inputs against worker's validation logic
-3. Runtime dispatches to the appropriate worker based on domain
-4. Worker executes and returns output port values
-
-### Workers
-
-Workers implement the `NodeWorker` interface to provide domain-specific node types:
-
-```python
-from mascarade.node_engine.worker import NodeWorker
-
-class MyWorker(NodeWorker):
-    name = "my-worker"
-    domain = "my-domain"
-
-    async def execute(self, node_type, inputs, config, context):
-        # Execute the node and return outputs
-        return {"result": "..."}
-
-    async def validate(self, node_type, inputs, config):
-        # Validate inputs and return error messages
-        errors = []
-        if "required_input" not in inputs:
-            errors.append("Missing required input: required_input")
-        return errors
-
-    def capabilities(self):
-        return {
-            "node_types": ["my-domain.node-a", "my-domain.node-b"],
-            "domain": "my-domain",
-            "supports_streaming": False,
-            "max_concurrent": 5,
-        }
-```
-
-**Worker Registration:**
-```python
-runtime = GraphRuntime()
-runtime.register_worker(MyWorker())
-```
+| Phase | Status | Notes |
+|-------|--------|-------|
+| Phase 0 — Foundations | **Complete** | Type system, graph model, registry, engine, executor, runtime, persistence |
+| Phase 1 — AI Worker | **Complete** | AIWorker with Router/Orchestrator integration, 4 node types, examples |
+| Phase 2 — CAD Worker | **Partial** | Pure-calculation CADWorker complete. FreeCAD/KiCad/Mesh/Toolpath sub-workers exist but require MCP runtimes. |
+| Phase 3 — Electronics | **Partial** | Domain types registered. 21 node classes implemented. Worker dispatch not wired. External tool dependencies (ngspice, kicad-cli, idf.py, pio). |
+| Phase 4 — MIDI/Hardware | **Partial** | MIDIWorker functional. ESP32 client and DMX controller exist. Hardware integration untested in graph context. |
+| Phase 5 — Cross-Domain | **Scaffolded** | Base adapter class only. No concrete adapters. |
 
 ---
 
@@ -282,7 +236,7 @@ outputs = await runtime.execute_node(
 print(outputs["response"])  # LLMResponse object
 ```
 
-### Example 2: Multi-Node Template → LLM Pipeline
+### Example 2: Multi-Node Template -> LLM Pipeline
 
 ```python
 from mascarade.node_engine.graph import Graph, Node, Edge
@@ -338,30 +292,35 @@ agent_result = context.node_results["agent1"]
 print(agent_result.outputs["response"].content)
 ```
 
-### Example 4: Orchestrator Sequential Execution
+### Example 4: CAD Trace Width Calculation
 
 ```python
-graph = Graph(
-    nodes=[
-        Node(
-            id="orchestrate1",
-            type="ai.orchestrate-sequential",
-            inputs={
-                "steps": [
-                    {"agent": "researcher", "task": "Find latest Python releases"},
-                    {"agent": "summarizer", "task": "Summarize findings in 3 bullet points"},
-                ],
-            },
-        ),
-    ],
-)
+from mascarade.node_engine.workers.cad.worker import CADWorker
 
-context = await runtime.execute(graph)
-result = context.node_results["orchestrate1"]
-print(result.outputs["results"])  # List of LLMResponse objects
+cad = CADWorker()
+result = await cad.execute(
+    node_type="cad.trace-width",
+    inputs={"current": 2.0, "copper_thickness": 1.0, "temp_rise": 10.0, "layer": "external"},
+    config={},
+)
+print(f"Trace width: {result['width_mm']}mm ({result['width_mil']}mil)")
 ```
 
-### Example 5: Graph Validation Before Execution
+### Example 5: MIDI Pattern Generation
+
+```python
+from mascarade.node_engine.workers.midi.worker import MIDIWorker
+
+midi = MIDIWorker()
+result = await midi.execute(
+    node_type="midi.pattern-generate",
+    inputs={"scale": "pentatonic", "root": 60, "steps": 8, "pattern": "ascending"},
+    config={},
+)
+print(f"Generated {result['sequence']['note_count']} notes")
+```
+
+### Example 6: Graph Validation Before Execution
 
 ```python
 graph = Graph(
@@ -645,6 +604,10 @@ Declare worker capabilities for the registry.
 **Properties:**
 - `is_available: bool` — Check if worker is ready for execution
 
+**Built-in resilience:**
+- `make_worker_retry()` — tenacity decorator for retryable exceptions (ConnectionError, TimeoutError, OSError)
+- Circuit breaker support via `aiobreaker`
+
 ---
 
 #### `GraphExecutionContext`
@@ -674,6 +637,19 @@ Result of a single node execution.
 - `error: str | None` — Error message (if failed)
 - `worker_name: str | None` — Worker that executed the node
 - `execution_time_ms: float | None` — Execution time in milliseconds
+
+---
+
+#### `GraphSerializer`
+
+**Location:** `mascarade.node_engine.persistence`
+
+Versioned JSON serialization for graphs.
+
+- Schema version: `1.0.0`
+- Format: `universal-node-engine-graph-v1`
+- Supports migration callbacks for version upgrades
+- Atomic file writes via temp-file-then-rename
 
 ---
 
@@ -822,6 +798,61 @@ async def test_single_node_execution():
 ```bash
 cd core
 python -m pytest mascarade/node_engine/tests/ -v
+```
+
+---
+
+## File Structure
+
+```
+node_engine/
+├── types.py              # Full type system — PrimitiveType, DomainType, PortType, composites
+├── worker.py             # NodeWorker abstract base with lifecycle, capabilities, circuit breaker
+├── graph.py              # Graph/GraphNode/GraphEdge, validation, dual construction
+├── registry.py           # NodeTypeRegistry + WorkerRegistry, thread-safe, persistent
+├── engine.py             # GraphExecutionEngine with topological sort + parallel scheduling
+├── executor.py           # GraphExecutor with worker dispatch + execution records
+├── runtime.py            # GraphRuntime — full execution pipeline
+├── persistence.py        # GraphSerializer — versioned JSON, migrations
+├── base.py               # Base abstractions
+├── esp32_client.py       # ESP32 HTTP/WebSocket client
+├── dmx_controller.py     # DMX bridge controller
+├── midi_controller.py    # MIDI controller integration
+├── midi_bridge.js        # Node.js MIDI bridge (JS sidecar)
+├── cross_domain/
+│   ├── adapter.py        # CrossDomainAdapter base class + AdapterMapping
+│   └── envelope.py       # Cross-domain message envelope
+├── domains/
+│   └── electronics/
+│       └── types.py      # Electronics domain types (Netlist, Schematic, Waveform, etc.)
+├── workers/
+│   ├── ai/
+│   │   ├── worker.py     # AIWorker — full Router/Orchestrator integration
+│   │   ├── types.py      # AI domain types (LLMResponse, etc.)
+│   │   └── register.py   # AI type registration
+│   ├── cad/
+│   │   ├── worker.py     # CADWorker — 6 pure-calculation PCB nodes (working)
+│   │   ├── freecad_worker.py  # FreeCAD MCP integration (partial)
+│   │   ├── kicad_worker.py    # KiCad MCP integration (partial)
+│   │   ├── mesh_worker.py     # Mesh operations (partial)
+│   │   ├── toolpath_worker.py # CNC toolpath (partial)
+│   │   ├── types.py      # CAD domain types
+│   │   └── register.py   # CAD type registration
+│   ├── electronics/
+│   │   ├── worker.py     # ElectronicsWorker — init/capabilities only, no execute dispatch
+│   │   ├── spice_nodes.py     # 4 SPICE nodes with real logic (~1300 lines)
+│   │   ├── component_nodes.py # 9 component nodes with real logic (~1600 lines)
+│   │   ├── pcb_nodes.py       # 4 PCB nodes with real logic (~640 lines)
+│   │   ├── firmware_nodes.py  # 4 firmware nodes with real logic (~960 lines)
+│   │   └── register.py   # Electronics type registration
+│   └── midi/
+│       ├── worker.py     # MIDIWorker — 4 node types, fully working
+│       ├── types.py      # MIDI types (MIDINote, MIDISequence, MIDICCMap)
+│       └── register.py   # MIDI type registration
+└── examples/
+    ├── simple_inference.py      # Single LLM inference
+    ├── chain_of_thought.py      # Multi-step reasoning
+    └── agent_orchestration.py   # Multi-agent workflow
 ```
 
 ---
