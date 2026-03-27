@@ -1,5 +1,7 @@
 # TODO — Finalisation VM
 
+Last reviewed: 2026-03-27
+
 Etat relu le `9 mars 2026` sur `photon-machine`.
 
 Ce fichier couvre uniquement la VM et la stack runtime de `/mascarade`.
@@ -29,7 +31,7 @@ Le pilotage central multi-repo vit dans `docs/EXECUTION_HUB.md`.
 | Mascarade API | main compose / `mascarade-api` | loopback `:3100` | OK |
 | Mascarade Core | main compose / `mascarade-core` | loopback `:8100` | OK |
 | Grafana | main compose / `mascarade-grafana` | loopback `:3001` | OK |
-| Prometheus | main compose / `mascarade-prometheus` | loopback `:9090` | OK |
+| Prometheus | main compose / `mascarade-prometheus` | loopback `:9099` | OK (fixed 2026-03-27, was down, now on 9099) |
 | Ollama | main compose / `mascarade-ollama` | loopback `:11434` | OK / optionnel |
 
 Notes:
