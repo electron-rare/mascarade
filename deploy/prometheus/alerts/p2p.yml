@@ -48,6 +48,41 @@ groups:
           summary: "mascarade-core is down"
           description: "mascarade-core at {{ $labels.instance }} has been unreachable for 1 minute."
 
+  - name: mascarade_rag
+    rules:
+      # Qdrant vector store down — RAG pipeline degrades silently
+      - alert: MascaradeQdrantDown
+        expr: up{job="qdrant"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          component: rag
+        annotations:
+          summary: "Qdrant vector store is down"
+          description: "RAG search, semantic cache, and embeddings storage are unavailable. Pipeline falls back to LLM-only mode."
+
+      # Redis down — cache and queue unavailable
+      - alert: MascaradeRedisDown
+        expr: up{job="redis"} == 0
+        for: 2m
+        labels:
+          severity: warning
+          component: rag
+        annotations:
+          summary: "Redis is down"
+          description: "Semantic query cache, session state, and task queue are unavailable. RAG queries will be slower but functional."
+
+      # Qdrant high memory usage (>4GB)
+      - alert: MascaradeQdrantHighMemory
+        expr: process_resident_memory_bytes{job="qdrant"} > 4e9
+        for: 10m
+        labels:
+          severity: warning
+          component: rag
+        annotations:
+          summary: "Qdrant memory > 4GB"
+          description: "RSS is {{ $value | humanize }}B. May need collection optimization or memory limit increase."
+
       # Mémoire RSS anormalement haute (>2GB = possible fuite)
       - alert: MascaradeCoreHighMemory
         expr: process_resident_memory_bytes{job=~"mascarade-.*"} > 2e9
