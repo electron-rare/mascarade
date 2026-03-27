@@ -208,6 +208,52 @@ async def rag_collections() -> CollectionsResponse:
         await vs.close()
 
 
+@router.get("/collections/{name}", response_model=CollectionInfo)
+async def rag_collection_info(name: str) -> CollectionInfo:
+    """Get info (point count) for a specific Qdrant collection."""
+    vs = QdrantVectorStore(collection=name)
+    try:
+        info = await vs.collection_info()
+        return CollectionInfo(
+            name=name,
+            vectors_count=info.get("vectors_count"),
+            points_count=info.get("points_count"),
+        )
+    except Exception as exc:
+        if "404" in str(exc) or "not found" in str(exc).lower():
+            raise HTTPException(status_code=404, detail=f"Collection {name!r} not found") from exc
+        logger.exception("Failed to get collection info")
+        raise HTTPException(status_code=502, detail=f"Qdrant error: {exc}") from exc
+    finally:
+        await vs.close()
+
+
+@router.delete("/collections/{name}")
+async def rag_collection_delete(name: str) -> dict[str, Any]:
+    """Delete a Qdrant collection and all its documents.
+
+    This is irreversible. Use with caution.
+    """
+    if name in {"rag-query-cache"}:
+        raise HTTPException(
+            status_code=403,
+            detail=f"Collection {name!r} is reserved and cannot be deleted via this endpoint",
+        )
+    vs = QdrantVectorStore(collection=name)
+    try:
+        deleted = await vs.drop_collection()
+        if not deleted:
+            raise HTTPException(status_code=404, detail=f"Collection {name!r} not found")
+        return {"deleted": True, "collection": name}
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("Failed to delete collection")
+        raise HTTPException(status_code=502, detail=f"Qdrant error: {exc}") from exc
+    finally:
+        await vs.close()
+
+
 @router.post("/search", response_model=RAGSearchResponse)
 async def rag_search(body: RAGSearchRequest) -> RAGSearchResponse:
     """Direct vector search without LLM generation."""

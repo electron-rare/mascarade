@@ -234,3 +234,28 @@ class QdrantVectorStore:
             params={"wait": "true"},
         )
         resp.raise_for_status()
+
+    async def drop_collection(self) -> bool:
+        """Delete the entire collection from Qdrant.
+
+        Returns True if deleted, False if it did not exist.
+        """
+        client = await self._get_client()
+        resp = await client.delete(f"/collections/{self.collection}")
+        if resp.status_code == 404:
+            return False
+        resp.raise_for_status()
+        logger.info("Dropped Qdrant collection %s", self.collection)
+        return True
+
+    async def count(self) -> int:
+        """Return the number of points in the collection."""
+        client = await self._get_client()
+        resp = await client.post(
+            f"/collections/{self.collection}/points/count",
+            json={"exact": True},
+        )
+        if resp.status_code == 404:
+            return 0
+        resp.raise_for_status()
+        return resp.json().get("result", {}).get("count", 0)
