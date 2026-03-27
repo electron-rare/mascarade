@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased] - 2026-03-27
 
 ### Added
+- **OpenLLMetry instrumentation + StateGraph orchestration engine** (2c7b152): OpenLLMetry SDK extracted from finetune deps, opentelemetry-sdk pin fix; LangGraph StateGraph wiring with conditional edges and END sentinel.
+- **Node engine hardware worker** (`node_engine/`): HardwareWorker implementation, Electronics dispatch, 5 cross-domain adapters (AI↔CAD, AI↔Electronics, CAD→Electronics, Electronics→Hardware, Hardware→AI), eager/lazy/stepped execution modes.
+- **TUI dashboard** (`tools/mascarade_dashboard.py`): terminal UI for monitoring mascarade services.
 - **RAG P0 — Cross-encoder reranking** (`rag/reranker.py`): `CrossEncoderReranker` wraps BAAI/bge-reranker-v2-m3 via sentence-transformers; lazy-loaded, runs in `ThreadPoolExecutor` (non-blocking). Falls back silently to LLM comma-score ranking if sentence-transformers is not installed. Optional dep: `pip install mascarade-core[reranker]`.
 - **RAG P0 — Contextual Retrieval** (Anthropic pattern, −49% failed retrievals): `pipeline.ingest(contextual_retrieval=True)` generates a 1-2 sentence LLM preamble per chunk before embedding. Uses `rag_contextual_retrieval_model` (default: claude-haiku-4-5-20251001). Added `_add_contextual_preambles()` to `RAGPipeline`.
 - **RAG P1 — Semantic query cache** (`rag/query_cache.py`): `RAGQueryCache` stores query embeddings in a dedicated Qdrant collection (`rag-query-cache`) and results in Redis with configurable TTL. Cache hits skip embed+retrieve+generate, returning in < 5ms.
@@ -26,10 +29,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **RAG config settings** (`config.py`): `rag_reranker_enabled`, `rag_reranker_model`, `rag_contextual_retrieval_enabled`, `rag_contextual_retrieval_model`, `rag_cache_enabled`, `rag_cache_similarity_threshold`, `rag_cache_ttl`, `rag_embedding_provider`, `rag_embedding_model`.
 - **Whisper config** (`config.py`): `whisper_model_size`, `whisper_device`, `whisper_compute_type`.
 
+### Changed
+- **chore**: merged `feat/fake-ollama-p2p-mistral` into main.
+
 ### Fixed
+- **Security hardening** (4608a7b): command injection in CLI agent, cache collision in RAG query cache, Qdrant point ID determinism, healthcheck endpoint auth bypass, HTTPS redirect loop in edge-proxy.
 - ruff B904: all `raise HTTPException` inside `except` clauses in `server_protected.py` now use `from exc`.
 - `docker-compose.graphiti.yml`: bind `${GRAPHITI_BIND_HOST:-127.0.0.1}` (was `0.0.0.0`); NEO4J_AUTH/NEO4J_PASSWORD now use required env vars.
 - Loki retention reduced to 7d (was 30d).
+- **OpenLLMetry SDK** (`openllmetry-sdk`): extracted finetune deps from `pyproject.toml`, fixed import conflicts with `opentelemetry-sdk` pinning.
+- **StateGraph P0**: LangGraph `StateGraph` wiring fixed — node transitions now respect conditional edges and `END` sentinel; stale graph cache invalidated on agent hot-reload.
+- **P0 provider fallback**: `select_route()` no longer silently drops requests when all VRAM-capable peers are busy; falls back to CPU-only peer with warning log.
 
 ---
 

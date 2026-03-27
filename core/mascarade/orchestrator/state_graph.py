@@ -170,7 +170,7 @@ class StateGraph:
         self,
         run_id: str,
         state: dict[str, Any],
-        current_node: str,
+        current_node: str | None,
         iteration: int,
     ) -> None:
         path = self._checkpoint_path(run_id)
@@ -340,9 +340,10 @@ class StateGraph:
             state = self._merge(state, updates)
             iteration += 1
 
-            self._save_checkpoint(run_id, state, current_node, iteration)
+            next_node = await self._resolve_next_async(current_node, state)
+            self._save_checkpoint(run_id, state, next_node, iteration)
 
-            current_node = await self._resolve_next_async(current_node, state)
+            current_node = next_node
 
         return state
 
@@ -371,11 +372,12 @@ class StateGraph:
             state = self._merge(state, updates)
             iteration += 1
 
-            self._save_checkpoint(run_id, state, current_node, iteration)
+            next_node = await self._resolve_next_async(current_node, state)
+            self._save_checkpoint(run_id, state, next_node, iteration)
 
             yield current_node, dict(state)
 
-            current_node = await self._resolve_next_async(current_node, state)
+            current_node = next_node
 
     # ------------------------------------------------------------------
     # Introspection

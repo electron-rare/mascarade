@@ -57,7 +57,7 @@ class CrossEncoderReranker:
         """Async cross-encoder rerank.  Returns top_k results sorted by score."""
         if not results:
             return results
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         return await loop.run_in_executor(
             _get_executor(),
             self._sync_rerank,

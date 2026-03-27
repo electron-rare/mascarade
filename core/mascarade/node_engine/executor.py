@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
-from collections import defaultdict
+from collections import defaultdict, deque
 from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
 from enum import StrEnum
@@ -174,11 +174,11 @@ class GraphExecutor:
             adjacency[src].append(tgt)
             in_degree[tgt] = in_degree.get(tgt, 0) + 1
 
-        queue = [nid for nid, deg in in_degree.items() if deg == 0]
+        queue = deque(nid for nid, deg in in_degree.items() if deg == 0)
         result = []
 
         while queue:
-            node_id = queue.pop(0)
+            node_id = queue.popleft()
             node = graph.get_node(node_id)
             if node:
                 result.append(node)
