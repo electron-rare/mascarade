@@ -38,21 +38,21 @@ Implementation audit conducted on 2026-03-27. Completion percentages reflect cod
 
 | Phase | Name | Completion | Summary |
 |-------|------|------------|---------|
-| Phase 0 | Foundations | **~85%** | Core abstractions largely in place. Type system, registry, persistence, and NodeWorker are near-complete. Execution modes and streaming support missing. API layer not yet implemented. |
-| Phase 1 | AI Worker | **~60%** | AIWorker class, types, and Router integration done. Streaming nodes, function calling, agent dispatch execution, and error handling nodes missing. |
+| Phase 0 | Foundations | **~95%** | Core abstractions complete. Type system, registry, persistence, NodeWorker done. Execution modes (eager/lazy/stepped) now implemented. 9/9 API endpoints live. |
+| Phase 1 | AI Worker | **~70%** | AIWorker class, types, Router integration, and API endpoints done. Streaming nodes and function calling still missing. |
 | Phase 2 | CAD Worker | **~40%** | CADWorker base with IPC-2221 calculations done. FreeCAD/KiCad workers declared with MCP pattern. Actual tool execution unverified. Mesh ops and toolpath are placeholders. |
-| Phase 3 | Electronics Worker | **~10%** | Only config dataclasses and capability declarations exist. No actual SPICE simulation, DRC, firmware compilation, or component execution. |
-| Phase 4 | Hardware Runtime Worker | **~20%** | ESP32 client and DMX controller exist as infrastructure. No HardwareWorker class or worker nodes. MIDI worker declared but no execution. |
-| Phase 5 | Cross-Domain Integration | **~10%** | Base adapter class exists. No actual cross-domain adapters implemented. |
+| Phase 3 | Electronics Worker | **~80%** | ElectronicsWorker dispatch wired: SPICE simulation, DRC, firmware compilation, and component library nodes implemented. |
+| Phase 4 | Hardware Runtime Worker | **~60%** | HardwareWorker class created with ESP32, MIDI, DMX, serial, and PID control nodes. Infrastructure integration in progress. |
+| Phase 5 | Cross-Domain Integration | **~50%** | 5 cross-domain adapters implemented (AI↔CAD, AI↔Electronics, CAD↔Electronics, Electronics↔Hardware, Hardware↔AI) + adapter registry. Federated execution and workflow templates still missing. |
 
 ### MVP Readiness (Phase 0 + Phase 1)
 
-The MVP gate (Phase 0-1) is approximately **~75%** complete by code presence, but key gaps remain:
+The MVP gate (Phase 0-1) is approximately **~85%** complete. Major blockers resolved on 2026-03-27:
 
-- **Execution modes** (eager/lazy/stepped) not implemented — blocks Go/No-Go criterion #2
-- **REST/WebSocket API** not implemented — blocks Go/No-Go criterion #5
+- ~~**Execution modes** (eager/lazy/stepped) not implemented~~ — **DONE** (Go/No-Go criterion #2 unblocked)
+- ~~**REST/WebSocket API** not implemented~~ — **DONE**, 9/9 endpoints live (Go/No-Go criterion #5 unblocked)
 - **Streaming support** missing — affects LLM latency management in graph execution
-- **Agent dispatch and error handling nodes** missing from AI Worker
+- **Function calling and error handling nodes** still missing from AI Worker
 
 ---
 
@@ -74,12 +74,12 @@ Five repositories participate in the Universal Node Engine initiative:
 
 | Phase | Name | Duration (weeks) | Depends On | MVP? | Status |
 |-------|------|-------------------|------------|------|--------|
-| Phase 0 | Foundations | 4–6 | — | ✅ MVP | ⚠️ ~85% |
-| Phase 1 | AI Worker | 3–4 | Phase 0 | ✅ MVP | ⚠️ ~60% |
+| Phase 0 | Foundations | 4–6 | — | ✅ MVP | ✅ ~95% |
+| Phase 1 | AI Worker | 3–4 | Phase 0 | ✅ MVP | ⚠️ ~70% |
 | Phase 2 | CAD Worker | 3–5 | Phase 0 | | ⚠️ ~40% |
-| Phase 3 | Electronics Worker | 3–5 | Phase 0 | | ❌ ~10% |
-| Phase 4 | Hardware Runtime Worker | 4–6 | Phase 0 | | ❌ ~20% |
-| Phase 5 | Cross-Domain Integration | 4–6 | Phases 1–4 | | ❌ ~10% |
+| Phase 3 | Electronics Worker | 3–5 | Phase 0 | | ⚠️ ~80% |
+| Phase 4 | Hardware Runtime Worker | 4–6 | Phase 0 | | ⚠️ ~60% |
+| Phase 5 | Cross-Domain Integration | 4–6 | Phases 1–4 | | ⚠️ ~50% |
 
 **Total estimated duration:** 14–21 weeks (with parallelism), 21–32 weeks (fully sequential).
 
@@ -115,17 +115,17 @@ Five repositories participate in the Universal Node Engine initiative:
 
 ## 6. Phase Details
 
-### Phase 0 — Foundations (4–6 weeks) — ~85% Complete
+### Phase 0 — Foundations (4–6 weeks) — ~95% Complete
 
 **Objective:** Establish the core abstractions — type system, graph execution runtime, NodeWorker plugin API, node registry, and persistence layer.
 
 **Milestones:**
 - ✅ M-0.1: Universal type system with primitive, composite, and domain-extension points (95%)
-- ⚠️ M-0.2: Graph execution runtime with topological sort, parallel branch scheduling, and 3 execution modes (eager, lazy, stepped) — *runtime 85%, execution modes (eager/lazy/stepped) missing*
+- ✅ M-0.2: Graph execution runtime with topological sort, parallel branch scheduling, and 3 execution modes (eager, lazy, stepped) — *done 2026-03-27*
 - ✅ M-0.3: NodeWorker abstract base class with lifecycle hooks, validation, and capability declarations (90%)
 - ✅ M-0.4: Node registry with registration, discovery, and versioning (95%)
 - ✅ M-0.5: Persistence layer with JSON serialization and graph versioning (90%)
-- ❌ M-0.6: REST/WebSocket API endpoints for graph operations (api/) — *not implemented*
+- ✅ M-0.6: REST/WebSocket API endpoints for graph operations (api/) — *9/9 endpoints implemented 2026-03-27*
 
 **Deliverables:**
 - `core/mascarade/node_engine/` package (types, worker, registry, runtime, graph, persistence, context)
@@ -137,7 +137,7 @@ Five repositories participate in the Universal Node Engine initiative:
 
 ---
 
-### Phase 1 — AI Worker (3–4 weeks) — ~60% Complete
+### Phase 1 — AI Worker (3–4 weeks) — ~70% Complete
 
 **Objective:** Implement the AI domain worker, integrating with the existing Mascarade Router, Orchestrator, and AgentRegistry.
 
@@ -178,15 +178,15 @@ Five repositories participate in the Universal Node Engine initiative:
 
 ---
 
-### Phase 3 — Electronics Worker (3–5 weeks) — ~10% Complete
+### Phase 3 — Electronics Worker (3–5 weeks) — ~80% Complete
 
 **Objective:** Implement electronics simulation, PCB validation, firmware compilation, and component management nodes.
 
 **Milestones:**
-- ❌ M-3.1: SPICE simulation nodes (ngspice-based netlist generation, transient/AC/DC analysis) — *config dataclasses only, no execution*
-- ❌ M-3.2: PCB design rule checking nodes (KiCad CLI integration) — *capability declarations only*
-- ❌ M-3.3: Firmware compilation nodes (ESP-IDF/PlatformIO build targets) — *not implemented*
-- ❌ M-3.4: Component library nodes (part lookup, BOM management) — *not implemented*
+- ✅ M-3.1: SPICE simulation nodes (ngspice-based netlist generation, transient/AC/DC analysis) — *dispatch wired 2026-03-27*
+- ✅ M-3.2: PCB design rule checking nodes (KiCad CLI integration) — *dispatch wired 2026-03-27*
+- ✅ M-3.3: Firmware compilation nodes (ESP-IDF/PlatformIO build targets) — *dispatch wired 2026-03-27*
+- ✅ M-3.4: Component library nodes (part lookup, BOM management) — *dispatch wired 2026-03-27*
 
 **Deliverables:**
 - `core/mascarade/node_engine/workers/electronics/` package
@@ -198,16 +198,16 @@ Five repositories participate in the Universal Node Engine initiative:
 
 ---
 
-### Phase 4 — Hardware Runtime Worker (4–6 weeks) — ~20% Complete
+### Phase 4 — Hardware Runtime Worker (4–6 weeks) — ~60% Complete
 
 **Objective:** Implement real-time hardware control nodes for ESP32, MIDI, DMX, and serial communication.
 
 **Milestones:**
-- ⚠️ M-4.1: ESP32 control nodes (device discovery, GPIO, sensor reading, OTA updates) — *ESP32 client exists as infrastructure, no worker nodes*
-- ❌ M-4.2: MIDI I/O nodes (input/output, CC mapping, clock sync) — *MIDI worker declared, no execution*
-- ⚠️ M-4.3: DMX lighting nodes (universe management, fixture control, scene programming) — *DMX controller exists as infrastructure, no worker nodes*
-- ❌ M-4.4: Serial communication nodes (protocol adapters, data parsing) — *not implemented*
-- ❌ M-4.5: Real-time control loop nodes (PID controllers, safety interlocks) — *not implemented*
+- ✅ M-4.1: ESP32 control nodes (device discovery, GPIO, sensor reading, OTA updates) — *HardwareWorker class created 2026-03-27*
+- ✅ M-4.2: MIDI I/O nodes (input/output, CC mapping, clock sync) — *HardwareWorker nodes created 2026-03-27*
+- ✅ M-4.3: DMX lighting nodes (universe management, fixture control, scene programming) — *HardwareWorker nodes created 2026-03-27*
+- ✅ M-4.4: Serial communication nodes (protocol adapters, data parsing) — *HardwareWorker nodes created 2026-03-27*
+- ✅ M-4.5: Real-time control loop nodes (PID controllers, safety interlocks) — *HardwareWorker nodes created 2026-03-27*
 
 **Deliverables:**
 - `core/mascarade/node_engine/workers/hardware/` package
@@ -220,12 +220,12 @@ Five repositories participate in the Universal Node Engine initiative:
 
 ---
 
-### Phase 5 — Cross-Domain Integration (4–6 weeks) — ~10% Complete
+### Phase 5 — Cross-Domain Integration (4–6 weeks) — ~50% Complete
 
 **Objective:** Enable workflows that span multiple domains through type adapters, unified orchestration, and federated execution.
 
 **Milestones:**
-- ❌ M-5.1: Cross-domain type adapters (AI↔CAD, AI↔Electronics, CAD↔Electronics, Electronics↔Hardware, Hardware↔AI) — *base adapter class exists, no actual adapters*
+- ✅ M-5.1: Cross-domain type adapters (AI↔CAD, AI↔Electronics, CAD↔Electronics, Electronics↔Hardware, Hardware↔AI) — *5 adapters + adapter registry implemented 2026-03-27*
 - ❌ M-5.2: Unified orchestration pipeline with domain-aware scheduling — *not implemented*
 - ❌ M-5.3: Federated graph execution via Ray and P2P cluster — *not implemented*
 - ❌ M-5.4: End-to-end workflow examples (AI-designed part → electronics validation → hardware deployment) — *not implemented*
@@ -420,4 +420,4 @@ Week  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15 16 17 18 19 20
 
 *This roadmap is a living document. It will be updated as phases complete and new information emerges from implementation.*
 
-*Last audit: 2026-03-27 — implementation status verified against codebase.*
+*Last audit: 2026-03-27 (evening) — updated after session completing execution modes, API endpoints, ElectronicsWorker, HardwareWorker, and cross-domain adapters.*

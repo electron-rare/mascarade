@@ -2,12 +2,15 @@
 
 ![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)
 ![License MIT](https://img.shields.io/badge/license-MIT-green.svg)
-![Version v0.2.0](https://img.shields.io/badge/version-v0.2.0-orange.svg)
+![Version v0.3.0](https://img.shields.io/badge/version-v0.3.0-orange.svg)
 ![Tests 400+](https://img.shields.io/badge/tests-400+-brightgreen.svg)
 ![Datasets 61K](https://img.shields.io/badge/datasets-61K_verified-yellow.svg)
 ![Models 14](https://img.shields.io/badge/models-14_mini--models-purple.svg)
+![Agents 35](https://img.shields.io/badge/agents-35-blueviolet.svg)
 
-Open-source AI orchestration engine specialized in electronics design (KiCad, SPICE, PCB, embedded systems). Multi-provider LLM routing, P2P mesh networking, domain-specific fine-tuning. Self-hosted, async-first, built for real hardware workflows.
+Open-source AI orchestration engine specialized in electronics design (KiCad, SPICE, PCB, embedded systems). Multi-provider LLM routing, P2P mesh networking, domain-specific fine-tuning, and a universal Node Engine for graph-based workflows. Self-hosted, async-first, built for real hardware workflows.
+
+*Last updated: 2026-03-27*
 
 **The only multi-agent LLM orchestrator purpose-built for electronics engineering.** Mascarade fine-tunes beat the HuggingFace #1 EE model by +125%.
 
@@ -39,6 +42,7 @@ graph TD
 | -------- | ------- |
 | **LLM Providers** | 25+ providers -- Claude, OpenAI, Mistral, Codestral, Google, HuggingFace, Bedrock, Ollama, llama.cpp, CoreML, MLX, LiteLLM, Exo, vLLM, GitHub Copilot |
 | **Agents** | 35 agents -- 16 core (coder, analyst, planner, summarizer, writer, translator, pcb-routing, etc.), 4 domain (kicad-designer, spice-expert, freecad-designer, components-expert), 3 CLI (Vibe/Codex/Claude Code), 4 Mistral Studio (devstral-code, forge, tower-commercial, sentinelle), 8 finetune pipeline |
+| **Node Engine** | Universal graph-based execution for composable domain workflows (AI, CAD, Electronics, MIDI, Hardware). Phase 0-3 complete (~70%), Phase 4-5 in progress. See `core/mascarade/node_engine/README.md` |
 | **MCP** | Server (5 tools) + Client (KiCad x5, SPICEBridge 28 tools, FreeCAD, n8n, ERPNext) |
 | **A2A** | Agent-to-Agent protocol (spec v0.3) with task delegation and lifecycle states |
 | **RAG** | Agentic RAG pipeline -- Qdrant hybrid search (dense+BM25+RRF), LLM reranking, CRAG fallback, SearXNG web search, bge-m3 embeddings |
@@ -156,11 +160,19 @@ Data enriched from 8 verified open-source repos (MIT/Apache/BSD): espressif/esp-
 
 P2P mesh connects all machines with HMAC-authenticated cluster communication.
 
+## Architecture
+
+**Python Core** (FastAPI, port 8100) -- agents, router, orchestrator, Node Engine, P2P mesh, RAG, fine-tune pipeline.
+**TypeScript API** (Hono, port 3100/3000) -- auth, rate limiting, OpenAI-compatible gateway, Fake Ollama API.
+**Node Engine** -- graph-based execution system: composable workers across AI, CAD, Electronics, MIDI, and Hardware domains.
+
+Infrastructure: Mac dev machine (192.168.0.210) + Photon VM deploy (192.168.0.119, Docker).
+
 ## Project Structure
 
 ```raw
 mascarade/
-  core/        Python FastAPI core (routing, agents, P2P, finetune, RAG)
+  core/        Python FastAPI core (routing, agents, P2P, finetune, RAG, node_engine)
   api/         Node.js API gateway (Hono, auth, rate limiting)
   web/         React 19 operator cockpit
   clients/     Native clients (macOS Swift app, Docker bridge)
@@ -176,7 +188,8 @@ mascarade/
 | ---- | ---- |
 | [mascarade](https://github.com/electron-rare/mascarade) | Core orchestration engine |
 | [mascarade-datasets](https://github.com/electron-rare/mascarade-datasets) | Fine-tuning datasets (13 domains) |
-| [mascarade-cockpit](https://github.com/electron-rare/mascarade-cockpit) | SvelteKit ops console |
+| [crazy_life](https://github.com/electron-rare/crazy_life) | Frontend (Vite + React) -- cockpit, workflow editor |
+| [Kill_LIFE](https://github.com/electron-rare/Kill_LIFE) | AI-native control plane for embedded (ESP32/STM32) |
 
 ## License
 

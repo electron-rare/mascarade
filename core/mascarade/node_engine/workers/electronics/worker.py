@@ -46,7 +46,8 @@ _TOOL_REQUIREMENTS: dict[str, str] = {
     "electronics.spice.analyze": "ngspice",
     "electronics.spice.debug_convergence": "ngspice",
     "electronics.pcb.drc_check": "kicad-cli",
-    "electronics.pcb.rule_definition": "kicad-cli",
+    # NOTE: rule_definition is purely computational (returns preset rules),
+    # it does NOT use kicad-cli. Do not gate it behind tool availability.
     "electronics.pcb.violation_reporter": "kicad-cli",
     "electronics.firmware.compile": "idf.py",
     "electronics.firmware.flash_prepare": "idf.py",
@@ -120,16 +121,11 @@ class ElectronicsWorker(NodeWorker):
             limites de concurrence, et outils externes requis
         """
         return NodeCapability(
-            node_prefixes=[
-                "electronics.spice",
-                "electronics.pcb",
-                "electronics.firmware",
-                "electronics.components",
-            ],
+            node_types=list(_NODE_CLASSES.keys()),
+            domain=self.domain,
             max_concurrent=4,
             requires_gpu=False,
             estimated_memory_mb=512,
-            external_tools=["ngspice", "kicad-cli", "idf.py", "pio"],
         )
 
     async def initialize(self) -> None:
