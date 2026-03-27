@@ -281,3 +281,18 @@ def list_servers(servers: dict[str, McpServerDefinition]) -> list[dict[str, Any]
             }
         )
     return items
+
+
+def register_datagouv_server(servers: dict[str, McpServerDefinition]) -> None:
+    """Register data.gouv.fr MCP server (public, no auth required)."""
+    datagouv_url = os.getenv("DATAGOUV_MCP_URL", "https://mcp.data.gouv.fr/sse")
+    if os.getenv("DATAGOUV_ENABLED", "true").lower() not in ("true", "1", "yes"):
+        return
+    servers["datagouv"] = McpServerDefinition(
+        key="datagouv",
+        transport="sse",
+        url=datagouv_url,
+        timeout_s=30.0,
+        label="data.gouv.fr Open Data",
+        description="74000+ datasets publics francais: recherche, exploration, telechargement via MCP.",
+    )

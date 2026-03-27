@@ -161,6 +161,10 @@ class Settings(BaseSettings):
     rag_contextual_retrieval_enabled: bool = False
     # Use "provider/model" syntax to force a specific provider, e.g. "anthropic/claude-haiku-4-5-20251001"
     rag_contextual_retrieval_model: str = "claude-haiku-4-5-20251001"
+    # Semantic query cache (Redis + Qdrant) — reduces redundant LLM calls by 50-70%
+    rag_cache_enabled: bool = False  # opt-in: requires Redis
+    rag_cache_similarity_threshold: float = 0.92
+    rag_cache_ttl: int = 3600  # seconds
 
     # Core API server
     core_host: str = "0.0.0.0"
