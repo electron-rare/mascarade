@@ -63,18 +63,17 @@ class TestInitWhenTraceloopAvailable:
         mock_sdk = MagicMock()
         mock_sdk.Traceloop = mock_traceloop
 
-        with (
-            patch.dict(
-                sys.modules,
-                {"traceloop": MagicMock(), "traceloop.sdk": mock_sdk},
-            ),
-            patch("mascarade.observability.openllmetry.settings") as mock_settings,
+        with patch.dict(
+            sys.modules,
+            {"traceloop": MagicMock(), "traceloop.sdk": mock_sdk},
         ):
+            mod = _reload_module()
+            mock_settings = MagicMock()
             mock_settings.otel_service_name = "test-service"
             mock_settings.otel_collector_http_endpoint = "http://localhost:4318"
             mock_settings.otel_resource_attributes = ""
             mock_settings.otel_exporter_headers = ""
-            mod = _reload_module()
+            mod.settings = mock_settings
             mod.init_openllmetry()
 
         call_kwargs = mock_traceloop.init.call_args
@@ -108,13 +107,14 @@ class TestConfigPropagation:
                 {"traceloop": MagicMock(), "traceloop.sdk": mock_sdk},
             ),
             patch.dict("os.environ", {}, clear=False),
-            patch("mascarade.observability.openllmetry.settings") as mock_settings,
         ):
+            mod = _reload_module()
+            mock_settings = MagicMock()
             mock_settings.otel_collector_http_endpoint = "http://collector:4318"
             mock_settings.otel_service_name = "mascarade-core"
             mock_settings.otel_resource_attributes = "team.id=core"
             mock_settings.otel_exporter_headers = "Authorization=Bearer tok"
-            mod = _reload_module()
+            mod.settings = mock_settings
             mod.init_openllmetry()
 
             import os

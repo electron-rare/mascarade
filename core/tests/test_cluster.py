@@ -417,6 +417,9 @@ async def test_cluster_manager_auto_selects_peer_by_role_and_model(monkeypatch):
                 "provider_models": {"ollama": ["llama3.2:3b", "qwen2.5:7b"]},
                 "agents": 16,
                 "last_seen": "2026-03-07T12:00:00Z",
+                "gpu_vram_gb": 24.0,
+                "chip_family": "nvidia_gpu",
+                "ram_gb": 64.0,
             },
         )()
 

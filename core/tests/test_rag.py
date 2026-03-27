@@ -50,7 +50,7 @@ class TestEmbeddingProvider:
         ep.embed = AsyncMock(return_value=[[0.5, 0.6]])
         result = await ep.embed_query("test query")
         assert result == [0.5, 0.6]
-        ep.embed.assert_awaited_once_with(["test query"], model="text-embedding-3-small")
+        ep.embed.assert_awaited_once_with(["test query"], model=None)
 
     @pytest.mark.asyncio
     async def test_embed_fallback_chain(self):

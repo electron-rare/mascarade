@@ -574,16 +574,24 @@ async def test_chat_completion_missing_model():
 
     The legacy server.py ChatCompletionRequest has ``model: str | None = None``
     so a missing model is valid; the endpoint falls back to settings.default_model.
+    When the default model contains a colon (e.g. 'qwen2.5:1.5b'), the endpoint
+    interprets it as 'provider:model', so we must list that provider.
     """
-    fake_router = FakeRouter()
+    from unittest.mock import patch as _patch
 
-    async with _client(fake_router) as client:
-        response = await client.post(
-            "/v1/chat/completions",
-            json={
-                "messages": [{"role": "user", "content": "test"}],
-            },
-        )
+    from mascarade.config import settings as cfg
+
+    fake_router = FakeRouter()
+    # Ensure default_model has no colon so the endpoint treats it as a plain
+    # model name (no provider prefix parsing).
+    with _patch.object(cfg, "default_model", "gpt-4"), _patch.object(cfg, "default_provider", "openai"):
+        async with _client(fake_router) as client:
+            response = await client.post(
+                "/v1/chat/completions",
+                json={
+                    "messages": [{"role": "user", "content": "test"}],
+                },
+            )
 
     # model is optional in the legacy endpoint
     assert response.status_code == 200

@@ -74,7 +74,9 @@ class P2PProvider(LLMProvider):
             request_data["model"] = target_model
 
         # Inject cluster token for auth on the receiving end
-        shared_key = settings.cluster_shared_key.strip()
+        from mascarade.config import secret_value
+
+        shared_key = secret_value(settings.cluster_shared_key).strip()
         if shared_key:
             request_data["__cluster_token"] = shared_key
 
