@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING, Any
 from mascarade.node_engine.dmx_controller import DMXController, get_dmx_controller
 from mascarade.node_engine.esp32_client import ESP32Client, ESP32Device, get_esp32_client
 from mascarade.node_engine.worker import NodeWorker
+from mascarade.node_engine.workers.midi.worker import MIDIWorker
 
 from .types import (
     DMXFrame,
@@ -53,7 +54,8 @@ _SERIAL_PORT_GLOBS = [
 class HardwareWorker(NodeWorker):
     """Worker for hardware domain node types.
 
-    Dispatches to ESP32, DMX and serial handlers.
+    Dispatches to ESP32, DMX, serial, and MIDI handlers.
+    Also provides safety interlocks for GPIO/DMX value validation.
     Chaque handler gère la dégradation gracieuse si le hardware est absent.
     """
 
@@ -69,6 +71,14 @@ class HardwareWorker(NodeWorker):
         self.router = router
         self._esp32: ESP32Client | None = esp32_client
         self._dmx: DMXController | None = dmx_controller
+        self._midi_worker: MIDIWorker | None = None
+
+    @property
+    def midi_worker(self) -> MIDIWorker:
+        """Get or create MIDI worker (lazy)."""
+        if self._midi_worker is None:
+            self._midi_worker = MIDIWorker(router=self.router)
+        return self._midi_worker
 
     # ------------------------------------------------------------------
     # Lazy accessors — avoid creating clients when hardware is unused
@@ -175,6 +185,44 @@ class HardwareWorker(NodeWorker):
                 },
                 "outputs": {"received": "SerialData"},
             },
+            # MIDI (delegated to MIDIWorker)
+            {
+                "node_type": "hardware.midi.note-sequence",
+                "description": "Create a MIDI note sequence (via MIDI sub-worker)",
+                "inputs": {"notes": "list", "tempo": "int"},
+                "outputs": {"sequence": "MIDISequence"},
+            },
+            {
+                "node_type": "hardware.midi.cc-map",
+                "description": "Create MIDI CC mapping for hardware control",
+                "inputs": {"mappings": "list"},
+                "outputs": {"cc_map": "list[MIDICCMap]"},
+            },
+            {
+                "node_type": "hardware.midi.pattern-generate",
+                "description": "Generate a MIDI pattern from scale and parameters",
+                "inputs": {"scale": "str", "root": "int", "steps": "int"},
+                "outputs": {"sequence": "MIDISequence"},
+            },
+            {
+                "node_type": "hardware.midi.transform",
+                "description": "Transform a MIDI sequence (transpose, velocity, time)",
+                "inputs": {"sequence": "MIDISequence", "transpose": "int"},
+                "outputs": {"sequence": "MIDISequence"},
+            },
+            # Safety interlocks
+            {
+                "node_type": "hardware.safety.check",
+                "description": "Validate GPIO/DMX values are within safe operating ranges",
+                "inputs": {
+                    "checks": "list[dict] — each with 'type' (gpio|dmx|midi), 'value', optional 'min'/'max'",
+                },
+                "outputs": {
+                    "passed": "bool",
+                    "warnings": "list[str]",
+                    "errors": "list[str]",
+                },
+            },
         ]
 
     async def execute(
@@ -185,6 +233,15 @@ class HardwareWorker(NodeWorker):
         context: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """Dispatch to the appropriate hardware handler."""
+        # MIDI delegation: hardware.midi.* -> MIDIWorker with midi.* prefix
+        if node_type.startswith("hardware.midi."):
+            midi_type = node_type.replace("hardware.midi.", "midi.", 1)
+            return await self.midi_worker.execute(midi_type, inputs, config, context)
+
+        # Safety interlocks
+        if node_type == "hardware.safety.check":
+            return self._safety_check(inputs)
+
         dispatch: dict[str, Any] = {
             # ESP32
             "hardware.esp32.discover": self._esp32_discover,
@@ -201,6 +258,10 @@ class HardwareWorker(NodeWorker):
             "hardware.serial.receive": self._serial_receive,
         }
 
+        # Also accept bare midi.* node types
+        if node_type.startswith("midi."):
+            return await self.midi_worker.execute(node_type, inputs, config, context)
+
         handler = dispatch.get(node_type)
         if handler is None:
             raise ValueError(f"Unsupported hardware node type: {node_type}")
@@ -212,6 +273,20 @@ class HardwareWorker(NodeWorker):
     ) -> list[str]:
         """Validate inputs before execution."""
         errors: list[str] = []
+
+        # MIDI delegation: validate through MIDIWorker
+        if node_type.startswith("hardware.midi."):
+            midi_type = node_type.replace("hardware.midi.", "midi.", 1)
+            return self.midi_worker.validate(midi_type, inputs, config)
+
+        if node_type.startswith("midi."):
+            return self.midi_worker.validate(node_type, inputs, config)
+
+        # Safety check validation
+        if node_type == "hardware.safety.check":
+            if "checks" not in inputs or not isinstance(inputs.get("checks"), list):
+                errors.append("checks (list) is required")
+            return errors
 
         # ESP32 nodes need device_id (except discover)
         if node_type.startswith("hardware.esp32.") and node_type != "hardware.esp32.discover":
@@ -751,6 +826,88 @@ class HardwareWorker(NodeWorker):
                 "success": False,
                 "error": str(e),
             }
+
+    # ------------------------------------------------------------------
+    # Safety interlocks
+    # ------------------------------------------------------------------
+
+    # Default safe ranges for hardware value validation
+    _SAFETY_RANGES: dict[str, dict[str, int | float]] = {
+        "gpio": {"min": 0, "max": 1},           # Digital GPIO: 0 or 1
+        "gpio_analog": {"min": 0, "max": 4095},  # ESP32 ADC: 12-bit
+        "gpio_pwm": {"min": 0, "max": 255},      # PWM duty cycle
+        "dmx": {"min": 0, "max": 255},           # DMX channel value
+        "midi": {"min": 0, "max": 127},          # MIDI value (note, velocity, CC)
+        "midi_channel": {"min": 0, "max": 15},   # MIDI channel
+    }
+
+    def _safety_check(self, inputs: dict[str, Any]) -> dict[str, Any]:
+        """Validate hardware values are within safe operating ranges.
+
+        Each check is a dict with:
+          - type: "gpio" | "gpio_analog" | "gpio_pwm" | "dmx" | "midi" | "midi_channel"
+          - value: numeric value to check
+          - label: optional human-readable label
+          - min: optional override for min safe value
+          - max: optional override for max safe value
+        """
+        checks = inputs.get("checks", [])
+        warnings: list[str] = []
+        errors: list[str] = []
+
+        for i, check in enumerate(checks):
+            check_type = check.get("type", "unknown")
+            value = check.get("value")
+            label = check.get("label", f"check[{i}]")
+
+            if value is None:
+                errors.append(f"{label}: value is required")
+                continue
+
+            if not isinstance(value, (int, float)):
+                errors.append(f"{label}: value must be numeric, got {type(value).__name__}")
+                continue
+
+            # Get range: user override or default
+            defaults = self._SAFETY_RANGES.get(check_type)
+            if defaults is None:
+                warnings.append(
+                    f"{label}: unknown check type '{check_type}', "
+                    f"available: {', '.join(self._SAFETY_RANGES.keys())}"
+                )
+                continue
+
+            safe_min = check.get("min", defaults["min"])
+            safe_max = check.get("max", defaults["max"])
+
+            if value < safe_min:
+                errors.append(
+                    f"{label}: value {value} is below minimum {safe_min} for type '{check_type}'"
+                )
+            elif value > safe_max:
+                errors.append(
+                    f"{label}: value {value} exceeds maximum {safe_max} for type '{check_type}'"
+                )
+            else:
+                # Warn if at boundary (within 5% of range)
+                range_size = safe_max - safe_min
+                if range_size > 0:
+                    margin = range_size * 0.05
+                    if value <= safe_min + margin:
+                        warnings.append(
+                            f"{label}: value {value} is near minimum {safe_min} for '{check_type}'"
+                        )
+                    elif value >= safe_max - margin:
+                        warnings.append(
+                            f"{label}: value {value} is near maximum {safe_max} for '{check_type}'"
+                        )
+
+        return {
+            "passed": len(errors) == 0,
+            "warnings": warnings,
+            "errors": errors,
+            "checks_performed": len(checks),
+        }
 
     # ------------------------------------------------------------------
     # Lifecycle

@@ -33,6 +33,9 @@ SCALES = {
 class MIDIWorker(NodeWorker):
     """Worker for MIDI domain node types."""
 
+    name: str = "midi-worker"
+    domain: str = "midi"
+
     def __init__(self, router: Router | None = None):
         self.router = router
 

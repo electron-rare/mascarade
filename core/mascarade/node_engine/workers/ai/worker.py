@@ -125,6 +125,8 @@ class AIWorker(NodeWorker):
             return await self._summarize(inputs, config, context)
         elif node_type == "ai.orchestrate":
             return await self._execute_orchestrate(inputs, config, context)
+        elif node_type == "ai.function-call":
+            return await self._execute_function_call(inputs, config, context)
         elif node_type == "ai.router-select":
             # Pure function - not async
             return self._router_select(inputs, config)
@@ -251,6 +253,8 @@ class AIWorker(NodeWorker):
             errors.extend(self._validate_summarize(inputs, config))
         elif node_type == "ai.orchestrate":
             errors.extend(self._validate_orchestrate(inputs, config))
+        elif node_type == "ai.function-call":
+            errors.extend(self._validate_function_call(inputs, config))
         elif node_type == "ai.router-select":
             errors.extend(self._validate_router_select(inputs, config))
         else:
@@ -281,6 +285,7 @@ class AIWorker(NodeWorker):
                 "ai.classify",
                 "ai.summarize",
                 "ai.orchestrate",
+                "ai.function-call",
                 "ai.router-select",
             ],
             "domain": "ai",
@@ -1267,6 +1272,204 @@ class AIWorker(NodeWorker):
                 errors.append(
                     f"Input 'mode' must be one of: sequential, parallel, pipeline. Got: {mode}"
                 )
+
+        return errors
+
+    async def _execute_function_call(
+        self,
+        inputs: dict[str, Any],
+        config: dict[str, Any],
+        context: Any,
+    ) -> dict[str, Any]:
+        """
+        Execute ai.function-call node.
+
+        Sends a prompt to the LLM along with tool definitions in OpenAI function
+        calling format, instructing the model to select and invoke one of the
+        provided tools. The LLM response is parsed to extract the function name
+        and JSON arguments.
+
+        Expected inputs:
+        - prompt (required): User prompt describing what to do
+        - tools (required): List of tool definitions in OpenAI function calling
+          format, e.g.::
+
+            [
+                {
+                    "type": "function",
+                    "function": {
+                        "name": "get_weather",
+                        "description": "Get weather for a location",
+                        "parameters": {
+                            "type": "object",
+                            "properties": {
+                                "location": {"type": "string"},
+                                "unit": {"type": "string", "enum": ["celsius", "fahrenheit"]},
+                            },
+                            "required": ["location"],
+                        },
+                    },
+                }
+            ]
+
+        Expected config:
+        - model (optional): Model name (e.g., "gpt-4")
+        - provider (optional): Provider name (e.g., "openai")
+        - temperature (optional): Temperature (default: 0.2, low for deterministic selection)
+        - max_tokens (optional): Max output tokens (default: 1024)
+        - strategy (optional): Routing strategy (default: "best")
+        - routing_policy (optional): RouteLLM policy
+
+        Returns:
+            Dictionary with:
+            - function_name: Name of the selected function
+            - arguments: Parsed JSON arguments dict
+            - raw_response: The full LLM response content for debugging
+        """
+        import json
+        import re
+
+        prompt = inputs["prompt"]
+        tools = inputs["tools"]
+
+        # Build a system prompt that instructs the LLM to respond with
+        # a structured function call in JSON format.
+        tool_descriptions = []
+        for tool_def in tools:
+            func = tool_def.get("function", tool_def)
+            name = func.get("name", "unknown")
+            desc = func.get("description", "")
+            params = func.get("parameters", {})
+            tool_descriptions.append(
+                f"- **{name}**: {desc}\n  Parameters: {json.dumps(params, indent=2)}"
+            )
+
+        system_prompt = (
+            "You are a function calling assistant. Based on the user's request, "
+            "select the most appropriate function and provide its arguments.\n\n"
+            "Available functions:\n"
+            + "\n".join(tool_descriptions)
+            + "\n\nRespond with ONLY a JSON object in this exact format:\n"
+            '{"function_name": "<name>", "arguments": {<args>}}\n\n'
+            "Do not include any explanation, just the JSON."
+        )
+
+        # Call Router.send() with the function calling prompt
+        model = config.get("model")
+        provider = config.get("provider")
+        temperature = config.get("temperature", 0.2)
+        max_tokens = config.get("max_tokens", 1024)
+        strategy = config.get("strategy", "best")
+        routing_policy = config.get("routing_policy")
+
+        messages = [{"role": "user", "content": prompt}]
+
+        response = await self.router.send(
+            messages,
+            strategy=strategy,
+            routing_policy=routing_policy,
+            provider=provider,
+            model=model,
+            system=system_prompt,
+            temperature=temperature,
+            max_tokens=max_tokens,
+        )
+
+        # Parse the function call from the LLM response
+        raw_content = response.content.strip()
+        function_name = ""
+        arguments: dict[str, Any] = {}
+
+        # Try to extract JSON from the response
+        # First try: direct JSON parse
+        try:
+            parsed = json.loads(raw_content)
+            function_name = parsed.get("function_name", "")
+            arguments = parsed.get("arguments", {})
+        except json.JSONDecodeError:
+            # Second try: extract from markdown code blocks
+            fenced = re.search(r"```(?:json)?\s*\n?(.*?)```", raw_content, re.DOTALL)
+            if fenced:
+                try:
+                    parsed = json.loads(fenced.group(1).strip())
+                    function_name = parsed.get("function_name", "")
+                    arguments = parsed.get("arguments", {})
+                except json.JSONDecodeError:
+                    pass
+
+            if not function_name:
+                # Third try: find any JSON object in the text
+                brace_match = re.search(r"\{.*\}", raw_content, re.DOTALL)
+                if brace_match:
+                    try:
+                        parsed = json.loads(brace_match.group(0))
+                        function_name = parsed.get("function_name", "")
+                        arguments = parsed.get("arguments", {})
+                    except json.JSONDecodeError:
+                        pass
+
+        # Validate that the selected function exists in the tool definitions
+        valid_names = set()
+        for tool_def in tools:
+            func = tool_def.get("function", tool_def)
+            valid_names.add(func.get("name", ""))
+
+        if function_name and function_name not in valid_names:
+            logger.warning(
+                "LLM selected function '%s' which is not in the tool list: %s",
+                function_name,
+                valid_names,
+            )
+
+        return {
+            "function_name": function_name,
+            "arguments": arguments,
+            "raw_response": raw_content,
+        }
+
+    def _validate_function_call(
+        self,
+        inputs: dict[str, Any],
+        config: dict[str, Any],
+    ) -> list[str]:
+        """Validate ai.function-call node inputs and configuration.
+
+        Required inputs:
+        - prompt: The user prompt describing what to do
+        - tools: List of tool definitions in OpenAI function calling format
+
+        Args:
+            inputs: Dictionary of input port values
+            config: Node configuration parameters
+
+        Returns:
+            List of validation error messages. Empty if valid.
+        """
+        errors: list[str] = []
+
+        if "prompt" not in inputs:
+            errors.append("Missing required input: prompt")
+        elif not isinstance(inputs["prompt"], str):
+            errors.append("Input 'prompt' must be a string")
+
+        if "tools" not in inputs:
+            errors.append("Missing required input: tools")
+        elif not isinstance(inputs["tools"], list):
+            errors.append("Input 'tools' must be a list")
+        elif len(inputs["tools"]) == 0:
+            errors.append("Input 'tools' must not be empty")
+        else:
+            # Validate each tool definition has at minimum a function name
+            for i, tool_def in enumerate(inputs["tools"]):
+                if not isinstance(tool_def, dict):
+                    errors.append(f"Tool definition at index {i} must be a dictionary")
+                    continue
+                func = tool_def.get("function", tool_def)
+                if not isinstance(func, dict):
+                    errors.append(f"Tool definition at index {i} must contain a 'function' dict")
+                    continue
+                if "name" not in func:
+                    errors.append(f"Tool definition at index {i} is missing 'name'")
 
         return errors
 

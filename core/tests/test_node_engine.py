@@ -838,3 +838,727 @@ class TestCADSubWorkerImports:
 
         w = KiCadWorker()
         assert len(w.node_types) == 5
+
+
+# ---------------------------------------------------------------------------
+# 12. AIWorker function-call node
+# ---------------------------------------------------------------------------
+
+
+class TestAIWorkerFunctionCall:
+    """Verify the ai.function-call node type."""
+
+    def test_function_call_in_capabilities(self):
+        from unittest.mock import MagicMock
+
+        from mascarade.node_engine.workers.ai.worker import AIWorker
+
+        worker = AIWorker(router=MagicMock(), registry=MagicMock())
+        caps = worker.capabilities()
+        assert "ai.function-call" in caps["node_types"]
+
+    @pytest.mark.asyncio
+    async def test_function_call_validation_missing_prompt(self):
+        from unittest.mock import MagicMock
+
+        from mascarade.node_engine.workers.ai.worker import AIWorker
+
+        worker = AIWorker(router=MagicMock(), registry=MagicMock())
+        errors = await worker.validate(
+            "ai.function-call",
+            {"tools": [{"function": {"name": "test"}}]},
+            {},
+        )
+        assert any("prompt" in e for e in errors)
+
+    @pytest.mark.asyncio
+    async def test_function_call_validation_missing_tools(self):
+        from unittest.mock import MagicMock
+
+        from mascarade.node_engine.workers.ai.worker import AIWorker
+
+        worker = AIWorker(router=MagicMock(), registry=MagicMock())
+        errors = await worker.validate(
+            "ai.function-call",
+            {"prompt": "test"},
+            {},
+        )
+        assert any("tools" in e for e in errors)
+
+    @pytest.mark.asyncio
+    async def test_function_call_validation_empty_tools(self):
+        from unittest.mock import MagicMock
+
+        from mascarade.node_engine.workers.ai.worker import AIWorker
+
+        worker = AIWorker(router=MagicMock(), registry=MagicMock())
+        errors = await worker.validate(
+            "ai.function-call",
+            {"prompt": "test", "tools": []},
+            {},
+        )
+        assert any("empty" in e for e in errors)
+
+    @pytest.mark.asyncio
+    async def test_function_call_validation_tool_missing_name(self):
+        from unittest.mock import MagicMock
+
+        from mascarade.node_engine.workers.ai.worker import AIWorker
+
+        worker = AIWorker(router=MagicMock(), registry=MagicMock())
+        errors = await worker.validate(
+            "ai.function-call",
+            {"prompt": "test", "tools": [{"function": {"description": "no name"}}]},
+            {},
+        )
+        assert any("name" in e for e in errors)
+
+    @pytest.mark.asyncio
+    async def test_function_call_validation_valid(self):
+        from unittest.mock import MagicMock
+
+        from mascarade.node_engine.workers.ai.worker import AIWorker
+
+        worker = AIWorker(router=MagicMock(), registry=MagicMock())
+        errors = await worker.validate(
+            "ai.function-call",
+            {
+                "prompt": "What is the weather?",
+                "tools": [
+                    {
+                        "type": "function",
+                        "function": {
+                            "name": "get_weather",
+                            "description": "Get weather",
+                            "parameters": {
+                                "type": "object",
+                                "properties": {"location": {"type": "string"}},
+                            },
+                        },
+                    }
+                ],
+            },
+            {},
+        )
+        assert errors == []
+
+    @pytest.mark.asyncio
+    async def test_function_call_execute_parses_json(self):
+        """execute() should parse the LLM response and extract function name + args."""
+        from unittest.mock import AsyncMock, MagicMock
+
+        from mascarade.node_engine.workers.ai.worker import AIWorker
+
+        # Mock router that returns a JSON function call
+        mock_response = MagicMock()
+        mock_response.content = '{"function_name": "get_weather", "arguments": {"location": "Paris"}}'
+
+        mock_router = MagicMock()
+        mock_router.send = AsyncMock(return_value=mock_response)
+
+        worker = AIWorker(router=mock_router, registry=MagicMock())
+        result = await worker.execute(
+            "ai.function-call",
+            {
+                "prompt": "What is the weather in Paris?",
+                "tools": [
+                    {
+                        "type": "function",
+                        "function": {
+                            "name": "get_weather",
+                            "description": "Get weather",
+                            "parameters": {},
+                        },
+                    }
+                ],
+            },
+            {},
+            None,
+        )
+
+        assert result["function_name"] == "get_weather"
+        assert result["arguments"] == {"location": "Paris"}
+        assert "raw_response" in result
+
+    @pytest.mark.asyncio
+    async def test_function_call_execute_parses_fenced_json(self):
+        """execute() should handle LLM responses wrapped in markdown code blocks."""
+        from unittest.mock import AsyncMock, MagicMock
+
+        from mascarade.node_engine.workers.ai.worker import AIWorker
+
+        mock_response = MagicMock()
+        mock_response.content = (
+            'Here is the function call:\n```json\n'
+            '{"function_name": "search", "arguments": {"query": "test"}}\n```'
+        )
+
+        mock_router = MagicMock()
+        mock_router.send = AsyncMock(return_value=mock_response)
+
+        worker = AIWorker(router=mock_router, registry=MagicMock())
+        result = await worker.execute(
+            "ai.function-call",
+            {
+                "prompt": "Search for test",
+                "tools": [{"function": {"name": "search", "parameters": {}}}],
+            },
+            {},
+            None,
+        )
+
+        assert result["function_name"] == "search"
+        assert result["arguments"] == {"query": "test"}
+
+
+# ---------------------------------------------------------------------------
+# 13. CrossDomainOrchestrator
+# ---------------------------------------------------------------------------
+
+
+class TestCrossDomainOrchestrator:
+    """Test the CrossDomainOrchestrator for multi-domain graph execution."""
+
+    def test_orchestrator_import(self):
+        from mascarade.node_engine.cross_domain.orchestrator import (
+            CrossDomainOrchestrator,
+            OrchestrationResult,
+        )
+
+        assert CrossDomainOrchestrator is not None
+        assert OrchestrationResult is not None
+
+    def test_orchestrator_construction(self):
+        from mascarade.node_engine.cross_domain.orchestrator import CrossDomainOrchestrator
+        from mascarade.node_engine.cross_domain.register import AdapterRegistry
+        from mascarade.node_engine.runtime import GraphRuntime
+
+        runtime = GraphRuntime()
+        registry = AdapterRegistry()
+        orchestrator = CrossDomainOrchestrator(runtime, registry)
+        assert orchestrator.runtime is runtime
+        assert orchestrator.adapter_registry is registry
+
+    def test_analyze_no_transitions_same_domain(self):
+        """Graph with all nodes in the same domain should have no transitions."""
+        from mascarade.node_engine.cross_domain.orchestrator import CrossDomainOrchestrator
+        from mascarade.node_engine.cross_domain.register import AdapterRegistry
+        from mascarade.node_engine.graph import Edge, Graph, Node
+        from mascarade.node_engine.runtime import GraphRuntime
+
+        nodes = [
+            Node(id="n1", type="ai.llm-inference"),
+            Node(id="n2", type="ai.summarize"),
+        ]
+        edges = [Edge(from_node="n1", from_port="out", to_node="n2", to_port="in")]
+        graph = Graph(id="same-domain", nodes=nodes, edges=edges)
+
+        orchestrator = CrossDomainOrchestrator(GraphRuntime(), AdapterRegistry())
+        transitions = orchestrator.analyze_domain_transitions(graph)
+        assert transitions == []
+
+    def test_analyze_detects_cross_domain_transition(self):
+        """Graph with AI -> CAD edge should detect one transition."""
+        from mascarade.node_engine.cross_domain.orchestrator import CrossDomainOrchestrator
+        from mascarade.node_engine.cross_domain.register import AdapterRegistry
+        from mascarade.node_engine.graph import Edge, Graph, Node
+        from mascarade.node_engine.runtime import GraphRuntime
+
+        nodes = [
+            Node(id="n1", type="ai.llm-inference"),
+            Node(id="n2", type="cad.bom-generate"),
+        ]
+        edges = [Edge(from_node="n1", from_port="response", to_node="n2", to_port="components")]
+        graph = Graph(id="cross-domain", nodes=nodes, edges=edges)
+
+        orchestrator = CrossDomainOrchestrator(GraphRuntime(), AdapterRegistry())
+        transitions = orchestrator.analyze_domain_transitions(graph)
+        assert len(transitions) == 1
+        assert transitions[0]["source_domain"] == "ai"
+        assert transitions[0]["target_domain"] == "cad"
+
+    def test_insert_adapter_nodes(self):
+        """insert_adapter_nodes should add an adapter node and rewire edges."""
+        from mascarade.node_engine.cross_domain.orchestrator import CrossDomainOrchestrator
+        from mascarade.node_engine.cross_domain.register import (
+            AdapterRegistry,
+            register_all_adapters,
+        )
+        from mascarade.node_engine.graph import Edge, Graph, Node
+        from mascarade.node_engine.runtime import GraphRuntime
+
+        nodes = [
+            Node(id="n1", type="ai.llm-inference"),
+            Node(id="n2", type="cad.bom-generate"),
+        ]
+        edges = [Edge(from_node="n1", from_port="response", to_node="n2", to_port="components")]
+        graph = Graph(id="cross-domain", nodes=nodes, edges=edges)
+
+        adapter_registry = AdapterRegistry()
+        register_all_adapters(adapter_registry)
+
+        orchestrator = CrossDomainOrchestrator(GraphRuntime(), adapter_registry)
+        transitions = orchestrator.analyze_domain_transitions(graph)
+
+        augmented, records = orchestrator.insert_adapter_nodes(graph, transitions)
+
+        # Should have 3 nodes: original 2 + 1 adapter
+        assert augmented.node_count == 3
+        # Should have 2 edges: n1 -> adapter, adapter -> n2
+        assert augmented.edge_count == 2
+        # Should have one insertion record
+        assert len(records) == 1
+        assert records[0].source_domain == "ai"
+        assert records[0].target_domain == "cad"
+        assert records[0].source_node_id == "n1"
+        assert records[0].target_node_id == "n2"
+
+    def test_insert_no_adapter_raises_for_unknown_transition(self):
+        """insert_adapter_nodes should raise KeyError if no adapter exists."""
+        from mascarade.node_engine.cross_domain.orchestrator import CrossDomainOrchestrator
+        from mascarade.node_engine.cross_domain.register import AdapterRegistry
+        from mascarade.node_engine.graph import Edge, Graph, Node
+        from mascarade.node_engine.runtime import GraphRuntime
+
+        nodes = [
+            Node(id="n1", type="unknown.foo"),
+            Node(id="n2", type="other.bar"),
+        ]
+        edges = [Edge(from_node="n1", from_port="out", to_node="n2", to_port="in")]
+        graph = Graph(id="missing-adapter", nodes=nodes, edges=edges)
+
+        orchestrator = CrossDomainOrchestrator(GraphRuntime(), AdapterRegistry())
+        transitions = orchestrator.analyze_domain_transitions(graph)
+
+        with pytest.raises(KeyError, match="No adapter registered"):
+            orchestrator.insert_adapter_nodes(graph, transitions)
+
+    def test_orchestration_result_conversion_metadata(self):
+        """OrchestrationResult.conversion_metadata returns correct structure."""
+        from mascarade.node_engine.cross_domain.orchestrator import (
+            AdapterInsertionRecord,
+            OrchestrationResult,
+        )
+        from mascarade.node_engine.runtime import ExecutionStatus, GraphExecutionContext
+
+        ctx = GraphExecutionContext(
+            graph_id="test",
+            status=ExecutionStatus.COMPLETED,
+        )
+        record = AdapterInsertionRecord(
+            adapter_node_id="_adapter_ai_to_cad_abc",
+            mapping_id="ai.LLMResponse->cad.CADDocument",
+            source_node_id="n1",
+            source_port="response",
+            target_node_id="n2",
+            target_port="components",
+            source_domain="ai",
+            target_domain="cad",
+            lossy=True,
+        )
+        result = OrchestrationResult(
+            execution_context=ctx,
+            adapter_insertions=[record],
+            original_node_count=2,
+            augmented_node_count=3,
+        )
+
+        assert result.status == ExecutionStatus.COMPLETED
+        meta = result.conversion_metadata
+        assert len(meta) == 1
+        assert meta[0]["mapping_id"] == "ai.LLMResponse->cad.CADDocument"
+        assert meta[0]["lossy"] is True
+        assert meta[0]["source_domain"] == "ai"
+        assert meta[0]["target_domain"] == "cad"
+
+    def test_no_transitions_returns_original_graph(self):
+        """insert_adapter_nodes with empty transitions returns the original graph."""
+        from mascarade.node_engine.cross_domain.orchestrator import CrossDomainOrchestrator
+        from mascarade.node_engine.cross_domain.register import AdapterRegistry
+        from mascarade.node_engine.graph import Edge, Graph, Node
+        from mascarade.node_engine.runtime import GraphRuntime
+
+        nodes = [
+            Node(id="n1", type="ai.llm-inference"),
+            Node(id="n2", type="ai.summarize"),
+        ]
+        edges = [Edge(from_node="n1", from_port="out", to_node="n2", to_port="in")]
+        graph = Graph(id="same-domain", nodes=nodes, edges=edges)
+
+        orchestrator = CrossDomainOrchestrator(GraphRuntime(), AdapterRegistry())
+        augmented, records = orchestrator.insert_adapter_nodes(graph, [])
+
+        assert augmented is graph  # Same object, not copied
+        assert records == []
+
+
+# ---------------------------------------------------------------------------
+# 14. Phase 2 — CAD Worker registration with GraphRuntime
+# ---------------------------------------------------------------------------
+
+
+class TestCADWorkerRegistration:
+    """Verify register_cad_worker registers CADWorker with GraphRuntime."""
+
+    def test_register_cad_worker_with_runtime(self):
+        from mascarade.node_engine.runtime import GraphRuntime
+        from mascarade.node_engine.workers.cad.register import register_cad_worker
+
+        runtime = GraphRuntime()
+        cad_worker = register_cad_worker(runtime)
+
+        assert cad_worker is not None
+        assert cad_worker.domain == "cad"
+        assert cad_worker.name == "cad-worker"
+
+        # Verify it's registered in the runtime
+        worker = runtime.get_worker("cad")
+        assert worker is cad_worker
+
+    def test_register_cad_worker_listed(self):
+        from mascarade.node_engine.runtime import GraphRuntime
+        from mascarade.node_engine.workers.cad.register import register_cad_worker
+
+        runtime = GraphRuntime()
+        register_cad_worker(runtime)
+
+        workers = runtime.list_workers()
+        domains = [w["domain"] for w in workers]
+        assert "cad" in domains
+
+    @pytest.mark.asyncio
+    async def test_execute_mesh_node_through_runtime(self):
+        """Register CAD worker and execute a mesh.stats node via runtime.execute_node."""
+        from mascarade.node_engine.runtime import GraphRuntime
+        from mascarade.node_engine.workers.cad.register import register_cad_worker
+
+        runtime = GraphRuntime()
+        register_cad_worker(runtime)
+
+        mesh = {
+            "vertices": [[0, 0, 0], [1, 0, 0], [0, 1, 0]],
+            "faces": [[0, 1, 2]],
+            "normals": [],
+            "format": "stl",
+        }
+        result = await runtime.execute_node(
+            "cad.mesh.stats",
+            {"mesh": mesh},
+        )
+        assert result["vertex_count"] == 3
+        assert result["face_count"] == 1
+
+    @pytest.mark.asyncio
+    async def test_execute_trace_width_through_runtime(self):
+        """Register CAD worker and execute a pure calculation node."""
+        from mascarade.node_engine.runtime import GraphRuntime
+        from mascarade.node_engine.workers.cad.register import register_cad_worker
+
+        runtime = GraphRuntime()
+        register_cad_worker(runtime)
+
+        result = await runtime.execute_node(
+            "cad.trace-width",
+            {"current": 1.0, "copper_thickness": 1.0, "temp_rise": 10.0, "layer": "external"},
+        )
+        assert "width_mm" in result
+        assert result["width_mm"] > 0
+
+    def test_cad_worker_exported_from_init(self):
+        """Verify register_cad_worker is exported from node_engine __init__."""
+        from mascarade.node_engine import register_cad_worker
+
+        assert callable(register_cad_worker)
+
+
+# ---------------------------------------------------------------------------
+# 15. Phase 4 — MIDI dispatch through HardwareWorker + safety interlocks
+# ---------------------------------------------------------------------------
+
+
+class TestHardwareWorkerMIDIDispatch:
+    """Verify HardwareWorker delegates hardware.midi.* to MIDIWorker."""
+
+    @pytest.mark.asyncio
+    async def test_midi_note_sequence_via_hardware(self):
+        from mascarade.node_engine.workers.hardware.worker import HardwareWorker
+
+        worker = HardwareWorker()
+        result = await worker.execute(
+            "hardware.midi.note-sequence",
+            {
+                "notes": [
+                    {"note": 60, "velocity": 100, "duration": 0.5},
+                    {"note": 64, "velocity": 80, "duration": 0.25},
+                ],
+                "tempo": 120,
+            },
+            {},
+        )
+        assert "sequence" in result
+        assert result["sequence"]["note_count"] == 2
+        assert result["sequence"]["tempo"] == 120
+
+    @pytest.mark.asyncio
+    async def test_midi_pattern_generate_via_hardware(self):
+        from mascarade.node_engine.workers.hardware.worker import HardwareWorker
+
+        worker = HardwareWorker()
+        result = await worker.execute(
+            "hardware.midi.pattern-generate",
+            {"scale": "pentatonic", "root": 48, "steps": 5},
+            {},
+        )
+        assert "sequence" in result
+        assert result["sequence"]["note_count"] == 5
+
+    @pytest.mark.asyncio
+    async def test_midi_cc_map_via_hardware(self):
+        from mascarade.node_engine.workers.hardware.worker import HardwareWorker
+
+        worker = HardwareWorker()
+        result = await worker.execute(
+            "hardware.midi.cc-map",
+            {
+                "mappings": [
+                    {"name": "volume", "controller": 7, "channel": 0},
+                    {"name": "pan", "controller": 10, "channel": 0},
+                ]
+            },
+            {},
+        )
+        assert "cc_map" in result
+        assert len(result["cc_map"]) == 2
+
+    @pytest.mark.asyncio
+    async def test_midi_transform_via_hardware(self):
+        from mascarade.node_engine.workers.hardware.worker import HardwareWorker
+
+        worker = HardwareWorker()
+        seq = {
+            "name": "test",
+            "tempo": 120,
+            "notes": [{"note": 60, "velocity": 100, "channel": 0, "duration": 0.5, "time": 0.0}],
+        }
+        result = await worker.execute(
+            "hardware.midi.transform",
+            {"sequence": seq, "transpose": 12},
+            {},
+        )
+        assert result["sequence"]["notes"][0]["note"] == 72
+
+    @pytest.mark.asyncio
+    async def test_bare_midi_type_dispatches(self):
+        """Bare midi.* types should also dispatch through HardwareWorker."""
+        from mascarade.node_engine.workers.hardware.worker import HardwareWorker
+
+        worker = HardwareWorker()
+        result = await worker.execute(
+            "midi.note-sequence",
+            {"notes": [{"note": 60}], "tempo": 90},
+            {},
+        )
+        assert "sequence" in result
+        assert result["sequence"]["tempo"] == 90
+
+    def test_hardware_capabilities_include_midi(self):
+        from mascarade.node_engine.workers.hardware.worker import HardwareWorker
+
+        worker = HardwareWorker()
+        caps = worker.capabilities()
+        node_types = [c["node_type"] for c in caps]
+        assert "hardware.midi.note-sequence" in node_types
+        assert "hardware.midi.cc-map" in node_types
+        assert "hardware.midi.pattern-generate" in node_types
+        assert "hardware.midi.transform" in node_types
+
+    def test_hardware_capabilities_include_safety(self):
+        from mascarade.node_engine.workers.hardware.worker import HardwareWorker
+
+        worker = HardwareWorker()
+        caps = worker.capabilities()
+        node_types = [c["node_type"] for c in caps]
+        assert "hardware.safety.check" in node_types
+
+
+class TestHardwareWorkerSafetyInterlocks:
+    """Verify safety interlock logic in HardwareWorker."""
+
+    @pytest.mark.asyncio
+    async def test_safety_check_all_pass(self):
+        from mascarade.node_engine.workers.hardware.worker import HardwareWorker
+
+        worker = HardwareWorker()
+        result = await worker.execute(
+            "hardware.safety.check",
+            {
+                "checks": [
+                    {"type": "gpio", "value": 1, "label": "LED"},
+                    {"type": "dmx", "value": 128, "label": "Par Light"},
+                    {"type": "midi", "value": 64, "label": "CC Volume"},
+                ]
+            },
+            {},
+        )
+        assert result["passed"] is True
+        assert len(result["errors"]) == 0
+        assert result["checks_performed"] == 3
+
+    @pytest.mark.asyncio
+    async def test_safety_check_gpio_out_of_range(self):
+        from mascarade.node_engine.workers.hardware.worker import HardwareWorker
+
+        worker = HardwareWorker()
+        result = await worker.execute(
+            "hardware.safety.check",
+            {
+                "checks": [
+                    {"type": "gpio", "value": 5, "label": "Bad GPIO"},
+                ]
+            },
+            {},
+        )
+        assert result["passed"] is False
+        assert any("Bad GPIO" in e and "exceeds maximum" in e for e in result["errors"])
+
+    @pytest.mark.asyncio
+    async def test_safety_check_dmx_below_min(self):
+        from mascarade.node_engine.workers.hardware.worker import HardwareWorker
+
+        worker = HardwareWorker()
+        result = await worker.execute(
+            "hardware.safety.check",
+            {
+                "checks": [
+                    {"type": "dmx", "value": -1, "label": "Underflow DMX"},
+                ]
+            },
+            {},
+        )
+        assert result["passed"] is False
+        assert any("below minimum" in e for e in result["errors"])
+
+    @pytest.mark.asyncio
+    async def test_safety_check_midi_out_of_range(self):
+        from mascarade.node_engine.workers.hardware.worker import HardwareWorker
+
+        worker = HardwareWorker()
+        result = await worker.execute(
+            "hardware.safety.check",
+            {
+                "checks": [
+                    {"type": "midi", "value": 200, "label": "Velocity"},
+                ]
+            },
+            {},
+        )
+        assert result["passed"] is False
+        assert any("exceeds maximum" in e for e in result["errors"])
+
+    @pytest.mark.asyncio
+    async def test_safety_check_boundary_warning(self):
+        from mascarade.node_engine.workers.hardware.worker import HardwareWorker
+
+        worker = HardwareWorker()
+        result = await worker.execute(
+            "hardware.safety.check",
+            {
+                "checks": [
+                    {"type": "dmx", "value": 254, "label": "Near Max DMX"},
+                ]
+            },
+            {},
+        )
+        assert result["passed"] is True
+        assert any("near maximum" in w for w in result["warnings"])
+
+    @pytest.mark.asyncio
+    async def test_safety_check_custom_range(self):
+        from mascarade.node_engine.workers.hardware.worker import HardwareWorker
+
+        worker = HardwareWorker()
+        result = await worker.execute(
+            "hardware.safety.check",
+            {
+                "checks": [
+                    {"type": "dmx", "value": 100, "min": 0, "max": 50, "label": "Custom Max"},
+                ]
+            },
+            {},
+        )
+        assert result["passed"] is False
+        assert any("exceeds maximum 50" in e for e in result["errors"])
+
+    @pytest.mark.asyncio
+    async def test_safety_check_unknown_type_warns(self):
+        from mascarade.node_engine.workers.hardware.worker import HardwareWorker
+
+        worker = HardwareWorker()
+        result = await worker.execute(
+            "hardware.safety.check",
+            {
+                "checks": [
+                    {"type": "unknown_device", "value": 42},
+                ]
+            },
+            {},
+        )
+        assert result["passed"] is True  # no errors, just warnings
+        assert any("unknown check type" in w for w in result["warnings"])
+
+    @pytest.mark.asyncio
+    async def test_safety_check_missing_value_errors(self):
+        from mascarade.node_engine.workers.hardware.worker import HardwareWorker
+
+        worker = HardwareWorker()
+        result = await worker.execute(
+            "hardware.safety.check",
+            {
+                "checks": [
+                    {"type": "gpio", "label": "No Value"},
+                ]
+            },
+            {},
+        )
+        assert result["passed"] is False
+        assert any("value is required" in e for e in result["errors"])
+
+    @pytest.mark.asyncio
+    async def test_safety_check_analog_gpio(self):
+        from mascarade.node_engine.workers.hardware.worker import HardwareWorker
+
+        worker = HardwareWorker()
+        result = await worker.execute(
+            "hardware.safety.check",
+            {
+                "checks": [
+                    {"type": "gpio_analog", "value": 2048, "label": "ADC Mid"},
+                    {"type": "gpio_analog", "value": 5000, "label": "ADC Over"},
+                ]
+            },
+            {},
+        )
+        assert result["passed"] is False
+        assert any("ADC Over" in e and "exceeds maximum" in e for e in result["errors"])
+
+    @pytest.mark.asyncio
+    async def test_register_hardware_worker_with_runtime(self):
+        """Register hardware worker with runtime and execute safety check."""
+        from mascarade.node_engine.runtime import GraphRuntime
+        from mascarade.node_engine.workers.hardware.register import register_hardware_worker
+
+        runtime = GraphRuntime()
+        hw_worker = register_hardware_worker(runtime)
+
+        assert hw_worker is not None
+        assert hw_worker.domain == "hardware"
+
+        worker = runtime.get_worker("hardware")
+        assert worker is hw_worker
+
+        # Execute safety check through runtime
+        result = await runtime.execute_node(
+            "hardware.safety.check",
+            {"checks": [{"type": "dmx", "value": 128}]},
+        )
+        assert result["passed"] is True
