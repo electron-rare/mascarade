@@ -35,13 +35,13 @@ async def test_mistral_provider_uses_direct_sdk_by_default():
     with patch("mascarade.router.providers.mistral.litellm") as mock_litellm:
         mock_litellm.acompletion = AsyncMock(return_value=mock_response)
         provider = MistralProvider()
+        assert provider.is_configured is True
         response = await provider.send([{"role": "user", "content": "ping"}])
+        # Verify litellm was called with mistral/ prefix
+        call_kwargs = mock_litellm.acompletion.call_args
+        assert call_kwargs.kwargs["model"].startswith("mistral/")
 
-    assert provider.is_configured is True
     assert response.content == "direct-ok"
-    # Verify litellm was called with mistral/ prefix
-    call_kwargs = mock_litellm.acompletion.call_args
-    assert call_kwargs.kwargs["model"].startswith("mistral/")
 
 
 @pytest.mark.asyncio
@@ -58,7 +58,7 @@ async def test_mistral_provider_uses_litellm_proxy_when_enabled():
     with patch("mascarade.router.providers.mistral.litellm") as mock_litellm:
         mock_litellm.acompletion = AsyncMock(return_value=mock_response)
         provider = MistralProvider()
+        assert provider.is_configured is True
         response = await provider.send([{"role": "user", "content": "trace me"}])
 
-    assert provider.is_configured is True
     assert response.content == "proxy-ok"

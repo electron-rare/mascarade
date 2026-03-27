@@ -54,10 +54,9 @@ async def test_google_provider_uses_api_key():
 
     with patch("mascarade.router.providers.google.litellm", new=MagicMock()):
         provider = GoogleProvider()
-
-    assert provider.is_configured is True
-    # API key should be pushed to env for litellm
-    assert os.environ.get("GEMINI_API_KEY") == "google_api_key_123456789"
+        assert provider.is_configured is True
+        # API key should be pushed to env for litellm
+        assert os.environ.get("GEMINI_API_KEY") == "google_api_key_123456789"
 
 
 @pytest.mark.asyncio
@@ -74,8 +73,7 @@ async def test_google_provider_uses_oauth_credentials():
 
     with patch("mascarade.router.providers.google.litellm", new=MagicMock()):
         provider = GoogleProvider()
-
-    assert provider.is_configured is True
+        assert provider.is_configured is True
 
 
 @pytest.mark.asyncio
@@ -114,5 +112,4 @@ def test_google_provider_adc_mode_requires_project_and_credentials_path():
 
     with patch("mascarade.router.providers.google.litellm", new=MagicMock()):
         provider = GoogleProvider()
-
-    assert provider.is_configured is True
+        assert provider.is_configured is True

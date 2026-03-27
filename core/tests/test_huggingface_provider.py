@@ -40,11 +40,10 @@ async def test_huggingface_provider_uses_api_key():
 
     with patch("mascarade.router.providers.huggingface.litellm", new=MagicMock()):
         provider = HuggingFaceProvider()
-
-    assert provider.is_configured is True
-    # Verify token resolution returns the API key
-    token = await provider._resolve_access_token()
-    assert token == "hf_api_key_123456789"
+        assert provider.is_configured is True
+        # Verify token resolution returns the API key
+        token = await provider._resolve_access_token()
+        assert token == "hf_api_key_123456789"
 
 
 @pytest.mark.asyncio
@@ -88,8 +87,7 @@ async def test_huggingface_provider_refreshes_oauth_token():
         provider = HuggingFaceProvider()
         assert provider.is_configured is True
         token = await provider._resolve_access_token()
-
-    assert token == "hf_oauth_access_123456789"
+        assert token == "hf_oauth_access_123456789"
     assert settings.huggingface_oauth_access_token == "hf_oauth_access_123456789"  # noqa: S105
     assert settings.huggingface_oauth_refresh_token == "hf_refresh_rotated_987654321"  # noqa: S105
     assert settings.huggingface_oauth_expires_at
@@ -108,8 +106,7 @@ def test_huggingface_provider_oauth_mode_is_configured_with_refresh_token_only()
 
     with patch("mascarade.router.providers.huggingface.litellm", new=MagicMock()):
         provider = HuggingFaceProvider()
-
-    assert provider.is_configured is True
+        assert provider.is_configured is True
 
 
 def _iso_utc_for_test(value: datetime) -> str:

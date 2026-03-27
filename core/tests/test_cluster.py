@@ -4,6 +4,7 @@ from contextlib import asynccontextmanager
 
 import httpx
 import pytest
+from pydantic import SecretStr
 
 from mascarade.auth import add_api_key, get_active_api_keys, remove_api_key
 from mascarade.cluster import (
@@ -110,7 +111,7 @@ async def test_cluster_identity_reports_disabled_cluster():
 @pytest.mark.asyncio
 async def test_cluster_node_identity_requires_cluster_auth():
     settings.cluster_enabled = True
-    settings.cluster_shared_key = "cluster-key-123456"
+    settings.cluster_shared_key = SecretStr("cluster-key-123456")
     settings.node_id = "node-1"
     settings.node_role = "general"
     settings.node_label = "Node One"
@@ -138,7 +139,7 @@ async def test_cluster_node_identity_requires_cluster_auth():
 async def test_cluster_peers_uses_manager_probe(monkeypatch):
     add_api_key("test-key-001")
     settings.cluster_enabled = True
-    settings.cluster_shared_key = "cluster-key-123456"
+    settings.cluster_shared_key = SecretStr("cluster-key-123456")
     settings.node_id = "node-1"
     settings.node_role = "general"
     settings.node_label = "Node One"
@@ -180,7 +181,7 @@ async def test_cluster_peers_uses_manager_probe(monkeypatch):
 @pytest.mark.asyncio
 async def test_cluster_manager_forward_send_returns_remote_payload(monkeypatch):
     settings.cluster_enabled = True
-    settings.cluster_shared_key = "cluster-key-123456"
+    settings.cluster_shared_key = SecretStr("cluster-key-123456")
     settings.node_id = "node-1"
     settings.node_role = "general"
     settings.node_label = "Node One"
@@ -238,7 +239,7 @@ async def test_cluster_manager_forward_send_no_double_execution(monkeypatch):
     """Bug fix: forward_send must NOT fire two HTTP requests.
     It should try P2P first, then fall back to HTTP only if P2P fails."""
     settings.cluster_enabled = True
-    settings.cluster_shared_key = "cluster-key-123456"
+    settings.cluster_shared_key = SecretStr("cluster-key-123456")
     settings.node_id = "node-1"
     settings.node_role = "general"
     settings.node_label = "Node One"
@@ -284,7 +285,7 @@ async def test_cluster_manager_forward_send_no_double_execution(monkeypatch):
 @pytest.mark.asyncio
 async def test_cluster_manager_forward_send_uses_libp2p_when_available(monkeypatch):
     settings.cluster_enabled = True
-    settings.cluster_shared_key = "cluster-key-123456"
+    settings.cluster_shared_key = SecretStr("cluster-key-123456")
     settings.node_id = "node-1"
     settings.node_role = "general"
     settings.node_label = "Node One"
@@ -364,7 +365,7 @@ async def test_cluster_manager_forward_send_uses_libp2p_when_available(monkeypat
 @pytest.mark.asyncio
 async def test_cluster_manager_auto_selects_local_when_it_matches():
     settings.cluster_enabled = True
-    settings.cluster_shared_key = "cluster-key-123456"
+    settings.cluster_shared_key = SecretStr("cluster-key-123456")
     settings.node_id = "node-1"
     settings.node_role = "general"
     settings.node_label = "Node One"
@@ -389,7 +390,7 @@ async def test_cluster_manager_auto_selects_local_when_it_matches():
 @pytest.mark.asyncio
 async def test_cluster_manager_auto_selects_peer_by_role_and_model(monkeypatch):
     settings.cluster_enabled = True
-    settings.cluster_shared_key = "cluster-key-123456"
+    settings.cluster_shared_key = SecretStr("cluster-key-123456")
     settings.node_id = "node-1"
     settings.node_role = "general"
     settings.node_label = "Node One"
@@ -439,7 +440,7 @@ async def test_cluster_manager_merges_mdns_peers(monkeypatch):
     settings.cluster_enabled = True
     settings.cluster_mdns_enabled = True
     settings.cluster_mdns_advertise = False
-    settings.cluster_shared_key = "cluster-key-123456"
+    settings.cluster_shared_key = SecretStr("cluster-key-123456")
     settings.node_id = "node-1"
     settings.node_role = "general"
     settings.node_label = "Node One"
@@ -484,7 +485,7 @@ async def test_cluster_manager_explicit_send_can_target_discovered_mdns_peer(
     settings.cluster_enabled = True
     settings.cluster_mdns_enabled = True
     settings.cluster_mdns_advertise = False
-    settings.cluster_shared_key = "cluster-key-123456"
+    settings.cluster_shared_key = SecretStr("cluster-key-123456")
     settings.node_id = "node-1"
     settings.node_role = "general"
     settings.node_label = "Node One"
@@ -537,7 +538,7 @@ async def test_cluster_manager_explicit_send_can_target_discovered_mdns_peer(
 
 
 def test_mdns_peer_matches_local_cluster_key():
-    settings.cluster_shared_key = "cluster-shared-key"
+    settings.cluster_shared_key = SecretStr("cluster-shared-key")
     assert _mdns_peer_matches_local_fingerprint(None) is False
     assert (
         _mdns_peer_matches_local_fingerprint(
