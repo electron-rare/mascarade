@@ -12,7 +12,8 @@ from abc import abstractmethod
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
-from mascarade.node_engine.worker import ExecutionContext, NodeResult, NodeWorker
+from mascarade.node_engine.engine import ExecutionContext, NodeResult
+from mascarade.node_engine.worker import NodeWorker
 
 if TYPE_CHECKING:
     from mascarade.node_engine.registry import NodeTypeRegistry

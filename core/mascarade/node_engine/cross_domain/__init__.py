@@ -16,10 +16,33 @@ from mascarade.node_engine.cross_domain.adapter import (
     AdapterMapping,
     CrossDomainAdapter,
 )
+from mascarade.node_engine.cross_domain.adapters import (
+    ALL_ADAPTERS,
+    AIToCADAdapter,
+    AIToElectronicsAdapter,
+    CADToElectronicsAdapter,
+    ElectronicsToHardwareAdapter,
+    HardwareToAIAdapter,
+)
 from mascarade.node_engine.cross_domain.envelope import CrossDomainEnvelope
+from mascarade.node_engine.cross_domain.register import (
+    AdapterRegistry,
+    register_all_adapters,
+)
 
 __all__ = [
+    # Base
     "CrossDomainAdapter",
     "AdapterMapping",
     "CrossDomainEnvelope",
+    # Concrete adapters
+    "AIToCADAdapter",
+    "AIToElectronicsAdapter",
+    "CADToElectronicsAdapter",
+    "ElectronicsToHardwareAdapter",
+    "HardwareToAIAdapter",
+    "ALL_ADAPTERS",
+    # Registry
+    "AdapterRegistry",
+    "register_all_adapters",
 ]
