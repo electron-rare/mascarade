@@ -100,8 +100,9 @@ app.route("/api", ollama);
 
 // Open Buro API (direct handlers to avoid sub-app priority issues)
 import { APP_REGISTRY } from "./routes/openburo.js";
-// import { openburoEvents } from "./routes/openburo-events.js";
+import { openburoEvents } from "./routes/openburo-events.js";
 import { BUSINESS_OBJECT_SCHEMAS } from "./routes/openburo-objects.js";
+
 
 app.get("/openburo/apps", (c) => { 
   const capability = c.req.query("capability");
@@ -140,10 +141,6 @@ app.get("/openburo/health", async (c) => {
 });
 
 // Open Buro: Event bus (CloudEvents + Redis Streams)
-// [Phase 2] app.post("/openburo/events", (c) => // openburoEvents.fetch(c.req.raw, c.env));
-// [Phase 2] app.get("/openburo/events", (c) => // openburoEvents.fetch(new Request("http://x/", { headers: c.req.raw.headers }), c.env));
-// [Phase 2] app.get("/openburo/events/stream", (c) => // openburoEvents.fetch(new Request("http://x/stream", { headers: c.req.raw.headers }), c.env));
-// [Phase 2] app.get("/openburo/events/stats", (c) => // openburoEvents.fetch(new Request("http://x/stats", { headers: c.req.raw.headers }), c.env));
 
 // Open Buro: Business Objects (direct handlers)
 app.get("/openburo/objects/schemas", (c) => {
@@ -166,6 +163,67 @@ app.get("/openburo/objects/schemas/:type", (c) => {
 import { openburoObjects } from "./routes/openburo-objects.js";
 app.route("/openburo/objects", openburoObjects);
 
+
+// Open Buro Phase 2: Event Bus (CloudEvents + Redis Streams)
+
+const STREAM_KEY = "openburo:events";
+let _redis: any = null;
+
+async function getEventRedis() {
+  if (!_redis) {
+    const { createClient } = await import("redis") as any;
+    _redis = createClient({ url: process.env.REDIS_URL || "redis://:RedisTower2026!@mascarade-redis:6379/15" });
+    _redis.on("error", (err: Error) => console.error("[openburo/events] Redis:", err.message));
+    await _redis.connect();
+  }
+  return _redis;
+}
+
+app.post("/openburo/events", async (c) => {
+  const body = await c.req.json();
+  if (!body.type || !body.source) return c.json({ error: "Missing: type, source" }, 400);
+  const event = {
+    specversion: "1.0",
+    id: body.id || crypto.randomUUID(),
+    type: body.type,
+    source: body.source,
+    time: body.time || new Date().toISOString(),
+    subject: body.subject,
+    datacontenttype: "application/json",
+    data: body.data || {},
+  };
+  try {
+    const r = await getEventRedis();
+    await r.xAdd(STREAM_KEY, "*", { event: JSON.stringify(event) });
+    return c.json({ status: "published", id: event.id, type: event.type });
+  } catch (err: any) {
+    return c.json({ error: err.message }, 500);
+  }
+});
+
+app.get("/openburo/events", async (c) => {
+  const limit = parseInt(c.req.query("limit") || "50");
+  const type = c.req.query("type");
+  try {
+    const r = await getEventRedis();
+    const entries = await r.xRevRange(STREAM_KEY, "+", "-", { COUNT: limit });
+    let events = entries.map((e: any) => ({ stream_id: e.id, ...JSON.parse(e.message.event) }));
+    if (type) events = events.filter((e: any) => e.type === type || e.type.startsWith(type + "."));
+    return c.json({ events, count: events.length });
+  } catch (err: any) {
+    return c.json({ error: err.message }, 500);
+  }
+});
+
+app.get("/openburo/events/stats", async (c) => {
+  try {
+    const r = await getEventRedis();
+    const len = await r.xLen(STREAM_KEY);
+    return c.json({ total: len, stream: STREAM_KEY });
+  } catch (err: any) {
+    return c.json({ error: err.message }, 500);
+  }
+});
 
 if (hasFrontend) {
   app.use("/assets/*", serveStatic({ root: "./public" }));
