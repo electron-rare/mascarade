@@ -1,0 +1,60 @@
+groups:
+  - name: mascarade_p2p
+    interval: 30s
+    rules:
+      # Un nœud P2P ne répond plus
+      - alert: MascaradeP2PPeerDown
+        expr: up{job=~"mascarade-p2p.*"} == 0
+        for: 2m
+        labels:
+          severity: warning
+          component: p2p
+        annotations:
+          summary: "P2P node {{ $labels.node }} unreachable"
+          description: "mascarade-core on {{ $labels.node }} ({{ $labels.instance }}) has not responded for 2 minutes."
+
+      # Mesh < 3 nœuds actifs (sur 5 attendus)
+      - alert: MascaradeP2PMeshTooSmall
+        expr: count(up{job=~"mascarade-p2p.*"} == 1) < 3
+        for: 5m
+        labels:
+          severity: warning
+          component: p2p
+        annotations:
+          summary: "P2P mesh has fewer than 3 reachable peers"
+          description: "Only {{ $value }} peers are up. Expected at least 3/5 (photon, cils, tower, kxkm-ai, grosmac)."
+
+      # Nœud GPU (KXKM-AI) hors ligne — routage des gros modèles dégradé
+      - alert: MascaradeGPUNodeDown
+        expr: up{job=~"mascarade-p2p.*", node="kxkm-ai"} == 0
+        for: 3m
+        labels:
+          severity: critical
+          component: p2p
+        annotations:
+          summary: "GPU node kxkm-ai is unreachable"
+          description: "Large model requests (devstral 14GB, phi4 9GB) cannot be routed. RTX 4090 has been down for 3+ minutes."
+
+  - name: mascarade_core
+    rules:
+      # mascarade-core principal hors ligne
+      - alert: MascaradeCoreDown
+        expr: up{job="mascarade-core"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          component: core
+        annotations:
+          summary: "mascarade-core is down"
+          description: "mascarade-core at {{ $labels.instance }} has been unreachable for 1 minute."
+
+      # Mémoire RSS anormalement haute (>2GB = possible fuite)
+      - alert: MascaradeCoreHighMemory
+        expr: process_resident_memory_bytes{job=~"mascarade-.*"} > 2e9
+        for: 10m
+        labels:
+          severity: warning
+          component: core
+        annotations:
+          summary: "mascarade-core memory > 2GB on {{ $labels.node }}"
+          description: "RSS is {{ $value | humanize }}B. Possible memory leak or large context accumulation."

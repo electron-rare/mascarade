@@ -9,10 +9,10 @@ services:
           cpus: "2"
           memory: 4G
     ports:
-      - "0.0.0.0:7474:7474"
-      - "0.0.0.0:7687:7687"
+      - "${GRAPHITI_BIND_HOST:-127.0.0.1}:7474:7474"
+      - "${GRAPHITI_BIND_HOST:-127.0.0.1}:7687:7687"
     environment:
-      NEO4J_AUTH: neo4j/mascarade2026
+      NEO4J_AUTH: ${GRAPHITI_NEO4J_AUTH:?set GRAPHITI_NEO4J_AUTH}
     volumes:
       - neo4j-data:/data
     healthcheck:
@@ -34,11 +34,11 @@ services:
           cpus: "1"
           memory: 1G
     ports:
-      - "0.0.0.0:3550:8000"
+      - "${GRAPHITI_BIND_HOST:-127.0.0.1}:3550:8000"
     environment:
       NEO4J_URI: bolt://mascarade-neo4j:7687
       NEO4J_USER: neo4j
-      NEO4J_PASSWORD: mascarade2026
+      NEO4J_PASSWORD: ${GRAPHITI_NEO4J_PASSWORD:?set GRAPHITI_NEO4J_PASSWORD}
       OPENAI_API_KEY: ${OPENAI_API_KEY}
       MODEL_NAME: gpt-4o-mini
       EMBEDDING_MODEL_NAME: text-embedding-3-small

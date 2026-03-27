@@ -234,6 +234,11 @@ class Settings(BaseSettings):
     # Voice pipeline (OPUS -> VAD -> ASR -> LLM -> TTS)
     voice_pipeline_enabled: bool = True
 
+    # faster-whisper local STT (optional dep: pip install mascarade-core[voice])
+    whisper_model_size: str = "base"  # tiny / base / small / medium / large-v3
+    whisper_device: str = "auto"  # auto / cpu / cuda
+    whisper_compute_type: str = "int8"  # int8 / float16 / float32
+
     # Voice bridge (ESP32 WebSocket pipeline)
     voice_bridge_tts_url: str = (
         "http://192.168.0.120:8001/v1/audio/speech"  # override: VOICE_BRIDGE_TTS_URL

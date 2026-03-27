@@ -14,6 +14,11 @@ from dataclasses import dataclass, field
 logger = logging.getLogger("mascarade.mcp.servers_registry")
 
 
+def _env(name: str, default: str = "") -> str:
+    """Resolve environment variables at call time, not import time."""
+    return os.environ.get(name, default)
+
+
 @dataclass
 class McpServerDef:
     """Definition of an MCP server that mascarade can connect to."""
@@ -113,10 +118,8 @@ WIKI_SERVERS: dict[str, McpServerDef] = {
         command=("uvx", "mcp-outline"),
         install_cmd="pip install mcp-outline",
         env_vars={
-            "OUTLINE_API_KEY": os.environ.get("OUTLINE_API_KEY", ""),
-            "OUTLINE_BASE_URL": os.environ.get(
-                "OUTLINE_BASE_URL", "https://wiki.saillant.cc"
-            ),
+            "OUTLINE_API_KEY": "env:OUTLINE_API_KEY",
+            "OUTLINE_BASE_URL": "env:OUTLINE_BASE_URL|https://wiki.saillant.cc",
         },
         tools=[
             "search_documents",
@@ -162,8 +165,8 @@ MONITORING_SERVERS: dict[str, McpServerDef] = {
         docker_image="mcp/grafana",
         docker_network="zacus-stack_default",
         env_vars={
-            "GRAFANA_URL": "http://zacus-grafana:3000",
-            "GRAFANA_API_KEY": os.environ.get("GRAFANA_API_KEY", ""),
+            "GRAFANA_URL": "env:GRAFANA_URL|http://zacus-grafana:3000",
+            "GRAFANA_API_KEY": "env:GRAFANA_API_KEY",
         },
         tools=[
             "search_dashboards",
@@ -189,8 +192,8 @@ AUTOMATION_SERVERS: dict[str, McpServerDef] = {
         command=("npx", "-y", "n8n-mcp-server"),
         install_cmd="npm install -g n8n-mcp-server",
         env_vars={
-            "N8N_API_URL": os.environ.get("N8N_API_URL", "http://localhost:5678"),
-            "N8N_API_KEY": os.environ.get("N8N_API_KEY", ""),
+            "N8N_API_URL": "env:N8N_API_URL|http://localhost:5678",
+            "N8N_API_KEY": "env:N8N_API_KEY",
         },
         tools=[
             "list_workflows",
@@ -273,16 +276,24 @@ def get_by_category(category: str) -> dict[str, McpServerDef]:
 def get_server(key: str) -> McpServerDef:
     """Get a server definition by key."""
     if key not in ALL_SERVERS:
-        raise KeyError(
-            f"MCP server '{key}' not found. Available: {list(ALL_SERVERS.keys())}"
-        )
+        raise KeyError(f"MCP server '{key}' not found. Available: {list(ALL_SERVERS.keys())}")
     return ALL_SERVERS[key]
 
 
 def get_server_config(key: str, extra_env: dict[str, str] | None = None) -> dict:
     """Get runtime config for launching an MCP server."""
     server = get_server(key)
-    env = {**server.env_vars}
+    env: dict[str, str] = {}
+    for env_key, env_value in server.env_vars.items():
+        if isinstance(env_value, str) and env_value.startswith("env:"):
+            spec = env_value[4:]
+            if "|" in spec:
+                source_name, default = spec.split("|", 1)
+            else:
+                source_name, default = spec, ""
+            env[env_key] = _env(source_name, default)
+        else:
+            env[env_key] = env_value
     if extra_env:
         env.update(extra_env)
     return {

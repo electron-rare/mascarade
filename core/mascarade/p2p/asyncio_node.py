@@ -303,7 +303,7 @@ class MascaradeP2PNode:
                 await asyncio.sleep(30)
                 if not self._running:
                     break
-                # Re-announce to DHT + PubSub
+                # Re-announce to DHT + PubSub (include hardware fields)
                 if self._capabilities._local_caps:
                     caps = self._capabilities._local_caps
                     await self._capabilities.advertise_capabilities(
@@ -313,17 +313,29 @@ class MascaradeP2PNode:
                         role=caps.role,
                         label=caps.label,
                         http_base_url=caps.http_base_url,
+                        gpu_vram_gb=caps.gpu_vram_gb,
+                        chip_family=caps.chip_family,
+                        ram_gb=caps.ram_gb,
                     )
                 # Discover new peers via DHT
                 await self._dht.find_node(self.peer_id)
                 # Re-request capabilities from newly discovered peers
                 await self._capabilities.request_all()
-                # Update Prometheus gauges
+                # Update Prometheus gauges (with per-peer VRAM)
                 connected = sum(1 for c in self._transport.peers.values() if c.connected)
+                all_caps = self._capabilities.all_capabilities()
+                peer_hw = [
+                    {"peer_id": pid, "gpu_vram_gb": c.gpu_vram_gb, "chip_family": c.chip_family}
+                    for pid, c in all_caps.items()
+                ]
+                local = self._capabilities._local_caps
                 self._metrics.update_gauges(
                     connected_peers=connected,
                     dht_entries=len(self._dht.routing_table),
-                    capabilities_known=len(self._capabilities.all_capabilities()),
+                    capabilities_known=len(all_caps),
+                    peer_hardware=peer_hw,
+                    local_vram_gb=local.gpu_vram_gb if local else 0.0,
+                    local_chip_family=local.chip_family if local else "cpu_only",
                 )
                 # Detect peer joins/leaves and emit events
                 current_peers = {pid for pid, c in self._transport.peers.items() if c.connected}

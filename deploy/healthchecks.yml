@@ -1,0 +1,52 @@
+# Healthchecks — dead man's switch monitoring for cron jobs
+# Exposed via edge-proxy at hc.saillant.cc
+# Start: docker compose -f deploy/healthchecks.yml up -d
+
+services:
+  healthchecks:
+    image: lscr.io/linuxserver/healthchecks:latest
+    container_name: mascarade-healthchecks
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "2"
+    environment:
+      PUID: "1000"
+      PGID: "1000"
+      TZ: "Europe/Paris"
+      SITE_ROOT: "https://hc.saillant.cc"
+      SITE_NAME: "Mascarade Healthchecks"
+      SECRET_KEY: "${HEALTHCHECKS_SECRET_KEY}"
+      SUPERUSER_EMAIL: "${HEALTHCHECKS_SUPERUSER_EMAIL:-admin@saillant.cc}"
+      SUPERUSER_PASSWORD: "${HEALTHCHECKS_SUPERUSER_PASSWORD}"
+      DB: "postgres"
+      DB_HOST: "mascarade-postgres"
+      DB_PORT: "5432"
+      DB_NAME: "healthchecks"
+      DB_USER: "${POSTGRES_USER}"
+      DB_PASSWORD: "${POSTGRES_PASSWORD}"
+      # Notifications via ntfy (already used in run-e2e-notify.sh)
+      ALLOWED_HOSTS: "hc.saillant.cc,mascarade-healthchecks,localhost"
+      NTFY_ENABLED: "True"
+      # Disable email (no SMTP configured)
+      EMAIL_HOST: ""
+    volumes:
+      - healthchecks-config:/config
+    networks:
+      - mascarade_mascarade-network
+    mem_limit: 256m
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8000/api/v3/checks/ >/dev/null 2>&1 || exit 0"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+volumes:
+  healthchecks-config:
+
+networks:
+  mascarade_mascarade-network:
+    external: true

@@ -6,6 +6,8 @@ and real-time MIDI output for hardware integration.
 
 from __future__ import annotations
 
+from .worker import MIDIWorker
+
 MIDI_DOMAIN_TYPES = [
     "midi.note-sequence",
     "midi.cc-map",
