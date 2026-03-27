@@ -34,6 +34,8 @@
 - **Contextual Retrieval**: enable with `pipeline.ingest(contextual_retrieval=True)` or `settings.rag_contextual_retrieval_enabled = True`. LLM preamble per chunk using `settings.rag_contextual_retrieval_model` (default haiku). −49% failed retrievals.
 - **Semantic cache**: `RAGQueryCache` (`rag/query_cache.py`) — Qdrant collection `rag-query-cache` (cosine threshold 0.92) + Redis (TTL 3600s). Enable with `settings.rag_cache_enabled = True`.
 - **Eval**: `RAGEvaluator` (`rag/eval.py`) — 5 RAGAS-compatible metrics via LLM judges. Production thresholds in `THRESHOLDS` dict. Accepts golden datasets; `run_pipeline=True` fills missing answers/contexts.
+- **Chunker**: `chunk_text()`/`chunk_document()` (`rag/chunker.py`) — paragraph→sentence split, merge to `rag_chunk_size` tokens, `rag_chunk_overlap` overlap. No external deps.
+- **Ingest endpoints**: `POST /ingest` now accepts `chunk=true`; `POST /ingest/url` and `POST /ingest/upload` call Docling (requires `DOCLING_URL`), chunk and embed. Returns 503 with clear message if Docling is not configured.
 
 ## P2P hardware-aware mesh (implemented 2026-03-26)
 - Each node advertises GPU VRAM, chip family and RAM via `PeerCapabilities` (p2p/capabilities.py)

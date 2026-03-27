@@ -50,6 +50,15 @@ Etat de reference du chantier fine-tuning/distillation local au 6 mars 2026.
 - [x] Opt-out via `DATAGOUV_ENABLED=false`, URL surchargeable via `DATAGOUV_MCP_URL`
 - [x] `deploy/edge-proxy/default.conf.template` : blocs nginx `oidc2fer.saillant.cc` (http:80 + https:443) → `http://oidc2fer:8000`
 
+### RAG — Chunker + URL/file ingest + Grafana P2P dashboard (2026-03-27)
+- [x] `rag/chunker.py` : `chunk_text()` + `chunk_document()` — paragraph→sentence split, merge à rag_chunk_size tokens, overlap, sans dep externe
+- [x] `POST /v1/api/rag/ingest` : param `chunk=true` + `contextual_retrieval` passthrough
+- [x] `POST /v1/api/rag/ingest/url` : Docling fetch → chunk → embed → upsert, OCR opt-in
+- [x] `POST /v1/api/rag/ingest/upload` : file upload → Docling parse → chunk → embed → upsert, limite 50MB
+- [x] Config : `rag_chunk_size=512`, `rag_chunk_overlap=50`
+- [x] Grafana `mascarade-p2p-mesh.json` : Peer VRAM timeseries, Local VRAM stat, Peers Online, Routing Skips/min, Peer Up/Down state timeline
+- [x] `edge-proxy` : vhost `cours.saillant.cc` — portail HTML LMS/Moodle, HTTP→HTTPS redirect
+
 ### Fine-tuning — Phase B/C/D scripts (2026-03-27)
 - [x] `finetune/batch_phase_b.sh` : rejection sampling 10 domaines, N_CANDIDATES=8, output `dpo_pairs/{domain}/`
 - [x] `finetune/batch_phase_c.sh` : ORPO training (pas de reference model, −3GB VRAM), détecte dernier adapteur Phase A

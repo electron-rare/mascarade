@@ -273,9 +273,14 @@
 | CRAG web fallback | done | P1 | SearXNG | Low-confidence → web search |
 | Intent classification | done | P1 | LLM | rag / web / general routing |
 | RAGAS eval pipeline | done | P1 | LLM judges | 5 metrics, POST /v1/api/rag/eval |
-| RAG ingest API | done | P1 | — | POST /v1/api/rag/ingest |
+| RAG ingest API | done | P1 | — | POST /v1/api/rag/ingest (chunk=true support) |
 | RAG search API | done | P1 | — | POST /v1/api/rag/search |
 | RAG query API | done | P1 | — | POST /v1/api/rag/query |
+| Text chunker | done | P1 | — | rag/chunker.py — token-aware, paragraph→sentence split + overlap |
+| URL ingestion (Docling) | done | P1 | Docling | POST /v1/api/rag/ingest/url — PDF/DOCX/HTML fetch + chunk |
+| File upload ingestion | done | P1 | Docling | POST /v1/api/rag/ingest/upload — 50MB limit, any Docling format |
+| P2P VRAM Grafana dashboard | done | P2 | Prometheus | mascarade-p2p-mesh.json |
+| data.gouv.fr MCP | done | P1 | — | 74k+ datasets publics français, SSE transport |
 | LightRAG (large corpus) | planned | P2 | — | >1k docs |
 | ColPali (visual PDFs) | planned | P2 | — | Datasheets / schematics |
 | KiCad ingestion pipeline | planned | P2 | Kill_LIFE | PCB docs → RAG |
@@ -316,7 +321,7 @@
 | Infrastructure | 17 | 0 | 0 | 17 |
 | Auth / Security | 7 | 0 | 0 | 7 |
 | Apple Intelligence | 4 | 0 | 3 | 7 |
-| Agentic RAG | 15 | 0 | 3 | 18 |
+| Agentic RAG | 20 | 0 | 3 | 23 |
 | Cowork OTel | 1 | 0 | 0 | 1 |
 | Ecosystem | 4 | 2 | 0 | 6 |
-| **Total** | **162** | **5** | **7** | **174** |
+| **Total** | **167** | **5** | **7** | **179** |
