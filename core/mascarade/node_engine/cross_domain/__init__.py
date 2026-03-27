@@ -25,6 +25,11 @@ from mascarade.node_engine.cross_domain.adapters import (
     HardwareToAIAdapter,
 )
 from mascarade.node_engine.cross_domain.envelope import CrossDomainEnvelope
+from mascarade.node_engine.cross_domain.orchestrator import (
+    AdapterInsertionRecord,
+    CrossDomainOrchestrator,
+    OrchestrationResult,
+)
 from mascarade.node_engine.cross_domain.register import (
     AdapterRegistry,
     register_all_adapters,
@@ -42,6 +47,10 @@ __all__ = [
     "ElectronicsToHardwareAdapter",
     "HardwareToAIAdapter",
     "ALL_ADAPTERS",
+    # Orchestrator
+    "CrossDomainOrchestrator",
+    "OrchestrationResult",
+    "AdapterInsertionRecord",
     # Registry
     "AdapterRegistry",
     "register_all_adapters",

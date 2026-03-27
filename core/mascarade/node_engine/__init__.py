@@ -13,6 +13,8 @@ from mascarade.node_engine.types import (
     PortType,
 )
 from mascarade.node_engine.workers.ai.register import register_ai_worker
+from mascarade.node_engine.workers.cad.register import register_cad_worker
+from mascarade.node_engine.workers.hardware.register import register_hardware_worker
 
 __version__ = "0.1.0"
 
@@ -21,4 +23,6 @@ __all__ = [
     "ExecutionMode",
     "PortType",
     "register_ai_worker",
+    "register_cad_worker",
+    "register_hardware_worker",
 ]
