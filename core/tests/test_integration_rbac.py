@@ -117,7 +117,7 @@ async def test_create_admin_user():
 
     mock_conn.fetchrow.side_effect = mock_fetchrow
 
-    with patch("mascarade.server.get_db_pool", return_value=mock_pool):
+    with patch("mascarade.db.connection.get_db_pool", return_value=mock_pool):
         async with _client() as client:
             response = await client.post(
                 "/v1/users",
@@ -163,7 +163,7 @@ async def test_create_admin_api_key():
 
     mock_conn.fetchrow.side_effect = mock_fetchrow
 
-    with patch("mascarade.server.get_db_pool", return_value=mock_pool):
+    with patch("mascarade.db.connection.get_db_pool", return_value=mock_pool):
         async with _client() as client:
             response = await client.post(
                 "/v1/users/1/api-keys",
@@ -220,7 +220,7 @@ async def test_admin_can_list_users():
 
     mock_conn.fetch.side_effect = mock_fetch
 
-    with patch("mascarade.server.get_db_pool", return_value=mock_pool):
+    with patch("mascarade.db.connection.get_db_pool", return_value=mock_pool):
         async with _client() as client:
             response = await client.get(
                 "/v1/users",
@@ -257,7 +257,7 @@ async def test_admin_can_get_user_by_id():
 
     mock_conn.fetchrow.side_effect = mock_fetchrow
 
-    with patch("mascarade.server.get_db_pool", return_value=mock_pool):
+    with patch("mascarade.db.connection.get_db_pool", return_value=mock_pool):
         async with _client() as client:
             response = await client.get(
                 "/v1/users/1",
@@ -299,7 +299,7 @@ async def test_admin_can_update_user():
 
     mock_conn.fetchrow.side_effect = mock_fetchrow
 
-    with patch("mascarade.server.get_db_pool", return_value=mock_pool):
+    with patch("mascarade.db.connection.get_db_pool", return_value=mock_pool):
         async with _client() as client:
             response = await client.put(
                 "/v1/users/2",
@@ -327,7 +327,7 @@ async def test_admin_can_delete_user():
     mock_conn.fetchrow.side_effect = mock_fetchrow
     mock_conn.execute = AsyncMock()
 
-    with patch("mascarade.server.get_db_pool", return_value=mock_pool):
+    with patch("mascarade.db.connection.get_db_pool", return_value=mock_pool):
         async with _client() as client:
             response = await client.delete(
                 "/v1/users/2",
@@ -382,7 +382,7 @@ async def test_admin_can_list_api_keys():
     mock_conn.fetchrow.side_effect = mock_fetchrow
     mock_conn.fetch.side_effect = mock_fetch
 
-    with patch("mascarade.server.get_db_pool", return_value=mock_pool):
+    with patch("mascarade.db.connection.get_db_pool", return_value=mock_pool):
         async with _client() as client:
             response = await client.get(
                 "/v1/users/1/api-keys",
@@ -415,7 +415,7 @@ async def test_admin_can_revoke_api_key():
     mock_conn.fetchrow.side_effect = mock_fetchrow
     mock_conn.execute = AsyncMock()
 
-    with patch("mascarade.server.get_db_pool", return_value=mock_pool):
+    with patch("mascarade.db.connection.get_db_pool", return_value=mock_pool):
         async with _client() as client:
             response = await client.delete(
                 "/v1/users/1/api-keys/1",
@@ -442,7 +442,7 @@ async def test_admin_can_update_rate_limits():
     mock_conn.fetchrow.side_effect = mock_fetchrow
     mock_conn.execute = AsyncMock()
 
-    with patch("mascarade.server.get_db_pool", return_value=mock_pool):
+    with patch("mascarade.db.connection.get_db_pool", return_value=mock_pool):
         async with _client() as client:
             response = await client.put(
                 "/v1/users/2/rate-limit",
@@ -494,7 +494,7 @@ async def test_admin_can_create_regular_user():
 
     mock_conn.fetchrow.side_effect = mock_fetchrow
 
-    with patch("mascarade.server.get_db_pool", return_value=mock_pool):
+    with patch("mascarade.db.connection.get_db_pool", return_value=mock_pool):
         async with _client() as client:
             response = await client.post(
                 "/v1/users",
@@ -541,7 +541,7 @@ async def test_admin_can_create_read_only_user():
 
     mock_conn.fetchrow.side_effect = mock_fetchrow
 
-    with patch("mascarade.server.get_db_pool", return_value=mock_pool):
+    with patch("mascarade.db.connection.get_db_pool", return_value=mock_pool):
         async with _client() as client:
             response = await client.post(
                 "/v1/users",
@@ -734,7 +734,7 @@ async def test_complete_admin_workflow():
     mock_conn.fetch.side_effect = mock_fetch
     mock_conn.execute = AsyncMock()
 
-    with patch("mascarade.server.get_db_pool", return_value=mock_pool):
+    with patch("mascarade.db.connection.get_db_pool", return_value=mock_pool):
         async with _client() as client:
             # Step 1: Admin lists users (should see only themselves initially)
             response = await client.get(
@@ -1031,7 +1031,7 @@ async def test_complete_regular_user_workflow():
     mock_conn.execute = AsyncMock()
 
     # Step 1-2: Admin creates regular user and API key
-    with patch("mascarade.server.get_db_pool", return_value=mock_pool):
+    with patch("mascarade.db.connection.get_db_pool", return_value=mock_pool):
         async with _client() as client:
             response = await client.post(
                 "/v1/users",
@@ -1419,7 +1419,7 @@ async def test_usage_stats_appear_in_admin_dashboard():
     mock_conn.fetch.side_effect = mock_fetch
 
     with (
-        patch("mascarade.server.get_db_pool", return_value=mock_pool),
+        patch("mascarade.db.connection.get_db_pool", return_value=mock_pool),
         patch("mascarade.usage_tracking.get_db_pool", return_value=mock_pool),
     ):
         async with _client() as client:
@@ -1447,7 +1447,7 @@ async def test_set_rate_limit_for_user():
     mock_conn.fetchrow.side_effect = mock_fetchrow
     mock_conn.execute = AsyncMock()
 
-    with patch("mascarade.server.get_db_pool", return_value=mock_pool):
+    with patch("mascarade.db.connection.get_db_pool", return_value=mock_pool):
         async with _client() as client:
             response = await client.put(
                 "/v1/users/10/rate-limit",
@@ -1693,7 +1693,7 @@ async def test_complete_usage_tracking_and_rate_limiting_workflow():
     mock_conn.execute.side_effect = mock_execute
 
     with (
-        patch("mascarade.server.get_db_pool", return_value=mock_pool),
+        patch("mascarade.db.connection.get_db_pool", return_value=mock_pool),
         patch("mascarade.usage_tracking.get_db_pool", return_value=mock_pool),
     ):
         async with _client() as client:
