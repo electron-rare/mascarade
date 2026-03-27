@@ -121,18 +121,157 @@ openburoObjects.get("/schemas/:type", (c) => {
   return c.json(schema);
 });
 
-// GET /openburo/objects/:type — search objects across apps (placeholder)
+// === Phase 2: Live connectors Dolibarr + Grist ===
+
+const DOLIBARR_URL = process.env.DOLIBARR_URL || "https://erp.saillant.cc";
+const DOLIBARR_KEY = process.env.DOLIBARR_API_KEY || "";
+const GRIST_URL = process.env.GRIST_URL || "https://grist.saillant.cc";
+const GRIST_KEY = process.env.GRIST_API_KEY || "";
+
+async function dolibarrGet(endpoint: string) {
+  const res = await fetch(`${DOLIBARR_URL}/api/index.php${endpoint}`, {
+    headers: { DOLAPIKEY: DOLIBARR_KEY },
+    signal: AbortSignal.timeout(10000),
+  });
+  if (!res.ok) throw new Error(`Dolibarr ${res.status}`);
+  return res.json();
+}
+
+async function gristGet(endpoint: string) {
+  const headers: Record<string, string> = { Accept: "application/json" };
+  if (GRIST_KEY) headers.Authorization = `Bearer ${GRIST_KEY}`;
+  const res = await fetch(`${GRIST_URL}${endpoint}`, {
+    headers,
+    signal: AbortSignal.timeout(10000),
+  });
+  if (!res.ok) throw new Error(`Grist ${res.status}`);
+  return res.json();
+}
+
+const PROPOSAL_STATUS: Record<number, string> = { 0: "draft", 1: "sent", 2: "paid", 3: "cancelled", 4: "paid" };
+const INVOICE_STATUS: Record<number, string> = { 0: "draft", 1: "sent", 2: "sent", 3: "cancelled", 5: "sent", 6: "paid" };
+
+// GET /openburo/objects/contact — Dolibarr thirdparties
+openburoObjects.get("/contact", async (c) => {
+  try {
+    const data = await dolibarrGet("/thirdparties?sortfield=t.nom&sortorder=ASC&limit=100");
+    const objects = (Array.isArray(data) ? data : []).map((tp: any) => ({
+      id: `dolibarr:${tp.id}`,
+      name: tp.name || tp.nom,
+      email: tp.email || "",
+      phone: tp.phone || "",
+      organization: tp.name_alias || "",
+      source_app: "dolibarr",
+      source_id: String(tp.id),
+      tags: [tp.client >= 1 ? "client" : null, tp.fournisseur ? "fournisseur" : null].filter(Boolean),
+    }));
+    return c.json({ type: "contact", objects, count: objects.length });
+  } catch (e) {
+    return c.json({ type: "contact", objects: [], count: 0, error: (e as Error).message }, 502);
+  }
+});
+
+// GET /openburo/objects/invoice — Dolibarr invoices + proposals
+openburoObjects.get("/invoice", async (c) => {
+  const subtype = c.req.query("type"); // "invoice" | "quote"
+  try {
+    const objects: any[] = [];
+    if (!subtype || subtype === "quote") {
+      const proposals = await dolibarrGet("/proposals?sortfield=t.rowid&sortorder=DESC&limit=50");
+      for (const p of Array.isArray(proposals) ? proposals : []) {
+        objects.push({
+          id: `dolibarr:proposal:${p.id}`,
+          number: p.ref,
+          type: "quote",
+          status: PROPOSAL_STATUS[p.statut as number] || "draft",
+          amount_ht: Number(p.total_ht) || 0,
+          amount_ttc: Number(p.total_ttc) || 0,
+          currency: "EUR",
+          client_name: p.nom_thirdparty || "",
+          client_id: `dolibarr:${p.socid}`,
+          issue_date: p.date ? new Date(p.date * 1000).toISOString().slice(0, 10) : null,
+          source_app: "dolibarr",
+          source_id: String(p.id),
+        });
+      }
+    }
+    if (!subtype || subtype === "invoice") {
+      const invoices = await dolibarrGet("/invoices?sortfield=t.rowid&sortorder=DESC&limit=50");
+      for (const inv of Array.isArray(invoices) ? invoices : []) {
+        objects.push({
+          id: `dolibarr:invoice:${inv.id}`,
+          number: inv.ref,
+          type: "invoice",
+          status: inv.paye ? "paid" : (INVOICE_STATUS[inv.statut as number] || "draft"),
+          amount_ht: Number(inv.total_ht) || 0,
+          amount_ttc: Number(inv.total_ttc) || 0,
+          currency: "EUR",
+          client_name: inv.nom_thirdparty || "",
+          client_id: `dolibarr:${inv.socid}`,
+          issue_date: inv.date ? new Date(inv.date * 1000).toISOString().slice(0, 10) : null,
+          due_date: inv.date_lim_reglement ? new Date(inv.date_lim_reglement * 1000).toISOString().slice(0, 10) : null,
+          source_app: "dolibarr",
+          source_id: String(inv.id),
+        });
+      }
+    }
+    return c.json({ type: "invoice", objects, count: objects.length });
+  } catch (e) {
+    return c.json({ type: "invoice", objects: [], count: 0, error: (e as Error).message }, 502);
+  }
+});
+
+// GET /openburo/objects/task — Dolibarr tasks
+openburoObjects.get("/task", async (c) => {
+  try {
+    const data = await dolibarrGet("/tasks?sortfield=t.datec&sortorder=DESC&limit=50");
+    const objects = (Array.isArray(data) ? data : []).map((t: any) => ({
+      id: `dolibarr:${t.id}`,
+      title: t.label || t.ref,
+      description: t.description || "",
+      status: Number(t.progress) >= 100 ? "done" : Number(t.progress) > 0 ? "in_progress" : "todo",
+      priority: "medium",
+      project: t.fk_project ? `dolibarr:project:${t.fk_project}` : undefined,
+      due_date: t.date_end ? new Date(t.date_end * 1000).toISOString().slice(0, 10) : undefined,
+      source_app: "dolibarr",
+      source_id: String(t.id),
+    }));
+    return c.json({ type: "task", objects, count: objects.length });
+  } catch (e) {
+    return c.json({ type: "task", objects: [], count: 0, error: (e as Error).message }, 502);
+  }
+});
+
+// GET /openburo/objects/document — Grist documents
+openburoObjects.get("/document", async (c) => {
+  try {
+    const data = await gristGet("/api/docs");
+    const objects = (Array.isArray(data) ? data : []).map((d: any) => ({
+      id: `grist:${d.id}`,
+      title: d.name,
+      url: `${GRIST_URL}/doc/${d.id}`,
+      mime_type: "application/vnd.grist",
+      source_app: "grist",
+      source_id: String(d.id),
+      created_at: d.createdAt,
+      updated_at: d.updatedAt,
+    }));
+    return c.json({ type: "document", objects, count: objects.length });
+  } catch (e) {
+    return c.json({ type: "document", objects: [], count: 0, error: (e as Error).message }, 502);
+  }
+});
+
+// GET /openburo/objects/event — placeholder (calendars API)
+openburoObjects.get("/event", (c) => {
+  return c.json({ type: "event", objects: [], count: 0, message: "Suite Calendars connector coming soon" });
+});
+
+// Fallback for unknown types
 openburoObjects.get("/:type", (c) => {
   const type = c.req.param("type");
   if (!SCHEMAS[type]) return c.json({ error: `Unknown object type: ${type}` }, 404);
-
-  // TODO Phase 2: query Dolibarr API, Grist API, etc. and normalize to schema
-  return c.json({
-    type,
-    objects: [],
-    count: 0,
-    message: "Cross-app object search will be available in Phase 2 (connectors Dolibarr + Grist)",
-  });
+  return c.json({ type, objects: [], count: 0 });
 });
 
 export { openburoObjects, SCHEMAS as BUSINESS_OBJECT_SCHEMAS };
