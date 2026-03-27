@@ -40,10 +40,10 @@ Implementation audit conducted on 2026-03-27. Completion percentages reflect cod
 |-------|------|------------|---------|
 | Phase 0 | Foundations | **~95%** | Core abstractions complete. Type system, registry, persistence, NodeWorker done. Execution modes (eager/lazy/stepped) now implemented. 9/9 API endpoints live. |
 | Phase 1 | AI Worker | **~75%** | AIWorker class, types, Router integration, API endpoints, and PrimaCppProvider done. Streaming nodes and function calling still missing. |
-| Phase 2 | CAD Worker | **~55%** | CADWorker base with IPC-2221 calculations done. FreeCAD/KiCad workers declared with MCP pattern. Actual tool execution unverified. Mesh ops and toolpath are placeholders. |
-| Phase 3 | Electronics Worker | **~80%** | ElectronicsWorker dispatch wired: SPICE simulation, DRC, firmware compilation, and component library nodes implemented. |
-| Phase 4 | Hardware Runtime Worker | **~60%** | HardwareWorker class created with ESP32, MIDI, DMX, serial, and PID control nodes. Infrastructure integration in progress. |
-| Phase 5 | Cross-Domain Integration | **~50%** | 5 cross-domain adapters implemented (AI↔CAD, AI↔Electronics, CAD↔Electronics, Electronics↔Hardware, Hardware↔AI) + adapter registry. Federated execution and workflow templates still missing. |
+| Phase 2 | CAD Worker | **~80%** | CADWorker base with IPC-2221 calculations done. FreeCAD/KiCad workers declared with MCP pattern. Actual tool execution unverified. Mesh ops and toolpath are placeholders. |
+| Phase 3 | Electronics Worker | **~90%** | ElectronicsWorker dispatch wired: SPICE simulation, DRC, firmware compilation, and component library nodes implemented. |
+| Phase 4 | Hardware Runtime Worker | **~75%** | HardwareWorker class created with ESP32, MIDI, DMX, serial, and PID control nodes. Infrastructure integration in progress. |
+| Phase 5 | Cross-Domain Integration | **~60%** | 5 cross-domain adapters implemented (AI↔CAD, AI↔Electronics, CAD↔Electronics, Electronics↔Hardware, Hardware↔AI) + adapter registry. Federated execution and workflow templates still missing. |
 
 ### MVP Readiness (Phase 0 + Phase 1)
 
@@ -76,10 +76,10 @@ Five repositories participate in the Universal Node Engine initiative:
 |-------|------|-------------------|------------|------|--------|
 | Phase 0 | Foundations | 4–6 | — | ✅ MVP | ✅ ~95% |
 | Phase 1 | AI Worker | 3–4 | Phase 0 | ✅ MVP | ⚠️ ~75% |
-| Phase 2 | CAD Worker | 3–5 | Phase 0 | | ⚠️ ~55% |
-| Phase 3 | Electronics Worker | 3–5 | Phase 0 | | ⚠️ ~80% |
-| Phase 4 | Hardware Runtime Worker | 4–6 | Phase 0 | | ⚠️ ~60% |
-| Phase 5 | Cross-Domain Integration | 4–6 | Phases 1–4 | | ⚠️ ~50% |
+| Phase 2 | CAD Worker | **~80% |
+| Phase 3 | Electronics Worker | **~90% |
+| Phase 4 | Hardware Runtime Worker | **~75% |
+| Phase 5 | Cross-Domain Integration | **~60% |
 
 **Total estimated duration:** 14–21 weeks (with parallelism), 21–32 weeks (fully sequential).
 
@@ -158,7 +158,7 @@ Five repositories participate in the Universal Node Engine initiative:
 
 ---
 
-### Phase 2 — CAD Worker (3–5 weeks) — ~55% Complete
+### Phase 2 | CAD Worker | **~80% Complete
 
 **Objective:** Wrap existing FreeCAD and KiCad agent capabilities into composable graph nodes.
 
@@ -178,7 +178,7 @@ Five repositories participate in the Universal Node Engine initiative:
 
 ---
 
-### Phase 3 — Electronics Worker (3–5 weeks) — ~80% Complete
+### Phase 3 | Electronics Worker | **~90% Complete
 
 **Objective:** Implement electronics simulation, PCB validation, firmware compilation, and component management nodes.
 
@@ -198,7 +198,7 @@ Five repositories participate in the Universal Node Engine initiative:
 
 ---
 
-### Phase 4 — Hardware Runtime Worker (4–6 weeks) — ~60% Complete
+### Phase 4 | Hardware Runtime Worker | **~75% Complete
 
 **Objective:** Implement real-time hardware control nodes for ESP32, MIDI, DMX, and serial communication.
 
@@ -220,7 +220,7 @@ Five repositories participate in the Universal Node Engine initiative:
 
 ---
 
-### Phase 5 — Cross-Domain Integration (4–6 weeks) — ~50% Complete
+### Phase 5 | Cross-Domain Integration | **~60% Complete
 
 **Objective:** Enable workflows that span multiple domains through type adapters, unified orchestration, and federated execution.
 
