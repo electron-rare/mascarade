@@ -11,6 +11,7 @@ if TYPE_CHECKING:
 
 from mascarade.config import settings
 from mascarade.rag.embeddings import EmbeddingProvider
+from mascarade.rag.query_cache import RAGQueryCache
 from mascarade.rag.reranker import CrossEncoderReranker
 from mascarade.rag.vectorstore import QdrantVectorStore
 
@@ -60,10 +61,20 @@ class RAGPipeline:
         self.vectorstore = vectorstore or QdrantVectorStore()
         self.embeddings = embeddings or EmbeddingProvider()
         self._reranker = CrossEncoderReranker(settings.rag_reranker_model)
+        self._query_cache: RAGQueryCache | None = (
+            RAGQueryCache(
+                similarity_threshold=settings.rag_cache_similarity_threshold,
+                ttl=settings.rag_cache_ttl,
+            )
+            if settings.rag_cache_enabled
+            else None
+        )
 
     async def close(self) -> None:
         await self.vectorstore.close()
         await self.embeddings.close()
+        if self._query_cache:
+            await self._query_cache.close()
 
     # ------------------------------------------------------------------
     # Query pipeline
@@ -98,6 +109,16 @@ class RAGPipeline:
         if collection and collection != vs.collection:
             vs = QdrantVectorStore(base_url=vs.base_url, collection=collection)
 
+        # Step 0 — semantic query cache check (skip only classification + embed cost)
+        _cache_embedding: list[float] | None = None
+        if self._query_cache:
+            _cache_embedding = await self.embeddings.embed_query(user_query)
+            cached = await self._query_cache.get(user_query, _cache_embedding)
+            if cached is not None:
+                cached["tool_calls"] = ["cache_hit"]
+                cached["elapsed_seconds"] = round(time.monotonic() - t0, 3)
+                return cached
+
         # Step 1 — classify intent
         if skip_classification:
             intent = "rag"
@@ -108,8 +129,10 @@ class RAGPipeline:
         # Step 2 — retrieve context if RAG (hybrid search + reranking)
         context_text = ""
         if intent == "rag":
-            query_embedding = await self.embeddings.embed_query(user_query)
-            tool_calls.append("embed_query")
+            # Reuse embedding computed for cache check if available
+            query_embedding = _cache_embedding or await self.embeddings.embed_query(user_query)
+            if _cache_embedding is None:
+                tool_calls.append("embed_query")
 
             # Hybrid search: dense + BM25 with RRF fusion
             results = await vs.hybrid_search(
@@ -170,7 +193,7 @@ class RAGPipeline:
 
         elapsed = time.monotonic() - t0
 
-        return {
+        result = {
             "answer": llm_response.text,
             "intent": intent,
             "sources": sources,
@@ -187,6 +210,14 @@ class RAGPipeline:
             },
             "elapsed_seconds": round(elapsed, 3),
         }
+
+        # Store in semantic cache for future similar queries
+        if self._query_cache and _cache_embedding is not None:
+            import asyncio as _asyncio
+
+            _asyncio.ensure_future(self._query_cache.set(user_query, _cache_embedding, result))
+
+        return result
 
     # ------------------------------------------------------------------
     # Ingest

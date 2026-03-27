@@ -22,6 +22,7 @@ from mascarade.mcp.sandbox import _validate_freecad_script
 from mascarade.mcp.server_registry import (
     McpServerDefinition,
     McpToolResult,
+    register_datagouv_server,
     register_docling_server,
     register_erpnext_server,
     register_graphiti_server,
@@ -115,6 +116,7 @@ class McpRuntimeClient:
         register_searxng_server(self._servers)
         register_docling_server(self._servers)
         register_outline_server(self._servers)
+        register_datagouv_server(self._servers)
         register_kicad_mcp_servers(self._servers)
 
     def _server(self, server_key: str) -> McpServerDefinition:
