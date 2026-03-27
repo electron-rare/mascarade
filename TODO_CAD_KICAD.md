@@ -38,4 +38,6 @@ Etat de reference au 7 mars 2026.
   - Endpoints: POST /mcp, GET /health, GET /tools
   - Port configurable via `KICAD_MCP_PORT` (defaut 8300)
   - `MCP_TRANSPORT=http` active le bridge, `stdio` reste le defaut
-- [ ] Ajouter une UI cockpit pour piloter la stack CAD
+- [x] Ajouter une UI cockpit pour piloter la stack CAD
+  - Page `/cad` dans crazy_life (commit `f9c024e`): FreeCAD + OpenSCAD runtime, KiCad MCP probe
+  - Nav entry Integrations, smoke test parallèle, stack reference card
