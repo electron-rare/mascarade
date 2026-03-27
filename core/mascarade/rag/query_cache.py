@@ -23,6 +23,7 @@ import hashlib
 import json
 import logging
 import time
+import uuid
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
@@ -257,7 +258,11 @@ class RAGQueryCache:
 
 
 def _embedding_to_id(embedding: list[float]) -> str:
-    """Deterministic ID from an embedding vector (sha256 of quantised repr)."""
-    # Quantise to 4 decimal places for stability
-    raw = json.dumps([round(v, 4) for v in embedding[:64]])  # first 64 dims
-    return hashlib.sha256(raw.encode()).hexdigest()[:32]
+    """Deterministic ID from an embedding vector (sha256 of quantised repr).
+
+    Returns a valid UUID string for Qdrant point IDs.
+    """
+    # Quantise to 4 decimal places for stability — use full vector
+    raw = json.dumps([round(v, 4) for v in embedding])
+    hex_digest = hashlib.sha256(raw.encode()).hexdigest()[:32]
+    return str(uuid.UUID(hex_digest))
