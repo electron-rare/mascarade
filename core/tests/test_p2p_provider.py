@@ -48,7 +48,7 @@ class FakeForwarder:
         reachable: set[str] | None = None,
         response: dict | None = None,
     ) -> None:
-        self._reachable = reachable or set()
+        self._reachable = reachable if reachable is not None else set()
         self._response = response or {
             "content": "hello from peer",
             "model": "claude-3-5-sonnet",
@@ -151,7 +151,7 @@ class TestResolvePeer:
             ),
         ]
         caps = FakeCapabilityExchange(peers)
-        forwarder = FakeForwarder(reachable=reachable or {"peer-a", "peer-b"})
+        forwarder = FakeForwarder(reachable=reachable if reachable is not None else {"peer-a", "peer-b"})
         prov.attach_p2p(forwarder, caps)
         return prov
 
