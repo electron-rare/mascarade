@@ -24,6 +24,7 @@ class FakePeerCapabilities:
     capabilities: list[str] = field(default_factory=list)
     providers: list[str] = field(default_factory=list)
     provider_models: dict[str, list[str]] = field(default_factory=dict)
+    gpu_vram_gb: float = 0.0
 
 
 class FakeCapabilityExchange:
@@ -202,10 +203,12 @@ class TestSend:
         )
         prov.attach_p2p(forwarder, caps)
 
-        resp = await prov.send(
-            [{"role": "user", "content": "hello"}],
-            model="claude:sonnet",
-        )
+        with patch("mascarade.router.providers.p2p.settings") as s:
+            s.cluster_shared_key = ""
+            resp = await prov.send(
+                [{"role": "user", "content": "hello"}],
+                model="claude:sonnet",
+            )
         assert resp.content == "hello from peer"
         assert "p2p/peer-a" in resp.provider
         assert len(forwarder.calls) == 1
@@ -231,9 +234,11 @@ class TestSend:
         prov.attach_p2p(forwarder, caps)
 
         tokens = []
-        async for token in prov.stream(
-            [{"role": "user", "content": "hi"}],
-            model="claude:sonnet",
-        ):
-            tokens.append(token)
+        with patch("mascarade.router.providers.p2p.settings") as s:
+            s.cluster_shared_key = ""
+            async for token in prov.stream(
+                [{"role": "user", "content": "hi"}],
+                model="claude:sonnet",
+            ):
+                tokens.append(token)
         assert tokens == ["hello from peer"]

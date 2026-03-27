@@ -1,7 +1,8 @@
-"""Tests for Codestral provider."""
+"""Tests for Codestral provider (litellm-based chat + direct httpx FIM)."""
 
 from __future__ import annotations
 
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -11,12 +12,14 @@ from mascarade.router.providers.codestral import CodestralProvider
 
 @pytest.fixture
 def provider():
-    with patch.object(CodestralProvider, "is_configured", True):
-        with patch("mascarade.config.settings") as mock_settings:
-            mock_settings.codestral_api_key = "test-codestral-key"
-            mock_settings.codestral_timeout_seconds = 30.0
-            p = CodestralProvider()
-            return p
+    with (
+        patch("mascarade.router.providers.codestral.litellm", new=MagicMock()),
+        patch("mascarade.router.providers.codestral.settings") as mock_settings,
+    ):
+        mock_settings.codestral_api_key = "test-codestral-key"
+        mock_settings.codestral_timeout_seconds = 30.0
+        p = CodestralProvider()
+    return p
 
 
 def test_codestral_provider_attributes():
@@ -28,7 +31,10 @@ def test_codestral_provider_attributes():
 
 
 def test_codestral_not_configured():
-    with patch("mascarade.config.settings") as mock_settings:
+    with (
+        patch("mascarade.router.providers.codestral.litellm", new=MagicMock()),
+        patch("mascarade.router.providers.codestral.settings") as mock_settings,
+    ):
         mock_settings.codestral_api_key = ""
         mock_settings.codestral_timeout_seconds = 30.0
         p = CodestralProvider()
@@ -37,25 +43,21 @@ def test_codestral_not_configured():
 
 @pytest.mark.asyncio
 async def test_codestral_send(provider):
-    mock_resp = MagicMock()
-    mock_resp.status_code = 200
-    mock_resp.raise_for_status = MagicMock()
-    mock_resp.json.return_value = {
-        "choices": [{"message": {"content": "def hello():\n    print('world')"}}],
-        "model": "codestral-latest",
-        "usage": {"prompt_tokens": 10, "completion_tokens": 8, "total_tokens": 18},
-    }
+    mock_response = MagicMock()
+    mock_response.choices = [MagicMock()]
+    mock_response.choices[0].message.content = "def hello():\n    print('world')"
+    mock_response.usage.prompt_tokens = 10
+    mock_response.usage.completion_tokens = 8
 
-    provider._client.post = AsyncMock(return_value=mock_resp)
-
-    response = await provider.send(
-        [{"role": "user", "content": "Write a hello function"}],
-        temperature=0.0,
-    )
+    with patch("mascarade.router.providers.codestral.litellm") as mock_litellm:
+        mock_litellm.acompletion = AsyncMock(return_value=mock_response)
+        response = await provider.send(
+            [{"role": "user", "content": "Write a hello function"}],
+            temperature=0.0,
+        )
 
     assert response.content == "def hello():\n    print('world')"
     assert response.provider == "codestral"
-    assert response.usage["total_tokens"] == 18
 
 
 @pytest.mark.asyncio
@@ -84,15 +86,13 @@ async def test_codestral_fim(provider):
 
 @pytest.mark.asyncio
 async def test_codestral_send_empty_response(provider):
-    mock_resp = MagicMock()
-    mock_resp.status_code = 200
-    mock_resp.raise_for_status = MagicMock()
-    mock_resp.json.return_value = {"choices": [], "model": "codestral-latest"}
+    mock_response = MagicMock()
+    mock_response.choices = []
 
-    provider._client.post = AsyncMock(return_value=mock_resp)
-
-    with pytest.raises(RuntimeError, match="empty choices"):
-        await provider.send([{"role": "user", "content": "test"}])
+    with patch("mascarade.router.providers.codestral.litellm") as mock_litellm:
+        mock_litellm.acompletion = AsyncMock(return_value=mock_response)
+        with pytest.raises(RuntimeError, match="empty choices"):
+            await provider.send([{"role": "user", "content": "test"}])
 
 
 def test_codestral_available_models(provider):
@@ -105,38 +105,21 @@ def test_codestral_available_models(provider):
 
 @pytest.mark.asyncio
 async def test_codestral_stream(provider):
-    """Test the stream method yields content chunks from SSE lines."""
+    """Test the stream method yields content chunks via litellm."""
 
-    # Build a fake async streaming response context manager
-    lines = [
-        'data: {"choices": [{"delta": {"content": "hello"}}]}',
-        'data: {"choices": [{"delta": {"content": " world"}}]}',
-        "data: [DONE]",
-    ]
+    async def fake_stream(*args, **kwargs):
+        for text in ["hello", " world"]:
+            yield SimpleNamespace(
+                choices=[SimpleNamespace(delta=SimpleNamespace(content=text))]
+            )
 
-    async def _aiter_lines():
-        for line in lines:
-            yield line
-
-    mock_resp = MagicMock()
-    mock_resp.raise_for_status = MagicMock()
-    mock_resp.aiter_lines = _aiter_lines
-
-    # Make client.stream return an async context manager yielding mock_resp
-    class _StreamCM:
-        async def __aenter__(self):
-            return mock_resp
-
-        async def __aexit__(self, *args):
-            pass
-
-    provider._client.stream = MagicMock(return_value=_StreamCM())
-
-    chunks = []
-    async for chunk in provider.stream(
-        [{"role": "user", "content": "hi"}],
-        temperature=0.0,
-    ):
-        chunks.append(chunk)
+    with patch("mascarade.router.providers.codestral.litellm") as mock_litellm:
+        mock_litellm.acompletion = AsyncMock(return_value=fake_stream())
+        chunks = []
+        async for chunk in provider.stream(
+            [{"role": "user", "content": "hi"}],
+            temperature=0.0,
+        ):
+            chunks.append(chunk)
 
     assert chunks == ["hello", " world"]

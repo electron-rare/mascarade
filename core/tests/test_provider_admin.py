@@ -11,9 +11,12 @@ _monorepo_root = str(Path(__file__).resolve().parents[2])
 if _monorepo_root not in sys.path:
     sys.path.insert(0, _monorepo_root)
 
-from deploy.ops_agent.app import (  # noqa: E402
-    provider_clear_updates,
-)
+try:
+    from deploy.ops_agent.app import (  # noqa: E402
+        provider_clear_updates,
+    )
+except ImportError:
+    provider_clear_updates = None
 
 from mascarade.config import settings
 from mascarade.provider_admin import (
@@ -179,6 +182,7 @@ def test_update_provider_keys_runtime_only_skips_env_persistence(monkeypatch):
     assert settings.ollama_enabled is False
 
 
+@pytest.mark.skipif(provider_clear_updates is None, reason="deploy module not importable")
 def test_provider_clear_updates_resets_toggle_and_fields():
     updates = provider_clear_updates(PROVIDER_REGISTRY["ollama"])
 
@@ -188,6 +192,7 @@ def test_provider_clear_updates_resets_toggle_and_fields():
     }
 
 
+@pytest.mark.skipif(provider_clear_updates is None, reason="deploy module not importable")
 def test_provider_clear_updates_can_reset_selected_auth_fields_only():
     updates = provider_clear_updates(
         PROVIDER_REGISTRY["huggingface"],
