@@ -39,7 +39,7 @@ Implementation audit conducted on 2026-03-27. Completion percentages reflect cod
 | Phase | Name | Completion | Summary |
 |-------|------|------------|---------|
 | Phase 0 | Foundations | **~95%** | Core abstractions complete. Type system, registry, persistence, NodeWorker done. Execution modes (eager/lazy/stepped) now implemented. 9/9 API endpoints live. |
-| Phase 1 | AI Worker | **~70%** | AIWorker class, types, Router integration, and API endpoints done. Streaming nodes and function calling still missing. |
+| Phase 1 | AI Worker | **~75%** | AIWorker class, types, Router integration, API endpoints, and PrimaCppProvider done. Streaming nodes and function calling still missing. |
 | Phase 2 | CAD Worker | **~55%** | CADWorker base with IPC-2221 calculations done. FreeCAD/KiCad workers declared with MCP pattern. Actual tool execution unverified. Mesh ops and toolpath are placeholders. |
 | Phase 3 | Electronics Worker | **~80%** | ElectronicsWorker dispatch wired: SPICE simulation, DRC, firmware compilation, and component library nodes implemented. |
 | Phase 4 | Hardware Runtime Worker | **~60%** | HardwareWorker class created with ESP32, MIDI, DMX, serial, and PID control nodes. Infrastructure integration in progress. |
@@ -75,7 +75,7 @@ Five repositories participate in the Universal Node Engine initiative:
 | Phase | Name | Duration (weeks) | Depends On | MVP? | Status |
 |-------|------|-------------------|------------|------|--------|
 | Phase 0 | Foundations | 4–6 | — | ✅ MVP | ✅ ~95% |
-| Phase 1 | AI Worker | 3–4 | Phase 0 | ✅ MVP | ⚠️ ~70% |
+| Phase 1 | AI Worker | 3–4 | Phase 0 | ✅ MVP | ⚠️ ~75% |
 | Phase 2 | CAD Worker | 3–5 | Phase 0 | | ⚠️ ~55% |
 | Phase 3 | Electronics Worker | 3–5 | Phase 0 | | ⚠️ ~80% |
 | Phase 4 | Hardware Runtime Worker | 4–6 | Phase 0 | | ⚠️ ~60% |
@@ -137,7 +137,7 @@ Five repositories participate in the Universal Node Engine initiative:
 
 ---
 
-### Phase 1 — AI Worker (3–4 weeks) — ~70% Complete
+### Phase 1 — AI Worker (3–4 weeks) — ~75% Complete
 
 **Objective:** Implement the AI domain worker, integrating with the existing Mascarade Router, Orchestrator, and AgentRegistry.
 
@@ -433,4 +433,4 @@ Week  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15 16 17 18 19 20
 
 *This roadmap is a living document. It will be updated as phases complete and new information emerges from implementation.*
 
-*Last audit: 2026-03-27 (evening) — updated after session completing execution modes, API endpoints, ElectronicsWorker, HardwareWorker, and cross-domain adapters.*
+*Last audit: 2026-03-27 (evening) — updated after session completing execution modes, API endpoints, ElectronicsWorker, HardwareWorker, cross-domain adapters, prima.cpp distributed inference, and 2056/0 test results.*

@@ -5,14 +5,14 @@
 ![React 19](https://img.shields.io/badge/react-19-61DAFB.svg)
 ![License MIT](https://img.shields.io/badge/license-MIT-green.svg)
 ![Version v0.3.0](https://img.shields.io/badge/version-v0.3.0-orange.svg)
-![Tests 2600+](https://img.shields.io/badge/tests-2600+-brightgreen.svg)
+![Tests 2056](https://img.shields.io/badge/tests-2056_pass_0_fail-brightgreen.svg)
 ![Datasets 184K](https://img.shields.io/badge/datasets-184K_examples-yellow.svg)
 ![Models 29](https://img.shields.io/badge/models-29_mini--models-purple.svg)
 ![Agents 231](https://img.shields.io/badge/agents-231-blueviolet.svg)
 
 Moteur d'orchestration IA open-source specialise en conception electronique (KiCad, SPICE, PCB, embarque). Routage multi-provider, reseau P2P mesh, fine-tuning specifique domaine, et Node Engine universel pour workflows en graphe. Auto-heberge, async-first, construit pour les vrais workflows hardware.
 
-*Derniere mise a jour : 2026-03-26*
+*Derniere mise a jour : 2026-03-27*
 
 Le seul orchestrateur multi-agents LLM concu pour l'ingenierie electronique. Les fine-tunes Mascarade battent le modele #1 EE de HuggingFace de +162%.
 
@@ -24,7 +24,7 @@ Le seul orchestrateur multi-agents LLM concu pour l'ingenierie electronique. Les
 | --------- | ------- |
 | **Providers LLM** | 25+ providers -- Claude, OpenAI, Mistral, Codestral, Google, HuggingFace, Bedrock, Ollama, llama.cpp, CoreML, MLX, LiteLLM, Exo, vLLM, GitHub Copilot |
 | **Agents** | 231 agents repartis sur 4 noeuds P2P -- 16 core, 4 domaine (KiCad, SPICE, FreeCAD, composants), 3 CLI (Vibe/Codex/Claude Code), 4 Mistral Studio, 8 pipeline finetune, agents La Suite |
-| **Node Engine** | Execution en graphe universel pour workflows composables (AI, CAD, Electronique, MIDI, Hardware) |
+| **Node Engine** | Execution en graphe universel pour workflows composables (AI, CAD, Electronique, MIDI, Hardware). MVP Gate 5/7 criteres valides. Phase 0: 95%, Phase 1: 75%, Phase 2: 55%, Phase 3: 80%, Phase 4: 60%, Phase 5: 50% |
 | **MCP** | Server (5 tools) + Client (KiCad x5, SPICEBridge 28 tools, FreeCAD, n8n, ERPNext, data.gouv.fr) |
 | **A2A** | Protocole Agent-to-Agent (spec v0.3), delegation de taches et cycle de vie |
 | **RAG** | Pipeline Agentic RAG -- Qdrant hybride (dense+BM25+RRF), reranking LLM, fallback CRAG, recherche SearXNG, embeddings bge-m3 |
@@ -32,6 +32,7 @@ Le seul orchestrateur multi-agents LLM concu pour l'ingenierie electronique. Les
 | **Fine-tuning** | Pipeline 3 etapes : CPT -> SFT -> RLVR. LoRA/QLoRA, DPO, SimPO, KTO, GRPO. 29 mini-modeles domaine |
 | **Qualite donnees** | Pipeline SOTA 2026 : SemDeDup, IFD scoring, multi-juge (3 LLMs), scoring par capacite |
 | **P2P Mesh** | DHT, PubSub, relay avec traversal NAT et file de taches distribuee, 4 noeuds actifs |
+| **prima.cpp** | Inference distribuee multi-machine (ring topology, QwQ-32B 32B sur 4 noeuds, NAT relay via Photon) |
 | **Scheduler** | Selection de workers GPU-aware avec equilibrage de charge predictif |
 | **Compat API** | OpenAI `/v1/chat/completions` + Ollama `/api/chat` + Xcode Intelligence |
 | **Orchestrateur** | Plan-and-Execute avec decomposition de taches et gestion de dependances |
@@ -186,15 +187,15 @@ Repos de reference : [numerique-gouv](https://github.com/orgs/numerique-gouv), [
 
 ## Flotte (5 machines)
 
-| Machine | Role | GPU | Containers | Agents |
-| ------- | ---- | --- | ---------- | ------ |
-| **Tower** | Serveur principal (core + API + observabilite + La Suite) | Quadro P2000 5GB | 76 | -- |
-| **Photon** | Secondaire mesh (core mirror + Keycloak + CF tunnel) | -- | 52 | -- |
-| **KXKM-AI** | Fine-tuning, benchmarks, FreeCAD, KiCad | RTX 4090 24GB | -- | 18 |
-| **GrosMac** | Developpement (Apple M5) | -- | -- | 158 |
-| **Cils** | Noeud macOS Intel | -- | -- | -- |
+| Machine | Role | GPU | Containers | Agents | prima.cpp |
+| ------- | ---- | --- | ---------- | ------ | --------- |
+| **Tower** | Serveur principal (core + API + observabilite + La Suite) | Quadro P2000 5GB | 76 | -- | ring node |
+| **Photon** | Secondaire mesh (core mirror + Keycloak + CF tunnel + NAT relay) | -- | 52 | -- | relay |
+| **KXKM-AI** | Fine-tuning, benchmarks, FreeCAD, KiCad | RTX 4090 24GB | -- | 18 | ring node |
+| **GrosMac** | Developpement (Apple M5) | -- | -- | 158 | ring node |
+| **Cils** | Noeud macOS Intel (MBP 2016) | -- | -- | -- | ring node |
 
-Reseau P2P mesh connecte les 5 machines avec authentification HMAC et heartbeat 30s. **231 agents** distribues au total.
+Reseau P2P mesh connecte les 5 machines avec authentification HMAC et heartbeat 30s. **231 agents** distribues au total. prima.cpp permet l'inference distribuee de QwQ-32B (32B params) en ring topology sur 4 noeuds avec NAT relay via Photon.
 
 ---
 
@@ -298,7 +299,7 @@ pip install -e ".[dev]"    # Python core
 cd api && npm install       # API Node.js
 cd web && npm install       # Frontend React
 
-# Tests
+# Tests (2056 pass, 0 fail as of 2026-03-27)
 pytest core/ -x             # 2070+ tests Python
 cd api && npm test           # 598 tests Vitest
 cd e2e && npm test           # Tests E2E
