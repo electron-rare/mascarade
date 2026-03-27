@@ -698,6 +698,7 @@ services:
       start_period: 40s
     networks:
       - backend
+      - mascarade-network
 
   edge-proxy:
     profiles:
