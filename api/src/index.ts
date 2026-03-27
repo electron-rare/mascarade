@@ -162,11 +162,9 @@ app.get("/openburo/objects/schemas/:type", (c) => {
   return c.json(schema);
 });
 
-app.get("/openburo/objects/:type", (c) => {
-  const type = c.req.param("type");
-  if (!(BUSINESS_OBJECT_SCHEMAS as any)[type]) return c.json({ error: "Unknown type" }, 404);
-  return c.json({ type, objects: [], count: 0, message: "Cross-app search available in Phase 2" });
-});
+// Phase 2: objects/:type routes handled by openburo-objects sub-app
+import { openburoObjects } from "./routes/openburo-objects.js";
+app.route("/openburo/objects", openburoObjects);
 
 
 if (hasFrontend) {
