@@ -53,7 +53,7 @@ Notes:
 - [x] Le cockpit perso est precharge et versionne via `deploy/personal-seed/*.json`.
 - [x] Les scripts `scripts/personal_stack_reconcile.sh`, `scripts/personal_stack_verify.sh` et `scripts/personal_stack_lots.sh` rejouent et verifient la wave 1 sans refaire le seed a la main.
 - [x] Les checks `Healthchecks` sont laisses sans cron placeholder tant qu'aucun job reel n'est cable.
-- [ ] Cabler les premiers jobs reels vers `mascarade-ops`, `mascarade-jobs`, `mascarade-watch` et les checks `Healthchecks`.
+- [x] Cabler les premiers jobs reels vers les checks `Healthchecks` — done 2026-03-27 : `mascarade-healthchecks` (linuxserver, DB healthchecks sur mascarade-postgres), 4 checks câblés (reconnect-api-network, e2e-tests, frappe-backup, pg-backup), exposé sur `hc.saillant.cc` via Cloudflare tunnel.
 - [x] Phase 2 (`SearXNG`, `Docling`) : services dans compose principal, prêts. `Paperless-ngx` et `Karakeep` dans `deploy/phase2/docker-compose.yml` — conditionnel.
 - [x] Brancher Whisper config dans `config.py` (`whisper_model_size`, `whisper_device`, `whisper_compute_type`) — done 2026-03-27.
 

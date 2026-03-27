@@ -4,6 +4,34 @@ Etat de reference du chantier fine-tuning/distillation local au 6 mars 2026.
 
 ## 1. Deja implemente
 
+### Healthchecks self-hosted (2026-03-27)
+- [x] `mascarade-healthchecks` (linuxserver/healthchecks) sur mascarade-postgres (DB `healthchecks`)
+- [x] Exposé sur `hc.saillant.cc` — Cloudflare tunnel + DNS CNAME + nginx edge-proxy
+- [x] 4 checks câblés : reconnect-api-network (5min), e2e-tests (6h), frappe-backup (24h), pg-backup (24h)
+- [x] Scripts ping HC start/success/fail dans reconnect-api-network.sh, run-e2e-notify.sh, pg_backup.sh, frappe-backup.sh
+- [x] pg-backup ajouté au crontab (1 0 * * *)
+
+### Node Engine — execution modes + cross-domain (2026-03-27)
+- [x] Modes d'exécution : `eager`, `lazy`, `stepped` — API endpoints complets (9/9 ROADMAP)
+- [x] 5 adaptateurs cross-domain concrets : AI↔CAD, AI↔Electronics, CAD→Electronics, Electronics→Hardware, Hardware→AI
+- [x] HardwareWorker implémenté + Electronics dispatch câblé
+- [x] 26 tests API TypeScript passent, 70 tests Python inchangés
+
+### Agentic CLI loop + VRAM metrics (2026-03-27)
+- [x] ReAct agentic loop `/agents/{name}/run-agentic` (6 tours max, parse ```tool_call``` blocks)
+- [x] `_run_cli_agent_core` partagé entre `/cli-agents/run` et la route agentique
+- [x] Gauges Prometheus P2P VRAM : `mascarade_p2p_peer_vram_gb`, `mascarade_p2p_local_vram_gb`, `mascarade_p2p_routing_vram_skips_total`
+- [x] Re-announce heartbeat inclut gpu_vram_gb/chip_family/ram_gb
+- [x] Lazy env resolution dans servers_registry.py (`"env:VAR_NAME|default"`)
+
+### RAG — Cross-encoder reranking + Contextual Retrieval (2026-03-27)
+- [x] `rag/reranker.py` : CrossEncoderReranker (BAAI/bge-reranker-v2-m3), lazy load, thread executor
+- [x] Fallback LLM scoring si sentence-transformers absent — zéro régression
+- [x] `[reranker]` optional extra dans pyproject.toml
+- [x] Config : `rag_reranker_enabled` (défaut True), `rag_reranker_model`
+- [x] Contextual Retrieval (pattern Anthropic, -49% failed retrievals) : `pipeline.ingest(contextual_retrieval=True)`
+- [x] `_add_contextual_preambles()` : LLM génère un contexte bref par chunk avant embedding
+
 ### La Suite Numérique (2026-03-26)
 - [x] Stack déployée : conversations (:8082), impress/docs (:8073), keycloak (:8085)
 - [x] S3 consolidé sur `mascarade-langfuse-minio` — buckets `conversations-media-storage` + `impress-media-storage`
