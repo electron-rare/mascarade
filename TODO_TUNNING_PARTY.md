@@ -274,9 +274,13 @@ Politique active de stabilisation machine:
 - [ ] Phase B: rejection sampling (apres Phase A)
   - prerequis: `gcc-arm-none-eabi`, `ngspice` installes
   - domaines prioritaires: stm32, embedded, spice, kicad, platformio (validateurs deterministes)
+  - script: `finetune/batch_phase_b.sh` (prêt 2026-03-27)
 - [ ] Phase C: DPO training (apres Phase B)
-  - methode recommandee: DPO pour Qwen3.5-9B (ORPO pour <3B)
+  - methode: ORPO (pas de reference model, économise ~3GB VRAM pour Qwen2.5-3B)
+  - script: `finetune/batch_phase_c.sh` (prêt 2026-03-27)
 - [ ] Phase D: publication HF adapters sous `clemsail/mascarade-*-lora`
+  - script: `finetune/batch_phase_d.sh` (prêt 2026-03-27)
+  - chaîne complète: `finetune/batch_phases_bcd.sh`
 - [ ] Approuver ou rejeter explicitement `mascarade-components-review` apres revue humaine
 - [ ] Benchmarker candidats veille web: Qwen3-Coder-Next-Base, Mellum-4b, DeepSeek-V3.2
   - boucle live deja lancee pour `JetBrains/Mellum-4b-sft-all`
