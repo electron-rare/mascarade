@@ -4,6 +4,21 @@ Etat de reference du chantier fine-tuning/distillation local au 6 mars 2026.
 
 ## 1. Deja implemente
 
+### RAG — Chunker + URL/file ingestion + Grafana P2P (2026-03-27)
+- [x] `rag/chunker.py` : `chunk_text()` / `chunk_document()` — split paragraphe→phrase, merge, overlap, zero deps
+- [x] Config : `rag_chunk_size=512`, `rag_chunk_overlap=50`
+- [x] `POST /v1/api/rag/ingest` : flag `chunk=true` auto-découpe les docs avant embedding
+- [x] `POST /v1/api/rag/ingest/url` : Docling fetch+parse+chunk+embed (PDF, DOCX, HTML…)
+- [x] `POST /v1/api/rag/ingest/upload` : Docling upload+chunk+embed, limit 50 MB
+- [x] `deploy/grafana/mascarade-p2p-mesh.json` : dashboard Grafana VRAM gauges, routing skips, mesh peers
+- [x] `deploy/edge-proxy` : `cours.saillant.cc` — portail formation avec redirections LMS + Moodle
+
+### CAD Cockpit — crazy_life /cad (2026-03-27)
+- [x] Page `/cad` dans crazy_life : status FreeCAD + OpenSCAD runtime, probe KiCad MCP
+- [x] Smoke test parallèle (bouton "run smoke test") → tous runtimes en un clic
+- [x] Stack reference card (docker profile, MCP port/transport, cad_stack.sh)
+- [x] Nav entry Integrations (◈ CAD Stack), route lazy dans App.tsx
+
 ### Healthchecks self-hosted (2026-03-27)
 - [x] `mascarade-healthchecks` (linuxserver/healthchecks) sur mascarade-postgres (DB `healthchecks`)
 - [x] Exposé sur `hc.saillant.cc` — Cloudflare tunnel + DNS CNAME + nginx edge-proxy
