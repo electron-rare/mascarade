@@ -32,6 +32,25 @@ Etat de reference du chantier fine-tuning/distillation local au 6 mars 2026.
 - [x] Contextual Retrieval (pattern Anthropic, -49% failed retrievals) : `pipeline.ingest(contextual_retrieval=True)`
 - [x] `_add_contextual_preambles()` : LLM génère un contexte bref par chunk avant embedding
 
+### RAG — Semantic cache + BGE-M3 + Eval (2026-03-27)
+- [x] `rag/query_cache.py` : `RAGQueryCache` — Qdrant collection `rag-query-cache` + Redis TTL, seuil cosine 0.92
+- [x] Embedding réutilisé sur cache miss (évite double `embed_query`)
+- [x] `rag/embeddings.py` : `_embed_ollama()` — BGE-M3 via `{ollama_base_url}/api/embed`, timeout 60s
+- [x] Dimensions : bge-m3 → 1024, nomic-embed-text → 768 dans `_MODEL_DIMENSIONS`
+- [x] Routing explicite par provider (`ollama`/`openai`/`mistral`) + fallback chain auto
+- [x] Config : `rag_embedding_provider`, `rag_embedding_model`, `rag_cache_enabled`, `rag_cache_similarity_threshold`, `rag_cache_ttl`
+- [x] `rag/eval.py` : `RAGEvaluator` — 5 métriques RAGAS (faithfulness, answer_relevance, context_precision, context_recall, hallucination_rate)
+- [x] LLM judges 4 appels concurrents par item + parse float dans la réponse
+- [x] `POST /v1/api/rag/eval` — endpoint FastAPI avec golden dataset et `run_pipeline=True`
+- [x] Seuils production : Faithfulness ≥0.85, Answer Relevance ≥0.75, Context Precision ≥0.70, Context Recall ≥0.75, Hallucination <5%
+
+### Fine-tuning — Phase B/C/D scripts (2026-03-27)
+- [x] `finetune/batch_phase_b.sh` : rejection sampling 10 domaines, N_CANDIDATES=8, output `dpo_pairs/{domain}/`
+- [x] `finetune/batch_phase_c.sh` : ORPO training (pas de reference model, −3GB VRAM), détecte dernier adapteur Phase A
+- [x] `finetune/batch_phase_d.sh` : merge → GGUF → Ollama + HF upload `clemsail/mascarade-{domain}-lora` avec model card
+- [x] `finetune/batch_phases_bcd.sh` : chaîne B→C→D, option `--skip-phase-d`
+- [x] `TODO_TUNNING_PARTY.md` mis à jour avec références scripts
+
 ### La Suite Numérique (2026-03-26)
 - [x] Stack déployée : conversations (:8082), impress/docs (:8073), keycloak (:8085)
 - [x] S3 consolidé sur `mascarade-langfuse-minio` — buckets `conversations-media-storage` + `impress-media-storage`

@@ -5,6 +5,34 @@ All notable changes to the Mascarade API will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased] - 2026-03-27
+
+### Added
+- **RAG P0 — Cross-encoder reranking** (`rag/reranker.py`): `CrossEncoderReranker` wraps BAAI/bge-reranker-v2-m3 via sentence-transformers; lazy-loaded, runs in `ThreadPoolExecutor` (non-blocking). Falls back silently to LLM comma-score ranking if sentence-transformers is not installed. Optional dep: `pip install mascarade-core[reranker]`.
+- **RAG P0 — Contextual Retrieval** (Anthropic pattern, −49% failed retrievals): `pipeline.ingest(contextual_retrieval=True)` generates a 1-2 sentence LLM preamble per chunk before embedding. Uses `rag_contextual_retrieval_model` (default: claude-haiku-4-5-20251001). Added `_add_contextual_preambles()` to `RAGPipeline`.
+- **RAG P1 — Semantic query cache** (`rag/query_cache.py`): `RAGQueryCache` stores query embeddings in a dedicated Qdrant collection (`rag-query-cache`) and results in Redis with configurable TTL. Cache hits skip embed+retrieve+generate, returning in < 5ms.
+- **RAG P1 — BGE-M3 Ollama embedding**: `EmbeddingProvider` now supports `settings.rag_embedding_provider = "ollama"` with `rag_embedding_model = "bge-m3:latest"` (1024-dim, MTEB 63.0). Added `_embed_ollama()` backend with 60s timeout for cold model load.
+- **RAG P1 — RAGAS evaluation pipeline** (`rag/eval.py`, `POST /v1/api/rag/eval`): `RAGEvaluator` computes 5 LLM-judge metrics (Faithfulness ≥0.85, Answer Relevance ≥0.75, Context Precision ≥0.70, Context Recall ≥0.75, Hallucination Rate <5%). Supports golden datasets with optional pipeline fill for missing answers/contexts.
+- **Fine-tuning Phase B script** (`finetune/batch_phase_b.sh`): rejection sampling across 10 domains (stm32, embedded, spice, kicad, platformio, iot, dsp, emc, power, freecad), 8 candidates per prompt, outputs `dpo_pairs/{domain}/dpo_{domain}_{stamp}.jsonl`.
+- **Fine-tuning Phase C script** (`finetune/batch_phase_c.sh`): ORPO training (no reference model, −3GB VRAM on Qwen2.5-Coder-3B), auto-detects latest Phase A SFT adapter and latest DPO pairs file per domain.
+- **Fine-tuning Phase D script** (`finetune/batch_phase_d.sh`): merge → GGUF → Ollama deploy + HF upload to `clemsail/mascarade-{domain}-lora` with auto-generated model card.
+- **Fine-tuning Phase B→C→D chain** (`finetune/batch_phases_bcd.sh`): sequential chaining with `--skip-phase-d` option.
+- **Agentic CLI loop** (`server_protected.py`): `POST /agents/{name}/run-agentic` — ReAct loop (max 6 iterations), parses ` ```tool_call``` ` blocks, dispatches to Kill_LIFE CLI tools via `_run_cli_agent_core` (shared with `/cli-agents/run`).
+- **P2P VRAM Prometheus metrics** (`p2p/metrics.py`): gauges `mascarade_p2p_peer_vram_gb` (labels: peer_id, chip_family), `mascarade_p2p_local_vram_gb` (label: chip_family), counter `mascarade_p2p_routing_vram_skips_total`. Heartbeat re-announce now includes `gpu_vram_gb`, `chip_family`, `ram_gb`.
+- **Prometheus P2P alert rules** (`deploy/prometheus/alerts/p2p.yml`): `MascaradeP2PPeerDown`, `MascaradeP2PMeshTooSmall` (<3 peers), `MascaradeGPUNodeDown` (kxkm-ai, critical), `MascaradeCoreDown`, `MascaradeCoreHighMemory` (>2GB RSS).
+- **Lazy MCP env resolution** (`mcp/servers_registry.py`): `"env:VAR_NAME|default"` pattern resolved at call time via `get_server_config()`.
+- **Healthchecks self-hosted** (`deploy/healthchecks.yml`): linuxserver/healthchecks on mascarade-postgres, exposed at `hc.saillant.cc`.
+- **Edge proxy vhosts** (`deploy/edge-proxy/default.conf.template`): Frappe LMS, Moodle, and oidc2fer SATOSA gateway with HTTP+HTTPS blocks and WebSocket support.
+- **RAG config settings** (`config.py`): `rag_reranker_enabled`, `rag_reranker_model`, `rag_contextual_retrieval_enabled`, `rag_contextual_retrieval_model`, `rag_cache_enabled`, `rag_cache_similarity_threshold`, `rag_cache_ttl`, `rag_embedding_provider`, `rag_embedding_model`.
+- **Whisper config** (`config.py`): `whisper_model_size`, `whisper_device`, `whisper_compute_type`.
+
+### Fixed
+- ruff B904: all `raise HTTPException` inside `except` clauses in `server_protected.py` now use `from exc`.
+- `docker-compose.graphiti.yml`: bind `${GRAPHITI_BIND_HOST:-127.0.0.1}` (was `0.0.0.0`); NEO4J_AUTH/NEO4J_PASSWORD now use required env vars.
+- Loki retention reduced to 7d (was 30d).
+
+---
+
 ## API Version 1.0.0 - Initial Release
 
 ### Overview

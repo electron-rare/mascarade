@@ -1,6 +1,6 @@
 # Mascarade Feature Map
 
-> Last updated: 2026-03-25
+> Last updated: 2026-03-27
 
 ## Legend
 
@@ -263,7 +263,22 @@
 |---------|--------|----------|--------------|-------|
 | Agentic RAG engine | done | P1 | Qdrant | Retrieval-augmented generation |
 | Document retriever | done | P1 | — | Multi-source retrieval |
-| Reranker | done | P2 | — | Result reranking |
+| Hybrid search (dense + BM25 + RRF) | done | P1 | Qdrant | |
+| Cross-encoder reranking | done | P0 | sentence-transformers | BAAI/bge-reranker-v2-m3, +10-30% precision |
+| LLM reranker fallback | done | P1 | — | When sentence-transformers absent |
+| Contextual Retrieval | done | P0 | LLM (haiku) | −49% failed retrievals (Anthropic pattern) |
+| Semantic query cache | done | P1 | Qdrant + Redis | Cosine sim threshold 0.92, TTL-based |
+| BGE-M3 Ollama embedding | done | P1 | Ollama | 1024-dim, MTEB 63.0 |
+| Multi-provider embedding | done | P1 | — | OpenAI / Mistral / HuggingFace / Ollama / fastembed |
+| CRAG web fallback | done | P1 | SearXNG | Low-confidence → web search |
+| Intent classification | done | P1 | LLM | rag / web / general routing |
+| RAGAS eval pipeline | done | P1 | LLM judges | 5 metrics, POST /v1/api/rag/eval |
+| RAG ingest API | done | P1 | — | POST /v1/api/rag/ingest |
+| RAG search API | done | P1 | — | POST /v1/api/rag/search |
+| RAG query API | done | P1 | — | POST /v1/api/rag/query |
+| LightRAG (large corpus) | planned | P2 | — | >1k docs |
+| ColPali (visual PDFs) | planned | P2 | — | Datasheets / schematics |
+| KiCad ingestion pipeline | planned | P2 | Kill_LIFE | PCB docs → RAG |
 
 ## 14. Cowork OTel
 
@@ -301,7 +316,7 @@
 | Infrastructure | 17 | 0 | 0 | 17 |
 | Auth / Security | 7 | 0 | 0 | 7 |
 | Apple Intelligence | 4 | 0 | 3 | 7 |
-| Agentic RAG | 3 | 0 | 0 | 3 |
+| Agentic RAG | 15 | 0 | 3 | 18 |
 | Cowork OTel | 1 | 0 | 0 | 1 |
 | Ecosystem | 4 | 2 | 0 | 6 |
-| **Total** | **150** | **5** | **4** | **159** |
+| **Total** | **162** | **5** | **7** | **174** |
