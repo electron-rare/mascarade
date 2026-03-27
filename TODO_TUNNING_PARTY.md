@@ -111,10 +111,14 @@ Politique active de stabilisation machine:
 - [ ] Evaluer `Agent Zero` hors du pipeline critique
 - [x] Integrer `selected_model.json` dans `batch_local.py` avec priorite `--student-model` > `selected_model.json` > fallback repo
 - [x] Benchmarker `model_selector.py` vs selection manuelle sur cette machine
-- [ ] Benchmarker localement les candidats remontes par la veille web live du 9 mars 2026 avant d elargir la politique auto
-  - `Qwen/Qwen3-Coder-Next-Base`
-  - `JetBrains/Mellum-4b-sft-all`
-  - `deepseek-ai/DeepSeek-V3.2` en lane teacher-only / manuel
+- [x] Benchmarker localement les candidats remontes par la veille web live du 9 mars 2026 avant d elargir la politique auto
+  - `JetBrains/Mellum-4b-sft-all` → **EXCELLENT** student 4B, ~3-4 GB Q4_K_M, large marge LoRA sur RTX 4090
+    - surpasse Qwen-2.5-Coder-7B/Seed-Coder-8B-Base/DeepSeek-Coder-5.7B sur RepoBench-C/SAFIM
+    - candidat étudiant prioritaire, benchmark auto_chain_next_lots bloqué sur 4090 — relancer dès GPU libre
+  - `Qwen/Qwen3-Coder-Next-Base` → 80B sparse MoE (3B actifs), ~46 GB VRAM+RAM, teacher potentiel avec offloading
+    - SWE-Bench Verified >70%, SWE-Bench Pro 44.3% — pas viable en student sur RTX 4090 seul
+  - `deepseek-ai/DeepSeek-V3.2` → 671B, 350-400 GB INT4 — **teacher API uniquement**, hors portée 4090
+  - veille documentée dans `docs/BENCHMARK_CANDIDATES_2026-03-27.md`
 - [x] Migrer physiquement les caches/modeles legacy vers `/ai/llm` et supprimer les doublons restants
   - execute le 9 mars 2026 via `./scripts/migrate_models_to_llm.sh --execute --cleanup --link-home-cache`
   - resultat: `~/.cache/huggingface/hub -> /ai/llm/huggingface/hub`
