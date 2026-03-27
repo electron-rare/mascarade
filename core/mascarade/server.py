@@ -138,6 +138,11 @@ from mascarade.routers.eval import router as eval_router
 
 app.include_router(eval_router)
 
+# Node Engine — graph CRUD, execution, catalog
+from mascarade.routers.node_engine import router as node_engine_router
+
+app.include_router(node_engine_router)
+
 # Mount Ollama-compatible API (fake Ollama backed by Mascarade Router + P2P)
 mount_ollama_compat(app)
 
