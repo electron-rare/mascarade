@@ -43,6 +43,13 @@
 - **Chunker**: `chunk_text()`/`chunk_document()` (`rag/chunker.py`) — paragraph→sentence split, merge to `rag_chunk_size` tokens, `rag_chunk_overlap` overlap. No external deps.
 - **Ingest endpoints**: `POST /ingest` now accepts `chunk=true`; `POST /ingest/url` and `POST /ingest/upload` call Docling (requires `DOCLING_URL`), chunk and embed. Returns 503 with clear message if Docling is not configured.
 
+## prima.cpp — Distributed Inference (implemented 2026-03-27)
+- Built on 4 machines (Tower, KXKM-AI, GrosMac, Cils) in ring topology
+- Model: QwQ-32B (32B params) distributed across nodes
+- NAT relay via Photon for cross-network connectivity
+- `PrimaCppProvider` in router dispatches to prima.cpp ring
+- Ring launch script orchestrates multi-machine startup
+
 ## P2P hardware-aware mesh (implemented 2026-03-26)
 - Each node advertises GPU VRAM, chip family and RAM via `PeerCapabilities` (p2p/capabilities.py)
 - Hardware profile is detected at startup via `detect_machine_profile()` and injected into `NodeIdentity`
