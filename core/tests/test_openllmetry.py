@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import importlib
+import os
 import sys
 from unittest.mock import MagicMock, patch
 
@@ -101,12 +102,15 @@ class TestConfigPropagation:
         mock_sdk = MagicMock()
         mock_sdk.Traceloop = mock_traceloop
 
+        # Remove any OTEL env vars leaked from prior tests
+        otel_keys = [k for k in os.environ if k.startswith("OTEL_")]
+        saved = {k: os.environ.pop(k) for k in otel_keys}
+
         with (
             patch.dict(
                 sys.modules,
                 {"traceloop": MagicMock(), "traceloop.sdk": mock_sdk},
             ),
-            patch.dict("os.environ", {}, clear=False),
         ):
             mod = _reload_module()
             mock_settings = MagicMock()
@@ -117,12 +121,15 @@ class TestConfigPropagation:
             mod.settings = mock_settings
             mod.init_openllmetry()
 
-            import os
-
             assert os.environ.get("OTEL_EXPORTER_OTLP_ENDPOINT") == "http://collector:4318"
             assert os.environ.get("OTEL_SERVICE_NAME") == "mascarade-core"
             assert os.environ.get("OTEL_RESOURCE_ATTRIBUTES") == "team.id=core"
             assert os.environ.get("OTEL_EXPORTER_OTLP_HEADERS") == "Authorization=Bearer tok"
+
+        # Restore saved env vars
+        for k in [k for k in os.environ if k.startswith("OTEL_")]:
+            os.environ.pop(k, None)
+        os.environ.update(saved)
 
     def test_does_not_overwrite_existing_env(self):
         mock_traceloop = MagicMock()
