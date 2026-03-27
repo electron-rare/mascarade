@@ -84,6 +84,14 @@ _KNOWN_GB: dict[str, float] = {
     "tinyllama:latest": 0.7,
     "legraphista/Orpheus:3b-ft-q4_k_m": 2.4,
     "fixt/home-3b-v3:latest": 1.9,
+    # ── Large distributed models (prima.cpp ring cluster) ──────────────
+    "llama3-70b-q4_k_m": 40.0,
+    "llama3.1-70b-q4_k_m": 40.0,
+    "llama3-70b-q6_k": 54.0,
+    "qwq-32b-q4_k_m": 20.0,
+    "qwen2.5-72b-q4_k_m": 42.0,
+    "deepseek-r1-70b-q4_k_m": 40.0,
+    "deepseek-v3-671b-iq1_s": 130.0,
 }
 
 # Rough rule: Q4 quantisation ≈ 0.6 GB per billion params (with context overhead)
