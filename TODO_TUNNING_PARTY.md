@@ -272,7 +272,7 @@ Politique active de stabilisation machine:
 - [x] Exemple de preuve continue: `finetune/runs/auto-next-lots_20260309_071721_cycle_1/manifest.json`, `...071741_cycle_2/manifest.json`, `...071801_cycle_3/manifest.json`.
 - [ ] Phase A: attendre completion (~22h)
 - [ ] Phase B: rejection sampling (apres Phase A)
-  - prerequis: `gcc-arm-none-eabi`, `ngspice` installes
+  - prerequis: `gcc-arm-none-eabi` ✅ (15.2.0), `ngspice` ✅ (installs 2026-03-27)
   - domaines prioritaires: stm32, embedded, spice, kicad, platformio (validateurs deterministes)
   - script: `finetune/batch_phase_b.sh` (prêt 2026-03-27)
 - [ ] Phase C: DPO training (apres Phase B)
