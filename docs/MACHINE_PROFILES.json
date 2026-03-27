@@ -1,45 +1,24 @@
 {
   "machines": {
     "photon-machine": {
-      "aliases": [
-        "photon-machine"
-      ],
+      "aliases": ["photon-machine", "vm"],
+      "host": "192.168.0.119",
+      "tailscale": "100.112.162.122",
+      "ssh": "cils@192.168.0.119",
+      "specs": {"cpu": 4, "ram_gb": 6.8, "gpu": null},
+      "role": "mesh-secondary",
       "capabilities": [
         "docker-runtime",
-        "lan-ops",
-        "dify-machine",
-        "observability-local"
-      ]
-    },
-    "net-runner": {
-      "aliases": [
-        "net-runner"
-      ],
-      "capabilities": [
-        "network-online"
-      ]
-    },
-    "kicad-runner": {
-      "aliases": [
-        "kicad-runner"
-      ],
-      "capabilities": [
-        "kicad-host"
-      ]
-    },
-    "nexar-runner": {
-      "aliases": [
-        "nexar-runner"
-      ],
-      "capabilities": [
-        "nexar-live"
+        "p2p-mesh",
+        "lan-tailscale-bridge"
       ]
     },
     "tower": {
-      "aliases": [
-        "tower",
-        "Tower"
-      ],
+      "aliases": ["tower", "Tower"],
+      "host": "192.168.0.120",
+      "ssh": "clems@tower",
+      "specs": {"cpu": 12, "ram_gb": 32, "gpu": "Quadro P2000 5GB"},
+      "role": "primary-server",
       "capabilities": [
         "docker-runtime",
         "gpu-inference",
@@ -48,28 +27,66 @@
         "observability-local",
         "knowledge-base",
         "fine-tuning",
-        "la-suite-numerique"
+        "la-suite-numerique",
+        "p2p-mesh"
+      ]
+    },
+    "mac-cils": {
+      "aliases": ["macbook-pro-de-cils", "CILS", "MBP-de-CILS"],
+      "host": "192.168.0.210",
+      "tailscale": "100.126.225.111",
+      "specs": {"cpu": 4, "ram_gb": 16, "gpu": "Intel HD 530"},
+      "role": "development",
+      "capabilities": [
+        "development",
+        "ollama-small-models",
+        "zacos-airplay",
+        "p2p-mesh",
+        "lan-tailscale-bridge"
       ]
     },
     "kxkm-ai": {
-      "aliases": [
-        "kxkm-ai",
-        "KXKM-AI"
-      ],
+      "aliases": ["kxkm-ai", "KXKM-AI"],
+      "tailscale": "100.87.54.119",
+      "ssh": "kxkm@kxkm-ai",
+      "specs": {"cpu": null, "ram_gb": null, "gpu": "NVIDIA RTX 4090 24GB"},
+      "role": "gpu-compute",
       "capabilities": [
         "gpu-inference",
+        "gpu-heavy",
         "fine-tuning",
-        "gpu-heavy"
+        "ollama-large-models"
       ]
     },
     "grosmac": {
-      "aliases": [
-        "grosmac",
-        "GrosMac"
-      ],
+      "aliases": ["grosmac", "GrosMac", "clments-macbook-pro"],
+      "tailscale": "100.80.178.42",
+      "ssh": "cils@100.80.178.42",
+      "specs": {"cpu": null, "ram_gb": null, "gpu": null},
+      "role": "to-discover",
       "capabilities": [
         "docker-runtime"
       ]
+    },
+    "kxkm-dev": {
+      "aliases": ["kxkm-dev"],
+      "tailscale": "100.76.216.76",
+      "role": "kxkm-development",
+      "capabilities": []
+    },
+    "kxkm-prod": {
+      "aliases": ["kxkm-prod"],
+      "tailscale": "100.97.104.65",
+      "role": "kxkm-production",
+      "capabilities": []
     }
+  },
+  "mesh": {
+    "transport": ["mdns-zeroconf", "tailscale"],
+    "service_type": "_mascarade._tcp.local.",
+    "routing": "vram-aware",
+    "bridges": ["mac-cils", "photon-machine"],
+    "primary": "tower",
+    "core_instances": ["tower", "photon-machine", "mac-cils"]
   }
 }
