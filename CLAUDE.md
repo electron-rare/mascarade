@@ -26,6 +26,15 @@
 - Router dispatches to providers based on strategy (cheapest/fastest/best/specific)
 - Knowledge-base / CAD surfaces replace the old Notion-first operator path; remaining Notion code is legacy compatibility only
 
+## RAG pipeline (implemented 2026-03-27)
+- Entry points: `POST /v1/api/rag/query`, `/ingest`, `/search`, `/eval`
+- `RAGPipeline` in `rag/pipeline.py` orchestrates: intent classify → embed → hybrid_search → rerank → generate
+- **Embeddings**: `EmbeddingProvider` (`rag/embeddings.py`) — provider auto-fallback chain (OpenAI → Mistral → HuggingFace → Ollama → Qdrant fastembed). Override: `settings.rag_embedding_provider = "ollama"` + `rag_embedding_model = "bge-m3:latest"` for local 1024-dim BGE-M3.
+- **Reranking**: `CrossEncoderReranker` (`rag/reranker.py`) — lazy-loads BAAI/bge-reranker-v2-m3 in a `ThreadPoolExecutor`; falls back to LLM comma-score ranking. Needs `pip install mascarade-core[reranker]`. Toggle: `settings.rag_reranker_enabled`.
+- **Contextual Retrieval**: enable with `pipeline.ingest(contextual_retrieval=True)` or `settings.rag_contextual_retrieval_enabled = True`. LLM preamble per chunk using `settings.rag_contextual_retrieval_model` (default haiku). −49% failed retrievals.
+- **Semantic cache**: `RAGQueryCache` (`rag/query_cache.py`) — Qdrant collection `rag-query-cache` (cosine threshold 0.92) + Redis (TTL 3600s). Enable with `settings.rag_cache_enabled = True`.
+- **Eval**: `RAGEvaluator` (`rag/eval.py`) — 5 RAGAS-compatible metrics via LLM judges. Production thresholds in `THRESHOLDS` dict. Accepts golden datasets; `run_pipeline=True` fills missing answers/contexts.
+
 ## P2P hardware-aware mesh (implemented 2026-03-26)
 - Each node advertises GPU VRAM, chip family and RAM via `PeerCapabilities` (p2p/capabilities.py)
 - Hardware profile is detected at startup via `detect_machine_profile()` and injected into `NodeIdentity`
