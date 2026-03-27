@@ -12,6 +12,9 @@ COPY --chown=appuser:appuser core/ /app/
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir .
 
+# Create core/mascarade symlink so Kill_LIFE MCP scripts can resolve MASCARADE_DIR
+RUN ln -s /app /app/core
+
 USER appuser
 
 EXPOSE 8100

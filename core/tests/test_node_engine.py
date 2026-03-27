@@ -391,3 +391,76 @@ class TestPersistenceRoundTrip:
         serializer = GraphSerializer()
         with pytest.raises(ValueError, match="graph"):
             serializer.deserialize({"version": CURRENT_SCHEMA_VERSION, "schema": SCHEMA_NAME})
+
+
+# ---------------------------------------------------------------------------
+# 7. AIWorker streaming support
+# ---------------------------------------------------------------------------
+
+
+class TestAIWorkerStreaming:
+    """Verify AIWorker exposes execute_stream and returns an async generator."""
+
+    def test_ai_worker_has_execute_stream(self):
+        from mascarade.node_engine.workers.ai.worker import AIWorker
+
+        assert hasattr(AIWorker, "execute_stream")
+        assert callable(getattr(AIWorker, "execute_stream"))
+
+    @pytest.mark.asyncio
+    async def test_execute_stream_returns_async_generator(self):
+        """execute_stream should return an async generator that yields chunks."""
+        from unittest.mock import AsyncMock, MagicMock
+
+        from mascarade.node_engine.workers.ai.worker import AIWorker
+
+        # Build a mock router whose stream() is an async generator
+        mock_router = MagicMock()
+
+        async def _fake_stream(*args, **kwargs):
+            for token in ["Hello", " ", "world"]:
+                yield token
+
+        mock_router.stream = _fake_stream
+
+        mock_registry = MagicMock()
+
+        worker = AIWorker(router=mock_router, registry=mock_registry)
+
+        gen = worker.execute_stream(
+            node_type="ai.llm-inference",
+            inputs={"prompt": "Hi"},
+            config={},
+            context=None,
+        )
+
+        # Verify it is an async generator
+        assert hasattr(gen, "__aiter__")
+        assert hasattr(gen, "__anext__")
+
+        chunks = []
+        async for chunk in gen:
+            chunks.append(chunk)
+
+        # Should have 3 delta chunks + 1 final chunk
+        assert len(chunks) == 4
+        assert chunks[0] == {"delta": "Hello", "done": False}
+        assert chunks[1] == {"delta": " ", "done": False}
+        assert chunks[2] == {"delta": "world", "done": False}
+        assert chunks[3]["done"] is True
+        assert chunks[3]["content"] == "Hello world"
+
+    def test_base_worker_execute_stream_raises(self):
+        """NodeWorker.execute_stream should raise NotImplementedError by default."""
+        from mascarade.node_engine.worker import NodeWorker
+
+        assert hasattr(NodeWorker, "execute_stream")
+
+    def test_ai_worker_capabilities_declares_streaming(self):
+        from unittest.mock import MagicMock
+
+        from mascarade.node_engine.workers.ai.worker import AIWorker
+
+        worker = AIWorker(router=MagicMock(), registry=MagicMock())
+        caps = worker.capabilities()
+        assert caps["supports_streaming"] is True

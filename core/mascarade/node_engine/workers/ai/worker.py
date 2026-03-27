@@ -7,6 +7,7 @@ Implements the NodeWorker interface for AI domain operations.
 from __future__ import annotations
 
 import logging
+from collections.abc import AsyncIterator
 from typing import TYPE_CHECKING, Any
 
 from mascarade.node_engine.worker import NodeWorker
@@ -129,6 +130,80 @@ class AIWorker(NodeWorker):
             return self._router_select(inputs, config)
         else:
             raise ValueError(f"Unsupported node type: {node_type}")
+
+    async def execute_stream(
+        self,
+        node_type: str,
+        inputs: dict[str, Any],
+        config: dict[str, Any],
+        context: Any,
+    ) -> AsyncIterator[dict[str, Any]]:
+        """Execute an AI node with streaming output.
+
+        Yields partial result chunks as they arrive from the LLM provider.
+        Currently supports:
+        - ai.llm-inference: Streams token chunks via Router.stream()
+        - ai.llm-stream: Same streaming behaviour (alias)
+
+        For unsupported node types, falls back to a single-chunk yield of
+        the full execute() result.
+
+        Args:
+            node_type: Fully qualified node type (e.g., "ai.llm-inference")
+            inputs: Dictionary of input port values
+            config: Node configuration
+            context: Execution context for the current graph run
+
+        Yields:
+            Dictionaries with partial output. For LLM streaming each chunk
+            contains ``{"delta": str, "done": bool}``. The final chunk has
+            ``done=True`` and includes the accumulated ``content``.
+        """
+        logger.debug("execute_stream node_type=%s", node_type)
+
+        if node_type in ("ai.llm-inference", "ai.llm-stream"):
+            # Extract parameters (same logic as _execute_llm_inference)
+            prompt = inputs["prompt"]
+            system = inputs.get("system")
+            model = config.get("model")
+            provider = config.get("provider")
+            temperature = config.get("temperature", 0.7)
+            max_tokens = config.get("max_tokens", 4096)
+            strategy = config.get("strategy", "best")
+            routing_policy = config.get("routing_policy")
+            domain = config.get("domain")
+            project_id = config.get("project_id") or inputs.get("project_id")
+            federation_scope = config.get("federation_scope") or inputs.get("federation_scope")
+            knowledge_scope = config.get("knowledge_scope") or inputs.get(
+                "knowledge_scope", "project"
+            )
+
+            messages = [{"role": "user", "content": prompt}]
+
+            accumulated = ""
+            async for token in self.router.stream(
+                messages,
+                strategy=strategy,
+                routing_policy=routing_policy,
+                provider=provider,
+                model=model,
+                system=system,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                domain=domain,
+                project_id=project_id,
+                federation_scope=federation_scope,
+                knowledge_scope=knowledge_scope,
+            ):
+                accumulated += token
+                yield {"delta": token, "done": False}
+
+            # Final chunk with full content
+            yield {"delta": "", "done": True, "content": accumulated}
+        else:
+            # Fallback: run execute() and yield the full result as a single chunk
+            result = await self.execute(node_type, inputs, config, context)
+            yield result
 
     async def validate(
         self,
