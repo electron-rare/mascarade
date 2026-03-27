@@ -16,11 +16,21 @@ from __future__ import annotations
 
 import re
 
-# Chars per token — rough estimate, avoids tokenizer dependency
-_CHARS_PER_TOKEN = 4
+# Sentence split pattern — handles Latin and CJK sentence endings
+_SENTENCE_RE = re.compile(r"(?<=[.!?…。！？])\s*")
 
-# Sentence split pattern
-_SENTENCE_RE = re.compile(r"(?<=[.!?…])\s+")
+
+def _chars_per_token(text: str) -> float:
+    """Estimate chars/token ratio.  CJK scripts average ~1.5 chars/token vs ~4 for Latin."""
+    if not text:
+        return 4.0
+    # Sample first 500 chars to detect script
+    sample = text[:500]
+    cjk_count = sum(1 for c in sample if "\u4e00" <= c <= "\u9fff" or "\u3040" <= c <= "\u30ff" or "\uac00" <= c <= "\ud7af")
+    cjk_ratio = cjk_count / max(len(sample), 1)
+    if cjk_ratio > 0.3:
+        return 1.5  # CJK-heavy text
+    return 4.0  # Latin/code
 
 
 def chunk_text(
@@ -43,9 +53,10 @@ def chunk_text(
     if not text or not text.strip():
         return []
 
-    max_chars = chunk_size * _CHARS_PER_TOKEN
-    overlap_chars = chunk_overlap * _CHARS_PER_TOKEN
-    min_chars = min_chunk_size * _CHARS_PER_TOKEN
+    cpt = _chars_per_token(text)
+    max_chars = int(chunk_size * cpt)
+    overlap_chars = int(chunk_overlap * cpt)
+    min_chars = int(min_chunk_size * cpt)
 
     # Step 1: split on paragraphs
     paragraphs = [p.strip() for p in re.split(r"\n\s*\n", text) if p.strip()]

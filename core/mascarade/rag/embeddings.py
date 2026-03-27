@@ -71,6 +71,16 @@ class EmbeddingProvider:
         if not texts:
             return []
 
+        # Batch large inputs to avoid API limits (most providers cap at ~100-2048 texts)
+        _BATCH_SIZE = 96
+        if len(texts) > _BATCH_SIZE:
+            all_embeddings: list[list[float]] = []
+            for i in range(0, len(texts), _BATCH_SIZE):
+                batch = texts[i : i + _BATCH_SIZE]
+                batch_result = await self.embed(batch, model=model)
+                all_embeddings.extend(batch_result)
+            return all_embeddings
+
         # Resolve model from config if not explicitly passed
         _model = model or settings.rag_embedding_model or "text-embedding-3-small"
         _provider = (
