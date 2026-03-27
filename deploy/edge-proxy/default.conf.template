@@ -1463,7 +1463,19 @@ server {
 server {
     listen 80;
     server_name ${EDGE_PROXY_COURS_SERVER_NAME};
-    return 301 https://$host$request_uri;
+
+    location = /lms {
+        return 302 https://lms.saillant.cc;
+    }
+
+    location = /moodle {
+        return 302 https://moodle.saillant.cc;
+    }
+
+    location / {
+        default_type text/html;
+        return 200 '<!DOCTYPE html><html lang="fr"><head><meta charset="utf-8"><title>Cours en ligne — L\'Electron Rare</title><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{font-family:system-ui,sans-serif;max-width:600px;margin:80px auto;padding:0 20px;text-align:center}h1{font-size:1.8em;margin-bottom:.5em}p{color:#555;margin-bottom:2em}.btn{display:inline-block;padding:14px 32px;margin:8px;border-radius:8px;text-decoration:none;font-weight:600;font-size:1.1em}.lms{background:#3b82f6;color:#fff}.moodle{background:#f97316;color:#fff}</style></head><body><h1>Formation L\'Electron Rare</h1><p>Choisissez votre plateforme de cours :</p><a class="btn lms" href="https://lms.saillant.cc">Frappe Learning</a><a class="btn moodle" href="https://moodle.saillant.cc">Moodle</a><p style="margin-top:3em;font-size:.85em;color:#999">Authentification disponible via votre établissement (FER / RENATER)</p></body></html>';
+    }
 }
 
 server {
