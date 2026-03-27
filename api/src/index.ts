@@ -103,6 +103,8 @@ import { APP_REGISTRY } from "./routes/openburo.js";
 import { openburoEvents } from "./routes/openburo-events.js";
 import { BUSINESS_OBJECT_SCHEMAS } from "./routes/openburo-objects.js";
 import { connectors } from "./routes/openburo-connectors.js";
+import { workspaces } from "./routes/openburo-workspaces.js";
+import { search } from "./routes/openburo-search.js";
 
 
 app.get("/openburo/apps", (c) => { 
@@ -164,6 +166,22 @@ app.get("/openburo/objects/schemas/:type", (c) => {
 import { openburoObjects } from "./routes/openburo-objects.js";
 app.route("/openburo/objects", openburoObjects);
 
+
+// Open Buro: Workspaces (cross-app project aggregation)
+app.get("/openburo/workspaces", (c) => workspaces.fetch(new Request("http://x/"), c.env));
+app.post("/openburo/workspaces", async (c) => workspaces.fetch(new Request("http://x/", { method: "POST", headers: c.req.raw.headers, body: c.req.raw.body }), c.env));
+app.get("/openburo/workspaces/:id", (c) => workspaces.fetch(new Request("http://x/" + c.req.param("id")), c.env));
+app.put("/openburo/workspaces/:id", async (c) => workspaces.fetch(new Request("http://x/" + c.req.param("id"), { method: "PUT", headers: c.req.raw.headers, body: c.req.raw.body }), c.env));
+app.post("/openburo/workspaces/:id/resources", async (c) => workspaces.fetch(new Request("http://x/" + c.req.param("id") + "/resources", { method: "POST", headers: c.req.raw.headers, body: c.req.raw.body }), c.env));
+
+// Open Buro: Unified Search (Qdrant + event bus fallback)
+app.get("/openburo/search", (c) => {
+  const url = new URL("http://x/");
+  for (const [k, v] of Object.entries(c.req.query())) url.searchParams.set(k, v as string);
+  return search.fetch(new Request(url));
+});
+app.post("/openburo/search/index", async (c) => search.fetch(new Request("http://x/index", { method: "POST", headers: c.req.raw.headers, body: c.req.raw.body })));
+app.get("/openburo/search/stats", (c) => search.fetch(new Request("http://x/stats")));
 
 // Open Buro: Connectors (Dolibarr, Grist, N8N webhooks)
 app.post("/openburo/connectors/grist/webhook", async (c) => {
