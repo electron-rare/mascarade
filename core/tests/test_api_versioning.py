@@ -274,13 +274,15 @@ async def test_cluster_endpoints_have_v1_prefix():
     function.  We patch the dependency so we can test the route exists at the
     expected v1 path.
     """
+    from pydantic import SecretStr
+
     from mascarade.config import settings as cfg
 
     test_key = "cluster-key-12345"
 
     with (
         patch.object(cfg, "cluster_enabled", True),
-        patch.object(cfg, "cluster_shared_key", test_key),
+        patch.object(cfg, "cluster_shared_key", SecretStr(test_key)),
     ):
         async with _client() as client:
             # Test /v1/cluster/node/identity endpoint (GET)

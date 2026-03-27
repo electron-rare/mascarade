@@ -57,7 +57,7 @@ async def test_knowledge_base_search_route_uses_mcp_client(
         "provider": "memos",
         "provider_label": "Memos",
     }
-    monkeypatch.setattr("mascarade.server.knowledge_base_auth_configured", lambda: True)
+    monkeypatch.setattr("mascarade.routers.knowledge_base.knowledge_base_auth_configured", lambda: True)
 
     async with _client() as client:
         client._test_app.state.mcp = fake_mcp
@@ -84,7 +84,7 @@ async def test_knowledge_base_search_route_rejects_missing_project_id(
 ):
     add_api_key("test-key-001")
     fake_mcp = AsyncMock()
-    monkeypatch.setattr("mascarade.server.knowledge_base_auth_configured", lambda: True)
+    monkeypatch.setattr("mascarade.routers.knowledge_base.knowledge_base_auth_configured", lambda: True)
 
     async with _client() as client:
         client._test_app.state.mcp = fake_mcp
@@ -108,7 +108,7 @@ async def test_knowledge_base_search_route_forwards_project_scope(
         "provider": "kxkm",
         "provider_label": "kxkm",
     }
-    monkeypatch.setattr("mascarade.server.knowledge_base_auth_configured", lambda: True)
+    monkeypatch.setattr("mascarade.routers.knowledge_base.knowledge_base_auth_configured", lambda: True)
 
     async with _client() as client:
         client._test_app.state.mcp = fake_mcp
@@ -137,7 +137,7 @@ async def test_knowledge_scribe_push_uses_mcp_and_preserves_run_id(
         "provider": "memos",
         "provider_label": "Memos",
     }
-    monkeypatch.setattr("mascarade.server.knowledge_base_auth_configured", lambda: True)
+    monkeypatch.setattr("mascarade.routers.knowledge_base.knowledge_base_auth_configured", lambda: True)
 
     class _FakeAgent:
         async def run(
