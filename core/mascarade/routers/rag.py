@@ -195,11 +195,28 @@ async def rag_ingest(body: RAGIngestRequest, request: Request) -> RAGIngestRespo
 
 @router.get("/collections", response_model=CollectionsResponse)
 async def rag_collections() -> CollectionsResponse:
-    """List all Qdrant collections."""
+    """List all Qdrant collections with point counts."""
     vs = QdrantVectorStore()
     try:
         raw = await vs.list_collections()
-        collections = [CollectionInfo(name=c.get("name", "unknown")) for c in raw]
+        collections = []
+        for c in raw:
+            name = c.get("name", "unknown")
+            # Fetch per-collection info for point counts
+            col_vs = QdrantVectorStore(collection=name)
+            try:
+                info = await col_vs.collection_info()
+                collections.append(
+                    CollectionInfo(
+                        name=name,
+                        vectors_count=info.get("vectors_count"),
+                        points_count=info.get("points_count"),
+                    )
+                )
+            except Exception:
+                collections.append(CollectionInfo(name=name))
+            finally:
+                await col_vs.close()
         return CollectionsResponse(collections=collections)
     except Exception as exc:
         logger.exception("Failed to list Qdrant collections")
