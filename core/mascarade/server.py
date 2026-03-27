@@ -62,6 +62,12 @@ async def lifespan(app: FastAPI):
 
     registry.load()
 
+    # Initialize OpenLLMetry (automatic OTel instrumentation of LLM providers)
+    if settings.openllmetry_enabled:
+        from mascarade.observability.openllmetry import init_openllmetry
+
+        init_openllmetry()
+
     # Initialize database pool if DATABASE_URL is configured
     if settings.database_url:
         try:

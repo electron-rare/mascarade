@@ -27,6 +27,7 @@ from mascarade.observability.langfuse import (
     start_langfuse_generation,
     update_langfuse_generation,
 )
+from mascarade.observability.openllmetry import init_openllmetry
 from mascarade.observability.otel import schedule_otlp_log
 
 __all__ = [
@@ -40,6 +41,7 @@ __all__ = [
     "langfuse_tracing_configured",
     "new_run_id",
     "new_trace_id",
+    "init_openllmetry",
     "schedule_otlp_log",
     "set_trace_id",
     "start_langfuse_generation",

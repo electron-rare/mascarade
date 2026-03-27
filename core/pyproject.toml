@@ -63,6 +63,9 @@ reranker = [
 langfuse = [
     "langfuse>=2.36,<3",
 ]
+openllmetry = [
+    "traceloop-sdk>=0.33,<1; python_version < '3.14'",
+]
 observability = [
     "traceloop-sdk>=0.33; python_version < '3.14'",
 ]

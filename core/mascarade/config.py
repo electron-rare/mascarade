@@ -265,6 +265,7 @@ class Settings(BaseSettings):
     voice_bridge_tts_voice: str = "alloy"  # override: VOICE_BRIDGE_TTS_VOICE
 
     # Observability
+    openllmetry_enabled: bool = False
     otel_enabled: bool = False
     otel_collector_http_endpoint: str = "http://otel-collector:4318"
     otel_exporter_protocol: str = "http/protobuf"  # or "grpc"
