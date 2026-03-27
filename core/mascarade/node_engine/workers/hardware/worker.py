@@ -29,6 +29,12 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+
+def _write_serial(port: str, payload: bytes) -> int:
+    """Write bytes to a serial port using direct file I/O (no shell)."""
+    with open(port, "wb") as f:
+        return f.write(payload)
+
 # Subnet scan defaults pour mDNS / HTTP discovery
 _DEFAULT_SCAN_TIMEOUT = 3.0
 _DEFAULT_SUBNET = "192.168.0"
@@ -634,17 +640,16 @@ class HardwareWorker(NodeWorker):
                 stderr=asyncio.subprocess.DEVNULL,
             )
 
-            # Write data to port
+            # Write data to port using direct file I/O (no shell)
             payload = data.encode(encoding) if isinstance(data, str) else data
-            proc = await asyncio.create_subprocess_exec(
-                "bash", "-c", f"echo -ne '{data}' > {port}",
-                stdout=asyncio.subprocess.DEVNULL,
-                stderr=asyncio.subprocess.PIPE,
-            )
-            _, stderr = await asyncio.wait_for(proc.communicate(), timeout=5.0)
-
-            if proc.returncode != 0:
-                error_msg = stderr.decode().strip() if stderr else "Unknown error"
+            try:
+                loop = asyncio.get_running_loop()
+                bytes_written = await asyncio.wait_for(
+                    loop.run_in_executor(None, lambda: _write_serial(port, payload)),
+                    timeout=5.0,
+                )
+            except Exception as write_exc:
+                error_msg = str(write_exc)
                 logger.warning(f"Serial send failed on {port}: {error_msg}")
                 return {
                     "sent": serial_data.to_dict(),
@@ -652,7 +657,7 @@ class HardwareWorker(NodeWorker):
                     "error": error_msg,
                 }
 
-            return {"sent": serial_data.to_dict(), "success": True, "bytes_written": len(payload)}
+            return {"sent": serial_data.to_dict(), "success": True, "bytes_written": bytes_written}
         except FileNotFoundError:
             logger.warning(f"Serial port not found: {port}")
             return {

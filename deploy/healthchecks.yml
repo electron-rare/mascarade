@@ -38,7 +38,7 @@ services:
       - mascarade_mascarade-network
     mem_limit: 256m
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8000/api/v3/checks/ >/dev/null 2>&1 || exit 0"]
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8000/api/v3/checks/ >/dev/null 2>&1"]
       interval: 30s
       timeout: 10s
       retries: 5
