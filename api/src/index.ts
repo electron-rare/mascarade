@@ -102,6 +102,7 @@ app.route("/api", ollama);
 import { APP_REGISTRY } from "./routes/openburo.js";
 import { openburoEvents } from "./routes/openburo-events.js";
 import { BUSINESS_OBJECT_SCHEMAS } from "./routes/openburo-objects.js";
+import { connectors } from "./routes/openburo-connectors.js";
 
 
 app.get("/openburo/apps", (c) => { 
@@ -163,6 +164,47 @@ app.get("/openburo/objects/schemas/:type", (c) => {
 import { openburoObjects } from "./routes/openburo-objects.js";
 app.route("/openburo/objects", openburoObjects);
 
+
+// Open Buro: Connectors (Dolibarr, Grist, N8N webhooks)
+app.post("/openburo/connectors/grist/webhook", async (c) => {
+  const req = new Request("http://x/grist/webhook" + (c.req.query("doc") ? "?doc=" + c.req.query("doc") : ""), { method: "POST", headers: c.req.raw.headers, body: c.req.raw.body });
+  return connectors.fetch(req);
+});
+app.post("/openburo/connectors/dolibarr/webhook", async (c) => {
+  return connectors.fetch(new Request("http://x/dolibarr/webhook", { method: "POST", headers: c.req.raw.headers, body: c.req.raw.body }));
+});
+app.post("/openburo/connectors/n8n/webhook", async (c) => {
+  return connectors.fetch(new Request("http://x/n8n/webhook", { method: "POST", headers: c.req.raw.headers, body: c.req.raw.body }));
+});
+app.get("/openburo/connectors/status", async (c) => {
+  return connectors.fetch(new Request("http://x/status"));
+});
+
+// Open Buro: Notifications → ntfy
+app.post("/openburo/notifications", async (c) => {
+  const body = await c.req.json();
+  if (!body.title) return c.json({ error: "Missing: title" }, 400);
+  
+  const ntfyUrl = process.env.NTFY_URL || "http://192.168.0.119:2586";
+  const topic = body.topic || "openburo";
+  
+  try {
+    await fetch(ntfyUrl + "/" + topic, {
+      method: "POST",
+      headers: {
+        "Title": body.title,
+        "Priority": body.priority || "default",
+        "Tags": body.tags || "openburo",
+        "Authorization": "Bearer tk_4u9yWK9Ij43Yhh5E2w6eKUJ7nnD7Q",
+        ...(body.click ? { "Click": body.click } : {}),
+      },
+      body: body.message || body.title,
+    });
+    return c.json({ sent: true, topic });
+  } catch (err: any) {
+    return c.json({ error: err.message }, 500);
+  }
+});
 
 // Open Buro Phase 2: Event Bus (CloudEvents + Redis Streams)
 
