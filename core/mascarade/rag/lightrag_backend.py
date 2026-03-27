@@ -111,13 +111,19 @@ class LightRAGBackend:
                 return resp.json()["message"]["content"]
 
         # Build embedding function using mascarade's EmbeddingProvider
-        async def embedding_func(texts: list[str]) -> list[list[float]]:
-            """Route embeddings through mascarade's EmbeddingProvider."""
+        async def embedding_func(texts: list[str]) -> Any:
+            """Route embeddings through mascarade's EmbeddingProvider.
+
+            Returns numpy ndarray as required by LightRAG.
+            """
+            import numpy as np
+
             from mascarade.rag.embeddings import EmbeddingProvider
 
             provider = EmbeddingProvider()
             try:
-                return await provider.embed(texts)
+                result = await provider.embed(texts)
+                return np.array(result, dtype=np.float32)
             finally:
                 await provider.close()
 
@@ -154,6 +160,7 @@ class LightRAGBackend:
             }
 
         self._rag = LightRAG(**rag_kwargs)
+        await self._rag.initialize_storages()
         logger.info(
             "LightRAG initialized: dir=%s, graph=%s, vector=%s, llm=%s",
             self._working_dir,
