@@ -116,7 +116,8 @@
 | Identity management | done | P1 | — | |
 | Capabilities advertisement | done | P1 | — | GPU, storage |
 | Memory pruning | done | P2 | — | |
-| P2P metrics | done | P2 | Prometheus | |
+| P2P metrics | done | P2 | Prometheus | VRAM gauges + Grafana dashboard |
+| P2P peers REST API | done | P2 | — | GET /api/cluster/p2p/peers with hardware info |
 | Finetune task handler | done | P1 | — | Distribute training |
 
 ### Mesh Nodes
@@ -281,6 +282,8 @@
 | File upload ingestion | done | P1 | Docling | POST /v1/api/rag/ingest/upload — 50MB limit, any Docling format |
 | P2P VRAM Grafana dashboard | done | P2 | Prometheus | mascarade-p2p-mesh.json |
 | data.gouv.fr MCP | done | P1 | — | 74k+ datasets publics français, SSE transport |
+| Collection delete/info API | done | P1 | — | DELETE + GET /v1/api/rag/collections/{name} |
+| P2P peers VRAM REST API | done | P1 | — | GET /api/cluster/p2p/peers — hardware metrics |
 | LightRAG (large corpus) | planned | P2 | — | >1k docs |
 | ColPali (visual PDFs) | planned | P2 | — | Datasheets / schematics |
 | KiCad ingestion pipeline | planned | P2 | Kill_LIFE | PCB docs → RAG |
@@ -313,7 +316,7 @@
 | Agents | 8 | 0 | 0 | 8 |
 | Orchestrator | 9 | 0 | 0 | 9 |
 | Node Engine | 11 | 1 | 0 | 12 |
-| P2P Mesh | 13 | 0 | 0 | 13 |
+| P2P Mesh | 14 | 0 | 0 | 14 |
 | Fine-Tuning | 13 | 1 | 1 | 15 |
 | MCP Integration | 9 | 0 | 0 | 9 |
 | API Gateway | 16 | 0 | 0 | 16 |
@@ -321,7 +324,7 @@
 | Infrastructure | 17 | 0 | 0 | 17 |
 | Auth / Security | 7 | 0 | 0 | 7 |
 | Apple Intelligence | 4 | 0 | 3 | 7 |
-| Agentic RAG | 20 | 0 | 3 | 23 |
+| Agentic RAG | 22 | 0 | 3 | 25 |
 | Cowork OTel | 1 | 0 | 0 | 1 |
 | Ecosystem | 4 | 2 | 0 | 6 |
-| **Total** | **167** | **5** | **7** | **179** |
+| **Total** | **171** | **5** | **7** | **183** |
