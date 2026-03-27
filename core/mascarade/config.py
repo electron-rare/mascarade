@@ -154,6 +154,11 @@ class Settings(BaseSettings):
     # Qdrant
     qdrant_url: str = "http://qdrant:6333"
 
+    # LightRAG (graph-augmented RAG via lightrag-hku)
+    lightrag_enabled: bool = False
+    lightrag_working_dir: str = "/tmp/mascarade_lightrag"
+    lightrag_extraction_model: str = "mistral:7b"  # Ollama model for entity extraction
+
     # RAG pipeline
     rag_reranker_enabled: bool = True
     rag_reranker_model: str = "BAAI/bge-reranker-v2-m3"

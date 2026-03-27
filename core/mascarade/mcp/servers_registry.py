@@ -238,6 +238,23 @@ COLLAB_SERVERS: dict[str, McpServerDef] = {
 }
 
 
+# ── RAG / Knowledge Graph ─────────────────────────────────────────
+
+RAG_SERVERS: dict[str, McpServerDef] = {}
+
+# Conditionally register LightRAG MCP server
+if _env("LIGHTRAG_ENABLED", "false").lower() in ("true", "1", "yes"):
+    RAG_SERVERS["lightrag"] = McpServerDef(
+        key="lightrag",
+        name="LightRAG",
+        description="LightRAG — graph-augmented RAG with multi-mode retrieval (naive/local/global/hybrid/mix)",
+        category="rag",
+        command=("python3", "-m", "mascarade.mcp.lightrag_mcp"),
+        transport="internal",  # handled in-process, not stdio
+        tools=["lightrag_query", "lightrag_ingest", "lightrag_stats"],
+        enabled=True,
+    )
+
 # ── Unified Registry ──────────────────────────────────────────────
 
 ALL_SERVERS: dict[str, McpServerDef] = {
@@ -247,6 +264,7 @@ ALL_SERVERS: dict[str, McpServerDef] = {
     **AUTOMATION_SERVERS,
     **INFRA_SERVERS,
     **COLLAB_SERVERS,
+    **RAG_SERVERS,
 }
 
 

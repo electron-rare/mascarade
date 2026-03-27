@@ -15,6 +15,20 @@ from mascarade.rag.query_cache import RAGQueryCache
 from mascarade.rag.reranker import CrossEncoderReranker
 from mascarade.rag.vectorstore import QdrantVectorStore
 
+# LightRAG — optional graph-augmented backend
+_lightrag_backend = None
+if settings.lightrag_enabled:
+    try:
+        from mascarade.rag.lightrag_backend import LightRAGBackend, LIGHTRAG_AVAILABLE
+
+        if LIGHTRAG_AVAILABLE:
+            _lightrag_backend = LightRAGBackend()
+            logger.info("LightRAG backend enabled")
+        else:
+            logger.warning("LightRAG enabled in config but lightrag-hku not installed")
+    except Exception as exc:
+        logger.warning("LightRAG init failed: %s", exc)
+
 logger = logging.getLogger("mascarade.rag.pipeline")
 
 # Intent classification prompt
@@ -118,6 +132,22 @@ class RAGPipeline:
                 cached["tool_calls"] = ["cache_hit"]
                 cached["elapsed_seconds"] = round(time.monotonic() - t0, 3)
                 return cached
+
+        # Step 0b — LightRAG for complex queries (multi-hop, question words)
+        if _lightrag_backend and self._is_complex_query(user_query):
+            try:
+                lg_result = await _lightrag_backend.query(
+                    user_query, mode="hybrid", top_k=top_k
+                )
+                if lg_result.get("status") == "ok" and lg_result.get("answer"):
+                    lg_result["tool_calls"] = ["lightrag_hybrid"]
+                    lg_result["elapsed_seconds"] = round(time.monotonic() - t0, 3)
+                    lg_result["intent"] = "lightrag"
+                    lg_result["sources"] = []
+                    return lg_result
+            except Exception as exc:
+                logger.debug("LightRAG query failed, falling back to vector: %s", exc)
+                tool_calls.append("lightrag_fallback")
 
         # Step 1 — classify intent
         if skip_classification:
@@ -381,6 +411,22 @@ class RAGPipeline:
         except Exception as exc:
             logger.debug("Web search fallback failed: %s", exc)
             return ""
+
+    @staticmethod
+    def _is_complex_query(query: str) -> bool:
+        """Detect complex queries that benefit from graph-augmented retrieval.
+
+        Heuristic: question words, multi-hop patterns, comparison queries.
+        """
+        q = query.lower().strip()
+        # Question words suggesting multi-hop or relational queries
+        question_patterns = (
+            "how", "why", "what is the relationship",
+            "compare", "difference between", "connection between",
+            "explain how", "what causes", "what are the",
+            "who", "which", "where does", "when did",
+        )
+        return any(q.startswith(p) or f" {p} " in f" {q} " for p in question_patterns)
 
     async def _classify_intent(
         self,
