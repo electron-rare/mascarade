@@ -122,6 +122,9 @@ async def cluster_p2p_topology(request: Request):
                 "role": caps.role,
                 "capabilities": caps.capabilities,
                 "http_base_url": caps.http_base_url,
+                "gpu_vram_gb": caps.gpu_vram_gb,
+                "chip_family": caps.chip_family,
+                "ram_gb": caps.ram_gb,
                 "is_local": False,
             }
         )
@@ -134,6 +137,62 @@ async def cluster_p2p_topology(request: Request):
         )
 
     return {"nodes": nodes, "edges": edges}
+
+
+@router.get("/p2p/peers")
+async def cluster_p2p_peers(request: Request):
+    """List all known P2P peers with hardware capabilities (VRAM, chip, RAM).
+
+    Includes local node. Useful for monitoring mesh capacity without Prometheus.
+    """
+    node = getattr(request.app.state.cluster, "_p2p_node", None)
+    if node is None or not hasattr(node, "capabilities"):
+        raise HTTPException(status_code=503, detail="P2P node not available")
+
+    all_caps = node.capabilities.all_capabilities()
+    local_caps = node.capabilities._local_caps
+
+    peers = []
+
+    if local_caps:
+        peers.append(
+            {
+                "peer_id": node.peer_id,
+                "label": local_caps.label,
+                "role": local_caps.role,
+                "capabilities": local_caps.capabilities,
+                "http_base_url": local_caps.http_base_url,
+                "gpu_vram_gb": local_caps.gpu_vram_gb,
+                "chip_family": local_caps.chip_family,
+                "ram_gb": local_caps.ram_gb,
+                "is_local": True,
+                "connected": True,
+            }
+        )
+
+    for pid, caps in all_caps.items():
+        connected = pid in node.transport.peers and node.transport.peers[pid].connected
+        peers.append(
+            {
+                "peer_id": pid,
+                "label": caps.label,
+                "role": caps.role,
+                "capabilities": caps.capabilities,
+                "http_base_url": caps.http_base_url,
+                "gpu_vram_gb": caps.gpu_vram_gb,
+                "chip_family": caps.chip_family,
+                "ram_gb": caps.ram_gb,
+                "is_local": False,
+                "connected": connected,
+            }
+        )
+
+    total_vram = sum(p["gpu_vram_gb"] for p in peers)
+    return {
+        "peers": peers,
+        "count": len(peers),
+        "total_vram_gb": round(total_vram, 2),
+    }
 
 
 @router.post("/p2p/task")
