@@ -57,6 +57,21 @@ Notes:
 - [x] Phase 2 (`SearXNG`, `Docling`) : services dans compose principal, prêts. `Paperless-ngx` et `Karakeep` dans `deploy/phase2/docker-compose.yml` — conditionnel.
 - [x] Brancher Whisper config dans `config.py` (`whisper_model_size`, `whisper_device`, `whisper_compute_type`) — done 2026-03-27.
 
+## Multi-Machine Architecture (discovered 2026-03-27)
+
+**Tower is the primary server.** Photon is now mesh secondary.
+
+| Machine | Role | CPU | RAM | GPU | Containers |
+| --- | --- | --- | --- | --- | --- |
+| **Tower** | Primary server, mascarade-core, Dify, observability, La Suite Numerique | 12 CPU | 32 GB | Quadro P2000 5GB | 87 |
+| **Photon** (photon-machine) | Mesh secondary, Pi-hole, Cloudflare tunnel | 4 vCPU | 6.8 GB | -- | minimal |
+
+- `mascarade-core` runs on BOTH machines for P2P mesh redundancy
+- Tower SSH: `clems@tower`
+- Photon SSH: `cils@192.168.0.119`
+- Tower handles the bulk of runtime workloads (Dify, observability, knowledge-base, fine-tuning)
+- Photon retains core mesh + Pi-hole + CF tunnel duties
+
 ## Session 2026-03-27 notes
 
 - [x] Deploy repo at `/root/mascarade-deploy-main` on VM identified and documented (separate from `/mascarade/` source tree)

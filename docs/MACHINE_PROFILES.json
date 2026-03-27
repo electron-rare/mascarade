@@ -34,6 +34,42 @@
       "capabilities": [
         "nexar-live"
       ]
+    },
+    "tower": {
+      "aliases": [
+        "tower",
+        "Tower"
+      ],
+      "capabilities": [
+        "docker-runtime",
+        "gpu-inference",
+        "lan-ops",
+        "dify-machine",
+        "observability-local",
+        "knowledge-base",
+        "fine-tuning",
+        "la-suite-numerique"
+      ]
+    },
+    "kxkm-ai": {
+      "aliases": [
+        "kxkm-ai",
+        "KXKM-AI"
+      ],
+      "capabilities": [
+        "gpu-inference",
+        "fine-tuning",
+        "gpu-heavy"
+      ]
+    },
+    "grosmac": {
+      "aliases": [
+        "grosmac",
+        "GrosMac"
+      ],
+      "capabilities": [
+        "docker-runtime"
+      ]
     }
   }
 }

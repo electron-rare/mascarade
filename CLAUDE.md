@@ -3,7 +3,7 @@
 ## Project
 - Mascarade is a personal agentic orchestration system
 - Python core (agents, router, orchestrator) + TypeScript API (Hono)
-- Deployed on VM 192.168.0.119 via Docker Compose
+- Deployed on Tower (primary) and Photon VM (mesh secondary) via Docker Compose
 
 ## Python (core/)
 - Python 3.11+, use Pydantic for models
@@ -16,9 +16,15 @@
 - Run: `cd api && npm run dev`
 - Build: `cd api && npm run build`
 
+## Infrastructure
+- **Tower** (primary server): 12 CPU, 32GB RAM, Quadro P2000, 87 containers, mascarade-core healthy. SSH: `clems@tower`
+- **Photon** (mesh secondary): 4 vCPU, 6.8GB RAM, minimal (core mesh + Pi-hole + CF tunnel). SSH: `cils@192.168.0.119`
+- **Mac** (dev machine): 192.168.0.210
+- mascarade-core runs on BOTH Tower and Photon for P2P mesh
+
 ## Docker
 - `docker compose up` from project root
-- Core service on port 8100, API on port 3100
+- Core service on port 8100 (both machines), API on port 3100
 
 ## Key patterns
 - All LLM providers implement `LLMProvider` (core/mascarade/router/providers/base.py)

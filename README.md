@@ -152,9 +152,9 @@ Data enriched from 8 verified open-source repos (MIT/Apache/BSD): espressif/esp-
 
 | Machine | Role | GPU |
 | ------- | ---- | --- |
-| **photon** | Production (core + API), 18 agents live | -- |
+| **Tower** | Primary server (core + API + Dify + observability), 87 containers | Quadro P2000 5GB |
+| **photon** | Mesh secondary (core mesh + Pi-hole + CF tunnel) | -- |
 | **KXKM-AI** | Fine-tuning, benchmarks, 15+ Ollama models | RTX 4090 24GB |
-| **Tower** | General compute, code sync | Quadro P2000 5GB |
 | **grosmac** | Development (Apple Silicon) | -- |
 | **Cils** | macOS Intel node | -- |
 
@@ -166,7 +166,7 @@ P2P mesh connects all machines with HMAC-authenticated cluster communication.
 **TypeScript API** (Hono, port 3100/3000) -- auth, rate limiting, OpenAI-compatible gateway, Fake Ollama API.
 **Node Engine** -- graph-based execution system: composable workers across AI, CAD, Electronics, MIDI, and Hardware domains.
 
-Infrastructure: Mac dev machine (192.168.0.210) + Photon VM deploy (192.168.0.119, Docker).
+Infrastructure: 3-machine mesh -- Tower (primary, 12 CPU / 32GB / Quadro P2000) + Photon VM (mesh secondary, 192.168.0.119) + Mac dev (192.168.0.210). mascarade-core runs on both Tower and Photon for P2P redundancy.
 
 ## Project Structure
 

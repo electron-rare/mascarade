@@ -173,7 +173,7 @@ Five repositories participate in the Universal Node Engine initiative:
 - CAD-specific port types: `MeshData`, `Toolpath`, `BOM`, `GCode`, `SchematicData`, `PCBLayout`, `CADDocument`
 
 **Risk Factors:**
-- **FreeCAD/KiCad process isolation** (medium): Both tools run as external processes with their own memory footprint. On a 6.8 GiB VM, concurrent runs risk OOM. Mitigation: worker-level resource limits and sequential scheduling for heavy operations.
+- **FreeCAD/KiCad process isolation** (medium): Both tools run as external processes with their own memory footprint. On Tower (32 GiB), concurrent runs are feasible. Mitigation: worker-level resource limits as a safety net.
 - **Binary data handling** (low): Mesh and manufacturing files are large binary blobs. Mitigation: binary port type with streaming support from Phase 0.
 
 ---
@@ -214,7 +214,7 @@ Five repositories participate in the Universal Node Engine initiative:
 - Hardware-specific port types: `MIDIMessage`, `DMXFrame`, `SerialData`, `GPIOState`, `SensorReading`, `DeviceDescriptor`
 
 **Risk Factors:**
-- **Real-time constraints on VM** (high): The VM environment (4 vCPU, 6.8 GiB RAM, VMware virtualization) introduces jitter incompatible with strict real-time requirements. Mitigation: offload timing-critical loops to ESP32 firmware; use VM only for supervision and configuration.
+- **Real-time constraints** (medium): Tower (12 CPU, 32GB RAM) significantly reduces jitter concerns vs. old Photon-only setup. Mitigation: offload timing-critical loops to ESP32 firmware; use server only for supervision and configuration.
 - **Hardware absence during development** (medium): Hardware may not be physically connected during CI/testing. Mitigation: mock device layer with simulated responses.
 - **Safety** (medium): Incorrect GPIO or DMX commands can damage hardware. Mitigation: safety interlock nodes with configurable limits and confirmation gates.
 
@@ -308,7 +308,7 @@ Phase 0 ──► Phase 1 ──► Phase 2/3/4 ──► Phase 5
 - Phase 1 AI Worker can incorporate M-009 learnings mid-flight
 
 **Cons:**
-- Resource contention on the VM (both initiatives are compute-heavy)
+- Resource contention on Tower (both initiatives are compute-heavy, but 12 CPU / 32GB mitigates this)
 - Risk of duplicate effort if M-009 patterns conflict with Phase 1 decisions
 - Requires coordination overhead to keep designs aligned
 
@@ -325,24 +325,37 @@ Phase 0 ──► Phase 1 ──► Phase 2/3/4 ──► Phase 5
 
 ## 9. Infrastructure Constraints
 
-The Mascarade ecosystem runs on a single VM with limited resources. The Node Engine must be designed within these constraints.
+The Mascarade ecosystem now runs across a multi-machine mesh. Tower is the primary server; Photon is the mesh secondary. Infrastructure constraints are much less severe than previously documented.
 
-### Current Infrastructure (from machine state report 2026-03-05)
+### Current Infrastructure (updated 2026-03-27)
 
-| Resource | Capacity | Current Usage | Available |
-|----------|----------|---------------|-----------|
-| **CPU** | 4 vCPU | High (load avg peaks at 71.13) | Limited — contention with 27 active containers |
-| **RAM** | 6.8 GiB | 4.2 GiB used + 3.6/4.0 GiB swap | Critical — swap at ~90% |
-| **Disk** | 246 GiB | 175 GiB used (74%) | ~70 GiB free |
-| **Docker images** | — | 92.76 GiB (60 GiB reclaimable) | Pruning needed |
-| **Network** | 192.168.0.119 | Ports 22, 80 exposed | LAN-only, no public ingress |
+**Tower (primary server)**
+
+| Resource | Capacity | Notes |
+|----------|----------|-------|
+| **CPU** | 12 CPU | Comfortable headroom |
+| **RAM** | 32 GiB | No swap pressure |
+| **GPU** | Quadro P2000 5GB | Small model inference |
+| **Docker** | 87 containers | mascarade-core healthy |
+| **SSH** | `clems@tower` | |
+
+**Photon VM (mesh secondary)**
+
+| Resource | Capacity | Notes |
+|----------|----------|-------|
+| **CPU** | 4 vCPU | Minimal workload now |
+| **RAM** | 6.8 GiB | Sufficient for reduced role |
+| **Docker** | Minimal | core mesh + Pi-hole + CF tunnel |
+| **Network** | 192.168.0.119 | LAN-only, no public ingress |
+
+mascarade-core runs on BOTH machines for P2P mesh redundancy.
 
 ### Docker Deployment Model
 
 - All services deploy via Docker Compose from the project root
-- Core service on port 8100, API on port 3000
+- Core service on port 8100, API on port 3100
 - Node Engine workers run as part of the core container (in-process) or as separate containers (for isolation)
-- Resource-heavy workers (FreeCAD, KiCad, ngspice) should use `deploy.resources` limits to prevent OOM
+- Resource-heavy workers (FreeCAD, KiCad, ngspice) should use `deploy.resources` limits; Tower's 32GB RAM makes OOM much less likely than on Photon
 
 ### Infrastructure Implications per Phase
 
@@ -357,10 +370,10 @@ The Mascarade ecosystem runs on a single VM with limited resources. The Node Eng
 
 ### Recommended Infrastructure Actions
 
-1. **Before Phase 0:** Prune unused Docker images to reclaim ~60 GiB disk space
-2. **Before Phase 2:** Increase VM RAM to 12–16 GiB if multi-stack operation continues
-3. **Before Phase 4:** Configure USB passthrough for hardware devices in VMware settings
-4. **Before Phase 5:** Evaluate Ray cluster deployment for federated execution (may require additional VMs)
+1. **Before Phase 0:** Prune unused Docker images to reclaim disk space
+2. **Before Phase 2:** Tower's 32 GiB RAM is sufficient; no RAM upgrade needed (previously required on Photon)
+3. **Before Phase 4:** Configure USB passthrough for hardware devices on the appropriate machine
+4. **Before Phase 5:** Evaluate Ray cluster deployment for federated execution across Tower + Photon mesh
 
 ---
 
@@ -383,7 +396,7 @@ Week  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15 16 17 18 19 20
 **Maximum parallelism:** 4 domain workers developed simultaneously after Phase 0.
 
 **Practical parallelism:** 2 workers in parallel is recommended given:
-- Single VM with 4 vCPU limits concurrent development/testing
+- Tower (12 CPU) allows more concurrency than old Photon-only setup
 - Developer bandwidth constraints
 - Phase 1 (MVP) should receive priority focus
 
@@ -408,10 +421,10 @@ Week  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15 16 17 18 19 20
 | Risk | Phase | Severity | Likelihood | Mitigation |
 |------|-------|----------|------------|------------|
 | Type system design requires breaking changes after Phase 0 | Phase 0 | High | Medium | Pre-validate type system against all domain worker requirements before freezing |
-| VM resource exhaustion during multi-worker testing | Phase 2–4 | High | High | Container resource limits; sequential testing; consider RAM upgrade |
+| Resource exhaustion during multi-worker testing | Phase 2–4 | Medium | Low | Tower (32GB) greatly reduces this risk; container resource limits as safety net |
 | M-009 and Node Engine architectural divergence | Phase 1 | Medium | Medium | Weekly sync meetings; shared design review |
 | FreeCAD/KiCad process crashes in Docker | Phase 2 | Medium | Medium | Circuit breakers; process isolation; crash recovery in worker |
-| Real-time hardware control unreliable on VM | Phase 4 | High | High | Offload timing-critical work to ESP32; VM handles supervision only |
+| Real-time hardware control unreliable on VM | Phase 4 | Medium | Medium | Tower reduces jitter; offload timing-critical work to ESP32; server handles supervision only |
 | Cross-domain type adapters introduce data corruption | Phase 5 | High | Low | Round-trip testing; explicit validation at every adapter boundary |
 | Scope creep from domain-specific feature requests | All | Medium | High | Strict phase boundaries; defer non-essential features to post-Phase 5 |
 | Single-developer bottleneck | All | Medium | Medium | Prioritize Phase 0-1 MVP; defer Phase 2-4 based on capacity |
