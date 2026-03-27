@@ -159,6 +159,11 @@ class Settings(BaseSettings):
     lightrag_working_dir: str = "/tmp/mascarade_lightrag"
     lightrag_extraction_model: str = "mistral:7b"  # Ollama model for entity extraction
 
+    # Grist (structured data layer — completes RAG trifecta: vector + graph + SQL)
+    grist_enabled: bool = False
+    grist_api_url: str = "http://grist:8484"
+    grist_api_key: SecretStr = Field(default=SecretStr(""), repr=False)
+
     # RAG pipeline
     rag_reranker_enabled: bool = True
     rag_reranker_model: str = "BAAI/bge-reranker-v2-m3"
