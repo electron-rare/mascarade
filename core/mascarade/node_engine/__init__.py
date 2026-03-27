@@ -7,6 +7,7 @@ and Hardware domains.
 
 from __future__ import annotations
 
+from mascarade.node_engine.runtime import ExecutionMode
 from mascarade.node_engine.types import (
     DomainType,
     PortType,
@@ -17,6 +18,7 @@ __version__ = "0.1.0"
 
 __all__ = [
     "DomainType",
+    "ExecutionMode",
     "PortType",
     "register_ai_worker",
 ]

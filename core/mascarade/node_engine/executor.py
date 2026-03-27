@@ -6,9 +6,12 @@ import asyncio
 import logging
 import time
 from collections import defaultdict
+from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Any
+
+from mascarade.node_engine.runtime import ExecutionMode
 
 logger = logging.getLogger("mascarade.node_engine")
 
@@ -189,14 +192,76 @@ class GraphExecutor:
 
         return result
 
+    def _find_required_nodes_executor(self, graph: Any, target_node_ids: set[str]) -> set[str]:
+        """Trace backwards from target nodes to find all required upstream nodes."""
+        required: set[str] = set()
+        worklist = list(target_node_ids)
+
+        # Build reverse adjacency from connections and edges
+        reverse_adj: dict[str, list[str]] = defaultdict(list)
+        for conn in getattr(graph, "connections", []):
+            tgt = getattr(conn, "target_node_id", "")
+            src = getattr(conn, "source_node_id", "")
+            if tgt and src:
+                reverse_adj[tgt].append(src)
+        for edge in getattr(graph, "edges", []):
+            tgt = getattr(edge, "target_node", "")
+            src = getattr(edge, "source_node", "")
+            if tgt and src:
+                reverse_adj[tgt].append(src)
+
+        while worklist:
+            node_id = worklist.pop()
+            if node_id in required:
+                continue
+            required.add(node_id)
+            for upstream in reverse_adj.get(node_id, []):
+                if upstream not in required:
+                    worklist.append(upstream)
+
+        return required
+
+    def _find_sink_nodes_executor(self, graph: Any) -> set[str]:
+        """Find sink nodes (nodes with no outgoing edges)."""
+        has_outgoing: set[str] = set()
+        for conn in getattr(graph, "connections", []):
+            src = getattr(conn, "source_node_id", "")
+            if src:
+                has_outgoing.add(src)
+        for edge in getattr(graph, "edges", []):
+            src = getattr(edge, "source_node", "")
+            if src:
+                has_outgoing.add(src)
+
+        all_ids = set()
+        for node in graph.nodes:
+            nid = getattr(node, "node_id", getattr(node, "id", ""))
+            all_ids.add(nid)
+
+        return all_ids - has_outgoing
+
     async def execute_graph(
         self,
         graph: Any,
         *,
         timeout_seconds: float | None = None,
         capabilities: set[str] | None = None,
+        mode: ExecutionMode = ExecutionMode.EAGER,
+        target_nodes: set[str] | None = None,
     ) -> GraphExecutionResult:
-        """Execute a graph with topological ordering."""
+        """Execute a graph with topological ordering.
+
+        Args:
+            graph: Graph to execute
+            timeout_seconds: Optional execution timeout
+            capabilities: Optional capability set for worker dispatch
+            mode: Execution mode (EAGER, LAZY, STEPPED). Defaults to EAGER.
+            target_nodes: Optional target nodes for LAZY mode. If None,
+                          sink nodes are used automatically.
+
+        Returns:
+            GraphExecutionResult with per-node records
+        """
         result = GraphExecutionResult(
             graph_id=getattr(graph, "graph_id", getattr(graph, "id", "")),
             status=ExecutionStatus.RUNNING,
@@ -207,14 +272,14 @@ class GraphExecutor:
             if timeout_seconds is not None:
                 try:
                     await asyncio.wait_for(
-                        self._execute_graph_inner(graph, result, capabilities),
+                        self._execute_graph_inner(graph, result, capabilities, mode, target_nodes),
                         timeout=timeout_seconds,
                     )
                 except TimeoutError:
                     result.status = ExecutionStatus.TIMEOUT
                     result.error = f"Graph execution timed out after {timeout_seconds}s"
             else:
-                await self._execute_graph_inner(graph, result, capabilities)
+                await self._execute_graph_inner(graph, result, capabilities, mode, target_nodes)
         except Exception as e:
             result.status = ExecutionStatus.FAILED
             result.error = str(e)
@@ -223,121 +288,201 @@ class GraphExecutor:
         result.total_time_ms = result.end_time_ms - result.start_time_ms
         return result
 
+    async def execute_graph_stepped(
+        self,
+        graph: Any,
+        *,
+        capabilities: set[str] | None = None,
+        mode: ExecutionMode = ExecutionMode.EAGER,
+        target_nodes: set[str] | None = None,
+    ) -> AsyncIterator[tuple[NodeExecutionRecord, GraphExecutionResult]]:
+        """Execute a graph one node at a time, yielding after each step.
+
+        Args:
+            graph: Graph to execute
+            capabilities: Optional capability set for worker dispatch
+            mode: EAGER or LAZY (controls which nodes are included)
+            target_nodes: Optional target nodes for LAZY filtering
+
+        Yields:
+            Tuple of (NodeExecutionRecord, GraphExecutionResult) after each node
+        """
+        result = GraphExecutionResult(
+            graph_id=getattr(graph, "graph_id", getattr(graph, "id", "")),
+            status=ExecutionStatus.RUNNING,
+            start_time_ms=time.monotonic() * 1000,
+        )
+
+        sorted_nodes = self._topological_sort(graph)
+        node_outputs: dict[str, dict[str, Any]] = {}
+
+        # Lazy filtering
+        required_ids: set[str] | None = None
+        if mode == ExecutionMode.LAZY:
+            targets = target_nodes or self._find_sink_nodes_executor(graph)
+            required_ids = self._find_required_nodes_executor(graph, targets)
+
+        for node in sorted_nodes:
+            node_id = getattr(node, "node_id", getattr(node, "id", ""))
+            if required_ids is not None and node_id not in required_ids:
+                continue
+
+            record = await self._execute_single_node(
+                graph, node, node_outputs, result, capabilities
+            )
+            if record is None:
+                return
+
+            yield record, result
+
+            if result.status == ExecutionStatus.FAILED:
+                return
+
+        if result.status == ExecutionStatus.RUNNING:
+            result.status = ExecutionStatus.COMPLETED
+        result.end_time_ms = time.monotonic() * 1000
+        result.total_time_ms = result.end_time_ms - result.start_time_ms
+
+    async def _execute_single_node(
+        self,
+        graph: Any,
+        node: Any,
+        node_outputs: dict[str, dict[str, Any]],
+        result: GraphExecutionResult,
+        capabilities: set[str] | None,
+    ) -> NodeExecutionRecord | None:
+        """Execute a single node and update result. Returns the record or None on fatal error."""
+        node_id = getattr(node, "node_id", getattr(node, "id", ""))
+        node_type = getattr(node, "node_type", "")
+        node_def = self._node_definitions.get(node_type)
+
+        if not node_def:
+            record = NodeExecutionRecord(
+                node_id=node_id,
+                status=ExecutionStatus.FAILED,
+                error=f"Unknown node type: {node_type}",
+                error_type="RuntimeError",
+            )
+            result.node_records.append(record)
+            result.status = ExecutionStatus.FAILED
+            result.error = f"Unknown node type: {node_type}"
+            return record
+
+        inputs = self._collect_node_inputs(graph, node, node_outputs, node_def)
+
+        domain = node_type.split(".")[0] if "." in node_type else node_type
+        worker = self._workers.get(domain)
+
+        if not worker:
+            record = NodeExecutionRecord(
+                node_id=node_id,
+                status=ExecutionStatus.FAILED,
+                error=f"No worker for domain: {domain}",
+                error_type="RuntimeError",
+            )
+            result.node_records.append(record)
+            result.status = ExecutionStatus.FAILED
+            result.error = f"No worker for domain: {domain}"
+            return record
+
+        from mascarade.node_engine.base import NodeExecutionContext
+
+        ctx = NodeExecutionContext(
+            node_id=node_id,
+            graph_id=result.graph_id,
+            inputs=inputs,
+            config=getattr(node, "config", {}),
+            capabilities=capabilities or set(),
+        )
+
+        start = time.monotonic()
+        try:
+            exec_result = await worker.execute_node(node_def, ctx)
+            exec_time = (time.monotonic() - start) * 1000
+
+            if exec_result.success:
+                record = NodeExecutionRecord(
+                    node_id=node_id,
+                    status=ExecutionStatus.COMPLETED,
+                    outputs=exec_result.outputs,
+                    execution_time_ms=exec_time,
+                )
+                node_outputs[node_id] = exec_result.outputs
+                result.outputs[node_id] = exec_result.outputs
+            else:
+                record = NodeExecutionRecord(
+                    node_id=node_id,
+                    status=ExecutionStatus.FAILED,
+                    error=exec_result.error,
+                    error_type=getattr(exec_result, "error_type", "RuntimeError"),
+                    execution_time_ms=exec_time,
+                )
+                result.status = ExecutionStatus.FAILED
+                result.error = exec_result.error
+
+        except PermissionError as e:
+            exec_time = (time.monotonic() - start) * 1000
+            record = NodeExecutionRecord(
+                node_id=node_id,
+                status=ExecutionStatus.FAILED,
+                error=str(e),
+                error_type="PermissionError",
+                execution_time_ms=exec_time,
+            )
+            result.status = ExecutionStatus.FAILED
+            result.error = str(e)
+
+        except Exception as e:
+            exec_time = (time.monotonic() - start) * 1000
+            record = NodeExecutionRecord(
+                node_id=node_id,
+                status=ExecutionStatus.FAILED,
+                error=str(e),
+                error_type=type(e).__name__,
+                execution_time_ms=exec_time,
+            )
+            result.status = ExecutionStatus.FAILED
+            result.error = str(e)
+
+        result.node_records.append(record)
+        return record
+
     async def _execute_graph_inner(
         self,
         graph: Any,
         result: GraphExecutionResult,
         capabilities: set[str] | None,
+        mode: ExecutionMode = ExecutionMode.EAGER,
+        target_nodes: set[str] | None = None,
     ) -> None:
         """Inner graph execution logic."""
         sorted_nodes = self._topological_sort(graph)
         node_outputs: dict[str, dict[str, Any]] = {}
-        getattr(graph, "connections", [])
+
+        # Lazy filtering: determine required nodes
+        required_ids: set[str] | None = None
+        if mode == ExecutionMode.LAZY:
+            targets = target_nodes or self._find_sink_nodes_executor(graph)
+            required_ids = self._find_required_nodes_executor(graph, targets)
+            logger.info(
+                "Lazy mode: %d/%d nodes required",
+                len(required_ids),
+                len(sorted_nodes),
+            )
 
         for node in sorted_nodes:
             node_id = getattr(node, "node_id", getattr(node, "id", ""))
-            node_type = getattr(node, "node_type", "")
-            node_def = self._node_definitions.get(node_type)
 
-            if not node_def:
-                record = NodeExecutionRecord(
-                    node_id=node_id,
-                    status=ExecutionStatus.FAILED,
-                    error=f"Unknown node type: {node_type}",
-                    error_type="RuntimeError",
-                )
-                result.node_records.append(record)
-                result.status = ExecutionStatus.FAILED
-                result.error = f"Unknown node type: {node_type}"
-                return
+            # Skip nodes not in the required set (lazy mode)
+            if required_ids is not None and node_id not in required_ids:
+                continue
 
-            # Collect inputs
-            inputs = self._collect_node_inputs(graph, node, node_outputs, node_def)
-
-            # Find worker
-            domain = node_type.split(".")[0] if "." in node_type else node_type
-            worker = self._workers.get(domain)
-
-            if not worker:
-                record = NodeExecutionRecord(
-                    node_id=node_id,
-                    status=ExecutionStatus.FAILED,
-                    error=f"No worker for domain: {domain}",
-                    error_type="RuntimeError",
-                )
-                result.node_records.append(record)
-                result.status = ExecutionStatus.FAILED
-                result.error = f"No worker for domain: {domain}"
-                return
-
-            # Build execution context
-            from mascarade.node_engine.base import NodeExecutionContext
-
-            ctx = NodeExecutionContext(
-                node_id=node_id,
-                graph_id=result.graph_id,
-                inputs=inputs,
-                config=getattr(node, "config", {}),
-                capabilities=capabilities or set(),
+            record = await self._execute_single_node(
+                graph, node, node_outputs, result, capabilities
             )
 
-            # Execute
-            start = time.monotonic()
-            try:
-                exec_result = await worker.execute_node(node_def, ctx)
-                exec_time = (time.monotonic() - start) * 1000
-
-                if exec_result.success:
-                    record = NodeExecutionRecord(
-                        node_id=node_id,
-                        status=ExecutionStatus.COMPLETED,
-                        outputs=exec_result.outputs,
-                        execution_time_ms=exec_time,
-                    )
-                    node_outputs[node_id] = exec_result.outputs
-                    result.outputs[node_id] = exec_result.outputs
-                else:
-                    record = NodeExecutionRecord(
-                        node_id=node_id,
-                        status=ExecutionStatus.FAILED,
-                        error=exec_result.error,
-                        error_type=getattr(exec_result, "error_type", "RuntimeError"),
-                        execution_time_ms=exec_time,
-                    )
-                    result.status = ExecutionStatus.FAILED
-                    result.error = exec_result.error
-                    result.node_records.append(record)
-                    return
-
-            except PermissionError as e:
-                exec_time = (time.monotonic() - start) * 1000
-                record = NodeExecutionRecord(
-                    node_id=node_id,
-                    status=ExecutionStatus.FAILED,
-                    error=str(e),
-                    error_type="PermissionError",
-                    execution_time_ms=exec_time,
-                )
-                result.status = ExecutionStatus.FAILED
-                result.error = str(e)
-                result.node_records.append(record)
+            if result.status == ExecutionStatus.FAILED:
                 return
-
-            except Exception as e:
-                exec_time = (time.monotonic() - start) * 1000
-                record = NodeExecutionRecord(
-                    node_id=node_id,
-                    status=ExecutionStatus.FAILED,
-                    error=str(e),
-                    error_type=type(e).__name__,
-                    execution_time_ms=exec_time,
-                )
-                result.status = ExecutionStatus.FAILED
-                result.error = str(e)
-                result.node_records.append(record)
-                return
-
-            result.node_records.append(record)
 
         if result.status == ExecutionStatus.RUNNING:
             result.status = ExecutionStatus.COMPLETED

@@ -239,6 +239,150 @@ describe("node-engine routes", () => {
     });
   });
 
+  describe("GET /graphs/:id/status", () => {
+    const ORIGINAL_FETCH = global.fetch;
+
+    afterEach(() => {
+      if (ORIGINAL_FETCH === undefined) {
+        // @ts-expect-error test cleanup
+        delete global.fetch;
+      } else {
+        global.fetch = ORIGINAL_FETCH;
+      }
+    });
+
+    it("returns 400 for invalid graph ID", async () => {
+      const res = await makeApp().request("/node-engine/graphs/invalid%20id%21/status");
+      expect(res.status).toBe(400);
+    });
+
+    it("proxies execution status from core", async () => {
+      vi.stubGlobal(
+        "fetch",
+        vi.fn().mockResolvedValue(
+          new Response(JSON.stringify({ graph_id: "my-graph", status: "running" }), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          }),
+        ),
+      );
+
+      const res = await makeApp().request("/node-engine/graphs/my-graph/status");
+      expect(res.status).toBe(200);
+      expect(await res.json()).toEqual({ graph_id: "my-graph", status: "running" });
+    });
+
+    it("falls back to local state when core is unreachable and graph exists", async () => {
+      const graphData = {
+        id: "my-graph",
+        name: "Test",
+        nodes: [],
+        edges: [],
+        metadata: { id: "my-graph", name: "Test", created_at: "2026-01-01", updated_at: "2026-01-01" },
+      };
+      mockedFs.readFile.mockResolvedValue(JSON.stringify(graphData));
+      vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("connection refused")));
+
+      const res = await makeApp().request("/node-engine/graphs/my-graph/status");
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.graph_id).toBe("my-graph");
+      expect(body.status).toBe("idle");
+      expect(body.core_connected).toBe(false);
+    });
+
+    it("returns 404 when core is unreachable and graph does not exist", async () => {
+      mockedFs.readFile.mockRejectedValue(new Error("ENOENT"));
+      vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("connection refused")));
+
+      const res = await makeApp().request("/node-engine/graphs/nonexistent/status");
+      expect(res.status).toBe(404);
+    });
+  });
+
+  describe("GET /catalog", () => {
+    const ORIGINAL_FETCH = global.fetch;
+
+    afterEach(() => {
+      if (ORIGINAL_FETCH === undefined) {
+        // @ts-expect-error test cleanup
+        delete global.fetch;
+      } else {
+        global.fetch = ORIGINAL_FETCH;
+      }
+    });
+
+    it("proxies catalog from core", async () => {
+      const catalog = {
+        node_types: [
+          { id: "llm-prompt", domain: "ai", label: "LLM Prompt" },
+          { id: "http-request", domain: "io", label: "HTTP Request" },
+        ],
+      };
+      vi.stubGlobal(
+        "fetch",
+        vi.fn().mockResolvedValue(
+          new Response(JSON.stringify(catalog), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          }),
+        ),
+      );
+
+      const res = await makeApp().request("/node-engine/catalog");
+      expect(res.status).toBe(200);
+      expect(await res.json()).toEqual(catalog);
+    });
+
+    it("returns 502 when core is unreachable", async () => {
+      vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("connection refused")));
+
+      const res = await makeApp().request("/node-engine/catalog");
+      expect(res.status).toBe(502);
+    });
+  });
+
+  describe("GET /workers", () => {
+    const ORIGINAL_FETCH = global.fetch;
+
+    afterEach(() => {
+      if (ORIGINAL_FETCH === undefined) {
+        // @ts-expect-error test cleanup
+        delete global.fetch;
+      } else {
+        global.fetch = ORIGINAL_FETCH;
+      }
+    });
+
+    it("proxies workers list from core", async () => {
+      const workers = {
+        workers: [
+          { name: "ai-worker", domain: "ai", status: "online", node_types: ["llm-prompt"] },
+        ],
+      };
+      vi.stubGlobal(
+        "fetch",
+        vi.fn().mockResolvedValue(
+          new Response(JSON.stringify(workers), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          }),
+        ),
+      );
+
+      const res = await makeApp().request("/node-engine/workers");
+      expect(res.status).toBe(200);
+      expect(await res.json()).toEqual(workers);
+    });
+
+    it("returns 502 when core is unreachable", async () => {
+      vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("connection refused")));
+
+      const res = await makeApp().request("/node-engine/workers");
+      expect(res.status).toBe(502);
+    });
+  });
+
   describe("GET /runtime/status", () => {
     const ORIGINAL_FETCH = global.fetch;
 
