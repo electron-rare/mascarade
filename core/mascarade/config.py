@@ -154,6 +154,14 @@ class Settings(BaseSettings):
     # Qdrant
     qdrant_url: str = "http://qdrant:6333"
 
+    # RAG pipeline
+    rag_reranker_enabled: bool = True
+    rag_reranker_model: str = "BAAI/bge-reranker-v2-m3"
+    # Contextual Retrieval (Anthropic pattern) — opt-in: adds ~1 LLM call/chunk at indexation
+    rag_contextual_retrieval_enabled: bool = False
+    # Use "provider/model" syntax to force a specific provider, e.g. "anthropic/claude-haiku-4-5-20251001"
+    rag_contextual_retrieval_model: str = "claude-haiku-4-5-20251001"
+
     # Core API server
     core_host: str = "0.0.0.0"
     core_port: int = 8100
