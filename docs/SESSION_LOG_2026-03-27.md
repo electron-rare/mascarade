@@ -53,6 +53,14 @@ Full-day session covering machine analysis, multi-repo synchronization (Mac + VM
 - Created GitHub Actions CI workflow for KiCad exports
 - Automated schematic/PCB export pipeline
 
+### 11. Tower Discovery and Infrastructure Reorganization
+- Discovered Tower as the primary server: 12 CPU, 32GB RAM, Quadro P2000, 87 containers running
+- mascarade-core healthy on Tower; Photon reclassified as mesh secondary
+- Photon reduced to minimal footprint: core mesh node + Pi-hole + Cloudflare tunnel
+- mascarade-core now runs on BOTH machines for P2P mesh redundancy
+- Tower profile added to `docs/MACHINE_PROFILES.json`
+- Infrastructure docs updated across CLAUDE.md, TODO_VM.md, README.md, and ROADMAP
+
 ## Plans/TODOs Updated
 - `docs/TODO_2026-03-10.md` — Marked 10 new items done
 - `docs/ROADMAP_UPDATED_2026-03-15.md` — Updated all phase completion percentages and milestone statuses
