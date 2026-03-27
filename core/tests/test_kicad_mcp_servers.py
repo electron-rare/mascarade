@@ -23,6 +23,7 @@ class TestKicadServerRegistry:
     def test_all_servers_defined(self):
         expected_keys = {
             "seeed-kicad",
+            "seeed-kicad-v2",
             "circuit-synth",
             "kicad-happy",
             "mixelpixx-kicad",
