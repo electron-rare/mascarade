@@ -36,9 +36,9 @@ async def test_openai_send():
     with patch("mascarade.router.providers.openai.litellm") as mock_litellm:
         mock_litellm.acompletion = AsyncMock(return_value=mock_response)
         provider = OpenAIProvider()
+        assert provider.is_configured is True
         response = await provider.send([{"role": "user", "content": "hello"}])
 
-    assert provider.is_configured is True
     assert response.content == "openai-ok"
     assert response.provider == "openai"
     assert response.usage["input_tokens"] == 8

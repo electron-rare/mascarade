@@ -39,9 +39,9 @@ async def test_claude_direct_send():
     with patch("mascarade.router.providers.claude.litellm") as mock_litellm:
         mock_litellm.acompletion = AsyncMock(return_value=mock_response)
         provider = ClaudeProvider()
+        assert provider.is_configured is True
         response = await provider.send([{"role": "user", "content": "hello"}])
 
-    assert provider.is_configured is True
     assert response.content == "direct-ok"
     assert response.provider == "claude"
     assert response.usage["input_tokens"] == 10
