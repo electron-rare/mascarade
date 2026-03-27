@@ -98,10 +98,88 @@ app.route("/api/finetune", finetune);
 app.route("/api/v2/llm-providers", llmProviders);
 app.route("/api", ollama);
 
+// Open Buro API (direct handlers to avoid sub-app priority issues)
+import { APP_REGISTRY } from "./routes/openburo.js";
+// import { openburoEvents } from "./routes/openburo-events.js";
+import { BUSINESS_OBJECT_SCHEMAS } from "./routes/openburo-objects.js";
+
+app.get("/openburo/apps", (c) => { 
+  const capability = c.req.query("capability");
+  const node = c.req.query("node");
+  let apps = APP_REGISTRY;
+  if (capability) apps = apps.filter((a: any) => a.capabilities.includes(capability));
+  if (node) apps = apps.filter((a: any) => a.node === node);
+  return c.json({ apps, count: apps.length });
+});
+
+app.get("/openburo/apps/:id", (c) => {
+  const entry = APP_REGISTRY.find((a: any) => a.id === c.req.param("id"));
+  if (!entry) return c.json({ error: "App not found" }, 404);
+  return c.json(entry);
+});
+
+app.get("/openburo/capabilities", (c) => {
+  const caps = [...new Set(APP_REGISTRY.flatMap((a: any) => a.capabilities))].sort();
+  return c.json({ capabilities: caps });
+});
+
+app.get("/openburo/health", async (c) => {
+  const results = await Promise.allSettled(
+    APP_REGISTRY.filter((a: any) => a.health).map(async (a: any) => {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 5000);
+      try {
+        const res = await fetch(a.health, { signal: controller.signal });
+        return { id: a.id, name: a.name, status: res.ok ? "up" : "down", code: res.status };
+      } catch { return { id: a.id, name: a.name, status: "down", code: 0 }; }
+      finally { clearTimeout(timeout); }
+    })
+  );
+  const statuses = results.map((r: any) => r.status === "fulfilled" ? r.value : { id: "?", name: "?", status: "error", code: 0 });
+  return c.json({ total: statuses.length, up: statuses.filter((s: any) => s.status === "up").length, down: statuses.length - statuses.filter((s: any) => s.status === "up").length, services: statuses });
+});
+
+// Open Buro: Event bus (CloudEvents + Redis Streams)
+// [Phase 2] app.post("/openburo/events", (c) => // openburoEvents.fetch(c.req.raw, c.env));
+// [Phase 2] app.get("/openburo/events", (c) => // openburoEvents.fetch(new Request("http://x/", { headers: c.req.raw.headers }), c.env));
+// [Phase 2] app.get("/openburo/events/stream", (c) => // openburoEvents.fetch(new Request("http://x/stream", { headers: c.req.raw.headers }), c.env));
+// [Phase 2] app.get("/openburo/events/stats", (c) => // openburoEvents.fetch(new Request("http://x/stats", { headers: c.req.raw.headers }), c.env));
+
+// Open Buro: Business Objects (direct handlers)
+app.get("/openburo/objects/schemas", (c) => {
+  const types = Object.keys(BUSINESS_OBJECT_SCHEMAS).map((k) => ({
+    type: k,
+    description: (BUSINESS_OBJECT_SCHEMAS as any)[k].description,
+    required: (BUSINESS_OBJECT_SCHEMAS as any)[k].required,
+    property_count: Object.keys((BUSINESS_OBJECT_SCHEMAS as any)[k].properties).length,
+  }));
+  return c.json({ schemas: types, count: types.length });
+});
+
+app.get("/openburo/objects/schemas/:type", (c) => {
+  const schema = (BUSINESS_OBJECT_SCHEMAS as any)[c.req.param("type")];
+  if (!schema) return c.json({ error: "Unknown type" }, 404);
+  return c.json(schema);
+});
+
+app.get("/openburo/objects/:type", (c) => {
+  const type = c.req.param("type");
+  if (!(BUSINESS_OBJECT_SCHEMAS as any)[type]) return c.json({ error: "Unknown type" }, 404);
+  return c.json({ type, objects: [], count: 0, message: "Cross-app search available in Phase 2" });
+});
+
+
 if (hasFrontend) {
   app.use("/assets/*", serveStatic({ root: "./public" }));
   app.use("/favicon.ico", serveStatic({ root: "./public" }));
-  app.get("*", serveStatic({ root: "./public", path: "index.html" }));
+  // SPA: notFound handler serves index.html for frontend routes only
+  app.notFound((c) => {
+    if (c.req.path.startsWith("/openburo") || c.req.path.startsWith("/api") || c.req.path.startsWith("/v1")) {
+      return c.json({ error: "Not found" }, 404);
+    }
+    const fs = require("node:fs");
+    return c.html(fs.readFileSync("./public/index.html", "utf-8"));
+  });
 } else {
   app.get("/", (c) => c.json({ name: "mascarade-api", version: "0.1.0" }));
 }
