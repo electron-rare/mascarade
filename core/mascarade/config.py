@@ -169,6 +169,9 @@ class Settings(BaseSettings):
     # Set "ollama" + rag_embedding_model="bge-m3:latest" for best self-hosted quality
     rag_embedding_provider: str = "auto"
     rag_embedding_model: str = ""  # empty = provider default
+    # Chunking (used by ingest/url and ingest/upload endpoints)
+    rag_chunk_size: int = 512  # target tokens per chunk
+    rag_chunk_overlap: int = 50  # token overlap between adjacent chunks
 
     # Core API server
     core_host: str = "0.0.0.0"

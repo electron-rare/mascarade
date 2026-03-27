@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, File, HTTPException, Request, UploadFile
 from pydantic import BaseModel, Field
 
 from mascarade.rag.embeddings import EmbeddingProvider
@@ -47,11 +47,24 @@ class RAGIngestRequest(BaseModel):
     documents: list[dict[str, Any]]
     model: str = "text-embedding-3-small"
     collection: str | None = None
+    chunk: bool = False  # auto-chunk each document using rag_chunk_size/overlap settings
+    contextual_retrieval: bool | None = None
 
 
 class RAGIngestResponse(BaseModel):
     ingested: int
     collection: str
+
+
+class RAGIngestURLRequest(BaseModel):
+    url: str
+    collection: str | None = None
+    model: str = "text-embedding-3-small"
+    chunk_size: int | None = None  # None = use settings.rag_chunk_size
+    chunk_overlap: int | None = None
+    metadata: dict[str, Any] = {}
+    ocr: bool = False
+    contextual_retrieval: bool | None = None
 
 
 class RAGSearchRequest(BaseModel):
@@ -153,10 +166,23 @@ async def rag_ingest(body: RAGIngestRequest, request: Request) -> RAGIngestRespo
 
     pipeline = _get_pipeline(request)
     try:
+        docs = body.documents
+        if body.chunk:
+            from mascarade.config import settings as _settings
+            from mascarade.rag.chunker import chunk_document
+
+            chunked: list[dict[str, Any]] = []
+            for doc in docs:
+                chunked.extend(
+                    chunk_document(doc, _settings.rag_chunk_size, _settings.rag_chunk_overlap)
+                )
+            docs = chunked or docs
+
         count = await pipeline.ingest(
-            body.documents,
+            docs,
             model=body.model,
             collection=body.collection,
+            contextual_retrieval=body.contextual_retrieval,
         )
         collection_name = body.collection or pipeline.vectorstore.collection
         return RAGIngestResponse(ingested=count, collection=collection_name)
@@ -237,6 +263,149 @@ async def rag_eval(body: RAGEvalRequest, request: Request) -> RAGEvalResponse:
         raise
     except Exception as exc:
         logger.exception("RAG eval failed")
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    finally:
+        await pipeline.close()
+
+
+# ---------------------------------------------------------------------------
+# URL / file ingestion (Docling-powered)
+# ---------------------------------------------------------------------------
+
+
+async def _ingest_text_via_pipeline(
+    pipeline: RAGPipeline,
+    text: str,
+    source: str,
+    body_model: str,
+    body_collection: str | None,
+    body_chunk_size: int | None,
+    body_chunk_overlap: int | None,
+    body_metadata: dict[str, Any],
+    body_contextual_retrieval: bool | None,
+) -> RAGIngestResponse:
+    """Shared helper: chunk + ingest text content."""
+    from mascarade.config import settings as _settings
+    from mascarade.rag.chunker import chunk_document
+
+    doc: dict[str, Any] = {"text": text, "source": source, **body_metadata}
+    chunk_size = body_chunk_size or _settings.rag_chunk_size
+    chunk_overlap = body_chunk_overlap or _settings.rag_chunk_overlap
+    docs = chunk_document(doc, chunk_size=chunk_size, chunk_overlap=chunk_overlap) or [doc]
+
+    count = await pipeline.ingest(
+        docs,
+        model=body_model,
+        collection=body_collection,
+        contextual_retrieval=body_contextual_retrieval,
+    )
+    collection_name = body_collection or pipeline.vectorstore.collection
+    return RAGIngestResponse(ingested=count, collection=collection_name)
+
+
+@router.post("/ingest/url", response_model=RAGIngestResponse)
+async def rag_ingest_url(body: RAGIngestURLRequest, request: Request) -> RAGIngestResponse:
+    """Fetch, parse, chunk and ingest a remote document URL via Docling.
+
+    Requires ``DOCLING_URL`` to be configured (mascarade-docling service).
+    Supports PDF, DOCX, HTML, Markdown, and more.
+
+    With ``ocr=true``, enables OCR for scanned PDFs (slower, requires Docling GPU).
+    """
+    from mascarade.mcp.docling import get_client as get_docling
+
+    docling = get_docling()
+    if docling is None:
+        raise HTTPException(
+            status_code=503,
+            detail="Docling not configured — set DOCLING_URL in environment",
+        )
+
+    pipeline = _get_pipeline(request)
+    try:
+        result = await docling.convert_url(body.url, ocr=body.ocr)
+        text = result.get("content", "").strip()
+        if not text:
+            raise HTTPException(status_code=422, detail="Docling returned empty content for URL")
+
+        doc_metadata = {**body.metadata, "docling_metadata": result.get("metadata", {})}
+        return await _ingest_text_via_pipeline(
+            pipeline,
+            text=text,
+            source=body.url,
+            body_model=body.model,
+            body_collection=body.collection,
+            body_chunk_size=body.chunk_size,
+            body_chunk_overlap=body.chunk_overlap,
+            body_metadata=doc_metadata,
+            body_contextual_retrieval=body.contextual_retrieval,
+        )
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("RAG ingest/url failed")
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    finally:
+        await pipeline.close()
+
+
+@router.post("/ingest/upload", response_model=RAGIngestResponse)
+async def rag_ingest_upload(
+    request: Request,
+    file: UploadFile = File(...),
+    collection: str | None = None,
+    model: str = "text-embedding-3-small",
+    ocr: bool = False,
+    contextual_retrieval: bool | None = None,
+) -> RAGIngestResponse:
+    """Upload, parse, chunk and ingest a local file via Docling.
+
+    Accepts any file type supported by Docling (PDF, DOCX, PPTX, HTML, …).
+    File size limit: 50 MB.
+
+    Requires ``DOCLING_URL`` to be configured (mascarade-docling service).
+    """
+    from mascarade.config import settings as _settings
+    from mascarade.mcp.docling import get_client as get_docling
+
+    docling = get_docling()
+    if docling is None:
+        raise HTTPException(
+            status_code=503,
+            detail="Docling not configured — set DOCLING_URL in environment",
+        )
+
+    max_bytes = 50 * 1024 * 1024  # 50 MB
+    content_bytes = await file.read(max_bytes + 1)
+    if len(content_bytes) > max_bytes:
+        raise HTTPException(status_code=413, detail="File exceeds 50 MB limit")
+
+    mime_type = file.content_type or "application/octet-stream"
+    pipeline = _get_pipeline(request)
+    try:
+        result = await docling.convert_text(
+            content_bytes.decode("utf-8", errors="replace"),
+            mime_type=mime_type,
+        )
+        text = result.get("content", "").strip()
+        if not text:
+            raise HTTPException(status_code=422, detail="Docling returned empty content for file")
+
+        return await _ingest_text_via_pipeline(
+            pipeline,
+            text=text,
+            source=file.filename or "upload",
+            body_model=model,
+            body_collection=collection,
+            body_chunk_size=_settings.rag_chunk_size,
+            body_chunk_overlap=_settings.rag_chunk_overlap,
+            body_metadata={"filename": file.filename, "mime_type": mime_type},
+            body_contextual_retrieval=contextual_retrieval,
+        )
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("RAG ingest/upload failed")
         raise HTTPException(status_code=500, detail=str(exc)) from exc
     finally:
         await pipeline.close()
