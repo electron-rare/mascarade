@@ -44,6 +44,12 @@ Etat de reference du chantier fine-tuning/distillation local au 6 mars 2026.
 - [x] `POST /v1/api/rag/eval` — endpoint FastAPI avec golden dataset et `run_pipeline=True`
 - [x] Seuils production : Faithfulness ≥0.85, Answer Relevance ≥0.75, Context Precision ≥0.70, Context Recall ≥0.75, Hallucination <5%
 
+### MCP — data.gouv.fr + edge-proxy oidc2fer (2026-03-27)
+- [x] `mcp/server_registry.py` : `register_datagouv_server()` — SSE `https://mcp.data.gouv.fr/sse`, 74k+ datasets publics français
+- [x] `mcp/client.py` : branché au `McpRuntimeClient._load_builtin_servers()`
+- [x] Opt-out via `DATAGOUV_ENABLED=false`, URL surchargeable via `DATAGOUV_MCP_URL`
+- [x] `deploy/edge-proxy/default.conf.template` : blocs nginx `oidc2fer.saillant.cc` (http:80 + https:443) → `http://oidc2fer:8000`
+
 ### Fine-tuning — Phase B/C/D scripts (2026-03-27)
 - [x] `finetune/batch_phase_b.sh` : rejection sampling 10 domaines, N_CANDIDATES=8, output `dpo_pairs/{domain}/`
 - [x] `finetune/batch_phase_c.sh` : ORPO training (pas de reference model, −3GB VRAM), détecte dernier adapteur Phase A
