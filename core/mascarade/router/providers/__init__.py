@@ -171,3 +171,10 @@ try:
     __all__.append("PerplexityProvider")
 except ImportError:
     pass
+
+try:
+    from mascarade.router.providers.primacpp import PrimaCppProvider
+
+    __all__.append("PrimaCppProvider")
+except ImportError:
+    pass

@@ -117,6 +117,11 @@ class Settings(BaseSettings):
     exo_base_url: str = "http://localhost:52415"
     exo_timeout_seconds: float = 120.0
 
+    # Prima.cpp (distributed llama.cpp fork — ring topology, ZeroMQ, 70B+ models)
+    primacpp_enabled: bool = False
+    primacpp_url: str = "http://localhost:8088"
+    primacpp_timeout_seconds: float = 300.0
+
     # llama.cpp (OpenAI-compatible local server)
     llama_cpp_enabled: bool = False
     llama_cpp_base_url: str = "http://localhost:8081/v1"
