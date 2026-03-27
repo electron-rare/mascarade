@@ -165,6 +165,10 @@ class Settings(BaseSettings):
     rag_cache_enabled: bool = False  # opt-in: requires Redis
     rag_cache_similarity_threshold: float = 0.92
     rag_cache_ttl: int = 3600  # seconds
+    # Embedding provider override (default "auto" = OpenAI→Mistral→HF→Ollama→fastembed)
+    # Set "ollama" + rag_embedding_model="bge-m3:latest" for best self-hosted quality
+    rag_embedding_provider: str = "auto"
+    rag_embedding_model: str = ""  # empty = provider default
 
     # Core API server
     core_host: str = "0.0.0.0"

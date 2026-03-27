@@ -78,6 +78,30 @@ class CollectionsResponse(BaseModel):
     collections: list[CollectionInfo]
 
 
+class RAGEvalItem(BaseModel):
+    question: str
+    ground_truth: str = ""
+    answer: str = ""
+    contexts: list[str] = []
+
+
+class RAGEvalRequest(BaseModel):
+    dataset: list[RAGEvalItem]
+    run_pipeline: bool = True  # fill missing answers/contexts via pipeline
+    judge_provider: str | None = None
+    judge_model: str | None = None
+
+
+class RAGEvalResponse(BaseModel):
+    metrics: dict[str, float]
+    thresholds: dict[str, float]
+    status: dict[str, str]
+    overall: str
+    n_items: int
+    n_errors: int
+    elapsed_seconds: float
+
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -179,3 +203,40 @@ async def rag_search(body: RAGSearchRequest) -> RAGSearchResponse:
     finally:
         await vs.close()
         await embeddings.close()
+
+
+@router.post("/eval", response_model=RAGEvalResponse)
+async def rag_eval(body: RAGEvalRequest, request: Request) -> RAGEvalResponse:
+    """Evaluate RAG pipeline quality against a golden dataset.
+
+    Computes RAGAS-compatible metrics (Faithfulness, Answer Relevance,
+    Context Precision, Context Recall, Hallucination Rate) using LLM judges.
+
+    Pass ``run_pipeline=true`` to let the pipeline fill missing answers/contexts.
+    """
+    from mascarade.rag.eval import RAGEvaluator
+
+    if not body.dataset:
+        raise HTTPException(status_code=400, detail="Empty dataset")
+
+    pipeline = _get_pipeline(request)
+    try:
+        evaluator = RAGEvaluator(
+            pipeline,
+            judge_provider=body.judge_provider,
+            judge_model=body.judge_model,
+        )
+        result = await evaluator.evaluate(
+            [item.model_dump() for item in body.dataset],
+            run_pipeline=body.run_pipeline,
+        )
+        if "error" in result:
+            raise HTTPException(status_code=500, detail=result["error"])
+        return RAGEvalResponse(**{k: result[k] for k in RAGEvalResponse.model_fields})
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("RAG eval failed")
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    finally:
+        await pipeline.close()
