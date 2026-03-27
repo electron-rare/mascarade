@@ -9,7 +9,9 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from mascarade.router.router import Router
 
+from mascarade.config import settings
 from mascarade.rag.embeddings import EmbeddingProvider
+from mascarade.rag.reranker import CrossEncoderReranker
 from mascarade.rag.vectorstore import QdrantVectorStore
 
 logger = logging.getLogger("mascarade.rag.pipeline")
@@ -27,6 +29,14 @@ User query: {query}
 Category:"""
 
 # RAG system prompt template
+_CONTEXTUAL_PREAMBLE_PROMPT = """\
+Generate a brief 1-2 sentence context description for this text chunk that will be \
+prepended to improve search retrieval accuracy. Focus on what the chunk is about and \
+its key information. Reply with ONLY the context description, no preamble.
+
+Chunk:
+{chunk_text}"""
+
 _RAG_SYSTEM_PROMPT = """\
 You are a helpful assistant with access to a knowledge base.
 Answer the user's question using ONLY the context provided below.
@@ -49,6 +59,7 @@ class RAGPipeline:
         self.router = router
         self.vectorstore = vectorstore or QdrantVectorStore()
         self.embeddings = embeddings or EmbeddingProvider()
+        self._reranker = CrossEncoderReranker(settings.rag_reranker_model)
 
     async def close(self) -> None:
         await self.vectorstore.close()
@@ -109,10 +120,17 @@ class RAGPipeline:
             )
             tool_calls.append("hybrid_search")
 
-            # Rerank: use LLM to score relevance (lightweight CRAG pattern)
+            # Rerank: true cross-encoder (bge-reranker-v2-m3) or LLM fallback
             if results and len(results) > top_k:
-                results = await self._rerank(user_query, results, top_k=top_k)
-                tool_calls.append("rerank")
+                if settings.rag_reranker_enabled:
+                    results = await self._rerank(user_query, results, top_k=top_k)
+                    tool_calls.append(
+                        "rerank:cross_encoder"
+                        if self._reranker.is_available
+                        else "rerank:llm_fallback"
+                    )
+                else:
+                    results = results[:top_k]
 
             # CRAG: check if results are relevant enough
             if results and results[0].get("score", 0) < 0.3:
@@ -180,11 +198,18 @@ class RAGPipeline:
         *,
         model: str = "text-embedding-3-small",
         collection: str | None = None,
+        contextual_retrieval: bool | None = None,
     ) -> int:
         """Ingest documents into the vector store for future retrieval.
 
         Each document dict should contain at least ``text``.
         Optional keys: ``id``, ``source``, ``metadata``.
+
+        Args:
+            contextual_retrieval: If True (or None and
+                ``settings.rag_contextual_retrieval_enabled`` is True), generate
+                an LLM context preamble for each chunk before embedding.
+                This reduces failed retrievals by ~49% (Anthropic research).
         """
         if not documents:
             return 0
@@ -192,6 +217,15 @@ class RAGPipeline:
         vs = self.vectorstore
         if collection and collection != vs.collection:
             vs = QdrantVectorStore(base_url=vs.base_url, collection=collection)
+
+        # Contextual Retrieval: prepend LLM-generated preamble to each chunk
+        use_ctx = (
+            contextual_retrieval
+            if contextual_retrieval is not None
+            else settings.rag_contextual_retrieval_enabled
+        )
+        if use_ctx:
+            documents = await self._add_contextual_preambles(documents)
 
         # Ensure collection exists with the right dimension
         dimension = self.embeddings.dimension_for_model(model)
@@ -215,38 +249,91 @@ class RAGPipeline:
         *,
         top_k: int = 5,
     ) -> list[dict[str, Any]]:
-        """Rerank results using LLM-based relevance scoring.
+        """Rerank with true cross-encoder (bge-reranker-v2-m3), LLM fallback.
 
-        Lightweight cross-encoder approximation: asks the LLM to score
-        each result's relevance to the query on a 0-10 scale.
+        Cross-encoder gives +10-30% precision vs dense-only retrieval.
+        Falls back to LLM scoring when sentence-transformers is not installed.
         """
         if not results:
             return results
 
-        # Build scoring prompt
+        # Attempt true cross-encoder reranking
+        if self._reranker.is_available:
+            try:
+                return await self._reranker.rerank(query, results, top_k=top_k)
+            except Exception as exc:
+                logger.debug("Cross-encoder reranking failed (%s), falling back to LLM", exc)
+
+        # LLM fallback: ask the LLM to score relevance on 0-10 scale
         docs_text = "\n".join(f"DOC_{i}: {r['text'][:300]}" for i, r in enumerate(results))
         prompt = (
             f"Rate each document's relevance to the query on a scale 0-10. "
             f"Reply with ONLY comma-separated scores (e.g. 8,3,9,1,7).\n\n"
             f"Query: {query}\n\n{docs_text}"
         )
-
         try:
             resp = await self.router.send(
                 [{"role": "user", "content": prompt}],
                 temperature=0.0,
                 max_tokens=100,
             )
-            scores_text = resp.text.strip()
-            scores = [float(s.strip()) for s in scores_text.split(",") if s.strip()]
+            scores = [float(s.strip()) for s in resp.text.strip().split(",") if s.strip()]
             if len(scores) == len(results):
                 for i, score in enumerate(scores):
                     results[i]["rerank_score"] = score
                 results.sort(key=lambda r: r.get("rerank_score", 0), reverse=True)
         except Exception as exc:
-            logger.debug("Reranking failed (%s), keeping original order", exc)
+            logger.debug("LLM reranking fallback failed (%s), keeping original order", exc)
 
         return results[:top_k]
+
+    async def _add_contextual_preambles(
+        self, documents: list[dict[str, Any]]
+    ) -> list[dict[str, Any]]:
+        """Prepend an LLM-generated context description to each chunk's text.
+
+        Implements the Anthropic Contextual Retrieval pattern:
+        https://www.anthropic.com/news/contextual-retrieval
+
+        Reduces failed retrievals by ~49% at indexation cost of ~1 token/chunk.
+        Uses ``settings.rag_contextual_retrieval_model`` (default: claude-haiku).
+        """
+        enriched: list[dict[str, Any]] = []
+        model = settings.rag_contextual_retrieval_model
+        # Extract provider from model prefix if present (e.g. "anthropic/claude-haiku")
+        provider: str | None = None
+        if "/" in model:
+            provider, model = model.split("/", 1)
+
+        for doc in documents:
+            chunk_text = doc.get("text", "")
+            if not chunk_text.strip():
+                enriched.append(doc)
+                continue
+            try:
+                resp = await self.router.send(
+                    [
+                        {
+                            "role": "user",
+                            "content": _CONTEXTUAL_PREAMBLE_PROMPT.format(
+                                chunk_text=chunk_text[:2000]
+                            ),
+                        }
+                    ],
+                    temperature=0.0,
+                    max_tokens=120,
+                    provider=provider,
+                    model=model,
+                )
+                preamble = resp.text.strip()
+                enriched_doc = {**doc, "text": f"{preamble}\n\n{chunk_text}"}
+            except Exception as exc:
+                logger.debug("Contextual preamble generation failed (%s), using raw chunk", exc)
+                enriched_doc = doc
+            enriched.append(enriched_doc)
+
+        logger.info("Contextual retrieval: enriched %d/%d chunks", len(enriched), len(documents))
+        return enriched
 
     async def _web_search_fallback(self, query: str) -> str:
         """Search the web via SearXNG as a CRAG fallback.

@@ -55,7 +55,7 @@ Notes:
 - [x] Les checks `Healthchecks` sont laisses sans cron placeholder tant qu'aucun job reel n'est cable.
 - [ ] Cabler les premiers jobs reels vers `mascarade-ops`, `mascarade-jobs`, `mascarade-watch` et les checks `Healthchecks`.
 - [x] Phase 2 (`SearXNG`, `Docling`) : services dans compose principal, prêts. `Paperless-ngx` et `Karakeep` dans `deploy/phase2/docker-compose.yml` — conditionnel.
-- [ ] Brancher Whisper config dans `config.py` (`whisper_model_size`, `whisper_device`, `whisper_compute_type`) — en cours.
+- [x] Brancher Whisper config dans `config.py` (`whisper_model_size`, `whisper_device`, `whisper_compute_type`) — done 2026-03-27.
 
 ## Backlog prioritaire restant
 
