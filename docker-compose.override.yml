@@ -1,27 +1,30 @@
-# docker-compose.override.yml - Local development overrides
-# This file overrides docker-compose.yml for local development
-
-services:
-  redis:
-    image: redis:7-alpine
-    container_name: mascarade-redis-dev
-    restart: unless-stopped
-    ports:
-      - "6379:6379"
-    volumes:
-      - redis-data:/data
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 3s
-      retries: 10
-      start_period: 5s
-    networks:
-      - mascarade-network
-
 networks:
   mascarade-network:
     driver: bridge
-
+services:
+  core:
+    environment:
+      KILL_LIFE_ROOT: /workspace/Kill_LIFE
+    volumes:
+    - /home/clems/Kill_LIFE:/workspace/Kill_LIFE:rw
+  redis:
+    container_name: mascarade-redis-dev
+    healthcheck:
+      interval: 10s
+      retries: 10
+      start_period: 5s
+      test:
+      - CMD
+      - redis-cli
+      - ping
+      timeout: 3s
+    image: redis:7-alpine
+    networks:
+    - mascarade-network
+    ports:
+    - 6379:6379
+    restart: unless-stopped
+    volumes:
+    - redis-data:/data
 volumes:
-  redis-data:
+  redis-data: null

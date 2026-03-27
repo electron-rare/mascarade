@@ -54,7 +54,8 @@ Notes:
 - [x] Les scripts `scripts/personal_stack_reconcile.sh`, `scripts/personal_stack_verify.sh` et `scripts/personal_stack_lots.sh` rejouent et verifient la wave 1 sans refaire le seed a la main.
 - [x] Les checks `Healthchecks` sont laisses sans cron placeholder tant qu'aucun job reel n'est cable.
 - [ ] Cabler les premiers jobs reels vers `mascarade-ops`, `mascarade-jobs`, `mascarade-watch` et les checks `Healthchecks`.
-- [ ] Preparer la phase 2 distante (`SearXNG`, `Paperless-ngx`, `Karakeep`) et l'ajouter a l'Ops Console sans alourdir `photon-machine`.
+- [x] Phase 2 (`SearXNG`, `Docling`) : services dans compose principal, prêts. `Paperless-ngx` et `Karakeep` dans `deploy/phase2/docker-compose.yml` — conditionnel.
+- [ ] Brancher Whisper config dans `config.py` (`whisper_model_size`, `whisper_device`, `whisper_compute_type`) — en cours.
 
 ## Backlog prioritaire restant
 
@@ -69,7 +70,9 @@ Notes:
 
 ### Tooling opt-in
 
-- [ ] Installer `Docling` dans le venv tools uniquement si un flux local de parsing documentaire le demande.
+- [x] `Docling` : service Docker `mascarade-docling` dans le compose principal (port 5010→5001), `DOCLING_URL` configuré, MCP branché via `register_docling_server()`. Lancer : `docker compose up -d docling`.
+- [x] `SearXNG` : service Docker `mascarade-searxng` dans le compose principal (port 8888→8080), `SEARXNG_URL` configuré, MCP branché. Lancer : `docker compose up -d searxng`.
+- [x] `faster-whisper` : ajouté en optional dep `voice` dans `core/pyproject.toml`. Activer dans le conteneur core avec `pip install mascarade-core[voice]`. Config : `WHISPER_MODEL_SIZE`, `WHISPER_DEVICE`, `WHISPER_COMPUTE_TYPE`.
 - [ ] Installer `openai-whisper` dans le venv tools uniquement si une transcription locale hors conteneur devient necessaire.
 
 ### Reseau / exposition

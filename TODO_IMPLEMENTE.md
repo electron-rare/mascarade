@@ -4,6 +4,16 @@ Etat de reference du chantier fine-tuning/distillation local au 6 mars 2026.
 
 ## 1. Deja implemente
 
+### La Suite Numérique (2026-03-26)
+- [x] Stack déployée : conversations (:8082), impress/docs (:8073), keycloak (:8085)
+- [x] S3 consolidé sur `mascarade-langfuse-minio` — buckets `conversations-media-storage` + `impress-media-storage`
+- [x] OIDC branché sur `auth.saillant.cc/realms/zacus` (clients conversations + impress déjà configurés)
+- [x] Keycloak healthcheck bash TCP (pas de curl dans l'image)
+- [x] Cloudflare tunnel : `conversations.saillant.cc → :8082`, `docs.saillant.cc → :8073`
+- [x] DNS CNAMEs créés et proxifiés CF
+- [x] Git : `electron-rare/suite-numerique` (privé), forks suitenumerique (conversations, docs, meet, people, find)
+- [x] MCP Outline activé — `OUTLINE_API_KEY` dans `.env`
+
 ### Mesh P2P hardware-aware (2026-03-26)
 - [x] Registre VRAM par modèle Ollama — `router/model_sizes.py` (lookup exact + heuristique param-count)
 - [x] `PeerCapabilities` étendu : `gpu_vram_gb`, `chip_family`, `ram_gb` gossipés via PubSub + DHT

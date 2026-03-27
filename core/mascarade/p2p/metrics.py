@@ -62,6 +62,20 @@ try:
         "Total P2P connection errors",
         ["peer_id"],
     )
+    p2p_peer_vram_gb = Gauge(
+        "mascarade_p2p_peer_vram_gb",
+        "GPU VRAM advertised by each P2P peer (GB)",
+        ["peer_id", "chip_family"],
+    )
+    p2p_local_vram_gb = Gauge(
+        "mascarade_p2p_local_vram_gb",
+        "GPU VRAM of this node (GB)",
+        ["chip_family"],
+    )
+    p2p_routing_vram_skips = Counter(
+        "mascarade_p2p_routing_vram_skips_total",
+        "Requests rerouted away from local because VRAM was insufficient",
+    )
 
     _PROMETHEUS_AVAILABLE = True
 
@@ -141,11 +155,20 @@ class P2PMetricsCollector:
         connected_peers: int,
         dht_entries: int,
         capabilities_known: int,
+        peer_hardware: list[dict] | None = None,
+        local_vram_gb: float = 0.0,
+        local_chip_family: str = "cpu_only",
     ) -> None:
         if _PROMETHEUS_AVAILABLE:
             p2p_connected_peers.set(connected_peers)
             p2p_dht_entries.set(dht_entries)
             p2p_capabilities_known.set(capabilities_known)
+            p2p_local_vram_gb.labels(chip_family=local_chip_family).set(local_vram_gb)
+            for peer in peer_hardware or []:
+                p2p_peer_vram_gb.labels(
+                    peer_id=peer["peer_id"][:24],
+                    chip_family=peer.get("chip_family", "cpu_only"),
+                ).set(peer.get("gpu_vram_gb", 0.0))
 
     def snapshot(
         self,
