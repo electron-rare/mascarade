@@ -94,7 +94,7 @@ def _safe_listen_host() -> str:
 
 
 def _mdns_key_fingerprint() -> str:
-    key = settings.cluster_shared_key.strip().encode("utf-8")
+    key = settings.cluster_shared_key.get_secret_value().strip().encode("utf-8")
     if not key:
         return ""
     return hashlib.sha256(key).hexdigest()
@@ -356,7 +356,7 @@ async def require_cluster_auth(
     if not settings.cluster_enabled:
         raise HTTPException(status_code=503, detail="Cluster disabled")
 
-    key = settings.cluster_shared_key.strip()
+    key = settings.cluster_shared_key.get_secret_value().strip()
     if not key:
         raise HTTPException(status_code=503, detail="Cluster not configured")
 
@@ -1194,7 +1194,7 @@ class ClusterManager:
         """Handle an incoming P2P stream forward request via the local router."""
         payload = dict(request_data)
         provided_token = str(payload.pop("__cluster_token", "")).strip()
-        expected_token = settings.cluster_shared_key.strip()
+        expected_token = settings.cluster_shared_key.get_secret_value().strip()
         # SEC-01: Reject if a token was provided but cluster_shared_key is unconfigured
         # (prevents auth bypass when key is accidentally empty)
         if not expected_token:
@@ -1243,7 +1243,7 @@ class ClusterManager:
         if self._p2p_node is None:
             return None
         p2p_payload = dict(payload)
-        shared_key = settings.cluster_shared_key.strip()
+        shared_key = settings.cluster_shared_key.get_secret_value().strip()
         if shared_key:
             p2p_payload["__cluster_token"] = shared_key
         forwarder = getattr(self._p2p_node, "forwarder", None)
@@ -1280,7 +1280,7 @@ class ClusterManager:
                 status_code=502, detail=f"Cluster peer requires HTTPS: {peer.peer_id}"
             )
         headers = {
-            "Authorization": f"Bearer {settings.cluster_shared_key.strip()}",
+            "Authorization": f"Bearer {settings.cluster_shared_key.get_secret_value().strip()}",
             "X-Mascarade-Node-ID": settings.node_id,
         }
         client = self._ensure_http_client()
