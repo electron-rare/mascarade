@@ -10,8 +10,16 @@ Etat de reference du chantier fine-tuning/distillation local au 6 mars 2026.
 - [x] `POST /v1/api/rag/ingest` : flag `chunk=true` auto-découpe les docs avant embedding
 - [x] `POST /v1/api/rag/ingest/url` : Docling fetch+parse+chunk+embed (PDF, DOCX, HTML…)
 - [x] `POST /v1/api/rag/ingest/upload` : Docling upload+chunk+embed, limit 50 MB
+- [x] `GET /v1/api/rag/collections` : inclut maintenant vectors_count et points_count par collection
+- [x] `GET /v1/api/rag/collections/{name}` : endpoint dédié info collection
+- [x] `DELETE /v1/api/rag/collections/{name}` : suppression collection (rag-query-cache protégé)
+- [x] `vectorstore.py` : `drop_collection()` + `count()` ajoutés
+- [x] `GET /api/cluster/p2p/peers` : liste tous les peers avec gpu_vram_gb, chip_family, ram_gb, connected, total_vram_gb
+- [x] `GET /api/cluster/p2p/topology` : nodes incluent maintenant gpu_vram_gb/chip_family/ram_gb
+- [x] `scripts/check_docker_user_rules.sh` : vérification/application règles iptables DOCKER-USER (ports 80/3500/5001)
 - [x] `deploy/grafana/mascarade-p2p-mesh.json` : dashboard Grafana VRAM gauges, routing skips, mesh peers
-- [x] `deploy/edge-proxy` : `cours.saillant.cc` — portail formation avec redirections LMS + Moodle
+- [x] `deploy/edge-proxy` : `cours.saillant.cc` — portail formation HTTP+HTTPS avec redirections LMS + Moodle
+- [x] `.env.example` : ajout EDGE_PROXY_LMS/MOODLE/OIDC2FER/COURS server name vars
 
 ### CAD Cockpit — crazy_life /cad (2026-03-27)
 - [x] Page `/cad` dans crazy_life : status FreeCAD + OpenSCAD runtime, probe KiCad MCP
