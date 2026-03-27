@@ -464,3 +464,377 @@ class TestAIWorkerStreaming:
         worker = AIWorker(router=MagicMock(), registry=MagicMock())
         caps = worker.capabilities()
         assert caps["supports_streaming"] is True
+
+
+# ---------------------------------------------------------------------------
+# 8. CADWorker — pure calculation + sub-worker dispatch
+# ---------------------------------------------------------------------------
+
+
+class TestCADWorkerCapabilities:
+    """Verify the CADWorker declares all node types from sub-workers."""
+
+    def test_cad_worker_instantiation(self):
+        from mascarade.node_engine.workers.cad.worker import CADWorker
+
+        worker = CADWorker()
+        assert worker.domain == "cad"
+        assert worker.name == "cad-worker"
+
+    def test_cad_worker_capabilities_has_all_node_types(self):
+        from mascarade.node_engine.workers.cad.worker import CADWorker
+
+        worker = CADWorker()
+        caps = worker.capabilities()
+        node_types = caps["node_types"]
+
+        # Pure calculation nodes
+        assert "cad.bom-generate" in node_types
+        assert "cad.trace-width" in node_types
+        assert "cad.thermal-via" in node_types
+        assert "cad.stackup-calc" in node_types
+        assert "cad.drc-check" in node_types
+        assert "cad.footprint-lookup" in node_types
+
+        # Mesh nodes
+        assert "cad.mesh.import" in node_types
+        assert "cad.mesh.export" in node_types
+        assert "cad.mesh.simplify" in node_types
+        assert "cad.mesh.boolean" in node_types
+        assert "cad.mesh.validate" in node_types
+        assert "cad.mesh.stats" in node_types
+
+        # Toolpath nodes
+        assert "cad.toolpath.generate_gcode" in node_types
+        assert "cad.toolpath.optimize" in node_types
+        assert "cad.toolpath.from_path" in node_types
+
+        # FreeCAD nodes (MCP-dependent, but declared)
+        assert "cad.freecad.create_document" in node_types
+        assert "cad.freecad.export" in node_types
+
+        # KiCad nodes (MCP-dependent, but declared)
+        assert "cad.kicad.generate_schematic" in node_types
+        assert "cad.kicad.perform_drc" in node_types
+
+
+class TestCADWorkerPureCalculation:
+    """Verify pure calculation nodes execute correctly through CADWorker."""
+
+    @pytest.mark.asyncio
+    async def test_trace_width(self):
+        from mascarade.node_engine.workers.cad.worker import CADWorker
+
+        worker = CADWorker()
+        result = await worker.execute(
+            "cad.trace-width",
+            {"current": 1.0, "copper_thickness": 1.0, "temp_rise": 10.0, "layer": "external"},
+            {},
+        )
+        assert "width_mm" in result
+        assert result["width_mm"] > 0
+        assert "width_mil" in result
+
+    @pytest.mark.asyncio
+    async def test_bom_generate(self):
+        from mascarade.node_engine.workers.cad.worker import CADWorker
+
+        worker = CADWorker()
+        result = await worker.execute(
+            "cad.bom-generate",
+            {
+                "components": [
+                    {"ref": "R1", "value": "10k", "footprint": "0805", "qty": 1},
+                    {"ref": "R2", "value": "10k", "footprint": "0805", "qty": 1},
+                    {"ref": "C1", "value": "100nF", "footprint": "0402", "qty": 1},
+                ]
+            },
+            {},
+        )
+        assert result["total_unique"] == 2
+        assert result["total_qty"] == 3
+
+    @pytest.mark.asyncio
+    async def test_unsupported_node_type_raises(self):
+        from mascarade.node_engine.workers.cad.worker import CADWorker
+
+        worker = CADWorker()
+        with pytest.raises(ValueError, match="Unsupported CAD node type"):
+            await worker.execute("cad.nonexistent", {}, {})
+
+
+# ---------------------------------------------------------------------------
+# 9. MeshWorker — pure-Python mesh operations
+# ---------------------------------------------------------------------------
+
+
+class TestMeshWorker:
+    """Test MeshWorker STL parsing, validation, stats, and export."""
+
+    CUBE_STL = """solid cube
+  facet normal 0 0 -1
+    outer loop
+      vertex 0 0 0
+      vertex 1 0 0
+      vertex 1 1 0
+    endloop
+  endfacet
+  facet normal 0 0 -1
+    outer loop
+      vertex 0 0 0
+      vertex 1 1 0
+      vertex 0 1 0
+    endloop
+  endfacet
+  facet normal 0 0 1
+    outer loop
+      vertex 0 0 1
+      vertex 1 1 1
+      vertex 1 0 1
+    endloop
+  endfacet
+  facet normal 0 0 1
+    outer loop
+      vertex 0 0 1
+      vertex 0 1 1
+      vertex 1 1 1
+    endloop
+  endfacet
+endsolid cube"""
+
+    @pytest.mark.asyncio
+    async def test_mesh_import_stl(self):
+        from mascarade.node_engine.workers.cad.mesh_worker import MeshWorker
+
+        worker = MeshWorker()
+        result = await worker.execute("cad.mesh.import", {"data": self.CUBE_STL, "format": "stl"})
+        assert "mesh" in result
+        assert "stats" in result
+        mesh = result["mesh"]
+        assert len(mesh["vertices"]) > 0
+        assert len(mesh["faces"]) == 4
+        assert mesh["format"] == "stl"
+
+    @pytest.mark.asyncio
+    async def test_mesh_validate_valid(self):
+        from mascarade.node_engine.workers.cad.mesh_worker import MeshWorker
+
+        worker = MeshWorker()
+        result = await worker.execute(
+            "cad.mesh.validate", {"data": self.CUBE_STL, "format": "stl"}
+        )
+        assert result["valid"] is True
+        assert result["triangle_count"] == 4
+        assert result["vertex_count"] > 0
+        assert "bounding_box" in result
+
+    @pytest.mark.asyncio
+    async def test_mesh_validate_empty(self):
+        from mascarade.node_engine.workers.cad.mesh_worker import MeshWorker
+
+        worker = MeshWorker()
+        result = await worker.execute("cad.mesh.validate", {})
+        assert result["valid"] is False
+
+    @pytest.mark.asyncio
+    async def test_mesh_stats(self):
+        from mascarade.node_engine.workers.cad.mesh_worker import MeshWorker
+
+        worker = MeshWorker()
+        mesh = {
+            "vertices": [[0, 0, 0], [1, 0, 0], [1, 1, 0], [0, 1, 0]],
+            "faces": [[0, 1, 2], [0, 2, 3]],
+            "normals": [],
+            "format": "stl",
+        }
+        result = await worker.execute("cad.mesh.stats", {"mesh": mesh})
+        assert result["vertex_count"] == 4
+        assert result["face_count"] == 2
+        assert result["bounding_box"]["min"] == [0, 0, 0]
+        assert result["bounding_box"]["max"] == [1, 1, 0]
+        assert result["surface_area"] > 0
+
+    @pytest.mark.asyncio
+    async def test_mesh_export_stl(self):
+        from mascarade.node_engine.workers.cad.mesh_worker import MeshWorker
+
+        worker = MeshWorker()
+        mesh = {
+            "vertices": [[0, 0, 0], [1, 0, 0], [0, 1, 0]],
+            "faces": [[0, 1, 2]],
+            "normals": [],
+            "format": "stl",
+        }
+        result = await worker.execute("cad.mesh.export", {"mesh": mesh, "format": "stl"})
+        assert "data" in result
+        assert "solid mesh" in result["data"]
+        assert "endsolid mesh" in result["data"]
+
+    @pytest.mark.asyncio
+    async def test_mesh_boolean_union(self):
+        from mascarade.node_engine.workers.cad.mesh_worker import MeshWorker
+
+        worker = MeshWorker()
+        mesh_a = {
+            "vertices": [[0, 0, 0], [1, 0, 0], [0, 1, 0]],
+            "faces": [[0, 1, 2]],
+            "normals": [],
+            "format": "stl",
+        }
+        mesh_b = {
+            "vertices": [[2, 0, 0], [3, 0, 0], [2, 1, 0]],
+            "faces": [[0, 1, 2]],
+            "normals": [],
+            "format": "stl",
+        }
+        result = await worker.execute(
+            "cad.mesh.boolean", {"mesh_a": mesh_a, "mesh_b": mesh_b, "operation": "union"}
+        )
+        assert len(result["mesh"]["vertices"]) == 6
+        assert len(result["mesh"]["faces"]) == 2
+
+    @pytest.mark.asyncio
+    async def test_mesh_dispatch_from_cad_worker(self):
+        """Verify mesh operations dispatch through the main CADWorker."""
+        from mascarade.node_engine.workers.cad.worker import CADWorker
+
+        worker = CADWorker()
+        mesh = {
+            "vertices": [[0, 0, 0], [1, 0, 0], [0, 1, 0]],
+            "faces": [[0, 1, 2]],
+            "normals": [],
+            "format": "stl",
+        }
+        result = await worker.execute("cad.mesh.stats", {"mesh": mesh}, {})
+        assert result["vertex_count"] == 3
+        assert result["face_count"] == 1
+
+
+# ---------------------------------------------------------------------------
+# 10. ToolpathWorker — G-code generation
+# ---------------------------------------------------------------------------
+
+
+class TestToolpathWorker:
+    """Test ToolpathWorker G-code generation."""
+
+    @pytest.mark.asyncio
+    async def test_generate_gcode_adaptive(self):
+        from mascarade.node_engine.workers.cad.toolpath_worker import ToolpathWorker
+
+        worker = ToolpathWorker()
+        mesh = {
+            "vertices": [[0, 0, 0], [50, 0, 0], [50, 30, 0], [0, 30, 0]],
+            "faces": [[0, 1, 2], [0, 2, 3]],
+            "normals": [],
+            "format": "stl",
+        }
+        result = await worker.execute(
+            "cad.toolpath.generate_gcode",
+            {
+                "mesh": mesh,
+                "tool": {"diameter": 6.0, "material": "carbide"},
+                "strategy": "adaptive",
+            },
+        )
+        assert "gcode" in result
+        assert "toolpath" in result
+        program = result["gcode"]["program"]
+        assert "G21" in program  # mm units
+        assert "G90" in program  # absolute positioning
+        assert "M30" in program  # end program
+
+    @pytest.mark.asyncio
+    async def test_from_path_rectangle(self):
+        from mascarade.node_engine.workers.cad.toolpath_worker import ToolpathWorker
+
+        worker = ToolpathWorker()
+        result = await worker.execute(
+            "cad.toolpath.from_path",
+            {"path": "rectangle 50x30", "feed_rate": 1000, "depth": 2.0},
+        )
+        assert "gcode" in result
+        program = result["gcode"]["program"]
+        assert "G21" in program
+        # Rectangle should have 5 cutting moves (closed rectangle)
+        assert result["gcode"]["estimated_time_s"] > 0
+
+    @pytest.mark.asyncio
+    async def test_from_path_point_list(self):
+        from mascarade.node_engine.workers.cad.toolpath_worker import ToolpathWorker
+
+        worker = ToolpathWorker()
+        result = await worker.execute(
+            "cad.toolpath.from_path",
+            {
+                "path": [
+                    {"x": 0, "y": 0, "z": -1},
+                    {"x": 10, "y": 0, "z": -1},
+                    {"x": 10, "y": 10, "z": -1},
+                ],
+                "feed_rate": 500,
+            },
+        )
+        assert len(result["toolpath"]["moves"]) >= 3
+
+    @pytest.mark.asyncio
+    async def test_toolpath_dispatch_from_cad_worker(self):
+        """Verify toolpath operations dispatch through the main CADWorker."""
+        from mascarade.node_engine.workers.cad.worker import CADWorker
+
+        worker = CADWorker()
+        result = await worker.execute(
+            "cad.toolpath.from_path",
+            {"path": "rectangle 20x10"},
+            {},
+        )
+        assert "gcode" in result
+        assert "G21" in result["gcode"]["program"]
+
+    @pytest.mark.asyncio
+    async def test_invalid_strategy_raises(self):
+        from mascarade.node_engine.workers.cad.toolpath_worker import ToolpathWorker
+
+        worker = ToolpathWorker()
+        with pytest.raises(ValueError, match="Invalid strategy"):
+            await worker.execute(
+                "cad.toolpath.generate_gcode",
+                {
+                    "mesh": {"vertices": [[0, 0, 0]], "faces": [], "format": "stl"},
+                    "tool": {"diameter": 6.0},
+                    "strategy": "invalid_strategy",
+                },
+            )
+
+
+# ---------------------------------------------------------------------------
+# 11. Sub-worker imports
+# ---------------------------------------------------------------------------
+
+
+class TestCADSubWorkerImports:
+    """Verify all CAD sub-workers are importable without errors."""
+
+    def test_import_mesh_worker(self):
+        from mascarade.node_engine.workers.cad.mesh_worker import MeshWorker
+
+        w = MeshWorker()
+        assert len(w.node_types) >= 4
+
+    def test_import_toolpath_worker(self):
+        from mascarade.node_engine.workers.cad.toolpath_worker import ToolpathWorker
+
+        w = ToolpathWorker()
+        assert len(w.node_types) >= 2
+
+    def test_import_freecad_worker(self):
+        from mascarade.node_engine.workers.cad.freecad_worker import FreeCADWorker
+
+        w = FreeCADWorker()
+        assert len(w.node_types) == 4
+
+    def test_import_kicad_worker(self):
+        from mascarade.node_engine.workers.cad.kicad_worker import KiCadWorker
+
+        w = KiCadWorker()
+        assert len(w.node_types) == 5

@@ -1,7 +1,11 @@
 """CAD domain worker for mascarade node engine.
 
-Pure calculation nodes for PCB design — trace width, stackup,
-thermal vias, BOM operations. No LLM needed.
+Dispatches to sub-workers:
+- Pure calculation nodes: trace width, stackup, thermal vias, BOM, DRC, footprint
+- Mesh operations: STL/OBJ/PLY import/export, validation, stats, simplify, boolean
+- Toolpath generation: G-code from mesh/path, optimization
+- FreeCAD operations: document creation, scripting, parametric modeling (requires MCP)
+- KiCad operations: schematic, layout, DRC, manufacturing files (requires MCP)
 """
 
 from __future__ import annotations
@@ -21,73 +25,57 @@ COPPER_RESISTIVITY = 1.724e-6  # ohm-cm
 
 
 class CADWorker(NodeWorker):
-    """Worker for CAD/PCB design calculation nodes."""
+    """Worker for CAD domain — pure calculations + mesh + toolpath + MCP sub-workers.
 
-    def capabilities(self) -> list[dict[str, Any]]:
-        return [
-            {
-                "node_type": "cad.bom-generate",
-                "description": "Generate BOM summary from component list",
-                "inputs": {"components": "list of {ref, value, footprint, qty}"},
-                "outputs": {"bom": "list", "total_unique": "int", "total_qty": "int"},
-            },
-            {
-                "node_type": "cad.drc-check",
-                "description": "Validate PCB design rules",
-                "inputs": {
-                    "rules": "dict of rule_name: value",
-                    "design": "dict of measurements",
-                },
-                "outputs": {"passed": "bool", "violations": "list", "warnings": "list"},
-            },
-            {
-                "node_type": "cad.footprint-lookup",
-                "description": "Suggest footprint for a component package",
-                "inputs": {"package": "str (e.g. SOT-23, 0805, TQFP-48)"},
-                "outputs": {"footprint": "str", "pads": "int", "dimensions": "dict"},
-            },
-            {
-                "node_type": "cad.stackup-calc",
-                "description": "Calculate PCB stackup impedance and dimensions",
-                "inputs": {
-                    "layers": "int",
-                    "thickness": "float mm",
-                    "copper_weight": "float oz",
-                    "dielectric_constant": "float",
-                },
-                "outputs": {"stackup": "list of layers", "total_thickness": "float mm"},
-            },
-            {
-                "node_type": "cad.trace-width",
-                "description": "Calculate PCB trace width for given current (IPC-2221)",
-                "inputs": {
-                    "current": "float A",
-                    "copper_thickness": "float oz",
-                    "temp_rise": "float C",
-                    "layer": "internal|external",
-                },
-                "outputs": {
-                    "width_mm": "float",
-                    "width_mil": "float",
-                    "resistance_per_cm": "float",
-                },
-            },
-            {
-                "node_type": "cad.thermal-via",
-                "description": "Calculate thermal via array for heat dissipation",
-                "inputs": {
-                    "power": "float W",
-                    "via_diameter": "float mm",
-                    "via_plating": "float um",
-                    "board_thickness": "float mm",
-                },
-                "outputs": {
-                    "thermal_resistance_per_via": "float C/W",
-                    "vias_needed": "int",
-                    "array_size": "str",
-                },
-            },
+    Dispatches node types to the appropriate handler:
+    - cad.bom-generate, cad.drc-check, cad.footprint-lookup, cad.stackup-calc,
+      cad.trace-width, cad.thermal-via: pure calculation (inline)
+    - cad.mesh.*: delegated to MeshWorker
+    - cad.toolpath.*: delegated to ToolpathWorker
+    - cad.freecad.*: delegated to FreeCADWorker (requires MCP)
+    - cad.kicad.*: delegated to KiCadWorker (requires MCP)
+    """
+
+    name: str = "cad-worker"
+    domain: str = "cad"
+
+    def __init__(self) -> None:
+        from mascarade.node_engine.workers.cad.mesh_worker import MeshWorker
+        from mascarade.node_engine.workers.cad.toolpath_worker import ToolpathWorker
+
+        self._mesh_worker = MeshWorker()
+        self._toolpath_worker = ToolpathWorker()
+        # MCP sub-workers are lazy-initialized
+        self._freecad_worker = None
+        self._kicad_worker = None
+
+    def capabilities(self) -> dict[str, Any]:
+        # Collect all node types from sub-workers
+        pure_node_types = [
+            "cad.bom-generate",
+            "cad.drc-check",
+            "cad.footprint-lookup",
+            "cad.stackup-calc",
+            "cad.trace-width",
+            "cad.thermal-via",
         ]
+        all_node_types = (
+            pure_node_types
+            + self._mesh_worker.node_types
+            + self._toolpath_worker.node_types
+        )
+        # Include MCP worker node types (they may not be available at runtime)
+        from mascarade.node_engine.workers.cad.freecad_worker import FreeCADWorker
+        from mascarade.node_engine.workers.cad.kicad_worker import KiCadWorker
+
+        all_node_types += FreeCADWorker.node_types + KiCadWorker.node_types
+
+        return {
+            "node_types": all_node_types,
+            "domain": "cad",
+            "supports_streaming": False,
+            "max_concurrent": 10,
+        }
 
     async def execute(
         self,
@@ -96,7 +84,8 @@ class CADWorker(NodeWorker):
         config: dict[str, Any],
         context: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
-        handlers = {
+        # Pure calculation handlers
+        pure_handlers = {
             "cad.bom-generate": self._bom_generate,
             "cad.drc-check": self._drc_check,
             "cad.footprint-lookup": self._footprint_lookup,
@@ -104,15 +93,40 @@ class CADWorker(NodeWorker):
             "cad.trace-width": self._trace_width,
             "cad.thermal-via": self._thermal_via,
         }
-        handler = handlers.get(node_type)
-        if not handler:
-            raise ValueError(f"Unsupported CAD node type: {node_type}")
-        return handler(inputs)
+        handler = pure_handlers.get(node_type)
+        if handler:
+            return handler(inputs)
 
-    def validate(
+        # Delegate to sub-workers
+        if node_type.startswith("cad.mesh."):
+            return await self._mesh_worker.execute(node_type, inputs)
+        if node_type.startswith("cad.toolpath."):
+            return await self._toolpath_worker.execute(node_type, inputs)
+        if node_type.startswith("cad.freecad."):
+            return await self._get_freecad_worker().execute(node_type, inputs)
+        if node_type.startswith("cad.kicad."):
+            return await self._get_kicad_worker().execute(node_type, inputs)
+
+        raise ValueError(f"Unsupported CAD node type: {node_type}")
+
+    def _get_freecad_worker(self):
+        if self._freecad_worker is None:
+            from mascarade.node_engine.workers.cad.freecad_worker import FreeCADWorker
+
+            self._freecad_worker = FreeCADWorker()
+        return self._freecad_worker
+
+    def _get_kicad_worker(self):
+        if self._kicad_worker is None:
+            from mascarade.node_engine.workers.cad.kicad_worker import KiCadWorker
+
+            self._kicad_worker = KiCadWorker()
+        return self._kicad_worker
+
+    async def validate(
         self, node_type: str, inputs: dict[str, Any], config: dict[str, Any]
     ) -> list[str]:
-        errors = []
+        errors: list[str] = []
         if node_type == "cad.bom-generate":
             if "components" not in inputs or not isinstance(
                 inputs.get("components"), list
@@ -131,6 +145,7 @@ class CADWorker(NodeWorker):
         elif node_type == "cad.footprint-lookup":
             if "package" not in inputs:
                 errors.append("package is required")
+        # Mesh and toolpath validations are handled at execution time
         return errors
 
     def _bom_generate(self, inputs: dict) -> dict:

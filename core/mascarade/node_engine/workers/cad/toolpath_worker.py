@@ -1,67 +1,192 @@
-"""Toolpath node worker — registers toolpath generation nodes with the Node Engine."""
+"""Toolpath node worker — pure-Python G-code generation for the Node Engine.
+
+Generates G-code from mesh geometry and path descriptions using various
+machining strategies (adaptive, contour, pocket, drill, facing). Also
+provides toolpath optimization for time, finish, or tool life. No
+external dependencies required.
+"""
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
-from mascarade.mcp import McpRuntimeClient
-from mascarade.node_engine.worker import NodeWorker, WorkerCapabilities
+logger = logging.getLogger(__name__)
 
 
-class ToolpathWorker(NodeWorker):
+class ToolpathWorker:
     """Worker for toolpath generation and CNC operations.
 
     Provides graph-composable nodes for G-code generation from mesh geometry
     and toolpath optimization for reduced machining time or improved surface finish.
-    Integrates with CNC machining workflows.
+    All operations run in pure Python.
     """
-
-    domain = "cad"
-    name = "toolpath"
-    version = "1.0.0"
-
-    capabilities = WorkerCapabilities(
-        max_concurrent=4,  # Toolpath operations are CPU-intensive but parallelizable
-        timeout_default_s=180,
-        requires_runtime=False,  # Toolpath generation can run in core Python
-    )
 
     node_types = [
         "cad.toolpath.generate_gcode",
         "cad.toolpath.optimize",
+        "cad.toolpath.from_path",
     ]
 
-    async def execute_node(
+    async def execute(
         self,
         node_type: str,
         inputs: dict[str, Any],
-        mcp_client: McpRuntimeClient,
     ) -> dict[str, Any]:
         """Execute a toolpath node.
 
         Args:
-            node_type: The node type ID (e.g., "cad.toolpath.generate_gcode")
+            node_type: The node type ID
             inputs: Input values for the node
-            mcp_client: MCP runtime client for calling toolpath endpoints
 
         Returns:
             Dictionary of output values
 
         Raises:
-            ValueError: If node_type is not supported by this worker
+            ValueError: If node_type is not supported
         """
-        if node_type == "cad.toolpath.generate_gcode":
-            return await self._execute_generate_gcode(inputs, mcp_client)
-        elif node_type == "cad.toolpath.optimize":
-            return await self._execute_optimize(inputs, mcp_client)
-        else:
-            raise ValueError(f"Unsupported node type: {node_type}")
+        handlers = {
+            "cad.toolpath.generate_gcode": self._execute_generate_gcode,
+            "cad.toolpath.optimize": self._execute_optimize,
+            "cad.toolpath.from_path": self._execute_from_path,
+        }
+        handler = handlers.get(node_type)
+        if not handler:
+            raise ValueError(f"Unsupported toolpath node type: {node_type}")
+        return await handler(inputs)
 
-    async def _execute_generate_gcode(
-        self,
-        inputs: dict[str, Any],
-        mcp_client: McpRuntimeClient,
-    ) -> dict[str, Any]:
+    async def _execute_from_path(self, inputs: dict[str, Any]) -> dict[str, Any]:
+        """Generate G-code from a path description (list of points or simple commands).
+
+        Inputs:
+            - path: list of dicts with x, y, z (and optional feed_rate, type)
+              OR a string description like "rectangle 50x30" or "circle r=20"
+            - tool_diameter: float (mm, default 6.0)
+            - feed_rate: float (mm/min, default 1000)
+            - spindle_speed: int (RPM, default 12000)
+            - safe_z: float (mm, default 5.0)
+            - depth: float (mm, default 1.0)
+            - unit: string ("mm" or "inch", default "mm")
+
+        Outputs:
+            - gcode: dict with program string, estimated_time_s, bounds
+            - toolpath: dict with moves list
+        """
+        path = inputs.get("path", [])
+        tool_diameter = inputs.get("tool_diameter", 6.0)
+        feed_rate = inputs.get("feed_rate", 1000.0)
+        spindle_speed = inputs.get("spindle_speed", 12000)
+        safe_z = inputs.get("safe_z", 5.0)
+        depth = inputs.get("depth", 1.0)
+        unit = inputs.get("unit", "mm")
+
+        if not path:
+            raise ValueError("path is required for from_path node")
+
+        moves: list[dict[str, Any]] = []
+
+        # If path is a string, parse it as a shape description
+        if isinstance(path, str):
+            moves = self._parse_path_description(path, depth, safe_z, feed_rate)
+        elif isinstance(path, list):
+            # Path is a list of points
+            moves.append({"x": 0.0, "y": 0.0, "z": safe_z, "type": "rapid", "feed_rate": 0})
+            for pt in path:
+                if isinstance(pt, dict):
+                    move = {
+                        "x": float(pt.get("x", 0)),
+                        "y": float(pt.get("y", 0)),
+                        "z": float(pt.get("z", -depth)),
+                        "type": pt.get("type", "linear"),
+                        "feed_rate": pt.get("feed_rate", feed_rate),
+                    }
+                    moves.append(move)
+            moves.append({"x": 0.0, "y": 0.0, "z": safe_z, "type": "rapid", "feed_rate": 0})
+        else:
+            raise ValueError(f"path must be a list or string, got {type(path).__name__}")
+
+        # Generate G-code
+        bounds = self._calculate_bounds_from_moves(moves)
+        program = self._generate_gcode_program(
+            "from_path", moves, tool_diameter, spindle_speed, bounds
+        )
+        estimated_time = self._calculate_machining_time(moves)
+
+        return {
+            "gcode": {
+                "program": program,
+                "estimated_time_s": estimated_time,
+                "bounds": bounds,
+                "tool_changes": 1,
+            },
+            "toolpath": {
+                "moves": moves,
+                "unit": unit,
+                "tool_id": f"endmill_{tool_diameter}mm",
+            },
+        }
+
+    def _parse_path_description(
+        self, desc: str, depth: float, safe_z: float, feed_rate: float
+    ) -> list[dict[str, Any]]:
+        """Parse a simple path description string into moves.
+
+        Supports:
+            - "rectangle WxH" or "rect WxH"
+            - "circle r=R" or "circle R"
+            - "line x1,y1 x2,y2"
+        """
+        import math
+
+        desc_lower = desc.strip().lower()
+        moves: list[dict[str, Any]] = []
+        moves.append({"x": 0.0, "y": 0.0, "z": safe_z, "type": "rapid", "feed_rate": 0})
+
+        if desc_lower.startswith("rect"):
+            # Parse "rectangle 50x30" or "rect 50x30"
+            parts = desc_lower.split()
+            dims = parts[1] if len(parts) > 1 else "50x30"
+            w, h = (float(v) for v in dims.split("x"))
+            moves.append({"x": 0.0, "y": 0.0, "z": -depth, "type": "linear", "feed_rate": feed_rate})
+            moves.append({"x": w, "y": 0.0, "z": -depth, "type": "linear", "feed_rate": feed_rate})
+            moves.append({"x": w, "y": h, "z": -depth, "type": "linear", "feed_rate": feed_rate})
+            moves.append({"x": 0.0, "y": h, "z": -depth, "type": "linear", "feed_rate": feed_rate})
+            moves.append({"x": 0.0, "y": 0.0, "z": -depth, "type": "linear", "feed_rate": feed_rate})
+
+        elif desc_lower.startswith("circle"):
+            # Parse "circle r=20" or "circle 20"
+            parts = desc_lower.split()
+            r_str = parts[1] if len(parts) > 1 else "20"
+            r = float(r_str.replace("r=", ""))
+            num_segments = 36
+            for i in range(num_segments + 1):
+                angle = 2 * math.pi * i / num_segments
+                x = r * math.cos(angle)
+                y = r * math.sin(angle)
+                move_type = "rapid" if i == 0 else "linear"
+                z = safe_z if i == 0 else -depth
+                moves.append({"x": x + r, "y": y, "z": z, "type": move_type, "feed_rate": feed_rate if i > 0 else 0})
+            # Plunge on first linear move
+            if len(moves) > 2:
+                moves[2]["z"] = -depth
+
+        elif desc_lower.startswith("line"):
+            # Parse "line x1,y1 x2,y2"
+            parts = desc_lower.split()
+            if len(parts) >= 3:
+                p1 = [float(v) for v in parts[1].split(",")]
+                p2 = [float(v) for v in parts[2].split(",")]
+                moves.append({"x": p1[0], "y": p1[1], "z": safe_z, "type": "rapid", "feed_rate": 0})
+                moves.append({"x": p1[0], "y": p1[1], "z": -depth, "type": "linear", "feed_rate": feed_rate})
+                moves.append({"x": p2[0], "y": p2[1], "z": -depth, "type": "linear", "feed_rate": feed_rate})
+
+        else:
+            raise ValueError(f"Unrecognized path description: {desc}")
+
+        moves.append({"x": 0.0, "y": 0.0, "z": safe_z, "type": "rapid", "feed_rate": 0})
+        return moves
+
+    async def _execute_generate_gcode(self, inputs: dict[str, Any]) -> dict[str, Any]:
         """Execute cad.toolpath.generate_gcode node.
 
         Inputs:
@@ -107,7 +232,6 @@ class ToolpathWorker(NodeWorker):
             tool=tool,
             strategy=strategy,
             stock=stock,
-            mcp_client=mcp_client,
         )
 
         gcode = {
@@ -131,7 +255,6 @@ class ToolpathWorker(NodeWorker):
     async def _execute_optimize(
         self,
         inputs: dict[str, Any],
-        mcp_client: McpRuntimeClient,
     ) -> dict[str, Any]:
         """Execute cad.toolpath.optimize node.
 
@@ -173,7 +296,6 @@ class ToolpathWorker(NodeWorker):
             toolpath=toolpath,
             objective=objective,
             constraints=constraints,
-            mcp_client=mcp_client,
         )
 
         optimized_toolpath = {
@@ -203,26 +325,20 @@ class ToolpathWorker(NodeWorker):
         tool: dict[str, Any],
         strategy: str,
         stock: dict[str, Any],
-        mcp_client: McpRuntimeClient,
     ) -> dict[str, Any]:
         """Generate toolpath from mesh using specified strategy.
-
-        This is a placeholder for integration with real CAM libraries.
-        In production, this would call OpenCAMLib, PyCAM, or similar.
 
         Args:
             mesh: MeshData dictionary
             tool: Tool specification
             strategy: Machining strategy
             stock: Stock material dimensions
-            mcp_client: MCP runtime client
 
         Returns:
             Dictionary with toolpath generation results
         """
         # Extract tool parameters
         tool_diameter = tool.get("diameter", 6.0)
-        tool.get("flute_count", 2)
         tool_material = tool.get("material", "carbide")
 
         # Calculate bounds from mesh or stock
@@ -514,31 +630,25 @@ class ToolpathWorker(NodeWorker):
         toolpath: dict[str, Any],
         objective: str,
         constraints: dict[str, Any],
-        mcp_client: McpRuntimeClient,
     ) -> dict[str, Any]:
         """Optimize toolpath for the given objective.
-
-        This is a placeholder for integration with optimization algorithms.
 
         Args:
             toolpath: Toolpath dictionary to optimize
             objective: Optimization objective (time/finish/tool_life)
             constraints: Optimization constraints
-            mcp_client: MCP runtime client
 
         Returns:
             Dictionary with optimization results
         """
         moves = toolpath.get("moves", [])
         tool_id = toolpath.get("tool_id", "tool_0")
-        toolpath.get("unit", "mm")
 
         if not moves:
             raise ValueError("Toolpath has no moves to optimize")
 
         # Calculate original metrics
         original_time = self._calculate_machining_time(moves)
-        sum(1 for m in moves if m.get("type") == "rapid")
 
         # Apply objective-specific optimization
         if objective == "time":
@@ -552,7 +662,6 @@ class ToolpathWorker(NodeWorker):
 
         # Calculate optimized metrics
         optimized_time = self._calculate_machining_time(optimized_moves)
-        sum(1 for m in optimized_moves if m.get("type") == "rapid")
 
         # Calculate improvement percentage based on objective
         if objective == "time":

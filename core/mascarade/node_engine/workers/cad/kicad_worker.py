@@ -1,32 +1,29 @@
-"""KiCad node worker — registers KiCad nodes with the Node Engine."""
+"""KiCad node worker — MCP-based KiCad operations for the Node Engine.
+
+Provides graph-composable nodes for KiCad schematic creation, PCB layout
+optimization, footprint generation, DRC checks, and manufacturing file
+generation. Requires an MCP runtime client for KiCad server communication.
+"""
 
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from mascarade.mcp import McpRuntimeClient
-from mascarade.node_engine.worker import NodeWorker, WorkerCapabilities
+if TYPE_CHECKING:
+    from mascarade.mcp import McpRuntimeClient
+
 from mascarade.observability import new_run_id
 
 
-class KiCadWorker(NodeWorker):
-    """Worker for KiCad PCB design operations.
+class KiCadWorker:
+    """Worker for KiCad PCB design operations via MCP.
 
     Provides graph-composable nodes for KiCad schematic creation, PCB layout optimization,
-    footprint generation, DRC checks, and manufacturing file generation. Integrates with
-    the existing KiCadAgent and api/src/routes/cad.ts endpoints.
+    footprint generation, DRC checks, and manufacturing file generation.
+
+    This worker requires an active MCP connection to a KiCad server.
+    When no MCP client is available, calls will raise RuntimeError.
     """
-
-    domain = "cad"
-    name = "kicad"
-    version = "1.0.0"
-
-    capabilities = WorkerCapabilities(
-        max_concurrent=3,  # KiCad operations are typically lighter than 3D CAD
-        timeout_default_s=180,  # Longer timeout for complex PCB operations
-        requires_runtime=True,
-        runtime_check_endpoint="/cad/kicad/runtime",
-    )
 
     node_types = [
         "cad.kicad.generate_schematic",
@@ -36,11 +33,11 @@ class KiCadWorker(NodeWorker):
         "cad.kicad.generate_manufacturing_files",
     ]
 
-    async def execute_node(
+    async def execute(
         self,
         node_type: str,
         inputs: dict[str, Any],
-        mcp_client: McpRuntimeClient,
+        mcp_client: McpRuntimeClient | None = None,
     ) -> dict[str, Any]:
         """Execute a KiCad node by delegating to the MCP client.
 
@@ -53,8 +50,14 @@ class KiCadWorker(NodeWorker):
             Dictionary of output values
 
         Raises:
-            ValueError: If node_type is not supported by this worker
+            ValueError: If node_type is not supported
+            RuntimeError: If MCP client is not available
         """
+        if mcp_client is None:
+            raise RuntimeError(
+                f"KiCad worker requires an MCP client for node type '{node_type}'. "
+                "Ensure KiCad MCP server is running."
+            )
         if node_type == "cad.kicad.generate_schematic":
             return await self._execute_generate_schematic(inputs, mcp_client)
         elif node_type == "cad.kicad.optimize_layout":

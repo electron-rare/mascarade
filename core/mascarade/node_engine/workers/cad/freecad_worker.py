@@ -1,35 +1,40 @@
-"""FreeCAD node worker — registers FreeCAD nodes with the Node Engine."""
+"""FreeCAD node worker — MCP-based FreeCAD operations for the Node Engine.
+
+Provides graph-composable nodes for FreeCAD document creation, script execution,
+parametric modeling, and export operations. Requires an MCP runtime client
+to communicate with the FreeCAD server process.
+"""
 
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from mascarade.mcp import McpRuntimeClient
-from mascarade.node_engine.worker import NodeWorker, WorkerCapabilities
+if TYPE_CHECKING:
+    from mascarade.mcp import McpRuntimeClient
+
 from mascarade.observability import new_run_id
 
 logger = logging.getLogger("mascarade.node_engine.workers.cad.freecad_worker")
 
 
-class FreeCADWorker(NodeWorker):
-    """Worker for FreeCAD CAD operations.
+class FreeCADWorker:
+    """Worker for FreeCAD CAD operations via MCP.
 
     Provides graph-composable nodes for FreeCAD document creation, script execution,
     parametric modeling, and export operations. Integrates with the existing FreeCADAgent
     and api/src/routes/cad.ts endpoints.
+
+    This worker requires an active MCP connection to a FreeCAD server.
+    When no MCP client is available, calls will raise RuntimeError.
     """
 
-    domain = "cad"
-    name = "freecad"
-    version = "1.0.0"
-
-    capabilities = WorkerCapabilities(
-        max_concurrent=2,  # FreeCAD runtime is memory-intensive
-        timeout_default_s=120,
-        requires_runtime=True,
-        runtime_check_endpoint="/cad/freecad/runtime",
-    )
+    node_types = [
+        "cad.freecad.create_document",
+        "cad.freecad.run_script",
+        "cad.freecad.parametric_model",
+        "cad.freecad.export",
+    ]
 
     def __init__(self, *, router: Any | None = None) -> None:
         """Initialize the FreeCAD worker.
@@ -38,7 +43,6 @@ class FreeCADWorker(NodeWorker):
             router: Optional Router instance for AI-assisted script generation
                 via FreeCADAgent. When None, falls back to template-based modeling.
         """
-        super().__init__()
         self._router = router
 
     node_types = [
@@ -48,11 +52,11 @@ class FreeCADWorker(NodeWorker):
         "cad.freecad.export",
     ]
 
-    async def execute_node(
+    async def execute(
         self,
         node_type: str,
         inputs: dict[str, Any],
-        mcp_client: McpRuntimeClient,
+        mcp_client: McpRuntimeClient | None = None,
     ) -> dict[str, Any]:
         """Execute a FreeCAD node by delegating to the MCP client.
 
@@ -66,7 +70,13 @@ class FreeCADWorker(NodeWorker):
 
         Raises:
             ValueError: If node_type is not supported by this worker
+            RuntimeError: If MCP client is not available
         """
+        if mcp_client is None:
+            raise RuntimeError(
+                f"FreeCAD worker requires an MCP client for node type '{node_type}'. "
+                "Ensure FreeCAD MCP server is running."
+            )
         if node_type == "cad.freecad.create_document":
             return await self._execute_create_document(inputs, mcp_client)
         elif node_type == "cad.freecad.run_script":
@@ -230,6 +240,11 @@ class FreeCADWorker(NodeWorker):
         parameters = inputs.get("parameters", {})
         description = inputs.get("description", "")
 
+        # Extract parameters early so they're always in scope
+        length = parameters.get("length", 10.0)
+        width = parameters.get("width", 8.0)
+        height = parameters.get("height", 6.0)
+
         # Generate temporary output path
         output_path = f"/tmp/freecad_parametric_{template}.FCStd"
 
@@ -253,11 +268,6 @@ class FreeCADWorker(NodeWorker):
             # Fallback: template-based parametric creation
             if description:
                 logger.info("FreeCADAgent unavailable, using template-based generation")
-
-            # Extract parameters with defaults (box template)
-            length = parameters.get("length", 10.0)
-            width = parameters.get("width", 8.0)
-            height = parameters.get("height", 6.0)
 
             # Step 1: Create the document with parametric template
             doc_result = await mcp_client.freecad_create_document(
