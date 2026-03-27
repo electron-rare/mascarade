@@ -1,50 +1,45 @@
-"""Mesh node worker — registers mesh operation nodes with the Node Engine."""
+"""Mesh node worker — pure-Python mesh operations for the Node Engine.
+
+Provides STL/OBJ/PLY import/export, bounding box calculation, triangle
+counting, mesh simplification, and boolean operations. No external
+dependencies required (no MCP, no FreeCAD).
+"""
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
-from mascarade.mcp import McpRuntimeClient
-from mascarade.node_engine.worker import NodeWorker, WorkerCapabilities
+logger = logging.getLogger(__name__)
 
 
-class MeshWorker(NodeWorker):
+class MeshWorker:
     """Worker for mesh geometry operations.
 
     Provides graph-composable nodes for mesh import/export, simplification,
     and boolean operations (union, intersection, difference). Serves as building
-    blocks for CAD pipelines.
+    blocks for CAD pipelines. All operations run in pure Python.
     """
-
-    domain = "cad"
-    name = "mesh"
-    version = "1.0.0"
-
-    capabilities = WorkerCapabilities(
-        max_concurrent=4,  # Mesh operations are CPU-intensive but parallelizable
-        timeout_default_s=90,
-        requires_runtime=False,  # Mesh operations can run in core Python
-    )
 
     node_types = [
         "cad.mesh.import",
         "cad.mesh.export",
         "cad.mesh.simplify",
         "cad.mesh.boolean",
+        "cad.mesh.validate",
+        "cad.mesh.stats",
     ]
 
-    async def execute_node(
+    async def execute(
         self,
         node_type: str,
         inputs: dict[str, Any],
-        mcp_client: McpRuntimeClient,
     ) -> dict[str, Any]:
         """Execute a mesh operation node.
 
         Args:
             node_type: The node type ID (e.g., "cad.mesh.import")
             inputs: Input values for the node
-            mcp_client: MCP runtime client for calling mesh endpoints
 
         Returns:
             Dictionary of output values
@@ -52,60 +47,136 @@ class MeshWorker(NodeWorker):
         Raises:
             ValueError: If node_type is not recognized
         """
-        if node_type == "cad.mesh.import":
-            return await self._execute_import(inputs, mcp_client)
-        elif node_type == "cad.mesh.export":
-            return await self._execute_export(inputs, mcp_client)
-        elif node_type == "cad.mesh.simplify":
-            return await self._execute_simplify(inputs, mcp_client)
-        elif node_type == "cad.mesh.boolean":
-            return await self._execute_boolean(inputs, mcp_client)
-        else:
+        handlers = {
+            "cad.mesh.import": self._execute_import,
+            "cad.mesh.export": self._execute_export,
+            "cad.mesh.simplify": self._execute_simplify,
+            "cad.mesh.boolean": self._execute_boolean,
+            "cad.mesh.validate": self._execute_validate,
+            "cad.mesh.stats": self._execute_stats,
+        }
+        handler = handlers.get(node_type)
+        if not handler:
             raise ValueError(f"Unknown mesh node type: {node_type}")
+        return await handler(inputs)
 
-    async def _execute_import(
-        self, inputs: dict[str, Any], mcp_client: McpRuntimeClient
-    ) -> dict[str, Any]:
-        """Execute mesh import operation.
+    async def _execute_validate(self, inputs: dict[str, Any]) -> dict[str, Any]:
+        """Validate an STL file or mesh data structure.
 
-        Imports a mesh from file data (STL, OBJ, PLY).
+        Inputs:
+            - data: string (ASCII STL content) OR mesh dict
+            - format: string (optional, default "stl")
 
-        Args:
-            inputs: Must contain 'data' (binary/string) and 'format' (string)
-            mcp_client: MCP runtime client
-
-        Returns:
-            Dictionary with 'mesh' (MeshData) and 'stats' (json)
+        Outputs:
+            - valid: bool
+            - errors: list[str]
+            - triangle_count: int
+            - vertex_count: int
+            - bounding_box: dict
         """
+        data = inputs.get("data", "")
+        mesh = inputs.get("mesh")
+        fmt = inputs.get("format", "stl").lower()
+
+        errors: list[str] = []
+
+        if mesh and isinstance(mesh, dict):
+            # Validate mesh dict directly
+            pass
+        elif data:
+            try:
+                mesh = await self._parse_mesh(data, fmt)
+            except Exception as exc:
+                return {
+                    "valid": False,
+                    "errors": [f"Parse error: {exc}"],
+                    "triangle_count": 0,
+                    "vertex_count": 0,
+                    "bounding_box": {"min": [0, 0, 0], "max": [0, 0, 0]},
+                }
+        else:
+            return {
+                "valid": False,
+                "errors": ["No data or mesh provided"],
+                "triangle_count": 0,
+                "vertex_count": 0,
+                "bounding_box": {"min": [0, 0, 0], "max": [0, 0, 0]},
+            }
+
+        vertices = mesh.get("vertices", [])
+        faces = mesh.get("faces", [])
+
+        # Structural checks
+        if not vertices:
+            errors.append("Mesh has no vertices")
+        if not faces:
+            errors.append("Mesh has no faces")
+
+        # Check face index validity
+        num_verts = len(vertices)
+        for i, face in enumerate(faces):
+            if len(face) < 3:
+                errors.append(f"Face {i} has fewer than 3 vertices")
+            for idx in face:
+                if idx < 0 or idx >= num_verts:
+                    errors.append(f"Face {i} references invalid vertex index {idx}")
+                    break
+
+        # Check for degenerate triangles (zero area)
+        degenerate_count = 0
+        for face in faces:
+            if len(face) >= 3:
+                area = self._calculate_triangle_area(vertices, face)
+                if area < 1e-12:
+                    degenerate_count += 1
+        if degenerate_count > 0:
+            errors.append(f"{degenerate_count} degenerate (zero-area) triangles found")
+
+        stats = self._calculate_mesh_stats(mesh)
+
+        return {
+            "valid": len(errors) == 0,
+            "errors": errors,
+            "triangle_count": stats["face_count"],
+            "vertex_count": stats["vertex_count"],
+            "bounding_box": stats["bounding_box"],
+        }
+
+    async def _execute_stats(self, inputs: dict[str, Any]) -> dict[str, Any]:
+        """Calculate mesh statistics: bounding box, triangle count, surface area, volume.
+
+        Inputs:
+            - mesh: MeshData dict OR data+format for parsing
+
+        Outputs:
+            - vertex_count, face_count, bounding_box, surface_area, volume, is_manifold
+        """
+        mesh = inputs.get("mesh")
+        if not mesh:
+            data = inputs.get("data", "")
+            fmt = inputs.get("format", "stl").lower()
+            if data:
+                mesh = await self._parse_mesh(data, fmt)
+            else:
+                raise ValueError("mesh or data is required for stats")
+
+        return self._calculate_mesh_stats(mesh)
+
+    async def _execute_import(self, inputs: dict[str, Any]) -> dict[str, Any]:
+        """Execute mesh import operation."""
         data = inputs.get("data", "")
         format_type = inputs.get("format", "stl").lower()
 
         if not data:
             raise ValueError("data is required for mesh import")
 
-        # Parse mesh data based on format
         mesh = await self._parse_mesh(data, format_type)
-
-        # Calculate mesh statistics
         stats = self._calculate_mesh_stats(mesh)
 
         return {"mesh": mesh, "stats": stats}
 
-    async def _execute_export(
-        self, inputs: dict[str, Any], mcp_client: McpRuntimeClient
-    ) -> dict[str, Any]:
-        """Execute mesh export operation.
-
-        Exports a mesh to a target format.
-
-        Args:
-            inputs: Must contain 'mesh' (MeshData) and 'format' (string),
-                   optional 'options' (json)
-            mcp_client: MCP runtime client
-
-        Returns:
-            Dictionary with 'data' (binary/string) and 'result' (ExportResult)
-        """
+    async def _execute_export(self, inputs: dict[str, Any]) -> dict[str, Any]:
+        """Execute mesh export operation."""
         mesh = inputs.get("mesh", {})
         format_type = inputs.get("format", "stl").lower()
         options = inputs.get("options", {})
@@ -113,10 +184,7 @@ class MeshWorker(NodeWorker):
         if not mesh:
             raise ValueError("mesh is required for mesh export")
 
-        # Export mesh to target format
         data = await self._export_mesh(mesh, format_type, options)
-
-        # Calculate file size
         file_size = len(data) if isinstance(data, (str, bytes)) else 0
 
         result = {
@@ -128,21 +196,8 @@ class MeshWorker(NodeWorker):
 
         return {"data": data, "result": result}
 
-    async def _execute_simplify(
-        self, inputs: dict[str, Any], mcp_client: McpRuntimeClient
-    ) -> dict[str, Any]:
-        """Execute mesh simplification operation.
-
-        Reduces mesh complexity while preserving shape fidelity.
-
-        Args:
-            inputs: Must contain 'mesh' (MeshData) and 'target_ratio' (number),
-                   optional 'preserve_boundaries' (boolean)
-            mcp_client: MCP runtime client
-
-        Returns:
-            Dictionary with 'mesh' (MeshData) and 'reduction_pct' (number)
-        """
+    async def _execute_simplify(self, inputs: dict[str, Any]) -> dict[str, Any]:
+        """Execute mesh simplification operation."""
         mesh = inputs.get("mesh", {})
         target_ratio = inputs.get("target_ratio", 0.5)
         preserve_boundaries = inputs.get("preserve_boundaries", True)
@@ -153,12 +208,10 @@ class MeshWorker(NodeWorker):
         if not 0.0 <= target_ratio <= 1.0:
             raise ValueError(f"target_ratio must be between 0.0 and 1.0, got {target_ratio}")
 
-        # Simplify the mesh
         original_face_count = len(mesh.get("faces", []))
         simplified_mesh = await self._simplify_mesh(mesh, target_ratio, preserve_boundaries)
         simplified_face_count = len(simplified_mesh.get("faces", []))
 
-        # Calculate reduction percentage
         if original_face_count > 0:
             reduction_pct = (
                 (original_face_count - simplified_face_count) / original_face_count
@@ -168,21 +221,8 @@ class MeshWorker(NodeWorker):
 
         return {"mesh": simplified_mesh, "reduction_pct": reduction_pct}
 
-    async def _execute_boolean(
-        self, inputs: dict[str, Any], mcp_client: McpRuntimeClient
-    ) -> dict[str, Any]:
-        """Execute mesh boolean operation.
-
-        Performs boolean operations (union, intersection, difference) on two meshes.
-
-        Args:
-            inputs: Must contain 'mesh_a' (MeshData), 'mesh_b' (MeshData),
-                   and 'operation' (string: 'union', 'intersection', 'difference')
-            mcp_client: MCP runtime client
-
-        Returns:
-            Dictionary with 'mesh' (MeshData)
-        """
+    async def _execute_boolean(self, inputs: dict[str, Any]) -> dict[str, Any]:
+        """Execute mesh boolean operation."""
         mesh_a = inputs.get("mesh_a", {})
         mesh_b = inputs.get("mesh_b", {})
         operation = inputs.get("operation", "union").lower()
@@ -192,14 +232,12 @@ class MeshWorker(NodeWorker):
         if not mesh_b:
             raise ValueError("mesh_b is required for boolean operation")
 
-        # Validate operation
         valid_operations = ["union", "intersection", "difference"]
         if operation not in valid_operations:
             raise ValueError(
                 f"Invalid operation '{operation}'. Must be one of: {', '.join(valid_operations)}"
             )
 
-        # Perform boolean operation
         result_mesh = await self._boolean_operation(mesh_a, mesh_b, operation)
 
         return {"mesh": result_mesh}
