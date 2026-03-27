@@ -202,6 +202,8 @@ class GraphExecutionEngine:
                 ", ".join(sorted(targets)),
             )
 
+        node_map = {n.id: n for n in graph.nodes}
+
         for level in levels:
             # Filter level to required nodes if in lazy mode
             level_ids = level
@@ -213,7 +215,7 @@ class GraphExecutionEngine:
             if mode == ExecutionMode.STEPPED:
                 # Sequential: one node at a time within each level
                 for node_id in level_ids:
-                    node = next(n for n in graph.nodes if n.id == node_id)
+                    node = node_map[node_id]
                     inputs = self._collect_inputs(graph, node_id, port_data)
                     ctx = ExecutionContext(
                         graph_id=graph.id,
@@ -229,7 +231,7 @@ class GraphExecutionEngine:
                 tasks = []
                 node_ids = []
                 for node_id in level_ids:
-                    node = next(n for n in graph.nodes if n.id == node_id)
+                    node = node_map[node_id]
                     inputs = self._collect_inputs(graph, node_id, port_data)
                     ctx = ExecutionContext(
                         graph_id=graph.id,
@@ -283,13 +285,15 @@ class GraphExecutionEngine:
             targets = target_nodes or self._find_sink_nodes(graph)
             required_nodes = self._find_required_nodes(graph, targets)
 
+        node_map = {n.id: n for n in graph.nodes}
+
         for level in levels:
             level_ids = level
             if required_nodes is not None:
                 level_ids = [nid for nid in level if nid in required_nodes]
 
             for node_id in level_ids:
-                node = next(n for n in graph.nodes if n.id == node_id)
+                node = node_map[node_id]
                 inputs = self._collect_inputs(graph, node_id, port_data)
                 ctx = ExecutionContext(
                     graph_id=graph.id,
