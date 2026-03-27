@@ -394,8 +394,8 @@ class AIWorker(NodeWorker):
 
         Expected inputs:
         - agent_name (required): Name of the agent in the AgentRegistry
-        - message (required): User message to send to the agent
-        - context (optional): Message history for multi-turn conversations
+        - task (required): Task description to send to the agent (alias: message)
+        - context (optional): JSON context for the agent run
 
         Expected config:
         - Config parameters are inherited from the agent's settings
@@ -406,7 +406,8 @@ class AIWorker(NodeWorker):
         """
         # Extract required inputs
         agent_name = inputs["agent_name"]
-        message = inputs["message"]
+        # Accept either "task" or "message" as the prompt input
+        message = inputs.get("task") or inputs.get("message", "")
 
         # Extract optional inputs
         message_context = inputs.get("context")
@@ -607,8 +608,9 @@ class AIWorker(NodeWorker):
             except (KeyError, ValueError):
                 errors.append(f"Agent '{agent_name}' not found in registry")
 
-        if "message" not in inputs:
-            errors.append("Missing required input: message")
+        # Accept either "task" or "message" as the prompt input
+        if "message" not in inputs and "task" not in inputs:
+            errors.append("Missing required input: task (or message)")
 
         return errors
 

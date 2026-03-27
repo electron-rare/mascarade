@@ -30,6 +30,14 @@ from mascarade.node_engine.cross_domain.orchestrator import (
     CrossDomainOrchestrator,
     OrchestrationResult,
 )
+from mascarade.node_engine.cross_domain.federation import (
+    DOMAIN_CAPABILITY_MAP,
+    ExecutionPlan,
+    FederatedExecutor,
+    MachineProfile,
+    NodeAssignment,
+    ResourceEstimate,
+)
 from mascarade.node_engine.cross_domain.register import (
     AdapterRegistry,
     register_all_adapters,
@@ -51,6 +59,13 @@ __all__ = [
     "CrossDomainOrchestrator",
     "OrchestrationResult",
     "AdapterInsertionRecord",
+    # Federation
+    "FederatedExecutor",
+    "ExecutionPlan",
+    "MachineProfile",
+    "NodeAssignment",
+    "ResourceEstimate",
+    "DOMAIN_CAPABILITY_MAP",
     # Registry
     "AdapterRegistry",
     "register_all_adapters",

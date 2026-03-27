@@ -1562,3 +1562,728 @@ class TestHardwareWorkerSafetyInterlocks:
             {"checks": [{"type": "dmx", "value": 128}]},
         )
         assert result["passed"] is True
+
+
+# ---------------------------------------------------------------------------
+# 16. Phase 1 — ai.agent-dispatch with task input
+# ---------------------------------------------------------------------------
+
+
+class TestAIAgentDispatchTaskInput:
+    """Verify ai.agent-dispatch accepts 'task' as an alias for 'message'."""
+
+    @pytest.mark.asyncio
+    async def test_dispatch_validate_accepts_task(self):
+        """Validation should pass when 'task' is provided instead of 'message'."""
+        from unittest.mock import MagicMock
+
+        from mascarade.node_engine.workers.ai.worker import AIWorker
+
+        mock_registry = MagicMock()
+        mock_registry.get.return_value = MagicMock()  # Agent exists
+
+        worker = AIWorker(router=MagicMock(), registry=mock_registry)
+        errors = await worker.validate(
+            "ai.agent-dispatch",
+            {"agent_name": "test-agent", "task": "Summarize this document"},
+            {},
+        )
+        assert errors == []
+
+    @pytest.mark.asyncio
+    async def test_dispatch_validate_accepts_message(self):
+        """Validation should still pass with the legacy 'message' input."""
+        from unittest.mock import MagicMock
+
+        from mascarade.node_engine.workers.ai.worker import AIWorker
+
+        mock_registry = MagicMock()
+        mock_registry.get.return_value = MagicMock()
+
+        worker = AIWorker(router=MagicMock(), registry=mock_registry)
+        errors = await worker.validate(
+            "ai.agent-dispatch",
+            {"agent_name": "test-agent", "message": "Hello"},
+            {},
+        )
+        assert errors == []
+
+    @pytest.mark.asyncio
+    async def test_dispatch_validate_missing_task_and_message(self):
+        """Validation should fail when neither 'task' nor 'message' is provided."""
+        from unittest.mock import MagicMock
+
+        from mascarade.node_engine.workers.ai.worker import AIWorker
+
+        mock_registry = MagicMock()
+        mock_registry.get.return_value = MagicMock()
+
+        worker = AIWorker(router=MagicMock(), registry=mock_registry)
+        errors = await worker.validate(
+            "ai.agent-dispatch",
+            {"agent_name": "test-agent"},
+            {},
+        )
+        assert any("task" in e for e in errors)
+
+    @pytest.mark.asyncio
+    async def test_dispatch_validate_missing_agent_name(self):
+        from unittest.mock import MagicMock
+
+        from mascarade.node_engine.workers.ai.worker import AIWorker
+
+        worker = AIWorker(router=MagicMock(), registry=MagicMock())
+        errors = await worker.validate(
+            "ai.agent-dispatch",
+            {"task": "Do something"},
+            {},
+        )
+        assert any("agent_name" in e for e in errors)
+
+    @pytest.mark.asyncio
+    async def test_dispatch_validate_agent_not_found(self):
+        from unittest.mock import MagicMock
+
+        from mascarade.node_engine.workers.ai.worker import AIWorker
+
+        mock_registry = MagicMock()
+        mock_registry.get.side_effect = KeyError("not found")
+
+        worker = AIWorker(router=MagicMock(), registry=mock_registry)
+        errors = await worker.validate(
+            "ai.agent-dispatch",
+            {"agent_name": "nonexistent", "task": "Test"},
+            {},
+        )
+        assert any("not found" in e for e in errors)
+
+    @pytest.mark.asyncio
+    async def test_dispatch_execute_with_task_input(self):
+        """execute() should use 'task' input as the prompt for the agent."""
+        from unittest.mock import AsyncMock, MagicMock
+
+        from mascarade.node_engine.workers.ai.worker import AIWorker
+
+        mock_response = MagicMock()
+        mock_response.content = "Agent result"
+
+        mock_agent = MagicMock()
+        mock_agent.run = AsyncMock(return_value=mock_response)
+
+        mock_registry = MagicMock()
+        mock_registry.get.return_value = mock_agent
+
+        worker = AIWorker(router=MagicMock(), registry=mock_registry)
+        result = await worker.execute(
+            "ai.agent-dispatch",
+            {"agent_name": "test-agent", "task": "Analyze this data", "context": {"key": "value"}},
+            {},
+            None,
+        )
+
+        assert result["response"] == mock_response
+        mock_agent.run.assert_called_once()
+        # Verify 'task' was passed as the prompt
+        call_kwargs = mock_agent.run.call_args
+        assert call_kwargs.kwargs["prompt"] == "Analyze this data"
+
+    @pytest.mark.asyncio
+    async def test_dispatch_execute_with_optional_context(self):
+        """execute() should pass optional JSON context to the agent."""
+        from unittest.mock import AsyncMock, MagicMock
+
+        from mascarade.node_engine.workers.ai.worker import AIWorker
+
+        mock_response = MagicMock()
+        mock_agent = MagicMock()
+        mock_agent.run = AsyncMock(return_value=mock_response)
+
+        mock_registry = MagicMock()
+        mock_registry.get.return_value = mock_agent
+
+        worker = AIWorker(router=MagicMock(), registry=mock_registry)
+        ctx = {"document_id": "doc-123", "format": "pdf"}
+        result = await worker.execute(
+            "ai.agent-dispatch",
+            {"agent_name": "summarizer", "task": "Summarize", "context": ctx},
+            {},
+            None,
+        )
+
+        call_kwargs = mock_agent.run.call_args
+        assert call_kwargs.kwargs["context"] == ctx
+
+
+# ---------------------------------------------------------------------------
+# 17. Phase 1 — ai.classify node tests
+# ---------------------------------------------------------------------------
+
+
+class TestAIClassifyNode:
+    """Verify ai.classify node validation and execution."""
+
+    @pytest.mark.asyncio
+    async def test_classify_validate_valid(self):
+        from unittest.mock import MagicMock
+
+        from mascarade.node_engine.workers.ai.worker import AIWorker
+
+        worker = AIWorker(router=MagicMock(), registry=MagicMock())
+        errors = await worker.validate(
+            "ai.classify",
+            {"text": "This is a bug report", "categories": ["bug", "feature", "question"]},
+            {},
+        )
+        assert errors == []
+
+    @pytest.mark.asyncio
+    async def test_classify_validate_missing_text(self):
+        from unittest.mock import MagicMock
+
+        from mascarade.node_engine.workers.ai.worker import AIWorker
+
+        worker = AIWorker(router=MagicMock(), registry=MagicMock())
+        errors = await worker.validate(
+            "ai.classify",
+            {"categories": ["a", "b"]},
+            {},
+        )
+        assert any("text" in e for e in errors)
+
+    @pytest.mark.asyncio
+    async def test_classify_validate_missing_categories(self):
+        from unittest.mock import MagicMock
+
+        from mascarade.node_engine.workers.ai.worker import AIWorker
+
+        worker = AIWorker(router=MagicMock(), registry=MagicMock())
+        errors = await worker.validate(
+            "ai.classify",
+            {"text": "Hello"},
+            {},
+        )
+        assert any("categories" in e for e in errors)
+
+    @pytest.mark.asyncio
+    async def test_classify_validate_empty_categories(self):
+        from unittest.mock import MagicMock
+
+        from mascarade.node_engine.workers.ai.worker import AIWorker
+
+        worker = AIWorker(router=MagicMock(), registry=MagicMock())
+        errors = await worker.validate(
+            "ai.classify",
+            {"text": "Hello", "categories": []},
+            {},
+        )
+        assert any("empty" in e for e in errors)
+
+    @pytest.mark.asyncio
+    async def test_classify_validate_text_not_string(self):
+        from unittest.mock import MagicMock
+
+        from mascarade.node_engine.workers.ai.worker import AIWorker
+
+        worker = AIWorker(router=MagicMock(), registry=MagicMock())
+        errors = await worker.validate(
+            "ai.classify",
+            {"text": 123, "categories": ["a"]},
+            {},
+        )
+        assert any("string" in e for e in errors)
+
+    @pytest.mark.asyncio
+    async def test_classify_execute(self):
+        """execute() should return a category and confidence."""
+        from unittest.mock import AsyncMock, MagicMock
+
+        from mascarade.node_engine.workers.ai.worker import AIWorker
+
+        mock_response = MagicMock()
+        mock_response.content = "bug"
+
+        mock_router = MagicMock()
+        mock_router.send = AsyncMock(return_value=mock_response)
+
+        worker = AIWorker(router=mock_router, registry=MagicMock())
+        result = await worker.execute(
+            "ai.classify",
+            {"text": "The app crashes on login", "categories": ["bug", "feature", "question"]},
+            {},
+            None,
+        )
+
+        assert result["category"] == "bug"
+        assert isinstance(result["confidence"], float)
+        assert 0.0 <= result["confidence"] <= 1.0
+
+    @pytest.mark.asyncio
+    async def test_classify_uses_low_temperature(self):
+        """classify should force temperature to 0.1 for deterministic results."""
+        from unittest.mock import AsyncMock, MagicMock
+
+        from mascarade.node_engine.workers.ai.worker import AIWorker
+
+        mock_response = MagicMock()
+        mock_response.content = "feature"
+
+        mock_router = MagicMock()
+        mock_router.send = AsyncMock(return_value=mock_response)
+
+        worker = AIWorker(router=mock_router, registry=MagicMock())
+        await worker.execute(
+            "ai.classify",
+            {"text": "Add dark mode", "categories": ["bug", "feature"]},
+            {"temperature": 0.9},  # User config should be overridden
+            None,
+        )
+
+        # Check the temperature passed to router.send
+        call_kwargs = mock_router.send.call_args
+        assert call_kwargs.kwargs["temperature"] == 0.1
+
+    def test_classify_in_capabilities(self):
+        from unittest.mock import MagicMock
+
+        from mascarade.node_engine.workers.ai.worker import AIWorker
+
+        worker = AIWorker(router=MagicMock(), registry=MagicMock())
+        caps = worker.capabilities()
+        assert "ai.classify" in caps["node_types"]
+
+
+# ---------------------------------------------------------------------------
+# 18. Phase 1 — ai.summarize node tests
+# ---------------------------------------------------------------------------
+
+
+class TestAISummarizeNode:
+    """Verify ai.summarize node validation and execution."""
+
+    @pytest.mark.asyncio
+    async def test_summarize_validate_valid(self):
+        from unittest.mock import MagicMock
+
+        from mascarade.node_engine.workers.ai.worker import AIWorker
+
+        worker = AIWorker(router=MagicMock(), registry=MagicMock())
+        errors = await worker.validate(
+            "ai.summarize",
+            {"text": "A long document..."},
+            {},
+        )
+        assert errors == []
+
+    @pytest.mark.asyncio
+    async def test_summarize_validate_with_max_length(self):
+        from unittest.mock import MagicMock
+
+        from mascarade.node_engine.workers.ai.worker import AIWorker
+
+        worker = AIWorker(router=MagicMock(), registry=MagicMock())
+        errors = await worker.validate(
+            "ai.summarize",
+            {"text": "Some text", "max_length": 50},
+            {},
+        )
+        assert errors == []
+
+    @pytest.mark.asyncio
+    async def test_summarize_validate_missing_text(self):
+        from unittest.mock import MagicMock
+
+        from mascarade.node_engine.workers.ai.worker import AIWorker
+
+        worker = AIWorker(router=MagicMock(), registry=MagicMock())
+        errors = await worker.validate(
+            "ai.summarize",
+            {},
+            {},
+        )
+        assert any("text" in e for e in errors)
+
+    @pytest.mark.asyncio
+    async def test_summarize_validate_text_not_string(self):
+        from unittest.mock import MagicMock
+
+        from mascarade.node_engine.workers.ai.worker import AIWorker
+
+        worker = AIWorker(router=MagicMock(), registry=MagicMock())
+        errors = await worker.validate(
+            "ai.summarize",
+            {"text": 42},
+            {},
+        )
+        assert any("string" in e for e in errors)
+
+    @pytest.mark.asyncio
+    async def test_summarize_validate_bad_max_length(self):
+        from unittest.mock import MagicMock
+
+        from mascarade.node_engine.workers.ai.worker import AIWorker
+
+        worker = AIWorker(router=MagicMock(), registry=MagicMock())
+        errors = await worker.validate(
+            "ai.summarize",
+            {"text": "Some text", "max_length": 0},
+            {},
+        )
+        assert any("max_length" in e for e in errors)
+
+    @pytest.mark.asyncio
+    async def test_summarize_execute(self):
+        """execute() should return a summary string."""
+        from unittest.mock import AsyncMock, MagicMock
+
+        from mascarade.node_engine.workers.ai.worker import AIWorker
+
+        mock_response = MagicMock()
+        mock_response.content = "This is a concise summary of the document."
+
+        mock_router = MagicMock()
+        mock_router.send = AsyncMock(return_value=mock_response)
+
+        worker = AIWorker(router=mock_router, registry=MagicMock())
+        result = await worker.execute(
+            "ai.summarize",
+            {"text": "A very long document with many details...", "max_length": 50},
+            {},
+            None,
+        )
+
+        assert "summary" in result
+        assert isinstance(result["summary"], str)
+        assert len(result["summary"]) > 0
+
+    @pytest.mark.asyncio
+    async def test_summarize_execute_default_max_length(self):
+        """execute() should use default max_length of 200 when not specified."""
+        from unittest.mock import AsyncMock, MagicMock
+
+        from mascarade.node_engine.workers.ai.worker import AIWorker
+
+        mock_response = MagicMock()
+        mock_response.content = "Summary."
+
+        mock_router = MagicMock()
+        mock_router.send = AsyncMock(return_value=mock_response)
+
+        worker = AIWorker(router=mock_router, registry=MagicMock())
+        await worker.execute(
+            "ai.summarize",
+            {"text": "Some text"},
+            {},
+            None,
+        )
+
+        # Verify the prompt mentions 200 words
+        call_args = mock_router.send.call_args
+        prompt = call_args.args[0][0]["content"]
+        assert "200" in prompt
+
+    def test_summarize_in_capabilities(self):
+        from unittest.mock import MagicMock
+
+        from mascarade.node_engine.workers.ai.worker import AIWorker
+
+        worker = AIWorker(router=MagicMock(), registry=MagicMock())
+        caps = worker.capabilities()
+        assert "ai.summarize" in caps["node_types"]
+
+
+# ---------------------------------------------------------------------------
+# 19. Phase 5 — FederatedExecutor planner
+# ---------------------------------------------------------------------------
+
+
+class TestFederatedExecutor:
+    """Test the FederatedExecutor planner for multi-machine graph execution."""
+
+    def test_import_federation_module(self):
+        from mascarade.node_engine.cross_domain.federation import (
+            ExecutionPlan,
+            FederatedExecutor,
+            MachineProfile,
+        )
+
+        assert FederatedExecutor is not None
+        assert ExecutionPlan is not None
+        assert MachineProfile is not None
+
+    def test_machine_profile_from_dict(self):
+        from mascarade.node_engine.cross_domain.federation import MachineProfile
+
+        data = {
+            "id": "tower",
+            "name": "Tower",
+            "capabilities": ["gpu-inference", "docker-runtime"],
+            "gpu_vram_gb": 5.0,
+            "ram_gb": 32.0,
+        }
+        profile = MachineProfile.from_dict(data)
+        assert profile.id == "tower"
+        assert profile.name == "Tower"
+        assert profile.has_capability("gpu-inference")
+        assert not profile.has_capability("kicad-host")
+
+    def test_plan_single_domain_graph(self):
+        """All AI nodes should be assigned to the GPU machine."""
+        from mascarade.node_engine.cross_domain.federation import (
+            FederatedExecutor,
+            MachineProfile,
+        )
+        from mascarade.node_engine.graph import Edge, Graph, Node
+
+        nodes = [
+            Node(id="n1", type="ai.llm-inference"),
+            Node(id="n2", type="ai.classify"),
+            Node(id="n3", type="ai.summarize"),
+        ]
+        edges = [
+            Edge(from_node="n1", from_port="out", to_node="n2", to_port="in"),
+            Edge(from_node="n2", from_port="out", to_node="n3", to_port="in"),
+        ]
+        graph = Graph(id="ai-only", nodes=nodes, edges=edges)
+
+        profiles = [
+            MachineProfile(
+                id="gpu-box", name="GPU Box",
+                capabilities=["gpu-inference"],
+                gpu_vram_gb=24.0, priority=10,
+            ),
+            MachineProfile(
+                id="cpu-box", name="CPU Box",
+                capabilities=["cpu-compute"],
+                priority=1,
+            ),
+        ]
+
+        executor = FederatedExecutor()
+        plan = executor.plan(graph, profiles)
+
+        assert plan.is_complete
+        assert len(plan.assignments) == 3
+        # All AI nodes should go to GPU box
+        for a in plan.assignments:
+            assert a.machine_id == "gpu-box"
+        assert plan.resource_estimate.cross_machine_edges == 0
+
+    def test_plan_multi_domain_graph(self):
+        """Nodes should be distributed across machines by domain."""
+        from mascarade.node_engine.cross_domain.federation import (
+            FederatedExecutor,
+            MachineProfile,
+        )
+        from mascarade.node_engine.graph import Edge, Graph, Node
+
+        nodes = [
+            Node(id="ai-node", type="ai.llm-inference"),
+            Node(id="cad-node", type="cad.bom-generate"),
+            Node(id="hw-node", type="hardware.esp32.ota"),
+        ]
+        edges = [
+            Edge(from_node="ai-node", from_port="out", to_node="cad-node", to_port="in"),
+            Edge(from_node="cad-node", from_port="out", to_node="hw-node", to_port="in"),
+        ]
+        graph = Graph(id="multi-domain", nodes=nodes, edges=edges)
+
+        profiles = [
+            MachineProfile(
+                id="tower", name="Tower",
+                capabilities=["gpu-inference", "docker-runtime"],
+                gpu_vram_gb=5.0, priority=10,
+            ),
+            MachineProfile(
+                id="mac", name="Mac",
+                capabilities=["hardware-connected", "cpu-compute"],
+                priority=5,
+            ),
+        ]
+
+        executor = FederatedExecutor()
+        plan = executor.plan(graph, profiles)
+
+        assert plan.is_complete
+        assignment_map = {a.node_id: a.machine_id for a in plan.assignments}
+        assert assignment_map["ai-node"] == "tower"
+        assert assignment_map["cad-node"] == "tower"  # docker-runtime
+        assert assignment_map["hw-node"] == "mac"  # hardware-connected
+        assert plan.resource_estimate.cross_machine_edges >= 1
+
+    def test_plan_unassigned_nodes(self):
+        """Nodes with no eligible machine should be listed as unassigned."""
+        from mascarade.node_engine.cross_domain.federation import (
+            FederatedExecutor,
+            MachineProfile,
+        )
+        from mascarade.node_engine.graph import Graph, Node
+
+        nodes = [
+            Node(id="hw-node", type="hardware.esp32.ota"),
+        ]
+        graph = Graph(id="no-hw", nodes=nodes, edges=[])
+
+        profiles = [
+            MachineProfile(
+                id="cloud", name="Cloud",
+                capabilities=["llm-api"],
+            ),
+        ]
+
+        executor = FederatedExecutor()
+        plan = executor.plan(graph, profiles)
+
+        assert not plan.is_complete
+        assert "hw-node" in plan.unassigned_nodes
+        assert len(plan.warnings) > 0
+
+    def test_plan_empty_profiles(self):
+        """With no machine profiles, all nodes should be unassigned."""
+        from mascarade.node_engine.cross_domain.federation import FederatedExecutor
+        from mascarade.node_engine.graph import Graph, Node
+
+        nodes = [Node(id="n1", type="ai.llm-inference")]
+        graph = Graph(id="empty-profiles", nodes=nodes, edges=[])
+
+        executor = FederatedExecutor()
+        plan = executor.plan(graph, [])
+
+        assert not plan.is_complete
+        assert "n1" in plan.unassigned_nodes
+
+    def test_plan_dict_profiles(self):
+        """plan() should accept dicts as machine profiles (from JSON)."""
+        from mascarade.node_engine.cross_domain.federation import FederatedExecutor
+        from mascarade.node_engine.graph import Graph, Node
+
+        nodes = [Node(id="n1", type="ai.llm-inference")]
+        graph = Graph(id="dict-profiles", nodes=nodes, edges=[])
+
+        profiles = [
+            {"id": "gpu", "name": "GPU Box", "capabilities": ["gpu-inference"]},
+        ]
+
+        executor = FederatedExecutor()
+        plan = executor.plan(graph, profiles)
+
+        assert plan.is_complete
+        assert plan.assignments[0].machine_id == "gpu"
+
+    def test_plan_prefers_higher_priority(self):
+        """When multiple machines qualify, prefer higher priority."""
+        from mascarade.node_engine.cross_domain.federation import (
+            FederatedExecutor,
+            MachineProfile,
+        )
+        from mascarade.node_engine.graph import Graph, Node
+
+        nodes = [Node(id="n1", type="ai.llm-inference")]
+        graph = Graph(id="priority-test", nodes=nodes, edges=[])
+
+        profiles = [
+            MachineProfile(
+                id="low", name="Low Priority",
+                capabilities=["gpu-inference"],
+                gpu_vram_gb=24.0, priority=1,
+            ),
+            MachineProfile(
+                id="high", name="High Priority",
+                capabilities=["gpu-inference"],
+                gpu_vram_gb=8.0, priority=10,
+            ),
+        ]
+
+        executor = FederatedExecutor()
+        plan = executor.plan(graph, profiles)
+
+        assert plan.assignments[0].machine_id == "high"
+
+    def test_plan_network_flag_on_cross_machine_edges(self):
+        """Target nodes on different machines should have requires_network=True."""
+        from mascarade.node_engine.cross_domain.federation import (
+            FederatedExecutor,
+            MachineProfile,
+        )
+        from mascarade.node_engine.graph import Edge, Graph, Node
+
+        nodes = [
+            Node(id="ai-node", type="ai.llm-inference"),
+            Node(id="hw-node", type="hardware.esp32.ota"),
+        ]
+        edges = [
+            Edge(from_node="ai-node", from_port="out", to_node="hw-node", to_port="in"),
+        ]
+        graph = Graph(id="net-test", nodes=nodes, edges=edges)
+
+        profiles = [
+            MachineProfile(id="gpu", name="GPU", capabilities=["gpu-inference"], priority=10),
+            MachineProfile(id="hw", name="HW", capabilities=["hardware-connected"], priority=5),
+        ]
+
+        executor = FederatedExecutor()
+        plan = executor.plan(graph, profiles)
+
+        assignment_map = {a.node_id: a for a in plan.assignments}
+        assert assignment_map["hw-node"].requires_network is True
+        assert assignment_map["ai-node"].requires_network is False
+
+    def test_execution_plan_to_dict(self):
+        """to_dict() should return a JSON-serializable dictionary."""
+        from mascarade.node_engine.cross_domain.federation import (
+            ExecutionPlan,
+            NodeAssignment,
+            ResourceEstimate,
+        )
+
+        plan = ExecutionPlan(
+            graph_id="test",
+            assignments=[
+                NodeAssignment(
+                    node_id="n1", node_type="ai.llm", machine_id="m1",
+                    machine_name="Machine 1", reason="test",
+                ),
+            ],
+            resource_estimate=ResourceEstimate(total_nodes=1, machines_used=1),
+        )
+
+        d = plan.to_dict()
+        assert d["graph_id"] == "test"
+        assert len(d["assignments"]) == 1
+        assert d["is_complete"] is True
+
+        # Should be JSON-serializable
+        json.dumps(d)
+
+    def test_execution_plan_machine_summary(self):
+        from mascarade.node_engine.cross_domain.federation import (
+            ExecutionPlan,
+            NodeAssignment,
+        )
+
+        plan = ExecutionPlan(
+            graph_id="test",
+            assignments=[
+                NodeAssignment(node_id="n1", node_type="ai.llm", machine_id="m1",
+                               machine_name="M1", reason="t"),
+                NodeAssignment(node_id="n2", node_type="ai.classify", machine_id="m1",
+                               machine_name="M1", reason="t"),
+                NodeAssignment(node_id="n3", node_type="cad.bom", machine_id="m2",
+                               machine_name="M2", reason="t"),
+            ],
+        )
+
+        summary = plan.machine_summary
+        assert len(summary["m1"]) == 2
+        assert len(summary["m2"]) == 1
+
+    def test_federation_exported_from_cross_domain(self):
+        """Verify federation types are exported from cross_domain __init__."""
+        from mascarade.node_engine.cross_domain import (
+            ExecutionPlan,
+            FederatedExecutor,
+            MachineProfile,
+        )
+
+        assert FederatedExecutor is not None
+        assert ExecutionPlan is not None
+        assert MachineProfile is not None
