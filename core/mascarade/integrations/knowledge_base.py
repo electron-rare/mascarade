@@ -14,7 +14,7 @@ from urllib.parse import urlparse
 
 import httpx
 
-from mascarade.config import is_secret_configured, settings
+from mascarade.config import is_secret_configured, secret_value, settings
 
 _DEFAULT_MEMOS_VISIBILITY = "PRIVATE"
 _DOCMOST_LOGIN_TIMEOUT_S = 20.0
@@ -169,7 +169,7 @@ class MemosClient(KnowledgeBaseAdapter):
         base_url = _memos_api_base_url()
         if not base_url:
             raise RuntimeError("Memos base URL is missing")
-        token = settings.memos_access_token.strip()
+        token = secret_value(settings.memos_access_token).strip()
         if not is_secret_configured(token):
             raise RuntimeError("Memos access token is missing")
         self._base_url = base_url
@@ -312,7 +312,7 @@ class DocmostClient(KnowledgeBaseAdapter):
             "/api/auth/login",
             json={
                 "email": settings.docmost_email.strip(),
-                "password": settings.docmost_password.strip(),
+                "password": secret_value(settings.docmost_password).strip(),
             },
         )
         response.raise_for_status()

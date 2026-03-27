@@ -9,6 +9,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from abc import ABC, abstractmethod
+from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
@@ -135,6 +136,36 @@ class NodeWorker(ABC):
             ValueError: Invalid inputs or configuration
         """
         raise NotImplementedError(f"execute() not implemented for {self.__class__.__name__}")
+
+    async def execute_stream(
+        self,
+        node_type: str,
+        inputs: dict[str, Any],
+        config: dict[str, Any],
+        context: Any,
+    ) -> AsyncIterator[dict[str, Any]]:
+        """Execute a node with streaming output.
+
+        Returns an async iterator that yields partial result chunks.
+        Workers that support streaming should override this method.
+
+        Args:
+            node_type: Fully qualified node type identifier
+            inputs: Input port values (by port ID)
+            config: Node-specific configuration
+            context: Execution context for the current graph run
+
+        Yields:
+            Partial output dictionaries (chunk format is worker-defined)
+
+        Raises:
+            NotImplementedError: If the worker does not support streaming
+        """
+        raise NotImplementedError(
+            f"execute_stream() not implemented for {self.__class__.__name__}"
+        )
+        # Make this an async generator (yield is needed for the type signature)
+        yield  # pragma: no cover
 
     async def validate(
         self,
