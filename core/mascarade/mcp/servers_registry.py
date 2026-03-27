@@ -255,6 +255,21 @@ if _env("LIGHTRAG_ENABLED", "false").lower() in ("true", "1", "yes"):
         enabled=True,
     )
 
+# ── Data Servers (structured data layer) ─────────────────────────
+
+DATA_SERVERS: dict[str, McpServerDef] = {}
+
+if _env("GRIST_ENABLED", "false").lower() in ("true", "1", "yes"):
+    DATA_SERVERS["grist"] = McpServerDef(
+        key="grist",
+        name="Grist",
+        description="Grist — structured data layer with SQL queries, CRUD, and foundation tables",
+        transport="http",
+        command=["mascarade.mcp.grist_mcp"],
+        category="data",
+        enabled=True,
+    )
+
 # ── Unified Registry ──────────────────────────────────────────────
 
 ALL_SERVERS: dict[str, McpServerDef] = {
@@ -265,6 +280,7 @@ ALL_SERVERS: dict[str, McpServerDef] = {
     **INFRA_SERVERS,
     **COLLAB_SERVERS,
     **RAG_SERVERS,
+    **DATA_SERVERS,
 }
 
 
