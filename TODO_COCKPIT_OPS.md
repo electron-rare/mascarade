@@ -32,6 +32,7 @@ Le lot local est stable; ce fichier ne porte plus de blocage critique.
 - [x] `Tempo` branche comme backend traces Grafana
 - [x] `Grafana` et `Langfuse` exposes comme surfaces operateur derriere `edge-proxy`
 - [x] `Firecrawl`, `Mem0`, `Prometheus` et `Ollama` exposes comme surfaces operateur derriere `edge-proxy`
+- [x] Prometheus fix 2026-03-27: was down, restarted on port 9099 via docker-compose profiles fix
 - [x] `ZeroClaw` expose comme surface live on-demand derriere `edge-proxy`, avec `zeroclaw-docs` et `LangGraph` gardes comme surfaces runbook
 - [x] Le monitor ops voit `ZeroClaw` en live, et le runtime natif a ete smoke-teste sur un appel reel via `OpenRouter`
 - [x] `Industrial Cockpit` expose comme surface operateur derriere `edge-proxy` sur `industrial.saillant.cc`, avec inventory des 7 serveurs MCP industriels visible dans `OpsHub`

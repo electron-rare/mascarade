@@ -57,6 +57,14 @@ Notes:
 - [x] Phase 2 (`SearXNG`, `Docling`) : services dans compose principal, prêts. `Paperless-ngx` et `Karakeep` dans `deploy/phase2/docker-compose.yml` — conditionnel.
 - [x] Brancher Whisper config dans `config.py` (`whisper_model_size`, `whisper_device`, `whisper_compute_type`) — done 2026-03-27.
 
+## Session 2026-03-27 notes
+
+- [x] Deploy repo at `/root/mascarade-deploy-main` on VM identified and documented (separate from `/mascarade/` source tree)
+- [x] mascarade-core container rebuilt from updated source
+- [x] Prometheus container fixed (was down, now on port 9099)
+- [x] docker-compose profiles fix applied
+- [x] SSH cils@VM access verified and working
+
 ## Backlog prioritaire restant
 
 ### Securite / secrets operateur
