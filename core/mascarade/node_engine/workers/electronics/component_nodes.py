@@ -1590,3 +1590,110 @@ class FindAlternativesNode(BaseNode):
         alternatives.sort(key=lambda x: x.get("compatibility_score", 0), reverse=True)
 
         return alternatives
+
+
+@dataclass
+class ParametricSearchConfig(NodeConfig):
+    """Configuration for parametric component search."""
+    max_results: int = 20
+    sort_by: str = "price"  # price, stock, package
+
+
+class ParametricSearchNode(BaseNode):
+    """Search components by parametric filters (value, package, voltage, etc).
+
+    Input Ports:
+        category (string): Component category (resistor, capacitor, IC, etc.)
+        filters (json): Parametric filters {value, package, voltage_rating, tolerance, etc.}
+
+    Output Ports:
+        results (json): List of matching components
+        count (integer): Number of matches
+    """
+
+    node_type = "electronics.component.parametric_search"
+    description = "Search components by parametric filters"
+
+    def _default_config(self) -> ParametricSearchConfig:
+        return ParametricSearchConfig()
+
+    def _define_input_ports(self) -> list[PortType]:
+        return [
+            PortType(
+                name="category",
+                direction=PortDirection.INPUT,
+                port_type="string",
+                description="Component category (resistor, capacitor, IC, connector)",
+                optional=False,
+            ),
+            PortType(
+                name="filters",
+                direction=PortDirection.INPUT,
+                port_type="json",
+                description="Parametric filters: {value, package, voltage_rating, tolerance, manufacturer}",
+                optional=True,
+                default_value={},
+            ),
+        ]
+
+    def _define_output_ports(self) -> list[PortType]:
+        return [
+            PortType(
+                name="results",
+                direction=PortDirection.OUTPUT,
+                port_type="json",
+                description="Matching components with specs and pricing",
+            ),
+            PortType(
+                name="count",
+                direction=PortDirection.OUTPUT,
+                port_type="integer",
+                description="Number of matches",
+            ),
+        ]
+
+    async def execute(self, inputs: dict[str, Any]) -> dict[str, Any]:
+        category = inputs.get("category")
+        if not category:
+            raise ValueError("category is required")
+
+        filters = inputs.get("filters", {})
+        config = self.config
+        if not isinstance(config, ParametricSearchConfig):
+            config = ParametricSearchConfig()
+
+        # Simulated parametric search database
+        _DB = {
+            "resistor": [
+                {"mpn": "RC0402FR-0710KL", "value": "10k", "package": "0402", "tolerance": "1%", "price": 0.002, "stock": 50000},
+                {"mpn": "RC0603JR-0710KL", "value": "10k", "package": "0603", "tolerance": "5%", "price": 0.001, "stock": 100000},
+                {"mpn": "CRCW040210K0FKED", "value": "10k", "package": "0402", "tolerance": "1%", "price": 0.003, "stock": 25000},
+            ],
+            "capacitor": [
+                {"mpn": "CL05A104KA5NNNC", "value": "100nF", "package": "0402", "voltage": "25V", "price": 0.003, "stock": 80000},
+                {"mpn": "GRM155R71C104KA88D", "value": "100nF", "package": "0402", "voltage": "16V", "price": 0.004, "stock": 60000},
+            ],
+        }
+
+        candidates = _DB.get(category.lower(), [])
+
+        # Apply filters
+        results = []
+        for c in candidates:
+            match = True
+            for key, val in filters.items():
+                if key in c and str(c[key]).lower() != str(val).lower():
+                    match = False
+                    break
+            if match:
+                results.append(c)
+
+        # Sort
+        sort_key = config.sort_by
+        if sort_key in ("price", "stock") and results:
+            reverse = sort_key == "stock"
+            results.sort(key=lambda x: x.get(sort_key, 0), reverse=reverse)
+
+        results = results[:config.max_results]
+
+        return {"results": results, "count": len(results)}

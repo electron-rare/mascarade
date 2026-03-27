@@ -16,6 +16,7 @@ from mascarade.node_engine.workers.electronics.component_nodes import (
     FindAlternativesNode,
     JlcpcbOptimizationNode,
     LookupNode,
+    ParametricSearchNode,
 )
 from mascarade.node_engine.workers.electronics.firmware_nodes import (
     CompileNode,
@@ -78,6 +79,7 @@ _NODE_CLASSES: dict[str, type[BaseNode]] = {
     "electronics.component.datasheet": DatasheetNode,
     "electronics.component.bom_generate": BomGenerateNode,
     "electronics.component.find_alternatives": FindAlternativesNode,
+    "electronics.component.parametric_search": ParametricSearchNode,
 }
 
 # Correspondance nom d'outil → attribut de disponibilité sur le worker
