@@ -450,6 +450,93 @@ nodeEngine.post("/graphs/execute-inline", async (c: Context) => {
   }
 });
 
+// GET /graphs/:id/status - Get execution status for a graph
+nodeEngine.get("/graphs/:id/status", async (c: Context) => {
+  const id = c.req.param("id") ?? "";
+
+  if (!validateGraphId(id)) {
+    return c.json({ error: "Invalid graph ID" }, 400);
+  }
+
+  try {
+    const res = await fetch(`${CORE_URL}/api/node-engine/graphs/${id}/status`);
+    const data = await res.json();
+
+    emitStructuredLog({
+      service: "api",
+      severity: res.ok ? "info" : "error",
+      message: res.ok ? "Retrieved graph execution status" : "Failed to get graph status",
+      graph_id: id,
+      status: res.status,
+    });
+
+    return c.json(data, res.status as 200);
+  } catch (err: unknown) {
+    // If the core is unreachable, return a synthetic status from local graph data
+    const graph = await readGraph(id);
+    if (!graph) {
+      return c.json({ error: "Graph not found" }, 404);
+    }
+
+    return c.json({
+      graph_id: id,
+      status: "idle",
+      message: "Core runtime unreachable — returning local state",
+      core_connected: false,
+    });
+  }
+});
+
+// GET /catalog - List available node types from the core registry
+nodeEngine.get("/catalog", async (c: Context) => {
+  try {
+    const res = await fetch(`${CORE_URL}/api/node-engine/catalog`);
+    const data = await res.json();
+
+    emitStructuredLog({
+      service: "api",
+      severity: res.ok ? "info" : "error",
+      message: res.ok ? "Retrieved node catalog" : "Failed to get node catalog",
+      status: res.status,
+    });
+
+    return c.json(data, res.status as 200);
+  } catch (err: unknown) {
+    emitStructuredLog({
+      service: "api",
+      severity: "error",
+      message: "Failed to proxy catalog request to core",
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return c.json({ error: "Core runtime unreachable" }, 502);
+  }
+});
+
+// GET /workers - List registered workers and their status
+nodeEngine.get("/workers", async (c: Context) => {
+  try {
+    const res = await fetch(`${CORE_URL}/api/node-engine/workers`);
+    const data = await res.json();
+
+    emitStructuredLog({
+      service: "api",
+      severity: res.ok ? "info" : "error",
+      message: res.ok ? "Retrieved node engine workers" : "Failed to get workers",
+      status: res.status,
+    });
+
+    return c.json(data, res.status as 200);
+  } catch (err: unknown) {
+    emitStructuredLog({
+      service: "api",
+      severity: "error",
+      message: "Failed to proxy workers request to core",
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return c.json({ error: "Core runtime unreachable" }, 502);
+  }
+});
+
 // GET /runtime/status - Get node engine runtime status
 nodeEngine.get("/runtime/status", async (c: Context) => {
   try {
