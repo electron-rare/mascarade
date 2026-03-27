@@ -14,8 +14,9 @@
     "@octokit/auth-app": "^8.2.0",
     "google-auth-library": "^10.6.1",
     "hono": "^4.12.4",
-    "openid-client": "^6.8.2",
     "js-yaml": "^4.1.0",
+    "openid-client": "^6.8.2",
+    "redis": "^5.11.0",
     "ws": "^8.18.0",
     "zod": "^3.24"
   },

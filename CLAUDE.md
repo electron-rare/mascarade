@@ -51,3 +51,40 @@
 - VRAM size registry in `router/model_sizes.py`: `get_model_size_gb(model)` + param-count heuristic fallback
 - OllamaProvider auto-pulls missing models via `_ensure_model()` / `_pull_model()` before first use
 - Tower (Quadro P2000 5GB) handles small models ≤4.5GB; KXKM-AI (RTX 4090 24GB) receives large models
+
+## Suite Numérique (deployed 2026-03-27)
+- All services on Tower, routed via Traefik on Photon (VM)
+- SSO: Keycloak `auth.saillant.cc` (realm `zacus`), forward-auth + OIDC natif
+- SMTP: Brevo (`smtp-relay.brevo.com:587`, user `a556ee001@smtp-brevo.com`)
+- DB: mascarade-postgres (shared), Redis mascarade (shared)
+
+### Services
+| Service | URL | Port | SSO | DB |
+|---|---|---|---|---|
+| Conversations | conversations.saillant.cc | 8082 | forward-auth | postgres/conversations |
+| Docs/Impress | docs.saillant.cc | 8073 | forward-auth | postgres/impress |
+| Meet | meet.saillant.cc | 8084 | forward-auth | postgres/meet |
+| Drive | drive.saillant.cc | 8086 | forward-auth | postgres/drive |
+| People | people.saillant.cc | 8087 | forward-auth | postgres/people |
+| Messages | messages.saillant.cc | 8090 | forward-auth | postgres/messages |
+| Calendars | calendars.saillant.cc | 8089 | forward-auth | postgres/calendars |
+| Grist | grist.saillant.cc | 8484 | OIDC natif | postgres/grist |
+| Dolibarr | erp.saillant.cc | 8488 | forward-auth | postgres/dolibarr |
+| DocuSeal | signature.saillant.cc | 7070 | forward-auth | SQLite |
+| Garage S3 | s3.saillant.cc | 3900 | — | LMDB |
+| Matrix/Synapse | matrix.saillant.cc | 8008 | — | postgres/synapse |
+| Element | chat.saillant.cc | 8080 | — | — |
+| Transfert | transfert.saillant.cc | 3000 | forward-auth | — |
+
+### Repos
+- `electron-rare/suite-numerique` — conversations + docs/impress compose
+- `electron-rare/suite-apps` — drive, people, messages, calendars compose
+- `electron-rare/meet-saillant` — meet + LiveKit compose
+- `electron-rare/oidc2fer` — fork proconnect-gouv, SAML→OIDC bridge Renater
+
+## Open Buro alignment (planned)
+- Standard EU d'interopérabilité pour suites collaboratives souveraines
+- Spec: https://openburo.eu/
+- Alignment doc: `docs/OPENBURO_ALIGNMENT.md`
+- Target endpoints: `/openburo/apps`, `/openburo/events`, `/openburo/objects/{type}`, `/openburo/workspaces`, `/openburo/search`
+- Phase 1: App registry + Event bus (Redis Streams/CloudEvents) + Business Objects schemas

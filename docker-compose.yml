@@ -140,6 +140,13 @@ services:
       DB_POSTGRESDB_DATABASE: mascarade
       DB_POSTGRESDB_USER: mascarade
       DB_POSTGRESDB_PASSWORD: ${POSTGRES_PASSWORD:-}
+      N8N_EMAIL_MODE: smtp
+      N8N_SMTP_HOST: smtp-relay.brevo.com
+      N8N_SMTP_PORT: "587"
+      N8N_SMTP_USER: a556ee001@smtp-brevo.com
+      N8N_SMTP_PASS: "xsmtpsib-d3417ff1858ec6e66fddd805fbcdb31f788f141e008589fdf8dd1bdc650117f8-sZ28b92BByV8wSjo"
+      N8N_SMTP_SSL: "false"
+      N8N_SMTP_SENDER: noreply@saillant.cc
     depends_on:
       postgres:
         condition: service_healthy
