@@ -27,60 +27,121 @@ docker compose --profile core up -d core             # start core container
 docker compose --profile core build core             # rebuild core image
 ```
 
-## Architecture
+## Architecture — Big Picture
 
-**Monorepo**: Python core (`core/`) + TypeScript API gateway (`api/`) + React frontend (`web/`).
+```
+                         ┌─────────────────────────────────┐
+                         │        Web Frontend (web/)       │
+                         │  React 19 + ReactFlow + Tailwind │
+                         └──────────────┬──────────────────┘
+                                        │ HTTP/WS
+                         ┌──────────────▼──────────────────┐
+                         │     TypeScript API (api/)        │
+                         │  Hono — proxy + graph CRUD + WS  │
+                         └──────────────┬──────────────────┘
+                                        │ :8100
+┌───────────────────────────────────────▼───────────────────────────────────┐
+│                        Python Core (core/mascarade/)                      │
+│                                                                           │
+│  ┌─────────┐    ┌──────────────┐    ┌──────────────────────────────────┐ │
+│  │ Agents  │───►│    Router    │───►│          Providers (30+)         │ │
+│  │Registry │    │  (strategy)  │    │ Ollama│Claude│OpenAI│P2P│Prima.. │ │
+│  └─────────┘    └──────┬───────┘    └──────────────────────────────────┘ │
+│                        │                                                  │
+│  ┌─────────────────────▼─────────────────────────────────────────────┐   │
+│  │                    Node Engine (graph runtime)                     │   │
+│  │  ┌─────┐  ┌─────┐  ┌────────────┐  ┌──────────┐  ┌───────────┐  │   │
+│  │  │ AI  │  │ CAD │  │Electronics │  │ Hardware │  │Cross-Domain│  │   │
+│  │  │Work.│  │Work.│  │  Worker    │  │  Worker  │  │ Adapters   │  │   │
+│  │  └─────┘  └─────┘  └────────────┘  └──────────┘  └───────────┘  │   │
+│  └───────────────────────────────────────────────────────────────────┘   │
+│                                                                           │
+│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐                │
+│  │ Cluster  │  │   RAG    │  │   MCP    │  │Finetune  │                │
+│  │P2P mesh  │  │ pipeline │  │ servers  │  │ pipeline │                │
+│  └──────────┘  └──────────┘  └──────────┘  └──────────┘                │
+└───────────────────────────────────────────────────────────────────────────┘
+```
+
+### Request Flow
+
+1. Client → `api/` (Hono) → authenticates, routes
+2. LLM requests → `core/mascarade/router/router.py` → selects provider by strategy
+3. Router checks `model_sizes.py` for VRAM needs → `cluster.py` `select_route()` decides local vs remote
+4. If remote → P2P mesh forwards to peer with sufficient VRAM
+5. If distributed (70B+) → `PrimaCppProvider` → prima.cpp ring cluster
 
 ### Python Core (`core/mascarade/`)
 
-The core is a FastAPI app (`server.py`) that provides LLM orchestration, agent execution, and a universal node engine.
+The core is a FastAPI app (`server.py`) with routers mounted from `routers/`. All LLM calls flow through `router/router.py` which dispatches to providers based on strategy.
 
-**Router → Providers**: All LLM calls go through `router/router.py` which dispatches to providers based on strategy (cheapest/fastest/best/specific). Each provider implements `LLMProvider` from `router/providers/base.py`. There are 30+ providers (Ollama, Claude, OpenAI, Mistral, Google, P2P, PrimaCpp, etc.).
+**Router → Providers**: Each provider implements `LLMProvider` (`router/providers/base.py`) with `send()`, `stream()`, `is_configured`, `available_models()`. Strategy: cheapest/fastest/best/specific. 30+ providers including Ollama, Claude, OpenAI, Mistral, Google, P2P, PrimaCpp, Bedrock, HuggingFace, MLX, vLLM, Exo.
 
-**Node Engine** (`node_engine/`): Graph-based execution system spanning 5 domain workers:
-- `workers/ai/` — LLM inference, streaming, function calling, agent dispatch
-- `workers/cad/` — IPC-2221 trace width, BOM, DRC, mesh ops, toolpath, FreeCAD/KiCad MCP
-- `workers/electronics/` — SPICE simulation (ngspice), PCB DRC (kicad-cli), firmware compilation (PlatformIO), 19 component nodes
-- `workers/hardware/` — ESP32 GPIO/sensors, DMX lighting, MIDI, serial I/O, safety interlocks
-- `cross_domain/` — 5 adapters (AI↔CAD↔Electronics↔Hardware), orchestrator, federated executor
+**Node Engine** (`node_engine/`): Graph-based execution across 5 domain workers:
+- `workers/ai/` — LLM inference, streaming, function calling, classify, summarize, agent dispatch
+- `workers/cad/` — trace width (IPC-2221), BOM, DRC, stackup, thermal via, mesh ops, toolpath, FreeCAD/KiCad MCP
+- `workers/electronics/` — SPICE simulation (ngspice), PCB DRC (kicad-cli), firmware compile (PlatformIO), 19 component nodes (JLCPCB, BOM, CPL, availability, datasheet, parametric search)
+- `workers/hardware/` — ESP32 GPIO/sensors/OTA, DMX universe/fixture/scene, MIDI note/cc/pattern, serial I/O, safety interlocks
+- `cross_domain/` — 5 adapters with 10 type mappings (AI↔CAD↔Electronics↔Hardware), `CrossDomainOrchestrator` (auto adapter insertion), `FederatedExecutor` (machine-capability planning)
 
-The runtime (`runtime.py`) supports 3 execution modes: eager (parallel), lazy (demand-driven), stepped (debug). The type system (`types.py`) uses Pydantic-frozen models with JSON Schema validation.
+Runtime (`runtime.py`): 3 execution modes — eager (parallel branches), lazy (demand-driven from targets), stepped (async generator, yields after each node). Graph validation, topological sort, persistence with versioned JSON. MVP Gate 7/7 passed: compilation 4.6ms/50-nodes, overhead 0.1ms/node, new node creation 77s.
 
-**Cluster** (`cluster.py`): mDNS/Zeroconf discovery (`_mascarade._tcp.local.`), hardware-aware VRAM routing via `select_route()`, P2P mesh across machines.
+**Cluster** (`cluster.py`): mDNS/Zeroconf `_mascarade._tcp.local.`, `PeerCapabilities` (gpu_vram_gb, chip_family, ram_gb), `select_route()` filters by VRAM, 3786 loc P2P module with discovery, transport, pubsub, relay, auth, metrics.
 
-**Config**: All settings in `config.py` via `pydantic-settings` (env vars). `.env` is gitignored — must be configured per-machine.
+**Config**: `config.py` via `pydantic-settings`. All env vars. `.env` gitignored.
 
 ### TypeScript API (`api/`)
 
-Hono framework on Node.js. Proxies to the Python core on port 8100. Graph CRUD for node engine is handled locally with filesystem JSON storage. WebSocket support for live streaming.
+Hono on Node.js. Proxies to core :8100. Node engine graph CRUD stored as JSON on filesystem. WebSocket for streaming. 9 node-engine endpoints.
 
 ### Web Frontend (`web/`)
 
-React 19 + React Router 7 + Tailwind + @xyflow/react (ReactFlow) for graph editing. Code-split with React.lazy on all routes.
+React 19 + Router 7 + Tailwind + @xyflow/react (ReactFlow). Code-split with React.lazy. Factory 4.0 pages: NodeEngineGraph, HardwareFleet, AgentControl, McpControl, ProductionPipeline.
 
-## Infrastructure — 5-Machine Mesh
+## Infrastructure — 5-Machine P2P Mesh
 
-| Machine | Role | SSH | Specs |
-|---------|------|-----|-------|
-| Tower | Primary server (87 containers) | `clems@tower` | 12 CPU, 32GB, P2000 |
-| KXKM-AI | GPU compute | `kxkm@100.87.54.119` via Photon | 28 CPU, 64GB, RTX 4090 |
-| GrosMac | Apple Silicon | `electron@100.80.178.42` via Photon | M5, 10 cores, 16GB |
-| Photon | LAN↔Tailscale bridge | `cils@192.168.0.119` | 4 vCPU, 6.8GB |
-| Mac CILS | Development | local | i7, 16GB |
+```
+         LAN 192.168.0.x              Tailscale 100.x.x.x
+    ┌──────────────────────┐       ┌─────────────────────────┐
+    │ Tower (.120)         │       │ KXKM-AI (100.87.54.119) │
+    │ PRIMARY — 87 cont.   │       │ 28CPU/64GB/RTX 4090     │
+    ├──────────────────────┤       ├─────────────────────────┤
+    │ Mac CILS (.210)      │◄─────►│ GrosMac (100.80.178.42) │
+    │ Dev — TS:100.126     │bridge │ M5/16GB/ANE             │
+    ├──────────────────────┤       ├─────────────────────────┤
+    │ Photon VM (.119)     │◄─────►│ kxkm-dev (100.76)       │
+    │ Bridge — TS:100.112  │       │ kxkm-prod (100.97)      │
+    └──────────────────────┘       └─────────────────────────┘
+```
 
-Core runs on Tower (primary) + Photon (mesh). Deploy repo on Tower: `/root/mascarade-deploy-main/` (not `/mascarade/`).
+| Machine | Role | SSH | Specs | Ollama models |
+|---------|------|-----|-------|---------------|
+| Tower | Primary (87 containers) | `clems@tower` | 12 CPU, 32GB, P2000 | devstral, deepseek-r1:8b, qwen2.5-coder:7b, mascarade-* |
+| KXKM-AI | GPU compute (15 containers) | via Photon: `ssh cils@192.168.0.119 "ssh kxkm@100.87.54.119 '...'"` | 28 CPU, 64GB, RTX 4090 | qwen3-coder:18G, codestral:12G, devstral:14G, 30+ models |
+| GrosMac | Apple Silicon | via Photon: `ssh cils@192.168.0.119 "ssh electron@100.80.178.42 '...'"` | M5, 10 cores, 16GB | qwen2.5:1.5b |
+| Photon | LAN↔Tailscale bridge | `cils@192.168.0.119` (root pw: DockerVM2026) | 4 vCPU, 6.8GB | — |
+| Mac CILS | Development | local | i7, 16GB | mellum-4b, qwen2.5-coder:1.5b, llama3.2:1b |
 
-**Never stop Ollama on any machine** — fine-tuning and prima.cpp must coexist with Ollama.
+**Deploy on Tower**: containers run from `/root/mascarade-deploy-main/` (NOT `/mascarade/`). Always pull both repos.
+
+**Never stop Ollama** on any machine — fine-tuning and prima.cpp coexist with Ollama.
+
+**Prima.cpp ring** (distributed 70B+ inference): built on all 4 machines, QwQ-32B downloaded on Tower+KXKM-AI, NAT relay via Photon. Ring script: `scripts/prima_ring.sh`.
+
+**Factory 4.0**: `https://factory.saillant.cc` — Cloudflare tunnel via Tower edge proxy.
 
 ## Key Patterns
 
-- **Async everywhere**: all providers, agents, node workers are async
-- **Pydantic models**: all data structures, config, API schemas
-- **Circuit breakers**: `aiobreaker` on all provider calls
-- **Conditional imports**: heavy deps (libp2p, litellm, mlx) use try/except so core starts without them
-- **Provider registration**: `providers/__init__.py` uses try/except blocks for each provider
-- **Node Engine dispatch**: each worker has a `_NODE_CLASSES` dict mapping `node_type` strings to node classes
-- **Cross-domain adapters**: `supported_mappings()` returns `AdapterMapping` list, `convert(source_data, mapping)` does the conversion
+- **Async everywhere**: all providers, agents, node workers use `async def`. No sync I/O in the hot path.
+- **Pydantic models**: data structures, config (`Settings(BaseSettings)`), API request/response schemas. Use `model_dump()` not `.dict()`.
+- **Circuit breakers**: `aiobreaker` wraps all provider calls. Retry via `tenacity` with `make_retry()` factory.
+- **Conditional imports**: heavy deps (libp2p, litellm, mlx, torch) use `try/except ImportError` so core starts without them.
+- **Provider lifecycle**: `providers/__init__.py` registers each provider in a try/except block. `is_configured` property checks env vars. `Router._register_defaults()` skips unconfigured providers.
+- **Node Engine dispatch**: each domain worker has `_NODE_CLASSES: dict[str, type]` mapping `node_type` strings to node classes. `execute(node_type, inputs, config, context)` looks up and instantiates the node.
+- **Cross-domain adapters**: `supported_mappings()` → `list[AdapterMapping]`, `convert(source_data, mapping)` → transformed data. `CrossDomainOrchestrator` auto-inserts adapters at domain boundaries in a graph.
+- **VRAM-aware routing**: `get_model_size_gb(model)` from `model_sizes.py` → `select_route()` in `cluster.py` compares to `peer.gpu_vram_gb` → dispatches to best peer.
+- **Secret handling**: `pydantic.SecretStr` for API keys in config. Use `secret_value(settings.foo)` helper (not `.get_secret_value()` directly) — handles both `SecretStr` and plain strings.
+- **Test mocking**: always patch where the name is **used** (e.g., `mascarade.routers.chat.settings`), not where it's **defined** (e.g., `mascarade.config.settings`). Empty `set()` is falsy in Python — use `if x is not None` not `x or default`.
 
 ## Pytest Notes
 
