@@ -1,5 +1,13 @@
 # Audit Deliverables
 
+## Monorepo Monthly Reports
+
+- `MONOREPO_REPORT_YYYY_MM.md`: rapport automatique mensuel (CI median/P95, frequence PR cross-stack, incidents de compatibilite via labels).
+
+Decision framework reference:
+
+- `docs/MONOREPO_REVIEW_METRICS.md`
+
 Latest audit pack:
 
 - `MCP_REGISTRY_FIRST_2026-03-14.md`: cartographie registry-first des serveurs MCP integres, classes `official/community-valid/local-only`, drift de config locale, minima `startup_timeout_sec` et follow-up de realignement local.

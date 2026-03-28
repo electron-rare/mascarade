@@ -60,12 +60,12 @@ services:
           memory: 4G
     user: "${API_RUNTIME_UID:-1000}:${API_RUNTIME_GID:-1000}"
     ports:
-      - "${PUBLISH_BIND_HOST:-0.0.0.0}:${API_PORT}:3000"
+      - "${PUBLISH_BIND_HOST:-0.0.0.0}:${API_PORT}:${API_PORT}"
     env_file:
       - .env
     environment:
       CORE_URL: ${CORE_URL}
-      API_PORT: 3000
+      API_PORT: ${API_PORT:-3100}
       MASCARADE_API_KEY: ""
       HOME: /tmp
       KILL_LIFE_ROOT: ${KILL_LIFE_ROOT:-/workspace/Kill_LIFE}
@@ -75,7 +75,7 @@ services:
     depends_on:
       - core
     healthcheck:
-      test: ["CMD-SHELL", "node -e \"fetch('http://127.0.0.1:3000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""]
+      test: ["CMD-SHELL", "node -e \"fetch('http://127.0.0.1:3100/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""]
       interval: 15s
       timeout: 5s
       retries: 10
@@ -616,9 +616,17 @@ services:
     ports:
       - "${PUBLISH_BIND_HOST:-0.0.0.0}:${TTS_PORT}:10200"
     image: ${TTS_PIPER_IMAGE:-rhasspy/wyoming-piper:latest}
+    command:
+      - --voice
+      - ${TTS_VOICE:-fr_FR-siwis-medium}
+      - --data-dir
+      - /data
+      - --uri
+      - tcp://0.0.0.0:10200
     environment:
       TTS_ENGINE: ${TTS_ENGINE:-piper}
       TTS_VOICE: ${TTS_VOICE:-}
+      VOICE: ${TTS_VOICE:-fr_FR-siwis-medium}
     volumes:
       - tts-data:/data
     networks:
