@@ -1,0 +1,33 @@
+core:
+  - changed-files:
+      - any-glob-to-any-file: 'core/**'
+
+api:
+  - changed-files:
+      - any-glob-to-any-file: 'api/**'
+
+web:
+  - changed-files:
+      - any-glob-to-any-file: 'web/**'
+
+e2e:
+  - changed-files:
+      - any-glob-to-any-file: 'e2e/**'
+
+deploy:
+  - changed-files:
+      - any-glob-to-any-file: 'deploy/**'
+      - any-glob-to-any-file: 'docker-compose*.yml'
+      - any-glob-to-any-file: '.env.example'
+
+infra:
+  - changed-files:
+      - any-glob-to-any-file: '.github/workflows/**'
+      - any-glob-to-any-file: '.github/copilot-instructions.md'
+      - any-glob-to-any-file: '.github/instructions/**'
+
+docs:
+  - changed-files:
+      - any-glob-to-any-file: 'docs/**'
+      - any-glob-to-any-file: 'README.md'
+      - any-glob-to-any-file: 'README_FR.md'

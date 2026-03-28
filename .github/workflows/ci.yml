@@ -38,9 +38,47 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  changes:
+    name: Detect changed areas
+    runs-on: ubuntu-latest
+    outputs:
+      core: ${{ steps.filter.outputs.core }}
+      api: ${{ steps.filter.outputs.api }}
+      web: ${{ steps.filter.outputs.web }}
+      e2e: ${{ steps.filter.outputs.e2e }}
+      deploy: ${{ steps.filter.outputs.deploy }}
+      infra: ${{ steps.filter.outputs.infra }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            core:
+              - 'core/**'
+            api:
+              - 'api/**'
+            web:
+              - 'web/**'
+            e2e:
+              - 'e2e/**'
+            deploy:
+              - 'deploy/**'
+              - 'docker-compose*.yml'
+              - '.env.example'
+            infra:
+              - '.github/workflows/**'
+              - '.github/copilot-instructions.md'
+              - '.github/instructions/**'
+
   # ── Tests ──
   api:
     name: API (test + typecheck + build)
+    needs: [changes]
+    if: >-
+      github.event_name == 'workflow_dispatch'
+      || needs.changes.outputs.api == 'true'
+      || needs.changes.outputs.infra == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     defaults:
@@ -60,6 +98,11 @@ jobs:
 
   web:
     name: Web (build)
+    needs: [changes]
+    if: >-
+      github.event_name == 'workflow_dispatch'
+      || needs.changes.outputs.web == 'true'
+      || needs.changes.outputs.infra == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     defaults:
@@ -77,6 +120,11 @@ jobs:
 
   core:
     name: Core (pytest)
+    needs: [changes]
+    if: >-
+      github.event_name == 'workflow_dispatch'
+      || needs.changes.outputs.core == 'true'
+      || needs.changes.outputs.infra == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     defaults:
@@ -97,6 +145,11 @@ jobs:
 
   lint:
     name: Lint (ruff + black)
+    needs: [changes]
+    if: >-
+      github.event_name == 'workflow_dispatch'
+      || needs.changes.outputs.core == 'true'
+      || needs.changes.outputs.infra == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     defaults:
@@ -114,6 +167,11 @@ jobs:
 
   compose:
     name: Compose config
+    needs: [changes]
+    if: >-
+      github.event_name == 'workflow_dispatch'
+      || needs.changes.outputs.deploy == 'true'
+      || needs.changes.outputs.infra == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -122,6 +180,13 @@ jobs:
 
   e2e:
     name: E2E (Playwright web+api)
+    needs: [changes]
+    if: >-
+      github.event_name == 'workflow_dispatch'
+      || needs.changes.outputs.e2e == 'true'
+      || needs.changes.outputs.api == 'true'
+      || needs.changes.outputs.web == 'true'
+      || needs.changes.outputs.infra == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -157,11 +222,53 @@ jobs:
       - name: Run external smoke tests
         run: npm run test:ops --prefix e2e
 
+  cross_stack:
+    name: Cross-stack coherence (PR)
+    needs: [changes]
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Summarize touched zones
+        uses: actions/github-script@v7
+        env:
+          CORE_CHANGED: ${{ needs.changes.outputs.core }}
+          API_CHANGED: ${{ needs.changes.outputs.api }}
+          WEB_CHANGED: ${{ needs.changes.outputs.web }}
+        with:
+          script: |
+            const zones = [];
+            if (process.env.CORE_CHANGED === 'true') zones.push('core');
+            if (process.env.API_CHANGED === 'true') zones.push('api');
+            if (process.env.WEB_CHANGED === 'true') zones.push('web');
+
+            const isCrossStack = zones.length >= 2;
+            const summary = [
+              '## Cross-stack check',
+              '',
+              `Zones applicatives touchees: ${zones.length ? zones.join(', ') : 'aucune'}`,
+              '',
+              isCrossStack
+                ? '- Resultat: changement multi-zones detecte, verifier la coherence contrat API/UI.'
+                : '- Resultat: changement mono-zone ou hors zones applicatives.'
+            ].join('\n');
+
+            core.summary.addRaw(summary).write();
+
   # ── Docker GHCR ──
   docker:
     name: Docker (${{ matrix.service }})
-    needs: [api, web, core, lint, e2e]
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    needs: [changes, api, web, core, lint, e2e]
+    if: >-
+      github.ref == 'refs/heads/main'
+      && github.event_name == 'push'
+      && (
+        needs.changes.outputs.core == 'true'
+        || needs.changes.outputs.api == 'true'
+        || needs.changes.outputs.web == 'true'
+        || needs.changes.outputs.deploy == 'true'
+        || needs.changes.outputs.infra == 'true'
+      )
     runs-on: ubuntu-latest
     timeout-minutes: 20
     strategy:
@@ -228,7 +335,7 @@ jobs:
   deploy:
     name: Deploy to production
     needs: docker
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' && needs.docker.result == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     environment: production

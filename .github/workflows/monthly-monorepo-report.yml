@@ -1,0 +1,137 @@
+name: Monthly Monorepo Report
+
+on:
+  schedule:
+    - cron: '15 6 1 * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: read
+  actions: read
+
+jobs:
+  report:
+    name: Generate monthly monorepo report
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build metrics report
+        uses: actions/github-script@v7
+        with:
+          script: |
+            function percentile(values, p) {
+              if (!values.length) return 0;
+              const sorted = [...values].sort((a, b) => a - b);
+              const idx = Math.ceil((p / 100) * sorted.length) - 1;
+              return sorted[Math.max(0, idx)];
+            }
+
+            const now = new Date();
+            const since = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString();
+            const ym = `${now.getUTCFullYear()}_${String(now.getUTCMonth() + 1).padStart(2, '0')}`;
+            const outPath = `docs/audit/MONOREPO_REPORT_${ym}.md`;
+
+            // 1) CI durations for this workflow over last 30 days
+            const runs = await github.paginate(github.rest.actions.listWorkflowRunsForRepo, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: 'ci.yml',
+              per_page: 100,
+              event: 'pull_request'
+            });
+
+            const ciDurationsMin = runs
+              .filter(r => r.created_at >= since && r.status === 'completed' && !!r.updated_at)
+              .map(r => (new Date(r.updated_at).getTime() - new Date(r.created_at).getTime()) / 60000)
+              .filter(v => v > 0);
+
+            const ciMedian = percentile(ciDurationsMin, 50).toFixed(1);
+            const ciP95 = percentile(ciDurationsMin, 95).toFixed(1);
+
+            // 2) Cross-stack PR frequency over last 30 days
+            const prs = await github.paginate(github.rest.pulls.list, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'closed',
+              sort: 'updated',
+              direction: 'desc',
+              per_page: 100
+            });
+
+            const mergedRecent = prs.filter(pr => pr.merged_at && pr.merged_at >= since);
+            let crossStackCount = 0;
+
+            for (const pr of mergedRecent.slice(0, 60)) {
+              const files = await github.paginate(github.rest.pulls.listFiles, {
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: pr.number,
+                per_page: 100
+              });
+
+              const zones = new Set();
+              for (const f of files) {
+                const name = f.filename;
+                if (name.startsWith('core/')) zones.add('core');
+                if (name.startsWith('api/')) zones.add('api');
+                if (name.startsWith('web/')) zones.add('web');
+              }
+              if (zones.size >= 2) crossStackCount += 1;
+            }
+
+            const mergedCount = mergedRecent.length;
+            const crossStackPct = mergedCount ? ((crossStackCount / mergedCount) * 100).toFixed(1) : '0.0';
+
+            // 3) Compatibility incidents proxy from issue labels over last 30 days
+            const issues = await github.paginate(github.rest.issues.listForRepo, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'all',
+              since,
+              per_page: 100
+            });
+            const compatIncidents = issues.filter(i => {
+              if (i.pull_request) return false;
+              const labels = (i.labels || []).map(l => typeof l === 'string' ? l : l.name || '').map(s => s.toLowerCase());
+              return labels.includes('incident') || labels.includes('compatibility') || labels.includes('api-compat');
+            }).length;
+
+            const lines = [
+              '# Monorepo Monthly Report',
+              '',
+              `- Window: last 30 days (since ${since})`,
+              `- Generated: ${now.toISOString()}`,
+              '',
+              '## KPI Snapshot',
+              '',
+              `- CI median duration (PR): ${ciMedian} min`,
+              `- CI P95 duration (PR): ${ciP95} min`,
+              `- Merged PRs (30d): ${mergedCount}`,
+              `- Cross-stack PRs (core/api/web >= 2 zones): ${crossStackCount} (${crossStackPct}%)`,
+              `- Compatibility incidents (label proxy): ${compatIncidents}`,
+              '',
+              '## Decision Hints',
+              '',
+              '- Keep monorepo if cross-stack ratio stays meaningful and compatibility incidents remain low.',
+              '- Re-evaluate split if cross-stack ratio stays low and governance/access constraints increase.',
+              '',
+              'Reference: docs/MONOREPO_REVIEW_METRICS.md',
+              ''
+            ];
+
+            const fs = require('fs');
+            fs.writeFileSync(outPath, lines.join('\n'));
+
+      - name: Commit report
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/audit/MONOREPO_REPORT_*.md
+          if git diff --staged --quiet; then
+            echo "No report changes"
+            exit 0
+          fi
+          git commit -m "chore(audit): monthly monorepo report"
+          git push

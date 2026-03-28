@@ -1,0 +1,11 @@
+# Monorepo ownership by area
+# Replace with team handles when available (e.g. @org/core-team).
+
+* @electron-rare
+
+/core/ @electron-rare
+/api/ @electron-rare
+/web/ @electron-rare
+/e2e/ @electron-rare
+/deploy/ @electron-rare
+/docs/ @electron-rare
