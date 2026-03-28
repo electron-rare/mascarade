@@ -270,7 +270,7 @@ graph TB
         VM["VM Bootstrap Node<br/>192.168.0.119:4002<br/>Docker Host<br/>6.8GB RAM, 4 CPU"]
         GROSMAC["GrosMac (Bridge)<br/>:4001<br/>LAN ↔ Tailscale Relay<br/>100.80.178.42"]
         CILS["CILS MacBook<br/>192.168.0.210:4001<br/>Compute Worker"]
-        TOWER["Tower<br/>192.168.0.120:4001<br/>Compute + Storage"]
+        TOWER["Tower<br/>192.168.0.120:4001<br/>Compute + Storage<br/>Quadro P2000 5GB"]
         KXKM["KXKM-AI<br/>kxkm-ai:4001 (via relay)<br/>RTX 4090 24GB<br/>62GB RAM, 28 CPU"]
     end
 
@@ -290,7 +290,7 @@ graph TB
     end
 
     subgraph Capabilities["Node Capabilities"]
-        GPU_CAP[GPU Inference<br/>KXKM-AI only]
+        GPU_CAP[GPU Inference<br/>KXKM-AI RTX 4090 + Tower Quadro P2000]
         CPU_CAP[CPU Inference<br/>All nodes]
         STORE_CAP[Storage<br/>Tower, VM]
         FT_CAP[Fine-tuning<br/>KXKM-AI RTX 4090]
