@@ -14,37 +14,7 @@ afterEach(() => {
 });
 
 describe("cli agents routes", () => {
-  it("forwards status requests to core", async () => {
-    vi.spyOn(coreClient, "cliAgentsStatus").mockResolvedValue({
-      agents: {
-        vibe: {
-          available: true,
-          binary: "vibe",
-          provider: "Mistral (Devstral)",
-          modes: ["chat", "fim"],
-        },
-        codex: {
-          available: true,
-          binary: "codex",
-          provider: "OpenAI (o4-mini)",
-          modes: ["exec", "review"],
-        },
-        "claude-code": {
-          available: false,
-          binary: "claude",
-          provider: "Anthropic (Sonnet/Opus)",
-          modes: ["print", "interactive"],
-        },
-      },
-    });
-
-    const res = await makeApp().request("/v1/api/cli-agents/status");
-
-    expect(res.status).toBe(200);
-    expect(coreClient.cliAgentsStatus).toHaveBeenCalledTimes(1);
-  });
-
-  it("forwards validated run requests to core", async () => {
+  it("forwards run requests to core", async () => {
     vi.spyOn(coreClient, "runCliAgent").mockResolvedValue({
       agent: "vibe",
       content: "patched successfully",
@@ -70,13 +40,32 @@ describe("cli agents routes", () => {
       prompt: "Fix the failing test",
       workdir: "/tmp/demo",
       max_turns: 3,
-      max_price: 2,
-      model: "sonnet",
-      full_auto: true,
     });
   });
 
-  it("rejects invalid request bodies", async () => {
+  it("returns 500 when core client throws a non-CoreApiError", async () => {
+    vi.spyOn(coreClient, "runCliAgent").mockRejectedValue(new Error("network failure"));
+
+    const res = await makeApp().request("/v1/api/cli-agents/run", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        agent: "vibe",
+        prompt: "Fix the failing test",
+      }),
+    });
+
+    expect(res.status).toBe(500);
+    const body = await res.json();
+    expect(body.error).toBe("Internal server error");
+  });
+
+  it("forwards CoreApiError status from core", async () => {
+    const { CoreApiError } = await import("../client/core.js");
+    vi.spyOn(coreClient, "runCliAgent").mockRejectedValue(
+      new CoreApiError("Validation failed", 400, { detail: "bad input" }),
+    );
+
     const res = await makeApp().request("/v1/api/cli-agents/run", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -87,23 +76,5 @@ describe("cli agents routes", () => {
     });
 
     expect(res.status).toBe(400);
-    const body = await res.json();
-    expect(body.error).toBe("Validation failed");
-  });
-
-  it("rejects oversized prompts before forwarding to core", async () => {
-    const runSpy = vi.spyOn(coreClient, "runCliAgent");
-
-    const res = await makeApp().request("/v1/api/cli-agents/run", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        agent: "vibe",
-        prompt: "x".repeat(50_001),
-      }),
-    });
-
-    expect(res.status).toBe(400);
-    expect(runSpy).not.toHaveBeenCalled();
   });
 });

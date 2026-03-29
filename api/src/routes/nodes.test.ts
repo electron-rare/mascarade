@@ -25,26 +25,25 @@ afterEach(() => {
 
 describe("nodes catalog routes", () => {
   describe("GET /catalog", () => {
-    it("returns empty catalog structure", async () => {
+    it("returns 500 with error when core is unreachable", async () => {
       const res = await makeNodesApp().request("/nodes/catalog");
-      expect(res.status).toBe(200);
-      expect(await res.json()).toEqual({
-        node_types: [],
-        domains: [],
-        total_count: 0,
-      });
+      expect(res.status).toBe(500);
+      const body = await res.json();
+      expect(body.error).toBe("Failed to fetch node catalog from core");
+      expect(body.nodes).toEqual([]);
+      expect(body.total).toBe(0);
     });
   });
 
   describe("GET /catalog/:domain", () => {
-    it("returns empty catalog for any domain", async () => {
+    it("returns 500 with error when core is unreachable", async () => {
       const res = await makeNodesApp().request("/nodes/catalog/industrial");
-      expect(res.status).toBe(200);
-      expect(await res.json()).toEqual({
-        node_types: [],
-        domains: [],
-        total_count: 0,
-      });
+      expect(res.status).toBe(500);
+      const body = await res.json();
+      expect(body.error).toBe("Failed to fetch node catalog for domain industrial");
+      expect(body.nodes).toEqual([]);
+      expect(body.total).toBe(0);
+      expect(body.domain).toBe("industrial");
     });
   });
 });

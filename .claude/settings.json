@@ -28,7 +28,11 @@
       "Bash(ssh -o ConnectTimeout=15 kxkm@kxkm-ai \"docker rm -f mascarade-api 2>/dev/null; cd /home/kxkm/mascarade-main && docker compose up -d core api 2>&1 | tail -5\")",
       "Bash(ssh -o ConnectTimeout=15 kxkm@kxkm-ai \"ss -tlnp | grep 3000\")",
       "Bash(ssh -o ConnectTimeout=15 kxkm@kxkm-ai \"cd /home/kxkm/mascarade-main && grep -A10 ''^\\\\s*api:'' docker-compose.yml | grep -E ''ports|3000|3100''\")",
-      "Bash(ssh -o ConnectTimeout=15 kxkm@kxkm-ai \"cd /home/kxkm/mascarade-main && grep -A20 ''api:'' docker-compose.yml | head -25\")"
+      "Bash(ssh -o ConnectTimeout=15 kxkm@kxkm-ai \"cd /home/kxkm/mascarade-main && grep -A20 ''api:'' docker-compose.yml | head -25\")",
+      "Read(//Users/electron/Documents/Projets/mascarade/$HOME/Library/Application Support/Code/**)",
+      "Read(//Users/electron/Documents/Projets/mascarade/$HOME/Library/Application Support/Code/User/**)",
+      "Bash(bash scripts/qa/pre-commit-smoke.sh)",
+      "Bash(python -m pytest tests/test_router.py -q)"
     ]
   }
 }

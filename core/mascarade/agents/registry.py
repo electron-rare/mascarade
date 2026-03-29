@@ -257,6 +257,72 @@ class AgentRegistry:
             except (KeyError, TypeError, ValueError) as exc:
                 logger.warning("Skipping invalid agent entry: %s", exc)
 
+    # --- Wizard Agent Capabilities Matrix ---
+
+    def get_capabilities_matrix(self) -> dict[str, dict]:
+        """Return agent capabilities matrix for wizard agent selection.
+        
+        Returns a dict with:
+        - agents: {agent_name: {domain, required_context, cost_class, ...}}
+        - domain_to_agents: {domain: [agent_names]}
+        - total_agents: int
+        """
+        from mascarade.agents.wizard_schemas import CostClass, AgentCapability
+        
+        agents_dict = {}
+        domain_to_agents: dict[str, list[str]] = {}
+        
+        for agent in self._agents.values():
+            # Domain defaults to `cluster` or 'general'
+            domain = agent.cluster or "general"
+            
+            # Determine cost class based on agent properties (simple heuristic)
+            cost_class = CostClass.MEDIUM
+            if hasattr(agent, "cost_class"):
+                cost_class = agent.cost_class
+            elif hasattr(agent, "preferred_model"):
+                # Simple heuristic: o1/gpt-4 = HIGH, claude/mistral = MEDIUM, local = LOW
+                model = getattr(agent, "preferred_model", "").lower()
+                if any(x in model for x in ["o1", "gpt-4", "vertex", "bedrock"]):
+                    cost_class = CostClass.HIGH
+                elif any(x in model for x in ["claude-3.5", "mistral-large"]):
+                    cost_class = CostClass.MEDIUM
+                elif any(x in model for x in ["local", "ollama", "llama"]):
+                    cost_class = CostClass.LOW
+            
+            # Required context (agents can declare this on their Agent.required_context)
+            required_context = getattr(agent, "required_context", [])
+            if not isinstance(required_context, list):
+                required_context = []
+            
+            # Concurrent limit (agents can declare this on their Agent.concurrent_limit)
+            concurrent_limit = getattr(agent, "concurrent_limit", 1)
+            
+            # Timeout seconds (agents can declare this on their Agent.timeout_seconds)
+            timeout_seconds = float(getattr(agent, "timeout_seconds", 300))
+            
+            # Build the capability object
+            cap = AgentCapability(
+                name=agent.name,
+                domain=domain,
+                required_context=required_context,
+                cost_class=cost_class,
+                concurrent_limit=concurrent_limit,
+                timeout_seconds=timeout_seconds,
+                circuit_breaker_enabled=True,
+            )
+            
+            agents_dict[agent.name] = cap.model_dump()
+            
+            # Build reverse mapping
+            domain_to_agents.setdefault(domain, []).append(agent.name)
+        
+        return {
+            "agents": agents_dict,
+            "domain_to_agents": domain_to_agents,
+            "total_agents": len(self._agents),
+        }
+
     def _compute_diff(self, old_content: str, new_content: str) -> str:
         """Calculer un diff unifié entre deux contenus."""
         old_lines = old_content.splitlines(keepends=True)

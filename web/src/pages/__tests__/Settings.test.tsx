@@ -1,9 +1,15 @@
+<<<<<<< Updated upstream
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, beforeEach } from "vitest";
+=======
+import { render, screen } from "@testing-library/react";
+import { describe, it, expect } from "vitest";
+>>>>>>> Stashed changes
 import { MemoryRouter } from "react-router-dom";
 import Administration from "../Administration";
 
+<<<<<<< Updated upstream
 vi.mock("../../api/client", () => ({
   get: vi.fn(),
   post: vi.fn(),
@@ -163,5 +169,42 @@ describe("Settings", () => {
     await waitFor(() => {
       expect(screen.getByText("Network failure")).toBeInTheDocument();
     });
+=======
+describe("Settings", () => {
+  function renderSettings() {
+    return render(
+      <MemoryRouter>
+        <Settings />
+      </MemoryRouter>,
+    );
+  }
+
+  it("renders the Settings heading", () => {
+    renderSettings();
+    expect(screen.getByText("Settings")).toBeInTheDocument();
+  });
+
+  it("shows coming soon message", () => {
+    renderSettings();
+    expect(screen.getByText("Coming soon")).toBeInTheDocument();
+  });
+
+  it("renders heading as h1", () => {
+    renderSettings();
+    const heading = screen.getByRole("heading", { level: 1 });
+    expect(heading).toHaveTextContent("Settings");
+  });
+
+  it("applies expected layout classes", () => {
+    const { container } = renderSettings();
+    const wrapper = container.firstElementChild as HTMLElement;
+    expect(wrapper.className).toContain("p-6");
+  });
+
+  it("renders subtitle with muted style", () => {
+    renderSettings();
+    const subtitle = screen.getByText("Coming soon");
+    expect(subtitle.className).toContain("text-gray-500");
+>>>>>>> Stashed changes
   });
 });

@@ -339,6 +339,7 @@ export const ClusterForwardSendRequestSchema = z.object({
 export type ClusterForwardSendRequest = z.infer<typeof ClusterForwardSendRequestSchema>;
 
 // ---------------------------------------------------------------------------
+<<<<<<< Updated upstream
 // /api/orchestrate/templates
 // ---------------------------------------------------------------------------
 
@@ -366,3 +367,212 @@ export const TemplateDeployRequestSchema = z.object({
 });
 
 export type TemplateDeployRequest = z.infer<typeof TemplateDeployRequestSchema>;
+=======
+// Wizard Agents Management Schemas
+// ---------------------------------------------------------------------------
+
+const MAX_TASK_LENGTH = 2000;
+const MAX_DOMAIN_LENGTH = 50;
+const MAX_AGENT_NAME_LENGTH = 128;
+const MAX_ERROR_LENGTH = 1000;
+
+export const ExecutionModeSchema = z.enum(["sequential", "parallel"]);
+export type ExecutionMode = z.infer<typeof ExecutionModeSchema>;
+
+export const WizardRunStatusSchema = z.enum([
+  "pending",
+  "selecting",
+  "running",
+  "completed",
+  "failed",
+  "timeout",
+]);
+export type WizardRunStatus = z.infer<typeof WizardRunStatusSchema>;
+
+export const AgentSelectionStatusSchema = z.enum([
+  "pending",
+  "running",
+  "completed",
+  "failed",
+  "timeout",
+]);
+export type AgentSelectionStatus = z.infer<typeof AgentSelectionStatusSchema>;
+
+export const CostClassSchema = z.enum(["low", "medium", "high"]);
+export type CostClass = z.infer<typeof CostClassSchema>;
+
+// Constraints
+export const ExecutionConstraintsSchema = z.object({
+  max_cost: z.number().min(0).max(100).default(1.0),
+  max_latency_ms: z.number().int().min(100).max(120_000).default(10_000),
+  required_models: z.array(z.string().min(1).max(128)).max(10).default([]),
+}).superRefine((value, ctx) => {
+  if (value.required_models.length > 0 && !value.required_models.every((m) => m.trim())) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["required_models"],
+      message: "Each model name must be non-empty",
+    });
+  }
+});
+
+export type ExecutionConstraints = z.infer<typeof ExecutionConstraintsSchema>;
+
+// Metrics
+export const ExecutionMetricsSchema = z.object({
+  duration_ms: z.number().min(0),
+  tokens_used: z.number().int().min(0).default(0),
+  cost_usd: z.number().min(0),
+  provider_used: z.string().max(128).nullable().optional(),
+});
+
+export type ExecutionMetrics = z.infer<typeof ExecutionMetricsSchema>;
+
+// POST /api/wizard/run — Request
+export const WizardAgentRunRequestSchema = withProjectScope(
+  {
+    task: z.string().min(5).max(MAX_TASK_LENGTH),
+    domain: z
+      .string()
+      .min(1)
+      .max(MAX_DOMAIN_LENGTH)
+      .regex(/^[a-z_]+$/, "domain must be lowercase letters and underscores"),
+    constraints: ExecutionConstraintsSchema.optional(),
+    context: z.record(z.string(), z.unknown()).default({}),
+    execution_mode: ExecutionModeSchema.default("sequential"),
+    timeout_seconds: z.number().min(10).max(3600).default(120),
+    continue_on_error: z.boolean().default(false),
+    fail_on_partial: z.boolean().default(true),
+  },
+  { defaultProjectId: DEFAULT_PROJECT_ID },
+).superRefine((value, ctx) => {
+  const validDomains = [
+    "electronics",
+    "rag",
+    "orchestration",
+    "code",
+    "design",
+    "analysis",
+    "generation",
+    "validation",
+  ];
+  if (!validDomains.includes(value.domain)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["domain"],
+      message: `domain must be one of: ${validDomains.join(", ")}`,
+    });
+  }
+});
+
+export type WizardAgentRunRequest = z.infer<typeof WizardAgentRunRequestSchema>;
+
+// Selected Agent Info
+export const SelectedAgentInfoSchema = z.object({
+  name: z.string().min(1).max(MAX_AGENT_NAME_LENGTH),
+  domain: z.string().min(1).max(MAX_DOMAIN_LENGTH),
+  selection_score: z.number().min(0).max(1),
+  cost_class: CostClassSchema,
+});
+
+export type SelectedAgentInfo = z.infer<typeof SelectedAgentInfoSchema>;
+
+// Selection Result
+export const WizardAgentSelectionResultSchema = z.object({
+  task_id: z.string().min(1).max(256),
+  selected_agents: z.array(SelectedAgentInfoSchema).default([]),
+  total_agents_evaluated: z.number().int().min(0),
+  selection_timestamp: z.date().default(() => new Date()),
+});
+
+export type WizardAgentSelectionResult = z.infer<typeof WizardAgentSelectionResultSchema>;
+
+// Agent Result
+export const WizardAgentResultSchema = z
+  .object({
+    task_id: z.string().min(1).max(256),
+    agent_name: z.string().min(1).max(MAX_AGENT_NAME_LENGTH),
+    status: AgentSelectionStatusSchema,
+    output: z.record(z.string(), z.unknown()).nullable().optional(),
+    error: z.string().max(MAX_ERROR_LENGTH).nullable().optional(),
+    metrics: ExecutionMetricsSchema.optional(),
+    completion_timestamp: z.date().default(() => new Date()),
+  })
+  .superRefine((value, ctx) => {
+    if (value.status === "completed" && !value.output) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["output"],
+        message: "output is required when status is completed",
+      });
+    }
+    if (value.status === "failed" && !value.error) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["error"],
+        message: "error is required when status is failed",
+      });
+    }
+  });
+
+export type WizardAgentResult = z.infer<typeof WizardAgentResultSchema>;
+
+// Aggregated Analysis
+export const AggregatedAnalysisSchema = z.object({
+  summary: z.string().max(2000).default(""),
+  confidence: z.number().min(0).max(1).default(0.5),
+  raw_analyses: z.record(z.string(), z.unknown()).default({}),
+});
+
+export type AggregatedAnalysis = z.infer<typeof AggregatedAnalysisSchema>;
+
+// Final Run Result
+export const WizardRunResultSchema = z.object({
+  task_id: z.string().min(1).max(256),
+  status: WizardRunStatusSchema,
+  execution_mode: ExecutionModeSchema,
+  results: z.array(WizardAgentResultSchema).default([]),
+  aggregated_analysis: AggregatedAnalysisSchema.optional(),
+  total_duration_ms: z.number().min(0).default(0),
+  total_cost_usd: z.number().min(0).default(0),
+  completion_timestamp: z.date().default(() => new Date()),
+  error_reason: z.string().max(MAX_ERROR_LENGTH).nullable().optional(),
+});
+
+export type WizardRunResult = z.infer<typeof WizardRunResultSchema>;
+
+// Status Response
+export const WizardRunStatusResponseSchema = z.object({
+  task_id: z.string().min(1).max(256),
+  status: WizardRunStatusSchema,
+  progress_percent: z.number().int().min(0).max(100),
+  results: z.array(WizardAgentResultSchema).optional(),
+  error: z.string().max(MAX_ERROR_LENGTH).nullable().optional(),
+  last_update: z.date().default(() => new Date()),
+});
+
+export type WizardRunStatusResponse = z.infer<typeof WizardRunStatusResponseSchema>;
+
+// Agent Capability
+export const AgentCapabilitySchema = z.object({
+  name: z.string().min(1).max(MAX_AGENT_NAME_LENGTH),
+  domain: z.string().min(1).max(MAX_DOMAIN_LENGTH),
+  required_context: z.array(z.string().min(1).max(256)).default([]),
+  cost_class: CostClassSchema,
+  concurrent_limit: z.number().int().min(1).default(1),
+  timeout_seconds: z.number().min(10).max(3600).default(300),
+  circuit_breaker_enabled: z.boolean().default(true),
+});
+
+export type AgentCapability = z.infer<typeof AgentCapabilitySchema>;
+
+// Capability Matrix
+export const WizardAgentCapabilityMatrixSchema = z.object({
+  timestamp: z.date().default(() => new Date()),
+  agents: z.record(z.string().min(1).max(MAX_AGENT_NAME_LENGTH), AgentCapabilitySchema).default({}),
+  domain_to_agents: z.record(z.string().min(1).max(MAX_DOMAIN_LENGTH), z.array(z.string())).default({}),
+  total_agents: z.number().int().min(0),
+});
+
+export type WizardAgentCapabilityMatrix = z.infer<typeof WizardAgentCapabilityMatrixSchema>;
+>>>>>>> Stashed changes
