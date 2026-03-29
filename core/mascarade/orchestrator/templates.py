@@ -27,6 +27,8 @@ class ExecutionMode(StrEnum):
 class WorkflowTemplate(BaseModel):
     """Template de workflow orchestré — définit une pipeline réutilisable."""
 
+    model_config = ConfigDict(use_enum_values=False)
+
     id: str = Field(min_length=1, max_length=100)
     name: str = Field(min_length=1, max_length=200)
     description: str = Field(max_length=1000)
@@ -34,10 +36,6 @@ class WorkflowTemplate(BaseModel):
     mode: ExecutionMode = ExecutionMode.SEQUENTIAL
     routing_overrides: dict[str, dict[str, str | None]] | None = Field(default=None)
     documentation: str = Field(max_length=5000)
-
-    model_config = ConfigDict(use_enum_values=False)
-
-
 class TemplateRegistry:
     """Registre centralisé pour gérer les templates d'orchestration."""
 

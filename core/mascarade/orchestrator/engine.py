@@ -799,13 +799,14 @@ class Orchestrator:
             raise RuntimeError(error_msg)
 
         async def _do_execute() -> TaskResult:
+            peer_id = (routing_override or {}).get("peer_id")
             preferred_role = (routing_override or {}).get("preferred_role") or getattr(
                 agent, "preferred_role", None
             )
 
             if self.cluster is not None and self.cluster.enabled:
                 routed = await self.cluster.forward_send(
-                    peer_id=None,
+                    peer_id=peer_id,
                     preferred_role=preferred_role,
                     allow_local=True,
                     payload=payload,

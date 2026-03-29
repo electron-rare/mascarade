@@ -10,6 +10,25 @@ const MAX_COMPLETION_TOKENS = 32_768;
 const MAX_PROMPT_LENGTH = 50_000;
 const MAX_SYSTEM_PROMPT_LENGTH = 20_000;
 const MAX_CODESSTRAL_CONTEXT_LENGTH = 100_000;
+const StringListSchema = z.array(z.string().min(1).max(256)).max(128);
+const JsonObjectSchema = z.record(z.string(), z.unknown());
+
+const AgentGateRequestSchema = z.object({
+  name: z.string().min(1).max(200),
+  description: z.string().max(1000).default(""),
+  phase: z.enum(["pre", "post"]).default("pre"),
+  required: z.boolean().default(true),
+  check: z.string().max(200).default(""),
+  status: z.enum(["pending", "passed", "failed", "skipped"]).default("pending"),
+});
+
+const AgentRoutingOverrideSchema = z.object({
+  peer_id: z.string().min(1).max(100).optional(),
+  preferred_role: z.string().min(1).max(100).optional(),
+  preferred_provider: z.string().min(1).max(100).optional(),
+  preferred_model: z.string().min(1).max(100).optional(),
+  routing_policy: z.enum(["auto", "strong", "cheap", "fast"]).optional(),
+});
 
 export const MessageSchema = z.object({
   role: z.enum(["system", "user", "assistant", "tool"]),
@@ -115,6 +134,14 @@ export const AgentCreateRequestSchema = z.object({
   routing_policy: z.string().max(50).optional(),
   temperature: z.number().min(0).max(2).optional(),
   max_tokens: z.number().int().min(1).max(MAX_COMPLETION_TOKENS).optional(),
+  tools: StringListSchema.optional(),
+  skills: StringListSchema.optional(),
+  category: z.string().max(100).nullable().optional(),
+  retry_config: JsonObjectSchema.nullable().optional(),
+  gates: z.array(AgentGateRequestSchema).max(64).optional(),
+  evidence_refs: StringListSchema.optional(),
+  capabilities: StringListSchema.optional(),
+  cluster: z.string().max(100).nullable().optional(),
 });
 
 export type AgentCreateRequest = z.infer<typeof AgentCreateRequestSchema>;
@@ -293,8 +320,49 @@ export type FinetuneRunRequest = z.infer<typeof FinetuneRunRequestSchema>;
 
 export const ClusterForwardSendRequestSchema = z.object({
   messages: z.array(MessageSchema).min(1).max(MAX_MESSAGE_COUNT),
+  peer_id: z.string().max(256).optional(),
+  preferred_role: z.string().max(100).optional(),
+  allow_local: z.boolean().optional(),
   target_node: z.string().max(256).optional(),
   strategy: z.string().max(50).optional(),
   model: z.string().max(100).optional(),
   provider: z.string().max(100).optional(),
+  routing_policy: z.string().max(50).optional(),
+  system: z.string().max(MAX_SYSTEM_PROMPT_LENGTH).nullable().optional(),
+  temperature: z.number().min(0).max(2).optional(),
+  max_tokens: z.number().int().min(1).max(MAX_COMPLETION_TOKENS).optional(),
+  project_id: z.string().min(1).max(256).optional(),
+  knowledge_scope: z.enum(["project", "federated"]).optional(),
+  federation_scope: z.array(z.string().min(1).max(256)).max(32).optional(),
 });
+
+export type ClusterForwardSendRequest = z.infer<typeof ClusterForwardSendRequestSchema>;
+
+// ---------------------------------------------------------------------------
+// /api/orchestrate/templates
+// ---------------------------------------------------------------------------
+
+export const WorkflowTemplateCreateRequestSchema = z.object({
+  id: z.string().min(1).max(100).regex(/^[\w.-]+$/, "Template id must match [\\w.-]+"),
+  name: z.string().min(1).max(200),
+  description: z.string().max(1000).default(""),
+  agent_names: z.array(z.string().min(1).max(128)).min(1).max(20),
+  mode: z.enum(["sequential", "parallel", "pipeline"]).default("sequential"),
+  routing_overrides: z.record(z.string(), AgentRoutingOverrideSchema).optional(),
+  documentation: z.string().max(5000).default(""),
+});
+
+export type WorkflowTemplateCreateRequest = z.infer<typeof WorkflowTemplateCreateRequestSchema>;
+
+export const WorkflowTemplateUpdateRequestSchema = WorkflowTemplateCreateRequestSchema.omit({
+  id: true,
+}).partial();
+
+export type WorkflowTemplateUpdateRequest = z.infer<typeof WorkflowTemplateUpdateRequestSchema>;
+
+export const TemplateDeployRequestSchema = z.object({
+  input: z.string().min(1).max(MAX_PROMPT_LENGTH),
+  routing_overrides: z.record(z.string(), AgentRoutingOverrideSchema).optional(),
+});
+
+export type TemplateDeployRequest = z.infer<typeof TemplateDeployRequestSchema>;

@@ -707,6 +707,38 @@ agents.get("/:name/metrics", async (c) => {
   }
 });
 
+agents.get("/:name/prompts/history", async (c) => {
+  try {
+    const name = c.req.param("name");
+    if (!name || !SAFE_NAME_RE.test(name)) {
+      return c.json({ error: "Invalid agent name" }, 400);
+    }
+    const result = await coreClient.getPromptHistory(name);
+    return c.json(result);
+  } catch (error) {
+    const { status, body } = handleCoreError(error);
+    return c.json(body, status);
+  }
+});
+
+agents.post("/:name/prompts/rollback/:version", async (c) => {
+  try {
+    const name = c.req.param("name");
+    const version = Number.parseInt(c.req.param("version"), 10);
+    if (!name || !SAFE_NAME_RE.test(name)) {
+      return c.json({ error: "Invalid agent name" }, 400);
+    }
+    if (!Number.isFinite(version) || version < 1) {
+      return c.json({ error: "Invalid prompt version" }, 400);
+    }
+    const result = await coreClient.rollbackPromptVersion(name, version);
+    return c.json(result);
+  } catch (error) {
+    const { status, body } = handleCoreError(error);
+    return c.json(body, status);
+  }
+});
+
 /** Detail agent */
 agents.get("/:name", async (c) => {
   try {

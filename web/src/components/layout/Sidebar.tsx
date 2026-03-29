@@ -158,7 +158,7 @@ export default function Sidebar({ pathname, open, onClose }: SidebarProps) {
 
           <div className="grid grid-cols-2 gap-2 text-[11px] uppercase tracking-[0.16em]">
             <a
-              href="/ops"
+              href="/admin"
               className="rounded-xl border border-[rgba(0,0,0,0.06)] bg-[#f5f5f7] px-3 py-3 text-center text-[#6e6e73] transition hover:bg-[#e8e8ed] hover:text-accent"
             >
               ops

@@ -1,5 +1,31 @@
 import { del, get, post, put } from "./client";
 
+export interface PromptVersionInfo {
+  version_number: number;
+  timestamp: string;
+  content: string;
+  author_hash: string;
+  diff?: string | null;
+  note?: string | null;
+}
+
+export interface AgentGate {
+  name: string;
+  description?: string;
+  phase?: "pre" | "post";
+  required?: boolean;
+  check?: string;
+  status?: "pending" | "passed" | "failed" | "skipped";
+}
+
+export interface AgentRoutingOverride {
+  peer_id?: string | null;
+  preferred_role?: string | null;
+  preferred_provider?: string | null;
+  preferred_model?: string | null;
+  routing_policy?: string | null;
+}
+
 export interface Agent {
   name: string;
   description: string;
@@ -11,6 +37,26 @@ export interface Agent {
   routing_policy?: string | null;
   temperature?: number;
   max_tokens?: number;
+  tools?: string[];
+  skills?: string[];
+  category?: string | null;
+  retry_config?: Record<string, unknown> | null;
+  gates?: AgentGate[];
+  evidence_refs?: string[];
+  capabilities?: string[];
+  cluster?: string | null;
+  prompt_versions?: PromptVersionInfo[];
+  builtin?: boolean;
+}
+
+export interface WorkflowTemplate {
+  id: string;
+  name: string;
+  description: string;
+  agent_names: string[];
+  mode: string;
+  routing_overrides?: Record<string, AgentRoutingOverride>;
+  documentation: string;
   builtin?: boolean;
 }
 
@@ -77,6 +123,14 @@ export const agentsApi = {
     routing_policy?: string;
     temperature?: number;
     max_tokens?: number;
+    tools?: string[];
+    skills?: string[];
+    category?: string | null;
+    retry_config?: Record<string, unknown> | null;
+    gates?: AgentGate[];
+    evidence_refs?: string[];
+    capabilities?: string[];
+    cluster?: string | null;
   }) => post<Agent>("/api/agents", agent),
 
   get: (name: string) => get<Agent>(`/api/agents/${encodeURIComponent(name)}`),
@@ -90,9 +144,18 @@ export const agentsApi = {
       preferred_model?: string | null;
       preferred_role?: string | null;
       strategy?: string;
-      routing_policy?: string;
+      routing_policy?: string | null;
       temperature?: number;
       max_tokens?: number;
+      tools?: string[];
+      skills?: string[];
+      category?: string | null;
+      retry_config?: Record<string, unknown> | null;
+      gates?: AgentGate[];
+      evidence_refs?: string[];
+      capabilities?: string[];
+      cluster?: string | null;
+      version_note?: string | null;
     },
   ) => put<Agent>(`/api/agents/${encodeURIComponent(name)}`, agent),
 
@@ -147,6 +210,7 @@ export const agentsApi = {
     routing_overrides?: Record<
       string,
       {
+        peer_id?: string | null;
         preferred_role?: string | null;
         preferred_provider?: string | null;
         preferred_model?: string | null;
@@ -166,4 +230,54 @@ export const agentsApi = {
 
   metrics: (name: string) =>
     get<AgentMetrics>(`/api/agents/${encodeURIComponent(name)}/metrics`),
+
+  promptHistory: (name: string) =>
+    get<{ versions: PromptVersionInfo[] }>(
+      `/api/agents/${encodeURIComponent(name)}/prompts/history`,
+    ),
+
+  rollbackPrompt: (name: string, version: number) =>
+    post<{ message: string; current_prompt: string; versions: PromptVersionInfo[] }>(
+      `/api/agents/${encodeURIComponent(name)}/prompts/rollback/${encodeURIComponent(String(version))}`,
+      {},
+    ),
+
+  listTemplates: () => get<{ templates: WorkflowTemplate[] }>("/api/orchestrate/templates"),
+
+  getTemplate: (templateId: string) =>
+    get<WorkflowTemplate>(`/api/orchestrate/templates/${encodeURIComponent(templateId)}`),
+
+  createTemplate: (template: {
+    id: string;
+    name: string;
+    description: string;
+    agent_names: string[];
+    mode?: string;
+    routing_overrides?: Record<string, AgentRoutingOverride>;
+    documentation: string;
+  }) => post<WorkflowTemplate>("/api/orchestrate/templates", template),
+
+  updateTemplate: (
+    templateId: string,
+    template: {
+      name?: string;
+      description?: string;
+      agent_names?: string[];
+      mode?: string;
+      routing_overrides?: Record<string, AgentRoutingOverride>;
+      documentation?: string;
+    },
+  ) => put<WorkflowTemplate>(`/api/orchestrate/templates/${encodeURIComponent(templateId)}`, template),
+
+  deleteTemplate: (templateId: string) =>
+    del<{ message: string }>(`/api/orchestrate/templates/${encodeURIComponent(templateId)}`),
+
+  deployTemplate: (
+    templateId: string,
+    body: { input: string; routing_overrides?: Record<string, AgentRoutingOverride> },
+  ) =>
+    post<{ run_id: string; template_id: string; mode: string; results: OrchestrationResult[] }>(
+      `/api/orchestrate/templates/${encodeURIComponent(templateId)}/deploy`,
+      body,
+    ),
 };

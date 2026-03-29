@@ -11,7 +11,7 @@ describe("Badge", () => {
   it("applies muted variant classes by default", () => {
     render(<Badge>default</Badge>);
     const badge = screen.getByText("default");
-    expect(badge.className).toContain("bg-black");
+    expect(badge.className).toContain("bg-surface");
     expect(badge.className).toContain("text-muted");
   });
 

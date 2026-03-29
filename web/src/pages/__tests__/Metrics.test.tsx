@@ -2,7 +2,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { MemoryRouter } from "react-router-dom";
-import Metrics from "../Metrics";
+import Dashboard from "../Dashboard";
 
 const mockRefetch = vi.fn();
 
@@ -30,20 +30,20 @@ function makeMonitorData(overrides: Record<string, unknown> = {}) {
   };
 }
 
-describe("Metrics", () => {
+describe("Dashboard metrics lane", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  function renderMetrics() {
+  function renderDashboard() {
     return render(
       <MemoryRouter>
-        <Metrics />
+        <Dashboard />
       </MemoryRouter>,
     );
   }
 
-  it("shows loading panel while metrics are being fetched", () => {
+  it("shows loading panel while dashboard data is being fetched", () => {
     mockedUseFetch.mockReturnValue({
       data: null,
       loading: true,
@@ -52,11 +52,11 @@ describe("Metrics", () => {
       status: "loading",
     });
 
-    renderMetrics();
-    expect(screen.getByText("Syncing metrics")).toBeInTheDocument();
+    renderDashboard();
+    expect(screen.getByText("Syncing dashboard")).toBeInTheDocument();
   });
 
-  it("shows error notice when fetch fails", () => {
+  it("shows error notice when health fetch fails", () => {
     mockedUseFetch.mockReturnValue({
       data: null,
       loading: false,
@@ -65,65 +65,108 @@ describe("Metrics", () => {
       status: "error",
     });
 
-    renderMetrics();
+    renderDashboard();
     expect(screen.getByText("Timeout")).toBeInTheDocument();
   });
 
-  it("renders stable posture headline when all services are ok", () => {
-    mockedUseFetch.mockReturnValue({
-      data: makeMonitorData(),
-      loading: false,
-      error: null,
-      refetch: mockRefetch,
-      status: "success",
-    });
+  it("renders stable posture headline when health is nominal", () => {
+    mockedUseFetch
+      .mockReturnValueOnce({
+        data: {
+          status: "ok",
+          core: { status: "ok", providers: ["openai", "mistral"], agents: 5 },
+        },
+        loading: false,
+        error: null,
+        refetch: mockRefetch,
+        status: "success",
+      })
+      .mockReturnValueOnce({
+        data: makeMonitorData(),
+        loading: false,
+        error: null,
+        refetch: mockRefetch,
+        status: "success",
+      });
 
-    renderMetrics();
-    expect(screen.getByText("Runtime lanes stable")).toBeInTheDocument();
+    renderDashboard();
+    expect(screen.getByText("System matrix stable")).toBeInTheDocument();
   });
 
-  it("renders intervention headline when gateway is down", () => {
-    mockedUseFetch.mockReturnValue({
-      data: makeMonitorData({
-        gateway: { api: { ok: false, status: 503 }, core: false },
-      }),
-      loading: false,
-      error: null,
-      refetch: mockRefetch,
-      status: "success",
-    });
+  it("renders degraded headline when gateway is under pressure", () => {
+    mockedUseFetch
+      .mockReturnValueOnce({
+        data: {
+          status: "degraded",
+          core: { status: "error", providers: [], agents: 0 },
+        },
+        loading: false,
+        error: null,
+        refetch: mockRefetch,
+        status: "success",
+      })
+      .mockReturnValueOnce({
+        data: makeMonitorData({
+          gateway: { api: { ok: false, status: 503 }, core: false },
+        }),
+        loading: false,
+        error: null,
+        refetch: mockRefetch,
+        status: "success",
+      });
 
-    renderMetrics();
-    expect(screen.getByText("Intervention lane open")).toBeInTheDocument();
+    renderDashboard();
+    expect(screen.getByText("Gateway under pressure")).toBeInTheDocument();
   });
 
-  it("renders services health table with service names", () => {
-    mockedUseFetch.mockReturnValue({
-      data: makeMonitorData(),
-      loading: false,
-      error: null,
-      refetch: mockRefetch,
-      status: "success",
-    });
+  it("shows action cards for operators", () => {
+    mockedUseFetch
+      .mockReturnValueOnce({
+        data: {
+          status: "ok",
+          core: { status: "ok", providers: ["openai"], agents: 3 },
+        },
+        loading: false,
+        error: null,
+        refetch: mockRefetch,
+        status: "success",
+      })
+      .mockReturnValueOnce({
+        data: makeMonitorData(),
+        loading: false,
+        error: null,
+        refetch: mockRefetch,
+        status: "success",
+      });
 
-    renderMetrics();
-    expect(screen.getByText("Services health table")).toBeInTheDocument();
-    expect(screen.getByText("ollama")).toBeInTheDocument();
-    expect(screen.getByText("qdrant")).toBeInTheDocument();
+    renderDashboard();
+    expect(screen.getByText("Check Metrics")).toBeInTheDocument();
+    expect(screen.getByText("Open Logs")).toBeInTheDocument();
   });
 
   it("shows refresh button and calls refetch on click", async () => {
     const user = userEvent.setup();
-    mockedUseFetch.mockReturnValue({
-      data: makeMonitorData(),
-      loading: false,
-      error: null,
-      refetch: mockRefetch,
-      status: "success",
-    });
+    mockedUseFetch
+      .mockReturnValueOnce({
+        data: {
+          status: "ok",
+          core: { status: "ok", providers: ["openai"], agents: 1 },
+        },
+        loading: false,
+        error: null,
+        refetch: mockRefetch,
+        status: "success",
+      })
+      .mockReturnValueOnce({
+        data: makeMonitorData(),
+        loading: false,
+        error: null,
+        refetch: mockRefetch,
+        status: "success",
+      });
 
-    renderMetrics();
-    const btn = screen.getByRole("button", { name: /refresh monitor/i });
+    renderDashboard();
+    const btn = screen.getByRole("button", { name: /refresh status/i });
     await user.click(btn);
     expect(mockRefetch).toHaveBeenCalled();
   });

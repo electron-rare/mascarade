@@ -144,6 +144,7 @@ describe('LLMInferenceNode', () => {
     it('should pass validation with valid inputs', () => {
       const errors = LLMInferenceNode.validate?.({
         prompt: 'Hello, world!',
+        project_id: 'demo-project',
         temperature: 0.7,
         max_tokens: 1024,
         strategy: 'best',
@@ -165,13 +166,14 @@ describe('LLMInferenceNode', () => {
       (coreClient.coreClient.send as Mock).mockResolvedValue(mockResponse);
 
       const result = await LLMInferenceNode.execute(
-        { prompt: 'Hello' },
+        { prompt: 'Hello', project_id: 'demo-project' },
         mockContext
       );
 
       // Verify core client was called
       expect(coreClient.coreClient.send).toHaveBeenCalledWith({
         messages: [{ role: 'user', content: 'Hello' }],
+        project_id: 'demo-project',
         system: undefined,
         strategy: undefined,
         provider: undefined,
@@ -211,6 +213,7 @@ describe('LLMInferenceNode', () => {
       const result = await LLMInferenceNode.execute(
         {
           prompt: 'Explain AI',
+          project_id: 'demo-project',
           system: 'You are an AI expert',
           strategy: 'specific',
           provider: 'anthropic',
@@ -224,6 +227,7 @@ describe('LLMInferenceNode', () => {
       // Verify core client was called with all parameters
       expect(coreClient.coreClient.send).toHaveBeenCalledWith({
         messages: [{ role: 'user', content: 'Explain AI' }],
+        project_id: 'demo-project',
         system: 'You are an AI expert',
         strategy: 'specific',
         provider: 'anthropic',

@@ -1,13 +1,15 @@
 import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { MemoryRouter } from "react-router-dom";
-import Settings from "../Settings";
+import Administration from "../Administration";
 
 vi.mock("../../api/client", () => ({
   get: vi.fn(),
   post: vi.fn(),
   put: vi.fn(),
   isPersisted: vi.fn().mockReturnValue(false),
+  getErrorMessage: (error: unknown) => (error instanceof Error ? error.message : String(error)),
 }));
 
 vi.mock("../../auth/AuthContext", () => ({
@@ -26,14 +28,6 @@ describe("Settings", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
-
-  function renderSettings() {
-    return render(
-      <MemoryRouter>
-        <Settings />
-      </MemoryRouter>,
-    );
-  }
 
   it("renders provider administration section after loading", async () => {
     mockedGet.mockImplementation((path: string) => {
@@ -58,7 +52,12 @@ describe("Settings", () => {
       return Promise.resolve({});
     });
 
-    renderSettings();
+    render(
+      <MemoryRouter>
+        <Administration />
+      </MemoryRouter>,
+    );
+    await userEvent.setup().click(screen.getByRole("button", { name: /settings/i }));
     await waitFor(() => {
       expect(screen.getByText("provider administration")).toBeInTheDocument();
     });
@@ -80,7 +79,12 @@ describe("Settings", () => {
       return Promise.resolve({});
     });
 
-    renderSettings();
+    render(
+      <MemoryRouter>
+        <Administration />
+      </MemoryRouter>,
+    );
+    await userEvent.setup().click(screen.getByRole("button", { name: /settings/i }));
     await waitFor(() => {
       expect(screen.getByText("1 actif")).toBeInTheDocument();
       expect(screen.getByText("1 non configure")).toBeInTheDocument();
@@ -113,7 +117,12 @@ describe("Settings", () => {
       return Promise.resolve({});
     });
 
-    renderSettings();
+    render(
+      <MemoryRouter>
+        <Administration />
+      </MemoryRouter>,
+    );
+    await userEvent.setup().click(screen.getByRole("button", { name: /settings/i }));
     await waitFor(() => {
       expect(screen.getByText("runtime security + integrations")).toBeInTheDocument();
     });
@@ -130,16 +139,27 @@ describe("Settings", () => {
       return Promise.resolve({});
     });
 
-    renderSettings();
+    render(
+      <MemoryRouter>
+        <Administration />
+      </MemoryRouter>,
+    );
+    await userEvent.setup().click(screen.getByRole("button", { name: /settings/i }));
     await waitFor(() => {
-      expect(screen.getByText("secret matrix")).toBeInTheDocument();
+      expect(screen.getByText("provider administration")).toBeInTheDocument();
+      expect(screen.getByText("runtime security + integrations")).toBeInTheDocument();
     });
   });
 
   it("handles fetch error gracefully", async () => {
     mockedGet.mockRejectedValue(new Error("Network failure"));
 
-    renderSettings();
+    render(
+      <MemoryRouter>
+        <Administration />
+      </MemoryRouter>,
+    );
+    await userEvent.setup().click(screen.getByRole("button", { name: /settings/i }));
     await waitFor(() => {
       expect(screen.getByText("Network failure")).toBeInTheDocument();
     });

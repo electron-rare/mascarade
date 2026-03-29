@@ -58,6 +58,63 @@ describe("orchestrateTemplates routes", () => {
     });
   });
 
+  describe("POST /", () => {
+    it("creates a template", async () => {
+      vi.spyOn(coreClient, "createTemplate").mockResolvedValue({
+        id: "t-new",
+        name: "New template",
+      } as any);
+
+      const res = await makeApp().request("/templates", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: "t-new",
+          name: "New template",
+          description: "desc",
+          agent_names: ["agent-zero"],
+          documentation: "doc",
+        }),
+      });
+
+      expect(res.status).toBe(201);
+      expect(await res.json()).toMatchObject({ id: "t-new" });
+    });
+  });
+
+  describe("PUT /:id", () => {
+    it("updates a template", async () => {
+      vi.spyOn(coreClient, "updateTemplate").mockResolvedValue({
+        id: "t1",
+        name: "Updated template",
+      } as any);
+
+      const res = await makeApp().request("/templates/t1", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: "Updated template" }),
+      });
+
+      expect(res.status).toBe(200);
+      expect(await res.json()).toMatchObject({ name: "Updated template" });
+    });
+  });
+
+  describe("DELETE /:id", () => {
+    it("deletes a template", async () => {
+      vi.spyOn(coreClient, "deleteTemplate").mockResolvedValue({
+        message: "Template deleted",
+      } as any);
+
+      const res = await makeApp().request("/templates/t1", {
+        method: "DELETE",
+      });
+
+      expect(res.status).toBe(200);
+      expect(await res.json()).toEqual({ message: "Template deleted" });
+    });
+  });
+
   describe("POST /:id/deploy", () => {
     it("deploys a template with input", async () => {
       vi.spyOn(coreClient, "deployTemplate").mockResolvedValue({

@@ -524,7 +524,7 @@ export default function TopBar({
           </div>
           <div className="mt-3 flex flex-wrap gap-2">
             <Link
-              to="/ops"
+              to="/admin"
               className="rounded-full border border-[rgba(0,0,0,0.08)] bg-[#f5f5f7] px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-[#86868b] transition hover:bg-[#e8e8ed] hover:text-accent"
             >
               ops hub
@@ -704,7 +704,7 @@ export default function TopBar({
                         </p>
                       </div>
                       <Link
-                        to="/settings"
+                        to="/admin"
                         onClick={() => setOpen(false)}
                         className="rounded-full border border-accent/20 bg-accent/8 px-3 py-1.5 text-[10px] uppercase tracking-[0.16em] text-accent transition hover:bg-accent/12"
                       >

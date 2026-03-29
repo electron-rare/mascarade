@@ -11,7 +11,7 @@ import tempfile
 from dataclasses import asdict
 from pathlib import Path
 
-from mascarade.agents.base import Agent
+from mascarade.agents.base import Agent, Gate, GateStatus
 from mascarade.agents.prompt_versioning import iso_utc_now
 from mascarade.metrics.tracker import MetricsTracker
 from mascarade.router.router import Strategy
@@ -187,9 +187,11 @@ class AgentRegistry:
             previous = previous_agents.get(agent.name)
             if previous is not None:
                 previous_prompt = previous["system_prompt"]
-                if previous_prompt != agent.system_prompt:
+                previous_versions = previous["prompt_versions"]
+                prompt_history_already_managed = len(agent.prompt_versions) > len(previous_versions)
+                if previous_prompt != agent.system_prompt and not prompt_history_already_managed:
                     # Restore previous versions from disk
-                    agent.prompt_versions = previous["prompt_versions"]
+                    agent.prompt_versions = previous_versions
 
                     # Create a version entry for the OLD prompt (before the change)
                     version_number = len(agent.prompt_versions) + 1
@@ -238,6 +240,18 @@ class AgentRegistry:
         for data in raw:
             try:
                 data["strategy"] = Strategy(data["strategy"])
+                data["gates"] = [
+                    Gate(
+                        name=str(gate.get("name") or ""),
+                        description=str(gate.get("description") or ""),
+                        phase=str(gate.get("phase") or "pre"),
+                        required=bool(gate.get("required", True)),
+                        check=str(gate.get("check") or ""),
+                        status=GateStatus(str(gate.get("status") or "pending")),
+                    )
+                    for gate in data.get("gates", [])
+                    if isinstance(gate, dict)
+                ]
                 agent = Agent(**data)
                 self.register(agent)
             except (KeyError, TypeError, ValueError) as exc:

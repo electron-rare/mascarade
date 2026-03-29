@@ -6,7 +6,8 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
-from mascarade.orchestrator.engine import ExecutionMode
+from mascarade.orchestrator.engine import ExecutionMode as OrchestrationExecutionMode
+from mascarade.orchestrator.templates import ExecutionMode as TemplateExecutionMode
 from mascarade.router.router import Strategy
 
 # --- OpenAI-compatible models ---
@@ -105,6 +106,15 @@ class SendRequest(BaseModel):
     max_tokens: int = Field(default=4096, gt=0, le=128000)
 
 
+class AgentGatePayload(BaseModel):
+    name: str = Field(min_length=1, max_length=200)
+    description: str = Field(default="", max_length=1000)
+    phase: Literal["pre", "post"] = "pre"
+    required: bool = True
+    check: str = Field(default="", max_length=200)
+    status: Literal["pending", "passed", "failed", "skipped"] = "pending"
+
+
 class AgentCreate(BaseModel):
     name: str = Field(min_length=1, max_length=100)
     description: str = Field(max_length=1000)
@@ -116,18 +126,34 @@ class AgentCreate(BaseModel):
     routing_policy: RoutingPolicy = "auto"
     temperature: float = Field(default=0.7, ge=0.0, le=2.0)
     max_tokens: int = Field(default=4096, gt=0, le=128000)
+    tools: list[str] = Field(default_factory=list, max_length=128)
+    skills: list[str] = Field(default_factory=list, max_length=128)
+    category: str | None = Field(default=None, max_length=100)
+    retry_config: dict[str, Any] | None = Field(default=None)
+    gates: list[AgentGatePayload] = Field(default_factory=list, max_length=64)
+    evidence_refs: list[str] = Field(default_factory=list, max_length=128)
+    capabilities: list[str] = Field(default_factory=list, max_length=128)
+    cluster: str | None = Field(default=None, max_length=100)
 
 
 class AgentUpdate(BaseModel):
-    description: str = Field(max_length=1000)
-    system_prompt: str = Field(max_length=50_000)
+    description: str | None = Field(default=None, max_length=1000)
+    system_prompt: str | None = Field(default=None, max_length=50_000)
     preferred_provider: str | None = Field(default=None, max_length=50)
     preferred_model: str | None = Field(default=None, max_length=100)
     preferred_role: str | None = Field(default=None, max_length=100)
-    strategy: Strategy = Strategy.ROUTELLM
-    routing_policy: RoutingPolicy = "auto"
-    temperature: float = Field(default=0.7, ge=0.0, le=2.0)
-    max_tokens: int = Field(default=4096, gt=0, le=128000)
+    strategy: Strategy | None = None
+    routing_policy: RoutingPolicy | None = None
+    temperature: float | None = Field(default=None, ge=0.0, le=2.0)
+    max_tokens: int | None = Field(default=None, gt=0, le=128000)
+    tools: list[str] | None = Field(default=None, max_length=128)
+    skills: list[str] | None = Field(default=None, max_length=128)
+    category: str | None = Field(default=None, max_length=100)
+    retry_config: dict[str, Any] | None = Field(default=None)
+    gates: list[AgentGatePayload] | None = Field(default=None, max_length=64)
+    evidence_refs: list[str] | None = Field(default=None, max_length=128)
+    capabilities: list[str] | None = Field(default=None, max_length=128)
+    cluster: str | None = Field(default=None, max_length=100)
     version_note: str | None = Field(default=None, max_length=500)
 
 
@@ -146,6 +172,7 @@ class PromptHistoryResponse(BaseModel):
 
 
 class AgentRoutingOverride(BaseModel):
+    peer_id: str | None = Field(default=None, max_length=100)
     preferred_role: str | None = Field(default=None, max_length=100)
     preferred_provider: str | None = Field(default=None, max_length=50)
     preferred_model: str | None = Field(default=None, max_length=100)
@@ -155,13 +182,32 @@ class AgentRoutingOverride(BaseModel):
 class TaskRequest(BaseModel):
     agent_names: list[str] = Field(max_length=20)
     prompt: str = Field(min_length=1, max_length=100_000)
-    mode: ExecutionMode = ExecutionMode.SEQUENTIAL
+    mode: OrchestrationExecutionMode = OrchestrationExecutionMode.SEQUENTIAL
     routing_overrides: dict[str, AgentRoutingOverride] = Field(default_factory=dict)
 
 
 class TemplateDeployRequest(BaseModel):
     input: str = Field(min_length=1, max_length=100_000)
     routing_overrides: dict[str, AgentRoutingOverride] = Field(default_factory=dict)
+
+
+class WorkflowTemplateCreate(BaseModel):
+    id: str = Field(min_length=1, max_length=100)
+    name: str = Field(min_length=1, max_length=200)
+    description: str = Field(default="", max_length=1000)
+    agent_names: list[str] = Field(min_length=1, max_length=20)
+    mode: TemplateExecutionMode = TemplateExecutionMode.SEQUENTIAL
+    routing_overrides: dict[str, AgentRoutingOverride] = Field(default_factory=dict)
+    documentation: str = Field(default="", max_length=5000)
+
+
+class WorkflowTemplateUpdate(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=200)
+    description: str | None = Field(default=None, max_length=1000)
+    agent_names: list[str] | None = Field(default=None, min_length=1, max_length=20)
+    mode: TemplateExecutionMode | None = None
+    routing_overrides: dict[str, AgentRoutingOverride] | None = None
+    documentation: str | None = Field(default=None, max_length=5000)
 
 
 class ClusterForwardSendRequest(SendRequest):
