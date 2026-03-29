@@ -884,10 +884,10 @@
         {
           "classification": "historical",
           "identifier": "docs/EXECUTION_PLAN_2026-03-07.md:23",
-          "normalized": "traiter seulement les sujets externes ou optionnels billing anthropic activation api google quota token nexar si le sourcing live repart et consolidation du worktree users electron mascarade sur le mac operateur avant tout pull",
+          "normalized": "traiter seulement les sujets externes ou optionnels billing anthropic activation api google quota token nexar si le sourcing live repart et consolidation du worktree local sur le mac operateur avant tout pull",
           "scope": null,
           "status": null,
-          "text": "Traiter seulement les sujets externes ou optionnels: billing `Anthropic`, activation API Google, quota/token `NEXAR` si le sourcing live repart, et consolidation du worktree `/Users/electron/mascarade` sur le Mac operateur avant tout `pull`.",
+          "text": "Traiter seulement les sujets externes ou optionnels: billing `Anthropic`, activation API Google, quota/token `NEXAR` si le sourcing live repart, et consolidation du worktree local sur le Mac operateur avant tout `pull`.",
           "validation": "Dated execution plan archive"
         },
         {
@@ -1394,15 +1394,6 @@
         {
           "classification": "historical",
           "identifier": "docs/TODO_2026-03-10.md:6",
-          "normalized": "knowledge base url configur e",
-          "scope": null,
-          "status": null,
-          "text": "Knowledge Base URL configur\u00e9e",
-          "validation": "Dated TODO snapshot only"
-        },
-        {
-          "classification": "historical",
-          "identifier": "docs/TODO_2026-03-10.md:7",
           "normalized": "graphiti mcp server sur vm knowledge graph",
           "scope": null,
           "status": null,
@@ -1411,25 +1402,7 @@
         },
         {
           "classification": "historical",
-          "identifier": "docs/TODO_2026-03-10.md:8",
-          "normalized": "registry first mcp d cider si firecrawl doit tre ajout la config mcp locale de cette machine",
-          "scope": null,
-          "status": null,
-          "text": "Registry-first MCP: d\u00e9cider si `firecrawl` doit \u00eatre ajout\u00e9 \u00e0 la config MCP locale de cette machine",
-          "validation": "Dated TODO snapshot only"
-        },
-        {
-          "classification": "historical",
-          "identifier": "docs/TODO_2026-03-10.md:9",
-          "normalized": "registry first mcp d cider si mem0 doit tre ajout la config mcp locale de cette machine",
-          "scope": null,
-          "status": null,
-          "text": "Registry-first MCP: d\u00e9cider si `mem0` doit \u00eatre ajout\u00e9 \u00e0 la config MCP locale de cette machine",
-          "validation": "Dated TODO snapshot only"
-        },
-        {
-          "classification": "historical",
-          "identifier": "docs/TODO_2026-03-10.md:10",
+          "identifier": "docs/TODO_2026-03-10.md:7",
           "normalized": "registry first mcp appliquer hors sandbox la shadow config valid e sur codex config toml",
           "scope": null,
           "status": null,
@@ -1438,7 +1411,7 @@
         },
         {
           "classification": "historical",
-          "identifier": "docs/TODO_2026-03-10.md:11",
+          "identifier": "docs/TODO_2026-03-10.md:8",
           "normalized": "dpo simpo cycle renforceur collecte erreurs teacher corrige student re train",
           "scope": null,
           "status": null,
@@ -1447,7 +1420,7 @@
         },
         {
           "classification": "historical",
-          "identifier": "docs/TODO_2026-03-10.md:12",
+          "identifier": "docs/TODO_2026-03-10.md:9",
           "normalized": "validation red team regression sur cils",
           "scope": null,
           "status": null,
@@ -1456,7 +1429,7 @@
         },
         {
           "classification": "historical",
-          "identifier": "docs/TODO_2026-03-10.md:13",
+          "identifier": "docs/TODO_2026-03-10.md:10",
           "normalized": "publication archiviste push mod le final valid",
           "scope": null,
           "status": null,
@@ -1465,7 +1438,7 @@
         },
         {
           "classification": "historical",
-          "identifier": "docs/TODO_2026-03-10.md:14",
+          "identifier": "docs/TODO_2026-03-10.md:11",
           "normalized": "auto registration mod le fine tun provider mascarade",
           "scope": null,
           "status": null,
@@ -1474,7 +1447,7 @@
         },
         {
           "classification": "historical",
-          "identifier": "docs/TODO_2026-03-10.md:15",
+          "identifier": "docs/TODO_2026-03-10.md:12",
           "normalized": "prometheus alerting peercount expected",
           "scope": null,
           "status": null,
@@ -1483,7 +1456,7 @@
         },
         {
           "classification": "historical",
-          "identifier": "docs/TODO_2026-03-10.md:16",
+          "identifier": "docs/TODO_2026-03-10.md:13",
           "normalized": "grafana consolid llm p2p finetune metrics finetune progress json pr sent p2p manquant",
           "scope": null,
           "status": null,
@@ -1492,7 +1465,7 @@
         },
         {
           "classification": "historical",
-          "identifier": "docs/TODO_2026-03-10.md:17",
+          "identifier": "docs/TODO_2026-03-10.md:14",
           "normalized": "cycle continu recherche hebdo nouvelles bases datasets",
           "scope": null,
           "status": null,
@@ -1501,7 +1474,7 @@
         },
         {
           "classification": "historical",
-          "identifier": "docs/TODO_2026-03-10.md:18",
+          "identifier": "docs/TODO_2026-03-10.md:15",
           "normalized": "dataset mascarade kicad sur huggingface",
           "scope": null,
           "status": null,
@@ -1510,7 +1483,7 @@
         },
         {
           "classification": "historical",
-          "identifier": "docs/TODO_2026-03-10.md:19",
+          "identifier": "docs/TODO_2026-03-10.md:16",
           "normalized": "cycle e2e crazylife mascarade api killlife mcp r sultat",
           "scope": null,
           "status": null,
@@ -1518,7 +1491,7 @@
           "validation": "Dated TODO snapshot only"
         }
       ],
-      "open_item_count": 19,
+      "open_item_count": 16,
       "parser": "checklist",
       "path": "docs/TODO_2026-03-10.md",
       "repo": "mascarade",
@@ -1777,6 +1750,18 @@
       "items": [],
       "open_item_count": 0,
       "parser": "none",
+      "path": "docs/plan/2026-03-28-autonomous-ops/active_execution_plan.md",
+      "repo": "mascarade",
+      "role": "historical",
+      "source_of_truth": false,
+      "status": "ok"
+    },
+    {
+      "exists": true,
+      "issues": [],
+      "items": [],
+      "open_item_count": 0,
+      "parser": "none",
       "path": "docs/research/ECOSYSTEM_INTEGRATION_PLAN_2026-03.md",
       "repo": "mascarade",
       "role": "historical",
@@ -1821,26 +1806,26 @@
     }
   ],
   "duplicates": [],
-  "generated_at": "2026-03-29T15:22:29+00:00",
+  "generated_at": "2026-03-29T15:30:54+00:00",
   "issues": [],
   "registry_path": "/Users/electron/mascarade/docs/TODO_PLAN_REGISTRY.yaml",
   "repo_root": "/Users/electron/mascarade",
   "summary": {
     "active_documents": 2,
-    "documents": 29,
+    "documents": 30,
     "duplicate_groups": 0,
     "errors": 0,
     "items": {
       "active": 9,
       "blocked": 1,
       "done-but-not-canonical": 9,
-      "historical": 143
+      "historical": 140
     },
     "roles": {
       "active": 2,
       "audit": 3,
       "external-canonical": 2,
-      "historical": 19,
+      "historical": 20,
       "implemented": 3
     },
     "source_of_truth_documents": 3,

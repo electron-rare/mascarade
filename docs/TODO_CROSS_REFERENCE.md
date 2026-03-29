@@ -1,12 +1,12 @@
 # TODO/Plan Suite Report
 
-Generated: `2026-03-29T15:22:29+00:00`
+Generated: `2026-03-29T15:30:54+00:00`
 
 ## Summary
 
 | Metric | Value |
 | --- | --- |
-| Registered documents | 29 |
+| Registered documents | 30 |
 | Active documents | 2 |
 | Source-of-truth documents | 3 |
 | Unclassified documents | 0 |
@@ -36,13 +36,14 @@ Generated: `2026-03-29T15:22:29+00:00`
 | `docs/PLAN_AMELIORATION_v0.3.md` | `historical` | `no` | `none` | 0 | `ok` |
 | `docs/PLAN_FINETUNING_P2P.md` | `historical` | `no` | `none` | 0 | `ok` |
 | `docs/Q2_2026_DEVELOPMENT_PLAN.md` | `historical` | `no` | `none` | 0 | `ok` |
-| `docs/TODO_2026-03-10.md` | `historical` | `no` | `checklist` | 19 | `ok` |
+| `docs/TODO_2026-03-10.md` | `historical` | `no` | `checklist` | 16 | `ok` |
 | `docs/TODO_CONSOLIDATION_RAW.md` | `audit` | `no` | `none` | 0 | `ok` |
 | `docs/TODO_CROSS_REFERENCE.md` | `audit` | `no` | `none` | 0 | `ok` |
 | `docs/TRAINING_PLAN_2_SEMAINES.md` | `historical` | `no` | `none` | 0 | `ok` |
 | `docs/audit/MCP_RUNTIME_PLAN_2026-03-07.md` | `historical` | `no` | `actionable` | 17 | `ok` |
 | `docs/audit/MCP_RUNTIME_TODO_2026-03-07.md` | `audit` | `no` | `checklist` | 2 | `ok` |
 | `docs/plan/2026-03-24-sota-mascarade/active_execution_plan.md` | `historical` | `no` | `none` | 0 | `ok` |
+| `docs/plan/2026-03-28-autonomous-ops/active_execution_plan.md` | `historical` | `no` | `none` | 0 | `ok` |
 | `docs/research/ECOSYSTEM_INTEGRATION_PLAN_2026-03.md` | `historical` | `no` | `none` | 0 | `ok` |
 | `core/docs/testing/coverage-plan.md` | `historical` | `no` | `none` | 0 | `ok` |
 | `../crazy_life/plan.md` | `external-canonical` | `yes` | `none` | 0 | `ok` |
@@ -55,7 +56,7 @@ Generated: `2026-03-29T15:22:29+00:00`
 | `active` | 9 |
 | `blocked` | 1 |
 | `done-but-not-canonical` | 9 |
-| `historical` | 143 |
+| `historical` | 140 |
 
 ## Duplicates
 
