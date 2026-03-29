@@ -62,11 +62,11 @@ export default function Shell() {
   }, [navigate]);
 
   return (
-    <div className="relative flex min-h-screen bg-white text-[#1d1d1f]">
+    <div className="ops-shell relative flex min-h-screen text-[#121212]">
       <a
         href="#main-content"
         onClick={focusMainContent}
-        className="sr-only z-[70] rounded-xl border border-[rgba(0,0,0,0.08)] bg-white px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-accent focus:not-sr-only focus:fixed focus:left-4 focus:top-4"
+        className="sr-only z-[70] rounded-xl border border-[rgba(0,0,0,0.15)] bg-white px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-accent focus:not-sr-only focus:fixed focus:left-4 focus:top-4"
       >
         Skip to content
       </a>
@@ -75,14 +75,14 @@ export default function Shell() {
         <button
           type="button"
           aria-label="Close navigation"
-          className="fixed inset-0 z-30 bg-[#f5f5f7] backdrop-blur-sm lg:hidden"
+          className="fixed inset-0 z-30 bg-[rgba(13,16,20,0.55)] backdrop-blur-sm lg:hidden"
           onClick={() => setNavOpen(false)}
         />
       )}
 
       <Sidebar pathname={pathname} open={navOpen} onClose={() => setNavOpen(false)} />
 
-      <div className="relative z-10 flex min-h-screen min-w-0 flex-1 flex-col bg-white">
+      <div className="relative z-10 flex min-h-screen min-w-0 flex-1 flex-col">
         <TopBar
           eyebrow={page.eyebrow}
           title={page.title}
@@ -95,9 +95,9 @@ export default function Shell() {
         <main
           id="main-content"
           tabIndex={-1}
-          className="flex-1 overflow-y-auto px-4 pb-28 pt-4 md:px-6 md:pb-10 lg:px-8 lg:pb-8"
+          className="flex-1 overflow-y-auto px-4 pb-28 pt-5 md:px-6 md:pb-10 lg:px-8 lg:pb-8"
         >
-          <div className="mx-auto w-full max-w-[1440px]">
+          <div className="ops-content-frame mx-auto w-full max-w-[1440px]">
             <Outlet />
           </div>
         </main>

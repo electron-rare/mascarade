@@ -1,0 +1,21 @@
+# Cursor Rules - Mascarade
+
+## Instruction Sources
+- .github/copilot-instructions.md
+- .github/instructions/core-python.instructions.md
+- .github/instructions/api-hono.instructions.md
+- .github/instructions/web-react.instructions.md
+- .github/instructions/deploy.instructions.md
+- .github/instructions/dev-environment.instructions.md
+
+## Workspace Behavior
+- Respect strict stack boundaries: core/, api/, web/.
+- Keep patches minimal and focused to requested scope.
+- Run stack-specific validation after each change.
+- Prefer async I/O patterns in core Python code.
+- Keep API middleware order stable: auth -> rate-limit -> CORS.
+
+## Validation Shortcuts
+- Core: cd core && python -m pytest && ruff check mascarade/ tests/
+- API: cd api && npm run build && npm test
+- Web: cd web && npm run build && npm test -- --run

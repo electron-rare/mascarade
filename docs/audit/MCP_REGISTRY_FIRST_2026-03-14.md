@@ -146,3 +146,24 @@ Final state expected after the lot:
 - decide whether `mem0` should be exposed to a local MCP client on this machine or stay repo-only
 - apply the validated shadow config onto `~/.codex/config.toml` from a context that can write outside the workspace sandbox
 - keep future additions registry-first by updating `scripts/data/mcp_registry_inventory.json` before editing local config docs
+
+## Conditional Activation Rules (I3 — 2026-03-29)
+
+These rules clarify when optional services may be added to local Codex MCP config.
+
+### `firecrawl`
+
+- **Activation condition:** only add to local Codex config if the `mascarade-firecrawl` Docker service is running AND at least one MCP client in the session needs direct web-crawl access.
+- **Default state:** repo-only (`mcp/firecrawl` wiring stays in `docker-compose.yml`); absent from `~/.codex/config.toml`.
+- **Trigger:** operator opt-in via `FIRECRAWL_API_KEY` env var presence on the machine being configured.
+
+### `mem0`
+
+- **Activation condition:** only add to local Codex config after `mem0/openmemory-mcp` service is validated running locally AND the operator explicitly approves from a context that can write outside the workspace sandbox.
+- **Default state:** official optional upstream; absent from `~/.codex/config.toml`.
+- **Trigger:** operator opt-in only; do not auto-add without explicit approval.
+- **Status:** vendor-official-upstream only (no curated-registry hit in the 2026-03-14 snapshot).
+
+### Summary
+
+Both `firecrawl` and `mem0` are closed as backlog items requiring explicit operator opt-in. They are **not** auto-added. Once any machine activates them, add a row to the registry-first matrix in this document with the resolved local config state.

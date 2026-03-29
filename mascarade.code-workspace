@@ -4,5 +4,7 @@
 			"path": "."
 		}
 	],
-	"settings": {}
+	"settings": {
+		"python.defaultInterpreterPath": "/Users/electron/Documents/Projets/mascarade/.locust_env/bin/python"
+	}
 }

@@ -129,6 +129,51 @@ const routes = {
     };
   },
 
+  "POST /v1/api/rag/query": (req, body) => {
+    const guard = authGuard(req);
+    if (guard) return guard;
+    if (!body?.query) {
+      return { status: 400, body: { error: "query est requis" } };
+    }
+    return {
+      status: 200,
+      body: {
+        query: body.query,
+        results: [
+          { content: "Le pipeline RAG utilise bge-m3 pour les embeddings.", score: 0.92, source: "docs/ARCHITECTURE.md" },
+          { content: "Qdrant est utilisé comme base vectorielle.", score: 0.87, source: "core/mascarade/rag/pipeline.py" },
+        ],
+        tokens: 42,
+      },
+    };
+  },
+
+  "POST /v1/api/rag/ingest": (req, body) => {
+    const guard = authGuard(req);
+    if (guard) return guard;
+    if (!body?.text) {
+      return { status: 400, body: { error: "text est requis" } };
+    }
+    return {
+      status: 200,
+      body: { id: "doc-mock-001", chunks: 3, status: "indexed" },
+    };
+  },
+
+  "GET /v1/api/rag/stats": (req) => {
+    const guard = authGuard(req);
+    if (guard) return guard;
+    return {
+      status: 200,
+      body: {
+        collection: "mascarade",
+        documents: 1024,
+        embedding_model: "bge-m3",
+        status: "ok",
+      },
+    };
+  },
+
   "GET /api/users": (req) => {
     const guard = authGuard(req);
     if (guard) return guard;

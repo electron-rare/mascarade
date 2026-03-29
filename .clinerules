@@ -1,0 +1,17 @@
+# Cline Rules - Mascarade
+
+## Always Load
+- .github/copilot-instructions.md
+
+## Conditional Instructions
+- core/**/*.py -> .github/instructions/core-python.instructions.md
+- api/src/**/*.ts -> .github/instructions/api-hono.instructions.md
+- web/src/**/*.{ts,tsx} -> .github/instructions/web-react.instructions.md
+- deploy/** -> .github/instructions/deploy.instructions.md
+- any setup/debug task -> .github/instructions/dev-environment.instructions.md
+
+## Working Rules
+- Do not mix stacks in one patch unless explicitly requested.
+- Preserve existing behavior and public contracts.
+- Validate only the touched stack unless a cross-stack dependency changed.
+- Keep changes deterministic and easy to review.

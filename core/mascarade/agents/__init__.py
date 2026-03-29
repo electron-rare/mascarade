@@ -1,5 +1,11 @@
 from mascarade.agents.base import Agent
 from mascarade.agents.components_agent import ComponentsAgent
+from mascarade.agents.coordination import (
+    CoordinationContext,
+    CoordinationEngine,
+    CoordinationRequest,
+    CoordinationResult,
+)
 from mascarade.agents.factory_copilot import FactoryCopilotAgent
 from mascarade.agents.freecad_agent import FreeCADAgent
 from mascarade.agents.kicad_agent import KiCadAgent
@@ -36,4 +42,8 @@ __all__ = [
     "KiCadAgent",
     "ComponentsAgent",
     "KiCadHappyAgent",
+    "CoordinationContext",
+    "CoordinationEngine",
+    "CoordinationRequest",
+    "CoordinationResult",
 ]
