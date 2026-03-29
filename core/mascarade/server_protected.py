@@ -16,12 +16,14 @@ import logging
 import os
 import re
 import time
+from dataclasses import asdict, is_dataclass
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, FastAPI, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from mascarade.agents import Agent, AgentRegistry
+from mascarade.agents.base import Gate
 from mascarade.auth import require_auth
 from mascarade.server_admin import register_admin_routes
 from mascarade.server_agents import register_agent_routes
@@ -38,6 +40,21 @@ def hash_api_key(key: str) -> str:
 
 
 def _serialize_agent(agent: Agent, registry: AgentRegistry) -> dict[str, object]:
+    def serialize_gate(gate: Gate | dict[str, object]) -> dict[str, object]:
+        if isinstance(gate, dict):
+            return {
+                "name": str(gate.get("name") or ""),
+                "description": str(gate.get("description") or ""),
+                "phase": str(gate.get("phase") or "pre"),
+                "required": bool(gate.get("required", True)),
+                "check": str(gate.get("check") or ""),
+                "status": str(gate.get("status") or "pending"),
+            }
+        payload = asdict(gate) if is_dataclass(gate) else dict(gate)
+        status = payload.get("status") or "pending"
+        payload["status"] = getattr(status, "value", status)
+        return payload
+
     return {
         "name": agent.name,
         "description": agent.description,
@@ -49,6 +66,15 @@ def _serialize_agent(agent: Agent, registry: AgentRegistry) -> dict[str, object]
         "routing_policy": agent.routing_policy,
         "temperature": agent.temperature,
         "max_tokens": agent.max_tokens,
+        "tools": list(agent.tools or []),
+        "skills": list(agent.skills or []),
+        "category": agent.category,
+        "retry_config": dict(agent.retry_config or {}) if agent.retry_config else None,
+        "gates": [serialize_gate(gate) for gate in (agent.gates or [])],
+        "evidence_refs": list(agent.evidence_refs or []),
+        "capabilities": list(agent.capabilities or []),
+        "cluster": agent.cluster,
+        "prompt_versions": list(agent.prompt_versions or []),
         "builtin": registry.is_builtin(agent.name),
     }
 

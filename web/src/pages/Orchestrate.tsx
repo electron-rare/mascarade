@@ -1,5 +1,10 @@
 import { useMemo, useState } from "react";
-import { agentsApi, type Agent } from "../api/agents";
+import {
+  agentsApi,
+  type Agent,
+  type AgentRoutingOverride,
+  type WorkflowTemplate,
+} from "../api/agents";
 import { cadApi } from "../api/cad";
 import { getErrorMessage } from "../api/client";
 import { useApi } from "../hooks/useApi";
@@ -62,11 +67,31 @@ const routingPolicyOverrideOptions = [
   { value: "fast", label: "Fast" },
 ];
 
+const executionModeOptions = [
+  { value: "sequential", label: "Sequential" },
+  { value: "parallel", label: "Parallel" },
+  { value: "pipeline", label: "Pipeline" },
+];
+
 type RunRoutingOverride = {
+  peer_id: string;
   preferred_role: string;
   preferred_provider: string;
   preferred_model: string;
   routing_policy: string;
+};
+
+type ClusterPeersResponse = {
+  node: {
+    node_id: string;
+    role: string;
+  };
+  peers: Array<{
+    peer_id: string;
+    role: string;
+    ok: boolean;
+    remote_node_id?: string | null;
+  }>;
 };
 
 type CadActionResult = {
@@ -91,10 +116,38 @@ function formatLatency(ms?: number | null): string | null {
 
 export default function Orchestrate() {
   const { data, loading, error, refetch } = useFetch<{ agents: Agent[] }>("/api/agents");
+  const templates = useFetch<{ templates: WorkflowTemplate[] }>("/api/orchestrate/templates");
+  const clusterPeers = useFetch<ClusterPeersResponse>("/api/cluster/peers");
   const [prompt, setPrompt] = useState("");
   const [selected, setSelected] = useState<string[]>([]);
   const [query, setQuery] = useState("");
+  const [mode, setMode] = useState("sequential");
   const [routingForm, setRoutingForm] = useState<Record<string, RunRoutingOverride>>({});
+  const [templateId, setTemplateId] = useState("");
+  const [templateName, setTemplateName] = useState("");
+  const [templateDescription, setTemplateDescription] = useState("");
+  const [templateDocumentation, setTemplateDocumentation] = useState("");
+  const [selectedTemplateId, setSelectedTemplateId] = useState("");
+  const [templateFormError, setTemplateFormError] = useState<string | null>(null);
+  const [latestResult, setLatestResult] = useState<{
+    run_id: string;
+    mode: string;
+    results: Array<{
+      agent: string;
+      step: number;
+      content: string;
+      model: string;
+      provider: string;
+      error?: string;
+      remote?: boolean;
+      selected_by?: string;
+      transport?: string | null;
+      latency_ms?: number | null;
+      peer_id?: string | null;
+      node_id?: string | null;
+      role?: string | null;
+    }>;
+  } | null>(null);
   const [mcpServerFilter, setMcpServerFilter] = useState("");
   const [mcpToolFilter, setMcpToolFilter] = useState("");
   const [mcpStatusFilter, setMcpStatusFilter] = useState("");
@@ -113,6 +166,7 @@ export default function Orchestrate() {
 
   const canRun = prompt.trim().length > 0 && selected.length > 0;
   const agents = data?.agents ?? [];
+  const templateCatalog = templates.data?.templates ?? [];
   const hasAgentZero = agents.some((agent) => agent.name === "agent-zero");
 
   const routingOverrides = useMemo(
@@ -122,6 +176,7 @@ export default function Orchestrate() {
           .filter(([agentName, override]) => {
             if (!selected.includes(agentName)) return false;
             return Boolean(
+              override.peer_id.trim() ||
               override.preferred_role.trim() ||
                 override.preferred_provider.trim() ||
                 override.preferred_model.trim() ||
@@ -131,6 +186,7 @@ export default function Orchestrate() {
           .map(([agentName, override]) => [
             agentName,
             {
+              ...(override.peer_id.trim() ? { peer_id: override.peer_id.trim() } : {}),
               ...(override.preferred_role.trim()
                 ? { preferred_role: override.preferred_role.trim() }
                 : {}),
@@ -163,17 +219,60 @@ export default function Orchestrate() {
       agentsApi.orchestrate({
         agent_names: selected,
         prompt,
+        mode,
         routing_overrides: routingOverrides,
       }),
-    [prompt, routingOverrides, selected],
+    [mode, prompt, routingOverrides, selected],
   );
   const {
     execute,
-    data: result,
     loading: running,
     error: runError,
     status: runStatus,
   } = useApi(runFn);
+  const templateSaveApi = useApi(
+    async (payload: { action: "create" | "update"; templateId?: string }) => {
+      const body = {
+        id: templateId.trim(),
+        name: templateName.trim(),
+        description: templateDescription.trim(),
+        agent_names: selected,
+        mode,
+        routing_overrides: routingOverrides as Record<string, AgentRoutingOverride>,
+        documentation: templateDocumentation,
+      };
+      return payload.action === "create"
+        ? agentsApi.createTemplate(body)
+        : agentsApi.updateTemplate(payload.templateId || body.id, {
+            name: body.name,
+            description: body.description,
+            agent_names: body.agent_names,
+            mode: body.mode,
+            routing_overrides: body.routing_overrides,
+            documentation: body.documentation,
+          });
+    },
+  );
+  const templateDeleteApi = useApi(async (id: string) => agentsApi.deleteTemplate(id));
+  const templateDeployApi = useApi(async (id: string) =>
+    agentsApi.deployTemplate(id, {
+      input: prompt,
+      routing_overrides: routingOverrides as Record<string, AgentRoutingOverride>,
+    }),
+  );
+  const currentTemplate = templateCatalog.find((template) => template.id === selectedTemplateId) || null;
+  const peerOptions = useMemo(
+    () => [
+      { value: "", label: "Auto / no peer pin" },
+      ...(clusterPeers.data?.peers || [])
+        .filter((peer) => peer.ok)
+        .map((peer) => ({
+          value: peer.peer_id,
+          label: `${peer.peer_id} (${peer.role}${peer.remote_node_id ? ` -> ${peer.remote_node_id}` : ""})`,
+        })),
+    ],
+    [clusterPeers.data],
+  );
   const runTrace = useFetch<{
     run_id: string;
     count: number;
@@ -244,10 +343,95 @@ export default function Orchestrate() {
     [mcpServerFilter, mcpStatusFilter, mcpToolFilter, traceEvents],
   );
 
+  const applyTemplate = (template: WorkflowTemplate) => {
+    setSelectedTemplateId(template.id);
+    setTemplateId(template.id);
+    setTemplateName(template.name);
+    setTemplateDescription(template.description);
+    setTemplateDocumentation(template.documentation || "");
+    setMode(template.mode || "sequential");
+    setSelected(template.agent_names || []);
+    setRoutingForm(
+      Object.fromEntries(
+        Object.entries(template.routing_overrides || {}).map(([agentName, override]) => [
+          agentName,
+          {
+            peer_id: override.peer_id || "",
+            preferred_role: override.preferred_role || "",
+            preferred_provider: override.preferred_provider || "",
+            preferred_model: override.preferred_model || "",
+            routing_policy: override.routing_policy || "",
+          },
+        ]),
+      ),
+    );
+  };
+
+  const resetBuilder = () => {
+    setTemplateId("");
+    setTemplateName("");
+    setTemplateDescription("");
+    setTemplateDocumentation("");
+    setSelectedTemplateId("");
+    setTemplateFormError(null);
+    setMode("sequential");
+  };
+
   const handleRun = async () => {
     if (!canRun) return;
     const payload = await execute(undefined);
     if (payload?.run_id) {
+      setLatestResult(payload);
+      setActiveRunId(payload.run_id);
+      setCadResult(null);
+      setCadError(null);
+    }
+  };
+
+  const handleSaveTemplate = async () => {
+    if (!selected.length) {
+      setTemplateFormError("Select at least one agent before saving a template.");
+      return;
+    }
+    if (!templateName.trim()) {
+      setTemplateFormError("Template name is required.");
+      return;
+    }
+    if (!currentTemplate && !templateId.trim()) {
+      setTemplateFormError("Template id is required for a new template.");
+      return;
+    }
+    setTemplateFormError(null);
+    const action = currentTemplate && !currentTemplate.builtin ? "update" : "create";
+    const saved = await templateSaveApi.execute({
+      action,
+      templateId: currentTemplate?.id,
+    });
+    if (saved) {
+      setSelectedTemplateId(saved.id);
+      setTemplateId(saved.id);
+      await templates.refetch();
+    }
+  };
+
+  const handleDeleteTemplate = async () => {
+    if (!currentTemplate || currentTemplate.builtin) return;
+    const deleted = await templateDeleteApi.execute(currentTemplate.id);
+    if (deleted) {
+      resetBuilder();
+      await templates.refetch();
+    }
+  };
+
+  const handleDeployTemplate = async () => {
+    if (!selectedTemplateId || !prompt.trim()) {
+      setTemplateFormError("Select a template and provide an input prompt before deploy.");
+      return;
+    }
+    setTemplateFormError(null);
+    const payload = await templateDeployApi.execute(selectedTemplateId);
+    if (payload?.run_id) {
+      setLatestResult(payload);
       setActiveRunId(payload.run_id);
       setCadResult(null);
       setCadError(null);
@@ -349,6 +533,15 @@ export default function Orchestrate() {
                   run orchestration
                 </Button>
                 <Button
+                  variant="secondary"
+                  className="rounded-2xl px-4 py-2 text-xs uppercase tracking-[0.18em]"
+                  disabled={!selectedTemplateId || !prompt.trim()}
+                  loading={templateDeployApi.loading}
+                  onClick={() => void handleDeployTemplate()}
+                >
+                  deploy template
+                </Button>
+                <Button
                   variant="ghost"
                   className="rounded-2xl border border-[rgba(0,0,0,0.08)] px-4 py-2 text-xs uppercase tracking-[0.18em]"
                   onClick={() => {
@@ -356,9 +549,11 @@ export default function Orchestrate() {
                     setSelected([]);
                     setQuery("");
                     setRoutingForm({});
+                    setLatestResult(null);
                     setCadError(null);
                     setCadResult(null);
                     setActiveRunId(null);
+                    resetBuilder();
                   }}
                 >
                   reset lane
@@ -388,7 +583,7 @@ export default function Orchestrate() {
               <div className="rounded-3xl border border-[rgba(0,0,0,0.08)] bg-[#f5f5f7] p-4">
                 <p className="text-[10px] uppercase tracking-[0.2em] text-muted">dispatch state</p>
                 <p className="mt-3 text-2xl font-semibold uppercase tracking-[0.12em] text-accent">
-                  {result ? "loaded" : running ? "running" : "idle"}
+                  {latestResult ? "loaded" : running || templateDeployApi.loading ? "running" : "idle"}
                 </p>
                 <p className="mt-2 text-[12px] leading-5 text-[#1d1d1f]/46">
                   Etat de la derniere run d'orchestration visible dans cette page.
@@ -397,7 +592,7 @@ export default function Orchestrate() {
               <div className="rounded-3xl border border-[rgba(0,0,0,0.08)] bg-[#f5f5f7] p-4">
                 <p className="text-[10px] uppercase tracking-[0.2em] text-muted">result steps</p>
                 <p className="mt-3 text-2xl font-semibold uppercase tracking-[0.12em] text-accent">
-                  {(result?.results?.length ?? 0).toString().padStart(2, "0")}
+                  {(latestResult?.results?.length ?? 0).toString().padStart(2, "0")}
                 </p>
                 <p className="mt-2 text-[12px] leading-5 text-[#1d1d1f]/46">
                   Nombre d'etapes remontees par l'orchestrateur sur la derniere run.
@@ -566,6 +761,12 @@ export default function Orchestrate() {
 
         <Card title="Compose orchestration">
           <div className="space-y-4">
+            <Select
+              label="Execution mode"
+              value={mode}
+              onChange={(e) => setMode(e.target.value)}
+              options={executionModeOptions}
+            />
             <Textarea
               label="Prompt"
               rows={8}
@@ -592,7 +793,110 @@ export default function Orchestrate() {
                 </button>
               ))}
             </div>
+            <div className="grid gap-4 md:grid-cols-2">
+              <Input
+                label="Template id"
+                value={templateId}
+                onChange={(e) => setTemplateId(e.target.value)}
+                placeholder="incident-analysis-gpu"
+              />
+              <Input
+                label="Template name"
+                value={templateName}
+                onChange={(e) => setTemplateName(e.target.value)}
+                placeholder="Incident Analysis GPU"
+              />
+            </div>
+            <Textarea
+              label="Template description"
+              rows={3}
+              value={templateDescription}
+              onChange={(e) => setTemplateDescription(e.target.value)}
+              placeholder="Short operational summary of this builder preset."
+            />
+            <Textarea
+              label="Template documentation"
+              rows={4}
+              value={templateDocumentation}
+              onChange={(e) => setTemplateDocumentation(e.target.value)}
+              placeholder="Operator notes, intent, expected output, and placement assumptions."
+            />
+            {templateFormError ? (
+              <InlineNotice title="template form" message={templateFormError} tone="error" />
+            ) : null}
+            {templateSaveApi.error ? (
+              <InlineNotice title="template save failed" message={templateSaveApi.error} tone="error" />
+            ) : null}
+            {templateDeleteApi.error ? (
+              <InlineNotice title="template delete failed" message={templateDeleteApi.error} tone="error" />
+            ) : null}
+            {templateDeployApi.error ? (
+              <InlineNotice title="template deploy failed" message={templateDeployApi.error} tone="error" />
+            ) : null}
+            <div className="flex flex-wrap gap-3">
+              <Button
+                variant="secondary"
+                loading={templateSaveApi.loading}
+                onClick={() => void handleSaveTemplate()}
+              >
+                {currentTemplate && !currentTemplate.builtin ? "update template" : "save template"}
+              </Button>
+              <Button
+                variant="ghost"
+                className="border border-[rgba(0,0,0,0.08)]"
+                disabled={!currentTemplate || !!currentTemplate.builtin}
+                loading={templateDeleteApi.loading}
+                onClick={() => void handleDeleteTemplate()}
+              >
+                delete template
+              </Button>
+            </div>
           </div>
+        </Card>
+
+        <Card title="Template catalog">
+          {templates.loading && !templates.data ? (
+            <LoadingPanel compact title="Loading templates" message="Collecting orchestration templates." />
+          ) : templateCatalog.length === 0 ? (
+            <EmptyState message="No orchestration templates saved yet." />
+          ) : (
+            <div className="space-y-3">
+              {templateCatalog.map((template) => (
+                <button
+                  key={template.id}
+                  type="button"
+                  onClick={() => applyTemplate(template)}
+                  className={[
+                    "w-full rounded-[1.5rem] border p-4 text-left transition-colors",
+                    selectedTemplateId === template.id
+                      ? "border-accent/30 bg-accent/10"
+                      : "border-[rgba(0,0,0,0.08)] bg-[#f5f5f7] hover:border-accent/15",
+                  ].join(" ")}
+                >
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold uppercase tracking-[0.14em] text-accent">
+                        {template.name}
+                      </p>
+                      <p className="mt-2 text-xs text-[#1d1d1f]/56">{template.id}</p>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <Badge color="muted">{template.mode}</Badge>
+                      {template.builtin ? <Badge color="warning">builtin</Badge> : null}
+                    </div>
+                  </div>
+                  <p className="mt-3 text-sm leading-6 text-[#1d1d1f]/60">
+                    {template.description || "No description"}
+                  </p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {template.agent_names.map((agentName) => (
+                      <Badge key={agentName} color="muted">{agentName}</Badge>
+                    ))}
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
         </Card>
 
         <Card title="Armed cluster">
@@ -625,8 +929,16 @@ export default function Orchestrate() {
                         ) : (
                           <Badge color="muted">profile inherit</Badge>
                         )}
+                        {agent.cluster ? (
+                          <Badge color="muted">cluster {agent.cluster}</Badge>
+                        ) : null}
                         {agent.routing_policy ? (
                           <Badge color="muted">policy {agent.routing_policy}</Badge>
+                        ) : null}
+                        {routingForm[agent.name]?.peer_id?.trim() ? (
+                          <Badge color="accent">
+                            peer {routingForm[agent.name].peer_id}
+                          </Badge>
                         ) : null}
                         {routingForm[agent.name]?.preferred_role?.trim() ? (
                           <Badge color="accent">
@@ -655,12 +967,33 @@ export default function Orchestrate() {
                     </div>
                     <div className="space-y-4">
                       <Select
+                        label="Peer target"
+                        value={routingForm[agent.name]?.peer_id ?? ""}
+                        onChange={(e) =>
+                          setRoutingForm((current) => ({
+                            ...current,
+                            [agent.name]: {
+                              peer_id: e.target.value,
+                              preferred_role: current[agent.name]?.preferred_role ?? "",
+                              preferred_provider:
+                                current[agent.name]?.preferred_provider ?? "",
+                              preferred_model:
+                                current[agent.name]?.preferred_model ?? "",
+                              routing_policy:
+                                current[agent.name]?.routing_policy ?? "",
+                            },
+                          }))
+                        }
+                        options={peerOptions}
+                      />
+                      <Select
                         label="Role override"
                         value={routingForm[agent.name]?.preferred_role ?? ""}
                         onChange={(e) =>
                           setRoutingForm((current) => ({
                             ...current,
                             [agent.name]: {
+                              peer_id: current[agent.name]?.peer_id ?? "",
                               preferred_role: e.target.value,
                               preferred_provider:
                                 current[agent.name]?.preferred_provider ?? "",
@@ -680,6 +1013,7 @@ export default function Orchestrate() {
                           setRoutingForm((current) => ({
                             ...current,
                             [agent.name]: {
+                              peer_id: current[agent.name]?.peer_id ?? "",
                               preferred_role: current[agent.name]?.preferred_role ?? "",
                               preferred_provider: e.target.value,
                               preferred_model:
@@ -698,6 +1032,7 @@ export default function Orchestrate() {
                           setRoutingForm((current) => ({
                             ...current,
                             [agent.name]: {
+                              peer_id: current[agent.name]?.peer_id ?? "",
                               preferred_role: current[agent.name]?.preferred_role ?? "",
                               preferred_provider:
                                 current[agent.name]?.preferred_provider ?? "",
@@ -716,6 +1051,7 @@ export default function Orchestrate() {
                           setRoutingForm((current) => ({
                             ...current,
                             [agent.name]: {
+                              peer_id: current[agent.name]?.peer_id ?? "",
                               preferred_role: current[agent.name]?.preferred_role ?? "",
                               preferred_provider:
                                 current[agent.name]?.preferred_provider ?? "",
@@ -783,15 +1119,15 @@ export default function Orchestrate() {
         )}
       </Card>
 
-      {running ? (
+      {running || templateDeployApi.loading ? (
         <LoadingPanel
           compact
           title="Dispatch in flight"
-          message="The armed cluster is processing the current prompt through the orchestration API."
+          message="The armed cluster is processing the current prompt through the orchestration API or the selected template."
         />
       ) : null}
 
-      {runError ? (
+      {runError && !templateDeployApi.error ? (
         <InlineNotice
           title="dispatch error"
           message={runError}
@@ -799,19 +1135,19 @@ export default function Orchestrate() {
         />
       ) : null}
 
-      {result || cadResult || activeRunId ? (
+      {latestResult || cadResult || activeRunId ? (
         <section className="grid gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(320px,0.85fr)]">
-          <Card title={result ? "Execution steps" : "CAD MCP action"}>
-            {result ? (
+          <Card title={latestResult ? "Execution steps" : "CAD MCP action"}>
+            {latestResult ? (
               <div className="space-y-3">
-                {runStatus === "success" ? (
+                {runStatus === "success" || templateDeployApi.status === "success" ? (
                   <InlineNotice
                     title="dispatch complete"
-                    message={`${result.results?.length ?? 0} step(s) returned by the current orchestration run. run_id=${result.run_id}`}
+                    message={`${latestResult.results?.length ?? 0} step(s) returned by the current orchestration run. run_id=${latestResult.run_id}`}
                     tone="success"
                   />
                 ) : null}
-                {result.results?.map((row) => (
+                {latestResult.results?.map((row) => (
                   <div
                     key={`${row.agent}-${row.step}`}
                     className="rounded-[1.5rem] border border-[rgba(0,0,0,0.08)] bg-[#f5f5f7] p-4"
@@ -1017,8 +1353,8 @@ export default function Orchestrate() {
               )}
             </Card>
 
-            <Card title={result ? "Raw orchestration payload" : "Raw CAD payload"}>
-              <JsonView data={result ?? cadResult?.payload ?? { run_id: activeRunId }} />
+            <Card title={latestResult ? "Raw orchestration payload" : "Raw CAD payload"}>
+              <JsonView data={latestResult ?? cadResult?.payload ?? { run_id: activeRunId }} />
             </Card>
           </div>
         </section>

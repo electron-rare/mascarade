@@ -49,6 +49,7 @@ async def lifespan(app: FastAPI):
     )
     template_registry = TemplateRegistry()
     register_builtin_templates(template_registry)
+    template_registry.load()
 
     app.state.router = router
     app.state.registry = registry

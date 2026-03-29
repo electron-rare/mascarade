@@ -29,19 +29,19 @@ const actionCards = [
     body: "Lister les agents exposes et basculer vers la vue detaillee quand un comportement derive.",
   },
   {
-    to: "/metrics",
+    to: "/admin",
     label: "Ops",
     title: "Check Metrics",
     body: "Confirmer la sante de la gateway, du core et des services relies a la stack locale.",
   },
   {
-    to: "/logs",
+    to: "/pipeline",
     label: "Live feed",
     title: "Open Logs",
     body: "Suivre les incidents de service et les echanges inter-agent dans une seule console temps reel.",
   },
   {
-    to: "/infra",
+    to: "/admin",
     label: "Stack map",
     title: "Read Infrastructure",
     body: "Voir les endpoints exposes et les providers declares sans sortir du cockpit.",
@@ -146,13 +146,13 @@ export default function Dashboard() {
                   open playground
                 </Link>
                 <Link
-                  to="/metrics"
+                  to="/admin"
                   className="rounded-2xl border border-[rgba(0,0,0,0.08)] bg-[#f5f5f7] px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-[#1d1d1f] transition hover:border-accent/15 hover:text-accent"
                 >
                   inspect metrics
                 </Link>
                 <Link
-                  to="/logs"
+                  to="/pipeline"
                   className="rounded-2xl border border-[rgba(0,0,0,0.08)] bg-[#f5f5f7] px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-[#1d1d1f] transition hover:border-accent/15 hover:text-accent"
                 >
                   open logs

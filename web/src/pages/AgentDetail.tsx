@@ -1,6 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { agentsApi, type Agent, type AgentMetrics } from "../api/agents";
+import {
+  agentsApi,
+  type Agent,
+  type AgentGate,
+  type AgentMetrics,
+  type PromptVersionInfo,
+} from "../api/agents";
 import { useApi } from "../hooks/useApi";
 import { useFetch } from "../hooks/useFetch";
 import {
@@ -41,11 +47,56 @@ type AgentProfileForm = {
   routing_policy: string;
   temperature: number;
   max_tokens: number;
+  tools: string;
+  skills: string;
+  category: string;
+  cluster: string;
+  capabilities: string;
+  evidence_refs: string;
+  retry_config: string;
+  gates: string;
+  version_note: string;
 };
 
 function normalizeOptional(value: string): string | null {
   const trimmed = value.trim();
   return trimmed ? trimmed : null;
+}
+
+function csvFromList(values?: string[] | null): string {
+  return (values || []).join(", ");
+}
+
+function parseCsv(value: string): string[] {
+  return value
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+}
+
+function jsonFromValue(value: unknown): string {
+  return value ? JSON.stringify(value, null, 2) : "";
+}
+
+function parseJsonObject(value: string, fieldLabel: string): Record<string, unknown> | null {
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  const parsed = JSON.parse(trimmed) as unknown;
+  if (parsed === null) return null;
+  if (typeof parsed !== "object" || Array.isArray(parsed)) {
+    throw new Error(`${fieldLabel} must be a JSON object`);
+  }
+  return parsed as Record<string, unknown>;
+}
+
+function parseJsonGates(value: string): AgentGate[] {
+  const trimmed = value.trim();
+  if (!trimmed) return [];
+  const parsed = JSON.parse(trimmed) as unknown;
+  if (!Array.isArray(parsed)) {
+    throw new Error("Gates must be a JSON array");
+  }
+  return parsed as AgentGate[];
 }
 
 function formatStamp(value: string | null): string {
@@ -75,6 +126,7 @@ export default function AgentDetail() {
   const navigate = useNavigate();
   const [input, setInput] = useState("");
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [formValidationError, setFormValidationError] = useState<string | null>(null);
   const isAgentZero = name === "agent-zero";
 
   const detail = useFetch<Agent>(name ? `/api/agents/${encodeURIComponent(name)}` : null);
@@ -92,6 +144,15 @@ export default function AgentDetail() {
     routing_policy: "auto",
     temperature: 0.7,
     max_tokens: 4096,
+    tools: "",
+    skills: "",
+    category: "",
+    cluster: "",
+    capabilities: "",
+    evidence_refs: "",
+    retry_config: "",
+    gates: "",
+    version_note: "",
   });
 
   useEffect(() => {
@@ -106,6 +167,15 @@ export default function AgentDetail() {
       routing_policy: detail.data.routing_policy || "auto",
       temperature: detail.data.temperature ?? 0.7,
       max_tokens: detail.data.max_tokens ?? 4096,
+      tools: csvFromList(detail.data.tools),
+      skills: csvFromList(detail.data.skills),
+      category: detail.data.category || "",
+      cluster: detail.data.cluster || "",
+      capabilities: csvFromList(detail.data.capabilities),
+      evidence_refs: csvFromList(detail.data.evidence_refs),
+      retry_config: jsonFromValue(detail.data.retry_config),
+      gates: jsonFromValue(detail.data.gates),
+      version_note: "",
     });
   }, [detail.data]);
 
@@ -114,20 +184,9 @@ export default function AgentDetail() {
     [name, input],
   );
 
-  const updateFn = useMemo(
-    () => () =>
-      agentsApi.update(name!, {
-        description: form.description,
-        system_prompt: form.system_prompt,
-        preferred_provider: normalizeOptional(form.preferred_provider),
-        preferred_model: normalizeOptional(form.preferred_model),
-        preferred_role: normalizeOptional(form.preferred_role),
-        strategy: form.strategy,
-        routing_policy: form.routing_policy,
-        temperature: form.temperature,
-        max_tokens: form.max_tokens,
-      }),
-    [form, name],
+  const updateFn = useCallback(
+    (payload: Parameters<typeof agentsApi.update>[1]) => agentsApi.update(name!, payload),
+    [name],
   );
 
   const {
@@ -153,6 +212,10 @@ export default function AgentDetail() {
     error: deleteError,
   } = useApi(deleteFn);
 
+  const rollbackApi = useApi(
+    async (version: number) => agentsApi.rollbackPrompt(name!, version),
+  );
+
   const handleRun = () => {
     if (!input.trim()) return;
     void execute(undefined);
@@ -160,8 +223,44 @@ export default function AgentDetail() {
 
   const handleSave = async () => {
     if (!name || !form.system_prompt.trim() || detail.data?.builtin) return;
-    const updated = await saveProfile(undefined);
-    if (updated) {
+    setFormValidationError(null);
+    try {
+      const retry_config = parseJsonObject(form.retry_config, "Retry config");
+      const gates = parseJsonGates(form.gates);
+      const updated = await saveProfile({
+        description: form.description,
+        system_prompt: form.system_prompt,
+        preferred_provider: normalizeOptional(form.preferred_provider),
+        preferred_model: normalizeOptional(form.preferred_model),
+        preferred_role: normalizeOptional(form.preferred_role),
+        strategy: form.strategy,
+        routing_policy: form.routing_policy,
+        temperature: form.temperature,
+        max_tokens: form.max_tokens,
+        tools: parseCsv(form.tools),
+        skills: parseCsv(form.skills),
+        category: normalizeOptional(form.category),
+        cluster: normalizeOptional(form.cluster),
+        capabilities: parseCsv(form.capabilities),
+        evidence_refs: parseCsv(form.evidence_refs),
+        retry_config,
+        gates,
+        version_note: normalizeOptional(form.version_note),
+      });
+      if (updated) {
+        setForm((current) => ({ ...current, version_note: "" }));
+        void detail.refetch();
+      }
+    } catch (error) {
+      setFormValidationError(error instanceof Error ? error.message : "Invalid advanced metadata");
+      return;
+    }
+  };
+
+  const handleRollback = async (version: PromptVersionInfo["version_number"]) => {
+    if (!name || detail.data?.builtin) return;
+    const result = await rollbackApi.execute(version);
+    if (result) {
       void detail.refetch();
     }
   };
@@ -442,9 +541,90 @@ export default function AgentDetail() {
                 }
               />
             </div>
+            <div className="grid gap-4 md:grid-cols-2">
+              <Input
+                label="Category"
+                value={form.category}
+                disabled={detail.data?.builtin}
+                onChange={(e) => setForm({ ...form, category: e.target.value })}
+                placeholder="code, ops, design..."
+              />
+              <Input
+                label="Cluster"
+                value={form.cluster}
+                disabled={detail.data?.builtin}
+                onChange={(e) => setForm({ ...form, cluster: e.target.value })}
+                placeholder="runtime, design, control..."
+              />
+            </div>
+            <div className="grid gap-4 md:grid-cols-2">
+              <Textarea
+                label="Tools (CSV)"
+                rows={3}
+                value={form.tools}
+                disabled={detail.data?.builtin}
+                onChange={(e) => setForm({ ...form, tools: e.target.value })}
+                placeholder="python, kicad-mcp, filesystem"
+              />
+              <Textarea
+                label="Skills (CSV)"
+                rows={3}
+                value={form.skills}
+                disabled={detail.data?.builtin}
+                onChange={(e) => setForm({ ...form, skills: e.target.value })}
+                placeholder="json-output, concise-mode"
+              />
+            </div>
+            <div className="grid gap-4 md:grid-cols-2">
+              <Textarea
+                label="Capabilities (CSV)"
+                rows={3}
+                value={form.capabilities}
+                disabled={detail.data?.builtin}
+                onChange={(e) => setForm({ ...form, capabilities: e.target.value })}
+                placeholder="code, review, pcb"
+              />
+              <Textarea
+                label="Evidence Refs (CSV)"
+                rows={3}
+                value={form.evidence_refs}
+                disabled={detail.data?.builtin}
+                onChange={(e) => setForm({ ...form, evidence_refs: e.target.value })}
+                placeholder="kb://incident-42, doc://runbook"
+              />
+            </div>
+            <Textarea
+              label="Retry Config (JSON object)"
+              rows={5}
+              value={form.retry_config}
+              disabled={detail.data?.builtin}
+              onChange={(e) => setForm({ ...form, retry_config: e.target.value })}
+              placeholder={'{\n  "max_attempts": 2,\n  "backoff_seconds": 1\n}'}
+            />
+            <Textarea
+              label="Gates (JSON array)"
+              rows={7}
+              value={form.gates}
+              disabled={detail.data?.builtin}
+              onChange={(e) => setForm({ ...form, gates: e.target.value })}
+              placeholder={'[\n  {\n    "name": "has-tools",\n    "phase": "pre",\n    "required": true,\n    "check": "has_tools"\n  }\n]'}
+            />
+            <Input
+              label="Version Note"
+              value={form.version_note}
+              disabled={detail.data?.builtin}
+              onChange={(e) => setForm({ ...form, version_note: e.target.value })}
+              placeholder="Reason for the prompt/profile update"
+            />
             <p className="text-[12px] leading-6 text-[#1d1d1f]/46">
               `preferred_role` pilote le routage auto cluster. Si tu mets `gpu`, l&apos;orchestration cherchera d&apos;abord un noeud cluster `gpu` compatible avec le provider/modele de cet agent.
             </p>
+            <p className="text-[12px] leading-6 text-[#1d1d1f]/46">
+              Les champs avancés acceptent des listes CSV et du JSON brut. Les gates sont persistées avec l&apos;agent et réévaluées par le runtime.
+            </p>
+            {formValidationError ? (
+              <InlineNotice title="invalid metadata" message={formValidationError} tone="error" />
+            ) : null}
             {saveError ? (
               <InlineNotice title="save failed" message={saveError} tone="error" />
             ) : null}
@@ -492,6 +672,53 @@ export default function AgentDetail() {
                   title="Running agent"
                   message="The selected agent is processing the current message through the gateway."
                 />
+              ) : null}
+            </div>
+          </Card>
+
+          <Card title="Prompt history">
+            <div className="space-y-3">
+              {(detail.data?.prompt_versions || []).length === 0 ? (
+                <p className="text-sm leading-6 text-[#86868b]">
+                  No prompt history recorded yet for this agent.
+                </p>
+              ) : (
+                [...(detail.data?.prompt_versions || [])]
+                  .sort((left, right) => right.version_number - left.version_number)
+                  .map((version) => (
+                    <div
+                      key={version.version_number}
+                      className="rounded-[1.5rem] border border-[rgba(0,0,0,0.08)] bg-[#f5f5f7] p-4"
+                    >
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div className="space-y-2">
+                          <div className="flex flex-wrap gap-2">
+                            <Badge color="accent">v{version.version_number}</Badge>
+                            <Badge color="muted">{formatStamp(version.timestamp)}</Badge>
+                            <Badge color="muted">{version.author_hash}</Badge>
+                          </div>
+                          {version.note ? (
+                            <p className="text-sm leading-6 text-[#1d1d1f]/64">{version.note}</p>
+                          ) : null}
+                        </div>
+                        {!detail.data?.builtin ? (
+                          <Button
+                            variant="secondary"
+                            loading={rollbackApi.loading}
+                            onClick={() => void handleRollback(version.version_number)}
+                          >
+                            rollback
+                          </Button>
+                        ) : null}
+                      </div>
+                      <pre className="mt-3 max-h-40 overflow-auto whitespace-pre-wrap rounded-2xl border border-[rgba(0,0,0,0.06)] bg-white/80 p-3 text-xs leading-6 text-[#1d1d1f]/72">
+                        {version.content}
+                      </pre>
+                    </div>
+                  ))
+              )}
+              {rollbackApi.error ? (
+                <InlineNotice title="rollback failed" message={rollbackApi.error} tone="error" />
               ) : null}
             </div>
           </Card>

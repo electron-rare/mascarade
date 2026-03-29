@@ -45,6 +45,52 @@ export interface AgentInfo {
   routing_policy?: string | null;
   temperature?: number;
   max_tokens?: number;
+  tools?: string[];
+  skills?: string[];
+  category?: string | null;
+  retry_config?: Record<string, unknown> | null;
+  gates?: AgentGate[];
+  evidence_refs?: string[];
+  capabilities?: string[];
+  cluster?: string | null;
+  prompt_versions?: PromptVersionInfo[];
+  builtin?: boolean;
+}
+
+export interface PromptVersionInfo {
+  version_number: number;
+  timestamp: string;
+  content: string;
+  author_hash: string;
+  diff?: string | null;
+  note?: string | null;
+}
+
+export interface AgentGate {
+  name: string;
+  description?: string;
+  phase?: "pre" | "post";
+  required?: boolean;
+  check?: string;
+  status?: "pending" | "passed" | "failed" | "skipped";
+}
+
+export interface AgentRoutingOverride {
+  peer_id?: string | null;
+  preferred_role?: string | null;
+  preferred_provider?: string | null;
+  preferred_model?: string | null;
+  routing_policy?: string | null;
+}
+
+export interface WorkflowTemplateInfo {
+  id: string;
+  name: string;
+  description: string;
+  agent_names: string[];
+  mode: string;
+  routing_overrides?: Record<string, AgentRoutingOverride>;
+  documentation: string;
   builtin?: boolean;
 }
 
@@ -464,6 +510,14 @@ export const coreClient = {
     routing_policy?: string;
     temperature?: number;
     max_tokens?: number;
+    tools?: string[];
+    skills?: string[];
+    category?: string | null;
+    retry_config?: Record<string, unknown> | null;
+    gates?: AgentGate[];
+    evidence_refs?: string[];
+    capabilities?: string[];
+    cluster?: string | null;
   }) {
     return request<AgentInfo>("/agents", {
       method: "POST",
@@ -486,15 +540,24 @@ export const coreClient = {
   updateAgent(
     name: string,
     body: {
-      description: string;
-      system_prompt: string;
+      description?: string;
+      system_prompt?: string;
       preferred_provider?: string | null;
       preferred_model?: string | null;
       preferred_role?: string | null;
       strategy?: string;
-      routing_policy?: string;
+      routing_policy?: string | null;
       temperature?: number;
       max_tokens?: number;
+      tools?: string[];
+      skills?: string[];
+      category?: string | null;
+      retry_config?: Record<string, unknown> | null;
+      gates?: AgentGate[];
+      evidence_refs?: string[];
+      capabilities?: string[];
+      cluster?: string | null;
+      version_note?: string | null;
     },
   ) {
     return request<AgentInfo>(`/agents/${encodeURIComponent(name)}`, {
@@ -507,6 +570,21 @@ export const coreClient = {
     return request<{ status: string; message?: string }>(`/agents/${encodeURIComponent(name)}`, {
       method: "DELETE",
     });
+  },
+
+  getPromptHistory(name: string) {
+    return request<{ versions: PromptVersionInfo[] }>(
+      `/agents/${encodeURIComponent(name)}/prompts/history`,
+    );
+  },
+
+  rollbackPromptVersion(name: string, version: number) {
+    return request<{ message: string; current_prompt: string; versions: PromptVersionInfo[] }>(
+      `/agents/${encodeURIComponent(name)}/prompts/rollback/${encodeURIComponent(String(version))}`,
+      {
+        method: "POST",
+      },
+    );
   },
 
   runAgent(
@@ -536,6 +614,7 @@ export const coreClient = {
     routing_overrides?: Record<
       string,
       {
+        peer_id?: string | null;
         preferred_role?: string | null;
         preferred_provider?: string | null;
         preferred_model?: string | null;
@@ -1526,14 +1605,55 @@ export const coreClient = {
   // --- Templates ---
 
   listTemplates() {
-    return request<{ templates: unknown[] }>("/orchestrate/templates");
+    return request<{ templates: WorkflowTemplateInfo[] }>("/orchestrate/templates");
   },
 
   getTemplate(templateId: string) {
-    return request<unknown>(`/orchestrate/templates/${encodeURIComponent(templateId)}`);
+    return request<WorkflowTemplateInfo>(`/orchestrate/templates/${encodeURIComponent(templateId)}`);
   },
 
-  deployTemplate(templateId: string, body: { input: string; routing_overrides?: Record<string, unknown> }) {
+  createTemplate(body: {
+    id: string;
+    name: string;
+    description: string;
+    agent_names: string[];
+    mode?: string;
+    routing_overrides?: Record<string, AgentRoutingOverride>;
+    documentation: string;
+  }) {
+    return request<WorkflowTemplateInfo>("/orchestrate/templates", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+
+  updateTemplate(
+    templateId: string,
+    body: {
+      name?: string;
+      description?: string;
+      agent_names?: string[];
+      mode?: string;
+      routing_overrides?: Record<string, AgentRoutingOverride>;
+      documentation?: string;
+    },
+  ) {
+    return request<WorkflowTemplateInfo>(`/orchestrate/templates/${encodeURIComponent(templateId)}`, {
+      method: "PUT",
+      body: JSON.stringify(body),
+    });
+  },
+
+  deleteTemplate(templateId: string) {
+    return request<{ message: string }>(`/orchestrate/templates/${encodeURIComponent(templateId)}`, {
+      method: "DELETE",
+    });
+  },
+
+  deployTemplate(
+    templateId: string,
+    body: { input: string; routing_overrides?: Record<string, AgentRoutingOverride> },
+  ) {
     return request<{
       run_id: string;
       template_id: string;
