@@ -39,7 +39,7 @@ dependencies = [
 a2a = [
     "a2a-sdk>=0.3.20,<1",
 ]
-# WARNING: libp2p extra pins redis>=5.2,<6 which CONFLICTS with the core
+# WARNING: libp2p extra pins redis>=5.2,<8 which CONFLICTS with the core
 # redis[hiredis]>=7.1.1 dependency. Do NOT install [libp2p] in the same
 # venv as main dependencies. Use a separate virtualenv or Docker image for
 # the P2P mesh node. See deploy/docker-compose.yml for isolation pattern.
@@ -47,7 +47,7 @@ libp2p = [
     "libp2p>=0.6.0,<1",
     "trio>=0.29,<1",
     "multiaddr>=0.0.9,<1",
-    "redis>=5.2,<6",
+    "redis>=5.2,<8",
     "tiktoken>=0.9,<1",
 ]
 # NOTE: finetune and rlvr extras removed from pyproject.toml because
