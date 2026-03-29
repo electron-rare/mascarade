@@ -10,7 +10,7 @@ const STREAM_KEY = "openburo:events";
 
 async function getRedis() {
   if (!redis) {
-    redis = createClient({ url: process.env.REDIS_URL || "redis://:RedisTower2026!@mascarade-redis:6379/15" });
+    redis = createClient({ url: process.env.REDIS_URL || "redis://mascarade-redis:6379/15" });
     redis.on("error", (err: Error) => console.error("[openburo/events] Redis error:", err.message));
     await redis.connect();
   }
