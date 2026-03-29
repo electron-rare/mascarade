@@ -1,3 +1,10 @@
+# Mise a jour operatoire — 28/03/2026
+
+- Lot actif de reference: `docs/plan/2026-03-28-autonomous-ops/active_execution_plan.md`
+- Registre machine-lisible: `docs/plan/2026-03-28-autonomous-ops/task_registry.json`
+- Console operateur: `scripts/tui/agent_ops_console.py`
+- Decision: piloter les prochains lots via une TUI et un registre d'affectation, pas via les seuls plans historiques.
+
 # Consolidated Tasks — 16 mars 2026 (v1)
 
 Consolidation de tous les TODO files et plans d'exécution en une liste unique, dédupliquée et priorisée.

@@ -48,6 +48,7 @@ jobs:
       e2e: ${{ steps.filter.outputs.e2e }}
       deploy: ${{ steps.filter.outputs.deploy }}
       infra: ${{ steps.filter.outputs.infra }}
+      qa: ${{ steps.filter.outputs.qa }}
     steps:
       - uses: actions/checkout@v4
       - uses: dorny/paths-filter@v3
@@ -70,6 +71,30 @@ jobs:
               - '.github/workflows/**'
               - '.github/copilot-instructions.md'
               - '.github/instructions/**'
+            qa:
+              - 'scripts/qa/**'
+              - 'scripts/tui/**'
+              - 'README*.md'
+              - 'SPEC_DEPLOIEMENT_VM_ORCHESTRATION*.md'
+
+  qa_docs:
+    name: QA docs/todos coherence
+    needs: [changes]
+    if: >-
+      github.event_name == 'workflow_dispatch'
+      || needs.changes.outputs.qa == 'true'
+      || needs.changes.outputs.infra == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Validate TODO registry
+        run: python3 scripts/qa/validate_todo_registry.py
+      - name: Validate documentation coherence
+        run: python3 scripts/qa/validate_doc_coherence.py
 
   # ── Tests ──
   api:
@@ -368,7 +393,7 @@ jobs:
   # ── Notifications ──
   notify:
     name: Notify
-    needs: [api, web, core, lint, compose, e2e, docker, deploy]
+    needs: [api, web, core, lint, compose, e2e, qa_docs, docker, deploy]
     if: always() && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 20

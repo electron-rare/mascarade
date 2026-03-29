@@ -167,10 +167,10 @@ Condition de reouverture:
 3. Aucun follow-up repo-suivi local actif ne reste sur la ligne industrielle.
 4. Garder les sujets encore ouverts hors audit:
    - billing `Anthropic`, activation API Google et quota/token Nexar si un besoin live reparait;
-   - consolidation du worktree `/Users/electron/mascarade` sur le Mac operateur avant tout `pull`.
+   - consolidation du worktree local sur le Mac operateur avant tout `pull`.
 5. N'ouvrir un chantier Nexar supplementaire que si le sourcing live requiert un token/plan avec quota de parts non nul.
 6. Ne rejouer `K-012` que si le host-native KiCad devient une exigence runtime.
 7. Pour les lots locaux encore actifs hors `RA-*`, utiliser
-   `bash /home/clems/mascarade/scripts/run_next_useful_lot.sh`; le handoff
+   `bash scripts/run_next_useful_lot.sh`; le handoff
    courant est regenere dans
-   [NEXT_USEFUL_LOT_STATE.md](/home/clems/mascarade/docs/NEXT_USEFUL_LOT_STATE.md).
+   [docs/NEXT_USEFUL_LOT_STATE.md](docs/NEXT_USEFUL_LOT_STATE.md).

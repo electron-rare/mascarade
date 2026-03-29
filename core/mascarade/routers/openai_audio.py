@@ -24,10 +24,11 @@ import time
 from typing import Literal
 
 import httpx
-from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import Response
 from pydantic import BaseModel, SecretStr
 
+from mascarade.auth import require_auth
 from mascarade.config import settings
 
 
@@ -44,7 +45,7 @@ def _is_secret_configured(secret) -> bool:
 
 logger = logging.getLogger("mascarade.openai_audio")
 
-router = APIRouter(prefix="/v1", tags=["audio"])
+router = APIRouter(prefix="/v1", dependencies=[Depends(require_auth)], tags=["audio"])
 
 # ---------------------------------------------------------------------------
 # STT — POST /v1/audio/transcriptions

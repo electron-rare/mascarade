@@ -243,6 +243,103 @@ class TestOrchestrator:
         orch = FinetuneOrchestrator()
         assert orch.router is None
 
+    @pytest.mark.asyncio
+    async def test_run_pipeline_with_alignment_validation_and_publish(self, tmp_path):
+        registry = FinetuneRegistry(tmp_path / "reg.json")
+        orch = FinetuneOrchestrator(registry=registry)
+        config = PipelineConfig(
+            task="code",
+            domain="electronics",
+            dpo_iterations=1,
+            alignment_method="simpo",
+            auto_publish=True,
+        )
+
+        orch._distribute = AsyncMock(
+            side_effect=[
+                {"candidates": [{"model_id": "hf/base-model", "size_gb": 3.0, "license": "apache-2.0"}]},
+                {"candidates": [{"dataset_id": "hf/dataset", "license": "cc-by-4.0"}]},
+                {"output_dir": "/tmp/train-run", "method": "qlora", "metrics": {"loss": 1.2}},
+                {"metrics": {"accuracy": 0.82, "loss": 0.4}},
+                {"errors": [{"prompt": "broken example"}]},
+                {"dataset_path": "/tmp/alignment.jsonl", "total_pairs": 2},
+                {"output_dir": "/tmp/aligned-run", "model_path": "/tmp/aligned-run/final", "method": "simpo"},
+                {"passed": True, "red_team_score": 0.91},
+                {"repo_id": "clemsail/mascarade-electronics"},
+            ]
+        )
+
+        result = await orch.run_pipeline(config)
+
+        assert result.phase == "complete"
+        assert result.selected_model == "hf/base-model"
+        assert result.selected_dataset == "hf/dataset"
+        assert result.training_result["alignment_method"] == "simpo"
+        assert result.training_result["output_dir"] == "/tmp/aligned-run/final"
+        assert result.validation_result["passed"] is True
+        assert result.published_model == "clemsail/mascarade-electronics"
+        assert result.errors == []
+        assert "hf/base-model" in registry.models
+        assert "hf/dataset" in registry.datasets
+        assert len(registry.runs) == 1
+
+    @pytest.mark.asyncio
+    async def test_phase_dpo_triggers_alignment_training(self):
+        orch = FinetuneOrchestrator()
+        config = PipelineConfig(task="code", domain="test", alignment_method="simpo")
+        state = PipelineState(
+            config=config,
+            phase="alignment-simpo-1",
+            training_result={"output_dir": "/tmp/base-model"},
+            eval_report={"metrics": {"accuracy": 0.8}},
+        )
+
+        orch._distribute = AsyncMock(
+            side_effect=[
+                {"errors": [{"prompt": "broken example"}]},
+                {"dataset_path": "/tmp/alignment.jsonl", "total_pairs": 3},
+                {
+                    "output_dir": "/tmp/aligned-run",
+                    "model_path": "/tmp/aligned-run/aligned",
+                    "method": "simpo",
+                },
+            ]
+        )
+
+        result = await orch._phase_dpo(state)
+
+        assert orch._distribute.await_count == 3
+        train_call = orch._distribute.await_args_list[2]
+        assert train_call.args[0] == "ft-reinforcement"
+        assert train_call.args[1]["action"] == "train_alignment"
+        assert result.training_result["alignment_dataset"] == "/tmp/alignment.jsonl"
+        assert result.training_result["alignment_method"] == "simpo"
+        assert result.training_result["base_output_dir"] == "/tmp/base-model"
+        assert result.training_result["output_dir"] == "/tmp/aligned-run/aligned"
+
+    @pytest.mark.asyncio
+    async def test_phase_dpo_skips_training_when_no_alignment_dataset(self):
+        orch = FinetuneOrchestrator()
+        config = PipelineConfig(task="code", domain="test", alignment_method="simpo")
+        state = PipelineState(
+            config=config,
+            phase="alignment-simpo-1",
+            training_result={"output_dir": "/tmp/base-model"},
+            eval_report={"metrics": {"accuracy": 0.8}},
+        )
+
+        orch._distribute = AsyncMock(
+            side_effect=[
+                {"errors": [{"prompt": "broken example"}]},
+                {"dataset_path": "", "total_pairs": 0},
+            ]
+        )
+
+        result = await orch._phase_dpo(state)
+
+        assert orch._distribute.await_count == 2
+        assert any("no alignment dataset" in err for err in result.errors)
+
 
 class TestTaskHandlers:
     @pytest.mark.asyncio
@@ -300,6 +397,38 @@ class TestTaskHandlers:
     async def test_reinforcement_collect_no_model(self):
         result = await handle_ft_task({"action": "collect_errors"}, "ft-reinforcement")
         assert "error" in result
+
+    @pytest.mark.asyncio
+    async def test_reinforcement_train_alignment_requires_paths(self):
+        result = await handle_ft_task({"action": "train_alignment"}, "ft-reinforcement")
+        assert "error" in result
+        assert "model_path" in result["error"]
+
+    @pytest.mark.asyncio
+    async def test_reinforcement_train_alignment_dispatches(self, monkeypatch):
+        async def fake_train_alignment(self, model_path, dataset_path, **kwargs):
+            assert model_path == "/tmp/model"
+            assert dataset_path == "/tmp/dataset.jsonl"
+            assert kwargs["method"] == "simpo"
+            return {"output_dir": "/tmp/run", "model_path": "/tmp/run/aligned", "method": "simpo"}
+
+        monkeypatch.setattr(
+            "mascarade.finetune.agents.reinforcer.ReinforcerAgent.train_alignment",
+            fake_train_alignment,
+        )
+
+        result = await handle_ft_task(
+            {
+                "action": "train_alignment",
+                "model_path": "/tmp/model",
+                "dataset_path": "/tmp/dataset.jsonl",
+                "method": "simpo",
+            },
+            "ft-reinforcement",
+        )
+
+        assert result["method"] == "simpo"
+        assert result["model_path"] == "/tmp/run/aligned"
 
     @pytest.mark.asyncio
     async def test_reinforcement_dpo_no_errors_uses_kxkm_feedback(self, monkeypatch):

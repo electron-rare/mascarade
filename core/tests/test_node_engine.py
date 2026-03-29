@@ -2,6 +2,8 @@
 
 Tests the key integration points across ExecutionMode, domain workers,
 cross-domain adapter registry, graph creation/validation, and persistence.
+
+Also includes tests for Node Catalog API endpoints.
 """
 
 from __future__ import annotations
@@ -2287,3 +2289,145 @@ class TestFederatedExecutor:
         assert FederatedExecutor is not None
         assert ExecutionPlan is not None
         assert MachineProfile is not None
+
+
+# ---------------------------------------------------------------------------
+# Node Catalog API Tests
+# ---------------------------------------------------------------------------
+
+
+class TestNodeCatalog:
+    """Test Node Catalog API (storage, retrieval, filtering)."""
+
+    def test_node_metadata_creation(self):
+        """Test NodeMetadata model creation."""
+        from mascarade.node_engine.store import NodeMetadata
+
+        metadata = NodeMetadata(
+            node_id="audio-piper-1",
+            name="Piper TTS",
+            domain="audio",
+            description="Text-to-speech using Piper",
+            version="1.0.0",
+            tags=["tts", "voice"],
+            capabilities={"languages": ["en", "fr"]},
+        )
+
+        assert metadata.node_id == "audio-piper-1"
+        assert metadata.domain == "audio"
+        assert len(metadata.tags) == 2
+        assert "languages" in metadata.capabilities
+
+    def test_node_store_register_and_retrieve(self, monkeypatch):
+        """Test NodeStore can register and retrieve nodes."""
+        from mascarade.node_engine.store import NodeMetadata, NodeStore
+        from unittest.mock import MagicMock
+
+        # Mock Redis
+        mock_redis = MagicMock()
+        mock_redis.setex.return_value = True
+        mock_redis.sadd.return_value = 1
+        mock_redis.hset.return_value = 1
+
+        store = NodeStore(redis_client=mock_redis, ttl_seconds=3600)
+
+        metadata = NodeMetadata(
+            node_id="test-node-1",
+            name="Test Node",
+            domain="test",
+            version="1.0.0",
+        )
+
+        store.register_node(metadata)
+
+        # Verify Redis methods were called
+        assert mock_redis.setex.called
+        assert mock_redis.sadd.called
+
+    def test_node_store_list_all_nodes(self):
+        """Test NodeStore.list_all_nodes()."""
+        from mascarade.node_engine.store import NodeMetadata, NodeStore
+        from unittest.mock import MagicMock
+
+        mock_redis = MagicMock()
+        mock_redis.smembers.return_value = {"node-1", "node-2"}
+        mock_redis.get.side_effect = lambda key: (
+            '{"node_id": "node-1", "name": "Node 1", "domain": "test", '
+            '"description": null, "version": "1.0.0", "tags": [], "capabilities": {}}'
+            if "node-1" in key
+            else '{"node_id": "node-2", "name": "Node 2", "domain": "test", '
+                 '"description": null, "version": "1.0.0", "tags": [], "capabilities": {}}'
+        )
+
+        store = NodeStore(redis_client=mock_redis)
+        nodes = store.list_all_nodes()
+
+        assert len(nodes) == 2
+        assert nodes[0].node_id in {"node-1", "node-2"}
+
+    def test_node_store_list_by_domain(self):
+        """Test NodeStore.list_nodes_by_domain() filtering."""
+        from mascarade.node_engine.store import NodeMetadata, NodeStore
+        from unittest.mock import MagicMock
+
+        mock_redis = MagicMock()
+        mock_redis.smembers.return_value = {"audio-1", "audio-2"}
+        mock_redis.get.side_effect = lambda key: (
+            '{"node_id": "audio-1", "name": "Audio 1", "domain": "audio", '
+            '"description": null, "version": "1.0.0", "tags": [], "capabilities": {}}'
+            if "audio-1" in key
+            else '{"node_id": "audio-2", "name": "Audio 2", "domain": "audio", '
+                 '"description": null, "version": "1.0.0", "tags": [], "capabilities": {}}'
+        )
+
+        store = NodeStore(redis_client=mock_redis)
+        nodes = store.list_nodes_by_domain("audio")
+
+        assert len(nodes) == 2
+        assert all(n.domain == "audio" for n in nodes)
+
+    def test_node_store_unregister(self):
+        """Test NodeStore.unregister_node()."""
+        from mascarade.node_engine.store import NodeMetadata, NodeStore
+        from unittest.mock import MagicMock
+
+        mock_redis = MagicMock()
+        
+        # Setup mock to return a node first, then nothing
+        def mock_get(key):
+            if "_NODE_KEY_test-node" not in str(key):
+                return None
+            return ('{"node_id": "test-node", "name": "Test", "domain": "test", '
+                    '"description": null, "version": "1.0.0", "tags": [], "capabilities": {}}')
+        
+        mock_redis.get = mock_get
+
+        store = NodeStore(redis_client=mock_redis)
+        # Test with mocked get_node
+        from unittest.mock import patch
+        with patch.object(store, 'get_node', return_value=NodeMetadata(
+            node_id="test-node", name="Test", domain="test")):
+            result = store.unregister_node("test-node")
+            # Should return True since get_node returns a valid node
+            assert result is True
+
+    def test_node_store_domain_list(self):
+        """Test NodeStore.get_domain_list()."""
+        from mascarade.node_engine.store import NodeStore
+        from unittest.mock import MagicMock
+
+        mock_redis = MagicMock()
+        # Simulate scan_iter returning domain keys
+        mock_redis.scan_iter.return_value = [
+            "node:catalog:domain:audio",
+            "node:catalog:domain:vision",
+            "node:catalog:domain:text",
+        ]
+
+        store = NodeStore(redis_client=mock_redis)
+        domains = store.get_domain_list()
+
+        assert len(domains) == 3
+        assert "audio" in domains
+        assert "vision" in domains
+        assert "text" in domains

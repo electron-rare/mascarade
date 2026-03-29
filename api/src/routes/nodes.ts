@@ -36,56 +36,116 @@ type NodeCatalogResponse = {
 
 /**
  * GET /catalog
- * Returns the catalog of available node types for the node engine.
+ * Returns the catalog of available nodes from the core engine.
  *
- * Phase 0 implementation: Returns empty catalog structure.
- * Will be enhanced in later phases to proxy to core NodeTypeRegistry.
+ * Proxies to core /v1/nodes/catalog endpoint (Phase B implementation).
  */
 nodes.get("/catalog", async (c) => {
+  const domain = c.req.query("domain");
+  
   emitStructuredLog({
     severity: "info",
     service: "api",
-    message: "Fetching node catalog",
+    message: `Proxying node catalog request${domain ? ` for domain: ${domain}` : ""}`,
     source: "nodes.catalog",
   });
 
-  // Phase 0: Return empty catalog structure
-  // TODO: In Phase 1+, proxy to core /nodes/catalog endpoint
-  const emptyResponse: NodeCatalogResponse = {
-    node_types: [],
-    domains: [],
-    total_count: 0,
-  };
+  try {
+    const coreUrl = process.env.CORE_URL || "http://core:8100";
+    const apiKey = c.req.header("authorization") || "";
+    
+    const catalogUrl = domain
+      ? `${coreUrl}/v1/nodes/catalog?domain=${encodeURIComponent(domain)}`
+      : `${coreUrl}/v1/nodes/catalog`;
 
-  return c.json(emptyResponse);
+    const response = await fetch(catalogUrl, {
+      headers: {
+        "Authorization": apiKey,
+        "Content-Type": "application/json",
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`Core returned ${response.status}: ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    return c.json(data);
+  } catch (error) {
+    emitStructuredLog({
+      severity: "error",
+      service: "api",
+      message: `Failed to fetch node catalog: ${error instanceof Error ? error.message : String(error)}`,
+      source: "nodes.catalog",
+    });
+
+    return c.json(
+      {
+        error: "Failed to fetch node catalog from core",
+        total: 0,
+        domain: domain || null,
+        nodes: [],
+      },
+      500
+    );
+  }
 });
 
 /**
- * GET /catalog/:domain
+ * GET /catalog/:domain (deprecated)
  * Returns node types filtered by domain.
+ * Use GET /catalog?domain=X instead.
  *
- * Phase 0 implementation: Returns empty catalog structure.
- * Will be enhanced in later phases to proxy to core NodeTypeRegistry.
+ * Kept for backward compatibility.
  */
 nodes.get("/catalog/:domain", async (c) => {
   const domain = c.req.param("domain");
+  
+  // Redirect to query parameter version
+  const coreUrl = process.env.CORE_URL || "http://core:8100";
+  const apiKey = c.req.header("authorization") || "";
 
   emitStructuredLog({
     severity: "info",
     service: "api",
-    message: `Fetching node catalog for domain: ${domain}`,
-    source: "nodes.catalog",
+    message: `Proxying node catalog request for domain: ${domain}`,
+    source: "nodes.catalog.domain",
   });
 
-  // Phase 0: Return empty catalog structure
-  // TODO: In Phase 1+, proxy to core /nodes/catalog?domain=X endpoint
-  const emptyResponse: NodeCatalogResponse = {
-    node_types: [],
-    domains: [],
-    total_count: 0,
-  };
+  try {
+    const catalogUrl = `${coreUrl}/v1/nodes/catalog?domain=${encodeURIComponent(domain)}`;
+    
+    const response = await fetch(catalogUrl, {
+      headers: {
+        "Authorization": apiKey,
+        "Content-Type": "application/json",
+      },
+    });
 
-  return c.json(emptyResponse);
+    if (!response.ok) {
+      throw new Error(`Core returned ${response.status}: ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    return c.json(data);
+  } catch (error) {
+    emitStructuredLog({
+      severity: "error",
+      service: "api",
+      message: `Failed to fetch node catalog for domain ${domain}: ${error instanceof Error ? error.message : String(error)}`,
+      source: "nodes.catalog.domain",
+    });
+
+    return c.json(
+      {
+        error: `Failed to fetch node catalog for domain ${domain}`,
+        total: 0,
+        domain: domain,
+        nodes: [],
+      },
+      500
+    );
+  }
 });
 
 /**

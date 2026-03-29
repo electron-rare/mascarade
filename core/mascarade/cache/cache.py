@@ -29,7 +29,7 @@ class CacheEntry:
 
 
 class CacheBackend(Protocol):
-    """Protocol defining the interface for cache backends."""
+    """Protocol defining the interface for synchronous cache backends (L1/in-memory)."""
 
     def store(
         self,
@@ -38,13 +38,13 @@ class CacheBackend(Protocol):
         tokens: int,
         cost: float,
         ttl: float = 3600,
-        **kwargs: dict[str, str | int | float | None],
+        **kwargs: str | int | float | None,
     ) -> str:
         """Store a response in cache."""
         ...
 
     def retrieve(
-        self, messages: list[dict], **kwargs: dict[str, str | int | float | None]
+        self, messages: list[dict], **kwargs: str | int | float | None
     ) -> CacheEntry | None:
         """Retrieve a cached response if available."""
         ...
@@ -54,6 +54,36 @@ class CacheBackend(Protocol):
         ...
 
     def clear(self) -> None:
+        """Clear all cache entries."""
+        ...
+
+
+class AsyncCacheBackend(Protocol):
+    """Protocol defining the interface for async cache backends (L2 Redis, L3 Semantic)."""
+
+    async def store(
+        self,
+        messages: list[dict],
+        response: str,
+        tokens: int,
+        cost: float,
+        ttl: float = 3600,
+        **kwargs: str | int | float | None,
+    ) -> str:
+        """Store a response in cache."""
+        ...
+
+    async def retrieve(
+        self, messages: list[dict], **kwargs: str | int | float | None
+    ) -> CacheEntry | None:
+        """Retrieve a cached response if available."""
+        ...
+
+    async def get_stats(self) -> dict:
+        """Get cache statistics."""
+        ...
+
+    async def clear(self) -> None:
         """Clear all cache entries."""
         ...
 
@@ -86,7 +116,7 @@ class InMemoryCache:
         tokens: int,
         cost: float,
         ttl: float = 3600,
-        **kwargs: dict[str, str | int | float | None],
+        **kwargs: str | int | float | None,
     ) -> str:
         """Store a response in cache with LRU strategy."""
 
@@ -117,7 +147,7 @@ class InMemoryCache:
         return key
 
     def retrieve(
-        self, messages: list[dict], **kwargs: dict[str, str | int | float | None]
+        self, messages: list[dict], **kwargs: str | int | float | None
     ) -> CacheEntry | None:
         """Retrieve a cached response if available (LRU)."""
 

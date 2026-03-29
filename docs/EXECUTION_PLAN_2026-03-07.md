@@ -178,10 +178,10 @@ observabilite/proxy operateur.
 
 ### Priorite immediate recommandee
 1. Ne pas rouvrir de nouveau chantier local sans besoin concret.
-2. Traiter seulement les sujets externes ou optionnels: billing `Anthropic`, activation API Google, quota/token `NEXAR` si le sourcing live repart, et consolidation du worktree `/Users/electron/mascarade` sur le Mac operateur avant tout `pull`.
+2. Traiter seulement les sujets externes ou optionnels: billing `Anthropic`, activation API Google, quota/token `NEXAR` si le sourcing live repart, et consolidation du worktree local sur le Mac operateur avant tout `pull`.
 3. Si une nouvelle vague repo s'ouvre, repartir d'un lot neuf au lieu de reutiliser un reliquat historique.
 4. Pour tout nouveau reliquat local, passer d'abord par:
-   `bash /home/clems/mascarade/scripts/run_next_useful_lot.sh`
+   `bash scripts/run_next_useful_lot.sh`
    puis utiliser
-   [NEXT_USEFUL_LOT_STATE.md](/home/clems/mascarade/docs/NEXT_USEFUL_LOT_STATE.md)
+   [docs/NEXT_USEFUL_LOT_STATE.md](docs/NEXT_USEFUL_LOT_STATE.md)
    comme handoff court terme.

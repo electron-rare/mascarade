@@ -15,7 +15,7 @@ Defaults are intentionally local-first:
 Bootstrap:
 
 ```bash
-cd /home/clems/mascarade/deploy/phase2
+cd deploy/phase2
 cp .env.example .env
 docker compose --env-file .env -f docker-compose.yml up -d
 ```

@@ -13,12 +13,12 @@ try:
 except ImportError:
     aioredis = None  # type: ignore[assignment]
 
-from mascarade.cache.cache import CacheBackend, CacheEntry
+from mascarade.cache.cache import AsyncCacheBackend, CacheEntry
 
 logger = logging.getLogger(__name__)
 
 
-class RedisCache(CacheBackend):
+class RedisCache(AsyncCacheBackend):
     """Redis L2 cache with async operations and TTL support."""
 
     def __init__(
@@ -94,7 +94,7 @@ class RedisCache(CacheBackend):
         tokens: int,
         cost: float,
         ttl: float = 3600,
-        **kwargs: dict[str, str | int | float | None],
+        **kwargs: str | int | float | None,
     ) -> str:
         """Store a response in Redis cache with TTL.
 
@@ -140,7 +140,7 @@ class RedisCache(CacheBackend):
         return key
 
     async def retrieve(
-        self, messages: list[dict], **kwargs: dict[str, str | int | float | None]
+        self, messages: list[dict], **kwargs: str | int | float | None
     ) -> CacheEntry | None:
         """Retrieve a cached response if available and not expired.
 

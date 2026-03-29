@@ -418,14 +418,10 @@ class McpServer:
         except (TypeError, ValueError):
             limit = 10
 
-        # Lazy import to avoid hard dependency at module level
-        from mascarade.integrations.knowledge_base import KnowledgeBaseClient
+        from mascarade.integrations.kb_handler import KBSearchHandler
 
-        kb = KnowledgeBaseClient()
-        try:
-            results = await kb.search(query, limit=limit)
-        finally:
-            await kb.close()
+        handler = KBSearchHandler()
+        results = await handler.search(query, limit=limit)
 
         return _tool_result_json(
             {

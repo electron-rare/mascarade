@@ -545,6 +545,6 @@ Pour un batch multi-domaine:
 ## 7. References
 
 - doc pipeline: `finetune/README.md`
-- cheatsheet: `docs/FINETUNING_CHEATSHEET_2026-03-06.md`
-- shortlist modeles: `docs/FINETUNING_MODEL_SHORTLIST_2026-03-08.md`
+- cheatsheet: `docs/archive/finetuning/FINETUNING_CHEATSHEET_2026-03-06.md`
+- shortlist modeles: `docs/archive/finetuning/FINETUNING_MODEL_SHORTLIST_2026-03-08.md`
 - plan parallelisme 4090: `docs/FINETUNING_4090_PARALLEL_PLAN.md`

@@ -45,7 +45,7 @@ curl -s http://localhost:3000/api/cli-agents/run \
   -d '{
     "agent": "vibe",
     "prompt": "Analyse ce dépôt et propose le plus petit correctif sûr.",
-    "workdir": "/Users/electron/Documents/Projets/mascarade",
+    "workdir": ".",
     "max_turns": 3
   }'
 ```

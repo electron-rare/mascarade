@@ -183,3 +183,105 @@ async def test_knowledge_scribe_push_uses_mcp_and_preserves_run_id(
     call = fake_mcp.knowledge_base_append.await_args
     assert call.args[:2] == ("memo-7", "formatted note")
     assert call.kwargs["run_id"] == "run-kb-007"
+
+
+# ---------------------------------------------------------------------------
+# Contrats d'erreur harmonisés (ajoutés avec I3)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_knowledge_base_search_blank_query_returns_400(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """Une query vide ou uniquement des espaces doit retourner 400."""
+    add_api_key("test-key-001")
+    fake_mcp = AsyncMock()
+    monkeypatch.setattr(
+        "mascarade.routers.knowledge_base.knowledge_base_auth_configured", lambda: True
+    )
+
+    async with _client() as client:
+        client._test_app.state.mcp = fake_mcp
+        response = await client.get(
+            "/knowledge-base/search?q=   &project_id=project-alpha",
+            headers={"Authorization": "Bearer test-key-001"},
+        )
+
+    assert response.status_code == 400
+    fake_mcp.knowledge_base_search.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_knowledge_base_search_limit_out_of_range_returns_422(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """Un limit=0 ou limit>50 doit retourner 422 (validation Query)."""
+    add_api_key("test-key-001")
+    fake_mcp = AsyncMock()
+    monkeypatch.setattr(
+        "mascarade.routers.knowledge_base.knowledge_base_auth_configured", lambda: True
+    )
+
+    async with _client() as client:
+        client._test_app.state.mcp = fake_mcp
+
+        r_low = await client.get(
+            "/knowledge-base/search?q=test&project_id=proj&limit=0",
+            headers={"Authorization": "Bearer test-key-001"},
+        )
+        r_high = await client.get(
+            "/knowledge-base/search?q=test&project_id=proj&limit=99",
+            headers={"Authorization": "Bearer test-key-001"},
+        )
+
+    assert r_low.status_code == 422
+    assert r_high.status_code == 422
+    fake_mcp.knowledge_base_search.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_knowledge_base_search_not_configured_returns_503(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """Quand KB n'est pas configuré, le routeur doit retourner 503."""
+    add_api_key("test-key-001")
+    monkeypatch.setattr(
+        "mascarade.routers.knowledge_base.knowledge_base_auth_configured", lambda: False
+    )
+
+    async with _client() as client:
+        response = await client.get(
+            "/knowledge-base/search?q=hello&project_id=proj",
+            headers={"Authorization": "Bearer test-key-001"},
+        )
+
+    assert response.status_code == 503
+
+
+@pytest.mark.asyncio
+async def test_knowledge_base_search_falls_back_to_kb_handler_when_mcp_absent(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """Sans MCP dans l'état de l'app, le fallback kb_handler doit être utilisé."""
+    add_api_key("test-key-001")
+    monkeypatch.setattr(
+        "mascarade.routers.knowledge_base.knowledge_base_auth_configured", lambda: True
+    )
+    fake_handler = AsyncMock()
+    fake_handler.search.return_value = [{"id": "qdrant-1", "text": "fallback result"}]
+
+    with patch(
+        "mascarade.integrations.kb_handler.KBSearchHandler", return_value=fake_handler
+    ):
+        async with _client() as client:
+            client._test_app.state.mcp = None  # pas de client MCP
+            response = await client.get(
+                "/knowledge-base/search?q=fallback&project_id=project-alpha",
+                headers={"Authorization": "Bearer test-key-001"},
+            )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["count"] == 1
+    fake_handler.search.assert_awaited_once()

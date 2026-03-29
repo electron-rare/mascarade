@@ -1,0 +1,11 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "type": "command",
+        "command": "bash -lc 'set -euo pipefail; if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then exit 0; fi; CHANGED=$(git diff --name-only); if [ -z \"$CHANGED\" ]; then exit 0; fi; NEED_CORE=0; NEED_API=0; NEED_WEB=0; NEED_FINETUNE=0; echo \"$CHANGED\" | grep -Eq \"^core/.*\\.py$\" && NEED_CORE=1 || true; echo \"$CHANGED\" | grep -Eq \"^api/src/.*\\.ts$\" && NEED_API=1 || true; echo \"$CHANGED\" | grep -Eq \"^web/src/.*\\.(ts|tsx)$\" && NEED_WEB=1 || true; echo \"$CHANGED\" | grep -Eq \"^(finetune/|core/mascarade/finetune/)\" && NEED_FINETUNE=1 || true; if [ \"$NEED_CORE\" -eq 1 ] && [ -x core/.venv/bin/python ]; then (cd core && ./.venv/bin/python -m pytest tests/test_router.py -q >/dev/null); fi; if [ \"$NEED_API\" -eq 1 ] && [ -d api/node_modules ]; then (cd api && npm run -s build >/dev/null); fi; if [ \"$NEED_WEB\" -eq 1 ] && [ -d web/node_modules ]; then (cd web && npm run -s build >/dev/null); fi; if [ \"$NEED_FINETUNE\" -eq 1 ] && [ -x core/.venv/bin/python ]; then (cd core && ./.venv/bin/python -m pytest tests/test_finetune.py -q >/dev/null); fi'",
+        "timeout": 600
+      }
+    ]
+  }
+}

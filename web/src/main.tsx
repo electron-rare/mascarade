@@ -5,6 +5,7 @@ import { AuthProvider } from "./auth/AuthContext";
 import AuthGate from "./auth/AuthGate";
 import App from "./App";
 import "./index.css";
+import "./dark-mode.css";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>

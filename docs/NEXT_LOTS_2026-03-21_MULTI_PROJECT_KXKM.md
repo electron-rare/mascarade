@@ -27,7 +27,7 @@ Plan opérationnel de continuité après intégration `kxkm` dans `mascarade`, e
 ### Core
 
 ```bash
-cd /Users/electron/Documents/Projets/mascarade/core && ./.venv/bin/python -m pytest \
+cd core && ./.venv/bin/python -m pytest \
   tests/test_mistral_agents.py \
   tests/test_mistral_agents_provider.py \
   tests/test_scheduler_optional_vllm.py \
@@ -46,7 +46,7 @@ cd /Users/electron/Documents/Projets/mascarade/core && ./.venv/bin/python -m pyt
 ### API
 
 ```bash
-cd /Users/electron/Documents/Projets/mascarade/api && npm test -- \
+cd api && npm test -- \
   src/routes/cluster.test.ts \
   src/routes/knowledgeBase.test.ts \
   src/routes/llmProviders.test.ts \

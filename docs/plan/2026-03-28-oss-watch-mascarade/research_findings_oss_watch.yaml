@@ -1,0 +1,688 @@
+plan_id: 2026-03-28-oss-watch-mascarade
+objective: Veille ciblee sur des projets open source similaires ou directement reutilisables pour Mascarade, avec priorite a l'orchestration d'agents, au RAG agentique, a l'automatisation KiCad/CAD et au fine-tuning/alignment local.
+focus_area: oss_watch
+created_at: 2026-03-28T00:00:00Z
+created_by: GitHub Copilot (GPT-5.4)
+status: completed
+
+tldr: |
+  - Les trois repos prioritaires sont deja strategiquement alignes avec Mascarade, et meme partiellement presents en vendor tree: KiCad MCP pour le tool plane, KiC-AI pour l'UX in-editor et Fabrication-Toolkit pour le post-design/manufacturing.
+  - Cote orchestration et RAG, LangGraph est surtout une source d'inspiration architecturale car Mascarade possede deja un StateGraph maison, tandis qu'AutoGen et Haystack apportent surtout des patterns de runtime multi-agents et de pipeline RAG modulaires plutot qu'un besoin de remplacement.
+  - Cote alignment local, TRL et Unsloth sont les references les plus directement exploitables; Mascarade les utilise deja partiellement via son pipeline Unsloth, son RLVR a recompenses verifiables et ses scripts TRL.
+  - La meilleure reutilisation concrete a court terme concerne quatre axes: router/registry KiCad MCP, workflows de plugin KiCad local, revue composants/manufacturabilite, et durcissement du pipeline RLVR/GRPO-DAPO expose au cockpit.
+  - Le risque principal n'est pas technique pur mais d'integration: duplication de surface entre sous-arbres vendorises, scripts locaux, routes API et vues operateur deja existantes.
+
+research_metadata:
+  methodology: hybrid retrieval via semantic_search, grep_search, read_file and github_repo across Mascarade internals and targeted public GitHub references; relationships expanded from MCP architecture, finetune pipeline, training UI, Hono validation layer and vendored KiCad/CAD trees.
+  scope: Mascarade MCP/agentics, finetune/alignment local, KiCad/CAD automation, manufacturing review, operator UI/API surfaces, and seven external OSS references selected for direct reuse or architectural comparison.
+  confidence: high
+  coverage: 88
+
+files_analyzed:
+  - file: MCP_AGENTICS_ARCHITECTURE.md
+    path: /Users/electron/Documents/Projets/mascarade/docs/MCP_AGENTICS_ARCHITECTURE.md
+    purpose: Canonical boundary between MCP tool plane, Mascarade execution plane, observability and operator surfaces.
+    key_elements:
+      - element: Tool plane
+        type: pattern
+        location: MCP_AGENTICS_ARCHITECTURE.md:9
+        description: Declares kicad, freecad, openscad and knowledge-base as MCP-first tool surfaces.
+      - element: Execution plane
+        type: pattern
+        location: MCP_AGENTICS_ARCHITECTURE.md:28
+        description: Confirms Mascarade owns orchestration, secrets, views and MCP probe aggregation.
+    language: markdown
+    lines: 133
+  - file: state_graph.py
+    path: /Users/electron/Documents/Projets/mascarade/core/mascarade/orchestrator/state_graph.py
+    purpose: Internal LangGraph-like implementation for stateful graph execution.
+    key_elements:
+      - element: StateGraph
+        type: class
+        location: state_graph.py:35
+        description: Self-contained stateful graph with nodes, edges, conditional routing and checkpointing.
+    language: python
+    lines: 220
+  - file: orchestrator.py
+    path: /Users/electron/Documents/Projets/mascarade/core/mascarade/finetune/orchestrator.py
+    purpose: End-to-end fine-tune pipeline coordinator across the P2P mesh.
+    key_elements:
+      - element: FinetuneOrchestrator
+        type: class
+        location: orchestrator.py:52
+        description: Sequences research, dataset, teacher, training, eval, alignment and validation phases.
+      - element: alignment_method
+        type: variable
+        location: orchestrator.py:23
+        description: Supports simpo, dpo, kto and rlvr in pipeline state.
+    language: python
+    lines: 260
+  - file: trainer.py
+    path: /Users/electron/Documents/Projets/mascarade/core/mascarade/finetune/rlvr/trainer.py
+    purpose: RLVR wrapper around GRPO/DAPO with verifiable rewards.
+    key_elements:
+      - element: RLVRTrainer
+        type: class
+        location: trainer.py:105
+        description: Uses TRL GRPOTrainer and optional Unsloth QLoRA loading.
+      - element: RLVRConfig.loss_type
+        type: variable
+        location: trainer.py:77
+        description: Defaults to dapo and frames GRPO vs DAPO selection.
+      - element: Unsloth fallback path
+        type: pattern
+        location: trainer.py:249
+        description: Attempts Unsloth first, then falls back to transformers.
+    language: python
+    lines: 380
+  - file: kicad_verifier.py
+    path: /Users/electron/Documents/Projets/mascarade/core/mascarade/finetune/rlvr/kicad_verifier.py
+    purpose: Reward function tying KiCad output validity to RLVR scoring.
+    key_elements:
+      - element: KiCadDRCReward
+        type: class
+        location: kicad_verifier.py:16
+        description: Grades completions via KiCad DRC/KiBot outcomes.
+    language: python
+    lines: 147
+  - file: pipeline.py
+    path: /Users/electron/Documents/Projets/mascarade/finetune/unsloth/pipeline.py
+    purpose: Local Unsloth QLoRA fine-tuning pipeline used by Mascarade.
+    key_elements:
+      - element: UnslothPipeline
+        type: class
+        location: pipeline.py:59
+        description: Loads 4-bit models, applies PEFT LoRA and trains with TRL SFTTrainer.
+      - element: save_pretrained_merged
+        type: pattern
+        location: pipeline.py:219
+        description: Exports merged 16-bit or 4-bit artifacts and supports GGUF export.
+    language: python
+    lines: 260
+  - file: next_finetune_lots.sh
+    path: /Users/electron/Documents/Projets/mascarade/scripts/next_finetune_lots.sh
+    purpose: Operational batch script for next useful finetune lots.
+    key_elements:
+      - element: cad-tool-smoke
+        type: pattern
+        location: next_finetune_lots.sh:247
+        description: Runs CAD smoke before lot completion.
+      - element: components-review
+        type: pattern
+        location: next_finetune_lots.sh:254
+        description: Runs component status review via promotion utils.
+    language: bash
+    lines: 280
+  - file: Training.tsx
+    path: /Users/electron/Documents/Projets/mascarade/web/src/pages/Training.tsx
+    purpose: Operator UI for registry, capabilities and live training status.
+    key_elements:
+      - element: RegistryData
+        type: type
+        location: Training.tsx:10
+        description: Exposes models, datasets and run registry to the cockpit.
+      - element: CapabilitiesData
+        type: type
+        location: Training.tsx:37
+        description: Surfaces stack, agents and capability map to operators.
+    language: typescript
+    lines: 220
+  - file: Pipeline.tsx
+    path: /Users/electron/Documents/Projets/mascarade/web/src/pages/Pipeline.tsx
+    purpose: Operator UI for the training pipeline stages.
+    key_elements:
+      - element: DEFAULT_STEPS
+        type: variable
+        location: Pipeline.tsx:41
+        description: Encodes the seven operator-visible phases from clone to deploy.
+    language: typescript
+    lines: 220
+  - file: schemas.ts
+    path: /Users/electron/Documents/Projets/mascarade/api/src/validation/schemas.ts
+    purpose: Hono validation contracts for the finetune pipeline API.
+    key_elements:
+      - element: FinetuneRunRequestSchema
+        type: schema
+        location: schemas.ts:282
+        description: Accepts task, domain and max_model_size_gb for finetune pipeline launch.
+    language: typescript
+    lines: 320
+  - file: finetune.ts
+    path: /Users/electron/Documents/Projets/mascarade/api/src/routes/finetune.ts
+    purpose: Route layer exposing finetune pipeline and stack endpoints.
+    key_elements:
+      - element: POST /pipeline
+        type: route
+        location: finetune.ts:71
+        description: Forwards validated finetune launches to the core client.
+    language: typescript
+    lines: 102
+  - file: todo_manager.py
+    path: /Users/electron/Documents/Projets/mascarade/scripts/tui/todo_manager.py
+    purpose: Active backlog registry linking external forks to finetune priorities.
+    key_elements:
+      - element: F9
+        type: pattern
+        location: todo_manager.py:94
+        description: Tracks publication of the mascarade-kicad dataset.
+      - element: F12
+        type: pattern
+        location: todo_manager.py:116
+        description: Explicitly references jochemkroon/KiC-AI and mixelpixx/KiCAD-MCP-Server in backlog scoping.
+    language: python
+    lines: 260
+  - file: ROUTER_ARCHITECTURE.md
+    path: /Users/electron/Documents/Projets/mascarade/finetune/kicad_mcp_server/docs/ROUTER_ARCHITECTURE.md
+    purpose: Vendored KiCad MCP router design already present in the repo.
+    key_elements:
+      - element: Tool routing categories
+        type: pattern
+        location: ROUTER_ARCHITECTURE.md:1
+        description: Describes reduced visible-tool strategy and category-based routing.
+    language: markdown
+    lines: 200
+  - file: server.ts
+    path: github:mixelpixx/KiCAD-MCP-Server/src/server.ts
+    purpose: Main MCP server bootstrap for KiCad automation.
+    key_elements:
+      - element: Server bootstrap
+        type: pattern
+        location: server.ts:1
+        description: Wires MCP transport and tool surface for KiCad automation.
+    language: typescript
+    lines: 200
+  - file: registry.ts
+    path: github:mixelpixx/KiCAD-MCP-Server/src/tools/registry.ts
+    purpose: Tool inventory and registration for KiCad MCP capabilities.
+    key_elements:
+      - element: Tool registry
+        type: pattern
+        location: registry.ts:1
+        description: Centralizes large KiCad/JLCPCB tool surface.
+    language: typescript
+    lines: 200
+  - file: ai_dialog.py
+    path: github:jochemkroon/KiC-AI/plugins/ai_dialog.py
+    purpose: In-editor KiCad assistant dialog and workflow shell.
+    key_elements:
+      - element: Plugin dialog
+        type: pattern
+        location: ai_dialog.py:1
+        description: Embeds local assistant UX inside KiCad.
+    language: python
+    lines: 200
+  - file: mcp_client.py
+    path: github:jochemkroon/KiC-AI/plugins/mcp_client.py
+    purpose: MCP client used by the KiC-AI KiCad plugin.
+    key_elements:
+      - element: MCP bridge
+        type: pattern
+        location: mcp_client.py:1
+        description: Connects plugin actions to MCP tool execution.
+    language: python
+    lines: 200
+  - file: process.py
+    path: github:bennymeg/Fabrication-Toolkit/plugins/process.py
+    purpose: Fabrication export workflow for KiCad outputs.
+    key_elements:
+      - element: Fabrication process
+        type: pattern
+        location: process.py:1
+        description: Encodes export and manufacturing preparation workflow.
+    language: python
+    lines: 200
+  - file: plugin.py
+    path: github:bennymeg/Fabrication-Toolkit/plugins/plugin.py
+    purpose: KiCad plugin entrypoint for fabrication automation.
+    key_elements:
+      - element: Plugin entrypoint
+        type: pattern
+        location: plugin.py:1
+        description: Integrates fabrication actions into KiCad plugin lifecycle.
+    language: python
+    lines: 200
+  - file: README.md
+    path: github:langchain-ai/langgraph/README.md
+    purpose: Stateful graph orchestration reference.
+    key_elements:
+      - element: Durable graph runtime
+        type: pattern
+        location: README.md:1
+        description: Emphasizes stateful graph orchestration, persistence and HITL.
+    language: markdown
+    lines: 200
+  - file: README.md
+    path: github:microsoft/autogen/README.md
+    purpose: Multi-agent runtime and agent-as-tool reference.
+    key_elements:
+      - element: Teams and tools
+        type: pattern
+        location: README.md:1
+        description: Shows team-based composition, MCP workbench and distributed agent runtime.
+    language: markdown
+    lines: 200
+  - file: README.md
+    path: github:deepset-ai/haystack/README.md
+    purpose: Modular RAG and AsyncPipeline reference.
+    key_elements:
+      - element: AsyncPipeline
+        type: pattern
+        location: README.md:1
+        description: Encodes componentized RAG pipelines with hybrid retrieval support.
+    language: markdown
+    lines: 200
+  - file: README.md
+    path: github:unslothai/unsloth/README.md
+    purpose: Fast low-VRAM local finetuning and RL reference.
+    key_elements:
+      - element: RL with lower VRAM
+        type: pattern
+        location: README.md:37
+        description: Advertises GRPO and local RL efficiency on consumer GPUs.
+      - element: Studio UI
+        type: pattern
+        location: README.md:133
+        description: Adds a training UI and export flows around local finetuning.
+    language: markdown
+    lines: 200
+  - file: README.md
+    path: github:huggingface/trl/README.md
+    purpose: Canonical library for SFT, DPO, ORPO and GRPO.
+    key_elements:
+      - element: GRPOTrainer
+        type: pattern
+        location: README.md:90
+        description: Frames GRPO as a memory-efficient reasoning/alignment path.
+    language: markdown
+    lines: 200
+
+patterns_found:
+  - category: architecture
+    pattern: MCP-first CAD automation
+    description: KiCad/CAD integration is consistently modeled as a tool plane concern, with domain-specific servers and registries rather than direct embedding into agent runtime code.
+    examples:
+      - file: MCP_AGENTICS_ARCHITECTURE.md
+        location: MCP_AGENTICS_ARCHITECTURE.md:9
+        snippet: "Tool plane = MCP ... kicad, freecad, openscad"
+      - file: ROUTER_ARCHITECTURE.md
+        location: ROUTER_ARCHITECTURE.md:1
+        snippet: "router design reduces visible tools and routes by category"
+      - file: registry.ts
+        location: github:mixelpixx/KiCAD-MCP-Server/src/tools/registry.ts:1
+        snippet: "centralized large tool registry for KiCad/JLCPCB actions"
+    prevalence: common
+  - category: structure
+    pattern: Vendored companion repos for experimentation
+    description: Mascarade already keeps companion KiCad projects in-tree under finetune, making future reuse an integration and maintenance question rather than greenfield adoption.
+    examples:
+      - file: ROUTER_ARCHITECTURE.md
+        location: finetune/kicad_mcp_server/docs/ROUTER_ARCHITECTURE.md:1
+        snippet: "vendored KiCad MCP router documentation present in repo"
+      - file: todo_manager.py
+        location: todo_manager.py:116
+        snippet: "backlog item references KiC-AI and KiCAD-MCP-Server forks"
+    prevalence: occasional
+  - category: architecture
+    pattern: Stateful orchestration already internalized
+    description: External graph frameworks map to an existing internal execution concept rather than a missing capability.
+    examples:
+      - file: state_graph.py
+        location: state_graph.py:1
+        snippet: "LangGraph-inspired stateful graph execution with checkpointing"
+      - file: README.md
+        location: github:langchain-ai/langgraph/README.md:1
+        snippet: "durable stateful graph orchestration and HITL"
+    prevalence: common
+  - category: testing
+    pattern: Verifiable reward loops for CAD outputs
+    description: Mascarade already uses programmatic reward validation for KiCad artifacts, which aligns more naturally with TRL/Unsloth RL flows than with human-preference-only alignment stacks.
+    examples:
+      - file: trainer.py
+        location: trainer.py:105
+        snippet: "RLVRTrainer orchestrates GRPO/DAPO training with verifiable rewards"
+      - file: kicad_verifier.py
+        location: kicad_verifier.py:16
+        snippet: "KiCadDRCReward grades completions from DRC results"
+      - file: README.md
+        location: github:huggingface/trl/README.md:90
+        snippet: "GRPOTrainer as memory-efficient RL path"
+    prevalence: occasional
+  - category: structure
+    pattern: Operator-facing training pipeline
+    description: Training, benchmarking and deployment are already exposed as operator-visible stages, so external tooling with UI value should plug into existing pages and routes rather than introduce parallel surfaces.
+    examples:
+      - file: Pipeline.tsx
+        location: Pipeline.tsx:41
+        snippet: "DEFAULT_STEPS encode clone, extract, quality-check, review, train, benchmark, deploy"
+      - file: Training.tsx
+        location: Training.tsx:10
+        snippet: "registry, capabilities and status surfaced in cockpit"
+      - file: finetune.ts
+        location: finetune.ts:71
+        snippet: "POST /pipeline forwards pipeline launches"
+    prevalence: common
+  - category: naming
+    pattern: Alignment methods treated as interchangeable strategies
+    description: SimPO, DPO, KTO and RLVR are modeled as configurable pipeline strategies instead of hard-coded separate pipelines.
+    examples:
+      - file: orchestrator.py
+        location: orchestrator.py:23
+        snippet: "alignment_method supports simpo, dpo, kto, rlvr"
+      - file: reinforcer.py
+        location: core/mascarade/finetune/agents/reinforcer.py:47
+        snippet: "method can be dpo, simpo, kto, or rlvr"
+      - file: README.md
+        location: github:huggingface/trl/README.md:90
+        snippet: "SFT, DPO, GRPO and broader trainer family"
+    prevalence: common
+  - category: architecture
+    pattern: Manufacturing review as a distinct post-training/post-design step
+    description: Component review and fabrication readiness appear as explicit steps, which matches Fabrication-Toolkit and circuit-synth style DFM workflows.
+    examples:
+      - file: next_finetune_lots.sh
+        location: next_finetune_lots.sh:254
+        snippet: "components-review step"
+      - file: process.py
+        location: github:bennymeg/Fabrication-Toolkit/plugins/process.py:1
+        snippet: "fabrication export workflow"
+      - file: llm.txt
+        location: github:circuit-synth/circuit-synth/llm.txt:26
+        snippet: "generate complete KiCad project from code"
+    prevalence: occasional
+
+related_architecture:
+  components_relevant_to_domain:
+    - component: MCP tool plane
+      responsibility: Encapsulates domain tools such as KiCad, FreeCAD and OpenSCAD behind specialized servers.
+      location: /Users/electron/Documents/Projets/mascarade/docs/MCP_AGENTICS_ARCHITECTURE.md
+      relationship_to_domain: domain depends on this
+    - component: StateGraph orchestrator
+      responsibility: Stateful graph execution with checkpointing and conditional transitions.
+      location: /Users/electron/Documents/Projets/mascarade/core/mascarade/orchestrator/state_graph.py
+      relationship_to_domain: domain depends on this
+    - component: FinetuneOrchestrator
+      responsibility: Coordinates research, dataset, teacher, student, eval, alignment and validation phases.
+      location: /Users/electron/Documents/Projets/mascarade/core/mascarade/finetune/orchestrator.py
+      relationship_to_domain: domain depends on this
+    - component: RLVR subsystem
+      responsibility: Connects TRL/GRPO style training to verifiable reward functions like KiCad DRC.
+      location: /Users/electron/Documents/Projets/mascarade/core/mascarade/finetune/rlvr/
+      relationship_to_domain: domain depends on this
+    - component: Training cockpit
+      responsibility: Exposes registry, capabilities, pipeline steps and live training state to operators.
+      location: /Users/electron/Documents/Projets/mascarade/web/src/pages/
+      relationship_to_domain: this uses domain outputs
+  interfaces_used_by_domain:
+    - interface: POST /api/v1/finetune/pipeline
+      location: /Users/electron/Documents/Projets/mascarade/api/src/routes/finetune.ts
+      usage_pattern: Launches fine-tune pipeline from web/operator surfaces into the core.
+    - interface: MCP server registry and tool routing
+      location: github:mixelpixx/KiCAD-MCP-Server/src/tools/registry.ts
+      usage_pattern: External reference for tool inventory and category-based dispatch.
+    - interface: KiCad plugin MCP bridge
+      location: github:jochemkroon/KiC-AI/plugins/mcp_client.py
+      usage_pattern: External reference for invoking MCP tools from in-editor KiCad UX.
+  data_flow_involving_domain: Requests enter from the cockpit or API, fan into the finetune orchestrator, call mesh capabilities and optionally RLVR/TRL-based training, then feed registry/status data back to Training and Pipeline pages; on the CAD side, MCP tools and KiCad plugin clients bridge tool execution and fabrication/manufacturing review.
+  key_relationships_to_domain:
+    - from: web/src/pages/Pipeline.tsx
+      to: api/src/routes/finetune.ts
+      relationship: calls
+    - from: api/src/routes/finetune.ts
+      to: core finetune pipeline
+      relationship: forwards
+    - from: core/mascarade/finetune/orchestrator.py
+      to: core/mascarade/finetune/rlvr/trainer.py
+      relationship: selects alignment strategy
+    - from: core/mascarade/finetune/rlvr/trainer.py
+      to: core/mascarade/finetune/rlvr/kicad_verifier.py
+      relationship: composes
+    - from: scripts/next_finetune_lots.sh
+      to: CAD smoke and component review utilities
+      relationship: calls
+    - from: finetune/kicad_kic_ai/plugins/mcp_client.py
+      to: finetune/kicad_mcp_server
+      relationship: bridges
+
+related_technology_stack:
+  languages_used_in_domain:
+    - Python
+    - TypeScript
+    - Bash
+    - Markdown
+  frameworks_used_in_domain:
+    - name: FastAPI/Hono split backend
+      usage_in_domain: Core handles finetune/orchestration logic while Hono validates and proxies requests.
+    - name: React
+      usage_in_domain: Training and Pipeline cockpit pages expose operator control surfaces.
+    - name: Model Context Protocol
+      usage_in_domain: Canonical tool boundary for KiCad/CAD integration.
+  libraries_used_in_domain:
+    - name: TRL
+      purpose_in_domain: SFT, DPO-family and GRPO-based alignment/training primitives.
+    - name: Unsloth
+      purpose_in_domain: Low-VRAM 4-bit loading and local QLoRA acceleration.
+    - name: Zod
+      purpose_in_domain: Hono route validation for pipeline entrypoints.
+    - name: KiBot
+      purpose_in_domain: Verifiable KiCad DRC reward evaluation.
+    - name: Rich
+      purpose_in_domain: TUI-level backlog and finetune monitoring.
+  external_apis_used_in_domain:
+    - name: Hugging Face Hub
+      integration_point: model/dataset selection, registry metadata and publication backlog.
+    - name: JLCPCB/Nexar-like part search surfaces
+      integration_point: KiCad MCP, KiC-AI and fabrication/manufacturability workflows.
+
+related_conventions:
+  naming_patterns_in_domain: Alignment methods are named as lowercase strategy tokens such as simpo, dpo, kto and rlvr; operator pages use explicit nouns such as Training and Pipeline; MCP/CAD vendor trees are grouped under finetune/* companion directories.
+  structure_of_domain: Core pipeline logic lives under core/mascarade/finetune, operator surfaces under web/src/pages, API entrypoints under api/src/routes and api/src/validation, and companion experimental/vendor trees under finetune/.
+  error_handling_in_domain: Hono routes validate early with Zod and sanitize payloads; core pipeline accumulates state.errors and logs phase failures; RLVR reward functions degrade to explicit score bands when a tool is missing or output is malformed.
+  testing_in_domain: Training code mixes scripts, notebook paths and targeted reward/pipeline logic; CAD validation is partially automated via smoke scripts and KiCad DRC-style checks.
+  documentation_in_domain: Documentation is extensive and operational, with architecture docs, runbooks, research notes and vendored companion docs used as active design references.
+
+related_dependencies:
+  internal:
+    - component: core/mascarade/orchestrator
+      relationship_to_domain: Provides stateful orchestration semantics used as comparison baseline for LangGraph-like systems.
+      direction: outbound
+    - component: core/mascarade/finetune/agents
+      relationship_to_domain: Teacher/reinforcer/student agents implement the pipeline roles referenced by the orchestrator.
+      direction: bidirectional
+    - component: web/src/pages/Training.tsx
+      relationship_to_domain: Consumes registry and status outputs from finetune backend.
+      direction: inbound
+    - component: scripts/next_finetune_lots.sh
+      relationship_to_domain: Operationally gates finetune progression via CAD and component review checks.
+      direction: inbound
+    - component: finetune/kicad_mcp_server and finetune/kicad_kic_ai
+      relationship_to_domain: Companion trees carrying KiCad MCP and KiC-AI code and docs.
+      direction: bidirectional
+  external:
+    - name: mixelpixx/KiCAD-MCP-Server
+      purpose_for_domain: Direct reference for KiCad MCP registry, router and JLCPCB-linked tool surfaces.
+    - name: jochemkroon/KiC-AI
+      purpose_for_domain: Direct reference for local KiCad plugin UX and MCP client embedding.
+    - name: bennymeg/Fabrication-Toolkit
+      purpose_for_domain: Direct reference for fabrication export and manufacturing review workflow.
+    - name: langchain-ai/langgraph
+      purpose_for_domain: Architectural comparison for stateful graph orchestration and durable execution.
+    - name: microsoft/autogen
+      purpose_for_domain: Reference for agent-as-tool, team composition and MCP-aware multi-agent runtime.
+    - name: deepset-ai/haystack
+      purpose_for_domain: Reference for modular agentic RAG and async retrieval/generation pipelines.
+    - name: unslothai/unsloth
+      purpose_for_domain: Reference for low-VRAM local finetuning, export flows and training UX.
+    - name: huggingface/trl
+      purpose_for_domain: Canonical trainer library for SFT, DPO, ORPO, GRPO and related alignment methods.
+
+domain_security_considerations:
+  sensitive_areas:
+    - area: MCP tool invocation from KiCad/plugin flows
+      location: finetune/kicad_kic_ai/plugins/mcp_client.py and finetune/kicad_mcp_server/
+      concern: Tool exposure breadth and local process access must remain bounded and auditable.
+    - area: Finetune launch surface
+      location: api/src/routes/finetune.ts and api/src/validation/schemas.ts
+      concern: Payload validation is minimal today and does not expose method-level policy controls yet.
+    - area: External part data and manufacturing recommendations
+      location: KiCad MCP/JLCPCB related flows and fabrication toolkit references
+      concern: Stock/pricing/provider data can drift and should not be treated as authoritative without freshness checks.
+  authentication_patterns_in_domain: Operator/API access is routed through existing backend surfaces; external companion repos often assume local trusted execution rather than hardened multi-tenant auth.
+  authorization_patterns_in_domain: MCP architecture doc frames server-by-domain separation, but fine-grained per-tool authorization is not the dominant pattern in the analyzed domain artifacts.
+  data_validation_in_domain: Zod validates pipeline inputs at the API edge, RLVR validates outputs via reward functions, and KiCad/plugin flows rely more on downstream tool success than on strong input schemas.
+
+testing_patterns:
+  framework: Mixed targeted tests plus smoke scripts and notebook/script validation.
+  coverage_areas:
+    - KiCad runtime path and platform helper tests in vendored KiCad MCP tree
+    - CAD smoke and component review gating via next_finetune_lots.sh
+    - Reward-function based post-generation validation in RLVR
+    - Operator-facing registry/status polling in cockpit pages
+  test_organization: Core behavior is validated with Python tests and shell smokes; companion KiCad repos keep their own targeted tests; training flows also rely on scripts and notebooks as executable documentation.
+  mock_patterns:
+    - fall back to demo or local-only environments when external tools are unavailable
+    - explicit missing-tool branches such as kibot not found or Unsloth unavailable
+
+open_questions:
+  - question: Which companion tree is intended to remain canonical for KiCad MCP behavior inside Mascarade?
+    context: The repo contains finetune/kicad_mcp_server and finetune/kicad_kic_ai while backlog items still point to upstream forks, creating possible drift between upstream, vendor tree and runtime assumptions.
+  - question: Should the operator-facing finetune API expose alignment_method explicitly?
+    context: Core pipeline supports simpo, dpo, kto and rlvr, but the current Hono request schema only exposes task, domain and max_model_size_gb.
+  - question: Is manufacturing/component review expected to remain a shell-scripted post-step or become a first-class orchestrator capability?
+    context: components-review and cad-tool-smoke are operationally important but still live outside the typed pipeline/API contract.
+  - question: Is KiC-AI intended as a standalone companion UX or as a source of patterns to be ported into Mascarade operator/plugin surfaces?
+    context: The backlog references it, and a full plugin UX has materially different maintenance cost than borrowing only workflow ideas.
+  - question: What level of duplication with TRL/Unsloth is intentional versus technical debt?
+    context: Mascarade already has its own RLVR, Unsloth wrapper, many TRL scripts and public docs, so future adoption decisions hinge on whether this diversity is strategic or accidental.
+
+gaps:
+  - area: External repo runtime quality signals
+    description: This research relied on public docs and code excerpts rather than fresh issue velocity, release cadence or CI health for every external project.
+    impact: Maturity and risk levels are directional and comparative, not a substitute for a full due-diligence pass before production adoption.
+  - area: Exact upstream/downstream delta for vendored KiCad companion trees
+    description: The analysis did not diff Mascarade's in-tree copies against the current upstream heads of KiCAD-MCP-Server, KiC-AI or Fabrication-Toolkit.
+    impact: Reuse feasibility is clear at the pattern level, but merge cost and divergence remain unquantified.
+  - area: RAG runtime internals beyond high-level architecture
+    description: The current pass focused more on KiCad/CAD and finetune/alignment than on deep code-level RAG pipeline internals.
+    impact: Haystack-related comparison is accurate as a pattern map but less detailed than the KiCad and finetune comparisons.
+  - area: Numerical scoring matrix
+    description: The report maps maturity/risk/integration-vs-inspiration factually but does not encode a normalized numeric score per project.
+    impact: Human ranking remains straightforward, but downstream automation would require an extra scoring pass.
+
+project_comparison:
+  - project: mixelpixx/KiCAD-MCP-Server
+    domain: KiCad MCP automation
+    what_it_provides: Large KiCad tool surface, router/registry pattern, TypeScript MCP shell plus Python KiCad backend, JLCPCB-linked utilities.
+    reusable_for_mascarade:
+      - tool registry and router patterns for reducing visible tool count
+      - JLCPCB-linked CAD actions and categorized tool exposure
+      - runtime/path handling ideas for KiCad host/container execution
+    maturity_risk: medium-high maturity, medium integration risk
+    maturity_risk_notes: Public project appears substantial and already aligned with Mascarade's MCP-first architecture, but overlap with vendored tree and local runtime assumptions creates merge/drift risk.
+    recommendation: integrate targeted pieces
+    recommendation_notes: Strongest candidate for direct selective integration because Mascarade already models KiCad as MCP tool plane and already carries a related tree.
+    impacted_repo_areas:
+      - /Users/electron/Documents/Projets/mascarade/finetune/kicad_mcp_server/
+      - /Users/electron/Documents/Projets/mascarade/docs/MCP_AGENTICS_ARCHITECTURE.md
+      - /Users/electron/Documents/Projets/mascarade/scripts/next_finetune_lots.sh
+  - project: jochemkroon/KiC-AI
+    domain: KiCad local assistant plugin
+    what_it_provides: KiCad in-editor assistant UX, local/Ollama-first flow, MCP client bridge, component/pricing-oriented interaction patterns.
+    reusable_for_mascarade:
+      - plugin UX patterns for context-aware CAD assistance
+      - embedded MCP client behavior inside KiCad dialogs
+      - safe/advisory workflow split between suggestions and execution
+    maturity_risk: medium maturity, medium-high integration risk
+    maturity_risk_notes: Very relevant functionally, but plugin lifecycle, KiCad GUI constraints and UX maintenance differ materially from Mascarade's current operator surfaces.
+    recommendation: integrate by inspiration plus narrow bridge reuse
+    recommendation_notes: Best treated as a source of workflow and plugin-bridge patterns unless Mascarade explicitly chooses to own a KiCad plugin product surface.
+    impacted_repo_areas:
+      - /Users/electron/Documents/Projets/mascarade/finetune/kicad_kic_ai/
+      - /Users/electron/Documents/Projets/mascarade/scripts/tui/todo_manager.py
+      - /Users/electron/Documents/Projets/mascarade/web/src/pages/Pipeline.tsx
+  - project: bennymeg/Fabrication-Toolkit
+    domain: fabrication and manufacturing automation
+    what_it_provides: KiCad plugin workflows for fabrication outputs, process helpers, CLI support and manufacturing-oriented export handling.
+    reusable_for_mascarade:
+      - post-design manufacturing step patterns
+      - fabrication export and artifact packaging workflow
+      - distinction between design-time and fabrication-time automation
+    maturity_risk: medium maturity, low-medium integration risk
+    maturity_risk_notes: Smaller and narrower scope than full KiCad MCP, but highly aligned with Mascarade's existing components-review and CAD smoke operational steps.
+    recommendation: integrate targeted pieces
+    recommendation_notes: Particularly relevant as a post-training or post-design gate rather than as a new top-level runtime.
+    impacted_repo_areas:
+      - /Users/electron/Documents/Projets/mascarade/scripts/next_finetune_lots.sh
+      - /Users/electron/Documents/Projets/mascarade/finetune/kicad_fabrication_toolkit/
+      - /Users/electron/Documents/Projets/mascarade/web/src/pages/Pipeline.tsx
+  - project: langchain-ai/langgraph
+    domain: agent orchestration
+    what_it_provides: Durable graph runtime, checkpointed execution, HITL and graph-based agent composition.
+    reusable_for_mascarade:
+      - vocabulary and design patterns for graph durability and observability
+      - checkpointing/interrupt semantics comparison points
+    maturity_risk: high maturity, low technical risk, high replacement redundancy
+    maturity_risk_notes: Mascarade already has a LangGraph-inspired StateGraph, so the main value is comparative design calibration rather than framework substitution.
+    recommendation: inspiration only
+    recommendation_notes: Replacement value is low because the core concept already exists internally.
+    impacted_repo_areas:
+      - /Users/electron/Documents/Projets/mascarade/core/mascarade/orchestrator/state_graph.py
+      - /Users/electron/Documents/Projets/mascarade/docs/MCP_AGENTICS_ARCHITECTURE.md
+  - project: microsoft/autogen
+    domain: multi-agent runtime
+    what_it_provides: Team abstractions, agent-as-tool composition, distributed runtime concepts and MCP-aware workbench patterns.
+    reusable_for_mascarade:
+      - team composition and handoff patterns
+      - agent-as-tool mental model for operator/runtime composition
+      - distributed runtime comparison points for future A2A-like needs
+    maturity_risk: high maturity, medium integration risk
+    maturity_risk_notes: Powerful but broad; adoption as a framework would overlap heavily with Mascarade's own orchestrator and runtime identity.
+    recommendation: inspiration only
+    recommendation_notes: Useful as a reference for future handoff and team abstractions, not as a short-term replacement.
+    impacted_repo_areas:
+      - /Users/electron/Documents/Projets/mascarade/core/mascarade/orchestrator/
+      - /Users/electron/Documents/Projets/mascarade/docs/MCP_AGENTICS_ARCHITECTURE.md
+  - project: deepset-ai/haystack
+    domain: agentic RAG
+    what_it_provides: Modular retrieval/generation components, AsyncPipeline and hybrid RAG patterns.
+    reusable_for_mascarade:
+      - async pipeline decomposition patterns
+      - explicit retrieval/rerank/generation module boundaries
+      - benchmark vocabulary for agentic RAG comparisons
+    maturity_risk: high maturity, medium replacement redundancy
+    maturity_risk_notes: Valuable as a RAG design reference, but the direct reuse case is weaker than KiCad/finetune references because Mascarade already has a bespoke RAG stack.
+    recommendation: inspiration only
+    recommendation_notes: More useful for validating modular boundaries and async patterns than for direct integration.
+    impacted_repo_areas:
+      - /Users/electron/Documents/Projets/mascarade/core/mascarade/rag/
+      - /Users/electron/Documents/Projets/mascarade/docs/MCP_AGENTICS_ARCHITECTURE.md
+  - project: unslothai/unsloth
+    domain: local fine-tuning and RL efficiency
+    what_it_provides: Low-VRAM QLoRA loading, export flows, local training UX and GRPO-capable RL emphasis.
+    reusable_for_mascarade:
+      - hyperparameter and export conventions already mirrored in repo
+      - low-VRAM training optimizations and user-facing training UX patterns
+      - stronger grounding for local RL/QLoRA defaults
+    maturity_risk: high maturity, low integration risk
+    maturity_risk_notes: Mascarade already wraps Unsloth locally, so remaining value is mostly consolidation and further exploitation rather than first adoption.
+    recommendation: integrate further
+    recommendation_notes: This is already partially integrated; the key question is standardization, not whether to adopt.
+    impacted_repo_areas:
+      - /Users/electron/Documents/Projets/mascarade/finetune/unsloth/
+      - /Users/electron/Documents/Projets/mascarade/docs/finetune/unsloth-guide.md
+      - /Users/electron/Documents/Projets/mascarade/web/src/pages/Training.tsx
+  - project: huggingface/trl
+    domain: alignment trainers
+    what_it_provides: SFT, DPO, ORPO, KTO, GRPO and related trainer/config ecosystem.
+    reusable_for_mascarade:
+      - canonical trainer/config semantics for alignment methods
+      - newer GRPO/DAPO and experimental method options for RLVR evolution
+      - agent-training hooks and better exposure of alignment controls
+    maturity_risk: high maturity, low integration risk
+    maturity_risk_notes: Already used across scripts and RLVR wrapper; strongest value is aligning public API and internal abstractions around the trainer family.
+    recommendation: integrate further
+    recommendation_notes: This is the clearest low-risk path for strengthening local alignment without architectural churn.
+    impacted_repo_areas:
+      - /Users/electron/Documents/Projets/mascarade/core/mascarade/finetune/rlvr/
+      - /Users/electron/Documents/Projets/mascarade/core/mascarade/finetune/orchestrator.py
+      - /Users/electron/Documents/Projets/mascarade/api/src/validation/schemas.ts
+      - /Users/electron/Documents/Projets/mascarade/api/src/routes/finetune.ts

@@ -180,4 +180,4 @@ curl -f http://localhost:3100/health
 ---
 Version: `v1.1`
 Date: `2026-03-03`
-Repo: `/Users/cils/mascarade`
+Repo: racine du repository (`.`)

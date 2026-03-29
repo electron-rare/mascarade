@@ -388,7 +388,7 @@ async def require_auth(
     request: Request,
     credentials: HTTPAuthorizationCredentials | None = Depends(_bearer_scheme),
 ) -> None:
-    """Verify Bearer token if MASCARADE_API_KEY is configured."""
+    """Verify Bearer token if MASCARADE_API_KEY is configured or required."""
     # Extract client IP address
     client_ip = request.client.host if request.client else None
 
@@ -401,7 +401,16 @@ async def require_auth(
         # Only IP-based rate limiting for requests without credentials
         _rate_limiter.check_rate_limit(ip_address=client_ip)
 
+    # Check if auth is mandatory (e.g., in production)
+    auth_required = _config_module.settings.mascarade_auth_required
+    
     if not _api_keys:
+        if auth_required:
+            logger.error("Authentication required but MASCARADE_API_KEY not configured")
+            raise HTTPException(
+                status_code=401,
+                detail="Authentication required but not configured. Set MASCARADE_API_KEY and MASCARADE_AUTH_REQUIRED=true"
+            )
         return
 
     # Also check X-API-Key header as fallback

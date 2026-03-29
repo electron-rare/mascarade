@@ -132,8 +132,8 @@ class MockSyncCache:
         self.miss_count += 1
         return None
 
-    def get_stats(self):
-        """Get cache statistics (sync for L3)."""
+    async def get_stats(self):
+        """Get cache statistics."""
         if self.should_fail:
             raise ConnectionError(f"{self.name} unavailable")
 
@@ -150,7 +150,7 @@ class MockSyncCache:
             "size_bytes": 0,
         }
 
-    def clear(self):
+    async def clear(self):
         """Clear all entries."""
         if self.should_fail:
             raise ConnectionError(f"{self.name} unavailable")

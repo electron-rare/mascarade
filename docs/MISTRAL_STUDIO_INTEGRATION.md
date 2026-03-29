@@ -10,7 +10,7 @@ Séparation opératoire retenue à partir du `2026-03-22`:
   - health Studio
   - handoff opérateur
   - administration agents / fichiers / fine-tune
-- le runtime `Mascarade` dans le repo actif `/Users/electron/Documents/Projets/mascarade`
+- le runtime `Mascarade` dans le repo actif `.`
   utilise le provider routeur `mistral-agents` pour les appels applicatifs aux agents distants
 - le repo historique `mascarade-main` reste une référence de lecture uniquement, jamais une cible d'implémentation
 
@@ -123,10 +123,10 @@ response = await router.send(
 ```
 
 Le provider routeur dédié est implémenté dans:
-- `/Users/electron/Documents/Projets/mascarade/core/mascarade/router/providers/mistral_agents.py`
+- `core/mascarade/router/providers/mistral_agents.py`
 
 Le bridge d’agents distants est implémenté dans:
-- `/Users/electron/Documents/Projets/mascarade/core/mascarade/agents/mistral_agents.py`
+- `core/mascarade/agents/mistral_agents.py`
 
 ## Codestral FIM dans le repo actif
 

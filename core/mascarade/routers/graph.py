@@ -7,15 +7,16 @@ import logging
 import uuid
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
+from mascarade.auth import require_auth
 from mascarade.orchestrator.state_graph import StateGraph
 
 logger = logging.getLogger("mascarade.routers.graph")
 
-router = APIRouter(prefix="/v1/graph", tags=["graph"])
+router = APIRouter(prefix="/v1/graph", dependencies=[Depends(require_auth)], tags=["graph"])
 
 
 # ---------------------------------------------------------------------------

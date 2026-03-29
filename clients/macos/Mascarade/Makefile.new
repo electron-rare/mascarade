@@ -159,10 +159,11 @@ ssh-clems: ## SSH vers clems@192.168.0.120
 	@ssh clems@192.168.0.120
 
 ssh-kxkm: ## SSH vers kxkm@kxkm-ai
-	@ssh kxkm@kxkm-ai
+	@ssh kxkm@100.87.54.119
 
 ssh-cils: ## SSH vers cils
-	@ssh user@cils
+	@ssh clis@100.126.225.111
+
 
 # Development Helpers
 

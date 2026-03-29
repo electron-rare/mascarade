@@ -143,6 +143,11 @@ from mascarade.routers.node_engine import router as node_engine_router
 
 app.include_router(node_engine_router)
 
+# Node Catalog — DAG node discovery and registration
+from mascarade.routers.nodes import router as nodes_router
+
+app.include_router(nodes_router)
+
 # Mount Ollama-compatible API (fake Ollama backed by Mascarade Router + P2P)
 mount_ollama_compat(app)
 

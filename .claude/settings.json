@@ -1,0 +1,34 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -m pytest --co -q)",
+      "Bash(python -m pytest --co)",
+      "Bash(ssh -o ConnectTimeout=15 root@192.168.0.119 \"hostname && docker ps --format ''{{.Names}} {{.Status}}'' | grep mascarade\")",
+      "Bash(ssh -o ConnectTimeout=15 clems@192.168.0.120 \"hostname && docker ps --format ''{{.Names}} {{.Status}}'' 2>/dev/null | grep mascarade\")",
+      "Bash(ssh -o ConnectTimeout=15 kxkm@kxkm-ai \"hostname && nvidia-smi --query-gpu=name,memory.total --format=csv,noheader 2>/dev/null && docker ps --format ''{{.Names}} {{.Status}}'' 2>/dev/null | grep mascarade\")",
+      "Bash(ssh -o ConnectTimeout=15 cils@100.126.225.111 \"hostname && docker ps --format ''{{.Names}} {{.Status}}'' 2>/dev/null | grep mascarade\")",
+      "Bash(ssh -o ConnectTimeout=10 kxkm@kxkm-ai \"curl -sf http://localhost:8100/health\")",
+      "Bash(ssh -o ConnectTimeout=10 root@192.168.0.119 \"cd /root/mascarade-deploy-main && git log --oneline -1\")",
+      "Bash(ssh -o ConnectTimeout=10 clems@192.168.0.120 \"find /home/clems /opt /root /srv -maxdepth 3 -name ''.git'' -exec dirname {} \\\\; 2>/dev/null | head -5\")",
+      "Bash(ssh -o ConnectTimeout=10 kxkm@kxkm-ai \"find /home/kxkm /opt /srv -maxdepth 3 -name ''.git'' -exec dirname {} \\\\; 2>/dev/null | head -5\")",
+      "Bash(ssh -o ConnectTimeout=15 root@192.168.0.119 \"cd /root/mascarade-deploy-main && git stash 2>/dev/null; git pull origin main 2>&1 | tail -3 && git log --oneline -1 && docker compose up -d --build core api 2>&1 | tail -5\")",
+      "Bash(ssh -o ConnectTimeout=15 root@192.168.0.119 \"cd /root/mascarade-deploy-main && git stash 2>/dev/null; git pull origin main 2>&1 | tail -3 && git log --oneline -1\")",
+      "Bash(ssh -o ConnectTimeout=15 clems@192.168.0.120 \"cd /home/clems/mascarade && git stash 2>/dev/null; git pull origin main 2>&1 | tail -3 && git log --oneline -1\")",
+      "Bash(ssh -o ConnectTimeout=15 kxkm@kxkm-ai \"docker inspect mascarade-core --format ''{{index .Config.Labels \"\"com.docker.compose.project.working_dir\"\"}}''\")",
+      "Bash(ssh -o ConnectTimeout=15 root@192.168.0.119 \"cd /root/mascarade-deploy-main && docker compose up -d --build core api 2>&1 | tail -8\")",
+      "Bash(ssh -o ConnectTimeout=15 clems@192.168.0.120 \"cd /home/clems/mascarade && docker compose up -d --build core api 2>&1 | tail -8\")",
+      "Bash(ssh -o ConnectTimeout=15 kxkm@kxkm-ai \"cd /home/kxkm/mascarade-main && git stash 2>/dev/null; git pull origin main 2>&1 | tail -3 && git log --oneline -1\")",
+      "Bash(ssh -o ConnectTimeout=15 kxkm@kxkm-ai \"cd /home/kxkm/mascarade-main && docker compose up -d --build core api 2>&1 | tail -10\")",
+      "Bash(ssh -o ConnectTimeout=15 kxkm@kxkm-ai \"cd /home/kxkm/mascarade-main && cat docker-compose.yml | grep -A5 ''api:''\")",
+      "Bash(ssh -o ConnectTimeout=15 kxkm@kxkm-ai \"cat /home/kxkm/mascarade-main/deploy/Dockerfile.api\")",
+      "Bash(ssh -o ConnectTimeout=15 kxkm@kxkm-ai \"ls -la /home/kxkm/mascarade-main/web/package-lock.json /home/kxkm/mascarade-main/api/package-lock.json 2>&1\")",
+      "Bash(ssh -o ConnectTimeout=15 kxkm@kxkm-ai \"cd /home/kxkm/mascarade-main && docker compose build api 2>&1 | grep -E ''error|ERR!|WARN|failed'' | tail -15\")",
+      "Bash(ssh -o ConnectTimeout=15 kxkm@kxkm-ai \"cd /home/kxkm/mascarade-main && git pull origin main 2>&1 | tail -3 && docker compose up -d --build core api 2>&1 | tail -10\")",
+      "Bash(ssh -o ConnectTimeout=15 kxkm@kxkm-ai \"cd /home/kxkm/mascarade-main && docker compose build api 2>&1 | grep -E ''error TS|Error:|Cannot find'' | head -15\")",
+      "Bash(ssh -o ConnectTimeout=15 kxkm@kxkm-ai \"docker rm -f mascarade-api 2>/dev/null; cd /home/kxkm/mascarade-main && docker compose up -d core api 2>&1 | tail -5\")",
+      "Bash(ssh -o ConnectTimeout=15 kxkm@kxkm-ai \"ss -tlnp | grep 3000\")",
+      "Bash(ssh -o ConnectTimeout=15 kxkm@kxkm-ai \"cd /home/kxkm/mascarade-main && grep -A10 ''^\\\\s*api:'' docker-compose.yml | grep -E ''ports|3000|3100''\")",
+      "Bash(ssh -o ConnectTimeout=15 kxkm@kxkm-ai \"cd /home/kxkm/mascarade-main && grep -A20 ''api:'' docker-compose.yml | head -25\")"
+    ]
+  }
+}

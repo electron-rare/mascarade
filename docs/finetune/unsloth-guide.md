@@ -701,7 +701,7 @@ num_train_epochs=2  # Augmenter de 1 a 2-3
 ### Documentation Mascarade
 
 - Pipeline local: `finetune/README.md`
-- Cheatsheet: `docs/FINETUNING_CHEATSHEET_2026-03-06.md`
+- Cheatsheet: `docs/archive/finetuning/FINETUNING_CHEATSHEET_2026-03-06.md`
 - Runbook operateur: `docs/FINETUNING_OPERATOR_RUNBOOK.md`
 - SOTA fine-tuning: `docs/SOTA_FINETUNING_2026-03.md`
 - Colab workflow: `finetune/COLAB_GUIDE.md`

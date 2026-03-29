@@ -228,6 +228,27 @@ async def _handle_reinforcement(payload: dict) -> dict:
                 include_kxkm_feedback=payload.get("include_kxkm_feedback", True),
             )
             return result.__dict__
+        elif action == "train_alignment":
+            agent = ReinforcerAgent()
+            model_path = payload.get("model_path")
+            dataset_path = payload.get("dataset_path")
+            if not model_path or not dataset_path:
+                return {"error": "Missing required fields: model_path, dataset_path"}
+
+            result = await agent.train_alignment(
+                model_path,
+                dataset_path,
+                method=payload.get("method", "simpo"),
+                run_id=payload.get("run_id"),
+                beta=payload.get("beta"),
+                gamma=payload.get("gamma", 0.5),
+                learning_rate=payload.get("learning_rate", 5e-7),
+                num_epochs=payload.get("num_epochs", 1),
+                max_length=payload.get("max_length", 1024),
+                desirable_weight=payload.get("desirable_weight", 1.0),
+                undesirable_weight=payload.get("undesirable_weight", 1.0),
+            )
+            return result
 
         return {"error": f"Unknown reinforcement action: {action}"}
     except ImportError as e:

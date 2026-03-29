@@ -44,18 +44,20 @@ def knowledge_base_smoke_page_id() -> str:
 
 def knowledge_base_auth_configured(provider: str | None = None) -> bool:
     selected = provider or normalized_knowledge_base_provider()
+    generic_base_url = settings.knowledge_base_url.strip()
     if selected == "memos":
         return bool(
-            settings.memos_base_url.strip() and is_secret_configured(settings.memos_access_token)
+            (settings.memos_base_url.strip() or generic_base_url)
+            and is_secret_configured(settings.memos_access_token)
         )
     if selected == "docmost":
         return bool(
-            settings.docmost_base_url.strip()
+            (settings.docmost_base_url.strip() or generic_base_url)
             and settings.docmost_email.strip()
             and is_secret_configured(settings.docmost_password)
         )
     if selected == "kxkm":
-        return bool(settings.kxkm_rag_url.strip())
+        return bool(settings.kxkm_rag_url.strip() or generic_base_url)
     return False
 
 
@@ -63,14 +65,17 @@ def knowledge_base_status_detail(provider: str | None = None) -> str:
     selected = provider or normalized_knowledge_base_provider()
     label = knowledge_base_provider_label(selected)
     if selected == "memos":
-        return f"{label} non configure (MEMOS_BASE_URL ou MEMOS_ACCESS_TOKEN manquant)"
+        return (
+            f"{label} non configure "
+            "(KNOWLEDGE_BASE_URL/MEMOS_BASE_URL ou MEMOS_ACCESS_TOKEN manquant)"
+        )
     if selected == "docmost":
         return (
             f"{label} non configure "
-            "(DOCMOST_BASE_URL, DOCMOST_EMAIL ou DOCMOST_PASSWORD manquant)"
+            "(KNOWLEDGE_BASE_URL/DOCMOST_BASE_URL, DOCMOST_EMAIL ou DOCMOST_PASSWORD manquant)"
         )
     if selected == "kxkm":
-        return f"{label} non configure (KXKM_RAG_URL manquant)"
+        return f"{label} non configure (KNOWLEDGE_BASE_URL/KXKM_RAG_URL manquant)"
     return f"{label} non configure (provider actif non supporte)"
 
 
@@ -137,7 +142,7 @@ def _memos_public_url() -> str:
     public_url = settings.memos_public_url.strip().rstrip("/")
     if public_url:
         return public_url
-    return settings.memos_base_url.strip().rstrip("/")
+    return (settings.memos_base_url.strip() or settings.knowledge_base_url.strip()).rstrip("/")
 
 
 def _url_host_resolves(url: str) -> bool:
@@ -152,7 +157,9 @@ def _url_host_resolves(url: str) -> bool:
 
 
 def _memos_api_base_url() -> str:
-    internal_url = settings.memos_base_url.strip().rstrip("/")
+    internal_url = (settings.memos_base_url.strip() or settings.knowledge_base_url.strip()).rstrip(
+        "/"
+    )
     public_url = settings.memos_public_url.strip().rstrip("/")
     if internal_url and _url_host_resolves(internal_url):
         return internal_url
@@ -284,7 +291,9 @@ class DocmostClient(KnowledgeBaseAdapter):
     label = "Docmost"
 
     def __init__(self) -> None:
-        base_url = settings.docmost_base_url.strip().rstrip("/")
+        base_url = (settings.docmost_base_url.strip() or settings.knowledge_base_url.strip()).rstrip(
+            "/"
+        )
         if not base_url:
             raise RuntimeError("Docmost base URL is missing")
         if not settings.docmost_email.strip():
@@ -433,7 +442,9 @@ class KxkmClient(KnowledgeBaseAdapter):
     label = "kxkm"
 
     def __init__(self) -> None:
-        base_url = settings.kxkm_rag_url.strip().rstrip("/")
+        base_url = (settings.kxkm_rag_url.strip() or settings.knowledge_base_url.strip()).rstrip(
+            "/"
+        )
         if not base_url:
             raise RuntimeError("kxkm RAG base URL is missing")
         self._base_url = base_url
