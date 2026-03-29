@@ -9,7 +9,7 @@ import tempfile
 from enum import StrEnum
 from pathlib import Path
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 logger = logging.getLogger("mascarade.orchestrator")
 
@@ -35,8 +35,7 @@ class WorkflowTemplate(BaseModel):
     routing_overrides: dict[str, dict[str, str | None]] | None = Field(default=None)
     documentation: str = Field(max_length=5000)
 
-    class Config:
-        use_enum_values = False
+    model_config = ConfigDict(use_enum_values=False)
 
 
 class TemplateRegistry:

@@ -14,7 +14,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from mascarade.cache.cache import CacheBackend, CacheEntry, InMemoryCache
+from mascarade.cache.cache import AsyncCacheBackend, CacheBackend, CacheEntry, InMemoryCache
 
 logger = logging.getLogger(__name__)
 
@@ -53,8 +53,8 @@ class MultiTierCache:
     def __init__(
         self,
         l1: InMemoryCache | None = None,
-        l2: CacheBackend | None = None,
-        l3: CacheBackend | None = None,
+        l2: AsyncCacheBackend | None = None,
+        l3: AsyncCacheBackend | None = None,
     ) -> None:
         """
         Initialize multi-tier cache.
@@ -78,7 +78,7 @@ class MultiTierCache:
         )
 
     @property
-    def tiers(self) -> dict[str, CacheBackend | None]:
+    def tiers(self) -> dict[str, InMemoryCache | AsyncCacheBackend | None]:
         """
         Get dictionary of all cache tiers.
 
@@ -95,7 +95,7 @@ class MultiTierCache:
         tokens: int,
         cost: float,
         ttl: float = 3600,
-        **kwargs: dict[str, str | int | float | None],
+        **kwargs: str | int | float | None,
     ) -> str:
         """
         Store a response in all available cache tiers.
@@ -138,7 +138,7 @@ class MultiTierCache:
         return key
 
     async def retrieve(
-        self, messages: list[dict], **kwargs: dict[str, str | int | float | None]
+        self, messages: list[dict], **kwargs: str | int | float | None
     ) -> CacheEntry | None:
         """
         Retrieve a cached response from L1 → L2 → L3.
@@ -193,7 +193,7 @@ class MultiTierCache:
         self,
         messages: list[dict],
         entry: CacheEntry,
-        **kwargs: dict[str, str | int | float | None],
+        **kwargs: str | int | float | None,
     ) -> None:
         """
         Backfill L1 cache with entry from L2/L3.
@@ -222,7 +222,7 @@ class MultiTierCache:
         self,
         messages: list[dict],
         entry: CacheEntry,
-        **kwargs: dict[str, str | int | float | None],
+        **kwargs: str | int | float | None,
     ) -> None:
         """
         Backfill L2 cache with entry from L3.
@@ -302,11 +302,10 @@ class MultiTierCache:
             stats["tiers"]["L2"] = {"tier": "L2", "status": "disabled"}
             stats["degraded"] = True
 
-        # L3 stats (async/sync depending on implementation)
+        # L3 stats (async)
         if self.l3_available and self.l3:
             try:
-                # SemanticCache.get_stats() is sync
-                l3_stats = self.l3.get_stats()
+                l3_stats = await self.l3.get_stats()
                 stats["tiers"]["L3"] = {**l3_stats, "tier": "L3"}
                 stats["available_tiers"].append("L3")
             except Exception as e:
@@ -361,10 +360,10 @@ class MultiTierCache:
             except Exception as e:
                 logger.warning(f"MultiTierCache: L2 clear failed: {e}")
 
-        # Clear L3 (sync, if available)
+        # Clear L3 (async, if available)
         if self.l3_available and self.l3:
             try:
-                self.l3.clear()
+                await self.l3.clear()
                 logger.info("MultiTierCache: L3 cleared")
             except Exception as e:
                 logger.warning(f"MultiTierCache: L3 clear failed: {e}")

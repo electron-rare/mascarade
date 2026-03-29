@@ -240,3 +240,49 @@ class TestDetectionHelpers:
             model, vram = _detect_nvidia_gpu()
             assert model == ""
             assert vram == 0.0
+
+
+# ---------------------------------------------------------------------------
+# CPU forced-profile validation (Phase D)
+# ---------------------------------------------------------------------------
+
+
+class TestCpuForcedProfile:
+    """Verify the CPU-only path is enforced when explicitly requested."""
+
+    @pytest.fixture(autouse=True)
+    def _clear_cache(self):
+        detect_machine_profile.cache_clear()
+        yield
+        detect_machine_profile.cache_clear()
+
+    def test_cpu_forced_overrides_gpu_env(self):
+        """override='cpu_only' must return CPU profile even when GPU is detected."""
+        with (
+            patch("mascarade.machine_profile._detect_apple_silicon", return_value=True),
+            patch(
+                "mascarade.machine_profile._detect_nvidia_gpu",
+                return_value=("RTX 4090", 24.0),
+            ),
+        ):
+            p = detect_machine_profile(override="cpu_only")
+        assert p.chip == ChipFamily.CPU_ONLY
+        assert p.has_ane is False
+        assert p.has_metal is False
+        assert p.gpu_vram_gb == 0.0
+
+    def test_cpu_only_preferred_providers_are_cloud_only(self):
+        """CPU-only profile must not expose any local GPU providers."""
+        p = MachineProfile(chip=ChipFamily.CPU_ONLY)
+        prefs = p.preferred_providers
+        assert prefs == MachineProfile.CLOUD_PROVIDERS
+        for local_provider in ("ollama", "mlx_lm", "mlx", "vllm", "apple_fm"):
+            assert local_provider not in prefs, (
+                f"Local provider {local_provider!r} must not appear in CPU-only preferred list"
+            )
+
+    def test_cpu_only_override_profile_is_cloud_only(self):
+        """The 'cpu_only' preset in _OVERRIDE_PROFILES must expose cloud-only providers."""
+        p = _OVERRIDE_PROFILES["cpu_only"]
+        assert p.chip == ChipFamily.CPU_ONLY
+        assert p.preferred_providers == MachineProfile.CLOUD_PROVIDERS

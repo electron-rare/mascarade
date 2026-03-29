@@ -5,10 +5,10 @@ Fine-tune des modèles LLM spécialisés pour les skills électronique/hardware/
 Lecture recommandee:
 
 - runbook operateur: `docs/FINETUNING_OPERATOR_RUNBOOK.md`
-- cheatsheet rapide: `docs/FINETUNING_CHEATSHEET_2026-03-06.md`
-- recap methodes / etat de l art 2026: `docs/FINETUNING_ETAT_DE_L_ART_2026-03-06.md`
+- cheatsheet rapide: `docs/archive/finetuning/FINETUNING_CHEATSHEET_2026-03-06.md`
+- recap methodes / etat de l art 2026: `docs/archive/finetuning/FINETUNING_ETAT_DE_L_ART_2026-03-06.md`
 - plan 4090 / scheduling parallele: `docs/FINETUNING_4090_PARALLEL_PLAN.md`
-- shortlist modeles 2026: `docs/FINETUNING_MODEL_SHORTLIST_2026-03-08.md`
+- shortlist modeles 2026: `docs/archive/finetuning/FINETUNING_MODEL_SHORTLIST_2026-03-08.md`
 
 ## Quick Start Local
 

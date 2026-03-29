@@ -166,11 +166,11 @@ Perimetre:
 
 Checks rejoues pour fermer ce bundle:
 
-- `cd /home/clems/mascarade/deploy/phase2 && docker compose --env-file .env -f docker-compose.yml config -q`
-- `cd /home/clems/mascarade/deploy/phase2 && docker compose --env-file .env -f docker-compose.yml up -d`
-- `cd /home/clems/mascarade && docker compose up -d --build api edge-proxy`
-- `cd /home/clems/mascarade && npm --prefix api run build`
-- `cd /home/clems/mascarade && npm --prefix web run build:api-public`
+- `cd ./deploy/phase2 && docker compose --env-file .env -f docker-compose.yml config -q`
+- `cd ./deploy/phase2 && docker compose --env-file .env -f docker-compose.yml up -d`
+- `cd . && docker compose up -d --build api edge-proxy`
+- `cd . && npm --prefix api run build`
+- `cd . && npm --prefix web run build:api-public`
 - `cd /home/clems/crazy_life && npm run build`
 - `GET /api/ops/monitor` authentifie
 
@@ -204,12 +204,12 @@ Perimetre:
 Checks rejoues:
 
 - `cd /home/clems/agent-factory-cockpit && python3 -m unittest tests.test_topology tests.test_execution tests.test_mcp tests.test_validation -q`
-- `cd /home/clems/mascarade/api && npm run test -- src/routes/industrial.test.ts src/routes/ops.test.ts`
-- `cd /home/clems/mascarade/api && npm run build`
-- `cd /home/clems/mascarade/web && npm run build:api-public`
+- `cd ./api && npm run test -- src/routes/industrial.test.ts src/routes/ops.test.ts`
+- `cd ./api && npm run build`
+- `cd ./web && npm run build:api-public`
 - `cd /home/clems/crazy_life && npm run build`
-- `cd /home/clems/mascarade && docker compose config -q`
-- `cd /home/clems/mascarade && docker compose up -d --build core api edge-proxy agent-factory-cockpit`
+- `cd . && docker compose config -q`
+- `cd . && docker compose up -d --build core api edge-proxy agent-factory-cockpit`
 - `GET /api/industrial/platform` authentifie
 - `GET /api/ops/summary` authentifie
 - probe `Host: industrial.saillant.cc` -> `401` sans auth, `200` avec auth
@@ -241,9 +241,9 @@ Perimetre:
 Checks rejoues:
 
 - `cd /home/clems/agent-factory-cockpit && python3 -m unittest tests.test_topology tests.test_execution tests.test_mcp tests.test_validation -q`
-- `cd /home/clems/mascarade/api && npm run test -- src/routes/industrial.test.ts src/routes/ops.test.ts`
-- `cd /home/clems/mascarade/api && npm run build`
-- `cd /home/clems/mascarade/web && npm run build:api-public`
+- `cd ./api && npm run test -- src/routes/industrial.test.ts src/routes/ops.test.ts`
+- `cd ./api && npm run build`
+- `cd ./web && npm run build:api-public`
 - `cd /home/clems/crazy_life && npm run build`
 - `GET /api/industrial/platform` authentifie
 
@@ -299,11 +299,11 @@ ne requalifie pas un sujet externe ou optionnel.
 Chemin d'automatisation court terme:
 
 ```bash
-cd /home/clems/mascarade
+cd .
 bash scripts/next_useful_lot.sh detect
 bash scripts/next_useful_lot.sh checks
 bash scripts/next_useful_lot.sh state --write
 ```
 
-Le fichier versionne [NEXT_USEFUL_LOT_STATE.md](/home/clems/mascarade/docs/NEXT_USEFUL_LOT_STATE.md)
+Le fichier versionne [docs/NEXT_USEFUL_LOT_STATE.md](docs/NEXT_USEFUL_LOT_STATE.md)
 sert de handoff court terme pour le lot actif.

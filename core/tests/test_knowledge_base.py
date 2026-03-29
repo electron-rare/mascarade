@@ -15,6 +15,7 @@ from mascarade.integrations.knowledge_base import (
 
 KB_SETTING_NAMES = [
     "knowledge_base_provider",
+    "knowledge_base_url",
     "knowledge_base_smoke_page_id",
     "memos_base_url",
     "memos_public_url",
@@ -57,6 +58,15 @@ def test_knowledge_base_auth_configured_for_memos():
     assert knowledge_base_auth_configured() is True
 
 
+def test_knowledge_base_auth_configured_for_memos_via_generic_url():
+    settings.knowledge_base_provider = "memos"
+    settings.knowledge_base_url = "http://kb:5230"
+    settings.memos_base_url = ""
+    settings.memos_access_token = "memos_pat_123456"  # noqa: S105
+
+    assert knowledge_base_auth_configured() is True
+
+
 def test_knowledge_base_auth_configured_for_docmost():
     settings.knowledge_base_provider = "docmost"
     settings.docmost_base_url = "https://docmost.example.test"
@@ -66,9 +76,27 @@ def test_knowledge_base_auth_configured_for_docmost():
     assert knowledge_base_auth_configured() is True
 
 
+def test_knowledge_base_auth_configured_for_docmost_via_generic_url():
+    settings.knowledge_base_provider = "docmost"
+    settings.knowledge_base_url = "https://docmost.example.test"
+    settings.docmost_base_url = ""
+    settings.docmost_email = "ops@example.test"
+    settings.docmost_password = "docmost-secret-123456"  # noqa: S105
+
+    assert knowledge_base_auth_configured() is True
+
+
 def test_knowledge_base_auth_configured_for_kxkm():
     settings.knowledge_base_provider = "kxkm"
     settings.kxkm_rag_url = "http://localhost:3333"
+
+    assert knowledge_base_auth_configured() is True
+
+
+def test_knowledge_base_auth_configured_for_kxkm_via_generic_url():
+    settings.knowledge_base_provider = "kxkm"
+    settings.knowledge_base_url = "http://localhost:3333"
+    settings.kxkm_rag_url = ""
 
     assert knowledge_base_auth_configured() is True
 
@@ -111,6 +139,26 @@ async def test_memos_client_maps_search_results():
             "provider": "memos",
         }
     ]
+
+
+@pytest.mark.asyncio
+async def test_memos_client_uses_generic_base_url_when_provider_url_missing():
+    settings.knowledge_base_url = "http://memos:5230"
+    settings.memos_base_url = ""
+    settings.memos_access_token = "memos_pat_123456"  # noqa: S105
+
+    with patch("mascarade.integrations.knowledge_base.httpx.AsyncClient") as async_client_cls:
+        fake_client = async_client_cls.return_value
+        fake_client.aclose = AsyncMock()
+        fake_client.get = AsyncMock(return_value=_FakeResponse({"memos": []}))
+        client = MemosClient()
+        try:
+            await client.search("release", limit=1)
+        finally:
+            await client.close()
+
+    _, kwargs = async_client_cls.call_args
+    assert kwargs["base_url"] == "http://memos:5230"
 
 
 @pytest.mark.asyncio
@@ -236,6 +284,26 @@ async def test_kxkm_client_search_propagates_project_scope():
             },
         }
     ]
+
+
+@pytest.mark.asyncio
+async def test_kxkm_client_uses_generic_base_url_when_provider_url_missing():
+    settings.knowledge_base_url = "http://localhost:3333"
+    settings.kxkm_rag_url = ""
+    settings.mascarade_project_id = "project-alpha"
+
+    with patch("mascarade.integrations.knowledge_base.httpx.AsyncClient") as async_client_cls:
+        fake_client = async_client_cls.return_value
+        fake_client.aclose = AsyncMock()
+        fake_client.post = AsyncMock(return_value=_FakeResponse({"ok": True, "data": {"results": []}}))
+        client = KxkmClient()
+        try:
+            await client.search("musique concrete", limit=5, project_id="project-alpha")
+        finally:
+            await client.close()
+
+    _, kwargs = async_client_cls.call_args
+    assert kwargs["base_url"] == "http://localhost:3333"
 
 
 def test_knowledge_base_client_dispatches_to_kxkm():

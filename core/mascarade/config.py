@@ -79,6 +79,7 @@ class Settings(BaseSettings):
 
     # Knowledge base provider
     knowledge_base_provider: str = "memos"
+    knowledge_base_url: str = ""
     mascarade_project_id: str = "default"
     knowledge_base_smoke_page_id: str = ""
     memos_base_url: str = ""
@@ -156,6 +157,9 @@ class Settings(BaseSettings):
         default=SecretStr("postgresql://mascarade:mascarade@postgres:5432/mascarade"),
         repr=False,
     )
+    # Redis
+    redis_url: str = "redis://localhost:6379/0"
+
     # Qdrant
     qdrant_url: str = "http://qdrant:6333"
 
@@ -195,6 +199,10 @@ class Settings(BaseSettings):
 
     # Authentication
     mascarade_api_key: SecretStr = Field(default=SecretStr(""), repr=False)
+    mascarade_auth_required: bool = Field(
+        default=False,
+        description="If True, all API requests require valid MASCARADE_API_KEY (mandatory in prod)"
+    )
     cluster_enabled: bool = False
     cluster_shared_key: SecretStr = Field(default=SecretStr(""), repr=False)
 
@@ -382,6 +390,12 @@ class Settings(BaseSettings):
     cache_l2_db: int = 0  # Redis database
     cache_l3_enabled: bool = False  # Enable semantic cache (L3)
     cache_l3_similarity_threshold: float = 0.85  # Similarity threshold for semantic cache
+
+    # Knowledge base handler (kb_handler: Qdrant + web fallback)
+    kb_qdrant_collection: str = "mascarade-kb"
+    kb_search_timeout_seconds: float = 5.0
+    kb_qdrant_score_threshold: float = 0.6
+    kb_enable_web_fallback: bool = True
 
 
 settings = Settings()

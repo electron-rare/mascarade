@@ -1,0 +1,170 @@
+{
+  "plan_id": "2026-03-28-autonomous-ops",
+  "title": "Mascarade Autonomous Ops Registry",
+  "updated_at": "2026-03-28-qa-green",
+  "log_policy": {
+    "paths": [
+      "tmp",
+      "finetune/runs",
+      "docs/plan/2026-03-28-autonomous-ops"
+    ],
+    "purge_patterns": [
+      "*.log"
+    ],
+    "retention_days": 7
+  },
+  "lots": [
+    {
+      "id": "L1",
+      "title": "Validation e2e fine-tune mesh",
+      "status": "ready",
+      "priority": "critical",
+      "scope": "core",
+      "owner_agent": "agent-finetune-mesh",
+      "assigned_subagents": [
+        "Polyglot Test Generator",
+        "QA",
+        "gem-researcher"
+      ],
+      "skills": [
+        "polyglot-test-agent",
+        "context-map",
+        "refactor-plan"
+      ],
+      "summary": "Prouver le chemin research -> dataset -> training -> alignment -> validation sur mesh apres activation du training d’alignement.",
+      "files": [
+        "core/mascarade/finetune/orchestrator.py",
+        "core/mascarade/finetune/p2p/task_handlers.py",
+        "core/mascarade/finetune/agents/validator.py",
+        "core/tests/test_finetune.py"
+      ],
+      "validations": [
+        "cd core && python -m pytest tests/test_finetune.py -k 'train_alignment or validate or dpo'",
+        "smoke mesh minimal via FinetuneOrchestrator sur un domaine reduit"
+      ],
+      "notes": [
+        "Le pipeline d’alignement unitaire est actif mais pas encore prouve sur le chemin distribue reel.",
+        "Priorite immediate la plus forte apres l’activation recente du training d’alignement."
+      ]
+    },
+    {
+      "id": "L2",
+      "title": "Consolidation observabilite runtime",
+      "status": "done",
+      "priority": "high",
+      "scope": "deploy+core",
+      "owner_agent": "agent-observability-runtime",
+      "assigned_subagents": [
+        "gem-devops",
+        "SE: DevOps/CI",
+        "gem-documentation-writer"
+      ],
+      "skills": [
+        "refactor-plan",
+        "context-map"
+      ],
+      "summary": "Unifier la vue RAG + P2P + fine-tune et reclasser I1/I8 comme dette de consolidation plutot que dette de creation.",
+      "files": [
+        "deploy/grafana/provisioning/dashboards/json/mascarade-p2p-mesh.json",
+        "deploy/grafana/provisioning/dashboards/json/finetune-progress.json",
+        "deploy/prometheus/alerts/p2p.yml",
+        "docs/TODO_CROSS_REFERENCE.md"
+      ],
+      "validations": [
+        "docker compose config",
+        "curl -sf http://localhost:9090/api/v1/rules",
+        "smoke manuel des dashboards consolides"
+      ],
+      "notes": [
+        "Les artefacts existent deja; il faut les consolider et corriger la narration du backlog."
+      ]
+    },
+    {
+      "id": "L3",
+      "title": "Promotion HuggingFace complete",
+      "status": "ready",
+      "priority": "high",
+      "scope": "core+finetune",
+      "owner_agent": "agent-hf-publisher",
+      "assigned_subagents": [
+        "gem-researcher",
+        "SE: Tech Writer",
+        "QA"
+      ],
+      "skills": [
+        "context-map",
+        "refactor-plan"
+      ],
+      "summary": "Fermer le flux dataset KiCad, adapters et modeles finaux vers HuggingFace avec verification du flux complet.",
+      "files": [
+        "core/mascarade/finetune/agents/archivist.py",
+        "core/mascarade/finetune/orchestrator.py",
+        "core/mascarade/finetune/p2p/task_handlers.py",
+        "finetune/datasets/build_kicad_dataset.py"
+      ],
+      "validations": [
+        "cd core && python -m pytest tests/test_finetune.py -k 'archive or push_model'",
+        "python finetune/datasets/build_kicad_dataset.py --max-samples 50"
+      ],
+      "notes": [
+        "Le socle de push existe deja mais le flux complet n’est pas encore ferme ni suffisamment prouve."
+      ]
+    }
+  ],
+  "oss_watch": [
+    {
+      "name": "mixelpixx/KiCAD-MCP-Server",
+      "verdict": "integrate",
+      "target_areas": [
+        "mcp",
+        "cad",
+        "tool-registry"
+      ],
+      "mascarade_targets": [
+        "finetune/kicad_mcp_server",
+        "core/mascarade/mcp",
+        "scripts/cad_stack.sh"
+      ]
+    },
+    {
+      "name": "bennymeg/Fabrication-Toolkit",
+      "verdict": "integrate",
+      "target_areas": [
+        "manufacturing-review",
+        "kicad-plugin",
+        "cad-ops"
+      ],
+      "mascarade_targets": [
+        "scripts/next_finetune_lots.sh",
+        "finetune/kicad_mcp_server",
+        "docs/MCP_AGENTICS_ARCHITECTURE.md"
+      ]
+    },
+    {
+      "name": "jochemkroon/KiC-AI",
+      "verdict": "inspiration",
+      "target_areas": [
+        "kicad-ux",
+        "plugin-mcp-bridge"
+      ],
+      "mascarade_targets": [
+        "web/src/pages/Training.tsx",
+        "api/src/routes/finetune.ts"
+      ]
+    },
+    {
+      "name": "huggingface/trl + unslothai/unsloth",
+      "verdict": "already-in-use",
+      "target_areas": [
+        "alignment",
+        "rlvr",
+        "qlora"
+      ],
+      "mascarade_targets": [
+        "core/mascarade/finetune/rlvr/trainer.py",
+        "finetune/train_dpo.py",
+        "finetune/unsloth/pipeline.py"
+      ]
+    }
+  ]
+}

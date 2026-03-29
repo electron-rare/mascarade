@@ -43,7 +43,7 @@ docker compose up                       # full stack from project root
 
 ## Architecture
 
-```
+```raw
 ┌─────────────────────────────────────────────────────┐
 │  web/ (React + Vite)                                │
 │  Cockpit UI → calls API                             │
@@ -84,11 +84,11 @@ docker compose up                       # full stack from project root
 
 | Machine | Role | Specs | SSH |
 |---------|------|-------|-----|
-| photon | Traefik reverse proxy, CF tunnel, NAT relay | 4 vCPU, 6.8GB | `cils@192.168.0.119` |
-| Tower | Primary server (La Suite 8 services + API + Ollama CPU) | 12 CPU, 32GB, Quadro P2000 | `clems@tower` |
-| KXKM-AI | GPU inference (Ollama via SSH tunnel), fine-tuning | RTX 4090 24GB | `kxkm@kxkm-ai` |
-| Cils | Web research (SearXNG, Browser-Use) | macOS Intel | — |
-| GrosMac | Dev machine (Apple M5) | 192.168.0.210 | — |
+| photon | Traefik reverse proxy, CF tunnel, NAT relay | 4 vCPU, 6.8GB | `root@192.168.0.119` |
+| Tower | Primary server (La Suite 8 services + API + Ollama CPU) | 12 CPU, 32GB, Quadro P2000 | `clems@192.168.0.120` |
+| KXKM-AI | GPU inference (Ollama via SSH tunnel), fine-tuning | RTX 4090 24GB | `kxkm@100.87.54.119` |
+| Cils | Web research (SearXNG, Browser-Use) | macOS Intel | `cils@100.126.225.111` |
+| GrosMac | Dev machine (Apple M5) | `electron@100.80.178.42` | — |
 
 - mascarade-core on port 8100, API on 3100
 - Deploy repo on VM: `/root/mascarade-deploy-main/`

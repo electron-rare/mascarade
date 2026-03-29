@@ -9,12 +9,12 @@ import os
 import time
 from typing import Any
 
-from mascarade.cache.cache import CacheBackend, CacheEntry
+from mascarade.cache.cache import AsyncCacheBackend, CacheEntry
 
 logger = logging.getLogger(__name__)
 
 
-class SemanticCache(CacheBackend):
+class SemanticCache(AsyncCacheBackend):
     """
     L3 semantic cache using GPTCache for similarity-based matching.
 
@@ -143,7 +143,7 @@ class SemanticCache(CacheBackend):
         tokens: int,
         cost: float,
         ttl: float = 3600,
-        **kwargs: dict[str, str | int | float | None],
+        **kwargs: str | int | float | None,
     ) -> str:
         """
         Store a response in semantic cache.
@@ -200,7 +200,7 @@ class SemanticCache(CacheBackend):
             return ""
 
     async def retrieve(
-        self, messages: list[dict], **kwargs: dict[str, str | int | float | None]
+        self, messages: list[dict], **kwargs: str | int | float | None
     ) -> CacheEntry | None:
         """
         Retrieve a cached response using semantic similarity.
@@ -267,7 +267,7 @@ class SemanticCache(CacheBackend):
             self.miss_count += 1
             return None
 
-    def get_stats(self) -> dict:
+    async def get_stats(self) -> dict:
         """
         Get semantic cache statistics.
 
@@ -291,7 +291,7 @@ class SemanticCache(CacheBackend):
             "storage_path": self.storage_path,
         }
 
-    def clear(self) -> None:
+    async def clear(self) -> None:
         """Clear all cached entries and reset statistics."""
         self._ensure_initialized()
 

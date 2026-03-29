@@ -2,13 +2,16 @@
 
 from __future__ import annotations
 
+import logging
 import secrets
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 
 from mascarade.auth import require_auth
 from mascarade.project_scope import normalize_scope
+
+logger = logging.getLogger("mascarade.routers.knowledge_base")
 
 router = APIRouter(dependencies=[Depends(require_auth)])
 
@@ -40,17 +43,16 @@ async def knowledge_base_search(
     q: str,
     request: Request,
     project_id: str,
-    limit: int = 10,
+    limit: int = Query(default=10, ge=1, le=50),
     federation_scope: str | None = None,
     knowledge_scope: str = "project",
 ):
-    """Search the knowledge base via MCP client."""
+    """Search the knowledge base via MCP client with Qdrant/web fallback."""
+    if not q.strip():
+        raise HTTPException(status_code=400, detail="Query cannot be blank")
+
     if not _check_kb_auth():
         raise HTTPException(status_code=503, detail="Knowledge base not configured")
-
-    mcp = getattr(request.app.state, "mcp", None)
-    if mcp is None:
-        raise HTTPException(status_code=503, detail="MCP client not available")
 
     try:
         normalized_project, normalized_federation, normalized_scope = normalize_scope(
@@ -62,14 +64,37 @@ async def knowledge_base_search(
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-    result = await mcp.knowledge_base_search(
+    clamped_limit = max(1, min(limit, 50))
+
+    # Primary path: MCP client
+    mcp = getattr(request.app.state, "mcp", None)
+    if mcp is not None:
+        try:
+            result = await mcp.knowledge_base_search(
+                q,
+                limit=clamped_limit,
+                project_id=normalized_project,
+                federation_scope=normalized_federation,
+                knowledge_scope=normalized_scope,
+            )
+            return result
+        except Exception as exc:
+            logger.warning(
+                "MCP knowledge_base_search failed (%s); falling back to kb_handler", exc
+            )
+
+    # Fallback path: KBSearchHandler (Qdrant + web)
+    from mascarade.integrations.kb_handler import KBSearchHandler
+
+    handler = KBSearchHandler()
+    results = await handler.search(
         q,
-        limit=max(1, min(limit, 50)),
+        limit=clamped_limit,
         project_id=normalized_project,
         federation_scope=normalized_federation,
         knowledge_scope=normalized_scope,
     )
-    return result
+    return {"query": q, "count": len(results), "results": results}
 
 
 class RunAndPushRequest(BaseModel):

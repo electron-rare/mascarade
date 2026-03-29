@@ -1,3 +1,13 @@
+# Affectation active — 28/03/2026
+
+Reference active: `docs/plan/2026-03-28-autonomous-ops/active_execution_plan.md`
+
+| Lot | Agent dedie | Sous-agents / competences | Objet |
+|-----|-------------|---------------------------|-------|
+| `L1` | `agent-finetune-mesh` | `Polyglot Test Generator`, `QA`, `polyglot-test-agent`, `context-map` | preuve e2e du pipeline `research -> dataset -> training -> alignment -> validation` |
+| `L2` | `agent-observability-runtime` | `gem-devops`, `SE: DevOps/CI`, `refactor-plan` | vue consolidee `RAG + P2P + finetune`, reclassification `I1/I8/I9` |
+| `L3` | `agent-hf-publisher` | `gem-researcher`, `SE: Tech Writer`, `context-map` | flux complet `dataset + adapters + modeles` vers HuggingFace |
+
 # Agents et Tâches — Mascarade
 
 > **Version** : `0.1.0`

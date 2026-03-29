@@ -339,15 +339,53 @@ class FinetuneOrchestrator:
                 alignment_dataset_path,
             )
 
-            # 4. Update state with alignment results
+            if not alignment_dataset_path or total_pairs <= 0:
+                logger.warning(
+                    "%s: no alignment dataset produced, skipping training",
+                    alignment_method.upper(),
+                )
+                state.errors.append(
+                    f"{alignment_method} phase {state.phase} skipped: no alignment dataset"
+                )
+                return state
+
+            # 4. Run the actual alignment training on the reinforcement capability.
+            logger.info(
+                "%s: training aligned model from %s",
+                alignment_method.upper(),
+                alignment_dataset_path,
+            )
+            train_result = await self._distribute(
+                "ft-reinforcement",
+                {
+                    "action": "train_alignment",
+                    "model_path": model_path,
+                    "dataset_path": alignment_dataset_path,
+                    "method": alignment_method,
+                    "run_id": f"{alignment_method}-{state.config.domain}-{state.phase}",
+                },
+            )
+
+            if train_result.get("error"):
+                raise RuntimeError(train_result["error"])
+
+            # 5. Update state with alignment results and promote the aligned model path
             state.training_result["alignment_dataset"] = alignment_dataset_path
             state.training_result["alignment_pairs"] = total_pairs
             state.training_result["alignment_method"] = alignment_method
+            state.training_result["alignment_training"] = train_result
+            state.training_result["base_output_dir"] = model_path
+            state.training_result["output_dir"] = train_result.get(
+                "model_path",
+                train_result.get("output_dir", model_path),
+            )
             state.eval_report[f"alignment_{state.phase}"] = {
                 "method": alignment_method,
                 "errors_found": len(errors),
                 "pairs_generated": total_pairs,
                 "dataset_path": alignment_dataset_path,
+                "training_output_dir": train_result.get("output_dir", ""),
+                "aligned_model_path": train_result.get("model_path", ""),
             }
 
         except Exception as e:

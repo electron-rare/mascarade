@@ -80,11 +80,11 @@ Le lot local est stable; ce fichier ne porte plus de blocage critique.
 Pour reprendre le lot local actif sans requalifier tout le contexte a la main:
 
 ```bash
-cd /home/clems/mascarade
+cd .
 bash scripts/run_next_useful_lot.sh
   # enchaîner automatiquement (jusqu'au lot suivant) :
   # bash scripts/run_next_useful_lot.sh --chain --max-rounds 3
 ```
 
 Le snapshot genere par le script vit dans
-[NEXT_USEFUL_LOT_STATE.md](/home/clems/mascarade/docs/NEXT_USEFUL_LOT_STATE.md).
+[docs/NEXT_USEFUL_LOT_STATE.md](docs/NEXT_USEFUL_LOT_STATE.md).

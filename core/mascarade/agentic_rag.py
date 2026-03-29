@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 import time
 from dataclasses import dataclass, field
 from enum import Enum
@@ -18,9 +19,10 @@ from typing import Any
 
 import httpx
 
-logger = logging.getLogger("mascarade.agentic_rag")
+from mascarade.mcp.searxng import SearXNGMcpClient
+from mascarade.rag.vectorstore import QdrantVectorStore
 
-import os
+logger = logging.getLogger("mascarade.agentic_rag")
 
 QDRANT_URL = os.getenv("QDRANT_URL", "http://localhost:6333")
 QDRANT_COLLECTION = os.getenv("QDRANT_COLLECTION", "mascarade-rag")
@@ -75,6 +77,8 @@ class Chunk:
             "datasheet": 0.95,
             "docs": 0.85,
             "code": 0.8,
+            "web": 0.6,
+            "mcp_hint": 0.35,
             "forum": 0.6,
             "generic": 0.4,
         }
@@ -161,6 +165,8 @@ class QueryRouter:
                 mcp_servers.append(server)
         if any(w in q_lower for w in ["remember", "last time", "previously", "history", "project"]):
             sources.append(SourceType.MEMORY)
+        if any(w in q_lower for w in ["current", "today", "latest", "news", "web", "live"]):
+            sources.append(SourceType.WEB)
         variants = [query]
         if len(query.split()) > 5:
             variants.append(" ".join(query.split()[:5]))
@@ -210,31 +216,23 @@ async def retrieve_qdrant(
     vector = await _embed(query)
     if all(v == 0.0 for v in vector):
         return []
+    vectorstore = QdrantVectorStore(base_url=QDRANT_URL, collection=collection, timeout=10.0)
     try:
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            r = await client.post(
-                f"{QDRANT_URL}/collections/{collection}/points/search",
-                json={
-                    "vector": vector,
-                    "limit": top_k,
-                    "with_payload": True,
-                },
-            )
-            r.raise_for_status()
-            results = r.json().get("result", [])
+        results = await vectorstore.hybrid_search(vector, query, top_k=top_k)
         chunks = []
         for point in results:
-            payload = point.get("payload", {})
+            metadata = point.get("metadata", {})
             chunks.append(
                 Chunk(
-                    content=payload.get("text", payload.get("content", str(payload))),
+                    content=point.get("text", ""),
                     source=SourceType.QDRANT,
                     source_id=collection,
                     score=point.get("score", 0.0),
                     metadata={
-                        "timestamp": payload.get("timestamp", 0),
-                        "source_type": payload.get("source_type", "generic"),
-                        "file": payload.get("file", ""),
+                        "timestamp": metadata.get("timestamp", 0),
+                        "source_type": metadata.get("source_type", "generic"),
+                        "file": metadata.get("file", ""),
+                        "retrieval": "hybrid_search",
                     },
                 )
             )
@@ -242,10 +240,45 @@ async def retrieve_qdrant(
     except Exception as exc:
         logger.warning("Qdrant search failed: %s", exc)
         return []
+    finally:
+        await vectorstore.close()
 
 
 async def retrieve_memory(query: str) -> list[Chunk]:
     return await retrieve_qdrant(query, collection="openmemory", top_k=3)
+
+
+async def retrieve_web(query: str, top_k: int = 5) -> list[Chunk]:
+    client = SearXNGMcpClient()
+    if not client.is_configured:
+        return []
+
+    try:
+        results = await client.search(query, limit=top_k)
+    except Exception as exc:
+        logger.debug("Web search failed: %s", exc)
+        return []
+
+    chunks: list[Chunk] = []
+    for index, result in enumerate(results):
+        content_parts = [part for part in [result.get("title", ""), result.get("content", "")] if part]
+        if not content_parts:
+            continue
+        chunks.append(
+            Chunk(
+                content="\n\n".join(content_parts),
+                source=SourceType.WEB,
+                source_id=result.get("engine", "searxng") or "searxng",
+                score=max(0.4, 0.8 - index * 0.08),
+                metadata={
+                    "source_type": "web",
+                    "url": result.get("url", ""),
+                    "title": result.get("title", ""),
+                    "engine": result.get("engine", ""),
+                },
+            )
+        )
+    return chunks
 
 
 async def retrieve_mcp(query: str, servers: list[str]) -> list[Chunk]:
@@ -282,6 +315,8 @@ class AgenticRAGPipeline:
                     tasks.append(retrieve_qdrant(variant))
                 if SourceType.MEMORY in decision.sources:
                     tasks.append(retrieve_memory(variant))
+                if SourceType.WEB in decision.sources:
+                    tasks.append(retrieve_web(variant))
                 if SourceType.MCP in decision.sources and decision.mcp_servers:
                     tasks.append(retrieve_mcp(variant, decision.mcp_servers))
             results = await asyncio.gather(*tasks, return_exceptions=True)
@@ -296,6 +331,8 @@ class AgenticRAGPipeline:
                 round_num,
                 len(all_chunks),
             )
+            if SourceType.WEB not in decision.sources:
+                decision.sources.append(SourceType.WEB)
             if SourceType.MEMORY not in decision.sources:
                 decision.sources.append(SourceType.MEMORY)
             if len(decision.query_variants) == 1:

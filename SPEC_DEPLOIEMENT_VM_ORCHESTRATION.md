@@ -26,7 +26,7 @@ Exclus:
 - Monorepo avec:
   - `core/` (FastAPI + orchestration agents + router LLM)
   - `api/` (Hono gateway)
-- Déploiement Docker Compose via [docker-compose.yml](/Users/cils/mascarade/docker-compose.yml)
+- Déploiement Docker Compose via [docker-compose.yml](docker-compose.yml)
 - Auth Bearer supportée via `MASCARADE_API_KEY`
 - Fonctions de résilience/observabilité déjà intégrées:
   - fallback provider,
@@ -181,4 +181,4 @@ Préfixe `/api/agents/*`, proxy du contrat ci-dessus.
 
 ---
 Version: `v1.0`
-Repo: `/Users/cils/mascarade`
+Repo: racine du repository (`.`)

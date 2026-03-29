@@ -5,7 +5,7 @@
 ![React 19](https://img.shields.io/badge/react-19-61DAFB.svg)
 ![License MIT](https://img.shields.io/badge/license-MIT-green.svg)
 ![Version v0.3.0](https://img.shields.io/badge/version-v0.3.0-orange.svg)
-![Tests 2056](https://img.shields.io/badge/tests-2056_pass_0_fail-brightgreen.svg)
+![Tests 2500+](https://img.shields.io/badge/tests-2500%2B_pass-brightgreen.svg)
 ![Datasets 184K](https://img.shields.io/badge/datasets-184K_examples-yellow.svg)
 ![Models 29](https://img.shields.io/badge/models-29_mini--models-purple.svg)
 ![Agents 242](https://img.shields.io/badge/agents-242-blueviolet.svg)
@@ -13,9 +13,11 @@
 
 Moteur d'orchestration IA open-source specialise en conception electronique (KiCad, SPICE, PCB, embarque). Routage multi-provider, routage Ollama multi-machine, reseau P2P mesh, fine-tuning specifique domaine, pipeline RAG (bge-m3 + Qdrant + SearXNG), et Node Engine universel pour workflows en graphe. Auto-heberge, async-first, construit pour les vrais workflows hardware.
 
-*Derniere mise a jour : 2026-03-27*
+*Derniere mise a jour : 2026-03-28*
 
 Le seul orchestrateur multi-agents LLM concu pour l'ingenierie electronique. Les fine-tunes Mascarade battent le modele #1 EE de HuggingFace de +162%.
+
+Documentation canonique: [docs/index.md](docs/index.md)
 
 ---
 
@@ -38,8 +40,6 @@ Le seul orchestrateur multi-agents LLM concu pour l'ingenierie electronique. Les
 | **Scheduler** | Selection de workers GPU-aware avec equilibrage de charge predictif |
 | **Compat API** | OpenAI `/v1/chat/completions` + `/v1/models` + Ollama `/api/chat` + `/api/tags` + Xcode Intelligence |
 | **Orchestrateur** | Plan-and-Execute avec decomposition de taches et gestion de dependances |
-| **La Suite Numerique** | Integration DINUM : 8 services, Keycloak SSO (auth.saillant.cc), Conversations (Albert), Meet (LiveKit), Impress (docs), Drive, Grist, Dolibarr/ERP, Matrix |
-| **Open Buro** | Interoperabilite EU : `/openburo/apps`, `/openburo/health`, `/openburo/objects/*`, `/openburo/ai/chat`, `/openburo/search`, `/openburo/workspaces`, connecteurs Grist/Dolibarr/n8n |
 | **Observabilite** | Grafana, Prometheus, Loki, Tempo, OTEL, Langfuse, ClickHouse, Argilla |
 
 ---
@@ -348,7 +348,7 @@ mascarade/
 
 ---
 
-## Contribuer
+## Feuille de route (2026)
 
 ```bash
 # Installation developpement

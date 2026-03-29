@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import re
 import time
@@ -943,7 +944,7 @@ class Router:
             success=False,
         )
         if self.cost_logger:
-            self.cost_logger.log_event(
+            self._enqueue_cost_event(
                 provider=provider_name,
                 model=model_name,
                 agent="",
@@ -992,7 +993,7 @@ class Router:
             success=True,
         )
         if self.cost_logger:
-            self.cost_logger.log_event(
+            self._enqueue_cost_event(
                 provider=provider_name,
                 model=model_name,
                 agent="",
@@ -1002,6 +1003,25 @@ class Router:
                 strategy=attempt_strategy,
                 success=True,
             )
+
+    def _enqueue_cost_event(self, **event_kwargs: Any) -> None:
+        """Dispatch async cost logging without blocking request flow."""
+        if not self.cost_logger:
+            return
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            return
+
+        task = loop.create_task(self.cost_logger.log_event(**event_kwargs))
+        task.add_done_callback(self._handle_cost_log_task)
+
+    @staticmethod
+    def _handle_cost_log_task(task: asyncio.Task[Any]) -> None:
+        try:
+            task.result()
+        except Exception as exc:  # pragma: no cover - best effort logging
+            logger.debug("Cost event logging failed: %s", exc)
 
     # ------------------------------------------------------------------
     # Public API

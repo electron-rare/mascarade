@@ -97,6 +97,11 @@ class TestQueryRouter:
         d = r.route("remember what I said last time about the project")
         assert SourceType.MEMORY in d.sources
 
+    def test_web_keyword_routes_to_web(self):
+        r = QueryRouter()
+        d = r.route("latest news about qdrant today")
+        assert SourceType.WEB in d.sources
+
     def test_long_query_produces_variant(self):
         r = QueryRouter()
         d = r.route("a very long query with many words in it")
@@ -251,10 +256,11 @@ class TestAgenticRAGPipeline:
         assert result == ""
 
     @pytest.mark.asyncio
-    async def test_reroute_adds_memory(self):
-        """When quality is insufficient, pipeline should add MEMORY source."""
+    async def test_reroute_adds_web_and_memory(self):
+        """When quality is insufficient, pipeline should add WEB and MEMORY sources."""
         weak_chunk = Chunk(content="weak", source=SourceType.QDRANT, score=0.3, metadata={})
         call_count = 0
+        web_call_count = 0
 
         async def mock_qdrant(query, **kw):
             nonlocal call_count
@@ -271,14 +277,29 @@ class TestAgenticRAGPipeline:
                 )
             ]
 
+        async def mock_web(query):
+            nonlocal web_call_count
+            web_call_count += 1
+            return [
+                Chunk(
+                    content="from web",
+                    source=SourceType.WEB,
+                    score=0.62,
+                    metadata={"source_type": "web", "url": "https://example.test"},
+                )
+            ]
+
         with (
             patch("mascarade.agentic_rag.retrieve_qdrant", side_effect=mock_qdrant),
             patch("mascarade.agentic_rag.retrieve_memory", side_effect=mock_memory),
+            patch("mascarade.agentic_rag.retrieve_web", side_effect=mock_web),
         ):
             pipeline = AgenticRAGPipeline()
-            await pipeline.retrieve("obscure topic with extra words for variant")
+            result = await pipeline.retrieve("obscure topic with extra words for variant")
         # Should have called qdrant multiple rounds
         assert call_count >= 2
+        assert web_call_count >= 1
+        assert "from web" in result
 
     @pytest.mark.asyncio
     async def test_all_sources_fail(self):
@@ -326,3 +347,21 @@ class TestAgenticRAGPipeline:
             pipeline = AgenticRAGPipeline()
             result = await pipeline.retrieve("show pcb layout")
         assert "pcb" in result.lower() or "mcp" in result.lower()
+
+    @pytest.mark.asyncio
+    async def test_web_only_route_uses_web_results(self):
+        with patch(
+            "mascarade.agentic_rag.retrieve_web",
+            new_callable=AsyncMock,
+            return_value=[
+                Chunk(
+                    content="fresh web result",
+                    source=SourceType.WEB,
+                    score=0.8,
+                    metadata={"source_type": "web", "url": "https://example.test"},
+                )
+            ],
+        ):
+            pipeline = AgenticRAGPipeline()
+            result = await pipeline.retrieve("latest news about qdrant today")
+        assert "fresh web result" in result

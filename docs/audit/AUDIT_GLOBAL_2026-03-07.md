@@ -1,7 +1,7 @@
 # Audit Global Machine + Repos — 2026-03-07
 
 ## Résumé exécutif
-Audit non intrusif réalisé sur la machine `Tower` et les dépôts `/home/clems/mascarade`, `/home/clems/Kill_LIFE` et `/home/clems/crazy_life`, avec collecte d'évidence locale et exécution de builds/tests non destructifs.
+Audit non intrusif réalisé sur la machine `Tower` et les dépôts historiques `/home/clems/mascarade`, `/home/clems/Kill_LIFE` et `/home/clems/crazy_life` (chemins conservés comme évidence datée, non réutilisables hors contexte), avec collecte d'évidence locale et exécution de builds/tests non destructifs.
 
 Constat global:
 - Le runtime Docker est largement disponible: `24` conteneurs `Up`, dont `18` avec healthcheck `healthy`.

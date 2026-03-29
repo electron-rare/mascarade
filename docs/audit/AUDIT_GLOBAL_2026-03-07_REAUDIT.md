@@ -2,7 +2,7 @@
 
 ## Résumé exécutif
 
-Ré-audit non intrusif effectué sur l'hôte `Tower`, la stack Docker locale, et les dépôts `/home/clems/mascarade`, `/home/clems/crazy_life` et `/home/clems/Kill_LIFE`.
+Ré-audit non intrusif effectué sur l'hôte `Tower`, la stack Docker locale, et les dépôts historiques `/home/clems/mascarade`, `/home/clems/crazy_life` et `/home/clems/Kill_LIFE` (chemins conservés comme évidence datée, non réutilisables hors contexte).
 
 Constat global courant:
 
