@@ -229,3 +229,50 @@ body::after,
     transform: none;
   }
 }
+
+/* ── Ops shell theme utilities ── */
+:root {
+  --ops-bg-900: #090c11;
+  --ops-bg-800: #0d1016;
+  --ops-line: rgba(255, 255, 255, 0.1);
+  --ops-muted: #94a3ba;
+  --ops-accent: #7fc0ff;
+}
+
+.ops-shell {
+  background:
+    radial-gradient(1200px 500px at -10% -10%, rgba(127, 192, 255, 0.18) 0%, transparent 45%),
+    radial-gradient(900px 420px at 110% 0%, rgba(84, 132, 201, 0.16) 0%, transparent 42%),
+    linear-gradient(180deg, var(--ops-bg-900) 0%, var(--ops-bg-800) 100%);
+}
+
+.ops-content-frame {
+  border: 1px solid var(--ops-line);
+  background: linear-gradient(180deg, rgba(18, 23, 33, 0.88) 0%, rgba(13, 17, 24, 0.9) 100%);
+  box-shadow:
+    0 20px 60px rgba(0, 0, 0, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+.ops-spinner {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.75rem;
+  color: var(--ops-muted);
+}
+
+.ops-spinner::before {
+  content: "";
+  width: 1.15rem;
+  height: 1.15rem;
+  border-radius: 9999px;
+  border: 2px solid rgba(127, 192, 255, 0.3);
+  border-top-color: var(--ops-accent);
+  animation: ops-spin 0.7s linear infinite;
+}
+
+@keyframes ops-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

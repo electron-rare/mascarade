@@ -21,7 +21,10 @@ const McpServers = lazy(() => import("./pages/McpServers"));
 function PageSpinner() {
   return (
     <div className="flex items-center justify-center" style={{ minHeight: "60vh" }}>
-      <div className="h-6 w-6 animate-spin rounded-full border-2 border-[rgba(0,0,0,0.1)] border-t-[#0071e3]" />
+      <div className="ops-spinner-wrap">
+        <div className="ops-spinner" />
+        <span className="ops-spinner-label">loading cockpit</span>
+      </div>
     </div>
   );
 }
@@ -62,7 +65,10 @@ export default function App() {
             <Route path="knowledge-base" element={<LegacyRedirect to="/knowledge" />} />
             <Route path="qdrant-knowledge" element={<LegacyRedirect to="/knowledge" />} />
             <Route path="finetune" element={<LegacyRedirect to="/training" />} />
-            <Route path="*" element={<p className="text-[#ff3b30] text-sm text-center mt-20">404 — page introuvable</p>} />
+            <Route
+              path="*"
+              element={<p className="text-sm text-center mt-20 text-[var(--error)]">404 - page introuvable</p>}
+            />
           </Route>
         </Routes>
       </Suspense>

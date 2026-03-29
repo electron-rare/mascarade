@@ -18,6 +18,10 @@ on:
         description: "Domain to fine-tune (leave empty to skip)"
         type: string
         default: ""
+      publish_to_hf:
+        description: "Publish fine-tuned model to Hugging Face Hub (clemsail/)"
+        type: boolean
+        default: false
       run_external_e2e:
         description: "Run external Playwright smoke tests on ops.saillant.cc"
         type: boolean
@@ -142,6 +146,56 @@ jobs:
           cache-dependency-path: web/package-lock.json
       - run: npm ci
       - run: npm run build
+
+  playwright-e2e:
+    name: Playwright E2E (web smoke)
+    needs: [changes, web]
+    if: >-
+      github.event_name == 'workflow_dispatch'
+      || needs.changes.outputs.web == 'true'
+      || needs.changes.outputs.infra == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci --legacy-peer-deps
+      - run: npm run build
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
+      - name: Start Vite preview
+        run: |
+          nohup npm run preview -- --host 127.0.0.1 --port 3100 > /tmp/mascarade-web-preview.log 2>&1 &
+      - name: Wait for preview server
+        run: |
+          for attempt in {1..30}; do
+            if curl -fsS http://127.0.0.1:3100 >/dev/null; then
+              exit 0
+            fi
+            sleep 2
+          done
+          cat /tmp/mascarade-web-preview.log
+          echo "::error::Vite preview server did not start on http://127.0.0.1:3100"
+          exit 1
+      - name: Run Playwright smoke suite
+        env:
+          BASE_URL: http://127.0.0.1:3100
+        run: npx playwright test e2e/smoke.spec.ts
+      - name: Upload Playwright artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-web-smoke-artifacts
+          path: |
+            web/playwright-report/
+            web/test-results/
 
   core:
     name: Core (pytest)
@@ -283,7 +337,7 @@ jobs:
   # ── Docker GHCR ──
   docker:
     name: Docker (${{ matrix.service }})
-    needs: [changes, api, web, core, lint, e2e]
+    needs: [changes, api, web, playwright-e2e, core, lint, e2e]
     if: >-
       github.ref == 'refs/heads/main'
       && github.event_name == 'push'
@@ -349,6 +403,19 @@ jobs:
           python finetune/train_local.py "$DOMAIN" \
             --epochs 3 \
             --max-samples 500
+      - name: Publish to Hugging Face Hub
+        if: >-
+          github.event.inputs.publish_to_hf == 'true'
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          if [[ -z "${HF_TOKEN:-}" ]]; then
+            echo "::warning::HF_TOKEN missing — skipping Hub publish"
+            exit 0
+          fi
+          pip install huggingface_hub
+          DOMAIN="${{ github.event.inputs.finetune_domain }}"
+          python finetune/publish_to_hub.py "$DOMAIN"
       - name: Upload model
         uses: actions/upload-artifact@v4
         with:
@@ -393,14 +460,14 @@ jobs:
   # ── Notifications ──
   notify:
     name: Notify
-    needs: [api, web, core, lint, compose, e2e, qa_docs, docker, deploy]
+    needs: [api, web, playwright-e2e, core, lint, compose, e2e, qa_docs, docker, deploy]
     if: always() && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
       - name: Build status summary
         env:
-          TESTS: ${{ needs.api.result }}/${{ needs.web.result }}/${{ needs.core.result }}
+          TESTS: ${{ needs.api.result }}/${{ needs.web.result }}/${{ needs['playwright-e2e'].result }}/${{ needs.core.result }}
           LINT: ${{ needs.lint.result }}
           DOCKER: ${{ needs.docker.result }}
           DEPLOY: ${{ needs.deploy.result }}

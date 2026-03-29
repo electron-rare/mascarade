@@ -152,6 +152,11 @@ from mascarade.routers.nodes import router as nodes_router
 
 app.include_router(nodes_router)
 
+# Coordination API — multi-agent selection and execution
+from mascarade.routers.coordination import router as coordination_router
+
+app.include_router(coordination_router)
+
 # Mount Ollama-compatible API (fake Ollama backed by Mascarade Router + P2P)
 mount_ollama_compat(app)
 
