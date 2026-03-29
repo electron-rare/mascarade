@@ -9,6 +9,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from mascarade.agents import AgentRegistry
+from mascarade.agents.skill_registry import SkillRegistry
 from mascarade.agents.skills import register_default_skills
 from mascarade.cluster import ClusterManager
 from mascarade.config import settings
@@ -51,6 +52,8 @@ async def lifespan(app: FastAPI):
     register_builtin_templates(template_registry)
     template_registry.load()
 
+    skill_registry = SkillRegistry()
+    app.state.skill_registry = skill_registry
     app.state.router = router
     app.state.registry = registry
     app.state.orchestrator = orchestrator
@@ -107,7 +110,7 @@ async def lifespan(app: FastAPI):
         await app.state.qdrant.close()
 
 
-app = FastAPI(title="Mascarade Core", version="0.1.0", lifespan=lifespan)
+app = FastAPI(title="Mascarade Core", version="0.3.0", lifespan=lifespan)
 
 # CORS — restrict origins via CORS_ALLOWED_ORIGINS env var (comma-separated)
 app.add_middleware(
