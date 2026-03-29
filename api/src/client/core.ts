@@ -1676,4 +1676,65 @@ export const coreClient = {
       body: JSON.stringify(body),
     });
   },
+
+  // --- Wizard Agents Management ---
+
+  runWizard(body: {
+    domain: string;
+    task: string;
+    context?: string;
+    execution_mode?: "sequential" | "parallel";
+    timeout_seconds?: number;
+    continue_on_error?: boolean;
+    fail_on_partial?: boolean;
+    cost_class?: "low" | "medium" | "high";
+    model_availability?: string[];
+  }) {
+    return request<{
+      task_id: string;
+      status: string;
+      selected_agents: Array<{
+        name: string;
+        cost_class: string;
+        confidence: number;
+      }>;
+      results: Array<{
+        agent: string;
+        status: string;
+        output: unknown;
+        error?: string;
+      }>;
+      aggregated_analysis?: {
+        summary: string;
+        confidence: number;
+        metadata: Record<string, unknown>;
+      };
+      metrics: {
+        total_cost_usd: number;
+        total_latency_ms: number;
+      };
+    }>("/api/wizard/run", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+
+  getWizardStatus(taskId: string) {
+    return request<{
+      task_id: string;
+      status: string;
+      progress_percent: number;
+      results?: unknown;
+      error?: string;
+      last_update: string;
+    }>(`/api/wizard/status/${encodeURIComponent(taskId)}`);
+  },
+
+  listWizardAgents() {
+    return request<{
+      agents: Record<string, unknown>;
+      domain_to_agents: Record<string, string[]>;
+      total_agents: number;
+    }>("/api/wizard/agents");
+  },
 };

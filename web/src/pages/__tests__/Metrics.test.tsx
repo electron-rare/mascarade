@@ -1,9 +1,9 @@
 import { render, screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect } from "vitest";
 import { MemoryRouter } from "react-router-dom";
 import Dashboard from "../Dashboard";
 
+<<<<<<< Updated upstream
 const mockRefetch = vi.fn();
 
 vi.mock("../../hooks/useFetch", () => ({
@@ -36,6 +36,10 @@ describe("Dashboard metrics lane", () => {
   });
 
   function renderDashboard() {
+=======
+describe("Metrics", () => {
+  function renderMetrics() {
+>>>>>>> Stashed changes
     return render(
       <MemoryRouter>
         <Dashboard />
@@ -43,6 +47,7 @@ describe("Dashboard metrics lane", () => {
     );
   }
 
+<<<<<<< Updated upstream
   it("shows loading panel while dashboard data is being fetched", () => {
     mockedUseFetch.mockReturnValue({
       data: null,
@@ -169,5 +174,39 @@ describe("Dashboard metrics lane", () => {
     const btn = screen.getByRole("button", { name: /refresh status/i });
     await user.click(btn);
     expect(mockRefetch).toHaveBeenCalled();
+=======
+  it("renders the Metrics heading", () => {
+    renderMetrics();
+    expect(screen.getByText("Metrics")).toBeInTheDocument();
+  });
+
+  it("shows coming soon message", () => {
+    renderMetrics();
+    expect(screen.getByText("Coming soon")).toBeInTheDocument();
+  });
+
+  it("renders heading as h1", () => {
+    renderMetrics();
+    const heading = screen.getByRole("heading", { level: 1 });
+    expect(heading).toHaveTextContent("Metrics");
+  });
+
+  it("applies expected layout classes", () => {
+    const { container } = renderMetrics();
+    const wrapper = container.firstElementChild as HTMLElement;
+    expect(wrapper.className).toContain("p-6");
+  });
+
+  it("renders subtitle with muted style", () => {
+    renderMetrics();
+    const subtitle = screen.getByText("Coming soon");
+    expect(subtitle.className).toContain("text-gray-500");
+  });
+
+  it("renders heading with semibold font", () => {
+    renderMetrics();
+    const heading = screen.getByRole("heading", { level: 1 });
+    expect(heading.className).toContain("font-semibold");
+>>>>>>> Stashed changes
   });
 });

@@ -1,0 +1,11 @@
+{
+	"hooks": {
+		"UserPromptSubmit": [
+			{
+				"type": "command",
+				"command": "./scripts/hooks/pre-commit-suggest.sh",
+				"timeout": 10
+			}
+		]
+	}
+}

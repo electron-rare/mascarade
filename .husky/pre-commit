@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+set -e
+ROOT="$(git rev-parse --show-toplevel)"
+exec "$ROOT/scripts/qa/pre-commit-smoke.sh"

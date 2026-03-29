@@ -102,3 +102,5 @@ MACHINE_INVENTORY.md
 .ops/
 .venv-*/
 .env.vm
+.failsafe/
+.remember/

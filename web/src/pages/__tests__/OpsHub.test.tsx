@@ -1,8 +1,13 @@
 import { render, screen } from "@testing-library/react";
+<<<<<<< Updated upstream
 import { describe, it, expect, vi, beforeEach } from "vitest";
+=======
+import { describe, it, expect } from "vitest";
+>>>>>>> Stashed changes
 import { MemoryRouter } from "react-router-dom";
 import Administration from "../Administration";
 
+<<<<<<< Updated upstream
 const mockRefetch = vi.fn();
 
 vi.mock("../../hooks/useFetch", () => ({
@@ -68,6 +73,10 @@ describe("Administration control lane", () => {
   });
 
   function renderAdministration() {
+=======
+describe("OpsHub", () => {
+  function renderOpsHub() {
+>>>>>>> Stashed changes
     return render(
       <MemoryRouter>
         <Administration />
@@ -75,6 +84,7 @@ describe("Administration control lane", () => {
     );
   }
 
+<<<<<<< Updated upstream
   it("renders the control surface cards", () => {
     mockControlFetches();
 
@@ -91,5 +101,33 @@ describe("Administration control lane", () => {
     expect(
       screen.getByText("Services endpoint: Connection refused. Affichage manifest statique."),
     ).toBeInTheDocument();
+=======
+  it("renders the Ops Hub heading", () => {
+    renderOpsHub();
+    expect(screen.getByText("Ops Hub")).toBeInTheDocument();
+  });
+
+  it("shows coming soon message", () => {
+    renderOpsHub();
+    expect(screen.getByText("Coming soon")).toBeInTheDocument();
+  });
+
+  it("renders heading as h1", () => {
+    renderOpsHub();
+    const heading = screen.getByRole("heading", { level: 1 });
+    expect(heading).toHaveTextContent("Ops Hub");
+  });
+
+  it("applies expected layout classes", () => {
+    const { container } = renderOpsHub();
+    const wrapper = container.firstElementChild as HTMLElement;
+    expect(wrapper.className).toContain("p-6");
+  });
+
+  it("renders subtitle with muted style", () => {
+    renderOpsHub();
+    const subtitle = screen.getByText("Coming soon");
+    expect(subtitle.className).toContain("text-gray-500");
+>>>>>>> Stashed changes
   });
 });
