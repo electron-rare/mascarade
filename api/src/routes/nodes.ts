@@ -34,6 +34,14 @@ type NodeCatalogResponse = {
   total_count: number;
 };
 
+function emptyCatalog(): NodeCatalogResponse {
+  return {
+    node_types: [],
+    domains: [],
+    total_count: 0,
+  };
+}
+
 /**
  * GET /catalog
  * Returns the catalog of available nodes from the core engine.
@@ -73,21 +81,13 @@ nodes.get("/catalog", async (c) => {
     return c.json(data);
   } catch (error) {
     emitStructuredLog({
-      severity: "error",
+      severity: "warning",
       service: "api",
-      message: `Failed to fetch node catalog: ${error instanceof Error ? error.message : String(error)}`,
+      message: `Falling back to empty node catalog: ${error instanceof Error ? error.message : String(error)}`,
       source: "nodes.catalog",
     });
 
-    return c.json(
-      {
-        error: "Failed to fetch node catalog from core",
-        total: 0,
-        domain: domain || null,
-        nodes: [],
-      },
-      500
-    );
+    return c.json(emptyCatalog());
   }
 });
 
@@ -130,21 +130,13 @@ nodes.get("/catalog/:domain", async (c) => {
     return c.json(data);
   } catch (error) {
     emitStructuredLog({
-      severity: "error",
+      severity: "warning",
       service: "api",
-      message: `Failed to fetch node catalog for domain ${domain}: ${error instanceof Error ? error.message : String(error)}`,
+      message: `Falling back to empty node catalog for domain ${domain}: ${error instanceof Error ? error.message : String(error)}`,
       source: "nodes.catalog.domain",
     });
 
-    return c.json(
-      {
-        error: `Failed to fetch node catalog for domain ${domain}`,
-        total: 0,
-        domain: domain,
-        nodes: [],
-      },
-      500
-    );
+    return c.json(emptyCatalog());
   }
 });
 
