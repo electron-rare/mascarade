@@ -190,7 +190,7 @@ jobs:
         run: npx playwright test e2e/smoke.spec.ts
       - name: Upload Playwright artifacts
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: playwright-web-smoke-artifacts
           path: |
@@ -417,7 +417,7 @@ jobs:
           DOMAIN="${{ github.event.inputs.finetune_domain }}"
           python finetune/publish_to_hub.py "$DOMAIN"
       - name: Upload model
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: model-${{ github.event.inputs.finetune_domain }}
           path: finetune/models_local/
