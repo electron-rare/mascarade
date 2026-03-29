@@ -1,5 +1,10 @@
 # TODO runtime MCP — `mascarade`
 
+Statut suite:
+- type: `audit-reference`
+- source active: `docs/EXECUTION_HUB.md`
+- regle: audit specialise uniquement; ne pas piloter le backlog live depuis ce fichier
+
 Last updated: 2026-03-14
 
 Format:

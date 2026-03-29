@@ -1,5 +1,10 @@
 # Plan d'exécution — 11 mars 2026 (v8)
 
+Statut suite:
+- type: `historical-reference`
+- source active: `docs/EXECUTION_HUB.md`
+- regle: plan archive, a ne pas utiliser comme backlog actif
+
 Mis à jour post-session 3. Pipeline complet (8 agents), DPO, 235/235 tests.
 
 ## État actuel

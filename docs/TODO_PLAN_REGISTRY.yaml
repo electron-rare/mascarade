@@ -1,0 +1,301 @@
+{
+  "documents": [
+    {
+      "path": "docs/EXECUTION_HUB.md",
+      "repo": "mascarade",
+      "role": "active",
+      "scope": "global",
+      "source_of_truth": true,
+      "supersedes": [
+        "TODO_COCKPIT_OPS.md",
+        "plan.md",
+        "docs/TODO_2026-03-10.md",
+        "docs/CROSS_REPO_IMPLEMENTATION_TODO_2026-03-15.md"
+      ],
+      "validation": "python3 scripts/validate_todo_plan_suite.py --registry docs/TODO_PLAN_REGISTRY.yaml --emit-markdown docs/TODO_CROSS_REFERENCE.md --emit-json docs/TODO_CROSS_REFERENCE.json --fail-on-duplicates --fail-on-unclassified",
+      "canonical_ref": "docs/EXECUTION_HUB.md",
+      "parser": "execution_hub"
+    },
+    {
+      "path": "TODO_VM.md",
+      "repo": "mascarade",
+      "role": "active",
+      "scope": "machine:photon-machine",
+      "source_of_truth": false,
+      "validation": "Manual runtime review plus targeted host checks captured in docs/EXECUTION_HUB.md",
+      "canonical_ref": "docs/EXECUTION_HUB.md",
+      "parser": "checklist"
+    },
+    {
+      "path": "TODO_COCKPIT_OPS.md",
+      "repo": "mascarade",
+      "role": "implemented",
+      "source_of_truth": false,
+      "superseded_by": "docs/EXECUTION_HUB.md",
+      "validation": "Delivered reference only; reopen only from docs/EXECUTION_HUB.md with concrete need",
+      "canonical_ref": "docs/EXECUTION_HUB.md",
+      "parser": "checklist"
+    },
+    {
+      "path": "TODO_IMPLEMENTE.md",
+      "repo": "mascarade",
+      "role": "implemented",
+      "source_of_truth": false,
+      "superseded_by": "docs/EXECUTION_HUB.md",
+      "validation": "Historical implemented reference only",
+      "canonical_ref": "docs/EXECUTION_HUB.md",
+      "parser": "checklist"
+    },
+    {
+      "path": "TODO_CAD_KICAD.md",
+      "repo": "mascarade",
+      "role": "implemented",
+      "source_of_truth": false,
+      "superseded_by": "../Kill_LIFE/specs/mcp_tasks.md",
+      "validation": "CAD backlog is now tracked from Kill_LIFE plus docs/EXECUTION_HUB.md bridges",
+      "canonical_ref": "../Kill_LIFE/specs/mcp_tasks.md",
+      "parser": "checklist"
+    },
+    {
+      "path": "TODO_AI_NOVEL_ENGINE.md",
+      "repo": "mascarade",
+      "role": "historical",
+      "source_of_truth": false,
+      "superseded_by": "docs/EXECUTION_HUB.md",
+      "validation": "ANE runtime notes only; active lots must be re-entered in docs/EXECUTION_HUB.md",
+      "canonical_ref": "docs/EXECUTION_HUB.md",
+      "parser": "checklist"
+    },
+    {
+      "path": "TODO_TUNNING_PARTY.md",
+      "repo": "mascarade",
+      "role": "historical",
+      "source_of_truth": false,
+      "superseded_by": "docs/EXECUTION_HUB.md",
+      "validation": "Fine-tuning historical reference only; current execution is driven from docs/EXECUTION_HUB.md",
+      "canonical_ref": "docs/EXECUTION_HUB.md",
+      "parser": "checklist"
+    },
+    {
+      "path": "plan.md",
+      "repo": "mascarade",
+      "role": "historical",
+      "source_of_truth": false,
+      "superseded_by": "docs/EXECUTION_HUB.md",
+      "validation": "Role contract reference only",
+      "canonical_ref": "docs/EXECUTION_HUB.md",
+      "parser": "none"
+    },
+    {
+      "path": "PLAN_Q3_2026.md",
+      "repo": "mascarade",
+      "role": "historical",
+      "source_of_truth": false,
+      "superseded_by": "docs/EXECUTION_HUB.md",
+      "validation": "Quarterly planning archive only",
+      "canonical_ref": "docs/EXECUTION_HUB.md",
+      "parser": "checklist"
+    },
+    {
+      "path": "docs/CROSS_REPO_IMPLEMENTATION_TODO_2026-03-15.md",
+      "repo": "mascarade",
+      "role": "historical",
+      "source_of_truth": false,
+      "superseded_by": "docs/EXECUTION_HUB.md",
+      "validation": "Cross-repo merge snapshot only; live dependencies now stay in docs/EXECUTION_HUB.md",
+      "canonical_ref": "docs/EXECUTION_HUB.md",
+      "parser": "checklist"
+    },
+    {
+      "path": "docs/EXECUTION_PLAN_2026-03-06.md",
+      "repo": "mascarade",
+      "role": "historical",
+      "source_of_truth": false,
+      "superseded_by": "docs/EXECUTION_HUB.md",
+      "validation": "Dated execution plan archive",
+      "canonical_ref": "docs/EXECUTION_HUB.md",
+      "parser": "actionable"
+    },
+    {
+      "path": "docs/EXECUTION_PLAN_2026-03-07.md",
+      "repo": "mascarade",
+      "role": "historical",
+      "source_of_truth": false,
+      "superseded_by": "docs/EXECUTION_HUB.md",
+      "validation": "Dated execution plan archive",
+      "canonical_ref": "docs/EXECUTION_HUB.md",
+      "parser": "actionable"
+    },
+    {
+      "path": "docs/EXECUTION_PLAN_2026-03-08.md",
+      "repo": "mascarade",
+      "role": "historical",
+      "source_of_truth": false,
+      "superseded_by": "docs/EXECUTION_HUB.md",
+      "validation": "Dated ANE execution plan archive",
+      "canonical_ref": "docs/EXECUTION_HUB.md",
+      "parser": "actionable"
+    },
+    {
+      "path": "docs/EXECUTION_PLAN_2026-03-10.md",
+      "repo": "mascarade",
+      "role": "historical",
+      "source_of_truth": false,
+      "superseded_by": "docs/EXECUTION_HUB.md",
+      "validation": "Dated execution plan archive",
+      "canonical_ref": "docs/EXECUTION_HUB.md",
+      "parser": "checklist"
+    },
+    {
+      "path": "docs/FINETUNING_4090_PARALLEL_PLAN.md",
+      "repo": "mascarade",
+      "role": "historical",
+      "source_of_truth": false,
+      "superseded_by": "docs/EXECUTION_HUB.md",
+      "validation": "Historical optimization plan reference",
+      "canonical_ref": "docs/EXECUTION_HUB.md",
+      "parser": "none"
+    },
+    {
+      "path": "docs/PLAN_AMELIORATION_v0.3.md",
+      "repo": "mascarade",
+      "role": "historical",
+      "source_of_truth": false,
+      "superseded_by": "docs/EXECUTION_HUB.md",
+      "validation": "Improvement-plan archive only",
+      "canonical_ref": "docs/EXECUTION_HUB.md",
+      "parser": "none"
+    },
+    {
+      "path": "docs/PLAN_FINETUNING_P2P.md",
+      "repo": "mascarade",
+      "role": "historical",
+      "source_of_truth": false,
+      "superseded_by": "docs/EXECUTION_HUB.md",
+      "validation": "Historical P2P plan reference",
+      "canonical_ref": "docs/EXECUTION_HUB.md",
+      "parser": "none"
+    },
+    {
+      "path": "docs/Q2_2026_DEVELOPMENT_PLAN.md",
+      "repo": "mascarade",
+      "role": "historical",
+      "source_of_truth": false,
+      "superseded_by": "docs/EXECUTION_HUB.md",
+      "validation": "Quarterly development archive only",
+      "canonical_ref": "docs/EXECUTION_HUB.md",
+      "parser": "none"
+    },
+    {
+      "path": "docs/TODO_2026-03-10.md",
+      "repo": "mascarade",
+      "role": "historical",
+      "source_of_truth": false,
+      "superseded_by": "docs/EXECUTION_HUB.md",
+      "validation": "Dated TODO snapshot only",
+      "canonical_ref": "docs/EXECUTION_HUB.md",
+      "parser": "checklist"
+    },
+    {
+      "path": "docs/TODO_CONSOLIDATION_RAW.md",
+      "repo": "mascarade",
+      "role": "audit",
+      "source_of_truth": false,
+      "superseded_by": "docs/TODO_CROSS_REFERENCE.md",
+      "validation": "Raw extraction reference for the generated audit",
+      "canonical_ref": "docs/TODO_CROSS_REFERENCE.md",
+      "parser": "none"
+    },
+    {
+      "path": "docs/TODO_CROSS_REFERENCE.md",
+      "repo": "mascarade",
+      "role": "audit",
+      "source_of_truth": false,
+      "validation": "Generated by scripts/validate_todo_plan_suite.py",
+      "canonical_ref": "docs/TODO_CROSS_REFERENCE.md",
+      "parser": "none"
+    },
+    {
+      "path": "docs/TRAINING_PLAN_2_SEMAINES.md",
+      "repo": "mascarade",
+      "role": "historical",
+      "source_of_truth": false,
+      "superseded_by": "docs/EXECUTION_HUB.md",
+      "validation": "Training plan archive only",
+      "canonical_ref": "docs/EXECUTION_HUB.md",
+      "parser": "none"
+    },
+    {
+      "path": "docs/audit/MCP_RUNTIME_PLAN_2026-03-07.md",
+      "repo": "mascarade",
+      "role": "historical",
+      "source_of_truth": false,
+      "superseded_by": "docs/EXECUTION_HUB.md",
+      "validation": "MCP runtime audit-plan reference only",
+      "canonical_ref": "docs/EXECUTION_HUB.md",
+      "parser": "actionable"
+    },
+    {
+      "path": "docs/audit/MCP_RUNTIME_TODO_2026-03-07.md",
+      "repo": "mascarade",
+      "role": "audit",
+      "source_of_truth": false,
+      "superseded_by": "docs/EXECUTION_HUB.md",
+      "validation": "MCP runtime audit TODO; live backlog remains in docs/EXECUTION_HUB.md",
+      "canonical_ref": "docs/EXECUTION_HUB.md",
+      "parser": "checklist"
+    },
+    {
+      "path": "docs/plan/2026-03-24-sota-mascarade/active_execution_plan.md",
+      "repo": "mascarade",
+      "role": "historical",
+      "source_of_truth": false,
+      "superseded_by": "docs/EXECUTION_HUB.md",
+      "validation": "Empty archived plan placeholder",
+      "canonical_ref": "docs/EXECUTION_HUB.md",
+      "parser": "none"
+    },
+    {
+      "path": "docs/research/ECOSYSTEM_INTEGRATION_PLAN_2026-03.md",
+      "repo": "mascarade",
+      "role": "historical",
+      "source_of_truth": false,
+      "superseded_by": "docs/EXECUTION_HUB.md",
+      "validation": "Research plan archive only",
+      "canonical_ref": "docs/EXECUTION_HUB.md",
+      "parser": "none"
+    },
+    {
+      "path": "core/docs/testing/coverage-plan.md",
+      "repo": "mascarade",
+      "role": "historical",
+      "source_of_truth": false,
+      "superseded_by": "docs/EXECUTION_HUB.md",
+      "validation": "Coverage strategy reference only",
+      "canonical_ref": "docs/EXECUTION_HUB.md",
+      "parser": "none"
+    },
+    {
+      "path": "../crazy_life/plan.md",
+      "repo": "crazy_life",
+      "role": "external-canonical",
+      "scope": "cross-repo",
+      "source_of_truth": true,
+      "external_ref": "../crazy_life/plan.md",
+      "validation": "Cross-repo dependency only; the canonical cockpit/release backlog lives in crazy_life",
+      "canonical_ref": "../crazy_life/plan.md",
+      "parser": "none"
+    },
+    {
+      "path": "../Kill_LIFE/specs/mcp_tasks.md",
+      "repo": "Kill_LIFE",
+      "role": "external-canonical",
+      "scope": "cross-repo",
+      "source_of_truth": true,
+      "external_ref": "../Kill_LIFE/specs/mcp_tasks.md",
+      "validation": "Cross-repo dependency only; the canonical MCP/CAD backlog lives in Kill_LIFE",
+      "canonical_ref": "../Kill_LIFE/specs/mcp_tasks.md",
+      "parser": "none"
+    }
+  ]
+}

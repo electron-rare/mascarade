@@ -1,5 +1,10 @@
 # Plan runtime MCP — `mascarade`
 
+Statut suite:
+- type: `historical-reference`
+- source active: `docs/EXECUTION_HUB.md`
+- regle: audit-plan conserve a titre de preuve; tout lot actif doit etre remonte dans `docs/EXECUTION_HUB.md`
+
 Last updated: 2026-03-14
 
 Document d'audit mis à jour après implémentation du runtime MCP.

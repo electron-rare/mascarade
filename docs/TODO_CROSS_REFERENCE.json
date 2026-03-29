@@ -1,0 +1,1851 @@
+{
+  "documents": [
+    {
+      "exists": true,
+      "issues": [],
+      "items": [
+        {
+          "classification": "blocked",
+          "identifier": "M-009",
+          "normalized": "verifier la cardinalite loki sur trafic reel non smoke",
+          "scope": "machine:photon-machine",
+          "status": "BLOCKED",
+          "text": "Verifier la cardinalite Loki sur trafic reel non-smoke",
+          "validation": "bash scripts/loki_cardinality_report.sh --json doit montrer des labels enrichis sur du trafic non-smoke ou enregistrer un blocage explicite"
+        },
+        {
+          "classification": "active",
+          "identifier": "C-001",
+          "normalized": "resoudre la publication canonique qui echoue en 404",
+          "scope": "cap:network-online",
+          "status": "PENDING",
+          "text": "Resoudre la publication canonique qui echoue en `404`",
+          "validation": "Validation remote + `scripts/publish_preflight.sh`"
+        },
+        {
+          "classification": "active",
+          "identifier": "K-012",
+          "normalized": "rejouer la validation host native kicad",
+          "scope": "cap:kicad-host",
+          "status": "PENDING",
+          "text": "Rejouer la validation host-native KiCad",
+          "validation": "python3 tools/hw/kicad_host_mcp_smoke.py --json --quick"
+        },
+        {
+          "classification": "active",
+          "identifier": "K-014",
+          "normalized": "valider le mode live nexarapi",
+          "scope": "cap:nexar-live",
+          "status": "PENDING",
+          "text": "Valider le mode live `nexar_api`",
+          "validation": "python3 tools/nexar_mcp_smoke.py --json --live"
+        }
+      ],
+      "open_item_count": 4,
+      "parser": "execution_hub",
+      "path": "docs/EXECUTION_HUB.md",
+      "repo": "mascarade",
+      "role": "active",
+      "source_of_truth": true,
+      "status": "ok"
+    },
+    {
+      "exists": true,
+      "issues": [],
+      "items": [
+        {
+          "classification": "active",
+          "identifier": "TODO_VM.md:1",
+          "normalized": "quand une autre machine sera prete utiliser scripts currentmachinecontext sh puis scripts chainnextlot sh machine nom pour reprendre les lots delegues",
+          "scope": "machine:photon-machine",
+          "status": null,
+          "text": "Quand une autre machine sera prete, utiliser `scripts/current_machine_context.sh` puis `scripts/chain_next_lot.sh --machine <nom>` pour reprendre les lots delegues.",
+          "validation": "Manual runtime review plus targeted host checks captured in docs/EXECUTION_HUB.md"
+        },
+        {
+          "classification": "active",
+          "identifier": "TODO_VM.md:2",
+          "normalized": "renseigner seulement les secrets reellement utiles sur cette machine",
+          "scope": "machine:photon-machine",
+          "status": null,
+          "text": "Renseigner seulement les secrets reellement utiles sur cette machine:",
+          "validation": "Manual runtime review plus targeted host checks captured in docs/EXECUTION_HUB.md"
+        },
+        {
+          "classification": "active",
+          "identifier": "TODO_VM.md:3",
+          "normalized": "garder les secrets machine hors des fichiers versionnes",
+          "scope": "machine:photon-machine",
+          "status": null,
+          "text": "Garder les secrets machine hors des fichiers versionnes:",
+          "validation": "Manual runtime review plus targeted host checks captured in docs/EXECUTION_HUB.md"
+        },
+        {
+          "classification": "active",
+          "identifier": "TODO_VM.md:4",
+          "normalized": "installer openai whisper dans le venv tools uniquement si une transcription locale hors conteneur devient necessaire",
+          "scope": "machine:photon-machine",
+          "status": null,
+          "text": "Installer `openai-whisper` dans le venv tools uniquement si une transcription locale hors conteneur devient necessaire.",
+          "validation": "Manual runtime review plus targeted host checks captured in docs/EXECUTION_HUB.md"
+        },
+        {
+          "classification": "active",
+          "identifier": "TODO_VM.md:5",
+          "normalized": "revalider la regle hote docker user pour 80 tcp 3500 tcp et 5001 tcp apres tout changement reseau",
+          "scope": "machine:photon-machine",
+          "status": null,
+          "text": "Revalider la regle hote/`DOCKER-USER` pour `80/tcp`, `3500/tcp` et `5001/tcp` apres tout changement reseau.",
+          "validation": "Manual runtime review plus targeted host checks captured in docs/EXECUTION_HUB.md"
+        },
+        {
+          "classification": "active",
+          "identifier": "TODO_VM.md:6",
+          "normalized": "si une exposition publique tls redevient voulue definir un chemin explicite edge proxy ou reverse proxy tiers au lieu de rouvrir des binds au hasard",
+          "scope": "machine:photon-machine",
+          "status": null,
+          "text": "Si une exposition publique TLS redevient voulue, definir un chemin explicite `edge-proxy` ou reverse proxy tiers au lieu de rouvrir des binds au hasard.",
+          "validation": "Manual runtime review plus targeted host checks captured in docs/EXECUTION_HUB.md"
+        }
+      ],
+      "open_item_count": 6,
+      "parser": "checklist",
+      "path": "TODO_VM.md",
+      "repo": "mascarade",
+      "role": "active",
+      "source_of_truth": false,
+      "status": "ok"
+    },
+    {
+      "exists": true,
+      "issues": [],
+      "items": [
+        {
+          "classification": "done-but-not-canonical",
+          "identifier": "TODO_COCKPIT_OPS.md:1",
+          "normalized": "etendre grafana seulement si un nouveau domaine le justifie",
+          "scope": null,
+          "status": null,
+          "text": "Etendre Grafana seulement si un nouveau domaine le justifie",
+          "validation": "Delivered reference only; reopen only from docs/EXECUTION_HUB.md with concrete need"
+        },
+        {
+          "classification": "done-but-not-canonical",
+          "identifier": "TODO_COCKPIT_OPS.md:2",
+          "normalized": "recueillir des retours ux a froid sur logs et opshub",
+          "scope": null,
+          "status": null,
+          "text": "Recueillir des retours UX a froid sur `Logs` et `OpsHub`",
+          "validation": "Delivered reference only; reopen only from docs/EXECUTION_HUB.md with concrete need"
+        },
+        {
+          "classification": "done-but-not-canonical",
+          "identifier": "TODO_COCKPIT_OPS.md:3",
+          "normalized": "n etendre la stack phase2 searxng paperless ngx karakeep que si un workflow documentaire recherche concret le justifie",
+          "scope": null,
+          "status": null,
+          "text": "N'etendre la stack `phase2` (`SearXNG`, `Paperless-ngx`, `Karakeep`) que si un workflow documentaire/recherche concret le justifie",
+          "validation": "Delivered reference only; reopen only from docs/EXECUTION_HUB.md with concrete need"
+        },
+        {
+          "classification": "done-but-not-canonical",
+          "identifier": "TODO_COCKPIT_OPS.md:4",
+          "normalized": "etendre le cockpit industriel seulement si un besoin reel depasse l inventaire runtime tool proxy actuel",
+          "scope": null,
+          "status": null,
+          "text": "Etendre le cockpit industriel seulement si un besoin reel depasse l'inventaire/runtime/tool-proxy actuel",
+          "validation": "Delivered reference only; reopen only from docs/EXECUTION_HUB.md with concrete need"
+        },
+        {
+          "classification": "done-but-not-canonical",
+          "identifier": "TODO_COCKPIT_OPS.md:5",
+          "normalized": "ne rouvrir dcs live externe qu avec un vrai runtime contrat ot wms est deja qualifie en generic rest live ready et reste volontairement simulated sur cette vm tant que le sandbox n est pas configure",
+          "scope": null,
+          "status": null,
+          "text": "Ne rouvrir `DCS` live externe qu'avec un vrai runtime/contrat OT; `WMS` est deja qualifie en `generic-rest` live-ready et reste volontairement `simulated` sur cette VM tant que le sandbox n'est pas configure",
+          "validation": "Delivered reference only; reopen only from docs/EXECUTION_HUB.md with concrete need"
+        },
+        {
+          "classification": "done-but-not-canonical",
+          "identifier": "TODO_COCKPIT_OPS.md:6",
+          "normalized": "rebrancher agentsight uniquement si un vrai besoin operateur reapparait",
+          "scope": null,
+          "status": null,
+          "text": "Rebrancher `AgentSight` uniquement si un vrai besoin operateur reapparait",
+          "validation": "Delivered reference only; reopen only from docs/EXECUTION_HUB.md with concrete need"
+        },
+        {
+          "classification": "done-but-not-canonical",
+          "identifier": "TODO_COCKPIT_OPS.md:7",
+          "normalized": "sujets externes providers secrets billing anthropic activation api google quota token nexar si un sourcing live repart",
+          "scope": null,
+          "status": null,
+          "text": "Sujets externes providers/secrets: billing `Anthropic`, activation API Google, quota/token `NEXAR` si un sourcing live repart",
+          "validation": "Delivered reference only; reopen only from docs/EXECUTION_HUB.md with concrete need"
+        },
+        {
+          "classification": "done-but-not-canonical",
+          "identifier": "TODO_COCKPIT_OPS.md:8",
+          "normalized": "si le sourcing nexar live devient critique prevoir un token plan avec quota de parts non nul",
+          "scope": null,
+          "status": null,
+          "text": "Si le sourcing Nexar live devient critique, prevoir un token/plan avec quota de parts non nul",
+          "validation": "Delivered reference only; reopen only from docs/EXECUTION_HUB.md with concrete need"
+        },
+        {
+          "classification": "done-but-not-canonical",
+          "identifier": "TODO_COCKPIT_OPS.md:9",
+          "normalized": "k 012 uniquement si le host native kicad redevient requis",
+          "scope": null,
+          "status": null,
+          "text": "`K-012` uniquement si le host-native KiCad redevient requis",
+          "validation": "Delivered reference only; reopen only from docs/EXECUTION_HUB.md with concrete need"
+        }
+      ],
+      "open_item_count": 9,
+      "parser": "checklist",
+      "path": "TODO_COCKPIT_OPS.md",
+      "repo": "mascarade",
+      "role": "implemented",
+      "source_of_truth": false,
+      "status": "ok"
+    },
+    {
+      "exists": true,
+      "issues": [],
+      "items": [],
+      "open_item_count": 0,
+      "parser": "checklist",
+      "path": "TODO_IMPLEMENTE.md",
+      "repo": "mascarade",
+      "role": "implemented",
+      "source_of_truth": false,
+      "status": "ok"
+    },
+    {
+      "exists": true,
+      "issues": [],
+      "items": [],
+      "open_item_count": 0,
+      "parser": "checklist",
+      "path": "TODO_CAD_KICAD.md",
+      "repo": "mascarade",
+      "role": "implemented",
+      "source_of_truth": false,
+      "status": "ok"
+    },
+    {
+      "exists": true,
+      "issues": [],
+      "items": [
+        {
+          "classification": "historical",
+          "identifier": "TODO_AI_NOVEL_ENGINE.md:1",
+          "normalized": "p1 faire passer au moins un cycle python3 scripts runnextlots py lot prioritymodels sans checkpoint runtime inattendu",
+          "scope": null,
+          "status": null,
+          "text": "P1 Faire passer au moins un cycle `python3 scripts/run_next_lots.py --lot priority_models` sans checkpoint runtime inattendu",
+          "validation": "ANE runtime notes only; active lots must be re-entered in docs/EXECUTION_HUB.md"
+        },
+        {
+          "classification": "historical",
+          "identifier": "TODO_AI_NOVEL_ENGINE.md:2",
+          "normalized": "p1 laisser ai novel engine finir prioritymodels avec la nouvelle reference 4b",
+          "scope": null,
+          "status": null,
+          "text": "P1 Laisser `ai-novel-engine` finir `priority_models` avec la nouvelle reference 4B",
+          "validation": "ANE runtime notes only; active lots must be re-entered in docs/EXECUTION_HUB.md"
+        }
+      ],
+      "open_item_count": 2,
+      "parser": "checklist",
+      "path": "TODO_AI_NOVEL_ENGINE.md",
+      "repo": "mascarade",
+      "role": "historical",
+      "source_of_truth": false,
+      "status": "ok"
+    },
+    {
+      "exists": true,
+      "issues": [],
+      "items": [
+        {
+          "classification": "historical",
+          "identifier": "TODO_TUNNING_PARTY.md:1",
+          "normalized": "refaire ce benchmark sur une classe gpu plus contrainte si elle redevient disponible",
+          "scope": null,
+          "status": null,
+          "text": "Refaire ce benchmark sur une classe GPU plus contrainte si elle redevient disponible",
+          "validation": "Fine-tuning historical reference only; current execution is driven from docs/EXECUTION_HUB.md"
+        },
+        {
+          "classification": "historical",
+          "identifier": "TODO_TUNNING_PARTY.md:2",
+          "normalized": "approuver ou rejeter explicitement mascarade components review apres revue humaine",
+          "scope": null,
+          "status": null,
+          "text": "Approuver ou rejeter explicitement `mascarade-components-review` apres revue humaine",
+          "validation": "Fine-tuning historical reference only; current execution is driven from docs/EXECUTION_HUB.md"
+        },
+        {
+          "classification": "historical",
+          "identifier": "TODO_TUNNING_PARTY.md:3",
+          "normalized": "evaluer agent zero hors du pipeline critique",
+          "scope": null,
+          "status": null,
+          "text": "Evaluer `Agent Zero` hors du pipeline critique",
+          "validation": "Fine-tuning historical reference only; current execution is driven from docs/EXECUTION_HUB.md"
+        },
+        {
+          "classification": "historical",
+          "identifier": "TODO_TUNNING_PARTY.md:4",
+          "normalized": "phase a attendre completion 22h",
+          "scope": null,
+          "status": null,
+          "text": "Phase A: attendre completion (~22h)",
+          "validation": "Fine-tuning historical reference only; current execution is driven from docs/EXECUTION_HUB.md"
+        },
+        {
+          "classification": "historical",
+          "identifier": "TODO_TUNNING_PARTY.md:5",
+          "normalized": "phase b rejection sampling apres phase a",
+          "scope": null,
+          "status": null,
+          "text": "Phase B: rejection sampling (apres Phase A)",
+          "validation": "Fine-tuning historical reference only; current execution is driven from docs/EXECUTION_HUB.md"
+        },
+        {
+          "classification": "historical",
+          "identifier": "TODO_TUNNING_PARTY.md:6",
+          "normalized": "phase c dpo training apres phase b",
+          "scope": null,
+          "status": null,
+          "text": "Phase C: DPO training (apres Phase B)",
+          "validation": "Fine-tuning historical reference only; current execution is driven from docs/EXECUTION_HUB.md"
+        },
+        {
+          "classification": "historical",
+          "identifier": "TODO_TUNNING_PARTY.md:7",
+          "normalized": "phase d publication hf adapters sous clemsail mascarade lora",
+          "scope": null,
+          "status": null,
+          "text": "Phase D: publication HF adapters sous `clemsail/mascarade-*-lora`",
+          "validation": "Fine-tuning historical reference only; current execution is driven from docs/EXECUTION_HUB.md"
+        },
+        {
+          "classification": "historical",
+          "identifier": "TODO_TUNNING_PARTY.md:8",
+          "normalized": "approuver ou rejeter explicitement mascarade components review apres revue humaine",
+          "scope": null,
+          "status": null,
+          "text": "Approuver ou rejeter explicitement `mascarade-components-review` apres revue humaine",
+          "validation": "Fine-tuning historical reference only; current execution is driven from docs/EXECUTION_HUB.md"
+        },
+        {
+          "classification": "historical",
+          "identifier": "TODO_TUNNING_PARTY.md:9",
+          "normalized": "benchmarker candidats veille web qwen3 coder next base mellum 4b deepseek v3 2",
+          "scope": null,
+          "status": null,
+          "text": "Benchmarker candidats veille web: Qwen3-Coder-Next-Base, Mellum-4b, DeepSeek-V3.2",
+          "validation": "Fine-tuning historical reference only; current execution is driven from docs/EXECUTION_HUB.md"
+        }
+      ],
+      "open_item_count": 9,
+      "parser": "checklist",
+      "path": "TODO_TUNNING_PARTY.md",
+      "repo": "mascarade",
+      "role": "historical",
+      "source_of_truth": false,
+      "status": "ok"
+    },
+    {
+      "exists": true,
+      "issues": [],
+      "items": [],
+      "open_item_count": 0,
+      "parser": "none",
+      "path": "plan.md",
+      "repo": "mascarade",
+      "role": "historical",
+      "source_of_truth": false,
+      "status": "ok"
+    },
+    {
+      "exists": true,
+      "issues": [],
+      "items": [],
+      "open_item_count": 0,
+      "parser": "checklist",
+      "path": "PLAN_Q3_2026.md",
+      "repo": "mascarade",
+      "role": "historical",
+      "source_of_truth": false,
+      "status": "ok"
+    },
+    {
+      "exists": true,
+      "issues": [],
+      "items": [
+        {
+          "classification": "historical",
+          "identifier": "docs/CROSS_REPO_IMPLEMENTATION_TODO_2026-03-15.md:1",
+          "normalized": "rafraichir plans todos equivalents dans mascarade mascarade api deps mascarade apple coreml mascarade frontend pr",
+          "scope": null,
+          "status": null,
+          "text": "Rafraichir plans/todos equivalents dans mascarade, mascarade-api-deps, mascarade-apple-coreml, mascarade-frontend-pr",
+          "validation": "Cross-repo merge snapshot only; live dependencies now stay in docs/EXECUTION_HUB.md"
+        },
+        {
+          "classification": "historical",
+          "identifier": "docs/CROSS_REPO_IMPLEMENTATION_TODO_2026-03-15.md:2",
+          "normalized": "ajouter diagramme mermaid de dependances multi repos",
+          "scope": null,
+          "status": null,
+          "text": "Ajouter diagramme Mermaid de dependances multi-repos",
+          "validation": "Cross-repo merge snapshot only; live dependencies now stay in docs/EXECUTION_HUB.md"
+        },
+        {
+          "classification": "historical",
+          "identifier": "docs/CROSS_REPO_IMPLEMENTATION_TODO_2026-03-15.md:3",
+          "normalized": "ajouter diagramme mermaid merge gates et sequence des lots",
+          "scope": null,
+          "status": null,
+          "text": "Ajouter diagramme Mermaid merge gates et sequence des lots",
+          "validation": "Cross-repo merge snapshot only; live dependencies now stay in docs/EXECUTION_HUB.md"
+        },
+        {
+          "classification": "historical",
+          "identifier": "docs/CROSS_REPO_IMPLEMENTATION_TODO_2026-03-15.md:4",
+          "normalized": "mettre a jour readme centraux selon manifeste mascarade main crazylife killlife",
+          "scope": null,
+          "status": null,
+          "text": "Mettre a jour README centraux selon manifeste (mascarade-main, crazy_life, Kill_LIFE)",
+          "validation": "Cross-repo merge snapshot only; live dependencies now stay in docs/EXECUTION_HUB.md"
+        },
+        {
+          "classification": "historical",
+          "identifier": "docs/CROSS_REPO_IMPLEMENTATION_TODO_2026-03-15.md:5",
+          "normalized": "attacher logs utiles dans docs audit et supprimer les logs temporaires non necessaires",
+          "scope": null,
+          "status": null,
+          "text": "Attacher logs utiles dans docs/audit et supprimer les logs temporaires non necessaires",
+          "validation": "Cross-repo merge snapshot only; live dependencies now stay in docs/EXECUTION_HUB.md"
+        },
+        {
+          "classification": "historical",
+          "identifier": "docs/CROSS_REPO_IMPLEMENTATION_TODO_2026-03-15.md:6",
+          "normalized": "lot 1 api deps main cherry picks thematiques",
+          "scope": null,
+          "status": null,
+          "text": "Lot 1: api-deps -> main (cherry-picks thematiques)",
+          "validation": "Cross-repo merge snapshot only; live dependencies now stay in docs/EXECUTION_HUB.md"
+        },
+        {
+          "classification": "historical",
+          "identifier": "docs/CROSS_REPO_IMPLEMENTATION_TODO_2026-03-15.md:7",
+          "normalized": "lot 2 apple coreml main fallback alerte forte",
+          "scope": null,
+          "status": null,
+          "text": "Lot 2: apple-coreml -> main (fallback + alerte forte)",
+          "validation": "Cross-repo merge snapshot only; live dependencies now stay in docs/EXECUTION_HUB.md"
+        },
+        {
+          "classification": "historical",
+          "identifier": "docs/CROSS_REPO_IMPLEMENTATION_TODO_2026-03-15.md:8",
+          "normalized": "lot 3 mascarade main deltas references",
+          "scope": null,
+          "status": null,
+          "text": "Lot 3: mascarade -> main (deltas references)",
+          "validation": "Cross-repo merge snapshot only; live dependencies now stay in docs/EXECUTION_HUB.md"
+        },
+        {
+          "classification": "historical",
+          "identifier": "docs/CROSS_REPO_IMPLEMENTATION_TODO_2026-03-15.md:9",
+          "normalized": "lot 4 frontend pr main merge partiel cherry pick uniquement",
+          "scope": null,
+          "status": null,
+          "text": "Lot 4: frontend-pr -> main (merge partiel cherry-pick uniquement)",
+          "validation": "Cross-repo merge snapshot only; live dependencies now stay in docs/EXECUTION_HUB.md"
+        },
+        {
+          "classification": "historical",
+          "identifier": "docs/CROSS_REPO_IMPLEMENTATION_TODO_2026-03-15.md:10",
+          "normalized": "backport selectif main mascarade si derive detectee",
+          "scope": null,
+          "status": null,
+          "text": "Backport selectif main -> mascarade si derive detectee",
+          "validation": "Cross-repo merge snapshot only; live dependencies now stay in docs/EXECUTION_HUB.md"
+        },
+        {
+          "classification": "historical",
+          "identifier": "docs/CROSS_REPO_IMPLEMENTATION_TODO_2026-03-15.md:11",
+          "normalized": "frontend code splitting crazylaneeditor comfyui infrastructure",
+          "scope": null,
+          "status": null,
+          "text": "Frontend: code splitting (CrazyLaneEditor, ComfyUI, Infrastructure)",
+          "validation": "Cross-repo merge snapshot only; live dependencies now stay in docs/EXECUTION_HUB.md"
+        },
+        {
+          "classification": "historical",
+          "identifier": "docs/CROSS_REPO_IMPLEMENTATION_TODO_2026-03-15.md:12",
+          "normalized": "frontend tests de non regression cibles",
+          "scope": null,
+          "status": null,
+          "text": "Frontend: tests de non-regression cibles",
+          "validation": "Cross-repo merge snapshot only; live dependencies now stay in docs/EXECUTION_HUB.md"
+        },
+        {
+          "classification": "historical",
+          "identifier": "docs/CROSS_REPO_IMPLEMENTATION_TODO_2026-03-15.md:13",
+          "normalized": "core api points chauds perf robustesse failover observabilite",
+          "scope": null,
+          "status": null,
+          "text": "Core/API: points chauds perf, robustesse failover, observabilite",
+          "validation": "Cross-repo merge snapshot only; live dependencies now stay in docs/EXECUTION_HUB.md"
+        },
+        {
+          "classification": "historical",
+          "identifier": "docs/CROSS_REPO_IMPLEMENTATION_TODO_2026-03-15.md:14",
+          "normalized": "finaliser un tui d analyse cross repo et standardiser logs d execution",
+          "scope": null,
+          "status": null,
+          "text": "Finaliser un TUI d'analyse cross-repo et standardiser logs d'execution",
+          "validation": "Cross-repo merge snapshot only; live dependencies now stay in docs/EXECUTION_HUB.md"
+        },
+        {
+          "classification": "historical",
+          "identifier": "docs/CROSS_REPO_IMPLEMENTATION_TODO_2026-03-15.md:15",
+          "normalized": "e2e inter repos crazy lane api llm resultat",
+          "scope": null,
+          "status": null,
+          "text": "E2E inter-repos: Crazy Lane -> API -> LLM -> resultat",
+          "validation": "Cross-repo merge snapshot only; live dependencies now stay in docs/EXECUTION_HUB.md"
+        },
+        {
+          "classification": "historical",
+          "identifier": "docs/CROSS_REPO_IMPLEMENTATION_TODO_2026-03-15.md:16",
+          "normalized": "evidence pack commits tests logs decisions",
+          "scope": null,
+          "status": null,
+          "text": "Evidence pack: commits, tests, logs, decisions",
+          "validation": "Cross-repo merge snapshot only; live dependencies now stay in docs/EXECUTION_HUB.md"
+        },
+        {
+          "classification": "historical",
+          "identifier": "docs/CROSS_REPO_IMPLEMENTATION_TODO_2026-03-15.md:17",
+          "normalized": "publication gate final",
+          "scope": null,
+          "status": null,
+          "text": "Publication gate final",
+          "validation": "Cross-repo merge snapshot only; live dependencies now stay in docs/EXECUTION_HUB.md"
+        }
+      ],
+      "open_item_count": 17,
+      "parser": "checklist",
+      "path": "docs/CROSS_REPO_IMPLEMENTATION_TODO_2026-03-15.md",
+      "repo": "mascarade",
+      "role": "historical",
+      "source_of_truth": false,
+      "status": "ok"
+    },
+    {
+      "exists": true,
+      "issues": [],
+      "items": [
+        {
+          "classification": "historical",
+          "identifier": "docs/EXECUTION_PLAN_2026-03-06.md:1",
+          "normalized": "reprendre un run batch existant avec resume jusqu a fin de train",
+          "scope": null,
+          "status": null,
+          "text": "Reprendre un run batch existant avec `--resume` jusqu'a fin de `train`.",
+          "validation": "Dated execution plan archive"
+        },
+        {
+          "classification": "historical",
+          "identifier": "docs/EXECUTION_PLAN_2026-03-06.md:2",
+          "normalized": "suivre les manifests avec python3 finetune batchstatus py",
+          "scope": null,
+          "status": null,
+          "text": "Suivre les manifests avec `python3 finetune/batch_status.py`.",
+          "validation": "Dated execution plan archive"
+        },
+        {
+          "classification": "historical",
+          "identifier": "docs/EXECUTION_PLAN_2026-03-06.md:3",
+          "normalized": "mesurer ensuite le mode gpuslots 2",
+          "scope": null,
+          "status": null,
+          "text": "Mesurer ensuite le mode `gpu_slots=2`.",
+          "validation": "Dated execution plan archive"
+        },
+        {
+          "classification": "historical",
+          "identifier": "docs/EXECUTION_PLAN_2026-03-06.md:4",
+          "normalized": "garder le proxy comme mode de reference",
+          "scope": null,
+          "status": null,
+          "text": "Garder le proxy comme mode de reference.",
+          "validation": "Dated execution plan archive"
+        },
+        {
+          "classification": "historical",
+          "identifier": "docs/EXECUTION_PLAN_2026-03-06.md:5",
+          "normalized": "traiter tls plus tard separement",
+          "scope": null,
+          "status": null,
+          "text": "Traiter TLS plus tard, separement.",
+          "validation": "Dated execution plan archive"
+        },
+        {
+          "classification": "historical",
+          "identifier": "docs/EXECUTION_PLAN_2026-03-06.md:6",
+          "normalized": "ne pas melanger ce lot avec la stabilisation fine tuning",
+          "scope": null,
+          "status": null,
+          "text": "Ne pas melanger ce lot avec la stabilisation fine-tuning.",
+          "validation": "Dated execution plan archive"
+        },
+        {
+          "classification": "historical",
+          "identifier": "docs/EXECUTION_PLAN_2026-03-06.md:7",
+          "normalized": "decider si ops console reste une landing page ou s il est absorbe",
+          "scope": null,
+          "status": null,
+          "text": "Decider si `ops-console` reste une landing page ou s'il est absorbe.",
+          "validation": "Dated execution plan archive"
+        },
+        {
+          "classification": "historical",
+          "identifier": "docs/EXECUTION_PLAN_2026-03-06.md:8",
+          "normalized": "eviter de maintenir deux experiences concurrentes plus longtemps",
+          "scope": null,
+          "status": null,
+          "text": "Eviter de maintenir deux experiences concurrentes plus longtemps.",
+          "validation": "Dated execution plan archive"
+        },
+        {
+          "classification": "historical",
+          "identifier": "docs/EXECUTION_PLAN_2026-03-06.md:9",
+          "normalized": "prioriser les pages les plus operations dashboard metrics health",
+          "scope": null,
+          "status": null,
+          "text": "Prioriser les pages les plus operations: dashboard, metrics, health.",
+          "validation": "Dated execution plan archive"
+        },
+        {
+          "classification": "historical",
+          "identifier": "docs/EXECUTION_PLAN_2026-03-06.md:10",
+          "normalized": "stabiliser le batch local jusqu a train completed",
+          "scope": null,
+          "status": null,
+          "text": "Stabiliser le batch local jusqu'a `train=completed`.",
+          "validation": "Dated execution plan archive"
+        },
+        {
+          "classification": "historical",
+          "identifier": "docs/EXECUTION_PLAN_2026-03-06.md:11",
+          "normalized": "ajouter un resume de statut batch exploitable",
+          "scope": null,
+          "status": null,
+          "text": "Ajouter un resume de statut batch exploitable.",
+          "validation": "Dated execution plan archive"
+        },
+        {
+          "classification": "historical",
+          "identifier": "docs/EXECUTION_PLAN_2026-03-06.md:12",
+          "normalized": "revenir ensuite sur l unification frontend ops console",
+          "scope": null,
+          "status": null,
+          "text": "Revenir ensuite sur l'unification frontend / ops-console.",
+          "validation": "Dated execution plan archive"
+        },
+        {
+          "classification": "historical",
+          "identifier": "docs/EXECUTION_PLAN_2026-03-06.md:13",
+          "normalized": "reprendre tls seulement apres ces lots",
+          "scope": null,
+          "status": null,
+          "text": "Reprendre TLS seulement apres ces lots.",
+          "validation": "Dated execution plan archive"
+        }
+      ],
+      "open_item_count": 13,
+      "parser": "actionable",
+      "path": "docs/EXECUTION_PLAN_2026-03-06.md",
+      "repo": "mascarade",
+      "role": "historical",
+      "source_of_truth": false,
+      "status": "ok"
+    },
+    {
+      "exists": true,
+      "issues": [],
+      "items": [
+        {
+          "classification": "historical",
+          "identifier": "docs/EXECUTION_PLAN_2026-03-07.md:1",
+          "normalized": "aucun lot repo hygiene bloquant local restant",
+          "scope": null,
+          "status": null,
+          "text": "Aucun lot repo/hygiene bloquant local restant.",
+          "validation": "Dated execution plan archive"
+        },
+        {
+          "classification": "historical",
+          "identifier": "docs/EXECUTION_PLAN_2026-03-07.md:2",
+          "normalized": "le seul lot encore ouvert dans mascarade est un follow up documentaire de cloture",
+          "scope": null,
+          "status": null,
+          "text": "Le seul lot encore ouvert dans `mascarade` est un follow-up documentaire de cloture.",
+          "validation": "Dated execution plan archive"
+        },
+        {
+          "classification": "historical",
+          "identifier": "docs/EXECUTION_PLAN_2026-03-07.md:3",
+          "normalized": "ne rouvrir une vague multi repo que si un nouveau besoin de publication apparait",
+          "scope": null,
+          "status": null,
+          "text": "Ne rouvrir une vague multi-repo que si un nouveau besoin de publication apparait.",
+          "validation": "Dated execution plan archive"
+        },
+        {
+          "classification": "historical",
+          "identifier": "docs/EXECUTION_PLAN_2026-03-07.md:4",
+          "normalized": "ne rouvrir ce chantier que sur machine support adequat",
+          "scope": null,
+          "status": null,
+          "text": "Ne rouvrir ce chantier que sur machine/support adequat.",
+          "validation": "Dated execution plan archive"
+        },
+        {
+          "classification": "historical",
+          "identifier": "docs/EXECUTION_PLAN_2026-03-07.md:5",
+          "normalized": "garder k 012 k 014 comme restes specialises hors backlog ra",
+          "scope": null,
+          "status": null,
+          "text": "Garder `K-012` / `K-014` comme restes specialises hors backlog RA.",
+          "validation": "Dated execution plan archive"
+        },
+        {
+          "classification": "historical",
+          "identifier": "docs/EXECUTION_PLAN_2026-03-07.md:6",
+          "normalized": "ne pas rouvrir sans besoin concret",
+          "scope": null,
+          "status": null,
+          "text": "Ne pas rouvrir sans besoin concret.",
+          "validation": "Dated execution plan archive"
+        },
+        {
+          "classification": "historical",
+          "identifier": "docs/EXECUTION_PLAN_2026-03-07.md:7",
+          "normalized": "traiter seulement les retours ux a froid si necessaire",
+          "scope": null,
+          "status": null,
+          "text": "Traiter seulement les retours UX a froid si necessaire.",
+          "validation": "Dated execution plan archive"
+        },
+        {
+          "classification": "historical",
+          "identifier": "docs/EXECUTION_PLAN_2026-03-07.md:8",
+          "normalized": "le sandbox dcs local est maintenant en place ne rouvrir la suite industrielle que pour un vrai runtime contrat ot externe",
+          "scope": null,
+          "status": null,
+          "text": "Le sandbox `DCS` local est maintenant en place; ne rouvrir la suite industrielle que pour un vrai runtime/contrat OT externe.",
+          "validation": "Dated execution plan archive"
+        },
+        {
+          "classification": "historical",
+          "identifier": "docs/EXECUTION_PLAN_2026-03-07.md:9",
+          "normalized": "garder tempo loki prometheus comme trilogie nominale",
+          "scope": null,
+          "status": null,
+          "text": "Garder `Tempo + Loki + Prometheus` comme trilogie nominale.",
+          "validation": "Dated execution plan archive"
+        },
+        {
+          "classification": "historical",
+          "identifier": "docs/EXECUTION_PLAN_2026-03-07.md:10",
+          "normalized": "n ajouter un backend plus riche que si un besoin d analyse transverse apparait",
+          "scope": null,
+          "status": null,
+          "text": "N'ajouter un backend plus riche que si un besoin d'analyse transverse apparait.",
+          "validation": "Dated execution plan archive"
+        },
+        {
+          "classification": "historical",
+          "identifier": "docs/EXECUTION_PLAN_2026-03-07.md:11",
+          "normalized": "ne rouvrir que si un nouveau besoin modele apparait",
+          "scope": null,
+          "status": null,
+          "text": "Ne rouvrir que si un nouveau besoin modele apparait.",
+          "validation": "Dated execution plan archive"
+        },
+        {
+          "classification": "historical",
+          "identifier": "docs/EXECUTION_PLAN_2026-03-07.md:12",
+          "normalized": "garder agent zero hors pipeline critique",
+          "scope": null,
+          "status": null,
+          "text": "Garder `Agent Zero` hors pipeline critique.",
+          "validation": "Dated execution plan archive"
+        },
+        {
+          "classification": "historical",
+          "identifier": "docs/EXECUTION_PLAN_2026-03-07.md:13",
+          "normalized": "le bind public edge proxy est ouvert et le certificat let s encrypt wildcard saillant cc saillant cc est installe",
+          "scope": null,
+          "status": null,
+          "text": "Le bind public `edge-proxy` est ouvert et le certificat Let's Encrypt wildcard (`saillant.cc`, `*.saillant.cc`) est installe.",
+          "validation": "Dated execution plan archive"
+        },
+        {
+          "classification": "historical",
+          "identifier": "docs/EXECUTION_PLAN_2026-03-07.md:14",
+          "normalized": "openai est maintenant validee en strict les restes providers sont externes billing anthropic et activation de l api google generative language",
+          "scope": null,
+          "status": null,
+          "text": "`OpenAI` est maintenant validee en strict; les restes providers sont externes: billing `Anthropic` et activation de l'API Google Generative Language.",
+          "validation": "Dated execution plan archive"
+        },
+        {
+          "classification": "historical",
+          "identifier": "docs/EXECUTION_PLAN_2026-03-07.md:15",
+          "normalized": "zeroclaw est maintenant installe nativement sur la vm avec demarrage a la demande zeroclaw saillant cc sert la surface live tandis que zeroclaw docs saillant cc et langgraph saillant cc gardent les runbooks operateur",
+          "scope": null,
+          "status": null,
+          "text": "`ZeroClaw` est maintenant installe nativement sur la VM, avec demarrage a la demande; `zeroclaw.saillant.cc` sert la surface live, tandis que `zeroclaw-docs.saillant.cc` et `langgraph.saillant.cc` gardent les runbooks operateur.",
+          "validation": "Dated execution plan archive"
+        },
+        {
+          "classification": "historical",
+          "identifier": "docs/EXECUTION_PLAN_2026-03-07.md:16",
+          "normalized": "le chemin provider hybride n est plus theorique un smoke reel post webhook via le gateway natif repond 200 avec openrouter",
+          "scope": null,
+          "status": null,
+          "text": "Le chemin provider hybride n'est plus theorique: un smoke reel `POST /webhook` via le gateway natif repond `200` avec `OpenRouter`.",
+          "validation": "Dated execution plan archive"
+        },
+        {
+          "classification": "historical",
+          "identifier": "docs/EXECUTION_PLAN_2026-03-07.md:17",
+          "normalized": "la stack deploy phase2 est en service searxng paperless ngx et karakeep restent binds en loopback et sont exposes via search saillant cc paperless saillant cc et karakeep saillant cc",
+          "scope": null,
+          "status": null,
+          "text": "La stack `deploy/phase2` est en service: `SearXNG`, `Paperless-ngx` et `Karakeep` restent binds en loopback et sont exposes via `search.saillant.cc`, `paperless.saillant.cc` et `karakeep.saillant.cc`.",
+          "validation": "Dated execution plan archive"
+        },
+        {
+          "classification": "historical",
+          "identifier": "docs/EXECUTION_PLAN_2026-03-07.md:18",
+          "normalized": "le setup mac local est maintenant valide sur le poste cible codex apply a enregistre kicad validate specs knowledge base github dispatch freecad openscad huggingface et playwright et playwright mcp repond",
+          "scope": null,
+          "status": null,
+          "text": "Le setup Mac local est maintenant valide sur le poste cible: `codex --apply` a enregistre `kicad`, `validate-specs`, `knowledge-base`, `github-dispatch`, `freecad`, `openscad`, `huggingface` et `playwright`, et `Playwright MCP` repond.",
+          "validation": "Dated execution plan archive"
+        },
+        {
+          "classification": "historical",
+          "identifier": "docs/EXECUTION_PLAN_2026-03-07.md:19",
+          "normalized": "aucun reliquat repo critique restant apres fermeture du follow up industriel plm qms wms dans agent factory cockpit et mascarade",
+          "scope": null,
+          "status": null,
+          "text": "Aucun reliquat repo critique restant apres fermeture du follow-up industriel `PLM/QMS/WMS` dans `agent-factory-cockpit` et `mascarade`.",
+          "validation": "Dated execution plan archive"
+        },
+        {
+          "classification": "historical",
+          "identifier": "docs/EXECUTION_PLAN_2026-03-07.md:20",
+          "normalized": "garder les reliquats externes k 014 billing anthropic activation api google hors de cette phase",
+          "scope": null,
+          "status": null,
+          "text": "Garder les reliquats externes (`K-014`, billing `Anthropic`, activation API Google) hors de cette phase.",
+          "validation": "Dated execution plan archive"
+        },
+        {
+          "classification": "historical",
+          "identifier": "docs/EXECUTION_PLAN_2026-03-07.md:21",
+          "normalized": "ne pas rouvrir de nouvelle consolidation inter repo sans besoin concret",
+          "scope": null,
+          "status": null,
+          "text": "Ne pas rouvrir de nouvelle consolidation inter-repo sans besoin concret.",
+          "validation": "Dated execution plan archive"
+        },
+        {
+          "classification": "historical",
+          "identifier": "docs/EXECUTION_PLAN_2026-03-07.md:22",
+          "normalized": "ne pas rouvrir de nouveau chantier local sans besoin concret",
+          "scope": null,
+          "status": null,
+          "text": "Ne pas rouvrir de nouveau chantier local sans besoin concret.",
+          "validation": "Dated execution plan archive"
+        },
+        {
+          "classification": "historical",
+          "identifier": "docs/EXECUTION_PLAN_2026-03-07.md:23",
+          "normalized": "traiter seulement les sujets externes ou optionnels billing anthropic activation api google quota token nexar si le sourcing live repart et consolidation du worktree users electron mascarade sur le mac operateur avant tout pull",
+          "scope": null,
+          "status": null,
+          "text": "Traiter seulement les sujets externes ou optionnels: billing `Anthropic`, activation API Google, quota/token `NEXAR` si le sourcing live repart, et consolidation du worktree `/Users/electron/mascarade` sur le Mac operateur avant tout `pull`.",
+          "validation": "Dated execution plan archive"
+        },
+        {
+          "classification": "historical",
+          "identifier": "docs/EXECUTION_PLAN_2026-03-07.md:24",
+          "normalized": "si une nouvelle vague repo s ouvre repartir d un lot neuf au lieu de reutiliser un reliquat historique",
+          "scope": null,
+          "status": null,
+          "text": "Si une nouvelle vague repo s'ouvre, repartir d'un lot neuf au lieu de reutiliser un reliquat historique.",
+          "validation": "Dated execution plan archive"
+        },
+        {
+          "classification": "historical",
+          "identifier": "docs/EXECUTION_PLAN_2026-03-07.md:25",
+          "normalized": "pour tout nouveau reliquat local passer d abord par",
+          "scope": null,
+          "status": null,
+          "text": "Pour tout nouveau reliquat local, passer d'abord par:",
+          "validation": "Dated execution plan archive"
+        }
+      ],
+      "open_item_count": 25,
+      "parser": "actionable",
+      "path": "docs/EXECUTION_PLAN_2026-03-07.md",
+      "repo": "mascarade",
+      "role": "historical",
+      "source_of_truth": false,
+      "status": "ok"
+    },
+    {
+      "exists": true,
+      "issues": [],
+      "items": [
+        {
+          "classification": "historical",
+          "identifier": "docs/EXECUTION_PLAN_2026-03-08.md:1",
+          "normalized": "verifier ou restager explicitement les modeles apple cibles avant toute revalidation ane",
+          "scope": null,
+          "status": null,
+          "text": "Verifier ou restager explicitement les modeles Apple cibles avant toute revalidation ANE:",
+          "validation": "Dated ANE execution plan archive"
+        },
+        {
+          "classification": "historical",
+          "identifier": "docs/EXECUTION_PLAN_2026-03-08.md:2",
+          "normalized": "garder apple coreml qwen3 5 4b onnx q4f16 comme reference locale ane tant qu il reste accepted",
+          "scope": null,
+          "status": null,
+          "text": "Garder `apple-coreml:qwen3.5-4b-onnx-q4f16` comme reference locale ANE tant qu'il reste `accepted`.",
+          "validation": "Dated ANE execution plan archive"
+        },
+        {
+          "classification": "historical",
+          "identifier": "docs/EXECUTION_PLAN_2026-03-08.md:3",
+          "normalized": "garder ollama via docker cpu comme reference runtime pour ane tant que le host metal reste casse",
+          "scope": null,
+          "status": null,
+          "text": "Garder `ollama` via Docker CPU comme reference runtime pour ANE tant que le host Metal reste casse.",
+          "validation": "Dated ANE execution plan archive"
+        },
+        {
+          "classification": "historical",
+          "identifier": "docs/EXECUTION_PLAN_2026-03-08.md:4",
+          "normalized": "finir le lot baselines puis laisser ai novel engine ajuster rewrite ou repair pour sortir qwen2 5 7b de outlinelike",
+          "scope": null,
+          "status": null,
+          "text": "Finir le lot `baselines`, puis laisser `ai-novel-engine` ajuster `rewrite` ou `repair` pour sortir `qwen2.5:7b` de `outline_like`.",
+          "validation": "Dated ANE execution plan archive"
+        },
+        {
+          "classification": "historical",
+          "identifier": "docs/EXECUTION_PLAN_2026-03-08.md:5",
+          "normalized": "documenter explicitement la contrainte un seul modele apple a la fois pour les smokes ane",
+          "scope": null,
+          "status": null,
+          "text": "Documenter explicitement la contrainte \"un seul modele Apple a la fois\" pour les smokes ANE.",
+          "validation": "Dated ANE execution plan archive"
+        }
+      ],
+      "open_item_count": 5,
+      "parser": "actionable",
+      "path": "docs/EXECUTION_PLAN_2026-03-08.md",
+      "repo": "mascarade",
+      "role": "historical",
+      "source_of_truth": false,
+      "status": "ok"
+    },
+    {
+      "exists": true,
+      "issues": [],
+      "items": [
+        {
+          "classification": "historical",
+          "identifier": "docs/EXECUTION_PLAN_2026-03-10.md:1",
+          "normalized": "push mascarade many commits incl finetune webui",
+          "scope": null,
+          "status": null,
+          "text": "Push mascarade (many commits incl. finetune + webui)",
+          "validation": "Dated execution plan archive"
+        },
+        {
+          "classification": "historical",
+          "identifier": "docs/EXECUTION_PLAN_2026-03-10.md:2",
+          "normalized": "v rifier ci github actions",
+          "scope": null,
+          "status": null,
+          "text": "V\u00e9rifier CI GitHub Actions",
+          "validation": "Dated execution plan archive"
+        },
+        {
+          "classification": "historical",
+          "identifier": "docs/EXECUTION_PLAN_2026-03-10.md:3",
+          "normalized": "p2p auth rejectunsigned true",
+          "scope": null,
+          "status": null,
+          "text": "P2P auth reject_unsigned=true",
+          "validation": "Dated execution plan archive"
+        },
+        {
+          "classification": "historical",
+          "identifier": "docs/EXECUTION_PLAN_2026-03-10.md:4",
+          "normalized": "knowledge base url",
+          "scope": null,
+          "status": null,
+          "text": "Knowledge Base URL",
+          "validation": "Dated execution plan archive"
+        },
+        {
+          "classification": "historical",
+          "identifier": "docs/EXECUTION_PLAN_2026-03-10.md:5",
+          "normalized": "ollama broken macos tahoe attendre update",
+          "scope": null,
+          "status": null,
+          "text": "Ollama: broken macOS Tahoe \u2014 attendre update",
+          "validation": "Dated execution plan archive"
+        },
+        {
+          "classification": "historical",
+          "identifier": "docs/EXECUTION_PLAN_2026-03-10.md:6",
+          "normalized": "apple coreml non v rifi",
+          "scope": null,
+          "status": null,
+          "text": "Apple CoreML: non v\u00e9rifi\u00e9",
+          "validation": "Dated execution plan archive"
+        },
+        {
+          "classification": "historical",
+          "identifier": "docs/EXECUTION_PLAN_2026-03-10.md:7",
+          "normalized": "pip install platformio",
+          "scope": null,
+          "status": null,
+          "text": "`pip install platformio`",
+          "validation": "Dated execution plan archive"
+        },
+        {
+          "classification": "historical",
+          "identifier": "docs/EXECUTION_PLAN_2026-03-10.md:8",
+          "normalized": "pio run e native pio test e native",
+          "scope": null,
+          "status": null,
+          "text": "`pio run -e native && pio test -e native`",
+          "validation": "Dated execution plan archive"
+        },
+        {
+          "classification": "historical",
+          "identifier": "docs/EXECUTION_PLAN_2026-03-10.md:9",
+          "normalized": "spec intake spec arch plan",
+          "scope": null,
+          "status": null,
+          "text": "Spec: intake \u2192 spec \u2192 arch \u2192 plan",
+          "validation": "Dated execution plan archive"
+        },
+        {
+          "classification": "historical",
+          "identifier": "docs/EXECUTION_PLAN_2026-03-10.md:10",
+          "normalized": "impl menter firmware src main cpp",
+          "scope": null,
+          "status": null,
+          "text": "Impl\u00e9menter firmware/src/main.cpp",
+          "validation": "Dated execution plan archive"
+        },
+        {
+          "classification": "historical",
+          "identifier": "docs/EXECUTION_PLAN_2026-03-10.md:11",
+          "normalized": "tests unity",
+          "scope": null,
+          "status": null,
+          "text": "Tests Unity",
+          "validation": "Dated execution plan archive"
+        },
+        {
+          "classification": "historical",
+          "identifier": "docs/EXECUTION_PLAN_2026-03-10.md:12",
+          "normalized": "build esp32 pio run e esp32s3arduino",
+          "scope": null,
+          "status": null,
+          "text": "Build ESP32: pio run -e esp32s3_arduino",
+          "validation": "Dated execution plan archive"
+        },
+        {
+          "classification": "historical",
+          "identifier": "docs/EXECUTION_PLAN_2026-03-10.md:13",
+          "normalized": "gate s0 s1",
+          "scope": null,
+          "status": null,
+          "text": "Gate S0 \u2192 S1",
+          "validation": "Dated execution plan archive"
+        },
+        {
+          "classification": "historical",
+          "identifier": "docs/EXECUTION_PLAN_2026-03-10.md:14",
+          "normalized": "killliferoot dans envrc",
+          "scope": null,
+          "status": null,
+          "text": "KILL_LIFE_ROOT dans .envrc",
+          "validation": "Dated execution plan archive"
+        },
+        {
+          "classification": "historical",
+          "identifier": "docs/EXECUTION_PLAN_2026-03-10.md:15",
+          "normalized": "npm run dev all test complet",
+          "scope": null,
+          "status": null,
+          "text": "npm run dev:all \u2192 test complet",
+          "validation": "Dated execution plan archive"
+        },
+        {
+          "classification": "historical",
+          "identifier": "docs/EXECUTION_PLAN_2026-03-10.md:16",
+          "normalized": "curl localhost 3100 api killlife workflows",
+          "scope": null,
+          "status": null,
+          "text": "curl localhost:3100/api/killlife/workflows",
+          "validation": "Dated execution plan archive"
+        },
+        {
+          "classification": "historical",
+          "identifier": "docs/EXECUTION_PLAN_2026-03-10.md:17",
+          "normalized": "installer huggingfacehub sur toutes les machines",
+          "scope": null,
+          "status": null,
+          "text": "Installer huggingface_hub sur toutes les machines",
+          "validation": "Dated execution plan archive"
+        },
+        {
+          "classification": "historical",
+          "identifier": "docs/EXECUTION_PLAN_2026-03-10.md:18",
+          "normalized": "installer trl peft sur kxkm ai ft student",
+          "scope": null,
+          "status": null,
+          "text": "Installer trl + peft sur KXKM-AI (ft-student)",
+          "validation": "Dated execution plan archive"
+        },
+        {
+          "classification": "historical",
+          "identifier": "docs/EXECUTION_PLAN_2026-03-10.md:19",
+          "normalized": "tester pipeline research dataset training sur mesh",
+          "scope": null,
+          "status": null,
+          "text": "Tester pipeline research \u2192 dataset \u2192 training sur mesh",
+          "validation": "Dated execution plan archive"
+        },
+        {
+          "classification": "historical",
+          "identifier": "docs/EXECUTION_PLAN_2026-03-10.md:20",
+          "normalized": "premier fine tune qwen2 5 0 5b instruct sur code generation",
+          "scope": null,
+          "status": null,
+          "text": "Premier fine-tune: Qwen2.5-0.5B-Instruct sur code-generation",
+          "validation": "Dated execution plan archive"
+        },
+        {
+          "classification": "historical",
+          "identifier": "docs/EXECUTION_PLAN_2026-03-10.md:21",
+          "normalized": "teacher data generation via claude strategy best",
+          "scope": null,
+          "status": null,
+          "text": "Teacher data generation via Claude (strategy=BEST)",
+          "validation": "Dated execution plan archive"
+        },
+        {
+          "classification": "historical",
+          "identifier": "docs/EXECUTION_PLAN_2026-03-10.md:22",
+          "normalized": "lora training sur kxkm ai rtx 4090",
+          "scope": null,
+          "status": null,
+          "text": "LoRA training sur KXKM-AI (RTX 4090)",
+          "validation": "Dated execution plan archive"
+        },
+        {
+          "classification": "historical",
+          "identifier": "docs/EXECUTION_PLAN_2026-03-10.md:23",
+          "normalized": "evaluation benchmarks analyste",
+          "scope": null,
+          "status": null,
+          "text": "Evaluation + benchmarks (Analyste)",
+          "validation": "Dated execution plan archive"
+        },
+        {
+          "classification": "historical",
+          "identifier": "docs/EXECUTION_PLAN_2026-03-10.md:24",
+          "normalized": "dpo cycle renforceur",
+          "scope": null,
+          "status": null,
+          "text": "DPO cycle (Renforceur)",
+          "validation": "Dated execution plan archive"
+        },
+        {
+          "classification": "historical",
+          "identifier": "docs/EXECUTION_PLAN_2026-03-10.md:25",
+          "normalized": "validation red teaming validateur sur cils",
+          "scope": null,
+          "status": null,
+          "text": "Validation + red-teaming (Validateur sur CILS)",
+          "validation": "Dated execution plan archive"
+        },
+        {
+          "classification": "historical",
+          "identifier": "docs/EXECUTION_PLAN_2026-03-10.md:26",
+          "normalized": "publication huggingface archiviste",
+          "scope": null,
+          "status": null,
+          "text": "Publication HuggingFace (Archiviste)",
+          "validation": "Dated execution plan archive"
+        },
+        {
+          "classification": "historical",
+          "identifier": "docs/EXECUTION_PLAN_2026-03-10.md:27",
+          "normalized": "cycle continu recherche hebdo nouvelles bases",
+          "scope": null,
+          "status": null,
+          "text": "Cycle continu: recherche hebdo nouvelles bases",
+          "validation": "Dated execution plan archive"
+        },
+        {
+          "classification": "historical",
+          "identifier": "docs/EXECUTION_PLAN_2026-03-10.md:28",
+          "normalized": "auto registration provider post fine tune",
+          "scope": null,
+          "status": null,
+          "text": "Auto-registration provider post-fine-tune",
+          "validation": "Dated execution plan archive"
+        },
+        {
+          "classification": "historical",
+          "identifier": "docs/EXECUTION_PLAN_2026-03-10.md:29",
+          "normalized": "dataset mascarade kicad sur huggingface",
+          "scope": null,
+          "status": null,
+          "text": "Dataset mascarade-kicad sur HuggingFace",
+          "validation": "Dated execution plan archive"
+        },
+        {
+          "classification": "historical",
+          "identifier": "docs/EXECUTION_PLAN_2026-03-10.md:30",
+          "normalized": "crazylife ui mascarade api llm r sultat",
+          "scope": null,
+          "status": null,
+          "text": "crazy_life UI \u2192 mascarade API \u2192 LLM \u2192 r\u00e9sultat",
+          "validation": "Dated execution plan archive"
+        },
+        {
+          "classification": "historical",
+          "identifier": "docs/EXECUTION_PLAN_2026-03-10.md:31",
+          "normalized": "mascarade api killlife mcp r sultat",
+          "scope": null,
+          "status": null,
+          "text": "mascarade API \u2192 Kill_LIFE MCP \u2192 r\u00e9sultat",
+          "validation": "Dated execution plan archive"
+        },
+        {
+          "classification": "historical",
+          "identifier": "docs/EXECUTION_PLAN_2026-03-10.md:32",
+          "normalized": "grafana dashboard p2p",
+          "scope": null,
+          "status": null,
+          "text": "Grafana dashboard P2P",
+          "validation": "Dated execution plan archive"
+        },
+        {
+          "classification": "historical",
+          "identifier": "docs/EXECUTION_PLAN_2026-03-10.md:33",
+          "normalized": "prometheus alerting peercount expected",
+          "scope": null,
+          "status": null,
+          "text": "Prometheus alerting: peer_count < expected",
+          "validation": "Dated execution plan archive"
+        },
+        {
+          "classification": "historical",
+          "identifier": "docs/EXECUTION_PLAN_2026-03-10.md:34",
+          "normalized": "langfuse traces agents e2e",
+          "scope": null,
+          "status": null,
+          "text": "Langfuse traces agents e2e",
+          "validation": "Dated execution plan archive"
+        }
+      ],
+      "open_item_count": 34,
+      "parser": "checklist",
+      "path": "docs/EXECUTION_PLAN_2026-03-10.md",
+      "repo": "mascarade",
+      "role": "historical",
+      "source_of_truth": false,
+      "status": "ok"
+    },
+    {
+      "exists": true,
+      "issues": [],
+      "items": [],
+      "open_item_count": 0,
+      "parser": "none",
+      "path": "docs/FINETUNING_4090_PARALLEL_PLAN.md",
+      "repo": "mascarade",
+      "role": "historical",
+      "source_of_truth": false,
+      "status": "ok"
+    },
+    {
+      "exists": true,
+      "issues": [],
+      "items": [],
+      "open_item_count": 0,
+      "parser": "none",
+      "path": "docs/PLAN_AMELIORATION_v0.3.md",
+      "repo": "mascarade",
+      "role": "historical",
+      "source_of_truth": false,
+      "status": "ok"
+    },
+    {
+      "exists": true,
+      "issues": [],
+      "items": [],
+      "open_item_count": 0,
+      "parser": "none",
+      "path": "docs/PLAN_FINETUNING_P2P.md",
+      "repo": "mascarade",
+      "role": "historical",
+      "source_of_truth": false,
+      "status": "ok"
+    },
+    {
+      "exists": true,
+      "issues": [],
+      "items": [],
+      "open_item_count": 0,
+      "parser": "none",
+      "path": "docs/Q2_2026_DEVELOPMENT_PLAN.md",
+      "repo": "mascarade",
+      "role": "historical",
+      "source_of_truth": false,
+      "status": "ok"
+    },
+    {
+      "exists": true,
+      "issues": [],
+      "items": [
+        {
+          "classification": "historical",
+          "identifier": "docs/TODO_2026-03-10.md:1",
+          "normalized": "tester distributetask ft research grosmac r sultats hf",
+          "scope": null,
+          "status": null,
+          "text": "Tester distribute_task ft-research \u2192 GrosMac \u2192 r\u00e9sultats HF",
+          "validation": "Dated TODO snapshot only"
+        },
+        {
+          "classification": "historical",
+          "identifier": "docs/TODO_2026-03-10.md:2",
+          "normalized": "analyste benchmarks perplexit vitesse humaneval",
+          "scope": null,
+          "status": null,
+          "text": "Analyste: benchmarks perplexit\u00e9 + vitesse (HumanEval)",
+          "validation": "Dated TODO snapshot only"
+        },
+        {
+          "classification": "historical",
+          "identifier": "docs/TODO_2026-03-10.md:3",
+          "normalized": "archiviste push r sultat sur huggingface clemsail",
+          "scope": null,
+          "status": null,
+          "text": "Archiviste: push r\u00e9sultat sur HuggingFace clemsail/",
+          "validation": "Dated TODO snapshot only"
+        },
+        {
+          "classification": "historical",
+          "identifier": "docs/TODO_2026-03-10.md:4",
+          "normalized": "pipeline fine tune via p2p distributetask pas ssh manuel",
+          "scope": null,
+          "status": null,
+          "text": "Pipeline fine-tune via P2P distribute_task (pas SSH manuel)",
+          "validation": "Dated TODO snapshot only"
+        },
+        {
+          "classification": "historical",
+          "identifier": "docs/TODO_2026-03-10.md:5",
+          "normalized": "grafana dashboard p2p import",
+          "scope": null,
+          "status": null,
+          "text": "Grafana dashboard P2P import",
+          "validation": "Dated TODO snapshot only"
+        },
+        {
+          "classification": "historical",
+          "identifier": "docs/TODO_2026-03-10.md:6",
+          "normalized": "knowledge base url configur e",
+          "scope": null,
+          "status": null,
+          "text": "Knowledge Base URL configur\u00e9e",
+          "validation": "Dated TODO snapshot only"
+        },
+        {
+          "classification": "historical",
+          "identifier": "docs/TODO_2026-03-10.md:7",
+          "normalized": "graphiti mcp server sur vm knowledge graph",
+          "scope": null,
+          "status": null,
+          "text": "Graphiti MCP Server sur VM (knowledge graph)",
+          "validation": "Dated TODO snapshot only"
+        },
+        {
+          "classification": "historical",
+          "identifier": "docs/TODO_2026-03-10.md:8",
+          "normalized": "registry first mcp d cider si firecrawl doit tre ajout la config mcp locale de cette machine",
+          "scope": null,
+          "status": null,
+          "text": "Registry-first MCP: d\u00e9cider si `firecrawl` doit \u00eatre ajout\u00e9 \u00e0 la config MCP locale de cette machine",
+          "validation": "Dated TODO snapshot only"
+        },
+        {
+          "classification": "historical",
+          "identifier": "docs/TODO_2026-03-10.md:9",
+          "normalized": "registry first mcp d cider si mem0 doit tre ajout la config mcp locale de cette machine",
+          "scope": null,
+          "status": null,
+          "text": "Registry-first MCP: d\u00e9cider si `mem0` doit \u00eatre ajout\u00e9 \u00e0 la config MCP locale de cette machine",
+          "validation": "Dated TODO snapshot only"
+        },
+        {
+          "classification": "historical",
+          "identifier": "docs/TODO_2026-03-10.md:10",
+          "normalized": "registry first mcp appliquer hors sandbox la shadow config valid e sur codex config toml",
+          "scope": null,
+          "status": null,
+          "text": "Registry-first MCP: appliquer hors sandbox la shadow config valid\u00e9e sur `~/.codex/config.toml`",
+          "validation": "Dated TODO snapshot only"
+        },
+        {
+          "classification": "historical",
+          "identifier": "docs/TODO_2026-03-10.md:11",
+          "normalized": "dpo simpo cycle renforceur collecte erreurs teacher corrige student re train",
+          "scope": null,
+          "status": null,
+          "text": "DPO/SimPO cycle: Renforceur collecte erreurs \u2192 Teacher corrige \u2192 Student re-train",
+          "validation": "Dated TODO snapshot only"
+        },
+        {
+          "classification": "historical",
+          "identifier": "docs/TODO_2026-03-10.md:12",
+          "normalized": "validation red team regression sur cils",
+          "scope": null,
+          "status": null,
+          "text": "Validation: red-team + regression sur CILS",
+          "validation": "Dated TODO snapshot only"
+        },
+        {
+          "classification": "historical",
+          "identifier": "docs/TODO_2026-03-10.md:13",
+          "normalized": "publication archiviste push mod le final valid",
+          "scope": null,
+          "status": null,
+          "text": "Publication: Archiviste push mod\u00e8le final valid\u00e9",
+          "validation": "Dated TODO snapshot only"
+        },
+        {
+          "classification": "historical",
+          "identifier": "docs/TODO_2026-03-10.md:14",
+          "normalized": "auto registration mod le fine tun provider mascarade",
+          "scope": null,
+          "status": null,
+          "text": "Auto-registration: mod\u00e8le fine-tun\u00e9 \u2192 provider mascarade",
+          "validation": "Dated TODO snapshot only"
+        },
+        {
+          "classification": "historical",
+          "identifier": "docs/TODO_2026-03-10.md:15",
+          "normalized": "prometheus alerting peercount expected",
+          "scope": null,
+          "status": null,
+          "text": "Prometheus alerting: peer_count < expected",
+          "validation": "Dated TODO snapshot only"
+        },
+        {
+          "classification": "historical",
+          "identifier": "docs/TODO_2026-03-10.md:16",
+          "normalized": "grafana consolid llm p2p finetune metrics finetune progress json pr sent p2p manquant",
+          "scope": null,
+          "status": null,
+          "text": "Grafana consolid\u00e9: LLM + P2P + finetune metrics (finetune-progress.json pr\u00e9sent, P2P manquant)",
+          "validation": "Dated TODO snapshot only"
+        },
+        {
+          "classification": "historical",
+          "identifier": "docs/TODO_2026-03-10.md:17",
+          "normalized": "cycle continu recherche hebdo nouvelles bases datasets",
+          "scope": null,
+          "status": null,
+          "text": "Cycle continu: recherche hebdo nouvelles bases/datasets",
+          "validation": "Dated TODO snapshot only"
+        },
+        {
+          "classification": "historical",
+          "identifier": "docs/TODO_2026-03-10.md:18",
+          "normalized": "dataset mascarade kicad sur huggingface",
+          "scope": null,
+          "status": null,
+          "text": "Dataset mascarade-kicad sur HuggingFace",
+          "validation": "Dated TODO snapshot only"
+        },
+        {
+          "classification": "historical",
+          "identifier": "docs/TODO_2026-03-10.md:19",
+          "normalized": "cycle e2e crazylife mascarade api killlife mcp r sultat",
+          "scope": null,
+          "status": null,
+          "text": "Cycle e2e: crazy_life \u2192 mascarade API \u2192 Kill_LIFE MCP \u2192 r\u00e9sultat",
+          "validation": "Dated TODO snapshot only"
+        }
+      ],
+      "open_item_count": 19,
+      "parser": "checklist",
+      "path": "docs/TODO_2026-03-10.md",
+      "repo": "mascarade",
+      "role": "historical",
+      "source_of_truth": false,
+      "status": "ok"
+    },
+    {
+      "exists": true,
+      "issues": [],
+      "items": [],
+      "open_item_count": 0,
+      "parser": "none",
+      "path": "docs/TODO_CONSOLIDATION_RAW.md",
+      "repo": "mascarade",
+      "role": "audit",
+      "source_of_truth": false,
+      "status": "ok"
+    },
+    {
+      "exists": true,
+      "issues": [],
+      "items": [],
+      "open_item_count": 0,
+      "parser": "none",
+      "path": "docs/TODO_CROSS_REFERENCE.md",
+      "repo": "mascarade",
+      "role": "audit",
+      "source_of_truth": false,
+      "status": "ok"
+    },
+    {
+      "exists": true,
+      "issues": [],
+      "items": [],
+      "open_item_count": 0,
+      "parser": "none",
+      "path": "docs/TRAINING_PLAN_2_SEMAINES.md",
+      "repo": "mascarade",
+      "role": "historical",
+      "source_of_truth": false,
+      "status": "ok"
+    },
+    {
+      "exists": true,
+      "issues": [],
+      "items": [
+        {
+          "classification": "historical",
+          "identifier": "docs/audit/MCP_RUNTIME_PLAN_2026-03-07.md:1",
+          "normalized": "garantir un kicadmcpdatadir writable",
+          "scope": null,
+          "status": null,
+          "text": "Garantir un `KICAD_MCP_DATA_DIR` writable",
+          "validation": "MCP runtime audit-plan reference only"
+        },
+        {
+          "classification": "historical",
+          "identifier": "docs/audit/MCP_RUNTIME_PLAN_2026-03-07.md:2",
+          "normalized": "faire tomber les logs runtime sous un home ma tris",
+          "scope": null,
+          "status": null,
+          "text": "Faire tomber les logs/runtime sous un `HOME` ma\u00eetris\u00e9",
+          "validation": "MCP runtime audit-plan reference only"
+        },
+        {
+          "classification": "historical",
+          "identifier": "docs/audit/MCP_RUNTIME_PLAN_2026-03-07.md:3",
+          "normalized": "viter les critures par d faut dans opt kicad mcp",
+          "scope": null,
+          "status": null,
+          "text": "\u00c9viter les \u00e9critures par d\u00e9faut dans `/opt/kicad-mcp`",
+          "validation": "MCP runtime audit-plan reference only"
+        },
+        {
+          "classification": "historical",
+          "identifier": "docs/audit/MCP_RUNTIME_PLAN_2026-03-07.md:4",
+          "normalized": "charger des librairies kicad r elles",
+          "scope": null,
+          "status": null,
+          "text": "Charger des librairies KiCad r\u00e9elles",
+          "validation": "MCP runtime audit-plan reference only"
+        },
+        {
+          "classification": "historical",
+          "identifier": "docs/audit/MCP_RUNTIME_PLAN_2026-03-07.md:5",
+          "normalized": "ajouter un fallback praticable m me sans tables kicad compl tes",
+          "scope": null,
+          "status": null,
+          "text": "Ajouter un fallback praticable m\u00eame sans tables KiCad compl\u00e8tes",
+          "validation": "MCP runtime audit-plan reference only"
+        },
+        {
+          "classification": "historical",
+          "identifier": "docs/audit/MCP_RUNTIME_PLAN_2026-03-07.md:6",
+          "normalized": "faire fonctionner le runtime sur conteneur kicad v10 quand l h te n expose pas pcbnew",
+          "scope": null,
+          "status": null,
+          "text": "Faire fonctionner le runtime sur conteneur KiCad v10 quand l'h\u00f4te n'expose pas `pcbnew`",
+          "validation": "MCP runtime audit-plan reference only"
+        },
+        {
+          "classification": "historical",
+          "identifier": "docs/audit/MCP_RUNTIME_PLAN_2026-03-07.md:7",
+          "normalized": "remplacer le mock componentdatabase par une source r elle locale cache kicad v10",
+          "scope": null,
+          "status": null,
+          "text": "Remplacer le mock `component_database` par une source r\u00e9elle locale + cache KiCad v10",
+          "validation": "MCP runtime audit-plan reference only"
+        },
+        {
+          "classification": "historical",
+          "identifier": "docs/audit/MCP_RUNTIME_PLAN_2026-03-07.md:8",
+          "normalized": "remplacer le mock kicadtools par des analyses r elles de fichiers kicad",
+          "scope": null,
+          "status": null,
+          "text": "Remplacer le mock `kicad_tools` par des analyses r\u00e9elles de fichiers KiCad",
+          "validation": "MCP runtime audit-plan reference only"
+        },
+        {
+          "classification": "historical",
+          "identifier": "docs/audit/MCP_RUNTIME_PLAN_2026-03-07.md:9",
+          "normalized": "clarifier nexarapi mode d mo explicite mode live encore valider",
+          "scope": null,
+          "status": null,
+          "text": "Clarifier `nexar_api`: mode d\u00e9mo explicite, mode live encore \u00e0 valider",
+          "validation": "MCP runtime audit-plan reference only"
+        },
+        {
+          "classification": "historical",
+          "identifier": "docs/audit/MCP_RUNTIME_PLAN_2026-03-07.md:10",
+          "normalized": "smoke versionn c t consommateur",
+          "scope": null,
+          "status": null,
+          "text": "Smoke versionn\u00e9 c\u00f4t\u00e9 consommateur",
+          "validation": "MCP runtime audit-plan reference only"
+        },
+        {
+          "classification": "historical",
+          "identifier": "docs/audit/MCP_RUNTIME_PLAN_2026-03-07.md:11",
+          "normalized": "sync versioning du cache kicad v10",
+          "scope": null,
+          "status": null,
+          "text": "Sync/versioning du cache KiCad v10",
+          "validation": "MCP runtime audit-plan reference only"
+        },
+        {
+          "classification": "historical",
+          "identifier": "docs/audit/MCP_RUNTIME_PLAN_2026-03-07.md:12",
+          "normalized": "mesures de cold start pour les mcp auxiliaires",
+          "scope": null,
+          "status": null,
+          "text": "Mesures de cold start pour les MCP auxiliaires",
+          "validation": "MCP runtime audit-plan reference only"
+        },
+        {
+          "classification": "historical",
+          "identifier": "docs/audit/MCP_RUNTIME_PLAN_2026-03-07.md:13",
+          "normalized": "revalider le chemin host native sur une machine avec pcbnew",
+          "scope": null,
+          "status": null,
+          "text": "Revalider le chemin host-native sur une machine avec `pcbnew`",
+          "validation": "MCP runtime audit-plan reference only"
+        },
+        {
+          "classification": "historical",
+          "identifier": "docs/audit/MCP_RUNTIME_PLAN_2026-03-07.md:14",
+          "normalized": "valider nexarapi en mode live avec nexartoken",
+          "scope": null,
+          "status": null,
+          "text": "Valider `nexar_api` en mode live avec `NEXAR_TOKEN`",
+          "validation": "MCP runtime audit-plan reference only"
+        },
+        {
+          "classification": "historical",
+          "identifier": "docs/audit/MCP_RUNTIME_PLAN_2026-03-07.md:15",
+          "normalized": "garder la s paration entre runtime principal et surfaces auxiliaires support es",
+          "scope": null,
+          "status": null,
+          "text": "Garder la s\u00e9paration entre runtime principal et surfaces auxiliaires support\u00e9es",
+          "validation": "MCP runtime audit-plan reference only"
+        },
+        {
+          "classification": "historical",
+          "identifier": "docs/audit/MCP_RUNTIME_PLAN_2026-03-07.md:16",
+          "normalized": "garder scripts data mcpregistryinventory json synchronis avant tout ajout de serveur mcp dans la doc ou la config locale",
+          "scope": null,
+          "status": null,
+          "text": "Garder `scripts/data/mcp_registry_inventory.json` synchronis\u00e9 avant tout ajout de serveur MCP dans la doc ou la config locale",
+          "validation": "MCP runtime audit-plan reference only"
+        },
+        {
+          "classification": "historical",
+          "identifier": "docs/audit/MCP_RUNTIME_PLAN_2026-03-07.md:17",
+          "normalized": "appliquer hors sandbox la shadow config codex valid e sur codex config toml",
+          "scope": null,
+          "status": null,
+          "text": "Appliquer hors sandbox la shadow config Codex valid\u00e9e sur `~/.codex/config.toml`",
+          "validation": "MCP runtime audit-plan reference only"
+        }
+      ],
+      "open_item_count": 17,
+      "parser": "actionable",
+      "path": "docs/audit/MCP_RUNTIME_PLAN_2026-03-07.md",
+      "repo": "mascarade",
+      "role": "historical",
+      "source_of_truth": false,
+      "status": "ok"
+    },
+    {
+      "exists": true,
+      "issues": [],
+      "items": [
+        {
+          "classification": "historical",
+          "identifier": "docs/audit/MCP_RUNTIME_TODO_2026-03-07.md:1",
+          "normalized": "m 010 faire passer le boot r el du serveur sur une machine avec kicad python disponible",
+          "scope": null,
+          "status": null,
+          "text": "M-010 \u2014 Faire passer le boot r\u00e9el du serveur sur une machine avec KiCad Python disponible",
+          "validation": "MCP runtime audit TODO; live backlog remains in docs/EXECUTION_HUB.md"
+        },
+        {
+          "classification": "historical",
+          "identifier": "docs/audit/MCP_RUNTIME_TODO_2026-03-07.md:2",
+          "normalized": "m 013 appliquer hors sandbox la shadow config codex valid e",
+          "scope": null,
+          "status": null,
+          "text": "M-013 \u2014 Appliquer hors sandbox la shadow config Codex valid\u00e9e",
+          "validation": "MCP runtime audit TODO; live backlog remains in docs/EXECUTION_HUB.md"
+        }
+      ],
+      "open_item_count": 2,
+      "parser": "checklist",
+      "path": "docs/audit/MCP_RUNTIME_TODO_2026-03-07.md",
+      "repo": "mascarade",
+      "role": "audit",
+      "source_of_truth": false,
+      "status": "ok"
+    },
+    {
+      "exists": true,
+      "issues": [],
+      "items": [],
+      "open_item_count": 0,
+      "parser": "none",
+      "path": "docs/plan/2026-03-24-sota-mascarade/active_execution_plan.md",
+      "repo": "mascarade",
+      "role": "historical",
+      "source_of_truth": false,
+      "status": "ok"
+    },
+    {
+      "exists": true,
+      "issues": [],
+      "items": [],
+      "open_item_count": 0,
+      "parser": "none",
+      "path": "docs/research/ECOSYSTEM_INTEGRATION_PLAN_2026-03.md",
+      "repo": "mascarade",
+      "role": "historical",
+      "source_of_truth": false,
+      "status": "ok"
+    },
+    {
+      "exists": true,
+      "issues": [],
+      "items": [],
+      "open_item_count": 0,
+      "parser": "none",
+      "path": "core/docs/testing/coverage-plan.md",
+      "repo": "mascarade",
+      "role": "historical",
+      "source_of_truth": false,
+      "status": "ok"
+    },
+    {
+      "exists": true,
+      "issues": [],
+      "items": [],
+      "open_item_count": 0,
+      "parser": "none",
+      "path": "../crazy_life/plan.md",
+      "repo": "crazy_life",
+      "role": "external-canonical",
+      "source_of_truth": true,
+      "status": "ok"
+    },
+    {
+      "exists": true,
+      "issues": [],
+      "items": [],
+      "open_item_count": 0,
+      "parser": "none",
+      "path": "../Kill_LIFE/specs/mcp_tasks.md",
+      "repo": "Kill_LIFE",
+      "role": "external-canonical",
+      "source_of_truth": true,
+      "status": "ok"
+    }
+  ],
+  "duplicates": [],
+  "generated_at": "2026-03-29T15:22:29+00:00",
+  "issues": [],
+  "registry_path": "/Users/electron/mascarade/docs/TODO_PLAN_REGISTRY.yaml",
+  "repo_root": "/Users/electron/mascarade",
+  "summary": {
+    "active_documents": 2,
+    "documents": 29,
+    "duplicate_groups": 0,
+    "errors": 0,
+    "items": {
+      "active": 9,
+      "blocked": 1,
+      "done-but-not-canonical": 9,
+      "historical": 143
+    },
+    "roles": {
+      "active": 2,
+      "audit": 3,
+      "external-canonical": 2,
+      "historical": 19,
+      "implemented": 3
+    },
+    "source_of_truth_documents": 3,
+    "unclassified_documents": 0,
+    "warnings": 0
+  },
+  "unclassified": []
+}

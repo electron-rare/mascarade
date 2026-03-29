@@ -1,5 +1,10 @@
 # Plan d'execution - 6 mars 2026
 
+Statut suite:
+- type: `historical-reference`
+- source active: `docs/EXECUTION_HUB.md`
+- regle: plan archive, a ne pas utiliser comme backlog actif
+
 Plan court, factuel, base sur l'etat actuel du repo et des derniers runs locaux.
 
 ## Axe 1 - Fine-tuning local
