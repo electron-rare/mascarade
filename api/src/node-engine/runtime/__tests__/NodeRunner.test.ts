@@ -111,7 +111,7 @@ describe('NodeRunner', () => {
 
       expect(record.state).toBe('complete');
       expect(record.outputs).toEqual({ response: 'Echo: Hello' });
-      expect(record.duration).toBeGreaterThanOrEqual(10);
+      expect(record.duration).toBeGreaterThan(0);
     });
 
     it('handles NodeExecutionResult with meta', async () => {

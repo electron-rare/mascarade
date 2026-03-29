@@ -751,7 +751,7 @@ const FLEET_MANIFEST_DATA: {
   services: string[];
   hasGpu: boolean;
 }[] = [
-  { name: "photon", ip: "192.168.0.119", role: "Prod, core + API Docker", services: ["core", "gateway", ", "qdrant", "searxng", "comfyui"], hasGpu: false },
+  { name: "photon", ip: "192.168.0.119", role: "Prod, core + API Docker", services: ["core", "gateway", "qdrant", "searxng", "comfyui"], hasGpu: false },
   { name: "KXKM-AI", ip: "100.87.54.119", role: "GPU RTX 4090, finetune", services: ["ollama", "finetune", "comfyui", "argilla"], hasGpu: true },
   { name: "Tower", ip: "192.168.0.120", role: "Argilla, Nextcloud", services: ["argilla", "nextcloud", "ollama"], hasGpu: true },
   { name: "grosmac", ip: "100.80.178.42", role: "Dev", services: ["core", "ollama", "dev-gateway"], hasGpu: false },
