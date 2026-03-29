@@ -1,5 +1,10 @@
 # TODO IMPLEMENTE
 
+Statut suite:
+- type: `implemented-reference`
+- source active: `docs/EXECUTION_HUB.md`
+- regle: conserver ce fichier comme historique livre; tout travail encore vivant doit etre pilote depuis `docs/EXECUTION_HUB.md`
+
 Etat de reference du chantier fine-tuning/distillation local au 6 mars 2026.
 
 ## 1. Deja implemente

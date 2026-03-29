@@ -1,5 +1,10 @@
 # TODO - Fine-Tuning Local
 
+Statut suite:
+- type: `historical-reference`
+- source active: `docs/EXECUTION_HUB.md`
+- regle: ce fichier reste une reference historique; le backlog actif doit vivre dans `docs/EXECUTION_HUB.md`
+
 Etat de reference au 6 mars 2026.
 Mis a jour apres audit croise code/docs le 7 mars 2026.
 

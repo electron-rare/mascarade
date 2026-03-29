@@ -1,5 +1,10 @@
 # TODO AI Novel Engine - Mascarade
 
+Statut suite:
+- type: `historical-reference`
+- source active: `docs/EXECUTION_HUB.md`
+- regle: garder ici seulement les notes de contexte; tout lot reouvert doit etre re-inscrit dans `docs/EXECUTION_HUB.md`
+
 Backlog dedie a l'integration `ai-novel-engine`.
 
 Regle:

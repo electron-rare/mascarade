@@ -8,20 +8,32 @@ Stabiliser `mascarade` sur `photon-machine`, garder les TODOs et runbooks aligns
 
 | Repo | Role | Backlog canonique |
 | --- | --- | --- |
-| `mascarade` | Repo runtime/ops de cette machine et hub d'execution multi-repo | `TODO_VM.md`, `TODO_COCKPIT_OPS.md` |
+| `mascarade` | Repo runtime/ops de cette machine et hub d'execution multi-repo | `docs/EXECUTION_HUB.md`, `TODO_VM.md` |
 | `crazy_life` | Repo canonique web/devops et release du cockpit `Crazy Lane` | `/mascarade/opt/repos/crazy_life/plan.md` |
 | `kill_life` | Source de verite workflows/MCP/CAD/runtime embarque | `/mascarade/opt/repos/kill_life/specs/mcp_tasks.md` |
 
 ## Sources actives
 
-- `mascarade/TODO_VM.md` pour la VM, les overlays machine, les secrets runtime et la posture reseau.
-- `mascarade/TODO_COCKPIT_OPS.md` pour l'observabilite, le cockpit ops local et le reliquat OTel/Loki/Grafana.
-- `mascarade/docs/PERSONAL_STACK_MACHINE.md` pour la stack personnelle legere et ses lots `PS-001+`.
-- `mascarade/docs/MACHINE_PROFILES.json` pour les profils machine et capacites de scheduling.
-- `mascarade/plan.md` pour le contrat de role des repos, pas pour le backlog actif.
-- `crazy_life/plan.md` pour le backlog cockpit/release canonique.
-- `kill_life/specs/mcp_tasks.md` pour le backlog MCP canonique.
+### Mascarade local/runtime
+
+- `mascarade/docs/EXECUTION_HUB.md` est la source de truth humaine du backlog local et des bridges cross-repo.
+- `mascarade/TODO_VM.md` reste le backlog machine actif pour `photon-machine`.
+- `mascarade/docs/TODO_PLAN_REGISTRY.yaml` enregistre le corpus TODO/plan canonise et ses roles.
+- `mascarade/docs/TODO_CROSS_REFERENCE.md` est le rapport derive de validation, a regenerer via `scripts/validate_todo_plan_suite.py`.
+- `mascarade/docs/PERSONAL_STACK_MACHINE.md` et `mascarade/docs/MACHINE_PROFILES.json` restent des references operateur actives.
+
+### Bridge vers crazy_life
+
+- `../crazy_life/plan.md` reste le backlog cockpit/release canonique.
+
+### Bridge vers Kill_LIFE
+
+- `../Kill_LIFE/specs/mcp_tasks.md` reste le backlog MCP/CAD/runtime canonique.
 - `kill_life/docs/plans/15_plan_mcp_stack.md` et `kill_life/docs/plans/15_todo_mcp_stack.md` sont explicitement deprecies.
+
+### References historiques ou livrees
+
+- `mascarade/TODO_COCKPIT_OPS.md`, `mascarade/TODO_IMPLEMENTE.md`, `mascarade/TODO_TUNNING_PARTY.md` et `mascarade/plan.md` sont conserves comme references, pas comme backlogs actifs.
 
 ## File d'execution
 
@@ -38,6 +50,7 @@ Stabiliser `mascarade` sur `photon-machine`, garder les TODOs et runbooks aligns
 | `M-009` | `mascarade` | Verifier la cardinalite Loki sur trafic reel non-smoke | `BLOCKED` | `machine:photon-machine` | `M-008` | bash scripts/loki_cardinality_report.sh --json doit montrer des labels enrichis sur du trafic non-smoke ou enregistrer un blocage explicite |
 | `M-010` | `mascarade` | Rendre le hub d'execution scope-aware pour le multi-machine | `DONE` | `global` | `M-006` | scripts/execution_hub.py context/next/list + wrappers --machine |
 | `M-011` | `mascarade` | Ajouter une matrice de dispatch des prochains lots par machine | `DONE` | `global` | `M-010` | scripts/execution_hub.py matrix + scripts/machine_lot_matrix.sh |
+| `M-012` | `mascarade` | Canoniser la suite TODO/plan et sa validation derivee | `DONE` | `global` | `M-011` | scripts/validate_todo_plan_suite.py + docs/TODO_PLAN_REGISTRY.yaml + docs/TODO_CROSS_REFERENCE.md |
 | `C-001` | `crazy_life` | Resoudre la publication canonique qui echoue en `404` | `PENDING` | `cap:network-online` | `M-001` | Validation remote + `scripts/publish_preflight.sh` |
 | `K-012` | `kill_life` | Rejouer la validation host-native KiCad | `PENDING` | `cap:kicad-host` | `-` | python3 tools/hw/kicad_host_mcp_smoke.py --json --quick |
 | `K-014` | `kill_life` | Valider le mode live `nexar_api` | `PENDING` | `cap:nexar-live` | `-` | python3 tools/nexar_mcp_smoke.py --json --live |
@@ -97,4 +110,5 @@ Capacites: `dify-machine, docker-runtime, lan-ops, observability-local`
 - `2026-03-09` - M-011 passe en cours pour ajouter une matrice des prochains lots par machine.
 - `2026-03-09` - M-011 termine. Une matrice de dispatch multi-machine est maintenant disponible avec profils logiques et prochain lot utile par machine.
 - `2026-03-09` - M-011 termine. Une matrice de dispatch multi-machine est maintenant disponible avec profils logiques et prochain lot utile par machine.
+- `2026-03-29` - `M-012` termine. Le registre `docs/TODO_PLAN_REGISTRY.yaml`, le validateur `scripts/validate_todo_plan_suite.py` et le rapport derive `docs/TODO_CROSS_REFERENCE.md` remplacent le suivi implicite du corpus TODO/plan.
 - `2026-03-09` - stack personnelle legere automatisee. Les manifests `deploy/personal-seed/*.json` et les scripts `personal_stack_*` rejouent et verifient maintenant la wave 1 locale sans seed manuel.

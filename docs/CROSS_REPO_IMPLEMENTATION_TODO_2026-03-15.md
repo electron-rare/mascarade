@@ -1,5 +1,10 @@
 # Cross-Repo Implementation TODO (15 mars 2026)
 
+Statut suite:
+- type: `historical-reference`
+- source active: `docs/EXECUTION_HUB.md`
+- regle: les dependances cross-repo actives restent dans `docs/EXECUTION_HUB.md`; ne pas relancer ce plan tel quel
+
 Objectif: executer la passe analyse/docs puis fusion main sans perte de donnees.
 
 ## Phase 1 - Docs/Specs/Plans (en cours)

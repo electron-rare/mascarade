@@ -1,5 +1,10 @@
 # Plan d'execution - 8 mars 2026
 
+Statut suite:
+- type: `historical-reference`
+- source active: `docs/EXECUTION_HUB.md`
+- regle: plan archive, a ne pas utiliser comme backlog actif
+
 Plan de reference pour `mascarade` apres revalidation ANE avec garde-fou.
 
 Le plan du 7 mars 2026 reste archive. La priorite ANE est maintenant la

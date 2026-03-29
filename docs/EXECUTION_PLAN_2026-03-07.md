@@ -1,5 +1,10 @@
 # Plan d'execution - 7 mars 2026
 
+Statut suite:
+- type: `historical-reference`
+- source active: `docs/EXECUTION_HUB.md`
+- regle: plan archive, a ne pas utiliser comme backlog actif
+
 Plan de reference recale au 8 mars 2026 apres fermeture du backlog RA,
 stabilisation du runtime local, consolidation multi-repo et livraison du lot
 observabilite/proxy operateur.

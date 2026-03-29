@@ -1,5 +1,10 @@
 # TODO - Cockpit / Ops / Observability
 
+Statut suite:
+- type: `implemented-reference`
+- source active: `docs/EXECUTION_HUB.md`
+- regle: ne pas reprendre ce backlog directement; tout nouveau lot doit etre re-declare dans `docs/EXECUTION_HUB.md`
+
 Last reviewed: 2026-03-27
 
 Etat de reference recale au 8 mars 2026.
