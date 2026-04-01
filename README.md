@@ -3,7 +3,7 @@
 ![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)
 ![License MIT](https://img.shields.io/badge/license-MIT-green.svg)
 ![Version v0.3.0](https://img.shields.io/badge/version-v0.3.0-orange.svg)
-![1163 commits](https://img.shields.io/badge/commits-1163-informational.svg)
+![1100+ commits](https://img.shields.io/badge/commits-1100%2B-informational.svg)
 
 > *"The machine is us, our processes, an aspect of our embodiment."* — Donna Haraway
 
@@ -25,7 +25,7 @@ graph TD
     P2P --- N2["Tower\nCPU inference"]
     P2P --- N3["KXKM-AI\nRTX 4090"]
     P2P --- N4["VM\nDocker host"]
-    P2P --- N5["CILS\nWeb research"]
+    P2P --- N5["CILS\nOllama inference"]
     Core <--> RAG["RAG Pipeline\nbge-m3 + Qdrant + SearXNG"]
     Core <--> MCP["MCP Server + Client\nKiCad, SPICE, FreeCAD"]
 ```
@@ -82,7 +82,7 @@ curl http://localhost:3100/v1/models
 
 ## Fine-tuned Models
 
-29 domain-specific models published on [HuggingFace (clemsail)](https://huggingface.co/clemsail), trained on 184K+ curated examples across electronics engineering domains.
+29 domain-specific models published on [HuggingFace (clemsail)](https://huggingface.co/clemsail), trained on 498K+ curated examples across electronics engineering domains.
 
 | Model | Domain | Examples | Base |
 |-------|--------|----------|------|
@@ -118,9 +118,10 @@ Mascarade fine-tunes outperform the top HuggingFace electronics model by +162% w
 
 | Repository | Description |
 |------------|-------------|
-| [Kill_LIFE](https://github.com/electron-rare/Kill_LIFE) | AI-native control plane for embedded systems (ESP32, STM32) |
-| [crazy_life](https://github.com/electron-rare/crazy_life) | Operator cockpit frontend (React + Vite, workflow editor) |
+| [Kill_LIFE](https://github.com/electron-rare/Kill_LIFE) | Spec-first agentic methodology for embedded systems (ESP32, STM32) |
+| [crazy_life](https://github.com/electron-rare/crazy_life) | React cockpit and workflow editor for Mascarade |
 | [prima-cpp](https://github.com/electron-rare/prima-cpp) | Distributed multi-node LLM inference (ring topology, NAT relay) |
+| [KiC-AI](https://github.com/electron-rare/KiC-AI) | AI-powered PCB design assistant for KiCad |
 
 ---
 
