@@ -66,7 +66,7 @@ search.get("/", async (c) => {
   // Fallback: search in event bus
   if (results.length === 0) {
     try {
-      const eventsRes = await fetch(`http://localhost:3000/openburo/events?limit=200`);
+      const eventsRes = await fetch(`http://localhost:3100/openburo/events?limit=200`);
       const eventsData = await eventsRes.json() as any;
 
       const qLower = q.toLowerCase();

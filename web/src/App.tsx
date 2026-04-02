@@ -17,6 +17,7 @@ const KillLifeWorkflowEditor = lazy(() => import("./pages/KillLifeWorkflowEditor
 const Calendar = lazy(() => import("./pages/Calendar"));
 const Mail = lazy(() => import("./pages/Mail"));
 const McpServers = lazy(() => import("./pages/McpServers"));
+const Documents = lazy(() => import("./pages/Documents"));
 
 function PageSpinner() {
   return (
@@ -65,6 +66,7 @@ export default function App() {
             <Route path="knowledge-base" element={<LegacyRedirect to="/knowledge" />} />
             <Route path="qdrant-knowledge" element={<LegacyRedirect to="/knowledge" />} />
             <Route path="finetune" element={<LegacyRedirect to="/training" />} />
+            <Route path="documents" element={<Documents />} />
             <Route
               path="*"
               element={<p className="text-sm text-center mt-20 text-[var(--error)]">404 - page introuvable</p>}

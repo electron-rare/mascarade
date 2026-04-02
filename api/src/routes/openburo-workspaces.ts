@@ -48,7 +48,7 @@ workspaces.post("/", async (c) => {
 
   // Publish event
   try {
-    await fetch("http://localhost:3000/openburo/events", {
+    await fetch("http://localhost:3100/openburo/events", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -115,7 +115,7 @@ workspaces.post("/:id/resources", async (c) => {
 
   // Publish event
   try {
-    await fetch("http://localhost:3000/openburo/events", {
+    await fetch("http://localhost:3100/openburo/events", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({

@@ -123,6 +123,66 @@ Mascarade fine-tunes outperform the top HuggingFace electronics model by +162% w
 | [prima-cpp](https://github.com/electron-rare/prima-cpp) | Distributed multi-node LLM inference (ring topology, NAT relay) |
 | [KiC-AI](https://github.com/electron-rare/KiC-AI) | AI-powered PCB design assistant for KiCad |
 
+## Services
+
+| Service | URL / Port | Description |
+| ------- | ---------- | ----------- |
+| **Mascarade Core** | `:8100` | Moteur Python (FastAPI), agents, routeur, P2P |
+| **Mascarade API** | `:3100` | Passerelle Node.js (Hono), auth, OpenAI compat, routage Ollama multi-machine |
+| **mascarade.saillant.cc** | HTTPS | Point d'entree public (via Traefik sur photon) |
+| **Grafana** | `:3000` | Tableaux de bord, metriques, logs |
+| **Langfuse** | `:3001` | Observabilite LLM, traces, couts |
+| **Argilla** | `:6900` | Labeling de donnees pour fine-tuning |
+| **Qdrant** | `:6333` | Base vectorielle (RAG + embeddings bge-m3) |
+| **SearXNG** | `:4000` | Meta-moteur de recherche (fallback CRAG) |
+| **Docling** | `:5010` | Extraction et traitement de documents |
+| **Browser-Use** | `:8910` | Automatisation navigateur par agents |
+| **n8n** | `:5678` | Automatisation de workflows |
+| **Drive** | `:8086` | Frontend gestionnaire de fichiers, connecte aux editeurs de la Suite Numerique |
+| **Nextcloud** | `:8088` | Backend stockage / WebDAV pour Drive et les synchronisations Mascarade |
+| **Neo4j + Graphiti** | `:7474` | Graphe de connaissances |
+| **Ollama (Tower)** | `:11434` | Inference CPU (modeles legers : qwen3:4b) |
+| **Ollama (KXKM-AI)** | tunnel SSH | Inference GPU RTX 4090 (albert, mistral:7b, devstral, qwen3:8b, bge-m3) |
+| **LiteLLM** | `:4000` | Proxy multi-provider |
+| **train.saillant.cc** | HTTPS | Interface d'entrainement |
+
+### Agents production (9)
+
+| Agent | Role |
+| ----- | ---- |
+| **ops-monitor** | Surveillance infrastructure et alertes |
+| **ops-deployer** | Deploiement automatise des services |
+| **ops-incident** | Gestion des incidents et escalade |
+| **ops-healthcheck** | Verification de sante des services |
+| **ops-security** | Audit de securite et conformite |
+| **web-researcher** | Recherche web via SearXNG + Browser-Use |
+| **lead-scorer** | Scoring et qualification de leads |
+| **dolibarr-assistant** | Assistant ERP Dolibarr |
+| **grist-data** | Gestion de donnees Grist |
+
+---
+
+## La Suite Numerique (DINUM) -- 8 services
+
+Integration avec l'ecosysteme souverain francais. SSO unifie via Keycloak (`auth.saillant.cc`, realm `electron_rare`), avec callback OAuth partage sur `https://auth.saillant.cc/_oauth`.
+
+| Service | Description | Port |
+| ------- | ----------- | ---- |
+| **Conversations** (Albert) | Messagerie IA souveraine, base Mistral | `:8082` |
+| **Meet** | Visioconference (LiveKit) | `:8084` |
+| **Impress** | Documents collaboratifs (Y.js) | `:8073` |
+| **Keycloak** (ProConnect) | SSO unifie, auth.saillant.cc | `:8085` |
+| **Drive** | Frontend gestionnaire des fichiers, avec ouverture vers les editeurs de la suite | `:8086` |
+| **Grist** | Tableur collaboratif | `:8484` |
+| **Dolibarr** | ERP / CRM | `:8488` |
+| **Matrix** | Messagerie federee | `:8008` |
+| **data.gouv.fr MCP** | 74 000+ datasets publics via MCP | -- |
+
+Repos de reference : [numerique-gouv](https://github.com/orgs/numerique-gouv), [suitenumerique](https://github.com/orgs/suitenumerique)
+
+Pour l'integration applicative, Open Buro expose `POST /openburo/files/resolve-open` afin de preferer une ouverture dans l'editeur adapte quand le type de fichier est editable dans la suite, sinon basculer vers Drive, puis seulement vers un telechargement explicite. Cette route est le point de passage obligatoire pour l'ouverture documentaire; l'UI ne doit pas ouvrir des URLs brutes.
+Le repo expose aussi `GET /openburo/files/resolve-open`, `GET /openburo/files/by-business-object`, l'alias `GET /files/by-business-object`, ainsi que `POST /dolibarr/sync/customer`, `POST /dolibarr/sync/invoice` et `POST /dolibarr/sync/proposal` pour garder Dolibarr comme referentiel metier et deleguer la resolution documentaire a Mascarade.
+
 ---
 
 ## License

@@ -62,7 +62,7 @@ type AuditEntry = {
 
 const SERVICE_MANIFEST: ServiceDef[] = [
   { name: "mascarade-core", machine: "photon", port: 8000 },
-  { name: "mascarade-api", machine: "Tower", port: 8080 },
+  { name: "mascarade-api", machine: "Tower", port: 3100 },
   { name: "argilla", machine: "Tower", port: 6900 },
   { name: "langfuse", machine: "Tower", port: 3000 },
   { name: "ollama", machine: "KXKM-AI", port: 11434 },
@@ -90,7 +90,8 @@ const EXTERNAL_LINKS = [
   { label: "Grafana", url: "http://192.168.0.119:3100" },
   { label: "Langfuse", url: "http://192.168.0.120:3000" },
   { label: "Argilla", url: "http://192.168.0.120:6900" },
-  { label: "Nextcloud", url: "http://192.168.0.120:8082" },
+  { label: "Drive (frontend)", url: "http://192.168.0.120:8086" },
+  { label: "Nextcloud (backend)", url: "http://192.168.0.120:8088" },
 ];
 
 /* ------------------------------------------------------------------ */
@@ -751,9 +752,9 @@ const FLEET_MANIFEST_DATA: {
   services: string[];
   hasGpu: boolean;
 }[] = [
-  { name: "photon", ip: "192.168.0.119", role: "Prod, core + API Docker", services: ["core", "gateway", "qdrant", "searxng", "comfyui"], hasGpu: false },
+  { name: "photon", ip: "192.168.0.119", role: "Prod, edge proxy + public entrypoint", services: ["edge-proxy", "gateway", "qdrant", "searxng", "comfyui"], hasGpu: false },
   { name: "KXKM-AI", ip: "100.87.54.119", role: "GPU RTX 4090, finetune", services: ["ollama", "finetune", "comfyui", "argilla"], hasGpu: true },
-  { name: "Tower", ip: "192.168.0.120", role: "Argilla, Nextcloud", services: ["argilla", "nextcloud", "ollama"], hasGpu: true },
+  { name: "Tower", ip: "192.168.0.120", role: "API, Drive frontend, Nextcloud backend", services: ["mascarade-api", "drive", "nextcloud", "ollama"], hasGpu: true },
   { name: "grosmac", ip: "100.80.178.42", role: "Dev", services: ["core", "ollama", "dev-gateway"], hasGpu: false },
   { name: "Cils", ip: "100.126.225.111", role: "macOS Intel", services: ["ollama"], hasGpu: false },
 ];

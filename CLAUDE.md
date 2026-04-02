@@ -103,7 +103,7 @@ docker compose up                       # full stack from project root
 - No local model loading during dev (use remote providers)
 
 ## Suite Numerique (8 services)
-All services on Tower, routed via Traefik on photon. SSO: Keycloak `auth.saillant.cc` (realm `zacus`). Shared DB: mascarade-postgres + Redis.
+All services on Tower, routed via Traefik on photon. SSO: Keycloak `auth.saillant.cc` (realm `electron_rare`) with shared callback `https://auth.saillant.cc/_oauth`. Shared DB: mascarade-postgres + Redis.
 
 Key services: Conversations (:8082), Docs/Impress (:8073), Meet (:8084), Drive (:8086), Grist (:8484), Dolibarr/ERP (:8488), Matrix (:8008), Keycloak (:8085).
 

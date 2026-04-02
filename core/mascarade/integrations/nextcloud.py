@@ -4,11 +4,11 @@ Sync datasets, models, and training artifacts via Nextcloud.
 Uses WebDAV protocol — works with any Nextcloud instance.
 """
 
-import httpx
 import os
-import json
 from pathlib import Path
-from typing import Optional
+from typing import Any
+
+import httpx
 
 class NextcloudClient:
     """Nextcloud WebDAV client for mascarade data management."""
@@ -30,6 +30,13 @@ class NextcloudClient:
     def is_configured(self) -> bool:
         return bool(self.url and self.username and self.password)
 
+    def _health_headers(self) -> dict[str, str]:
+        headers: dict[str, str] = {}
+        host_header = os.environ.get("NEXTCLOUD_HOST_HEADER", "").strip()
+        if host_header:
+            headers["Host"] = host_header
+        return headers
+
     def _request(self, method: str, path: str, **kwargs) -> httpx.Response:
         url = f"{self.webdav_url}{self.base_path}/{path}".rstrip("/")
         return httpx.request(
@@ -38,6 +45,61 @@ class NextcloudClient:
             timeout=60,
             **kwargs,
         )
+
+    def healthcheck(self) -> dict[str, Any]:
+        """Check if Nextcloud is reachable on this deployment.
+
+        `status.php` is the preferred probe, but some Tower deployments only
+        validate correctly through the authenticated WebDAV endpoint.
+        """
+
+        headers = self._health_headers()
+        status_url = os.environ.get("NEXTCLOUD_HEALTHCHECK_URL", f"{self.url}/status.php")
+        try:
+            response = httpx.get(status_url, headers=headers, timeout=10, follow_redirects=True)
+            if response.status_code == 200:
+                try:
+                    payload = response.json()
+                except ValueError:
+                    payload = None
+                return {
+                    "ok": True,
+                    "probe": "status.php",
+                    "status_code": response.status_code,
+                    "url": status_url,
+                    "payload": payload,
+                }
+        except httpx.HTTPError as exc:
+            status_error = str(exc)
+        else:
+            status_error = f"unexpected status {response.status_code}"
+
+        dav_url = f"{self.url}/remote.php/dav/files/{self.username}/"
+        try:
+            dav_response = httpx.request(
+                "PROPFIND",
+                dav_url,
+                auth=(self.username, self.password),
+                headers={**headers, "Depth": "0"},
+                timeout=10,
+            )
+            return {
+                "ok": dav_response.status_code == 207,
+                "probe": "webdav",
+                "status_code": dav_response.status_code,
+                "url": dav_url,
+                "detail": "authenticated WebDAV probe",
+                "status_error": status_error,
+            }
+        except httpx.HTTPError as exc:
+            return {
+                "ok": False,
+                "probe": "webdav",
+                "status_code": 0,
+                "url": dav_url,
+                "detail": str(exc),
+                "status_error": status_error,
+            }
 
     def mkdir(self, path: str) -> bool:
         """Create directory on Nextcloud."""

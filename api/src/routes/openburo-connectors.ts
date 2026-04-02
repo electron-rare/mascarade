@@ -42,7 +42,7 @@ connectors.post("/grist/webhook", async (c) => {
   const published: string[] = [];
   for (const event of events) {
     try {
-      const res = await fetch("http://localhost:3000/openburo/events", {
+      const res = await fetch("http://localhost:3100/openburo/events", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(event),
@@ -114,7 +114,7 @@ connectors.post("/dolibarr/webhook", async (c) => {
   };
 
   try {
-    const res = await fetch("http://localhost:3000/openburo/events", {
+    const res = await fetch("http://localhost:3100/openburo/events", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(event),
@@ -139,7 +139,7 @@ connectors.post("/n8n/webhook", async (c) => {
   }
 
   try {
-    const res = await fetch("http://localhost:3000/openburo/events", {
+    const res = await fetch("http://localhost:3100/openburo/events", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
@@ -171,7 +171,7 @@ connectors.get("/status", (c) => {
         app: "dolibarr",
         type: "webhook",
         endpoint: "/openburo/connectors/dolibarr/webhook",
-        status: "pending_api_activation",
+        status: "active",
         setup: "Dolibarr → Setup → Modules → Enable API + Triggers",
       },
       {

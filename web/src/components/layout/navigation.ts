@@ -125,6 +125,17 @@ export const navigationGroups: NavGroup[] = [
         description: "Editeur graphique de workflows embarques, validation locale et dispatch GitHub depuis le cockpit.",
         section: "Integrations",
       },
+      {
+        to: "/documents",
+        icon: "\u25A5",
+        label: "Documents",
+        shortLabel: "Docs",
+        hint: "drive + resolver + dolibarr",
+        eyebrow: "document lane",
+        title: "Documents",
+        description: "Resolution documentaire pour les objets metier: Dolibarr sait quoi, Mascarade sait comment ouvrir.",
+        section: "Integrations",
+      },
     ],
   },
 ];
