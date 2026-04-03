@@ -1,11 +1,18 @@
 services:
   kicad-headless:
-    image: kicad/kicad:${KICAD_IMAGE_TAG:-10.0}
+    image: kicad/kicad:${KICAD_IMAGE_TAG:-9.0}
     container_name: mascarade-kicad-headless
     working_dir: /workspace
     command: ["sleep", "infinity"]
     volumes:
       - ${CAD_WORKSPACE_DIR:-../..}:/workspace
+    networks:
+      - cad-net
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 1G
 
   kicad-mcp:
     build:
@@ -13,11 +20,20 @@ services:
       dockerfile: ../../deploy/cad/Dockerfile.kicad-mcp
     container_name: mascarade-kicad-mcp
     working_dir: /workspace
-    command: ["sleep", "infinity"]
     environment:
       KICAD_PYTHON: /usr/bin/python3
+      MCP_TRANSPORT: http
+    ports:
+      - "8300:8300"
     volumes:
       - ${CAD_WORKSPACE_DIR:-../..}:/workspace
+    networks:
+      - cad-net
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 512M
 
   freecad-headless:
     build:
@@ -28,6 +44,13 @@ services:
     command: ["sleep", "infinity"]
     volumes:
       - ${CAD_WORKSPACE_DIR:-../..}:/workspace
+    networks:
+      - cad-net
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 512M
 
   platformio:
     build:
@@ -38,3 +61,14 @@ services:
     command: ["sleep", "infinity"]
     volumes:
       - ${CAD_WORKSPACE_DIR:-../..}:/workspace
+    networks:
+      - cad-net
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 1G
+
+networks:
+  cad-net:
+    name: cad-net

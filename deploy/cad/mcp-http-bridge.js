@@ -35,6 +35,8 @@ if (TRANSPORT === "stdio") {
   let requestId = 1;
   let pending = new Map();
   let buffer = "";
+  let writeQueue = [];
+  let isProcessing = false;
 
   function startMcp() {
     const [cmd, ...args] = MCP_CMD.split(" ");
@@ -53,8 +55,11 @@ if (TRANSPORT === "stdio") {
           const msg = JSON.parse(line);
           const id = msg.id;
           if (id != null && pending.has(id)) {
-            pending.get(id)(msg);
+            const { resolve } = pending.get(id);
             pending.delete(id);
+            isProcessing = false;
+            resolve(msg);
+            processQueue();
           }
         } catch {
           // ignore non-JSON lines
@@ -65,27 +70,39 @@ if (TRANSPORT === "stdio") {
     mcpProcess.on("exit", (code) => {
       console.error(`[mcp-bridge] MCP process exited with code ${code}`);
       // Reject all pending requests
-      for (const [, reject] of pending) {
-        reject({ error: { code: -1, message: "MCP process exited" } });
+      for (const [, { reject }] of pending) {
+        reject(new Error("MCP process exited"));
       }
       pending.clear();
+      writeQueue = [];
+      isProcessing = false;
       // Restart after delay
       setTimeout(startMcp, 2000);
     });
+  }
+
+  function processQueue() {
+    if (isProcessing || writeQueue.length === 0) return;
+    isProcessing = true;
+    const { msg, id, method } = writeQueue.shift();
+    console.error(`[mcp-bridge] ${new Date().toISOString()} REQ id=${id} method=${method}`);
+    mcpProcess.stdin.write(msg + "\n");
   }
 
   function sendRequest(method, params = {}) {
     return new Promise((resolve, reject) => {
       const id = requestId++;
       const msg = JSON.stringify({ jsonrpc: "2.0", id, method, params });
-      pending.set(id, resolve);
+      pending.set(id, { resolve, reject });
       setTimeout(() => {
         if (pending.has(id)) {
           pending.delete(id);
           reject(new Error("MCP request timeout"));
+          processQueue();
         }
       }, 30000);
-      mcpProcess.stdin.write(msg + "\n");
+      writeQueue.push({ msg, id, method });
+      processQueue();
     });
   }
 

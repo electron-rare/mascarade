@@ -1,0 +1,31 @@
+services:
+  makelife-cad:
+    build: .
+    container_name: makelife-cad
+    restart: unless-stopped
+    ports:
+      - "8500:8500"
+    volumes:
+      - ${CAD_WORKSPACE_DIR:-../../..}:/workspace
+    environment:
+      KICAD_MCP_URL: http://mascarade-kicad-mcp:8300
+      WORKSPACE_DIR: /workspace
+      RAG_URL: http://192.168.0.120:8100
+      OLLAMA_URL: http://192.168.0.120:11434
+      OLLAMA_FALLBACK_URL: http://192.168.0.120:11435
+      PRIMARY_MODEL: mellum-4b
+      FALLBACK_MODEL: qwen3:8b
+      AUTH_ENABLED: "false"
+      DOLIBARR_URL: http://192.168.0.120:8488
+      DOLIBARR_API_KEY: doli2026
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 512M
+    networks:
+      - cad-net
+
+networks:
+  cad-net:
+    external: true
