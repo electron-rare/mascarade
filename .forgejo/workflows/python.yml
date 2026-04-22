@@ -1,0 +1,71 @@
+name: CI (Python)
+
+on:
+  push:
+    branches: [main, master, develop]
+    paths-ignore: ['**/*.md', 'docs/**']
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-python-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint-and-test:
+    name: Lint & Test (py${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12", "3.13"]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 1
+
+      - name: Install uv
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Setup Python ${{ matrix.python-version }}
+        run: uv python install ${{ matrix.python-version }}
+
+      - name: Cache uv
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/uv
+          key: uv-${{ runner.os }}-py${{ matrix.python-version }}-${{ hashFiles('**/uv.lock', '**/pyproject.toml') }}
+          restore-keys: uv-${{ runner.os }}-py${{ matrix.python-version }}-
+
+      - name: Install dependencies
+        run: |
+          if [ -f pyproject.toml ]; then
+            uv sync --all-extras --dev || uv sync
+          elif [ -f requirements.txt ]; then
+            uv venv && uv pip install -r requirements.txt
+          fi
+
+      - name: Ruff (lint)
+        run: uv run ruff check . || echo "::warning::ruff not configured or found issues"
+        continue-on-error: true
+
+      - name: Ruff (format check)
+        run: uv run ruff format --check . || echo "::warning::format drift"
+        continue-on-error: true
+
+      - name: Mypy (type check)
+        run: uv run mypy . || echo "::warning::mypy not configured"
+        continue-on-error: true
+
+      - name: Pytest
+        run: |
+          if [ -d tests ] || [ -d test ] || ls test_*.py 2>/dev/null; then
+            uv run python -m pytest -v --tb=short
+          else
+            echo "::notice::no tests directory found, skipping"
+          fi
