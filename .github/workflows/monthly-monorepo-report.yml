@@ -15,7 +15,7 @@ jobs:
     name: Generate monthly monorepo report
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Build metrics report
         uses: actions/github-script@v7
